@@ -394,24 +394,13 @@ const IChannelPtr& TClient::GetOperationArchiveChannel(EMasterChannelKind kind)
         }
     }
 
-    // COMPAT(levysotsky): If user "operations_client" does not exist, fallback to "application_operations".
-    TString operationsClientUserName;
-    {
-        auto path = GetUserPath(OperationsClientUserName);
-        if (DoNodeExists(path, TNodeExistsOptions())) {
-            operationsClientUserName = OperationsClientUserName;
-        } else {
-            operationsClientUserName = "application_operations";
-        }
-    }
-
     TEnumIndexedVector<EMasterChannelKind, NRpc::IChannelPtr> channels;
     for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
         // NOTE(asaitgalin): Cache is tied to user so to utilize cache properly all Cypress
         // requests for operations archive should be performed under the same user.
         channels[kind] = CreateAuthenticatedChannel(
             Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
-            operationsClientUserName);
+            OperationsClientUserName);
     }
 
     {
@@ -1125,7 +1114,7 @@ TYsonString TClient::DoGetOperation(
         // The operation is missing from Cypress and the archive request finished with errors.
         // If it is timeout error, we retry without timeout.
         // Otherwise we throw the error as there is no hope.
-        if (archiveResultOrError.GetCode() != NYT::EErrorCode::Timeout) {
+        if (!archiveResultOrError.FindMatching(NYT::EErrorCode::Timeout)) {
             archiveResultOrError.ThrowOnError();
         }
         archiveResult = DoGetOperationFromArchive(operationId, deadline, archiveOptions);

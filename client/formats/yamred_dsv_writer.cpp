@@ -132,7 +132,7 @@ private:
                 firstColumn = false;
             }
             if (!RowValues_[id]) {
-                THROW_ERROR_EXCEPTION("Key column %Qv is missing",
+                THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::FormatCannotRepresentRow, "Key column %Qv is missing",
                     NameTableReader_->GetName(id));
             }
             WriteUnversionedValue(*RowValues_[id], stream, ValueEscapeTable_);

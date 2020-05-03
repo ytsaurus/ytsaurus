@@ -65,7 +65,7 @@ private:
 void BrotliCompress(int level, StreamSource* source, TBlob* output)
 {
     ui64 totalInputSize = source->Available();
-    output->Resize(sizeof(totalInputSize));
+    output->Resize(sizeof(totalInputSize), /* initializeStorage */ false);
 
     // Write input size that will be used during decompression.
     TMemoryOutput memoryOutput(output->Begin(), sizeof(totalInputSize));
@@ -92,7 +92,7 @@ void BrotliDecompress(StreamSource* source, TBlob* output)
 {
     ui64 outputSize;
     ReadPod(source, outputSize);
-    output->Resize(outputSize);
+    output->Resize(outputSize, /* initializeStorage */ false);
 
     TBrotliStreamSourceIn sourceAdaptor(source);
 

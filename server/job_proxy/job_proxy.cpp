@@ -691,7 +691,7 @@ TStatistics TJobProxy::GetStatistics() const
             auto cpuStatistics = environment->GetCpuStatistics();
             statistics.AddSample("/job_proxy/cpu", cpuStatistics);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Unable to get cpu statistics from resource controller");
+            YT_LOG_ERROR(ex, "Unable to get CPU statistics from resource controller");
         }
 
         try {
@@ -924,7 +924,7 @@ bool TJobProxy::TrySetCpuShare(double cpuShare)
         try {
             environment->SetCpuShare(cpuShare);
         } catch (const std::exception& ex) {
-            YT_LOG_ERROR(ex, "Failed to set cpu share (OldCpuShare: %v, NewCpuShare: %v)",
+            YT_LOG_ERROR(ex, "Failed to set CPU share (OldCpuShare: %v, NewCpuShare: %v)",
                 CpuShare_.load(),
                 cpuShare);
             return false;

@@ -19,6 +19,15 @@ public:
         Enabled_ = value;
     }
 
+    Y_FORCE_INLINE void SetLowerWriteCountDumpLimit(i64 lowerLimit)
+    {
+        LowerWriteCountDumpLimit_ = lowerLimit;
+    }
+
+    Y_FORCE_INLINE void SetUpperWriteCountDumpLimit(i64 upperLimit)
+    {
+        UpperWriteCountDumpLimit_ = upperLimit;
+    }
 
     Y_FORCE_INLINE void Indent()
     {
@@ -59,6 +68,15 @@ public:
         if (!IsActive())
             return;
 
+        if (WriteCount_ < LowerWriteCountDumpLimit_) {
+            ++WriteCount_;
+            return;
+        }
+        if (WriteCount_ >= UpperWriteCountDumpLimit_) {
+            SetEnabled(false);
+            return;
+        }
+
         TStringBuilder builder;
         builder.AppendString("DUMP ");
         builder.AppendChar(' ', IndentCount_ * 2);
@@ -66,6 +84,23 @@ public:
         builder.AppendChar('\n');
         auto buffer = builder.GetBuffer();
         fwrite(buffer.begin(), buffer.length(), 1, stderr);
+
+        ++WriteCount_;
+    }
+
+    void IncrementWriteCountIfNotSuspended()
+    {
+        if (!IsSuspended()) {
+            ++WriteCount_;
+        }
+    }
+
+    void ReportWriteCount()
+    {
+        TStringBuilder builder;
+        builder.AppendFormat("%v\n", WriteCount_);
+        auto buffer = builder.GetBuffer();
+        fwrite(buffer.begin(), buffer.length(), 1, stdout);
     }
 
 private:
@@ -73,6 +108,9 @@ private:
     int IndentCount_ = 0;
     int SuspendCount_ = 0;
 
+    i64 WriteCount_ = 0;
+    i64 LowerWriteCountDumpLimit_ = 0;
+    i64 UpperWriteCountDumpLimit_ = std::numeric_limits<i64>::max();
 };
 
 class TSerializeDumpIndentGuard
@@ -145,7 +183,10 @@ private:
 
 #define SERIALIZATION_DUMP_WRITE(context, ...) \
     if (Y_LIKELY(!(context).Dumper().IsActive())) \
-        { } \
+    { \
+        if ((context).GetEnableTotalWriteCountReport()) \
+            (context).Dumper().IncrementWriteCountIfNotSuspended(); \
+    } \
     else \
         (context).Dumper().Write(__VA_ARGS__)
 

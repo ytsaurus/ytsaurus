@@ -70,6 +70,8 @@ struct IJobHost
     virtual NConcurrency::IThroughputThrottlerPtr GetOutRpsThrottler() const = 0;
 
     virtual TString AdjustPath(const TString& path) const = 0;
+
+    virtual IInvokerPtr GetControlInvoker() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)
@@ -91,7 +93,7 @@ struct IJob
 
     virtual double GetProgress() const = 0;
 
-    virtual ui64 GetStderrSize() const = 0;
+    virtual i64 GetStderrSize() const = 0;
 
     virtual std::optional<TString> GetFailContext() = 0;
 

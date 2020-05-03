@@ -28,35 +28,35 @@ class HttpProxyTestBase(YTEnvSetup):
         },
     }
 
-    def proxy_address(self):
+    def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 
-    def build_snapshot_url(self):
-        return self.proxy_address() + "/api/v4/build_snapshot"
+    def _get_build_snapshot_url(self):
+        return self._get_proxy_address() + "/api/v4/build_snapshot"
 
-    def discover_master(self):
+    def _get_master_address(self):
         return ls("//sys/primary_masters")[0]
 
-    def hydra_monitor(self, master=None):
+    def _get_hydra_monitoring(self, master=None):
         if master is None:
-            master = self.discover_master()
-        return get("//sys/primary_masters/{}/orchid/monitoring/hydra".format(master))
+            master = self._get_master_address()
+        return get("//sys/primary_masters/{}/orchid/monitoring/hydra".format(master), default={})
 
 
 class TestHttpProxy(HttpProxyTestBase):
     @authors("prime")
     def test_ping(self):
-        rsp = requests.get(self.proxy_address() + "/ping")
+        rsp = requests.get(self._get_proxy_address() + "/ping")
         rsp.raise_for_status()
 
     @authors("prime")
     def test_version(self):
-        rsp = requests.get(self.proxy_address() + "/version")
+        rsp = requests.get(self._get_proxy_address() + "/version")
         rsp.raise_for_status()
 
     @authors("prime")
     def test_service(self):
-        service = requests.get(self.proxy_address() + "/service").json()
+        service = requests.get(self._get_proxy_address() + "/service").json()
         assert "version" in service
         assert "start_time" in service
 
@@ -67,12 +67,12 @@ class TestHttpProxy(HttpProxyTestBase):
         def get_yson(url):
             return yson.loads(requests.get(url).text)
 
-        assert [proxy] == get_yson(self.proxy_address() + "/hosts")
-        assert [proxy] == get_yson(self.proxy_address() + "/hosts?role=data")
-        assert [] == get_yson(self.proxy_address() + "/hosts?role=control")
+        assert [proxy] == get_yson(self._get_proxy_address() + "/hosts")
+        assert [proxy] == get_yson(self._get_proxy_address() + "/hosts?role=data")
+        assert [] == get_yson(self._get_proxy_address() + "/hosts?role=control")
 
         def make_request_and_check_metric(metric):
-            url = self.proxy_address() + "/api/v3/get?path=//sys/@config"
+            url = self._get_proxy_address() + "/api/v3/get?path=//sys/@config"
             requests.get(url)
             return metric.update().get(verbose=True) > 0
 
@@ -87,9 +87,9 @@ class TestHttpProxy(HttpProxyTestBase):
         set("//sys/proxies/" + proxy + "/@role", "control")
 
         # Wait until the proxy entry will be updated on the coordinator.
-        wait(lambda: [] == get_yson(self.proxy_address() + "/hosts"))
-        assert [] == get_yson(self.proxy_address() + "/hosts?role=data")
-        assert [proxy] == get_yson(self.proxy_address() + "/hosts?role=control")
+        wait(lambda: [] == get_yson(self._get_proxy_address() + "/hosts"))
+        assert [] == get_yson(self._get_proxy_address() + "/hosts?role=data")
+        assert [proxy] == get_yson(self._get_proxy_address() + "/hosts?role=control")
 
         control_metric = Metric.at_proxy(
             proxy,
@@ -99,18 +99,18 @@ class TestHttpProxy(HttpProxyTestBase):
 
         wait(lambda: make_request_and_check_metric(control_metric))
 
-        hosts = requests.get(self.proxy_address() + "/hosts/all").json()
+        hosts = requests.get(self._get_proxy_address() + "/hosts/all").json()
         assert len(hosts) == 1
         assert not hosts[0]["banned"]
 
     @authors("prime")
     def test_supported_api_versions(self):
-        assert ["v3", "v4"] == requests.get(self.proxy_address() + "/api").json()
+        assert ["v3", "v4"] == requests.get(self._get_proxy_address() + "/api").json()
 
     @authors("prime")
     def test_discover_versions(self):
-        rsp = requests.get(self.proxy_address() + "/internal/discover_versions").json()
-        service = requests.get(self.proxy_address() + "/service").json()
+        rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions").json()
+        service = requests.get(self._get_proxy_address() + "/service").json()
 
         assert len(rsp["primary_masters"]) == 1
         assert len(rsp["secondary_masters"]) == 2
@@ -127,12 +127,19 @@ class TestHttpProxy(HttpProxyTestBase):
 
     @authors("prime")
     def test_discover_versions_v2(self):
-        rsp = requests.get(self.proxy_address() + "/internal/discover_versions/v2")
+        rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions/v2")
         rsp.raise_for_status()
 
         versions = rsp.json()
         assert "details" in versions
         assert "summary" in versions
+
+    @authors("prime")
+    def test_cache_control(self):
+        rsp = requests.get(self._get_proxy_address() + "/api/v4/get?path=//@")
+        rsp.raise_for_status()
+
+        assert rsp.headers['cache-control'] == 'no-cache'
 
     @authors("prime")
     def test_dynamic_config(self):
@@ -157,7 +164,7 @@ class TestHttpProxy(HttpProxyTestBase):
         set("//sys/rpc_proxies/test_rpc_proxy/@start_time", "2009-06-19T16:39:02.171721Z")
         set("//sys/rpc_proxies/test_rpc_proxy/@version", "19.5.30948-master-ya~c9facaeaca")
 
-        rsp = requests.get(self.proxy_address() + "/internal/discover_versions/v2")
+        rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions/v2")
         rsp.raise_for_status()
 
         status = rsp.json()
@@ -186,7 +193,7 @@ class TestHttpProxy(HttpProxyTestBase):
 
     @authors("greatkorn")
     def test_fail_logging(self):
-        requests.get(self.proxy_address() + "/api/v2/get")
+        requests.get(self._get_proxy_address() + "/api/v2/get")
 
 
 class TestHttpProxyFraming(HttpProxyTestBase):
@@ -243,7 +250,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
             'X-YT-Header-Format': "<format=text>yson",
             'X-YT-Output-Format': "<format=text>yson"
         }
-        rsp = requests.get(self.proxy_address() + "/api/v4/get", headers=headers)
+        rsp = requests.get(self._get_proxy_address() + "/api/v4/get", headers=headers)
         rsp.raise_for_status()
         assert "X-YT-Framing" in rsp.headers
         unframed_content = self._unframe_content(rsp.content)
@@ -277,21 +284,20 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
             'X-YT-Output-Format': "<format=text>yson"
         }
 
-        rsp = requests.post(self.build_snapshot_url(), headers=headers)
+        rsp = requests.post(self._get_build_snapshot_url(), headers=headers)
         rsp.raise_for_status()
 
         return yson.loads(rsp.text)["snapshot_id"]
 
     def _wait_for_snapshot_state(self, building_snapshot=None, last_snapshot_id=None):
-        master = self.discover_master()
+        master = self._get_master_address()
 
         def predicate():
-            monitor = self.hydra_monitor(master)
-            flag_building = building_snapshot is None or monitor["building_snapshot"] == building_snapshot
-            flag_last = last_snapshot_id is None or monitor["last_snapshot_id"] == last_snapshot_id
-            return flag_building and flag_last
-
-        wait(predicate, "Expected state is not reached")
+            monitoring = self._get_hydra_monitoring(master)
+            return \
+                (building_snapshot is None or monitoring.get("building_snapshot", None) == building_snapshot) and \
+                (last_snapshot_id is None or monitoring.get("last_snapshot_id", None) == last_snapshot_id)
+        wait(predicate)
 
 
 class TestHttpProxyBuildSnapshotNoReadonly(TestHttpProxyBuildSnapshotBase):
@@ -310,7 +316,9 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
         self._wait_for_snapshot_state(True, -1)
         self._wait_for_snapshot_state(False)
 
-        assert self.hydra_monitor()["read_only"]
+        wait(lambda: self._get_hydra_monitoring().get("read_only", None))
 
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
+
+        wait(lambda: not self._get_hydra_monitoring().get("read_only", None))

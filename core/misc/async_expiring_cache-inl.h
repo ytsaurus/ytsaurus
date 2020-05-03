@@ -20,6 +20,7 @@ TAsyncExpiringCache<TKey, TValue>::TEntry::TEntry(NProfiling::TCpuInstant access
     : AccessDeadline(accessDeadline)
     , UpdateDeadline(std::numeric_limits<NProfiling::TCpuInstant>::max())
     , Promise(NewPromise<TValue>())
+    , Future(Promise.ToFuture().ToUncancelable())
 { }
 
 template <class TKey, class TValue>
@@ -57,7 +58,7 @@ typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCac
             if (!entry->IsExpired(now)) {
                 Profiler_.Increment(HitCounter_);
                 entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
-                return {entry->Promise, false};
+                return {entry->Future, false};
             }
         }
     }
@@ -75,21 +76,21 @@ typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCac
             } else {
                 Profiler_.Increment(HitCounter_);
                 entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
-                return {entry->Promise, false};
+                return {entry->Future, false};
             }
         }
 
         Profiler_.Increment(MissedCounter_);
         auto accessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
         auto entry = New<TEntry>(accessDeadline);
-        auto promise = entry->Promise;
+        auto future = entry->Future;
         // NB: we don't want to hold a strong reference to entry after releasing the guard, so we make a weak reference here.
         auto weakEntry = MakeWeak(entry);
         YT_VERIFY(Map_.emplace(key, std::move(entry)).second);
         Profiler_.Update(SizeCounter_, Map_.size());
         guard.Release();
         InvokeGet(weakEntry, key, /* isPeriodicUpdate */ false);
-        return {promise, true};
+        return {future, true};
     }
 }
 
@@ -118,7 +119,7 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
                 const auto& entry = it->second;
                 if (!entry->IsExpired(now)) {
                     Profiler_.Increment(HitCounter_);
-                    results[index] = entry->Promise;
+                    results[index] = entry->Future;
                     entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
                     continue;
                 }
@@ -144,7 +145,7 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
                     Map_.erase(it);
                 } else {
                     Profiler_.Increment(HitCounter_);
-                    results[index] = entry->Promise;
+                    results[index] = entry->Future;
                     entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
                     continue;
                 }
@@ -157,7 +158,7 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
 
             invokeIndexes.push_back(index);
             invokeEntries.push_back(entry);
-            results[index] = entry->Promise;
+            results[index] = entry->Future;
 
             YT_VERIFY(Map_.emplace(key, std::move(entry)).second);
         }
@@ -189,7 +190,7 @@ std::optional<TErrorOr<TValue>> TAsyncExpiringCache<TKey, TValue>::Find(const TK
         if (!entry->IsExpired(now) && entry->Promise.IsSet()) {
             entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
             Profiler_.Increment(HitCounter_);
-            return entry->Promise.Get();
+            return entry->Future.Get();
         }
     }
     Profiler_.Increment(MissedCounter_);
@@ -212,7 +213,7 @@ std::vector<std::optional<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::
             const auto& entry = it->second;
             if (!entry->IsExpired(now) && entry->Promise.IsSet()) {
                 Profiler_.Increment(HitCounter_);
-                results[index] = entry->Promise.Get();
+                results[index] = entry->Future.Get();
                 entry->AccessDeadline = now + NProfiling::DurationToCpuDuration(Config_->ExpireAfterAccessTime);
             } else {
                 Profiler_.Increment(MissedCounter_);
@@ -252,6 +253,7 @@ void TAsyncExpiringCache<TKey, TValue>::Set(const TKey& key, TErrorOr<TValue> va
             entry->Promise.Set(std::move(valueOrError));
         } else {
             entry->Promise = MakePromise(std::move(valueOrError));
+            entry->Future = entry->Promise.ToFuture();
         }
         if (expirationTime == TDuration::Zero()) {
             Map_.erase(it);
@@ -284,9 +286,9 @@ void TAsyncExpiringCache<TKey, TValue>::Clear()
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
     if (!Config_->BatchUpdate) {
-        for (const auto& pair : Map_) {
-            if (pair.second->Promise.IsSet()) {
-                NConcurrency::TDelayedExecutor::CancelAndClear(pair.second->ProbationCookie);
+        for (const auto& [key, entry] : Map_) {
+            if (entry->Promise.IsSet()) {
+                NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
             }
         }
     }
@@ -319,6 +321,7 @@ void TAsyncExpiringCache<TKey, TValue>::SetResult(
     entry->UpdateDeadline = now + NProfiling::DurationToCpuDuration(expirationTime);
     if (entry->Promise.IsSet()) {
         entry->Promise = MakePromise(valueOrError);
+        entry->Future = entry->Promise.ToFuture();
     } else {
         entry->Promise.Set(valueOrError);
     }
@@ -441,7 +444,7 @@ void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
             if (entry->Promise.IsSet()) {
                 if (now > entry->AccessDeadline) {
                     expiredKeys.push_back(key);
-                } else if (entry->Promise.Get().IsOK()) {
+                } else if (entry->Future.Get().IsOK()) {
                     keys.push_back(key);
                     entries.push_back(MakeWeak(entry));
                 }
@@ -459,7 +462,7 @@ void TAsyncExpiringCache<TKey, TValue>::UpdateAll()
                         Map_.erase(it);
                         Profiler_.Update(SizeCounter_, Map_.size());
                         OnEvicted(key);
-                    } else if (entry->Promise.Get().IsOK()) {
+                    } else if (entry->Future.Get().IsOK()) {
                         keys.push_back(key);
                         entries.push_back(MakeWeak(entry));
                     }

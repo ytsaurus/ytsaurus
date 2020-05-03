@@ -4,14 +4,14 @@
 #include "chunk_store.h"
 #include "location.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
 namespace NYT::NDataNode {
 
 using namespace NChunkClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 

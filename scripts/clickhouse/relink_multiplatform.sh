@@ -1,4 +1,4 @@
-kind=ytserver-clickhouse
+kind=yt-start-clickhouse-clique
 
 if [[ "$1" != "" ]] ; then
     kind=$1
@@ -10,7 +10,7 @@ if [[ "$kind" != "yt-start-clickhouse-clique" ]] ; then
 fi
 
 echo "Fetching available binaries..."
-yt find --type file //sys/clickhouse/bin -l | tr -s ' ' | sort -k4,5 -r | grep $kind | grep linux | sed -s "s/linux/PLATFORM/g"
+yt find --type file //sys/bin/${kind} -l | tr -s ' ' | sort -k4,5 -r | grep linux | sed -s "s/linux/PLATFORM/g"
 echo ""
 
 read -p "Suggest filename without any extra tokens, quotes, etc:
@@ -23,6 +23,6 @@ for platform in linux darwin windows ; do
         ext=""
     fi
 
-    CYPRESS_PATH_LINK="//sys/clickhouse/bin/${kind}.${platform}${ext}"
-    yt link --force "${name/PLATFORM/${platform}}$ext" "$CYPRESS_PATH_LINK"
+    link_path="//sys/bin/${kind}/${kind}.${platform}${ext}"
+    yt link --force "${name/PLATFORM/${platform}}$ext" "$link_path"
 done

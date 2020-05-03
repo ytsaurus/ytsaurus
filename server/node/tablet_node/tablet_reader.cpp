@@ -127,7 +127,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         bounds.Size());
 
     auto rowMerger = std::make_unique<TSchemafulRowMerger>(
-        New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
+        New<TRowBuffer>(TTabletReaderPoolTag()),
         tabletSnapshot->QuerySchema.Columns().size(),
         tabletSnapshot->QuerySchema.GetKeyColumnCount(),
         columnFilter,
@@ -413,7 +413,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         currentIt = nextIt;
     }
 
-    auto rowBuffer = New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>());
+    auto rowBuffer = New<TRowBuffer>(TTabletReaderPoolTag());
 
     auto readerFactory = [
         =,
@@ -480,7 +480,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
         MakeFormattableView(stores, TStoreRangeFormatter()));
 
     auto rowMerger = std::make_unique<TVersionedRowMerger>(
-        New<TRowBuffer>(TRefCountedTypeTag<TTabletReaderPoolTag>()),
+        New<TRowBuffer>(TTabletReaderPoolTag()),
         tabletSnapshot->QuerySchema.GetColumnCount(),
         tabletSnapshot->QuerySchema.GetKeyColumnCount(),
         TColumnFilter(),

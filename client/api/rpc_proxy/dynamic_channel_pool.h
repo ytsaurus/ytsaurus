@@ -15,9 +15,10 @@ class TDynamicChannelPool
     : public TRefCounted
 {
 public:
-    explicit TDynamicChannelPool(
+    TDynamicChannelPool(
         NRpc::IChannelFactoryPtr channelFactory,
-        TConnectionConfigPtr config);
+        TConnectionConfigPtr config,
+        NLogging::TLogger logger);
 
     TFuture<NRpc::IChannelPtr> GetRandomChannel();
 
@@ -28,6 +29,7 @@ public:
 protected:
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const TConnectionConfigPtr Config_;
+    const NLogging::TLogger Logger;
 
     struct TChannelSlot
         : public TRefCounted
@@ -53,7 +55,7 @@ protected:
     void TerminateIdleChannels();
 };
 
-DECLARE_REFCOUNTED_CLASS(TDynamicChannelPool)
+DEFINE_REFCOUNTED_TYPE(TDynamicChannelPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 

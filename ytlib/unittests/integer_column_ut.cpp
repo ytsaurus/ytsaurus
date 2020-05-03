@@ -7,6 +7,8 @@
 #include <yt/ytlib/table_chunk_format/private.h>
 #include <yt/ytlib/table_chunk_format/public.h>
 
+#include <yt/ytlib/unittests/column_format_helpers/column_format_helpers.h>
+
 namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;

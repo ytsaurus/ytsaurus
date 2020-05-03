@@ -1198,7 +1198,7 @@ void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
             return;
 
         for (auto* rawContext : it->second) {
-            auto context = TServiceContext::DangerousGetPtr(rawContext);
+            auto context = DangerousGetPtr(rawContext);
             if (context) {
                 contexts.push_back(context);
             }
@@ -1234,7 +1234,7 @@ void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeI
     --runtimeInfo->ConcurrencySemaphore;
 }
 
-static PER_THREAD bool ScheduleRequestsLatch = false;
+static thread_local bool ScheduleRequestsLatch;
 
 void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
@@ -1243,17 +1243,21 @@ void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
         return;
     }
     ScheduleRequestsLatch = true;
+    auto latchGuard = Finally([&] {
+        ScheduleRequestsLatch = false;
+    });
 
     while (TryAcquireRequestSemaphore(runtimeInfo)) {
         TServiceContextPtr context;
         if (!runtimeInfo->RequestQueue.Dequeue(&context)) {
             ReleaseRequestSemaphore(runtimeInfo);
+            if (!runtimeInfo->RequestQueue.IsEmpty()) {
+                continue;
+            }
             break;
         }
         RunRequest(std::move(context));
     }
-
-    ScheduleRequestsLatch = false;
 }
 
 void TServiceBase::RunRequest(const TServiceContextPtr& context)
@@ -1333,7 +1337,7 @@ TServiceBase::TServiceContextPtr TServiceBase::FindRequest(TRequestId requestId)
 TServiceBase::TServiceContextPtr TServiceBase::DoFindRequest(TRequestId requestId)
 {
     auto it = RequestIdToContext_.find(requestId);
-    return it == RequestIdToContext_.end() ? nullptr : TServiceContext::DangerousGetPtr(it->second);
+    return it == RequestIdToContext_.end() ? nullptr : DangerousGetPtr(it->second);
 }
 
 TServiceBase::TPendingPayloadsEntry* TServiceBase::DoGetOrCreatePendingPayloadsEntry(TRequestId requestId)

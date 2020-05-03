@@ -11,7 +11,7 @@
 #include <yt/ytlib/job_proxy/helpers.h>
 
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <yt/client/table_client/unversioned_writer.h>
@@ -122,6 +122,11 @@ TCpuStatistics TJob::GetCpuStatistics() const
     return TCpuStatistics{};
 }
 
+i64 TJob::GetStderrSize() const
+{
+    return 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
@@ -203,11 +208,6 @@ double TSimpleJobBase::GetProgress() const
         YT_LOG_DEBUG("Job progress: %lf, read row count: %" PRId64, progress, rowCount);
         return progress;
     }
-}
-
-ui64 TSimpleJobBase::GetStderrSize() const
-{
-    return 0;
 }
 
 std::vector<TChunkId> TSimpleJobBase::GetFailedChunkIds() const

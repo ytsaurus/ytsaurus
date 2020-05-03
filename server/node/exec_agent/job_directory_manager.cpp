@@ -119,7 +119,7 @@ private:
 
     TFuture<void> DoCreateVolume(const TString& path, const TJobDirectoryProperties& properties, bool isTmpfs)
     {
-        std::map<TString, TString> volumeProperties;
+        THashMap<TString, TString> volumeProperties;
 
         if (isTmpfs) {
             volumeProperties["backend"] = "tmpfs";

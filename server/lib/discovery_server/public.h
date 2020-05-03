@@ -24,6 +24,14 @@ DECLARE_REFCOUNTED_CLASS(TGroup)
 DECLARE_REFCOUNTED_CLASS(TGroupManager)
 DECLARE_REFCOUNTED_CLASS(TDiscoveryServerConfig)
 DECLARE_REFCOUNTED_CLASS(TDiscoveryServer)
+DECLARE_REFCOUNTED_CLASS(TGroupTree)
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EErrorCode,
+    ((NoSuchGroup)    (2300))
+    ((NoSuchMember)   (2301))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

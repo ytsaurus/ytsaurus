@@ -68,7 +68,7 @@ void TCpuMonitor::DoCheck()
                 SoftLimit_,
                 *decision);
         } else {
-            YT_LOG_DEBUG("Unable to change soft limit: job proxy refused to change cpu share");
+            YT_LOG_DEBUG("Unable to change soft limit: job proxy refused to change CPU share");
         }
     }
 
@@ -168,7 +168,7 @@ bool TCpuMonitor::CheckStarted()
     }
     if (TInstant::Now() >= StartInstant.value()) {
         Started = true;
-        YT_LOG_DEBUG("Job cpu monitor is started");
+        YT_LOG_DEBUG("Job CPU monitor is started");
     }
     return Started;
 }

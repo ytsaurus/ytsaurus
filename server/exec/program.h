@@ -6,7 +6,7 @@
 #include <yt/ytlib/program/program_config_mixin.h>
 #include <yt/ytlib/program/program_cgroup_mixin.h>
 #include <yt/ytlib/program/program_tool_mixin.h>
-#include <yt/ytlib/program/configure_singletons.h>
+#include <yt/ytlib/program/helpers.h>
 
 #include <yt/core/logging/formatter.h>
 #include <yt/core/logging/log_manager.h>
@@ -77,10 +77,6 @@ public:
             .StoreResult(&Uid_)
             .RequiredArgument("UID");
         Opts_
-            .AddLongOption("pty", "attach to the pseudoterminal")
-            .StoreResult(&Pty_)
-            .RequiredArgument("PTY");
-        Opts_
             .AddLongOption("enable-core-dump", "whether to adjust resource limits to allow core dumps")
             .SetFlag(&EnableCoreDump_)
             .NoArgument();
@@ -101,9 +97,8 @@ protected:
         ConfigureUids();
         ConfigureCrashHandler();
 
-        if (Pty_ == -1) {
-            RunJobSatellite(GetConfig(), Uid_, Environment_, JobId_);
-        }
+        RunJobSatellite(GetConfig(), Uid_, JobId_);
+
         TThread::SetCurrentThreadName("ExecMain");
 
         // Don't start any other singleton or parse config in executor mode.
@@ -168,24 +163,6 @@ protected:
             Exit(4);
         }
 
-        if (Pty_ != -1) {
-            CloseAllDescriptors({Pty_});
-            if (setsid() == -1) {
-                THROW_ERROR_EXCEPTION("Failed to create a new session")
-                    << TError::FromSystem();
-            }
-            if (::ioctl(Pty_, TIOCSCTTY, 1) == -1) {
-                THROW_ERROR_EXCEPTION("Failed to set controlling pseudoterminal")
-                    << TError::FromSystem();
-            }
-            SafeDup2(Pty_, 0);
-            SafeDup2(Pty_, 1);
-            SafeDup2(Pty_, 2);
-            if (Pty_ > 2) {
-                SafeClose(Pty_);
-            }
-        }
-
         std::vector<char*> env;
         for (auto environment : Environment_) {
             env.push_back(const_cast<char*>(environment.c_str()));
@@ -206,13 +183,11 @@ protected:
         args.push_back(nullptr);
 
         // We are ready to execute user code, send signal to JobProxy.
-        if (Pty_ == -1) {
-            try {
-                NotifyExecutorPrepared(GetConfig());
-            } catch (const std::exception& ex) {
-                LogToStderr(Format("Unable to notify job proxy\n%v", ex.what()));
-                Exit(5);
-            }
+        try {
+            NotifyExecutorPrepared(GetConfig());
+        } catch (const std::exception& ex) {
+            LogToStderr(Format("Unable to notify job proxy\n%v", ex.what()));
+            Exit(5);
         }
 
         if (Uid_ > 0) {
@@ -253,7 +228,6 @@ private:
     std::vector<TString> Environment_;
     TString JobId_;
     int Uid_ = -1;
-    int Pty_ = -1;
     bool EnableCoreDump_ = false;
 };
 

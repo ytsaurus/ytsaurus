@@ -4,11 +4,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const size_t TChunkedMemoryPool::DefaultStartChunkSize = 4_KB;
-const size_t TChunkedMemoryPool::RegularChunkSize = 36_KB - 512;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TAllocationHolder::TAllocationHolder(TMutableRef ref, TRefCountedTypeCookie cookie)
     : Ref_(ref)
 #ifdef YT_ENABLE_REF_COUNTED_TRACKING
@@ -154,6 +149,11 @@ size_t TChunkedMemoryPool::GetSize() const
 size_t TChunkedMemoryPool::GetCapacity() const
 {
     return Capacity_;
+}
+
+size_t TChunkedMemoryPool::GetCurrentChunkSpareSize() const
+{
+    return FreeZoneEnd_ - FreeZoneBegin_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

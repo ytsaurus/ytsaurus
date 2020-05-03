@@ -9,7 +9,7 @@
 #include "tablet_profiling.h"
 #include "tablet_slot.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/lib/tablet_node/config.h>
 
@@ -135,7 +135,7 @@ class TInMemoryManager
 public:
     TInMemoryManager(
         TInMemoryManagerConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
         , CompressionInvoker_(CreateFixedPriorityInvoker(
@@ -206,7 +206,7 @@ public:
 
 private:
     const TInMemoryManagerConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     const IInvokerPtr CompressionInvoker_;
 
@@ -463,7 +463,7 @@ private:
 
         auto chunkData = New<TInMemoryChunkData>();
         chunkData->InMemoryMode = mode;
-        chunkData->MemoryTrackerGuard = NCellNode::TNodeMemoryTrackerGuard::Acquire(
+        chunkData->MemoryTrackerGuard = NClusterNode::TNodeMemoryTrackerGuard::Acquire(
             Bootstrap_->GetMemoryUsageTracker(),
             EMemoryCategory::TabletStatic,
             0,
@@ -501,7 +501,7 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryManager)
 
 IInMemoryManagerPtr CreateInMemoryManager(
     TInMemoryManagerConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
 {
     return New<TInMemoryManager>(config, bootstrap);
 }
@@ -619,7 +619,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     chunkData->InMemoryMode = mode;
     chunkData->StartBlockIndex = startBlockIndex;
     if (memoryTracker) {
-        chunkData->MemoryTrackerGuard = NCellNode::TNodeMemoryTrackerGuard::Acquire(
+        chunkData->MemoryTrackerGuard = NClusterNode::TNodeMemoryTrackerGuard::Acquire(
             memoryTracker,
             EMemoryCategory::TabletStatic,
             preallocatedMemory,
@@ -732,10 +732,10 @@ struct TNode
     : public TRefCounted
 {
     const TNodeDescriptor Descriptor;
-    TInMemorySessionId SessionId;
-    TInMemoryServiceProxy Proxy;
+    const TInMemorySessionId SessionId;
     const TDuration ControlRpcTimeout;
 
+    TInMemoryServiceProxy Proxy;
     TPeriodicExecutorPtr PingExecutor;
 
     TNode(
@@ -745,18 +745,9 @@ struct TNode
         const TDuration controlRpcTimeout)
         : Descriptor(descriptor)
         , SessionId(sessionId)
-        , Proxy(std::move(channel))
         , ControlRpcTimeout(controlRpcTimeout)
+        , Proxy(std::move(channel))
     { }
-
-    void OnPingSent(const TInMemoryServiceProxy::TErrorOrRspPingSessionPtr& rspOrError)
-    {
-        if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Ping failed (Address: %v, SessionId: %v)",
-                Descriptor.GetDefaultAddress(),
-                SessionId);
-        }
-    }
 
     void SendPing()
     {
@@ -768,8 +759,13 @@ struct TNode
         req->SetTimeout(ControlRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId);
         req->Invoke().Subscribe(
-            BIND(&TNode::OnPingSent, MakeWeak(this))
-                .Via(NChunkClient::TDispatcher::Get()->GetWriterInvoker()));
+            BIND([=, this_ = MakeStrong(this)] (const TInMemoryServiceProxy::TErrorOrRspPingSessionPtr& rspOrError) {
+                if (!rspOrError.IsOK()) {
+                    YT_LOG_WARNING(rspOrError, "Ping failed (Address: %v, SessionId: %v)",
+                        Descriptor.GetDefaultAddress(),
+                        SessionId);
+                }
+            }));
     }
 };
 

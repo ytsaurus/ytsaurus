@@ -101,13 +101,11 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
         # Wait for fair share update.
         time.sleep(1)
 
-        pools_orchid = scheduler_orchid_default_pool_tree_path() + "/pools"
-
         get_pool_guaranteed_resources = lambda pool: \
-            get("{0}/{1}/guaranteed_resources".format(pools_orchid, pool))
+            get(scheduler_orchid_pool_path(pool) + "/guaranteed_resources")
 
         get_pool_guaranteed_resources_ratio = lambda pool: \
-            get("{0}/{1}/guaranteed_resources_ratio".format(pools_orchid, pool))
+            get(scheduler_orchid_pool_path(pool) + "/guaranteed_resources_ratio")
 
         assert are_almost_equal(get_pool_guaranteed_resources_ratio("big_pool"), 1.0)
         assert get_pool_guaranteed_resources("big_pool") == total_resource_limits
@@ -146,8 +144,6 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
     def test_resource_limits(self):
         resource_limits = {"cpu": 1, "memory": 1000 * 1024 * 1024, "network": 10}
         create_pool("test_pool", attributes={"resource_limits": resource_limits})
-
-        wait(lambda: "test_pool" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
 
         # TODO(renadeen): make better, I know you can
         def check_limits():
@@ -193,7 +189,6 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
     @authors("ignat")
     def test_resource_limits_preemption(self):
         create_pool("test_pool2")
-        wait(lambda: "test_pool2" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
 
         self._prepare_tables()
         data = [{"foo": i} for i in xrange(3)]
@@ -284,8 +279,8 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
         time.sleep(1)
 
         if self.DELTA_SCHEDULER_CONFIG["scheduler"].get("use_classic_scheduler", True):
-	    wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0))
-	    wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0))
+            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("low_cpu_pool"), 1.0 / 2.0))
+            wait(lambda: are_almost_equal(get_pool_fair_share_ratio("high_cpu_pool"), 1.0 / 2.0))
         else:
             wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_1"), 1.0 / 3.0))
             wait(lambda: are_almost_equal(get_pool_fair_share_ratio("subpool_2"), 0))
@@ -325,7 +320,7 @@ class TestResourceUsageClassic(BaseTestResourceUsage):
 class TestResourceUsageVector(BaseTestResourceUsage):
     DELTA_SCHEDULER_CONFIG = yt.common.update(
         BaseTestResourceUsage.BASE_DELTA_SCHEDULER_CONFIG,
-        {"use_classic_scheduler": True}
+        {"use_classic_scheduler": False}
     )
 
 ##################################################################
@@ -597,9 +592,6 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create_pool("subpool", parent_name="research", attributes=attrs)
         create_pool("other_subpool", parent_name="subpool", attributes=attrs)
 
-        # give time to scheduler for pool reloading
-        time.sleep(0.2)
-
         ops = []
         for i in xrange(3):
             create("table", "//tmp/out_" + str(i))
@@ -683,8 +675,9 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             spec={"pool": "test_pool_1"})
         wait_breakpoint()
 
+        # TODO(ignat): Stabilize this part.
         remove("//sys/pools/test_pool_1")
-        create_pool("test_pool_1", parent_name="test_pool_2")
+        create_pool("test_pool_1", parent_name="test_pool_2", wait_for_orchid=False)
         time.sleep(0.5)
 
         op2 = map(
@@ -853,8 +846,6 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         create_pool("p1", attributes={"forbid_immediate_operations": True})
         create_pool("p2", parent_name="p1")
         create_pool("default_pool", attributes={"forbid_immediate_operations": True})
-
-        time.sleep(0.5)
 
         with pytest.raises(YtError):
             map(command="cat",
@@ -1092,10 +1083,9 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         create_pool("p4", parent_name="p1", attributes={"fair_share_starvation_tolerance": 0.9})
         create_pool("p5", attributes={"fair_share_starvation_tolerance": 0.8})
         create_pool("p6", parent_name="p5")
-        time.sleep(1)
 
         get_pool_tolerance = lambda pool: \
-            get(scheduler_orchid_default_pool_tree_path() + "/pools/{0}/adjusted_fair_share_starvation_tolerance".format(pool))
+            get(scheduler_orchid_pool_path(pool) + "/adjusted_fair_share_starvation_tolerance")
 
         assert get_pool_tolerance("p1") == 0.7
         assert get_pool_tolerance("p2") == 0.6
@@ -1244,7 +1234,7 @@ class TestSchedulerPreemptionClassic(BaseTestSchedulerPreemption):
 class TestSchedulerPreemptionVector(BaseTestSchedulerPreemption):
     DELTA_SCHEDULER_CONFIG = yt.common.update(
         BaseTestSchedulerPreemption.BASE_DELTA_SCHEDULER_CONFIG,
-        {"use_classic_scheduler": True}
+        {"use_classic_scheduler": False}
     )
 
 class TestInferWeightFromMinShare(YTEnvSetup):
@@ -1269,15 +1259,15 @@ class TestInferWeightFromMinShare(YTEnvSetup):
         create_pool("subpool1", pool_tree="default", parent_name="test_pool2", attributes={"min_share_resources": {"cpu": 0.4*0.3*total_cpu_limit}})
         create_pool("subpool2", pool_tree="default", parent_name="test_pool2", attributes={"min_share_resources": {"cpu": 0.4*0.4*total_cpu_limit}})
 
-        pools_path = scheduler_orchid_default_pool_tree_path() + "/pools"
-        wait(lambda: exists(pools_path + "/subpool2"))
+        get_pool_weight = lambda pool: \
+            get(scheduler_orchid_pool_path(pool) + "/weight")
 
-        wait(lambda: are_almost_equal(get(pools_path + "/test_pool1/weight"), 3.0))
-        wait(lambda: are_almost_equal(get(pools_path + "/test_pool2/weight"), 4.0))
-        wait(lambda: are_almost_equal(get(pools_path + "/test_pool3/weight"), 1.0))
+        wait(lambda: are_almost_equal(get_pool_weight("test_pool1"), 3.0))
+        wait(lambda: are_almost_equal(get_pool_weight("test_pool2"), 4.0))
+        wait(lambda: are_almost_equal(get_pool_weight("test_pool3"), 1.0))
 
-        wait(lambda: are_almost_equal(get(pools_path + "/subpool1/weight"), 3.0))
-        wait(lambda: are_almost_equal(get(pools_path + "/subpool2/weight"), 4.0))
+        wait(lambda: are_almost_equal(get_pool_weight("subpool1"), 3.0))
+        wait(lambda: are_almost_equal(get_pool_weight("subpool2"), 4.0))
 
 
 ##################################################################
@@ -1409,7 +1399,7 @@ class TestResourceLimitsOverdraftPreemptionClassic(BaseTestResourceLimitsOverdra
 class TestResourceLimitsOverdraftPreemptionVector(BaseTestResourceLimitsOverdraftPreemption):
     DELTA_SCHEDULER_CONFIG = yt.common.update(
         BaseTestResourceLimitsOverdraftPreemption.BASE_DELTA_SCHEDULER_CONFIG,
-        {"use_classic_scheduler": True}
+        {"use_classic_scheduler": False}
     )
 
 ##################################################################
@@ -1532,7 +1522,7 @@ class TestSchedulerAggressivePreemptionClassic(BaseTestSchedulerAggressivePreemp
 class TestSchedulerAggressivePreemptionVector(BaseTestSchedulerAggressivePreemption):
     DELTA_SCHEDULER_CONFIG = yt.common.update(
         BaseTestSchedulerAggressivePreemption.BASE_DELTA_SCHEDULER_CONFIG,
-        {"use_classic_scheduler": True}
+        {"use_classic_scheduler": False}
     )
 
 ##################################################################
@@ -1646,7 +1636,7 @@ class TestSchedulerAggressiveStarvationPreemptionClassic(BaseTestSchedulerAggres
 class TestSchedulerAggressiveStarvationPreemptionVector(BaseTestSchedulerAggressiveStarvationPreemption):
     DELTA_SCHEDULER_CONFIG = yt.common.update(
         BaseTestSchedulerAggressiveStarvationPreemption.BASE_DELTA_SCHEDULER_CONFIG,
-        {"use_classic_scheduler": True}
+        {"use_classic_scheduler": False}
     )
 
 ##################################################################
@@ -1687,8 +1677,6 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         create_pool("test_pool_1")
         create_pool("test_pool_2")
 
-        time.sleep(0.2)
-
         op = map(
             track=False,
             command="cat",
@@ -1697,8 +1685,9 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
             spec={"pool": "test_pool_1", "testing": testing_options})
         time.sleep(1)
 
+        # TODO(ignat): Make this more stable.
         remove("//sys/pools/test_pool_1")
-        create_pool("test_pool_1", parent_name="test_pool_2")
+        create_pool("test_pool_1", parent_name="test_pool_2", wait_for_orchid=False)
 
         op.track()
 
@@ -1755,9 +1744,9 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         create_pool("real_pool")
         op = run_sleeping_vanilla(spec={"pool": "ephemeral_pool"})
         op.wait_for_state("running")
-        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/ephemeral_pool/is_ephemeral")
-        assert not get(scheduler_orchid_default_pool_tree_path() + "/pools/real_pool/is_ephemeral")
-        assert not get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/is_ephemeral")
+        assert get(scheduler_orchid_pool_path("ephemeral_pool") + "/is_ephemeral")
+        assert not get(scheduler_orchid_pool_path("real_pool") + "/is_ephemeral")
+        assert not get(scheduler_orchid_pool_path("<Root>") + "/is_ephemeral")
 
     @authors("renadeen")
     def test_ephemeral_pool_in_custom_pool_simple(self):
@@ -1784,7 +1773,6 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         assert get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root/parent") == "custom_pool"
 
         create_pool("trigger_pool_update")
-        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/trigger_pool_update"))
         time.sleep(0.5)  # wait orchid update
         # after pools update all ephemeral pools where mistakenly moved to default pool
         assert get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root/parent") == "custom_pool"
@@ -1799,15 +1787,13 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         wait_breakpoint()
 
         remove("//sys/pools/custom_pool")
-        time.sleep(0.2)
-        assert exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool")
-        assert exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool"))
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root"))
 
         release_breakpoint()
         op.track()
-        time.sleep(0.2)  # wait orchid update
-        assert not exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool")
-        assert not exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
+        wait(lambda: not exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool"))
+        wait(lambda: not exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root"))
 
     @authors("renadeen")
     def test_custom_ephemeral_pool_scheduling_mode(self):
@@ -2162,9 +2148,6 @@ class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
         create_pool("test_parent")
         create_pool("test_pool", parent_name="test_parent")
 
-        self.wait_pool_exists("test_parent")
-        self.wait_pool_exists("test_pool")
-
         assert self.get_pool_parent("test_parent") == "<Root>"
         assert self.get_pool_parent("test_pool") == "test_parent"
 
@@ -2172,7 +2155,6 @@ class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
     def test_move_to_existing_pool(self):
         create_pool("test_parent")
         create_pool("test_pool")
-        self.wait_pool_exists("test_pool")
         wait(lambda: self.get_pool_parent("test_pool") == "<Root>")
 
         move("//sys/pools/test_pool", "//sys/pools/test_parent/test_pool")
@@ -2181,10 +2163,9 @@ class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
     @authors("renadeen")
     def test_move_to_new_pool(self):
         create_pool("test_pool")
-        self.wait_pool_exists("test_pool")
 
         # We'd like to execute these two commands atomically
-        create_pool("new_pool")
+        create_pool("new_pool", wair_for_orchid=False)
         move("//sys/pools/test_pool", "//sys/pools/new_pool/test_pool")
 
         self.wait_pool_exists("new_pool")
@@ -2194,7 +2175,6 @@ class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
     def test_move_to_root_pool(self):
         create_pool("test_parent")
         create_pool("test_pool", parent_name="test_parent")
-        self.wait_pool_exists("test_pool")
         wait(lambda: self.get_pool_parent("test_pool") == "test_parent")
 
         move("//sys/pools/test_parent/test_pool", "//sys/pools/test_pool")
@@ -2209,8 +2189,6 @@ class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
             pool = "pool" + str(i)
             create_pool(pool, parent_name=parent)
             parent = pool
-
-        self.wait_pool_exists("pool9")
 
         remove("//sys/pools/pool0")
         wait(lambda: len(ls(self.orchid_pools)) == 1)  # only <Root> must remain
@@ -2227,7 +2205,6 @@ class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
 
         create_pool("parent", attributes={"max_running_operation_count": 1})
         create_pool("child", parent_name="parent", attributes={"max_running_operation_count": 2})
-        self.wait_pool_exists("child")
         running_op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1, spec={"pool": "child"})
         wait_breakpoint()
         waiting_op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=1, spec={"pool": "child"})
@@ -2238,7 +2215,7 @@ class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
 
     @authors("renadeen", "ignat")
     def test_ephemeral_to_explicit_pool_transformation(self):
-        create_pool("default_pool")
+        create_pool("default_pool", wait_for_orchid=False)
         set("//sys/pool_trees/default/@default_parent_pool", "default_pool")
         self.wait_pool_exists("default_pool")
 
@@ -2592,29 +2569,26 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
     def setup_method(self, method):
         super(TestSchedulerInferChildrenWeightsFromHistoricUsage, self).setup_method(method)
         create_pool("parent")
-        wait(lambda: "parent" in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
         set("//sys/pools/parent/@infer_children_weights_from_historic_usage", True)
         set("//sys/pools/parent/@historic_usage_config", {
             "aggregation_mode": "exponential_moving_average",
             "ema_alpha": 1.0
         })
-        wait(lambda: get("//sys/pools/parent/@infer_children_weights_from_historic_usage"))
-        wait(lambda: "historic_usage_config" in get("//sys/pools/parent/@"))
+        time.sleep(0.5)
 
     def _init_children(self, num_children=2):
         for i in xrange(num_children):
             create_pool("child" + str(i + 1), parent_name="parent")
-            wait(lambda: ("child" + str(i + 1)) in get(scheduler_orchid_default_pool_tree_path() + "/pools"))
 
     def _get_pool_fair_share_ratio(self, pool):
         try:
-            return get(scheduler_orchid_default_pool_tree_path() + "/pools/{}/fair_share_ratio".format(pool))
+            return get(scheduler_orchid_pool_path(pool) + "/fair_share_ratio")
         except YtError:
             return 0.0
 
     def _get_pool_usage_ratio(self, pool):
         try:
-            return get(scheduler_orchid_default_pool_tree_path() + "/pools/{}/usage_ratio".format(pool))
+            return get(scheduler_orchid_pool_path(pool) + "/usage_ratio")
         except YtError:
             return 0.0
 

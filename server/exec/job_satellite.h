@@ -11,7 +11,6 @@ namespace NYT::NExec {
 void RunJobSatellite(
     NJobSatelliteConnection::TJobSatelliteConnectionConfigPtr config,
     int uid,
-    const std::vector<TString>& env,
     const TString& jobId);
 
 void NotifyExecutorPrepared(NJobSatelliteConnection::TJobSatelliteConnectionConfigPtr config);

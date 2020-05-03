@@ -23,10 +23,13 @@ public:
         const NLogging::TLogger& Logger);
 
     const TGroupId& GetId();
-    int GetSize();
+    int GetMemberCount();
 
     TMemberPtr AddOrUpdateMember(const NDiscoveryClient::TMemberInfo& memberInfo, TDuration leaseTimeout);
-    std::vector<TMemberPtr> ListMembers(int limit);
+    std::vector<TMemberPtr> ListMembers(std::optional<int> limit = std::nullopt);
+    bool HasMember(const TMemberId& memberId);
+    TMemberPtr FindMember(const TMemberId& memberId);
+    TMemberPtr GetMemberOrThrow(const TMemberId& memberId);
 
 private:
     const TGroupId Id_;

@@ -28,7 +28,7 @@
 #include <yt/ytlib/table_client/blob_table_writer.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>

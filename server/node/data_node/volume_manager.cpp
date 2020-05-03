@@ -8,7 +8,7 @@ namespace NYT::NDataNode {
 
 IVolumeManagerPtr CreatePortoVolumeManager(
     TVolumeManagerConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
 {
     THROW_ERROR_EXCEPTION("Volume manager is not supported");
 }
@@ -28,8 +28,8 @@ IVolumeManagerPtr CreatePortoVolumeManager(
 
 #include <yt/server/node/data_node/volume.pb.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/containers/instance.h>
 #include <yt/server/lib/containers/porto_executor.h>
@@ -72,7 +72,7 @@ namespace NYT::NDataNode {
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NContainers;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NTools;
@@ -372,7 +372,6 @@ public:
             auto error = TError("Failed to compute available space")
                 << ex;
             Disable(error);
-            YT_ABORT(); // Disable() exits the process.
         }
 
         i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - UsedSpace_);
@@ -400,7 +399,7 @@ private:
     const TString LayersPath_;
     const TString LayersMetaPath_;
 
-    std::atomic<int> LayerImportsInProgress_ = { 0 };
+    std::atomic<int> LayerImportsInProgress_ = 0;
 
     THashMap<TLayerId, TLayerMeta> Layers_;
     THashMap<TVolumeId, TVolumeMeta> Volumes_;
@@ -754,9 +753,9 @@ private:
             NFS::MakeDirRecursive(storagePath, 0755);
             NFS::MakeDirRecursive(mountPath, 0755);
 
-            std::map<TString, TString> parameters;
-            parameters["backend"] = "overlay";
-            parameters["storage"] = storagePath;
+            THashMap<TString, TString> properties;
+            properties["backend"] = "overlay";
+            properties["storage"] = storagePath;
 
             TStringBuilder builder;
             for (const auto& layer : layers) {
@@ -765,9 +764,9 @@ private:
                 }
                 builder.AppendString(layer.Path);
             }
-            parameters["layers"] = builder.Flush();
+            properties["layers"] = builder.Flush();
 
-            auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, parameters))
+            auto volumePath = WaitFor(VolumeExecutor_->CreateVolume(mountPath, properties))
                 .ValueOrThrow();
 
             YT_VERIFY(volumePath == mountPath);
@@ -1128,7 +1127,7 @@ private:
 
             NFS::MakeDirRecursive(path, 0777);
 
-            std::map<TString, TString> volumeProperties;
+            THashMap<TString, TString> volumeProperties;
             volumeProperties["backend"] = "tmpfs";
             volumeProperties["permissions"] = "0777";
             volumeProperties["space_limit"] = ToString(Config_->TmpfsLayerCache->Capacity);

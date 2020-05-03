@@ -6,7 +6,7 @@
 #include "journal_dispatcher.h"
 #include "location.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/lib/hydra/changelog.h>
 #include <yt/server/lib/hydra/file_changelog_dispatcher.h>
@@ -105,8 +105,7 @@ struct TMultiplexedChangelogDescriptor
 
 struct IMultiplexedReplayerCallbacks
 {
-    virtual ~IMultiplexedReplayerCallbacks()
-    { }
+    virtual ~IMultiplexedReplayerCallbacks() = default;
 
     virtual std::vector<TMultiplexedChangelogDescriptor> ListMultiplexedChangelogs() = 0;
     virtual IChangelogPtr OpenMultiplexedChangelog(int id) = 0;
@@ -250,8 +249,7 @@ private:
 
             startRecordId += recordsData.size();
         }
-        multiplexedChangelog->Close()
-            .Get()
+        WaitFor(multiplexedChangelog->Close())
             .ThrowOnError();
     }
 
@@ -352,8 +350,7 @@ private:
             if (entry.RecordsAdded == 0)
                 continue;
 
-            entry.Changelog->Flush()
-                .Get()
+            WaitFor(entry.Changelog->Flush())
                 .ThrowOnError();
 
             YT_LOG_INFO("Replay appended to journal chunk (ChunkId: %v, RecordCount: %v, RecordsAdded: %v)",
@@ -829,7 +826,7 @@ public:
     TImpl(
         TDataNodeConfigPtr config,
         TStoreLocation* location,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : MultiplexedChangelogConfig_(UpdateYsonSerializable(config->MultiplexedChangelog, location->GetConfig()->MultiplexedChangelog))
         , HighLatencySplitChangelogConfig_(UpdateYsonSerializable(config->HighLatencySplitChangelog, location->GetConfig()->HighLatencySplitChangelog))
         , LowLatencySplitChangelogConfig_(UpdateYsonSerializable(config->LowLatencySplitChangelog, location->GetConfig()->LowLatencySplitChangelog))
@@ -972,7 +969,7 @@ private:
     const TFileChangelogConfigPtr HighLatencySplitChangelogConfig_;
     const TFileChangelogConfigPtr LowLatencySplitChangelogConfig_;
     TStoreLocation* const Location_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     const NLogging::TLogger Logger;
 
@@ -1000,7 +997,9 @@ private:
             chunkId);
 
         {
-            NProfiling::TAggregatedTimingGuard(&Location_->GetProfiler(), &Location_->GetPerformanceCounters().JournalChunkCreateTime);
+            NProfiling::TAggregatedTimingGuard timingGuard(
+                &Location_->GetProfiler(),
+                &Location_->GetPerformanceCounters().JournalChunkCreateTime);
             auto fileName = Location_->GetChunkPath(chunkId);
             changelog = SplitChangelogDispatcher_->CreateChangelog(
                 fileName,
@@ -1021,7 +1020,9 @@ private:
             chunkId);
 
         {
-            NProfiling::TAggregatedTimingGuard(&Location_->GetProfiler(), &Location_->GetPerformanceCounters().JournalChunkOpenTime);
+            NProfiling::TAggregatedTimingGuard timingGuard(
+                &Location_->GetProfiler(),
+                &Location_->GetPerformanceCounters().JournalChunkOpenTime);
             auto fileName = Location_->GetChunkPath(chunkId);
             changelog = SplitChangelogDispatcher_->OpenChangelog(
                 fileName,
@@ -1036,7 +1037,9 @@ private:
 
     void DoRemoveChangelog(const TJournalChunkPtr& chunk)
     {
-        NProfiling::TAggregatedTimingGuard(&Location_->GetProfiler(), &Location_->GetPerformanceCounters().JournalChunkRemoveTime);
+        NProfiling::TAggregatedTimingGuard(
+            &Location_->GetProfiler(),
+            &Location_->GetPerformanceCounters().JournalChunkRemoveTime);
         chunk->SyncRemove(false);
     }
 
@@ -1091,7 +1094,6 @@ private:
                 Impl_->Bootstrap_,
                 Impl_->Location_,
                 TChunkDescriptor(chunkId));
-            chunkStore->RegisterNewChunk(chunk);
 
             const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
             auto asyncChangelog = dispatcher->CreateChangelog(
@@ -1102,7 +1104,8 @@ private:
             auto changelog = WaitFor(asyncChangelog)
                 .ValueOrThrow();
 
-            chunk->AttachChangelog(changelog);
+            YT_VERIFY(IdToChangelog_.emplace(chunkId, changelog).second);
+            chunkStore->RegisterNewChunk(chunk);
 
             return changelog;
         }
@@ -1115,14 +1118,12 @@ private:
                 return nullptr;
             }
 
-            auto journalChunk = chunk->AsJournalChunk();
-
             const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
-            auto changelog = dispatcher->OpenChangelog(journalChunk->GetStoreLocation(), chunkId)
-                .Get()
+            auto journalChunk = chunk->AsJournalChunk();
+            auto changelog = WaitFor(dispatcher->OpenChangelog(journalChunk->GetStoreLocation(), chunkId))
                 .ValueOrThrow();
 
-            journalChunk->AttachChangelog(changelog);
+            YT_VERIFY(IdToChangelog_.emplace(chunkId, changelog).second);
 
             return changelog;
         }
@@ -1131,17 +1132,16 @@ private:
         {
             const auto& chunkStore = Impl_->Bootstrap_->GetChunkStore();
             auto chunk = chunkStore->FindChunk(chunkId);
-            if (!chunk)
+            if (!chunk) {
                 return;
+            }
 
-            auto journalChunk = chunk->AsJournalChunk();
-            auto changelog = journalChunk->GetAttachedChangelog();
-            YT_VERIFY(changelog);
-            changelog->Flush()
-                .Get()
+            auto changelog = GetChangelogById(chunkId);
+            WaitFor(changelog->Flush())
                 .ThrowOnError();
 
-            journalChunk->DetachChangelog();
+            auto journalChunk = chunk->AsJournalChunk();
+            journalChunk->UpdateCachedParams(changelog);
         }
 
         virtual bool RemoveSplitChangelog(TChunkId chunkId) override
@@ -1156,8 +1156,7 @@ private:
             chunkStore->UnregisterChunk(chunk);
 
             const auto& dispatcher = Impl_->Bootstrap_->GetJournalDispatcher();
-            dispatcher->RemoveChangelog(journalChunk, false)
-                .Get()
+            WaitFor(dispatcher->RemoveChangelog(journalChunk, false))
                 .ThrowOnError();
 
             return true;
@@ -1165,13 +1164,21 @@ private:
 
         virtual bool IsSplitChangelogSealed(TChunkId chunkId) override
         {
-             return Impl_->IsChangelogSealed(chunkId)
-                 .Get()
+             return WaitFor(Impl_->IsChangelogSealed(chunkId))
                  .ValueOrThrow();
         }
 
     private:
         TImpl* const Impl_;
+
+        THashMap<TChunkId, IChangelogPtr> IdToChangelog_;
+
+        IChangelogPtr GetChangelogById(TChunkId chunkId)
+        {
+            auto it = IdToChangelog_.find(chunkId);
+            YT_VERIFY(it != IdToChangelog_.end());
+            return it->second;
+        }
     };
 };
 
@@ -1180,7 +1187,7 @@ private:
 TJournalManager::TJournalManager(
     TDataNodeConfigPtr config,
     TStoreLocation* location,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, location, bootstrap))
 { }
 

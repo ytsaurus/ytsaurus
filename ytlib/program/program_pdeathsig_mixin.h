@@ -9,7 +9,7 @@ namespace NYT {
 class TProgramPdeathsigMixin
 {
 protected:
-    TProgramPdeathsigMixin(NLastGetopt::TOpts& opts);
+    explicit TProgramPdeathsigMixin(NLastGetopt::TOpts& opts);
 
     bool HandlePdeathsigOptions();
 

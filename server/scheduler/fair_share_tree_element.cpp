@@ -713,6 +713,11 @@ TJobResources TSchedulerElement::ComputeTotalResourcesOnSuitableNodes() const
     }
 }
 
+TJobResources TSchedulerElement::GetTotalResourceLimits() const
+{
+    return TotalResourceLimits_;
+}
+
 TResourceVector TSchedulerElement::GetVectorSuggestion(double suggestion) const
 {
     // TODO(ignat): move this YT_VERIFY to another place.
@@ -2129,6 +2134,7 @@ void TPool::ChangeParent(TCompositeSchedulerElement* newParent)
     bool enabled = Parent_->IsEnabledChild(this);
     Parent_->RemoveChild(this);
 
+    auto oldParentId = Parent_->GetId();
     Parent_ = newParent;
     TreeHost_->GetResourceTree()->ChangeParent(ResourceTreeElement_, newParent->ResourceTreeElement_);
 
@@ -2137,8 +2143,8 @@ void TPool::ChangeParent(TCompositeSchedulerElement* newParent)
     Parent_->IncreaseRunningOperationCount(RunningOperationCount());
 
     YT_LOG_INFO("Parent pool is changed (NewParent: %v, OldParent: %v)",
-        newParent->GetId(),
-        Parent_->GetId());
+        Parent_->GetId(),
+        oldParentId);
 }
 
 void TPool::DetachParent()

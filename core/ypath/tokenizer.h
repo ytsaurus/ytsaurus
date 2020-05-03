@@ -29,7 +29,7 @@ public:
     void Expect(ETokenType expectedType);
     void ExpectListIndex();
     bool Skip(ETokenType expectedType);
-    void ThrowUnexpected();
+    [[noreturn]] void ThrowUnexpected();
 
 private:
     TYPath Path_;

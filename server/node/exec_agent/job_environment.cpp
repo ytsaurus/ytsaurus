@@ -4,8 +4,8 @@
 
 #include <yt/server/lib/exec_agent/config.h>
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/node/data_node/config.h>
 #include <yt/server/node/data_node/master_connector.h>
@@ -38,7 +38,7 @@
 namespace NYT::NExecAgent {
 
 using namespace NCGroup;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NJobProxy;
 using namespace NContainers;
@@ -435,11 +435,11 @@ public:
         try {
             EnsureJobProxyFinished(slotIndex, true);
 
-            CleanAllSubcontainers(GetFullSlotMetaContainerName(
+            DestroyAllSubcontainers(GetFullSlotMetaContainerName(
                 MetaInstance_->GetAbsoluteName(),
                 slotIndex));
 
-            // Reset cpu guarantee.
+            // Reset CPU guarantee.
             WaitFor(PortoExecutor_->SetContainerProperty(
                 GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
                 "cpu_guarantee",
@@ -508,61 +508,38 @@ private:
 
     double CpuLimit_;
 
-    TString GetAbsoluteName(const TString& name)
+    void DestroyAllSubcontainers(const TString& rootContainer)
     {
-        auto properties = WaitFor(PortoExecutor_->GetContainerProperties(
-            name,
-            std::vector<TString>{"absolute_name"}))
+        YT_LOG_DEBUG("Started destroying subcontainers (RootContainer: %v)",
+            rootContainer);
+
+        auto containers = WaitFor(PortoExecutor_->ListSubcontainers(rootContainer, false))
             .ValueOrThrow();
 
-        return properties.at("absolute_name")
-             .ValueOrThrow();
-    }
-
-    void CleanAllSubcontainers(const TString& metaName)
-    {
-        const auto containers = WaitFor(PortoExecutor_->ListContainers())
-            .ValueOrThrow();
-
-        YT_LOG_DEBUG("Destroying all subcontainers (MetaName: %v)", metaName);
-
-        std::vector<TFuture<void>> actions;
-        for (const auto& name : containers) {
-            if (name == "/") {
-                continue;
-            }
-
-            try {
-                auto absoluteName = GetAbsoluteName(name);
-                if (!absoluteName.StartsWith(metaName + "/")) {
-                    continue;
-                }
-
-                YT_LOG_DEBUG("Cleaning (Container: %v)", absoluteName);
-                actions.push_back(PortoExecutor_->DestroyContainer(name));
-            } catch (const TErrorException& ex) {
-                // If container disappeared, we don't care.
-                if (ex.Error().FindMatching(EPortoErrorCode::ContainerDoesNotExist)) {
-                    YT_LOG_DEBUG(ex, "Failed to clean container; it vanished");
-                } else {
-                    throw;
-                }
-            }
+        std::vector<TFuture<void>> futures;
+        for (const auto& container : containers) {
+            YT_LOG_DEBUG("Destroying subcontainer (Container: %v)", container);
+            futures.push_back(PortoExecutor_->DestroyContainer(container));
         }
 
-        auto errors = WaitFor(CombineAll(actions));
-        THROW_ERROR_EXCEPTION_IF_FAILED(errors, "Failed to clean containers");
+        auto throwOnError = [&] (const TError& error) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(error, "Failed to destroy all subcontainers of %v",
+                rootContainer);
+        };
 
-        for (const auto& error : errors.Value()) {
+        auto result = WaitFor(CombineAll(futures));
+        throwOnError(result);
+        for (const auto& error : result.Value()) {
             if (error.IsOK() ||
                 error.FindMatching(EPortoErrorCode::ContainerDoesNotExist))
             {
                 continue;
             }
-
-            THROW_ERROR_EXCEPTION("Failed to clean containers")
-                    << error;
+            throwOnError(error);
         }
+
+        YT_LOG_DEBUG("Finished destroying subcontainers (RootContainer: %v)",
+            rootContainer);
     }
 
     virtual void DoInit(int slotCount, double cpuLimit) override
@@ -602,7 +579,7 @@ private:
         };
 
         MetaInstance_ = getMetaContainer();
-        CleanAllSubcontainers(MetaInstance_->GetAbsoluteName());
+        DestroyAllSubcontainers(MetaInstance_->GetAbsoluteName());
 
         try {
             for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
@@ -611,7 +588,7 @@ private:
                     slotIndex)))
                     .ThrowOnError();
 
-                // This forces creation of cpu cgroup for this container.
+                // This forces creation of CPU cgroup for this container.
                 WaitFor(PortoExecutor_->SetContainerProperty(
                     GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex),
                     "cpu_guarantee",

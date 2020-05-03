@@ -14,6 +14,23 @@ import time
 import threading
 from multiprocessing import Queue
 
+from distutils.spawn import find_executable
+
+if arcadia_interop.yatest_common is None:
+    TEST_DIR = os.path.join(os.path.dirname(__file__))
+
+    YT_CUDA_CORE_DUMP_SIMULATOR = os.environ.get("YT_CUDA_CORE_DUMP_SIMULATOR")
+    if YT_CUDA_CORE_DUMP_SIMULATOR is None:
+        YT_CUDA_CORE_DUMP_SIMULATOR = find_executable("cuda_core_dump_simulator")
+
+    YT_LIB_CUDA_CORE_DUMP_INJECTION = os.environ.get("YT_LIB_CUDA_CORE_DUMP_INJECTION")
+    if YT_LIB_CUDA_CORE_DUMP_INJECTION is None:
+        YT_LIB_CUDA_CORE_DUMP_INJECTION = find_executable("libcuda_core_dump_injection.so")
+else:
+    TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
+    YT_CUDA_CORE_DUMP_SIMULATOR = arcadia_interop.yatest_common.binary_path("cuda_core_dump_simulator")
+    YT_LIB_CUDA_CORE_DUMP_INJECTION = arcadia_interop.yatest_common.binary_path("libcuda_core_dump_injection.so")
+
 ##################################################################
 
 def get_stderr_spec(stderr_file):
@@ -528,7 +545,8 @@ class TestCoreTable(YTEnvSetup):
             if file.startswith("core.bash"):
                 os.remove(os.path.join(core_path, file))
 
-    def _start_operation(self, job_count, max_failed_job_count=5, kill_self=False, fail_job_on_core_dump=True, core_table_path=None):
+    def _start_operation(self, job_count, max_failed_job_count=5, kill_self=False,
+                         fail_job_on_core_dump=True, core_table_path=None, enable_cuda_gpu_core_dump=False):
         command = with_breakpoint("BREAKPOINT ; ")
 
         if kill_self:
@@ -545,6 +563,7 @@ class TestCoreTable(YTEnvSetup):
                     }
                 },
                 "core_table_path": self.CORE_TABLE if core_table_path is None else core_table_path,
+                "enable_cuda_gpu_core_dump": enable_cuda_gpu_core_dump,
                 "max_failed_job_count": max_failed_job_count
             })
 
@@ -602,6 +621,36 @@ class TestCoreTable(YTEnvSetup):
             ret_dict["core_data"] = core_data
 
         thread = threading.Thread(target=produce_core, args=(self, job_id, exec_name, pid, input_data, ret_dict, open_pipe))
+        thread.start()
+        return thread
+
+    def _send_gpu_core(self, job_id, ret_dict):
+        def produce_gpu_core(self, job_id, ret_dict):
+            node = ls("//sys/cluster_nodes")[0]
+            slot_index = get("//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}/slot_index".format(node, job_id))
+            sandbox_path = "{0}/runtime_data/node/0/slots/{1}".format(self.path_to_run, slot_index)
+            core_pipe = "{0}/cores/yt_gpu_core_dump_pipe".format(sandbox_path)
+
+            core_producer_env = os.environ.copy()
+            core_producer_env["CUDA_ENABLE_COREDUMP_ON_EXCEPTION"] = "1"
+            core_producer_env["CUDA_COREDUMP_FILE"] = core_pipe
+            core_producer_env["LD_PRELOAD"] = YT_LIB_CUDA_CORE_DUMP_INJECTION
+
+            os.mkfifo(core_pipe)
+
+            # Check whether core watcher for non-empty pipe.
+            time.sleep(8)
+
+            assert subprocess.call([YT_CUDA_CORE_DUMP_SIMULATOR], env=core_producer_env) == 0
+
+            ret_dict["core_info"] = {
+                "executable_name": "cuda_gpu_core_dump",
+                "process_id": 0,
+                "size": 1000000,
+            }
+            ret_dict["core_data"] = "a" * 1000000
+
+        thread = threading.Thread(target=produce_gpu_core, args=(self, job_id, ret_dict))
         thread.start()
         return thread
 
@@ -1014,6 +1063,27 @@ class TestCoreTable(YTEnvSetup):
         sparse_core_dump = self._get_core_table_content(decompress_sparse_core_dump=False)[job_ids[0]][0]
         assert len(sparse_core_dump) == 65537
         assert len(ret_dict["core_data"]) == 10**6
+        assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}
+
+    @authors("gritukan")
+    @skip_if_porto
+    @unix_only
+    def test_cuda_gpu_core_dump(self):
+        if YT_CUDA_CORE_DUMP_SIMULATOR is None:
+            pytest.skip("This test requires cuda_core_dump_simulator being built")
+        if YT_LIB_CUDA_CORE_DUMP_INJECTION is None:
+            pytest.skip("This test requires lib_cuda_core_dump_injection being built")
+
+        op, job_ids = self._start_operation(1, enable_cuda_gpu_core_dump=True)
+
+        ret_dict = {}
+        t = self._send_gpu_core(job_ids[0], ret_dict)
+        t.join()
+
+        release_breakpoint()
+        op.track()
+
+        assert self._get_core_infos(op) == {job_ids[0]: [ret_dict["core_info"]]}
         assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}
 
 @patch_porto_env_only(TestCoreTable)

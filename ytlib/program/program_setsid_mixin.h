@@ -9,7 +9,7 @@ namespace NYT {
 class TProgramSetsidMixin
 {
 protected:
-    TProgramSetsidMixin(NLastGetopt::TOpts& opts);
+    explicit TProgramSetsidMixin(NLastGetopt::TOpts& opts);
 
     bool HandleSetsidOptions();
 

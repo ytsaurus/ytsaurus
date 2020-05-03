@@ -13,42 +13,6 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSourceLocation;
-
-class TRefCountedBase;
-
-using TRefCountedTypeCookie = int;
-const int NullRefCountedTypeCookie = -1;
-
-using TRefCountedTypeKey = const void*;
-
-////////////////////////////////////////////////////////////////////////////////
-
-// Used to avoid including heavy ref_counted_tracker.h
-class TRefCountedTrackerFacade
-{
-public:
-    static TRefCountedTypeCookie GetCookie(
-        TRefCountedTypeKey typeKey,
-        size_t instanceSize,
-        const NYT::TSourceLocation& location);
-
-    static void AllocateInstance(TRefCountedTypeCookie cookie);
-    static void FreeInstance(TRefCountedTypeCookie cookie);
-
-    static void AllocateTagInstance(TRefCountedTypeCookie cookie);
-    static void FreeTagInstance(TRefCountedTypeCookie cookie);
-
-    static void AllocateSpace(TRefCountedTypeCookie cookie, size_t size);
-    static void FreeSpace(TRefCountedTypeCookie cookie, size_t size);
-
-    // Typically invoked from GDB console.
-    // Dumps the ref-counted statistics sorted by "bytes alive".
-    static void Dump();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! A technical base class for ref-counted objects and promise states.
 class TRefCountedBase
 {
@@ -92,25 +56,6 @@ public:
      * This method is mainly for debugging purposes.
      */
     int GetRefCount() const noexcept;
-
-    //! Tries to obtain an intrusive pointer for an object that may had
-    //! already lost all of its references and, thus, is about to be deleted.
-    /*!
-     * You may call this method at any time provided that you have a valid
-     * raw pointer to an object. The call either returns an intrusive pointer
-     * for the object (thus ensuring that the object won't be destroyed until
-     * you're holding this pointer) or NULL indicating that the last reference
-     * had already been lost and the object is on its way to heavens.
-     * All these steps happen atomically.
-     *
-     * Under all circumstances it is caller's responsibility the make sure that
-     * the object is not destroyed during the call to #DangerousGetPtr.
-     * Typically this is achieved by keeping a (lock-protected) collection of
-     * raw pointers, taking a lock in object's destructor, and unregistering
-     * its raw pointer from the collection there.
-     */
-    template <class T>
-    static TIntrusivePtr<T> DangerousGetPtr(T* object);
 
 private:
     //! Number of strong references.

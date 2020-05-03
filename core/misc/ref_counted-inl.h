@@ -63,14 +63,6 @@ Y_FORCE_INLINE bool TRefCountedLite::TryRef() const noexcept
 }
 
 template <class T>
-Y_FORCE_INLINE TIntrusivePtr<T> TRefCountedLite::DangerousGetPtr(T* object)
-{
-    return object->TryRef()
-        ? TIntrusivePtr<T>(object, false)
-        : TIntrusivePtr<T>();
-}
-
-template <class T>
 void TRefCountedLite::DestroyRefCountedImpl(T* ptr)
 {
     // No virtual call when T is final.

@@ -3,7 +3,7 @@
 #include "public.h"
 #include "artifact.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/client/api/public.h>
 
@@ -26,7 +26,7 @@ struct TFetchedArtifactKey
 TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     const NYPath::TYPath& path,
     NHydra::TRevision contentRevision,
-    NCellNode::TBootstrap const* bootstrap,
+    NClusterNode::TBootstrap const* bootstrap,
     NApi::EMasterChannelKind masterChannelKind,
     const NLogging::TLogger& logger);
 

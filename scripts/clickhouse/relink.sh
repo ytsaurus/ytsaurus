@@ -10,21 +10,22 @@ if [[ "$kind" != "ytserver-log-tailer" && "$kind" != "ytserver-clickhouse" && "$
 fi
 
 echo "Fetching available binaries..."
-yt find --type file //sys/clickhouse/bin -l | tr -s ' ' | sort -k4,5 -r | grep $kind
+yt find --type file //sys/bin/${kind} -l | tr -s ' ' | sort -k4,5 -r 
 echo ""
 
-if [[ "$(yt exists //sys/clickhouse/bin/${kind})" == "true" ]] ; then
-    path="//sys/clickhouse/bin/${kind}&/@target_path"
+link_path="//sys/bin/${kind}/${kind}"
+
+if [[ "$(yt exists ${link_path})" == "true" ]] ; then
+    path="${link_path}&/@target_path"
     cmd="yt get --format dsv ${path}"
     current_target=$($cmd)
 else
     current_target="(none)"
 fi
 
-echo -e "Current link: //sys/clickhouse/bin/${kind} -> ${current_target}\n"
+echo -e "Current link: ${link_path} -> ${current_target}\n"
 
 read -p "Suggest filename without any extra tokens, quotes, etc:
 " name
 
-CYPRESS_PATH_LINK="//sys/clickhouse/bin/${kind}"
-yt link --force "$name" "$CYPRESS_PATH_LINK"
+yt link --force "$name" "$link_path"

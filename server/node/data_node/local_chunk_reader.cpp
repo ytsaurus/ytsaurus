@@ -2,7 +2,7 @@
 #include "chunk_block_manager.h"
 #include "chunk_store.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/node/data_node/chunk.h>
 
@@ -19,7 +19,7 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTableClient;
 using namespace NDataNode;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NTableClient;
 using namespace NTableClient::NProto;
 
@@ -169,11 +169,6 @@ private:
     void RequestBlockSet(TReadBlockSetSessionPtr session)
     {
         try {
-            if (!Chunk_->IsAlive()) {
-                ThrowError(TError("Local chunk %v is no longer available",
-                    Chunk_->GetId()));
-            }
-
             std::vector<int> localIndexes;
             std::vector<int> blockIndexes;
             for (int index = 0; index < session->Blocks.size(); ++index) {
@@ -211,8 +206,16 @@ private:
             }
 
             const auto& blocks = blocksOrError.Value();
-            for (int index = 0; index < localIndexes.size(); ++index) {
-                session->Blocks[localIndexes[index]] = blocks[index];
+            for (int responseIndex = 0; responseIndex < blocks.size(); ++responseIndex) {
+                const auto& block = blocks[responseIndex];
+                int localIndex = localIndexes[responseIndex];
+                int blockIndex =  session->BlockIndexes[localIndex];
+                if (!block) {
+                    ThrowError(TError("Block %v:%v cannot be read",
+                        Chunk_->GetId(),
+                        blockIndex));
+                }
+                session->Blocks[localIndex] = block;
             }
 
             RequestBlockSet(session);

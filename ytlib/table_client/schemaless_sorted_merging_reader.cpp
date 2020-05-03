@@ -1,6 +1,6 @@
 #include "schemaless_sorted_merging_reader.h"
 #include "private.h"
-#include "schemaless_chunk_reader.h"
+#include "schemaless_multi_chunk_reader.h"
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/client/chunk_client/data_statistics.h>

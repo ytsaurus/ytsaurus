@@ -6,6 +6,8 @@ from yt_commands import *
 
 from flaky import flaky
 
+import yt.common
+
 import pytest
 import time
 
@@ -17,7 +19,15 @@ class TestJobProber(YTEnvSetup):
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        {
+            "exec_agent": {
+                "test_poll_job_shell": True,
+            },
+        }
+    )
+
     USE_PORTO_FOR_SERVERS = True
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
@@ -248,9 +258,7 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
-    # Remove after YT-8596
     @authors("ignat")
-    @flaky(max_runs=5)
     def test_poll_job_shell_command(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -280,6 +288,27 @@ class TestJobProber(YTEnvSetup):
         op.track()
         assert len(read_table("//tmp/t2")) == 0
 
+    @authors("gritukan")
+    def test_poll_job_shell_command_large_output(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"key": "foo"})
+
+        op = map(
+            track=False,
+            label="poll_job_shell",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"))
+        job_id = wait_breakpoint()[0]
+
+        r = poll_job_shell(job_id, operation="spawn", command="for((i=0;i<100000;i++)); do echo A; done")
+        shell_id = r["shell_id"]
+        output = self._poll_until_shell_exited(job_id, shell_id)
+
+        expected = "A\r\n" * 10**5
+        assert output == expected
+
     @authors("ignat")
     def test_poll_job_shell_permissions(self):
         create_user("u1")
@@ -306,6 +335,43 @@ class TestJobProber(YTEnvSetup):
                 height=50,
                 width=132,
                 authenticated_user="u2")
+
+    @authors("gritukan")
+    @pytest.mark.parametrize("enable_secure_vault_variables_in_job_shell", [False, True])
+    def test_poll_job_shell_secret_vault(self, enable_secure_vault_variables_in_job_shell):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"key": "foo"})
+
+        op = map(
+            track=False,
+            label="poll_job_shell",
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            spec={
+                "mapper": {
+                    "environment": {
+                        "YT_NOT_SECRET": "not_secret_data",
+                    },
+                },
+                "secure_vault": {
+                    "MY_SECRET": "super_secret_data",
+                },
+                "enable_secure_vault_variables_in_job_shell": enable_secure_vault_variables_in_job_shell,
+            })
+        job_id = wait_breakpoint()[0]
+
+        r = poll_job_shell(job_id, operation="spawn", command="echo $YT_NOT_SECRET; echo $YT_SECURE_VAULT_MY_SECRET")
+        shell_id = r["shell_id"]
+        output = self._poll_until_shell_exited(job_id, shell_id)
+
+        if enable_secure_vault_variables_in_job_shell:
+            expected = "not_secret_data\r\nsuper_secret_data\r\n"
+        else:
+            expected = "not_secret_data\r\n\r\n"
+
+        assert output == expected
 
     @authors("ignat")
     @unix_only

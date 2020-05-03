@@ -819,7 +819,7 @@ public:
 
 private:
     const NNative::IClientPtr Client_;
-    const TActionQueuePtr Reporter_ = New<TActionQueue>("Reporter");
+    const TActionQueuePtr Reporter_ = New<TActionQueue>("JobReporter");
     const TSharedDataPtr Data_ = New<TSharedData>();
     const TJobHandlerPtr JobHandler_;
     const THandlerBasePtr JobSpecHandler_;

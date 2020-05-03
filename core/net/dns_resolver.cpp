@@ -110,7 +110,8 @@ public:
         int retries,
         TDuration resolveTimeout,
         TDuration maxResolveTimeout,
-        TDuration warningTimeout);
+        TDuration warningTimeout,
+        std::optional<double> jitter);
     ~TImpl();
 
     void Start();
@@ -126,6 +127,7 @@ private:
     const TDuration ResolveTimeout_;
     const TDuration MaxResolveTimeout_;
     const TDuration WarningTimeout_;
+    const std::optional<double> Jitter_;
 
     struct TNameRequest
     {
@@ -171,11 +173,13 @@ TDnsResolver::TImpl::TImpl(
     int retries,
     TDuration resolveTimeout,
     TDuration maxResolveTimeout,
-    TDuration warningTimeout)
+    TDuration warningTimeout,
+    std::optional<double> jitter)
     : Retries_(retries)
     , ResolveTimeout_(resolveTimeout)
     , MaxResolveTimeout_(maxResolveTimeout)
     , WarningTimeout_(warningTimeout)
+    , Jitter_(jitter)
     , ResolverThread_(&ResolverThreadMain, this)
 {
 #ifdef YT_DNS_RESOLVER_USE_EPOLL
@@ -202,12 +206,19 @@ TDnsResolver::TImpl::TImpl(
     mask |= ARES_OPT_FLAGS;
     Options_.timeout = static_cast<int>(ResolveTimeout_.MilliSeconds());
     mask |= ARES_OPT_TIMEOUTMS;
-#ifndef YT_IN_ARCADIA
+
     Options_.maxtimeout = static_cast<int>(MaxResolveTimeout_.MilliSeconds());
     mask |= ARES_OPT_MAXTIMEOUTMS;
-#endif
+
+    if (Jitter_) {
+        Options_.jitter = llround(*Jitter_ * 1000.0);
+        Options_.jitter_rand_seed = TGuid::Create().Parts32[0];
+        mask |= ARES_OPT_JITTER;
+    }
+
     Options_.tries = Retries_;
     mask |= ARES_OPT_TRIES;
+
     Options_.sock_state_cb = &TDnsResolver::TImpl::OnSocketStateChanged;
     Options_.sock_state_cb_data = this;
     mask |= ARES_OPT_SOCK_STATE_CB;
@@ -504,12 +515,14 @@ TDnsResolver::TDnsResolver(
     int retries,
     TDuration resolveTimeout,
     TDuration maxResolveTimeout,
-    TDuration warningTimeout)
+    TDuration warningTimeout,
+    std::optional<double> jitter)
     : Impl_(std::make_unique<TImpl>(
         retries,
         resolveTimeout,
         maxResolveTimeout,
-        warningTimeout))
+        warningTimeout,
+        jitter))
 { }
 
 TDnsResolver::~TDnsResolver() = default;

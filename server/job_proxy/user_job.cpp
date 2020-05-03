@@ -9,6 +9,11 @@
 #include "environment.h"
 #include "core_watcher.h"
 
+#ifdef __linux__
+#include <yt/server/lib/containers/instance.h>
+#include <yt/server/lib/containers/porto_executor.h>
+#endif
+
 #include <yt/server/lib/job_proxy/config.h>
 
 #include <yt/server/lib/job_satellite_connection/job_satellite_connection.h>
@@ -40,7 +45,7 @@
 #include <yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/ytlib/table_client/helpers.h>
-#include <yt/ytlib/table_client/schemaless_chunk_reader.h>
+#include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 
 #include <yt/ytlib/transaction_client/public.h>
@@ -98,6 +103,7 @@ using namespace NTableClient;
 using namespace NFormats;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
+using namespace NShell;
 using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NCGroup;
@@ -170,8 +176,7 @@ public:
             Host_->GetSlotPath(),
             jobId,
             host->GetConfig()->BusServer,
-            JobEnvironmentType_,
-            UserJobSpec_.enable_secure_vault_variables_in_job_shell())
+            JobEnvironmentType_)
         , MaximumTmpfsSizes_(Config_->TmpfsPaths.size())
     {
         Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, Synchronizer_, AuxQueue_->GetInvoker()));
@@ -216,6 +221,7 @@ public:
                 options.CoreWatcherDirectory = NFS::GetRealPath(NFS::CombinePaths({Host_->GetSlotPath(), "cores"}));
             }
             options.EnablePorto = TranslateEnablePorto(CheckedEnumCast<NScheduler::EEnablePorto>(UserJobSpec_.enable_porto()));
+            options.EnableCudaGpuCoreDump = UserJobSpec_.enable_cuda_gpu_core_dump();
 
             Process_ = UserJobEnvironment_->CreateUserJobProcess(
                 ExecProgramName,
@@ -366,6 +372,13 @@ public:
             ToProto(schedulerResultExt->mutable_core_table_boundary_keys(), coreResult.BoundaryKeys);
         }
 
+        if (ShellManager_) {
+            WaitFor(BIND(&IShellManager::GracefulShutdown, ShellManager_, TError("Job completed"))
+                .AsyncVia(Host_->GetControlInvoker())
+                .Run())
+                .ThrowOnError();
+        }
+
         auto jobError = innerErrors.empty()
             ? TError()
             : TError(EErrorCode::UserJobFailed, "User job failed") << innerErrors;
@@ -389,7 +402,7 @@ public:
         return UserJobReadController_->GetProgress();
     }
 
-    virtual ui64 GetStderrSize() const override
+    virtual i64 GetStderrSize() const override
     {
         if (!Prepared_) {
             return 0;
@@ -464,6 +477,8 @@ private:
     // StderrCombined_ is set only if stderr table is specified.
     // It redirects data to both ErrorOutput_ and stderr table writer.
     std::unique_ptr<TTeeOutput> StderrCombined_;
+
+    IShellManagerPtr ShellManager_;
 
 #ifdef _asan_enabled_
     std::unique_ptr<TAsanWarningFilter> AsanWarningFilter_;
@@ -544,13 +559,49 @@ private:
             Environment_.push_back(Format("YT_ROOT_FS=%v", *Host_->GetConfig()->RootPath));
         }
 
+        for (int index = 0; index < Ports_.size(); ++index) {
+            Environment_.push_back(Format("YT_PORT_%v=%v", index, Ports_[index]));
+        }
+
         // Copy environment to process arguments
         for (const auto& var : Environment_) {
             Process_->AddArguments({"--env", var});
         }
 
-        for (int index = 0; index < Ports_.size(); ++index) {
-            Process_->AddArguments({"--env", Format("YT_PORT_%v=%v", index, Ports_[index])});
+        if (JobEnvironmentType_ == EJobEnvironmentType::Porto) {
+#ifdef _linux_
+            auto portoJobEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+            auto portoExecutor = NContainers::CreatePortoExecutor(portoJobEnvironmentConfig->PortoExecutor, "job-shell");
+
+            std::vector<TString> shellEnvironment;
+            shellEnvironment.reserve(Environment_.size());
+            std::vector<TString> visibleEnvironment;
+            visibleEnvironment.reserve(Environment_.size());
+
+            for (const auto& variable : Environment_) {
+                if (variable.StartsWith("YT_SECURE_VAULT") && !UserJobSpec_.enable_secure_vault_variables_in_job_shell()) {
+                    continue;
+                }
+                if (variable.StartsWith("YT_")) {
+                    shellEnvironment.push_back(variable);
+                }
+                visibleEnvironment.push_back(variable);
+            }
+
+            auto shellManagerUid = UserId_;
+            if (Config_->TestPollJobShell) {
+                shellManagerUid = std::nullopt;
+            }
+
+            ShellManager_ = CreateShellManager(
+                portoExecutor,
+                UserJobEnvironment_->GetUserJobInstance(),
+                Host_->GetSlotPath(),
+                shellManagerUid,
+                Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, AsStringBuf("\n"))),
+                std::move(shellEnvironment)
+            );
+#endif
         }
     }
 
@@ -761,7 +812,10 @@ private:
 
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
     {
-        return JobProberClient_->PollJobShell(parameters);
+        if (!ShellManager_) {
+            THROW_ERROR_EXCEPTION("Job shell polling is not supported in non-Porto environment");
+        }
+        return ShellManager_->PollJobShell(parameters);
     }
 
     virtual void Interrupt() override
@@ -1062,7 +1116,7 @@ private:
                 auto cpuStatistics = UserJobEnvironment_->GetCpuStatistics();
                 statistics.AddSample("/user_job/cpu", cpuStatistics);
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Unable to get cpu statistics for user job");
+                YT_LOG_WARNING(ex, "Unable to get CPU statistics for user job");
             }
 
             try {

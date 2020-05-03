@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/query_client/public.h>
 
@@ -14,7 +14,7 @@ namespace NYT::NQueryAgent {
 
 NRpc::IServicePtr CreateQueryService(
     TQueryAgentConfigPtr config,
-    NCellNode::TBootstrap* bootstrap);
+    NClusterNode::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

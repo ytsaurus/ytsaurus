@@ -15,7 +15,6 @@ SET(YT_ARCADIA_CXXFLAGS
     -Wno-missing-braces
     -Wno-missing-field-initializers
     -Wunused-result
-    -DYT_IN_ARCADIA
 )
 
 SET(YT_ARCADIA_CFLAGS
@@ -28,6 +27,13 @@ IF(AUTOCHECK)
     SET(YT_ARCADIA_CXXFLAGS
         ${YT_ARCADIA_CXXFLAGS}
         -DAUTOCHECK
+    )
+ENDIF()
+
+IF(DISTBUILD)
+    SET(YT_ARCADIA_CXXFLAGS
+        ${YT_ARCADIA_CXXFLAGS}
+        -DDISTBUILD
     )
 ENDIF()
 

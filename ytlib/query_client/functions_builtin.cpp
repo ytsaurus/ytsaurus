@@ -704,6 +704,39 @@ void RegisterBuiltinFunctions(
         EValueType::Any,
         UDF_BC(make_map));
 
+    builder.RegisterFunction(
+        "numeric_to_string",
+        std::vector<TType>{
+            TUnionType{
+                EValueType::Int64,
+                EValueType::Uint64,
+                EValueType::Double,
+            }},
+        EValueType::String,
+        UDF_BC(str_conv),
+        ECallingConvention::UnversionedValue);
+
+    builder.RegisterFunction(
+        "parse_int64",
+        std::vector<TType>{EValueType::String},
+        EValueType::Int64,
+        UDF_BC(str_conv),
+        ECallingConvention::UnversionedValue);
+
+    builder.RegisterFunction(
+        "parse_uint64",
+        std::vector<TType>{EValueType::String},
+        EValueType::Uint64,
+        UDF_BC(str_conv),
+        ECallingConvention::UnversionedValue);
+
+    builder.RegisterFunction(
+        "parse_double",
+        std::vector<TType>{EValueType::String},
+        EValueType::Double,
+        UDF_BC(str_conv),
+        ECallingConvention::UnversionedValue);
+
     if (typeInferrers) {
         typeInferrers->emplace("is_null", New<TFunctionTypeInferrer>(
             std::unordered_map<TTypeArgument, TUnionType>(),

@@ -8,7 +8,7 @@ namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TUsage = TEnumIndexedVector<EStatField, TErrorOr<ui64>>;
+using TResourceUsage = THashMap<EStatField, TErrorOr<ui64>>;
 
 struct TResourceLimits
 {
@@ -34,7 +34,7 @@ struct IInstance
     virtual void Stop() = 0;
     virtual void Destroy() = 0;
     virtual TString GetRoot() = 0;
-    virtual TUsage GetResourceUsage(const std::vector<EStatField>& fields) const = 0;
+    virtual TResourceUsage GetResourceUsage(const std::vector<EStatField>& fields) const = 0;
     virtual TResourceLimits GetResourceLimits() const = 0;
     virtual TResourceLimits GetResourceLimitsRecursive() const = 0;
     virtual void SetCpuShare(double cores) = 0;
@@ -47,6 +47,7 @@ struct IInstance
     virtual TString GetAbsoluteName() const = 0;
     virtual TString GetStderr() const = 0;
     virtual void SetEnablePorto(EEnablePorto enablePorto) = 0;
+    virtual void SetIsolate(bool isolate) = 0;
     virtual void EnableMemoryTracking() = 0;
     virtual void SetUser(const TString& user) = 0;
     virtual void SetNet(const TString& net) = 0;

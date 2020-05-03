@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/chunk_client/block_id.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
@@ -24,7 +24,7 @@ class TPeerBlockDistributor
     : public TRefCounted
 {
 public:
-    TPeerBlockDistributor(TPeerBlockDistributorConfigPtr config, NCellNode::TBootstrap* bootstrap);
+    TPeerBlockDistributor(TPeerBlockDistributorConfigPtr config, NClusterNode::TBootstrap* bootstrap);
 
     //! Method that should be called on each block request.
     void OnBlockRequested(TBlockId blockId, i64 blockSize);
@@ -34,7 +34,7 @@ public:
 
 private:
     const TPeerBlockDistributorConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
     //! Blocks that were requested since last iteration of distribution. This stack

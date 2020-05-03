@@ -766,6 +766,11 @@ public:
     //! Number of threads in DataNodeLookup thread pool (used for row lookups).
     int StorageLookupThreadCount;
 
+    //! Fraction of GetBlockSet/GetBlockRange RPC timeout, after which reading routine tries
+    //! to return all blocks read up to moment (in case at least one block is read; otherwise
+    //! it still tries to read at least one block).
+    double BlockReadTimeoutFraction;
+
     TDataNodeConfig()
     {
         RegisterParameter("lease_transaction_timeout", LeaseTransactionTimeout)
@@ -963,6 +968,9 @@ public:
         RegisterParameter("max_tablet_errors_in_heartbeat", MaxTabletErrorsInHeartbeat)
             .GreaterThan(0)
             .Default(10);
+
+        RegisterParameter("block_read_timeout_fraction", BlockReadTimeoutFraction)
+            .Default(0.75);
 
         RegisterPreprocessor([&] () {
             ChunkMetaCache->Capacity = 1_GB;

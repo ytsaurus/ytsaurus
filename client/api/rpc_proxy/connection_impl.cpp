@@ -103,11 +103,14 @@ std::vector<TString> GetRpcProxiesFromHttp(
 
 TConnection::TConnection(TConnectionConfigPtr config)
     : Config_(std::move(config))
-    , ActionQueue_(New<TActionQueue>("RpcProxyConn"))
-    , ChannelFactory_(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient))
-    , ChannelPool_(New<TDynamicChannelPool>(ChannelFactory_, Config_))
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
         .AddTag("ConnectionId: %v", TGuid::Create()))
+    , ActionQueue_(New<TActionQueue>("RpcProxyConn"))
+    , ChannelFactory_(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient))
+    , ChannelPool_(New<TDynamicChannelPool>(
+        ChannelFactory_,
+        Config_,
+        Logger))
     , UpdateProxyListExecutor_(New<TPeriodicExecutor>(
         ActionQueue_->GetInvoker(),
         BIND(&TConnection::OnProxyListUpdate, MakeWeak(this)),
@@ -219,13 +222,23 @@ void TConnection::OnProxyListUpdate()
     auto backoff = Config_->ProxyListRetryPeriod;
     for (int attempt = 0;; ++attempt) {
         try {
+            auto attributes = CreateEphemeralAttributes();
             std::vector<TString> proxies;
             if (Config_->ClusterUrl) {
-                YT_LOG_DEBUG("Updating proxy list from HTTP");
+                YT_LOG_DEBUG("Updating proxy list from HTTP (ClusterUrl: %v, ProxyRole: %v)",
+                    Config_->ClusterUrl,
+                    Config_->ProxyRole);
+
+                attributes->Set("cluster_url", Config_->ClusterUrl);
+
                 YT_VERIFY(HttpCredentials_);
                 proxies = DiscoverProxiesByHttp(*HttpCredentials_);
             } else {
-                YT_LOG_DEBUG("Updating proxy list from RPC");
+                YT_LOG_DEBUG("Updating proxy list from RPC (ProxyRole: %v)",
+                    Config_->ProxyRole);
+                
+                attributes->Set("rpc_proxy_addresses", Config_->Addresses);
+
                 if (!DiscoveryChannel_) {
                     auto address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
                     DiscoveryChannel_ = ChannelFactory_->CreateChannel(address);
@@ -239,8 +252,11 @@ void TConnection::OnProxyListUpdate()
                 }
             }
 
+            attributes->Set("proxy_role", Config_->ProxyRole.value_or(DefaultProxyRole));
+
             if (proxies.empty()) {
-                THROW_ERROR_EXCEPTION("Proxy list is empty");
+                THROW_ERROR_EXCEPTION("Proxy list is empty")
+                    << *attributes;
             }
 
             ChannelPool_->SetAddressList(proxies);

@@ -19,31 +19,6 @@ TDiscoveryClientServiceProxy CreateProxy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TListGroupsRequestSession
-    : public NRpc::TRequestSession<std::vector<TString>>
-{
-public:
-    TListGroupsRequestSession(
-        NRpc::TServerAddressPoolPtr addressPool,
-        TDiscoveryClientConfigPtr config,
-        NRpc::IChannelFactoryPtr channelFactory,
-        const NLogging::TLogger& logger);
-
-private:
-    const TDiscoveryClientConfigPtr Config_;
-    const NRpc::IChannelFactoryPtr ChannelFactory_;
-
-    TSpinLock Lock_;
-    THashSet<TString> GroupIds_;
-    int SuccessCount_ = 0;
-
-    virtual TFuture<void> MakeRequest(const TString& address) override;
-};
-
-DEFINE_REFCOUNTED_TYPE(TListGroupsRequestSession)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TListMembersRequestSession
     : public NRpc::TRequestSession<std::vector<TMemberInfo>>
 {
@@ -73,11 +48,11 @@ DEFINE_REFCOUNTED_TYPE(TListMembersRequestSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGetGroupSizeRequestSession
-    : public NRpc::TRequestSession<int>
+class TGetGroupMetaRequestSession
+    : public NRpc::TRequestSession<TGroupMeta>
 {
 public:
-    TGetGroupSizeRequestSession(
+    TGetGroupMetaRequestSession(
         NRpc::TServerAddressPoolPtr addressPool,
         TDiscoveryClientConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory,
@@ -90,13 +65,13 @@ private:
     const TString GroupId_;
 
     TSpinLock Lock_;
-    int GroupSize_ = 0;
+    TGroupMeta GroupMeta_;
     int SuccessCount_ = 0;
 
     virtual TFuture<void> MakeRequest(const TString& address) override;
 };
 
-DEFINE_REFCOUNTED_TYPE(TGetGroupSizeRequestSession)
+DEFINE_REFCOUNTED_TYPE(TGetGroupMetaRequestSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 

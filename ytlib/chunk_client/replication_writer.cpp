@@ -659,7 +659,8 @@ private:
                 blockIndex,
                 node->Descriptor.GetDefaultAddress());
 
-            if (rspOrError.Value()->close_demanded()) {
+            const auto& rsp = rspOrError.Value();
+            if (rsp->close_demanded()) {
                 YT_LOG_DEBUG("Close demanded by node (NodeAddress: %v)", node->Descriptor.GetDefaultAddress());
                 DemandClose();
             }

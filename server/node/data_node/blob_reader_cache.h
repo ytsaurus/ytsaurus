@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -19,7 +19,7 @@ class TBlobReaderCache
 public:
     TBlobReaderCache(
         TDataNodeConfigPtr config,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
     ~TBlobReaderCache();
 
     //! Returns a (cached) blob chunk reader.

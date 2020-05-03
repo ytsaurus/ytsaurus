@@ -454,8 +454,8 @@ private:
             lowerLimit,
             upperLimit,
             timestampTransactionId,
-            RpcContext_->Request().fetch_all_meta_extensions(),
             FetchContext_.FetchParityReplicas,
+            RpcContext_->Request().fetch_all_meta_extensions(),
             ExtensionTags_,
             &NodeDirectoryBuilder_,
             Bootstrap_,
@@ -1228,11 +1228,15 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         ? multicellManager->GetCellTag()
         : externalCellTag);
 
-    auto externalizedTransactionId = node->IsExternal()
-        ? transactionManager->ExternalizeTransaction(Transaction_, externalCellTag)
-        : GetObjectId(Transaction_);
+    auto maybeExternalizeTransaction = [&] (TCellTag dstCellTag) {
+        return node->IsExternal()
+            ? transactionManager->ExternalizeTransaction(Transaction_, dstCellTag)
+            : GetObjectId(Transaction_);
+    };
 
     if (node->IsExternal()) {
+        auto externalizedTransactionId = maybeExternalizeTransaction(externalCellTag);
+
         auto replicationRequest = TChunkOwnerYPathProxy::BeginUpload(FromObjectId(GetId()));
         SetTransactionId(replicationRequest, externalizedTransactionId);
         replicationRequest->set_update_mode(static_cast<int>(uploadContext.Mode));
@@ -1247,16 +1251,21 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     }
 
     if (!replicateStartToCellTags.empty()) {
-        NTransactionServer::NProto::TReqStartTransaction startRequest;
-        startRequest.set_dont_replicate(true);
-        ToProto(startRequest.mutable_hint_id(), uploadTransactionId);
-        if (externalizedTransactionId) {
-            ToProto(startRequest.mutable_parent_id(), externalizedTransactionId);
+        for (auto dstCellTag : replicateStartToCellTags) {
+            auto externalizedTransactionId = maybeExternalizeTransaction(dstCellTag);
+
+            NTransactionServer::NProto::TReqStartTransaction startRequest;
+            startRequest.set_dont_replicate(true);
+            ToProto(startRequest.mutable_hint_id(), uploadTransactionId);
+            if (externalizedTransactionId) {
+                ToProto(startRequest.mutable_parent_id(), externalizedTransactionId);
+            }
+            if (uploadTransactionTitle) {
+                startRequest.set_title(*uploadTransactionTitle);
+            }
+
+            multicellManager->PostToMaster(startRequest, dstCellTag);
         }
-        if (uploadTransactionTitle) {
-            startRequest.set_title(*uploadTransactionTitle);
-        }
-        multicellManager->PostToMasters(startRequest, replicateStartToCellTags);
     }
 
     context->SetResponseInfo("UploadTransactionId: %v", uploadTransactionId);

@@ -2,7 +2,7 @@
 #include "private.h"
 #include "tablet.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/lib/tablet_node/config.h>
 
@@ -82,13 +82,13 @@ class TResourceLimitsCache
 public:
     TResourceLimitsCache(
         TAsyncExpiringCacheConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : TAsyncExpiringCache(std::move(config))
         , Bootstrap_(bootstrap)
     { }
 
 private:
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     virtual TFuture<void> DoGet(const TResourceLimitsKey& key, bool isPeriodicUpdate) noexcept override
     {
@@ -154,7 +154,7 @@ class TSecurityManager::TImpl
 public:
     TImpl(
         TSecurityManagerConfigPtr config,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
         , ResourceLimitsCache_(New<TResourceLimitsCache>(Config_->ResourceLimitsCache, Bootstrap_))
@@ -198,7 +198,7 @@ public:
 
 private:
     const TSecurityManagerConfigPtr Config_;
-    NCellNode::TBootstrap* const Bootstrap_;
+    NClusterNode::TBootstrap* const Bootstrap_;
 
     const TResourceLimitsCachePtr ResourceLimitsCache_;
 
@@ -210,7 +210,7 @@ private:
 
 TSecurityManager::TSecurityManager(
     TSecurityManagerConfigPtr config,
-    NCellNode::TBootstrap* bootstrap)
+    NClusterNode::TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         std::move(config),
         bootstrap))

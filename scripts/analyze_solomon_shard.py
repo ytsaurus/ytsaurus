@@ -22,7 +22,7 @@ Feel free to add other statistics to show_top_sensors.
 Services for yt are listed at https://solomon.yandex-team.ru/admin/projects/yt/services.
 
 Solomon export data is stored at
-https://yt.yandex-team.ru/hahn/navigation?path=//home/solomon/SAS_PROD/Solomon_20200316T220020/Coremon/V1.
+https://yt.yandex-team.ru/hahn/navigation?path=//home/solomon/SAS_PROD/Metrics.
 """
 
 
@@ -31,8 +31,7 @@ yt.config['pickling']['module_filter'] = lambda module: 'hashlib' not in getattr
 
 
 SOLOMON_API_URL = "http://solomon.yandex.net/api/v2"
-SOLOMON_BACKUP_PREFIX = "//home/solomon/{}_PROD"
-SOLOMON_BACKUP_SUFFIX = "Coremon/V1"
+SOLOMON_BACKUP_PATH= "//home/solomon/{}_PROD/Metrics"
 
 
 DC_TO_CLUSTER = {
@@ -66,14 +65,6 @@ def get_shard_ids(project_id, service_id, token):
     logging.info("Collected %s shards", len(shards))
 
 
-def get_latest_backup(dc):
-    raise Exception("Solomon backups are broken, latest backup is incomplete; see SOLOMON-4301 and use " +\
-        "`--backup-dir Solomon_20200316T220020' and SAS dc")
-    prefix = SOLOMON_BACKUP_PREFIX.format(dc)
-    dirs = [dir for dir in yt.list(prefix) if dir.startswith("Solomon_")]
-    return max(dirs)
-
-
 def list_clusters():
     locke_client = yt.YtClient("locke")
     return locke_client.list("//sys/clusters")
@@ -99,9 +90,8 @@ def map_clusters_to_shard_ids(shard_ids, clusters, project_id, token):
 
 @yt.aggregator
 class Mapper:
-    def __init__(self, cluster, shard_id):
-        self.shard_id = shard_id
-        self.cluster = cluster
+    def __init__(self, cluster_by_shard_id):
+        self.cluster_by_shard_id = cluster_by_shard_id
 
 
     def __call__(self, rows):
@@ -110,7 +100,9 @@ class Mapper:
         schema = {}
 
         for row in rows:
-            if row.get("shardId") != self.shard_id:
+            cluster = self.cluster_by_shard_id.get(row.get("shardId"))
+            if cluster is None:
+                continue
                 continue
             if "labels" not in row or not row["labels"]:
                 continue
@@ -120,7 +112,7 @@ class Mapper:
                 x, y = f.split("=")
                 res[x] = y
                 schema[x] = ""
-            res["cluster"] = self.cluster
+            res["cluster"] = cluster
             yield res
 
         yield yt.create_table_switch(1)
@@ -131,18 +123,13 @@ def collect_schemaless_data(clusters, backup_path, intermediate_table, schema_ta
     spec = {}
     if pool:
         spec["pool"] = pool
-
-    with yt.OperationsTracker() as tracker:
-        for cluster, shard_id in clusters.items():
-            backup_table = "Metrics_{:02x}".format(shard_id & 63)
-            op = yt.run_map(
-                Mapper(cluster, shard_id),
-                backup_path + "/" + backup_table,
-                [yt.TablePath(intermediate_table, append=True), yt.TablePath(schema_table, append=True)],
-                format=yt.YsonFormat(control_attributes_mode="iterator"),
-                spec=spec,
-                sync=False)
-            tracker.add(op)
+    cluster_by_shard_id = {shard_id: cluster for cluster, shard_id in clusters.iteritems()}
+    yt.run_map(
+        Mapper(cluster_by_shard_id),
+        backup_path,
+        [intermediate_table, schema_table],
+        format=yt.YsonFormat(control_attributes_mode="iterator"),
+        spec=spec)
 
 
 def make_schema(schema_table):
@@ -179,12 +166,7 @@ def execute_chyt_query(query, cluster, alias, token, timeout=600):
 
 def prepare_sensors_data(args):
     shard_ids = get_shard_ids(args.project, args.service, get_token())
-    clusters = args.clusters if args.clusters is not None else list_clusters()
-    shard_id_by_cluster = map_clusters_to_shard_ids(shard_ids, clusters, args.project, get_token())
-
-    backup_dir = args.backup_dir or get_latest_backup(args.dc)
-    backup_path = SOLOMON_BACKUP_PREFIX.format(args.dc) + "/" + backup_dir + "/" + SOLOMON_BACKUP_SUFFIX
-    logging.info("Using backup directory %s", backup_path)
+    shard_id_by_cluster = map_clusters_to_shard_ids(shard_ids, args.clusters, args.project, get_token())
 
     logging.info("Running operations to collect schemaless data")
     try:
@@ -192,7 +174,12 @@ def prepare_sensors_data(args):
         schema_table = yt.create_temp_table()
         logging.info("Intermediate table: %s", intermediate_table)
         logging.info("Schema table: %s", schema_table)
-        collect_schemaless_data(shard_id_by_cluster, backup_path, intermediate_table, schema_table, args.pool)
+        collect_schemaless_data(
+            shard_id_by_cluster,
+            SOLOMON_BACKUP_PATH.format(args.dc),
+            intermediate_table,
+            schema_table,
+            args.pool)
 
         spec = {}
         if args.pool:
@@ -216,7 +203,7 @@ def prepare_sensors_data(args):
         raise
 
 
-def show_top_sensors(dc, table, cluster, token):
+def show_top_sensors(dc, table, limit, cluster, token):
     def _execute(query):
         return execute_chyt_query(query, DC_TO_CLUSTER[dc], "*ch_public", token)
 
@@ -226,8 +213,8 @@ def show_top_sensors(dc, table, cluster, token):
         where "cluster" = '{cluster}'
         group by "sensor"
         order by cnt desc
-        limit 20;
-    '''.format(table=table, cluster=cluster)
+        limit {limit};
+    '''.format(table=table, cluster=cluster, limit=limit)
     result = _execute(query)
     print tabulate(result)
 
@@ -244,7 +231,6 @@ if __name__ == '__main__':
         required=True,
         help="Solomon service (e.g. `yt_bridge_node_tablet_profiling')")
     parser.add_argument("--dc", type=str, default="SAS", choices=list(DC_TO_CLUSTER), help="[default=SAS]")
-    parser.add_argument("--backup-dir", type=str, help="Solomon backup directory (e.g. `Solomon_20200316T220020')")
     parser.add_argument(
         "--clusters",
         nargs='*',
@@ -253,9 +239,12 @@ if __name__ == '__main__':
     parser.add_argument("--table", type=str, required=True, help="Table to store sensors data")
     parser.add_argument("--force", action="store_true", default=False, help="Remove table if exists")
     parser.add_argument("--pool", type=str, help="YT pool")
+    parser.add_argument("--top-k", type=int, default=20, help="Count of top sensors to show")
     args = parser.parse_args()
 
     yt.config.set_proxy(DC_TO_CLUSTER[args.dc])
+    if args.clusters is None:
+        args.clusters = list_clusters()
 
     if yt.exists(args.table):
         logging.info("Table %s exists, will not run preparation phase; use --force to override", args.table)
@@ -264,4 +253,4 @@ if __name__ == '__main__':
 
     for cluster in args.clusters:
         logging.info("Top sensors for %s", cluster)
-        show_top_sensors(args.dc, args.table, cluster, get_token())
+        show_top_sensors(args.dc, args.table, args.top_k, cluster, get_token())

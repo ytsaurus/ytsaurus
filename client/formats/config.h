@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/client/table_client/config.h>
+#include <yt/client/table_client/schema.h>
 
 #include <yt/core/ytree/yson_serializable.h>
 
@@ -554,11 +555,17 @@ public:
     NYTree::IMapNodePtr SkiffSchemaRegistry;
     NYTree::IListNodePtr TableSkiffSchemas;
 
+    // This is temporary configuration until we support schema on mapreduce operations fully.
+    std::optional<NTableClient::TTableSchema> OverrideIntermediateTableSchema;
+
     TSkiffFormatConfig()
     {
         RegisterParameter("skiff_schema_registry", SkiffSchemaRegistry)
             .Default();
         RegisterParameter("table_skiff_schemas", TableSkiffSchemas);
+
+        RegisterParameter("override_intermediate_table_schema", OverrideIntermediateTableSchema)
+            .Default();
     }
 };
 

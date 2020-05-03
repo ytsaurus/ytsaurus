@@ -5,8 +5,8 @@
 #include "transaction.h"
 #include "versioned_chunk_meta_manager.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/node/query_agent/config.h>
 
@@ -59,7 +59,7 @@ using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
 using namespace NApi;
 using namespace NDataNode;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NQueryAgent;
 
 using NChunkClient::TReadLimit;

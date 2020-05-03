@@ -5,6 +5,8 @@
 #include "helpers.h"
 #include "chunk_owner_base.h"
 #include "medium.h"
+#include "dynamic_store.h"
+#include "chunk_owner_node_proxy.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
@@ -15,7 +17,11 @@
 #include <yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/server/master/node_tracker_server/node_tracker.h>
 
+#include <yt/server/master/tablet_server/tablet_manager.h>
+
 #include <yt/server/master/transaction_server/transaction.h>
+
+#include <yt/server/lib/hive/hive_manager.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/session_id.h>
@@ -29,7 +35,9 @@ namespace NYT::NChunkServer {
 using namespace NHydra;
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NConcurrency;
 using namespace NNodeTrackerServer;
+using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NHydra;
@@ -53,6 +61,9 @@ public:
             ChunkServerLogger)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
+            .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator))
+            .SetHeavy(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateDynamicStores)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator))
             .SetHeavy(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(TouchChunks)
@@ -79,6 +90,8 @@ private:
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
+        // TODO(shakurov): only sync with the leader is really needed,
+        // not with the primary cell.
         SyncWithUpstream();
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -133,6 +146,72 @@ private:
             YT_LOG_DEBUG("Touching chunks at leader (Count: %v)",
                 leaderRequest->subrequests_size());
             leaderRequest->Invoke();
+        }
+
+        context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateDynamicStores)
+    {
+        context->SetRequestInfo("SubrequestCount: %v",
+            request->subrequests_size());
+
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::LeaderOrFollower);
+        SyncWithUpstream();
+
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        auto addressType = request->has_address_type()
+            ? CheckedEnumCast<NNodeTrackerClient::EAddressType>(request->address_type())
+            : NNodeTrackerClient::EAddressType::InternalRpc;
+        TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory(), addressType);
+
+        for (const auto& protoStoreId : request->subrequests()) {
+            auto storeId = FromProto<TDynamicStoreId>(protoStoreId);
+            auto* subresponse = response->add_subresponses();
+
+            auto* dynamicStore = chunkManager->FindDynamicStore(storeId);
+            if (!IsObjectAlive(dynamicStore)) {
+                subresponse->set_missing(true);
+                continue;
+            }
+
+            THashSet<int> extensionTags;
+            if (!request->fetch_all_meta_extensions()) {
+                extensionTags.insert(request->extension_tags().begin(), request->extension_tags().end());
+            }
+
+            if (dynamicStore->IsFlushed()) {
+                auto* chunk = dynamicStore->GetFlushedChunk();
+                if (chunk) {
+                    BuildChunkSpec(
+                        chunk,
+                        -1 /*rowIndex*/,
+                        {} /*tabletIndex*/,
+                        {} /*lowerLimit*/,
+                        {} /*upperLimit*/,
+                        {} /*timestampTransactionId*/,
+                        true /*fetchParityReplicas*/,
+                        request->fetch_all_meta_extensions(),
+                        extensionTags,
+                        &nodeDirectoryBuilder,
+                        Bootstrap_,
+                        subresponse->mutable_chunk_spec());
+                }
+            } else {
+                const auto& tabletManager = Bootstrap_->GetTabletManager();
+                auto* chunkSpec = subresponse->mutable_chunk_spec();
+                auto* tablet = dynamicStore->GetTablet();
+
+                ToProto(chunkSpec->mutable_chunk_id(), dynamicStore->GetId());
+                if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
+                    auto replica = TNodePtrWithIndexes(node, 0, 0);
+                    nodeDirectoryBuilder.Add(replica);
+                    chunkSpec->add_replicas(ToProto<ui64>(replica));
+                }
+                ToProto(chunkSpec->mutable_tablet_id(), tablet->GetId());
+            }
         }
 
         context->Reply();
@@ -255,7 +334,7 @@ private:
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
-        SyncWithUpstream();
+        SyncWithTransactionCoordinatorCell(context, transactionId);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
@@ -273,7 +352,7 @@ private:
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
-        SyncWithUpstream();
+        SyncWithTransactionCoordinatorCell(context, transactionId);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         chunkManager
@@ -342,6 +421,23 @@ private:
         chunkManager
             ->CreateExecuteBatchMutation(context)
             ->CommitAndReply(context);
+    }
+
+    void SyncWithTransactionCoordinatorCell(const IServiceContextPtr& context, TTransactionId transactionId)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+
+        auto cellTag = CellTagFromId(transactionId);
+        auto cellId = multicellManager->GetCellId(cellTag);
+        auto syncFuture = hiveManager->SyncWith(cellId, true);
+
+        YT_LOG_DEBUG("Request will synchronize with another cell (RequestId: %v, CellTag: %v)",
+            context->GetRequestId(),
+            cellTag);
+
+        WaitFor(syncFuture)
+            .ThrowOnError();
     }
 };
 

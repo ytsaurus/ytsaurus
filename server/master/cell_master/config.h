@@ -254,4 +254,34 @@ DEFINE_REFCOUNTED_TYPE(TDynamicClusterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSerializationDumperConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    i64 LowerLimit;
+    i64 UpperLimit;
+
+    TSerializationDumperConfig()
+    {
+        RegisterParameter("lower_limit", LowerLimit)
+            .GreaterThanOrEqual(0)
+            .Default(0);
+        RegisterParameter("upper_limit", UpperLimit)
+            .GreaterThanOrEqual(0)
+            .Default(std::numeric_limits<i64>::max());
+
+        RegisterPostprocessor([&] () {
+            if (LowerLimit >= UpperLimit) {
+                THROW_ERROR_EXCEPTION("'UpperLimit' must be greater than 'LowerLimit'")
+                    << TErrorAttribute("actual_lower_limit", LowerLimit)
+                    << TErrorAttribute("actual_upper_limit", UpperLimit);
+            }
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSerializationDumperConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCellMaster

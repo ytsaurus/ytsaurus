@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/node/cell_node/public.h>
+#include <yt/server/node/cluster_node/public.h>
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
@@ -17,6 +17,8 @@
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/periodic_executor.h>
+
+#include <yt/core/misc/atomic_object.h>
 
 namespace NYT::NDataNode {
 
@@ -36,6 +38,9 @@ DEFINE_ENUM(EMasterConnectorState,
  *  This class is responsible for registering the node and sending
  *  heartbeats. In particular, it reports chunk deltas to the master
  *  and manages jobs.
+ *
+ *  \note
+ *  Thread affinity: any
  */
 class TMasterConnector
     : public TRefCounted
@@ -59,44 +64,25 @@ public:
         const NNodeTrackerClient::TAddressMap& skynetHttpAddresses,
         const NNodeTrackerClient::TAddressMap& monitoringHttpAddresses,
         const std::vector<TString>& nodeTags,
-        NCellNode::TBootstrap* bootstrap);
+        NClusterNode::TBootstrap* bootstrap);
 
     //! Starts interaction with master.
     void Start();
 
     //! Returns |true| iff node is currently connected to master.
-    /*!
-     *  \note
-     *  Thread affinity: any
-     */
     bool IsConnected() const;
 
     //! Returns the node id assigned by master or |InvalidNodeId| if the node
     //! is not registered.
-    /*!
-     *  \note
-     *  Thread affinity: any
-     */
     TNodeId GetNodeId() const;
 
     //! Adds a given message to the list of alerts sent to master with each heartbeat.
-    /*!
-     *  Thread affinity: any
-     */
     void RegisterAlert(const TError& alert);
 
     //! Returns a statically known map for the local addresses.
-    /*!
-     *  \note
-     *  Thread affinity: any
-     */
     const NNodeTrackerClient::TAddressMap& GetLocalAddresses() const;
 
     //! Returns a dynamically updated node descriptor.
-    /*!
-     *  \note
-     *  Thread affinity: any
-     */
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const;
 
     //! Returns future that is set when the next incremental heartbeat is successfully reported
@@ -115,7 +101,7 @@ private:
     const NNodeTrackerClient::TAddressMap MonitoringHttpAddresses_;
 
     const std::vector<TString> NodeTags_;
-    const NCellNode::TBootstrap* Bootstrap_;
+    const NClusterNode::TBootstrap* Bootstrap_;
     const IInvokerPtr ControlInvoker_;
 
     bool Started_ = false;
@@ -156,11 +142,11 @@ private:
         THashSet<IChunkPtr> ReportedRemoved;
 
         //! Set when another incremental heartbeat is successfully reported to the corresponding master.
-        TPromise<void> HeartbeatBarrier = NewPromise<void>();
+        TAtomicObject<TPromise<void>> HeartbeatBarrier = {NewPromise<void>()};
     };
 
     //! Per-cell chunks delta.
-    THashMap<NObjectClient::TCellTag, TChunksDelta> ChunksDeltaMap_;
+    THashMap<NObjectClient::TCellTag, std::unique_ptr<TChunksDelta>> ChunksDeltaMap_;
 
     //! All master cell tags (including the primary).
     NObjectClient::TCellTagList MasterCellTags_;
@@ -262,14 +248,14 @@ private:
      *  Places the chunk into a list and reports its arrival
      *  to the master upon a next heartbeat.
      */
-    void OnChunkAdded(IChunkPtr chunk);
+    void OnChunkAdded(const IChunkPtr& chunk);
 
     //! Handles removal of existing chunks.
     /*!
      *  Places the chunk into a list and reports its removal
      *  to the master upon a next heartbeat.
      */
-    void OnChunkRemoved(IChunkPtr chunk);
+    void OnChunkRemoved(const IChunkPtr& chunk);
 
     //! Returns the channel used for registering at and reporting heartbeats
     //! to the leader of a given cell.

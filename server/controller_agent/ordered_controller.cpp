@@ -750,6 +750,11 @@ private:
         return Spec_->CoreTableWriter;
     }
 
+    virtual bool GetEnableCudaGpuCoreDump() const override
+    {
+        return Spec_->EnableCudaGpuCoreDump;
+    }
+
     void InitJobSpecTemplate() override
     {
         JobSpecTemplate_.set_type(static_cast<int>(EJobType::OrderedMap));

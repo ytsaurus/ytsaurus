@@ -2152,6 +2152,66 @@ void AnyToYsonString(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+extern "C" void NumericToString(
+    TExpressionContext* context,
+    TUnversionedValue* result,
+    TUnversionedValue* value
+)
+{
+    TString resultYson;
+    TStringOutput output(resultYson);
+    TYsonWriter writer(&output, EYsonFormat::Text);
+
+    switch (value->Type) {
+        case EValueType::Int64:
+            writer.OnInt64Scalar(value->Data.Int64);
+            break;
+        case EValueType::Uint64:
+            writer.OnUint64Scalar(value->Data.Uint64);
+            break;
+        case EValueType::Double:
+            writer.OnDoubleScalar(value->Data.Double);
+            break;
+        default:
+            YT_ABORT();
+    }
+
+    *result = context->Capture(MakeUnversionedStringValue(resultYson));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define DEFINE_CONVERT_STRING(TYPE) \
+    extern "C" void StringTo ## TYPE(TExpressionContext* context, TUnversionedValue* result, TUnversionedValue* value) \
+    { \
+        if (value->Type == EValueType::Null) { \
+            result->Type = EValueType::Null; \
+            return; \
+        } \
+        NYson::TToken token; \
+        NYson::GetToken(TStringBuf(value->Data.String, value->Length), &token); \
+        if (token.GetType() == NYson::ETokenType::Int64) { \
+            result->Type = EValueType::TYPE; \
+            result->Data.TYPE = token.GetInt64Value(); \
+        } else if (token.GetType() == NYson::ETokenType::Uint64) { \
+            result->Type = EValueType::TYPE; \
+            result->Data.TYPE = token.GetUint64Value(); \
+        } else if (token.GetType() == NYson::ETokenType::Double) { \
+            result->Type = EValueType::TYPE; \
+            result->Data.TYPE = token.GetDoubleValue(); \
+        } else { \
+            THROW_ERROR_EXCEPTION("Can not convert value %Qv of type %v to String", \
+                TStringBuf(value->Data.String, value->Length), \
+                #TYPE); \
+        } \
+    }
+
+DEFINE_CONVERT_STRING(Int64)
+DEFINE_CONVERT_STRING(Uint64)
+DEFINE_CONVERT_STRING(Double)
+
+////////////////////////////////////////////////////////////////////////////////
+
 void HyperLogLogAllocate(TExpressionContext* context, TUnversionedValue* result)
 {
     auto hll = AllocateBytes(context, sizeof(THLL));
@@ -2270,6 +2330,10 @@ void RegisterQueryRoutinesImpl(TRoutineRegistry* registry)
     REGISTER_ROUTINE(AnyToString);
     REGISTER_ROUTINE(ListContains);
     REGISTER_ROUTINE(AnyToYsonString);
+    REGISTER_ROUTINE(NumericToString);
+    REGISTER_ROUTINE(StringToInt64);
+    REGISTER_ROUTINE(StringToUint64);
+    REGISTER_ROUTINE(StringToDouble);
     REGISTER_ROUTINE(HyperLogLogAllocate);
     REGISTER_ROUTINE(HyperLogLogAdd);
     REGISTER_ROUTINE(HyperLogLogMerge);

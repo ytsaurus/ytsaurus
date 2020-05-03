@@ -173,40 +173,46 @@ TSkiffToUnversionedValueConverter CreateComplexValueConverter(
 class TSkiffParserImpl
 {
 public:
-    TSkiffParserImpl(IValueConsumer* valueConsumer, const TSkiffSchemaPtr& skiffSchema)
+    TSkiffParserImpl(const TSkiffSchemaPtr& skiffSchema, const TTableSchema& tableSchema, IValueConsumer* valueConsumer)
         : SkiffSchemaList_({skiffSchema})
         , ValueConsumer_(valueConsumer)
         , YsonToUnversionedValueConverter_(EComplexTypeMode::Named, ValueConsumer_)
         , OtherColumnsConsumer_(EComplexTypeMode::Named, ValueConsumer_)
     {
         THashMap<TString, const TColumnSchema*> columnSchemas;
-        for (const auto& column : valueConsumer->GetSchema().Columns()) {
+        for (const auto& column : tableSchema.Columns()) {
             columnSchemas[column.Name()] = &column;
         }
 
         auto genericTableDescriptions = CreateTableDescriptionList(
             SkiffSchemaList_, RangeIndexColumnName, RowIndexColumnName);
 
-        for (const auto& genericTableDescription : genericTableDescriptions) {
+        for (int tableIndex = 0; tableIndex < genericTableDescriptions.size(); ++tableIndex) {
+            const auto& genericTableDescription = genericTableDescriptions[tableIndex];
             auto& parserTableDescription = TableDescriptions_.emplace_back();
             parserTableDescription.HasOtherColumns = genericTableDescription.HasOtherColumns;
             for (const auto& fieldDescription : genericTableDescription.DenseFieldDescriptionList) {
                 const auto columnId = ValueConsumer_->GetNameTable()->GetIdOrRegisterName(fieldDescription.Name());
                 TSkiffToUnversionedValueConverter converter;
                 auto columnSchema = columnSchemas.FindPtr(fieldDescription.Name());
-                if (columnSchema && !(*columnSchema)->SimplifiedLogicalType()) {
-                    converter = CreateComplexValueConverter(
-                        TComplexTypeFieldDescriptor(fieldDescription.Name(), (*columnSchema)->LogicalType()),
-                        fieldDescription.Schema(),
-                        columnId,
-                        /*sparseColumn*/ false);
-                } else {
-                    converter = CreateSimpleValueConverter(
-                        fieldDescription.ValidatedSimplify(),
-                        fieldDescription.IsRequired(),
-                        columnId,
-                        &YsonToUnversionedValueConverter_
-                    );
+                try {
+                    if (columnSchema && !(*columnSchema)->SimplifiedLogicalType()) {
+                        converter = CreateComplexValueConverter(
+                            TComplexTypeFieldDescriptor(fieldDescription.Name(), (*columnSchema)->LogicalType()),
+                            fieldDescription.Schema(),
+                            columnId,
+                            /*sparseColumn*/ false);
+                    } else {
+                        converter = CreateSimpleValueConverter(
+                            fieldDescription.ValidatedSimplify(),
+                            fieldDescription.IsRequired(),
+                            columnId,
+                            &YsonToUnversionedValueConverter_);
+                    }
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Cannot create skiff parser for table #%v",
+                        tableIndex)
+                        << ex;
                 }
                 parserTableDescription.DenseFieldConverters.emplace_back(converter);
             }
@@ -215,19 +221,24 @@ public:
                 const auto columnId = ValueConsumer_->GetNameTable()->GetIdOrRegisterName(fieldDescription.Name());
                 TSkiffToUnversionedValueConverter converter;
                 auto columnSchema = columnSchemas.FindPtr(fieldDescription.Name());
-                if (columnSchema && !(*columnSchema)->SimplifiedLogicalType()) {
-                    converter = CreateComplexValueConverter(
-                        TComplexTypeFieldDescriptor(fieldDescription.Name(), (*columnSchema)->LogicalType()),
-                        fieldDescription.Schema(),
-                        columnId,
-                        /*sparseColumn*/ true);
-                } else {
-                    converter = CreateSimpleValueConverter(
-                        fieldDescription.ValidatedSimplify(),
-                        fieldDescription.IsRequired(),
-                        columnId,
-                        &YsonToUnversionedValueConverter_
-                    );
+                try {
+                    if (columnSchema && !(*columnSchema)->SimplifiedLogicalType()) {
+                        converter = CreateComplexValueConverter(
+                            TComplexTypeFieldDescriptor(fieldDescription.Name(), (*columnSchema)->LogicalType()),
+                            fieldDescription.Schema(),
+                            columnId,
+                            /*sparseColumn*/ true);
+                    } else {
+                        converter = CreateSimpleValueConverter(
+                            fieldDescription.ValidatedSimplify(),
+                            fieldDescription.IsRequired(),
+                            columnId,
+                            &YsonToUnversionedValueConverter_);
+                    }
+                } catch (const std::exception& ex) {
+                    THROW_ERROR_EXCEPTION("Cannot create skiff parser for table #%v",
+                        tableIndex)
+                        << ex;
                 }
                 parserTableDescription.SparseFieldConverters.emplace_back(converter);
             }
@@ -308,8 +319,8 @@ class TSkiffPushParser
     : public IParser
 {
 public:
-    TSkiffPushParser(const TSkiffSchemaPtr& skiffSchema, IValueConsumer* consumer)
-        : ParserImpl_(std::make_unique<TSkiffParserImpl>(consumer, skiffSchema))
+    TSkiffPushParser(const TSkiffSchemaPtr& skiffSchema, const TTableSchema& tableSchema, IValueConsumer* consumer)
+        : ParserImpl_(std::make_unique<TSkiffParserImpl>(skiffSchema, tableSchema, consumer))
         , ParserCoroPipe_(
             BIND(
                 [=](IZeroCopyInput* stream) {
@@ -341,22 +352,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<IParser> CreateParserForSkiff(
-    IValueConsumer* consumer,
-    TSkiffFormatConfigPtr config,
-    int tableIndex)
-{
-    auto skiffSchemas = ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
-    if (tableIndex >= static_cast<int>(skiffSchemas.size())) {
-        THROW_ERROR_EXCEPTION("Skiff format config does not describe table #%v",
-            tableIndex);
-    }
-    return CreateParserForSkiff(
-        skiffSchemas[tableIndex],
-        consumer);
-}
-
-std::unique_ptr<IParser> CreateParserForSkiff(
     TSkiffSchemaPtr skiffSchema,
+    const TTableSchema& tableSchema,
     IValueConsumer* consumer)
 {
     auto tableDescriptionList = CreateTableDescriptionList({skiffSchema}, RangeIndexColumnName, RowIndexColumnName);
@@ -366,7 +363,41 @@ std::unique_ptr<IParser> CreateParserForSkiff(
     }
     return std::make_unique<TSkiffPushParser>(
         skiffSchema,
+        tableSchema,
         consumer);
+}
+
+std::unique_ptr<IParser> CreateParserForSkiff(
+    IValueConsumer* consumer,
+    TSkiffFormatConfigPtr config,
+    int tableIndex)
+{
+    auto skiffSchemas = ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
+    if (tableIndex >= static_cast<int>(skiffSchemas.size())) {
+        THROW_ERROR_EXCEPTION("Skiff format config does not describe table #%v",
+            tableIndex);
+    }
+    if (tableIndex == 0 && config->OverrideIntermediateTableSchema) {
+        if (!IsTrivialIntermediateSchema(consumer->GetSchema())) {
+            THROW_ERROR_EXCEPTION("Cannot use \"override_intermediate_table_schema\" since output table #0 has nontrivial schema")
+                << TErrorAttribute("schema", consumer->GetSchema());
+        }
+        return CreateParserForSkiff(
+            skiffSchemas[tableIndex],
+            *config->OverrideIntermediateTableSchema,
+            consumer);
+    } else {
+        return CreateParserForSkiff(
+            skiffSchemas[tableIndex],
+            consumer);
+    }
+}
+
+std::unique_ptr<IParser> CreateParserForSkiff(
+    TSkiffSchemaPtr skiffSchema,
+    IValueConsumer* consumer)
+{
+    return CreateParserForSkiff(skiffSchema, consumer->GetSchema(), consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

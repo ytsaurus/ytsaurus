@@ -8,8 +8,8 @@
 #include "journal_manager.h"
 #include "master_connector.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/hydra/changelog.h>
 #include <yt/server/lib/hydra/private.h>
@@ -33,7 +33,7 @@
 namespace NYT::NDataNode {
 
 using namespace NChunkClient;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NProfiling;
@@ -165,56 +165,85 @@ TLocation::TLocation(
 
 const NChunkClient::IIOEnginePtr& TLocation::GetIOEngine() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return IOEngine_;
 }
 
 ELocationType TLocation::GetType() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+    
     return Type_;
 }
 
 TLocationUuid TLocation::GetUuid() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Uuid_;
 }
 
 const TString& TLocation::GetMediumName() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Config_->MediumName;
 }
 
 const TMediumDescriptor& TLocation::GetMediumDescriptor() const
 {
-    return MediumDescriptor_;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto* descriptor = CurrentMediumDescriptor_.load();
+    static const TMediumDescriptor Empty;
+    return descriptor ? *descriptor : Empty;
 }
 
 void TLocation::SetMediumDescriptor(const TMediumDescriptor& descriptor)
 {
-    MediumDescriptor_ = descriptor;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = Guard(MediumDescriptorLock_);
+    if (!MediumDescriptors_.empty() && descriptor == *MediumDescriptors_.back()) {
+        return;
+    }
+    MediumDescriptors_.push_back(std::make_unique<TMediumDescriptor>(descriptor));
+    CurrentMediumDescriptor_ = MediumDescriptors_.back().get();
 }
 
 const NProfiling::TProfiler& TLocation::GetProfiler() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Profiler_;
 }
 
 TLocationPerformanceCounters& TLocation::GetPerformanceCounters()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return PerformanceCounters_;
 }
 
 const TString& TLocation::GetPath() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Config_->Path;
 }
 
 i64 TLocation::GetQuota() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return Config_->Quota.value_or(std::numeric_limits<i64>::max());
 }
 
-IInvokerPtr TLocation::GetWritePoolInvoker()
+const IInvokerPtr& TLocation::GetWritePoolInvoker()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return WritePoolInvoker_;
 }
 
@@ -230,21 +259,22 @@ std::vector<TChunkDescriptor> TLocation::Scan()
         return std::vector<TChunkDescriptor>();
     }
 
+    // Be optimistic and assume everything will be OK.
+    // Also Disable requires Enabled_ to be true.
+    Enabled_.store(true);
+
     try {
-        // Be optimistic and assume everything will be OK.
-        // Also Disable requires Enabled_ to be true.
-        Enabled_.store(true);
         return DoScan();
     } catch (const std::exception& ex) {
         Disable(TError("Location scan failed") << ex);
-        YT_ABORT(); // Disable() exits the process.
     }
 }
 
 void TLocation::Start()
 {
-    if (!IsEnabled())
+    if (!IsEnabled()) {
         return;
+    }
 
     try {
         DoStart();
@@ -255,6 +285,8 @@ void TLocation::Start()
 
 void TLocation::Disable(const TError& reason)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!Enabled_.exchange(false)) {
         // Save only once.
         Sleep(TDuration::Max());
@@ -282,8 +314,11 @@ void TLocation::Disable(const TError& reason)
 
 void TLocation::UpdateUsedSpace(i64 size)
 {
-    if (!IsEnabled())
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (!IsEnabled()) {
         return;
+    }
 
     UsedSpace_ += size;
     AvailableSpace_ -= size;
@@ -291,31 +326,34 @@ void TLocation::UpdateUsedSpace(i64 size)
 
 i64 TLocation::GetUsedSpace() const
 {
-    return UsedSpace_;
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return UsedSpace_.load();
 }
 
 i64 TLocation::GetAvailableSpace() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!IsEnabled()) {
         return 0;
     }
 
-    auto path = GetPath();
-
+    i64 availableSpace;
     try {
-        auto statistics = NFS::GetDiskSpaceStatistics(path);
-        AvailableSpace_ = statistics.AvailableSpace + GetAdditionalSpace();
+        auto statistics = NFS::GetDiskSpaceStatistics(GetPath());
+        availableSpace = statistics.AvailableSpace + GetAdditionalSpace();
     } catch (const std::exception& ex) {
         auto error = TError("Failed to compute available space")
             << ex;
         const_cast<TLocation*>(this)->Disable(error);
-        YT_ABORT(); // Disable() exits the process.
     }
 
     i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - GetUsedSpace());
-    AvailableSpace_ = std::min(AvailableSpace_, remainingQuota);
+    availableSpace = std::min(availableSpace, remainingQuota);
+    AvailableSpace_.store(availableSpace);
 
-    return AvailableSpace_;
+    return availableSpace;
 }
 
 i64 TLocation::GetPendingIOSize(
@@ -442,6 +480,8 @@ void TLocation::IncreaseCompletedIOSize(
 
 void TLocation::UpdateSessionCount(ESessionType type, int delta)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!IsEnabled()) {
         return;
     }
@@ -451,20 +491,26 @@ void TLocation::UpdateSessionCount(ESessionType type, int delta)
 
 int TLocation::GetSessionCount(ESessionType type) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return PerTypeSessionCount_[type];
 }
 
 int TLocation::GetSessionCount() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     int result = 0;
-    for (auto count : PerTypeSessionCount_) {
-        result += count;
+    for (const auto& count : PerTypeSessionCount_) {
+        result += count.load();
     }
     return result;
 }
 
 void TLocation::UpdateChunkCount(int delta)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!IsEnabled()) {
         return;
     }
@@ -474,16 +520,22 @@ void TLocation::UpdateChunkCount(int delta)
 
 int TLocation::GetChunkCount() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return ChunkCount_;
 }
 
 TString TLocation::GetChunkPath(TChunkId chunkId) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return NFS::CombinePaths(GetPath(), GetRelativeChunkPath(chunkId));
 }
 
 void TLocation::RemoveChunkFilesPermanently(TChunkId chunkId)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     try {
         YT_LOG_DEBUG("Started removing chunk files (ChunkId: %v)", chunkId);
 
@@ -505,18 +557,20 @@ void TLocation::RemoveChunkFilesPermanently(TChunkId chunkId)
             chunkId)
             << ex;
         Disable(error);
-        YT_ABORT(); // Disable() exits the process.
     }
 }
 
-void TLocation::RemoveChunkFiles(TChunkId chunkId, bool force)
+void TLocation::RemoveChunkFiles(TChunkId chunkId, bool /*force*/)
 {
-    Y_UNUSED(force);
+    VERIFY_THREAD_AFFINITY_ANY();
+
     RemoveChunkFilesPermanently(chunkId);
 }
 
 IThroughputThrottlerPtr TLocation::GetOutThrottler(const TWorkloadDescriptor& descriptor) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     switch (descriptor.Category) {
         case EWorkloadCategory::SystemReplication:
             return ReplicationOutThrottler_;
@@ -541,12 +595,16 @@ IThroughputThrottlerPtr TLocation::GetOutThrottler(const TWorkloadDescriptor& de
 
 bool TLocation::IsReadThrottling()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto deadline = PerformanceCounters_.ThrottledReads.GetUpdateDeadline();
     return GetCpuInstant() < deadline + 2 * DurationToCpuDuration(Config_->ThrottleCounterInterval);
 }
 
 bool TLocation::IsWriteThrottling()
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto deadline = PerformanceCounters_.ThrottledWrites.GetUpdateDeadline();
     return GetCpuInstant() < deadline + 2 * DurationToCpuDuration(Config_->ThrottleCounterInterval);
 }
@@ -625,7 +683,6 @@ bool TLocation::IsSick() const
 void TLocation::OnHealthCheckFailed(const TError& error)
 {
     Disable(error);
-    YT_ABORT(); // Disable() exits the process.
 }
 
 void TLocation::MarkAsDisabled(const TError& error)
@@ -636,11 +693,12 @@ void TLocation::MarkAsDisabled(const TError& error)
     masterConnector->RegisterAlert(alert);
 
     Enabled_.store(false);
-
-    AvailableSpace_ = 0;
-    UsedSpace_ = 0;
-    PerTypeSessionCount_ = {};
-    ChunkCount_ = 0;
+    AvailableSpace_.store(0);
+    UsedSpace_.store(0);
+    for (auto& count : PerTypeSessionCount_) {
+        count.store(0);
+    }
+    ChunkCount_.store(0);
 }
 
 i64 TLocation::GetAdditionalSpace() const
@@ -657,7 +715,7 @@ bool TLocation::ShouldSkipFileName(const TString& fileName) const
 
 std::vector<TChunkDescriptor> TLocation::DoScan()
 {
-    YT_LOG_INFO("Scanning storage location");
+    YT_LOG_INFO("Started scanning location");
 
     NFS::CleanTempFiles(GetPath());
     ForceHashDirectories(GetPath());
@@ -693,7 +751,8 @@ std::vector<TChunkDescriptor> TLocation::DoScan()
         }
     }
 
-    YT_LOG_INFO("Done, %v chunks found", descriptors.size());
+    YT_LOG_INFO("Finished scanning location (CountChunk: %v)",
+        descriptors.size());
 
     return descriptors;
 }
@@ -745,23 +804,31 @@ TStoreLocation::TStoreLocation(
     UnlimitedInThrottler_ = CreateNamedUnlimitedThroughputThrottler("UnlimitedIn", diskThrottlerProfiler);
 }
 
-TJournalManagerPtr TStoreLocation::GetJournalManager()
+const TStoreLocationConfigPtr& TStoreLocation::GetConfig() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Config_;
+}
+
+const TJournalManagerPtr& TStoreLocation::GetJournalManager()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return JournalManager_;
 }
 
 i64 TStoreLocation::GetLowWatermarkSpace() const
 {
-    return Config_->LowWatermark;
-}
+    VERIFY_THREAD_AFFINITY_ANY();
 
-const TStoreLocationConfigPtr& TStoreLocation::GetConfig() const
-{
-    return Config_;
+    return Config_->LowWatermark;
 }
 
 bool TStoreLocation::IsFull() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     auto available = GetAvailableSpace();
     auto watermark = Full_.load() ? Config_->LowWatermark : Config_->HighWatermark;
     auto full = available < watermark;
@@ -777,12 +844,16 @@ bool TStoreLocation::IsFull() const
 
 bool TStoreLocation::HasEnoughSpace(i64 size) const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     return GetAvailableSpace() - size >= Config_->DisableWritesWatermark;
 }
 
-IThroughputThrottlerPtr TStoreLocation::GetInThrottler(const TWorkloadDescriptor& descriptor) const
+const IThroughputThrottlerPtr& TStoreLocation::GetInThrottler(const TWorkloadDescriptor& descriptor) const
 {
-   switch (descriptor.Category) {
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    switch (descriptor.Category) {
         case EWorkloadCategory::SystemRepair:
             return RepairInThrottler_;
 
@@ -809,6 +880,8 @@ IThroughputThrottlerPtr TStoreLocation::GetInThrottler(const TWorkloadDescriptor
 
 void TStoreLocation::RemoveChunkFiles(TChunkId chunkId, bool force)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (force || Config_->MaxTrashTtl == TDuration::Zero()) {
         RemoveChunkFilesPermanently(chunkId);
     } else {
@@ -865,7 +938,6 @@ void TStoreLocation::OnCheckTrash()
         auto error = TError("Error checking trash")
             << ex;
         Disable(error);
-        YT_ABORT(); // Disable() exits the process.
     }
 }
 
@@ -896,7 +968,7 @@ void TStoreLocation::CheckTrashWatermark()
     {
         TGuard<TSpinLock> guard(TrashMapSpinLock_);
         // NB: Available space includes trash disk space.
-        availableSpace = GetAvailableSpace() - TrashDiskSpace_;
+        availableSpace = GetAvailableSpace() - TrashDiskSpace_.load();
         needsCleanup = availableSpace < Config_->TrashCleanupWatermark && !TrashMap_.empty();
     }
 
@@ -971,14 +1043,13 @@ void TStoreLocation::MoveChunkFilesToTrash(TChunkId chunkId)
             chunkId)
             << ex;
         Disable(error);
-        YT_ABORT(); // Disable() exits the process.
     }
 }
 
 i64 TStoreLocation::GetAdditionalSpace() const
 {
     // NB: Unguarded access to TrashDiskSpace_ seems OK.
-    return TrashDiskSpace_;
+    return TrashDiskSpace_.load();
 }
 
 std::optional<TChunkDescriptor> TStoreLocation::RepairBlobChunk(TChunkId chunkId)
@@ -1127,7 +1198,7 @@ std::vector<TChunkDescriptor> TStoreLocation::DoScan()
 {
     auto result = TLocation::DoScan();
 
-    YT_LOG_INFO("Scanning storage trash");
+    YT_LOG_INFO("Started scanning location trash");
 
     ForceHashDirectories(GetTrashPath());
 
@@ -1152,7 +1223,8 @@ std::vector<TChunkDescriptor> TStoreLocation::DoScan()
         }
     }
 
-    YT_LOG_INFO("Done, %v trash chunks found", trashChunkIds.size());
+    YT_LOG_INFO("Finished scanning location trash (ChunkCount: %v)",
+        trashChunkIds.size());
 
     return result;
 }
@@ -1185,8 +1257,10 @@ TCacheLocation::TCacheLocation(
         Profiler_.AppendPath("/cache")))
 { }
 
-IThroughputThrottlerPtr TCacheLocation::GetInThrottler() const
+const IThroughputThrottlerPtr& TCacheLocation::GetInThrottler() const
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+    
     return InThrottler_;
 }
 
@@ -1289,12 +1363,6 @@ TPendingIOGuard::TPendingIOGuard(
     , Owner_(owner)
 { }
 
-TPendingIOGuard& TPendingIOGuard::operator=(TPendingIOGuard&& other)
-{
-    swap(*this, other);
-    return *this;
-}
-
 TPendingIOGuard::~TPendingIOGuard()
 {
     Release();
@@ -1316,15 +1384,6 @@ TPendingIOGuard::operator bool() const
 i64 TPendingIOGuard::GetSize() const
 {
     return Size_;
-}
-
-void swap(TPendingIOGuard& lhs, TPendingIOGuard& rhs)
-{
-    using std::swap;
-    swap(lhs.Direction_, rhs.Direction_);
-    swap(lhs.Category_, rhs.Category_);
-    swap(lhs.Size_, rhs.Size_);
-    swap(lhs.Owner_, rhs.Owner_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

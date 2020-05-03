@@ -23,9 +23,6 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NConcurrency;
 
-static const auto& Logger = RpcProxyClientLogger;
-
-DEFINE_REFCOUNTED_TYPE(TDynamicChannelPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,9 +97,11 @@ bool TDynamicChannelPool::TChannelSlot::IsWarm(TInstant now)
 
 TDynamicChannelPool::TDynamicChannelPool(
     IChannelFactoryPtr channelFactory,
-    TConnectionConfigPtr config)
+    TConnectionConfigPtr config,
+    NLogging::TLogger logger)
     : ChannelFactory_(std::move(channelFactory))
     , Config_(std::move(config))
+    , Logger(std::move(logger))
 {
     for (int i = 0; i < Config_->ChannelPoolSize; ++i) {
         Slots_.push_back(New<TChannelSlot>());

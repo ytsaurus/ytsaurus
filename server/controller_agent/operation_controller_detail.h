@@ -267,6 +267,7 @@ public:
 
     virtual std::optional<NYPath::TRichYPath> GetStderrTablePath() const override;
     virtual std::optional<NYPath::TRichYPath> GetCoreTablePath() const override;
+    virtual bool GetEnableCudaGpuCoreDump() const override;
 
     virtual void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
     virtual void AddTaskLocalityHint(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;

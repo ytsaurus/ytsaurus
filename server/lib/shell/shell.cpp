@@ -1,7 +1,18 @@
 #include "shell.h"
 #include "private.h"
 
+#ifdef _linux_
+
+#include <yt/server/lib/containers/instance.h>
+
+#include <yt/server/lib/misc/process.h>
+
+#endif
+
 #include <yt/ytlib/cgroup/cgroup.h>
+
+#include <yt/library/process/process.h>
+#include <yt/library/process/pty.h>
 
 #include <yt/core/actions/bind.h>
 
@@ -12,30 +23,28 @@
 
 #include <yt/core/misc/fs.h>
 #include <yt/core/misc/proc.h>
-#include <yt/library/process/process.h>
 
 #include <yt/core/net/connection.h>
-
-#include <yt/library/process/pty.h>
 
 #include <util/stream/file.h>
 
 namespace NYT::NShell {
 
 using namespace NConcurrency;
+using namespace NContainers;
 using namespace NCGroup;
 using namespace NPipes;
 using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifdef _unix_
+#ifdef _linux_
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const char* CGroupShellPrefix = "/shell-";
 static const size_t ReaderBufferSize = 4096;
-static const auto PollTimeout = TDuration::Seconds(30);
+static constexpr auto TerminatedShellReadTimeout = TDuration::Seconds(2);
+static constexpr auto PollTimeout = TDuration::Seconds(30);
 static const i64 InputOffsetWarningLevel = 65536;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,11 +54,11 @@ class TShell
 {
 public:
     TShell(
+        IPortoExecutorPtr portoExecutor,
         std::unique_ptr<TShellOptions> options)
-        : Options_(std::move(options))
-        , Id_(TGuid::Create())
-        , Process_(New<TSimpleProcess>(Options_->ExePath, false))
-        , Freezer_(Options_->CGroupBasePath.value_or(TString()) + CGroupShellPrefix + ToString(Id_))
+        : PortoExecutor_(std::move(portoExecutor))
+        , Options_(std::move(options))
+        , Id_(Options_->Id)
         , CurrentHeight_(Options_->Height)
         , CurrentWidth_(Options_->Width)
         , InactivityTimeout_(Options_->InactivityTimeout)
@@ -67,6 +76,9 @@ public:
         YT_VERIFY(!IsRunning_);
         IsRunning_ = true;
 
+        YT_LOG_INFO("Spawning job shell container (ContainerName: %v)", Options_->ContainerName);
+        Instance_ = CreatePortoInstance(Options_->ContainerName, PortoExecutor_);
+
         int uid = Options_->Uid.value_or(::getuid());
         auto user = SafeGetUsernameByUid(uid);
         auto home = Options_->WorkingDir;
@@ -81,38 +93,48 @@ public:
             InactivityTimeout_,
             Command_);
 
-        TPty pty(CurrentHeight_, CurrentWidth_);
+        Pty_ = std::make_unique<TPty>(CurrentHeight_, CurrentWidth_);
+        const TString tty = Format("/dev/fd/%v", Pty_->GetSlaveFD());
 
-        Reader_ = pty.CreateMasterAsyncReader();
+        Instance_->SetStdIn(tty);
+        Instance_->SetStdOut(tty);
+        Instance_->SetStdErr(tty);
+
+        // NB(gritukan, psushin): Porto is unable to resolve username inside subcontainer
+        // so we pass uid instead.
+        Instance_->SetUser(ToString(uid));
+
+        Instance_->SetEnablePorto(EEnablePorto::None);
+        Instance_->SetIsolate(false);
+
+        Process_ = New<TPortoProcess>("/bin/bash", Instance_, false);
+        if (Options_->Command) {
+            Process_->AddArguments({"-c", *Options_->Command});
+        }
+
+        Reader_ = Pty_->CreateMasterAsyncReader();
         auto bufferingReader = CreateBufferingAdapter(Reader_, ReaderBufferSize);
-        auto expiringReader = CreateExpiringAdapter(bufferingReader, PollTimeout);
-        ConcurrentReader_ = CreateConcurrentAdapter(expiringReader);
+        ConcurrentReader_ = CreateConcurrentAdapter(bufferingReader);
 
-        Writer_ = pty.CreateMasterAsyncWriter();
+        Writer_ = Pty_->CreateMasterAsyncWriter();
         ZeroCopyWriter_ = CreateZeroCopyAdapter(Writer_);
 
         Process_->SetWorkingDirectory(home);
 
-        if (Options_->Command) {
-            Process_->AddArguments({"--command", *Options_->Command});
-        }
-        Process_->AddArguments({"--pty", ::ToString(pty.GetSlaveFD())});
-        Process_->AddArguments({"--uid", ::ToString(uid)});
-
-        PrepareCGroups();
+        auto addEnv = [&] (const TString& name, const TString& value) {
+            Process_->AddEnvVar(Format("%v=%v", name, value));
+        };
 
         // Init environment variables.
-        Process_->AddArguments({
-            "--env", "HOME=" + home,
-            "--env", "LOGNAME=" + user,
-            "--env", "USER=" + user,
-            "--env", "TERM=" + Options_->Term,
-            "--env", "LANG=en_US.UTF-8",
-            "--env", "YT_SHELL_ID=" + ToString(Id_),
-        });
+        addEnv("HOME", home);
+        addEnv("LOGNAME", user);
+        addEnv("USER", user);
+        addEnv("TERM", Options_->Term);
+        addEnv("LANG", "en_US.UTF-8");
+        addEnv("YT_SHELL_ID", ToString(Id_));
 
         for (const auto& var : Options_->Environment) {
-            Process_->AddArguments({"--env", var});
+            Process_->AddEnvVar(var);
         }
 
         if (Options_->MessageOfTheDay) {
@@ -200,7 +222,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return ConcurrentReader_->Read();
+        return ConcurrentReader_->Read()
+            .WithTimeout(PollTimeout);
     }
 
     virtual void Terminate(const TError& error) override
@@ -214,7 +237,8 @@ public:
 
         TDelayedExecutor::CancelAndClear(InactivityCookie_);
         Writer_->Abort();
-        CleanupShellProcesses();
+        Instance_->Destroy();
+        Reader_->SetReadDeadline(TInstant::Now() + TerminatedShellReadTimeout);
         TerminatedPromise_.TrySet();
         YT_LOG_INFO(error, "Shell terminated");
     }
@@ -239,13 +263,20 @@ public:
         return Id_;
     }
 
+    virtual bool Terminated() const override
+    {
+        return TerminatedPromise_.IsSet();
+    }
+
 private:
+    const IPortoExecutorPtr PortoExecutor_;
     const std::unique_ptr<TShellOptions> Options_;
     const TShellId Id_;
-    const TProcessBasePtr Process_;
-    TFreezer Freezer_;
     int CurrentHeight_;
     int CurrentWidth_;
+
+    IInstancePtr Instance_;
+    TProcessBasePtr Process_;
 
     bool IsRunning_ = false;
 
@@ -266,55 +297,27 @@ private:
 
     NLogging::TLogger Logger = ShellLogger;
 
+    std::unique_ptr<TPty> Pty_;
+
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-
-    void PrepareCGroups()
-    {
-        if (!Options_->CGroupBasePath) {
-            return;
-        }
-
-        try {
-            Freezer_.Create();
-            Process_->AddArguments({ "--cgroup", Freezer_.GetFullPath() });
-        } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Failed to create required cgroups");
-        }
-    }
-
-    void CleanupShellProcesses()
-    {
-        if (!Options_->CGroupBasePath) {
-            // We can not kill shell without cgroup (shell has different euid),
-            // so abort reader
-            Reader_->Abort();
-            return;
-        }
-
-        try {
-            // Kill everything for sanity reasons: main user process completed,
-            // but its children may still be alive.
-            RunKiller(Freezer_.GetFullPath());
-            Freezer_.Destroy();
-        } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Failed to clean up shell processes");
-        }
-    }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IShellPtr CreateShell(std::unique_ptr<TShellOptions> options)
+IShellPtr CreateShell(
+    NContainers::IPortoExecutorPtr portoExecutor,
+    std::unique_ptr<TShellOptions> options)
 {
-    auto shell = New<TShell>(std::move(options));
+    auto shell = New<TShell>(std::move(portoExecutor), std::move(options));
     shell->Spawn();
     return shell;
 }
 
 #else
 
-IShellPtr CreateShell(std::unique_ptr<TShellOptions> /*options*/)
+IShellPtr CreateShell(
+    NContainers::IPortoExecutorPtr /*portoExecutor*/,
+    std::unique_ptr<TShellOptions> /*options*/)
 {
     THROW_ERROR_EXCEPTION("Shell is supported only under Unix");
 }

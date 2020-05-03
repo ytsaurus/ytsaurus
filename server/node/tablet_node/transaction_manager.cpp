@@ -4,8 +4,8 @@
 #include "tablet_slot.h"
 #include "transaction.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/server/lib/hive/transaction_lease_tracker.h>
@@ -52,7 +52,7 @@ using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NHydra;
 using namespace NHiveServer;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NTabletClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,7 +114,7 @@ public:
     TImpl(
         TTransactionManagerConfigPtr config,
         TTabletSlotPtr slot,
-        NCellNode::TBootstrap* bootstrap)
+        NClusterNode::TBootstrap* bootstrap)
         : TTabletAutomatonPart(
             slot,
             bootstrap)

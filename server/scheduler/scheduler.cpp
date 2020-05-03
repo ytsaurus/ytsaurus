@@ -19,8 +19,6 @@
 #include <yt/server/lib/scheduler/event_log.h>
 #include <yt/server/lib/scheduler/helpers.h>
 
-#include <yt/server/lib/shell/config.h>
-
 #include <yt/ytlib/scheduler/helpers.h>
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -100,7 +98,6 @@ using namespace NTableClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NSecurityClient;
-using namespace NShell;
 using namespace NEventLog;
 
 using NNodeTrackerClient::TNodeId;
@@ -276,7 +273,8 @@ public:
             Config_->EventLog,
             GetMasterClient(),
             Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity));
-        EventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
+        ControlEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
+        FairShareEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
 
         LogEventFluently(ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
@@ -1246,6 +1244,11 @@ public:
         return Bootstrap_->GetControlInvoker(queue);
     }
 
+    virtual IInvokerPtr GetFairShareLoggingInvoker() const override
+    {
+        return FairShareLoggingActionQueue_->GetInvoker();
+    }
+
     virtual IInvokerPtr GetFairShareProfilingInvoker() const override
     {
         return FairShareProfilingActionQueue_->GetInvoker();
@@ -1256,18 +1259,43 @@ public:
         return FairShareUpdatePool_->GetInvoker();
     }
 
-    virtual IYsonConsumer* GetEventLogConsumer() override
+    IYsonConsumer* GetControlEventLogConsumer()
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        return EventLogWriterConsumer_.get();
+        return ControlEventLogWriterConsumer_.get();
+    }
+
+    IYsonConsumer* GetFairShareEventLogConsumer()
+    {
+        VERIFY_INVOKER_AFFINITY(GetFairShareLoggingInvoker());
+
+        return FairShareEventLogWriterConsumer_.get();
+    }
+
+    virtual IYsonConsumer* GetEventLogConsumer() override
+    {
+        // By default, the control thread's consumer is used.
+        return GetControlEventLogConsumer();
     }
 
     virtual const NLogging::TLogger* GetEventLogger() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         return &SchedulerEventLogger;
+    }
+
+    // NB(eshcherbin): Separate method due to separate invoker.
+    virtual TFluentLogEvent LogFairShareEventFluently(TInstant now) override
+    {
+        VERIFY_INVOKER_AFFINITY(GetFairShareLoggingInvoker());
+
+        return LogEventFluently(
+            ELogEventType::FairShareInfo,
+            GetFairShareEventLogConsumer(),
+            GetEventLogger(),
+            now);
     }
 
     // INodeShardHost implementation
@@ -1529,6 +1557,8 @@ public:
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
+    ui64 ConfigRevision_ = 0;
+
     TBootstrap* const Bootstrap_;
 
     NYTree::INodePtr SpecTemplate_;
@@ -1542,6 +1572,7 @@ private:
     TOperationsCleanerPtr OperationsCleaner_;
 
     const TThreadPoolPtr OrchidWorkerPool_;
+    const TActionQueuePtr FairShareLoggingActionQueue_ = New<TActionQueue>("FSLogging");
     const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
     const TThreadPoolPtr FairShareUpdatePool_;
 
@@ -1613,7 +1644,8 @@ private:
     THashMap<TSchedulingTagFilter, std::pair<TCpuInstant, TJobResources>> CachedResourceLimitsByTags_;
 
     IEventLogWriterPtr EventLogWriter_;
-    std::unique_ptr<IYsonConsumer> EventLogWriterConsumer_;
+    std::unique_ptr<IYsonConsumer> ControlEventLogWriterConsumer_;
+    std::unique_ptr<IYsonConsumer> FairShareEventLogWriterConsumer_;
 
     std::atomic<int> OperationArchiveVersion_ = {-1};
 
@@ -2313,6 +2345,8 @@ private:
 
             EventLogWriter_->UpdateConfig(Config_->EventLog);
         }
+
+        ++ConfigRevision_;
     }
 
 
@@ -3531,6 +3565,7 @@ private:
                         .EndMap();
                 })
                 .Item("config").Value(Config_)
+                .Item("config_revision").Value(ConfigRevision_)
                 .Item("operations_cleaner").BeginMap()
                     .Do(std::bind(&TOperationsCleaner::BuildOrchid, OperationsCleaner_, _1))
                 .EndMap()

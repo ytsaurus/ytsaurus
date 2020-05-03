@@ -65,13 +65,16 @@ private:
             options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
             auto chunkMeta = NYT::NConcurrency::WaitFor(chunk->ReadMeta(options))
                 .ValueOrThrow();
-            auto blocksExt = GetProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta->extensions());
+            auto blocksExt = FindProtoExtension<NChunkClient::NProto::TBlocksExt>(chunkMeta->extensions());
             BuildYsonFluently(consumer)
                 .BeginMap()
                     .Item("disk_space").Value(chunk->GetInfo().disk_space())
                     .Item("location").Value(chunk->GetLocation()->GetPath())
                     .Item("artifact").Value(IsArtifactChunkId(chunk->GetId()))
-                    .Item("block_count").Value(blocksExt.blocks_size())
+                    .DoIf(blocksExt.has_value(), [&] (TFluentMap fluent) {
+                        fluent
+                            .Item("block_count").Value(blocksExt->blocks_size());
+                    })
                 .EndMap();
         }));
     }

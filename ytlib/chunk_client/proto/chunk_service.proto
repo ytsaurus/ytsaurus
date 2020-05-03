@@ -34,6 +34,31 @@ message TRspLocateChunks
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqLocateDynamicStores
+{
+    // Each subrequest is dynamic store id.
+    repeated NYT.NProto.TGuid subrequests = 1;
+
+    optional int32 address_type = 2;
+
+    // When batched, the union of extension tags of all subrequests is taken.
+    optional bool fetch_all_meta_extensions = 3 [default = false];
+    repeated int32 extension_tags = 4;
+}
+
+message TRspLocateDynamicStores
+{
+    message TSubresponse
+    {
+        optional bool missing = 1 [default = false];
+        optional NYT.NChunkClient.NProto.TChunkSpec chunk_spec = 2;
+    }
+    required NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
+    repeated TSubresponse subresponses = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqTouchChunks
 {
     // Each subrequest is chunk id.

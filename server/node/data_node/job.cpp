@@ -9,8 +9,8 @@
 #include "location.h"
 #include "master_connector.h"
 
-#include <yt/server/node/cell_node/bootstrap.h>
-#include <yt/server/node/cell_node/config.h>
+#include <yt/server/node/cluster_node/bootstrap.h>
+#include <yt/server/node/cluster_node/config.h>
 
 #include <yt/server/lib/hydra/changelog.h>
 
@@ -53,7 +53,7 @@ using namespace NJobTrackerClient;
 using namespace NJobAgent;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NCellNode;
+using namespace NClusterNode;
 using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
@@ -89,6 +89,8 @@ public:
         , Bootstrap_(bootstrap)
         , ResourceLimits_(resourceLimits)
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         Logger.AddTag("JobId: %v, JobType: %v",
             JobId_,
             GetType());
@@ -96,15 +98,19 @@ public:
 
     virtual void Start() override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         JobState_ = EJobState::Running;
         JobPhase_ = EJobPhase::Running;
         JobFuture_ = BIND(&TChunkJobBase::GuardedRun, MakeStrong(this))
-            .AsyncVia(Bootstrap_->GetControlInvoker())
+            .AsyncVia(Bootstrap_->GetJobInvoker())
             .Run();
     }
 
     virtual void Abort(const TError& error) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         switch (JobState_) {
             case EJobState::Waiting:
                 SetAborted(error);
@@ -122,51 +128,69 @@ public:
 
     virtual void Fail() override
     {
-        THROW_ERROR_EXCEPTION("Fail not implemented");
+        THROW_ERROR_EXCEPTION("Failing is not supported");
     }
 
     virtual TJobId GetId() const override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return JobId_;
     }
 
     virtual TOperationId GetOperationId() const override
     {
-        return NullOperationId;
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return {};
     }
 
     virtual EJobType GetType() const override
     {
-        return EJobType(JobSpec_.type());
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return CheckedEnumCast<EJobType>(JobSpec_.type());
     }
 
     virtual const TJobSpec& GetSpec() const override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return JobSpec_;
     }
 
     virtual int GetPortCount() const override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return 0;
     }
 
     virtual EJobState GetState() const override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return JobState_;
     }
 
     virtual EJobPhase GetPhase() const override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return JobPhase_;
     }
 
     virtual int GetSlotIndex() const override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return -1;
     }
 
     virtual TNodeResources GetResourceUsage() const override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return ResourceLimits_;
     }
 
@@ -187,6 +211,8 @@ public:
 
     virtual TJobResult GetResult() const override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return Result_;
     }
 
@@ -197,21 +223,29 @@ public:
 
     virtual double GetProgress() const override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return Progress_;
     }
 
     virtual void SetProgress(double value) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         Progress_ = value;
     }
 
-    virtual ui64 GetStderrSize() const override
+    virtual i64 GetStderrSize() const override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return JobStderrSize_;
     }
 
-    virtual void SetStderrSize(ui64 value) override
+    virtual void SetStderrSize(i64 value) override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         JobStderrSize_ = value;
     }
 
@@ -247,26 +281,36 @@ public:
 
     virtual TInstant GetStartTime() const override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         return StartTime_;
     }
 
     virtual std::optional<TDuration> GetPrepareDuration() const override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return std::nullopt;
     }
 
     virtual std::optional<TDuration> GetPrepareRootFSDuration() const override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return std::nullopt;
     }
 
     virtual std::optional<TDuration> GetDownloadDuration() const override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return std::nullopt;
     }
 
     virtual std::optional<TDuration> GetExecDuration() const override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         return std::nullopt;
     }
 
@@ -378,12 +422,16 @@ protected:
 
     TJobResult Result_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(JobThread);
+
 
     virtual void DoRun() = 0;
 
 
     void GuardedRun()
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         YT_LOG_INFO("Job started");
         try {
             DoRun();
@@ -396,6 +444,8 @@ protected:
 
     void SetCompleted()
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         YT_LOG_INFO("Job completed");
         Progress_ = 1.0;
         DoSetFinished(EJobState::Completed, TError());
@@ -403,18 +453,24 @@ protected:
 
     void SetFailed(const TError& error)
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         YT_LOG_ERROR(error, "Job failed");
         DoSetFinished(EJobState::Failed, error);
     }
 
     void SetAborted(const TError& error)
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         YT_LOG_INFO(error, "Job aborted");
         DoSetFinished(EJobState::Aborted, error);
     }
 
     IChunkPtr GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex)
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
     }
@@ -422,8 +478,11 @@ protected:
 private:
     void DoSetFinished(EJobState finalState, const TError& error)
     {
-        if (JobState_ != EJobState::Running && JobState_ != EJobState::Waiting)
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        if (JobState_ != EJobState::Running && JobState_ != EJobState::Waiting) {
             return;
+        }
 
         JobPhase_ = EJobPhase::Finished;
         JobState_ = finalState;
@@ -463,6 +522,8 @@ private:
 
     virtual void DoRun() override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         int mediumIndex = JobSpecExt_.medium_index();
 
@@ -512,6 +573,8 @@ private:
 
     virtual void DoRun() override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         int sourceMediumIndex = JobSpecExt_.source_medium_index();
         // COMPAT(aozeritsky)
@@ -655,6 +718,8 @@ private:
 
     virtual void DoRun() override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         auto codecId = NErasure::ECodec(JobSpecExt_.erasure_codec());
         auto* codec = NErasure::GetCodec(codecId);
@@ -792,6 +857,8 @@ private:
 
     virtual void DoRun() override
     {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         int mediumIndex = JobSpecExt_.medium_index();
         auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
@@ -811,29 +878,18 @@ private:
         }
 
         auto journalChunk = chunk->AsJournalChunk();
-        if (journalChunk->IsActive()) {
-            THROW_ERROR_EXCEPTION("Cannot seal an active journal chunk %v",
-                chunkId);
-        }
-
-        auto readGuard = TChunkReadGuard::AcquireOrThrow(chunk);
-
-        auto journalDispatcher = Bootstrap_->GetJournalDispatcher();
-        auto location = journalChunk->GetStoreLocation();
-        auto changelog = WaitFor(journalDispatcher->OpenChangelog(location, chunkId))
-            .ValueOrThrow();
-
-        if (journalChunk->HasAttachedChangelog()) {
-            THROW_ERROR_EXCEPTION("Journal chunk %v is already being written",
-                chunkId);
-        }
-
         if (journalChunk->IsSealed()) {
             YT_LOG_INFO("Chunk is already sealed");
             return;
         }
 
-        TJournalChunkChangelogGuard changelogGuard(journalChunk, changelog);
+        auto updateGuard = TChunkUpdateGuard::Acquire(chunk);
+
+        const auto& journalDispatcher = Bootstrap_->GetJournalDispatcher();
+        const auto& location = journalChunk->GetStoreLocation();
+        auto changelog = WaitFor(journalDispatcher->OpenChangelog(location, chunkId))
+            .ValueOrThrow();
+
         i64 currentRowCount = changelog->GetRecordCount();
         if (currentRowCount < sealRowCount) {
             YT_LOG_INFO("Started downloading missing journal chunk rows (Rows: %v-%v)",
@@ -902,6 +958,8 @@ private:
 
         YT_LOG_INFO("Finished sealing journal chunk");
 
+        journalChunk->UpdateCachedParams(changelog);
+
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->UpdateExistingChunk(chunk);
     }
@@ -916,7 +974,7 @@ IJobPtr CreateChunkJob(
     TDataNodeConfigPtr config,
     TBootstrap* bootstrap)
 {
-    auto type = EJobType(jobSpec.type());
+    auto type = CheckedEnumCast<EJobType>(jobSpec.type());
     switch (type) {
         case EJobType::ReplicateChunk:
             return New<TChunkReplicationJob>(

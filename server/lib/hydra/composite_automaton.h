@@ -29,7 +29,8 @@ class TLoadContext
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(ICheckpointableInputStream*, CheckpointableInput);
-
+    DEFINE_BYVAL_RW_PROPERTY(i64, LowerWriteCountDumpLimit);
+    DEFINE_BYVAL_RW_PROPERTY(i64, UpperWriteCountDumpLimit);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -146,6 +147,9 @@ class TCompositeAutomaton
 {
 public:
     void SetSerializationDumpEnabled(bool value);
+    void SetEnableTotalWriteCountReport(bool enableTotalWriteCountReport);
+    void SetLowerWriteCountDumpLimit(i64 lowerLimit);
+    void SetUpperWriteCountDumpLimit(i64 upperLimit);
 
     virtual TFuture<void> SaveSnapshot(NConcurrency::IAsyncOutputStreamPtr writer) override;
     virtual void LoadSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader) override;
@@ -160,6 +164,9 @@ public:
 
 protected:
     bool SerializationDumpEnabled_ = false;
+    bool EnableTotalWriteCountReport_ = false;
+    i64 LowerWriteCountDumpLimit_ = 0;
+    i64 UpperWriteCountDumpLimit_ = std::numeric_limits<i64>::max();
 
     const NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler;

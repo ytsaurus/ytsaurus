@@ -64,7 +64,7 @@ bool TContext::TryPrepare()
         Logger.AddTag("CorrelationId: %v", *correlationId);
     }
 
-    Request_->GetHeaders()->Set("Cache-Control", "no-cache");
+    Response_->GetHeaders()->Set("Cache-Control", "no-cache");
 
     return
         TryParseRequest() &&

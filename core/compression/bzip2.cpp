@@ -50,7 +50,7 @@ void ActualizeOutputBlobSize(TBlob* blob, bz_stream* bzStream)
 {
     ui64 totalOut = GetTotalOut(*bzStream);
     YT_VERIFY(totalOut >= blob->Size());
-    blob->Resize(totalOut, false);
+    blob->Resize(totalOut, /* initializeStorage */ false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

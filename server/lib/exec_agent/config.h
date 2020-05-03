@@ -316,6 +316,10 @@ public:
 
     NJobProxy::TCoreWatcherConfigPtr CoreWatcher;
 
+    //! This option is used for testing purposes only.
+    //! It runs job shell under root user instead of slot user.
+    bool TestPollJobShell;
+
     TExecAgentConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -368,6 +372,9 @@ public:
 
         RegisterParameter("core_watcher", CoreWatcher)
             .DefaultNew();
+
+        RegisterParameter("test_poll_job_shell", TestPollJobShell)
+            .Default(false);
     }
 };
 

@@ -1602,7 +1602,7 @@ void TObjectManager::TImpl::HydraExecuteFollower(NProto::TReqExecute* request)
 
     auto context = CreateYPathContext(
         std::move(requestMessage),
-        ObjectServerLogger,
+        IsRecovery() ? NLogging::TLogger() : ObjectServerLogger,
         NLogging::ELogLevel::Debug);
 
     const auto& userName = request->user_name();

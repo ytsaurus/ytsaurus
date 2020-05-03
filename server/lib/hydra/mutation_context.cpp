@@ -13,6 +13,9 @@ TMutationContext::TMutationContext(
     , Version_(Parent_->GetVersion())
     , Request_(request)
     , Timestamp_(Parent_->GetTimestamp())
+    , RandomSeed_(Parent_->GetRandomSeed())
+    , PrevRandomSeed_(Parent_->GetPrevRandomSeed())
+    , SequenceNumber_(Parent_->GetSequenceNumber())
 { }
 
 TMutationContext::TMutationContext(

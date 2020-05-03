@@ -139,12 +139,21 @@ public:
         LocalJanitor_->Start();
     }
 
-    void LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
+    void LoadSnapshot(
+        ISnapshotReaderPtr reader,
+        bool dump,
+        bool enableTotalWriteCountReport,
+        const TSerializationDumperConfigPtr& dumpConfig)
     {
         WaitFor(reader->Open())
             .ThrowOnError();
 
         Automaton_->SetSerializationDumpEnabled(dump);
+        Automaton_->SetEnableTotalWriteCountReport(enableTotalWriteCountReport);
+        if (dumpConfig) {
+            Automaton_->SetLowerWriteCountDumpLimit(dumpConfig->LowerLimit);
+            Automaton_->SetUpperWriteCountDumpLimit(dumpConfig->UpperLimit);
+        }
         HydraManager_->ValidateSnapshot(reader);
     }
 
@@ -256,9 +265,13 @@ void THydraFacade::Initialize()
     Impl_->Initialize();
 }
 
-void THydraFacade::LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
+void THydraFacade::LoadSnapshot(
+    ISnapshotReaderPtr reader,
+    bool dump,
+    bool enableTotalWriteCountReport,
+    const TSerializationDumperConfigPtr& dumpConfig)
 {
-    Impl_->LoadSnapshot(reader, dump);
+    Impl_->LoadSnapshot(reader, dump, enableTotalWriteCountReport, dumpConfig);
 }
 
 const TMasterAutomatonPtr& THydraFacade::GetAutomaton() const
