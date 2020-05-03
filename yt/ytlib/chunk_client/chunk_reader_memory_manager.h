@@ -84,7 +84,7 @@ public:
     virtual void SetReservedMemorySize(i64 size) override;
 
     virtual const NProfiling::TTagIdList& GetProfilingTagList() const override;
- 
+
     virtual void AddChunkReaderInfo(TGuid chunkReaderId) override;
 
     virtual void AddReadSessionInfo(TGuid readSessionId) override;
