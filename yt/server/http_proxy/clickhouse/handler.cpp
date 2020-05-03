@@ -103,7 +103,8 @@ public:
                 CliqueIdOrAlias_ = cliqueAndInstanceCookie.substr(0, separatorIndex);
 
                 auto jobCookieString = cliqueAndInstanceCookie.substr(
-                    separatorIndex + 1, cliqueAndInstanceCookie.size() - separatorIndex - 1);
+                    separatorIndex + 1,
+                    cliqueAndInstanceCookie.size() - separatorIndex - 1);
                 size_t jobCookie = 0;
                 if (!TryIntFromString<10>(jobCookieString, jobCookie)) {
                     ReplyWithError(
@@ -498,7 +499,6 @@ private:
             if (!CliqueId_) {
                 SetCliqueId(Discovery_->GetCliqueId());
             }
-
         } catch (const std::exception& ex) {
             RequestErrors_.push_back(TError("Failed to create discovery")
                 << ex);
@@ -714,4 +714,4 @@ void TClickHouseHandler::OnProfiling()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHttpProxy
+} // namespace NYT::NHttpProxy::NClickHouse

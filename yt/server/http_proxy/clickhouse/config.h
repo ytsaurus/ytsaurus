@@ -1,3 +1,5 @@
+#pragma once
+
 #include "private.h"
 
 #include <yt/core/ytree/yson_serializable.h>
