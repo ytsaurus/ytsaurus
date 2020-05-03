@@ -1,5 +1,7 @@
 from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, create_job_events
 
+import yt.environment.arcadia_interop as arcadia_interop
+
 from yt.wrapper.job_shell import JobShell
 import yt.yson
 import yt.ypath
@@ -39,6 +41,8 @@ class TestJobCommands(object):
     # Remove after YT-8596
     @flaky(max_runs=5)
     def test_job_shell(self, job_events):
+        if arcadia_interop.yatest_common is not None:
+            pytest.skip()
         if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
 
@@ -79,6 +83,8 @@ class TestJobCommands(object):
     # Remove after YT-8596
     @flaky(max_runs=5)
     def test_job_shell_command(self, yt_env_with_rpc, job_events):
+        if arcadia_interop.yatest_common is not None:
+            pytest.skip()
         if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
 
@@ -108,6 +114,8 @@ class TestJobCommands(object):
     # Remove after YT-8596
     @flaky(max_runs=5)
     def test_secure_vault_variables_in_job_shell(self):
+        if arcadia_interop.yatest_common is not None:
+            pytest.skip()
         if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
 
