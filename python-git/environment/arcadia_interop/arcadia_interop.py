@@ -42,6 +42,15 @@ def get_root_paths(source_prefix="", inside_arcadia=None):
     return yt_root, python_root, global_root
 
 
+def search_binary_path(binary_name):
+    binary_root = yatest_common.binary_path('.')
+    for dirpath, _, filenames in os.walk(binary_root):
+        for f in filenames:
+            if f == binary_name:
+                return os.path.join(dirpath, binary_name)
+    raise RuntimeError("binary {} is not found in {}".format(binary_name, binary_root))
+
+
 SUDO_WRAPPER ="""#!/bin/sh
 
 exec sudo -En {} {} {} {} "$@"
@@ -61,15 +70,6 @@ def insert_sudo_wrapper(bin_dir):
             os.chmod(bin_path, 0o755)
 
 
-def search_binary_path(binary_name):
-    binary_root = yatest_common.binary_path('.')
-    for dirpath, _, filenames in os.walk(binary_root):
-        for f in filenames:
-            if f == binary_name:
-                return os.path.join(dirpath, binary_name)
-    raise RuntimeError("binary {} is not found in {}".format(binary_name, binary_root))
-
-    
 def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=False, use_from_package=False, copy_ytserver_all=False, need_suid=False):
     def get_binary_path(path):
         if arcadia_root is None:

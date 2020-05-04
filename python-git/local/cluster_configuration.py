@@ -89,13 +89,6 @@ CONTROLLER_AGENT_CONFIG_PATCH = {
         "testing_options": None,
         "enable_tmpfs": False,
         "enable_locality": False,
-        "environment": {
-            "TMPDIR": "$(SandboxPath)",
-            "PYTHON_EGG_CACHE": "$(SandboxPath)/.python-eggs",
-            "PYTHONUSERBASE": "$(SandboxPath)/.python-site-packages",
-            "PYTHONPATH": "$(SandboxPath)",
-            "HOME": "$(SandboxPath)",
-        },
         "snapshot_timeout": 300000,
         "sort_operation_options": {
             "spec_template": {

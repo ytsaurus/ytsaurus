@@ -14,6 +14,7 @@ import os
 import pytest
 import re
 
+@pytest.mark.usefixtures("yt_env_with_porto")
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestJobCommands(object):
     def _poll_until_prompt(self, shell):
@@ -38,8 +39,6 @@ class TestJobCommands(object):
                 return output
             raise
 
-    # Remove after YT-8596
-    @flaky(max_runs=5)
     def test_job_shell(self, job_events):
         if arcadia_interop.yatest_common is not None:
             pytest.skip()
@@ -70,8 +69,6 @@ class TestJobCommands(object):
         assert output.startswith(expected) == True
 
         ids = re.match(b"(\\d+)\r\n(\\d+)\r\n", output[len(expected):])
-        if ENABLE_JOB_CONTROL:
-            assert int(ids.group(1)) != os.getuid()
 
         shell.make_request("terminate")
         with pytest.raises(yt.YtError):
@@ -80,8 +77,6 @@ class TestJobCommands(object):
         job_events.release_breakpoint()
         op.wait()
 
-    # Remove after YT-8596
-    @flaky(max_runs=5)
     def test_job_shell_command(self, yt_env_with_rpc, job_events):
         if arcadia_interop.yatest_common is not None:
             pytest.skip()
@@ -111,8 +106,6 @@ class TestJobCommands(object):
         job_events.release_breakpoint()
         op.wait()
 
-    # Remove after YT-8596
-    @flaky(max_runs=5)
     def test_secure_vault_variables_in_job_shell(self):
         if arcadia_interop.yatest_common is not None:
             pytest.skip()
