@@ -12,4 +12,4 @@ def batch_apply(function, data, client=None):
     for item in data:
         results.append(function(item, client=batch_client))
     batch_client.commit_batch()
-    return [result.get_result() for result in results]
+    return [result.get_result() if result is not None else None for result in results]

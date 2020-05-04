@@ -21,7 +21,6 @@ SET(YT_TEST_SRCS
     test_formats.py
     test_fuse.py
     test_ipython.py
-    test_job_commands.py
     test_job_tool.py
     test_misc.py
     test_module.py

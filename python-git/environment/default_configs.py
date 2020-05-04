@@ -283,7 +283,11 @@ b"""
         exec_nodes_update_period = 100;
 
         environment = {
-            PYTHONUSERBASE = "/tmp";
+            TMPDIR = "$(SandboxPath)";
+            PYTHON_EGG_CACHE = "$(SandboxPath)/.python-eggs";
+            PYTHONUSERBASE = "$(SandboxPath)/.python-site-packages";
+            PYTHONPATH = "$(SandboxPath)";
+            HOME = "$(SandboxPath)";
         };
 
         testing_options = {
