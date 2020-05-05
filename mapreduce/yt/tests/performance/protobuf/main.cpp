@@ -5,7 +5,7 @@
 
 #include <util/system/env.h>
 
-#include <library/getopt/last_getopt.h>
+#include <library/cpp/getopt/last_getopt.h>
 
 using namespace NYT;
 using namespace NYT::NDetail;

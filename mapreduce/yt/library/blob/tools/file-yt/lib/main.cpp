@@ -1,6 +1,6 @@
 #include "modes.h"
 
-#include <library/getopt/small/modchooser.h>
+#include <library/cpp/getopt/small/modchooser.h>
 
 int NFileYtTool::Main(const int argc, const char* argv[]) {
     TModChooser app;

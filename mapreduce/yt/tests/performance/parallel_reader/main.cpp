@@ -4,7 +4,7 @@
 
 #include <mapreduce/yt/library/parallel_io/parallel_reader.h>
 
-#include <library/getopt/last_getopt.h>
+#include <library/cpp/getopt/last_getopt.h>
 
 #include <util/system/env.h>
 
