@@ -1,0 +1,6 @@
+{
+    cluster=freud;
+    upload_binaries=[
+        "yt/go/ytrecipe/test/sudo/sudo"
+    ];
+}
