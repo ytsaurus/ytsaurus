@@ -976,11 +976,13 @@ class Operation(object):
     def wait_for_state(self, state, **kwargs):
         wait(lambda: self.get_state(**kwargs) == state)
 
-    def wait_fresh_snapshot(self, timepoint=None):
-        if timepoint is None:
+    def wait_for_fresh_snapshot(self):
+        # It is important to repeat this procedure twice as there may already be an ongoing
+        # snapshotting procedure which saved state arbitrarily long before the moment of calling.
+        for _ in xrange(2):
             timepoint = datetime.utcnow()
-        snapshot_path = self.get_path() + "/snapshot"
-        wait(lambda: exists(snapshot_path) and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > timepoint)
+            snapshot_path = self.get_path() + "/snapshot"
+            wait(lambda: exists(snapshot_path) and date_string_to_datetime(get(snapshot_path + "/@creation_time")) > timepoint)
 
     def get_alerts(self):
         try:

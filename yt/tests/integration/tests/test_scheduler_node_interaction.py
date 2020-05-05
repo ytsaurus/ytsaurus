@@ -325,7 +325,7 @@ class TestSchedulingTags(YTEnvSetup):
 
         wait(lambda: len(op.get_running_jobs()) > 0)
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             set("//sys/cluster_nodes/{0}/@user_tags".format(custom_node), [])

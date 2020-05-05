@@ -454,7 +454,7 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: custom_metric_delta.update().get(verbose=True) == 55)
 
         # We need to have the job in the snapshot, so that it is not restarted after operation revival.
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass

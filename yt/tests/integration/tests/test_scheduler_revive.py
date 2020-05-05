@@ -258,7 +258,7 @@ class TestSchedulerRestart(YTEnvSetup):
 
         wait_breakpoint()
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         brief_spec = get(op.get_path() + "/@brief_spec")
 
@@ -289,7 +289,7 @@ class TestSchedulerRestart(YTEnvSetup):
 
         wait_breakpoint()
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         annotations_path = op.get_path() + "/@runtime_parameters/annotations"
 
@@ -581,7 +581,7 @@ class TestRaceBetweenShardAndStrategy(YTEnvSetup):
                 "resource_limits": {"user_slots": 1}
             })
         wait_breakpoint()
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             release_breakpoint()
@@ -715,7 +715,7 @@ class OperationReviveBase(YTEnvSetup):
 
         wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("running") == 1)
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         # This request will be retried with the new incarnation of the scheduler.
         op.complete(ignore_result=True)
@@ -785,7 +785,7 @@ class OperationReviveBase(YTEnvSetup):
 
         self._wait_for_state(op, "running")
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         op.complete(ignore_result=True)
 
@@ -836,7 +836,7 @@ class OperationReviveBase(YTEnvSetup):
 
         suspend_op(op.id)
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -950,7 +950,7 @@ class TestJobRevival(TestJobRevivalBase):
         job_id = self._wait_for_single_job(op.id)
 
         events_on_fs().wait_event("snapshot_written")
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         self._kill_and_start(components_to_kill)
 
@@ -1161,7 +1161,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
         job_id = self._wait_for_single_job(op.id)
 
         events_on_fs().wait_event("snapshot_written")
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         self._kill_and_start(components_to_kill)
 
