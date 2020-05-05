@@ -19,7 +19,7 @@
 #include <contrib/libs/openssl/include/openssl/evp.h>
 #include <contrib/libs/openssl/include/openssl/pem.h>
 
-#include <library/openssl/io/stream.h>
+#include <library/cpp/openssl/io/stream.h>
 
 namespace NYT::NCrypto {
 
