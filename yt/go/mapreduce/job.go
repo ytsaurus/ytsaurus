@@ -2,6 +2,7 @@ package mapreduce
 
 type JobContext interface {
 	LookupVault(name string) (value string, ok bool)
+	JobCookie() int
 }
 
 type Job interface {

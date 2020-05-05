@@ -119,6 +119,10 @@ func (mr *client) Vanilla(s *spec.Spec, jobs map[string]Job, opts ...OperationOp
 	return p.start(opts)
 }
 
+func (mr *client) Track(opID yt.OperationID) (Operation, error) {
+	return &operation{yc: mr.yc, ctx: mr.ctx, opID: opID}, nil
+}
+
 func (mr *client) WithTx(tx yt.Tx) Client {
 	return &client{
 		ctx:    mr.ctx,

@@ -3,14 +3,16 @@ package mapreduce
 import (
 	"fmt"
 	"os"
-
-	"a.yandex-team.ru/yt/go/yson"
+	"strconv"
 
 	"golang.org/x/xerrors"
+
+	"a.yandex-team.ru/yt/go/yson"
 )
 
 type jobContext struct {
-	vault map[string]string
+	vault     map[string]string
+	jobCookie int
 
 	in  Reader
 	out []*writer
@@ -21,6 +23,10 @@ func (c *jobContext) LookupVault(name string) (value string, ok bool) {
 	return
 }
 
+func (c *jobContext) JobCookie() int {
+	return c.jobCookie
+}
+
 func (c *jobContext) initEnv() error {
 	c.vault = map[string]string{}
 
@@ -28,6 +34,15 @@ func (c *jobContext) initEnv() error {
 	if vaultValue != "" {
 		if err := yson.Unmarshal([]byte(vaultValue), &c.vault); err != nil {
 			return xerrors.Errorf("corrupted secure vault: %w", err)
+		}
+	}
+
+	jobCookie := os.Getenv("YT_JOB_COOKIE")
+	if jobCookie != "" {
+		if cookie, err := strconv.Atoi(jobCookie); err != nil {
+			return xerrors.Errorf("corrupted job cookie: %w", err)
+		} else {
+			c.jobCookie = cookie
 		}
 	}
 
