@@ -1268,6 +1268,11 @@ public:
     }
 
 
+    bool IsSafeMode()
+    {
+        return Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode;
+    }
+
     TPermissionCheckResponse CheckPermission(
         TObject* object,
         TUser* user,
@@ -1421,7 +1426,7 @@ public:
 
         TError error;
 
-        if (Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode) {
+        if (IsSafeMode()) {
             error = TError(
                 NSecurityClient::EErrorCode::AuthorizationError,
                 "Access denied for user %Qv: cluster is in safe mode; "
@@ -3103,7 +3108,7 @@ private:
             // "replicator", though being superuser, can only read in safe mode.
             if (User_ == Impl_->ReplicatorUser_ &&
                 Permission_ != EPermission::Read &&
-                Impl_->Bootstrap_->GetConfigManager()->GetConfig()->EnableSafeMode)
+                Impl_->IsSafeMode())
             {
                 return ESecurityAction::Deny;
             }
@@ -3707,6 +3712,11 @@ TUser* TSecurityManager::GetAuthenticatedUser()
 std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
 {
     return Impl_->GetAuthenticatedUserName();
+}
+
+bool TSecurityManager::IsSafeMode()
+{
+    return Impl_->IsSafeMode();
 }
 
 TPermissionCheckResponse TSecurityManager::CheckPermission(

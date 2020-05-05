@@ -80,6 +80,7 @@ message TReqCheckPermission
 {
     required string user = 1;
     required int32 permission = 2; // EPermission
+    optional bool ignore_safe_mode = 4;
 
     message TColumns
     {

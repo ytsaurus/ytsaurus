@@ -282,6 +282,9 @@ public:
     virtual void ResetAuthenticatedUser() override;
 
 
+    //! Returns |true| if safe mode is active.
+    bool IsSafeMode();
+
     //! Checks if #object ACL allows access with #permission.
     TPermissionCheckResponse CheckPermission(
         NObjectServer::TObject* object,

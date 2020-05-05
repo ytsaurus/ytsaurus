@@ -171,18 +171,27 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 
     const auto& userName = request->user();
     auto permission = CheckedEnumCast<EPermission>(request->permission());
+    bool ignoreSafeMode = request->ignore_safe_mode();
 
     TPermissionCheckOptions checkOptions;
     if (request->has_columns()) {
         checkOptions.Columns = FromProto<std::vector<TString>>(request->columns().items());
     }
 
-    context->SetRequestInfo("User: %v, Permission: %v, Columns: %v",
+    context->SetRequestInfo("User: %v, Permission: %v, Columns: %v, IgnoreSafeMode: %v",
         userName,
         permission,
-        checkOptions.Columns);
+        checkOptions.Columns,
+        ignoreSafeMode);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
+    if (!ignoreSafeMode && securityManager->IsSafeMode()) {
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::SafeModeEnabled,
+            "Permission check is not possible: cluster is in safe mode; "
+            "check for announces at https://infra.yandex-team.ru before reporting any issues");
+    }
+
     auto* user = securityManager->GetUserByNameOrThrow(userName);
 
     auto checkResponse = securityManager->CheckPermission(Object_, user, permission, checkOptions);
