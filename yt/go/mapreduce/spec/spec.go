@@ -22,15 +22,13 @@ type File struct {
 }
 
 type UserScript struct {
-	Command         string            `yson:"command"`
-	Format          interface{}       `yson:"format,omitempty"`
-	InputFormat     interface{}       `yson:"input_format,omitempty"`
-	OutputFormat    interface{}       `yson:"output_format,omitempty"`
-	Environment     map[string]string `yson:"environment,omitempty"`
-	FilePaths       []File            `yson:"file_paths,omitempty"`
-	LayerPaths      []ypath.YPath     `yson:"layer_paths,omitempty"`
-	StderrTablePath ypath.YPath       `yson:"stderr_table_path,omitempty"`
-	CoreTablePath   ypath.YPath       `yson:"core_table_path,omitempty"`
+	Command      string            `yson:"command"`
+	Format       interface{}       `yson:"format,omitempty"`
+	InputFormat  interface{}       `yson:"input_format,omitempty"`
+	OutputFormat interface{}       `yson:"output_format,omitempty"`
+	Environment  map[string]string `yson:"environment,omitempty"`
+	FilePaths    []File            `yson:"file_paths,omitempty"`
+	LayerPaths   []ypath.YPath     `yson:"layer_paths,omitempty"`
 
 	TmpfsPath string `yson:"tmpfs_path,omitempty"`
 	CopyFiles bool   `yson:"copy_files,omitempty"`
@@ -41,6 +39,8 @@ type UserScript struct {
 	CPULimit         float32 `yson:"cpu_limit,omitempty"`
 	EnableCPUReclaim *bool   `yson:"enable_cpu_reclaim,omitempty"`
 	MemoryLimit      int64   `yson:"memory_limit,omitempty"`
+
+	EnablePorto string `yson:"enable_porto,omitempty"`
 
 	// JobCount and OutputTablePaths are used only in vanilla operations.
 	JobCount         int           `yson:"job_count,omitempty"`
@@ -111,7 +111,9 @@ type Spec struct {
 	JobCount       int   `yson:"job_count,omitempty"`
 	DataSizePerJob int64 `yson:"data_size_per_job,omitempty"`
 
-	MaxFailedJobCount int `yson:"max_failed_job_count,omitempty"`
+	MaxFailedJobCount int        `yson:"max_failed_job_count,omitempty"`
+	StderrTablePath   ypath.Path `yson:"stderr_table_path,omitempty"`
+	CoreTablePath     ypath.Path `yson:"core_table_path,omitempty"`
 
 	Mapper         *UserScript            `yson:"mapper,omitempty"`
 	Reducer        *UserScript            `yson:"reducer,omitempty"`

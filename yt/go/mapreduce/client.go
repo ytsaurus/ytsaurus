@@ -35,6 +35,8 @@ type Client interface {
 	// TODO(prime@): switch order of spec and jobs.
 	Vanilla(spec *spec.Spec, jobs map[string]Job, opts ...OperationOption) (Operation, error)
 
+	Track(opID yt.OperationID) (Operation, error)
+
 	// WithTx returns Client, that starts all operations inside transaction tx.
 	WithTx(tx yt.Tx) Client
 }
