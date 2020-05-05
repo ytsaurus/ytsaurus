@@ -36,9 +36,10 @@ type UserScript struct {
 	// CPULimit corresponds to cpu_limit job setting.
 	//
 	// This setting results in GOMAXPROCS set to max(1, ceil(CPULimit)).
-	CPULimit         float32 `yson:"cpu_limit,omitempty"`
-	EnableCPUReclaim *bool   `yson:"enable_cpu_reclaim,omitempty"`
-	MemoryLimit      int64   `yson:"memory_limit,omitempty"`
+	CPULimit            float32 `yson:"cpu_limit,omitempty"`
+	EnableCPUReclaim    *bool   `yson:"enable_cpu_reclaim,omitempty"`
+	MemoryLimit         int64   `yson:"memory_limit,omitempty"`
+	MemoryReserveFactor float64 `yson:"memory_reserve_factor,omitempty"`
 
 	EnablePorto string `yson:"enable_porto,omitempty"`
 
