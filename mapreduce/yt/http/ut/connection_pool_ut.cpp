@@ -5,7 +5,7 @@
 
 #include <library/cpp/threading/future/async.h>
 
-#include <library/http/io/stream.h>
+#include <library/cpp/http/io/stream.h>
 
 #include <library/unittest/registar.h>
 #include <library/unittest/tests_data.h>

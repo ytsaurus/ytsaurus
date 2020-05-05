@@ -6,7 +6,7 @@
 #include <mapreduce/yt/interface/io.h>
 #include <mapreduce/yt/interface/node.h>
 
-#include <library/http/io/stream.h>
+#include <library/cpp/http/io/stream.h>
 
 #include <util/generic/strbuf.h>
 #include <util/generic/guid.h>
