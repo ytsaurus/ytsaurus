@@ -265,7 +265,7 @@ class TestRuntimeParameters(YTEnvSetup):
             "testing": {"delay_inside_register_jobs_from_revived_operation": 10000}
         })
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass

@@ -1110,7 +1110,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count, spec=spec)
         wait_breakpoint()
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             erased_trees = get(op.get_path() + "/@erased_trees")
 
@@ -1140,7 +1140,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), job_count=job_count, spec=spec)
         wait_breakpoint()
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             erased_trees = get(op.get_path() + "/@erased_trees")
             assert len(possible_trees) == len(erased_trees) + 1
