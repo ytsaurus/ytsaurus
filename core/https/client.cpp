@@ -13,7 +13,7 @@
 
 #include <yt/core/concurrency/poller.h>
 
-#include <library/openssl/io/stream.h>
+#include <library/cpp/openssl/io/stream.h>
 
 namespace NYT::NHttps {
 
