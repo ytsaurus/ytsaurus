@@ -324,13 +324,12 @@ def execute_command(command_name, parameters, input_stream=None, output_stream=N
     parameters = prepare_parameters(parameters)
 
     if verbose:
-        def is_text_yson(fmt):
-            # XXX(sandello): This is a stupid check.
-            return repr(fmt) == "{'attributes': {'format': 'text'}, 'value': 'yson'}"
+        def _is_text_yson(fmt):
+            return fmt is not None and str(fmt) == "yson" and fmt.attributes.get("format", None) == "text"
 
         pretty_parameters = pycopy.deepcopy(parameters)
         for key in ["input_format", "output_format"]:
-            if is_text_yson(pretty_parameters.get(key, None)):
+            if _is_text_yson(pretty_parameters.get(key, None)):
                 pretty_parameters.pop(key)
 
         print_debug(str(datetime.now()), command_name, pretty_parameters)
