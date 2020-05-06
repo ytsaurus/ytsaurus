@@ -1757,6 +1757,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
         wait(lambda: len(list(op.get_running_jobs())) == 1)
 
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root"))
         pool = get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
         assert pool["parent"] == "custom_pool"
         assert pool["mode"] == "fair_share"
