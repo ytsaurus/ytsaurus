@@ -1806,6 +1806,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         op = run_sleeping_vanilla(spec={"pool": "custom_pool_fifo"})
         wait(lambda: len(list(op.get_running_jobs())) == 1)
 
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool_fifo$root"))
         pool_fifo = get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool_fifo$root")
         assert pool_fifo["parent"] == "custom_pool_fifo"
         assert pool_fifo["mode"] == "fifo"
