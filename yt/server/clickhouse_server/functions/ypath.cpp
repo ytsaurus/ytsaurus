@@ -306,18 +306,15 @@ public:
                 ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
         }
         if (arguments.size() == 3) {
-            const auto& format = arguments[2];
-            auto formatConst = typeid_cast<const ColumnConst *>(format.column.get());
-            if (!formatConst || !isString(format.type)) {
+            if (!isString(removeNullable(arguments[2].type)) && !WhichDataType(removeNullable(arguments[2].type)).isNothing()) {
                 throw Exception(
-                    "Illegal type " + format.type->getName() + " of third argument of function " + getName()
-                    + ", only const string is supported",
+                    "Illegal type " + arguments[2].type->getName() + " of third argument of function " + getName(),
                     ErrorCodes::ILLEGAL_TYPE_OF_ARGUMENT);
             }
         }
 
         // If the path doesn't exist and the function isn't strict, we return Null.
-        if (!Strict || arguments[0].type->isNullable() || arguments[1].type->isNullable()) {
+        if (!Strict || arguments[0].type->isNullable() || arguments[1].type->isNullable() || arguments[2].type->isNullable()) {
             return makeNullable(std::make_shared<DataTypeString>());
         } else {
             return std::make_shared<DataTypeString>();
@@ -348,20 +345,31 @@ public:
             columnPath = &nullableColumnPath->getNestedColumn();
         }
 
-        auto format = NYson::EYsonFormat::Binary;
+        const IColumn* columnFormatOrNull = nullptr;
+        const IColumn* columnFormat = nullptr;
         if (arguments.size() == 3) {
-            const auto* formatColumn = typeid_cast<const ColumnConst *>(block.getByPosition(arguments[2]).column.get());
-            format = ConvertTo<NYson::EYsonFormat>(formatColumn->getValue<String>());
-        } 
+            columnFormatOrNull = block.getByPosition(arguments[2]).column.get();
+            columnFormat = columnFormatOrNull;
+            if (auto* nullableColumnFormat = checkAndGetColumn<ColumnNullable>(columnFormat)) {
+                columnFormat = &nullableColumnFormat->getNestedColumn();
+            }
+        }
 
         auto columnTo = block.getByPosition(result).type->createColumn();
         columnTo->reserve(inputRowCount);
 
         for (size_t i = 0; i < inputRowCount; ++i) {
-            if (columnYsonOrNull->isNullAt(i) || columnPathOrNull->isNullAt(i)) {
+            auto format = NYson::EYsonFormat::Binary;
+
+            if (columnYsonOrNull->isNullAt(i) || columnPathOrNull->isNullAt(i) || (columnFormat && columnFormatOrNull->isNullAt(i))) {
                 // Default is Null.
                 columnTo->insertDefault();
                 continue;
+            }
+
+            if (columnFormat) {
+                auto formatField = columnFormat->getDataAt(i);
+                format = ConvertTo<NYson::EYsonFormat>(TString(formatField.data, formatField.size));
             }
 
             const auto& yson = columnYson->getDataAt(i);
