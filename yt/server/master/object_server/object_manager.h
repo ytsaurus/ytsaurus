@@ -106,8 +106,11 @@ public:
     //! For others, checks for the local reference counter and if it's 1, drops the last reference.
     void RemoveObject(TObject* object);
 
-    //! Creates a cross-cell read-only proxy for the object with the given #id.
+    //! Creates a cross-cell proxy for the object with the given #id.
     NYTree::IYPathServicePtr CreateRemoteProxy(TObjectId id);
+
+    //! Creates a cross-cell proxy to forward the request to a given master cell.
+    NYTree::IYPathServicePtr CreateRemoteProxy(TCellTag cellTag);
 
     //! Returns a proxy for the object with the given versioned id.
     IObjectProxyPtr GetProxy(

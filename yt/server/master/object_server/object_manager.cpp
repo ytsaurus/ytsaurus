@@ -166,6 +166,7 @@ public:
         const IAttributeDictionary* attributes);
 
     IYPathServicePtr CreateRemoteProxy(TObjectId id);
+    IYPathServicePtr CreateRemoteProxy(TCellTag cellTag);
 
     IObjectProxyPtr GetProxy(
         TObject* object,
@@ -333,6 +334,12 @@ public:
     TRemoteProxy(TBootstrap* bootstrap, TObjectId objectId)
         : Bootstrap_(bootstrap)
         , ObjectId_(objectId)
+        , ForwardedCellTag_(CellTagFromId(ObjectId_))
+    { }
+
+    TRemoteProxy(TBootstrap* bootstrap, TCellTag forwardedCellTag)
+        : Bootstrap_(bootstrap)
+        , ForwardedCellTag_(forwardedCellTag)
     { }
 
     virtual TResolveResult Resolve(const TYPath& path, const IServiceContextPtr& context) override
@@ -356,23 +363,19 @@ public:
 
         auto requestMessage = context->GetRequestMessage();
         auto forwardedRequestHeader = context->RequestHeader();
-
         auto* forwardedYPathExt = forwardedRequestHeader.MutableExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
-
-        auto targetPathRewrite = MakeYPathRewrite(
-            GetOriginalRequestTargetYPath(context->RequestHeader()),
-            ObjectId_,
-            forwardedYPathExt->target_path());
+        const auto& requestPath = GetOriginalRequestTargetYPath(context->RequestHeader());
+        auto targetPathRewrite = ObjectId_
+            ? MakeYPathRewrite(requestPath, ObjectId_, forwardedYPathExt->target_path())
+            : MakeYPathRewrite(requestPath, requestPath);
         forwardedYPathExt->set_target_path(targetPathRewrite.Rewritten);
-
-        auto forwardedCellTag = CellTagFromId(ObjectId_);
 
         SmallVector<TYPathRewrite, TypicalAdditionalPathCount> additionalPathRewrites;
         for (int index = 0; index < forwardedYPathExt->additional_paths_size(); ++index) {
             const auto& additionalPath = forwardedYPathExt->additional_paths(index);
             auto additionalResolveResult = ResolvePath(Bootstrap_, additionalPath, context);
             const auto* additionalPayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&additionalResolveResult.Payload);
-            if (!additionalPayload || CellTagFromId(additionalPayload->ObjectId) != forwardedCellTag) {
+            if (!additionalPayload || CellTagFromId(additionalPayload->ObjectId) != ForwardedCellTag_) {
                 THROW_ERROR_EXCEPTION(
                     NObjectClient::EErrorCode::CrossCellAdditionalPath,
                     "Request is cross-cell since it involves target path %v and additional path %v",
@@ -395,7 +398,7 @@ public:
                 const auto& prerequisitePath = prerequisite->path();
                 auto prerequisiteResolveResult = ResolvePath(Bootstrap_, prerequisitePath, context);
                 const auto* prerequisitePayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&prerequisiteResolveResult.Payload);
-                if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != forwardedCellTag) {
+                if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != ForwardedCellTag_) {
                     THROW_ERROR_EXCEPTION(
                         NObjectClient::EErrorCode::CrossCellRevisionPrerequisitePath,
                         "Request is cross-cell since it involves target path %v and prerequisite reivision path %v",
@@ -420,7 +423,7 @@ public:
         auto peerKind = isMutating ? EPeerKind::Leader : EPeerKind::Follower;
 
         const auto& connection = Bootstrap_->GetClusterConnection();
-        auto forwardedCellId = connection->GetMasterCellId(forwardedCellTag);
+        auto forwardedCellId = connection->GetMasterCellId(ForwardedCellTag_);
 
         const auto& cellDirectory = Bootstrap_->GetCellDirectory();
         auto channel = cellDirectory->GetChannelOrThrow(forwardedCellId, peerKind);
@@ -457,7 +460,7 @@ public:
             }),
             context->GetUser(),
             isMutating,
-            forwardedCellTag,
+            ForwardedCellTag_,
             peerKind);
 
         batchReq->Invoke().Subscribe(
@@ -512,7 +515,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
     const TObjectId ObjectId_;
-
+    const TCellTag ForwardedCellTag_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1078,6 +1081,11 @@ void TObjectManager::TImpl::RemoveObject(TObject* object)
 IYPathServicePtr TObjectManager::TImpl::CreateRemoteProxy(TObjectId id)
 {
     return New<TRemoteProxy>(Bootstrap_, id);
+}
+
+IYPathServicePtr TObjectManager::TImpl::CreateRemoteProxy(TCellTag cellTag)
+{
+    return New<TRemoteProxy>(Bootstrap_, cellTag);
 }
 
 IObjectProxyPtr TObjectManager::TImpl::GetProxy(
@@ -2144,6 +2152,11 @@ void TObjectManager::RemoveObject(TObject* object)
 IYPathServicePtr TObjectManager::CreateRemoteProxy(TObjectId id)
 {
     return Impl_->CreateRemoteProxy(id);
+}
+
+IYPathServicePtr TObjectManager::CreateRemoteProxy(TCellTag cellTag)
+{
+    return Impl_->CreateRemoteProxy(cellTag);
 }
 
 IObjectProxyPtr TObjectManager::GetProxy(TObject* object, TTransaction* transaction)

@@ -37,6 +37,16 @@ TYPathRewrite MakeYPathRewrite(
     };
 }
 
+TYPathRewrite MakeYPathRewrite(
+    const TYPath& originalPath,
+    const TYPath& rewrittenPath)
+{
+    return TYPathRewrite{
+        .Original = originalPath,
+        .Rewritten = rewrittenPath
+    };
+}
+
 TDuration ComputeForwardingTimeout(
     TDuration timeout,
     const TObjectServiceConfigPtr& config)
