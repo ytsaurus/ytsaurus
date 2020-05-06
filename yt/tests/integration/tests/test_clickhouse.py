@@ -353,10 +353,8 @@ class Clique(object):
         orchid_path = "//sys/clickhouse/orchids/{}/{}".format(self.op.id, instance.attributes["job_cookie"])
         return get(orchid_path + path, verbose=verbose)
 
-    def resize(self, size, jobs_to_abort=[]):
+    def resize(self, size):
         update_op_parameters(self.op.id, parameters=get_scheduling_options(user_slots=size))
-        for job in jobs_to_abort:
-            abort_job(job)
         wait(lambda: self.get_active_instance_count() == size)
 
 
