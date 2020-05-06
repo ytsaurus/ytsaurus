@@ -158,6 +158,8 @@ DECLARE_REFCOUNTED_STRUCT(TChunkReaderStatistics)
 DECLARE_REFCOUNTED_CLASS(IReaderMemoryManager)
 DECLARE_REFCOUNTED_CLASS(TChunkReaderMemoryManager)
 
+DECLARE_REFCOUNTED_CLASS(TChunkReplicaLocator)
+
 struct TChunkReaderMemoryManagerOptions;
 
 DECLARE_REFCOUNTED_STRUCT(TMemoryManagedData)
