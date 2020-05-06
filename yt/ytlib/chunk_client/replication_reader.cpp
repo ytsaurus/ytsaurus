@@ -777,7 +777,7 @@ protected:
 
         YT_VERIFY(!SeedsFuture_);
 
-        YT_LOG_DEBUG("Retry started: %v of %v",
+        YT_LOG_DEBUG("Retry started (RetryIndex: %v/%v)",
             RetryIndex_ + 1,
             ReaderConfig_->RetryCount);
 
@@ -798,7 +798,7 @@ protected:
         DiscardSeeds();
 
         int retryCount = ReaderConfig_->RetryCount;
-        YT_LOG_DEBUG("Retry failed: %v of %v",
+        YT_LOG_DEBUG("Retry failed (RetryIndex: %v/%v)",
             RetryIndex_ + 1,
             retryCount);
 
@@ -842,7 +842,7 @@ protected:
             return false;
         }
 
-        YT_LOG_DEBUG("Pass started: %v of %v",
+        YT_LOG_DEBUG("Pass started (PassIndex: %v/%v)",
             PassIndex_ + 1,
             ReaderConfig_->PassCount);
 
@@ -893,7 +893,7 @@ protected:
         }
 
         int passCount = ReaderConfig_->PassCount;
-        YT_LOG_DEBUG("Pass completed: %v of %v",
+        YT_LOG_DEBUG("Pass completed (PassIndex: %v/%v)",
             PassIndex_ + 1,
             passCount);
 
@@ -1271,7 +1271,7 @@ private:
 
         if (bestPeer) {
             if (receivedNewPeers) {
-                YT_LOG_DEBUG("Discard best peer since p2p was activated (Address: %v, PeerType: %v)",
+                YT_LOG_DEBUG("Discard best peer since P2P was activated (Address: %v, PeerType: %v)",
                     bestPeer->AddressWithNetwork,
                     bestPeer->Type);
                 ReinstallPeer(bestPeer->AddressWithNetwork.Address);
