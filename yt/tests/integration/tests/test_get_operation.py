@@ -29,6 +29,7 @@ def _get_operation_from_archive(op_id):
         return {}
 
 def get_running_job_count(op_id):
+    wait(lambda: "brief_progress" in get_operation(op_id, attributes=["brief_progress"]))
     result = get_operation(op_id, attributes=["brief_progress"])
     return result["brief_progress"]["jobs"]["running"]
 

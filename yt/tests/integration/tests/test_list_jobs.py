@@ -78,8 +78,6 @@ def cypress_job_nodes_context_manager(enable):
             wait(lambda: get(orchid_path) == original_enable)
 
 class TestListJobs(YTEnvSetup):
-    SINGLE_SETUP_TEARDOWN = True
-
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "job_reporter": {
@@ -125,13 +123,12 @@ class TestListJobs(YTEnvSetup):
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
-    @classmethod
-    def setup_class(cls):
-        super(TestListJobs, cls).setup_class()
+    def setup_method(self, method):
+        super(TestListJobs, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(cls.Env.create_native_client(), override_tablet_cell_bundle="default")
-        cls._tmpdir = create_tmpdir("list_jobs")
-        cls.failed_job_id_fname = os.path.join(cls._tmpdir, "failed_job_id")
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+        self._tmpdir = create_tmpdir("list_jobs")
+        self.failed_job_id_fname = os.path.join(self._tmpdir, "failed_job_id")
 
     def restart_nodes_and_wait_jobs_table(self):
         unmount_table("//sys/operations_archive/jobs")
