@@ -1,6 +1,6 @@
 import yt_commands
 
-from yt.environment import YTInstance, init_operation_archive, arcadia_interop
+from yt.environment import YTInstance, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.environment.default_configs import get_dynamic_master_config, get_dynamic_node_config
@@ -25,7 +25,6 @@ import pytest
 
 import gc
 import os
-import signal
 import sys
 import glob
 import logging
@@ -534,8 +533,6 @@ class YTEnvSetup(object):
 
     NUM_REMOTE_CLUSTERS = 0
 
-    SINGLE_SETUP_TEARDOWN = False
-
     # To be redefined in successors
     @classmethod
     def modify_master_config(cls, config, index):
@@ -753,9 +750,6 @@ class YTEnvSetup(object):
                 yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_count", 10000, driver=driver)
                 yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 1024 * 1024 * 1024, driver=driver)
 
-        if cls.SINGLE_SETUP_TEARDOWN:
-            cls._setup_method()
-
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
@@ -789,9 +783,6 @@ class YTEnvSetup(object):
 
     @classmethod
     def teardown_class(cls):
-        if cls.SINGLE_SETUP_TEARDOWN:
-            cls._teardown_method()
-
         if cls.liveness_checkers:
             map(lambda c: c.stop(), cls.liveness_checkers)
 
@@ -856,40 +847,37 @@ class YTEnvSetup(object):
             shutil.move(cls.path_to_run, destination_path)
             print >>sys.stderr, "Move completed"
 
-
-    @classmethod
-    def _setup_method(cls):
-        for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
-            driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
+    def setup_method(self, method):
+        for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
+            driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
             if driver is None:
                 continue
 
-            if cls.get_param("NUM_NODES", cluster_index) > 0:
+            if self.get_param("NUM_NODES", cluster_index) > 0:
                 dynamic_node_config = get_dynamic_node_config()
                 yt_commands.set("//sys/cluster_nodes/@config", dynamic_node_config)
                 for node in yt_commands.ls("//sys/cluster_nodes"):
                     wait(lambda: yt_commands.get_applied_node_dynamic_config(node) == dynamic_node_config["%true"])
 
-            if cls.USE_DYNAMIC_TABLES:
+            if self.USE_DYNAMIC_TABLES:
                 yt_commands.set("//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule", "1", driver=driver)
                 yt_commands.set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging", True, driver=driver)
                 yt_commands.set(
                     "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer",
-                    cls.ENABLE_TABLET_BALANCER,
+                    self.ENABLE_TABLET_BALANCER,
                     driver=driver)
 
-
-            if cls.ENABLE_BULK_INSERT:
+            if self.ENABLE_BULK_INSERT:
                 yt_commands.set("//sys/@config/tablet_manager/enable_bulk_insert", True, driver=driver)
 
             yt_commands.wait_for_nodes(driver=driver)
             yt_commands.wait_for_chunk_replicator(driver=driver)
 
-            if cls.get_param("NUM_SCHEDULERS", cluster_index) > 0:
+            if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 yt_commands.create("document", "//sys/controller_agents/config", attributes={"value": {}}, force=True, driver=driver)
                 yt_commands.create("document", "//sys/scheduler/config", attributes={"value": {}}, force=True, driver=driver)
 
-                if cls.ENABLE_BULK_INSERT:
+                if self.ENABLE_BULK_INSERT:
                     yt_commands.set("//sys/controller_agents/config/enable_bulk_insert_for_everyone", True)
 
                 def _get_config_versions(orchids):
@@ -915,8 +903,10 @@ class YTEnvSetup(object):
 
 
 
-            if cls.ENABLE_TMP_PORTAL and cluster_index == 0:
-                yt_commands.create("portal_entrance", "//tmp",
+            if self.ENABLE_TMP_PORTAL and cluster_index == 0:
+                yt_commands.create(
+                    "portal_entrance",
+                    "//tmp",
                     attributes={
                         "account": "tmp",
                         "exit_cell_tag": 1,
@@ -926,7 +916,9 @@ class YTEnvSetup(object):
                     force=True,
                     driver=driver)
             else:
-                yt_commands.create("map_node", "//tmp",
+                yt_commands.create(
+                    "map_node",
+                    "//tmp",
                     attributes={
                         "account": "tmp",
                         "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
@@ -934,22 +926,22 @@ class YTEnvSetup(object):
                     },
                     force=True,
                     driver=driver)
+            yt_commands.reset_events_on_fs()
 
-    @classmethod
-    def _teardown_method(cls):
+    def teardown_method(self, method):
         yt_commands._zombie_responses[:] = []
 
-        for env in [cls.Env] + cls.remote_envs:
+        for env in [self.Env] + self.remote_envs:
             env.check_liveness(callback_func=emergency_exit_within_tests)
 
-        for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
-            driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
+        for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
+            driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
             if driver is None:
                 continue
 
             _reset_nodes(driver=driver)
 
-            if cls.get_param("NUM_SCHEDULERS", cluster_index) > 0:
+            if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
                 _remove_operations(driver=driver)
                 _wait_for_jobs_to_vanish(driver=driver)
                 yt_commands.remove("//sys/scheduler/config", force=True, driver=driver)
@@ -958,15 +950,15 @@ class YTEnvSetup(object):
             _abort_transactions(driver=driver)
 
             yt_commands.remove("//tmp", driver=driver)
-            if cls.ENABLE_TMP_PORTAL:
+            if self.ENABLE_TMP_PORTAL:
                 # XXX(babenko): portals
                 wait(lambda: not yt_commands.exists("//tmp&", driver=driver))
 
             yt_commands.gc_collect(driver=driver)
 
-            scheduler_count = cls.get_param("NUM_SCHEDULERS", cluster_index)
+            scheduler_count = self.get_param("NUM_SCHEDULERS", cluster_index)
             if scheduler_count > 0:
-                scheduler_pool_trees_root = cls.Env.configs["scheduler"][0]["scheduler"].get("pool_trees_root", "//sys/pool_trees")
+                scheduler_pool_trees_root = self.Env.configs["scheduler"][0]["scheduler"].get("pool_trees_root", "//sys/pool_trees")
             else:
                 scheduler_pool_trees_root = "//sys/pool_trees"
             _restore_globals(
@@ -975,7 +967,7 @@ class YTEnvSetup(object):
                 driver=driver)
 
             _remove_objects(
-                enable_secondary_cells_cleanup=cls.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index),
+                enable_secondary_cells_cleanup=self.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index),
                 driver=driver)
 
             _restore_default_bundle_options(driver=driver)
@@ -984,14 +976,6 @@ class YTEnvSetup(object):
 
             yt_commands.clear_metadata_caches(driver=driver)
 
-    def setup_method(self, method):
-        if not self.SINGLE_SETUP_TEARDOWN:
-            self._setup_method()
-        yt_commands.reset_events_on_fs()
-
-    def teardown_method(self, method):
-        if not self.SINGLE_SETUP_TEARDOWN:
-            self._teardown_method()
 
 def get_porto_delta_node_config():
     return {
