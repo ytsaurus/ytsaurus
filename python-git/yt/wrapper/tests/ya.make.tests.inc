@@ -9,6 +9,7 @@ SET(YT_TEST_SRCS
     test_acl_commands.py
     test_authentication.py
     test_batch_execution.py
+    test_clickhouse.py
     test_client.py
     test_command_params.py
     test_common.py
@@ -37,6 +38,7 @@ SET(YT_TEST_SRCS
 
 PEERDIR(
     ${YT_PYTHON_ROOT}/python/yt/wrapper
+    ${YT_PYTHON_ROOT}/python/yt/clickhouse
     ${YT_PYTHON_ROOT}/python/yt/yson
     ${YT_PYTHON_ROOT}/python/yt/local
     ${YT_PYTHON_ROOT}/python/yt/environment
@@ -55,6 +57,10 @@ DEPENDS(
     ${YT_PYTHON_ROOT}/python/yt/wrapper/tests/yt_python
     ${YT_PYTHON_ROOT}/python/yt/wrapper/tests/yt_python3
     ${YT_PYTHON_ROOT}/python/yt/wrapper/tests/yt_ipython
+    ${YT_ROOT}/yt/server/clickhouse_server/bin
+    ${YT_ROOT}/yt/server/clickhouse_trampoline
+    ${YT_ROOT}/yt/server/log_tailer/bin
+    ${YT_ROOT}/yt/experiments/ytserver_dummy
 )
 
 RESOURCE_FILES(
@@ -85,6 +91,12 @@ SIZE(LARGE)
 
 FORK_TESTS()
 SPLIT_FACTOR(6)
+
+# Used in CHYT tests.
+ENV(YT_ROOT=${YT_ROOT})
+DATA(
+    arcadia/${YT_ROOT}/yt/tests/integration/tests/test_clickhouse
+)
 
 
 # Sandbox version.
