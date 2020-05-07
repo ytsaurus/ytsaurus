@@ -1549,6 +1549,121 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: _get_latest_file("snapshots") == _get_attr("max_snapshot_id"))
         wait(lambda: _get_latest_file("changelogs") == _get_attr("max_changelog_id"))
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_traverse_dynamic_table_with_alter_and_ranges(self, optimize_for):
+        sync_create_cells(1)
+        schema1 = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"}]
+        schema2 = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"},
+            {"name": "value2", "type": "string"}]
+
+        create("table", "//tmp/t", attributes={
+            "dynamic": True,
+            "optimize_for": optimize_for,
+            "schema": schema1})
+
+        sync_mount_table("//tmp/t")
+        rows = [{"key": 0, "value1": "0"}]
+        insert_rows("//tmp/t", rows, update=True)
+        sync_flush_table("//tmp/t")
+
+        assert read_table("<ranges=[{lower_limit={key=[0;]}; upper_limit={key=[0; <type=min>#]}}]>//tmp/t") == rows
+
+        sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", schema=schema2)
+        sync_mount_table("//tmp/t")
+
+        assert read_table("<ranges=[{lower_limit={key=[0;]}; upper_limit={key=[0; <type=min>#]}}]>//tmp/t") == []
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_traverse_table_with_alter_and_ranges_stress(self, optimize_for):
+        sync_create_cells(1)
+        schema1 = [
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"}]
+        schema2 = [
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"},
+            {"name": "value2", "type": "string"}]
+
+        create("table", "//tmp/t", attributes={
+            "dynamic": True,
+            "optimize_for": optimize_for,
+            "schema": schema1})
+
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+
+        reshard_table("//tmp/t", [[], [6]])
+        sync_mount_table("//tmp/t")
+
+        all_rows = []
+        for i in range(4):
+            rows = [{"key1": i * 3 + j, "value1": str(i * 3 + j)} for j in range(3)]
+            insert_rows("//tmp/t", rows)
+            for row in rows:
+                row.update({"key2": yson.YsonEntity(), "value2": yson.YsonEntity()})
+            all_rows += rows
+
+        sync_unmount_table("//tmp/t")
+        alter_table("//tmp/t", schema=schema2)
+        sync_mount_table("//tmp/t")
+
+        def _generate_read_ranges(lower_key, upper_key):
+            ranges = []
+            lower_sentinels = ["", "<type=min>#", "<type=null>#", "<type=max>#"] if lower_key is not None else [""]
+            upper_sentinels = ["", "<type=min>#", "<type=null>#", "<type=max>#"] if upper_key is not None else [""]
+
+            for lower_sentinel in lower_sentinels:
+                for upper_sentinel in upper_sentinels:
+                    ranges.append(
+                        "<ranges=[{{ {lower_limit} {upper_limit} }}]>//tmp/t".format(
+                            lower_limit="lower_limit={{key=[{key}; {sentinel}]}};".format(
+                                key=lower_key,
+                                sentinel=lower_sentinel,
+                            ) if lower_key is not None else "",
+
+                            upper_limit="upper_limit={{key=[{key}; {sentinel}]}};".format(
+                                key=upper_key,
+                                sentinel=upper_sentinel,
+                            ) if upper_key is not None else "",
+                        )
+                    )
+
+            return ranges
+
+        for i in range(len(all_rows)):
+            # lower_limit only
+            read_ranges = _generate_read_ranges(lower_key=i, upper_key=None)
+            for j in range(3):
+                assert read_table(read_ranges[j]) == all_rows[i:]
+            assert read_table(read_ranges[3]) == all_rows[i+1:]
+
+            # upper_limit only
+            read_ranges = _generate_read_ranges(lower_key=None, upper_key=i)
+            for j in range(3):
+                assert read_table(read_ranges[j]) == all_rows[:i]
+            assert read_table(read_ranges[3]) == all_rows[:i+1]
+
+            # both limits
+            for j in range(i, len(all_rows)):
+                read_ranges =_generate_read_ranges(lower_key=i, upper_key=j)
+                assert len(read_ranges) == 16
+
+                for k in range(3):
+                    for l in range(3):
+                        assert read_table(read_ranges[k * 4 + l]) == all_rows[i:j]
+                    assert read_table(read_ranges[k * 4 + 3]) == all_rows[i:j+1]
+                for l in range(3):
+                    assert read_table(read_ranges[12 + l]) == all_rows[i+1:j]
+                assert read_table(read_ranges[15]) == all_rows[i+1:j+1]
+
 ##################################################################
 
 class TestDynamicTablesSafeMode(DynamicTablesBase):

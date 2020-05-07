@@ -73,19 +73,19 @@ bool IsEmpty(const TChunkTree* chunkTree);
 
 //! Returns the upper boundary key of a chunk. Throws if the chunk contains no
 //! boundary info (i.e. it's not sorted).
-NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk);
+NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount = std::nullopt);
 
 //! Returns the upper boundary key of a chunk tree. Throws if the tree is empty
 //! or the last chunk in it contains no boundary info (i.e. it's not sorted).
-NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree);
+NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount = std::nullopt);
 
 //! Returns the minimum key of a chunk. Throws if the chunk contains no boundary
 //! info (i.e. it's not sorted).
-NTableClient::TOwningKey GetMinKeyOrThrow(const TChunk* chunk);
+NTableClient::TOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount = std::nullopt);
 
 //! Returns the minimum key of a chunk tree. Throws if the tree is empty or the
 //! first chunk in it contains no boundary info (i.e. it's not sorted).
-NTableClient::TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree);
+NTableClient::TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount = std::nullopt);
 
 //! Returns the maximum key of a chunk. Throws if the chunk contains no boundary
 //! info (i.e. it's not sorted).

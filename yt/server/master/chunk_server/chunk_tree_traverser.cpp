@@ -20,7 +20,6 @@
 #include <yt/core/misc/singleton.h>
 
 #include <yt/core/profiling/timing.h>
-#include <yt/core/profiling/timing.h>
 
 namespace NYT::NChunkServer {
 
@@ -295,14 +294,20 @@ protected:
         // Key
         {
             if (entry->UpperBound.HasKey()) {
-                childLowerBound.SetKey(GetMinKeyOrThrow(child));
+                YT_LOG_ALERT_UNLESS(KeyColumnCount_, "Chunk tree traverser entry has key bounds, "
+                    "but `key_column_count` parameter is not set");
+
+                childLowerBound.SetKey(GetMinKeyOrThrow(child, KeyColumnCount_));
                 if (entry->UpperBound.GetKey() <= childLowerBound.GetKey()) {
                     PopStack();
                     return;
                 }
-                childUpperBound.SetKey(GetUpperBoundKeyOrThrow(child));
+                childUpperBound.SetKey(GetUpperBoundKeyOrThrow(child, KeyColumnCount_));
             } else if (entry->LowerBound.HasKey()) {
-                childLowerBound.SetKey(GetMinKeyOrThrow(child));
+                YT_LOG_ALERT_UNLESS(KeyColumnCount_, "Chunk tree traverser entry has key bounds, "
+                    "but `key_column_count` parameter is not set");
+
+                childLowerBound.SetKey(GetMinKeyOrThrow(child, KeyColumnCount_));
             }
         }
 
@@ -416,7 +421,15 @@ protected:
 
         // Key
         {
+            if (entry->LowerBound.HasKey() || entry->UpperBound.HasKey()) {
+                YT_LOG_ALERT_UNLESS(KeyColumnCount_, "Chunk tree traverser entry has key bounds, "
+                    "but `key_column_count` parameter is not set");
+            }
+
             if (entry->UpperBound.HasKey()) {
+                // NB: It's OK here without key widening, however there may be some inefficiency,
+                // e.g. with 2 key columns, pivotKey = [0] and upperBound = [0, #Min] we could have return.
+
                 if (entry->UpperBound.GetKey() <= pivotKey) {
                     PopStack();
                     return;
@@ -528,8 +541,8 @@ protected:
         // Key
         {
             if (entry->UpperBound.HasKey() || entry->LowerBound.HasKey()) {
-                childLowerBound.SetKey(GetMinKeyOrThrow(child));
-                childUpperBound.SetKey(GetUpperBoundKeyOrThrow(child));
+                childLowerBound.SetKey(GetMinKeyOrThrow(child, KeyColumnCount_));
+                childUpperBound.SetKey(GetUpperBoundKeyOrThrow(child, KeyColumnCount_));
 
                 if (entry->UpperBound.HasKey() && entry->UpperBound.GetKey() <= childLowerBound.GetKey()) {
                     return;
@@ -719,8 +732,8 @@ protected:
                 rend,
                 lowerBound.GetKey(),
                 // isLess
-                [] (const TOwningKey& key, const TChunkTree* chunkTree) {
-                    return key > GetUpperBoundKeyOrThrow(chunkTree);
+                [keyColumnCount = KeyColumnCount_] (const TOwningKey& key, const TChunkTree* chunkTree) {
+                    return key > GetUpperBoundKeyOrThrow(chunkTree, keyColumnCount);
                 },
                 // isMissing
                 [] (const TChunkTree* chunkTree) {
@@ -802,6 +815,8 @@ protected:
                 chunkList->Children().end(),
                 lowerBound.GetKey(),
                 [] (const TOwningKey& key, const TChunkTree* chunkTree) {
+                    // NB: It's OK here without key widening: even in case of key_column_count=2 and pivot_key=[0],
+                    // widening to [0, Null] will have no effect as there are no real keys between [0] and [0, Null].
                     return key < chunkTree->AsChunkList()->GetPivotKey();
                 });
             result = std::max(result, static_cast<int>(std::distance(chunkList->Children().begin(), it) - 1));
@@ -928,6 +943,7 @@ protected:
         }
 
         // Key
+        // NB: If any key widening was required, it was performed prior to this function call.
         if (stackEntry.LowerBound.HasKey() &&
             stackEntry.LowerBound.GetKey() > childLowerBound.GetKey())
         {
@@ -976,6 +992,7 @@ protected:
 
     const IChunkTraverserCallbacksPtr Callbacks_;
     const IChunkVisitorPtr Visitor_;
+    const std::optional<int> KeyColumnCount_;
 
     NLogging::TLogger Logger;
 
@@ -989,9 +1006,11 @@ protected:
 public:
     TChunkTreeTraverser(
         IChunkTraverserCallbacksPtr callbacks,
-        IChunkVisitorPtr visitor)
+        IChunkVisitorPtr visitor,
+        std::optional<int> keyColumnCount)
         : Callbacks_(std::move(callbacks))
         , Visitor_(std::move(visitor))
+        , KeyColumnCount_(keyColumnCount)
         , Logger(ChunkServerLogger)
     { }
 
@@ -1025,11 +1044,13 @@ void TraverseChunkTree(
     IChunkVisitorPtr visitor,
     TChunkList* root,
     const TReadLimit& lowerLimit,
-    const TReadLimit& upperLimit)
+    const TReadLimit& upperLimit,
+    std::optional<int> keyColumnCount)
 {
     auto traverser = New<TChunkTreeTraverser>(
         std::move(traverserCallbacks),
-        std::move(visitor));
+        std::move(visitor),
+        keyColumnCount);
     traverser->Run(root, lowerLimit, upperLimit);
 }
 

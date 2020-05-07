@@ -666,7 +666,7 @@ bool IsEmpty(const TChunkTree* chunkTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk)
+TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount)
 {
     auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
@@ -676,20 +676,40 @@ TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk)
     }
 
     auto key = FromProto<TOwningKey>(optionalBoundaryKeysExt->max());
-    return GetKeySuccessor(key);
+    if (!keyColumnCount || *keyColumnCount == key.GetCount()) {
+        return GetKeySuccessor(key);
+    } else if (*keyColumnCount < key.GetCount()) {
+        return GetKeySuccessor(GetKeyPrefix(key, *keyColumnCount));
+    } else {
+        // NB: Here we add `Max` at the end of key (instead of `Min` as in another if-branch),
+        // however it doesn't affect anything, because key is widened first.
+        return WidenKeySuccessor(key, *keyColumnCount);
+    }
 }
 
-TOwningKey GetUpperBoundKeyOrThrow(const TChunkView* chunkView)
+TOwningKey GetUpperBoundKeyOrThrow(const TChunkView* chunkView, std::optional<int> keyColumnCount)
 {
-    auto chunkMaxKey = GetUpperBoundKeyOrThrow(chunkView->GetUnderlyingChunk());
+    auto chunkUpperBound = GetUpperBoundKeyOrThrow(chunkView->GetUnderlyingChunk(), keyColumnCount);
     const auto& upperLimit = chunkView->ReadRange().UpperLimit();
     if (!upperLimit.HasKey()) {
-        return chunkMaxKey;
+        return chunkUpperBound;
     }
-    return std::min(chunkMaxKey, upperLimit.GetKey());
+
+    const auto& upperLimitKey = upperLimit.GetKey();
+    if (!keyColumnCount || *keyColumnCount == upperLimitKey.GetCount()) {
+        return std::min(chunkUpperBound, upperLimitKey);
+    } else {
+        if (*keyColumnCount < upperLimitKey.GetCount()) {
+            THROW_ERROR_EXCEPTION("Unexpected key shortening for chunk view")
+                << TErrorAttribute("chunk_view_id", chunkView->GetId())
+                << TErrorAttribute("key_column_count", *keyColumnCount)
+                << TErrorAttribute("key", ToString(upperLimitKey));
+        }
+        return std::min(chunkUpperBound, WidenKey(upperLimitKey, *keyColumnCount));
+    }
 }
 
-TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree)
+TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount)
 {
     if (IsEmpty(chunkTree)) {
         THROW_ERROR_EXCEPTION("Cannot compute upper bound key in chunk list %v since it contains no chunks",
@@ -712,10 +732,10 @@ TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree)
         switch (currentChunkTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetUpperBoundKeyOrThrow(currentChunkTree->AsChunk());
+                return GetUpperBoundKeyOrThrow(currentChunkTree->AsChunk(), keyColumnCount);
 
             case EObjectType::ChunkView:
-                return GetUpperBoundKeyOrThrow(currentChunkTree->AsChunkView());
+                return GetUpperBoundKeyOrThrow(currentChunkTree->AsChunkView(), keyColumnCount);
 
             case EObjectType::SortedDynamicTabletStore:
                 return MaxKey();
@@ -733,7 +753,7 @@ TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree)
     }
 }
 
-TOwningKey GetMinKeyOrThrow(const TChunk* chunk)
+TOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount)
 {
     auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
@@ -742,20 +762,39 @@ TOwningKey GetMinKeyOrThrow(const TChunk* chunk)
             chunk->GetId());
     }
 
-    return FromProto<TOwningKey>(optionalBoundaryKeysExt->min());
+    auto minKey = FromProto<TOwningKey>(optionalBoundaryKeysExt->min());
+    if (!keyColumnCount || *keyColumnCount == minKey.GetCount()) {
+        return minKey;
+    } else if (*keyColumnCount < minKey.GetCount()) {
+        return GetKeyPrefix(minKey, *keyColumnCount);
+    } else {
+        return WidenKey(minKey, *keyColumnCount);
+    }
 }
 
-TOwningKey GetMinKey(const TChunkView* chunkView)
+TOwningKey GetMinKey(const TChunkView* chunkView, std::optional<int> keyColumnCount)
 {
-    auto chunkMinKey = GetMinKeyOrThrow(chunkView->GetUnderlyingChunk());
+    auto chunkMinKey = GetMinKeyOrThrow(chunkView->GetUnderlyingChunk(), keyColumnCount);
     const auto& lowerLimit = chunkView->ReadRange().LowerLimit();
     if (!lowerLimit.HasKey()) {
         return chunkMinKey;
     }
-    return std::max(chunkMinKey, lowerLimit.GetKey());
+
+    const auto& lowerLimitKey = lowerLimit.GetKey();
+    if (!keyColumnCount || *keyColumnCount == lowerLimitKey.GetCount()) {
+        return std::max(chunkMinKey, lowerLimitKey);
+    } else {
+        if (*keyColumnCount < lowerLimitKey.GetCount()) {
+            THROW_ERROR_EXCEPTION("Unexpected key shortening for chunk view")
+                << TErrorAttribute("chunk_view_id", chunkView->GetId())
+                << TErrorAttribute("key_column_count", *keyColumnCount)
+                << TErrorAttribute("key", ToString(lowerLimitKey));
+        }
+        return std::max(chunkMinKey, WidenKey(lowerLimitKey, *keyColumnCount));
+    }
 }
 
-TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree)
+TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount)
 {
     if (IsEmpty(chunkTree)) {
         THROW_ERROR_EXCEPTION("Cannot compute min key in chunk list %v since it contains no chunks",
@@ -778,10 +817,10 @@ TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree)
         switch (currentChunkTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetMinKeyOrThrow(currentChunkTree->AsChunk());
+                return GetMinKeyOrThrow(currentChunkTree->AsChunk(), keyColumnCount);
 
             case EObjectType::ChunkView:
-                return GetMinKey(currentChunkTree->AsChunkView());
+                return GetMinKey(currentChunkTree->AsChunkView(), keyColumnCount);
 
             case EObjectType::SortedDynamicTabletStore:
                 return MinKey();

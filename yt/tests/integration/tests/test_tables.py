@@ -1648,6 +1648,79 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError):
             alter_table("//tmp/t", schema=old_schema)
 
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("key_columns_action", ["shorten", "widen"])
+    def test_traverse_table_with_alter_and_ranges(self, key_columns_action):
+        schema1 = make_schema([
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"}],
+            unique_keys=True,
+            strict=True)
+        schema2 = make_schema([
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "key2", "type": "int64"},
+            {"name": "value1", "type": "string"}],
+            unique_keys=False,
+            strict=True)
+        schema3 = make_schema([
+            {"name": "key1", "type": "int64", "sort_order": "ascending"},
+            {"name": "key2", "type": "int64", "sort_order": "ascending"},
+            {"name": "key3", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string"}],
+            unique_keys=True,
+            strict=True)
+
+        create("table", "//tmp/t", attributes={"schema": schema1})
+
+        row = [{"key1": 0, "key2": 0, "value1": "0"}]
+        write_table("//tmp/t", row)
+
+        expected_before_action = [row, [], row, [], [], [], [], row, row, row, row, row, [], [], [], row]
+        expected_after_shortening = [row, [], [], row, [], [], [], row, row, row, [], [], [], row, row, row]
+        expected_after_widening = [row, [], row, [], row, row, [], [], [], row, row, row, [], [], [], row]
+
+        def _check(expected):
+            assert read_table("<ranges=[{lower_limit={key=[0]}}]>//tmp/t") == expected[0]
+            assert read_table("<ranges=[{upper_limit={key=[0]}}]>//tmp/t") == expected[1]
+
+            assert read_table("<ranges=[{lower_limit={key=[0; 0]}}]>//tmp/t") == expected[2]
+            assert read_table("<ranges=[{upper_limit={key=[0; 0]}}]>//tmp/t") == expected[3]
+
+            # 3 key columns
+            assert read_table("<ranges=[{lower_limit={key=[0; 0; <type=min>#]}}]>//tmp/t") == expected[4]
+            assert read_table("<ranges=[{lower_limit={key=[0; 0; <type=null>#]}}]>//tmp/t") == expected[5]
+            assert read_table("<ranges=[{lower_limit={key=[0; 0; <type=max>#]}}]>//tmp/t") == expected[6]
+
+            assert read_table("<ranges=[{upper_limit={key=[0; 0; <type=min>#]}}]>//tmp/t") == expected[7]
+            assert read_table("<ranges=[{upper_limit={key=[0; 0; <type=null>#]}}]>//tmp/t") == expected[8]
+            assert read_table("<ranges=[{upper_limit={key=[0; 0; <type=max>#]}}]>//tmp/t") == expected[9]
+
+            # 2 key columns
+            assert read_table("<ranges=[{lower_limit={key=[0; <type=min>#]}}]>//tmp/t") == expected[10]
+            assert read_table("<ranges=[{lower_limit={key=[0; <type=null>#]}}]>//tmp/t") == expected[11]
+            assert read_table("<ranges=[{lower_limit={key=[0; <type=max>#]}}]>//tmp/t") == expected[12]
+
+            assert read_table("<ranges=[{upper_limit={key=[0; <type=min>#]}}]>//tmp/t") == expected[13]
+            assert read_table("<ranges=[{upper_limit={key=[0; <type=null>#]}}]>//tmp/t") == expected[14]
+            assert read_table("<ranges=[{upper_limit={key=[0; <type=max>#]}}]>//tmp/t") == expected[15]
+
+            # 1 key column
+            assert read_table("<ranges=[{lower_limit={key=[<type=min>#]}}]>//tmp/t") == row
+            assert read_table("<ranges=[{lower_limit={key=[<type=null>#]}}]>//tmp/t") == row
+            assert read_table("<ranges=[{lower_limit={key=[<type=max>#]}}]>//tmp/t") == []
+
+            assert read_table("<ranges=[{upper_limit={key=[<type=min>#]}}]>//tmp/t") == []
+            assert read_table("<ranges=[{upper_limit={key=[<type=null>#]}}]>//tmp/t") == []
+            assert read_table("<ranges=[{upper_limit={key=[<type=max>#]}}]>//tmp/t") == row
+
+        _check(expected_before_action)
+
+        shortened = key_columns_action == "shorten"
+        alter_table("//tmp/t", schema=schema2 if shortened else schema3)
+
+        _check(expected_after_shortening if shortened else expected_after_widening)
+
 ##################################################################
 
 def check_multicell_statistics(path, chunk_count_map):
