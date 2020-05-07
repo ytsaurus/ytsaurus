@@ -1898,7 +1898,7 @@ class TestCompositeTypes(ClickHouseTestBase):
     @authors("max42")
     def test_const_arguments(self):
         with Clique(1) as clique:
-            assert clique.make_query("select YPathRaw('[foo; bar]', '', 'text') as a")[0] == {"a": "[\"foo\"; \"bar\"]"}
+            assert clique.make_query("select YPathRaw('[foo; bar]', '', 'text') as a")[0] == {"a": "[\"foo\";\"bar\";]"}
             assert clique.make_query("select YPathRaw('[invalid_yson', '', 'text') as a")[0] == {"a": ""}
             with raises_yt_error(QueryFailedError):
                 clique.make_query("select YPathRaw('[invalid_yson', '', 'text') as a")[0] == {"a": ""}
