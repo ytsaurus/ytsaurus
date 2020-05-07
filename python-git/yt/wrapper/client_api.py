@@ -8,7 +8,6 @@ from .run_operation_commands import (run_erase, run_merge, run_sort, run_map_red
                                      run_join_reduce, run_remote_copy, run_operation)
 from .operation_commands import (get_operation_state, abort_operation, complete_operation,
                                  get_operation, list_operations, iterate_operations)
-from .clickhouse import get_clickhouse_clique_spec_builder, start_clickhouse_clique
 from .file_commands import read_file, write_file, smart_upload_file
 from .transaction import Transaction, PingTransaction, get_current_transaction_id
 from .batch_helpers import create_batch_client, batch_apply
