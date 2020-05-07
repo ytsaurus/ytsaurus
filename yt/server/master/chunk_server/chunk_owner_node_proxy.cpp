@@ -311,11 +311,13 @@ public:
         NCellMaster::TBootstrap* bootstrap,
         TChunkList* chunkList,
         TCtxFetchPtr rpcContext,
-        TFetchContext&& fetchContext)
+        TFetchContext&& fetchContext,
+        std::optional<int> keyColumnCount)
         : Bootstrap_(bootstrap)
         , ChunkList_(chunkList)
         , RpcContext_(std::move(rpcContext))
         , FetchContext_(std::move(fetchContext))
+        , KeyColumnCount_(keyColumnCount)
         , NodeDirectoryBuilder_(
             RpcContext_->Response().mutable_node_directory(),
             FetchContext_.AddressType)
@@ -343,6 +345,7 @@ private:
     TChunkList* const ChunkList_;
     const TCtxFetchPtr RpcContext_;
     TFetchContext FetchContext_;
+    const std::optional<int> KeyColumnCount_;
 
     int CurrentRangeIndex_ = 0;
 
@@ -362,7 +365,8 @@ private:
             this,
             ChunkList_,
             FetchContext_.Ranges[CurrentRangeIndex_].LowerLimit(),
-            FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit());
+            FetchContext_.Ranges[CurrentRangeIndex_].UpperLimit(),
+            KeyColumnCount_);
     }
 
     void ReplySuccess()
@@ -1039,11 +1043,20 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
     const auto* node = GetThisImpl<TChunkOwnerBase>();
     auto* chunkList = node->GetChunkList();
 
+    std::optional<int> keyColumnCount;
+    for (const auto& range : fetchContext.Ranges) {
+        if (range.LowerLimit().HasKey() || range.UpperLimit().HasKey()) {
+            keyColumnCount = node->As<NTableServer::TTableNode>()->GetTableSchema().GetKeyColumnCount();
+            break;
+        }
+    }
+
     auto visitor = New<TFetchChunkVisitor>(
         Bootstrap_,
         chunkList,
         context,
-        std::move(fetchContext));
+        std::move(fetchContext),
+        keyColumnCount);
     visitor->Run();
 }
 

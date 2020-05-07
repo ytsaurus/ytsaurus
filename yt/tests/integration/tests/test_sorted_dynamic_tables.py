@@ -1193,6 +1193,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert read_table("<ranges=[{lower_limit={key=[0; <type=null>#; <type=max>#]}}]>//tmp/t") == []
         assert read_table("<ranges=[{lower_limit={key=[0; <type=null>#; <type=null>#; <type=null>#]}}]>//tmp/t") == []
 
+
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
 

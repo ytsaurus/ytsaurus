@@ -82,7 +82,8 @@ void TraverseChunkTree(
     IChunkVisitorPtr visitor,
     TChunkList* root,
     const NChunkClient::TReadLimit& lowerLimit = NChunkClient::TReadLimit(),
-    const NChunkClient::TReadLimit& upperLimit = NChunkClient::TReadLimit());
+    const NChunkClient::TReadLimit& upperLimit = NChunkClient::TReadLimit(),
+    std::optional<int> keyColumnCount = std::nullopt);
 
 void EnumerateChunksInChunkTree(
     TChunkList* root,
