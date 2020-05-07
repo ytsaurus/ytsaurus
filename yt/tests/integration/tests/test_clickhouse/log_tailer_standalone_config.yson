@@ -1,25 +1,30 @@
 {
     "log_tailer" = {
-        "log_rotation" = {
-            "enable" = %false;
-            "rotation_delay" = 15000;
-            "log_segment_count" = 100;
-            "rotation_period" = 900000;
-        };
         "log_files" = [
             {
-                "ttl" = 604800000;
-                "path" = "clickhouse.debug.log";
-            };
-            {
-                "ttl" = 604800000;
-                "path" = "clickhouse.log";
-            };
+                "path" = "LOG";
+                "tables" = [
+                    {
+                        "path" = "//sys/clickhouse/logs/log1";
+                    };
+                    {
+                        "path" = "//sys/clickhouse/logs/log2";
+                        "require_trace_id" = %true;
+                    };
+                ];
+            }
         ];
+        "log_rotation" = {
+            "enable" = %true;
+            "rotation_period" = 100;
+            "rotation_delay" = 50;
+            "log_segment_count" = 100000;
+        };
         "log_writer_liveness_checker" = {
             "enable" = %true;
-            "liveness_check_period" = 5000;
+            "liveness_check_period" = 50;
         };
+        "read_frequency" = 50;
     };
     "logging" = {
         "writers" = {

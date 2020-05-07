@@ -2,7 +2,7 @@ from yt_commands import *
 from yt_helpers import *
 
 from yt_env_setup import wait, YTEnvSetup, is_asan_build, is_gcc_build
-from yt.wrapper.clickhouse import get_clickhouse_clique_spec_builder
+from yt.clickhouse import get_clique_spec_builder, get_host_paths
 from yt.wrapper.common import simplify_structure
 import yt.packages.requests as requests
 from yt.packages.six.moves import map as imap
@@ -12,8 +12,6 @@ import yt.yson as yson
 from yt.wrapper.ypath import FilePath
 
 from yt.common import update, parts_to_uuid
-
-from distutils.spawn import find_executable
 
 from datetime import datetime
 
@@ -29,34 +27,14 @@ import threading
 import pprint
 import signal
 
-if arcadia_interop.yatest_common is None:
-    TEST_DIR = os.path.join(os.path.dirname(__file__))
-
-    YTSERVER_CLICKHOUSE_PATH = os.environ.get("YTSERVER_CLICKHOUSE_PATH")
-    if YTSERVER_CLICKHOUSE_PATH is None:
-        YTSERVER_CLICKHOUSE_PATH = find_executable("ytserver-clickhouse")
-
-    CLICKHOUSE_TRAMPOLINE_PATH = os.environ.get("CLICKHOUSE_TRAMPOLINE_PATH")
-    if CLICKHOUSE_TRAMPOLINE_PATH is None:
-        CLICKHOUSE_TRAMPOLINE_PATH = find_executable("clickhouse-trampoline")
-
-    YT_LOG_TAILER_PATH = os.environ.get("YT_LOG_TAILER_PATH")
-    if YT_LOG_TAILER_PATH is None:
-        YT_LOG_TAILER_PATH = find_executable("ytserver-log-tailer")
-else:
-    test_dir = os.environ.get("YT_ROOT") + "/yt/tests/integration/tests"
-    TEST_DIR = arcadia_interop.yatest_common.source_path(test_dir)
-    assert os.path.exists(TEST_DIR)
-
-    YTSERVER_CLICKHOUSE_PATH = arcadia_interop.search_binary_path("ytserver-clickhouse")
-    CLICKHOUSE_TRAMPOLINE_PATH = arcadia_interop.search_binary_path("clickhouse-trampoline")
-    YT_LOG_TAILER_PATH = arcadia_interop.search_binary_path("ytserver-log-tailer")
+HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer"])
 
 DEFAULTS = {
     "memory_footprint": 1 * 1000**3,
     "memory_limit": int(4.5 * 1000**3),
-    "host_ytserver_clickhouse_path": YTSERVER_CLICKHOUSE_PATH,
-    "host_clickhouse_trampoline_path": CLICKHOUSE_TRAMPOLINE_PATH,
+    "host_ytserver_clickhouse_path": HOST_PATHS["ytserver-clickhouse"],
+    "host_clickhouse_trampoline_path": HOST_PATHS["clickhouse-trampoline"],
+    "host_ytserver_log_tailer_path": HOST_PATHS["ytserver-log-tailer"],
     "cpu_limit": 1,
     "enable_monitoring": False,
     "clickhouse_config": {},
@@ -106,7 +84,7 @@ class Clique(object):
         core_dump_destination = None
         if enable_core_dump:
             core_dump_destination = Clique.core_dump_path
-        spec_builder = get_clickhouse_clique_spec_builder(instance_count,
+        spec_builder = get_clique_spec_builder(instance_count,
                                                           cypress_config_paths=cypress_config_paths,
                                                           max_failed_job_count=max_failed_job_count,
                                                           defaults=DEFAULTS,
@@ -399,7 +377,7 @@ class ClickHouseTestBase(YTEnvSetup):
     }
 
     def _read_local_config_file(self, name):
-        return open(os.path.join(TEST_DIR, "test_clickhouse", name)).read()
+        return open(os.path.join(HOST_PATHS["test-dir"], "test_clickhouse", name)).read()
 
     def _get_proxy_address(self):
         return "http://" + self.Env.get_http_proxy_address()
@@ -419,9 +397,6 @@ class ClickHouseTestBase(YTEnvSetup):
         if not os.path.exists(Clique.core_dump_path):
             os.mkdir(Clique.core_dump_path)
             os.chmod(Clique.core_dump_path, 0777)
-
-        if YTSERVER_CLICKHOUSE_PATH is None:
-            pytest.skip("This test requires ytserver-clickhouse binary being built")
 
         create_user("yt-clickhouse-cache")
         create_user("yt-clickhouse")
@@ -2825,8 +2800,6 @@ class TestTracing(ClickHouseTestBase):
 class TestClickHouseWithLogTailer(ClickHouseTestBase):
     def setup(self):
         self._setup()
-        if YT_LOG_TAILER_PATH is None:
-            pytest.skip("This test requires log_tailer binary being built")
 
     @authors("gritukan")
     def test_log_tailer(self):
@@ -2896,7 +2869,7 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
         # Create clique with log tailer enabled.
         with Clique(instance_count=1,
                     cypress_ytserver_log_tailer_config_path=log_tailer_config_filename,
-                    host_ytserver_log_tailer_path=YT_LOG_TAILER_PATH,
+                    host_ytserver_log_tailer_path=HOST_PATHS["ytserver-log-tailer"],
                     enable_log_tailer=True) as clique:
 
             # Make some queries.
