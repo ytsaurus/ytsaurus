@@ -229,6 +229,8 @@ class YtTestEnvironment(object):
         if arcadia_interop.yatest_common is not None:
             self.env._create_cluster_client().set("//sys/@local_mode_fqdn", socket.getfqdn())
 
+        self.env._create_cluster_client().set("//sys/@cluster_connection", self.config["driver_config"])
+
         # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.
         for module in list(itervalues(sys.modules)):
             hasattr(module, "__file__")
@@ -378,7 +380,8 @@ def _remove_operations():
 
     operation_from_orchid = []
     try:
-        operation_from_orchid = yt.list("//sys/scheduler/orchid/scheduler/operations")
+        operation_from_orchid = [op_id for op_id in yt.list("//sys/scheduler/orchid/scheduler/operations")
+                                 if not op_id.startswith("*")]
     except yt.YtError as err:
         print(format_error(err), file=sys.stderr)
 

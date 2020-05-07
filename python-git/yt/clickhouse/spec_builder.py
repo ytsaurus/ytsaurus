@@ -92,11 +92,11 @@ def get_clique_spec_builder(instance_count,
                   in itervalues(cypress_config_paths)]
 
     def add_file(cypress_bin_path, host_bin_path, bin_name):
-        if cypress_bin_path is not None:
+        if host_bin_path is not None:
+            return host_bin_path
+        elif cypress_bin_path is not None:
             file_paths.append(FilePath(cypress_bin_path, file_name=bin_name))
             return "./" + bin_name
-        elif host_bin_path is not None:
-            return host_bin_path
         else:
             return None
 

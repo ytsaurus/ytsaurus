@@ -147,7 +147,7 @@ def prepare_configs(instance_count,
         "cluster_connection": get("//sys/@cluster_connection", client=client)
     }
 
-    clickhouse_config_cypress_base = get(cypress_base_config_path, client=client) if cypress_base_config_path != "" else None
+    clickhouse_config_cypress_base = get(cypress_base_config_path, client=client) if cypress_base_config_path else None
     resulting_clickhouse_config = {}
     for patch in (clickhouse_config_cypress_base, clickhouse_config_base, clickhouse_config, cluster_connection_patch):
         update_inplace(resulting_clickhouse_config, patch)
@@ -158,7 +158,7 @@ def prepare_configs(instance_count,
         }
     }
 
-    log_tailer_config_cypress_base = get(cypress_log_tailer_config_path, client=client) if cypress_log_tailer_config_path != "" else None
+    log_tailer_config_cypress_base = get(cypress_log_tailer_config_path, client=client) if cypress_log_tailer_config_path else None
     resulting_log_tailer_config = {}
     for patch in (log_tailer_config_cypress_base, log_tailer_config_base, cluster_connection_patch):
         update_inplace(resulting_log_tailer_config, patch)
@@ -176,7 +176,9 @@ def prepare_artifacts(artifact_path,
                       dump_tables=None,
                       instance_count=None,
                       cypress_ytserver_log_tailer_path=None,
+                      log_tailer_table_attribute_patch=None,
                       log_tailer_config=None,
+                      log_tailer_tablet_count=None,
                       client=None):
     if not exists(artifact_path, client=client):
         logger.info("Creating artifact directory %s", artifact_path)
@@ -214,10 +216,12 @@ def prepare_artifacts(artifact_path,
                 logger.info("Dumping %s into %s", table_path, new_path)
                 copy(table_path, new_path, client=client)
 
-    log_tailer_version = get(cypress_ytserver_log_tailer_path + "/@yt_version")
+    log_tailer_version = get(cypress_ytserver_log_tailer_path + "/@yt_version") if cypress_ytserver_log_tailer_path else ""
 
     for log_file in log_tailer_config["log_tailer"]["log_files"]:
-        prepare_log_tailer_tables(log_file, artifact_path, log_tailer_version=log_tailer_version, client=client)
+        prepare_log_tailer_tables(log_file, artifact_path, log_tailer_version=log_tailer_version, client=client,
+                                  attribute_patch=log_tailer_table_attribute_patch,
+                                  tablet_count=log_tailer_tablet_count)
 
 
 def upload_configs(configs, client=None):
@@ -249,6 +253,19 @@ def upload_configs(configs, client=None):
     return cypress_config_paths
 
 
+def do_wait_for_instances(op, instance_count, operation_alias, client=None):
+    for state in op.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0)):
+        if state.is_running() and \
+                exists("//sys/clickhouse/cliques/{0}".format(op.id), client=client) and \
+                get("//sys/clickhouse/cliques/{0}/@count".format(op.id), client=client) == instance_count:
+            logger.info("Clique started and ready for serving under alias %s", operation_alias)
+            return op
+        elif state.is_unsuccessfully_finished():
+            process_operation_unsuccesful_finish_state(op, state)
+        else:
+            op.printer(state)
+
+
 def start_clique(instance_count,
                  operation_alias,
                  cypress_base_config_path=None,
@@ -273,6 +290,7 @@ def start_clique(instance_count,
                  enable_job_tables=None,
                  artifact_path=None,
                  client=None,
+                 wait_for_instances=None,
                  **kwargs):
     """Starts a clickhouse clique consisting of a given number of instances.
 
@@ -358,6 +376,7 @@ def start_clique(instance_count,
     prev_operation_id = prev_operation["id"] if prev_operation is not None else None
 
     def resolve_path(cypress_bin_path, host_bin_path, bin_name, client=None):
+        host_bin_path = host_bin_path or defaults.get("host_" + bin_name.replace("-", "_") + "_path")
         if cypress_bin_path is None and host_bin_path is None:
             cypress_bin_path = get("//sys/bin/{0}/{0}/@path".format(bin_name), client=client)
         require(cypress_bin_path is None or host_bin_path is None,
@@ -373,6 +392,9 @@ def start_clique(instance_count,
 
     cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path = \
         resolve_path(cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path, "ytserver-log-tailer", client=client)
+
+    if wait_for_instances is None:
+        wait_for_instances = True
 
     configs = prepare_configs(instance_count,
                               cypress_base_config_path=cypress_base_config_path,
@@ -431,13 +453,5 @@ def start_clique(instance_count,
                        client=client,
                        sync=False)
 
-    for state in op.get_state_monitor(TimeWatcher(1.0, 1.0, 0.0)):
-        if state.is_running() and \
-                exists("//sys/clickhouse/cliques/{0}".format(op.id), client=client) and \
-                get("//sys/clickhouse/cliques/{0}/@count".format(op.id), client=client) == instance_count:
-            logger.info("Clique started and ready for serving under alias %s", operation_alias)
-            return op
-        elif state.is_unsuccessfully_finished():
-            process_operation_unsuccesful_finish_state(op, state)
-        else:
-            op.printer(state)
+    if wait_for_instances:
+        do_wait_for_instances(op, instance_count, operation_alias, client=client)

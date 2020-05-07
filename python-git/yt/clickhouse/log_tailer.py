@@ -5,6 +5,8 @@ from yt.packages.six import iteritems
 from yt.wrapper.cypress_commands import exists, create, set
 from yt.yson import YsonUint64
 
+from yt.wrapper.common import update_inplace
+
 import os.path
 
 
@@ -17,7 +19,10 @@ def _is_fresher_than(version, min_version):
 # Here and below table_kind is in ("ordered_normally", "ordered_by_trace_id")
 
 
-def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_version=None, client=None):
+def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_version=None, client=None,
+                                    attribute_patch=None):
+    attribute_patch = attribute_patch or {}
+
     # COMPAT(max42)
     atomicity = "none" if _is_fresher_than(log_tailer_version, "19.8.34144") else "full"
 
@@ -35,6 +40,8 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_vers
         "merge_rows_on_flush": True,
         "atomicity": atomicity,
     }
+
+    update_inplace(attributes, attribute_patch)
 
     if log_tailer_version is not None:
         attributes["log_tailer_version"] = log_tailer_version
@@ -57,11 +64,12 @@ def set_log_tailer_table_dynamic_attributes(table_kind, table_path, client=None)
         set(attribute_path, value, client=client)
 
 
-def reshard_log_tailer_table(table_kind, table_path, sync=True, client=None):
+def reshard_log_tailer_table(table_kind, table_path, tablet_count=None, sync=True, client=None):
+    tablet_count = tablet_count or 100
     if table_kind == "ordered_normally":
         logger.debug("Resharding %s", table_path)
-    pivot_keys = [[]] + [[YsonUint64(i), None, None, None] for i in xrange(1, 100)]
-    reshard_table(table_path, pivot_keys=pivot_keys, sync=sync, client=client)
+        pivot_keys = [[]] + [[YsonUint64(i), None, None, None] for i in xrange(1, tablet_count)]
+        reshard_table(table_path, pivot_keys=pivot_keys, sync=sync, client=client)
 
 
 def create_log_tailer_table(table_kind, table_path, client=None):
@@ -105,6 +113,8 @@ def create_log_tailer_table(table_kind, table_path, client=None):
 def prepare_log_tailer_tables(log_file,
                               artifact_path,
                               log_tailer_version=None,
+                              attribute_patch=None,
+                              tablet_count=None,
                               client=None):
 
     assert len(log_file.get("tables", [])) == 0
@@ -127,7 +137,8 @@ def prepare_log_tailer_tables(log_file,
             create_log_tailer_table(kind, path, client=client)
         else:
             unmount_table(path, sync=True)
-        set_log_tailer_table_attributes(kind, path, ttl, log_tailer_version=log_tailer_version, client=client)
+        set_log_tailer_table_attributes(kind, path, ttl, log_tailer_version=log_tailer_version, client=client,
+                                        attribute_patch=attribute_patch)
         set_log_tailer_table_dynamic_attributes(kind, path, client=client)
-        reshard_log_tailer_table(kind, path, client=client)
+        reshard_log_tailer_table(kind, path, tablet_count=tablet_count, client=client)
         mount_table(path, sync=True)
