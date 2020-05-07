@@ -915,17 +915,15 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
 
         op1 = map(track=False, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out1",
                   spec={"pool": "fake_pool", "job_count": 3, "locality_timeout": 0})
-        enable_op_detailed_logs(op1)
-        time.sleep(3)
 
         pools_path = scheduler_orchid_default_pool_tree_path() + "/pools"
-        assert get(pools_path + "/fake_pool/fair_share_ratio") >= 0.999
-        assert get(pools_path + "/fake_pool/usage_ratio") >= 0.999
+        wait(lambda: exists(pools_path + "/fake_pool"))
+        wait(lambda: get(pools_path + "/fake_pool/fair_share_ratio") >= 0.999)
+        wait(lambda: get(pools_path + "/fake_pool/usage_ratio") >= 0.999)
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
         create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
         op2 = map(track=False, command="cat", in_=["//tmp/t_in"], out="//tmp/t_out2", spec={"pool": "test_pool"})
-        enable_op_detailed_logs(op2)
         op2.track()
 
         op1.abort()
@@ -1013,7 +1011,6 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
             }
         )
 
-        enable_op_detailed_logs(op)
         wait_breakpoint()
 
         update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
