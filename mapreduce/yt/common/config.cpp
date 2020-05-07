@@ -226,7 +226,7 @@ TProcessState::TProcessState()
     Pid = static_cast<int>(getpid());
 
     if (!ClientVersion) {
-        ClientVersion = TStringBuilder() << "YT C++ native r"<< GetProgramSvnRevision();
+        ClientVersion = TStringBuilder() << "YT C++ native " << GetProgramCommitId();
     }
 }
 
