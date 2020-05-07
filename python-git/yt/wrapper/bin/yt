@@ -22,6 +22,7 @@ from yt.packages.six import PY3, iteritems
 from yt.packages.six.moves import builtins, map as imap
 
 import yt.wrapper as yt
+import yt.clickhouse as chyt
 
 import os
 import sys
@@ -62,7 +63,10 @@ Operation tools:
 Diagnostics:
     job-tool, download-core-dump
 Other commands:
-    show-spec, start-clickhouse-clique, execute, execute-batch, sky-share, show-default-config'''
+    show-spec, execute, execute-batch, sky-share, show-default-config
+Subtools:
+    clickhouse, spark, idm
+'''
 
 EPILOG = '''Examples:
 
@@ -984,29 +988,6 @@ def add_shuffle_parser(add_parser):
     parser.add_argument("--print-statistics", action="store_true", default=False)
     parser.add_argument("--async", action="store_true", default=False, help="do not track operation progress")
 
-@copy_docstring_from(yt.start_clickhouse_clique)
-def start_clickhouse_clique_handler(*args, **kwargs):
-    op = yt.start_clickhouse_clique(*args, **kwargs)
-    print(op.id)
-
-def add_start_clickhouse_clique_parser(add_parser):
-    parser = add_parser("start-clickhouse-clique", start_clickhouse_clique_handler)
-    parser.add_argument("--instance-count", required=True, type=int)
-    parser.add_argument("--operation-alias", required=True, help="Alias for clique")
-    parser.add_argument("--cypress-ytserver-clickhouse-path")
-    parser.add_argument("--cypress-clickhouse-trampoline-path")
-    parser.add_argument("--cypress-ytserver-log-tailer-path")
-    parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config")
-    parser.add_argument("--cpu-limit", type=int)
-    parser.add_argument("--memory-limit", type=int)
-    parser.add_argument("--cypress-geodata-path")
-    parser.add_argument("--abort-existing", action="store_true", help="Abort existing operation under same alias")
-    parser.add_argument("--uncompressed-block-cache-size", type=int, help="Size of uncompressed block cache")
-    parser.add_argument("--artifact-path", help="path for artifact directory; by default equals to "
-                                                "//sys/clickhouse/kolkhoz/<operation_alias>")
-    add_structured_argument(parser, "--spec")
-    add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
-
 def add_map_reduce_parser(add_parser):
     MAP_REDUCE_EPILOG = '''Options --mapper, --reducer, --combiner specify bash commands to run.
 --mapper and --reduce-combiner suboperations are optional. Only --reducer is required!
@@ -1483,6 +1464,36 @@ def add_spark_parser(root_subparsers):
     add_start_spark_cluster_parser(add_spark_subparser)
     add_find_spark_cluster_parser(add_spark_subparser)
 
+@copy_docstring_from(chyt.start_clique)
+def start_clique_handler(*args, **kwargs):
+    op = chyt.start_clique(*args, **kwargs)
+    print(op.id)
+
+def add_start_clique_parser(add_parser):
+    parser = add_parser("start-clique", start_clique_handler)
+    parser.add_argument("--instance-count", required=True, type=int)
+    parser.add_argument("--operation-alias", required=True, help="Alias for clique")
+    parser.add_argument("--cypress-ytserver-clickhouse-path")
+    parser.add_argument("--cypress-clickhouse-trampoline-path")
+    parser.add_argument("--cypress-ytserver-log-tailer-path")
+    parser.add_argument("--cypress-base-config-path", default="//sys/clickhouse/config")
+    parser.add_argument("--cpu-limit", type=int)
+    parser.add_argument("--memory-limit", type=int)
+    parser.add_argument("--cypress-geodata-path")
+    parser.add_argument("--abort-existing", action="store_true", help="Abort existing operation under same alias")
+    parser.add_argument("--uncompressed-block-cache-size", type=int, help="Size of uncompressed block cache")
+    parser.add_argument("--artifact-path", help="path for artifact directory; by default equals to "
+                                                "//sys/clickhouse/kolkhoz/<operation_alias>")
+    add_structured_argument(parser, "--spec")
+    add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
+
+
+def add_clickhouse_parser(root_subparsers):
+    parser = fix_parser(root_subparsers.add_parser("clickhouse", description="ClickHouse over YT commands"))
+    clickhouse_subparsers = parser.add_subparsers(metavar="clickhouse_command")
+    add_clickhouse_subparser = add_subparser(clickhouse_subparsers, params_argument=False)
+    add_start_clique_parser(add_clickhouse_subparser)
+
 
 @copy_docstring_from(yt.start_spark_cluster)
 def start_spark_cluster_handler(*args, **kwargs):
@@ -1632,7 +1643,6 @@ def main():
     add_remote_copy_parser(add_parser)
     add_vanilla_parser(add_parser)
     add_shuffle_parser(add_parser)
-    add_start_clickhouse_clique_parser(add_parser)
 
     add_abort_op_parser(add_parser)
     add_suspend_op_parser(add_parser)
@@ -1678,6 +1688,7 @@ def main():
 
     add_download_core_dump_parser(add_parser)
 
+    add_clickhouse_parser(subparsers)
     add_spark_parser(subparsers)
 
     add_idm_parser(subparsers)
