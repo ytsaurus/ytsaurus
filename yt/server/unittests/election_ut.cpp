@@ -354,7 +354,7 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
             }));
         EXPECT_RPC_CALL(*PeerMocks[id], PingFollower)
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [], {
-                THROW_ERROR_EXCEPTION(NElection::EErrorCode::InvalidLeader, "");
+                THROW_ERROR_EXCEPTION(NElection::EErrorCode::InvalidLeader, "Dummy error");
             }));
     }
 
