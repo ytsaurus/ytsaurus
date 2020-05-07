@@ -1036,16 +1036,27 @@ auto TFairShareTree<TFairShareImpl>::DoFairShareUpdateAt(TInstant now) -> std::p
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
     }
 
+    TRootElementSnapshotPtr rootElementSnapshot = nullptr;
     auto asyncUpdate = BIND([&]
         {
             PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter_) {
                 rootElement->Update(&dynamicAttributes, &updateContext);
             }
+
+            rootElementSnapshot = New<TRootElementSnapshot>();
+            rootElement->BuildElementMapping(
+                &rootElementSnapshot->OperationIdToElement,
+                &rootElementSnapshot->DisabledOperationIdToElement,
+                &rootElementSnapshot->PoolNameToElement);
+            std::swap(rootElementSnapshot->DynamicAttributes, dynamicAttributes);
+            std::swap(rootElementSnapshot->ElementIndexes, updateContext.ElementIndexes);
         })
         .AsyncVia(StrategyHost_->GetFairShareUpdateInvoker())
         .Run();
     WaitFor(asyncUpdate)
         .ThrowOnError();
+
+    YT_VERIFY(rootElementSnapshot);
 
     YT_LOG_DEBUG("Fair share tree update finished (UnschedulableReasons: %v)",
         updateContext.UnschedulableReasons);
@@ -1056,14 +1067,6 @@ auto TFairShareTree<TFairShareImpl>::DoFairShareUpdateAt(TInstant now) -> std::p
             << TErrorAttribute("pool_tree", TreeId_)
             << std::move(updateContext.Errors);
     }
-
-    auto rootElementSnapshot = New<TRootElementSnapshot>();
-    rootElement->BuildElementMapping(
-        &rootElementSnapshot->OperationIdToElement,
-        &rootElementSnapshot->DisabledOperationIdToElement,
-        &rootElementSnapshot->PoolNameToElement);
-    std::swap(rootElementSnapshot->DynamicAttributes, dynamicAttributes);
-    std::swap(rootElementSnapshot->ElementIndexes, updateContext.ElementIndexes);
 
     // Update starvation flags for operations and pools.
     for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {
