@@ -88,7 +88,7 @@ public:
 
     void Sleep()
     {
-        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(1000));
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
     }
 
     void RunElections()
