@@ -12,11 +12,11 @@ from yt_env_setup import YTEnvSetup
 
 from yt.environment.helpers import OpenPortIterator
 
-import yt.clickhouse as chyt
+from yt.clickhouse.test_helpers import get_log_tailer_config, get_host_paths
 
 from distutils.spawn import find_executable
 
-HOST_PATHS = chyt.get_host_paths(arcadia_interop, ["dummy-logger", "ytserver-log-tailer"])
+HOST_PATHS = get_host_paths(arcadia_interop, ["dummy-logger", "ytserver-log-tailer"])
 
 #################################################################
 
@@ -25,21 +25,21 @@ class TestLogTailer(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    def _read_local_config_file(self, name):
-        return open(os.path.join(HOST_PATHS["test-dir"], "test_clickhouse", name)).read()
-
     @authors("gritukan")
     def test_log_rotation(self):
-        log_tailer_config = yson.loads(self._read_local_config_file("log_tailer_standalone_config.yson"))
+        log_tailer_config = get_log_tailer_config()
         log_path = \
             os.path.join(self.path_to_run,
             "logs",
             "dummy_logger",
             "log")
 
-        log_tables = ["//sys/clickhouse/logs/log1", "//sys/clickhouse/logs/log2"]
+        log_tailer_config["log_tailer"]["log_files"] = [{
+            "path": log_path,
+            "tables": [{"path": "//sys/log1"}, {"path": "//sys/log2", "require_trace_id": True}]
+        }]
 
-        log_tailer_config["log_tailer"]["log_files"][0]["path"] = log_path
+        log_tailer_config["log_tailer"]["log_files"] = log_tailer_config["log_tailer"]["log_files"][:1]
 
         log_tailer_config["logging"]["writers"]["debug"]["file_name"] = \
             os.path.join(self.path_to_run,
@@ -61,10 +61,7 @@ class TestLogTailer(YTEnvSetup):
         create_tablet_cell_bundle("sys")
         sync_create_cells(1, tablet_cell_bundle="sys")
 
-        create("map_node", "//sys/clickhouse")
-        create("map_node", "//sys/clickhouse/logs")
-
-        create("table", "//sys/clickhouse/logs/log1", attributes={
+        create("table", "//sys/log1", attributes={
                 "dynamic": True,
                 "schema": [
                     {"name": "job_id_shard", "type": "uint64", "expression": "farm_hash(job_id) % 123", "sort_order": "ascending"},
@@ -83,7 +80,7 @@ class TestLogTailer(YTEnvSetup):
                 "atomicity": "none",
             })
 
-        create("table", "//sys/clickhouse/logs/log2", attributes={
+        create("table", "//sys/log2", attributes={
                 "dynamic": True,
                 "schema": [
                     {"name": "trace_id_hash", "type": "uint64", "expression": "farm_hash(trace_id)", "sort_order": "ascending"},
@@ -101,6 +98,8 @@ class TestLogTailer(YTEnvSetup):
                 "tablet_cell_bundle": "sys",
                 "atomicity": "none",
             })
+
+        log_tables = ["//sys/log1", "//sys/log2"]
 
         for log_table in log_tables:
             sync_mount_table(log_table)
