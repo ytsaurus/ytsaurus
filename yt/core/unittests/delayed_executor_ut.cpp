@@ -47,7 +47,7 @@ TEST(TDelayedExecutorTest, SubmitZeroDelay)
         BIND([fired, state, probe = TProbe(state.get())]() { ++*fired; }),
         TDuration::MilliSeconds(10));
 
-    Sleep(TDuration::MilliSeconds(20));
+    Sleep(TDuration::MilliSeconds(50));
 
     EXPECT_EQ(2, *fired);
     EXPECT_EQ(2, state->Constructors);
