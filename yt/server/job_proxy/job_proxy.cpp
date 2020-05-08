@@ -458,7 +458,6 @@ IJobProxyEnvironmentPtr TJobProxy::FindJobProxyEnvironment() const
 TJobResult TJobProxy::DoRun()
 {
     IJobPtr job;
-    IJobProxyEnvironmentPtr environment;
 
     try {
         // Use everything.
@@ -497,7 +496,7 @@ TJobResult TJobProxy::DoRun()
             return rootFS;
         };
 
-        environment = CreateJobProxyEnvironment(
+        auto environment = CreateJobProxyEnvironment(
             Config_->JobEnvironment,
             createRootFS(),
             Config_->GpuDevices,
@@ -556,70 +555,71 @@ TJobResult TJobProxy::DoRun()
             OutBandwidthThrottler_ = GetUnlimitedThrottler();
             OutRpsThrottler_ = GetUnlimitedThrottler();
         }
+
+        const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
+        NYTAlloc::SetLargeUnreclaimableBytes(schedulerJobSpecExt.yt_alloc_large_unreclaimable_bytes());
+        JobProxyMemoryOvercommitLimit_ =
+            schedulerJobSpecExt.has_job_proxy_memory_overcommit_limit() ?
+            std::make_optional(schedulerJobSpecExt.job_proxy_memory_overcommit_limit()) :
+            std::nullopt;
+
+        RefCountedTrackerLogPeriod_ = FromProto<TDuration>(schedulerJobSpecExt.job_proxy_ref_counted_tracker_log_period());
+
+        if (environment) {
+            environment->SetCpuShare(CpuShare_);
+            if (schedulerJobSpecExt.has_user_job_spec() &&
+                schedulerJobSpecExt.user_job_spec().set_container_cpu_limit())
+            {
+                environment->SetCpuLimit(CpuShare_);
+            }
+        }
+
+        InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+        InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
+
+        HeartbeatExecutor_ = New<TPeriodicExecutor>(
+            JobThread_->GetInvoker(),
+            BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
+            Config_->HeartbeatPeriod);
+
+        auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
+        MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
+            JobThread_->GetInvoker(),
+            BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
+            jobEnvironmentConfig->MemoryWatchdogPeriod);
+
+        if (schedulerJobSpecExt.has_user_job_spec()) {
+            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+
+            if (environment && userJobSpec.use_porto_memory_tracking()) {
+                environment->EnablePortoMemoryTracking();
+            }
+
+            JobProxyMemoryReserve_ -= userJobSpec.memory_reserve();
+            YT_LOG_DEBUG("Adjusting job proxy memory limit (JobProxyMemoryReserve: %v, UserJobMemoryReserve: %v)",
+                JobProxyMemoryReserve_,
+                userJobSpec.memory_reserve());
+            job = CreateUserJob(
+                this,
+                userJobSpec,
+                JobId_,
+                Ports_,
+                std::make_unique<TUserJobWriteController>(this));
+        } else {
+            job = CreateBuiltinJob();
+        }
+
+        SetJob(job);
+        job->Initialize();
+
+        MemoryWatchdogExecutor_->Start();
+        HeartbeatExecutor_->Start();
+        CpuMonitor_->Start();
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to prepare job proxy");
         Exit(EJobProxyExitCode::JobProxyPrepareFailed);
     }
 
-    const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
-    NYTAlloc::SetLargeUnreclaimableBytes(schedulerJobSpecExt.yt_alloc_large_unreclaimable_bytes());
-    JobProxyMemoryOvercommitLimit_ =
-        schedulerJobSpecExt.has_job_proxy_memory_overcommit_limit() ?
-        std::make_optional(schedulerJobSpecExt.job_proxy_memory_overcommit_limit()) :
-        std::nullopt;
-
-    RefCountedTrackerLogPeriod_ = FromProto<TDuration>(schedulerJobSpecExt.job_proxy_ref_counted_tracker_log_period());
-
-    if (environment) {
-        environment->SetCpuShare(CpuShare_);
-        if (schedulerJobSpecExt.has_user_job_spec() &&
-            schedulerJobSpecExt.user_job_spec().set_container_cpu_limit())
-        {
-            environment->SetCpuLimit(CpuShare_);
-        }
-    }
-
-    InputNodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
-    InputNodeDirectory_->MergeFrom(schedulerJobSpecExt.input_node_directory());
-
-    HeartbeatExecutor_ = New<TPeriodicExecutor>(
-        JobThread_->GetInvoker(),
-        BIND(&TJobProxy::SendHeartbeat, MakeWeak(this)),
-        Config_->HeartbeatPeriod);
-
-    auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-    MemoryWatchdogExecutor_ = New<TPeriodicExecutor>(
-        JobThread_->GetInvoker(),
-        BIND(&TJobProxy::CheckMemoryUsage, MakeWeak(this)),
-        jobEnvironmentConfig->MemoryWatchdogPeriod);
-
-    if (schedulerJobSpecExt.has_user_job_spec()) {
-        const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-
-        if (environment && userJobSpec.use_porto_memory_tracking()) {
-            environment->EnablePortoMemoryTracking();
-        }
-
-        JobProxyMemoryReserve_ -= userJobSpec.memory_reserve();
-        YT_LOG_DEBUG("Adjusting job proxy memory limit (JobProxyMemoryReserve: %v, UserJobMemoryReserve: %v)",
-            JobProxyMemoryReserve_,
-            userJobSpec.memory_reserve());
-        job = CreateUserJob(
-            this,
-            userJobSpec,
-            JobId_,
-            Ports_,
-            std::make_unique<TUserJobWriteController>(this));
-    } else {
-        job = CreateBuiltinJob();
-    }
-
-    SetJob(job);
-    job->Initialize();
-
-    MemoryWatchdogExecutor_->Start();
-    HeartbeatExecutor_->Start();
-    CpuMonitor_->Start();
 
     return job->Run();
 }
