@@ -7,6 +7,8 @@ from yt.yson import YsonUint64
 
 from yt.wrapper.common import update_inplace
 
+from yt.packages.six.moves import xrange
+
 import os.path
 
 
