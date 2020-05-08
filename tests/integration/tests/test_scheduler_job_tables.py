@@ -28,8 +28,8 @@ if arcadia_interop.yatest_common is None:
         YT_LIB_CUDA_CORE_DUMP_INJECTION = find_executable("libcuda_core_dump_injection.so")
 else:
     TEST_DIR = arcadia_interop.yatest_common.source_path("yt/tests/integration/tests")
-    YT_CUDA_CORE_DUMP_SIMULATOR = arcadia_interop.yatest_common.binary_path("cuda_core_dump_simulator")
-    YT_LIB_CUDA_CORE_DUMP_INJECTION = arcadia_interop.yatest_common.binary_path("libcuda_core_dump_injection.so")
+    YT_CUDA_CORE_DUMP_SIMULATOR = arcadia_interop.search_binary_path("cuda_core_dump_simulator")
+    YT_LIB_CUDA_CORE_DUMP_INJECTION = arcadia_interop.search_binary_path("libcuda_core_dump_injection.so")
 
 ##################################################################
 
