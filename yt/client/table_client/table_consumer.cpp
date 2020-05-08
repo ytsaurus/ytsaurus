@@ -191,10 +191,10 @@ void TYsonToUnversionedValueConverter::FlushCurrentValueIfCompleted()
         } else {
             const auto& converter = it->second;
             if (converter) {
+                ConvertedBuffer_.Clear();
                 ApplyYsonConverter(converter, TStringBuf(ValueBuffer_.Begin(), ValueBuffer_.Size()), &ConvertedWriter_);
                 ConvertedWriter_.Flush();
                 value = MakeUnversionedCompositeValue(ConvertedBuffer_.Blob().ToStringBuf(), ColumnIndex_);
-                ConvertedBuffer_.Clear();
             } else {
                 value = MakeUnversionedCompositeValue(accumulatedYson, ColumnIndex_);
             }
