@@ -32,6 +32,8 @@
 
 #include <yt/server/lib/timestamp_server/public.h>
 
+#include <yt/server/lib/discovery_server/public.h>
+
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/election/public.h>
@@ -164,6 +166,8 @@ private:
     NConcurrency::TActionQueuePtr ProfilerQueue_;
     ICoreDumperPtr CoreDumper_;
     TAnnotationSetterPtr AnnotationSetter_;
+    NConcurrency::TActionQueuePtr DiscoveryQueue_;
+    NDiscoveryServer::TDiscoveryServerPtr DiscoveryServer_;
 
     NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
 
