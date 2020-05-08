@@ -14,20 +14,10 @@ class TOrderedPartitioner
     : public IPartitioner
 {
 public:
-    explicit TOrderedPartitioner(std::vector<TOwningKey> keys)
-        : OwningKeys_(std::move(keys))
-    {
-        for (const auto& key : OwningKeys_) {
-            KeyHolder_.push_back(key.Get());
-        }
-        Keys_ = MakeRange(KeyHolder_);
-    }
-
     explicit TOrderedPartitioner(const TSharedRef& wirePartitionKeys)
-    {
-        KeySetReader_.emplace(wirePartitionKeys);
-        Keys_ = KeySetReader_->GetKeys();
-    }
+        : KeySetReader_(wirePartitionKeys)
+        , Keys_(KeySetReader_.GetKeys())
+    { }
 
     virtual int GetPartitionCount() override
     {
@@ -47,20 +37,9 @@ public:
     }
 
 private:
-    // For backwards compatibility.
-    const std::vector<TOwningKey> OwningKeys_;
-    std::vector<TKey> KeyHolder_;
-
-    std::optional<TKeySetReader> KeySetReader_;
-
-    TRange<TKey> Keys_;
-
+    const TKeySetReader KeySetReader_;
+    const TRange<TKey> Keys_;
 };
-
-IPartitionerPtr CreateOrderedPartitioner(std::vector<TOwningKey> keys)
-{
-    return New<TOrderedPartitioner>(std::move(keys));
-}
 
 IPartitionerPtr CreateOrderedPartitioner(const TSharedRef& wirePartitionKeys)
 {
@@ -91,7 +70,6 @@ public:
 private:
     const int PartitionCount_;
     const int KeyColumnCount_;
-
 };
 
 IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount)
