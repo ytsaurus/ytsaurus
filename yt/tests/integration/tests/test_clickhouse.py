@@ -2,7 +2,7 @@ from yt_commands import *
 from yt_helpers import *
 
 from yt_env_setup import wait, YTEnvSetup, is_asan_build, is_gcc_build
-from yt.clickhouse import get_clique_spec_builder, get_host_paths
+from yt.clickhouse import get_clique_spec_builder
 from yt.wrapper.common import simplify_structure
 import yt.packages.requests as requests
 from yt.packages.six.moves import map as imap
@@ -26,6 +26,8 @@ import random
 import threading
 import pprint
 import signal
+
+from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config, get_log_tailer_config
 
 HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer"])
 
@@ -376,9 +378,6 @@ class ClickHouseTestBase(YTEnvSetup):
         }
     }
 
-    def _read_local_config_file(self, name):
-        return open(os.path.join(HOST_PATHS["test-dir"], "test_clickhouse", name)).read()
-
     def _get_proxy_address(self):
         return "http://" + self.Env.get_http_proxy_address()
 
@@ -406,7 +405,7 @@ class ClickHouseTestBase(YTEnvSetup):
         create("map_node", "//sys/clickhouse")
 
         # We need to inject cluster_connection into yson config.
-        Clique.base_config = yson.loads(self._read_local_config_file("config.yson"))
+        Clique.base_config = get_clickhouse_server_config()
         Clique.base_config["cluster_connection"] = self.__class__.Env.configs["driver"]
         Clique.proxy_address = self._get_proxy_address()
 
@@ -2806,7 +2805,7 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
         clique_index = Clique.clique_index
 
         # Prepare log tailer config and upload it to Cypress.
-        log_tailer_config = yson.loads(self._read_local_config_file("log_tailer_config.yson"))
+        log_tailer_config = get_log_tailer_config()
         log_file_path = \
             os.path.join(self.path_to_run,
             "logs",
