@@ -29,7 +29,7 @@ lazy val commonDependencies = yandexIceberg ++ spark ++ circe ++ logging.map(_ %
 lazy val `data-source` = (project in file("data-source"))
   .dependsOn(`yt-wrapper`, `file-system`, `file-system` % "test->test")
   .settings(
-    version := "0.1.1",
+    version := "0.1.2-SNAPSHOT",
     libraryDependencies ++= commonDependencies,
     libraryDependencies += organization.value %% "spark-yt-common-utils" % "0.0.1",
     assemblyJarName in assembly := "spark-yt-data-source.jar",
