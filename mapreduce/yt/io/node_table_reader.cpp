@@ -282,6 +282,16 @@ bool TNodeTableReader::IsValid() const
 
 void TNodeTableReader::Next()
 {
+    try {
+        NextImpl();
+    } catch (const yexception& ex) {
+        LOG_ERROR("TNodeTableReader::Next failed: %s", ex.what());
+        throw;
+    }
+}
+
+void TNodeTableReader::NextImpl()
+{
     CheckValidity();
 
     if (RowIndex_) {
@@ -328,6 +338,8 @@ void TNodeTableReader::Next()
 
         } else if (Row_->Type == TRowElement::Error) {
             OnStreamError();
+        } else {
+            Y_FAIL("Unexpected row type: %d", Row_->Type);
         }
     }
 }

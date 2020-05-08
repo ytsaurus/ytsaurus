@@ -84,6 +84,7 @@ public:
     TMaybe<size_t> GetReadByteCount() const override;
 
 private:
+    void NextImpl();
     void OnStreamError();
     void CheckValidity() const;
     void PrepareParsing();

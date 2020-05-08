@@ -2104,6 +2104,34 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
         readFile(4 * 1024 * 1024); // no exception
         UNIT_ASSERT_EXCEPTION(readFile(100500), yexception);
     }
+
+    Y_UNIT_TEST(TableReaderReadError) {
+        TTestFixture fixture;
+
+        TConfig::Get()->UseAbortableResponse = true;
+        TConfig::Get()->RetryInterval = TDuration::MilliSeconds(1);
+        TConfig::Get()->ReadRetryCount = 5;
+
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        auto testTable = workingDir + "/table";
+
+        {
+            auto writer = client->CreateTableWriter<TNode>(testTable);
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
+
+        auto outage = TAbortableHttpResponse::StartOutage("/read_table",
+                TOutageOptions().ResponseCount(10).LengthLimit(3));
+
+        try {
+            auto reader = client->CreateTableReader<TNode>(testTable);
+            UNIT_FAIL("expected exception");
+        } catch (yexception& ex) {
+            // it's ok
+        }
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
