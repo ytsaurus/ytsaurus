@@ -1465,6 +1465,12 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobs(
             });
         }
 
+        auto hasCpuGap = [] (const TJobWithPreemptionInfo& jobWithPreemptionInfo)
+        {
+            return jobWithPreemptionInfo.Job->ResourceUsage().GetCpu() < jobWithPreemptionInfo.Job->ResourceLimits().GetCpu();
+        };
+
+
         std::sort(
             jobInfos.begin(),
             jobInfos.end(),
@@ -1472,6 +1478,16 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobs(
                 if (lhs.IsPreemptable != rhs.IsPreemptable) {
                     return lhs.IsPreemptable < rhs.IsPreemptable;
                 }
+
+                if (!lhs.IsPreemptable) {
+                    // Save jobs without cpu gap.
+                    bool lhsHasCpuGap = hasCpuGap(lhs);
+                    bool rhsHasCpuGap = hasCpuGap(rhs);
+                    if (lhsHasCpuGap != rhsHasCpuGap) {
+                        return lhsHasCpuGap > rhsHasCpuGap;
+                    }
+                }
+
                 return lhs.Job->GetStartTime() < rhs.Job->GetStartTime();
             }
         );
