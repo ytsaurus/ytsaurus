@@ -3,13 +3,15 @@ import yt.clickhouse as chyt
 import yt.wrapper.yson as yson
 from yt.test_helpers import wait
 
+from yt.clickhouse.test_helpers import get_clickhouse_server_config, get_host_paths
+
 import yt.environment.arcadia_interop as arcadia_interop
 
 import pytest
 import os.path
 
-HOST_PATHS = chyt.get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline",
-                                                   "ytserver-log-tailer", "ytserver-dummy"])
+HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer",
+                                              "ytserver-dummy"])
 
 DEFAULTS = {
     "memory_footprint": 1 * 1000**3,
@@ -33,9 +35,7 @@ class ClickhouseTestBase(object):
         yt.create("document", "//sys/clickhouse/defaults", recursive=True, attributes={"value": DEFAULTS})
         yt.create("map_node", "//home/clickhouse-kolkhoz", recursive=True)
         yt.link("//home/clickhouse-kolkhoz", "//sys/clickhouse/kolkhoz", recursive=True)
-        yt.create("document", "//sys/clickhouse/log_tailer_config", attributes={
-            "value": yson.load(open(os.path.join(HOST_PATHS["test-dir"], "test_clickhouse", "log_tailer_config.yson")))
-        })
+        yt.create("document", "//sys/clickhouse/log_tailer_config", attributes={"value": get_clickhouse_server_config()})
         cell_id = yt.create("tablet_cell", attributes={"size": 1})
         wait(lambda: yt.get("//sys/tablet_cells/{0}/@health".format(cell_id)) == "good")
         yt.create("user", attributes={"name": "yt-clickhouse-cache"})
@@ -62,7 +62,7 @@ class TestClickhouseFromCypress(ClickhouseTestBase):
 
         yt.create("file", destination, attributes={"replication_factor": 1, "executable": True}, recursive=True)
         upload_client.write_file(destination,
-                                 open(path),
+                                 open(path, "rb"),
                                  filename_hint=os.path.basename(path),
                                  file_writer={
                                      "enable_early_finish": True,

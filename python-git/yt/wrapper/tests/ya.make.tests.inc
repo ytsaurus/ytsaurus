@@ -92,11 +92,6 @@ SIZE(LARGE)
 FORK_TESTS()
 SPLIT_FACTOR(6)
 
-# Used in CHYT tests.
-ENV(YT_ROOT=${YT_ROOT})
-DATA(
-    arcadia/${YT_ROOT}/yt/tests/integration/tests/test_clickhouse
-)
 
 
 # Sandbox version.
