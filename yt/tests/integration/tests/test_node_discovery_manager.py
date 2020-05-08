@@ -41,7 +41,7 @@ class Base:
             time.sleep(0.5)
             metrics_before = [metric.update().get(verbose=True) or 0 for metric in metrics]
             try:
-                for i in range(len(metrics)):
+                for i in range(4 * len(metrics)):
                     make_request()
                 make_request()
             except:
@@ -107,6 +107,7 @@ class Base:
         wait(lambda: len(self.get_discovered_node_list()) == 1, "Master cannot update node list")
 
     @authors("aleksandra-zh")
+    @flaky(max_runs=5)
     def test_racks(self):
         expected_node_ids = [0, 1, 2]
         nodes = self.select_nodes(expected_node_ids)
