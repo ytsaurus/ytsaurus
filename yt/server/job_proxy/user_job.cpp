@@ -213,8 +213,12 @@ public:
         }
 
         if (UserJobEnvironment_) {
-            YT_VERIFY(host->GetConfig()->BusServer->UnixDomainSocketPath);
-            YT_VERIFY(UserId_);
+            if (!host->GetConfig()->BusServer->UnixDomainSocketPath) {
+                THROW_ERROR_EXCEPTION("Unix domain socket path is not configured");
+            }
+            if (!UserId_) {
+                THROW_ERROR_EXCEPTION("Job proxy process lacks root permissions");
+            }
 
             IUserJobEnvironment::TUserJobProcessOptions options;
             if (UserJobSpec_.has_core_table_spec()) {
