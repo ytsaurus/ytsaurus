@@ -168,6 +168,10 @@ def checkout(options):
             ],
             cwd=options.yt_build_directory)
     else:
+        # Fetching before checking out is important when there are build agents with
+        # repositories containing different fetched branches. Note that there may be 
+        # a PR in which Python is tested not against master, but against some other branch.
+        run(["git", "fetch", "origin", "master"], cwd=options.yt_source_directory)
         run(["git", "checkout", "master"], cwd=options.yt_source_directory)
         run(["git", "pull"], cwd=options.yt_source_directory)
         run(["git", "submodule", "update", "--init", "--recursive"], cwd=options.yt_source_directory)
