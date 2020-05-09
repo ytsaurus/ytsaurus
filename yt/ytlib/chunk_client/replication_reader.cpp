@@ -1252,7 +1252,6 @@ private:
             return;
         }
 
-
         if (peerAddressWithNetwork.Address != GetLocalHostName() && BytesThrottled_ == 0 && EstimatedSize_) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we use BandwidthThrottled_ flag.

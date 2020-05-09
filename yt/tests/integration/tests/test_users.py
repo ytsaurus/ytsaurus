@@ -369,39 +369,6 @@ class TestUsers(YTEnvSetup):
         with pytest.raises(YtError):
             create("table", "//tmp/t4", attributes={"external": False}, authenticated_user="u")
 
-
-class TestBuiltinTabletSystemUsers(DynamicTablesBase):
-    @authors("akozhikhov")
-    def test_new_tablet_system_users(self):
-        cell_id = sync_create_cells(1)[0]
-        self._create_sorted_table("//tmp/t")
-
-        def _check_snapshot_and_changelog():
-            changelogs_num = len(ls("//sys/tablet_cells/{0}/changelogs".format(cell_id)))
-            snapshots_num = len(ls("//sys/tablet_cells/{0}/snapshots".format(cell_id)))
-            return changelogs_num > 0 and snapshots_num > 0
-
-        def _check_rows(last):
-            keys = [{"key": i} for i in xrange(last)]
-            rows = [{"key": i, "value": str(i)} for i in xrange(last)]
-            assert lookup_rows("//tmp/t", keys) == rows
-
-        sync_mount_table("//tmp/t")
-        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
-        build_snapshot(cell_id=cell_id)
-        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
-
-        wait(_check_snapshot_and_changelog)
-        _check_rows(2)
-
-        old_peer_addr = get("#{0}/@peers".format(cell_id))[0]["address"]
-        set_node_decommissioned(old_peer_addr, True)
-        self._check_health_after_decommission(cell_id, old_peer_addr)
-
-        insert_rows("//tmp/t", [{"key": 2, "value": "2"}])
-        _check_rows(3)
-
-
 ##################################################################
 
 class TestUsersRpcProxy(TestUsers):

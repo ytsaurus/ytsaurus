@@ -206,7 +206,7 @@ private:
 
                 ToProto(chunkSpec->mutable_chunk_id(), dynamicStore->GetId());
                 if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
-                    auto replica = TNodePtrWithIndexes(node, 0, 0);
+                    auto replica = TNodePtrWithIndexes(node, GenericChunkReplicaIndex, GenericMediumIndex);
                     nodeDirectoryBuilder.Add(replica);
                     chunkSpec->add_replicas(ToProto<ui64>(replica));
                 }
@@ -292,8 +292,6 @@ private:
                     auto replica = TNodePtrWithIndexes(target, GenericChunkReplicaIndex, sessionId.MediumIndex);
                     builder.Add(replica);
                     subresponse->add_replicas(ToProto<ui64>(replica));
-                    // COMPAT(aozeritsky)
-                    subresponse->add_replicas_old(ToProto<ui32>(replica));
                 }
 
                 YT_LOG_DEBUG("Write targets allocated "

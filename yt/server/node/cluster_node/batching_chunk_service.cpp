@@ -225,11 +225,7 @@ private:
 
         static void AddReplicaList(TNodeDirectoryBuilder& builder, const NYT::NChunkClient::NProto::TRspAllocateWriteTargets_TSubresponse& subresponse)
         {
-            builder.Add(
-                subresponse.replicas().empty()
-                // COMPAT(aozeritsky)
-                ? FromProto<TChunkReplicaList>(subresponse.replicas_old())
-                : FromProto<TChunkReplicaList>(subresponse.replicas()));
+            builder.Add(FromProto<TChunkReplicaList>(subresponse.replicas()));
         }
 
         template <class TBatchResponse, class TResponse>

@@ -13,7 +13,7 @@ namespace NYT::NChunkClient {
 struct TMediumDescriptor
 {
     TString Name;
-    int Index = InvalidMediumIndex;
+    int Index = GenericMediumIndex;
     int Priority = -1;
 
     bool operator == (const TMediumDescriptor& other) const;

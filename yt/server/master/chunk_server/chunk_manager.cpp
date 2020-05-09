@@ -59,11 +59,14 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/session_id.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/proto/chunk_service.pb.h>
 
 #include <yt/ytlib/journal_client/helpers.h>
 
 #include <yt/client/object_client/helpers.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -199,58 +202,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkManager::TChunkTypeHandlerBase
+class TChunkManager::TChunkTypeHandler
     : public TObjectTypeHandlerWithMapBase<TChunk>
 {
 public:
-    explicit TChunkTypeHandlerBase(TImpl* owner);
+    TChunkTypeHandler(TImpl* owner, EObjectType type);
 
     virtual TObject* FindObject(TObjectId id) override
     {
         return Map_->Find(DecodeChunkId(id).Id);
     }
-
-protected:
-    TImpl* const Owner_;
-
-
-    virtual IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
-
-    virtual void DoDestroyObject(TChunk* chunk) override;
-
-    virtual void DoUnstageObject(TChunk* chunk, bool recursive) override;
-
-    virtual void DoExportObject(TChunk* chunk, TCellTag destinationCellTag) override;
-
-    virtual void DoUnexportObject(TChunk* chunk, TCellTag destinationCellTag, int importRefCounter) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkManager::TRegularChunkTypeHandler
-    : public TChunkTypeHandlerBase
-{
-public:
-    explicit TRegularChunkTypeHandler(TImpl* owner)
-        : TChunkTypeHandlerBase(owner)
-    { }
-
-    virtual EObjectType GetType() const override
-    {
-        return EObjectType::Chunk;
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkManager::TErasureChunkTypeHandler
-    : public TChunkTypeHandlerBase
-{
-public:
-    TErasureChunkTypeHandler(TImpl* owner, EObjectType type)
-        : TChunkTypeHandlerBase(owner)
-        , Type_(type)
-    { }
 
     virtual EObjectType GetType() const override
     {
@@ -258,23 +219,14 @@ public:
     }
 
 private:
+    TImpl* const Owner_;
     const EObjectType Type_;
-};
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TChunkManager::TJournalChunkTypeHandler
-    : public TChunkTypeHandlerBase
-{
-public:
-    explicit TJournalChunkTypeHandler(TImpl* owner)
-        : TChunkTypeHandlerBase(owner)
-    { }
-
-    virtual EObjectType GetType() const override
-    {
-        return EObjectType::JournalChunk;
-    }
+    virtual IObjectProxyPtr DoGetProxy(TChunk* chunk, TTransaction* transaction) override;
+    virtual void DoDestroyObject(TChunk* chunk) override;
+    virtual void DoUnstageObject(TChunk* chunk, bool recursive) override;
+    virtual void DoExportObject(TChunk* chunk, TCellTag destinationCellTag) override;
+    virtual void DoUnexportObject(TChunk* chunk, TCellTag destinationCellTag, int importRefCounter) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -445,15 +397,22 @@ public:
     void Initialize()
     {
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RegisterHandler(New<TRegularChunkTypeHandler>(this));
-        objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this, EObjectType::ErasureChunk));
+        objectManager->RegisterHandler(New<TChunkTypeHandler>(this, EObjectType::Chunk));
+        objectManager->RegisterHandler(New<TChunkTypeHandler>(this, EObjectType::ErasureChunk));
+        objectManager->RegisterHandler(New<TChunkTypeHandler>(this, EObjectType::JournalChunk));
+        objectManager->RegisterHandler(New<TChunkTypeHandler>(this, EObjectType::ErasureJournalChunk));
         for (auto type = MinErasureChunkPartType;
              type <= MaxErasureChunkPartType;
              type = static_cast<EObjectType>(static_cast<int>(type) + 1))
         {
-            objectManager->RegisterHandler(New<TErasureChunkTypeHandler>(this, type));
+            objectManager->RegisterHandler(New<TChunkTypeHandler>(this, type));
         }
-        objectManager->RegisterHandler(New<TJournalChunkTypeHandler>(this));
+        for (auto type = MinErasureJournalChunkPartType;
+             type <= MaxErasureJournalChunkPartType;
+             type = static_cast<EObjectType>(static_cast<int>(type) + 1))
+        {
+            objectManager->RegisterHandler(New<TChunkTypeHandler>(this, type));
+        }
         objectManager->RegisterHandler(New<TChunkViewTypeHandler>(this));
         objectManager->RegisterHandler(New<TDynamicStoreTypeHandler>(this, EObjectType::SortedDynamicTabletStore));
         objectManager->RegisterHandler(New<TDynamicStoreTypeHandler>(this, EObjectType::OrderedDynamicTabletStore));
@@ -649,11 +608,14 @@ public:
                 continue;
             }
 
-            int replicaIndex = chunk->IsJournal() ? ActiveChunkReplicaIndex : replica.GetReplicaIndex();
-            auto chunkWithIndexes = TChunkPtrWithIndexes(chunk, replicaIndex, replica.GetMediumIndex());
+            auto chunkWithIndexes = TChunkPtrWithIndexes(
+                chunk,
+                replica.GetReplicaIndex(),
+                replica.GetMediumIndex(),
+                chunk->IsJournal() ? EChunkReplicaState::Active : EChunkReplicaState::Generic);
 
             if (node->GetLocalState() != ENodeState::Online) {
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk %v at %v which has invalid state %Qlv",
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tried to confirm chunk at non-online node (ChunkId: %v, Address: %v, State: %v)",
                     id,
                     node->GetDefaultAddress(),
                     node->GetLocalState());
@@ -731,7 +693,7 @@ public:
         ScheduleChunkRefresh(chunk);
     }
 
-    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange, TTransactionId transactionId = NullTransactionId)
+    TChunkView* CreateChunkView(TChunkTree* underlyingTree, NChunkClient::TReadRange readRange, TTransactionId transactionId = {})
     {
         switch (underlyingTree->GetType()) {
             case EObjectType::Chunk:
@@ -1176,6 +1138,8 @@ public:
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
+            case EObjectType::JournalChunk:
+            case EObjectType::ErasureJournalChunk:
                 ScheduleChunkRequisitionUpdate(chunkTree->AsChunk());
                 break;
 
@@ -1425,6 +1389,7 @@ public:
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
             case EObjectType::JournalChunk:
+            case EObjectType::ErasureJournalChunk:
                 return FindChunk(id);
             case EObjectType::ChunkList:
                 return FindChunkList(id);
@@ -1470,19 +1435,10 @@ public:
             return MakeFuture(chunk->MiscExt());
         }
 
-        // COMPAT(shakurov)
-        // Replace this with std::vector<NNodeTrackerServer::TNodeDescriptor>
-        // once all cluster nodes are up to date.
-        std::vector<NJournalClient::TChunkReplicaDescriptor> replicas;
-        for (auto nodeWithIndexes : chunk->StoredReplicas()) {
-            const auto* node = nodeWithIndexes.GetPtr();
-            const auto mediumIndex = nodeWithIndexes.GetMediumIndex();
-            replicas.push_back(NJournalClient::TChunkReplicaDescriptor{node->GetDescriptor(), mediumIndex});
-        }
-
         return ComputeQuorumInfo(
             chunk->GetId(),
-            replicas,
+            chunk->GetErasureCodec(),
+            GetChunkReplicaDescriptors(chunk),
             GetDynamicConfig()->JournalRpcTimeout,
             chunk->GetReadQuorum(),
             Bootstrap_->GetNodeChannelFactory());
@@ -1500,9 +1456,8 @@ public:
     DECLARE_ENTITY_WITH_IRREGULAR_PLURAL_MAP_ACCESSORS(Medium, Media, TMedium)
 
 private:
-    friend class TChunkTypeHandlerBase;
+    friend class TChunkTypeHandler;
     friend class TRegularChunkTypeHandler;
-    friend class TErasureChunkTypeHandler;
     friend class TChunkListTypeHandler;
     friend class TChunkViewTypeHandler;
     friend class TDynamicStoreTypeHandler;
@@ -1620,11 +1575,8 @@ private:
             TChunkPtrWithIndexes chunkWithIndexes(
                 chunk,
                 nodeWithIndexes.GetReplicaIndex(),
-                nodeWithIndexes.GetMediumIndex());
-            TChunkIdWithIndexes chunkIdWithIndexes(
-                chunk->GetId(),
-                nodeWithIndexes.GetReplicaIndex(),
-                nodeWithIndexes.GetMediumIndex());
+                nodeWithIndexes.GetMediumIndex(),
+                nodeWithIndexes.GetState());
             if (!node->RemoveReplica(chunkWithIndexes)) {
                 return;
             }
@@ -1632,6 +1584,10 @@ private:
                 return;
             }
 
+            TChunkIdWithIndexes chunkIdWithIndexes(
+                chunk->GetId(),
+                nodeWithIndexes.GetReplicaIndex(),
+                nodeWithIndexes.GetMediumIndex());
             node->AddDestroyedReplica(chunkIdWithIndexes);
 
             if (!ChunkReplicator_) {
@@ -2336,10 +2292,10 @@ private:
         TRspExecuteBatch::TCreateChunkSubresponse* subresponse)
     {
         auto transactionId = FromProto<TTransactionId>(subrequest->transaction_id());
-        auto chunkType = EObjectType(subrequest->type());
-        bool isErasure = (chunkType == EObjectType::ErasureChunk);
-        bool isJournal = (chunkType == EObjectType::JournalChunk);
-        auto erasureCodecId = isErasure ? NErasure::ECodec(subrequest->erasure_codec()) : NErasure::ECodec::None;
+        auto chunkType = CheckedEnumCast<EObjectType>(subrequest->type());
+        bool isErasure = IsErasureChunkType(chunkType);
+        bool isJournal = IsJournalChunkType(chunkType);
+        auto erasureCodecId = isErasure ? CheckedEnumCast<NErasure::ECodec>(subrequest->erasure_codec()) : NErasure::ECodec::None;
         int replicationFactor = isErasure ? 1 : subrequest->replication_factor();
         const auto& mediumName = subrequest->medium_name();
         int readQuorum = isJournal ? subrequest->read_quorum() : 0;
@@ -2430,10 +2386,7 @@ private:
         TRspExecuteBatch::TConfirmChunkSubresponse* subresponse)
     {
         auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
-        // COMPAT(aozeritsky)
-        auto replicas = subrequest->replicas().empty()
-            ? FromProto<TChunkReplicaWithMediumList>(subrequest->replicas_old())
-            : FromProto<TChunkReplicaWithMediumList>(subrequest->replicas());
+        auto replicas = FromProto<TChunkReplicaWithMediumList>(subrequest->replicas());
 
         auto* chunk = GetChunkOrThrow(chunkId);
 
@@ -2644,7 +2597,8 @@ private:
                     TChunkPtrWithIndexes chunkWithIndexes(
                         chunk,
                         replica.GetReplicaIndex(),
-                        replica.GetMediumIndex());
+                        replica.GetMediumIndex(),
+                        replica.GetState());
                     replica.GetPtr()->AddReplica(chunkWithIndexes);
                     ++TotalReplicaCount_;
                 }
@@ -2975,6 +2929,7 @@ private:
                     case EObjectType::Chunk:
                     case EObjectType::ErasureChunk:
                     case EObjectType::JournalChunk:
+                    case EObjectType::ErasureJournalChunk:
                         childStatistics.Accumulate(child->AsChunk()->GetStatistics());
                         break;
 
@@ -3113,7 +3068,8 @@ private:
         TNodePtrWithIndexes nodeWithIndexes(
             node,
             chunkWithIndexes.GetReplicaIndex(),
-            chunkWithIndexes.GetMediumIndex());
+            chunkWithIndexes.GetMediumIndex(),
+            chunkWithIndexes.GetState());
 
         if (!node->AddReplica(chunkWithIndexes)) {
             return;
@@ -3160,7 +3116,8 @@ private:
         TNodePtrWithIndexes nodeWithIndexes(
             node,
             chunkWithIndexes.GetReplicaIndex(),
-            chunkWithIndexes.GetMediumIndex());
+            chunkWithIndexes.GetMediumIndex(),
+            chunkWithIndexes.GetState());
 
         if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !node->HasReplica(chunkWithIndexes)) {
             return;
@@ -3205,25 +3162,21 @@ private:
     }
 
 
-    static std::pair<int,int> GetAddedChunkIndexes(
+    static EChunkReplicaState GetAddedChunkReplicaState(
         TChunk* chunk,
-        const TChunkAddInfo& chunkAddInfo,
-        const TChunkIdWithIndexes& chunkIdWithIndexes)
+        const TChunkAddInfo& chunkAddInfo)
     {
-        int mediumIndex = chunkIdWithIndexes.MediumIndex;
-        int replicaIndex;
         if (chunk->IsJournal()) {
             if (chunkAddInfo.active()) {
-                replicaIndex = ActiveChunkReplicaIndex;
+                return EChunkReplicaState::Active;
             } else if (chunkAddInfo.sealed()) {
-                replicaIndex = SealedChunkReplicaIndex;
+                return EChunkReplicaState::Sealed;
             } else {
-                replicaIndex = UnsealedChunkReplicaIndex;
+                return EChunkReplicaState::Unsealed;
             }
         } else {
-            replicaIndex = chunkIdWithIndexes.ReplicaIndex;
+            return EChunkReplicaState::Generic;
         }
-        return {replicaIndex, mediumIndex};
     }
 
     void ProcessAddedChunk(
@@ -3270,9 +3223,9 @@ private:
             return;
         }
 
-        auto indexes = GetAddedChunkIndexes(chunk, chunkAddInfo, chunkIdWithIndexes);
-        TChunkPtrWithIndexes chunkWithIndexes(chunk, indexes.first, indexes.second);
-        TNodePtrWithIndexes nodeWithIndexes(node, indexes.first, indexes.second);
+        auto state = GetAddedChunkReplicaState(chunk, chunkAddInfo);
+        TChunkPtrWithIndexes chunkWithIndexes(chunk, chunkIdWithIndexes.ReplicaIndex, chunkIdWithIndexes.MediumIndex, state);
+        TNodePtrWithIndexes nodeWithIndexes(node, chunkIdWithIndexes.ReplicaIndex, chunkIdWithIndexes.MediumIndex, state);
 
         if (!cached && node->HasUnapprovedReplica(chunkWithIndexes)) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Chunk approved (NodeId: %v, Address: %v, ChunkId: %v)",
@@ -3580,19 +3533,20 @@ DELEGATE_BYREF_RO_PROPERTY(TChunkManager::TImpl, THashSet<TChunk*>, UnsafelyPlac
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkManager::TChunkTypeHandlerBase::TChunkTypeHandlerBase(TImpl* owner)
+TChunkManager::TChunkTypeHandler::TChunkTypeHandler(TImpl* owner, EObjectType type)
     : TObjectTypeHandlerWithMapBase(owner->Bootstrap_, &owner->ChunkMap_)
     , Owner_(owner)
+    , Type_(type)
 { }
 
-IObjectProxyPtr TChunkManager::TChunkTypeHandlerBase::DoGetProxy(
+IObjectProxyPtr TChunkManager::TChunkTypeHandler::DoGetProxy(
     TChunk* chunk,
     TTransaction* /*transaction*/)
 {
     return CreateChunkProxy(Bootstrap_, &Metadata_, chunk);
 }
 
-void TChunkManager::TChunkTypeHandlerBase::DoDestroyObject(TChunk* chunk)
+void TChunkManager::TChunkTypeHandler::DoDestroyObject(TChunk* chunk)
 {
     // NB: TObjectTypeHandlerWithMapBase::DoDestroyObject will release
     // the runtime data; postpone its call.
@@ -3600,7 +3554,7 @@ void TChunkManager::TChunkTypeHandlerBase::DoDestroyObject(TChunk* chunk)
     TObjectTypeHandlerWithMapBase::DoDestroyObject(chunk);
 }
 
-void TChunkManager::TChunkTypeHandlerBase::DoUnstageObject(
+void TChunkManager::TChunkTypeHandler::DoUnstageObject(
     TChunk* chunk,
     bool recursive)
 {
@@ -3608,14 +3562,14 @@ void TChunkManager::TChunkTypeHandlerBase::DoUnstageObject(
     Owner_->UnstageChunk(chunk);
 }
 
-void TChunkManager::TChunkTypeHandlerBase::DoExportObject(
+void TChunkManager::TChunkTypeHandler::DoExportObject(
     TChunk* chunk,
     TCellTag destinationCellTag)
 {
     Owner_->ExportChunk(chunk, destinationCellTag);
 }
 
-void TChunkManager::TChunkTypeHandlerBase::DoUnexportObject(
+void TChunkManager::TChunkTypeHandler::DoUnexportObject(
     TChunk* chunk,
     TCellTag destinationCellTag,
     int importRefCounter)

@@ -145,19 +145,6 @@ class DynamicTablesBase(YTEnvSetup):
             return True
         wait(check)
 
-    def _check_health_after_decommission(self, cell_id, old_peer_addr):
-        def _check():
-            peers = get("#{0}/@peers".format(cell_id))
-            if len(peers) == 0 or peers[0].get("address", old_peer_addr) == old_peer_addr:
-                return False
-
-            if get("#{0}/@health".format(cell_id)) != "good":
-                return False
-
-            return True
-        wait(_check)
-
-
 ##################################################################
 
 class DynamicTablesSingleCellBase(DynamicTablesBase):
@@ -953,8 +940,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def _test_cell_bundle_distribution(self, enable_tablet_cell_balancer, test_decommission=False):
         set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 500)
         set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", enable_tablet_cell_balancer)
-        if test_decommission:
-            set("//sys/@config/tablet_manager/decommission_through_extra_peers", True)
+        set("//sys/@config/tablet_manager/decommission_through_extra_peers", test_decommission)
 
         create_tablet_cell_bundle("custom")
         nodes = ls("//sys/cluster_nodes")
@@ -2170,6 +2156,22 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
 
 class TestDynamicTablesPortal(TestDynamicTablesMulticell):
     ENABLE_TMP_PORTAL = True
+
+class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
+    NUM_NODES = 16
+
+    def setup_method(self, method):
+        super(DynamicTablesSingleCellBase, self).setup_method(method)
+        set("//sys/tablet_cell_bundles/default/@options",
+            {
+                "changelog_account": "sys",
+                "changelog_erasure_codec": "isa_lrc_12_2_2",
+                "changelog_replication_factor": 1,
+                "changelog_read_quorum": 14,
+                "changelog_write_quorum": 15,
+                "snapshot_account": "sys",
+                "snapshot_replication_factor": 3
+            })
 
 class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
     NUM_SECONDARY_MASTER_CELLS = 2

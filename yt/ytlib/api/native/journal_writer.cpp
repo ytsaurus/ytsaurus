@@ -10,7 +10,6 @@
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/data_node_service_proxy.h>
-#include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/session_id.h>
 
@@ -18,6 +17,7 @@
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/journal_client/journal_ypath_proxy.h>
+#include <yt/ytlib/journal_client/helpers.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/channel.h>
@@ -33,18 +33,24 @@
 
 #include <yt/client/api/transaction.h>
 
+#include <yt/client/chunk_client/chunk_replica.h>
+
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/nonblocking_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/thread_affinity.h>
+#include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/rpc/helpers.h>
 #include <yt/core/rpc/retrying_channel.h>
+#include <yt/core/rpc/dispatcher.h>
 
 #include <yt/core/ytree/helpers.h>
 
 #include <yt/core/profiling/profile_manager.h>
+
+#include <yt/library/erasure/codec.h>
 
 #include <deque>
 #include <queue>
@@ -69,7 +75,8 @@ using namespace NYson;
 
 using NYT::TRange;
 
-using NChunkClient::TSessionId; // Suppress ambiguity with NProto::TSessionId.
+// Suppress ambiguity with NProto::TSessionId.
+using NChunkClient::TSessionId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -197,15 +204,17 @@ private:
         const TProfiler Profiler;
         const NLogging::TLogger Logger;
 
-        const IInvokerPtr Invoker_ = NChunkClient::TDispatcher::Get()->GetWriterInvoker();
+        const IInvokerPtr Invoker_ = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
 
         struct TBatch
             : public TIntrinsicRefCounted
         {
             i64 FirstRowIndex = -1;
+            i64 RowCount = 0;
             i64 DataSize = 0;
             std::vector<TSharedRef> Rows;
-            TPromise<void> FlushedPromise = NewPromise<void>();
+            std::vector<std::vector<TSharedRef>> ErasureRows;
+            const TPromise<void> FlushedPromise = NewPromise<void>();
             int FlushedReplicas = 0;
             TCpuInstant StartTime;
         };
@@ -225,6 +234,7 @@ private:
         NApi::ITransactionPtr Transaction_;
         NApi::ITransactionPtr UploadTransaction_;
 
+        NErasure::ECodec ErasureCodec_ = NErasure::ECodec::None;
         int ReplicationFactor_ = -1;
         int ReadQuorum_ = -1;
         int WriteQuorum_ = -1;
@@ -241,6 +251,7 @@ private:
         struct TNode
             : public TRefCounted
         {
+            const int Index;
             const TNodeDescriptor Descriptor;
 
             TDataNodeServiceProxy LightProxy;
@@ -258,13 +269,15 @@ private:
             std::vector<TBatchPtr> InFlightBatches;
 
             TNode(
-                const TNodeDescriptor& descriptor,
+                int index,
+                TNodeDescriptor descriptor,
                 i64 firstPendingRowIndex,
                 IChannelPtr lightChannel,
                 IChannelPtr heavyChannel,
                 TDuration rpcTimeout,
                 TTagIdList tagIds)
-                : Descriptor(descriptor)
+                : Index(index)
+                , Descriptor(std::move(descriptor))
                 , LightProxy(std::move(lightChannel))
                 , HeavyProxy(std::move(heavyChannel))
                 , FirstPendingRowIndex(firstPendingRowIndex)
@@ -343,7 +356,7 @@ private:
         {
             if (BannedNodeToDeadline_.find(address) == BannedNodeToDeadline_.end()) {
                 BannedNodeToDeadline_.insert(std::make_pair(address, TInstant::Now() + Config_->NodeBanTimeout));
-                YT_LOG_INFO("Node banned (Address: %v)", address);
+                YT_LOG_DEBUG("Node banned (Address: %v)", address);
             }
         }
 
@@ -355,7 +368,7 @@ private:
             while (it != BannedNodeToDeadline_.end()) {
                 auto jt = it++;
                 if (jt->second < now) {
-                    YT_LOG_INFO("Node unbanned (Address: %v)", jt->first);
+                    YT_LOG_DEBUG("Node unbanned (Address: %v)", jt->first);
                     BannedNodeToDeadline_.erase(jt);
                 } else {
                     result.push_back(jt->first);
@@ -397,7 +410,7 @@ private:
             {
                 TTimingGuard timingGuard(&Profiler, "/time/get_extended_attributes");
 
-                YT_LOG_INFO("Requesting extended journal attributes");
+                YT_LOG_DEBUG("Requesting extended journal attributes");
 
                 auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, NativeCellTag_);
                 TObjectServiceProxy proxy(channel);
@@ -407,6 +420,7 @@ private:
                 SetTransactionId(req, Transaction_);
                 ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                     "type",
+                    "erasure_codec",
                     "replication_factor",
                     "read_quorum",
                     "write_quorum",
@@ -422,14 +436,16 @@ private:
 
                 auto rsp = rspOrError.Value();
                 auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
+                ErasureCodec_ = attributes->Get<NErasure::ECodec>("erasure_codec");
                 ReplicationFactor_ = attributes->Get<int>("replication_factor");
                 ReadQuorum_ = attributes->Get<int>("read_quorum");
                 WriteQuorum_ = attributes->Get<int>("write_quorum");
                 Account_ = attributes->Get<TString>("account");
                 PrimaryMedium_ = attributes->Get<TString>("primary_medium");
 
-                YT_LOG_INFO("Extended journal attributes received (ReplicationFactor: %v, WriteQuorum: %v, Account: %v, "
-                    "PrimaryMedium: %v)",
+                YT_LOG_DEBUG("Extended journal attributes received (ErasureCodec: %v, ReplicationFactor: %v, WriteQuorum: %v, "
+                    "Account: %v, PrimaryMedium: %v)",
+                    ErasureCodec_,
                     ReplicationFactor_,
                     WriteQuorum_,
                     Account_,
@@ -439,7 +455,7 @@ private:
             {
                 TTimingGuard timingGuard(&Profiler, "/time/begin_upload");
 
-                YT_LOG_INFO("Starting journal upload");
+                YT_LOG_DEBUG("Starting journal upload");
 
                 auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, NativeCellTag_);
                 TObjectServiceProxy proxy(channel);
@@ -456,8 +472,8 @@ private:
 
                 {
                     auto req = TJournalYPathProxy::BeginUpload(objectIdPath);
-                    req->set_update_mode(static_cast<int>(EUpdateMode::Append));
-                    req->set_lock_mode(static_cast<int>(ELockMode::Exclusive));
+                    req->set_update_mode(ToProto<int>(EUpdateMode::Append));
+                    req->set_lock_mode(ToProto<int>(ELockMode::Exclusive));
                     req->set_upload_transaction_title(Format("Upload to %v", Path_));
                     req->set_upload_transaction_timeout(ToProto<i64>(Client_->GetNativeConnection()->GetConfig()->UploadTransactionTimeout));
                     GenerateMutationId(req);
@@ -483,7 +499,7 @@ private:
                     UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, options);
                     StartListenTransaction(UploadTransaction_);
 
-                    YT_LOG_INFO("Journal upload started (UploadTransactionId: %v)",
+                    YT_LOG_DEBUG("Journal upload started (UploadTransactionId: %v)",
                         uploadTransactionId);
                 }
             }
@@ -491,7 +507,7 @@ private:
             {
                 TTimingGuard timingGuard(&Profiler, "/time/get_upload_parameters");
 
-                YT_LOG_INFO("Requesting journal upload parameters");
+                YT_LOG_DEBUG("Requesting journal upload parameters");
 
                 auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, ExternalCellTag_);
                 TObjectServiceProxy proxy(channel);
@@ -508,17 +524,17 @@ private:
                 const auto& rsp = rspOrError.Value();
                 ChunkListId_ = FromProto < TChunkListId > (rsp->chunk_list_id());
 
-                YT_LOG_INFO("Journal upload parameters received (ChunkListId: %v)",
+                YT_LOG_DEBUG("Journal upload parameters received (ChunkListId: %v)",
                     ChunkListId_);
             }
 
-            YT_LOG_INFO("Journal opened");
+            YT_LOG_DEBUG("Journal opened");
             OpenedPromise_.Set(TError());
         }
 
         void CloseJournal()
         {
-            YT_LOG_INFO("Closing journal");
+            YT_LOG_DEBUG("Closing journal");
 
             TTimingGuard timingGuard(&Profiler, "/time/end_upload");
 
@@ -556,14 +572,14 @@ private:
 
             ClosedPromise_.TrySet(TError());
 
-            YT_LOG_INFO("Journal closed");
+            YT_LOG_DEBUG("Journal closed");
         }
 
         bool TryOpenChunk()
         {
             auto session = New<TChunkSession>();
 
-            YT_LOG_INFO("Creating chunk");
+            YT_LOG_DEBUG("Creating chunk");
 
             {
                 TTimingGuard timingGuard(&Profiler, "/time/create_chunk");
@@ -575,16 +591,16 @@ private:
                 batchReq->set_suppress_upstream_sync(true);
 
                 auto* req = batchReq->add_create_chunk_subrequests();
-                req->set_type(static_cast<int>(EObjectType::JournalChunk));
+                req->set_type(ToProto<int>(ErasureCodec_ == NErasure::ECodec::None ? EObjectType::JournalChunk : EObjectType::ErasureJournalChunk));
                 req->set_account(Account_);
                 ToProto(req->mutable_transaction_id(), UploadTransaction_->GetId());
                 req->set_replication_factor(ReplicationFactor_);
                 req->set_medium_name(PrimaryMedium_);
+                req->set_erasure_codec(ToProto<int>(ErasureCodec_));
                 req->set_read_quorum(ReadQuorum_);
                 req->set_write_quorum(WriteQuorum_);
                 req->set_movable(true);
                 req->set_vital(true);
-                req->set_erasure_codec(static_cast<int>(NErasure::ECodec::None));
 
                 auto batchRspOrError = WaitFor(batchReq->Invoke());
                 THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -597,19 +613,21 @@ private:
                 session->Id = FromProto<TSessionId>(rsp.session_id());
             }
 
-            YT_LOG_INFO("Chunk created (SessionId: %v)",
+            YT_LOG_DEBUG("Chunk created (SessionId: %v)",
                 session->Id);
 
-            int minReplicaCount = Options_.WaitForAllReplicasUponOpen ? ReplicationFactor_ : WriteQuorum_;
+            int replicaCount = ErasureCodec_ == NErasure::ECodec::None
+                ? ReplicationFactor_
+                : NErasure::GetCodec(ErasureCodec_)->GetTotalPartCount();
+
             TChunkReplicaWithMediumList replicas;
             {
                 TTimingGuard timingGuard(&Profiler, "/time/allocate_write_targets");
-
                 replicas = AllocateWriteTargets(
                     Client_,
                     session->Id,
-                    ReplicationFactor_,
-                    minReplicaCount,
+                    replicaCount,
+                    replicaCount,
                     std::nullopt,
                     Config_->PreferLocalHost,
                     GetBannedNodes(),
@@ -617,14 +635,17 @@ private:
                     Logger);
             }
 
-            std::vector<TNodeDescriptor> targets;
-            for (auto replica : replicas) {
-                const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
-                targets.push_back(descriptor);
+            YT_VERIFY(replicas.size() == replicaCount);
+            if (ErasureCodec_ != NErasure::ECodec::None) {
+                for (int index = 0; index < replicaCount; ++index) {
+                    replicas[index] = TChunkReplicaWithMedium(replicas[index].GetNodeId(), index, replicas[index].GetMediumIndex());
+                }
             }
 
-            for (const auto& target : targets) {
-                auto lightChannel = Client_->GetChannelFactory()->CreateChannel(target);
+            for (int index = 0; index < replicas.size(); ++index) {
+                auto replica = replicas[index];
+                const auto& descriptor = NodeDirectory_->GetDescriptor(replica);
+                auto lightChannel = Client_->GetChannelFactory()->CreateChannel(descriptor);
                 auto heavyChannel = CreateRetryingChannel(
                     Config_->NodeChannel,
                     lightChannel,
@@ -632,41 +653,41 @@ private:
                         return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
                     }));
                 auto node = New<TNode>(
-                    target,
+                    index,
+                    descriptor,
                     SealedRowCount_,
                     std::move(lightChannel),
                     std::move(heavyChannel),
                     Config_->NodeRpcTimeout,
-                    TTagIdList{TProfileManager::Get()->RegisterTag("replica_address", target.GetDefaultAddress())});
+                    TTagIdList{TProfileManager::Get()->RegisterTag("replica_address", descriptor.GetDefaultAddress())});
                 session->Nodes.push_back(node);
             }
 
-            YT_LOG_INFO("Starting chunk sessions");
+            YT_LOG_DEBUG("Starting chunk sessions");
             try {
                 TTimingGuard timingGuard(&Profiler, "/time/start_sessions");
 
-                std::vector<TFuture<void>> asyncResults;
+                std::vector<TFuture<void>> futures;
                 for (const auto& node : session->Nodes) {
                     auto req = node->LightProxy.StartChunk();
-                    ToProto(req->mutable_session_id(), session->Id);
+                    ToProto(req->mutable_session_id(), GetSessionIdForNode(session, node));
                     ToProto(req->mutable_workload_descriptor(), Config_->WorkloadDescriptor);
                     req->set_enable_multiplexing(Options_.EnableMultiplexing);
-                    auto asyncRsp = req->Invoke().Apply(
+
+                    futures.push_back(req->Invoke().Apply(
                         BIND(&TImpl::OnChunkStarted, MakeStrong(this), session, node)
-                            .AsyncVia(Invoker_));
-                    asyncResults.push_back(asyncRsp);
+                            .AsyncVia(Invoker_)));
                 }
 
-                auto result = WaitFor(AnyNSucceeded(
-                    asyncResults,
-                    minReplicaCount,
+                auto result = WaitFor(AllSucceeded(
+                    futures,
                     TFutureCombinerOptions{.CancelInputOnShortcut = false}));
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error starting chunk sessions");
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(TError(ex));
                 return false;
             }
-            YT_LOG_INFO("Chunk sessions started");
+            YT_LOG_DEBUG("Chunk sessions started");
 
             for (const auto& node : session->Nodes) {
                 node->PingExecutor = New<TPeriodicExecutor>(
@@ -678,7 +699,7 @@ private:
 
             auto chunkId = session->Id.ChunkId;
 
-            YT_LOG_INFO("Confirming chunk");
+            YT_LOG_DEBUG("Confirming chunk");
             {
                 TTimingGuard timingGuard(&Profiler, "/time/confirm_chunk");
 
@@ -693,7 +714,7 @@ private:
                 req->mutable_chunk_info();
                 ToProto(req->mutable_replicas(), replicas);
                 auto* meta = req->mutable_chunk_meta();
-                meta->set_type(static_cast<int>(EChunkType::Journal));
+                meta->set_type(ToProto<int>(EChunkType::Journal));
                 meta->set_version(0);
                 TMiscExt miscExt;
                 SetProtoExtension(meta->mutable_extensions(), miscExt);
@@ -704,9 +725,9 @@ private:
                     "Error confirming chunk %v",
                     chunkId);
             }
-            YT_LOG_INFO("Chunk confirmed");
+            YT_LOG_DEBUG("Chunk confirmed");
 
-            YT_LOG_INFO("Attaching chunk");
+            YT_LOG_DEBUG("Attaching chunk");
             {
                 TTimingGuard timingGuard(&Profiler, "/time/attach_chunk");
 
@@ -725,7 +746,7 @@ private:
                     "Error attaching chunk %v",
                     chunkId);
             }
-            YT_LOG_INFO("Chunk attached");
+            YT_LOG_DEBUG("Chunk attached");
 
             CurrentSession_ = session;
 
@@ -734,7 +755,7 @@ private:
                 const auto& lastBatch = PendingBatches_.back();
                 YT_LOG_DEBUG("Batches reenqueued (Rows: %v-%v, Session: %v)",
                     firstBatch->FirstRowIndex,
-                    lastBatch->FirstRowIndex + lastBatch->Rows.size() - 1,
+                    lastBatch->FirstRowIndex + lastBatch->RowCount - 1,
                     CurrentSession_->Id);
 
                 for (const auto& batch : PendingBatches_) {
@@ -789,7 +810,7 @@ private:
 
                         YT_LOG_DEBUG("Batch enqueued (Rows: %v-%v, Session: %v)",
                             batch->FirstRowIndex,
-                            batch->FirstRowIndex + batch->Rows.size() - 1,
+                            batch->FirstRowIndex + batch->RowCount - 1,
                             CurrentSession_->Id);
 
                         HandleBatch(batch);
@@ -810,12 +831,16 @@ private:
 
         void HandleClose()
         {
-            YT_LOG_INFO("Closing journal writer");
+            YT_LOG_DEBUG("Closing journal writer");
             Closing_ = true;
         }
 
         void HandleBatch(const TBatchPtr& batch)
         {
+            if (ErasureCodec_ != NErasure::ECodec::None) {
+                batch->ErasureRows = EncodeErasureJournalRows(ErasureCodec_, batch->Rows);
+                batch->Rows.clear();
+            }
             PendingBatches_.push_back(batch);
             EnqueueBatchToSession(batch);
         }
@@ -827,7 +852,7 @@ private:
             if (batch->FlushedReplicas > 0) {
                 YT_LOG_DEBUG("Resetting flushed replica counter (Rows: %v-%v, FlushCounter: %v)",
                     batch->FirstRowIndex,
-                    batch->FirstRowIndex + batch->Rows.size() - 1,
+                    batch->FirstRowIndex + batch->RowCount - 1,
                     batch->FlushedReplicas);
                 batch->FlushedReplicas = 0;
             }
@@ -847,11 +872,11 @@ private:
 
             auto sessionId = session->Id;
 
-            YT_LOG_INFO("Finishing chunk sessions");
+            YT_LOG_DEBUG("Finishing chunk sessions");
 
             for (const auto& node : session->Nodes) {
                 auto req = node->LightProxy.FinishChunk();
-                ToProto(req->mutable_session_id(), sessionId);
+                ToProto(req->mutable_session_id(), GetSessionIdForNode(session, node));
                 req->Invoke().Subscribe(
                     BIND(&TImpl::OnChunkFinished, MakeStrong(this), node)
                         .Via(Invoker_));
@@ -864,7 +889,7 @@ private:
             {
                 TTimingGuard timingGuard(&Profiler, "/time/seal_chunk");
 
-                YT_LOG_INFO("Sealing chunk (SessionId: %v, RowCount: %v)",
+                YT_LOG_DEBUG("Sealing chunk (SessionId: %v, RowCount: %v)",
                     sessionId,
                     session->FlushedRowCount);
 
@@ -888,7 +913,7 @@ private:
                     "Error sealing chunk %v",
                     sessionId);
 
-                YT_LOG_INFO("Chunk sealed (SessionId: %v)",
+                YT_LOG_DEBUG("Chunk sealed (SessionId: %v)",
                     sessionId);
 
                 SealedRowCount_ += session->FlushedRowCount;
@@ -964,6 +989,7 @@ private:
         {
             YT_ASSERT(row);
             batch->Rows.push_back(row);
+            batch->RowCount += 1;
             batch->DataSize += row.Size();
             ++CurrentRowIndex_;
             return batch->FlushedPromise;
@@ -1002,7 +1028,7 @@ private:
 
             YT_LOG_DEBUG("Flushing batch (Rows: %v-%v, DataSize: %v)",
                 CurrentBatch_->FirstRowIndex,
-                CurrentBatch_->FirstRowIndex + CurrentBatch_->Rows.size() - 1,
+                CurrentBatch_->FirstRowIndex + CurrentBatch_->RowCount - 1,
                 CurrentBatch_->DataSize);
 
             EnqueueCommand(TBatchCommand{CurrentBatch_});
@@ -1033,7 +1059,7 @@ private:
                 session->Id);
 
             auto req = node->LightProxy.PingSession();
-            ToProto(req->mutable_session_id(), session->Id);
+            ToProto(req->mutable_session_id(), GetSessionIdForNode(session, node));
             req->Invoke().Subscribe(
                 BIND(&TImpl::OnPingSent, MakeWeak(this), session, node)
                     .Via(Invoker_));
@@ -1129,7 +1155,7 @@ private:
 
             auto req = node->HeavyProxy.PutBlocks();
             req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-            ToProto(req->mutable_session_id(), CurrentSession_->Id);
+            ToProto(req->mutable_session_id(), GetSessionIdForNode(CurrentSession_, node));
             req->set_first_block_index(node->FirstPendingBlockIndex);
             req->set_flush_blocks(true);
 
@@ -1141,10 +1167,13 @@ private:
                 auto batch = node->PendingBatches.front();
                 node->PendingBatches.pop();
 
-                req->Attachments().insert(req->Attachments().end(), batch->Rows.begin(), batch->Rows.end());
+                const auto& rows = ErasureCodec_ == NErasure::ECodec::None
+                    ? batch->Rows
+                    : batch->ErasureRows[node->Index];
+                req->Attachments().insert(req->Attachments().end(), rows.begin(), rows.end());
 
-                flushRowCount += batch->Rows.size();
-                flushDataSize += batch->DataSize;
+                flushRowCount += batch->RowCount;
+                flushDataSize += GetByteSize(rows);
 
                 node->InFlightBatches.push_back(batch);
             }
@@ -1202,13 +1231,13 @@ private:
                     break;
 
                 fulfilledPromises.push_back(front->FlushedPromise);
-                session->FlushedRowCount += front->Rows.size();
+                session->FlushedRowCount += front->RowCount;
                 session->FlushedDataSize += front->DataSize;
                 PendingBatches_.pop_front();
 
                 YT_LOG_DEBUG("Rows are flushed by quorum (Rows: %v-%v)",
                     front->FirstRowIndex,
-                    front->FirstRowIndex + front->Rows.size() - 1);
+                    front->FirstRowIndex + front->RowCount - 1);
             }
 
             MaybeFlushBlocks(node);
@@ -1265,6 +1294,14 @@ private:
 
             session->SwitchScheduled = true;
             EnqueueCommand(TSwitchChunkCommand{session});
+        }
+
+        TSessionId GetSessionIdForNode(const TChunkSessionPtr& session, const TNodePtr& node)
+        {
+            auto chunkId = ErasureCodec_ == NErasure::ECodec::None
+                ? session->Id.ChunkId
+                : EncodeChunkId(TChunkIdWithIndex(session->Id.ChunkId, node->Index));
+            return TSessionId(chunkId, session->Id.MediumIndex);
         }
     };
 

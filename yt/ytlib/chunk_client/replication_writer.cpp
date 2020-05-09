@@ -50,6 +50,7 @@ using namespace NObjectClient;
 using NProto::TChunkMeta;
 using NProto::TChunkInfo;
 using NProto::TDataStatistics;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -270,9 +271,19 @@ public:
     virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(State_.load() == EReplicationWriterState::Open);
+        YT_VERIFY(chunkMeta || IsJournalChunkId(DecodeChunkId(SessionId_.ChunkId).Id));
 
         State_.store(EReplicationWriterState::Closing);
-        ChunkMeta_ = chunkMeta;
+
+        if (chunkMeta) {
+            ChunkMeta_ = chunkMeta;
+        } else {
+            // This is a journal chunk; let's synthesize some meta.
+            ChunkMeta_ = New<TRefCountedChunkMeta>();
+            ChunkMeta_->set_type(ToProto<int>(EChunkType::Journal));
+            ChunkMeta_->set_version(0);
+            ChunkMeta_->mutable_extensions();
+        }
 
         YT_LOG_DEBUG("Requesting writer to close");
 

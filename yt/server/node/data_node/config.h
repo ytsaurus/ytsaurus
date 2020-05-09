@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/chunk_client/config.h>
 
+#include <yt/ytlib/journal_client/config.h>
+
 #include <yt/ytlib/table_client/config.h>
 
 #include <yt/core/concurrency/config.h>
@@ -381,28 +383,9 @@ class TArtifactCacheReaderConfig
     : public virtual NChunkClient::TBlockFetcherConfig
     , public virtual NTableClient::TTableReaderConfig
     , public virtual NApi::TFileReaderConfig
-    , public virtual TWorkloadConfig
 { };
 
 DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRepairReaderConfig
-    : public NChunkClient::TReplicationReaderConfig
-    , public virtual TWorkloadConfig
-{ };
-
-DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSealReaderConfig
-    : public NChunkClient::TReplicationReaderConfig
-    , public virtual TWorkloadConfig
-{ };
-
-DEFINE_REFCOUNTED_TYPE(TSealReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -520,6 +503,15 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TVolumeManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRepairReaderConfig
+    : public virtual NChunkClient::TReplicationReaderConfig
+    , public virtual NJournalClient::TChunkReaderConfig
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TRepairReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -641,14 +633,14 @@ public:
     //! Writer configuration used to replicate chunks.
     NChunkClient::TReplicationWriterConfigPtr ReplicationWriter;
 
-    //! Reader configuration used to repair chunks.
+    //! Reader configuration used to repair chunks (both blob and journal).
     TRepairReaderConfigPtr RepairReader;
 
     //! Writer configuration used to repair chunks.
     NChunkClient::TReplicationWriterConfigPtr RepairWriter;
 
     //! Reader configuration used to seal chunks.
-    TSealReaderConfigPtr SealReader;
+    NJournalClient::TChunkReaderConfigPtr SealReader;
 
     //! Controls the total incoming bandwidth.
     NConcurrency::TThroughputThrottlerConfigPtr TotalInThrottler;
@@ -991,11 +983,9 @@ public:
             RepairWriter->UploadReplicationFactor = 1;
 
             // Use proper workload descriptors.
-            RepairReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemRepair);
+            // TODO(babenko): avoid passing workload descriptor in config
             RepairWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemRepair);
-            SealReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
             ReplicationWriter->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemReplication);
-            ArtifactCacheReader->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemArtifactCacheDownload);
 
             // Don't populate caches in chunk jobs.
             RepairReader->PopulateCache = false;

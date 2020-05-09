@@ -32,6 +32,8 @@
 
 #include <yt/ytlib/object_client/helpers.h>
 
+#include <yt/ytlib/chunk_client/helpers.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/logging/fluent_log.h>
@@ -64,6 +66,7 @@ using namespace NRpc;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCellMaster;
+using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NTransactionServer;
 using namespace NSecurityServer;
@@ -2043,10 +2046,6 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             auto replicationFactor = ConvertTo<int>(value);
             if (replicationFactor == node->GetReplicationFactor()) {
                 return true;
-            }
-
-            if (replicationFactor == 0) {
-                THROW_ERROR_EXCEPTION("Inheritable replication factor must not be zero; consider removing the attribute altogether");
             }
 
             ValidateReplicationFactor(replicationFactor);

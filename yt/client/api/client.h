@@ -707,7 +707,6 @@ struct TJournalWriterOptions
 {
     TJournalWriterConfigPtr Config;
     bool EnableMultiplexing = true;
-    bool WaitForAllReplicasUponOpen = false;
     NProfiling::TProfiler Profiler;
 };
 

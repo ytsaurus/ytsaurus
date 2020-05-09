@@ -35,7 +35,10 @@ struct IChunkWriter
 
     //! Called when the client has added all blocks and is
     //! willing to finalize the upload.
-    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) = 0;
+    /*!
+     *  For journal chunks, #chunkMeta is not used.
+     */
+    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta = nullptr) = 0;
 
     //! Returns the chunk info.
     /*!

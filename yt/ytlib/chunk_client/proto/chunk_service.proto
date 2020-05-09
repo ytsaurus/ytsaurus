@@ -105,9 +105,8 @@ message TRspAllocateWriteTargets
 
     message TSubresponse
     {
+        reserved 1;
         optional NYT.NProto.TError error = 2;
-        // COMPAT(aozeritsky)
-        repeated fixed32 replicas_old = 1;
         repeated fixed64 replicas = 3;
     }
 
@@ -216,9 +215,8 @@ message TReqExecuteBatch
 
     message TConfirmChunkSubrequest
     {
+        reserved 2;
         required NYT.NProto.TGuid chunk_id = 1;
-        // COMPAT(aozeritsky)
-        repeated fixed32 replicas_old = 2;
         repeated fixed64 replicas = 6;
         required TChunkMeta chunk_meta = 3;
         required TChunkInfo chunk_info = 4;

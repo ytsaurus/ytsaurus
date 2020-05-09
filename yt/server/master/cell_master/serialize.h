@@ -96,6 +96,7 @@ DEFINE_ENUM(EMasterReign,
     ((DynamicStoreRead)                                             (1309))  // ifsmirnov
     ((BeginUploadConcatenateFixes)                                  (1310))  // shakurov
     ((CellPeerRevocationReason)                                     (1311))  // babenko
+    ((ErasureJournals)                                              (1312))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

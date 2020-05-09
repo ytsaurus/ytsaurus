@@ -129,6 +129,7 @@ private:
             {
                 TCreateNodeOptions options;
                 auto attributes = CreateEphemeralAttributes();
+                attributes->Set("erasure_codec", Options_->ChangelogErasureCodec);
                 attributes->Set("replication_factor", Options_->ChangelogReplicationFactor);
                 attributes->Set("read_quorum", Options_->ChangelogReadQuorum);
                 attributes->Set("write_quorum", Options_->ChangelogWriteQuorum);
@@ -151,7 +152,6 @@ private:
                 options.PrerequisiteTransactionIds.push_back(PrerequisiteTransaction_->GetId());
                 options.Config = Config_->Writer;
                 options.EnableMultiplexing = Options_->EnableChangelogMultiplexing;
-                options.WaitForAllReplicasUponOpen = Options_->WaitForAllReplicasUponOpen;
                 options.Profiler = HydraProfiler.AppendPath("/remote_changelog").AddTags(ProfilerTags_);
                 writer = Client_->CreateJournalWriter(path, options);
                 WaitFor(writer->Open())

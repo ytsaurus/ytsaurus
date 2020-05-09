@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/ytlib/journal_client/helpers.h>
+
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT::NHydra {
@@ -46,6 +48,8 @@ TRemoteSnapshotStoreOptions::TRemoteSnapshotStoreOptions()
 
 TRemoteChangelogStoreOptions::TRemoteChangelogStoreOptions()
 {
+    RegisterParameter("changelog_erasure_codec", ChangelogErasureCodec)
+        .Default(NErasure::ECodec::None);
     RegisterParameter("changelog_replication_factor", ChangelogReplicationFactor)
         .GreaterThan(0)
         .InRange(1, NChunkClient::MaxReplicationFactor)
@@ -60,8 +64,6 @@ TRemoteChangelogStoreOptions::TRemoteChangelogStoreOptions()
         .Default(2);
     RegisterParameter("enable_changelog_multiplexing", EnableChangelogMultiplexing)
         .Default(true);
-    RegisterParameter("wait_for_all_replicas_upon_open", WaitForAllReplicasUponOpen)
-        .Default(true);
     RegisterParameter("changelog_account", ChangelogAccount)
         .NonEmpty();
     RegisterParameter("changelog_primary_medium", ChangelogPrimaryMedium)
@@ -72,9 +74,11 @@ TRemoteChangelogStoreOptions::TRemoteChangelogStoreOptions()
             .EndList()->AsList());
 
     RegisterPostprocessor([&] () {
-        if (ChangelogReadQuorum + ChangelogWriteQuorum < ChangelogReplicationFactor + 1) {
-            THROW_ERROR_EXCEPTION("Read/write quorums are not safe: changelog_read_quorum + changelog_write_quorum < changelog_replication_factor + 1");
-        }
+        NJournalClient::ValidateJournalAttributes(
+            ChangelogErasureCodec,
+            ChangelogReplicationFactor,
+            ChangelogReadQuorum,
+            ChangelogWriteQuorum);
     });
 }
 

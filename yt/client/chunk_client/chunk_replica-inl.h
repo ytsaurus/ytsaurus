@@ -5,9 +5,18 @@
 #include "chunk_replica.h"
 #endif
 
+#include <yt/client/object_client/helpers.h>
+
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+static_assert(
+    ChunkReplicaIndexBound <= (1LL << 5),
+    "Replica index must fit into 5 bits.");
+static_assert(
+    MediumIndexBound <= (1LL << 7),
+    "Medium index must fit into 7 bits.");
 
 Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium()
     : TChunkReplicaWithMedium(NNodeTrackerClient::InvalidNodeId)
@@ -20,10 +29,6 @@ Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(ui64 value)
 Y_FORCE_INLINE TChunkReplicaWithMedium::TChunkReplicaWithMedium(int nodeId, int replicaIndex, int mediumIndex)
     : Value(static_cast<ui64>(nodeId) | (static_cast<ui64>(replicaIndex) << 24) | (static_cast<ui64>(mediumIndex) << 29))
 {
-    static_assert(
-        ChunkReplicaIndexBound * MediumIndexBound <= 0x1000,
-        "Replica and medium indexes must fit into 12 bits.");
-
     YT_ASSERT(nodeId >= 0 && nodeId <= static_cast<int>(NNodeTrackerClient::MaxNodeId));
     YT_ASSERT(replicaIndex >= 0 && replicaIndex < ChunkReplicaIndexBound);
     YT_ASSERT(mediumIndex >= 0 && mediumIndex < MediumIndexBound);
@@ -50,17 +55,6 @@ Y_FORCE_INLINE void ToProto(ui64* value, TChunkReplicaWithMedium replica)
 }
 
 Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, ui64 value)
-{
-    replica->Value = value;
-}
-
-// COMPAT(aozeritsky)
-Y_FORCE_INLINE void ToProto(ui32* value, TChunkReplicaWithMedium replica)
-{
-    *value = replica.Value;
-}
-
-Y_FORCE_INLINE void FromProto(TChunkReplicaWithMedium* replica, ui32 value)
 {
     replica->Value = value;
 }
@@ -170,6 +164,55 @@ Y_FORCE_INLINE bool operator<(const TChunkIdWithIndexes& lhs, const TChunkIdWith
     }
     return lhs_ < rhs_;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline bool IsArtifactChunkId(TChunkId id)
+{
+    return NObjectClient::TypeFromId(id) == NObjectClient::EObjectType::Artifact;
+}
+
+inline bool IsPhysicalChunkType(NObjectClient::EObjectType type)
+{
+    return
+        type == NObjectClient::EObjectType::Chunk ||
+        type == NObjectClient::EObjectType::ErasureChunk ||
+        type == NObjectClient::EObjectType::JournalChunk ||
+        type == NObjectClient::EObjectType::ErasureJournalChunk;
+}
+
+inline bool IsJournalChunkType(NObjectClient::EObjectType type)
+{
+    return
+        type == NObjectClient::EObjectType::JournalChunk ||
+        type == NObjectClient::EObjectType::ErasureJournalChunk;
+}
+
+inline bool IsJournalChunkId(TChunkId id)
+{
+    return IsJournalChunkType(NObjectClient::TypeFromId(id));
+}
+
+inline bool IsErasureChunkType(NObjectClient::EObjectType type)
+{
+    return
+        type == NObjectClient::EObjectType::ErasureChunk ||
+        type == NObjectClient::EObjectType::ErasureJournalChunk;
+}
+
+inline bool IsErasureChunkId(TChunkId id)
+{
+    return IsErasureChunkType(NObjectClient::TypeFromId(id));
+}
+
+inline bool IsErasureChunkPartId(TChunkId id)
+{
+    auto type = NObjectClient::TypeFromId(id);
+    return
+        type >= NObjectClient::MinErasureChunkPartType && type <= NObjectClient::MaxErasureChunkPartType ||
+        type >= NObjectClient::MinErasureJournalChunkPartType && type <= NObjectClient::MaxErasureJournalChunkPartType;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

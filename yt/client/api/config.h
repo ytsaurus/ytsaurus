@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/journal_client/config.h>
+
 #include <yt/client/tablet_client/config.h>
 
 #include <yt/client/chunk_client/config.h>
@@ -156,7 +158,7 @@ DEFINE_REFCOUNTED_TYPE(TFileWriterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJournalReaderConfig
-    : public NChunkClient::TReplicationReaderConfig
+    : public NJournalClient::TChunkReaderConfig
     , public TWorkloadConfig
 { };
 

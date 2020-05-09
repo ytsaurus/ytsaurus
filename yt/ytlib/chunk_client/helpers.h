@@ -38,6 +38,8 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateReplicationFactor(int replicationFactor);
+
 NObjectClient::TCellTag PickChunkHostingCell(
     const NApi::NNative::IConnectionPtr& connection,
     const NLogging::TLogger& logger);

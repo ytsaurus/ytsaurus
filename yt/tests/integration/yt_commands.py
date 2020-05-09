@@ -1696,7 +1696,7 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
 
 ##################################################################
 
-def set_banned_flag(value, nodes=None):
+def set_banned_flag(value, nodes=None, driver=None):
     if value:
         flag = True
         expected_state = "offline"
@@ -1705,16 +1705,14 @@ def set_banned_flag(value, nodes=None):
         expected_state = "online"
 
     if not nodes:
-        nodes = ls("//sys/cluster_nodes")
+        nodes = ls("//sys/cluster_nodes", driver=driver)
 
     for address in nodes:
-        set("//sys/cluster_nodes/{0}/@banned".format(address), flag)
+        set("//sys/cluster_nodes/{0}/@banned".format(address), flag, driver=driver)
 
     def check():
-        for address in nodes:
-            if get("//sys/cluster_nodes/{0}/@state".format(address)) != expected_state:
-                return False
-        return True
+        return all(get("//sys/cluster_nodes/{0}/@state".format(address), driver=driver) == expected_state
+                   for address in nodes)
     wait(check)
 
 ##################################################################

@@ -187,7 +187,7 @@ private:
                     })
                     .DoIf(chunk->IsJournal(), [&] (TFluentMap fluent) {
                         fluent
-                            .Item("type").Value(EJournalReplicaType(replica.GetReplicaIndex()));
+                            .Item("state").Value(replica.GetState());
                     })
                 .EndAttributes()
                 .Value(replica.GetPtr()->GetDefaultAddress());
@@ -255,6 +255,7 @@ private:
                 auto addReplica = [&] (TNodeId nodeId, int replicaIndex) {
                     auto* node = nodeTracker->FindNode(nodeId);
                     if (IsObjectAlive(node)) {
+                        // NB: Medium index is irrelevant.
                         replicas.push_back(TNodePtrWithIndexes(node, replicaIndex, DefaultStoreMediumIndex));
                     }
                 };

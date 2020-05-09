@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/table_client/schema.h>
 
+#include <yt/ytlib/chunk_client/helpers.h>
+
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config.h>
 

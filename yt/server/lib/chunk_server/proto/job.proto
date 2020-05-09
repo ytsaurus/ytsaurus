@@ -13,6 +13,8 @@ message TReplicateChunkJobSpecExt
         optional TReplicateChunkJobSpecExt replicate_chunk_job_spec_ext = 201;
     }
 
+    reserved 5;
+
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 1;
 
     // Encoded chunk id.
@@ -24,8 +26,6 @@ message TReplicateChunkJobSpecExt
     // Nodes where new replicas must be created.
     // Replica indexes are not used.
     // Medium indexes indicate destination medium.
-    // COMPAT(aozeritsky)
-    repeated fixed32 target_replicas_old = 5;
     repeated fixed64 target_replicas = 6;
 }
 
@@ -50,6 +50,8 @@ message TRepairChunkJobSpecExt
         optional TRepairChunkJobSpecExt repair_chunk_job_spec_ext = 202;
     }
 
+    reserved 5;
+
     required int32 erasure_codec = 1;
 
     required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 2;
@@ -59,18 +61,19 @@ message TRepairChunkJobSpecExt
 
     // Nodes where existing replicas reside.
     // Replica indexes indicate specific chunk parts.
-    // Medium indexes indicate source media, as expected.
+    // No medium indexes are provided (hence fixed32).
     repeated fixed32 source_replicas = 4;
 
     // Nodes where repaired replicas must be created.
     // Replica indexes indicate specific chunk parts to be repaired.
     // Medium indexes are same and indicate destination medium.
-    // COMPAT(aozeritsky)
-    repeated fixed32 target_replicas_old = 5;
     repeated fixed64 target_replicas = 7;
 
     // True, if this repair job was scheduled as a part of node decommission.
     optional bool decommission = 6;
+
+    // Only given for erasure journals.
+    optional int64 row_count = 8;
 }
 
 message TSealChunkJobSpecExt
@@ -88,12 +91,15 @@ message TSealChunkJobSpecExt
     // Unencoded chunk id.
     required NYT.NProto.TGuid chunk_id = 3;
 
+    // Erasure codec.
+    optional int32 codec_id = 6; // NErasure::ECodec
+
     // Medium where the chunk replica resides.
     required int32 medium_index = 4;
 
     // Nodes where existing replicas reside.
     // Replica indexes are not used.
-    // Medium indexes indicate source media, as expected.
+    // No medium indexes are provided (hence fixed32).
     repeated fixed32 source_replicas = 5;
 }
 

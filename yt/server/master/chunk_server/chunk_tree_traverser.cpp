@@ -331,7 +331,8 @@ protected:
 
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-            case EObjectType::JournalChunk: {
+            case EObjectType::JournalChunk:
+            case EObjectType::ErasureJournalChunk: {
                 auto* childChunk = child->AsChunk();
                 if (!Visitor_->OnChunk(
                     childChunk,

@@ -74,7 +74,8 @@ DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TDirectObjectIdHash)
 
 class TChunkTree;
 class TChunkOwnerBase;
-class TDataNode;
+
+struct TChunkViewMergeResult;
 
 class TChunkReplication;
 class TChunkRequisition;
@@ -129,9 +130,7 @@ DEFINE_BIT_ENUM(EChunkStatus,
     ((Lost)                    (0x0004))
     ((DataMissing)             (0x0008))
     ((ParityMissing)           (0x0010))
-    ((QuorumMissing)           (0x0020))
     ((Safe)                    (0x0040))
-    ((Sealed)                  (0x0080))
     ((UnsafelyPlaced)          (0x0100))
     ((DataDecommissioned)      (0x0200))
     ((ParityDecommissioned)    (0x0400))
@@ -140,6 +139,7 @@ DEFINE_BIT_ENUM(EChunkStatus,
 
 DEFINE_BIT_ENUM(ECrossMediumChunkStatus,
     ((None)              (0x0000))
+    ((Sealed)            (0x0001))
     ((Lost)              (0x0004))
     ((DataMissing)       (0x0008))
     ((ParityMissing)     (0x0010))
@@ -165,14 +165,21 @@ DEFINE_ENUM(EChunkListKind,
     ((SortedDynamicSubtablet) (5))
 );
 
-typedef std::list<TChunkPtrWithIndexes> TChunkRepairQueue;
-typedef TChunkRepairQueue::iterator TChunkRepairQueueIterator;
+DEFINE_ENUM_WITH_UNDERLYING_TYPE(EChunkReplicaState, i8,
+    ((Generic)               (0))
+    ((Active)                (1))
+    ((Unsealed)              (2))
+    ((Sealed)                (3))
+);
 
-typedef std::multimap<double, NNodeTrackerServer::TNode*> TFillFactorToNodeMap;
-typedef TFillFactorToNodeMap::iterator TFillFactorToNodeIterator;
+using TChunkRepairQueue = std::list<TChunkPtrWithIndexes> ;
+using TChunkRepairQueueIterator = TChunkRepairQueue::iterator;
 
-typedef std::multimap<double, NNodeTrackerServer::TNode*> TLoadFactorToNodeMap;
-typedef TLoadFactorToNodeMap::iterator TLoadFactorToNodeIterator;
+using TFillFactorToNodeMap = std::multimap<double, NNodeTrackerServer::TNode*>;
+using TFillFactorToNodeIterator = TFillFactorToNodeMap::iterator;
+
+using TLoadFactorToNodeMap = std::multimap<double, NNodeTrackerServer::TNode*>;
+using TLoadFactorToNodeIterator = TLoadFactorToNodeMap::iterator;
 
 using TChunkExpirationMap = std::multimap<TInstant, TChunk*>;
 using TChunkExpirationMapIterator = TChunkExpirationMap::iterator;

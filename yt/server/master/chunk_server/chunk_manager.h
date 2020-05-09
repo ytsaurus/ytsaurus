@@ -216,10 +216,7 @@ public:
 
 private:
     class TImpl;
-    class TChunkTypeHandlerBase;
-    class TRegularChunkTypeHandler;
-    class TErasureChunkTypeHandler;
-    class TJournalChunkTypeHandler;
+    class TChunkTypeHandler;
     class TChunkViewTypeHandler;
     class TDynamicStoreTypeHandler;
     class TChunkListTypeHandler;

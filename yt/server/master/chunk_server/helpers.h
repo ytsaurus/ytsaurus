@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/table_client/public.h>
 
+#include <yt/ytlib/journal_client/public.h>
+
 #include <yt/client/object_client/public.h>
 
 #include <yt/core/yson/public.h>
@@ -96,11 +98,9 @@ NTableClient::TOwningKey GetMaxKeyOrThrow(const TChunk* chunk);
 //! Doesn't support chunk views.
 NTableClient::TOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree);
 
-struct TChunkViewMergeResult;
-
 std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChunkView*> chunkViews);
 
-bool IsPhysicalChunkType(NObjectClient::EObjectType type);
+std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk);
 
 ////////////////////////////////////////////////////////////////////////////////
 
