@@ -2,10 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
-
-#include <yt/server/master/node_tracker_server/public.h>
-
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,8 +105,6 @@ TChunkId EncodeChunkId(TChunkPtrWithIndexes chunkWithIndex);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
-
-////////////////////////////////////////////////////////////////////////////////
 
 #define CHUNK_REPLICA_INL_H_
 #include "chunk_replica-inl.h"

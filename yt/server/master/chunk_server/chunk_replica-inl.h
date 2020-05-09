@@ -6,6 +6,15 @@
 #include "chunk_replica.h"
 #endif
 
+template <class T>
+struct THash<NYT::NChunkServer::TPtrWithIndexes<T>>
+{
+    Y_FORCE_INLINE size_t operator()(NYT::NChunkServer::TPtrWithIndexes<T> value) const
+    {
+        return value.GetHash();
+    }
+};
+
 #include <yt/server/master/cell_master/serialize.h>
 
 #include <yt/client/chunk_client/chunk_replica.h>
@@ -283,20 +292,3 @@ Y_FORCE_INLINE void TPtrWithIndexes<T>::Load(C& context)
 
 } // namespace NYT::NChunkServer
 
-template <class T>
-struct THash<NYT::NChunkServer::TPtrWithIndex<T>>
-{
-    Y_FORCE_INLINE size_t operator()(NYT::NChunkServer::TPtrWithIndex<T> value) const
-    {
-        return value.GetHash();
-    }
-};
-
-template <class T>
-struct THash<NYT::NChunkServer::TPtrWithIndexes<T>>
-{
-    Y_FORCE_INLINE size_t operator()(NYT::NChunkServer::TPtrWithIndexes<T> value) const
-    {
-        return value.GetHash();
-    }
-};
