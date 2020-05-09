@@ -1741,9 +1741,9 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         create_pool("real_pool")
         op = run_sleeping_vanilla(spec={"pool": "ephemeral_pool"})
         op.wait_for_state("running")
-        assert get(scheduler_orchid_pool_path("ephemeral_pool") + "/is_ephemeral")
-        assert not get(scheduler_orchid_pool_path("real_pool") + "/is_ephemeral")
-        assert not get(scheduler_orchid_pool_path("<Root>") + "/is_ephemeral")
+        wait(lambda: get(scheduler_orchid_pool_path("ephemeral_pool") + "/is_ephemeral", default=False))
+        wait(lambda: not get(scheduler_orchid_pool_path("real_pool") + "/is_ephemeral", default=False))
+        wait(lambda: not get(scheduler_orchid_pool_path("<Root>") + "/is_ephemeral", default=False))
 
     @authors("renadeen")
     def test_ephemeral_pool_in_custom_pool_simple(self):
