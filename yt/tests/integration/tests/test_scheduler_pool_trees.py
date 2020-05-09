@@ -1238,6 +1238,40 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
         if option_disabled_during_materialization:
             wait(lambda: get(op.get_path() + "/@erased_trees") == [])
 
+    @authors("eshcherbin")
+    def test_abort_does_not_affect_other_operations(self):
+        set("//sys/scheduler/config/fair_share_update_period", 5000)
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/config/fair_share_update_period") == 5000)
+
+        # TODO(eshcherbin): Remove this sleep in favour of a more stable way to do the same wait.
+        # This sleep is used to ensure the last fair share update before the fair share update period change has finished.
+        time.sleep(1.0)
+
+        job_count = 10
+        possible_trees = ["default", "nirvana", "cloud"]
+        spec = {
+            "pool_trees": possible_trees,
+            "pool": "research",
+            "schedule_in_single_tree": True,
+            "testing": {
+                "delay_inside_materialize": 2000
+            }
+        }
+
+        op1 = run_test_vanilla("sleep 0.6", job_count=job_count, spec=spec, track=False)
+        op2 = run_test_vanilla("sleep 0.6", job_count=job_count, spec=spec, track=False)
+
+        op1.wait_for_state("materializing")
+        op2.wait_for_state("materializing")
+
+        # Based on YT-12842:
+        #   Materialization cancellation for one operation (e.g. due to its abort) propagated to
+        #   the ExecutedEvent promise of the fair share update periodic executor, which in turn canceled
+        #   the second operation's materialization.
+        # Now GetExecutedEvent wraps the future using ToUncancelable to avoid such problems.
+        op1.abort(wait_until_finished=True)
+        wait(lambda: op2.get_state() in ["running", "complete"])
+
 ##################################################################
 
 class TestPoolTreeOperationLimits(YTEnvSetup):
