@@ -32,19 +32,6 @@ public:
         return TResolveResultHere{path};
     }
 
-    virtual void DoWriteAttributesFragment(
-        IAsyncYsonConsumer* /*consumer*/,
-        const std::optional<std::vector<TString>>& /*attributeKeys*/,
-        bool /*stable*/) override
-    {
-        YT_ABORT();
-    }
-
-    virtual bool ShouldHideAttributes() override
-    {
-        YT_ABORT();
-    }
-
 private:
     const TGroupTreePtr GroupTree_;
 
