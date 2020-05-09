@@ -560,7 +560,8 @@ class YTInstance(object):
             # TODO(asaitgalin): Create this user inside master.
             client = self._create_cluster_client()
             if not client.exists("//sys/users/application_operations"):
-                client.create("user", attributes={"name": "application_operations"})
+                user_id = client.create("user", attributes={"name": "application_operations"})
+                wait(lambda: client.get("#" + user_id + "/@life_stage") == "creation_committed")
                 client.add_member("application_operations", "superusers")
 
             if self.has_http_proxy:
