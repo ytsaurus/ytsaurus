@@ -3,9 +3,9 @@
 #include <mapreduce/yt/interface/client.h>
 
 #include <library/unittest/registar.h>
-#include <library/json/json_reader.h>
-#include <library/json/json_value.h>
-#include <library/json/json_writer.h>
+#include <library/cpp/json/json_reader.h>
+#include <library/cpp/json/json_value.h>
+#include <library/cpp/json/json_writer.h>
 
 #include <util/stream/file.h>
 #include <util/string/strip.h>

@@ -1,6 +1,6 @@
 #include <library/unittest/registar.h>
 
-#include <library/json/json_reader.h>
+#include <library/cpp/json/json_reader.h>
 
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/common/helpers.h>

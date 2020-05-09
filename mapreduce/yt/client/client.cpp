@@ -45,7 +45,7 @@
 
 #include <mapreduce/yt/library/table_schema/protobuf.h>
 
-#include <library/json/json_reader.h>
+#include <library/cpp/json/json_reader.h>
 
 #include <util/generic/algorithm.h>
 #include <util/string/type.h>

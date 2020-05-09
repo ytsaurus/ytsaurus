@@ -6,7 +6,7 @@
 #include <library/cpp/yson/node/node_builder.h>
 #include <mapreduce/yt/interface/operation.h>
 
-#include <library/json/json_reader.h>
+#include <library/cpp/json/json_reader.h>
 #include <library/svnversion/svnversion.h>
 #include <library/yson/yson2json_adapter.h>
 
