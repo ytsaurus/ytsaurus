@@ -275,7 +275,7 @@ private:
             auto it = locationUuidToAddress.find(result.LocationUuid);
             if (it == locationUuidToAddress.end()) {
                 YT_VERIFY(locationUuidToAddress.emplace(result.LocationUuid, result.Address).second);
-            } else {
+            } else if (it->second != result.Address) {
                 Promise_.Set(TError("Coinciding location uuid %v reported by nodes %v and %v",
                     result.LocationUuid,
                     result.Address,
