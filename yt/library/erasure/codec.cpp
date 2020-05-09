@@ -10,7 +10,7 @@ ICodec* GetCodec(ECodec id)
 {
     switch (id) {
         case ECodec::ReedSolomon_6_3: {
-            static TCauchyReedSolomon<6, 3, 8, TCodecTraits> result;
+            static TCauchyReedSolomonJerasure<6, 3, 8, TCodecTraits> result;
             return &result;
         }
         // NB: This codec uses Jerasure as a backend.

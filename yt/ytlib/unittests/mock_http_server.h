@@ -1,6 +1,6 @@
 #pragma once
 
-#include <library/http/server/http.h>
+#include <library/cpp/http/server/http.h>
 
 #include <yt/core/misc/public.h>
 
