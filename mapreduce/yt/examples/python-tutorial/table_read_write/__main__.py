@@ -15,7 +15,7 @@ if __name__ == "__main__":
         {"english": "two", "russian": "два"},
     ])
 
-    # Дописываем данные в конец таблицы, придёся поступить хитрее.
+    # Дописываем данные в конец таблицы, придётся поступить хитрее.
     # Используем класс TablePath и его опцию append.
     yt.wrapper.write_table(yt.wrapper.TablePath(table, append=True), [
         {"english": "three", "russian": "три"},
