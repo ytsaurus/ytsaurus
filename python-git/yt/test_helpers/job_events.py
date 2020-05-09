@@ -129,7 +129,9 @@ class JobEvents(object):
                     return job_id_list
 
             if datetime.datetime.now() > deadline:
-                raise TimeoutError("Timeout exceeded while waiting for breakpoint {0}".format(breakpoint_name))
+                raise TimeoutError(
+                    "Timeout exceeded while waiting for breakpoint {0}, current jobs {1}"
+                    .format(breakpoint_name, job_id_list))
 
             time.sleep(0.1)
 
