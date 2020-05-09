@@ -17,6 +17,11 @@ EObjectType IChunk::GetType() const
     return TypeFromId(DecodeChunkId(GetId()).Id);
 }
 
+bool IChunk::IsJournalChunk() const
+{
+    return IsJournalChunkId(DecodeChunkId(GetId()).Id);
+}
+
 TJournalChunkPtr IChunk::AsJournalChunk()
 {
     auto* journalChunk = dynamic_cast<TJournalChunk*>(this);

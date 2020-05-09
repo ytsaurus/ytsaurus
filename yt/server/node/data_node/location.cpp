@@ -1142,13 +1142,14 @@ std::optional<TChunkDescriptor> TStoreLocation::RepairChunk(TChunkId chunkId)
             break;
 
         case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk:
             optionalDescriptor = RepairJournalChunk(chunkId);
             break;
 
         default:
-            YT_LOG_WARNING("Invalid type %Qlv of chunk %v, skipped",
-                chunkType,
-                chunkId);
+            YT_LOG_WARNING("Invalid chunk type, skipped (ChunkId: %v, ChunkType: %v)",
+                chunkId,
+                chunkType);
             break;
     }
     return optionalDescriptor;
@@ -1166,6 +1167,7 @@ std::vector<TString> TStoreLocation::GetChunkPartNames(TChunkId chunkId) const
             };
 
         case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk:
             return {
                 primaryName,
                 primaryName + "." + ChangelogIndexExtension,

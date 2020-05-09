@@ -21,13 +21,15 @@ TYPath GetCypressClusterPath(const TString& name)
 
 bool IsChunkTabletStoreType(NObjectClient::EObjectType type)
 {
-    return type == EObjectType::Chunk ||
+    return
+        type == EObjectType::Chunk ||
         type == EObjectType::ErasureChunk;
 }
 
 bool IsDynamicTabletStoreType(NObjectClient::EObjectType type)
 {
-    return type == EObjectType::SortedDynamicTabletStore ||
+    return
+        type == EObjectType::SortedDynamicTabletStore ||
         type == EObjectType::OrderedDynamicTabletStore;
 }
 

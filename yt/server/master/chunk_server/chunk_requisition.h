@@ -57,7 +57,7 @@ public:
 
     //! Aggregates this object with #rhs by MAXing replication factors and ANDing
     //! 'data parts only' flags.
-    TReplicationPolicy& operator|=(const TReplicationPolicy& rhs);
+    TReplicationPolicy& operator|=(TReplicationPolicy rhs);
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
@@ -77,7 +77,7 @@ bool operator!=(TReplicationPolicy lhs, TReplicationPolicy rhs);
 void FormatValue(TStringBuilderBase* builder, TReplicationPolicy policy, TStringBuf /*spec*/);
 TString ToString(TReplicationPolicy policy);
 
-void Serialize(const TReplicationPolicy& policy, NYson::IYsonConsumer* consumer);
+void Serialize(TReplicationPolicy policy, NYson::IYsonConsumer* consumer);
 void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -190,7 +190,7 @@ public:
      *  If no entry exists, returns an empty policy (with 0 RF and true 'data
      *  parts only') but that policy is not added to this replication.
      */
-    const TReplicationPolicy& Get(int mediumIndex) const;
+    TReplicationPolicy Get(int mediumIndex) const;
 
     bool GetVital() const;
     void SetVital(bool vital);
@@ -254,7 +254,7 @@ private:
     //! we're just being nice here.
     std::map<TString, TReplicationPolicy> Entries_;
 
-    friend void Serialize(const TReplicationPolicy& serializer, NYson::IYsonConsumer* consumer);
+    friend void Serialize(TReplicationPolicy serializer, NYson::IYsonConsumer* consumer);
     friend void Deserialize(TReplicationPolicy& serializer, NYTree::INodePtr node);
 };
 
@@ -262,8 +262,6 @@ void Serialize(const TSerializableChunkReplication& serializer, NYson::IYsonCons
 void Deserialize(TSerializableChunkReplication& serializer, NYTree::INodePtr node);
 
 ////////////////////////////////////////////////////////////////////////////////
-
-void ValidateReplicationFactor(int replicationFactor);
 
 //! If primaryMediumIndex is null, eschews primary medium-related validation.
 void ValidateChunkReplication(
@@ -279,7 +277,7 @@ struct TRequisitionEntry
     // #IsObjectAlive() checks are a must. Entries with dead accounts may be
     // safely ignored as accounting resources for deleted accounts is pointless.
     NSecurityServer::TAccount* Account = nullptr;
-    int MediumIndex = NChunkClient::InvalidMediumIndex;
+    int MediumIndex = NChunkClient::GenericMediumIndex;
     TReplicationPolicy ReplicationPolicy;
     // The 'committed' flag is necessary in order to decide which quota usage to
     // charge to (committed or uncommitted).

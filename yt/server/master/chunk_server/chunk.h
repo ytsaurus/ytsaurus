@@ -214,9 +214,6 @@ public:
     //! Returns |true| iff this is a journal chunk.
     bool IsJournal() const;
 
-    //! Returns |true| iff this is a regular chunk.
-    bool IsRegular() const;
-
     //! Returns |true| iff the chunk can be read immediately, i.e. without repair.
     /*!
      *  For regular (non-erasure) chunk this is equivalent to the existence of any replica.

@@ -1847,7 +1847,7 @@ private:
         auto erasureCodec = chunk->GetErasureCodec();
 
         const TAccount* lastAccount = nullptr;
-        auto lastMediumIndex = InvalidMediumIndex;
+        auto lastMediumIndex = GenericMediumIndex;
         i64 lastDiskSpace = 0;
         auto masterMemoryUsage = delta * chunk->GetMasterMemoryUsage();
 
@@ -1858,7 +1858,7 @@ private:
             }
 
             auto mediumIndex = entry.MediumIndex;
-            YT_ASSERT(mediumIndex != NChunkClient::InvalidMediumIndex);
+            YT_ASSERT(mediumIndex != NChunkClient::GenericMediumIndex);
 
             auto policy = entry.ReplicationPolicy;
             auto diskSpace = delta * GetDiskSpaceToCharge(chunkDiskSpace, erasureCodec, policy);

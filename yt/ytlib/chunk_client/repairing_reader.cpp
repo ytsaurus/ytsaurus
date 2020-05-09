@@ -67,18 +67,21 @@ public:
 private:
     void CheckSlowReaders();
 
-    TRefCountedChunkMetaPtr GetMetaAsync(
+    TRefCountedChunkMetaPtr DoGetMeta(
         const TClientBlockReadOptions& options,
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags);
 
     const TErasureReaderConfigPtr Config_;
-    TLogger Logger;
+    const TLogger Logger;
+
+    const IInvokerPtr ReaderInvoker_ = CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker());
+
     TPartIndexSet BannedPartIndices_;
     TReaderWriterSpinLock IndicesLock_;
     std::vector<TCpuInstant> SlowReaderBanTimes_;
     TPeriodicExecutorPtr ExpirationTimesExecutor_;
-    IInvokerPtr ReaderInvoker_;
+    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,6 +102,7 @@ public:
         const TWeakPtr<TRepairingReader>& reader)
         : Codec_(codec)
         , Config_(config)
+        , Reader_(reader)
         , Logger(logger ? logger : ChunkClientLogger)
         , Readers_(readers)
         , BlockReadOptions_(options)
@@ -106,8 +110,6 @@ public:
         , BlockIndexes_(blockIndexes)
         , EstimatedSize_(estimatedSize)
         , DataBlocksPlacementInParts_(BuildDataBlocksPlacementInParts(BlockIndexes_, PlacementExt_))
-        , Reader_(reader)
-        , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
     {
         if (Config_->EnableAutoRepair) {
             YT_VERIFY(Readers_.size() == Codec_->GetTotalPartCount());
@@ -126,15 +128,16 @@ public:
 private:
     ICodec* const Codec_;
     const TErasureReaderConfigPtr Config_;
-    TLogger Logger;
-    std::vector<IChunkReaderAllowingRepairPtr> Readers_;
+    const TWeakPtr<TRepairingReader> Reader_;
+    const TLogger Logger;
+    const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
     const TClientBlockReadOptions BlockReadOptions_;
     const TErasurePlacementExt PlacementExt_;
     const std::vector<int> BlockIndexes_;
     const std::optional<i64> EstimatedSize_;
-    TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
-    TWeakPtr<TRepairingReader> Reader_;
-    IInvokerPtr ReaderInvoker_;
+    const TDataBlocksPlacementInParts DataBlocksPlacementInParts_;
+    
+    const IInvokerPtr ReaderInvoker_ = CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker());
 
     std::vector<TBlock> DoRun()
     {
@@ -217,7 +220,6 @@ TRepairingReader::TRepairingReader(
     , Config_(config)
     , Logger(logger)
     , SlowReaderBanTimes_(codec->GetTotalPartCount(), TCpuInstant())
-    , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
 {
     if (Config_->EnableAutoRepair) {
         for (int partIndex = 0; partIndex < Codec_->GetTotalPartCount(); ++partIndex) {
@@ -254,7 +256,7 @@ TFuture<TRefCountedChunkMetaPtr> TRepairingReader::GetMeta(
     }
 
     return BIND(
-        &TRepairingReader::GetMetaAsync,
+        &TRepairingReader::DoGetMeta,
         MakeStrong(this),
         options,
         partitionTag,
@@ -374,7 +376,7 @@ TError TRepairingReader::CheckPartReaderIsSlow(int partIndex, i64 bytesReceived,
     }
 }
 
-TRefCountedChunkMetaPtr TRepairingReader::GetMetaAsync(
+TRefCountedChunkMetaPtr TRepairingReader::DoGetMeta(
     const TClientBlockReadOptions& options,
     std::optional<int> partitionTag,
     const std::optional<std::vector<int>>& extensionTags)
@@ -395,7 +397,8 @@ TRefCountedChunkMetaPtr TRepairingReader::GetMetaAsync(
         }
         errors.push_back(result);
     }
-    THROW_ERROR_EXCEPTION("Failed to get meta")
+    
+    THROW_ERROR_EXCEPTION("Failed to get chunk meta")
         << errors;
 }
 

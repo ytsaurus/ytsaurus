@@ -50,7 +50,7 @@ class TestMedia(YTEnvSetup):
         create_medium(cls.NON_DEFAULT_MEDIUM)
         create_medium(cls.NON_DEFAULT_TRANSIENT_MEDIUM, attributes={"transient": True})
         medium_count = len(get_media())
-        while (medium_count < 127):
+        while medium_count < 120:
             create_medium("hdd" + str(medium_count))
             medium_count += 1
 

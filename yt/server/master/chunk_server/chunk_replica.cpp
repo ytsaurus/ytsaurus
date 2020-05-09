@@ -3,8 +3,9 @@
 
 #include <yt/server/master/node_tracker_server/node.h>
 
-#include <yt/client/chunk_client/chunk_replica.h>
 #include <yt/ytlib/chunk_client/public.h>
+
+#include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/core/misc/string.h>
 
@@ -14,45 +15,51 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, TNodePtrWithIndexes replica, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("%v", replica.GetPtr()->GetDefaultAddress());
+    if (replica.GetReplicaIndex() != GenericChunkReplicaIndex) {
+        builder->AppendFormat("/%v", replica.GetReplicaIndex());
+    }
+    if (replica.GetMediumIndex() == AllMediaIndex) {
+        builder->AppendString("@all");
+    } else if (replica.GetMediumIndex() != GenericMediumIndex) {
+        builder->AppendFormat("@%v", replica.GetMediumIndex());
+    }
+    if (replica.GetState() != EChunkReplicaState::Generic) {
+        builder->AppendFormat(":%v", replica.GetState());
+    }
+}
+
 TString ToString(TNodePtrWithIndexes value)
 {
-    if (value.GetReplicaIndex() == GenericChunkReplicaIndex) {
-        return Format("%v@%v",
-            value.GetPtr()->GetDefaultAddress(),
-            value.GetMediumIndex());
-    } else {
-        return Format("%v/%v@%v",
-            value.GetPtr()->GetDefaultAddress(),
-            value.GetReplicaIndex(),
-            value.GetMediumIndex());
+    return ToStringViaBuilder(value);
+}
+
+void FormatValue(TStringBuilderBase* builder, TChunkPtrWithIndexes replica, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("%v", replica.GetPtr()->GetId());
+    if (replica.GetReplicaIndex() != GenericChunkReplicaIndex) {
+        builder->AppendFormat("/%v", replica.GetReplicaIndex());
+    }
+    if (replica.GetMediumIndex() == AllMediaIndex) {
+        builder->AppendString("@all");
+    } else if (replica.GetMediumIndex() != GenericMediumIndex) {
+        builder->AppendFormat("@%v", replica.GetMediumIndex());
+    }
+    if (replica.GetState() != EChunkReplicaState::Generic) {
+        builder->AppendFormat(":%v", replica.GetState());
     }
 }
 
 TString ToString(TChunkPtrWithIndexes value)
 {
-    auto* chunk = value.GetPtr();
-    const auto& id = chunk->GetId();
-    int replicaIndex = value.GetReplicaIndex();
-    int mediumIndex = value.GetMediumIndex();
-    if (chunk->IsJournal()) {
-        return Format("%v/%v@%v",
-            id,
-            EJournalReplicaType(replicaIndex),
-            mediumIndex);
-    } else if (replicaIndex != GenericChunkReplicaIndex) {
-        return Format("%v/%v@%v",
-            id,
-            replicaIndex,
-            mediumIndex);
-    } else {
-        return Format("%v@%v",
-            id,
-            mediumIndex);
-    }
+    return ToStringViaBuilder(value);
 }
 
 void ToProto(ui64* protoValue, TNodePtrWithIndexes value)
 {
+    YT_ASSERT(value.GetState() == EChunkReplicaState::Generic);
     NChunkClient::TChunkReplicaWithMedium clientReplica(
         value.GetPtr()->GetId(),
         value.GetReplicaIndex(),

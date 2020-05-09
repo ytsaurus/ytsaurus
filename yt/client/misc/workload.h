@@ -21,9 +21,9 @@ struct TWorkloadDescriptor
     explicit TWorkloadDescriptor(
         EWorkloadCategory category = EWorkloadCategory::Idle,
         int band = 0,
-        TInstant instant = TInstant::Zero(),
-        std::vector<TString> annotations = std::vector<TString>(),
-        std::optional<NConcurrency::TFairShareThreadPoolTag> compressionFairShareTag = std::nullopt);
+        TInstant instant = {},
+        std::vector<TString> annotations = {},
+        std::optional<NConcurrency::TFairShareThreadPoolTag> compressionFairShareTag = {});
 
     //! The type of the workload defining its basic priority.
     EWorkloadCategory Category;

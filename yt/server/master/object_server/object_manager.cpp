@@ -351,7 +351,6 @@ public:
     {
         auto* mutationContext = TryGetCurrentMutationContext();
         if (mutationContext) {
-            // XXX(babenko): portals
             mutationContext->SetResponseKeeperSuppressed(true);
         }
 
@@ -790,7 +789,6 @@ int TObjectManager::TImpl::RefObject(TObject* object)
     YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->RefObject();
-    // XXX(babenko): switch back to trace
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object referenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,
@@ -817,7 +815,6 @@ int TObjectManager::TImpl::UnrefObject(TObject* object, int count)
     YT_ASSERT(object->IsTrunk());
 
     int refCounter = object->UnrefObject(count);
-    // XXX(babenko): switch back to trace
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object unreferenced (Id: %v, RefCounter: %v, EphemeralRefCounter: %v, WeakRefCounter: %v)",
         object->GetId(),
         refCounter,

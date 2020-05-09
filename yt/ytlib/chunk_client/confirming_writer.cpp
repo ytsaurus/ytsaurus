@@ -295,8 +295,6 @@ private:
         *req->mutable_chunk_info() = UnderlyingWriter_->GetChunkInfo();
         req->mutable_chunk_meta()->Swap(&masterChunkMeta);
         req->set_request_statistics(true);
-        // COMPAT(aozeritsky)
-        ToProto(req->mutable_replicas_old(), replicas);
         ToProto(req->mutable_replicas(), replicas);
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());

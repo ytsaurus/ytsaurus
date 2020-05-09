@@ -32,6 +32,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/file_client/file_chunk_writer.h>
 
@@ -151,40 +152,20 @@ void BuildChunkSpec(
         chunkSpec->set_tablet_index(*tabletIndex);
     }
 
-    SmallVector<TNodePtrWithIndexes, TypicalReplicaCount> replicas;
-
-    auto addJournalReplica = [&] (TNodePtrWithIndexes replica) {
-        // For journal chunks, replica indexes are used to track states.
-        // Hence we must replace index with #GenericChunkReplicaIndex.
-        replicas.push_back(TNodePtrWithIndexes(replica.GetPtr(), GenericChunkReplicaIndex, replica.GetMediumIndex()));
-        return true;
-    };
-
     auto erasureCodecId = chunk->GetErasureCodec();
     int firstInfeasibleReplicaIndex = (erasureCodecId == NErasure::ECodec::None || fetchParityReplicas)
         ? std::numeric_limits<int>::max() // all replicas are feasible
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
-    auto addErasureReplica = [&] (TNodePtrWithIndexes replica) {
+    SmallVector<TNodePtrWithIndexes, TypicalReplicaCount> replicas;
+
+    auto addReplica = [&] (TNodePtrWithIndexes replica)  {
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
             return false;
         }
-        replicas.push_back(replica);
+        replicas.push_back(TNodePtrWithIndexes(replica.GetPtr(), replica.GetReplicaIndex(), replica.GetMediumIndex()));
         return true;
     };
-
-    auto addRegularReplica = [&] (TNodePtrWithIndexes replica) {
-        replicas.push_back(replica);
-        return true;
-    };
-
-    std::function<bool(TNodePtrWithIndexes)> addReplica;
-    switch (chunk->GetType()) {
-        case EObjectType::Chunk:          addReplica = addRegularReplica; break;
-        case EObjectType::ErasureChunk:   addReplica = addErasureReplica; break;
-        case EObjectType::JournalChunk:   addReplica = addJournalReplica; break;
-        default:                          YT_ABORT();
-    }
 
     for (auto replica : chunk->StoredReplicas()) {
         addReplica(replica);
@@ -202,7 +183,7 @@ void BuildChunkSpec(
 
     for (auto replica : replicas) {
         nodeDirectoryBuilder->Add(replica);
-        chunkSpec->add_replicas(NYT::ToProto<ui64>(replica));
+        chunkSpec->add_replicas(ToProto<ui64>(replica));
     }
 
     ToProto(chunkSpec->mutable_chunk_id(), chunk->GetId());
@@ -288,9 +269,9 @@ void BuildDynamicStoreSpec(
     chunkSpec->set_data_weight_override(1);
 
     if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {
-        auto replica = TNodePtrWithIndexes(node, 0, 0);
+        auto replica = TNodePtrWithIndexes(node, GenericChunkReplicaIndex, DefaultStoreMediumIndex);
         nodeDirectoryBuilder->Add(replica);
-        chunkSpec->add_replicas(NYT::ToProto<ui64>(replica));
+        chunkSpec->add_replicas(ToProto<ui64>(replica));
     }
 
     if (!IsTrivial(lowerLimit)) {
@@ -381,7 +362,7 @@ private:
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             for (auto& chunkSpec : *chunkSpecs) {
                 auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
-                if (TypeFromId(chunkId) == EObjectType::JournalChunk) {
+                if (IsJournalChunkId(chunkId)) {
                     auto* chunk = chunkManager->FindChunk(chunkId);
                     if (!IsObjectAlive(chunk)) {
                         THROW_ERROR_EXCEPTION(
@@ -810,6 +791,10 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         }
 
         case EInternedAttributeKey::CompressionCodec: {
+            if (TrunkNode_->GetType() == EObjectType::Journal) {
+                THROW_ERROR_EXCEPTION("Journal compression codec cannot be set");
+            }
+
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
             const auto& uninternedKey = key.Unintern();
@@ -820,6 +805,10 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         }
 
         case EInternedAttributeKey::ErasureCodec: {
+            if (TrunkNode_->GetType() == EObjectType::Journal) {
+                THROW_ERROR_EXCEPTION("Journal erasure codec cannot be changed after creation");
+            }
+
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
 
             const auto& uninternedKey = key.Unintern();
@@ -890,9 +879,7 @@ void TChunkOwnerNodeProxy::SetReplicationFactor(int replicationFactor)
     }
 
     ValidateReplicationFactor(replicationFactor);
-    if (replicationFactor != 0) {
-        ValidatePermission(medium, EPermission::Use);
-    }
+    ValidatePermission(medium, EPermission::Use);
 
     auto policy = replication.Get(mediumIndex);
     policy.SetReplicationFactor(replicationFactor);

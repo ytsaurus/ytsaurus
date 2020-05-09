@@ -29,7 +29,7 @@ private:
      *  Bits:
      *   0-23: node id
      *  24-28: replica index (5 bits)
-     *  29-37: medium index (8 bits)
+     *  29-37: medium index (7 bits)
      */
     ui64 Value;
 
@@ -37,13 +37,12 @@ private:
 
     friend void ToProto(ui64* value, TChunkReplicaWithMedium replica);
     friend void FromProto(TChunkReplicaWithMedium* replica, ui64 value);
-
-    // COMPAT(aozeritsky)
-    friend void ToProto(ui32* value, TChunkReplicaWithMedium replica);
-    friend void FromProto(TChunkReplicaWithMedium* replica, ui32 value);
 };
 
+void FormatValue(TStringBuilderBase* builder, TChunkReplicaWithMedium replica, TStringBuf spec);
 TString ToString(TChunkReplicaWithMedium replica);
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TChunkReplica
 {
@@ -70,6 +69,7 @@ private:
 
 };
 
+void FormatValue(TStringBuilderBase* builder, TChunkReplica replica, TStringBuf spec);
 TString ToString(TChunkReplica replica);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,13 +110,22 @@ TString ToString(const TChunkIdWithIndexes& id);
 //! Returns |true| iff this is an artifact chunk.
 bool IsArtifactChunkId(TChunkId id);
 
+//! Returns |true| iff this is a chunk or any type (journal or blob, replicated or erasure-coded).
+bool IsPhysicalChunkType(NObjectClient::EObjectType type);
+
+//! Returns |true| iff this is a journal chunk type.
+bool IsJournalChunkType(NObjectClient::EObjectType type);
+
 //! Returns |true| iff this is a journal chunk.
 bool IsJournalChunkId(TChunkId id);
 
-//! Returns |true| iff this is a erasure chunk.
+//! Returns |true| iff this is an erasure chunk.
+bool IsErasureChunkType(NObjectClient::EObjectType type);
+
+//! Returns |true| iff this is an erasure chunk.
 bool IsErasureChunkId(TChunkId id);
 
-//! Returns |true| iff this is a erasure chunk part.
+//! Returns |true| iff this is an erasure chunk part.
 bool IsErasureChunkPartId(TChunkId id);
 
 //! Returns id for a part of a given erasure chunk.
@@ -126,7 +135,7 @@ TChunkId ErasurePartIdFromChunkId(TChunkId id, int index);
 TChunkId ErasureChunkIdFromPartId(TChunkId id);
 
 //! Returns part index for a given erasure chunk part id.
-int IndexFromErasurePartId(TChunkId id);
+int ReplicaIndexFromErasurePartId(TChunkId id);
 
 //! For usual chunks, preserves the id.
 //! For erasure chunks, constructs the part id using the given replica index.

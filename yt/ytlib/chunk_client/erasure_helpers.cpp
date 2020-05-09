@@ -683,4 +683,3 @@ void TErasureChunkReaderBase::OnGotPlacementMeta(const TErasurePlacementExt& pla
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient::NErasureHelpers
-

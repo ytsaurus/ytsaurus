@@ -168,9 +168,8 @@ public:
 
     //! Key:
     //!   Indicates an unsealed chunk.
-    //! Value:
-    //!   Indicates media where seal of this chunk is scheduled.
-    using TChunkSealQueue = THashMap<TChunk*, TMediumIndexSet>;
+    //!   Medium index indicates the medium where this replica is being stored.
+    using TChunkSealQueue = THashSet<TChunkPtrWithIndexes>;
     DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
 
     // Cell Manager stuff.
@@ -343,6 +342,7 @@ private:
 
     bool DoAddReplica(TChunkPtrWithIndexes replica);
     bool DoRemoveReplica(TChunkPtrWithIndexes replica);
+    void DoRemoveJournalReplicas(TChunkPtrWithIndexes replica);
     bool DoHasReplica(TChunkPtrWithIndexes replica) const;
 
     // Private accessors for TNodeTracker.

@@ -263,7 +263,8 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
                 break;
             }
 
-            case EObjectType::JournalChunk: {
+            case EObjectType::JournalChunk:
+            case EObjectType::ErasureJournalChunk: {
                 auto longerRowCount = chunk->AsJournalChunk()->GetCachedRowCount();
                 auto shorterRowCount = oldChunk->AsJournalChunk()->GetCachedRowCount();
 
@@ -325,6 +326,7 @@ void TChunkStore::OnChunkRegistered(const IChunkPtr& chunk)
             break;
 
         case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk:
             YT_LOG_DEBUG("Journal chunk registered (ChunkId: %v, LocationId: %v, Version: %v, Sealed: %v, Active: %v)",
                 chunk->GetId(),
                 location->GetId(),
@@ -351,7 +353,6 @@ void TChunkStore::UpdateExistingChunk(const IChunkPtr& chunk)
 
     int version = chunk->IncrementVersion();
 
-    YT_VERIFY(chunk->GetType() == EObjectType::JournalChunk);
     auto journalChunk = chunk->AsJournalChunk();
 
     TChunkEntry oldChunkEntry;
@@ -574,6 +575,7 @@ IChunkPtr TChunkStore::CreateFromDescriptor(
                 descriptor);
 
         case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk:
             return New<TJournalChunk>(
                 Bootstrap_,
                 location,

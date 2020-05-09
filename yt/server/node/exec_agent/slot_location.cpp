@@ -673,7 +673,7 @@ void TSlotLocation::UpdateDiskResources()
 
 
         auto mediumDescriptor = GetMediumDescriptor();
-        if (mediumDescriptor.Index != NChunkClient::InvalidMediumIndex) {
+        if (mediumDescriptor.Index != NChunkClient::GenericMediumIndex) {
             auto guard = TWriterGuard(DiskResourcesLock_);
             DiskResources_.set_usage(diskUsage);
             DiskResources_.set_limit(diskLimit);

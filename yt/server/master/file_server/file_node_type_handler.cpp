@@ -7,6 +7,8 @@
 
 #include <yt/server/master/chunk_server/chunk_owner_type_handler.h>
 
+#include <yt/ytlib/chunk_client/helpers.h>
+
 #include <yt/core/crypto/crypto.h>
 
 namespace NYT::NFileServer {
@@ -15,6 +17,7 @@ using namespace NCrypto;
 using namespace NCellMaster;
 using namespace NCypressServer;
 using namespace NSecurityServer;
+using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NTransactionServer;
 using namespace NObjectServer;

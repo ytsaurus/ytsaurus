@@ -13,7 +13,7 @@
 #include <yt/server/master/node_tracker_server/node_directory_builder.h>
 #include <yt/server/master/node_tracker_server/node_tracker.h>
 
-#include <yt/ytlib/chunk_client/proto/job.pb.h>
+#include <yt/server/lib/chunk_server/proto/job.pb.h>
 
 #include <yt/ytlib/job_tracker_client/job_tracker_service_proxy.h>
 
@@ -153,6 +153,7 @@ private:
 
         for (const auto& job : jobsToStart) {
             auto chunkIdWithIndexes = job->GetChunkIdWithIndexes();
+            auto chunkId = chunkIdWithIndexes.Id;
 
             auto* jobInfo = response->add_jobs_to_start();
             ToProto(jobInfo->mutable_job_id(), job->GetJobId());
@@ -170,8 +171,6 @@ private:
                     NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
                     for (auto replica : job->TargetReplicas()) {
                         jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
-                        // COMPAT(aozeritsky)
-                        jobSpecExt->add_target_replicas_old(ToProto<ui32>(replica));
                         builder.Add(replica);
                     }
                     break;
@@ -185,11 +184,17 @@ private:
                 }
 
                 case EJobType::RepairChunk: {
-                    auto* chunk = chunkManager->GetChunk(chunkIdWithIndexes.Id);
+                    auto* chunk = chunkManager->GetChunk(chunkId);
 
                     auto* jobSpecExt = jobSpec.MutableExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext);
                     jobSpecExt->set_erasure_codec(static_cast<int>(chunk->GetErasureCodec()));
-                    ToProto(jobSpecExt->mutable_chunk_id(), chunkIdWithIndexes.Id);
+                    ToProto(jobSpecExt->mutable_chunk_id(), chunkId);
+                    jobSpecExt->set_decommission(job->GetDecommission());
+
+                    if (chunk->IsJournal()) {
+                        YT_VERIFY(chunk->IsSealed());
+                        jobSpecExt->set_row_count(chunk->MiscExt().row_count());
+                    }
 
                     NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
 
@@ -197,20 +202,19 @@ private:
                     builder.Add(sourceReplicas);
                     ToProto(jobSpecExt->mutable_source_replicas(), sourceReplicas);
 
-                    for (auto replica: job->TargetReplicas()) {
+                    for (auto replica : job->TargetReplicas()) {
                         jobSpecExt->add_target_replicas(ToProto<ui64>(replica));
-                        // COMPAT(aozeritsky)
-                        jobSpecExt->add_target_replicas_old(ToProto<ui32>(replica));
                         builder.Add(replica);
                     }
                     break;
                 }
 
                 case EJobType::SealChunk: {
-                    auto* chunk = chunkManager->GetChunk(chunkIdWithIndexes.Id);
+                    auto* chunk = chunkManager->GetChunk(chunkId);
 
                     auto* jobSpecExt = jobSpec.MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
                     ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkIdWithIndexes));
+                    jobSpecExt->set_codec_id(ToProto<int>(chunk->GetErasureCodec()));
                     jobSpecExt->set_medium_index(chunkIdWithIndexes.MediumIndex);
                     jobSpecExt->set_row_count(chunk->GetSealedRowCount());
 
