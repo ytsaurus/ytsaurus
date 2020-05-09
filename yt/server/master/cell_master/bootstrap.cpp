@@ -832,10 +832,13 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/hive",
         CreateVirtualNode(HiveManager_->GetOrchidService()));
+    // TODO(babenko): restore once fixed
+    /*
     SetNodeByYPath(
         orchidRoot,
         "/discovery_server",
         CreateVirtualNode(DiscoveryServer_->GetYPathService()));
+    */
 
     SetBuildAttributes(orchidRoot, "master");
 
