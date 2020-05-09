@@ -311,19 +311,23 @@ MASTER_CELL_SERVICE = "masters"
 MASTERS_SERVICE = "masters"
 
 class Restarter(object):
-    def __init__(self, yt_instance, components, *args, **kwargs):
+    def __init__(self, yt_instance, components, sync_start=True, *args, **kwargs):
         self.yt_instance = yt_instance
         self.components = components
         if type(self.components) == str:
             self.components = [self.components]
+        self.sync_start = sync_start
         self.kill_args = args
         self.kill_kwargs = kwargs
+
+        def start_all_masters(*args, **kwargs):
+            self.yt_instance.start_all_masters(True, *args, **kwargs)
 
         self.start_dict = {
             SCHEDULERS_SERVICE: self.yt_instance.start_schedulers,
             CONTROLLER_AGENTS_SERVICE: self.yt_instance.start_controller_agents,
             NODES_SERVICE: self.yt_instance.start_nodes,
-            MASTERS_SERVICE: lambda: self.yt_instance.start_all_masters(True)
+            MASTERS_SERVICE: start_all_masters
         }
         self.kill_dict = {
             SCHEDULERS_SERVICE: lambda: self.yt_instance.kill_schedulers(*self.kill_args, **self.kill_kwargs),
@@ -343,7 +347,9 @@ class Restarter(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         for comp_name in self.components:
             try:
-                self.start_dict[comp_name]()
+                self.start_dict[comp_name](sync=self.sync_start)
+                if not self.sync_start:
+                    self.yt_instance.synchronize()
             except KeyError:
                 logger.error("Failed to start {}. No such component.".format(comp_name))
                 raise
