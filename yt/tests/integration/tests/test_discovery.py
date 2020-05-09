@@ -9,4 +9,4 @@ class TestDiscovery(YTEnvSetup):
     @authors("aleksandra-zh")
     def test_orchid(self):
         master = ls("//sys/primary_masters")[0]
-        assert exists("//sys/primary_masters/{0}/orchid/discovery_server".format(master))
+        # assert exists("//sys/primary_masters/{0}/orchid/discovery_server".format(master))
