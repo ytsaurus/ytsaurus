@@ -15,7 +15,7 @@
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/serialize.h>
 
-#include <library/json/json_reader.h>
+#include <library/cpp/json/json_reader.h>
 
 #include <util/random/normal.h>
 #include <util/stream/file.h>

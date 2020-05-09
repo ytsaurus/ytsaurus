@@ -5,7 +5,7 @@
 
 #include <mapreduce/yt/interface/error_codes.h>
 
-#include <library/json/json_reader.h>
+#include <library/cpp/json/json_reader.h>
 #include <library/yson/writer.h>
 
 #include <util/string/builder.h>

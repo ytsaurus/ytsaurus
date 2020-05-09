@@ -12,8 +12,8 @@
 #include <library/yson/writer.h>
 #include <library/yson/json_writer.h>
 
-#include <library/json/json_reader.h>
-#include <library/json/json_value.h>
+#include <library/cpp/json/json_reader.h>
+#include <library/cpp/json/json_value.h>
 
 #include <util/stream/input.h>
 #include <util/stream/output.h>

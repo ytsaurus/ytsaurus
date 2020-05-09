@@ -21,8 +21,8 @@
 
 #include <library/yson/json_writer.h>
 
-#include <library/json/json_writer.h>
-#include <library/json/json_reader.h>
+#include <library/cpp/json/json_writer.h>
+#include <library/cpp/json/json_reader.h>
 
 #include <util/random/random.h>
 #include <util/stream/file.h>
