@@ -1,7 +1,7 @@
 #include <mapreduce/yt/library/path_template/path_template.h>
 #include <mapreduce/yt/library/path_template/path_template_safe.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 using namespace NYtPathTemplate;
 

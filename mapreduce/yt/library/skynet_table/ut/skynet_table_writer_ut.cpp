@@ -4,7 +4,7 @@
 
 #include <mapreduce/yt/interface/client.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 #include <util/generic/yexception.h>
 

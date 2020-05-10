@@ -5,7 +5,7 @@
 
 #include <mapreduce/yt/http/abortable_http_response.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;

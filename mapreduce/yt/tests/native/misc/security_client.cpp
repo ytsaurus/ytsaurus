@@ -4,7 +4,7 @@
 
 #include <library/cpp/yson/node/node_builder.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;

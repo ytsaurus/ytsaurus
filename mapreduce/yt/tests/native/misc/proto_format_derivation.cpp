@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/errors.h>
