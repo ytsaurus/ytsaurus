@@ -995,10 +995,14 @@ class TestCoreTable(YTEnvSetup):
     @require_enabled_core_dump
     @unix_only
     def test_core_infos_from_archive(self):
-        set("//sys/tablet_cell_bundles/default/@options/changelog_replication_factor", 1)
-        set("//sys/tablet_cell_bundles/default/@options/snapshot_replication_factor", 1)
-        set("//sys/tablet_cell_bundles/default/@options/changelog_read_quorum", 1)
-        set("//sys/tablet_cell_bundles/default/@options/changelog_write_quorum", 1)
+        set("//sys/tablet_cell_bundles/default/@options", {
+            "changelog_replication_factor": 1,
+            "changelog_read_quorum": 1,
+            "changelog_write_quorum": 1,
+            "changelog_account": "sys",
+            "snapshot_replication_factor": 1,
+            "snapshot_account": "sys"
+        })
 
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")

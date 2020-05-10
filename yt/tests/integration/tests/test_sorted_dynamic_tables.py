@@ -1415,15 +1415,14 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
             insert_rows(table, rows)
             return keys, rows
 
-        tablet_cell_attributes = {
+        set("//sys/tablet_cell_bundles/default/@options", {
             "changelog_replication_factor": 1,
             "changelog_read_quorum": 1,
             "changelog_write_quorum": 1,
             "changelog_account": "sys",
+            "snapshot_replication_factor": 1,
             "snapshot_account": "sys"
-        }
-
-        set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
+        })
 
         sync_create_cells(1)
 
@@ -1463,15 +1462,14 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
     @authors("lukyan")
     def test_enable_partial_result(self):
-        tablet_cell_attributes = {
+        set("//sys/tablet_cell_bundles/default/@options", {
             "changelog_replication_factor": 1,
             "changelog_read_quorum": 1,
             "changelog_write_quorum": 1,
             "changelog_account": "sys",
+            "snapshot_replication_factor": 1,
             "snapshot_account": "sys"
-        }
-
-        set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
+        })
 
         cells = sync_create_cells(2)
 
