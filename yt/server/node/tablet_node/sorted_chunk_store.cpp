@@ -29,8 +29,9 @@
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/chunk_state.h>
-#include <yt/ytlib/table_client/lookup_chunk_reader.h>
+#include <yt/ytlib/table_client/lookup_reader.h>
 #include <yt/ytlib/table_client/versioned_chunk_reader.h>
+
 #include <yt/client/table_client/versioned_reader.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -281,7 +282,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             blockReadOptions);
     }
 
-    auto chunkReader = GetChunkReader(throttler);
+    auto chunkReader = GetReaders(throttler).ChunkReader;
     auto chunkState = PrepareChunkState(chunkReader, blockReadOptions);
 
     ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
@@ -380,11 +381,10 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             blockReadOptions);
     }
 
-    auto chunkReader = GetChunkReader(throttler);
-
-    if (tabletSnapshot->Config->EnableDataNodeLookup && chunkReader->IsLookupSupported()) {
+    auto readers = GetReaders(throttler);
+    if (tabletSnapshot->Config->EnableDataNodeLookup && readers.LookupReader) {
         return CreateRowLookupReader(
-            std::move(chunkReader),
+            std::move(readers.LookupReader),
             blockReadOptions,
             filteredKeys,
             tabletSnapshot,
@@ -393,12 +393,12 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             produceAllVersions);
     }
 
-    auto chunkState = PrepareChunkState(chunkReader, blockReadOptions);
+    auto chunkState = PrepareChunkState(readers.ChunkReader, blockReadOptions);
     ValidateBlockSize(tabletSnapshot, chunkState, blockReadOptions.WorkloadDescriptor);
 
     return createFilteringReader(CreateVersionedChunkReader(
         ReaderConfig_,
-        std::move(chunkReader),
+        std::move(readers.ChunkReader),
         chunkState,
         chunkState->ChunkMeta,
         blockReadOptions,

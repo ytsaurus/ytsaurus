@@ -182,7 +182,7 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
     const TClientBlockReadOptions& blockReadOptions,
     IThroughputThrottlerPtr throttler)
 {
-    auto chunkReader = GetChunkReader(throttler);
+    auto chunkReader = GetReaders(throttler).ChunkReader;
     auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
         chunkReader,
         Schema_,
