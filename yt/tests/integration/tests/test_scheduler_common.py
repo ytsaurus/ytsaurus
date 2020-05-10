@@ -1939,7 +1939,7 @@ class TestJobStatisticsPorto(YTEnvSetup):
             print(component)
             assert get_statistics(statistics, component + ".cpu.user.$.completed.map.sum") > 0
             assert get_statistics(statistics, component + ".cpu.system.$.completed.map.sum") > 0
-            assert get_statistics(statistics, component + ".cpu.context_switches.$.completed.map.sum") > 0
+            assert get_statistics(statistics, component + ".cpu.context_switches.$.completed.map.sum") is not None
             assert get_statistics(statistics, component + ".cpu.wait.$.completed.map.sum") is not None
             assert get_statistics(statistics, component + ".cpu.throttled.$.completed.map.sum") is not None
             assert get_statistics(statistics, component + ".block_io.bytes_read.$.completed.map.sum") is not None
