@@ -330,7 +330,9 @@ void TAsyncExpiringCache<TKey, TValue>::SetResult(
     }
 
     auto it = Map_.find(key);
-    YT_VERIFY(it != Map_.end() && it->second == entry);
+    if (it == Map_.end() || it->second != entry) {
+        return;
+    }
 
     auto now = NProfiling::GetCpuInstant();
     auto expirationTime = valueOrError.IsOK() ? Config_->ExpireAfterSuccessfulUpdateTime : Config_->ExpireAfterFailedUpdateTime;
