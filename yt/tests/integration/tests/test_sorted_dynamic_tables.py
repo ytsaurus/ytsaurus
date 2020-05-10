@@ -1415,15 +1415,6 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
             insert_rows(table, rows)
             return keys, rows
 
-        set("//sys/tablet_cell_bundles/default/@options", {
-            "changelog_replication_factor": 1,
-            "changelog_read_quorum": 1,
-            "changelog_write_quorum": 1,
-            "changelog_account": "sys",
-            "snapshot_replication_factor": 1,
-            "snapshot_account": "sys"
-        })
-
         sync_create_cells(1)
 
         table_create(LARGE)
@@ -1462,15 +1453,6 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
     @authors("lukyan")
     def test_enable_partial_result(self):
-        set("//sys/tablet_cell_bundles/default/@options", {
-            "changelog_replication_factor": 1,
-            "changelog_read_quorum": 1,
-            "changelog_write_quorum": 1,
-            "changelog_account": "sys",
-            "snapshot_replication_factor": 1,
-            "snapshot_account": "sys"
-        })
-
         cells = sync_create_cells(2)
 
         path = "//tmp/t"

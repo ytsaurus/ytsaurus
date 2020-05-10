@@ -34,11 +34,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         }
     }
 
-    def teardown_method(self, method):
-        super(TestPoolTreesReconfiguration, self).teardown_method(method)
-        wait(lambda: not get("//sys/scheduler/@alerts"))
-
-    def create_custom_pool_tree_with_one_node(self, pool_tree):
+    def _create_custom_pool_tree_with_one_node(self, pool_tree):
         tag = pool_tree
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
@@ -234,7 +230,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
         create("table", "//tmp/t_out")
 
-        self.create_custom_pool_tree_with_one_node(pool_tree="other")
+        self._create_custom_pool_tree_with_one_node(pool_tree="other")
 
         op = map(
             command="cat",
@@ -252,7 +248,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
         create("table", "//tmp/t_out")
 
-        self.create_custom_pool_tree_with_one_node(pool_tree="other")
+        self._create_custom_pool_tree_with_one_node(pool_tree="other")
 
         op = map(
             command="sleep 4; cat",
@@ -322,7 +318,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         for i in xrange(3):
             write_table("<append=%true>//tmp/t_in", [{"x": i}])
 
-        node = self.create_custom_pool_tree_with_one_node(pool_tree="other")
+        node = self._create_custom_pool_tree_with_one_node(pool_tree="other")
 
         orchid_root = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
         wait(lambda: get(orchid_root + "/default/node_count") == 2)
@@ -361,7 +357,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
     @authors("asaitgalin", "shakurov")
     def test_default_tree_update(self):
-        self.create_custom_pool_tree_with_one_node(pool_tree="other")
+        self._create_custom_pool_tree_with_one_node(pool_tree="other")
         time.sleep(0.5)
 
         create("table", "//tmp/t_in")
@@ -458,7 +454,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         # 8. operation tries to complete scheduler doesn't know this operation and crashes
         # NB(ignat): This scenario is not valid anymore since update pool trees is atomic now, but abort is asynchronous.
 
-        node = self.create_custom_pool_tree_with_one_node(pool_tree="other")
+        node = self._create_custom_pool_tree_with_one_node(pool_tree="other")
         orchid_root = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree"
         set("//sys/pool_trees/@default_tree", "other")
 
@@ -491,10 +487,8 @@ class TestConfigurablePoolTreeRoot(YTEnvSetup):
     }
 
     def test_scheduler_reads_pool_config_from_different_path(self):
-        set("//sys/test_root", {
-            "tree": {
-                "parent": {"pool": {}}
-            }
+        set("//sys/test_root/tree", {
+            "parent": {"pool": {}}
         })
         set("//sys/test_root/tree/parent/pool/@max_operation_count", 10)
 
