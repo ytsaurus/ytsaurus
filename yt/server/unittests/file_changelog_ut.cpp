@@ -93,7 +93,7 @@ TEST_F(TFileChangelogTest, ReadTrailingRecords)
     const int recordCount = 10000;
     TFuture<void> readResult;
     for (int recordIndex = 0; recordIndex < recordCount; ++recordIndex) {
-        auto flushResult = Changelog->Append(MakeData(recordIndex));
+        auto flushResult = Changelog->Append({MakeData(recordIndex)});
         if (recordIndex % 1000 == 0) {
             flushResult.Get();
         }
@@ -107,7 +107,7 @@ TEST_F(TFileChangelogTest, ReadTrailingRecords)
 TEST_F(TFileChangelogTest, ReadWithSizeLimit)
 {
     for (int recordIndex = 0; recordIndex < 40; ++recordIndex) {
-        Changelog->Append(MakeData(recordIndex));
+        Changelog->Append({MakeData(recordIndex)});
     }
 
     auto check = [&] (int maxSize) {
