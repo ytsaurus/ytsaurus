@@ -244,7 +244,7 @@ struct TTokenAuthenticatorCacheKey
 
     operator size_t() const
     {
-        size_t result;
+        size_t result = 0;
         HashCombine(result, Credentials.Token);
         return result;
     }

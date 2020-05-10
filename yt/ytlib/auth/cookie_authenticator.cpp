@@ -175,7 +175,7 @@ struct TCookieAuthenticatorCacheKey
 
     operator size_t() const
     {
-        size_t result;
+        size_t result = 0;
         HashCombine(result, Credentials.SessionId);
         HashCombine(result, Credentials.SslSessionId);
         return result;
