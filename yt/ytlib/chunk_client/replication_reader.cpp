@@ -21,6 +21,8 @@
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
+#include <yt/ytlib/table_client/lookup_reader.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/channel.h>
 
@@ -127,6 +129,7 @@ DECLARE_REFCOUNTED_CLASS(TReplicationReader)
 
 class TReplicationReader
     : public IChunkReaderAllowingRepair
+    , public ILookupReader
 {
 public:
     TReplicationReader(
@@ -210,11 +213,6 @@ public:
         TTimestamp timestamp,
         NCompression::ECodec codecId,
         bool produceAllVersions) override;
-
-    virtual bool IsLookupSupported() const override
-    {
-        return true;
-    }
 
     virtual TChunkId GetChunkId() const override
     {

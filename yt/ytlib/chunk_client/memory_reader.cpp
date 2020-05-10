@@ -67,27 +67,6 @@ public:
         return MakeFuture(New<TRefCountedChunkMeta>(FilterChunkMetaByExtensionTags(*Meta_, extensionTags)));
     }
 
-    virtual TFuture<TSharedRef> LookupRows(
-        const TClientBlockReadOptions& /*options*/,
-        const TSharedRange<NTableClient::TKey>& /*lookupKeys*/,
-        NCypressClient::TObjectId /*tableId*/,
-        NHydra::TRevision /*revision*/,
-        const NTableClient::TTableSchema& /*tableSchema*/,
-        std::optional<i64> /*estimatedSize*/,
-        std::atomic<i64>* /*uncompressedDataSize*/,
-        const NTableClient::TColumnFilter& /*columnFilter*/,
-        NTableClient::TTimestamp /*timestamp*/,
-        NCompression::ECodec /*codecId*/,
-        bool /*produceAllVersions*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    virtual bool IsLookupSupported() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     virtual TChunkId GetChunkId() const override
     {
         return NullChunkId;
