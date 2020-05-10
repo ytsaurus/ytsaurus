@@ -3,7 +3,7 @@
 #include <mapreduce/yt/tests/lib/owning_yamr_row.h>
 #include <mapreduce/yt/interface/client.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 #include <util/string/cast.h>
 #include <util/string/join.h>

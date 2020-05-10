@@ -1,6 +1,6 @@
 #include <mapreduce/yt/http/http.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 using namespace NYT;
 

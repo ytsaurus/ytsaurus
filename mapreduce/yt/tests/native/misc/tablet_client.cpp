@@ -4,7 +4,7 @@
 #include <mapreduce/yt/interface/error_codes.h>
 #include <mapreduce/yt/util/wait_for_tablets_state.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 #include <util/generic/algorithm.h>
 

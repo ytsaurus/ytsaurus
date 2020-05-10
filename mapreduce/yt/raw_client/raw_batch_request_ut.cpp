@@ -4,7 +4,7 @@
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/retry_policy.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 using namespace NYT;
 using namespace NYT::NDetail;

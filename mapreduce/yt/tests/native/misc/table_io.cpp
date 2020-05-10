@@ -20,7 +20,7 @@
 
 #include <library/cpp/yson/node/node_io.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 #include <util/random/fast.h>
 

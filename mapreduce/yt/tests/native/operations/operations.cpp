@@ -28,7 +28,7 @@
 
 #include <library/cpp/digest/md5/md5.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 #include <util/generic/maybe.h>
 #include <util/generic/scope.h>

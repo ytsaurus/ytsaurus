@@ -1,7 +1,7 @@
 #include <mapreduce/yt/library/lambda/field_copier.h>
 
 #include <mapreduce/yt/library/lambda/ut/test-message.pb.h>
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 using namespace NYT;
 

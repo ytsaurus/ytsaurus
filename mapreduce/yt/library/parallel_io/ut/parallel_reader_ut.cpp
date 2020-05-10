@@ -6,7 +6,7 @@
 
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;

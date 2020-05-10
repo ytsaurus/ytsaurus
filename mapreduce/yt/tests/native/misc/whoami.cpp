@@ -3,7 +3,7 @@
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/errors.h>
 
-#include <library/unittest/registar.h>
+#include <library/cpp/unittest/registar.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;
