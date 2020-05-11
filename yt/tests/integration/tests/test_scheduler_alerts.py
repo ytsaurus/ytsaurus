@@ -474,12 +474,6 @@ class TestControllerAgentAlerts(YTEnvSetup):
     NUM_SCHEDULERS = 1
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
-    def teardown_method(self, method):
-        YTEnvSetup.teardown_method(self, method)
-        agent = ls("//sys/controller_agents/instances")[0]
-        agent_path = "//sys/controller_agents/instances/" + agent
-        wait(lambda: len(get(agent_path + "/@alerts")) == 0)
-
     @authors("ignat")
     def test_unrecognized_options_alert(self):
         agents = ls("//sys/controller_agents/instances")
