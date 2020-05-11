@@ -136,8 +136,8 @@ message TReqWriteRows
     required bool lockless = 10;
     required int32 row_count = 11;
     repeated NYT.NProto.TGuid sync_replica_ids = 12;
-    optional uint64 data_weight = 13 [ default = 0 ];
-    optional string user = 14 [ default = "" ];
+    optional int64 data_weight = 13;
+    optional string user = 14;
 }
 
 message TReqTrimRows
