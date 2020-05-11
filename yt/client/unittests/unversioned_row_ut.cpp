@@ -79,6 +79,15 @@ TEST(TUnversionedValue, TestConversionToYsonTokenWriter)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Some sanity tests.
+static_assert(TUnversionedValueConversionTraits<i64>::Inline, "i64 must be inline.");
+static_assert(TUnversionedValueConversionTraits<i64>::Scalar, "i64 must be scalar.");
+static_assert(TUnversionedValueConversionTraits<std::optional<i64>>::Inline, "i64? must be inline.");
+static_assert(TUnversionedValueConversionTraits<std::optional<i64>>::Scalar, "i64? must be scalar.");
+static_assert(!TUnversionedValueConversionTraits<TString>::Inline, "TString must not be inline.");
+static_assert(TUnversionedValueConversionTraits<TString>::Scalar, "TString must be scalar.");
+
+////////////////////////////////////////////////////////////////////////////////
 
 TEST(TMakeUnversionedOwningRow, Empty)
 {

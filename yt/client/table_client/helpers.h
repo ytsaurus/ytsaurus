@@ -32,15 +32,12 @@ TString KeyToYson(TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-struct TIsScalarPersistentType
+template <class T, class = void>
+struct TUnversionedValueConversionTraits
 {
-    static constexpr bool Value =
-        std::is_same<T, TGuid>::value ||
-        std::is_same<T, TString>::value ||
-        std::is_same<T, i64>::value ||
-        std::is_same<T, ui64>::value ||
-        std::is_same<T, TInstant>::value;
+    // These are conservative defaults.
+    static constexpr bool Scalar = false;
+    static constexpr bool Inline = false;
 };
 
 void ToUnversionedValue(TUnversionedValue* unversionedValue, TGuid value, const TRowBufferPtr& rowBuffer, int id = 0);
@@ -154,7 +151,7 @@ template <class T>
 void FromUnversionedValue(
     std::vector<T>* values,
     TUnversionedValue unversionedValue,
-    typename std::enable_if<TIsScalarPersistentType<T>::Value, void>::type* = nullptr);
+    typename std::enable_if<TUnversionedValueConversionTraits<T>::Scalar, void>::type* = nullptr);
 
 template <class TKey, class TValue>
 void ToUnversionedValue(
