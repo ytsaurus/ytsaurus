@@ -18,7 +18,7 @@ import yt.json_wrapper as json
 import yt.logger as logger
 
 from yt.packages.six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
-                             indexbytes, int2byte)
+                             indexbytes, int2byte, raise_from)
 from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as ifilter
 
 from abc import ABCMeta, abstractmethod
@@ -108,11 +108,7 @@ class RowsIterator(Iterator):
             error = YtFormatError("Failed to decode string, it usually means that "
                                   "you are using python3 and store byte string in YT table; "
                                   "try to specify none encoding")
-            if PY3:
-                raise error from None
-            else:
-                sys.exc_clear()
-                raise error
+            raise_from(error, None)
 
         raise StopIteration()
 
