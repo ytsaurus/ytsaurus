@@ -253,58 +253,17 @@ void FromUnversionedValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Index, class... Ts>
-struct TToUnversionedValuesTraits;
-
-template <size_t Index>
-struct TToUnversionedValuesTraits<Index>
-{
-    template <class V>
-    static void Do(V*, const TRowBufferPtr&)
-    { }
-};
-
-template <size_t Index, class T, class... Ts>
-struct TToUnversionedValuesTraits<Index, T, Ts...>
-{
-    template <class V>
-    static void Do(V* array, const TRowBufferPtr& rowBuffer, const T& head, const Ts&... tail)
-    {
-        ToUnversionedValue(&(*array)[Index], head, rowBuffer);
-        TToUnversionedValuesTraits<Index + 1, Ts...>::Do(array, rowBuffer, tail...);
-    }
-};
-
 template <class... Ts>
 auto ToUnversionedValues(
     const TRowBufferPtr& rowBuffer,
-    const Ts& ... values)
+    Ts&&... values)
     -> std::array<TUnversionedValue, sizeof...(Ts)>
 {
     std::array<TUnversionedValue, sizeof...(Ts)> array;
-    TToUnversionedValuesTraits<0, Ts...>::Do(&array, rowBuffer, values...);
+    auto* current = array.data();
+    (ToUnversionedValue(current++, std::forward<Ts>(values), rowBuffer), ...);
     return array;
 }
-
-template <size_t Index, class... Ts>
-struct TFromUnversionedRowTraits;
-
-template <size_t Index>
-struct TFromUnversionedRowTraits<Index>
-{
-    static void Do(TUnversionedRow)
-    { }
-};
-
-template <size_t Index, class T, class... Ts>
-struct TFromUnversionedRowTraits<Index, T, Ts...>
-{
-    static void Do(TUnversionedRow row, T* head, Ts*... tail)
-    {
-        FromUnversionedValue(head, row[Index]);
-        TFromUnversionedRowTraits<Index + 1, Ts...>::Do(row , tail...);
-    }
-};
 
 template <class... Ts>
 void FromUnversionedRow(
@@ -316,16 +275,17 @@ void FromUnversionedRow(
             sizeof...(Ts),
             row.GetCount());
     }
-    TFromUnversionedRowTraits<0, Ts...>::Do(row, values...);
+    const auto* current = row.Begin();
+    (FromUnversionedValue(values, *current++), ...);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TUnversionedValue ToUnversionedValue(const T& value, const TRowBufferPtr& rowBuffer, int id)
+TUnversionedValue ToUnversionedValue(T&& value, const TRowBufferPtr& rowBuffer, int id)
 {
     TUnversionedValue unversionedValue;
-    ToUnversionedValue(&unversionedValue, value, rowBuffer, id);
+    ToUnversionedValue(&unversionedValue, std::forward<T>(value), rowBuffer, id);
     return unversionedValue;
 }
 
@@ -335,6 +295,23 @@ T FromUnversionedValue(TUnversionedValue unversionedValue)
     T value;
     FromUnversionedValue(&value, unversionedValue);
     return value;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class... Ts>
+TUnversionedOwningRow MakeUnversionedOwningRow(Ts&&... values)
+{
+    // TODO(babenko): optimize further
+    auto rowBuffer = New<TRowBuffer>();
+    auto unversionedValues = ToUnversionedValues(rowBuffer, std::forward<Ts>(values)...);
+    TUnversionedOwningRowBuilder builder(sizeof...(values));
+    int id = 0;
+    for (auto& unversionedValue : unversionedValues) {
+        unversionedValue.Id = id++;
+        builder.AddValue(unversionedValue);
+    }
+    return builder.FinishRow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

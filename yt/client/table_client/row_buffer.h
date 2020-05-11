@@ -21,8 +21,6 @@ class TRowBuffer
     : public TIntrinsicRefCounted
 {
 public:
-    TRowBuffer() = default;
-
     TRowBuffer(
         TRefCountedTypeCookie tagCookie,
         IMemoryChunkProviderPtr chunkProvider,
@@ -33,9 +31,9 @@ public:
             startChunkSize)
     { }
 
-    template <class TTag>
+    template <class TTag = TDefaultRowBufferPoolTag>
     explicit TRowBuffer(
-        TTag,
+        TTag = TDefaultRowBufferPoolTag(),
         size_t startChunkSize = TChunkedMemoryPool::DefaultStartChunkSize)
         : Pool_(
             TTag(),

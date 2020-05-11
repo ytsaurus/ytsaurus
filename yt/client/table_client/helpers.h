@@ -64,11 +64,23 @@ void FromUnversionedValue(i64* value, TUnversionedValue unversionedValue);
 void ToUnversionedValue(TUnversionedValue* unversionedValue, ui64 value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(ui64* value, TUnversionedValue unversionedValue);
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, i32 value, const TRowBufferPtr& rowBuffer, int id = 0);
+void FromUnversionedValue(i32* value, TUnversionedValue unversionedValue);
+
 void ToUnversionedValue(TUnversionedValue* unversionedValue, ui32 value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(ui32* value, TUnversionedValue unversionedValue);
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, i16 value, const TRowBufferPtr& rowBuffer, int id = 0);
+void FromUnversionedValue(i16* value, TUnversionedValue unversionedValue);
+
 void ToUnversionedValue(TUnversionedValue* unversionedValue, ui16 value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(ui16* value, TUnversionedValue unversionedValue);
+
+void ToUnversionedValue(TUnversionedValue* unversionedValue, i8 value, const TRowBufferPtr& rowBuffer, int id = 0);
+void FromUnversionedValue(i8* value, TUnversionedValue unversionedValue);
+
+void ToUnversionedValue(TUnversionedValue* unversionedValue, ui8 value, const TRowBufferPtr& rowBuffer, int id = 0);
+void FromUnversionedValue(ui8* value, TUnversionedValue unversionedValue);
 
 void ToUnversionedValue(TUnversionedValue* unversionedValue, double value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(double* value, TUnversionedValue unversionedValue);
@@ -96,7 +108,10 @@ void FromUnversionedValue(
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
 
 template <class T>
-TUnversionedValue ToUnversionedValue(const T& value, const TRowBufferPtr& rowBuffer, int id = 0);
+TUnversionedValue ToUnversionedValue(
+    T&& value,
+    const TRowBufferPtr& rowBuffer,
+    int id = 0);
 template <class T>
 T FromUnversionedValue(TUnversionedValue unversionedValue);
 
@@ -156,13 +171,22 @@ void FromUnversionedValue(
 template <class... Ts>
 auto ToUnversionedValues(
     const TRowBufferPtr& rowBuffer,
-    const Ts& ... values)
+    Ts&&... values)
 -> std::array<TUnversionedValue, sizeof...(Ts)>;
 
 template <class... Ts>
 void FromUnversionedRow(
     TUnversionedRow row,
     Ts*... values);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Constructs an owning row from arbitrarily-typed values.
+//! Values get sequential ids 0..N-1.
+template <class... Ts>
+TUnversionedOwningRow MakeUnversionedOwningRow(Ts&&... values);
+
+////////////////////////////////////////////////////////////////////////////////
 
 void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::IYsonConsumer* consumer);
 void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::TCheckedInDebugYsonTokenWriter* tokenWriter);
