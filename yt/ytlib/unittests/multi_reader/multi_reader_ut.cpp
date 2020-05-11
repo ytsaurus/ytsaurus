@@ -41,9 +41,7 @@ std::vector<IReaderBasePtr> CreateMockReaders(int readerCount, int filledRowCoun
     for (int readerIndex = 0; readerIndex < readerCount; ++readerIndex) {
         std::vector<std::vector<TUnversionedOwningRow>> readerData;
         for (int i = 0; i < filledRowCount; ++i) {
-            TUnversionedOwningRowBuilder builder;
-            builder.AddValue(MakeUnversionedInt64Value(filledRowValue++));
-            readerData.push_back({builder.FinishRow()});
+            readerData.push_back({MakeUnversionedOwningRow(filledRowValue++)});
         }
         for (int i = 0; i < emptyRowCount; ++i) {
             readerData.push_back({});
@@ -58,9 +56,7 @@ IReaderBasePtr CreateReaderWithError(int filledRowCount)
 {
     std::vector<std::vector<TUnversionedOwningRow>> readerData;
     for (int rowIndex = 0; rowIndex < filledRowCount; ++rowIndex) {
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedInt64Value(rowIndex + 100));
-        readerData.push_back({builder.FinishRow()});
+        readerData.push_back({MakeUnversionedOwningRow(rowIndex + 100)});
     }
     return New<TChunkReaderWithErrorMock>(std::move(readerData));
 }
