@@ -438,6 +438,22 @@ void FromUnversionedValue(TInstant* value, TUnversionedValue unversionedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, TDuration value, const TRowBufferPtr& /*rowBuffer*/, int id)
+{
+    *unversionedValue = MakeUnversionedUint64Value(value.MicroSeconds(), id);
+}
+
+void FromUnversionedValue(TDuration* value, TUnversionedValue unversionedValue)
+{
+    if (unversionedValue.Type != EValueType::Uint64) {
+        THROW_ERROR_EXCEPTION("Cannot parse duration from %Qlv",
+            unversionedValue.Type);
+    }
+    *value = TDuration::MicroSeconds(unversionedValue.Data.Uint64);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const IMapNodePtr& value, const TRowBufferPtr& rowBuffer, int id)
 {
     *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(ConvertToYsonString(value).GetData(), id));

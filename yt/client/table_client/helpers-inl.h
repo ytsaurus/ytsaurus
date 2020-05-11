@@ -39,6 +39,7 @@ XX(ui8)
 XX(bool)
 XX(double)
 XX(TInstant)
+XX(TDuration)
 
 #undef XX
 
