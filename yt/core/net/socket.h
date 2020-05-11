@@ -42,6 +42,7 @@ bool TrySetSocketNoDelay(SOCKET socket);
 bool TrySetSocketKeepAlive(SOCKET socket);
 bool TrySetSocketEnableQuickAck(SOCKET socket);
 bool TrySetSocketTosLevel(SOCKET socket, int tosLevel);
+bool TrySetSocketInputFilter(SOCKET socket, bool drop);
 
 ////////////////////////////////////////////////////////////////////////////////
 
