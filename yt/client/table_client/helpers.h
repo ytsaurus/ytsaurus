@@ -40,6 +40,8 @@ struct TUnversionedValueConversionTraits
     static constexpr bool Inline = false;
 };
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, std::nullopt_t, const TRowBufferPtr& rowBuffer, int id = 0);
+
 void ToUnversionedValue(TUnversionedValue* unversionedValue, TGuid value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(TGuid* value, TUnversionedValue unversionedValue);
 

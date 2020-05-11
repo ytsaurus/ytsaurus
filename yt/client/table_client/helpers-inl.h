@@ -27,6 +27,7 @@ namespace NYT::NTableClient {
         static constexpr bool Inline = true; \
     };
 
+XX(std::nullopt_t)
 XX(i64)
 XX(ui64)
 XX(i32)

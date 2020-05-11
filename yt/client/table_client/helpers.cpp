@@ -271,6 +271,13 @@ TString KeyToYson(TUnversionedRow row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, std::nullopt_t, const TRowBufferPtr& /*rowBuffer*/, int id)
+{
+    *unversionedValue = MakeUnversionedSentinelValue(EValueType::Null, id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToUnversionedValue(TUnversionedValue* unversionedValue, TGuid value, const TRowBufferPtr& rowBuffer, int id)
 {
     auto strValue = ToString(value);
