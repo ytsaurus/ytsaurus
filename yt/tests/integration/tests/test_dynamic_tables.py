@@ -1775,17 +1775,17 @@ class TestDynamicTablesPortal(TestDynamicTablesMulticell):
     ENABLE_TMP_PORTAL = True
 
 class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
-    NUM_NODES = 16
+    NUM_NODES = 8
 
     def setup_method(self, method):
         super(DynamicTablesSingleCellBase, self).setup_method(method)
         set("//sys/tablet_cell_bundles/default/@options",
             {
                 "changelog_account": "sys",
-                "changelog_erasure_codec": "isa_lrc_12_2_2",
+                "changelog_erasure_codec": "isa_reed_solomon_3_3",
                 "changelog_replication_factor": 1,
-                "changelog_read_quorum": 14,
-                "changelog_write_quorum": 15,
+                "changelog_read_quorum": 4,
+                "changelog_write_quorum": 5,
                 "snapshot_account": "sys",
                 "snapshot_replication_factor": 3
             })
