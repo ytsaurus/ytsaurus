@@ -1037,6 +1037,96 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 initialize_options=False,
                 attributes={"options": {}})
 
+    @authors("akozhikhov")
+    def test_bundle_options_reconfiguration(self):
+        def _check_snapshot_and_changelog(expected_account):
+                changelogs = ls("//sys/tablet_cells/{0}/changelogs".format(cell_id))
+                snapshots = ls("//sys/tablet_cells/{0}/snapshots".format(cell_id))
+                if len(changelogs) == 0 or len(snapshots) == 0:
+                    return False
+
+                last_changelog = sorted(changelogs)[-1]
+                last_snapshot = sorted(snapshots)[-1]
+
+                if get("//sys/tablet_cells/{0}/changelogs/{1}/@account".format(cell_id, last_changelog)) != expected_account:
+                    return False
+                if get("//sys/tablet_cells/{0}/snapshots/{1}/@account".format(cell_id, last_snapshot)) != expected_account:
+                    return False
+
+                return True
+
+        create_tablet_cell_bundle("custom")
+        cell_id = sync_create_cells(1, "custom")[0]
+
+        self._create_sorted_table("//tmp/t", tablet_cell_bundle="custom")
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+        build_snapshot(cell_id=cell_id)
+        wait(lambda: _check_snapshot_and_changelog(expected_account="sys"))
+
+        set("//sys/tablet_cell_bundles/custom/@options/changelog_account", "tmp")
+        set("//sys/tablet_cell_bundles/custom/@options/snapshot_account", "tmp")
+
+        self._wait_cell_good(cell_id)
+
+        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+        build_snapshot(cell_id=cell_id)
+        wait(lambda: _check_snapshot_and_changelog(expected_account="tmp"))
+
+    @authors("akozhikhov")
+    def test_bundle_options_account_reconfiguration(self):
+        create_tablet_cell_bundle("custom")
+
+        assert "account" not in ls("//sys/accounts")
+        with pytest.raises(YtError):
+            set("//sys/tablet_cell_bundles/custom/@options/changelog_account", "account")
+        with pytest.raises(YtError):
+            set("//sys/tablet_cell_bundles/custom/@options/snapshot_account", "account")
+
+        create_user("user")
+        set("//sys/tablet_cell_bundles/custom/@acl/end", make_ace("allow", "user", ["use"]))
+        create_account("account")
+
+        assert "account" not in get("//sys/users/user/@usable_accounts")
+        with pytest.raises(YtError):
+            set("//sys/tablet_cell_bundles/custom/@options/changelog_account", "account", authenticated_user="user")
+        with pytest.raises(YtError):
+            set("//sys/tablet_cell_bundles/custom/@options/snapshot_account", "account", authenticated_user="user")
+
+        set("//sys/accounts/account/@acl", [make_ace("allow", "user", "use")])
+        assert "account" in get("//sys/users/user/@usable_accounts")
+        set("//sys/tablet_cell_bundles/custom/@options/changelog_account", "account", authenticated_user="user")
+        set("//sys/tablet_cell_bundles/custom/@options/snapshot_account", "account", authenticated_user="user")
+
+    @authors("akozhikhov")
+    @pytest.mark.parametrize("target", ["changelog", "snapshot"])
+    def test_bundle_options_acl_reconfiguration(self, target):
+        create_tablet_cell_bundle("custom")
+        cell_ids = sync_create_cells(2, "custom")
+
+        create_user("user1")
+        create_user("user2")
+        create_account("account")
+
+        def _set_acl():
+            set("//sys/tablet_cell_bundles/custom/@options/{}_acl/end".format(target),
+                make_ace("allow", "user2", ["write"]), authenticated_user="user1")
+
+        def _get_cell_acl(cell_id):
+            return get("//sys/tablet_cells/{}/{}s/@acl".format(cell_id, target))
+
+        with pytest.raises(YtError):
+            _set_acl()
+        for cell_id in cell_ids:
+            assert _get_cell_acl(cell_id) == []
+
+        set("//sys/tablet_cell_bundles/custom/@acl/end", make_ace("allow", "user1", ["use"]))
+
+        _set_acl()
+        for cell_id in cell_ids:
+            assert _get_cell_acl(cell_id) == [make_ace("allow", "user2", ["write"])]
+
     @authors("savrus")
     def test_tablet_count_by_state(self):
         sync_create_cells(1)

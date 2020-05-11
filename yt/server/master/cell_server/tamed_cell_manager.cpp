@@ -247,9 +247,22 @@ public:
 
     void SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr options)
     {
-        if (options->PeerCount != cellBundle->GetOptions()->PeerCount && !cellBundle->Cells().empty()) {
+        Bootstrap_->GetSecurityManager()->ValidatePermission(cellBundle, EPermission::Use);
+
+        const auto& currentOptions = cellBundle->GetOptions();
+        if (options->PeerCount != currentOptions->PeerCount && !cellBundle->Cells().empty()) {
             THROW_ERROR_EXCEPTION("Cannot change peer count since tablet cell bundle has %v tablet cell(s)",
                                   cellBundle->Cells().size());
+        }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        if (currentOptions->SnapshotAccount != options->SnapshotAccount) {
+            auto* account = securityManager->GetAccountByNameOrThrow(options->SnapshotAccount);
+            securityManager->ValidatePermission(account, EPermission::Use);
+        }
+        if (currentOptions->ChangelogAccount != options->ChangelogAccount) {
+            auto* account = securityManager->GetAccountByNameOrThrow(options->ChangelogAccount);
+            securityManager->ValidatePermission(account, EPermission::Use);
         }
 
         auto snapshotAcl = ConvertToYsonString(options->SnapshotAcl, EYsonFormat::Binary).GetData();
@@ -257,12 +270,15 @@ public:
 
         cellBundle->SetOptions(std::move(options));
 
+        auto* rootUser = securityManager->GetRootUser();
+
         for (auto* cell : GetValuesSortedByKey(cellBundle->Cells())) {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsPrimaryMaster()) {
                 if (auto node = FindCellNode(cell->GetId())) {
-                    auto cellNode = node->AsMap();
+                    TAuthenticatedUserGuard userGuard(securityManager, rootUser);
 
+                    auto cellNode = node->AsMap();
                     try {
                         {
                             auto req = TCypressYPathProxy::Set("/snapshots/@acl");
@@ -1079,6 +1095,8 @@ private:
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
             protoInfo->set_abandon_leader_lease_during_recovery(GetDynamicConfig()->AbandonLeaderLeaseDuringRecovery);
+            protoInfo->set_options(ConvertToYsonString(cell->GetCellBundle()->GetOptions()).GetData());
+
 
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot configuration update requested "
                 "(Address: %v, CellId: %v, PeerId: %v, Version: %v, PrerequisiteTransactionId: %v, AbandonLeaderLeaseDuringRecovery: %v)",
@@ -1265,9 +1283,13 @@ private:
             auto it = AddressToCell_.find(address);
             if (it != AddressToCell_.end()) {
                 for (auto [cell, peerId] : it->second) {
+                    if (!availableSlots) {
+                        break;
+                    }
                     if (!IsObjectAlive(cell)) {
                         continue;
                     }
+
                     if (actualCells.find(cell) == actualCells.end()) {
                         requestCreateSlot(cell);
                         requestConfigureSlot(cell);
