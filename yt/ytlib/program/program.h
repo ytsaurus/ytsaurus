@@ -2,7 +2,7 @@
 
 #include <yt/core/misc/public.h>
 
-#include <library/getopt/last_getopt.h>
+#include <library/cpp/getopt/last_getopt.h>
 
 namespace NYT {
 

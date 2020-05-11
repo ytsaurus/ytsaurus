@@ -19,11 +19,17 @@ using ::NErasure::TPartIndexList;
 using ::NErasure::TPartIndexSet;
 
 DEFINE_AMBIGUOUS_ENUM_WITH_UNDERLYING_TYPE(ECodec, i8,
-    ((None)                 (0))
-    ((ReedSolomon_6_3)      (1))
-    ((Lrc_12_2_2)           (2))
-    ((IsaLrc_12_2_2)        (3))
-    ((JerasureLrc_12_2_2)   (2))
+    ((None)                         (0))
+
+    ((ReedSolomon_6_3)              (1))
+    ((JerasureReedSolomon_6_3)      (1))
+
+    ((ReedSolomon_3_3)              (4))
+    ((IsaReedSolomon_3_3)           (4))
+
+    ((Lrc_12_2_2)                   (2))
+    ((JerasureLrc_12_2_2)           (2))
+    ((IsaLrc_12_2_2)                (3))
 );
 
 struct TCodecTraits
