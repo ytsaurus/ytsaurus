@@ -94,7 +94,6 @@ class TestSchedulerAlerts(YTEnvSetup):
 
 ##################################################################
 
-
 @pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerOperationAlerts(YTEnvSetup):
     NUM_MASTERS = 1
@@ -423,7 +422,6 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     def wait_for_running_jobs(self, operation):
         wait(lambda: operation.get_job_count("running") >= 1)
 
-
 ##################################################################
 
 class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
@@ -469,10 +467,11 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
 
         wait(lambda: "excessive_job_spec_throttling" in op.get_alerts())
 
+##################################################################
+
 class TestControllerAgentAlerts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat")
     def test_unrecognized_options_alert(self):
@@ -480,8 +479,7 @@ class TestControllerAgentAlerts(YTEnvSetup):
         assert len(agents) == 1
 
         agent_path = "//sys/controller_agents/instances/" + agents[0]
-        wait(lambda: exists(agent_path + "/@alerts"))
-        assert len(get(agent_path + "/@alerts")) == 0
+        wait(lambda: get(agent_path + "/@alerts", None) == [])
 
         set("//sys/controller_agents/config", {"unknown_option": 10})
         wait(lambda: len(get(agent_path + "/@alerts")) == 1)
@@ -492,8 +490,7 @@ class TestControllerAgentAlerts(YTEnvSetup):
         assert len(agents) == 1
 
         agent_path = "//sys/controller_agents/instances/" + agents[0]
-        wait(lambda: exists(agent_path + "/@alerts"))
-        assert len(get(agent_path + "/@alerts")) == 0
+        wait(lambda: get(agent_path + "/@alerts", None) == [])
 
         remove("//sys/controller_agents/config")
         set("//sys/controller_agents/config", [])
