@@ -15,6 +15,7 @@ except ImportError:
 
 from yt.common import to_native_str
 import yt.json_wrapper as json
+import yt.logger as logger
 
 from yt.packages.six import (iteritems, Iterator, add_metaclass, PY3, binary_type, text_type,
                              indexbytes, int2byte)
@@ -23,6 +24,7 @@ from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as if
 from abc import ABCMeta, abstractmethod
 from codecs import getwriter
 import copy
+import sys
 import struct
 try:
     from cStringIO import StringIO as BytesIO
@@ -80,26 +82,37 @@ class RowsIterator(Iterator):
 
     def __next__(self):
         self.key_switch = False
-        for row in self.rows:
-            attributes = self.extract_control_attributes(row)
-            if attributes is not None:
-                if self.table_index_attribute_name in attributes:
-                    self.table_index = attributes[self.table_index_attribute_name]
-                if self.row_index_attribute_name in attributes:
-                    self._increment_row_index = False
-                    self.row_index = attributes[self.row_index_attribute_name]
-                if self.range_index_attribute_name in attributes:
-                    self.range_index = attributes[self.range_index_attribute_name]
-                if self.key_switch_attribute_name in attributes:
-                    self.key_switch = attributes[self.key_switch_attribute_name]
-                if self.tablet_index_attribute_name in attributes:
-                    self.tablet_index = attributes[self.tablet_index_attribute_name]
-                continue
+        try:
+            for row in self.rows:
+                attributes = self.extract_control_attributes(row)
+                if attributes is not None:
+                    if self.table_index_attribute_name in attributes:
+                        self.table_index = attributes[self.table_index_attribute_name]
+                    if self.row_index_attribute_name in attributes:
+                        self._increment_row_index = False
+                        self.row_index = attributes[self.row_index_attribute_name]
+                    if self.range_index_attribute_name in attributes:
+                        self.range_index = attributes[self.range_index_attribute_name]
+                    if self.key_switch_attribute_name in attributes:
+                        self.key_switch = attributes[self.key_switch_attribute_name]
+                    if self.tablet_index_attribute_name in attributes:
+                        self.tablet_index = attributes[self.tablet_index_attribute_name]
+                    continue
+                else:
+                    if self._increment_row_index and self.row_index is not None:
+                        self.row_index += 1
+                    self._increment_row_index = True
+                    return row
+        except UnicodeDecodeError:
+            logger.exception("Failed to decode string")
+            error = YtFormatError("Failed to decode string, it usually means that "
+                                  "you are using python3 and store byte string in YT table; "
+                                  "try to specify none encoding")
+            if PY3:
+                raise error from None
             else:
-                if self._increment_row_index and self.row_index is not None:
-                    self.row_index += 1
-                self._increment_row_index = True
-                return row
+                sys.exc_clear()
+                raise error
 
         raise StopIteration()
 
@@ -967,10 +980,10 @@ class JsonFormat(Format):
         :param str encode_utf8: enables encoding bytes as unicode numbers.
         In case of True we request encoding and decode it back on client side [by default].
         In case of False we do nothing.
-        If JSON_ENCODING_LEGACY_MODE enabled and encoding is not specified 
+        If JSON_ENCODING_LEGACY_MODE enabled and encoding is not specified
         we return result from server as it is.
         """
-        self._is_encoding_specified = encoding is not _ENCODING_SENTINEL 
+        self._is_encoding_specified = encoding is not _ENCODING_SENTINEL
 
         defaults = {}
         options = {}
@@ -1025,7 +1038,7 @@ class JsonFormat(Format):
             return self._load_python_string(obj)
         else:
             return obj
-    
+
     def _dump_python_string(self, string):
         is_encode_utf8_false = self.encode_utf8 is not None and not self.encode_utf8
         if isinstance(string, text_type):
