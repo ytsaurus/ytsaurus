@@ -133,6 +133,27 @@ TEST(TMakeUnversionedOwningRow, Tuple)
     EXPECT_EQ(true, FromUnversionedValue<bool>(row[1]));
 }
 
+TEST(TMakeUnversionedOwningRow, FromUnversionedRow)
+{
+    auto row = MakeUnversionedOwningRow(TString("hello"), TStringBuf("world"), 123);
+    TString a;
+    TStringBuf b;
+    i16 c;
+    FromUnversionedRow(row, &a, &b, &c);
+    EXPECT_EQ("hello", a);
+    EXPECT_EQ("world", b);
+    EXPECT_EQ(123, c);
+}
+
+TEST(TMakeUnversionedOwningRow, TupleFromUnversionedRow)
+{
+    auto row = MakeUnversionedOwningRow(TString("hello"), TStringBuf("world"), 123);
+    auto [a, b, c] = FromUnversionedRow<TString, TStringBuf, i16>(row);
+    EXPECT_EQ("hello", a);
+    EXPECT_EQ("world", b);
+    EXPECT_EQ(123, c);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
