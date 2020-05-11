@@ -523,7 +523,9 @@ void TTcpConnection::Terminate(const TError& error)
 
     // Arm calling OnTerminate() from OnEvent().
     Pending_ |= EPollControl::Terminate;
-    Poller_->Retry(this);
+    if (Pending_ == EPollControl::Terminate) {
+        Poller_->Retry(this);
+    }
 }
 
 void TTcpConnection::SubscribeTerminated(const TCallback<void(const TError&)>& callback)
