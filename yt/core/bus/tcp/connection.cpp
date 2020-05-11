@@ -504,6 +504,10 @@ void TTcpConnection::Terminate(const TError& error)
         State_ == EState::Aborted ||
         State_ == EState::Closed)
     {
+        YT_LOG_DEBUG("Connection is already terminated, termination request ignored (State: %v, Pending: %v, PendingOutPayloadBytes: %v)",
+            State_.load(),
+            Pending_,
+            PendingOutPayloadBytes_.load());
         return;
     }
 
