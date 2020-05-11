@@ -17,6 +17,55 @@
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+// Scalar inline types
+
+#define XX(T) \
+    template <> \
+    struct TUnversionedValueConversionTraits<T, void> \
+    { \
+        static constexpr bool Scalar = true; \
+        static constexpr bool Inline = true; \
+    };
+
+XX(i64)
+XX(ui64)
+XX(i32)
+XX(ui32)
+XX(i16)
+XX(ui16)
+XX(i8)
+XX(ui8)
+XX(bool)
+XX(double)
+XX(TInstant)
+
+#undef XX
+
+////////////////////////////////////////////////////////////////////////////////
+// Scalar non-inline types
+
+#define XX(T) \
+    template <> \
+    struct TUnversionedValueConversionTraits<T, void> \
+    { \
+        static constexpr bool Scalar = true; \
+        static constexpr bool Inline = false; \
+    };
+
+XX(TString)
+XX(TStringBuf)
+XX(TGuid)
+
+#undef XX
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+struct TUnversionedValueConversionTraits<T, typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type>
+{
+    static constexpr bool Scalar = true;
+    static constexpr bool Inline = !TEnumTraits<T>::IsStringSerializableEnum;
+};
 
 template <class T>
 void ToUnversionedValue(
@@ -104,6 +153,13 @@ void FromUnversionedValue(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+struct TUnversionedValueConversionTraits<std::optional<T>, void>
+{
+    static constexpr bool Scalar = TUnversionedValueConversionTraits<T>::Scalar;
+    static constexpr bool Inline = TUnversionedValueConversionTraits<T>::Inline;
+};
+
+template <class T>
 void ToUnversionedValue(
     TUnversionedValue* unversionedValue,
     const std::optional<T>& value,
@@ -188,7 +244,7 @@ template <class T>
 void FromUnversionedValue(
     std::vector<T>* values,
     TUnversionedValue unversionedValue,
-    typename std::enable_if<TIsScalarPersistentType<T>::Value, void>::type*)
+    typename std::enable_if<TUnversionedValueConversionTraits<T>::Scalar, void>::type*)
 {
     values->clear();
     UnversionedValueToListImpl(
@@ -303,7 +359,8 @@ template <class... Ts>
 TUnversionedOwningRow MakeUnversionedOwningRow(Ts&&... values)
 {
     // TODO(babenko): optimize further
-    auto rowBuffer = New<TRowBuffer>();
+    constexpr bool AllTypesInline = (... && TUnversionedValueConversionTraits<Ts>::Inline);
+    auto rowBuffer = AllTypesInline ? TRowBufferPtr() : New<TRowBuffer>();
     auto unversionedValues = ToUnversionedValues(rowBuffer, std::forward<Ts>(values)...);
     TUnversionedOwningRowBuilder builder(sizeof...(values));
     int id = 0;
