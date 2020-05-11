@@ -2,6 +2,8 @@
 #include "mock/multi_chunk_reader.h"
 #include "mock/reader_factory.h"
 
+#include <yt/client/table_client/helpers.h>
+
 #include <yt/core/test_framework/framework.h>
 
 #include <util/random/shuffle.h>
@@ -10,6 +12,7 @@ namespace NYT::NChunkClient {
 namespace {
 
 using namespace NConcurrency;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
