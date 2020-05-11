@@ -164,7 +164,7 @@ private:
     // Only used by client sockets.
     int Port_ = 0;
 
-    std::atomic<EState> State_ = {EState::None};
+    std::atomic<EState> State_ = EState::None;
 
     NConcurrency::EPollControl Pending_ = NConcurrency::EPollControl::Offline;
 
@@ -179,11 +179,11 @@ private:
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedMessage> QueuedMessages_;
-    std::atomic<size_t> PendingOutPayloadBytes_ = {0};
+    std::atomic<size_t> PendingOutPayloadBytes_ = 0;
 
     TPacketDecoder Decoder_;
     const NProfiling::TCpuDuration ReadStallTimeout_;
-    std::atomic<NProfiling::TCpuInstant> LastIncompleteReadTime_ = {std::numeric_limits<NProfiling::TCpuInstant>::max()};
+    std::atomic<NProfiling::TCpuInstant> LastIncompleteReadTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
     TBlob ReadBuffer_;
 
     TRingQueue<TPacket> QueuedPackets_;
@@ -191,7 +191,7 @@ private:
 
     TPacketEncoder Encoder_;
     const NProfiling::TCpuDuration WriteStallTimeout_;
-    std::atomic<NProfiling::TCpuInstant> LastIncompleteWriteTime_ = {std::numeric_limits<NProfiling::TCpuInstant>::max()};
+    std::atomic<NProfiling::TCpuInstant> LastIncompleteWriteTime_ = std::numeric_limits<NProfiling::TCpuInstant>::max();
     std::vector<std::unique_ptr<TBlob>> WriteBuffers_;
     TRingQueue<TRef> EncodedFragments_;
     TRingQueue<size_t> EncodedPacketSizes_;
@@ -200,7 +200,7 @@ private:
 
     TRingQueue<TUnackedMessage> UnackedMessages_;
 
-    std::atomic<TTosLevel> TosLevel_ = {DefaultTosLevel};
+    std::atomic<TTosLevel> TosLevel_ = DefaultTosLevel;
 
 
     void Open();

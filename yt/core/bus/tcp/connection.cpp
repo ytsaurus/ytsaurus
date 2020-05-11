@@ -452,13 +452,13 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
 
     auto pendingOutPayloadBytes = PendingOutPayloadBytes_.fetch_add(queuedMessage.PayloadSize);
 
-    // NB: Log first to avoid producing weird traces.
+    // Log first to avoid producing weird traces.
     YT_LOG_DEBUG("Outcoming message enqueued (PacketId: %v, PendingOutPayloadBytes: %v)",
         queuedMessage.PacketId,
         pendingOutPayloadBytes);
 
     if (LastIncompleteWriteTime_ == std::numeric_limits<NProfiling::TCpuInstant>::max()) {
-        // Arm stall detection
+        // Arm stall detection.
         LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
     }
 
@@ -509,12 +509,12 @@ void TTcpConnection::Terminate(const TError& error)
 
     YT_LOG_DEBUG("Sending termination request");
 
-    // Save error for OnTerminate()
+    // Save error for OnTerminate().
     YT_VERIFY(!error.IsOK());
     YT_VERIFY(CloseError_.IsOK());
     CloseError_ = error;
 
-    // Arm calling OnTerminate() from OnEvent()
+    // Arm calling OnTerminate() from OnEvent().
     Pending_ |= EPollControl::Terminate;
     if (Pending_ == EPollControl::Terminate) {
         Poller_->Retry(this);
@@ -556,7 +556,7 @@ void TTcpConnection::OnEvent(EPollControl control)
 
     {
         // OnEvent should never be called for offline socket.
-        YT_VERIFY(!Any(action & EPollControl::Offline));
+        YT_VERIFY(None(action & EPollControl::Offline));
 
         if (Any(action & EPollControl::Terminate)) {
             OnTerminate();
@@ -874,7 +874,7 @@ void TTcpConnection::OnSocketWrite()
         FlushWrittenPackets(bytesWritten);
 
         if (bytesWritten) {
-            // Rearm stall detection after progress
+            // Rearm stall detection after progress.
             LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
         }
 
