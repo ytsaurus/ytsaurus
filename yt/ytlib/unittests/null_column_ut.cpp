@@ -2,6 +2,8 @@
 
 #include "column_format_ut.h"
 
+#include <yt/client/table_client/helpers.h>
+
 #include <yt/ytlib/table_chunk_format/null_column_reader.h>
 #include <yt/ytlib/table_chunk_format/null_column_writer.h>
 
