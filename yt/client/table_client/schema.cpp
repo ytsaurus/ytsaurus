@@ -445,8 +445,8 @@ TTableSchema TTableSchema::Filter(const TColumnFilter& columnFilter, bool discar
         bool inKeyColumns = !discardSortOrder;
         for (int id : columnFilter.GetIndexes()) {
             if (id < 0 || id >= Columns_.size()) {
-                THROW_ERROR_EXCEPTION("Invalid column id in filter: excepted in range [0, %v], got %v",
-                    Columns_.size() - 1,
+                THROW_ERROR_EXCEPTION("Invalid column during schema filtering: excepted in range [0, %v), got %v",
+                    Columns_.size(),
                     id);
             }
 
