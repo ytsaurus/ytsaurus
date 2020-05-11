@@ -123,6 +123,14 @@ TEST(TMakeUnversionedOwningRow, SingleValue)
     CheckSingleValue(TInstant::Now());
 }
 
+TEST(TMakeUnversionedOwningRow, NullValue)
+{
+    auto row = MakeUnversionedOwningRow(std::nullopt);
+    EXPECT_EQ(1, row.GetCount());
+    EXPECT_EQ(0, row[0].Id);
+    EXPECT_EQ(EValueType::Null, row[0].Type);
+}
+
 TEST(TMakeUnversionedOwningRow, Tuple)
 {
     auto row = MakeUnversionedOwningRow(TString("hello"), true);
