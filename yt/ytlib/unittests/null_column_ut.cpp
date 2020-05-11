@@ -20,10 +20,7 @@ std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWr
 
 std::vector<TUnversionedOwningRow> CreateNullRows(size_t count)
 {
-    TUnversionedOwningRowBuilder builder;
-    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, TestColumnId));
-    const auto nullValueRow = builder.FinishRow();
-    return std::vector<TUnversionedOwningRow>(count, nullValueRow);
+    return std::vector<TUnversionedOwningRow>(count, MakeUnversionedOwningRow(std::nullopt));
 }
 
 TEST(TUnversionedNullColumnTest, ReadValues)

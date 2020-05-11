@@ -857,10 +857,9 @@ private:
 
     static TOwningKey MakeRowBound(i64 rowIndex)
     {
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedInt64Value(-1, 0)); // tablet id, fake
-        builder.AddValue(MakeUnversionedInt64Value(rowIndex, 1)); // row index
-        return builder.FinishRow();
+        return MakeUnversionedOwningRow(
+            -1, // tablet id, fake
+            rowIndex);
     }
 };
 

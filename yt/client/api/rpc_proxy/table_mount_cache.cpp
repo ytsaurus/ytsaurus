@@ -8,6 +8,8 @@
 
 #include <yt/client/tablet_client/table_mount_cache_detail.h>
 
+#include <yt/client/table_client/helpers.h>
+
 namespace NYT::NApi::NRpcProxy {
 
 using namespace NRpc;
@@ -91,13 +93,8 @@ private:
                     tableInfo->LowerCapBound = MinKey();
                     tableInfo->UpperCapBound = MaxKey();
                 } else {
-                    auto makeCapBound = [] (int tabletIndex) {
-                        TUnversionedOwningRowBuilder builder;
-                        builder.AddValue(MakeUnversionedInt64Value(tabletIndex));
-                        return builder.FinishRow();
-                    };
-                    tableInfo->LowerCapBound = makeCapBound(0);
-                    tableInfo->UpperCapBound = makeCapBound(static_cast<int>(tableInfo->Tablets.size()));
+                    tableInfo->LowerCapBound = MakeUnversionedOwningRow(static_cast<int>(0));
+                    tableInfo->UpperCapBound = MakeUnversionedOwningRow(static_cast<int>(tableInfo->Tablets.size()));
                 }
 
                 YT_LOG_DEBUG("Table mount info received (Path: %v, TableId: %v, TabletCount: %v, Dynamic: %v)",
