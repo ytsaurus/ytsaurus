@@ -87,6 +87,9 @@ void FromUnversionedValue(double* value, TUnversionedValue unversionedValue);
 void ToUnversionedValue(TUnversionedValue* unversionedValue, TInstant value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(TInstant* value, TUnversionedValue unversionedValue);
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, TDuration value, const TRowBufferPtr& rowBuffer, int id = 0);
+void FromUnversionedValue(TDuration* value, TUnversionedValue unversionedValue);
+
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYTree::IMapNodePtr& value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(NYTree::IMapNodePtr* value, TUnversionedValue unversionedValue);
 

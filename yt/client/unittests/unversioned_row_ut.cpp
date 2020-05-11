@@ -121,6 +121,7 @@ TEST(TMakeUnversionedOwningRow, SingleValue)
     CheckSingleValue(static_cast<ui8>(12));
     CheckSingleValue(static_cast<double>(3.14));
     CheckSingleValue(TInstant::Now());
+    CheckSingleValue(TDuration::Seconds(10));
 }
 
 TEST(TMakeUnversionedOwningRow, NullValue)
