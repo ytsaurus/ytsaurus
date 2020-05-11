@@ -1262,9 +1262,9 @@ int ApplyIdMapping(
     if (idMapping) {
         const auto& idMapping_ = *idMapping;
         if (valueId >= idMapping_.size()) {
-            THROW_ERROR_EXCEPTION("Invalid column id: actual %v, expected in range [0,%v]",
-                valueId,
-                idMapping_.size() - 1);
+            THROW_ERROR_EXCEPTION("Invalid column id during remapping: expected in range [0, %v), got %v",
+                idMapping_.size(),
+                valueId);
         }
         return idMapping_[valueId];
     } else {
