@@ -326,13 +326,39 @@ void FromUnversionedRow(
     TUnversionedRow row,
     Ts*... values)
 {
-    if (row.GetCount() != sizeof...(Ts)) {
-        THROW_ERROR_EXCEPTION("Invalid number of values in row: expected %v, got %v",
+    if (row.GetCount() < sizeof...(Ts)) {
+        THROW_ERROR_EXCEPTION("Invalid number of values in row: expected >=%v, got %v",
             sizeof...(Ts),
             row.GetCount());
     }
     const auto* current = row.Begin();
     (FromUnversionedValue(values, *current++), ...);
+}
+
+namespace NDetail {
+
+template <size_t Index, class... Ts>
+void TupleFromUnversionedRowHelper(std::tuple<Ts...>* tuple, TUnversionedRow row)
+{
+    if constexpr(Index < sizeof...(Ts)) {
+        FromUnversionedValue(&std::get<Index>(*tuple), row[Index]);
+        TupleFromUnversionedRowHelper<Index + 1, Ts...>(tuple, row);
+    }
+}
+
+} // namespace NDetail
+
+template <class... Ts>
+std::tuple<Ts...> FromUnversionedRow(TUnversionedRow row)
+{
+    if  (row.GetCount() < sizeof...(Ts)) {
+        THROW_ERROR_EXCEPTION("Invalid number of values in row: expected >=%v, got %v",
+            sizeof...(Ts),
+            row.GetCount());
+    }
+    std::tuple<Ts...> result;
+    NDetail::TupleFromUnversionedRowHelper<0, Ts...>(&result, row);
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

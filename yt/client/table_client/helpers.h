@@ -171,12 +171,18 @@ auto ToUnversionedValues(
     Ts&&... values)
 -> std::array<TUnversionedValue, sizeof...(Ts)>;
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Unpacks invidual values in #row to respective #values.
+//! The number of values in #row must be greater than or equal to the number of #values.
 template <class... Ts>
 void FromUnversionedRow(
     TUnversionedRow row,
     Ts*... values);
 
-////////////////////////////////////////////////////////////////////////////////
+//! Same as above but returns a tuple instead of placing values into the arguments.
+template <class... Ts>
+std::tuple<Ts...> FromUnversionedRow(TUnversionedRow row);
 
 //! Constructs an owning row from arbitrarily-typed values.
 //! Values get sequential ids 0..N-1.
