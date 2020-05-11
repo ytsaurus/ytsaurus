@@ -63,10 +63,10 @@ void TCpuMonitor::DoCheck()
     auto decision = TryMakeDecision();
     if (decision) {
         if (!Config_->EnableCpuReclaim || JobProxy_->TrySetCpuShare(*decision)) {
-            SoftLimit_ = *decision;
             YT_LOG_DEBUG("Soft limit changed (OldValue: %v, NewValue: %v)",
                 SoftLimit_,
                 *decision);
+            SoftLimit_ = *decision;
         } else {
             YT_LOG_DEBUG("Unable to change soft limit: job proxy refused to change CPU share");
         }
