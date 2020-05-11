@@ -1030,6 +1030,11 @@ class JsonFormat(Format):
         if JSON_ENCODING_LEGACY_MODE and not self._is_encoding_specified:
             return obj
 
+        # Do not traverse object if decoding is not necessary.
+        is_encode_utf8_false = self.encode_utf8 is not None and not self.encode_utf8
+        if is_encode_utf8_false and self._encoding == "utf-8":
+            return obj
+
         if isinstance(obj, dict):
             return dict([(self._load_python_string(key), self._decode(value)) for key, value in iteritems(obj)])
         elif isinstance(obj, list):
