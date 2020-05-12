@@ -531,16 +531,14 @@ protected:
             return nullptr;
         }
 
-        IChannelPtr channel;
         try {
             const auto& channelFactory = reader->Client_->GetChannelFactory();
-            channel = channelFactory->CreateChannel(addressWithNetwork);
+            return channelFactory->CreateChannel(addressWithNetwork);
         } catch (const std::exception& ex) {
             RegisterError(ex);
             BanPeer(addressWithNetwork.Address, false);
+            return nullptr;
         }
-
-        return channel;
     }
 
     template <class TResponsePtr>
@@ -2159,12 +2157,12 @@ private:
     }
 
     void ReceiveRequestFromPeer(
-        TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr rspOrError,
-        IChannelPtr channel,
+        const TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr& rspOrError,
+        const IChannelPtr& channel,
         NProfiling::TWallTimer dataWaitTimer,
-        TReplicationReaderPtr reader,
-        TPeer chosenPeer,
-        TAddressWithNetwork peerAddressWithNetwork,
+        const TReplicationReaderPtr& reader,
+        const TPeer& chosenPeer,
+        const TAddressWithNetwork& peerAddressWithNetwork,
         bool sentSchema)
     {
         SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
