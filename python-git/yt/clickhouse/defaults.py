@@ -1,8 +1,8 @@
 import yt.logger as logger
 
-import inspect
 from yt.packages.six import PY3, iteritems
 
+import inspect
 
 CYPRESS_DEFAULTS_PATH = "//sys/clickhouse/defaults"
 

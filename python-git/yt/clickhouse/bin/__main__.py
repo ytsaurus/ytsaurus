@@ -5,40 +5,18 @@ from __future__ import print_function
 from yt.common import copy_docstring_from
 
 import yt.wrapper.yson as yson
-from yt.wrapper.cli_helpers import run_main, ParseStructuredArgument
+from yt.wrapper.cli_helpers import run_main, ParseStructuredArgument, populate_argument_help
 import yt.wrapper.completers as completers
-
-from yt.packages.six.moves import builtins, map as imap
 
 import yt.wrapper as yt
 
 import yt.clickhouse as chyt
 
 import os
-import sys
-import shlex
-from argparse import ArgumentParser, Action, RawDescriptionHelpFormatter
+from argparse import ArgumentParser, RawDescriptionHelpFormatter
 
 DESCRIPTION = '''A lightweight part of YT CLI which contains only CHYT subcommands. 
 "chyt ..." is equivalent to "yt clickhouse ..."'''
-
-def fix_parser(parser):
-    old_add_argument = parser.add_argument
-    def add_argument(*args, **kwargs):
-        help = []
-        if kwargs.get("required", False):
-            help.append("(Required) ")
-        help.append(kwargs.get("help", ""))
-        if kwargs.get("action") == "append":
-            help.append(" Accepted multiple times.")
-        kwargs["help"] = "".join(help)
-        return old_add_argument(*args, **kwargs)
-    parser.add_argument = add_argument
-    return parser
-
-class ParseStructuredArguments(Action):
-    def __call__(self, parser, namespace, values, option_string=None):
-        setattr(namespace, self.dest, builtins.list(imap(yson._loads_from_native_str, values)))
 
 def add_argument(parser, name, help, description, **kwargs):
     if description:
@@ -63,7 +41,7 @@ def add_subparser(subparsers, params_argument=True):
     def add_parser(command_name, function=None, help=None, pythonic_help=None, *args, **kwargs):
         if pythonic_help is None:
             pythonic_help = extract_help(help, function)
-        parser = fix_parser(subparsers.add_parser(command_name, *args, description=help, help=pythonic_help, **kwargs))
+        parser = populate_argument_help(subparsers.add_parser(command_name, *args, description=help, help=pythonic_help, **kwargs))
         parser.set_defaults(func=function)
 
         if params_argument:
@@ -133,11 +111,6 @@ def main():
         yt.config["prefix"] = config_args.prefix
     yt.config.COMMAND_PARAMS["trace"] = config_args.trace
 
-    if "read_progress_bar" not in config_args.config:
-        config_args.config["read_progress_bar"] = {}
-    if "enable" not in config_args.config["read_progress_bar"]:
-        config_args.config["read_progress_bar"]["enable"] = True
-
     yt.config.update_config(config_args.config)
 
     yt.config["default_value_of_raw_option"] = True
@@ -151,7 +124,7 @@ def main():
         for key in params:
             yt.config.COMMAND_PARAMS[key] = params[key]
 
-    for key in ("func", "tx", "trace", "ping_ancestor_txs", "prefix", "proxy", "config", "master_cell_id", "params"):
+    for key in ("func", "trace", "prefix", "proxy", "config"):
         if key in func_args:
             func_args.pop(key)
 

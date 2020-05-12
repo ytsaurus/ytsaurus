@@ -86,3 +86,18 @@ class ParseStructuredArgument(Action):
         old_value = get_value(getattr(namespace, self.dest), {})
         new_value = update(old_value, self.action_load_method(values))
         setattr(namespace, self.dest, new_value)
+
+def populate_argument_help(parser):
+    old_add_argument = parser.add_argument
+    def add_argument(*args, **kwargs):
+        help = []
+        if kwargs.get("required", False):
+            help.append("(Required) ")
+        help.append(kwargs.get("help", ""))
+        if kwargs.get("action") == "append":
+            help.append(" Accepted multiple times.")
+        kwargs["help"] = "".join(help)
+        return old_add_argument(*args, **kwargs)
+    parser.add_argument = add_argument
+    return parser
+
