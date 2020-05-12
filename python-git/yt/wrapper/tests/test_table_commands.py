@@ -816,9 +816,9 @@ class TestTableCommandsJsonFormat(object):
         # Specified encoding mode
         assert list(yt.read_table(table, format=self._create_format(encoding=None)))[0] == {b"\xff": b"\xee"}
         assert list(yt.read_table(table, format=self._create_format(encoding=None, encode_utf8=True)))[0] == {b"\xff": b"\xee"}
-        with pytest.raises(UnicodeDecodeError):
+        with pytest.raises(yt.YtFormatError):  # UnicodeDecodeError
             assert list(yt.read_table(table, format=self._create_format(encoding="utf-8")))[0] == {u"\xff": u"\xee"}
-        with pytest.raises(UnicodeDecodeError):
+        with pytest.raises(yt.YtFormatError):  # UnicodeDecodeError
             list(yt.read_table(table, format=self._create_format(encoding="utf-8", encode_utf8=True)))
         with pytest.raises(yt.YtError):
             yt.read_table(table, format=self._create_format(encoding="utf-8", encode_utf8=False))
