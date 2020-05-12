@@ -1,10 +1,19 @@
 package timeoutcrash
 
 import (
+	"os"
 	"testing"
 	"time"
 )
 
+func TestOK(t *testing.T) {
+
+}
+
 func TestTimeout(t *testing.T) {
-	time.Sleep(time.Second * 30)
+	t.Logf("test started")
+
+	if os.Getenv("AUTOCHECK") != "" {
+		time.Sleep(time.Hour)
+	}
 }

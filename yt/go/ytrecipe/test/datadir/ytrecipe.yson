@@ -3,4 +3,9 @@
     upload_binaries=[
         "yt/go/ytrecipe/test/datadir/datadir"
     ];
+
+    upload_workfile=[
+        "layers/static-bin.tar.gz";
+        "layers/static_cat";
+    ]
 }

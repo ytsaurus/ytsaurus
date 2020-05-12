@@ -1,6 +1,10 @@
 package ytrecipe
 
-import "a.yandex-team.ru/yt/go/ypath"
+import (
+	"time"
+
+	"a.yandex-team.ru/yt/go/ypath"
+)
 
 type ResourceLimits struct {
 	MemoryLimit int `yson:"memory_limit"`
@@ -18,16 +22,19 @@ type Config struct {
 	OutputPath     ypath.Path `yson:"output_path"`
 	OutputTTLHours int        `yson:"output_ttl_hours"`
 
+	JobTimeoutSeconds int `yson:"job_timeout_seconds"`
+
 	TmpPath ypath.Path `yson:"tmp_path"`
 
 	ResourceLimits ResourceLimits `yson:"resource_limits"`
 
 	UploadBinaries []string `yson:"upload_binaries"`
-	UploadDirs     []string `yson:"upload_dirs"`
+	UploadWorkfile []string `yson:"upload_workfile"`
 }
 
 const (
-	jobMemoryReserve = 128 * (1 << 20)
+	jobMemoryReserve     = 128 * (1 << 20)
+	operationTimeReserve = time.Minute * 5
 )
 
 var DefaultConfig = Config{

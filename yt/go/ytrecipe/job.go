@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	"go.uber.org/zap"
@@ -33,9 +35,10 @@ func init() {
 type Job struct {
 	mapreduce.Untyped
 
-	Config *Config
-	FS     *FS
-	Env    *Env
+	Config      *Config
+	FS          *FS
+	Env         *Env
+	JobDeadline *time.Time
 
 	L log.Structured
 }
@@ -106,6 +109,29 @@ func (j *Job) initLog() error {
 	return nil
 }
 
+func (j *Job) scheduleSignals() chan syscall.Signal {
+	quit := make(chan syscall.Signal, 1)
+	go func() {
+		if j.JobDeadline == nil {
+			return
+		}
+
+		time.Sleep(time.Until(*j.JobDeadline))
+		j.L.Warn("job deadline reached", log.Time("deadline", *j.JobDeadline))
+		quit <- syscall.SIGUSR2
+		time.Sleep(time.Minute)
+
+		j.L.Warn("smooth shutdown deadline exceeded")
+		quit <- syscall.SIGQUIT
+
+		j.L.Warn("hard shutdown deadline exceeded")
+		time.Sleep(time.Second)
+		quit <- syscall.SIGKILL
+	}()
+
+	return quit
+}
+
 func (j *Job) runJob(out mapreduce.Writer) error {
 	stdout := &stdwriter{w: out, mu: new(sync.Mutex), stdout: true}
 	stderr := &stdwriter{w: out, mu: stdout.mu, stdout: false}
@@ -115,7 +141,7 @@ func (j *Job) runJob(out mapreduce.Writer) error {
 	}
 	j.L.Info("finished creating FS")
 
-	err := j.spawnPorto(stdout, stderr)
+	err := j.spawnPorto(j.scheduleSignals(), stdout, stderr)
 
 	var ctErr *ContainerExitError
 	if errors.As(err, &ctErr) {
@@ -137,7 +163,10 @@ func (j *Job) runJob(out mapreduce.Writer) error {
 
 	j.L.Info("finished writing results")
 	if ctErr != nil {
-		return out.Write(OutputRow{ExitCode: ptr.Int(ctErr.ExitCode)})
+		return out.Write(OutputRow{
+			ExitCode:       ptr.Int(ctErr.ExitCode),
+			KilledBySignal: ctErr.KilledBySignal,
+		})
 	} else {
 		return out.Write(OutputRow{ExitCode: ptr.Int(0)})
 	}
@@ -240,18 +269,40 @@ func (r *Runner) RunJob() error {
 		return opErr
 	}
 
-	if err := readResultsAndExit(ctx, r.YT, outDir.Child(outputTableName)); err != nil {
+	outR, err := r.YT.ReadTable(ctx, outDir.Child(OutputTableName), nil)
+	if err != nil {
+		return err
+	}
+	defer outR.Close()
+
+	exitRow, err := ReadOutputTable(outR, func(s string) string { return s }, os.Stdout, os.Stderr)
+	if err != nil {
 		return fmt.Errorf("error reading results: %w", err)
 	}
 
-	return nil
+	if exitRow != nil {
+		if exitRow.KilledBySignal != 0 {
+			// If job was killed by internal timeout, wait for corresponding signal from out parent.
+			// Otherwise process will exit too early and CRASH/TIMEOUT statuses get confused.
+
+			ch := make(chan os.Signal, 1)
+			signal.Notify(ch, exitRow.KilledBySignal)
+			<-ch
+		}
+
+		os.Exit(*exitRow.ExitCode)
+	}
+
+	return fmt.Errorf("exit code is missing in output table")
 }
 
 const (
-	outputTableName         = "output"
-	ytRecipeOutputTableName = "ytrecipe_output"
-	coreTableName           = "core"
-	stderrTableName         = "stderr"
+	YTRecipeOutput    = "ytrecipe_output"
+	YTRecipeHDD       = "ytrecipe_hdd"
+	YTRecipeCoreDumps = "ytrecipe_coredumps"
+
+	OutputTableName = "output"
+	stderrTableName = "stderr"
 )
 
 func (r *Runner) PrepareJob(ctx context.Context, env *Env) (job *Job, s *spec.Spec, outputDir ypath.Path, err error) {
@@ -261,7 +312,15 @@ func (r *Runner) PrepareJob(ctx context.Context, env *Env) (job *Job, s *spec.Sp
 		FS:     NewFS(),
 	}
 
-	job.FS.YTOutput = YTRecipeOutput
+	if r.Config.JobTimeoutSeconds != 0 {
+		deadline := time.Now().Add(time.Second * time.Duration(r.Config.JobTimeoutSeconds))
+		job.JobDeadline = &deadline
+	}
+
+	job.FS.YTOutput = yatest.WorkPath(YTRecipeOutput)
+	job.FS.YTHDD = yatest.WorkPath(YTRecipeHDD)
+	job.FS.YTCoreDumps = yatest.WorkPath(YTRecipeCoreDumps)
+
 	job.FS.Outputs[env.TraceFile] = struct{}{}
 	job.FS.Outputs[env.OutputDir] = struct{}{}
 
@@ -275,8 +334,21 @@ func (r *Runner) PrepareJob(ctx context.Context, env *Env) (job *Job, s *spec.Sp
 		return
 	}
 
+	if env.GDBPath != "" {
+		if err = job.FS.AddFile(env.GDBPath); err != nil {
+			return
+		}
+	}
+
 	for _, path := range r.Config.UploadBinaries {
 		if err = job.FS.AddFile(yatest.BuildPath(path)); err != nil {
+			return
+		}
+	}
+
+	for _, path := range r.Config.UploadWorkfile {
+		delete(job.FS.Symlinks, filepath.Dir(yatest.WorkPath(path)))
+		if err = job.FS.AddFile(yatest.WorkPath(path)); err != nil {
 			return
 		}
 	}
@@ -305,14 +377,13 @@ func (r *Runner) PrepareJob(ctx context.Context, env *Env) (job *Job, s *spec.Sp
 	}
 	s.Title = fmt.Sprintf("[TS] %s%s%s", env.ProjectPath, fileTitle, moduloTitle)
 
+	hostname, _ := os.Hostname()
 	s.StartedBy = map[string]interface{}{
-		"command": job.Env.Args,
+		"command":  job.Env.Args,
+		"hostname": hostname,
 	}
 
-	//s.CoreTablePath = outputDir.Child(coreTableName)
-	//if _, err = mapreduce.CreateCoreTable(ctx, r.YT, s.CoreTablePath); err != nil {
-	//	return
-	//}
+	s.TimeLimit = yson.Duration(time.Duration(r.Config.JobTimeoutSeconds)*time.Second + operationTimeReserve)
 
 	s.StderrTablePath = outputDir.Child(stderrTableName)
 	if _, err = mapreduce.CreateStderrTable(ctx, r.YT, s.StderrTablePath); err != nil {
@@ -322,14 +393,14 @@ func (r *Runner) PrepareJob(ctx context.Context, env *Env) (job *Job, s *spec.Sp
 	us := s.Tasks["testtool"]
 	attachFiles(us, job.FS)
 
-	us.TmpfsPath = "."
+	us.TmpfsPath = "tmpfs"
 	us.MemoryLimit = int64(r.Config.ResourceLimits.MemoryLimit) + jobMemoryReserve
 	us.MemoryReserveFactor = 1.0
 	us.CPULimit = float32(r.Config.ResourceLimits.CPULimit)
 	us.LayerPaths = []ypath.YPath{baseLayer}
 	us.OutputTablePaths = []ypath.YPath{
-		outputDir.Child(outputTableName),
-		outputDir.Child(ytRecipeOutputTableName),
+		outputDir.Child(OutputTableName),
+		outputDir.Child(YTRecipeOutput),
 	}
 	us.EnablePorto = "isolate"
 
