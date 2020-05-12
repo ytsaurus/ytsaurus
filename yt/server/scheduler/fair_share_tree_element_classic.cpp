@@ -648,19 +648,6 @@ TJobResources TSchedulerElement::GetTotalResourceLimits() const
     return TotalResourceLimits_;
 }
 
-void TSchedulerElement::LogDetailedInfo() const
-{
-    auto maxPossibleResourceUsage = Min(TotalResourceLimits_, MaxPossibleResourceUsage_);
-    auto possibleUsage = ComputePossibleResourceUsage(maxPossibleResourceUsage, /* logDetailedInfo */ true);
-
-    YT_LOG_DEBUG("XXX Detailed information (TotalResourceLimits: %v, Demand: %v, Usage: %v, MaxPossibleResourceUsage: %v, RecursiveMaxPossibleResourceUsage: %v)",
-        FormatResources(TotalResourceLimits_),
-        FormatResources(ResourceDemand()),
-        FormatResources(ResourceUsageAtUpdate()),
-        FormatResources(maxPossibleResourceUsage),
-        FormatResources(possibleUsage));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
@@ -837,17 +824,14 @@ void TCompositeSchedulerElement::UpdateTopDown(TDynamicAttributesList* dynamicAt
     }
 }
 
-TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit, bool logDetailedInfo) const
+TJobResources TCompositeSchedulerElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
     TJobResources additionalUsage;
 
     for (const auto& child : EnabledChildren_) {
-        auto childUsage = child->ComputePossibleResourceUsage(limit, logDetailedInfo);
+        auto childUsage = child->ComputePossibleResourceUsage(limit);
         limit -= childUsage;
         additionalUsage += childUsage;
-        if (logDetailedInfo) {
-            YT_LOG_DEBUG("XXX Current state after processing %v (Limit: %v, AdditionalUsage: %v)", child->GetId(), FormatResources(limit), FormatResources(additionalUsage));
-        }
     }
 
     return additionalUsage;
@@ -1324,9 +1308,6 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList* dynamic
                     child->GetId(),
                     child->GetParent()->GetId(),
                     uncertaintyRatio);
-                if (Attributes_.FairShareRatio > TreeConfig_->LogFairShareRatioDisagreementThreshold) {
-                    context->FairShareRatioDisagreementHappened = true;
-                }
             }
         },
         Attributes_.FairShareRatio);
@@ -2419,35 +2400,26 @@ void TOperationElement::UpdateTopDown(TDynamicAttributesList* dynamicAttributesL
     bool newPreemptableValue = !isFairShareRatioEqualToDemandRatio;
     bool oldPreemptableValue = OperationElementSharedState_->GetPreemptable();
     if (oldPreemptableValue != newPreemptableValue) {
-        YT_LOG_DEBUG("XXX Preemptable status changed %v -> %v", oldPreemptableValue, newPreemptableValue);
+        YT_LOG_DEBUG("Preemptable status changed %v -> %v", oldPreemptableValue, newPreemptableValue);
         OperationElementSharedState_->SetPreemptable(newPreemptableValue);
     }
 
     UpdatePreemptableJobsList();
 }
 
-TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit, bool logDetailedInfo) const
+TJobResources TOperationElement::ComputePossibleResourceUsage(TJobResources limit) const
 {
     auto usage = ResourceUsageAtUpdate();
     if (!Dominates(limit, usage)) {
-        if (logDetailedInfo) {
-            YT_LOG_DEBUG("XXX Scale usage (Limit: %v, Usage: %v, Scale: %v)", FormatResources(limit), FormatResources(usage), GetMinResourceRatio(limit, usage));
-        }
         return usage * GetMinResourceRatio(limit, usage);
     } else {
         auto remainingDemand = ResourceDemand() - usage;
         if (remainingDemand == TJobResources()) {
-            if (logDetailedInfo) {
-                YT_LOG_DEBUG("XXX Zero additional demand");
-            }
             return usage;
         }
 
         auto remainingLimit = Max({}, limit - usage);
         // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
-        if (logDetailedInfo) {
-            YT_LOG_DEBUG("XXX Scale demand (Limit: %v, RemainingDemand: %v)", FormatResources(limit), FormatResources(remainingDemand));
-        }
         return Min(ResourceDemand(), usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand));
     }
 }

@@ -1079,19 +1079,6 @@ auto TFairShareTree<TFairShareImpl>::DoFairShareUpdateAt(TInstant now) -> std::p
 
     RootElementSnapshotPrecommit_ = rootElementSnapshot;
 
-    if (updateContext.FairShareRatioDisagreementHappened) {
-        YT_LOG_DEBUG("XXX Significant fair share ratio disagreement happened, log full information about pools and operations");
-        // OnFairShareLoggingAt(TInstant::Now());
-        for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {
-            element->LogDetailedInfo();
-        }
-        if (Config_->EnablePoolStarvation) {
-            for (const auto& [poolName, element] : rootElementSnapshot->PoolNameToElement) {
-                element->LogDetailedInfo();
-            }
-        }
-    }
-
     auto treeSnapshot = New<TFairShareTreeSnapshot>(
         this,
         std::move(rootElementSnapshot),
