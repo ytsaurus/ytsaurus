@@ -238,7 +238,7 @@ private:
     const TCellDirectoryConfigPtr Config_;
     const TCellId PrimaryMasterCellId_;
     const TCellTag PrimaryMasterCellTag_;
-    const ICachingChannelFactoryPtr ChannelFactory_;
+    const IChannelFactoryPtr ChannelFactory_;
     const NLogging::TLogger Logger;
 
     /*const*/ TCellTagList SecondaryMasterCellTags_;
@@ -329,7 +329,7 @@ private:
     }
 
     static IChannelPtr CreatePeerChannelFromAddresses(
-        ICachingChannelFactoryPtr channelFactory,
+        IChannelFactoryPtr channelFactory,
         const TMasterConnectionConfigPtr& config,
         EPeerKind peerKind,
         const TConnectionOptions& options,
@@ -344,7 +344,7 @@ private:
     }
 
     static IChannelPtr CreatePeerChannel(
-        ICachingChannelFactoryPtr channelFactory,
+        IChannelFactoryPtr channelFactory,
         const TMasterConnectionConfigPtr& config,
         EPeerKind kind,
         const TConnectionOptions& options)

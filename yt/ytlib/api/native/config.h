@@ -105,6 +105,7 @@ public:
     int MaxConcurrentRequests;
 
     NBus::TTcpBusConfigPtr BusClient;
+    TDuration IdleChannelTtl;
 
     TDuration DefaultGetInSyncReplicasTimeout;
     TDuration DefaultGetTabletInfosTimeout;
@@ -115,8 +116,6 @@ public:
     TDuration DefaultListOperationsTimeout;
 
     int CacheStickyGroupSizeOverride;
-
-    TDuration IdleChannelTtl;
 
     ssize_t MaxRequestWindowSize;
 
