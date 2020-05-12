@@ -11,7 +11,7 @@ def get_host_paths(arcadia_interop, bins):
         from distutils.spawn import find_executable
         get_host_path = find_executable
     else:
-        get_host_path = arcadia_interop.yatest_common.binary_path
+        get_host_path = arcadia_interop.search_binary_path
 
     for bin in bins:
         result[bin] = os.environ.get(bin.replace("-", "_").upper() + "_PATH") or get_host_path(bin)
