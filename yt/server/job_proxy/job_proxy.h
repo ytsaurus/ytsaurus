@@ -7,8 +7,6 @@
 
 #include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
-#include <yt/server/lib/job_satellite_connection/job_satellite_connection.h>
-
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/job_prober_client/job_probe.h>
@@ -45,8 +43,6 @@ public:
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual TString GetStderr() override;
-    virtual NYson::TYsonString StraceJob() override;
-    virtual void SignalJob(const TString& signalName) override;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
     virtual void Interrupt() override;
     virtual void Fail() override;

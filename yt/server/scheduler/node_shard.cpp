@@ -945,38 +945,6 @@ TNodeDescriptor TNodeShard::GetJobNode(TJobId jobId, const TString& user, EPermi
     return node->NodeDescriptor();
 }
 
-TYsonString TNodeShard::StraceJob(TJobId jobId, const TString& user)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    ValidateConnected();
-
-    auto job = GetJobOrThrow(jobId);
-
-    WaitFor(Host_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Read)))
-        .ThrowOnError();
-
-    YT_LOG_DEBUG("Getting strace dump (JobId: %v, OperationId: %v)",
-        job->GetId(),
-        job->GetOperationId());
-
-    auto proxy = CreateJobProberProxy(job);
-    auto req = proxy.Strace();
-    ToProto(req->mutable_job_id(), jobId);
-
-    auto rspOrError = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error getting strace dump of job %v",
-        jobId);
-
-    const auto& rsp = rspOrError.Value();
-
-    YT_LOG_DEBUG("Strace dump received (JobId: %v, OperationId: %v)",
-        job->GetId(),
-        job->GetOperationId());
-
-    return TYsonString(rsp->trace());
-}
-
 void TNodeShard::DumpJobInputContext(TJobId jobId, const TYPath& path, const TString& user)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
@@ -1015,37 +983,6 @@ void TNodeShard::DumpJobInputContext(TJobId jobId, const TYPath& path, const TSt
         .ThrowOnError();
 
     YT_LOG_DEBUG("Input contexts saved (JobId: %v, OperationId: %v)",
-        job->GetId(),
-        job->GetOperationId());
-}
-
-void TNodeShard::SignalJob(TJobId jobId, const TString& signalName, const TString& user)
-{
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
-
-    ValidateConnected();
-
-    auto job = GetJobOrThrow(jobId);
-
-    WaitFor(Host_->ValidateOperationAccess(user, job->GetOperationId(), EPermissionSet(EPermission::Manage)))
-        .ThrowOnError();
-
-    YT_LOG_DEBUG("Sending job signal (JobId: %v, OperationId: %v, Signal: %v)",
-        job->GetId(),
-        job->GetOperationId(),
-        signalName);
-
-    auto proxy = CreateJobProberProxy(job);
-    auto req = proxy.SignalJob();
-    ToProto(req->mutable_job_id(), jobId);
-    ToProto(req->mutable_signal_name(), signalName);
-
-    auto rspOrError = WaitFor(req->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error sending signal %v to job %v",
-        signalName,
-        jobId);
-
-    YT_LOG_DEBUG("Job signal sent (JobId: %v, OperationId: %v)",
         job->GetId(),
         job->GetOperationId());
 }

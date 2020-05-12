@@ -956,38 +956,6 @@ TFuture<TYsonString> TClient::GetJob(
     }));
 }
 
-TFuture<TYsonString> TClient::StraceJob(
-    NJobTrackerClient::TJobId jobId,
-    const TStraceJobOptions& options)
-{
-    auto proxy = CreateApiServiceProxy();
-
-    auto req = proxy.StraceJob();
-    SetTimeoutOptions(*req, options);
-
-    ToProto(req->mutable_job_id(), jobId);
-
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspStraceJobPtr& rsp) {
-        return TYsonString(rsp->trace());
-    }));
-}
-
-TFuture<void> TClient::SignalJob(
-    NJobTrackerClient::TJobId jobId,
-    const TString& signalName,
-    const TSignalJobOptions& options)
-{
-    auto proxy = CreateApiServiceProxy();
-
-    auto req = proxy.SignalJob();
-    SetTimeoutOptions(*req, options);
-
-    ToProto(req->mutable_job_id(), jobId);
-    req->set_signal_name(signalName);
-
-    return req->Invoke().As<void>();
-}
-
 TFuture<void> TClient::AbandonJob(
     NJobTrackerClient::TJobId jobId,
     const TAbandonJobOptions& options)

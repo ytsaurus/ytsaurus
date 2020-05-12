@@ -37,8 +37,6 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobNode));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortJob));
     }
@@ -80,43 +78,6 @@ private:
         context->SetResponseInfo("NodeDescriptor: %v", jobNodeDescriptor);
 
         ToProto(response->mutable_node_descriptor(), jobNodeDescriptor);
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, Strace)
-    {
-        auto jobId = FromProto<TJobId>(request->job_id());
-        context->SetRequestInfo("JobId: %v", jobId);
-
-        auto scheduler = Bootstrap_->GetScheduler();
-        scheduler->ValidateConnected();
-
-        auto trace = WaitFor(scheduler->Strace(jobId, context->GetUser()))
-            .ValueOrThrow();
-
-        context->SetResponseInfo("Trace: %v", trace.GetData());
-
-        ToProto(response->mutable_trace(), trace.GetData());
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NProto, SignalJob)
-    {
-        auto jobId = FromProto<TJobId>(request->job_id());
-        const auto& signalName = request->signal_name();
-
-        ValidateSignalName(request->signal_name());
-
-        context->SetRequestInfo("JobId: %v, SignalName: %v",
-            jobId,
-            signalName);
-
-        auto scheduler = Bootstrap_->GetScheduler();
-        scheduler->ValidateConnected();
-
-        WaitFor(scheduler->SignalJob(jobId, signalName, context->GetUser()))
-            .ThrowOnError();
 
         context->Reply();
     }

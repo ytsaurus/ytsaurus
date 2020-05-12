@@ -6,9 +6,6 @@ namespace NYT::NTools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TStrace)
-DECLARE_REFCOUNTED_STRUCT(TStracerResult)
-
 DECLARE_REFCOUNTED_STRUCT(TSignalerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TMountTmpfsConfig)

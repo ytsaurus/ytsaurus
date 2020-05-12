@@ -15,9 +15,7 @@ public:
     DEFINE_RPC_PROXY(TUserJobSynchronizerServiceProxy, SynchronizerService,
         .SetProtocolVersion(0));
 
-    DEFINE_RPC_PROXY_METHOD(NUserJobSynchronizerClient::NProto, SatellitePrepared);
     DEFINE_RPC_PROXY_METHOD(NUserJobSynchronizerClient::NProto, ExecutorPrepared);
-    DEFINE_RPC_PROXY_METHOD(NUserJobSynchronizerClient::NProto, UserJobFinished);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

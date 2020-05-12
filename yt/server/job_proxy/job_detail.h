@@ -35,8 +35,6 @@ public:
     virtual std::optional<TString> GetFailContext() override;
     virtual std::optional<NJobAgent::TJobProfile> GetProfile() override;
     virtual const NCoreDump::TCoreInfos& GetCoreInfos() const override;
-    virtual NYson::TYsonString StraceJob() override;
-    virtual void SignalJob(const TString& signalName) override;
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) override;
     virtual void Fail() override;
     virtual TCpuStatistics GetCpuStatistics() const override;

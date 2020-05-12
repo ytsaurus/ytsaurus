@@ -341,15 +341,6 @@ public:
         NJobTrackerClient::TJobId jobId,
         const TGetJobOptions& options));
 
-    MOCK_METHOD2(StraceJob, TFuture<NYson::TYsonString>(
-        NJobTrackerClient::TJobId jobId,
-        const TStraceJobOptions& options));
-
-    MOCK_METHOD3(SignalJob, TFuture<void>(
-        NJobTrackerClient::TJobId jobId,
-        const TString& signalName,
-        const TSignalJobOptions& options));
-
     MOCK_METHOD2(AbandonJob, TFuture<void>(
         NJobTrackerClient::TJobId jobId,
         const TAbandonJobOptions& options));

@@ -43,32 +43,6 @@ public:
         return FromProto<std::vector<TChunkId>>(rsp->chunk_ids());
     }
 
-    virtual TYsonString StraceJob() override
-    {
-        auto* proxy = GetOrCreateJobProberProxy();
-
-        auto req = proxy->Strace();
-        ToProto(req->mutable_job_id(), JobId_);
-
-        auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
-
-        const auto& rsp = rspOrError.Value();
-        return TYsonString(rsp->trace());
-    }
-
-    virtual void SignalJob(const TString& signalName) override
-    {
-        auto* proxy = GetOrCreateJobProberProxy();
-
-        auto req = proxy->SignalJob();
-        ToProto(req->mutable_job_id(), JobId_);
-        ToProto(req->mutable_signal_name(), signalName);
-
-        auto rspOrError = WaitFor(req->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
-    }
-
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
     {
         auto* proxy = GetOrCreateJobProberProxy();

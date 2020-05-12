@@ -16,8 +16,6 @@
 
 #include <yt/server/lib/job_proxy/config.h>
 
-#include <yt/server/lib/job_satellite_connection/job_satellite_connection.h>
-
 #include <yt/server/lib/exec_agent/supervisor_service_proxy.h>
 
 #include <yt/server/lib/misc/public.h>
@@ -50,8 +48,8 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
-#include <yt/ytlib/tools/signaler.h>
 #include <yt/ytlib/tools/tools.h>
+#include <yt/ytlib/tools/signaler.h>
 
 #include <yt/client/formats/parser.h>
 
@@ -101,6 +99,7 @@ using namespace NYson;
 using namespace NNet;
 using namespace NTableClient;
 using namespace NFormats;
+using namespace NFS;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NShell;
@@ -108,7 +107,6 @@ using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NCGroup;
 using namespace NJobAgent;
-using namespace NJobSatelliteConnection;
 using namespace NChunkClient;
 using namespace NFileClient;
 using namespace NChunkClient::NProto;
@@ -161,6 +159,7 @@ public:
         std::unique_ptr<TUserJobWriteController> userJobWriteController)
         : TJob(host)
         , Logger(Host_->GetLogger())
+        , JobId_(jobId)
         , UserJobWriteController_(std::move(userJobWriteController))
         , UserJobSpec_(userJobSpec)
         , Config_(Host_->GetConfig())
@@ -172,16 +171,9 @@ public:
         , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
-        , JobSatelliteConnection_(
-            Host_->GetSlotPath(),
-            jobId,
-            host->GetConfig()->BusServer,
-            JobEnvironmentType_)
         , MaximumTmpfsSizes_(Config_->TmpfsPaths.size())
     {
-        Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, Synchronizer_, AuxQueue_->GetInvoker()));
-
-        JobProberClient_ = NJobProberClient::CreateJobProbe(JobSatelliteConnection_.GetRpcClientConfig(), jobId);
+        Host_->GetRpcServer()->RegisterService(CreateUserJobSynchronizerService(Logger, ExecutorPreparedPromise_, AuxQueue_->GetInvoker()));
 
         auto jobEnvironmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
         MemoryWatchdogPeriod_ = jobEnvironmentConfig->MemoryWatchdogPeriod;
@@ -431,6 +423,8 @@ public:
 private:
     const NLogging::TLogger Logger;
 
+    const TJobId JobId_;
+
     const std::unique_ptr<TUserJobWriteController> UserJobWriteController_;
     IUserJobReadControllerPtr UserJobReadController_;
 
@@ -451,7 +445,6 @@ private:
     const IInvokerPtr ReadStderrInvoker_;
 
     TProcessBasePtr Process_;
-    TJobSatelliteConnection JobSatelliteConnection_;
 
     TString InputPipePath_;
 
@@ -509,13 +502,11 @@ private:
     TFuture<void> ProcessFinished_;
     std::vector<TString> Environment_;
 
-    NJobProberClient::IJobProbePtr JobProberClient_;
-
     TPeriodicExecutorPtr MemoryWatchdogExecutor_;
     TPeriodicExecutorPtr BlockIOWatchdogExecutor_;
     TPeriodicExecutorPtr InputPipeBlinker_;
 
-    const TUserJobSynchronizerPtr Synchronizer_ = New<TUserJobSynchronizer>();
+    TPromise<void> ExecutorPreparedPromise_ = NewPromise<void>();
 
     TSpinLock StatisticsLock_;
     TStatistics CustomStatistics_;
@@ -530,12 +521,11 @@ private:
     void Prepare()
     {
         PreparePipes();
-
-        JobSatelliteConnection_.MakeConfig();
+        PrepareExecutorConfig();
 
         Process_->AddArguments({"--command", UserJobSpec_.shell_command()});
-        Process_->AddArguments({"--config", Host_->AdjustPath(JobSatelliteConnection_.GetConfigPath())});
-        Process_->AddArguments({"--job-id", ToString(JobSatelliteConnection_.GetJobId())});
+        Process_->AddArguments({"--config", Host_->AdjustPath(GetExecutorConfigPath())});
+        Process_->AddArguments({"--job-id", ToString(JobId_)});
         Process_->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
 
         if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {
@@ -804,16 +794,6 @@ private:
         return result.Value();
     }
 
-    virtual TYsonString StraceJob() override
-    {
-        return JobProberClient_->StraceJob();
-    }
-
-    virtual void SignalJob(const TString& signalName) override
-    {
-        JobProberClient_->SignalJob(signalName);
-    }
-
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
     {
         if (!ShellManager_) {
@@ -829,7 +809,25 @@ private:
         if (!InterruptionSignalSent_.exchange(true) && UserJobSpec_.has_interruption_signal()) {
             YT_LOG_DEBUG("Sending interruption signal to user job (SignalName: %v)",
                 UserJobSpec_.interruption_signal());
-            SignalJob(UserJobSpec_.interruption_signal());
+            try {
+                auto signalerConfig = New<TSignalerConfig>();
+                signalerConfig->SignalName = UserJobSpec_.interruption_signal();
+                if (UserId_) {
+                    signalerConfig->Pids = GetPidsByUid(*UserId_);
+                } else {
+                    // Fallback for non-sudo tests run.
+                    auto pid = Process_->GetProcessId();
+                    signalerConfig->Pids = GetPidsUnderParent(pid);
+                }
+                WaitFor(BIND([=] () {
+                    return RunTool<TSignalerTool>(signalerConfig);
+                })
+                    .AsyncVia(AuxQueue_->GetInvoker())
+                    .Run())
+                    .ThrowOnError();
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Failed to send interruption signal to user job");
+            }
         }
 
         UserJobReadController_->InterruptReader();
@@ -1244,6 +1242,30 @@ private:
         }
     }
 
+    TString GetExecutorConfigPath() const
+    {
+        const static TString ExecutorConfigFileName = "executor_config.yson";
+
+        return CombinePaths(NFs::CurrentWorkingDirectory(), ExecutorConfigFileName);
+    }
+
+    void PrepareExecutorConfig()
+    {
+        auto executorConfig = New<TUserJobSynchronizerConnectionConfig>();
+        executorConfig->BusClientConfig->UnixDomainSocketPath = Host_->GetConfig()->BusServer->UnixDomainSocketPath;
+
+        auto executorConfigPath = GetExecutorConfigPath();
+        try {
+            TFile configFile(executorConfigPath, CreateAlways | WrOnly | Seq | CloseOnExec);
+            TUnbufferedFileOutput output(configFile);
+            NYson::TYsonWriter writer(&output, EYsonFormat::Pretty);
+            Serialize(executorConfig, &writer);
+            writer.Flush();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to write executor config into %v", executorConfigPath) << ex;
+        }
+    }
+
     void DoJobIO()
     {
         auto onIOError = BIND([=] (const TError& error) {
@@ -1254,40 +1276,21 @@ private:
             OnIOErrorOrFinished(error, "Executor input/output error, aborting");
         });
 
-        auto onProcessFinished = BIND([=, this_ = MakeStrong(this)] (const TError& satelliteError) {
-            try {
-                auto userJobError = Synchronizer_->GetUserProcessStatus();
+        auto onProcessFinished = BIND([=, this_ = MakeStrong(this)] (const TError& userJobError) {
+            YT_LOG_DEBUG("Process finished (UserJobError: %v)", userJobError);
 
-                YT_LOG_DEBUG("Process finished (UserJobError: %v, SatelliteError: %v)",
-                    userJobError,
-                    satelliteError);
-
-                // If Syncroniser_->GetUserProcessStatus() returns some status but
-                // satellite returns nonzero exit code - it is a bug, or satellite
-                // was killed
-                if (!satelliteError.IsOK()) {
-                    OnIOErrorOrFinished(satelliteError, "Unexpected crash of job satellite");
-                } else {
-                    OnIOErrorOrFinished(userJobError, "Job control process has finished, aborting");
-                }
-            } catch (const std::exception& ex) {
-                YT_LOG_ERROR(ex, "Unable to get user process status");
-
-                // Likely it is a real bug in satellite or rpc code.
-                YT_LOG_FATAL_IF(satelliteError.IsOK(),
-                     "Unable to get process status but satellite returns no errors");
-                OnIOErrorOrFinished(satelliteError, "Satellite failed");
-            }
+            OnIOErrorOrFinished(userJobError, "Job control process has finished, aborting");
 
             // If process has crashed before sending notification we stuck
-            // on Syncroniser_->Wait() call, so cancel wait here.
+            // on waiting executor promise, so set it here.
             // Do this after JobProxyError is set (if necessary).
-            Synchronizer_->CancelWait();
+            ExecutorPreparedPromise_.TrySet(TError());
         });
 
-        auto runActions = [&] (const std::vector<TCallback<void()>>& actions,
-                const NYT::TCallback<void(const TError&)>& onError,
-                IInvokerPtr invoker)
+        auto runActions = [&] (
+            const std::vector<TCallback<void()>>& actions,
+            const NYT::TCallback<void(const TError&)>& onError,
+            IInvokerPtr invoker)
         {
             std::vector<TFuture<void>> result;
             for (const auto& action : actions) {
@@ -1301,12 +1304,10 @@ private:
 
         auto processFinished = ProcessFinished_.Apply(onProcessFinished);
 
-        // Wait until executor opens and dup named pipes,
-        // satellite calls waitpid()
-        YT_LOG_DEBUG("Wait for signal from executor/satellite");
-        Synchronizer_->Wait();
-
-        auto jobSatelliteRss = Synchronizer_->GetJobSatelliteRssUsage();
+        // Wait until executor opens and dup named pipes.
+        YT_LOG_DEBUG("Wait for signal from executor");
+        WaitFor(ExecutorPreparedPromise_.ToFuture())
+            .ThrowOnError();
 
         MemoryWatchdogExecutor_->Start();
 
@@ -1316,10 +1317,10 @@ private:
             InputPipeBlinker_->Start();
             JobStarted_ = true;
         } else {
-            YT_LOG_ERROR(JobErrorPromise_.Get(), "Failed to prepare satellite/executor");
+            YT_LOG_ERROR(JobErrorPromise_.Get(), "Failed to prepare executor");
             return;
         }
-        YT_LOG_INFO("Start actions finished (SatelliteRss: %v)", jobSatelliteRss);
+        YT_LOG_INFO("Start actions finished");
         auto inputFutures = runActions(InputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto outputFutures = runActions(OutputActions_, onIOError, PipeIOPool_->GetInvoker());
         auto stderrFutures = runActions(StderrActions_, onIOError, ReadStderrInvoker_);

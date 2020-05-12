@@ -344,16 +344,6 @@ public:
         THROW_ERROR_EXCEPTION("Getting fail context is not supported");
     }
 
-    virtual TYsonString StraceJob() override
-    {
-        THROW_ERROR_EXCEPTION("Stracing is not supported");
-    }
-
-    virtual void SignalJob(const TString& /*signalName*/) override
-    {
-        THROW_ERROR_EXCEPTION("Signaling is not supported");
-    }
-
     virtual TYsonString PollJobShell(const TYsonString& /*parameters*/) override
     {
         THROW_ERROR_EXCEPTION("Job shell is not supported");

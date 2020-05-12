@@ -144,18 +144,6 @@ TString TJobProxy::GetStderr()
     return job->GetStderr();
 }
 
-TYsonString TJobProxy::StraceJob()
-{
-    auto job = GetJobOrThrow();
-    return job->StraceJob();
-}
-
-void TJobProxy::SignalJob(const TString& signalName)
-{
-    auto job = GetJobOrThrow();
-    job->SignalJob(signalName);
-}
-
 TYsonString TJobProxy::PollJobShell(const TYsonString& parameters)
 {
     auto job = GetJobOrThrow();

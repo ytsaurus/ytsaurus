@@ -307,8 +307,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobStderr));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobFailContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJob));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StraceJob));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbandonJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AbortJob));
@@ -2236,46 +2234,6 @@ private:
                 auto* response = &context->Response();
                 response->set_info(result.GetData());
             });
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StraceJob)
-    {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-
-        auto jobId = FromProto<TJobId>(request->job_id());
-        TStraceJobOptions options;
-        SetTimeoutOptions(&options, context.Get());
-
-        context->SetRequestInfo("JobId: %v", jobId);
-
-        CompleteCallWith(
-            client,
-            context,
-            client->StraceJob(jobId, options),
-            [] (const auto& context, const auto& result) {
-                auto* response = &context->Response();
-                response->set_trace(result.GetData());
-            });
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, SignalJob)
-    {
-        auto client = GetAuthenticatedClientOrThrow(context, request);
-
-        auto jobId = FromProto<TJobId>(request->job_id());
-        auto signalName = request->signal_name();
-
-        TSignalJobOptions options;
-        SetTimeoutOptions(&options, context.Get());
-
-        context->SetRequestInfo("JobId: %v, SignalName: %v",
-            jobId,
-            signalName);
-
-        CompleteCallWith(
-            client,
-            context,
-            client->SignalJob(jobId, signalName, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AbandonJob)

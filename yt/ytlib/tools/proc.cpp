@@ -184,7 +184,7 @@ void TCopyDirectoryContentTool::operator()(TCopyDirectoryContentConfigPtr config
 {
     SafeSetUid(0);
 
-    execl("/usr/bin/rsync", "/usr/bin/rsync", "-q", "--perms", "--recursive", "--specials", "--links", config->Source.c_str(), config->Destination.c_str(), (void*)nullptr);;
+    execl("/usr/bin/rsync", "/usr/bin/rsync", "-q", "--perms", "--recursive", "--specials", "--links", config->Source.c_str(), config->Destination.c_str(), (void*)nullptr);
 
     THROW_ERROR_EXCEPTION("Failed to copy directory %Qv to %Qv: execl failed",
         config->Source,

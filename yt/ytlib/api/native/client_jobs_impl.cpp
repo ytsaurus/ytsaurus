@@ -11,32 +11,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonString TClient::DoStraceJob(
-    TJobId jobId,
-    const TStraceJobOptions& /*options*/)
-{
-    auto req = JobProberProxy_->Strace();
-    ToProto(req->mutable_job_id(), jobId);
-
-    auto rsp = WaitFor(req->Invoke())
-        .ValueOrThrow();
-
-    return TYsonString(rsp->trace());
-}
-
-void TClient::DoSignalJob(
-    TJobId jobId,
-    const TString& signalName,
-    const TSignalJobOptions& /*options*/)
-{
-    auto req = JobProberProxy_->SignalJob();
-    ToProto(req->mutable_job_id(), jobId);
-    ToProto(req->mutable_signal_name(), signalName);
-
-    WaitFor(req->Invoke())
-        .ThrowOnError();
-}
-
 void TClient::DoAbandonJob(
     TJobId jobId,
     const TAbandonJobOptions& /*options*/)

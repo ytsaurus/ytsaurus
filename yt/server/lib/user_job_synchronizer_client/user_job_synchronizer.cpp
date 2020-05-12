@@ -2,6 +2,7 @@
 #include "user_job_synchronizer_proxy.h"
 
 #include <yt/core/bus/tcp/client.h>
+#include <yt/core/bus/tcp/config.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -14,46 +15,10 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUserJobSynchronizer::NotifyJobSatellitePrepared(const TErrorOr<i64>& rssOrError)
+TUserJobSynchronizerConnectionConfig::TUserJobSynchronizerConnectionConfig()
 {
-    JobSatellitePreparedPromise_.TrySet(rssOrError);
-}
-
-void TUserJobSynchronizer::NotifyExecutorPrepared()
-{
-    ExecutorPreparedPromise_.TrySet(TError());
-}
-
-void TUserJobSynchronizer::NotifyUserJobFinished(const TError& error)
-{
-    UserJobFinishedPromise_.TrySet(error);
-}
-
-void TUserJobSynchronizer::Wait()
-{
-    JobSatelliteRssUsage_ = WaitFor(JobSatellitePreparedPromise_.ToFuture())
-        .ValueOrThrow();
-    WaitFor(ExecutorPreparedPromise_.ToFuture())
-        .ThrowOnError();
-}
-
-i64 TUserJobSynchronizer::GetJobSatelliteRssUsage() const
-{
-    return JobSatelliteRssUsage_;
-}
-
-TError TUserJobSynchronizer::GetUserProcessStatus() const
-{
-    if (!UserJobFinishedPromise_.IsSet()) {
-        THROW_ERROR_EXCEPTION("Satellite did not finish successfully");
-    }
-    return UserJobFinishedPromise_.Get();
-}
-
-void TUserJobSynchronizer::CancelWait()
-{
-    JobSatellitePreparedPromise_.TrySet(TErrorOr<i64>(0));
-    ExecutorPreparedPromise_.TrySet(TError());
+    RegisterParameter("bus_client_config", BusClientConfig)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,25 +34,6 @@ public:
         ControlServiceProxy_.reset(new TUserJobSynchronizerServiceProxy(channel));
     }
 
-    virtual void NotifyJobSatellitePrepared(const TErrorOr<i64>& rssOrError) override
-    {
-        auto req = ControlServiceProxy_->SatellitePrepared();
-        ToProto(req->mutable_error(), rssOrError);
-        if (rssOrError.IsOK()) {
-            req->set_rss(rssOrError.Value());
-        }
-        WaitFor(req->Invoke())
-            .ThrowOnError();
-    }
-
-    virtual void NotifyUserJobFinished(const TError& error) override
-    {
-        auto req = ControlServiceProxy_->UserJobFinished();
-        ToProto(req->mutable_error(), error);
-        WaitFor(req->Invoke())
-            .ThrowOnError();
-    }
-
     virtual void NotifyExecutorPrepared() override
     {
         auto req = ControlServiceProxy_->ExecutorPrepared();
@@ -101,9 +47,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IUserJobSynchronizerClientPtr CreateUserJobSynchronizerClient(TTcpBusClientConfigPtr config)
+IUserJobSynchronizerClientPtr CreateUserJobSynchronizerClient(TUserJobSynchronizerConnectionConfigPtr connectionConfig)
 {
-    return New<TUserJobSynchronizerClient>(config);
+    return New<TUserJobSynchronizerClient>(connectionConfig->BusClientConfig);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

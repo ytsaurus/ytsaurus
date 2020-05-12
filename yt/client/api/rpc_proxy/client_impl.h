@@ -199,15 +199,6 @@ public:
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobOptions& options) override;
 
-    virtual TFuture<NYson::TYsonString> StraceJob(
-        NJobTrackerClient::TJobId jobId,
-        const NApi::TStraceJobOptions& options) override;
-
-    virtual TFuture<void> SignalJob(
-        NJobTrackerClient::TJobId jobId,
-        const TString& signalName,
-        const NApi::TSignalJobOptions& options) override;
-
     virtual TFuture<void> AbandonJob(
         NJobTrackerClient::TJobId job_id,
         const NApi::TAbandonJobOptions& options) override;

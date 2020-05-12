@@ -130,35 +130,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStraceJobCommand
-    : public TTypedCommand<NApi::TStraceJobOptions>
-{
-public:
-    TStraceJobCommand();
-
-private:
-    NJobTrackerClient::TJobId JobId;
-
-    virtual void DoExecute(ICommandContextPtr context) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSignalJobCommand
-    : public TTypedCommand<NApi::TSignalJobOptions>
-{
-public:
-    TSignalJobCommand();
-
-private:
-    NJobTrackerClient::TJobId JobId;
-    TString SignalName;
-
-    virtual void DoExecute(ICommandContextPtr context) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TAbandonJobCommand
     : public TTypedCommand<NApi::TAbandonJobOptions>
 {

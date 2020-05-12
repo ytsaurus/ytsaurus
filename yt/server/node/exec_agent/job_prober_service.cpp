@@ -35,8 +35,6 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStderr));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetSpec));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell)
             .SetInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Interrupt));
@@ -96,36 +94,6 @@ private:
             job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
         }
         response->mutable_spec()->CopyFrom(job->GetSpec());
-
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Strace)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        auto jobId = FromProto<TJobId>(request->job_id());
-        context->SetRequestInfo("JobId: %v", jobId);
-
-        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
-        auto trace = job->StraceJob();
-
-        ToProto(response->mutable_trace(), trace.GetData());
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, SignalJob)
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        auto jobId = FromProto<TJobId>(request->job_id());
-        const auto& signalName = request->signal_name();
-        context->SetRequestInfo("JobId: %v, SignalName: %v",
-            jobId,
-            signalName);
-
-        auto job = Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
-        job->SignalJob(signalName);
 
         context->Reply();
     }

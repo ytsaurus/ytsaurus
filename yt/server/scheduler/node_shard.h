@@ -143,9 +143,7 @@ public:
     // (where no permission checks are performed).
     NNodeTrackerClient::TNodeDescriptor GetJobNode(TJobId jobId, const TString& user, NYTree::EPermissionSet requiredPermissions);
 
-    NYson::TYsonString StraceJob(TJobId jobId, const TString& user);
     void DumpJobInputContext(TJobId jobId, const NYTree::TYPath& path, const TString& user);
-    void SignalJob(TJobId jobId, const TString& signalName, const TString& user);
     void AbandonJob(TJobId jobId, const TString& user);
     void AbortJobByUserRequest(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user);
 

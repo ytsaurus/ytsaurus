@@ -91,20 +91,6 @@ const TCoreInfos& TJob::GetCoreInfos() const
         "Getting core infos is not supported for built-in jobs");
 }
 
-TYsonString TJob::StraceJob()
-{
-    THROW_ERROR_EXCEPTION(
-        EErrorCode::UnsupportedJobType,
-        "Stracing is not supported for built-in jobs");
-}
-
-void TJob::SignalJob(const TString& /*signalName*/)
-{
-    THROW_ERROR_EXCEPTION(
-        EErrorCode::UnsupportedJobType,
-        "Signaling is not supported for built-in jobs");
-}
-
 TYsonString TJob::PollJobShell(const TYsonString& /*parameters*/)
 {
     THROW_ERROR_EXCEPTION(

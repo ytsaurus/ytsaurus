@@ -8,10 +8,9 @@ namespace NYT::NJobProxy {
 
 NRpc::IServicePtr CreateUserJobSynchronizerService(
     const NLogging::TLogger& logger,
-    NUserJobSynchronizerClient::IUserJobSynchronizerClientPtr jobControl,
+    TPromise<void> executorPreparedPromise,
     IInvokerPtr controlInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy
-
