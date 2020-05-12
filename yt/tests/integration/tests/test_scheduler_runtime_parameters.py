@@ -27,7 +27,7 @@ class TestRuntimeParameters(YTEnvSetup):
         }
     }
 
-    def create_custom_pool_tree_with_one_node(self, pool_tree):
+    def _create_custom_pool_tree_with_one_node(self, pool_tree):
         tag = pool_tree
         node = ls("//sys/cluster_nodes")[0]
         set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
@@ -119,7 +119,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("renadeen")
     def test_change_pool_of_multitree_operation(self):
-        self.create_custom_pool_tree_with_one_node(pool_tree="custom")
+        self._create_custom_pool_tree_with_one_node(pool_tree="custom")
         create_pool("default_pool")
         create_pool("custom_pool1", pool_tree="custom")
         create_pool("custom_pool2", pool_tree="custom")
@@ -220,7 +220,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_schedule_in_single_tree(self):
-        self.create_custom_pool_tree_with_one_node("other")
+        self._create_custom_pool_tree_with_one_node("other")
         create_pool("pool1", pool_tree="other")
         create_pool("pool2", pool_tree="other")
         create_pool("pool1")
@@ -287,7 +287,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("ignat")
     def test_tree_removal(self):
-        self.create_custom_pool_tree_with_one_node("other")
+        self._create_custom_pool_tree_with_one_node("other")
         create_pool("my_pool", pool_tree="other")
         create_pool("my_pool")
         create_pool("other_pool")
