@@ -2,12 +2,12 @@
 
 #include <yt/client/api/rpc_proxy/api_service_proxy.h>
 
-namespace NYT::NTableClient {
+namespace NYT::NRpcProxy {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(kiselyovp): move somewhere.
-TEST(TEnvelopeTest, CrashExample)
+TEST(TRpcProxyTest, CrashExample)
 {
     unsigned char badString[] = {
         0x4f, 0x6d, 0x61, 0x78, 0x00, 0x00, 0x01, 0x00,
@@ -22,4 +22,5 @@ TEST(TEnvelopeTest, CrashExample)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
+} // namespace
+} // namespace NYT::NRpcProxy
