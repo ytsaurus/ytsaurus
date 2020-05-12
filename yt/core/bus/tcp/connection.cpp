@@ -524,7 +524,9 @@ void TTcpConnection::Terminate(const TError& error)
 
     // Arm calling OnTerminate() from OnEvent().
     Pending_ |= EPollControl::Terminate;
-    if (Pending_ == EPollControl::Terminate) {
+
+    // To recover from bogus state always retry processing unless socket is offline
+    if (None(Pending_ & EPollControl::Offline)) {
         Poller_->Retry(this);
     }
 }
@@ -548,8 +550,8 @@ void TTcpConnection::OnEvent(EPollControl control)
 
         // New events could come while previous handler is still running.
         if (Any(Pending_ & EPollControl::Running)) {
-            YT_LOG_TRACE("Event handler is already running");
             Pending_ |= control;
+            YT_LOG_TRACE("Event handler is already running (Pending: %v)", Pending_);
             return;
         }
 
