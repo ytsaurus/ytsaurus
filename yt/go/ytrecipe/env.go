@@ -18,6 +18,7 @@ type Env struct {
 	OutputDir string
 	WorkPath  string
 	TraceFile string
+	GDBPath   string
 
 	ProjectPath         string
 	Modulo, ModuloIndex string
@@ -66,6 +67,10 @@ func CaptureEnv() (*Env, error) {
 			e.ModuloIndex = e.Args[i+1]
 		case "--test-file-filter":
 			e.TestFileFilter = e.Args[i+1]
+		case "--gdb-path":
+			// TODO(prime@): implement dir upload.
+			e.Args[i+1] = "/usr/bin/gdb"
+			// e.GDBPath = e.Args[i+1]
 		}
 	}
 

@@ -3,11 +3,13 @@ package ytrecipe
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 
 	"golang.org/x/sync/errgroup"
 
@@ -39,8 +41,11 @@ type FS struct {
 	Symlinks map[string]string
 	Dirs     map[string]struct{}
 
-	YTOutput string
-	Outputs  map[string]struct{}
+	YTOutput    string
+	YTHDD       string
+	YTCoreDumps string
+
+	Outputs map[string]struct{}
 }
 
 func NewFS() *FS {
@@ -167,10 +172,6 @@ func (fs *FS) LocateBindPoints() ([]string, error) {
 }
 
 func copyFile(src, dst string) error {
-	if err := os.MkdirAll(filepath.Dir(dst), 0777); err != nil {
-		return err
-	}
-
 	in, err := os.Open(src)
 	if err != nil {
 		return err
@@ -197,17 +198,25 @@ func copyFile(src, dst string) error {
 
 func (fs *FS) Recreate(fsRoot string) error {
 	for d := range fs.Dirs {
-		if err := os.MkdirAll(filepath.Join(bindRoot, d), 0777); err != nil {
+		if err := os.MkdirAll(filepath.Join(bindRootPath, d), 0777); err != nil {
 			return err
 		}
 	}
 
-	if err := os.MkdirAll(fs.YTOutput, 0777); err != nil {
+	if err := os.MkdirAll(filepath.Join(bindRootPath, fs.YTOutput), 0777); err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Join(bindRootPath, fs.YTHDD), 0777); err != nil {
+		return err
+	}
+
+	if err := os.MkdirAll(filepath.Join(bindRootPath, fs.YTCoreDumps), 0777); err != nil {
 		return err
 	}
 
 	for from, to := range fs.Symlinks {
-		if err := os.Symlink(to, filepath.Join(bindRoot, from)); err != nil {
+		if err := os.Symlink(to, filepath.Join(bindRootPath, from)); err != nil {
 			return err
 		}
 	}
@@ -217,8 +226,13 @@ func (fs *FS) Recreate(fsRoot string) error {
 		md5Hash := md5Hash
 		f := f
 
+		dstPath := filepath.Join(bindRootPath, f.LocalPath)
+		if err := os.MkdirAll(filepath.Dir(dstPath), 0777); err != nil {
+			return err
+		}
+
 		eg.Go(func() error {
-			return copyFile(filepath.Join(fsRoot, md5Hash.String()), filepath.Join(bindRoot, f.LocalPath))
+			return copyFile(filepath.Join(fsRoot, md5Hash.String()), dstPath)
 		})
 	}
 
@@ -228,15 +242,20 @@ func (fs *FS) Recreate(fsRoot string) error {
 const CrashJobFileMarker = "ytrecipe_inject_job_crash.txt"
 
 func stripBindRoot(path string) string {
-	if !strings.HasPrefix(path, bindRoot) {
+	if !strings.HasPrefix(path, bindRootPath) {
 		panic(fmt.Sprintf("path %s is not located inside bind root", path))
 	}
 
-	return strings.TrimPrefix(path, bindRoot)
+	return strings.TrimPrefix(path, bindRootPath)
 }
 
 func emitDir(w mapreduce.Writer, dir string, strip bool) error {
 	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if errors.Is(err, os.ErrPermission) {
+			// TODO(prime@): log
+			return nil
+		}
+
 		if err != nil {
 			return err
 		}
@@ -263,7 +282,10 @@ func emitDir(w mapreduce.Writer, dir string, strip bool) error {
 
 func emitFile(w mapreduce.Writer, filename string, strip bool) error {
 	f, err := os.Open(filename)
-	if err != nil {
+	if errors.Is(err, os.ErrPermission) {
+		// TODO(prime@): log
+		return nil
+	} else if err != nil {
 		return err
 	}
 	defer f.Close()
@@ -276,10 +298,10 @@ func emitFile(w mapreduce.Writer, filename string, strip bool) error {
 	for i := 0; true; i++ {
 		n, err := f.Read(buf)
 		if err == io.EOF {
-			break
-		}
-
-		if err != nil {
+			if i != 0 {
+				break
+			}
+		} else if err != nil {
 			return err
 		}
 
@@ -299,10 +321,13 @@ func emitFile(w mapreduce.Writer, filename string, strip bool) error {
 
 func (fs *FS) EmitResults(output mapreduce.Writer) error {
 	for path := range fs.Outputs {
-		realPath := filepath.Join(bindRoot, path)
+		realPath := filepath.Join(bindRootPath, path)
 
 		st, err := os.Stat(realPath)
 		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
 			return err
 		}
 
@@ -325,8 +350,130 @@ func (fs *FS) EmitResults(output mapreduce.Writer) error {
 		return err
 	}
 
+	if err := emitDir(output, fs.YTHDD, false); err != nil {
+		return err
+	}
+
+	if err := emitCoreDumps(output, fs.YTCoreDumps); err != nil {
+		return err
+	}
+
 	if err := mapreduce.SwitchTable(output, 0); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+func emitCoreDumps(w mapreduce.Writer, dir string) error {
+	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if errors.Is(err, os.ErrPermission) {
+			// TODO(prime@): log
+			return nil
+		}
+
+		if err != nil {
+			return err
+		}
+
+		if info.IsDir() {
+			return w.Write(FileRow{FilePath: path, IsDir: true})
+		}
+
+		return emitSparseFile(w, path)
+	})
+}
+
+const (
+	SeekData = 3
+	SeekHole = 4
+)
+
+func emitSparseFile(w mapreduce.Writer, filename string) error {
+	f, err := os.Open(filename)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	var partIndex int
+	buf := make([]byte, maxRowSize)
+
+	emitHole := func(size int64) error {
+		row := FileRow{
+			FilePath:  filename,
+			PartIndex: partIndex,
+			DataSize:  size,
+		}
+		partIndex++
+
+		return w.Write(row)
+	}
+
+	emitData := func(offset, size int64) error {
+		_, err := f.Seek(offset, io.SeekStart)
+		if err != nil {
+			return err
+		}
+
+		lr := io.LimitReader(f, size)
+		for {
+			n, err := lr.Read(buf)
+			if err != nil && err != io.EOF {
+				return err
+			}
+
+			if n > 0 {
+				row := FileRow{
+					FilePath:  filename,
+					PartIndex: partIndex,
+					Data:      buf[:n],
+				}
+				partIndex++
+
+				if err := w.Write(row); err != nil {
+					return err
+				}
+			}
+
+			if err == io.EOF {
+				return nil
+			}
+		}
+	}
+
+	var dataOffset, holeOffset int64
+
+	for partIndex := 0; true; partIndex++ {
+		dataOffset, err = f.Seek(holeOffset, SeekData)
+		if errors.Is(err, syscall.ENXIO) {
+			// File ends with hole
+
+			st, err := f.Stat()
+			if err != nil {
+				return err
+			}
+
+			return emitHole(st.Size() - holeOffset)
+		} else if err != nil {
+			return err
+		}
+
+		// File begins with data
+		if dataOffset != holeOffset {
+			if err := emitHole(dataOffset - holeOffset); err != nil {
+				return err
+			}
+		}
+
+		holeOffset, err = f.Seek(dataOffset, SeekHole)
+		if err != nil {
+			return err
+		}
+
+		if err := emitData(dataOffset, holeOffset-dataOffset); err != nil {
+			return err
+		}
 	}
 
 	return nil

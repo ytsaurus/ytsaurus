@@ -17,6 +17,7 @@ type readmeArgs struct {
 	CypressOutDir ypath.Path
 	CypressURL    string
 	Binaries      map[MD5]*File
+	WorkDir       string
 }
 
 var readmeTmpl = template.Must(template.New("").Parse(`
@@ -30,7 +31,11 @@ Cypress link: {{.CypressURL}}
 
 Use following command to download all logs and core dumps:
 
-ytrecipe download --cluster {{$cluster}} {{.CypressOutDir}}
+ytrecipe-tool download --proxy {{$cluster}} --path {{.CypressOutDir}} --trim-prefix {{.WorkDir}}
+
+Install ytrecipe-tool from source:
+
+ya make -r yt/go/ytrecipe/cmd/ytrecipe-tool/ --install $GOPATH/bin
 
 Test was using following binaries:
 
@@ -38,6 +43,12 @@ Test was using following binaries:
 {{.LocalPath}}
 yt --proxy {{$cluster}} download {{.CypressPath}}
 {{end}}
+`[1:]))
+
+var downloadTmpl = template.Must(template.New("").Parse(`
+#!/bin/sh
+{{$cluster := .Cluster}}
+ytrecipe-tool download --proxy {{$cluster}} --path {{.CypressOutDir}} --trim-prefix {{.WorkDir}} --output $(dirname "$0") --skip-ya-output
 `[1:]))
 
 func (r *Runner) writeReadme(opID yt.OperationID, job *Job, outDir ypath.Path) error {
@@ -48,6 +59,7 @@ func (r *Runner) writeReadme(opID yt.OperationID, job *Job, outDir ypath.Path) e
 		CypressOutDir: outDir,
 		CypressURL:    yt.WebUITableURL(r.Config.Cluster, outDir),
 		OpURL:         yt.WebUIOperationURL(r.Config.Cluster, opID),
+		WorkDir:       job.Env.WorkPath,
 	}
 
 	var buf bytes.Buffer
@@ -55,5 +67,15 @@ func (r *Runner) writeReadme(opID yt.OperationID, job *Job, outDir ypath.Path) e
 		return err
 	}
 
-	return ioutil.WriteFile(yatest.OutputPath("README.md"), buf.Bytes(), 0666)
+	err := ioutil.WriteFile(yatest.OutputPath("README.md"), buf.Bytes(), 0666)
+	if err != nil {
+		return err
+	}
+
+	buf.Reset()
+	if err := downloadTmpl.Execute(&buf, args); err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(yatest.OutputPath("download.sh"), buf.Bytes(), 0777)
 }

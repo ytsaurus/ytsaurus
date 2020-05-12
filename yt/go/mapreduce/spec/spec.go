@@ -7,6 +7,7 @@ import (
 	"github.com/mitchellh/copystructure"
 
 	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 )
 
@@ -85,11 +86,11 @@ type Spec struct {
 	Annotations map[string]interface{} `yson:"annotations"`
 	Description map[string]interface{} `yson:"description,omitempty"`
 
-	Pool      string   `yson:"pool,omitempty"`
-	Weight    float64  `yson:"weight,omitempty"`
-	PoolTrees []string `yson:"pool_trees,omitempty"`
-
-	TentativePoolTrees []string `yson:"tentative_pool_trees,omitempty"`
+	Pool                string   `yson:"pool,omitempty"`
+	Weight              float64  `yson:"weight,omitempty"`
+	PoolTrees           []string `yson:"pool_trees,omitempty"`
+	SchedulingTagFilter string   `yson:"scheduling_tag_filter,omitempty"`
+	TentativePoolTrees  []string `yson:"tentative_pool_trees,omitempty"`
 
 	SecureVault map[string]string `yson:"secure_vault,omitempty"`
 
@@ -112,9 +113,10 @@ type Spec struct {
 	JobCount       int   `yson:"job_count,omitempty"`
 	DataSizePerJob int64 `yson:"data_size_per_job,omitempty"`
 
-	MaxFailedJobCount int        `yson:"max_failed_job_count,omitempty"`
-	StderrTablePath   ypath.Path `yson:"stderr_table_path,omitempty"`
-	CoreTablePath     ypath.Path `yson:"core_table_path,omitempty"`
+	TimeLimit         yson.Duration `yson:"time_limit,omitempty"`
+	MaxFailedJobCount int           `yson:"max_failed_job_count,omitempty"`
+	StderrTablePath   ypath.Path    `yson:"stderr_table_path,omitempty"`
+	CoreTablePath     ypath.Path    `yson:"core_table_path,omitempty"`
 
 	Mapper         *UserScript            `yson:"mapper,omitempty"`
 	Reducer        *UserScript            `yson:"reducer,omitempty"`

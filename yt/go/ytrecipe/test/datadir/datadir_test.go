@@ -8,7 +8,9 @@ import (
 )
 
 func TestDataDir(t *testing.T) {
-	st, err := os.Stat("layers")
+	_, err := os.Stat("layers/static-bin.tar.gz")
 	require.NoError(t, err)
-	require.True(t, st.IsDir())
+
+	_, err = os.Stat("layers/static_cat")
+	require.NoError(t, err)
 }

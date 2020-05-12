@@ -11,6 +11,10 @@ func TestCoredump(t *testing.T) {
 		return
 	}
 
+	// Check sparse core file handling.
+	ballast := make([]byte, 16<<20)
+	_ = ballast
+
 	debug.SetTraceback("crash")
 
 	go func() {
