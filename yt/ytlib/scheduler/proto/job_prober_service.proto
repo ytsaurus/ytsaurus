@@ -25,25 +25,6 @@ message TRspGetJobNode
     required NYT.NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 1;
 }
 
-message TReqStrace
-{
-    required NYT.NProto.TGuid job_id = 1;
-}
-
-message TRspStrace
-{
-    required string trace = 1;
-}
-
-message TReqSignalJob
-{
-    required NYT.NProto.TGuid job_id = 1;
-    required string signal_name = 2;
-}
-
-message TRspSignalJob
-{ }
-
 message TReqAbandonJob
 {
     required NYT.NProto.TGuid job_id = 1;

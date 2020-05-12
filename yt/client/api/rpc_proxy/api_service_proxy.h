@@ -86,14 +86,12 @@ public:
     // Jobs
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ListJobs);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJob);
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, StraceJob);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DumpJobContext);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobInput,
         .SetStreamingEnabled(true));
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobInputPaths);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobStderr);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobFailContext);
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SignalJob);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbandonJob);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, PollJobShell);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbortJob);

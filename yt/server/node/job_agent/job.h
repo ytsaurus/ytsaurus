@@ -93,8 +93,6 @@ struct IJob
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
     virtual TString GetStderr() = 0;
     virtual std::optional<TString> GetFailContext() = 0;
-    virtual NYson::TYsonString StraceJob() = 0;
-    virtual void SignalJob(const TString& signalName) = 0;
 
     /*
      * \note Thread affinity: any

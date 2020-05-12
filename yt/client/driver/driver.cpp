@@ -262,17 +262,14 @@ public:
         REGISTER_ALL(TListOperationsCommand,              "list_operations",               Null,       Structured, false, false);
         REGISTER_ALL(TListJobsCommand,                    "list_jobs",                     Null,       Structured, false, false);
         REGISTER_ALL(TGetJobCommand,                      "get_job",                       Null,       Structured, false, false);
-        REGISTER_ALL(TStraceJobCommand,                   "strace_job",                    Null,       Structured, false, false);
         REGISTER_ALL(TPollJobShellCommand,                "poll_job_shell",                Null,       Structured, true,  false);
         REGISTER_ALL(TGetOperationCommand,                "get_operation",                 Null,       Structured, false, false);
 
         REGISTER    (TDumpJobContextCommand,              "dump_job_context",              Null,       Null,       true,  false, ApiVersion3);
-        REGISTER    (TSignalJobCommand,                   "signal_job",                    Null,       Null,       false, false, ApiVersion3);
         REGISTER    (TAbandonJobCommand,                  "abandon_job",                   Null,       Null,       false, false, ApiVersion3);
         REGISTER    (TAbortJobCommand,                    "abort_job",                     Null,       Null,       false, false, ApiVersion3);
 
         REGISTER    (TDumpJobContextCommand,              "dump_job_context",              Null,       Structured, true,  false, ApiVersion4);
-        REGISTER    (TSignalJobCommand,                   "signal_job",                    Null,       Structured, false, false, ApiVersion4);
         REGISTER    (TAbandonJobCommand,                  "abandon_job",                   Null,       Structured, false, false, ApiVersion4);
         REGISTER    (TAbortJobCommand,                    "abort_job",                     Null,       Structured, false, false, ApiVersion4);
 

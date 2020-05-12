@@ -4,7 +4,6 @@
 #include <yt/ytlib/tools/registry.h>
 #include <yt/ytlib/tools/tools.h>
 #include <yt/ytlib/tools/proc.h>
-#include <yt/ytlib/tools/stracer.h>
 #include <yt/ytlib/tools/signaler.h>
 
 #include <yt/ytlib/cgroup/cgroup.h>
@@ -14,7 +13,6 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NTools {
-REGISTER_TOOL(TStraceTool)
 REGISTER_TOOL(TSignalerTool)
 REGISTER_TOOL(TKillAllByUidTool)
 REGISTER_TOOL(TRemoveDirAsRootTool)

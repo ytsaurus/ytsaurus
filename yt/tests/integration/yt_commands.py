@@ -455,15 +455,6 @@ def list_jobs(operation_id, **kwargs):
     kwargs["operation_id"] = operation_id
     return execute_command("list_jobs", kwargs, parse_yson=True)
 
-def strace_job(job_id, **kwargs):
-    kwargs["job_id"] = job_id
-    return execute_command("strace_job", kwargs, parse_yson=True)
-
-def signal_job(job_id, signal_name, **kwargs):
-    kwargs["job_id"] = job_id
-    kwargs["signal_name"] = signal_name
-    execute_command("signal_job", kwargs)
-
 def abandon_job(job_id, **kwargs):
     kwargs["job_id"] = job_id
     execute_command("abandon_job", kwargs)

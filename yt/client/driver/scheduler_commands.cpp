@@ -358,38 +358,6 @@ void TGetJobCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStraceJobCommand::TStraceJobCommand()
-{
-    RegisterParameter("job_id", JobId);
-}
-
-void TStraceJobCommand::DoExecute(ICommandContextPtr context)
-{
-    auto asyncResult = context->GetClient()->StraceJob(JobId, Options);
-    auto result = WaitFor(asyncResult)
-        .ValueOrThrow();
-
-    ProduceSingleOutputValue(context, "trace", result);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSignalJobCommand::TSignalJobCommand()
-{
-    RegisterParameter("job_id", JobId);
-    RegisterParameter("signal_name", SignalName);
-}
-
-void TSignalJobCommand::DoExecute(ICommandContextPtr context)
-{
-    WaitFor(context->GetClient()->SignalJob(JobId, SignalName))
-        .ThrowOnError();
-
-    ProduceEmptyOutput(context);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TAbandonJobCommand::TAbandonJobCommand()
 {
     RegisterParameter("job_id", JobId);

@@ -27,46 +27,20 @@ class TUserJobSynchronizerService
 public:
     TUserJobSynchronizerService(
         const NLogging::TLogger& logger,
-        IUserJobSynchronizerClientPtr jobControl,
+        TPromise<void> executorPreparedPromise,
         IInvokerPtr controlInvoker)
         : TServiceBase(
             controlInvoker,
             TUserJobSynchronizerServiceProxy::GetDescriptor(),
             logger)
-        , JobControl_(jobControl)
+        , ExecutorPreparedPromise_(std::move(executorPreparedPromise))
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SatellitePrepared));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(UserJobFinished));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExecutorPrepared));
     }
 
 private:
     const IUserJobSynchronizerClientPtr JobControl_;
-    bool SatellitePrepared_ = false;
-    bool ExecutorPrepared_ = false;
-
-    DECLARE_RPC_SERVICE_METHOD(NUserJobSynchronizerClient::NProto, SatellitePrepared)
-    {
-        Y_UNUSED(response);
-
-        // This is a workaround for porto container resurrection on core command.
-        // YT-10547
-        if (SatellitePrepared_) {
-            context->Reply(TError("Satellite has already prepared"));
-            return;
-        }
-
-        SatellitePrepared_ = true;
-
-        auto error = FromProto<TError>(request->error());
-        if (error.IsOK()) {
-            auto rss = FromProto<i64>(request->rss());
-            JobControl_->NotifyJobSatellitePrepared(rss);
-        } else {
-            JobControl_->NotifyJobSatellitePrepared(error);
-        }
-        context->Reply();
-    }
+    TPromise<void> ExecutorPreparedPromise_;
 
     DECLARE_RPC_SERVICE_METHOD(NUserJobSynchronizerClient::NProto, ExecutorPrepared)
     {
@@ -75,23 +49,12 @@ private:
 
         // This is a workaround for porto container resurrection on core command.
         // YT-10547
-        if (ExecutorPrepared_) {
+        if (ExecutorPreparedPromise_.IsSet()) {
             context->Reply(TError("Executor has already prepared"));
             return;
         }
 
-        ExecutorPrepared_ = true;
-
-        JobControl_->NotifyExecutorPrepared();
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NUserJobSynchronizerClient::NProto, UserJobFinished)
-    {
-        Y_UNUSED(response);
-        auto error = FromProto<TError>(request->error());
-        context->SetRequestInfo("Error: %v", error);
-        JobControl_->NotifyUserJobFinished(error);
+        ExecutorPreparedPromise_.TrySet(TError());
         context->Reply();
     }
 };
@@ -100,10 +63,10 @@ private:
 
 NRpc::IServicePtr CreateUserJobSynchronizerService(
     const NLogging::TLogger& logger,
-    IUserJobSynchronizerClientPtr jobControl,
+    TPromise<void> executorPreparedPromise,
     IInvokerPtr controlInvoker)
 {
-    return New<TUserJobSynchronizerService>(logger, jobControl, controlInvoker);
+    return New<TUserJobSynchronizerService>(logger, std::move(executorPreparedPromise), controlInvoker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -596,33 +596,6 @@ public:
         return CoreInfos_;
     }
 
-    virtual TYsonString StraceJob() override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-
-        try {
-            return GetJobProbeOrThrow()->StraceJob();
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error requesting strace dump from job proxy")
-                << ex;
-        }
-    }
-
-    virtual void SignalJob(const TString& signalName) override
-    {
-        VERIFY_THREAD_AFFINITY(JobThread);
-        ValidateJobRunning();
-
-        Signaled_ = true;
-
-        try {
-            GetJobProbeOrThrow()->SignalJob(signalName);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error sending signal to job proxy")
-                << ex;
-        }
-    }
-
     virtual TYsonString PollJobShell(const TYsonString& parameters) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -645,7 +618,7 @@ public:
     virtual void ReportStatistics(TNodeJobReport&& statistics) override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         Bootstrap_->GetJobReporter()->ReportStatistics(
             statistics
                 .OperationId(GetOperationId())
@@ -773,8 +746,6 @@ private:
     TInstant StatisticsLastSendTime_ = TInstant::Now();
 
     TExecAttributes ExecAttributes_;
-
-    bool Signaled_ = false;
 
     std::optional<TJobResult> JobResult_;
 
@@ -1792,17 +1763,13 @@ private:
             }
         }
 
-        if (Signaled_) {
-            return EAbortReason::UserRequest;
-        }
-
         return std::nullopt;
     }
 
     bool IsFatalError(const TError& error)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         return
             error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
             error.FindMatching(NSecurityClient::EErrorCode::AuthenticationError) ||

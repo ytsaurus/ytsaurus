@@ -1527,18 +1527,6 @@ message TRspGetJob
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqStraceJob
-{
-    required NYT.NProto.TGuid job_id = 1;
-}
-
-message TRspStraceJob
-{
-    required bytes trace = 1; // YSON
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqGetJobInputPaths
 {
     required NYT.NProto.TGuid job_id = 1;
@@ -1582,18 +1570,6 @@ message TReqDumpJobContext
 }
 
 message TRspDumpJobContext
-{
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-message TReqSignalJob
-{
-    required NYT.NProto.TGuid job_id = 1;
-    required string signal_name = 2;
-}
-
-message TRspSignalJob
 {
 }
 

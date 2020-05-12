@@ -4,7 +4,6 @@
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/ytlib/tools/tools.h>
-#include <yt/ytlib/tools/signaler.h>
 
 #include <yt/core/rpc/service_detail.h>
 
@@ -42,8 +41,6 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpInputContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStderr));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Strace));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SignalJob));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PollJobShell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Interrupt));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Fail));
@@ -66,28 +63,6 @@ private:
         auto stderrData = JobProxy_->GetStderr();
 
         response->set_stderr_data(stderrData);
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Strace)
-    {
-        auto trace = JobProxy_->StraceJob();
-
-        ToProto(response->mutable_trace(), trace.GetData());
-        context->Reply();
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, SignalJob)
-    {
-        Y_UNUSED(response);
-
-        const auto& signalName = request->signal_name();
-
-        context->SetRequestInfo("SignalName: %v",
-            signalName);
-
-        JobProxy_->SignalJob(signalName);
-
         context->Reply();
     }
 

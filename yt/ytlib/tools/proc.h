@@ -198,7 +198,6 @@ struct TCopyDirectoryContentTool
     void operator()(TCopyDirectoryContentConfigPtr config) const;
 };
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTools

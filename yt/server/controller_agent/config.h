@@ -723,7 +723,7 @@ public:
     TDuration JobMetricsReportPeriod;
 
     // Cypress path to a special layer containing YT-specific data required to
-    // run jobs with custom rootfs, e.g. statically linked job-satellite.
+    // run jobs with custom rootfs, e.g. statically linked ytserver-exec.
     // Is applied on top of user layers if they are used.
     std::optional<TString> SystemLayerPath;
 

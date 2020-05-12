@@ -395,15 +395,6 @@ public:
         NScheduler::TJobId jobId,
         const TGetJobOptions& options),
         (operationId, jobId, options))
-    IMPLEMENT_METHOD(NYson::TYsonString, StraceJob, (
-        NScheduler::TJobId jobId,
-        const TStraceJobOptions& options),
-        (jobId, options))
-    IMPLEMENT_METHOD(void, SignalJob, (
-        NScheduler::TJobId jobId,
-        const TString& signalName,
-        const TSignalJobOptions& options),
-        (jobId, signalName, options))
     IMPLEMENT_METHOD(void, AbandonJob, (
         NScheduler::TJobId jobId,
         const TAbandonJobOptions& options),
@@ -1022,13 +1013,6 @@ private:
         NScheduler::TJobId jobId,
         const TGetJobOptions& options);
 
-    NYson::TYsonString DoStraceJob(
-        NScheduler::TJobId jobId,
-        const TStraceJobOptions& options);
-    void DoSignalJob(
-        NScheduler::TJobId jobId,
-        const TString& signalName,
-        const TSignalJobOptions& options);
     void DoAbandonJob(
         NScheduler::TJobId jobId,
         const TAbandonJobOptions& options);

@@ -263,12 +263,8 @@ class TestSchedulerAcls(YTEnvSetup):
     @authors("levysotsky")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])
     def test_manage_job_actions(self, should_update_operation_parameters):
-        def _signal_job(job_id, **kwargs):
-            signal_job(job_id, "SIGURG", **kwargs)
-
         actions = [
             abort_job,
-            _signal_job,
             abandon_job,
         ]
 

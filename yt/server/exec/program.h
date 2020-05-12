@@ -1,6 +1,4 @@
-#include "job_satellite.h"
-
-#include <yt/server/lib/job_satellite_connection/job_satellite_connection.h>
+#include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
@@ -8,10 +6,10 @@
 #include <yt/ytlib/program/program_tool_mixin.h>
 #include <yt/ytlib/program/helpers.h>
 
+#include <yt/library/process/pipe.h>
+
 #include <yt/core/logging/formatter.h>
 #include <yt/core/logging/log_manager.h>
-
-#include <yt/library/process/pipe.h>
 
 #include <yt/core/misc/proc.h>
 #include <yt/core/misc/fs.h>
@@ -24,7 +22,7 @@
 
 namespace NYT::NExec {
 
-using namespace NJobSatelliteConnection;
+using namespace NUserJobSynchronizerClient;
 using namespace NYTree;
 using namespace NYson;
 
@@ -32,7 +30,7 @@ using namespace NYson;
 
 class TExecProgram
     : public TProgram
-    , public TProgramConfigMixin<TJobSatelliteConnectionConfig>
+    , public TProgramConfigMixin<TUserJobSynchronizerConnectionConfig>
     , public TProgramCgroupMixin
 {
 public:
@@ -96,8 +94,6 @@ protected:
 
         ConfigureUids();
         ConfigureCrashHandler();
-
-        RunJobSatellite(GetConfig(), Uid_, JobId_);
 
         TThread::SetCurrentThreadName("ExecMain");
 
@@ -184,7 +180,8 @@ protected:
 
         // We are ready to execute user code, send signal to JobProxy.
         try {
-            NotifyExecutorPrepared(GetConfig());
+            auto jobProxyControl = CreateUserJobSynchronizerClient(GetConfig());
+            jobProxyControl->NotifyExecutorPrepared();
         } catch (const std::exception& ex) {
             LogToStderr(Format("Unable to notify job proxy\n%v", ex.what()));
             Exit(5);

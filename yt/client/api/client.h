@@ -912,14 +912,6 @@ struct TListJobsOptions
     TDuration RunningJobsLookbehindPeriod = TDuration::Max();
 };
 
-struct TStraceJobOptions
-    : public TTimeoutOptions
-{ };
-
-struct TSignalJobOptions
-    : public TTimeoutOptions
-{ };
-
 struct TAbandonJobOptions
     : public TTimeoutOptions
 { };
@@ -1428,15 +1420,6 @@ struct IClient
         NScheduler::TOperationId operationId,
         NJobTrackerClient::TJobId jobId,
         const TGetJobOptions& options = {}) = 0;
-
-    virtual TFuture<NYson::TYsonString> StraceJob(
-        NJobTrackerClient::TJobId jobId,
-        const TStraceJobOptions& options = {}) = 0;
-
-    virtual TFuture<void> SignalJob(
-        NJobTrackerClient::TJobId jobId,
-        const TString& signalName,
-        const TSignalJobOptions& options = {}) = 0;
 
     virtual TFuture<void> AbandonJob(
         NJobTrackerClient::TJobId jobId,

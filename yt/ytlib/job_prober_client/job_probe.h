@@ -16,10 +16,6 @@ struct IJobProbe
 {
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
 
-    virtual NYson::TYsonString StraceJob() = 0;
-
-    virtual void SignalJob(const TString& signalName) = 0;
-
     virtual NYson::TYsonString PollJobShell(const NYson::TYsonString& parameters) = 0;
 
     virtual TString GetStderr() = 0;

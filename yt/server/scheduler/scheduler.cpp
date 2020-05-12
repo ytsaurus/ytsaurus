@@ -956,14 +956,6 @@ public:
             .Run();
     }
 
-    TFuture<TYsonString> Strace(TJobId jobId, const TString& user)
-    {
-        const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return BIND(&TNodeShard::StraceJob, nodeShard, jobId, user)
-            .AsyncVia(nodeShard->GetInvoker())
-            .Run();
-    }
-
     TFuture<void> DumpInputContext(TJobId jobId, const TYPath& path, const TString& user)
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
@@ -976,14 +968,6 @@ public:
     {
         const auto& nodeShard = GetNodeShardByJobId(jobId);
         return BIND(&TNodeShard::GetJobNode, nodeShard, jobId, user, requiredPermissions)
-            .AsyncVia(nodeShard->GetInvoker())
-            .Run();
-    }
-
-    TFuture<void> SignalJob(TJobId jobId, const TString& signalName, const TString& user)
-    {
-        const auto& nodeShard = GetNodeShardByJobId(jobId);
-        return BIND(&TNodeShard::SignalJob, nodeShard, jobId, signalName, user)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
     }
@@ -4181,16 +4165,6 @@ TFuture<void> TScheduler::DumpInputContext(TJobId jobId, const NYPath::TYPath& p
 TFuture<TNodeDescriptor> TScheduler::GetJobNode(TJobId jobId, const TString& user, EPermissionSet requiredPermissions)
 {
     return Impl_->GetJobNode(jobId, user, requiredPermissions);
-}
-
-TFuture<TYsonString> TScheduler::Strace(TJobId jobId, const TString& user)
-{
-    return Impl_->Strace(jobId, user);
-}
-
-TFuture<void> TScheduler::SignalJob(TJobId jobId, const TString& signalName, const TString& user)
-{
-    return Impl_->SignalJob(jobId, signalName, user);
 }
 
 TFuture<void> TScheduler::AbandonJob(TJobId jobId, const TString& user)
