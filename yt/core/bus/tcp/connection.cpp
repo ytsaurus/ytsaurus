@@ -36,13 +36,14 @@ using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr size_t MinBatchReadSize = 16 * 1024;
-static constexpr size_t MaxBatchReadSize = 64 * 1024;
+static constexpr size_t ReadBufferSize = 16_KB;
+static constexpr size_t MaxBatchReadSize = 64_KB;
 static constexpr auto ReadTimeWarningThreshold = TDuration::MilliSeconds(100);
 
 static constexpr size_t MaxFragmentsPerWrite = 256;
-static constexpr size_t MaxBatchWriteSize    = 64 * 1024;
-static constexpr size_t MaxWriteCoalesceSize = 4 * 1024;
+static constexpr size_t WriteBufferSize = 16_KB;
+static constexpr size_t MaxBatchWriteSize = 64_KB;
+static constexpr size_t MaxWriteCoalesceSize = 1_KB;
 static constexpr auto WriteTimeWarningThreshold = TDuration::MilliSeconds(100);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -359,10 +360,10 @@ void TTcpConnection::Abort(const TError& error)
 
 void TTcpConnection::InitBuffers()
 {
-    ReadBuffer_ = TBlob(TTcpConnectionReadBufferTag(), MinBatchReadSize, false);
+    ReadBuffer_ = TBlob(TTcpConnectionReadBufferTag(), ReadBufferSize, false);
 
     WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionWriteBufferTag()));
-    WriteBuffers_[0]->Reserve(MaxBatchWriteSize);
+    WriteBuffers_[0]->Reserve(WriteBufferSize);
 }
 
 int TTcpConnection::GetSocketPort()
@@ -653,7 +654,7 @@ void TTcpConnection::OnSocketRead()
         auto decoderChunk = Decoder_.GetFragment();
         size_t decoderChunkSize = decoderChunk.Size();
 
-        if (decoderChunkSize >= MinBatchReadSize) {
+        if (decoderChunkSize >= ReadBufferSize) {
             // Read directly into the decoder buffer.
             size_t bytesToRead = std::min(decoderChunkSize, MaxBatchReadSize);
             YT_LOG_TRACE("Reading from socket into decoder (BytesToRead: %v)",bytesToRead);
@@ -996,7 +997,7 @@ bool TTcpConnection::MaybeEncodeFragments()
         return true;
     }
 
-    // Discard all buffer except for a single one.
+    // Discard all buffers except for a single one.
     WriteBuffers_.resize(1);
     auto* buffer = WriteBuffers_.back().get();
     buffer->Clear();
@@ -1017,7 +1018,7 @@ bool TTcpConnection::MaybeEncodeFragments()
             flushCoalesced();
             WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionWriteBufferTag()));
             buffer = WriteBuffers_.back().get();
-            buffer->Reserve(std::max(MaxBatchWriteSize, fragment.Size()));
+            buffer->Reserve(std::max(WriteBufferSize, fragment.Size()));
         }
         buffer->Append(fragment);
         coalescedSize += fragment.Size();
