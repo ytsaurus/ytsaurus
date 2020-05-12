@@ -71,7 +71,7 @@ def collect_cliques():
     return by_kind
 
 
-def show_stats(args):
+def show_discovery_stats(args):
     cliques = collect_cliques()
     for kind, cliques in cliques.iteritems():
         print "kind =", kind
@@ -113,61 +113,16 @@ def collect_garbage(args):
             print path, rsp.get_result() if rsp.is_ok() else rsp.get_error()
 
 
-def suspend_operations(args):
-    ops = collect_operations()
-    to_suspend = [str(op["id"]) for op in ops if not op["suspended"]]
-    if args.dry_run:
-        for op in to_suspend:
-            print op
-    else:
-        batch_client = yt.create_batch_client(raise_errors=True)
-        rsps = []
-        for op_id in to_suspend:
-            rsps.append((op_id, batch_client.suspend_operation(op_id, abort_running_jobs=True)))
-        batch_client.commit_batch()
-        for op_id, rsp in rsps:
-            print op_id, rsp.get_result() if rsp.is_ok() else rsp.get_error()
-
-
-def resume_operations(args):
-    ops = collect_operations()
-    to_resume = [str(op["id"]) for op in ops if op["suspended"]]
-    if args.dry_run:
-        for op in to_resume:
-            print op
-    else:
-        batch_client = yt.create_batch_client(raise_errors=True)
-        rsps = []
-        for op_id in to_resume:
-            rsps.append((op_id, batch_client.resume_operation(str(op_id))))
-        batch_client.commit_batch()
-        for op_id, rsp in rsps:
-            print op_id, rsp.get_result() if rsp.is_ok() else rsp.get_error()
-
-
 def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers()
 
-    stats_subparser = subparsers.add_parser("show-stats", help="print clique statistics")
-    stats_subparser.set_defaults(func=show_stats)
+    stats_subparser = subparsers.add_parser("show-stats", help="print clique statistics according to discovery")
+    stats_subparser.set_defaults(func=show_discovery_stats)
 
     collect_garbage_subparser = subparsers.add_parser("collect-garbage", help="remove old nodes")
     collect_garbage_subparser.add_argument("--dry-run", action="store_true", help="only print actions to be done")
     collect_garbage_subparser.set_defaults(func=collect_garbage)
-
-    control_operations_subparser = subparsers.add_parser("control-operations", help="suspend/resume operations")
-    control_operations_subparser_subparsers = control_operations_subparser.add_subparsers()
-
-    suspend_operations_subparser = control_operations_subparser_subparsers.add_parser("suspend", help="suspend operations")
-    suspend_operations_subparser.add_argument("--dry-run", action="store_true", help="only print actions to be done")
-    suspend_operations_subparser.set_defaults(func=suspend_operations)
-
-    resume_operations_subparser = control_operations_subparser_subparsers.add_parser("resume", help="suspend operations")
-    resume_operations_subparser.add_argument("--dry-run", action="store_true", help="only print actions to be done")
-    resume_operations_subparser.set_defaults(func=resume_operations)
-
-
 
     args = parser.parse_args()
     args.func(args)

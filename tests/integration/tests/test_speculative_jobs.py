@@ -370,16 +370,16 @@ class TestListSpeculativeJobs(YTEnvSetup):
                 "min_repeat_delay": 10,
                 "max_repeat_delay": 10,
             },
-        }
+        },
     }
 
-    SINGLE_SETUP_TEARDOWN = True
-
-    @classmethod
-    def setup_class(cls):
-        super(TestListSpeculativeJobs, cls).setup_class()
+    def setup_method(self, method):
+        super(TestListSpeculativeJobs, self).setup_method(method)
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(cls.Env.create_native_client(), override_tablet_cell_bundle="default")
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
 
     @authors("renadeen")
     def test_list_speculative_jobs(self):
@@ -463,7 +463,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
             "testing": {"testing_speculative_launch_mode": "once"},
             "max_speculative_job_count_per_task": 10,
         }
-        
+
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=2)
         wait_breakpoint(job_count=3)
         assert_list_jobs(op.id, "runtime")

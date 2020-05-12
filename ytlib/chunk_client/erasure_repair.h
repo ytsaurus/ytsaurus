@@ -19,16 +19,12 @@ TFuture<void> RepairErasedParts(
     const std::vector<IChunkWriterPtr>& writers,
     const TClientBlockReadOptions& options);
 
-////////////////////////////////////////////////////////////////////////////////
-
 TFuture<void> RepairErasedParts(
     NErasure::ICodec* codec,
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
     const TClientBlockReadOptions& options);
-
-////////////////////////////////////////////////////////////////////////////////
 
 IChunkReaderPtr CreateRepairingErasureReader(
     NErasure::ICodec* codec,

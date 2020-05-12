@@ -534,7 +534,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     blockReadOptions.ReadSessionId = readSessionId;
     readerProfiler->SetChunkReaderStatistics(blockReadOptions.ChunkReaderStatistics);
 
-    auto reader = store->GetChunkReader(throttler);
+    auto reader = store->GetReaders(throttler).ChunkReader;
     auto meta = WaitFor(reader->GetMeta(blockReadOptions))
         .ValueOrThrow();
 

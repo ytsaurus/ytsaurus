@@ -138,6 +138,7 @@ TObjectYPathProxy::TReqCheckPermissionPtr TPermissionCache::MakeCheckPermissionR
     if (key.Columns) {
         ToProto(req->mutable_columns()->mutable_items(), *key.Columns);
     }
+    req->set_ignore_safe_mode(true);
     SetCachingHeader(req, connection->GetConfig(), GetMasterReadOptions());
     NCypressClient::SetSuppressAccessTracking(req, true);
     return req;

@@ -5,6 +5,8 @@
 #include "chunk.h"
 #endif
 
+#include <yt/client/chunk_client/chunk_replica.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,17 +293,12 @@ inline void TChunk::SetErasureCodec(NErasure::ECodec value)
 
 inline bool TChunk::IsErasure() const
 {
-    return GetType() == NObjectClient::EObjectType::ErasureChunk;
+    return NChunkClient::IsErasureChunkType(GetType());
 }
 
 inline bool TChunk::IsJournal() const
 {
-    return GetType() == NObjectClient::EObjectType::JournalChunk;
-}
-
-inline bool TChunk::IsRegular() const
-{
-    return GetType() == NObjectClient::EObjectType::Chunk;
+    return NChunkClient::IsJournalChunkType(GetType());
 }
 
 inline bool TChunk::IsDiskSizeFinal() const

@@ -173,7 +173,10 @@ void ConfigureUids()
     euid = geteuid();
 #endif
     if (euid == 0) {
-        YT_VERIFY(setgroups(0, nullptr) == 0);
+        // if real uid is already root do not set root as supplementary ids.
+        if (ruid != 0) {
+            YT_VERIFY(setgroups(0, nullptr) == 0);
+        }
         // if effective uid == 0 (e. g. set-uid-root), alter saved = effective, effective = real.
 #ifdef _linux_
         YT_VERIFY(setresuid(ruid, ruid, euid) == 0);

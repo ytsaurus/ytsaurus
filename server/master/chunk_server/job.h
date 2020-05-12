@@ -53,7 +53,7 @@ public:
         TJobId jobId,
         TChunk* chunk,
         NNodeTrackerServer::TNode* node,
-        const   TNodePtrWithIndexesList& targetReplicas,
+        const TNodePtrWithIndexesList& targetReplicas,
         i64 memoryUsage,
         bool decommission);
 

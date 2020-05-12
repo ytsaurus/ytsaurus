@@ -77,7 +77,7 @@ message TBalancingExt
         optional TBalancingExt balancing_ext = 111;
     }
 
-    optional bool enable_stickness = 1 [default = false];
+    optional bool enable_stickiness = 1 [default = false];
     optional int32 sticky_group_size = 2 [default = 1];
 }
 

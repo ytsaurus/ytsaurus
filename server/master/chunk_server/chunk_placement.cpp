@@ -411,13 +411,16 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
 
     std::array<i8, RackIndexBound> perRackCounters{};
     for (auto replica : chunk->StoredReplicas()) {
-        if (replica.GetMediumIndex() != mediumIndex)
+        if (replica.GetMediumIndex() != mediumIndex) {
             continue;
+        }
 
         const auto* rack = replica.GetPtr()->GetRack();
-        if (rack) {
-            ++perRackCounters[rack->GetIndex()];
+        if (!rack) {
+            continue;
         }
+
+        ++perRackCounters[rack->GetIndex()];
     }
 
     // An arbitrary node from a rack with too many replicas.
@@ -426,28 +429,35 @@ TNode* TChunkPlacement::GetRemovalTarget(TChunkPtrWithIndexes chunkWithIndexes)
     TNode* fillFactorWinner = nullptr;
 
     for (auto replica : chunk->StoredReplicas()) {
-        if ((replica.GetMediumIndex() == mediumIndex) &&
-            (chunk->IsRegular() ||
-             chunk->IsErasure() && replica.GetReplicaIndex() == replicaIndex ||
-             chunk->IsJournal())) // allow removing arbitrary journal replicas
+        if (chunk->IsJournal() && replica.GetState() != EChunkReplicaState::Sealed) {
+            continue;
+        }
+
+        if (replica.GetMediumIndex() != mediumIndex) {
+            continue;
+        }
+
+        if (replica.GetReplicaIndex() != replicaIndex) {
+            continue;
+        }
+
+        auto* node = replica.GetPtr();
+        if (!IsValidRemovalTarget(node)) {
+            continue;
+        }
+
+        const auto* rack = node->GetRack();
+        if (rack && perRackCounters[rack->GetIndex()] > maxReplicasPerRack) {
+            rackWinner = node;
+        }
+
+        auto nodeFillFactor = node->GetFillFactor(mediumIndex);
+
+        if (nodeFillFactor &&
+            (!fillFactorWinner ||
+                *nodeFillFactor > *fillFactorWinner->GetFillFactor(mediumIndex)))
         {
-            auto* node = replica.GetPtr();
-            if (!IsValidRemovalTarget(node))
-                continue;
-
-            const auto* rack = node->GetRack();
-            if (rack && perRackCounters[rack->GetIndex()] > maxReplicasPerRack) {
-                rackWinner = node;
-            }
-
-            auto nodeFillFactor = node->GetFillFactor(mediumIndex);
-
-            if (nodeFillFactor &&
-                (!fillFactorWinner ||
-                 *nodeFillFactor > *fillFactorWinner->GetFillFactor(mediumIndex)))
-            {
-                fillFactorWinner = node;
-            }
+            fillFactorWinner = node;
         }
     }
 
@@ -586,7 +596,7 @@ bool TChunkPlacement::IsValidWriteTargetCore(TNode* node)
         return false;
     }
 
-    if (node->GetDisableWriteSessions()) {
+    if (node->GetEffectiveDisableWriteSessions()) {
         // Do not start new sessions if they are explicitly disabled.
         return false;
     }
@@ -683,7 +693,7 @@ std::vector<TChunkPtrWithIndexes> TChunkPlacement::GetBalancingChunks(
         if (chunk->IsJobScheduled()) {
             continue;
         }
-        if (chunk->IsJournal() && replica.GetReplicaIndex() == UnsealedChunkReplicaIndex) {
+        if (chunk->IsJournal() && replica.GetState() == EChunkReplicaState::Unsealed) {
             continue;
         }
         result.push_back(replica);
@@ -706,7 +716,7 @@ void TChunkPlacement::AddSessionHint(TNode* node, int mediumIndex, ESessionType 
 
 int TChunkPlacement::GetMaxReplicasPerRack(
     const TMedium* medium,
-    TChunk* chunk,
+    const TChunk* chunk,
     std::optional<int> replicationFactorOverride)
 {
     auto result = chunk->GetMaxReplicasPerRack(
@@ -717,17 +727,18 @@ int TChunkPlacement::GetMaxReplicasPerRack(
     result = std::min(result, config->MaxReplicasPerRack);
 
     switch (chunk->GetType()) {
-        case EObjectType::Chunk:         result = std::min(result, config->MaxRegularReplicasPerRack); break;
-        case EObjectType::ErasureChunk:  result = std::min(result, config->MaxErasureReplicasPerRack); break;
-        case EObjectType::JournalChunk:  result = std::min(result, config->MaxJournalReplicasPerRack); break;
-        default:                         YT_ABORT();
+        case EObjectType::Chunk:                result = std::min(result, config->MaxRegularReplicasPerRack); break;
+        case EObjectType::ErasureChunk:         result = std::min(result, config->MaxErasureReplicasPerRack); break;
+        case EObjectType::JournalChunk:         result = std::min(result, config->MaxJournalReplicasPerRack); break;
+        case EObjectType::ErasureJournalChunk:  result = std::min({result, config->MaxJournalReplicasPerRack, config->MaxErasureReplicasPerRack}); break;
+        default:                                YT_ABORT();
     }
     return result;
 }
 
 int TChunkPlacement::GetMaxReplicasPerRack(
     int mediumIndex,
-    TChunk* chunk,
+    const TChunk* chunk,
     std::optional<int> replicationFactorOverride)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();

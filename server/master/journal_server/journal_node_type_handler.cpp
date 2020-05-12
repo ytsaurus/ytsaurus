@@ -11,6 +11,8 @@
 #include <yt/server/master/chunk_server/chunk_list.h>
 #include <yt/server/master/chunk_server/medium.h>
 
+#include <yt/ytlib/journal_client/helpers.h>
+
 namespace NYT::NJournalServer {
 
 using namespace NCellMaster;
@@ -67,28 +69,27 @@ protected:
         const TCreateNodeContext& context) override
     {
         const auto& config = Bootstrap_->GetConfig()->CypressManager;
+        if (context.InheritedAttributes) {
+            context.InheritedAttributes->Remove("compression_codec");
+        }
         auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
+        auto erasureCodec = combinedAttributes.GetAndRemove<NErasure::ECodec>("erasure_codec", config->DefaultJournalErasureCodec);
         auto replicationFactor = combinedAttributes.GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
         auto readQuorum = combinedAttributes.GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
         auto writeQuorum = combinedAttributes.GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
 
-        ValidateReplicationFactor(replicationFactor);
-        if (readQuorum > replicationFactor) {
-            THROW_ERROR_EXCEPTION("\"read_quorum\" cannot be greater than \"replication_factor\"");
-        }
-        if (writeQuorum > replicationFactor) {
-            THROW_ERROR_EXCEPTION("\"write_quorum\" cannot be greater than \"replication_factor\"");
-        }
-        if (readQuorum + writeQuorum < replicationFactor + 1) {
-            THROW_ERROR_EXCEPTION("Read/write quorums are not safe: read_quorum + write_quorum < replication_factor + 1");
-        }
+        NJournalClient::ValidateJournalAttributes(
+            erasureCodec,
+            replicationFactor,
+            readQuorum,
+            writeQuorum);
 
         auto nodeHolder = DoCreateImpl(
             id,
             context,
             replicationFactor,
             NCompression::ECodec::None,
-            NErasure::ECodec::None);
+            erasureCodec);
         auto* node = nodeHolder.get();
 
         node->SetReadQuorum(readQuorum);
@@ -106,6 +107,7 @@ protected:
 
         branchedNode->SetPrimaryMediumIndex(originatingNode->GetPrimaryMediumIndex());
         branchedNode->Replication() = originatingNode->Replication();
+        branchedNode->SetErasureCodec(originatingNode->GetErasureCodec());
         branchedNode->SetReadQuorum(originatingNode->GetReadQuorum());
         branchedNode->SetWriteQuorum(originatingNode->GetWriteQuorum());
 
@@ -130,12 +132,14 @@ protected:
         YT_LOG_DEBUG_UNLESS(
             IsRecovery(),
             "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, "
-            "PrimaryMedium: %v, Replication: %v, ReadQuorum: %v, WriteQuorum: %v, Mode: %v, LockTimestamp: %llx)",
+            "PrimaryMedium: %v, Replication: %v, ErasureCodec: %v, ReadQuorum: %v, WriteQuorum: %v, "
+            "Mode: %v, LockTimestamp: %llx)",
             originatingNode->GetVersionedId(),
             branchedNode->GetVersionedId(),
             GetObjectId(originatingNode->GetChunkList()),
             primaryMedium->GetName(),
             originatingNode->Replication(),
+            originatingNode->GetErasureCodec(),
             originatingNode->GetReadQuorum(),
             originatingNode->GetWriteQuorum(),
             lockRequest.Mode,
@@ -211,6 +215,7 @@ protected:
             THROW_ERROR_EXCEPTION("Journal is not sealed");
         }
 
+        clonedTrunkNode->SetErasureCodec(sourceNode->GetErasureCodec());
         clonedTrunkNode->SetReadQuorum(sourceNode->GetReadQuorum());
         clonedTrunkNode->SetWriteQuorum(sourceNode->GetWriteQuorum());
 

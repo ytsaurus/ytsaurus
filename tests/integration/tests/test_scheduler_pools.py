@@ -608,7 +608,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config/max_operation_count", 5)
         assert get("//sys/pool_trees/my_tree/nirvana/@ephemeral_subpool_config/max_operation_count") == 5
 
-    def test_exist_attribute(self):
+    def test_exist_pool_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
 
@@ -619,6 +619,17 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         assert not exists("//sys/pool_trees/my_tree/nirvana/@custom_attr")
         set("//sys/pool_trees/my_tree/nirvana/@custom_attr", 10)
         assert exists("//sys/pool_trees/my_tree/nirvana/@custom_attr")
+
+    def test_exist_pool_tree_attribute2(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+
+        assert not exists("//sys/pool_trees/my_tree/@nodes_filter")
+        set("//sys/pool_trees/my_tree/@nodes_filter", "filter")
+        assert exists("//sys/pool_trees/my_tree/@nodes_filter")
+
+        assert not exists("//sys/pool_trees/my_tree/@custom_attr")
+        set("//sys/pool_trees/my_tree/@custom_attr", 10)
+        assert exists("//sys/pool_trees/my_tree/@custom_attr")
 
     def test_set_using_different_attribute_aliases_is_forbidden(self):
         create_pool_tree("my_tree", wait_for_orchid=False)

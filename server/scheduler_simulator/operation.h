@@ -41,10 +41,9 @@ public:
 
     virtual bool GetActivated() const override;
 
-    bool SetCompleting();
+    virtual void EraseTrees(const std::vector<TString>& treeIds) override;
 
-    void SetErasedTrees(std::vector<TString> erasedTrees) override;
-    const std::vector<TString>& ErasedTrees() const override;
+    bool SetCompleting();
 
 private:
     std::atomic<bool> Completing_ = {false};
@@ -56,10 +55,6 @@ private:
     const TInstant StartTime_;
     const NScheduler::TOperationRuntimeParametersPtr RuntimeParameters_;
     THashMap<TString, int> TreeIdToSlotIndex_;
-
-    std::vector<TString> ErasedTrees_;
-
-    void EraseTree(const TString& treeId) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperation)

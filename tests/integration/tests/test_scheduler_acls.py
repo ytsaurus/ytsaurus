@@ -22,7 +22,6 @@ def _abort_op(**kwargs):
 
 class TestSchedulerAcls(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
-    SINGLE_SETUP_TEARDOWN = True
 
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -80,30 +79,32 @@ class TestSchedulerAcls(YTEnvSetup):
         ],
     }
 
-    @classmethod
-    def setup_class(cls):
-        super(TestSchedulerAcls, cls).setup_class()
+    def setup_method(self, method):
+        super(TestSchedulerAcls, self).setup_method(method)
 
         # Init operations archive.
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(cls.Env.create_native_client(), override_tablet_cell_bundle="default")
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
 
         for user in [
-            cls.operation_authenticated_user,
-            cls.no_rights_user,
-            cls.read_only_user,
-            cls.manage_only_user,
-            cls.manage_and_read_user,
-            cls.banned_from_managing_user
+            self.operation_authenticated_user,
+            self.no_rights_user,
+            self.read_only_user,
+            self.manage_only_user,
+            self.manage_and_read_user,
+            self.banned_from_managing_user
         ]:
             create_user(user)
 
         for group in [
-            cls.manage_and_read_group
+            self.manage_and_read_group
         ]:
             create_group(group)
 
-        for group, members in cls.group_membership.iteritems():
+        for group, members in self.group_membership.iteritems():
             for member in members:
                 add_member(member, group)
 
@@ -205,7 +206,6 @@ class TestSchedulerAcls(YTEnvSetup):
             except YtError as e:
                 # TODO: Ensure it is "no such operation" error or operation has failed or aborted.
                 pass
-
 
     @authors("levysotsky")
     @pytest.mark.parametrize("should_update_operation_parameters", [False, True])

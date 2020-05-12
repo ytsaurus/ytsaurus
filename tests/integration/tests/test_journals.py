@@ -3,6 +3,7 @@ import pytest
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
 import yt.yson
+import random
 
 ##################################################################
 
@@ -10,11 +11,19 @@ class TestJournals(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
 
-    DATA = [{"data" : "payload" + str(i)} for i in xrange(0, 10)]
+    DATA = [
+        {"data" : "payload-" + str(i) + "-" + ''.join(random.choice(string.ascii_uppercase + string.digits) for _ in range(i * i + random.randrange(10)))}
+        for i in xrange(0, 10)
+    ]
 
-    def _write_and_wait_until_sealed(self, path, data):
-        write_journal(path, data)
+    def _write_and_wait_until_sealed(self, path, data, **kwargs):
+        write_journal(path, data, **kwargs)
         wait_until_sealed(path)
+
+    def _wait_until_last_chunk_sealed(self, path):
+        chunk_ids = get(path + "/@chunk_ids")
+        chunk_id = chunk_ids[-1]
+        wait(lambda: all(r.attributes["state"] == "sealed" for r in get("#{}/@stored_replicas".format(chunk_id))))
 
     def _truncate_and_check(self, path, row_count, expected_row_count):
         truncate_journal(path, row_count)
@@ -22,9 +31,21 @@ class TestJournals(YTEnvSetup):
         assert get(path + "/@sealed")
         assert get(path + "/@quorum_row_count") == expected_row_count
 
+
+    @authors("babenko")
+    def test_explicit_compression_codec_forbidden(self):
+        with pytest.raises(YtError): create("journal", "//tmp/j", attributes={"compression_codec": "lz4"})
+
+    @authors("babenko")
+    def test_inherited_compression_codec_allowed(self):
+        create("map_node", "//tmp/m", attributes={"compression_codec": "lz4"})
+        create("journal", "//tmp/m/j")
+        assert get("//tmp/m/j/@compression_codec") == "none"
+
     @authors("ignat")
-    def test_create_success(self):
+    def test_create_regular_success(self):
         create("journal", "//tmp/j")
+        assert get("//tmp/j/@erasure_codec") == "none"
         assert get("//tmp/j/@replication_factor") == 3
         assert get("//tmp/j/@read_quorum") == 2
         assert get("//tmp/j/@write_quorum") == 2
@@ -33,27 +54,47 @@ class TestJournals(YTEnvSetup):
         assert get("//tmp/j/@quorum_row_count") == 0
         assert get("//tmp/j/@chunk_ids") == []
 
-    @authors("babenko", "ignat")
-    def test_create_failure(self):
-        with pytest.raises(YtError): create("journal", "//tmp/j", attributes={"replication_factor": 1})
-        with pytest.raises(YtError): create("journal", "//tmp/j", attributes={"read_quorum": 4})
-        with pytest.raises(YtError): create("journal", "//tmp/j", attributes={"write_quorum": 4})
-        with pytest.raises(YtError): create("journal", "//tmp/j", attributes={"replication_factor": 4})
-
-    @authors("babenko", "ignat")
-    def test_readwrite1(self):
-        create("journal", "//tmp/j")
-        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
-
+    @authors("babenko")
+    def test_create_erasure_success(self):
+        create("journal", "//tmp/j", attributes={
+            "erasure_codec": "isa_lrc_12_2_2",
+            "replication_factor": 1,
+            "read_quorum": 14,
+            "write_quorum": 15
+        })
+        assert get("//tmp/j/@erasure_codec") == "isa_lrc_12_2_2"
+        assert get("//tmp/j/@replication_factor") == 1
+        assert get("//tmp/j/@read_quorum") == 14
+        assert get("//tmp/j/@write_quorum") == 15
+        assert get_chunk_owner_disk_space("//tmp/j") == 0
         assert get("//tmp/j/@sealed")
-        assert get("//tmp/j/@quorum_row_count") == 10
-        assert get("//tmp/j/@chunk_count") == 1
-
-        for i in xrange(0, len(self.DATA)):
-            assert read_journal("//tmp/j[#" + str(i) + ":#" + str(i + 1) + "]") == [{"data" : "payload" + str(i)}]
+        assert get("//tmp/j/@quorum_row_count") == 0
+        assert get("//tmp/j/@chunk_ids") == []
 
     @authors("babenko", "ignat")
-    def test_readwrite2(self):
+    def test_create_regular_failure(self):
+        BAD_ATTRIBUTES = [
+            {"replication_factor": 1},
+            {"read_quorum": 4},
+            {"write_quorum": 4},
+            {"replication_factor": 4}
+        ]
+        for attributes in BAD_ATTRIBUTES:
+            with pytest.raises(YtError): create("journal", "//tmp/j", attributes=attributes)
+
+    @authors("babenko")
+    def test_create_erasure_failure(self):
+        BAD_ATTRIBUTES = [
+            {"erasure_codec": "isa_lrc_12_2_2", "replication_factor": 2},
+            {"erasure_codec": "isa_lrc_12_2_2", "read_quorum": 17},
+            {"erasure_codec": "isa_lrc_12_2_2", "write_quorum": 17},
+            {"erasure_codec": "isa_lrc_12_2_2", "read_quorum": 14, "write_quorum": 14}
+        ]
+        for attributes in BAD_ATTRIBUTES:
+            with pytest.raises(YtError): create("journal", "//tmp/j", attributes=attributes)
+
+    @authors("babenko", "ignat")
+    def test_read_write(self):
         create("journal", "//tmp/j")
         for i in xrange(0, 10):
             self._write_and_wait_until_sealed("//tmp/j", self.DATA)
@@ -174,6 +215,17 @@ class TestJournals(YTEnvSetup):
         assert "location" in orchid
         assert "disk_space" in orchid
 
+class TestJournalsMulticell(TestJournals):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+class TestJournalsPortal(TestJournalsMulticell):
+    ENABLE_TMP_PORTAL = True
+
+class TestJournalsRpcProxy(TestJournals):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
+
 ##################################################################
 
 class TestJournalsChangeMedia(YTEnvSetup):
@@ -240,14 +292,137 @@ class TestJournalsChangeMedia(YTEnvSetup):
 
 ##################################################################
 
-class TestJournalsMulticell(TestJournals):
-    NUM_SECONDARY_MASTER_CELLS = 2
+class TestErasureJournals(TestJournals):
+    NUM_NODES = 20
 
-class TestJournalsPortal(TestJournalsMulticell):
-    ENABLE_TMP_PORTAL = True
+    JOURNAL_ATTRIBUTES = {
+        "none": {
+            "erasure_codec": "none",
+            "replication_factor": 3,
+            "read_quorum": 2,
+            "write_quorum": 2
+        },
+        "isa_lrc_12_2_2": {
+            "erasure_codec": "isa_lrc_12_2_2",
+            "replication_factor": 1,
+            "read_quorum": 14,
+            "write_quorum": 15
+        },
+        "isa_reed_solomon_3_3": {
+            "erasure_codec": "isa_reed_solomon_3_3",
+            "replication_factor": 1,
+            "read_quorum": 4,
+            "write_quorum": 5
+        }
+    }
 
-class TestJournalsRpcProxy(TestJournals):
+    @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3"])
+    @authors("babenko", "ignat")
+    def test_seal_abruptly_closed_journal(self, erasure_codec):
+        create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
+        N = 3
+        for i in xrange(N):
+            self._write_and_wait_until_sealed("//tmp/j", self.DATA, journal_writer={"ignore_closing": True})
+            self._wait_until_last_chunk_sealed("//tmp/j")
+
+        assert get("//tmp/j/@sealed")
+        assert get("//tmp/j/@quorum_row_count") == len(self.DATA) * N
+        assert get("//tmp/j/@chunk_count") == N
+        assert read_journal("//tmp/j") == self.DATA * N
+
+    @pytest.mark.parametrize("erasure_codec", ["isa_lrc_12_2_2", "isa_reed_solomon_3_3"])
+    @authors("babenko")
+    def test_repair_jobs(self, erasure_codec):
+        create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
+        write_journal("//tmp/j", self.DATA)
+
+        chunk_ids = get("//tmp/j/@chunk_ids")
+        chunk_id = chunk_ids[-1]
+        replica_count = len(get("#{}/@stored_replicas".format(chunk_id)))
+
+        def _check_all_replicas_ok():
+            replicas = get("#{}/@stored_replicas".format(chunk_id))
+            return len(replicas) == replica_count and all(r.attributes["state"] == "sealed" for r in replicas)
+
+        for i in xrange(10):
+            wait(_check_all_replicas_ok)
+
+            replicas = get("#{}/@stored_replicas".format(chunk_id))
+            random.shuffle(replicas)
+            nodes_to_ban = [str(x) for x in replicas[:3]]
+    
+            for node in nodes_to_ban:
+                set_node_banned(node, True)
+
+            wait(_check_all_replicas_ok)
+
+            assert read_journal("//tmp/j") == self.DATA
+
+            for node in nodes_to_ban:
+                set_node_banned(node, False)
+
+    def _test_critical_erasure_state(self, state, n):
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
+        set("//sys/@config/chunk_manager/enable_chunk_sealer", False)
+        
+        create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES["isa_lrc_12_2_2"])
+        write_journal("//tmp/j", self.DATA, journal_writer={"ignore_closing": True})
+
+        chunk_ids = get("//tmp/j/@chunk_ids")
+        chunk_id = chunk_ids[-1]
+        check_path = "//sys/{}_chunks/{}".format(state, chunk_id)
+
+        assert not exists(check_path)
+        replicas = get("#{}/@stored_replicas".format(chunk_id))
+        for r in replicas[:n]:
+            set_node_banned(str(r), True)
+        wait(lambda: exists(check_path))
+        for r in replicas[:n]:
+            set_node_banned(str(r), False)
+        wait(lambda: not exists(check_path))
+
+    @authors("babenko")
+    def test_erasure_quorum_missing(self):
+        self._test_critical_erasure_state("quorum_missing", 3)
+
+    @authors("babenko")
+    def test_erasure_lost(self):
+        self._test_critical_erasure_state("lost_vital", 5)
+
+    @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3"])
+    @authors("babenko", "ignat")
+    def test_read_with_repair(self, erasure_codec):
+        create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
+        self._write_and_wait_until_sealed("//tmp/j", self.DATA)
+
+        assert get("//tmp/j/@sealed")
+        assert get("//tmp/j/@quorum_row_count") == len(self.DATA)
+        assert get("//tmp/j/@chunk_count") == 1
+
+        def check():
+            for i in xrange(0, len(self.DATA)):
+                assert read_journal("//tmp/j[#" + str(i) + ":#" + str(i + 1) + "]") == [self.DATA[i]]
+            for i in xrange(0, len(self.DATA)):
+                assert read_journal("//tmp/j[#" + str(i) + ":]") == self.DATA[i:]
+            for i in xrange(0, len(self.DATA)):
+                assert read_journal("//tmp/j[:#" + str(i) + "]") == self.DATA[:i]
+
+        check()
+
+        chunk_ids = get("//tmp/j/@chunk_ids")
+        chunk_id = chunk_ids[-1]
+        replicas = get("#{}/@stored_replicas".format(chunk_id))
+        for replica in replicas:
+            set_node_banned(replica, True)
+            check()
+            set_node_banned(replica, False)
+
+
+class TestErasureJournalsRpcProxy(TestErasureJournals):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+
+##################################################################
+
 

@@ -2,6 +2,8 @@
 
 #include "column_format_ut.h"
 
+#include <yt/client/table_client/helpers.h>
+
 #include <yt/ytlib/table_chunk_format/null_column_reader.h>
 #include <yt/ytlib/table_chunk_format/null_column_writer.h>
 
@@ -20,10 +22,7 @@ std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWr
 
 std::vector<TUnversionedOwningRow> CreateNullRows(size_t count)
 {
-    TUnversionedOwningRowBuilder builder;
-    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Null, TestColumnId));
-    const auto nullValueRow = builder.FinishRow();
-    return std::vector<TUnversionedOwningRow>(count, nullValueRow);
+    return std::vector<TUnversionedOwningRow>(count, MakeUnversionedOwningRow(std::nullopt));
 }
 
 TEST(TUnversionedNullColumnTest, ReadValues)

@@ -635,27 +635,6 @@ TChunkId TErasureChunkReaderBase::GetChunkId() const
     return Readers_.front()->GetChunkId();
 }
 
-TFuture<TSharedRef> TErasureChunkReaderBase::LookupRows(
-    const TClientBlockReadOptions& /*options*/,
-    const TSharedRange<NTableClient::TKey>& /*lookupKeys*/,
-    NCypressClient::TObjectId /*tableId*/,
-    NHydra::TRevision /*revision*/,
-    const NTableClient::TTableSchema& /*tableSchema*/,
-    std::optional<i64> /*estimatedSize*/,
-    std::atomic<i64>* /*uncompressedDataSize*/,
-    const NTableClient::TColumnFilter& /*columnFilter*/,
-    NTableClient::TTimestamp /*timestamp*/,
-    NCompression::ECodec /*codecId*/,
-    bool /*produceAllVersions*/)
-{
-    YT_UNIMPLEMENTED();
-}
-
-bool TErasureChunkReaderBase::IsLookupSupported() const
-{
-    YT_UNIMPLEMENTED();
-}
-
 TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(const TClientBlockReadOptions& options)
 {
     if (PlacementExtFuture_) {
@@ -683,4 +662,3 @@ void TErasureChunkReaderBase::OnGotPlacementMeta(const TErasurePlacementExt& pla
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient::NErasureHelpers
-

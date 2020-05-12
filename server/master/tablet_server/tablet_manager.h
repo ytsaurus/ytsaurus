@@ -195,7 +195,6 @@ private:
     friend class TTabletBalancer;
     class TImpl;
 
-    // XXX(babenko): why these in private?
     void DestroyTable(NTableServer::TTableNode* table);
 
     void DestroyTablet(TTablet* tablet);

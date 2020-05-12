@@ -71,6 +71,7 @@ public:
     virtual void ActivateOperation(NScheduler::TOperationId operationId) override;
 
     virtual void AbortOperation(NScheduler::TOperationId operationId, const TError& error) override;
+    virtual void FlushOperationNode(NScheduler::TOperationId operationId) override;
 
     void PreemptJob(const NScheduler::TJobPtr& job);
 

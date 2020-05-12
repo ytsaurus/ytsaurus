@@ -6,6 +6,17 @@
 #include "chunk_replica.h"
 #endif
 
+template <class T>
+struct THash<NYT::NChunkServer::TPtrWithIndexes<T>>
+{
+    Y_FORCE_INLINE size_t operator()(NYT::NChunkServer::TPtrWithIndexes<T> value) const
+    {
+        return value.GetHash();
+    }
+};
+
+#include <yt/server/master/cell_master/serialize.h>
+
 #include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/core/misc/serialize.h>
@@ -112,23 +123,30 @@ Y_FORCE_INLINE void TPtrWithIndex<T>::Load(C& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static_assert(
+    NChunkClient::ChunkReplicaIndexBound <= (1LL << 5),
+    "Replica index must fit into 5 bits.");
+static_assert(
+    NChunkClient::MediumIndexBound <= (1LL << 7),
+    "Medium index must fit into 7 bits.");
+static_assert(
+    static_cast<int>(TEnumTraits<EChunkReplicaState>::GetMaxValue()) < (1LL << 3),
+    "Chunk replica state must fit into 2 bits.");
+
 template <class T>
 Y_FORCE_INLINE TPtrWithIndexes<T>::TPtrWithIndexes()
     : Value_(0)
 { }
 
 template <class T>
-Y_FORCE_INLINE TPtrWithIndexes<T>::TPtrWithIndexes(T* ptr, int replicaIndex, int mediumIndex)
+Y_FORCE_INLINE TPtrWithIndexes<T>::TPtrWithIndexes(T* ptr, int replicaIndex, int mediumIndex, EChunkReplicaState state)
     : Value_(
         reinterpret_cast<uintptr_t>(ptr) |
+        static_cast<uintptr_t>(state) |
         (static_cast<uintptr_t>(replicaIndex) << 52) |
         (static_cast<uintptr_t>(mediumIndex) << 57))
 {
-    static_assert(
-        NChunkClient::ChunkReplicaIndexBound * NChunkClient::MediumIndexBound <= 0x1000,
-        "Replica and medium indexes must fit into 12 bits.");
-
-    YT_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xfff0000000000000LL) == 0);
+    YT_ASSERT((reinterpret_cast<uintptr_t>(ptr) & 0xfff0000000000003LL) == 0);
     YT_ASSERT(replicaIndex >= 0 && replicaIndex <= 0x1f);
     YT_ASSERT(mediumIndex >= 0 && mediumIndex <= 0x7f);
 }
@@ -136,7 +154,7 @@ Y_FORCE_INLINE TPtrWithIndexes<T>::TPtrWithIndexes(T* ptr, int replicaIndex, int
 template <class T>
 Y_FORCE_INLINE T* TPtrWithIndexes<T>::GetPtr() const
 {
-    return reinterpret_cast<T*>(Value_ & 0x000fffffffffffffLL);
+    return reinterpret_cast<T*>(Value_ & 0x000ffffffffffffcLL);
 }
 
 template <class T>
@@ -149,6 +167,18 @@ template <class T>
 Y_FORCE_INLINE int TPtrWithIndexes<T>::GetMediumIndex() const
 {
     return Value_ >> 57;
+}
+
+template <class T>
+Y_FORCE_INLINE EChunkReplicaState TPtrWithIndexes<T>::GetState() const
+{
+    return static_cast<EChunkReplicaState>(Value_ & 0x3);
+}
+
+template <class T>
+Y_FORCE_INLINE TPtrWithIndexes<T> TPtrWithIndexes<T>::ToGenericState() const
+{
+    return TPtrWithIndexes<T>(GetPtr(), GetReplicaIndex(), GetMediumIndex(), EChunkReplicaState::Generic);
 }
 
 template <class T>
@@ -184,6 +214,12 @@ Y_FORCE_INLINE bool TPtrWithIndexes<T>::operator < (TPtrWithIndexes other) const
         return thisMediumIndex < otherMediumIndex;
     }
 
+    auto thisState = GetState();
+    auto otherState = other.GetState();
+    if (thisState != otherState) {
+        return thisState < otherState;
+    }
+
     return GetPtr()->GetId() < other.GetPtr()->GetId();
 }
 
@@ -200,6 +236,12 @@ Y_FORCE_INLINE bool TPtrWithIndexes<T>::operator <= (TPtrWithIndexes other) cons
     int otherMediumIndex = other.GetMediumIndex();
     if (thisMediumIndex != otherMediumIndex) {
         return thisMediumIndex < otherMediumIndex;
+    }
+
+    auto thisState = GetState();
+    auto otherState = other.GetState();
+    if (thisState != otherState) {
+        return thisState < otherState;
     }
 
     return GetPtr()->GetId() <= other.GetPtr()->GetId();
@@ -225,6 +267,7 @@ Y_FORCE_INLINE void TPtrWithIndexes<T>::Save(C& context) const
     Save(context, GetPtr());
     Save<i8>(context, GetReplicaIndex());
     Save<i8>(context, GetMediumIndex());
+    Save(context, GetState());
 }
 
 template <class T>
@@ -235,27 +278,17 @@ Y_FORCE_INLINE void TPtrWithIndexes<T>::Load(C& context)
     auto* ptr = Load<T*>(context);
     int replicaIndex = Load<i8>(context);
     int mediumIndex = Load<i8>(context);
-    *this = TPtrWithIndexes<T>(ptr, replicaIndex, mediumIndex);
+    EChunkReplicaState state;
+    // COMPAT(babenko)
+    if (context.GetVersion() < NCellMaster::EMasterReign::ErasureJournals) {
+        state = EChunkReplicaState::Generic;
+    } else {
+        state = Load<EChunkReplicaState>(context);
+    }
+    *this = TPtrWithIndexes<T>(ptr, replicaIndex, mediumIndex, state);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
 
-template <class T>
-struct THash<NYT::NChunkServer::TPtrWithIndex<T>>
-{
-    Y_FORCE_INLINE size_t operator()(NYT::NChunkServer::TPtrWithIndex<T> value) const
-    {
-        return value.GetHash();
-    }
-};
-
-template <class T>
-struct THash<NYT::NChunkServer::TPtrWithIndexes<T>>
-{
-    Y_FORCE_INLINE size_t operator()(NYT::NChunkServer::TPtrWithIndexes<T> value) const
-    {
-        return value.GetHash();
-    }
-};

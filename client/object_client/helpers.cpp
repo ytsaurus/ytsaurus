@@ -76,6 +76,7 @@ bool IsUserType(EObjectType type)
         type == EObjectType::Chunk ||
         type == EObjectType::JournalChunk ||
         type == EObjectType::ErasureChunk ||
+        type == EObjectType::ErasureJournalChunk ||
         type == EObjectType::ChunkList ||
         type == EObjectType::StringNode ||
         type == EObjectType::Int64Node ||

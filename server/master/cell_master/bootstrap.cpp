@@ -33,6 +33,8 @@
 #include <yt/server/lib/hydra/local_snapshot_store.h>
 #include <yt/server/lib/hydra/snapshot.h>
 
+#include <yt/server/lib/discovery_server/config.h>
+#include <yt/server/lib/discovery_server/discovery_service.h>
 
 #include <yt/server/master/journal_server/journal_manager.h>
 #include <yt/server/master/journal_server/journal_node.h>
@@ -166,6 +168,7 @@ using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NCellServer;
+using namespace NDiscoveryServer;
 
 using NTransactionServer::TTransactionManager;
 using NTransactionServer::TTransactionManagerPtr;
@@ -715,6 +718,23 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::CellDirectorySynchronizer));
     CellDirectorySynchronizer_->Start();
 
+    DiscoveryQueue_ = New<TActionQueue>("Discovery");
+    auto discoveryServerConfig = New<TDiscoveryServerConfig>();
+    discoveryServerConfig->ServerAddresses.reserve(localCellConfig->Peers.size());
+    for (const auto& peer : localCellConfig->Peers) {
+        if (peer.Address) {
+            discoveryServerConfig->ServerAddresses.push_back(*peer.Address);
+        }
+    }
+    DiscoveryServer_ = New<TDiscoveryServer>(
+        RpcServer_,
+        localAddress,
+        discoveryServerConfig,
+        channelFactory,
+        DiscoveryQueue_->GetInvoker(),
+        DiscoveryQueue_->GetInvoker());
+    DiscoveryServer_->Initialize();
+
     if (TimestampManager_) {
         RpcServer_->RegisterService(TimestampManager_->GetRpcService()); // null realm
     }
@@ -812,6 +832,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/hive",
         CreateVirtualNode(HiveManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/discovery_server",
+        CreateVirtualNode(DiscoveryServer_->GetYPathService()));
 
     SetBuildAttributes(orchidRoot, "master");
 

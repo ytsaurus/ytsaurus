@@ -1426,6 +1426,135 @@ TEST_F(TChunkTreeTraversingTest, OrderedDynamicEmptyTablet)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTraverseWithKeyColumnCount
+    : public TChunkTreeTraversingTest
+    , public ::testing::WithParamInterface<std::tuple<
+        int, TString, TString, std::optional<TReadLimit>, std::optional<TReadLimit>>>
+{ };
+
+TEST_P(TTraverseWithKeyColumnCount, TestStatic)
+{
+    const auto& params = GetParam();
+    auto keyColumnCount = std::get<0>(params);
+
+    auto chunk1 = CreateChunk(1, 1, 1, 1, BuildKey("0"), BuildKey("0"));
+    auto chunk2 = CreateChunk(2, 2, 2, 2, BuildKey("1"), BuildKey("2"));
+
+    auto root = CreateChunkList(EChunkListKind::Static);
+
+    AttachToChunkList(root, std::vector<TChunkTree*>{chunk1, chunk2});
+
+    root->Statistics().Sealed = false;
+    auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TReadLimit lowerLimit;
+        lowerLimit.SetKey(BuildKey(std::get<1>(params)));
+
+        TReadLimit upperLimit;
+        upperLimit.SetKey(BuildKey(std::get<2>(params)));
+
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit, keyColumnCount);
+
+        std::set<TChunkInfo> correctResult;
+
+        if (auto firstChunk = std::get<3>(params)) {
+            correctResult.insert(TChunkInfo(
+            chunk1,
+            0,
+            *firstChunk,
+            TReadLimit()));
+        }
+
+        if (auto secondChunk = std::get<4>(params)) {
+            correctResult.insert(TChunkInfo(
+            chunk2,
+            1,
+            TReadLimit(),
+            *secondChunk));
+        }
+
+        EXPECT_EQ(correctResult, visitor->GetChunkInfos());
+    }
+}
+
+TEST_P(TTraverseWithKeyColumnCount, TestDynamic)
+{
+    const auto& params = GetParam();
+    auto keyColumnCount = std::get<0>(params);
+
+    auto* root = CreateChunkList(EChunkListKind::OrderedDynamicRoot);
+    auto* tablet = CreateChunkList(EChunkListKind::OrderedDynamicTablet);
+    auto* chunk1 = CreateChunk(1, 1, 1, 1, BuildKey("0"), BuildKey("0"));
+    auto* chunk2 = CreateChunk(2, 2, 2, 2, BuildKey("1"), BuildKey("2"));
+
+    AttachToChunkList(root, {tablet});
+    AttachToChunkList(tablet, {chunk1, chunk2});
+
+    auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TReadLimit lowerLimit;
+        lowerLimit.SetKey(BuildKey(std::get<1>(params)));
+
+        TReadLimit upperLimit;
+        upperLimit.SetKey(BuildKey(std::get<2>(params)));
+
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit, keyColumnCount);
+
+        std::set<TChunkInfo> correctResult;
+
+        if (auto firstChunk = std::get<3>(params)) {
+            correctResult.insert(TChunkInfo(
+            chunk1,
+            0,
+            0,
+            *firstChunk,
+            TReadLimit()));
+        }
+
+        if (auto secondChunk = std::get<4>(params)) {
+            correctResult.insert(TChunkInfo(
+            chunk2,
+            1,
+            0,
+            TReadLimit(),
+            *secondChunk));
+        }
+
+        EXPECT_EQ(correctResult, visitor->GetChunkInfos());
+    }
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TTraverseWithKeyColumnCount,
+    TTraverseWithKeyColumnCount,
+    ::testing::Values(
+        std::make_tuple(
+            2,
+            "0;<type=min>#",
+            "2;<type=min>#",
+            TReadLimit(),
+            TReadLimit(BuildKey("2;<type=min>#"))),
+        std::make_tuple(
+            2,
+            "0;<type=null>#",
+            "2;<type=null>#",
+            TReadLimit(),
+            TReadLimit(BuildKey("2;<type=null>#"))),
+        std::make_tuple(
+            2,
+            "0;<type=max>#",
+            "2;<type=max>#",
+            std::nullopt,
+            TReadLimit())));
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkTreeTraversingStressTest
     : public TChunkGeneratorBase
 { };
@@ -1698,7 +1827,7 @@ TEST_F(TChunkTreeTraversingStressTest, OrderedDynamicWithTabletIndex)
     auto callbacks = GetNonpreemptableChunkTraverserCallbacks();
 
     for (auto iter = 0; iter < 5000; ++iter) {
-        const auto& [lowerLimit, upperLimit] = generateLimits();
+        const auto [lowerLimit, upperLimit] = generateLimits();
 
         auto visitor = New<TTestChunkVisitor>();
         TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);

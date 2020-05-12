@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "chunk_reader_allowing_repair.h"
 
 #include <yt/library/erasure/public.h>
 
@@ -12,10 +11,10 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkReaderPtr CreateRepairingReader(
-    NErasure::ICodec *codec,
+    NErasure::ICodec* codec,
     TErasureReaderConfigPtr config,
     const std::vector<IChunkReaderAllowingRepairPtr>& dataBlocksReaders,
-    const NLogging::TLogger& logger = NLogging::TLogger());
+    const NLogging::TLogger& logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

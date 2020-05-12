@@ -17,6 +17,57 @@
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+// Scalar inline types
+
+#define XX(T) \
+    template <> \
+    struct TUnversionedValueConversionTraits<T, void> \
+    { \
+        static constexpr bool Scalar = true; \
+        static constexpr bool Inline = true; \
+    };
+
+XX(std::nullopt_t)
+XX(i64)
+XX(ui64)
+XX(i32)
+XX(ui32)
+XX(i16)
+XX(ui16)
+XX(i8)
+XX(ui8)
+XX(bool)
+XX(double)
+XX(TInstant)
+XX(TDuration)
+
+#undef XX
+
+////////////////////////////////////////////////////////////////////////////////
+// Scalar non-inline types
+
+#define XX(T) \
+    template <> \
+    struct TUnversionedValueConversionTraits<T, void> \
+    { \
+        static constexpr bool Scalar = true; \
+        static constexpr bool Inline = false; \
+    };
+
+XX(TString)
+XX(TStringBuf)
+XX(TGuid)
+
+#undef XX
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+struct TUnversionedValueConversionTraits<T, typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type>
+{
+    static constexpr bool Scalar = true;
+    static constexpr bool Inline = !TEnumTraits<T>::IsStringSerializableEnum;
+};
 
 template <class T>
 void ToUnversionedValue(
@@ -104,6 +155,13 @@ void FromUnversionedValue(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
+struct TUnversionedValueConversionTraits<std::optional<T>, void>
+{
+    static constexpr bool Scalar = TUnversionedValueConversionTraits<T>::Scalar;
+    static constexpr bool Inline = TUnversionedValueConversionTraits<T>::Inline;
+};
+
+template <class T>
 void ToUnversionedValue(
     TUnversionedValue* unversionedValue,
     const std::optional<T>& value,
@@ -188,7 +246,7 @@ template <class T>
 void FromUnversionedValue(
     std::vector<T>* values,
     TUnversionedValue unversionedValue,
-    typename std::enable_if<TIsScalarPersistentType<T>::Value, void>::type*)
+    typename std::enable_if<TUnversionedValueConversionTraits<T>::Scalar, void>::type*)
 {
     values->clear();
     UnversionedValueToListImpl(
@@ -253,79 +311,65 @@ void FromUnversionedValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Index, class... Ts>
-struct TToUnversionedValuesTraits;
-
-template <size_t Index>
-struct TToUnversionedValuesTraits<Index>
-{
-    template <class V>
-    static void Do(V*, const TRowBufferPtr&)
-    { }
-};
-
-template <size_t Index, class T, class... Ts>
-struct TToUnversionedValuesTraits<Index, T, Ts...>
-{
-    template <class V>
-    static void Do(V* array, const TRowBufferPtr& rowBuffer, const T& head, const Ts&... tail)
-    {
-        ToUnversionedValue(&(*array)[Index], head, rowBuffer);
-        TToUnversionedValuesTraits<Index + 1, Ts...>::Do(array, rowBuffer, tail...);
-    }
-};
-
 template <class... Ts>
 auto ToUnversionedValues(
     const TRowBufferPtr& rowBuffer,
-    const Ts& ... values)
+    Ts&&... values)
     -> std::array<TUnversionedValue, sizeof...(Ts)>
 {
     std::array<TUnversionedValue, sizeof...(Ts)> array;
-    TToUnversionedValuesTraits<0, Ts...>::Do(&array, rowBuffer, values...);
+    auto* current = array.data();
+    (ToUnversionedValue(current++, std::forward<Ts>(values), rowBuffer), ...);
     return array;
 }
-
-template <size_t Index, class... Ts>
-struct TFromUnversionedRowTraits;
-
-template <size_t Index>
-struct TFromUnversionedRowTraits<Index>
-{
-    static void Do(TUnversionedRow)
-    { }
-};
-
-template <size_t Index, class T, class... Ts>
-struct TFromUnversionedRowTraits<Index, T, Ts...>
-{
-    static void Do(TUnversionedRow row, T* head, Ts*... tail)
-    {
-        FromUnversionedValue(head, row[Index]);
-        TFromUnversionedRowTraits<Index + 1, Ts...>::Do(row , tail...);
-    }
-};
 
 template <class... Ts>
 void FromUnversionedRow(
     TUnversionedRow row,
     Ts*... values)
 {
-    if (row.GetCount() != sizeof...(Ts)) {
-        THROW_ERROR_EXCEPTION("Invalid number of values in row: expected %v, got %v",
+    if (row.GetCount() < sizeof...(Ts)) {
+        THROW_ERROR_EXCEPTION("Invalid number of values in row: expected >=%v, got %v",
             sizeof...(Ts),
             row.GetCount());
     }
-    TFromUnversionedRowTraits<0, Ts...>::Do(row, values...);
+    const auto* current = row.Begin();
+    (FromUnversionedValue(values, *current++), ...);
+}
+
+namespace NDetail {
+
+template <size_t Index, class... Ts>
+void TupleFromUnversionedRowHelper(std::tuple<Ts...>* tuple, TUnversionedRow row)
+{
+    if constexpr(Index < sizeof...(Ts)) {
+        FromUnversionedValue(&std::get<Index>(*tuple), row[Index]);
+        TupleFromUnversionedRowHelper<Index + 1, Ts...>(tuple, row);
+    }
+}
+
+} // namespace NDetail
+
+template <class... Ts>
+std::tuple<Ts...> FromUnversionedRow(TUnversionedRow row)
+{
+    if  (row.GetCount() < sizeof...(Ts)) {
+        THROW_ERROR_EXCEPTION("Invalid number of values in row: expected >=%v, got %v",
+            sizeof...(Ts),
+            row.GetCount());
+    }
+    std::tuple<Ts...> result;
+    NDetail::TupleFromUnversionedRowHelper<0, Ts...>(&result, row);
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-TUnversionedValue ToUnversionedValue(const T& value, const TRowBufferPtr& rowBuffer, int id)
+TUnversionedValue ToUnversionedValue(T&& value, const TRowBufferPtr& rowBuffer, int id)
 {
     TUnversionedValue unversionedValue;
-    ToUnversionedValue(&unversionedValue, value, rowBuffer, id);
+    ToUnversionedValue(&unversionedValue, std::forward<T>(value), rowBuffer, id);
     return unversionedValue;
 }
 
@@ -335,6 +379,24 @@ T FromUnversionedValue(TUnversionedValue unversionedValue)
     T value;
     FromUnversionedValue(&value, unversionedValue);
     return value;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class... Ts>
+TUnversionedOwningRow MakeUnversionedOwningRow(Ts&&... values)
+{
+    // TODO(babenko): optimize further
+    constexpr bool AllTypesInline = (... && TUnversionedValueConversionTraits<Ts>::Inline);
+    auto rowBuffer = AllTypesInline ? TRowBufferPtr() : New<TRowBuffer>();
+    auto unversionedValues = ToUnversionedValues(rowBuffer, std::forward<Ts>(values)...);
+    TUnversionedOwningRowBuilder builder(sizeof...(values));
+    int id = 0;
+    for (auto& unversionedValue : unversionedValues) {
+        unversionedValue.Id = id++;
+        builder.AddValue(unversionedValue);
+    }
+    return builder.FinishRow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

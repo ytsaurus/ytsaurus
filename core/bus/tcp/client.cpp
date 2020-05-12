@@ -167,7 +167,7 @@ public:
         auto connection = New<TTcpConnection>(
             Config_,
             EConnectionType::Client,
-            DefaultNetworkName,
+            GetNetworkName(),
             id,
             INVALID_SOCKET,
             EndpointDescription_,

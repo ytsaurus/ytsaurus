@@ -915,17 +915,15 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
 
         op1 = map(track=False, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out1",
                   spec={"pool": "fake_pool", "job_count": 3, "locality_timeout": 0})
-        enable_op_detailed_logs(op1)
-        time.sleep(3)
 
         pools_path = scheduler_orchid_default_pool_tree_path() + "/pools"
-        assert get(pools_path + "/fake_pool/fair_share_ratio") >= 0.999
-        assert get(pools_path + "/fake_pool/usage_ratio") >= 0.999
+        wait(lambda: exists(pools_path + "/fake_pool"))
+        wait(lambda: get(pools_path + "/fake_pool/fair_share_ratio") >= 0.999)
+        wait(lambda: get(pools_path + "/fake_pool/usage_ratio") >= 0.999)
 
         total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cell/resource_limits/cpu")
         create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
         op2 = map(track=False, command="cat", in_=["//tmp/t_in"], out="//tmp/t_out2", spec={"pool": "test_pool"})
-        enable_op_detailed_logs(op2)
         op2.track()
 
         op1.abort()
@@ -1013,7 +1011,6 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
             }
         )
 
-        enable_op_detailed_logs(op)
         wait_breakpoint()
 
         update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
@@ -1087,12 +1084,12 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         get_pool_tolerance = lambda pool: \
             get(scheduler_orchid_pool_path(pool) + "/adjusted_fair_share_starvation_tolerance")
 
-        assert get_pool_tolerance("p1") == 0.7
-        assert get_pool_tolerance("p2") == 0.6
-        assert get_pool_tolerance("p3") == 0.5
-        assert get_pool_tolerance("p4") == 0.6
-        assert get_pool_tolerance("p5") == 0.8
-        assert get_pool_tolerance("p6") == 0.8
+        wait(lambda: get_pool_tolerance("p1") == 0.7)
+        wait(lambda: get_pool_tolerance("p2") == 0.6)
+        wait(lambda: get_pool_tolerance("p3") == 0.5)
+        wait(lambda: get_pool_tolerance("p4") == 0.6)
+        wait(lambda: get_pool_tolerance("p5") == 0.8)
+        wait(lambda: get_pool_tolerance("p6") == 0.8)
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -1129,15 +1126,13 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
             out="//tmp/t_out4",
             spec={"pool": "p6", "fair_share_starvation_tolerance": 0.9})
 
-        time.sleep(1)
-
         get_operation_tolerance = lambda op_id: \
             get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/adjusted_fair_share_starvation_tolerance".format(op_id))
 
-        assert get_operation_tolerance(op1.id) == 0.4
-        assert get_operation_tolerance(op2.id) == 0.6
-        assert get_operation_tolerance(op3.id) == 0.8
-        assert get_operation_tolerance(op4.id) == 0.9
+        wait(lambda: get_operation_tolerance(op1.id) == 0.4)
+        wait(lambda: get_operation_tolerance(op2.id) == 0.6)
+        wait(lambda: get_operation_tolerance(op3.id) == 0.8)
+        wait(lambda: get_operation_tolerance(op4.id) == 0.9)
 
         op1.abort()
         op2.abort()
@@ -1744,9 +1739,9 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         create_pool("real_pool")
         op = run_sleeping_vanilla(spec={"pool": "ephemeral_pool"})
         op.wait_for_state("running")
-        assert get(scheduler_orchid_pool_path("ephemeral_pool") + "/is_ephemeral")
-        assert not get(scheduler_orchid_pool_path("real_pool") + "/is_ephemeral")
-        assert not get(scheduler_orchid_pool_path("<Root>") + "/is_ephemeral")
+        wait(lambda: get(scheduler_orchid_pool_path("ephemeral_pool") + "/is_ephemeral", default=False))
+        wait(lambda: not get(scheduler_orchid_pool_path("real_pool") + "/is_ephemeral", default=False))
+        wait(lambda: not get(scheduler_orchid_pool_path("<Root>") + "/is_ephemeral", default=False))
 
     @authors("renadeen")
     def test_ephemeral_pool_in_custom_pool_simple(self):
@@ -1757,6 +1752,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
         wait(lambda: len(list(op.get_running_jobs())) == 1)
 
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root"))
         pool = get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
         assert pool["parent"] == "custom_pool"
         assert pool["mode"] == "fair_share"
@@ -1805,6 +1801,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         op = run_sleeping_vanilla(spec={"pool": "custom_pool_fifo"})
         wait(lambda: len(list(op.get_running_jobs())) == 1)
 
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool_fifo$root"))
         pool_fifo = get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool_fifo$root")
         assert pool_fifo["parent"] == "custom_pool_fifo"
         assert pool_fifo["mode"] == "fifo"

@@ -323,7 +323,7 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
                 location->GetId(),
                 location->GetMediumName());
         }
-        if (oldDescriptor.Index != NChunkClient::InvalidMediumIndex &&
+        if (oldDescriptor.Index != NChunkClient::GenericMediumIndex &&
             oldDescriptor.Index != newDescriptor->Index)
         {
             THROW_ERROR_EXCEPTION("Medium %Qv has changed its index from %v to %v",

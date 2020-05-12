@@ -26,11 +26,17 @@ static const auto& Logger = CellServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellMoveDescriptor::TCellMoveDescriptor(const TCellBase* cell, int peerId, const TNode* source, const TNode* target)
+TCellMoveDescriptor::TCellMoveDescriptor(
+    const TCellBase* cell,
+    int peerId,
+    const TNode* source,
+    const TNode* target,
+    TError reason)
     : Cell(cell)
     , PeerId(peerId)
     , Source(source)
     , Target(target)
+    , Reason(std::move(reason))
 { }
 
 bool TCellMoveDescriptor::operator<(const TCellMoveDescriptor& other) const
@@ -150,7 +156,7 @@ public:
         }
     }
 
-    virtual void RevokePeer(const TCellBase* cell, int peerId) override
+    virtual void RevokePeer(const TCellBase* cell, int peerId, const TError& reason) override
     {
         LazyInitNodes();
 
@@ -158,10 +164,10 @@ public:
 
         if (Provider_->IsVerboseLoggingEnabled()) {
             auto* node = cell->Peers()[peerId].Node;
-            YT_LOG_DEBUG("Tablet tracker revoking peer (CellId: %v, PeerId: %v, Node: %v, DescriptorAddress: %v)",
+            YT_LOG_DEBUG(reason, "Tablet tracker revoking peer (CellId: %v, PeerId: %v, Node: %v, DescriptorAddress: %v)",
                 cell->GetId(),
                 peerId,
-                node ? node->GetDefaultAddress() : "None",
+                node ? node->GetDefaultAddress() : "<null>",
                 descriptor.GetDefaultAddress());
         }
 
@@ -175,7 +181,12 @@ public:
             }
         }
 
-        MoveDescriptors_.emplace_back(cell, peerId, node, nullptr);
+        MoveDescriptors_.emplace_back(
+            cell,
+            peerId,
+            node,
+            nullptr,
+            reason);
     }
 
     virtual std::vector<TCellMoveDescriptor> GetCellMoveDescriptors() override
@@ -206,7 +217,7 @@ public:
         }
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            YT_LOG_DEBUG("Tablet cell balancer request moves (before filter): %v",
+            YT_LOG_DEBUG("Tablet cell balancer requests moves (before filter): %v",
                 MakeFormattableView(MoveDescriptors_, [] (TStringBuilderBase* builder, const TCellMoveDescriptor& action) {
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
@@ -219,7 +230,7 @@ public:
         FilterActions();
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            YT_LOG_DEBUG("Tablet cell balancer request moves: %v",
+            YT_LOG_DEBUG("Tablet cell balancer requests moves (after filter): %v",
                 MakeFormattableView(MoveDescriptors_, [] (TStringBuilderBase* builder, const TCellMoveDescriptor& action) {
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         action.Cell->GetId(),
@@ -480,7 +491,13 @@ private:
     {
         dstNode->InsertCell(std::make_pair(cell, peerId));
         PeerTracker_.AddPeer(cell, peerId, dstNode->GetNode());
-        MoveDescriptors_.emplace_back(cell, peerId, nullptr, dstNode->GetNode());
+        MoveDescriptors_.emplace_back(
+            cell,
+            peerId,
+            nullptr,
+            dstNode->GetNode(),
+            TError("Cell balancer is adding peer at %v",
+                dstNode->GetNode()->GetDefaultAddress()));
     }
 
     void MoveCell(TNodeHolder* srcNode, int srcIndex, TNodeHolder* dstNode)
@@ -490,7 +507,14 @@ private:
         dstNode->InsertCell(srcCell);
         // TODO(savrus) use peerId form ExtractCell.
         int srcPeerId = PeerTracker_.MoveCell(srcCell.first, srcNode->GetNode(), dstNode->GetNode());
-        MoveDescriptors_.emplace_back(srcCell.first, srcPeerId, srcNode->GetNode(), dstNode->GetNode());
+        MoveDescriptors_.emplace_back(
+            srcCell.first,
+            srcPeerId,
+            srcNode->GetNode(),
+            dstNode->GetNode(),
+            TError("Cell balancer is moving peer from %v to %v",
+                srcNode->GetNode()->GetDefaultAddress(),
+                dstNode->GetNode()->GetDefaultAddress()));
     }
 
     void ExchangeCells(TNodeHolder* srcNode, int srcIndex, TNodeHolder* dstNode, int dstIndex)
@@ -502,8 +526,26 @@ private:
         // TODO(savrus) use peerId form ExtractCell.
         int srcPeerId = PeerTracker_.MoveCell(srcCell.first, srcNode->GetNode(), dstNode->GetNode());
         int dstPeerId = PeerTracker_.MoveCell(dstCell.first, dstNode->GetNode(), srcNode->GetNode());
-        MoveDescriptors_.emplace_back(srcCell.first, srcPeerId, srcNode->GetNode(), dstNode->GetNode());
-        MoveDescriptors_.emplace_back(dstCell.first, dstPeerId, dstNode->GetNode(), srcNode->GetNode());
+        MoveDescriptors_.emplace_back(
+            srcCell.first,
+            srcPeerId,
+            srcNode->GetNode(),
+            dstNode->GetNode(),
+            TError("Cell balancer is exchanging cell %v at %v with cell %v at %v",
+                srcCell.first->GetId(),
+                srcNode->GetNode()->GetDefaultAddress(),
+                dstCell.first->GetId(),
+                dstNode->GetNode()->GetDefaultAddress()));
+        MoveDescriptors_.emplace_back(
+            dstCell.first,
+            dstPeerId,
+            dstNode->GetNode(),
+            srcNode->GetNode(),
+            TError("Cell balancer is exchanging cell %v at %v with cell %v at %v",
+                dstCell.first->GetId(),
+                dstNode->GetNode()->GetDefaultAddress(),
+                srcCell.first->GetId(),
+                srcNode->GetNode()->GetDefaultAddress()));
     }
 
     void MoveNodeToFreedListIfNotFilled(TNodeHolder* node)

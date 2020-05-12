@@ -442,6 +442,7 @@ struct TLookupRowsOptionsBase
     NTableClient::TColumnFilter ColumnFilter;
     bool KeepMissingRows = false;
     bool EnablePartialResult = false;
+    bool UseLookupCache = false;
     NRpc::EMultiplexingBand MultiplexingBand = NRpc::EMultiplexingBand::Default;
 };
 
@@ -706,7 +707,6 @@ struct TJournalWriterOptions
 {
     TJournalWriterConfigPtr Config;
     bool EnableMultiplexing = true;
-    bool WaitForAllReplicasUponOpen = false;
     NProfiling::TProfiler Profiler;
 };
 

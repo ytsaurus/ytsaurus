@@ -591,7 +591,7 @@ TEST_P(TCellBaseBalancerRevokeTest, TestBalancer)
     setting->ValidateAssignment(balancer->GetCellMoveDescriptors());
 
     for (auto& assigned : setting->GetUnassignedPeers()) {
-        balancer->RevokePeer(assigned.first, assigned.second);
+        balancer->RevokePeer(assigned.first, assigned.second, TError("reason"));
     }
 
     setting->ApplyMoveDescriptors(balancer->GetCellMoveDescriptors());

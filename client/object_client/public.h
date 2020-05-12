@@ -128,6 +128,23 @@ DEFINE_ENUM(EObjectType,
     ((ChunkViewMap)                  (430))
     ((Medium)                        (408))
     ((MediumMap)                     (409))
+    ((ErasureJournalChunk)           (124)) // erasure journal chunk as a whole
+    ((ErasureJournalChunkPart_0)     (125)) // erasure chunk parts, mnemonic names are for debugging convenience only
+    ((ErasureJournalChunkPart_2)     (126))
+    ((ErasureJournalChunkPart_1)     (127))
+    ((ErasureJournalChunkPart_3)     (128))
+    ((ErasureJournalChunkPart_4)     (129))
+    ((ErasureJournalChunkPart_5)     (130))
+    ((ErasureJournalChunkPart_6)     (131))
+    ((ErasureJournalChunkPart_7)     (132))
+    ((ErasureJournalChunkPart_8)     (133))
+    ((ErasureJournalChunkPart_9)     (134))
+    ((ErasureJournalChunkPart_10)    (135))
+    ((ErasureJournalChunkPart_11)    (136))
+    ((ErasureJournalChunkPart_12)    (138))
+    ((ErasureJournalChunkPart_13)    (139))
+    ((ErasureJournalChunkPart_14)    (140))
+    ((ErasureJournalChunkPart_15)    (141))
 
     // The following represent versioned objects (AKA Cypress nodes).
     // These must be created by calling TCypressYPathProxy::Create.
@@ -222,6 +239,10 @@ constexpr ui32 SchemaObjectTypeMask = 0x8000;
 // The range of erasure chunk part types.
 constexpr EObjectType MinErasureChunkPartType = EObjectType::ErasureChunkPart_0;
 constexpr EObjectType MaxErasureChunkPartType = EObjectType::ErasureChunkPart_15;
+
+// The range of erasure journal chunk part types.
+constexpr EObjectType MinErasureJournalChunkPartType = EObjectType::ErasureJournalChunkPart_0;
+constexpr EObjectType MaxErasureJournalChunkPartType = EObjectType::ErasureJournalChunkPart_15;
 
 ////////////////////////////////////////////////////////////////////////////////
 

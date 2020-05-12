@@ -61,7 +61,11 @@ void TSchedulerPoolProxy::ListSystemAttributes(std::vector<ISystemAttributeProvi
     auto allAttributes = schedulerPoolManager->GetKnownPoolAttributes();
     const auto& poolTreeAttributes = schedulerPoolManager->GetKnownPoolTreeAttributes();
     allAttributes.insert(poolTreeAttributes.begin(), poolTreeAttributes.end());
-    auto specifiedAttributes = GetThisImpl()->SpecifiedAttributes();
+
+    auto schedulerPool = GetThisImpl();
+    auto specifiedAttributes = schedulerPool->IsRoot()
+        ? schedulerPool->GetMaybePoolTree()->SpecifiedAttributes()
+        : schedulerPool->SpecifiedAttributes();
 
     for (auto internedAttributeKey : allAttributes) {
         descriptors->push_back(TAttributeDescriptor(internedAttributeKey)

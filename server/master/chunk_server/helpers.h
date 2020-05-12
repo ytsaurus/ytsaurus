@@ -9,6 +9,8 @@
 
 #include <yt/ytlib/table_client/public.h>
 
+#include <yt/ytlib/journal_client/public.h>
+
 #include <yt/client/object_client/public.h>
 
 #include <yt/core/yson/public.h>
@@ -73,19 +75,19 @@ bool IsEmpty(const TChunkTree* chunkTree);
 
 //! Returns the upper boundary key of a chunk. Throws if the chunk contains no
 //! boundary info (i.e. it's not sorted).
-NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk);
+NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount = std::nullopt);
 
 //! Returns the upper boundary key of a chunk tree. Throws if the tree is empty
 //! or the last chunk in it contains no boundary info (i.e. it's not sorted).
-NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree);
+NTableClient::TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount = std::nullopt);
 
 //! Returns the minimum key of a chunk. Throws if the chunk contains no boundary
 //! info (i.e. it's not sorted).
-NTableClient::TOwningKey GetMinKeyOrThrow(const TChunk* chunk);
+NTableClient::TOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount = std::nullopt);
 
 //! Returns the minimum key of a chunk tree. Throws if the tree is empty or the
 //! first chunk in it contains no boundary info (i.e. it's not sorted).
-NTableClient::TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree);
+NTableClient::TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount = std::nullopt);
 
 //! Returns the maximum key of a chunk. Throws if the chunk contains no boundary
 //! info (i.e. it's not sorted).
@@ -96,11 +98,9 @@ NTableClient::TOwningKey GetMaxKeyOrThrow(const TChunk* chunk);
 //! Doesn't support chunk views.
 NTableClient::TOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree);
 
-struct TChunkViewMergeResult;
-
 std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChunkView*> chunkViews);
 
-bool IsPhysicalChunkType(NObjectClient::EObjectType type);
+std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk);
 
 ////////////////////////////////////////////////////////////////////////////////
 

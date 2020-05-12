@@ -278,7 +278,7 @@ TFuture<void> TPeriodicExecutor::GetExecutedEvent()
 {
     TGuard<TSpinLock> guard(SpinLock_);
     InitExecutedPromise();
-    return ExecutedPromise_;
+    return ExecutedPromise_.ToFuture().ToUncancelable();
 }
 
 TDuration TPeriodicExecutor::NextDelay()

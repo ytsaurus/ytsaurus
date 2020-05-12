@@ -94,8 +94,9 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
 
     // Cf. TObjectResolver::ResolveRoot.
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    if (multicellManager->IsPrimaryMaster() && CellTagFromId(objectId) != multicellManager->GetCellTag()) {
-        proxy = objectManager->CreateRemoteProxy(objectId);
+    auto cellTag = CellTagFromId(objectId);
+    if (multicellManager->IsPrimaryMaster() && cellTag != multicellManager->GetCellTag()) {
+        proxy = objectManager->CreateRemoteProxy(cellTag);
     } else {
         auto* object = objectManager->FindObject(objectId);
         if (IsObjectAlive(object) && IsValid(object)) {
@@ -109,7 +110,7 @@ IYPathService::TResolveResult TVirtualMulticellMapBase::ResolveRecursive(
         }
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
-            "No such child %Qv",
+            "No such child %v",
             objectId);
     }
 

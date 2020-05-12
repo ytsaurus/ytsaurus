@@ -47,7 +47,7 @@ TEST(TDelayedExecutorTest, SubmitZeroDelay)
         BIND([fired, state, probe = TProbe(state.get())]() { ++*fired; }),
         TDuration::MilliSeconds(10));
 
-    Sleep(TDuration::MilliSeconds(20));
+    Sleep(TDuration::MilliSeconds(50));
 
     EXPECT_EQ(2, *fired);
     EXPECT_EQ(2, state->Constructors);
@@ -67,7 +67,7 @@ TEST(TDelayedExecutorTest, StressTest)
             BIND([start, delay, fired] () {
                 auto diff = (TInstant::Now() - start).MilliSeconds();
                 EXPECT_LE(delay, diff + 10);
-                EXPECT_LE(diff, delay + 30);
+                EXPECT_LE(diff, delay + 50);
                 ++*fired;
             }),
             TDuration::MilliSeconds(delay));

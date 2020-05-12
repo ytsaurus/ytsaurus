@@ -1052,9 +1052,9 @@ private:
             }
             auto& idMark = IdValidationMarks_[id];
             if (idMark == mark) {
-                THROW_ERROR_EXCEPTION("Duplicate %Qv column in unversioned row",
-                    NameTable_->GetName(id))
-                     << TErrorAttribute("id", id);
+                auto name = NameTable_->GetNameOrThrow(id);
+                THROW_ERROR_EXCEPTION("Duplicate %Qv column in unversioned row", name)
+                    << TErrorAttribute("id", id);
             }
             idMark = mark;
         }

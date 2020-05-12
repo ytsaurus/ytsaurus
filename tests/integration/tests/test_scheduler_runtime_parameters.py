@@ -27,6 +27,14 @@ class TestRuntimeParameters(YTEnvSetup):
         }
     }
 
+    def _create_custom_pool_tree_with_one_node(self, pool_tree):
+        tag = pool_tree
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
+        set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
+        create_pool_tree(pool_tree, attributes={"nodes_filter": tag})
+        return node
+
     @authors("renadeen")
     def test_update_runtime_parameters(self):
         create_test_tables()
@@ -111,7 +119,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("renadeen")
     def test_change_pool_of_multitree_operation(self):
-        self.create_custom_pool_tree_with_one_node(pool_tree="custom")
+        self._create_custom_pool_tree_with_one_node(pool_tree="custom")
         create_pool("default_pool")
         create_pool("custom_pool1", pool_tree="custom")
         create_pool("custom_pool2", pool_tree="custom")
@@ -199,7 +207,7 @@ class TestRuntimeParameters(YTEnvSetup):
     def test_no_pool_validation_on_change_weight(self):
         create_pool("test_pool")
         op = run_sleeping_vanilla(spec={"pool": "test_pool"})
-        wait(lambda: op.get_state() == "running")
+        op.wait_for_state("running")
 
         set("//sys/pools/test_pool/@max_operation_count", 0)
         set("//sys/pools/test_pool/@max_running_operation_count", 0)
@@ -212,7 +220,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_schedule_in_single_tree(self):
-        self.create_custom_pool_tree_with_one_node("other")
+        self._create_custom_pool_tree_with_one_node("other")
         create_pool("pool1", pool_tree="other")
         create_pool("pool2", pool_tree="other")
         create_pool("pool1")
@@ -228,7 +236,7 @@ class TestRuntimeParameters(YTEnvSetup):
                 "schedule_in_single_tree": True
             })
 
-        wait(lambda: op.get_state() == "running")
+        op.wait_for_state("running")
 
         erased_tree = get(op.get_path() + "/@erased_trees")[0]
         chosen_tree = "default" if erased_tree == "other" else "other"
@@ -265,7 +273,7 @@ class TestRuntimeParameters(YTEnvSetup):
             "testing": {"delay_inside_register_jobs_from_revived_operation": 10000}
         })
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
@@ -277,13 +285,33 @@ class TestRuntimeParameters(YTEnvSetup):
 
         op.abort()
 
-    def create_custom_pool_tree_with_one_node(self, pool_tree):
-        tag = pool_tree
-        node = ls("//sys/cluster_nodes")[0]
-        set("//sys/cluster_nodes/" + node + "/@user_tags/end", tag)
-        set("//sys/pool_trees/default/@nodes_filter", "!" + tag)
-        create_pool_tree(pool_tree, attributes={"nodes_filter": tag})
-        return node
+    @authors("ignat")
+    def test_tree_removal(self):
+        self._create_custom_pool_tree_with_one_node("other")
+        create_pool("my_pool", pool_tree="other")
+        create_pool("my_pool")
+        create_pool("other_pool")
+
+        op = run_sleeping_vanilla(
+            spec={
+                "pool_trees": ["default", "other"],
+                "pool": "my_pool",
+            })
+
+        op.wait_for_state("running")
+
+        scheduling_options_path = op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree"
+        wait(lambda: sorted(ls(scheduling_options_path)) == ["default", "other"])
+
+        remove("//sys/pool_trees/other")
+        wait(lambda: sorted(ls(scheduling_options_path)) == ["default"])
+        wait(lambda: get(op.get_path() + "/@erased_trees") == ["other"])
+
+        parameters = {"scheduling_options_per_pool_tree": {"default": {"pool": "other_pool"}}}
+        update_op_parameters(op.id, parameters=parameters)
+
+        path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/pool".format(op.id)
+        wait(lambda: get(path) == "other_pool")
 
 
 class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):

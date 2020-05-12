@@ -74,10 +74,10 @@ extern const TChunkTreeId NullChunkTreeId;
 using TLocationUuid = TGuid;
 
 constexpr int MinReplicationFactor = 1;
-constexpr int MaxReplicationFactor = 10;
+constexpr int MaxReplicationFactor = 20;
 constexpr int DefaultReplicationFactor = 3;
 
-constexpr int MaxMediumCount = 127;
+constexpr int MaxMediumCount = 120; // leave some room for sentinels
 
 template <typename T>
 using TMediumMap = SmallDenseMap<int, T>;
@@ -89,31 +89,16 @@ using TMediumIntMap = TMediumMap<int>;
  *  Additional +8 enables some flexibility during balancing.
  */
 constexpr int TypicalReplicaCount = 24;
-
-// All chunks:
-constexpr int GenericChunkReplicaIndex = 16;  // no specific replica; the default one for regular chunks
-
-// Journal chunks only:
-constexpr int ActiveChunkReplicaIndex   = 0; // the replica is currently being written
-constexpr int UnsealedChunkReplicaIndex = 1; // the replica is finished but not sealed yet
-constexpr int SealedChunkReplicaIndex   = 2; // the replica is finished and sealed
-
-//! For pretty-printing only.
-DEFINE_ENUM(EJournalReplicaType,
-    ((Generic)   (GenericChunkReplicaIndex))
-    ((Active)    (ActiveChunkReplicaIndex))
-    ((Unsealed)  (UnsealedChunkReplicaIndex))
-    ((Sealed)    (SealedChunkReplicaIndex))
-);
+constexpr int GenericChunkReplicaIndex = 16;  // no specific replica; the default one for non-erasure chunks
 
 //! Valid indexes are in range |[0, ChunkReplicaIndexBound)|.
 constexpr int ChunkReplicaIndexBound = 32;
 
-constexpr int AllMediaIndex = MaxMediumCount; // passed to various APIs to indicate that any medium is OK
-constexpr int InvalidMediumIndex = -1;
-constexpr int DefaultStoreMediumIndex = 0;
-constexpr int DefaultCacheMediumIndex = 1;
-constexpr int DefaultSlotsMediumIndex = 0;
+constexpr int GenericMediumIndex      = 126; // internal sentinel meaning "no specific medium"
+constexpr int AllMediaIndex           = 127; // passed to various APIs to indicate that any medium is OK
+constexpr int DefaultStoreMediumIndex =   0;
+constexpr int DefaultCacheMediumIndex =   1;
+constexpr int DefaultSlotsMediumIndex =   0;
 
 //! Valid indexes (including sentinels) are in range |[0, MediumIndexBound)|.
 constexpr int MediumIndexBound = AllMediaIndex + 1;

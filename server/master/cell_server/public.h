@@ -68,7 +68,11 @@ using TCellSet = SmallVector<std::pair<const TCellBase*, int>, NTabletClient::Ty
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
-    ((NodeDecommissioned)    (1401))
+    ((NodeDecommissioned)           (1401))
+    ((NodeBanned)                   (1402))
+    ((NodeTabletSlotsDisabled)      (1403))
+    ((NodeFilterMismatch)           (1404))
+    ((CellDidNotAppearWithinTimeout)(1405))
 )
 
 ////////////////////////////////////////////////////////////////////////////////

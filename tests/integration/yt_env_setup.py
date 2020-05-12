@@ -1,6 +1,6 @@
 import yt_commands
 
-from yt.environment import YTInstance, init_operation_archive, arcadia_interop
+from yt.environment import YTInstance, arcadia_interop
 from yt.environment.helpers import emergency_exit_within_tests
 from yt.environment.porto_helpers import porto_avaliable, remove_all_volumes
 from yt.environment.default_configs import get_dynamic_master_config, get_dynamic_node_config
@@ -25,7 +25,6 @@ import pytest
 
 import gc
 import os
-import signal
 import sys
 import glob
 import logging
@@ -80,50 +79,6 @@ def prepare_yatest_environment(need_suid):
 
     SANDBOX_STORAGE_ROOTDIR = arcadia_interop.yatest_common.output_path()
 
-def _abort_transactions(driver=None):
-    command_name = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
-    requests = []
-    for tx in yt_commands.ls("//sys/transactions", attributes=["title"], driver=driver):
-        title = tx.attributes.get("title", "")
-        id = str(tx)
-        if "Scheduler lock" in title:
-            continue
-        if "Controller agent incarnation" in title:
-            continue
-        if "Lease for node" in title:
-            continue
-        requests.append(yt_commands.make_batch_request(command_name, transaction_id=id))
-    yt_commands.execute_batch(requests, driver=driver)
-
-def _reset_nodes(driver=None):
-    boolean_attributes = [
-        "banned",
-        "decommissioned",
-        "disable_write_sessions",
-        "disable_scheduler_jobs",
-        "disable_tablet_cells",
-    ]
-    attributes = boolean_attributes + [
-        "resource_limits_overrides",
-        "user_tags",
-    ]
-    nodes = yt_commands.ls("//sys/cluster_nodes", attributes=attributes, driver=driver)
-
-    requests = []
-    for node in nodes:
-        node_name = str(node)
-        for attribute in boolean_attributes:
-            if node.attributes[attribute]:
-                requests.append(yt_commands.make_batch_request("set", path="//sys/cluster_nodes/{0}/@{1}".format(node_name, attribute), input=False))
-        if node.attributes["resource_limits_overrides"] != {}:
-            requests.append(yt_commands.make_batch_request("set", path="//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node_name), input={}))
-        if node.attributes["user_tags"] != []:
-            requests.append(yt_commands.make_batch_request("set", path="//sys/cluster_nodes/{0}/@user_tags".format(node_name), input=[]))
-
-    responses = yt_commands.execute_batch(requests, driver=driver)
-    for response in responses:
-        assert not yt_commands.get_batch_output(response)
-
 def _retry_with_gc_collect(func, driver=None):
     while True:
         try:
@@ -131,161 +86,6 @@ def _retry_with_gc_collect(func, driver=None):
             break
         except YtResponseError:
             yt_commands.gc_collect(driver=driver)
-
-def _remove_objects(enable_secondary_cells_cleanup, driver=None):
-    TYPES = [
-        "accounts",
-        "users",
-        "groups",
-        "racks",
-        "data_centers",
-        "tablet_cells",
-        "tablet_cell_bundles",
-    ]
-
-    if enable_secondary_cells_cleanup:
-        TYPES = TYPES + [
-            "tablet_actions"
-        ]
-
-    def do():
-        list_objects_results = yt_commands.execute_batch([
-            yt_commands.make_batch_request("list", return_only_value=True,
-                path="//sys/" + ("account_tree" if type == "accounts" else type),
-                attributes=["id", "builtin", "life_stage"]) for type in TYPES],
-                driver=driver)
-
-        object_ids_to_remove = []
-        object_ids_to_check = []
-        for index, type in enumerate(TYPES):
-            objects = yt_commands.get_batch_output(list_objects_results[index])
-            for object in objects:
-                if object.attributes["builtin"]:
-                    continue
-                if type == "users" and str(object) == "application_operations":
-                    continue
-                id = object.attributes["id"]
-                object_ids_to_check.append(id)
-                if object.attributes["life_stage"] == "creation_committed":
-                    object_ids_to_remove.append(id)
-
-        for result in yt_commands.execute_batch([
-                yt_commands.make_batch_request("remove", path="#" + id, force=True) for id in object_ids_to_remove
-            ], driver=driver):
-            assert not yt_commands.get_batch_output(result)
-
-        def check_removed():
-            results = yt_commands.execute_batch([
-                yt_commands.make_batch_request("exists", path="#" + id) for id in object_ids_to_check
-            ], driver=driver)
-            return all(not yt_commands.get_batch_output(result)["value"] for result in results)
-        wait(check_removed)
-
-    _retry_with_gc_collect(do, driver=driver)
-
-def _restore_globals(scheduler_count, scheduler_pool_trees_root, driver=None):
-    def do():
-        for response in yt_commands.execute_batch([
-                yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
-                yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
-                yt_commands.make_batch_request("set", path="//sys/@config", input=get_dynamic_master_config()),
-            ], driver=driver):
-            assert not yt_commands.get_batch_output(response)
-
-        default_exists = yt_commands.exists(scheduler_pool_trees_root + "/default", driver=driver)
-        restore_pool_trees_requests = []
-        if default_exists:
-            restore_pool_trees_requests.extend([
-                yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/default/*"),
-                yt_commands.make_batch_request("set", path=scheduler_pool_trees_root + "/@default_tree", input="default"),
-                yt_commands.make_batch_request("set", path=scheduler_pool_trees_root + "/default/@nodes_filter", input=""),
-            ])
-        else:
-            # XXX(eshcherbin, renadeen): Remove when map_node pool trees are not a thing.
-            if yt_commands.get(scheduler_pool_trees_root + "/@type") == "map_node":
-                restore_pool_trees_requests.append(
-                    yt_commands.make_batch_request("create", type="map_node", path=scheduler_pool_trees_root + "/default"))
-            else :
-                restore_pool_trees_requests.append(
-                    yt_commands.make_batch_request("create", type="scheduler_pool_tree", attributes={"name": "default"}))
-        for pool_tree in yt_commands.ls(scheduler_pool_trees_root):
-            if pool_tree != "default":
-                restore_pool_trees_requests.append(
-                    yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/" + pool_tree))
-        for response in yt_commands.execute_batch(restore_pool_trees_requests, driver=driver):
-            assert not yt_commands.get_batch_error(response)
-        if default_exists:
-            # Could not add this to the batch request because of possible races at scheduler.
-            yt_commands.set(scheduler_pool_trees_root + "/@default_tree", "default", driver=driver)
-
-        if scheduler_count > 0:
-            wait(lambda: yt_commands.ls(yt_commands.scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree", driver=driver) == ["default"])
-            wait(lambda: yt_commands.get(yt_commands.scheduler_orchid_path() + "/scheduler/default_pool_tree", driver=driver) == "default")
-            wait(lambda: yt_commands.ls(yt_commands.scheduler_orchid_default_pool_tree_path() + "/pools", driver=driver) == ["<Root>"])
-            node_count = len(yt_commands.ls("//sys/cluster_nodes", driver=driver))
-            wait(lambda: yt_commands.get(yt_commands.scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/default/node_count", driver=driver) == node_count)
-
-    _retry_with_gc_collect(do, driver=driver)
-
-def _restore_default_bundle_options(driver=None):
-    def do():
-        for response in yt_commands.execute_batch([
-                yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@options", input={
-                    "changelog_account": "sys",
-                    "snapshot_account": "sys"
-                }),
-            ], driver=driver):
-            assert not yt_commands.get_batch_output(response)
-
-    _retry_with_gc_collect(do, driver=driver)
-
-def _remove_operations(driver=None):
-    command_name = "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"
-
-    if yt_commands.get("//sys/scheduler/instances/@count", driver=driver) == 0:
-        return
-
-    operations_from_orchid = []
-    try:
-        operations_from_orchid = yt_commands.ls("//sys/scheduler/orchid/scheduler/operations", driver=driver)
-    except YtError as err:
-        print >>sys.stderr, format_error(err)
-
-    requests = []
-    for operation_id in operations_from_orchid:
-        if not operation_id.startswith("*"):
-            requests.append(yt_commands.make_batch_request(command_name, operation_id=operation_id))
-
-    responses = yt_commands.execute_batch(requests, driver=driver)
-    for response in responses:
-        err = yt_commands.get_batch_error(response)
-        if err is not None:
-            print >>sys.stderr, format_error(err)
-
-    _abort_transactions(driver=driver)
-
-    for response in yt_commands.execute_batch([
-            yt_commands.make_batch_request("remove", path="//sys/operations/*"),
-            yt_commands.make_batch_request("remove", path="//sys/operations_archive", force=True)
-        ], driver=driver):
-        assert not yt_commands.get_batch_output(response)
-
-def _wait_for_jobs_to_vanish(driver=None):
-    nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
-    def check_no_jobs():
-        requests = [yt_commands.make_batch_request("get", path="//sys/cluster_nodes/{0}/orchid/job_controller/active_job_count".format(node), return_only_value=True)
-                    for node in nodes]
-        responses = yt_commands.execute_batch(requests, driver=driver)
-        return all(yt_commands.get_batch_output(response).get("scheduler", 0) == 0 for response in responses)
-    try:
-        wait(check_no_jobs, iter=300)
-    except WaitFailed:
-        requests = [yt_commands.make_batch_request("list", path="//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(node), return_only_value=True)
-                    for node in nodes]
-        responses = yt_commands.execute_batch(requests, driver=driver)
-        print >>sys.stderr, "There are remaining scheduler jobs:"
-        for node, response in zip(nodes, responses):
-            print >>sys.stderr, "Node {}: {}".format(node, response)
 
 def find_ut_file(file_name):
     if arcadia_interop.yatest_common is not None:
@@ -534,8 +334,6 @@ class YTEnvSetup(object):
 
     NUM_REMOTE_CLUSTERS = 0
 
-    SINGLE_SETUP_TEARDOWN = False
-
     # To be redefined in successors
     @classmethod
     def modify_master_config(cls, config, index):
@@ -568,7 +366,7 @@ class YTEnvSetup(object):
     @classmethod
     def get_param(cls, name, cluster_index):
         value = getattr(cls, name)
-        if cluster_index == 0:
+        if cluster_index != 0:
             return value
 
         param_name = "{0}_REMOTE_{1}".format(name, cluster_index - 1)
@@ -753,9 +551,6 @@ class YTEnvSetup(object):
                 yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_count", 10000, driver=driver)
                 yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 1024 * 1024 * 1024, driver=driver)
 
-        if cls.SINGLE_SETUP_TEARDOWN:
-            cls._setup_method()
-
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
@@ -789,9 +584,6 @@ class YTEnvSetup(object):
 
     @classmethod
     def teardown_class(cls):
-        if cls.SINGLE_SETUP_TEARDOWN:
-            cls._teardown_method()
-
         if cls.liveness_checkers:
             map(lambda c: c.stop(), cls.liveness_checkers)
 
@@ -851,69 +643,90 @@ class YTEnvSetup(object):
             for dir in runtime_data:
                 if os.path.exists(dir):
                     shutil.rmtree(dir, ignore_errors=True)
+
+            print >>sys.stderr, "Moving test artifacts from", cls.path_to_run, "to", destination_path
             shutil.move(cls.path_to_run, destination_path)
+            print >>sys.stderr, "Move completed"
 
-
-    @classmethod
-    def _setup_method(cls):
-        for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
-            driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
+    def setup_method(self, method):
+        for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
+            driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
             if driver is None:
                 continue
 
-            if cls.get_param("NUM_NODES", cluster_index) > 0:
-                dynamic_node_config = get_dynamic_node_config()
-                yt_commands.set("//sys/cluster_nodes/@config", dynamic_node_config)
-                for node in yt_commands.ls("//sys/cluster_nodes"):
-                    wait(lambda: yt_commands.get_applied_node_dynamic_config(node) == dynamic_node_config["%true"])
+            self._reset_nodes(driver=driver)
 
-            if cls.USE_DYNAMIC_TABLES:
-                yt_commands.set("//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule", "1", driver=driver)
-                yt_commands.set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging", True, driver=driver)
-                yt_commands.set(
-                    "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer",
-                    cls.ENABLE_TABLET_BALANCER,
-                    driver=driver)
+            scheduler_count = self.get_param("NUM_SCHEDULERS", cluster_index)
+            if scheduler_count > 0:
+                scheduler_pool_trees_root = self.Env.configs["scheduler"][0]["scheduler"].get("pool_trees_root", "//sys/pool_trees")
+            else:
+                scheduler_pool_trees_root = "//sys/pool_trees"
+            self._restore_globals(
+                scheduler_count=scheduler_count,
+                scheduler_pool_trees_root=scheduler_pool_trees_root,
+                driver=driver)
 
+            yt_commands.gc_collect(driver=driver)
 
-            if cls.ENABLE_BULK_INSERT:
-                yt_commands.set("//sys/@config/tablet_manager/enable_bulk_insert", True, driver=driver)
+            yt_commands.clear_metadata_caches(driver=driver)
+
+            if self.get_param("NUM_NODES", cluster_index) > 0:
+                self._setup_nodes_dynamic_config(driver=driver)
+
+            if self.USE_DYNAMIC_TABLES:
+                self._setup_tablet_manager(driver=driver)
+
+            if self.USE_DYNAMIC_TABLES:
+                self._restore_default_bundle_options(driver=driver)
 
             yt_commands.wait_for_nodes(driver=driver)
             yt_commands.wait_for_chunk_replicator(driver=driver)
 
-            if cls.get_param("NUM_SCHEDULERS", cluster_index) > 0:
-                yt_commands.create("document", "//sys/controller_agents/config", attributes={"value": {}}, force=True, driver=driver)
-                yt_commands.create("document", "//sys/scheduler/config", attributes={"value": {}}, force=True, driver=driver)
-
-                if cls.ENABLE_BULK_INSERT:
-                    yt_commands.set("//sys/controller_agents/config/enable_bulk_insert_for_everyone", True)
+            if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
+                for response in yt_commands.execute_batch([
+                    yt_commands.make_batch_request("create", path="//sys/controller_agents/config",
+                        type="document",
+                        attributes={
+                            "value": {
+                                "enable_bulk_insert_for_everyone": self.ENABLE_BULK_INSERT
+                            }
+                        },
+                        force=True
+                    ),
+                    yt_commands.make_batch_request("create", path="//sys/scheduler/config",
+                        type="document",
+                        attributes={
+                            "value": {}
+                        },
+                        force=True
+                    )
+                ], driver=driver):
+                    assert not yt_commands.get_batch_error(response)
 
                 def _get_config_versions(orchids):
-                    requests = [yt_commands.make_batch_request("get", path=orchid + "/config_revision") for orchid in orchids]
-                    res = yt_commands.execute_batch(requests, driver=driver)
-                    return list(map(lambda r: yt_commands.get_batch_output(r)["value"], res))
+                    requests = [yt_commands.make_batch_request("get", path=orchid + "/config_revision", return_only_value=True) for orchid in orchids]
+                    responses = yt_commands.execute_batch(requests, driver=driver)
+                    return list(map(lambda r: yt_commands.get_batch_output(r), responses))
 
                 def _wait_for_configs(orchids):
                     old_versions = _get_config_versions(orchids)
 
                     def _wait_func():
                         new_versions = _get_config_versions(orchids)
-                        return all(new >= old+2 for old, new in zip(old_versions, new_versions))
+                        return all(new >= old + 2 for old, new in zip(old_versions, new_versions))
 
                     wait(_wait_func)
 
                 orchids = []
-                for instance in yt_commands.ls("//sys/controller_agents/instances"):
+                for instance in yt_commands.ls("//sys/controller_agents/instances", driver=driver):
                     orchids.append("//sys/controller_agents/instances/{}/orchid/controller_agent".format(instance))
-
                 orchids.append("//sys/scheduler/orchid/scheduler")
                 _wait_for_configs(orchids)
 
-
-
-            if cls.ENABLE_TMP_PORTAL and cluster_index == 0:
-                yt_commands.create("portal_entrance", "//tmp",
+            if self.ENABLE_TMP_PORTAL and cluster_index == 0:
+                yt_commands.create(
+                    "portal_entrance",
+                    "//tmp",
                     attributes={
                         "account": "tmp",
                         "exit_cell_tag": 1,
@@ -923,7 +736,9 @@ class YTEnvSetup(object):
                     force=True,
                     driver=driver)
             else:
-                yt_commands.create("map_node", "//tmp",
+                yt_commands.create(
+                    "map_node",
+                    "//tmp",
                     attributes={
                         "account": "tmp",
                         "acl": [{"action": "allow", "permissions": ["read", "write", "remove"], "subjects": ["users"]}],
@@ -931,64 +746,277 @@ class YTEnvSetup(object):
                     },
                     force=True,
                     driver=driver)
-
-    @classmethod
-    def _teardown_method(cls):
+        
+    def teardown_method(self, method):
         yt_commands._zombie_responses[:] = []
 
-        for env in [cls.Env] + cls.remote_envs:
+        for env in [self.Env] + self.remote_envs:
             env.check_liveness(callback_func=emergency_exit_within_tests)
 
-        for cluster_index in xrange(cls.NUM_REMOTE_CLUSTERS + 1):
-            driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))
+        for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
+            driver = yt_commands.get_driver(cluster=self.get_cluster_name(cluster_index))
             if driver is None:
                 continue
 
-            _reset_nodes(driver=driver)
+            if self.get_param("NUM_SCHEDULERS", cluster_index) > 0:
+                self._remove_operations(driver=driver)
+                self._wait_for_jobs_to_vanish(driver=driver)
 
-            if cls.get_param("NUM_SCHEDULERS", cluster_index) > 0:
-                _remove_operations(driver=driver)
-                _wait_for_jobs_to_vanish(driver=driver)
-                yt_commands.remove("//sys/scheduler/config", force=True, driver=driver)
-                yt_commands.remove("//sys/controller_agents/config", force=True, driver=driver)
-
-            _abort_transactions(driver=driver)
+            self._abort_transactions(driver=driver)
 
             yt_commands.remove("//tmp", driver=driver)
-            if cls.ENABLE_TMP_PORTAL:
+            if self.ENABLE_TMP_PORTAL:
                 # XXX(babenko): portals
                 wait(lambda: not yt_commands.exists("//tmp&", driver=driver))
 
-            yt_commands.gc_collect(driver=driver)
-
-            scheduler_count = cls.get_param("NUM_SCHEDULERS", cluster_index)
-            if scheduler_count > 0:
-                scheduler_pool_trees_root = cls.Env.configs["scheduler"][0]["scheduler"].get("pool_trees_root", "//sys/pool_trees")
-            else:
-                scheduler_pool_trees_root = "//sys/pool_trees"
-            _restore_globals(
-                scheduler_count=scheduler_count,
-                scheduler_pool_trees_root=scheduler_pool_trees_root,
+            self._remove_objects(
+                enable_secondary_cells_cleanup=self.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index),
                 driver=driver)
 
-            _remove_objects(
-                enable_secondary_cells_cleanup=cls.get_param("ENABLE_SECONDARY_CELLS_CLEANUP", cluster_index),
-                driver=driver)
-
-            _restore_default_bundle_options(driver=driver)
-
             yt_commands.gc_collect(driver=driver)
-
             yt_commands.clear_metadata_caches(driver=driver)
 
-    def setup_method(self, method):
-        if not self.SINGLE_SETUP_TEARDOWN:
-            self._setup_method()
         yt_commands.reset_events_on_fs()
 
-    def teardown_method(self, method):
-        if not self.SINGLE_SETUP_TEARDOWN:
-            self._teardown_method()
+
+    def _abort_transactions(self, driver=None):
+        command_name = "abort_transaction" if driver.get_config()["api_version"] == 4 else "abort_tx"
+        requests = []
+        for tx in yt_commands.ls("//sys/transactions", attributes=["title"], driver=driver):
+            title = tx.attributes.get("title", "")
+            id = str(tx)
+            if "Scheduler lock" in title:
+                continue
+            if "Controller agent incarnation" in title:
+                continue
+            if "Lease for node" in title:
+                continue
+            requests.append(yt_commands.make_batch_request(command_name, transaction_id=id))
+        yt_commands.execute_batch(requests, driver=driver)
+
+    def _reset_nodes(self, driver=None):
+        boolean_attributes = [
+            "banned",
+            "decommissioned",
+            "disable_write_sessions",
+            "disable_scheduler_jobs",
+            "disable_tablet_cells",
+        ]
+        attributes = boolean_attributes + [
+            "resource_limits_overrides",
+            "user_tags",
+        ]
+        nodes = yt_commands.ls("//sys/cluster_nodes", attributes=attributes, driver=driver)
+
+        requests = []
+        for node in nodes:
+            node_name = str(node)
+            for attribute in boolean_attributes:
+                if node.attributes[attribute]:
+                    requests.append(yt_commands.make_batch_request("set", path="//sys/cluster_nodes/{0}/@{1}".format(node_name, attribute), input=False))
+            if node.attributes["resource_limits_overrides"] != {}:
+                requests.append(yt_commands.make_batch_request("set", path="//sys/cluster_nodes/{0}/@resource_limits_overrides".format(node_name), input={}))
+            if node.attributes["user_tags"] != []:
+                requests.append(yt_commands.make_batch_request("set", path="//sys/cluster_nodes/{0}/@user_tags".format(node_name), input=[]))
+
+        for response in yt_commands.execute_batch(requests, driver=driver):
+            assert not yt_commands.get_batch_error(response)
+
+    def _remove_objects(self, enable_secondary_cells_cleanup, driver=None):
+        TYPES = [
+            "accounts",
+            "users",
+            "groups",
+            "racks",
+            "data_centers",
+            "tablet_cells",
+            "tablet_cell_bundles",
+        ]
+
+        if enable_secondary_cells_cleanup:
+            TYPES = TYPES + [
+                "tablet_actions"
+            ]
+
+        list_objects_results = yt_commands.execute_batch([
+            yt_commands.make_batch_request("list", return_only_value=True,
+                path="//sys/" + ("account_tree" if type == "accounts" else type),
+                attributes=["id", "builtin", "life_stage"]) for type in TYPES],
+                driver=driver)
+
+        object_ids_to_remove = []
+        object_ids_to_check = []
+        for index, type in enumerate(TYPES):
+            objects = yt_commands.get_batch_output(list_objects_results[index])
+            for object in objects:
+                if object.attributes["builtin"]:
+                    continue
+                if type == "users" and str(object) == "application_operations":
+                    continue
+                id = object.attributes["id"]
+                object_ids_to_check.append(id)
+                if object.attributes["life_stage"] == "creation_committed":
+                    object_ids_to_remove.append(id)
+
+        def do():
+            yt_commands.gc_collect(driver=driver)
+            
+            yt_commands.execute_batch([
+                yt_commands.make_batch_request("remove", path="#" + id, force=True) for id in object_ids_to_remove
+            ], driver=driver)
+                
+            results = yt_commands.execute_batch([
+                yt_commands.make_batch_request("exists", path="#" + id, return_only_value=True) for id in object_ids_to_check
+            ], driver=driver)
+            return all(not yt_commands.get_batch_output(result)["value"] for result in results)
+
+        wait(do)
+
+    def _wait_for_scheduler_state_restored(self, driver=None):
+        node_count = len(yt_commands.ls("//sys/cluster_nodes", driver=driver))
+        def check():
+            responses = yt_commands.execute_batch([
+                yt_commands.make_batch_request("list", path=yt_commands.scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree", return_only_value=True),
+                yt_commands.make_batch_request("get", path=yt_commands.scheduler_orchid_path() + "/scheduler/default_pool_tree", return_only_value=True),
+                yt_commands.make_batch_request("list", path=yt_commands.scheduler_orchid_default_pool_tree_path() + "/pools", return_only_value=True),
+                yt_commands.make_batch_request("get", path=yt_commands.scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/default/node_count", return_only_value=True)
+            ], driver=driver)
+            return all(yt_commands.get_batch_error(r) is None for r in responses) and \
+                   yt_commands.get_batch_output(responses[0]) == ["default"] and \
+                   yt_commands.get_batch_output(responses[1]) == "default" and \
+                   yt_commands.get_batch_output(responses[2]) == ["<Root>"] and \
+                   yt_commands.get_batch_output(responses[3]) == node_count
+        
+        wait(check)
+
+    def _restore_globals(self, scheduler_count, scheduler_pool_trees_root, driver=None):
+        for response in yt_commands.execute_batch([
+                yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
+                yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
+                yt_commands.make_batch_request("set", path="//sys/@config", input=get_dynamic_master_config()),
+            ], driver=driver):
+            assert not yt_commands.get_batch_error(response)
+
+        if not yt_commands.exists(scheduler_pool_trees_root, driver=driver):
+            yt_commands.create("map_node", scheduler_pool_trees_root, driver=driver)
+
+        restore_pool_trees_requests = []
+        if yt_commands.exists(scheduler_pool_trees_root + "/default", driver=driver):
+            restore_pool_trees_requests.extend([
+                yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/default/*"),
+                yt_commands.make_batch_request("set", path=scheduler_pool_trees_root + "/default/@nodes_filter", input=""),
+            ])
+        else:
+            # XXX(eshcherbin, renadeen): Remove when map_node pool trees are not a thing.
+            if yt_commands.get(scheduler_pool_trees_root + "/@type") == "map_node":
+                restore_pool_trees_requests.append(
+                    yt_commands.make_batch_request("create", type="map_node", path=scheduler_pool_trees_root + "/default"))
+            else :
+                restore_pool_trees_requests.append(
+                    yt_commands.make_batch_request("create", type="scheduler_pool_tree", attributes={"name": "default"}))
+        for pool_tree in yt_commands.ls(scheduler_pool_trees_root, driver=driver):
+            if pool_tree != "default":
+                restore_pool_trees_requests.append(
+                    yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/" + pool_tree))
+        for response in yt_commands.execute_batch(restore_pool_trees_requests, driver=driver):
+            assert not yt_commands.get_batch_error(response)
+        
+        # Could not add this to the batch request because of possible races at scheduler.
+        yt_commands.set(scheduler_pool_trees_root + "/@default_tree", "default", driver=driver)
+
+        if scheduler_count > 0:
+            self._wait_for_scheduler_state_restored(driver=driver)
+
+    def _setup_nodes_dynamic_config(self, driver=None):
+        dynamic_node_config = get_dynamic_node_config()
+        yt_commands.set("//sys/cluster_nodes/@config", dynamic_node_config, driver=driver)
+
+        nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
+        def check():
+            for response in yt_commands.execute_batch([
+                    yt_commands.make_batch_request("get", path="//sys/cluster_nodes/{0}/orchid/dynamic_config_manager/config".format(node), return_only_value=True)
+                    for node in nodes
+                ], driver=driver):
+                if yt_commands.get_batch_output(response) != dynamic_node_config["%true"]:
+                    return False
+            return True
+        wait(check)
+
+    def _setup_tablet_manager(self, driver=None):
+        for response in yt_commands.execute_batch([
+                yt_commands.make_batch_request("set", path="//sys/@config/tablet_manager/tablet_balancer/tablet_balancer_schedule", input="1"),
+                yt_commands.make_batch_request("set", path="//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging", input=True),
+                yt_commands.make_batch_request("set", path="//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", input=self.ENABLE_TABLET_BALANCER),
+                yt_commands.make_batch_request("set", path="//sys/@config/tablet_manager/enable_bulk_insert", input=self.ENABLE_BULK_INSERT)
+            ], driver=driver):
+            assert not yt_commands.get_batch_error(response)
+
+    def _restore_default_bundle_options(self, driver=None):
+        def do():
+            for response in yt_commands.execute_batch([
+                    yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
+                    yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
+                    yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@options", input={
+                        "changelog_replication_factor": 1 if self.NUM_NODES < 3 else 3,
+                        "changelog_read_quorum": 1 if self.NUM_NODES < 3 else 2,
+                        "changelog_write_quorum": 1 if self.NUM_NODES < 3 else 2,
+                        "changelog_account": "sys",
+                        "snapshot_replication_factor": 1 if self.NUM_NODES < 3 else 3,
+                        "snapshot_account": "sys"
+                    }),
+                ], driver=driver):
+                assert not yt_commands.get_batch_error(response)
+
+        _retry_with_gc_collect(do, driver=driver)
+
+    def _remove_operations(self, driver=None):
+        command_name = "abort_operation" if driver.get_config()["api_version"] == 4 else "abort_op"
+
+        if yt_commands.get("//sys/scheduler/instances/@count", driver=driver) == 0:
+            return
+
+        operations_from_orchid = []
+        try:
+            operations_from_orchid = yt_commands.ls("//sys/scheduler/orchid/scheduler/operations", driver=driver)
+        except YtError as err:
+            print >>sys.stderr, format_error(err)
+
+        requests = []
+        for operation_id in operations_from_orchid:
+            if not operation_id.startswith("*"):
+                requests.append(yt_commands.make_batch_request(command_name, operation_id=operation_id))
+
+        responses = yt_commands.execute_batch(requests, driver=driver)
+        for response in responses:
+            err = yt_commands.get_batch_error(response)
+            if err is not None:
+                print >>sys.stderr, format_error(err)
+
+        self._abort_transactions(driver=driver)
+
+        for response in yt_commands.execute_batch([
+                yt_commands.make_batch_request("remove", path="//sys/operations/*"),
+                yt_commands.make_batch_request("remove", path="//sys/operations_archive", force=True)
+            ], driver=driver):
+            assert not yt_commands.get_batch_error(response)
+
+    def _wait_for_jobs_to_vanish(self, driver=None):
+        nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
+        def check_no_jobs():
+            requests = [yt_commands.make_batch_request("get", path="//sys/cluster_nodes/{0}/orchid/job_controller/active_job_count".format(node), return_only_value=True)
+                        for node in nodes]
+            responses = yt_commands.execute_batch(requests, driver=driver)
+            return all(yt_commands.get_batch_output(response).get("scheduler", 0) == 0 for response in responses)
+        try:
+            wait(check_no_jobs, iter=300)
+        except WaitFailed:
+            requests = [yt_commands.make_batch_request("list", path="//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler".format(node), return_only_value=True)
+                        for node in nodes]
+            responses = yt_commands.execute_batch(requests, driver=driver)
+            print >>sys.stderr, "There are remaining scheduler jobs:"
+            for node, response in zip(nodes, responses):
+                print >>sys.stderr, "Node {}: {}".format(node, response)
+
 
 def get_porto_delta_node_config():
     return {

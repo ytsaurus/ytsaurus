@@ -94,7 +94,7 @@ TJobPtr TJob::CreateRepair(
     return New<TJob>(
         EJobType::RepairChunk,
         jobId,
-        TChunkIdWithIndexes(chunk->GetId(), GenericChunkReplicaIndex, InvalidMediumIndex),
+        TChunkIdWithIndexes(chunk->GetId(), GenericChunkReplicaIndex, GenericMediumIndex),
         node,
         targetReplicas,
         TInstant::Now(),
@@ -107,15 +107,13 @@ TJobPtr TJob::CreateSeal(
     TChunkPtrWithIndexes chunkWithIndexes,
     TNode* node)
 {
-    YT_VERIFY(chunkWithIndexes.GetReplicaIndex() == GenericChunkReplicaIndex);
-
     TNodeResources resourceUsage;
     resourceUsage.set_seal_slots(1);
 
     return New<TJob>(
         EJobType::SealChunk,
         jobId,
-        TChunkIdWithIndexes(chunkWithIndexes.GetPtr()->GetId(), GenericChunkReplicaIndex, chunkWithIndexes.GetMediumIndex()),
+        TChunkIdWithIndexes(chunkWithIndexes.GetPtr()->GetId(), chunkWithIndexes.GetReplicaIndex(), chunkWithIndexes.GetMediumIndex()),
         node,
         TNodePtrWithIndexesList(),
         TInstant::Now(),

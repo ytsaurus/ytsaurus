@@ -32,16 +32,15 @@ TString KeyToYson(TUnversionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-struct TIsScalarPersistentType
+template <class T, class = void>
+struct TUnversionedValueConversionTraits
 {
-    static constexpr bool Value =
-        std::is_same<T, TGuid>::value ||
-        std::is_same<T, TString>::value ||
-        std::is_same<T, i64>::value ||
-        std::is_same<T, ui64>::value ||
-        std::is_same<T, TInstant>::value;
+    // These are conservative defaults.
+    static constexpr bool Scalar = false;
+    static constexpr bool Inline = false;
 };
+
+void ToUnversionedValue(TUnversionedValue* unversionedValue, std::nullopt_t, const TRowBufferPtr& rowBuffer, int id = 0);
 
 void ToUnversionedValue(TUnversionedValue* unversionedValue, TGuid value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(TGuid* value, TUnversionedValue unversionedValue);
@@ -64,17 +63,32 @@ void FromUnversionedValue(i64* value, TUnversionedValue unversionedValue);
 void ToUnversionedValue(TUnversionedValue* unversionedValue, ui64 value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(ui64* value, TUnversionedValue unversionedValue);
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, i32 value, const TRowBufferPtr& rowBuffer, int id = 0);
+void FromUnversionedValue(i32* value, TUnversionedValue unversionedValue);
+
 void ToUnversionedValue(TUnversionedValue* unversionedValue, ui32 value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(ui32* value, TUnversionedValue unversionedValue);
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, i16 value, const TRowBufferPtr& rowBuffer, int id = 0);
+void FromUnversionedValue(i16* value, TUnversionedValue unversionedValue);
+
 void ToUnversionedValue(TUnversionedValue* unversionedValue, ui16 value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(ui16* value, TUnversionedValue unversionedValue);
+
+void ToUnversionedValue(TUnversionedValue* unversionedValue, i8 value, const TRowBufferPtr& rowBuffer, int id = 0);
+void FromUnversionedValue(i8* value, TUnversionedValue unversionedValue);
+
+void ToUnversionedValue(TUnversionedValue* unversionedValue, ui8 value, const TRowBufferPtr& rowBuffer, int id = 0);
+void FromUnversionedValue(ui8* value, TUnversionedValue unversionedValue);
 
 void ToUnversionedValue(TUnversionedValue* unversionedValue, double value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(double* value, TUnversionedValue unversionedValue);
 
 void ToUnversionedValue(TUnversionedValue* unversionedValue, TInstant value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(TInstant* value, TUnversionedValue unversionedValue);
+
+void ToUnversionedValue(TUnversionedValue* unversionedValue, TDuration value, const TRowBufferPtr& rowBuffer, int id = 0);
+void FromUnversionedValue(TDuration* value, TUnversionedValue unversionedValue);
 
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYTree::IMapNodePtr& value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(NYTree::IMapNodePtr* value, TUnversionedValue unversionedValue);
@@ -96,7 +110,10 @@ void FromUnversionedValue(
     typename std::enable_if<TEnumTraits<T>::IsEnum, void>::type* = nullptr);
 
 template <class T>
-TUnversionedValue ToUnversionedValue(const T& value, const TRowBufferPtr& rowBuffer, int id = 0);
+TUnversionedValue ToUnversionedValue(
+    T&& value,
+    const TRowBufferPtr& rowBuffer,
+    int id = 0);
 template <class T>
 T FromUnversionedValue(TUnversionedValue unversionedValue);
 
@@ -139,7 +156,7 @@ template <class T>
 void FromUnversionedValue(
     std::vector<T>* values,
     TUnversionedValue unversionedValue,
-    typename std::enable_if<TIsScalarPersistentType<T>::Value, void>::type* = nullptr);
+    typename std::enable_if<TUnversionedValueConversionTraits<T>::Scalar, void>::type* = nullptr);
 
 template <class TKey, class TValue>
 void ToUnversionedValue(
@@ -156,13 +173,28 @@ void FromUnversionedValue(
 template <class... Ts>
 auto ToUnversionedValues(
     const TRowBufferPtr& rowBuffer,
-    const Ts& ... values)
+    Ts&&... values)
 -> std::array<TUnversionedValue, sizeof...(Ts)>;
 
+////////////////////////////////////////////////////////////////////////////////
+
+//! Unpacks invidual values in #row to respective #values.
+//! The number of values in #row must be greater than or equal to the number of #values.
 template <class... Ts>
 void FromUnversionedRow(
     TUnversionedRow row,
     Ts*... values);
+
+//! Same as above but returns a tuple instead of placing values into the arguments.
+template <class... Ts>
+std::tuple<Ts...> FromUnversionedRow(TUnversionedRow row);
+
+//! Constructs an owning row from arbitrarily-typed values.
+//! Values get sequential ids 0..N-1.
+template <class... Ts>
+TUnversionedOwningRow MakeUnversionedOwningRow(Ts&&... values);
+
+////////////////////////////////////////////////////////////////////////////////
 
 void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::IYsonConsumer* consumer);
 void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::TCheckedInDebugYsonTokenWriter* tokenWriter);

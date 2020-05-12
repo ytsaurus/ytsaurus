@@ -10,13 +10,13 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
-#include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/journal_client/journal_ypath_proxy.h>
+#include <yt/ytlib/journal_client/chunk_reader.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/ytlib/object_client/helpers.h>
@@ -94,7 +94,7 @@ private:
 
     NApi::ITransactionPtr Transaction_;
 
-    TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
+    const TNodeDirectoryPtr NodeDirectory_ = New<TNodeDirectory>();
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs_;
 
     IInvokerPtr ReaderInvoker_;
@@ -111,7 +111,7 @@ private:
 
     void DoOpen()
     {
-        YT_LOG_INFO("Opening journal reader");
+        YT_LOG_DEBUG("Opening journal reader");
 
         TUserObject userObject(Path_);
 
@@ -130,13 +130,14 @@ private:
         }
 
         {
-            YT_LOG_INFO("Fetching journal chunks");
+            YT_LOG_DEBUG("Fetching journal chunks");
 
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, userObject.ExternalCellTag);
             TObjectServiceProxy proxy(channel);
 
             auto req = TJournalYPathProxy::Fetch(userObject.GetObjectIdPath());
             AddCellTagToSyncWith(req, userObject.ObjectId);
+            req->set_fetch_parity_replicas(true);
 
             TReadLimit lowerLimit, upperLimit;
             i64 firstRowIndex = Options_.FirstRowIndex.value_or(0);
@@ -146,11 +147,7 @@ private:
             if (Options_.RowCount) {
                 upperLimit.SetRowIndex(firstRowIndex + *Options_.RowCount);
             }
-
-            TReadRange range;
-            range.LowerLimit() = lowerLimit;
-            range.UpperLimit() = upperLimit;
-            ToProto(req->mutable_ranges(), std::vector<TReadRange>({range}));
+            ToProto(req->mutable_ranges(), std::vector<TReadRange>({{lowerLimit, upperLimit}}));
 
             AddCellTagToSyncWith(req, userObject.ObjectId);
             SetTransactionId(req, userObject.ExternalTransactionId);
@@ -177,7 +174,7 @@ private:
             StartListenTransaction(Transaction_);
         }
 
-        YT_LOG_INFO("Journal reader opened");
+        YT_LOG_DEBUG("Journal reader opened");
     }
 
     std::vector<TSharedRef> DoRead()
@@ -198,16 +195,14 @@ private:
                 const auto& chunkSpec = ChunkSpecs_[CurrentChunkIndex_];
 
                 auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+                auto codecId = FromProto<NErasure::ECodec>(chunkSpec.erasure_codec());
                 auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
-                auto options = New<TRemoteReaderOptions>();
-                CurrentChunkReader_ = CreateReplicationReader(
+                CurrentChunkReader_ = NJournalClient::CreateChunkReader(
                     Config_,
-                    options,
                     Client_,
                     NodeDirectory_,
-                    /* localDescriptor */ {},
-                    /* partitionTag */ std::nullopt,
                     chunkId,
+                    codecId,
                     replicas,
                     Client_->GetNativeConnection()->GetBlockCache());
 

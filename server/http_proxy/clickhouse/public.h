@@ -1,3 +1,5 @@
+#pragma once
+
 #include <yt/core/misc/common.h>
 
 namespace NYT::NHttpProxy::NClickHouse {

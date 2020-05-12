@@ -216,7 +216,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                 THROW_ERROR_EXCEPTION("Cannot cache responses for requests with attachments");
             }
 
-            YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex:  %v, Key: %v)",
+            YT_LOG_DEBUG("Serving subrequest from cache (RequestId: %v, SubrequestIndex: %v, Key: %v)",
                 requestId,
                 subrequestIndex,
                 key);
@@ -252,7 +252,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 
                 if (enableTwoLevelObjectServiceCache) {
                     auto* balancingHeaderExt = req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-                    balancingHeaderExt->set_enable_stickness(true);
+                    balancingHeaderExt->set_enable_stickiness(true);
                     balancingHeaderExt->set_sticky_group_size(1);
 
                     auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);

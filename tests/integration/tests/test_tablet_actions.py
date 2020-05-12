@@ -645,7 +645,7 @@ class TestTabletBalancer(TabletActionsBase):
 
         sync_mount_table("//tmp/t2", cell_id=cells_on_default[0])
         insert_rows("//tmp/t2", [{"key": i, "value": "A"*128} for i in xrange(2)])
-        sync_flush_table("//tmp/t2");
+        sync_flush_table("//tmp/t2")
 
         set("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer", True)
         def wait_func():

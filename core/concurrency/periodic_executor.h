@@ -71,6 +71,8 @@ public:
 
     //! Returns the future that become set when
     //! at least one action be fully executed from the moment of method call.
+    //! Cancellation of the returned future will not affect the action
+    //! or other futures returned by this method.
     TFuture<void> GetExecutedEvent();
 
 private:

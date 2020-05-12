@@ -89,6 +89,8 @@ TString TChunk::GetLowercaseObjectName() const
             return Format("erasure chunk %v", GetId());
         case EObjectType::JournalChunk:
             return Format("journal chunk %v", GetId());
+        case EObjectType::ErasureJournalChunk:
+            return Format("erasure journal chunk %v", GetId());
         default:
             YT_ABORT();
     }
@@ -103,6 +105,8 @@ TString TChunk::GetCapitalizedObjectName() const
             return Format("Erasure chunk %v", GetId());
         case EObjectType::JournalChunk:
             return Format("Journal chunk %v", GetId());
+        case EObjectType::ErasureJournalChunk:
+            return Format("Erasure journal chunk %v", GetId());
         default:
             YT_ABORT();
     }
@@ -180,6 +184,23 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         Load(context, data->CachedReplicas);
         Load(context, data->LastSeenReplicas);
         Load(context, data->CurrentLastSeenReplicaIndex);
+
+        // COMPAT(babenko)
+        if (context.GetVersion() < NCellMaster::EMasterReign::ErasureJournals && IsJournal()) {
+            for (auto& replica : data->StoredReplicas) {
+                EChunkReplicaState state;
+                constexpr int ActiveChunkReplicaIndex   = 0; // the replica is currently being written
+                constexpr int UnsealedChunkReplicaIndex = 1; // the replica is finished but not sealed yet
+                constexpr int SealedChunkReplicaIndex   = 2; // the replica is finished and sealed
+                switch (replica.GetReplicaIndex()) {
+                    case ActiveChunkReplicaIndex:     state = EChunkReplicaState::Active; break;
+                    case UnsealedChunkReplicaIndex:   state = EChunkReplicaState::Unsealed; break;
+                    case SealedChunkReplicaIndex:     state = EChunkReplicaState::Sealed; break;
+                    default:                          YT_ABORT();
+                }
+                replica = TNodePtrWithIndexes(replica.GetPtr(), GenericChunkReplicaIndex, replica.GetMediumIndex(), state);
+            }
+        }
     }
     Load(context, ExportCounter_);
     if (ExportCounter_ > 0) {
@@ -226,7 +247,7 @@ void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium)
 {
     auto* data = MutableReplicasData();
     if (medium->GetCache()) {
-        YT_ASSERT(!IsJournal());
+        YT_VERIFY(!IsJournal());
         auto& cachedReplicas = data->CachedReplicas;
         if (!cachedReplicas) {
             cachedReplicas = std::make_unique<TCachedReplicas>();
@@ -235,9 +256,7 @@ void TChunk::AddReplica(TNodePtrWithIndexes replica, const TMedium* medium)
     } else {
         if (IsJournal()) {
             for (auto& existingReplica : data->StoredReplicas) {
-                if (existingReplica.GetPtr() == replica.GetPtr() &&
-                    existingReplica.GetMediumIndex() == replica.GetMediumIndex())
-                {
+                if (existingReplica.ToGenericState() == replica.ToGenericState()) {
                     existingReplica = replica;
                     return;
                 }
@@ -260,26 +279,27 @@ void TChunk::RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium)
     auto* data = MutableReplicasData();
     if (medium->GetCache()) {
         auto& cachedReplicas = data->CachedReplicas;
-        YT_ASSERT(cachedReplicas);
         YT_VERIFY(cachedReplicas->erase(replica) == 1);
         if (cachedReplicas->empty()) {
             cachedReplicas.reset();
         }
     } else {
-        auto& storedReplicas = data->StoredReplicas;
-        for (auto it = storedReplicas.begin(); it != storedReplicas.end(); ++it) {
-            auto& existingReplica = *it;
-            if (existingReplica == replica ||
-                (IsJournal() &&
-                 existingReplica.GetPtr() == replica.GetPtr() &&
-                 existingReplica.GetMediumIndex() == replica.GetMediumIndex()))
-            {
-                std::swap(existingReplica, storedReplicas.back());
-                storedReplicas.pop_back();
-                return;
+        auto doRemove = [&] (auto converter) {
+            auto& storedReplicas = data->StoredReplicas;
+            for (auto& existingReplica : storedReplicas) {
+                if (converter(existingReplica) == converter(replica)) {
+                    std::swap(existingReplica, storedReplicas.back());
+                    storedReplicas.pop_back();
+                    return;
+                }
             }
+            YT_ABORT();
+        };
+        if (IsJournal()) {
+            doRemove([] (auto replica) { return replica.ToGenericState(); });
+        } else {
+            doRemove([] (auto replica) { return replica; });
         }
-        YT_ABORT();
     }
 }
 
@@ -298,10 +318,9 @@ void TChunk::ApproveReplica(TNodePtrWithIndexes replica)
 {
     if (IsJournal()) {
         auto* data = MutableReplicasData();
+        auto genericReplica = replica.ToGenericState();
         for (auto& existingReplica : data->StoredReplicas) {
-            if (existingReplica.GetPtr() == replica.GetPtr() &&
-                existingReplica.GetMediumIndex() == replica.GetMediumIndex())
-            {
+            if (existingReplica.ToGenericState() == genericReplica) {
                 existingReplica = replica;
                 return;
             }
@@ -343,7 +362,8 @@ bool TChunk::IsAvailable() const
         case EObjectType::Chunk:
             return !storedReplicas.empty();
 
-        case EObjectType::ErasureChunk: {
+        case EObjectType::ErasureChunk:
+        case EObjectType::ErasureJournalChunk: {
             auto* codec = NErasure::GetCodec(GetErasureCodec());
             int dataPartCount = codec->GetDataPartCount();
             NErasure::TPartIndexSet missingIndexSet((1 << dataPartCount) - 1);
@@ -353,16 +373,17 @@ bool TChunk::IsAvailable() const
             return missingIndexSet.none();
         }
 
-        case EObjectType::JournalChunk:
+        case EObjectType::JournalChunk: {
             if (storedReplicas.size() >= GetReadQuorum()) {
                 return true;
             }
             for (auto replica : storedReplicas) {
-                if (replica.GetReplicaIndex() == SealedChunkReplicaIndex) {
+                if (replica.GetState() == EChunkReplicaState::Sealed) {
                     return true;
                 }
             }
             return false;
+        }
 
         default:
             YT_ABORT();
@@ -421,13 +442,14 @@ int TChunk::GetMaxReplicasPerRack(
             return std::max(replicationFactor - 1, 1);
         }
 
-        case EObjectType::ErasureChunk:
-            return NErasure::GetCodec(GetErasureCodec())->GetGuaranteedRepairablePartCount();
-
-        case EObjectType::JournalChunk: {
-            int minQuorum = std::min(ReadQuorum_, WriteQuorum_);
-            return std::max(minQuorum - 1, 1);
+        case EObjectType::ErasureChunk: {
+            auto* codec = NErasure::GetCodec(GetErasureCodec());
+            return codec->GetGuaranteedRepairablePartCount();
         }
+
+        case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk:
+            return std::max(ReadQuorum_ - 1, 1);
 
         default:
             YT_ABORT();

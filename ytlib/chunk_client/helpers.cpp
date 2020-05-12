@@ -65,6 +65,17 @@ using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ValidateReplicationFactor(int replicationFactor)
+{
+    if (replicationFactor < MinReplicationFactor || replicationFactor > MaxReplicationFactor)
+    {
+        THROW_ERROR_EXCEPTION("Replication factor %v is out of range [%v,%v]",
+            replicationFactor,
+            MinReplicationFactor,
+            MaxReplicationFactor);
+    }
+}
+
 TCellTag PickChunkHostingCell(
     const NApi::NNative::IConnectionPtr& connection,
     const NLogging::TLogger& logger)
@@ -393,10 +404,7 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
         throwOnError(FromProto<TError>(rsp.error()));
     }
 
-    // COMPAT(aozeritsky)
-    auto replicas = rsp.replicas().empty()
-        ? FromProto<TChunkReplicaWithMediumList>(rsp.replicas_old())
-        : FromProto<TChunkReplicaWithMediumList>(rsp.replicas());
+    auto replicas = FromProto<TChunkReplicaWithMediumList>(rsp.replicas());
     if (replicas.empty()) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::MasterCommunicationFailed,
@@ -527,8 +535,7 @@ IChunkReaderPtr CreateRemoteReader(
                 partReplicas.push_back(TChunkReplica(nodeId, index));
             }
 
-            auto partId = ErasurePartIdFromChunkId(chunkId, index);
-
+            auto partChunkId = ErasurePartIdFromChunkId(chunkId, index);
             auto reader = CreateReplicationReader(
                 config,
                 options,
@@ -536,7 +543,7 @@ IChunkReaderPtr CreateRemoteReader(
                 nodeDirectory,
                 localDescriptor,
                 localNodeId,
-                partId,
+                partChunkId,
                 partReplicas,
                 blockCache,
                 trafficMeter,

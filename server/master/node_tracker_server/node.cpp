@@ -42,37 +42,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TChunkPtrWithIndexes ToUnapprovedKey(TChunkPtrWithIndexes replica)
-{
-    auto* chunk = replica.GetPtr();
-    auto replicaIndex = chunk->IsJournal() ? GenericChunkReplicaIndex : replica.GetReplicaIndex();
-    return TChunkPtrWithIndexes(chunk, replicaIndex, replica.GetMediumIndex());
-}
-
-TChunkIdWithIndexes ToRemovalKey(const TChunkIdWithIndexes& replica)
-{
-    auto replicaIndex = IsJournalChunkId(replica.Id) ? GenericChunkReplicaIndex : replica.ReplicaIndex;
-    return TChunkIdWithIndexes(replica.Id, replicaIndex, DefaultStoreMediumIndex);
-}
-
-TChunkPtrWithIndexes ToReplicationKey(TChunkPtrWithIndexes replica)
-{
-    auto* chunk = replica.GetPtr();
-    auto replicaIndex = chunk->IsJournal() ? GenericChunkReplicaIndex : replica.GetReplicaIndex();
-    return TChunkPtrWithIndexes(chunk, replicaIndex, replica.GetMediumIndex());
-}
-
-TChunk* ToSealKey(TChunkPtrWithIndexes replica)
-{
-    return replica.GetPtr();
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TNode::TCellSlot::Persist(NCellMaster::TPersistenceContext& context)
 {
     using NYT::Persist;
@@ -482,10 +451,7 @@ bool TNode::AddReplica(TChunkPtrWithIndexes replica)
 {
     auto* chunk = replica.GetPtr();
     if (chunk->IsJournal()) {
-        auto mediumIndex = replica.GetMediumIndex();
-        DoRemoveReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
-        DoRemoveReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
-        DoRemoveReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
+        DoRemoveJournalReplicas(replica);
     }
     // NB: For journal chunks result is always true.
     return DoAddReplica(replica);
@@ -495,25 +461,25 @@ bool TNode::RemoveReplica(TChunkPtrWithIndexes replica)
 {
     auto* chunk = replica.GetPtr();
     if (chunk->IsJournal()) {
-        auto mediumIndex = replica.GetMediumIndex();
-        DoRemoveReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
-        DoRemoveReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
-        DoRemoveReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
+        DoRemoveJournalReplicas(replica);
     } else {
         DoRemoveReplica(replica);
     }
-    return UnapprovedReplicas_.erase(ToUnapprovedKey(replica)) == 0;
+    return UnapprovedReplicas_.erase(replica.ToGenericState()) == 0;
 }
 
 bool TNode::HasReplica(TChunkPtrWithIndexes replica) const
 {
     auto* chunk = replica.GetPtr();
     if (chunk->IsJournal()) {
+        auto replicaIndex = replica.GetReplicaIndex();
         auto mediumIndex = replica.GetMediumIndex();
-        return
-            DoHasReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex)) ||
-            DoHasReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex)) ||
-            DoHasReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
+        for (auto state : TEnumTraits<EChunkReplicaState>::GetDomainValues()) {
+            if (DoHasReplica(TChunkPtrWithIndexes(chunk, replicaIndex, mediumIndex, state))) {
+                return true;
+            }
+        }
+        return false;
     } else {
         return DoHasReplica(replica);
     }
@@ -545,47 +511,43 @@ void TNode::ClearReplicas()
 
 void TNode::AddUnapprovedReplica(TChunkPtrWithIndexes replica, TInstant timestamp)
 {
-    YT_VERIFY(UnapprovedReplicas_.emplace(ToUnapprovedKey(replica), timestamp).second);
+    YT_VERIFY(UnapprovedReplicas_.emplace(replica.ToGenericState(), timestamp).second);
 }
 
 bool TNode::HasUnapprovedReplica(TChunkPtrWithIndexes replica) const
 {
-    return UnapprovedReplicas_.find(ToUnapprovedKey(replica)) != UnapprovedReplicas_.end();
+    return UnapprovedReplicas_.find(replica.ToGenericState()) != UnapprovedReplicas_.end();
 }
 
 void TNode::ApproveReplica(TChunkPtrWithIndexes replica)
 {
-    YT_VERIFY(UnapprovedReplicas_.erase(ToUnapprovedKey(replica)) == 1);
+    YT_VERIFY(UnapprovedReplicas_.erase(replica.ToGenericState()) == 1);
     auto* chunk = replica.GetPtr();
     if (chunk->IsJournal()) {
-        int mediumIndex = replica.GetMediumIndex();
-        DoRemoveReplica(TChunkPtrWithIndexes(chunk, ActiveChunkReplicaIndex, mediumIndex));
-        DoRemoveReplica(TChunkPtrWithIndexes(chunk, UnsealedChunkReplicaIndex, mediumIndex));
-        DoRemoveReplica(TChunkPtrWithIndexes(chunk, SealedChunkReplicaIndex, mediumIndex));
+        DoRemoveJournalReplicas(replica);
         YT_VERIFY(DoAddReplica(replica));
     }
 }
 
 bool TNode::AddDestroyedReplica(const TChunkIdWithIndexes& replica)
 {
-    return DestroyedReplicas_.insert(ToRemovalKey(replica)).second;
+    return DestroyedReplicas_.insert(replica).second;
 }
 
 bool TNode::RemoveDestroyedReplica(const TChunkIdWithIndexes& replica)
 {
-    return DestroyedReplicas_.erase(ToRemovalKey(replica)) > 0;
+    return DestroyedReplicas_.erase(replica) > 0;
 }
 
 void TNode::AddToChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 {
     YT_ASSERT(GetLocalState() == ENodeState::Online);
-    ChunkRemovalQueue_[ToRemovalKey(replica)].set(replica.MediumIndex);
+    ChunkRemovalQueue_[replica].set(replica.MediumIndex);
 }
 
 void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 {
-    auto key = ToRemovalKey(replica);
-    auto it = ChunkRemovalQueue_.find(key);
+    auto it = ChunkRemovalQueue_.find(replica);
     if (it != ChunkRemovalQueue_.end()) {
         it->second.reset(replica.MediumIndex);
         if (it->second.none()) {
@@ -597,14 +559,13 @@ void TNode::RemoveFromChunkRemovalQueue(const TChunkIdWithIndexes& replica)
 void TNode::AddToChunkReplicationQueue(TChunkPtrWithIndexes replica, int targetMediumIndex, int priority)
 {
     YT_ASSERT(GetLocalState() == ENodeState::Online);
-    ChunkReplicationQueues_[priority][ToReplicationKey(replica)].set(targetMediumIndex);
+    ChunkReplicationQueues_[priority][replica.ToGenericState()].set(targetMediumIndex);
 }
 
 void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica, int targetMediumIndex)
 {
-    auto key = ToReplicationKey(replica);
     for (auto& queue : ChunkReplicationQueues_) {
-        auto it = queue.find(key);
+        auto it = queue.find(replica.ToGenericState());
         if (it != queue.end()) {
             if (targetMediumIndex == AllMediaIndex) {
                 queue.erase(it);
@@ -618,23 +579,15 @@ void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithIndexes replica, int t
     }
 }
 
-void TNode::AddToChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes)
+void TNode::AddToChunkSealQueue(TChunkPtrWithIndexes replica)
 {
     YT_ASSERT(GetLocalState() == ENodeState::Online);
-    auto key = ToSealKey(chunkWithIndexes);
-    ChunkSealQueue_[key].set(chunkWithIndexes.GetMediumIndex());
+    ChunkSealQueue_.insert(replica);
 }
 
-void TNode::RemoveFromChunkSealQueue(TChunkPtrWithIndexes chunkWithIndexes)
+void TNode::RemoveFromChunkSealQueue(TChunkPtrWithIndexes replica)
 {
-    auto key = ToSealKey(chunkWithIndexes);
-    auto it = ChunkSealQueue_.find(key);
-    if (it != ChunkSealQueue_.end()) {
-        it->second.reset(chunkWithIndexes.GetMediumIndex());
-        if (it->second.none()) {
-            ChunkSealQueue_.erase(it);
-        }
-    }
+    ChunkSealQueue_.erase(replica);
 }
 
 void TNode::ClearSessionHints()
@@ -751,7 +704,8 @@ void TNode::Reset()
     ChunkSealQueue_.clear();
     FillFactorIterators_.clear();
     LoadFactorIterators_.clear();
-
+    DisableWriteSessionsSentToNode_ = false;
+    DisableWriteSessionsReportedByNode_ = false;
     ClearCellStatistics();
 }
 
@@ -839,13 +793,12 @@ bool TNode::IsWriteEnabled(int mediumIndex) const
 bool TNode::DoAddReplica(TChunkPtrWithIndexes replica)
 {
     auto mediumIndex = replica.GetMediumIndex();
-    auto pair = Replicas_[mediumIndex].insert(replica);
-    if (pair.second) {
-        RandomReplicaIters_[mediumIndex] = pair.first;
-        return true;
-    } else {
+    auto [it, inserted] = Replicas_[mediumIndex].insert(replica);
+    if (!inserted) {
         return false;
     }
+    RandomReplicaIters_[mediumIndex] = it;
+    return true;
 }
 
 bool TNode::DoRemoveReplica(TChunkPtrWithIndexes replica)
@@ -864,6 +817,16 @@ bool TNode::DoRemoveReplica(TChunkPtrWithIndexes replica)
     return mediumStoredReplicas.erase(replica) == 1;
 }
 
+void TNode::DoRemoveJournalReplicas(TChunkPtrWithIndexes replica)
+{
+    auto* chunk = replica.GetPtr();
+    auto replicaIndex = replica.GetReplicaIndex();
+    auto mediumIndex = replica.GetMediumIndex();
+    for (auto state : TEnumTraits<EChunkReplicaState>::GetDomainValues()) {
+        DoRemoveReplica(TChunkPtrWithIndexes(chunk, replicaIndex, mediumIndex, state));
+    }
+}
+
 bool TNode::DoHasReplica(TChunkPtrWithIndexes replica) const
 {
     auto mediumIndex = replica.GetMediumIndex();
@@ -871,7 +834,6 @@ bool TNode::DoHasReplica(TChunkPtrWithIndexes replica) const
     if (it == Replicas_.end()) {
         return false;
     }
-
     return it->second.find(replica) != it->second.end();
 }
 
@@ -891,9 +853,24 @@ void TNode::SetDecommissioned(bool value)
     Decommissioned_ = value;
 }
 
+bool TNode::GetEffectiveDisableWriteSessions() const
+{
+    return DisableWriteSessions_ || DisableWriteSessionsSentToNode_ || DisableWriteSessionsReportedByNode_;
+}
+
 void TNode::SetDisableWriteSessions(bool value)
 {
     DisableWriteSessions_ = value;
+}
+
+void TNode::SetDisableWriteSessionsSentToNode(bool value)
+{
+    DisableWriteSessionsSentToNode_ = value;
+}
+
+void TNode::SetDisableWriteSessionsReportedByNode(bool value)
+{
+    DisableWriteSessionsReportedByNode_ = value;
 }
 
 void TNode::SetNodeTags(const std::vector<TString>& tags)

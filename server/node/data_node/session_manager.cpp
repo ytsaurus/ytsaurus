@@ -144,6 +144,7 @@ ISessionPtr TSessionManager::CreateSession(
             break;
 
         case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk:
             return New<TJournalSession>(
                 Config_,
                 Bootstrap_,

@@ -397,6 +397,8 @@ size_t RoundUpToPage(size_t bytes);
 size_t GetByteSize(TRef ref);
 size_t GetByteSize(const TSharedRefArray& array);
 template <class T>
+size_t GetByteSize(TRange<T> parts);
+template <class T>
 size_t GetByteSize(const std::vector<T>& parts);
 
 ////////////////////////////////////////////////////////////////////////////////

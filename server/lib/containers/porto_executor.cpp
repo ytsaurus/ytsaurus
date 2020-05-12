@@ -569,7 +569,7 @@ private:
 
             if (error == EError::Success) {
                 Profiler_.Increment(entry->SuccessCounter);
-                return;
+                break;
             }
 
             Profiler_.Increment(entry->FailureCounter);

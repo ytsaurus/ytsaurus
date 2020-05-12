@@ -135,6 +135,11 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                                 .Item("address").Value(peer.Descriptor.GetDefaultAddress())
                                 .Item("state").Value(state)
                                 .Item("last_seen_time").Value(peer.LastSeenTime)
+                                .Item("last_seen_state").Value(peer.LastSeenState)
+                                .DoIf(!peer.LastRevocationReason.IsOK(), [&] (auto fluent) {
+                                    fluent
+                                        .Item("last_revocation_reason").Value(peer.LastRevocationReason);
+                                })
                             .EndMap();
                     }
                 });

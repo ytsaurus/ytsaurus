@@ -1055,6 +1055,10 @@ TYsonString TClient::DoGetOperation(
     TYsonString archiveResult;
     if (archiveResultOrError.IsOK()) {
         archiveResult = archiveResultOrError.Value();
+    } else {
+        YT_LOG_DEBUG("Failed to get information for operation from archive (OperationId: %v, Error: %v)",
+            operationId,
+            archiveResultOrError);
     }
 
     auto mergeResults = [] (const TYsonString& cypressResult, const TYsonString& archiveResult) {
@@ -1108,6 +1112,9 @@ TYsonString TClient::DoGetOperation(
         //         |               |             |
         //    archive rsp.   archivation   cypress rsp.
         if (!isCompleteArchiveResult(archiveResult)) {
+            YT_LOG_DEBUG("Got empty response from Cypress and incomplete response from archive, "
+                "retrying (OperationId: %v)",
+                operationId);
             archiveResult = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
         }
     } else if (!archiveResultOrError.IsOK()) {

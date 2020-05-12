@@ -441,6 +441,9 @@ public:
 
     bool EnableDynamicStoreReadByDefault;
 
+    //! Peer revocation reason is reset after this period of time.
+    TDuration PeerRevocationReasonExpirationTime;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -493,6 +496,8 @@ public:
             .Default(false);
         RegisterParameter("enable_dynamic_store_read_by_default", EnableDynamicStoreReadByDefault)
             .Default(false);
+        RegisterParameter("peer_revocation_reason_expiration_time", PeerRevocationReasonExpirationTime)
+            .Default(TDuration::Minutes(15));
 
         // COMPAT(savrus) Special parameter to apply old file configs on fly.
         RegisterParameter("compatibility_version", CompatibilityVersion)

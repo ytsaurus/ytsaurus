@@ -15,56 +15,66 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, TChunkReplicaWithMedium replica, TStringBuf /*spec*/)
+{
+    builder->AppendFormat("%v", replica.GetNodeId());
+    if (replica.GetReplicaIndex() != GenericChunkReplicaIndex) {
+        builder->AppendFormat("/%v", replica.GetReplicaIndex());
+    }
+    if (replica.GetMediumIndex() == AllMediaIndex) {
+        builder->AppendString("@all");
+    } else if (replica.GetMediumIndex() != GenericMediumIndex) {
+        builder->AppendFormat("@%v", replica.GetMediumIndex());
+    }
+}
+
 TString ToString(TChunkReplicaWithMedium replica)
 {
-    if (replica.GetReplicaIndex() == GenericChunkReplicaIndex) {
-        return Format("%v@%v", replica.GetNodeId(), replica.GetMediumIndex());
-    } else {
-        return Format("%v/%v@%v",
-            replica.GetNodeId(),
-            replica.GetReplicaIndex(),
-            replica.GetMediumIndex());
+    return ToStringViaBuilder(replica);
+}
+
+void FormatValue(TStringBuilderBase* builder, TChunkReplica replica, TStringBuf spec)
+{
+    builder->AppendFormat("%v", replica.GetNodeId());
+    if (replica.GetReplicaIndex() != GenericChunkReplicaIndex) {
+        builder->AppendFormat("/%v", replica.GetReplicaIndex());
     }
 }
 
 TString ToString(TChunkReplica replica)
 {
-    if (replica.GetReplicaIndex() == GenericChunkReplicaIndex) {
-        return Format("%v", replica.GetNodeId());
-    } else {
-        return Format("%v/%v",
-            replica.GetNodeId(),
-            replica.GetReplicaIndex());
+    return ToStringViaBuilder(replica);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TChunkIdWithIndex& id, TStringBuf spec)
+{
+    builder->AppendFormat("%v", id.Id);
+    if (id.ReplicaIndex != GenericChunkReplicaIndex) {
+        builder->AppendFormat("/%v", id.ReplicaIndex);
     }
 }
 
 TString ToString(const TChunkIdWithIndex& id)
 {
-    if (id.ReplicaIndex == GenericChunkReplicaIndex) {
-        return ToString(id.Id);
-    } else if (TypeFromId(id.Id) == EObjectType::JournalChunk) {
-        return Format("%v/%v",
-            id.Id,
-            EJournalReplicaType(id.ReplicaIndex));
-    } else {
-        return Format("%v/%v",
-            id.Id,
-            id.ReplicaIndex);
+    return ToStringViaBuilder(id);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TChunkIdWithIndexes& id, TStringBuf spec)
+{
+    builder->AppendFormat("%v", id.Id);
+    if (id.ReplicaIndex != GenericChunkReplicaIndex) {
+        builder->AppendFormat("/%v", id.ReplicaIndex);
+    }
+    if (id.MediumIndex == AllMediaIndex) {
+        builder->AppendString("@all");
+    } else if (id.MediumIndex != GenericMediumIndex) {
+        builder->AppendFormat("@%v", id.MediumIndex);
     }
 }
 
 TString ToString(const TChunkIdWithIndexes& id)
 {
-    if (TypeFromId(id.Id) == EObjectType::JournalChunk) {
-        return Format("%v/%v",
-            id.Id,
-            EJournalReplicaType(id.ReplicaIndex));
-    } else {
-        return Format("%v/%v@%v",
-            id.Id,
-            id.ReplicaIndex,
-            id.MediumIndex);
-    }
+    return ToStringViaBuilder(id);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,17 +87,17 @@ void TChunkReplicaAddressFormatter::operator()(TStringBuilderBase* builder, TChu
 {
     const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
     if (descriptor) {
-        builder->AppendFormat(
-            "%v/%v@%v",
-            descriptor->GetDefaultAddress(),
-            replica.GetReplicaIndex(),
-            replica.GetMediumIndex());
+        builder->AppendFormat("%v", descriptor->GetDefaultAddress());
     } else {
-        builder->AppendFormat(
-            "<unresolved-%v>/%v@%v",
-            replica.GetNodeId(),
-            replica.GetReplicaIndex(),
-            replica.GetMediumIndex());
+        builder->AppendFormat("<unresolved-%v>", replica.GetNodeId());
+    }
+    if (replica.GetReplicaIndex() != GenericChunkReplicaIndex) {
+        builder->AppendFormat("/%v", replica.GetReplicaIndex());
+    }
+    if (replica.GetMediumIndex() == AllMediaIndex) {
+        builder->AppendString("@all");
+    } else if (replica.GetMediumIndex() != GenericMediumIndex) {
+        builder->AppendFormat("@%v", replica.GetMediumIndex());
     }
 }
 
@@ -95,57 +105,68 @@ void TChunkReplicaAddressFormatter::operator()(TStringBuilderBase* builder, TChu
 {
     const auto* descriptor = NodeDirectory_->FindDescriptor(replica.GetNodeId());
     if (descriptor) {
-        builder->AppendFormat(
-            "%v/%v",
-            descriptor->GetDefaultAddress(),
-            replica.GetReplicaIndex());
+        builder->AppendFormat("%v", descriptor->GetDefaultAddress());
     } else {
-        builder->AppendFormat(
-            "<unresolved-%v>/%v",
-            replica.GetNodeId(),
-            replica.GetReplicaIndex());
+        builder->AppendFormat("<unresolved-%v>", replica.GetNodeId());
+    }
+    if (replica.GetReplicaIndex() != GenericChunkReplicaIndex) {
+        builder->AppendFormat("/%v", replica.GetReplicaIndex());
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsArtifactChunkId(TChunkId id)
-{
-    return TypeFromId(id) == EObjectType::Artifact;
-}
+namespace {
 
-bool IsJournalChunkId(TChunkId id)
-{
-    return TypeFromId(id) == EObjectType::JournalChunk;
-}
-
-bool IsErasureChunkId(TChunkId id)
-{
-    return TypeFromId(id) == EObjectType::ErasureChunk;
-}
-
-bool IsErasureChunkPartId(TChunkId id)
+EObjectType BaseErasurePartTypeFromPartId(TChunkId id)
 {
     auto type = TypeFromId(id);
-    return
-        type >= EObjectType::ErasureChunkPart_0 &&
-        type <= EObjectType::ErasureChunkPart_15;
+    if (type >= MinErasureChunkPartType && type <= MaxErasureChunkPartType) {
+        return EObjectType::ErasureChunkPart_0;
+    } else if (type >= MinErasureJournalChunkPartType && type <= MaxErasureJournalChunkPartType) {
+        return EObjectType::ErasureJournalChunkPart_0;
+    } else {
+        YT_ABORT();
+    }
 }
+
+EObjectType BaseErasurePartTypeFromWholeId(TChunkId id)
+{
+    switch (TypeFromId(id)) {
+        case EObjectType::ErasureChunk:        return EObjectType::ErasureChunkPart_0;
+        case EObjectType::ErasureJournalChunk: return EObjectType::ErasureJournalChunkPart_0;
+        default:                               YT_ABORT();
+    }
+}
+
+EObjectType WholeErasureTypeFromPartId(TChunkId id)
+{
+    auto type = TypeFromId(id);
+    if (type >= MinErasureChunkPartType && type <= MaxErasureChunkPartType) {
+        return EObjectType::ErasureChunk;
+    } else if (type >= MinErasureJournalChunkPartType && type <= MaxErasureJournalChunkPartType) {
+        return EObjectType::ErasureJournalChunk;
+    } else {
+        YT_ABORT();
+    }
+}
+
+} // namespace
 
 TChunkId ErasurePartIdFromChunkId(TChunkId id, int index)
 {
-    return ReplaceTypeInId(id, EObjectType(static_cast<int>(EObjectType::ErasureChunkPart_0) + index));
+    return ReplaceTypeInId(id, static_cast<EObjectType>(static_cast<int>(BaseErasurePartTypeFromWholeId(id)) + index));
 }
 
 TChunkId ErasureChunkIdFromPartId(TChunkId id)
 {
-    return ReplaceTypeInId(id, EObjectType::ErasureChunk);
+    return ReplaceTypeInId(id, WholeErasureTypeFromPartId(id));
 }
 
-int IndexFromErasurePartId(TChunkId id)
+int ReplicaIndexFromErasurePartId(TChunkId id)
 {
-    int index = static_cast<int>(TypeFromId(id)) - static_cast<int>(EObjectType::ErasureChunkPart_0);
-    YT_VERIFY(index >= 0 && index <= 15);
+    int index = static_cast<int>(TypeFromId(id)) - static_cast<int>(BaseErasurePartTypeFromPartId(id));
+    YT_VERIFY(index >= 0 && index < ChunkReplicaIndexBound);
     return index;
 }
 
@@ -159,7 +180,7 @@ TChunkId EncodeChunkId(const TChunkIdWithIndex& idWithIndex)
 TChunkIdWithIndex DecodeChunkId(TChunkId id)
 {
     return IsErasureChunkPartId(id)
-        ? TChunkIdWithIndex(ErasureChunkIdFromPartId(id), IndexFromErasurePartId(id))
+        ? TChunkIdWithIndex(ErasureChunkIdFromPartId(id), ReplicaIndexFromErasurePartId(id))
         : TChunkIdWithIndex(id, GenericChunkReplicaIndex);
 }
 

@@ -10,9 +10,9 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
-#include <yt/core/logging/public.h>
-
 #include <yt/client/ypath/rich.h>
+
+#include <yt/core/logging/public.h>
 
 namespace NYT::NClickHouseServer {
 

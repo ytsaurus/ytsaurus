@@ -197,7 +197,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 "fail_on_job_restart": True,
             })
         wait(lambda: len(op.get_running_jobs()) == 2)
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
         # By this moment all 2 running jobs made it to snapshot, so operation will not fail on revival.
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -222,7 +222,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 })
             # 6 jobs may not be running simultaneously, so the snapshot will contain information about
             # at most 5 running jobs plus 1 completed job, leading to operation fail on revival.
-            op.wait_fresh_snapshot()
+            op.wait_for_fresh_snapshot()
             with Restarter(self.Env, SCHEDULERS_SERVICE):
                 pass
             op.track()

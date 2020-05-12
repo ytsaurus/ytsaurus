@@ -1350,7 +1350,7 @@ class TestAsyncControllerActions(YTEnvSetup):
 
         op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_revive": 500}})
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
@@ -1381,8 +1381,8 @@ class TestAsyncControllerActions(YTEnvSetup):
         op1 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_revive": 500}})
         op2 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_revive": 500}})
 
-        op1.wait_fresh_snapshot()
-        op2.wait_fresh_snapshot()
+        op1.wait_for_fresh_snapshot()
+        op2.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass

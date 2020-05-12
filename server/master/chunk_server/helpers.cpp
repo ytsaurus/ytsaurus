@@ -3,6 +3,7 @@
 #include "chunk_owner_base.h"
 #include "chunk_manager.h"
 #include "chunk_view.h"
+#include "chunk.h"
 #include "dynamic_store.h"
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
@@ -11,15 +12,19 @@
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
 
-#include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/client/table_client/unversioned_row.h>
 
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
+
+#include <yt/ytlib/journal_client/helpers.h>
+
+#include <yt/client/table_client/unversioned_row.h>
+
+#include <yt/client/object_client/helpers.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -27,6 +32,7 @@ namespace NYT::NChunkServer {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NJournalClient;
 using namespace NObjectClient;
 using namespace NCypressServer;
 using namespace NCypressClient;
@@ -61,7 +67,8 @@ TChunkList* GetUniqueParent(const TChunkTree* chunkTree)
     switch (chunkTree->GetType()) {
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
-        case EObjectType::JournalChunk: {
+        case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk: {
             const auto& parents = chunkTree->AsChunk()->Parents();
             if (parents.empty()) {
                 return nullptr;
@@ -112,6 +119,7 @@ int GetParentCount(const TChunkTree* chunkTree)
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk:
             return chunkTree->AsChunk()->GetParentCount();
 
         case EObjectType::ChunkView:
@@ -135,6 +143,7 @@ bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent)
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk:
             return chunkTree->AsChunk()->Parents().contains(potentialParent);
 
         case EObjectType::ChunkView: {
@@ -297,6 +306,7 @@ void SetChunkTreeParent(TChunkList* parent, TChunkTree* child)
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk:
             child->AsChunk()->AddParent(parent);
             break;
         case EObjectType::ChunkView:
@@ -320,6 +330,7 @@ void ResetChunkTreeParent(TChunkList* parent, TChunkTree* child)
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk:
             child->AsChunk()->RemoveParent(parent);
             break;
         case EObjectType::ChunkView:
@@ -346,6 +357,7 @@ TChunkTreeStatistics GetChunkTreeStatistics(TChunkTree* chunkTree)
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk:
             return chunkTree->AsChunk()->GetStatistics();
         case EObjectType::ChunkView:
             return chunkTree->AsChunkView()->GetStatistics();
@@ -466,7 +478,8 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
         switch (chunkTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-            case EObjectType::JournalChunk: {
+            case EObjectType::JournalChunk:
+            case EObjectType::ErasureJournalChunk: {
                 for (auto [parent, cardinality] : chunkTree->AsChunk()->Parents()) {
                     visit(parent);
                 }
@@ -535,7 +548,8 @@ TYsonString DoGetMulticellOwningNodes(
         auto type = TypeFromId(chunkTreeId);
         if (type != EObjectType::Chunk &&
             type != EObjectType::ErasureChunk &&
-            type != EObjectType::JournalChunk)
+            type != EObjectType::JournalChunk &&
+            type != EObjectType::ErasureJournalChunk)
         {
             return;
         }
@@ -651,6 +665,7 @@ bool IsEmpty(const TChunkTree* chunkTree)
         case EObjectType::Chunk:
         case EObjectType::ErasureChunk:
         case EObjectType::JournalChunk:
+        case EObjectType::ErasureJournalChunk:
         case EObjectType::ChunkView:
         case EObjectType::SortedDynamicTabletStore:
         case EObjectType::OrderedDynamicTabletStore:
@@ -666,7 +681,7 @@ bool IsEmpty(const TChunkTree* chunkTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk)
+TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount)
 {
     auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
@@ -676,20 +691,40 @@ TOwningKey GetUpperBoundKeyOrThrow(const TChunk* chunk)
     }
 
     auto key = FromProto<TOwningKey>(optionalBoundaryKeysExt->max());
-    return GetKeySuccessor(key);
+    if (!keyColumnCount || *keyColumnCount == key.GetCount()) {
+        return GetKeySuccessor(key);
+    } else if (*keyColumnCount < key.GetCount()) {
+        return GetKeySuccessor(GetKeyPrefix(key, *keyColumnCount));
+    } else {
+        // NB: Here we add `Max` at the end of key (instead of `Min` as in another if-branch),
+        // however it doesn't affect anything, because key is widened first.
+        return WidenKeySuccessor(key, *keyColumnCount);
+    }
 }
 
-TOwningKey GetUpperBoundKeyOrThrow(const TChunkView* chunkView)
+TOwningKey GetUpperBoundKeyOrThrow(const TChunkView* chunkView, std::optional<int> keyColumnCount)
 {
-    auto chunkMaxKey = GetUpperBoundKeyOrThrow(chunkView->GetUnderlyingChunk());
+    auto chunkUpperBound = GetUpperBoundKeyOrThrow(chunkView->GetUnderlyingChunk(), keyColumnCount);
     const auto& upperLimit = chunkView->ReadRange().UpperLimit();
     if (!upperLimit.HasKey()) {
-        return chunkMaxKey;
+        return chunkUpperBound;
     }
-    return std::min(chunkMaxKey, upperLimit.GetKey());
+
+    const auto& upperLimitKey = upperLimit.GetKey();
+    if (!keyColumnCount || *keyColumnCount == upperLimitKey.GetCount()) {
+        return std::min(chunkUpperBound, upperLimitKey);
+    } else {
+        if (*keyColumnCount < upperLimitKey.GetCount()) {
+            THROW_ERROR_EXCEPTION("Unexpected key shortening for chunk view")
+                << TErrorAttribute("chunk_view_id", chunkView->GetId())
+                << TErrorAttribute("key_column_count", *keyColumnCount)
+                << TErrorAttribute("key", ToString(upperLimitKey));
+        }
+        return std::min(chunkUpperBound, WidenKey(upperLimitKey, *keyColumnCount));
+    }
 }
 
-TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree)
+TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount)
 {
     if (IsEmpty(chunkTree)) {
         THROW_ERROR_EXCEPTION("Cannot compute upper bound key in chunk list %v since it contains no chunks",
@@ -712,28 +747,26 @@ TOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree)
         switch (currentChunkTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetUpperBoundKeyOrThrow(currentChunkTree->AsChunk());
+                return GetUpperBoundKeyOrThrow(currentChunkTree->AsChunk(), keyColumnCount);
 
             case EObjectType::ChunkView:
-                return GetUpperBoundKeyOrThrow(currentChunkTree->AsChunkView());
+                return GetUpperBoundKeyOrThrow(currentChunkTree->AsChunkView(), keyColumnCount);
 
             case EObjectType::SortedDynamicTabletStore:
                 return MaxKey();
-
-            case EObjectType::OrderedDynamicTabletStore:
-                THROW_ERROR_EXCEPTION("Cannot compute max key of ordered dynamic tablet store");
 
             case EObjectType::ChunkList:
                 currentChunkTree = getLastNonemptyChild(currentChunkTree->AsChunkList());
                 break;
 
             default:
-                YT_ABORT();
+                THROW_ERROR_EXCEPTION("Cannot compute max key of %Qlv chunk tree",
+                    currentChunkTree->GetType());
         }
     }
 }
 
-TOwningKey GetMinKeyOrThrow(const TChunk* chunk)
+TOwningKey GetMinKeyOrThrow(const TChunk* chunk, std::optional<int> keyColumnCount)
 {
     auto optionalBoundaryKeysExt = FindProtoExtension<TBoundaryKeysExt>(
         chunk->ChunkMeta().extensions());
@@ -742,20 +775,39 @@ TOwningKey GetMinKeyOrThrow(const TChunk* chunk)
             chunk->GetId());
     }
 
-    return FromProto<TOwningKey>(optionalBoundaryKeysExt->min());
+    auto minKey = FromProto<TOwningKey>(optionalBoundaryKeysExt->min());
+    if (!keyColumnCount || *keyColumnCount == minKey.GetCount()) {
+        return minKey;
+    } else if (*keyColumnCount < minKey.GetCount()) {
+        return GetKeyPrefix(minKey, *keyColumnCount);
+    } else {
+        return WidenKey(minKey, *keyColumnCount);
+    }
 }
 
-TOwningKey GetMinKey(const TChunkView* chunkView)
+TOwningKey GetMinKey(const TChunkView* chunkView, std::optional<int> keyColumnCount)
 {
-    auto chunkMinKey = GetMinKeyOrThrow(chunkView->GetUnderlyingChunk());
+    auto chunkMinKey = GetMinKeyOrThrow(chunkView->GetUnderlyingChunk(), keyColumnCount);
     const auto& lowerLimit = chunkView->ReadRange().LowerLimit();
     if (!lowerLimit.HasKey()) {
         return chunkMinKey;
     }
-    return std::max(chunkMinKey, lowerLimit.GetKey());
+
+    const auto& lowerLimitKey = lowerLimit.GetKey();
+    if (!keyColumnCount || *keyColumnCount == lowerLimitKey.GetCount()) {
+        return std::max(chunkMinKey, lowerLimitKey);
+    } else {
+        if (*keyColumnCount < lowerLimitKey.GetCount()) {
+            THROW_ERROR_EXCEPTION("Unexpected key shortening for chunk view")
+                << TErrorAttribute("chunk_view_id", chunkView->GetId())
+                << TErrorAttribute("key_column_count", *keyColumnCount)
+                << TErrorAttribute("key", ToString(lowerLimitKey));
+        }
+        return std::max(chunkMinKey, WidenKey(lowerLimitKey, *keyColumnCount));
+    }
 }
 
-TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree)
+TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree, std::optional<int> keyColumnCount)
 {
     if (IsEmpty(chunkTree)) {
         THROW_ERROR_EXCEPTION("Cannot compute min key in chunk list %v since it contains no chunks",
@@ -778,23 +830,21 @@ TOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree)
         switch (currentChunkTree->GetType()) {
             case EObjectType::Chunk:
             case EObjectType::ErasureChunk:
-                return GetMinKeyOrThrow(currentChunkTree->AsChunk());
+                return GetMinKeyOrThrow(currentChunkTree->AsChunk(), keyColumnCount);
 
             case EObjectType::ChunkView:
-                return GetMinKey(currentChunkTree->AsChunkView());
+                return GetMinKey(currentChunkTree->AsChunkView(), keyColumnCount);
 
             case EObjectType::SortedDynamicTabletStore:
                 return MinKey();
-
-            case EObjectType::OrderedDynamicTabletStore:
-                THROW_ERROR_EXCEPTION("Cannot compute min key of ordered dynamic tablet store");
 
             case EObjectType::ChunkList:
                 currentChunkTree = getFirstNonemptyChild(currentChunkTree->AsChunkList());
                 break;
 
             default:
-                YT_ABORT();
+                THROW_ERROR_EXCEPTION("Cannot compute min key of %Qlv chunk tree",
+                    currentChunkTree->GetType());
         }
     }
 }
@@ -841,7 +891,8 @@ TOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree)
                 break;
 
             default:
-                YT_ABORT();
+                THROW_ERROR_EXCEPTION("Cannot compute max key of %Qlv chunk tree",
+                    currentChunkTree->GetType());
         }
     }
 }
@@ -916,11 +967,17 @@ std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChu
     return mergedChunkViews;
 }
 
-bool IsPhysicalChunkType(EObjectType type)
+std::vector<NJournalClient::TChunkReplicaDescriptor> GetChunkReplicaDescriptors(const TChunk* chunk)
 {
-    return type == EObjectType::Chunk ||
-        type == EObjectType::ErasureChunk ||
-        type == EObjectType::JournalChunk;
+    std::vector<TChunkReplicaDescriptor> replicas;
+    for (auto replica : chunk->StoredReplicas()) {
+        replicas.push_back({
+            replica.GetPtr()->GetDescriptor(),
+            replica.GetReplicaIndex(),
+            replica.GetMediumIndex()
+        });
+    }
+    return replicas;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

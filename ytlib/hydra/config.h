@@ -6,6 +6,8 @@
 
 #include <yt/core/compression/public.h>
 
+#include <yt/library/erasure/public.h>
+
 #include <yt/core/rpc/config.h>
 
 #include <yt/core/ytree/yson_serializable.h>
@@ -44,11 +46,11 @@ class TRemoteChangelogStoreOptions
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    NErasure::ECodec ChangelogErasureCodec;
     int ChangelogReplicationFactor;
     int ChangelogReadQuorum;
     int ChangelogWriteQuorum;
     bool EnableChangelogMultiplexing;
-    bool WaitForAllReplicasUponOpen;
     TString ChangelogAccount;
     TString ChangelogPrimaryMedium;
     NYTree::IListNodePtr ChangelogAcl;

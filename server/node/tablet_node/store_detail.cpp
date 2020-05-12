@@ -32,6 +32,7 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/ytlib/table_client/chunk_state.h>
+#include <yt/ytlib/table_client/lookup_reader.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -587,7 +588,7 @@ IChunkStorePtr TChunkStoreBase::AsChunk()
     return this;
 }
 
-IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputThrottlerPtr& throttler)
+IChunkStore::TReaders TChunkStoreBase::GetReaders(const IThroughputThrottlerPtr& throttler)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -605,7 +606,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
         if (!CachedChunkReader_) {
             return false;
         }
-        if (CachedChunkReaderIsLocal_) {
+        if (CachedReadersLocal_) {
             return false;
         }
         return true;
@@ -618,7 +619,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
         if (!CachedChunkReader_) {
             return false;
         }
-        if (!CachedChunkReaderIsLocal_) {
+        if (!CachedReadersLocal_) {
             return false;
         }
         auto chunk = CachedWeakChunk_.Lock();
@@ -628,37 +629,45 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
         return true;
     };
 
-    auto createLocalChunkReader = [&] (const IChunkPtr& chunk) {
+    auto setCachedReaders = [&] (bool local, IChunkReaderPtr chunkReader) {
+        CachedReadersLocal_ = local;
+        CachedChunkReader_ = std::move(chunkReader);
+        CachedLookupReader_ = dynamic_cast<ILookupReader*>(CachedChunkReader_.Get());
+    };
+
+    auto createLocalReaders = [&] (const IChunkPtr& chunk) {
         CachedWeakChunk_ = chunk;
-        CachedChunkReader_ = CreateLocalChunkReader(
-            ReaderConfig_,
-            chunk,
-            ChunkBlockManager_,
-            DoGetBlockCache(),
-            nullptr /* blockMetaCache */);
-        CachedChunkReaderIsLocal_ = true;
+        setCachedReaders(
+            true,
+            CreateLocalChunkReader(
+                ReaderConfig_,
+                chunk,
+                ChunkBlockManager_,
+                DoGetBlockCache(),
+                nullptr /* blockMetaCache */));
         YT_LOG_DEBUG("Local chunk reader created and cached");
     };
 
-    auto createRemoteChunkReader = [&] {
+    auto createRemoteReaders = [&] {
         TChunkSpec chunkSpec;
         ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
         chunkSpec.set_erasure_codec(MiscExt_.erasure_codec());
         *chunkSpec.mutable_chunk_meta() = *ChunkMeta_;
         CachedWeakChunk_.Reset();
-        CachedChunkReader_ = CreateRemoteReader(
-            chunkSpec,
-            ReaderConfig_,
-            New<TRemoteReaderOptions>(),
-            Client_,
-            New<TNodeDirectory>(),
-            LocalDescriptor_,
-            std::nullopt,
-            DoGetBlockCache(),
-            /* trafficMeter */ nullptr,
-            throttler,
-            GetUnlimitedThrottler() /* rpsThrottler */);
-        CachedChunkReaderIsLocal_ = false;
+        setCachedReaders(
+            false,
+            CreateRemoteReader(
+                chunkSpec,
+                ReaderConfig_,
+                New<TRemoteReaderOptions>(),
+                Client_,
+                New<TNodeDirectory>(),
+                LocalDescriptor_,
+                std::nullopt,
+                DoGetBlockCache(),
+                /* trafficMeter */ nullptr,
+                throttler,
+                GetUnlimitedThrottler() /* rpsThrottler */));
         YT_LOG_DEBUG("Remote chunk reader created and cached");
     };
 
@@ -670,9 +679,10 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
             return;
         }
 
-        if (CachedChunkReaderIsLocal_) {
-            CachedChunkReaderIsLocal_ = false;
+        if (CachedReadersLocal_) {
+            CachedReadersLocal_ = false;
             CachedChunkReader_.Reset();
+            CachedLookupReader_.Reset();
             CachedWeakChunk_.Reset();
             YT_LOG_DEBUG("Cached local chunk reader is no longer valid");
         }
@@ -680,28 +690,35 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
         if (ReaderConfig_->PreferLocalReplicas) {
             auto chunk = ChunkRegistry_->FindChunk(ChunkId_);
             if (isLocalChunkValid(chunk)) {
-                createLocalChunkReader(chunk);
+                createLocalReaders(chunk);
                 return;
             }
         }
 
         if (!CachedChunkReader_) {
-            createRemoteChunkReader();
+            createRemoteReaders();
         }
+    };
+
+    auto makeResult = [&] {
+        return TReaders{
+            CachedChunkReader_,
+            CachedLookupReader_  
+        };
     };
 
     // Periodic check.
     if (now > LocalChunkCheckDeadline_.load()) {
         TWriterGuard guard(SpinLock_);
         createCachedReader();
-        return CachedChunkReader_;
+        return makeResult();
     }
 
     // Fast lane.
     {
         TReaderGuard guard(SpinLock_);
         if (hasValidCachedLocalReader() || hasValidCachedRemoteReader()) {
-            return CachedChunkReader_;
+            return makeResult();
         }
     }
 
@@ -709,7 +726,7 @@ IChunkReaderPtr TChunkStoreBase::GetChunkReader(const NConcurrency::IThroughputT
     {
         TWriterGuard guard(SpinLock_);
         createCachedReader();
-        return CachedChunkReader_;
+        return makeResult();
     }
 }
 
@@ -767,7 +784,7 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
         ChunkState_.Reset();
         PreloadedBlockCache_.Reset();
         CachedChunkReader_.Reset();
-        CachedChunkReaderIsLocal_ = false;
+        CachedReadersLocal_ = false;
         CachedWeakChunk_.Reset();
 
         if (PreloadFuture_) {

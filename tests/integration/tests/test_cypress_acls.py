@@ -832,6 +832,8 @@ class TestCypressAcls(CheckPermissionBase):
             create("table", "//tmp/t2", authenticated_user="u")
         with pytest.raises(YtError):
             start_transaction(authenticated_user="u")
+        with pytest.raises(YtError):
+            check_permission("u", "read", "//tmp")
 
     @authors("levysotsky")
     def test_effective_acl(self):

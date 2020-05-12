@@ -144,6 +144,11 @@ TUnversionedOwningRow YsonToSchemalessRow(const TString& valueYson)
     return builder.FinishRow();
 }
 
+void foo()
+{
+    MakeUnversionedOwningRow(AsStringBuf("hello"));
+}
+
 TVersionedRow YsonToVersionedRow(
     const TRowBufferPtr& rowBuffer,
     const TString& keyYson,
@@ -266,6 +271,13 @@ TString KeyToYson(TUnversionedRow row)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, std::nullopt_t, const TRowBufferPtr& /*rowBuffer*/, int id)
+{
+    *unversionedValue = MakeUnversionedSentinelValue(EValueType::Null, id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToUnversionedValue(TUnversionedValue* unversionedValue, TGuid value, const TRowBufferPtr& rowBuffer, int id)
 {
     auto strValue = ToString(value);
@@ -335,7 +347,7 @@ void FromUnversionedValue(bool* value, TUnversionedValue unversionedValue)
         return;
     }
     if (unversionedValue.Type != EValueType::Boolean) {
-        THROW_ERROR_EXCEPTION("Cannot parse bool value from %Qlv",
+        THROW_ERROR_EXCEPTION("Cannot parse \"boolean\" value from %Qlv",
             unversionedValue.Type);
     }
     *value = unversionedValue.Data.Boolean;
@@ -360,67 +372,37 @@ void FromUnversionedValue(TYsonString* value, TUnversionedValue unversionedValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, i64 value, const TRowBufferPtr& /*rowBuffer*/, int id)
-{
-    *unversionedValue = MakeUnversionedInt64Value(value, id);
-}
-
-void FromUnversionedValue(i64* value, TUnversionedValue unversionedValue)
-{
-    if (unversionedValue.Type != EValueType::Int64) {
-        THROW_ERROR_EXCEPTION("Cannot parse int64 value from %Qlv",
-            unversionedValue.Type);
+#define XX(cppType, codeType, humanReadableType) \
+    void ToUnversionedValue(TUnversionedValue* unversionedValue, cppType value, const TRowBufferPtr& /*rowBuffer*/, int id) \
+    { \
+        *unversionedValue = MakeUnversioned ## codeType ## Value(value, id); \
+    } \
+    \
+    void FromUnversionedValue(cppType* value, TUnversionedValue unversionedValue) \
+    { \
+        switch (unversionedValue.Type) { \
+            case EValueType::Int64: \
+                *value = CheckedIntegralCast<cppType>(unversionedValue.Data.Int64); \
+                break; \
+            case EValueType::Uint64: \
+                *value = CheckedIntegralCast<cppType>(unversionedValue.Data.Uint64); \
+                break; \
+            default: \
+                THROW_ERROR_EXCEPTION("Cannot parse \"" #humanReadableType "\" value from %Qlv", \
+                    unversionedValue.Type); \
+        } \
     }
-    *value = unversionedValue.Data.Int64;
-}
 
-////////////////////////////////////////////////////////////////////////////////
+XX(i64,  Int64,  int64)
+XX(ui64, Uint64, uint64)
+XX(i32,  Int64,  int32)
+XX(ui32, Uint64, uint32)
+XX(i16,  Int64,  int32)
+XX(ui16, Uint64, uint16)
+XX(i8,   Int64,  int8)
+XX(ui8,  Uint64, uint8)
 
-void ToUnversionedValue(TUnversionedValue* unversionedValue, ui64 value, const TRowBufferPtr& /*rowBuffer*/, int id)
-{
-    *unversionedValue = MakeUnversionedUint64Value(value, id);
-}
-
-void FromUnversionedValue(ui64* value, TUnversionedValue unversionedValue)
-{
-    if (unversionedValue.Type != EValueType::Uint64) {
-        THROW_ERROR_EXCEPTION("Cannot parse uint64 value from %Qlv",
-            unversionedValue.Type);
-    }
-    *value = unversionedValue.Data.Uint64;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToUnversionedValue(TUnversionedValue* unversionedValue, ui32 value, const TRowBufferPtr& /*rowBuffer*/, int id)
-{
-    *unversionedValue = MakeUnversionedUint64Value(value, id);
-}
-
-void FromUnversionedValue(ui32* value, TUnversionedValue unversionedValue)
-{
-    if (unversionedValue.Type != EValueType::Uint64) {
-        THROW_ERROR_EXCEPTION("Cannot parse uint32 value from %Qlv",
-            unversionedValue.Type);
-    }
-    *value = CheckedIntegralCast<ui32>(unversionedValue.Data.Uint64);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void ToUnversionedValue(TUnversionedValue* unversionedValue, ui16 value, const TRowBufferPtr& /*rowBuffer*/, int id)
-{
-    *unversionedValue = MakeUnversionedUint64Value(value, id);
-}
-
-void FromUnversionedValue(ui16* value, TUnversionedValue unversionedValue)
-{
-    if (unversionedValue.Type != EValueType::Uint64) {
-        THROW_ERROR_EXCEPTION("Cannot parse uint16 value from %Qlv",
-            unversionedValue.Type);
-    }
-    *value = CheckedIntegralCast<ui16>(unversionedValue.Data.Uint64);
-}
+#undef XX
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -432,7 +414,7 @@ void ToUnversionedValue(TUnversionedValue* unversionedValue, double value, const
 void FromUnversionedValue(double* value, TUnversionedValue unversionedValue)
 {
     if (unversionedValue.Type != EValueType::Double) {
-        THROW_ERROR_EXCEPTION("Cannot parse double value from %Qlv",
+        THROW_ERROR_EXCEPTION("Cannot parse \"double\" value from %Qlv",
             unversionedValue.Type);
     }
     *value = unversionedValue.Data.Double;
@@ -452,6 +434,22 @@ void FromUnversionedValue(TInstant* value, TUnversionedValue unversionedValue)
             unversionedValue.Type);
     }
     *value = TInstant::MicroSeconds(unversionedValue.Data.Uint64);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ToUnversionedValue(TUnversionedValue* unversionedValue, TDuration value, const TRowBufferPtr& /*rowBuffer*/, int id)
+{
+    *unversionedValue = MakeUnversionedUint64Value(value.MicroSeconds(), id);
+}
+
+void FromUnversionedValue(TDuration* value, TUnversionedValue unversionedValue)
+{
+    if (unversionedValue.Type != EValueType::Uint64) {
+        THROW_ERROR_EXCEPTION("Cannot parse duration from %Qlv",
+            unversionedValue.Type);
+    }
+    *value = TDuration::MicroSeconds(unversionedValue.Data.Uint64);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

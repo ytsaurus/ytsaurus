@@ -18,6 +18,7 @@
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/helpers.h>
 
 #include <yt/ytlib/tablet_client/public.h>
 
@@ -337,13 +338,8 @@ private:
                 tableInfo->LowerCapBound = MinKey();
                 tableInfo->UpperCapBound = MaxKey();
             } else {
-                auto makeCapBound = [] (int tabletIndex) {
-                    TUnversionedOwningRowBuilder builder;
-                    builder.AddValue(MakeUnversionedInt64Value(tabletIndex));
-                    return builder.FinishRow();
-                };
-                tableInfo->LowerCapBound = makeCapBound(0);
-                tableInfo->UpperCapBound = makeCapBound(static_cast<int>(tableInfo->Tablets.size()));
+                tableInfo->LowerCapBound = MakeUnversionedOwningRow(static_cast<int>(0));
+                tableInfo->UpperCapBound = MakeUnversionedOwningRow(static_cast<int>(tableInfo->Tablets.size()));
             }
 
             YT_LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
@@ -367,9 +363,17 @@ private:
             tableInfo->SecondaryRevision});
     }
 
-    virtual void OnEvicted(const TTableMountCacheKey& key) noexcept override
+    virtual void OnAdded(const TTableMountCacheKey& key) noexcept override
     {
-        YT_LOG_DEBUG("Table mount info evicted from cache (Path: %Qv, PrimaryRevision: %v, SecondaryRevision: %v)",
+        YT_LOG_DEBUG("Table mount info added to cache (Path: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
+            key.Path,
+            key.RefreshPrimaryRevision,
+            key.RefreshSecondaryRevision);
+    }
+
+    virtual void OnRemoved(const TTableMountCacheKey& key) noexcept override
+    {
+        YT_LOG_DEBUG("Table mount info removed from cache (Path: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
             key.Path,
             key.RefreshPrimaryRevision,
             key.RefreshSecondaryRevision);

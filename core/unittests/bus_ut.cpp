@@ -215,6 +215,32 @@ TEST(TBusTest, Failed)
     EXPECT_FALSE(result.IsOK());
 }
 
+TEST(TBusTest, BlackHole)
+{
+    auto server = StartBusServer(New<TEmptyBusHandler>());
+    auto config = TTcpBusClientConfig::CreateTcp("localhost:2000", "non-local");
+
+    config->ReadStallTimeout = TDuration::Seconds(1);
+
+    auto client = CreateTcpBusClient(config);
+    auto bus = client->CreateBus(New<TEmptyBusHandler>());
+    auto message = CreateMessage(1);
+    auto options = TSendOptions(EDeliveryTrackingLevel::Full);
+
+    bus->Send(message, options)
+        .Get()
+        .ThrowOnError();
+
+    bus->SetTosLevel(BlackHoleTosLevel);
+
+    auto result = bus->Send(message, options).Get();
+    EXPECT_FALSE(result.IsOK());
+
+    server->Stop()
+        .Get()
+        .ThrowOnError();
+}
+
 TEST(TBusTest, OneReplyNoTracking)
 {
     TestReplies(1, 1, EDeliveryTrackingLevel::None);

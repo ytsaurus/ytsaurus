@@ -87,7 +87,8 @@ private:
         auto type = object->GetType();
         if (type != EObjectType::Chunk &&
             type != EObjectType::ErasureChunk &&
-            type != EObjectType::JournalChunk)
+            type != EObjectType::JournalChunk &&
+            type != EObjectType::ErasureJournalChunk)
         {
             return false;
         }
