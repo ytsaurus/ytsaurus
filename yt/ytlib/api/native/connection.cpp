@@ -100,8 +100,9 @@ public:
                 CellTagFromId(Config_->PrimaryMaster->CellId),
                 TGuid::Create(),
                 Config_->Name))
-        , CachingChannelFactory_(CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)))
-        , ChannelFactory_(CachingChannelFactory_)
+        , ChannelFactory_(CreateCachingChannelFactory(
+            NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
+            Config_->IdleChannelTtl))
         , Profiler_("/connection", {TProfileManager::Get()->RegisterTag("connection_name", Config_->Name)})
     { }
 
@@ -110,12 +111,6 @@ public:
         if (Config_->ThreadPoolSize) {
             ThreadPool_ = New<TThreadPool>(*Config_->ThreadPoolSize, "Connection");
         }
-
-        TerminateIdleChannelsExecutor_ = New<TPeriodicExecutor>(
-            GetInvoker(),
-            BIND(&ICachingChannelFactory::TerminateIdleChannels, MakeWeak(CachingChannelFactory_), Config_->IdleChannelTtl),
-            Config_->IdleChannelTtl);
-        TerminateIdleChannelsExecutor_->Start();
 
         MasterCellDirectory_ = New<NCellMasterClient::TCellDirectory>(
             Config_,
@@ -464,10 +459,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    // These two fields hold reference to the same object.
-    const NRpc::ICachingChannelFactoryPtr CachingChannelFactory_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
-    TPeriodicExecutorPtr TerminateIdleChannelsExecutor_;
 
     // NB: there're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
     NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;

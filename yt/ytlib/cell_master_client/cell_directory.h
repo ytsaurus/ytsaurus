@@ -20,7 +20,7 @@ namespace NYT::NCellMasterClient {
 NRpc::IChannelPtr CreateMasterCacheChannel(
     const NApi::NNative::TMasterConnectionConfigPtr& config,
     const NApi::NNative::TMasterConnectionConfigPtr& masterCacheConfig,
-    const NRpc::ICachingChannelFactoryPtr channelFactory,
+    const NRpc::IChannelFactoryPtr channelFactory,
     const NApi::NNative::TConnectionOptions& options,
     const std::vector<TString>& discoveredAddresses);
 

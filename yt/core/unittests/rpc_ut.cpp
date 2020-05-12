@@ -1790,21 +1790,17 @@ TEST(TCachingChannelFactoryTest, IdleChannels)
     };
 
     auto factory = New<TChannelFactory>();
-    auto cachingFactory = CreateCachingChannelFactory(factory);
+    auto cachingFactory = CreateCachingChannelFactory(factory, TDuration::MilliSeconds(500));
     auto channel = cachingFactory->CreateChannel("");
     EXPECT_EQ(channel, cachingFactory->CreateChannel(""));
 
     Sleep(TDuration::MilliSeconds(1000));
-    cachingFactory->TerminateIdleChannels(TDuration::MilliSeconds(500));
     EXPECT_EQ(channel, cachingFactory->CreateChannel(""));
 
     auto weakChannel = MakeWeak(channel);
     channel.Reset();
 
     Sleep(TDuration::MilliSeconds(1000));
-    EXPECT_FALSE(weakChannel.IsExpired());
-
-    cachingFactory->TerminateIdleChannels(TDuration::MilliSeconds(500));
     EXPECT_TRUE(weakChannel.IsExpired());
 }
 

@@ -2,14 +2,24 @@
 #include "channel.h"
 #include "channel_detail.h"
 #include "client.h"
+#include "dispatcher.h"
+#include "private.h"
 
+#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/rw_spinlock.h>
+
+#include <yt/core/misc/lock_free.h>
 
 namespace NYT::NRpc {
 
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYT::NBus;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto ExpirationCheckInterval = TDuration::Seconds(15);
+static const auto& Logger = RpcClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +34,7 @@ public:
         : TChannelWrapper(std::move(underlyingChannel))
         , Factory_(factory)
         , Address_(address)
-        , LastAccessTime_(TInstant::Now())
+        , LastActivityTime_(TInstant::Now())
     {
         UnderlyingChannel_->SubscribeTerminated(BIND(&TCachedChannel::OnTerminated, MakeWeak(this)));
     }
@@ -43,19 +53,19 @@ public:
 
     void Touch()
     {
-        LastAccessTime_.store(TInstant::Now());
+        LastActivityTime_.store(TInstant::Now());
     }
 
-    bool IsIdleSince(TInstant time)
+    TInstant GetLastActivityTime() const
     {
-        return LastAccessTime_.load() < time;
+        return LastActivityTime_.load();
     }
 
 private:
     const TWeakPtr<TCachingChannelFactory> Factory_;
     const TString Address_;
 
-    std::atomic<TInstant> LastAccessTime_;
+    std::atomic<TInstant> LastActivityTime_;
 
     void OnTerminated(const TError& error);
 };
@@ -66,33 +76,21 @@ DEFINE_REFCOUNTED_TYPE(TCachedChannel)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachingChannelFactory
-    : public ICachingChannelFactory
+    : public IChannelFactory
 {
 public:
-    explicit TCachingChannelFactory(IChannelFactoryPtr underlyingFactory)
+    TCachingChannelFactory(
+        IChannelFactoryPtr underlyingFactory,
+        TDuration expirationTime)
         : UnderlyingFactory_(std::move(underlyingFactory))
-    { }
-
-    virtual void TerminateIdleChannels(TDuration ttl) override
+        , IdleChannelTtl_(expirationTime)
+        , ExpirationExecutor_(New<TPeriodicExecutor>(
+            TDispatcher::Get()->GetHeavyInvoker(),
+            BIND(&TCachingChannelFactory::CheckExpiredChannels, MakeWeak(this)),
+            std::min(ExpirationCheckInterval, IdleChannelTtl_)))
     {
-        auto lastActiveTime = TInstant::Now() - ttl;
-
-        TWriterGuard guard(SpinLock_);
-
-        for (auto it = StrongChannelMap_.begin(); it != StrongChannelMap_.end();) {
-            auto channel = it->second;
-            auto jt = it++;
-            if (channel->IsIdleSince(lastActiveTime)) {
-                StrongChannelMap_.erase(jt);
-            }
-        }
-
-        for (auto it = WeakChannelMap_.begin(); it != WeakChannelMap_.end();) {
-            auto weakChannel = it->second;
-            auto jt = it++;
-            if (weakChannel.IsExpired()) {
-                WeakChannelMap_.erase(jt);
-            }
+        if (IdleChannelTtl_ != TDuration::Max()) {
+            ExpirationExecutor_->Start();
         }
     }
 
@@ -114,6 +112,9 @@ public:
     {
         TWriterGuard guard(SpinLock_);
 
+        YT_LOG_DEBUG("Cached channel evicted (Endpoint: %v)",
+            evictableChannel->GetEndpointDescription());
+
         if (auto it = WeakChannelMap_.find(address); it != WeakChannelMap_.end()) {
             if (auto existingChannel = it->second.Lock(); existingChannel.Get() == evictableChannel) {
                 WeakChannelMap_.erase(it);
@@ -129,11 +130,17 @@ public:
 
 private:
     const IChannelFactoryPtr UnderlyingFactory_;
+    const TDuration IdleChannelTtl_;
+
+    TPeriodicExecutorPtr ExpirationExecutor_;
 
     TReaderWriterSpinLock SpinLock_;
     THashMap<TString, TCachedChannelPtr> StrongChannelMap_;
     THashMap<TString, TWeakPtr<TCachedChannel>> WeakChannelMap_;
 
+    using TTtlItem = std::pair<TString, TWeakPtr<TCachedChannel>>;
+    TMultipleProducerSingleConsumerLockFreeStack<TTtlItem> TtlRegisterQueue_;
+    std::vector<TTtlItem> TtlCheckQueue_;
 
     template <class TFactory>
     IChannelPtr DoCreateChannel(const TString& address, const TFactory& factory)
@@ -152,10 +159,13 @@ private:
                 if (auto channel = weakChannel.Lock()) {
                     readerGuard.Release();
 
-                    TWriterGuard writerGuard(SpinLock_);
-                    // Check if the weak map still contains the same channel.
-                    if (auto jt = WeakChannelMap_.find(address); jt != WeakChannelMap_.end() && jt->second == weakChannel) {
-                        StrongChannelMap_.emplace(address, channel);
+                    {
+                        TWriterGuard writerGuard(SpinLock_);
+                        // Check if the weak map still contains the same channel.
+                        if (auto jt = WeakChannelMap_.find(address); jt != WeakChannelMap_.end() && jt->second == weakChannel) {
+                            StrongChannelMap_.emplace(address, channel);
+                            RegisterChannelForTtlChecks(address, channel);
+                        }
                     }
 
                     channel->Touch();
@@ -178,9 +188,65 @@ private:
                     return channel;
                 }
             }
+            
             WeakChannelMap_.emplace(address, wrappedChannel);
             StrongChannelMap_.emplace(address, wrappedChannel);
+            RegisterChannelForTtlChecks(address, wrappedChannel);
+
+            YT_LOG_DEBUG("Cached channel registered (Endpoint: %v)",
+                wrappedChannel->GetEndpointDescription());
+
             return wrappedChannel;
+        }
+    }
+
+    void RegisterChannelForTtlChecks(const TString& address, const TCachedChannelPtr& channel)
+    {
+        if (IdleChannelTtl_ < TDuration::Max()) {
+            TtlRegisterQueue_.Enqueue({address, channel});
+        }
+    }
+
+    void CheckExpiredChannels()
+    {
+        TtlRegisterQueue_.DequeueAll(false, [&] (auto&& item) {
+            TtlCheckQueue_.push_back(std::move(item));
+        });
+
+        auto deadline = TInstant::Now() - IdleChannelTtl_;
+
+        std::vector<std::pair<TString, TCachedChannelPtr>> expiredItems;
+        auto it = TtlCheckQueue_.begin();
+        while (it != TtlCheckQueue_.end()) {
+            auto channel = it->second.Lock();
+            if (!channel || channel->GetLastActivityTime() < deadline) {
+                YT_LOG_DEBUG("Cached channel expired (Address: %v, Endpoint: %v, Ttl: %v)",
+                    it->first,
+                    channel ? channel->GetEndpointDescription() : TStringBuf("<unknown>"),
+                    IdleChannelTtl_);
+                expiredItems.emplace_back(std::move(it->first), std::move(channel));
+                *it = std::move(TtlCheckQueue_.back());
+                TtlCheckQueue_.pop_back();
+            } else {
+                ++it;
+            }
+        }
+
+        if (!expiredItems.empty()) {
+            TWriterGuard guard(SpinLock_);
+            for (auto& item : expiredItems) {
+                if (auto it = StrongChannelMap_.find(item.first)) {
+                    if (it->second == item.second) {
+                        StrongChannelMap_.erase(it);
+                    }
+                }
+                item.second.Reset();
+                if (auto it = WeakChannelMap_.find(item.first)) {
+                    if (it->second.IsExpired()) {
+                        WeakChannelMap_.erase(it);
+                    }
+                }
+            }
         }
     }
 };
@@ -198,11 +264,15 @@ void TCachedChannel::OnTerminated(const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICachingChannelFactoryPtr CreateCachingChannelFactory(IChannelFactoryPtr underlyingFactory)
+IChannelFactoryPtr CreateCachingChannelFactory(
+    IChannelFactoryPtr underlyingFactory,
+    TDuration idleChannelTtl)
 {
     YT_VERIFY(underlyingFactory);
 
-    return New<TCachingChannelFactory>(std::move(underlyingFactory));
+    return New<TCachingChannelFactory>(
+        std::move(underlyingFactory),
+        idleChannelTtl);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

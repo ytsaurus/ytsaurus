@@ -1,24 +1,17 @@
 #pragma once
 
-#include "channel.h"
+#include "public.h"
 
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct ICachingChannelFactory
-    : public virtual IChannelFactory
-{
-    virtual void TerminateIdleChannels(TDuration ttl) = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(ICachingChannelFactory)
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Creates a channel factory that wraps another channel factory
 //! and caches its channels by address.
-ICachingChannelFactoryPtr CreateCachingChannelFactory(IChannelFactoryPtr underlyingFactory);
+//! These channels expire after some time of inactivity.
+IChannelFactoryPtr CreateCachingChannelFactory(
+    IChannelFactoryPtr underlyingFactory,
+    TDuration idleChannelTtl = TDuration::Max());
 
 ////////////////////////////////////////////////////////////////////////////////
 

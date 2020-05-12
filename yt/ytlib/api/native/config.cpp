@@ -133,6 +133,8 @@ TConnectionConfig::TConnectionConfig()
 
     RegisterParameter("bus_client", BusClient)
         .DefaultNew();
+    RegisterParameter("idle_channel_ttl", IdleChannelTtl)
+        .Default(TDuration::Minutes(5));
 
     RegisterParameter("default_get_in_sync_replicas_timeout", DefaultGetInSyncReplicasTimeout)
         .Default(TDuration::Seconds(15));
@@ -151,9 +153,6 @@ TConnectionConfig::TConnectionConfig()
 
     RegisterParameter("cache_sticky_group_size_override", CacheStickyGroupSizeOverride)
         .Default(1);
-
-    RegisterParameter("idle_channel_ttl", IdleChannelTtl)
-        .Default(TDuration::Minutes(30));
 
     RegisterParameter("max_request_window_size", MaxRequestWindowSize)
         .GreaterThan(0)
