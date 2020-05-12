@@ -164,7 +164,6 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CreationTime)
             .SetPresent(miscExt.has_creation_time()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Job)
-            .SetPresent(!isForeign && chunk->IsJobScheduled())
             .SetOpaque(true));
     }
 
@@ -188,7 +187,7 @@ private:
                     })
                     .DoIf(chunk->IsJournal(), [&] (TFluentMap fluent) {
                         fluent
-                            .Item("type").Value(EJournalReplicaType(replica.GetReplicaIndex()));
+                            .Item("state").Value(replica.GetState());
                     })
                 .EndAttributes()
                 .Value(replica.GetPtr()->GetDefaultAddress());
@@ -256,6 +255,7 @@ private:
                 auto addReplica = [&] (TNodeId nodeId, int replicaIndex) {
                     auto* node = nodeTracker->FindNode(nodeId);
                     if (IsObjectAlive(node)) {
+                        // NB: Medium index is irrelevant.
                         replicas.push_back(TNodePtrWithIndexes(node, replicaIndex, DefaultStoreMediumIndex));
                     }
                 };
@@ -681,22 +681,20 @@ private:
                 return true;
 
             case EInternedAttributeKey::Job: {
-                auto job = chunk->GetJob();
-                if (isForeign || !job) {
-                    break;
-                }
                 RequireLeader();
-                BuildYsonFluently(consumer)
-                    .BeginMap()
-                        .Item("job")
+                if (auto job = chunk->GetJob()) {
+                    BuildYsonFluently(consumer)
                         .BeginMap()
                             .Item("id").Value(job->GetJobId())
                             .Item("type").Value(job->GetType())
                             .Item("start_time").Value(job->GetStartTime())
                             .Item("address").Value(job->GetNode()->GetDefaultAddress())
                             .Item("state").Value(job->GetState())
-                        .EndMap()
-                    .EndMap();
+                        .EndMap();
+                } else {
+                    BuildYsonFluently(consumer)
+                        .Entity();
+                }
                 return true;
             }
 

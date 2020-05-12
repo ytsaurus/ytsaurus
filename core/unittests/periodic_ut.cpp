@@ -101,7 +101,7 @@ TEST_W(TPeriodicTest, ParallelStop)
 
 TEST_W(TPeriodicTest, ParallelOnExecuted1)
 {
-    int count = 0;
+    std::atomic<int> count = 0;
 
     auto callback = BIND([&] () {
         TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(500));
@@ -121,7 +121,7 @@ TEST_W(TPeriodicTest, ParallelOnExecuted1)
         WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})))
             .ThrowOnError();
     }
-    EXPECT_EQ(2, count);
+    EXPECT_EQ(2, count.load());
 
     executor->Start();
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(450));
@@ -132,12 +132,12 @@ TEST_W(TPeriodicTest, ParallelOnExecuted1)
         WaitFor(Combine(std::vector<TFuture<void>>({future1, future2, future3})))
             .ThrowOnError();
     }
-    EXPECT_EQ(4, count);
+    EXPECT_EQ(4, count.load());
 }
 
 TEST_W(TPeriodicTest, ParallelOnExecuted2)
 {
-    int count = 0;
+    std::atomic<int> count = 0;
 
     auto callback = BIND([&] () {
         TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
@@ -157,7 +157,7 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
         WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})))
             .ThrowOnError();
     }
-    EXPECT_EQ(2, count);
+    EXPECT_EQ(2, count.load());
 
     executor->Start();
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
@@ -168,7 +168,37 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
         WaitFor(Combine(std::vector<TFuture<void>>({future1, future2, future3})))
             .ThrowOnError();
     }
-    EXPECT_EQ(3, count);
+    EXPECT_EQ(3, count.load());
+}
+
+TEST_W(TPeriodicTest, OnExecutedEventCanceled)
+{
+    std::atomic<int> count = 0;
+
+    auto callback = BIND([&] () {
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
+        ++count;
+    });
+    auto actionQueue = New<TActionQueue>();
+    auto executor = New<TPeriodicExecutor>(
+        actionQueue->GetInvoker(),
+        callback,
+        TDuration::MilliSeconds(400));
+
+    executor->Start();
+    TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(300));
+    {
+        auto future1 = executor->GetExecutedEvent();
+        auto future2 = executor->GetExecutedEvent();
+
+        // Cancellation of the executed event future must not propagate to the underlying event.
+        auto future3 = executor->GetExecutedEvent();
+        future3.Cancel(TError(NYT::EErrorCode::Canceled, "Canceled"));
+
+        EXPECT_NO_THROW(WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})))
+            .ThrowOnError());
+    }
+    EXPECT_EQ(2, count.load());
 }
 
 TEST_W(TPeriodicTest, Stop)

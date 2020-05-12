@@ -17,6 +17,7 @@ namespace NYT::NAuth {
 using namespace NYTree;
 using namespace NYPath;
 using namespace NCrypto;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,7 +169,25 @@ ICookieAuthenticatorPtr CreateBlackboxCookieAuthenticator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TCookieAuthenticatorCacheKey = std::pair<TString, std::optional<TString>>;
+struct TCookieAuthenticatorCacheKey
+{
+    TCookieCredentials Credentials;
+
+    operator size_t() const
+    {
+        size_t result = 0;
+        HashCombine(result, Credentials.SessionId);
+        HashCombine(result, Credentials.SslSessionId);
+        return result;
+    }
+
+    bool operator == (const TCookieAuthenticatorCacheKey& other) const
+    {
+        return
+            Credentials.SessionId == other.Credentials.SessionId &&
+            Credentials.SslSessionId == other.Credentials.SslSessionId;
+    }
+};
 
 class TCachingCookieAuthenticator
     : public ICookieAuthenticator
@@ -185,34 +204,24 @@ public:
 
     virtual TFuture<TAuthenticationResult> Authenticate(const TCookieCredentials& credentials) override
     {
-        TCookieAuthenticatorCacheKey cacheKey{credentials.SessionId, credentials.SslSessionId};
-
-        {
-            auto guard = Guard(LastUserIPLock_);
-            LastUserIP_[cacheKey] = credentials.UserIP;
-        }
-
-        return Get(cacheKey);
+        return Get(TCookieAuthenticatorCacheKey{credentials});
     }
 
 private:
     const ICookieAuthenticatorPtr UnderlyingAuthenticator_;
 
-    THashMap<TCookieAuthenticatorCacheKey, NNet::TNetworkAddress> LastUserIP_;
     TSpinLock LastUserIPLock_;
+    THashMap<TCookieAuthenticatorCacheKey, NNet::TNetworkAddress> LastUserIP_;
 
     virtual TFuture<TAuthenticationResult> DoGet(
-        const TCookieAuthenticatorCacheKey& cacheKey,
-        bool /*isPeriodicUpdate*/) noexcept override
+        const TCookieAuthenticatorCacheKey& key,
+        bool isPeriodicUpdate) noexcept override
     {
-        TCookieCredentials credentials;
-        credentials.SessionId = cacheKey.first;
-        credentials.SslSessionId = cacheKey.second;
+        auto credentials = key.Credentials;
 
-        {
+        if (isPeriodicUpdate) {
             auto guard = Guard(LastUserIPLock_);
-            auto it = LastUserIP_.find(cacheKey);
-            if (it != LastUserIP_.end()) {
+            if (auto it = LastUserIP_.find(key); it != LastUserIP_.end()) {
                 credentials.UserIP = it->second;
             }
         }
@@ -220,10 +229,21 @@ private:
         return UnderlyingAuthenticator_->Authenticate(credentials);
     }
 
-    virtual void OnEvicted(const TCookieAuthenticatorCacheKey& cacheKey) noexcept override
+    virtual void OnAdded(const TCookieAuthenticatorCacheKey& key) noexcept override
     {
         auto guard = Guard(LastUserIPLock_);
-        LastUserIP_.erase(cacheKey);
+        LastUserIP_[key] = key.Credentials.UserIP;
+    }
+
+    virtual void OnHit(const TCookieAuthenticatorCacheKey& key) noexcept override
+    {
+        OnAdded(key);
+    }
+
+    virtual void OnRemoved(const TCookieAuthenticatorCacheKey& key) noexcept override
+    {
+        auto guard = Guard(LastUserIPLock_);
+        LastUserIP_.erase(key);
     }
 };
 

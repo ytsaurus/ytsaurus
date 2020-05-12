@@ -1209,7 +1209,7 @@ public:
         , Logger(NLogging::TLogger(logger)
             .AddTag("WriterId: %v", TGuid::Create()))
     {
-        YT_LOG_DEBUG("Wire protocol rowset writer created (CodecId: %v, DesiredUncompressedBlockSize: %v)",
+        YT_LOG_DEBUG("Wire protocol rowset writer created (Codec: %v, DesiredUncompressedBlockSize: %v)",
             codecId,
             DesiredUncompressedBlockSize_);
     }

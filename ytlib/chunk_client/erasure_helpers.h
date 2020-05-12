@@ -185,7 +185,9 @@ class TErasureChunkReaderBase
     : public IChunkReader
 {
 public:
-    TErasureChunkReaderBase(NErasure::ICodec* codec, const std::vector<IChunkReaderAllowingRepairPtr>& readers);
+    TErasureChunkReaderBase(
+        NErasure::ICodec* codec,
+        const std::vector<IChunkReaderAllowingRepairPtr>& readers);
 
     virtual TFuture<TRefCountedChunkMetaPtr> GetMeta(
         const TClientBlockReadOptions& options,
@@ -194,24 +196,8 @@ public:
 
     virtual TChunkId GetChunkId() const override;
 
-    virtual TFuture<TSharedRef> LookupRows(
-        const TClientBlockReadOptions& options,
-        const TSharedRange<NTableClient::TKey>& lookupKeys,
-        NCypressClient::TObjectId tableId,
-        NHydra::TRevision revision,
-        const NTableClient::TTableSchema& tableSchema,
-        std::optional<i64> estimatedSize,
-        std::atomic<i64>* uncompressedDataSize,
-        const NTableClient::TColumnFilter& columnFilter,
-        NTableClient::TTimestamp timestamp,
-        NCompression::ECodec codecId,
-        bool produceAllVersions) override;
-
-    virtual bool IsLookupSupported() const override;
-
 protected:
-    TFuture<void> PreparePlacementMeta(
-        const TClientBlockReadOptions& options);
+    TFuture<void> PreparePlacementMeta(const TClientBlockReadOptions& options);
     void OnGotPlacementMeta(const NProto::TErasurePlacementExt& placementExt);
 
     NErasure::ICodec* const Codec_;

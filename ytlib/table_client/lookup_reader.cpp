@@ -1,4 +1,4 @@
-#include "lookup_chunk_reader.h"
+#include "lookup_reader.h"
 #include "tablet_snapshot.h"
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -34,14 +34,14 @@ class TRowLookupReader
 {
 public:
     TRowLookupReader(
-        IChunkReaderPtr underlyingChunkReader,
+        ILookupReaderPtr underlyingReader,
         TClientBlockReadOptions blockReadOptions,
         TSharedRange<TKey> lookupKeys,
         TTabletSnapshotPtr tabletSnapshot,
         TColumnFilter columnFilter,
         TTimestamp timestamp,
         bool produceAllVersions)
-        : UnderlyingReader_(std::move(underlyingChunkReader))
+        : UnderlyingReader_(std::move(underlyingReader))
         , RowsReadOptions_(std::move(blockReadOptions))
         , LookupKeys_(std::move(lookupKeys))
         , TabletSnapshot_(std::move(tabletSnapshot))
@@ -113,20 +113,16 @@ public:
 
     virtual bool IsFetchingCompleted() const override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        if (ReadyEvent_.IsSet() && !ReadyEvent_.Get().IsOK()) {
-            return {UnderlyingReader_->GetChunkId()};
-        } else {
-            return {};
-        }
+        YT_ABORT();
     }
 
 private:
-    const IChunkReaderPtr UnderlyingReader_;
+    const ILookupReaderPtr UnderlyingReader_;
     const TClientBlockReadOptions RowsReadOptions_;
     const TSharedRange<TKey> LookupKeys_;
     const TTabletSnapshotPtr TabletSnapshot_;
@@ -163,7 +159,8 @@ private:
             ColumnFilter_,
             Timestamp_,
             CompressionCodecId,
-            ProduceAllVersions_).Apply(BIND([=, this_ = MakeStrong(this)] (const TSharedRef& fetchedRowset) {
+            ProduceAllVersions_)
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TSharedRef& fetchedRowset) {
                 ProcessFetchedRowset(fetchedRowset);
                 return fetchedRowset;
             }));
@@ -221,7 +218,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateRowLookupReader(
-    IChunkReaderPtr chunkReader,
+    ILookupReaderPtr underlyingReader,
     TClientBlockReadOptions blockReadOptions,
     TSharedRange<TKey> lookupKeys,
     TTabletSnapshotPtr tabletSnapshot,
@@ -230,7 +227,7 @@ IVersionedReaderPtr CreateRowLookupReader(
     bool produceAllVersions)
 {
     return New<TRowLookupReader>(
-        std::move(chunkReader),
+        std::move(underlyingReader),
         std::move(blockReadOptions),
         std::move(lookupKeys),
         std::move(tabletSnapshot),

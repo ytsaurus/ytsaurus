@@ -12,9 +12,11 @@
 #include <yt/server/node/cluster_node/bootstrap.h>
 #include <yt/server/node/cluster_node/config.h>
 
+#include <yt/server/node/job_agent/job.h>
+
 #include <yt/server/lib/hydra/changelog.h>
 
-#include <yt/server/node/job_agent/job.h>
+#include <yt/server/lib/chunk_server/proto/job.pb.h>
 
 #include <yt/client/api/client.h>
 
@@ -22,14 +24,17 @@
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/erasure_repair.h>
-#include <yt/ytlib/chunk_client/proto/job.pb.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/replication_writer.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
+#include <yt/ytlib/journal_client/erasure_repair.h>
+#include <yt/ytlib/journal_client/chunk_reader.h>
+
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/client/object_client/helpers.h>
@@ -87,13 +92,13 @@ public:
         , Config_(config)
         , StartTime_(TInstant::Now())
         , Bootstrap_(bootstrap)
+        , Logger(NLogging::TLogger(DataNodeLogger)
+            .AddTag("JobId: %v, JobType: %v",
+                JobId_,
+                GetType()))
         , ResourceLimits_(resourceLimits)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-
-        Logger.AddTag("JobId: %v, JobType: %v",
-            JobId_,
-            GetType());
     }
 
     virtual void Start() override
@@ -406,9 +411,9 @@ protected:
     const TInstant StartTime_;
     TBootstrap* const Bootstrap_;
 
-    TNodeResources ResourceLimits_;
+    const NLogging::TLogger Logger;
 
-    NLogging::TLogger Logger = DataNodeLogger;
+    TNodeResources ResourceLimits_;
 
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
@@ -424,15 +429,12 @@ protected:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-
     virtual void DoRun() = 0;
-
 
     void GuardedRun()
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_INFO("Job started");
         try {
             DoRun();
         } catch (const std::exception& ex) {
@@ -519,7 +521,6 @@ public:
 private:
     const TRemoveChunkJobSpecExt JobSpecExt_;
 
-
     virtual void DoRun() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
@@ -527,7 +528,7 @@ private:
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         int mediumIndex = JobSpecExt_.medium_index();
 
-        YT_LOG_INFO("Chunk removal job started (ChunkId: %v, MediumIndex: %v)",
+        YT_LOG_INFO("Chunk removal job started (ChunkId: %v@v)",
             chunkId,
             mediumIndex);
 
@@ -577,37 +578,45 @@ private:
 
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
         int sourceMediumIndex = JobSpecExt_.source_medium_index();
-        // COMPAT(aozeritsky)
-        auto targetReplicas = JobSpecExt_.target_replicas().empty()
-            ? FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas_old())
-            : FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
+        auto targetReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
+
         auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
         nodeDirectory->MergeFrom(JobSpecExt_.node_directory());
 
-        YT_LOG_INFO("Chunk replication job started (ChunkId: %v, SourceMediumIndex: %v, TargetReplicas: %v)",
+        // Compute target medium index.
+        if (targetReplicas.empty()) {
+            THROW_ERROR_EXCEPTION("No target replicas");
+        }
+        int targetMediumIndex = targetReplicas[0].GetMediumIndex();
+        auto sessionId = TSessionId(chunkId, targetMediumIndex);
+
+        YT_LOG_INFO("Chunk replication job started (ChunkId: %v@%v, TargetReplicas: %v)",
             chunkId,
             sourceMediumIndex,
             MakeFormattableView(targetReplicas, TChunkReplicaAddressFormatter(nodeDirectory)));
 
-        // Compute target medium index.
-        YT_VERIFY(!targetReplicas.empty());
-        int targetMediumIndex = targetReplicas[0].GetMediumIndex();
+        TWorkloadDescriptor workloadDescriptor;
+        workloadDescriptor.Category = EWorkloadCategory::SystemReplication;
+        workloadDescriptor.Annotations.push_back(Format("Replication of chunk %v",
+            chunkId));
 
-        // Find chunk on the highest priority medium.
-        auto chunk = GetLocalChunkOrThrow(chunkId, AllMediaIndex);
+        auto chunk = GetLocalChunkOrThrow(chunkId, sourceMediumIndex);
 
         TBlockReadOptions blockReadOptions;
-        blockReadOptions.WorkloadDescriptor = Config_->ReplicationWriter->WorkloadDescriptor;
+        blockReadOptions.WorkloadDescriptor = workloadDescriptor;
         blockReadOptions.BlockCache = Bootstrap_->GetBlockCache();
         blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
-        YT_LOG_INFO("Fetching chunk meta");
+        TRefCountedChunkMetaPtr meta;
+        {
+            YT_LOG_DEBUG("Fetching chunk meta");
 
-        auto asyncMeta = chunk->ReadMeta(blockReadOptions);
-        auto meta = WaitFor(asyncMeta)
-            .ValueOrThrow();
+            auto asyncMeta = chunk->ReadMeta(blockReadOptions);
+            meta = WaitFor(asyncMeta)
+                .ValueOrThrow();
 
-        YT_LOG_INFO("Chunk meta fetched");
+            YT_LOG_DEBUG("Chunk meta fetched");
+        }
 
         auto options = New<TRemoteWriterOptions>();
         options->AllowAllocatingNewTargetNodes = false;
@@ -615,7 +624,7 @@ private:
         auto writer = CreateReplicationWriter(
             Config_->ReplicationWriter,
             options,
-            TSessionId(chunkId, targetMediumIndex),
+            sessionId,
             targetReplicas,
             nodeDirectory,
             Bootstrap_->GetMasterClient(),
@@ -623,8 +632,14 @@ private:
             /* trafficMeter */ nullptr,
             Bootstrap_->GetReplicationOutThrottler());
 
-        WaitFor(writer->Open())
-            .ThrowOnError();
+        {
+            YT_LOG_DEBUG("Started opening writer");
+
+            WaitFor(writer->Open())
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("Writer opened");
+        }
 
         int currentBlockIndex = 0;
         int blockCount = GetBlockCount(chunkId, *meta);
@@ -662,8 +677,14 @@ private:
 
         YT_LOG_DEBUG("All blocks are enqueued for replication");
 
-        WaitFor(writer->Close(meta))
-            .ThrowOnError();
+        {
+            YT_LOG_DEBUG("Started closing writer");
+
+            WaitFor(writer->Close(meta))
+                .ThrowOnError();
+
+            YT_LOG_DEBUG("Writer closed");
+        }
     }
 
     static int GetBlockCount(TChunkId chunkId, const TChunkMeta& meta)
@@ -675,7 +696,8 @@ private:
                 return blocksExt.blocks_size();
             }
 
-            case EObjectType::JournalChunk: {
+            case EObjectType::JournalChunk:
+            case EObjectType::ErasureJournalChunk: {
                 auto miscExt = GetProtoExtension<TMiscExt>(meta.extensions());
                 if (!miscExt.sealed()) {
                     THROW_ERROR_EXCEPTION("Cannot replicate an unsealed chunk %v",
@@ -688,7 +710,6 @@ private:
                 YT_ABORT();
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -710,122 +731,178 @@ public:
             config,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext))
+        , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
+        , SourceReplicas_(FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas()))
+        , TargetReplicas_(FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas()))
     { }
 
 private:
     const TRepairChunkJobSpecExt JobSpecExt_;
+    const TChunkId ChunkId_;
+    const TChunkReplicaList SourceReplicas_;
+    const TChunkReplicaWithMediumList TargetReplicas_;
 
+    const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+
+    IChunkReaderPtr CreateReader(int partIndex)
+    {
+        TChunkReplicaList partReplicas;
+        for (auto replica : SourceReplicas_) {
+            if (replica.GetReplicaIndex() == partIndex) {
+                partReplicas.push_back(replica);
+            }
+        }
+
+        if (partReplicas.empty()) {
+            THROW_ERROR_EXCEPTION("No source replicas for part %v",
+                partIndex);
+        }
+
+        auto options = New<TRemoteReaderOptions>();
+        options->AllowFetchingSeedsFromMaster = false;
+
+        auto partChunkId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
+        auto reader = CreateReplicationReader(
+            Config_->RepairReader,
+            options,
+            Bootstrap_->GetMasterClient(),
+            NodeDirectory_,
+            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
+            Bootstrap_->GetMasterConnector()->GetNodeId(),
+            partChunkId,
+            partReplicas,
+            Bootstrap_->GetBlockCache(),
+            /* trafficMeter */ nullptr,
+            Bootstrap_->GetRepairInThrottler());
+
+        return reader;
+    }
+
+    IChunkWriterPtr CreateWriter(int partIndex)
+    {
+        auto targetReplica = [&] {
+            for (auto replica : TargetReplicas_) {
+                if (replica.GetReplicaIndex() == partIndex) {
+                    return replica;
+                }
+            }
+            YT_ABORT();
+        }();
+        auto partChunkId = ErasurePartIdFromChunkId(ChunkId_, partIndex);
+        auto partSessionId = TSessionId(partChunkId, targetReplica.GetMediumIndex());
+        auto options = New<TRemoteWriterOptions>();
+        options->AllowAllocatingNewTargetNodes = false;
+        auto writer = CreateReplicationWriter(
+            Config_->RepairWriter,
+            options,
+            partSessionId,
+            TChunkReplicaWithMediumList(1, targetReplica),
+            NodeDirectory_,
+            Bootstrap_->GetMasterClient(),
+            GetNullBlockCache(),
+            /* trafficMeter */ nullptr,
+            Bootstrap_->GetRepairOutThrottler());
+        return writer;
+    }
 
     virtual void DoRun() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
-        auto codecId = NErasure::ECodec(JobSpecExt_.erasure_codec());
+        auto codecId = CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.erasure_codec());
         auto* codec = NErasure::GetCodec(codecId);
-        auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
-        // COMPAT(aozeritsky)
-        auto targetReplicas = JobSpecExt_.target_replicas().empty()
-            ? FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas_old())
-            : FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
         auto decommission = JobSpecExt_.decommission();
+        auto rowCount = JobSpecExt_.has_row_count() ? std::make_optional<i64>(JobSpecExt_.row_count()) : std::nullopt;
 
-        // Compute target medium index.
-        YT_VERIFY(!targetReplicas.empty());
-        int targetMediumIndex = targetReplicas[0].GetMediumIndex();
+        NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
 
-        /// Compute erasured parts.
+        YT_LOG_INFO("Chunk repair job started (ChunkId: %v, Codec: %v, "
+            "SourceReplicas: %v, TargetReplicas: %v, Decommission: %v, RowCount: %v)",
+            ChunkId_,
+            codecId,
+            MakeFormattableView(SourceReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
+            MakeFormattableView(TargetReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
+            decommission,
+            rowCount);
+
+        TWorkloadDescriptor workloadDescriptor;
+        workloadDescriptor.Category = decommission ? EWorkloadCategory::SystemReplication : EWorkloadCategory::SystemRepair;
+        workloadDescriptor.Annotations.push_back(Format("%v of chunk %v",
+            decommission ? "Decommission via repair" : "Repair",
+            ChunkId_));
+
+        // TODO(savrus) profile chunk reader statistics.
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = workloadDescriptor;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        NErasure::TPartIndexList sourcePartIndexes;
+        for (auto replica : SourceReplicas_) {
+            sourcePartIndexes.push_back(replica.GetReplicaIndex());
+        }
+        SortUnique(sourcePartIndexes);
+
         NErasure::TPartIndexList erasedPartIndexes;
-        for (auto replica : targetReplicas) {
+        for (auto replica : TargetReplicas_) {
             erasedPartIndexes.push_back(replica.GetReplicaIndex());
         }
-
-        // Compute repair plan.
-        auto repairPartIndexes = codec->GetRepairIndices(erasedPartIndexes);
-        if (!repairPartIndexes) {
-            THROW_ERROR_EXCEPTION("Codec is unable to repair the chunk");
-        }
-
-        YT_LOG_INFO("Chunk repair job started (ChunkId: %v, CodecId: %v, ErasedPartIndexes: %v, RepairPartIndexes: %v, SourceReplicas: %v, TargetReplicas: %v)",
-            chunkId,
-            codecId,
-            erasedPartIndexes,
-            *repairPartIndexes,
-            sourceReplicas,
-            targetReplicas);
-
-        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-        nodeDirectory->MergeFrom(JobSpecExt_.node_directory());
-
-        std::vector<IChunkReaderPtr> readers;
-        for (int partIndex : *repairPartIndexes) {
-            TChunkReplicaList partReplicas;
-            for (auto replica : sourceReplicas) {
-                if (replica.GetReplicaIndex() == partIndex) {
-                    partReplicas.push_back(replica);
-                }
-            }
-            YT_VERIFY(!partReplicas.empty());
-
-            auto partChunkId = ErasurePartIdFromChunkId(chunkId, partIndex);
-            auto reader = CreateReplicationReader(
-                Config_->RepairReader,
-                New<TRemoteReaderOptions>(),
-                Bootstrap_->GetMasterClient(),
-                nodeDirectory,
-                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
-                Bootstrap_->GetMasterConnector()->GetNodeId(),
-                partChunkId,
-                partReplicas,
-                Bootstrap_->GetBlockCache(),
-                /* trafficMeter */ nullptr,
-                Bootstrap_->GetRepairInThrottler());
-            readers.push_back(reader);
-        }
+        SortUnique(erasedPartIndexes);
 
         std::vector<IChunkWriterPtr> writers;
-        for (int index = 0; index < static_cast<int>(erasedPartIndexes.size()); ++index) {
-            int partIndex = erasedPartIndexes[index];
-            auto partSessionId = TSessionId(
-                ErasurePartIdFromChunkId(chunkId, partIndex),
-                targetMediumIndex);
-            auto options = New<TRemoteWriterOptions>();
-            options->AllowAllocatingNewTargetNodes = false;
-            auto writer = CreateReplicationWriter(
-                Config_->RepairWriter,
-                options,
-                partSessionId,
-                TChunkReplicaWithMediumList(1, targetReplicas[index]),
-                nodeDirectory,
-                Bootstrap_->GetMasterClient(),
-                GetNullBlockCache(),
-                /* trafficMeter */ nullptr,
-                Bootstrap_->GetRepairOutThrottler());
-            writers.push_back(writer);
+        for (int partIndex : erasedPartIndexes) {
+            writers.push_back(CreateWriter(partIndex));
         }
 
         {
-            // TODO(savrus) profile chunk reader statistics.
-            TClientBlockReadOptions options;
-            options.WorkloadDescriptor = decommission
-                ? TWorkloadDescriptor(
-                    EWorkloadCategory::SystemReplication,
-                    0,
-                    TInstant::Now(),
-                    {Format("Decommission via repair for chunk %v", chunkId)})
-                : Config_->RepairReader->WorkloadDescriptor;
-            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            TFuture<void> future;
+            auto chunkType = TypeFromId(ChunkId_);
+            switch (chunkType) {
+                case EObjectType::ErasureChunk: {
+                    auto repairPartIndexes = codec->GetRepairIndices(erasedPartIndexes);
+                    if (!repairPartIndexes) {
+                        THROW_ERROR_EXCEPTION("Codec is unable to repair the chunk");
+                    }
+                    
+                    std::vector<IChunkReaderPtr> readers;
+                    for (int partIndex : *repairPartIndexes) {
+                        readers.push_back(CreateReader(partIndex));
+                    }
 
-            auto result = RepairErasedParts(
-                codec,
-                erasedPartIndexes,
-                readers,
-                writers,
-                options);
+                    future = NChunkClient::RepairErasedParts(
+                        codec, // XXX(babenko): codec id?
+                        erasedPartIndexes,
+                        readers,
+                        writers,
+                        blockReadOptions);
+                        // XXX(babenko): pass logger
+                    break;
+                }
+                
+                case EObjectType::ErasureJournalChunk: {
+                    std::vector<IChunkReaderPtr> readers;
+                    for (int partIndex : sourcePartIndexes) {
+                        readers.push_back(CreateReader(partIndex));
+                    }
 
-            auto repairError = WaitFor(result);
-            THROW_ERROR_EXCEPTION_IF_FAILED(repairError, "Error repairing chunk %v",
-                chunkId);
+                    future = NJournalClient::RepairErasedParts(
+                        Config_->RepairReader,
+                        codecId,
+                        *rowCount,
+                        erasedPartIndexes,
+                        readers,
+                        writers,
+                        blockReadOptions,
+                        Logger);
+                    break;
+                }
+                
+                default:
+                    THROW_ERROR_EXCEPTION("Unsupported chunk type %Qlv",
+                        chunkType);
+            }
+
+            WaitFor(future)
+                .ThrowOnError();
         }
     }
 };
@@ -854,25 +931,28 @@ public:
 private:
     const TSealChunkJobSpecExt JobSpecExt_;
 
-
     virtual void DoRun() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         auto chunkId = FromProto<TChunkId>(JobSpecExt_.chunk_id());
+        auto codecId = CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.codec_id());
         int mediumIndex = JobSpecExt_.medium_index();
         auto sourceReplicas = FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas());
         i64 sealRowCount = JobSpecExt_.row_count();
 
-        YT_LOG_INFO("Chunk seal job started (ChunkId: %v, MediumIndex: %v, SourceReplicas: %v, RowCount: %v)",
+        auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
+        nodeDirectory->MergeFrom(JobSpecExt_.node_directory());
+
+        YT_LOG_INFO("Chunk seal job started (ChunkId: %v@%v, Codec: %v, SourceReplicas: %v, RowCount: %v)",
             chunkId,
             mediumIndex,
-            sourceReplicas,
+            codecId,
+            MakeFormattableView(sourceReplicas, TChunkReplicaAddressFormatter(nodeDirectory)),
             sealRowCount);
 
         auto chunk = GetLocalChunkOrThrow(chunkId, mediumIndex);
-
-        if (chunk->GetType() != EObjectType::JournalChunk) {
+        if (!chunk->IsJournalChunk()) {
             THROW_ERROR_EXCEPTION("Cannot seal a non-journal chunk %v",
                 chunkId);
         }
@@ -883,6 +963,11 @@ private:
             return;
         }
 
+        TWorkloadDescriptor workloadDescriptor;
+        workloadDescriptor.Category = EWorkloadCategory::SystemTabletLogging;
+        workloadDescriptor.Annotations.push_back(Format("Seal of chunk %v",
+            chunkId));
+
         auto updateGuard = TChunkUpdateGuard::Acquire(chunk);
 
         const auto& journalDispatcher = Bootstrap_->GetJournalDispatcher();
@@ -892,34 +977,33 @@ private:
 
         i64 currentRowCount = changelog->GetRecordCount();
         if (currentRowCount < sealRowCount) {
-            YT_LOG_INFO("Started downloading missing journal chunk rows (Rows: %v-%v)",
+            YT_LOG_DEBUG("Job will read missing journal chunk rows (Rows: %v-%v)",
                 currentRowCount,
                 sealRowCount - 1);
 
-            auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-            nodeDirectory->MergeFrom(JobSpecExt_.node_directory());
-
-            auto reader = CreateReplicationReader(
+            auto reader = NJournalClient::CreateChunkReader(
                 Config_->SealReader,
-                New<TRemoteReaderOptions>(),
                 Bootstrap_->GetMasterClient(),
                 nodeDirectory,
-                Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
-                Bootstrap_->GetMasterConnector()->GetNodeId(),
                 chunkId,
+                codecId,
                 sourceReplicas,
                 Bootstrap_->GetBlockCache(),
                 /* trafficMeter */ nullptr,
                 Bootstrap_->GetReplicationInThrottler());
 
             // TODO(savrus) profile chunk reader statistics.
-            TClientBlockReadOptions options;
-            options.WorkloadDescriptor = Config_->RepairReader->WorkloadDescriptor;
-            options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+            TClientBlockReadOptions blockReadOptions;
+            blockReadOptions.WorkloadDescriptor = workloadDescriptor;
+            blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
 
             while (currentRowCount < sealRowCount) {
-                auto asyncBlocks  = reader->ReadBlocks(
-                    options,
+                YT_LOG_DEBUG("Reading rows (Rows: %v-%v)",
+                    currentRowCount,
+                    sealRowCount - 1);
+
+                auto asyncBlocks = reader->ReadBlocks(
+                    blockReadOptions,
                     currentRowCount,
                     sealRowCount - currentRowCount);
                 auto blocks = WaitFor(asyncBlocks)
@@ -927,19 +1011,22 @@ private:
 
                 int blockCount = blocks.size();
                 if (blockCount == 0) {
-                    THROW_ERROR_EXCEPTION("Cannot download missing rows %v-%v to seal chunk %v",
+                    THROW_ERROR_EXCEPTION("Rows %v-%v are missing but needed to seal chunk %v",
                         currentRowCount,
                         sealRowCount - 1,
                         chunkId);
                 }
 
-                YT_LOG_INFO("Journal chunk rows downloaded (Rows: %v-%v)",
+                YT_LOG_DEBUG("Rows received (Rows: %v-%v)",
                     currentRowCount,
                     currentRowCount + blockCount - 1);
 
+                std::vector<TSharedRef> records;
+                records.reserve(blocks.size());
                 for (const auto& block : blocks) {
-                    changelog->Append(block.Data);
+                    records.push_back(block.Data);
                 }
+                changelog->Append(records);
 
                 currentRowCount += blockCount;
             }
@@ -947,16 +1034,16 @@ private:
             WaitFor(changelog->Flush())
                 .ThrowOnError();
 
-            YT_LOG_INFO("Finished downloading missing journal chunk rows");
+            YT_LOG_DEBUG("Finished downloading missing journal chunk rows");
         }
 
-        YT_LOG_INFO("Started sealing journal chunk (RowCount: %v)",
+        YT_LOG_DEBUG("Started sealing journal chunk (RowCount: %v)",
             sealRowCount);
 
         WaitFor(journalChunk->Seal())
             .ThrowOnError();
 
-        YT_LOG_INFO("Finished sealing journal chunk");
+        YT_LOG_DEBUG("Finished sealing journal chunk");
 
         journalChunk->UpdateCachedParams(changelog);
 

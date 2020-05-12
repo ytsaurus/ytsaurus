@@ -219,25 +219,20 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
 
     @authors("ignat")
     def test_chunk_scraper(self):
-        def set_banned_flag(value):
-            if value:
-                flag = True
-                state = "offline"
-            else:
-                flag = False
-                state = "online"
-
-            address = get("//sys/cluster_nodes", driver=self.remote_driver).keys()[0]
-            set("//sys/cluster_nodes/%s/@banned" % address, flag, driver=self.remote_driver)
-            wait(lambda: get("//sys/cluster_nodes/%s/@state" % address, driver=self.remote_driver) == state)
-
         create("table", "//tmp/t1", driver=self.remote_driver)
         set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
         write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
-        set_banned_flag(True)
+        chunk_id = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
+        chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
+        node = list(str(r) for r in chunk_replicas if r.attributes["index"] == 0)[0]
 
-        time.sleep(1)
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False, driver=self.remote_driver)
+        multicell_sleep()
+
+        set_banned_flag(True, [node], driver=self.remote_driver)
+
+        wait(lambda: not get("#{}/@available".format(chunk_id), driver=self.remote_driver))
 
         create("table", "//tmp/t2")
         op = remote_copy(track=False, in_="//tmp/t1", out="//tmp/t2",
@@ -245,8 +240,9 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
                                   "unavailable_chunk_strategy": "wait",
                                   "network_name": "interconnect"})
 
-        time.sleep(1)
-        set_banned_flag(False)
+        set_banned_flag(False, [node], driver=self.remote_driver)
+
+        wait(lambda: get("#{}/@available".format(chunk_id), driver=self.remote_driver))
 
         op.track()
 

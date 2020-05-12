@@ -712,7 +712,6 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
-        auto mediumIndex = AllMediaIndex;
         auto partitionTag = request->has_partition_tag()
             ? std::make_optional(request->partition_tag())
             : std::nullopt;
@@ -739,7 +738,7 @@ private:
         }
 
         const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
-        auto chunk = chunkRegistry->GetChunkOrThrow(chunkId, mediumIndex);
+        auto chunk = chunkRegistry->GetChunkOrThrow(chunkId, AllMediaIndex);
 
         TBlockReadOptions options;
         options.WorkloadDescriptor = workloadDescriptor;

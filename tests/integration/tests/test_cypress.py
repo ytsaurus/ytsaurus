@@ -2185,7 +2185,7 @@ class TestCypress(YTEnvSetup):
         create("file", "//tmp/dir1/f1")
         create("journal", "//tmp/dir1/j1")
 
-        for node in ("t1", "f1", "j1"):
+        for node in ("t1", "f1"):
             assert get("//tmp/dir1/{0}/@compression_codec".format(node)) == "lz4"
 
         for attr_name, attr_val in attrs:

@@ -99,9 +99,9 @@ TStringBuf TNameTable::GetNameOrThrow(int id) const
 {
     TGuard<TSpinLock> guard(SpinLock_);
     if (id < 0 || id >= IdToName_.size()) {
-        THROW_ERROR_EXCEPTION("Invalid column id %v: expected id in range [0,%v]",
-            id,
-            IdToName_.size() - 1);
+        THROW_ERROR_EXCEPTION("Invalid column requested from name table: expected in range [0, %v), got %v",
+            IdToName_.size(),
+            id);
     }
     return IdToName_[id];
 }

@@ -244,7 +244,9 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
     YT_LOG_INFO("Operation started (VirtualTimestamp: %v, OperationId: %v)", event.Time, operation->GetId());
 
     // Notify scheduler.
-    SchedulerStrategy_->RegisterOperation(operation.Get());
+    std::vector<TString> unknownTreeIds;
+    SchedulerStrategy_->RegisterOperation(operation.Get(), &unknownTreeIds);
+    YT_VERIFY(unknownTreeIds.empty());
     StrategyHost_.LogEventFluently(ELogEventType::OperationStarted)
         .Item("operation_id").Value(operation->GetId())
         .Item("operation_type").Value(operation->GetType())

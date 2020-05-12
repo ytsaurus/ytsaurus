@@ -39,11 +39,10 @@ class TestGetJob(YTEnvSetup):
 
     def setup(self):
         sync_create_cells(1)
-        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
-        self._tmpdir = create_tmpdir("jobids")
-
-    def teardown(self):
-        remove("//sys/operations_archive")
+        init_operation_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
 
     def _check_get_job(self, op_id, job_id, before_start_time, state, check_has_spec):
         job_info = retry(lambda: get_job(op_id, job_id))

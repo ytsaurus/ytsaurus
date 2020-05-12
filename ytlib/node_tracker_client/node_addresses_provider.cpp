@@ -218,7 +218,7 @@ private:
 
             auto batchReq = proxy.ExecuteBatch();
             auto* balancingHeaderExt = batchReq->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-            balancingHeaderExt->set_enable_stickness(true);
+            balancingHeaderExt->set_enable_stickiness(true);
             batchReq->AddRequest(req);
 
             auto batchRsp = WaitFor(batchReq->Invoke())

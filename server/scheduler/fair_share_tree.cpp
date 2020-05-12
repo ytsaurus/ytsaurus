@@ -54,12 +54,6 @@ TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& t
     return GetOrCrash(TreeIdToPoolNameMap_, treeId);
 }
 
-void TFairShareStrategyOperationState::EraseTree(const TString& treeId)
-{
-    Host_->EraseTree(treeId);
-    YT_VERIFY(TreeIdToPoolNameMap_.erase(treeId) == 1);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -103,19 +97,6 @@ THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParameters
         pools.emplace(treeId, options->Pool);
     }
     return pools;
-}
-
-TFairShareStrategyOperationStatePtr CreateFairShareStrategyOperationState(IOperationStrategyHost* host)
-{
-    auto state = New<TFairShareStrategyOperationState>(host);
-    auto treeIdToPoolNameMap = GetOperationPools(host->GetRuntimeParameters());
-
-    for (const auto& treeId : host->ErasedTrees()) {
-        treeIdToPoolNameMap.erase(treeId);
-    }
-
-    state->TreeIdToPoolNameMap() = std::move(treeIdToPoolNameMap);
-    return std::move(state);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1036,16 +1017,27 @@ auto TFairShareTree<TFairShareImpl>::DoFairShareUpdateAt(TInstant now) -> std::p
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
     }
 
+    TRootElementSnapshotPtr rootElementSnapshot = nullptr;
     auto asyncUpdate = BIND([&]
         {
             PROFILE_AGGREGATED_TIMING(FairShareUpdateTimeCounter_) {
                 rootElement->Update(&dynamicAttributes, &updateContext);
             }
+
+            rootElementSnapshot = New<TRootElementSnapshot>();
+            rootElement->BuildElementMapping(
+                &rootElementSnapshot->OperationIdToElement,
+                &rootElementSnapshot->DisabledOperationIdToElement,
+                &rootElementSnapshot->PoolNameToElement);
+            std::swap(rootElementSnapshot->DynamicAttributes, dynamicAttributes);
+            std::swap(rootElementSnapshot->ElementIndexes, updateContext.ElementIndexes);
         })
         .AsyncVia(StrategyHost_->GetFairShareUpdateInvoker())
         .Run();
     WaitFor(asyncUpdate)
         .ThrowOnError();
+
+    YT_VERIFY(rootElementSnapshot);
 
     YT_LOG_DEBUG("Fair share tree update finished (UnschedulableReasons: %v)",
         updateContext.UnschedulableReasons);
@@ -1056,14 +1048,6 @@ auto TFairShareTree<TFairShareImpl>::DoFairShareUpdateAt(TInstant now) -> std::p
             << TErrorAttribute("pool_tree", TreeId_)
             << std::move(updateContext.Errors);
     }
-
-    auto rootElementSnapshot = New<TRootElementSnapshot>();
-    rootElement->BuildElementMapping(
-        &rootElementSnapshot->OperationIdToElement,
-        &rootElementSnapshot->DisabledOperationIdToElement,
-        &rootElementSnapshot->PoolNameToElement);
-    std::swap(rootElementSnapshot->DynamicAttributes, dynamicAttributes);
-    std::swap(rootElementSnapshot->ElementIndexes, updateContext.ElementIndexes);
 
     // Update starvation flags for operations and pools.
     for (const auto& [operationId, element] : rootElementSnapshot->OperationIdToElement) {
@@ -1481,6 +1465,12 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobs(
             });
         }
 
+        auto hasCpuGap = [] (const TJobWithPreemptionInfo& jobWithPreemptionInfo)
+        {
+            return jobWithPreemptionInfo.Job->ResourceUsage().GetCpu() < jobWithPreemptionInfo.Job->ResourceLimits().GetCpu();
+        };
+
+
         std::sort(
             jobInfos.begin(),
             jobInfos.end(),
@@ -1488,6 +1478,16 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobs(
                 if (lhs.IsPreemptable != rhs.IsPreemptable) {
                     return lhs.IsPreemptable < rhs.IsPreemptable;
                 }
+
+                if (!lhs.IsPreemptable) {
+                    // Save jobs without cpu gap.
+                    bool lhsHasCpuGap = hasCpuGap(lhs);
+                    bool rhsHasCpuGap = hasCpuGap(rhs);
+                    if (lhsHasCpuGap != rhsHasCpuGap) {
+                        return lhsHasCpuGap > rhsHasCpuGap;
+                    }
+                }
+
                 return lhs.Job->GetStartTime() < rhs.Job->GetStartTime();
             }
         );

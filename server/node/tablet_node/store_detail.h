@@ -226,8 +226,7 @@ public:
     virtual bool IsChunk() const override;
     virtual IChunkStorePtr AsChunk() override;
 
-    virtual NChunkClient::IChunkReaderPtr GetChunkReader(
-        const NConcurrency::IThroughputThrottlerPtr& throttler) override;
+    virtual TReaders GetReaders(const NConcurrency::IThroughputThrottlerPtr& throttler) override;
 
     virtual NTabletClient::EInMemoryMode GetInMemoryMode() const override;
     virtual void SetInMemoryMode(NTabletClient::EInMemoryMode mode) override;
@@ -257,7 +256,8 @@ protected:
     NConcurrency::TReaderWriterSpinLock SpinLock_;
     std::atomic<NProfiling::TCpuInstant> LocalChunkCheckDeadline_ = {0};
     NChunkClient::IChunkReaderPtr CachedChunkReader_;
-    bool CachedChunkReaderIsLocal_ = false;
+    NTableClient::ILookupReaderPtr CachedLookupReader_;
+    bool CachedReadersLocal_ = false;
     TWeakPtr<NDataNode::IChunk> CachedWeakChunk_;
 
     // Cached for fast retrieval from ChunkMeta_.

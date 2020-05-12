@@ -704,7 +704,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert list(read_table("//tmp/in", tx=nested_tx)) == [{"foo": "bar"}]
         assert get("#{}/@parent_id".format(nested_tx)) == custom_tx
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -745,7 +745,7 @@ class TestSchedulerCommon(YTEnvSetup):
         assert list(read_table("//tmp/in", tx=nested_tx)) == [{"foo": "bar"}]
         assert get("#{}/@parent_id".format(nested_tx)) == custom_tx
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -810,7 +810,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
 
         op = map(track=False, in_="//tmp/t_in", out="//tmp/t_out", command="cat; sleep 5")
 
-        op.wait_fresh_snapshot()
+        op.wait_for_fresh_snapshot()
 
         transaction_id = self._get_scheduler_transation()
 
@@ -1407,9 +1407,8 @@ fi
         for op in ops:
             wait(lambda: op.get_job_count("failed") == 1)
 
-        timepoint = datetime.utcnow()
         for op in ops:
-            op.wait_fresh_snapshot(timepoint)
+            op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
@@ -1940,7 +1939,7 @@ class TestJobStatisticsPorto(YTEnvSetup):
             print(component)
             assert get_statistics(statistics, component + ".cpu.user.$.completed.map.sum") > 0
             assert get_statistics(statistics, component + ".cpu.system.$.completed.map.sum") > 0
-            assert get_statistics(statistics, component + ".cpu.context_switches.$.completed.map.sum") > 0
+            assert get_statistics(statistics, component + ".cpu.context_switches.$.completed.map.sum") is not None
             assert get_statistics(statistics, component + ".cpu.wait.$.completed.map.sum") is not None
             assert get_statistics(statistics, component + ".cpu.throttled.$.completed.map.sum") is not None
             assert get_statistics(statistics, component + ".block_io.bytes_read.$.completed.map.sum") is not None

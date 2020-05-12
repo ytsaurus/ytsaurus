@@ -213,11 +213,12 @@ void TCellTrackerImpl::ScanCells()
                     ToProto(revocation->mutable_cell_id(), cell->GetId());
                 }
 
-                if (!target && IsDecommissioned(source, cell->GetCellBundle()->NodeTagFilter())) {
+                if (!target && IsDecommissioned(source, cell->GetCellBundle())) {
                     continue;
                 }
 
                 revocation->add_peer_ids(moveDescriptor.PeerId);
+                ToProto(revocation->mutable_reason(), moveDescriptor.Reason);
             }
         }
     }
@@ -308,13 +309,13 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, TBundleCounte
     TError error;
 
     if (!leadingPeer.Descriptor.IsNull()) {
-        error = IsFailed(leadingPeer, cell->GetCellBundle()->NodeTagFilter(), GetDynamicConfig()->LeaderReassignmentTimeout);
+        error = IsFailed(leadingPeer, cell->GetCellBundle(), GetDynamicConfig()->LeaderReassignmentTimeout);
         if (error.IsOK()) {
             return;
         }
     }
 
-    if (error.FindMatching(EErrorCode::NodeDecommissioned) &&
+    if (error.FindMatching(NCellServer::EErrorCode::NodeDecommissioned) &&
         GetDynamicConfig()->DecommissionedLeaderReassignmentTimeout &&
             (cell->LastPeerCountUpdateTime() == TInstant{} ||
              cell->LastPeerCountUpdateTime() + *GetDynamicConfig()->DecommissionedLeaderReassignmentTimeout > TInstant::Now()))
@@ -327,7 +328,7 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, TBundleCounte
 
     if (GetDynamicConfig()->DecommissionThroughExtraPeers) {
         // If node is decommissioned we switch only to followers, otherwise to any good peer.
-        if (!error.FindMatching(EErrorCode::NodeDecommissioned) && newLeaderId == InvalidPeerId) {
+        if (!error.FindMatching(NCellServer::EErrorCode::NodeDecommissioned) && newLeaderId == InvalidPeerId) {
             newLeaderId = FindGoodPeer(cell);
         }
     } else if (newLeaderId == InvalidPeerId) {
@@ -338,7 +339,7 @@ void TCellTrackerImpl::ScheduleLeaderReassignment(TCellBase* cell, TBundleCounte
         return;
     }
 
-    YT_LOG_DEBUG(error, "Schedule leader reassignment (CellId: %v, PeerId: %v, Address: %v)",
+    YT_LOG_DEBUG(error, "Scheduling leader reassignment (CellId: %v, PeerId: %v, Address: %v)",
         cell->GetId(),
         cell->GetLeadingPeerId(),
         leadingPeer.Descriptor.GetDefaultAddress());
@@ -404,7 +405,10 @@ void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* ba
     (*counter)[NProfiling::TTagIdList{cell->GetCellBundle()->GetProfilingTag()}] += assignCount;
 }
 
-void TCellTrackerImpl::SchedulePeerRevocation(TCellBase* cell, ICellBalancer* balancer, TBundleCounter* counter)
+void TCellTrackerImpl::SchedulePeerRevocation(
+    TCellBase* cell,
+    ICellBalancer* balancer,
+    TBundleCounter* counter)
 {
     // Don't perform failover until enough time has passed since the start.
     if (TInstant::Now() < StartTime_ + GetDynamicConfig()->PeerRevocationTimeout) {
@@ -417,10 +421,9 @@ void TCellTrackerImpl::SchedulePeerRevocation(TCellBase* cell, ICellBalancer* ba
             continue;
         }
 
-        auto error = IsFailed(peer, cell->GetCellBundle()->NodeTagFilter(), GetDynamicConfig()->PeerRevocationTimeout);
-
+        auto error = IsFailed(peer, cell->GetCellBundle(), GetDynamicConfig()->PeerRevocationTimeout);
         if (!error.IsOK()) {
-            if (GetDynamicConfig()->DecommissionThroughExtraPeers && error.FindMatching(EErrorCode::NodeDecommissioned)) {
+            if (GetDynamicConfig()->DecommissionThroughExtraPeers && error.FindMatching(NCellServer::EErrorCode::NodeDecommissioned)) {
                 // If decommission through extra peers is enabled we never revoke leader during decommission.
                 if (peerId == cell->GetLeadingPeerId()) {
                     continue;
@@ -434,12 +437,12 @@ void TCellTrackerImpl::SchedulePeerRevocation(TCellBase* cell, ICellBalancer* ba
                 // Followers are decommssioned by simple revocation.
             }
 
-            YT_LOG_DEBUG(error, "Schedule peer revocation (CellId: %v, PeerId: %v, Address: %v)",
+            YT_LOG_DEBUG(error, "Scheduling peer revocation (CellId: %v, PeerId: %v, Address: %v)",
                 cell->GetId(),
                 peerId,
                 peer.Descriptor.GetDefaultAddress());
 
-            balancer->RevokePeer(cell, peerId);
+            balancer->RevokePeer(cell, peerId, error);
 
             NProfiling::TTagIdList tagIds{
                 cell->GetCellBundle()->GetProfilingTag(),
@@ -475,26 +478,39 @@ bool TCellTrackerImpl::SchedulePeerCountChange(TCellBase* cell, TReqReassignPeer
 
 TError TCellTrackerImpl::IsFailed(
     const TCellBase::TPeer& peer,
-    const TBooleanFormula& nodeTagFilter,
+    const TCellBundle* bundle,
     TDuration timeout)
 {
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     const auto* node = nodeTracker->FindNodeByAddress(peer.Descriptor.GetDefaultAddress());
     if (node) {
         if (node->GetBanned()) {
-            return TError("Node banned");
+            return TError(
+                NCellServer::EErrorCode::NodeBanned,
+                "Node %v banned",
+                node->GetDefaultAddress());
         }
 
         if (node->GetDecommissioned()) {
-            return TError(EErrorCode::NodeDecommissioned, "Node decommissioned");
+            return TError(
+                NCellServer::EErrorCode::NodeDecommissioned,
+                "Node %v decommissioned",
+                node->GetDefaultAddress());
         }
 
         if (node->GetDisableTabletCells()) {
-            return TError("Node tablet slots disabled");
+            return TError(
+                NCellServer::EErrorCode::NodeTabletSlotsDisabled,
+                "Node %v tablet slots disabled",
+                node->GetDefaultAddress());
         }
 
-        if (!nodeTagFilter.IsSatisfiedBy(node->Tags())) {
-            return TError("Node does not satisfy tag filter");
+        if (!bundle->NodeTagFilter().IsSatisfiedBy(node->Tags())) {
+            return TError(
+                NCellServer::EErrorCode::NodeFilterMismatch,
+                "Node %v does not satisfy tag filter of cell bundle %v",
+                node->GetDefaultAddress(),
+                bundle->GetId());
         }
     }
 
@@ -506,12 +522,15 @@ TError TCellTrackerImpl::IsFailed(
         return TError();
     }
 
-    return TError("Node is not assigned");
+    return TError(
+        NCellServer::EErrorCode::CellDidNotAppearWithinTimeout,
+        "Node %v did not report appearance of cell within timeout",
+        peer.Descriptor.GetDefaultAddress());
 }
 
 bool TCellTrackerImpl::IsDecommissioned(
     const TNode* node,
-    const TBooleanFormula& nodeTagFilter)
+    const TCellBundle* bundle)
 {
     if (!node) {
         return false;
@@ -521,7 +540,7 @@ bool TCellTrackerImpl::IsDecommissioned(
         return false;
     }
 
-    if (!nodeTagFilter.IsSatisfiedBy(node->Tags())) {
+    if (!bundle->NodeTagFilter().IsSatisfiedBy(node->Tags())) {
         return false;
     }
 

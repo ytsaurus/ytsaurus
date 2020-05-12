@@ -10,7 +10,7 @@
 
 #include <util/stream/str.h>
 
-namespace NYT {
+namespace NYT::NTableClient {
 namespace {
 
 using namespace NYson;
@@ -79,6 +79,91 @@ TEST(TUnversionedValue, TestConversionToYsonTokenWriter)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Some sanity tests.
+static_assert(TUnversionedValueConversionTraits<i64>::Inline, "i64 must be inline.");
+static_assert(TUnversionedValueConversionTraits<i64>::Scalar, "i64 must be scalar.");
+static_assert(TUnversionedValueConversionTraits<std::optional<i64>>::Inline, "i64? must be inline.");
+static_assert(TUnversionedValueConversionTraits<std::optional<i64>>::Scalar, "i64? must be scalar.");
+static_assert(!TUnversionedValueConversionTraits<TString>::Inline, "TString must not be inline.");
+static_assert(TUnversionedValueConversionTraits<TString>::Scalar, "TString must be scalar.");
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TMakeUnversionedOwningRow, Empty)
+{
+    auto row = MakeUnversionedOwningRow();
+    EXPECT_EQ(0, row.GetCount());
+}
+
+template <class T>
+void CheckSingleValue(T value)
+{
+    auto row = MakeUnversionedOwningRow(value);
+    EXPECT_EQ(1, row.GetCount());
+    EXPECT_EQ(0, row[0].Id);
+    EXPECT_EQ(value, FromUnversionedValue<T>(row[0]));
+}
+
+TEST(TMakeUnversionedOwningRow, SingleValue)
+{
+    CheckSingleValue(TGuid::Create());
+    CheckSingleValue(TString("hello"));
+    CheckSingleValue(AsStringBuf("hello"));
+    CheckSingleValue(true);
+    CheckSingleValue(TYsonString("{a=1}"));
+    CheckSingleValue(static_cast<i64>(-123));
+    CheckSingleValue(static_cast<ui64>(123));
+    CheckSingleValue(static_cast<i32>(-17));
+    CheckSingleValue(static_cast<ui32>(17));
+    CheckSingleValue(static_cast<i16>(-2342));
+    CheckSingleValue(static_cast<ui16>(2342));
+    CheckSingleValue(static_cast<i8>(-12));
+    CheckSingleValue(static_cast<ui8>(12));
+    CheckSingleValue(static_cast<double>(3.14));
+    CheckSingleValue(TInstant::Now());
+    CheckSingleValue(TDuration::Seconds(10));
+}
+
+TEST(TMakeUnversionedOwningRow, NullValue)
+{
+    auto row = MakeUnversionedOwningRow(std::nullopt);
+    EXPECT_EQ(1, row.GetCount());
+    EXPECT_EQ(0, row[0].Id);
+    EXPECT_EQ(EValueType::Null, row[0].Type);
+}
+
+TEST(TMakeUnversionedOwningRow, Tuple)
+{
+    auto row = MakeUnversionedOwningRow(TString("hello"), true);
+    EXPECT_EQ(2, row.GetCount());
+    EXPECT_EQ(0, row[0].Id);
+    EXPECT_EQ("hello", FromUnversionedValue<TString>(row[0]));
+    EXPECT_EQ(1, row[1].Id);
+    EXPECT_EQ(true, FromUnversionedValue<bool>(row[1]));
+}
+
+TEST(TMakeUnversionedOwningRow, FromUnversionedRow)
+{
+    auto row = MakeUnversionedOwningRow(TString("hello"), TStringBuf("world"), 123);
+    TString a;
+    TStringBuf b;
+    i16 c;
+    FromUnversionedRow(row, &a, &b, &c);
+    EXPECT_EQ("hello", a);
+    EXPECT_EQ("world", b);
+    EXPECT_EQ(123, c);
+}
+
+TEST(TMakeUnversionedOwningRow, TupleFromUnversionedRow)
+{
+    auto row = MakeUnversionedOwningRow(TString("hello"), TStringBuf("world"), 123);
+    auto [a, b, c] = FromUnversionedRow<TString, TStringBuf, i16>(row);
+    EXPECT_EQ("hello", a);
+    EXPECT_EQ("world", b);
+    EXPECT_EQ(123, c);
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT
+} // namespace NYT::NTableClient

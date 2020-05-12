@@ -1,10 +1,12 @@
+#pragma once
+
 #include <yt/server/http_proxy/public.h>
+
+#include <yt/client/api/public.h>
 
 #include <yt/core/http/server.h>
 
 #include <yt/core/concurrency/public.h>
-
-#include <yt/client/api/public.h>
 
 #include "private.h"
 
@@ -23,7 +25,8 @@ public:
         const NHttp::IResponseWriterPtr& rsp) override;
 
     // It combines all metrics in one structure.
-    struct TClickHouseProxyMetrics {
+    struct TClickHouseProxyMetrics
+    {
         NProfiling::TAggregateGauge ResolveAliasTime{"/query_time/resolve_alias"};
         NProfiling::TAggregateGauge DiscoveryForceUpdateTime{"/query_time/discovery_force_update"};
         NProfiling::TAggregateGauge FindDiscoveryTime{"/query_time/find_discovery"};

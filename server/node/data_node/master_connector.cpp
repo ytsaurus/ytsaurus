@@ -342,7 +342,7 @@ void TMasterConnector::InitMedia()
                 location->GetId(),
                 location->GetMediumName());
         }
-        if (oldDescriptor.Index != InvalidMediumIndex &&
+        if (oldDescriptor.Index != GenericMediumIndex &&
             oldDescriptor.Index != newDescriptor->Index)
         {
             THROW_ERROR_EXCEPTION("Medium %Qv has changed its index from %v to %v",

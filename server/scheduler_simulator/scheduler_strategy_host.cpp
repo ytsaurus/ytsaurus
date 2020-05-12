@@ -182,6 +182,11 @@ void TSchedulerStrategyHost::AbortOperation(TOperationId operationId, const TErr
     YT_VERIFY(false);
 }
 
+void TSchedulerStrategyHost::FlushOperationNode(TOperationId operationId)
+{
+    YT_VERIFY(false);
+}
+
 void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job)
 {
     YT_VERIFY(job->GetNode()->Jobs().erase(job) == 1);

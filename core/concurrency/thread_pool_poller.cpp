@@ -200,7 +200,7 @@ public:
 
     virtual void Retry(const IPollablePtr& pollable, bool wakeup) override
     {
-        // Pollable is registered - skip grabbing reference
+        // Pollable is registered - skip grabbing reference.
         Retry_.Enqueue(pollable.Get());
         if (wakeup) {
             Invoker_->RaiseWakeupHandle();

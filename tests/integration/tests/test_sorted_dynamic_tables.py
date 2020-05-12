@@ -311,7 +311,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         for step in xrange(1, 5):
             rows = [{"key": i, "value": str(i)} for i in xrange(100, 200, 2 * step)]
-            actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(100, 200, 2 * step)])
+            actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(100, 200, 2 * step)], use_lookup_cache=True)
             assert_items_equal(actual, rows)
 
         # Lookup non-existent key without polluting cache.
@@ -326,18 +326,18 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", rows)
 
         # Check lookup result.
-        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(100, 200, 2)])
+        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
         assert_items_equal(actual, rows)
 
         # Flush table.
         sync_flush_table("//tmp/t")
 
         # And check that result after flush is equal.
-        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(100, 200, 2)])
+        actual = lookup_rows("//tmp/t", [{'key': i} for i in xrange(100, 200, 2)], use_lookup_cache=True)
         assert_items_equal(actual, rows)
 
         # Lookup non existent key adds two lookups (in two chunks).
-        lookup_rows("//tmp/t", [{'key': 1}])
+        lookup_rows("//tmp/t", [{'key': 1}], use_lookup_cache=True)
 
         wait(lambda: get(path) > 51)
         assert get(path) == 53
@@ -1193,6 +1193,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert read_table("<ranges=[{lower_limit={key=[0; <type=null>#; <type=max>#]}}]>//tmp/t") == []
         assert read_table("<ranges=[{lower_limit={key=[0; <type=null>#; <type=null>#; <type=null>#]}}]>//tmp/t") == []
 
+
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -1414,16 +1415,6 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
             insert_rows(table, rows)
             return keys, rows
 
-        tablet_cell_attributes = {
-            "changelog_replication_factor": 1,
-            "changelog_read_quorum": 1,
-            "changelog_write_quorum": 1,
-            "changelog_account": "sys",
-            "snapshot_account": "sys"
-        }
-
-        set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
-
         sync_create_cells(1)
 
         table_create(LARGE)
@@ -1462,16 +1453,6 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
     @authors("lukyan")
     def test_enable_partial_result(self):
-        tablet_cell_attributes = {
-            "changelog_replication_factor": 1,
-            "changelog_read_quorum": 1,
-            "changelog_write_quorum": 1,
-            "changelog_account": "sys",
-            "snapshot_account": "sys"
-        }
-
-        set("//sys/tablet_cell_bundles/default/@options", tablet_cell_attributes)
-
         cells = sync_create_cells(2)
 
         path = "//tmp/t"

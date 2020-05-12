@@ -496,8 +496,6 @@ private:
         ToProto(req->mutable_chunk_id(), outputSessionId.ChunkId);
         *req->mutable_chunk_info() = chunkInfo;
         *req->mutable_chunk_meta() = masterChunkMeta;
-        // COMPAT(aozeritsky)
-        NYT::ToProto(req->mutable_replicas_old(), writtenReplicas);
         NYT::ToProto(req->mutable_replicas(), writtenReplicas);
 
         auto batchRspOrError = WaitFor(batchReq->Invoke());

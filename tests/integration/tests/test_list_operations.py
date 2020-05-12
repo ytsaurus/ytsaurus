@@ -18,6 +18,7 @@ def clear_start_time(path):
         ops[i]["start_time"] = 0
     insert_rows(path, ops, update=True)
 
+
 def clear_progress(path):
     ops = select_rows("id_hi, id_lo, brief_progress, progress FROM [{}]".format(path))
     for i in range(len(ops)):
@@ -28,11 +29,14 @@ def clear_progress(path):
 
 class ListOperationsSetup(YTEnvSetup):
     _input_path = "//testing/input"
-    _output_path = "//testing/output"
-    _archive_version = None # Latest
 
-    @classmethod
-    def _create_operation(cls, op_type, user, state=None, can_fail=False, pool_trees=None, title=None, abort=False, owners=None, annotations=None, **kwargs):
+    @staticmethod
+    def _create_output_path():
+        path = "//testing/" + make_random_string()
+        create("table", path, recursive=True, ignore_existing=True)
+        return path
+
+    def _create_operation(self, op_type, user, state=None, can_fail=False, pool_trees=None, title=None, abort=False, owners=None, annotations=None, **kwargs):
         if title is not None:
             set_branch(kwargs, ["spec", "title"], title)
         if owners is not None:
@@ -42,32 +46,36 @@ class ListOperationsSetup(YTEnvSetup):
 
         before_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
 
+        output_path = self._create_output_path()
         op = start_op(
             op_type,
-            in_=cls._input_path,
-            out=cls._output_path,
+            in_=self._input_path,
+            out=output_path,
             track=False,
             authenticated_user=user,
             **kwargs)
 
-        if abort:
-            op.abort()
-        else:
-            try:
-                op.track()
-            except YtError as err:
-                if not can_fail or "Failed jobs limit exceeded" not in err.message:
-                    raise
+        op.after_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
 
+        def my_track():
+            if abort:
+                op.abort()
+            else:
+                try:
+                    op.track()
+                except YtError as err:
+                    if not can_fail or "Failed jobs limit exceeded" not in err.message:
+                        raise
+
+        op.my_track = my_track
         op.before_start_time = before_start_time
-        op.finish_time = get(op.get_path() + "/@finish_time")
         return op
 
-    @classmethod
-    def _create_operations(cls):
-        cls.op1 = cls._create_operation("map", command="exit 0", user="user1", annotations={"key": ["annotation1", "annotation2"]})
-        cls.op2 = cls._create_operation("map", command="exit 0", user="user2", owners=["group1", "user3"])
-        cls.op3 = cls._create_operation(
+    def _create_operations(self):
+        self.before_all_operations = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
+        self.op1 = self._create_operation("map", command="exit 0", user="user1", annotations={"key": ["annotation1", "annotation2"]})
+        self.op2 = self._create_operation("map", command="exit 0", user="user2", owners=["group1", "user3"])
+        self.op3 = self._create_operation(
             "map_reduce",
             mapper_command="exit 1",
             reducer_command="exit 0",
@@ -85,7 +93,7 @@ class ListOperationsSetup(YTEnvSetup):
             },
         )
 
-        cls.op4 = cls._create_operation(
+        self.op4 = self._create_operation(
             "reduce",
             command="sleep 1000",
             user="user3",
@@ -100,37 +108,39 @@ class ListOperationsSetup(YTEnvSetup):
             },
         )
 
-        cls.op5 = cls._create_operation("sort", user="user4", sort_by="key")
+        self.op5 = self._create_operation("sort", user="user4", sort_by="key")
 
-    @classmethod
-    def setup_class(cls):
-        super(ListOperationsSetup, cls).setup_class()
+        for op in [self.op1, self.op2, self.op3, self.op4, self.op5]:
+            op.my_track()
 
-        # Init operations archive.
-        sync_create_cells(1)
-        if cls._archive_version is None:
-            init_operation_archive.create_tables_latest_version(cls.Env.create_native_client(), override_tablet_cell_bundle="default")
-        else:
-            init_operation_archive.create_tables(cls.Env.create_native_client(), cls._archive_version, override_tablet_cell_bundle="default")
+    def setup_method(self, method):
+        super(ListOperationsSetup, self).setup_method(method)
 
-        create("table", cls._input_path, recursive=True, ignore_existing=True,
+        if self.include_archive:
+            sync_create_cells(1)
+            init_operation_archive.create_tables_latest_version(
+                self.Env.create_native_client(),
+                override_tablet_cell_bundle="default",
+            )
+
+        create(
+            "table", self._input_path, recursive=True, ignore_existing=True,
             attributes={
                 "schema": [
-                    {"name":"key", "type": "int64", "sort_order":"ascending"},
-                    {"name":"value", "type": "int64"},
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "int64"},
                 ],
-                "dynamic": cls.DRIVER_BACKEND == "rpc"
-            }
+                "dynamic": self.DRIVER_BACKEND == "rpc"
+            },
         )
 
-        if cls.DRIVER_BACKEND != "rpc":
-            write_table(cls._input_path, {"key": 1, "value": 2})
+        if self.DRIVER_BACKEND != "rpc":
+            write_table(self._input_path, {"key": 1, "value": 2})
         else:
-            sync_mount_table(cls._input_path)
-            insert_rows(cls._input_path, [{"key": 1, "value": 2}])
-            sync_unmount_table(cls._input_path)
-
-        create("table", cls._output_path, recursive=True, ignore_existing=True)
+            sync_create_cells(1)
+            sync_mount_table(self._input_path)
+            insert_rows(self._input_path, [{"key": 1, "value": 2}])
+            sync_unmount_table(self._input_path)
 
         # Setup pool trees.
         set("//sys/pool_trees/default/@nodes_filter", "!other")
@@ -144,7 +154,7 @@ class ListOperationsSetup(YTEnvSetup):
         set("//sys/pool_trees/other/pool_no_running/@max_running_operation_count", 0)
 
         # Create users and groups.
-        for i in range(1,7):
+        for i in range(1, 7):
             create_user("user{0}".format(i))
         create_group("group1")
         create_group("group2")
@@ -167,14 +177,13 @@ class ListOperationsSetup(YTEnvSetup):
             return False
         wait(base_operation_acl_has_admins)
 
-        cls._create_operations()
+        self._create_operations()
 
 
 class _TestListOperationsBase(ListOperationsSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
-    SINGLE_SETUP_TEARDOWN = True
 
     # The following tests expect the following operations to be present
     # in Cypress and/or in the archive (depending on |self.include_archive|):
@@ -194,19 +203,24 @@ class _TestListOperationsBase(ListOperationsSetup):
     def test_invalid_arguments(self):
         # Should fail when limit is invalid.
         with pytest.raises(YtError):
-            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op1.finish_time, limit=99999)
+            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op1.after_start_time, limit=99999)
 
         # Should fail when cursor_time is out of range (before |from_time|).
         with pytest.raises(YtError):
-            list_operations(include_archive=self.include_archive, from_time=self.op2.before_start_time, to_time=self.op2.finish_time, cursor_time=self.op1.before_start_time)
+            list_operations(include_archive=self.include_archive, from_time=self.op2.before_start_time, to_time=self.op2.after_start_time, cursor_time=self.op1.before_start_time)
 
         # Should fail when cursor_time is out of range (after |to_time|).
         with pytest.raises(YtError):
-            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op1.finish_time, cursor_time=self.op5.before_start_time)
+            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op1.after_start_time, cursor_time=self.before_all_operations)
 
     @authors("levysotsky")
     def test_time_filter(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, read_from=read_from)
+        self._test_time_ranges(read_from)
+        self._test_with_cursor(read_from)
+        self._test_with_direction(read_from)
+
+    def _test_time_ranges(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1}
         assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1}
         assert res["state_counts"] == {"completed": 3, "failed": 1, "aborted": 1}
@@ -215,7 +229,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.after_start_time, read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 1}
         assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 1}
         assert res["state_counts"] == {"completed": 2, "failed": 1}
@@ -224,7 +238,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op3.id, self.op2.id, self.op1.id]
 
-        res = list_operations(include_archive=self.include_archive, from_time=self.op2.before_start_time, to_time=self.op2.finish_time, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op2.before_start_time, to_time=self.op2.after_start_time, read_from=read_from)
         assert res["pool_counts"] == {"user2": 1}
         assert res["user_counts"] == {"user2": 1}
         assert res["state_counts"] == {"completed": 1}
@@ -233,9 +247,8 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 0
         assert [op["id"] for op in res["operations"]] == [self.op2.id]
 
-    @authors("levysotsky")
-    def test_with_cursor(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, cursor_time=self.op2.finish_time, cursor_direction="past", read_from=read_from)
+    def _test_with_cursor(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.after_start_time, cursor_time=self.op2.after_start_time, cursor_direction="past", read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 1}
         assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 1}
         assert res["state_counts"] == {"completed": 2, "failed": 1}
@@ -244,7 +257,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
 
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, cursor_time=self.op2.before_start_time, cursor_direction="future", read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.after_start_time, cursor_time=self.op2.before_start_time, cursor_direction="future", read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 1}
         assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 1}
         assert res["state_counts"] == {"completed": 2, "failed": 1}
@@ -253,9 +266,8 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op3.id, self.op2.id]
 
-    @authors("levysotsky")
-    def test_without_cursor_with_direction(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, cursor_direction="past", limit=2, read_from=read_from)
+    def _test_with_direction(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, cursor_direction="past", limit=2, read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1}
         assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1}
         assert res["state_counts"] == {"completed": 3, "failed": 1, "aborted": 1}
@@ -264,7 +276,7 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id]
 
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, cursor_direction="future", limit=2, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, cursor_direction="future", limit=2, read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1}
         assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1}
         assert res["state_counts"] == {"completed": 3, "failed": 1, "aborted": 1}
@@ -274,8 +286,16 @@ class _TestListOperationsBase(ListOperationsSetup):
         assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
 
     @authors("levysotsky")
-    def test_type_filter(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, type="map_reduce", read_from=read_from)
+    def test_filters(self, read_from):
+        self._test_type_filter(read_from)
+        self._test_state_filter(read_from)
+        self._test_user_filter(read_from)
+        self._test_text_filter(read_from)
+        self._test_pool_filter(read_from)
+        self._test_has_failed_jobs(read_from)
+
+    def _test_type_filter(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.after_start_time, type="map_reduce", read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "some_pool": 1}
         assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2}
         assert res["state_counts"] == {"completed": 2, "failed": 1, "aborted": 1}
@@ -284,15 +304,14 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op3.id]
 
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, type="map", read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.after_start_time, type="map", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
 
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, type="reduce", read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.after_start_time, type="reduce", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id]
 
-    @authors("levysotsky")
-    def test_state_filter(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, state="completed", read_from=read_from)
+    def _test_state_filter(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, state="completed", read_from=read_from)
         assert res["pool_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1, "some_pool": 1}
         assert res["user_counts"] == {"user1": 1, "user2": 1, "user3": 2, "user4": 1}
         assert res["state_counts"] == {"completed": 3, "failed": 1, "aborted": 1}
@@ -301,15 +320,14 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 0
         assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op2.id, self.op1.id]
 
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, state="failed", read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, state="failed", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op3.id]
 
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, state="initializing", read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, state="initializing", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == []
 
-    @authors("renadeen", "levysotsky")
-    def test_user_filter(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, user="user3", read_from=read_from)
+    def _test_user_filter(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, user="user3", read_from=read_from)
         assert res["pool_counts"] == {"user3": 2, "some_pool": 1}
         assert res["user_counts"] == {"user3": 2, "user1": 1, "user2": 1, "user4": 1}
         assert res["state_counts"] == {'failed': 1, 'aborted': 1}
@@ -318,10 +336,9 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id]
 
-    @authors("levysotsky")
-    def test_text_filter(self, read_from):
+    def _test_text_filter(self, read_from):
         # Title filter.
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, filter="op3 title", read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, filter="op3 title", read_from=read_from)
         assert res["pool_counts"] == {"user3": 1}
         assert res["user_counts"] == {"user3": 1}
         assert res["state_counts"] == {"failed": 1}
@@ -331,16 +348,15 @@ class _TestListOperationsBase(ListOperationsSetup):
         assert [op["id"] for op in res["operations"]] == [self.op3.id]
 
         # Pool filter.
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, filter="some_pool", read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, filter="some_pool", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id]
 
         # Annotations filter.
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, filter="notation2", read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, filter="notation2", read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op1.id]
 
-    @authors("levysotsky")
-    def test_pool_filter(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, pool="user3", read_from=read_from)
+    def _test_pool_filter(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.after_start_time, pool="user3", read_from=read_from)
         assert res["user_counts"] == {"user3": 2, "user1": 1, "user2": 1}
         assert res["pool_counts"] == {"user3": 2, "user1": 1, "user2": 1, "some_pool": 1}
         assert res["state_counts"] == {"failed": 1, "aborted": 1}
@@ -349,14 +365,28 @@ class _TestListOperationsBase(ListOperationsSetup):
             assert res["failed_jobs_count"] == 1
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id]
 
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.finish_time, pool="some_pool", read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op4.after_start_time, pool="some_pool", read_from=read_from)
         if self.check_failed_jobs_count:
             assert res["failed_jobs_count"] == 0
         assert [op["id"] for op in res["operations"]] == [self.op4.id]
 
+    def _test_has_failed_jobs(self, read_from):
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.after_start_time, with_failed_jobs=True, read_from=read_from)
+        assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1}
+        assert res["user_counts"] == {"user3": 1, "user1": 1, "user2": 1}
+        assert res["state_counts"] == {"failed": 1, "completed": 2}
+        assert res["type_counts"] == {"map_reduce": 1, "map": 2}
+        if self.check_failed_jobs_count:
+            assert res["failed_jobs_count"] == 1
+        assert [op["id"] for op in res["operations"]] == [self.op3.id]
+
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.after_start_time, with_failed_jobs=False, read_from=read_from)
+        assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
+
+
     @authors("levysotsky")
     def test_with_limit(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, limit=1, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.after_start_time, limit=1, read_from=read_from)
         assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1}
         assert res["user_counts"] == {"user3": 1, "user1": 1, "user2": 1}
         assert res["state_counts"] == {"failed": 1, "completed": 2}
@@ -366,28 +396,14 @@ class _TestListOperationsBase(ListOperationsSetup):
         assert [op["id"] for op in res["operations"]] == [self.op3.id]
         assert res["incomplete"] == True
 
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, limit=3, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.after_start_time, limit=3, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op3.id, self.op2.id, self.op1.id]
         assert res["incomplete"] == False
 
     @authors("levysotsky")
-    def test_has_failed_jobs(self, read_from):
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, with_failed_jobs=True, read_from=read_from)
-        assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1}
-        assert res["user_counts"] == {"user3": 1, "user1": 1, "user2": 1}
-        assert res["state_counts"] == {"failed": 1, "completed": 2}
-        assert res["type_counts"] == {"map_reduce": 1, "map": 2}
-        if self.check_failed_jobs_count:
-            assert res["failed_jobs_count"] == 1
-        assert [op["id"] for op in res["operations"]] == [self.op3.id]
-
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, with_failed_jobs=False, read_from=read_from)
-        assert [op["id"] for op in res["operations"]] == [self.op2.id, self.op1.id]
-
-    @authors("levysotsky")
     def test_attribute_filter(self, read_from):
         attributes = ["id", "start_time", "type", "brief_spec", "finish_time", "progress"]
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.finish_time, attributes=attributes, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op3.after_start_time, attributes=attributes, read_from=read_from)
         assert res["pool_counts"] == {"user3": 1, "user1": 1, "user2": 1}
         assert res["user_counts"] == {"user3": 1, "user1": 1, "user2": 1}
         assert res["state_counts"] == {"failed": 1, "completed": 2}
@@ -400,7 +416,7 @@ class _TestListOperationsBase(ListOperationsSetup):
     @authors("levysotsky")
     def test_access_filter(self, read_from):
         access = {"subject": "user3", "permissions": ["read", "manage"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert res["pool_counts"] == {"user2": 1, "user3": 2, "some_pool": 1}
         assert res["user_counts"] == {"user2": 1, "user3": 2}
         assert res["state_counts"] == {"completed": 1, "failed": 1, "aborted": 1}
@@ -410,92 +426,87 @@ class _TestListOperationsBase(ListOperationsSetup):
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
 
         access = {"subject": "user1", "permissions": ["read"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
         access = {"subject": "user1", "permissions": ["read", "manage"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op2.id, self.op1.id]
 
         access = {"subject": "user2", "permissions": ["read"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
 
         access = {"subject": "user2", "permissions": ["read", "manage"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
 
         # user6 is like user2 with the only difference that he is banned from managing op3 and he is
         # not an authenticated user for op2.
         access = {"subject": "user6", "permissions": ["read"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id]
 
         access = {"subject": "user6", "permissions": ["read", "manage"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id]
 
         # user4 is admin.
         access = {"subject": "user4", "permissions": ["read"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
         access = {"subject": "user4", "permissions": ["read", "manage"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
         access = {"subject": "group1", "permissions": ["read"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id, self.op2.id]
 
         access = {"subject": "group1", "permissions": ["read", "manage"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op2.id]
 
         access = {"subject": "large_group", "permissions": ["read"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id, self.op3.id]
 
         access = {"subject": "large_group", "permissions": ["read", "manage"]}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op4.id]
 
         # Anyone has '[]' permissions for any operation.
         access = {"subject": "large_group", "permissions": []}
-        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+        res = list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
         assert [op["id"] for op in res["operations"]] == [self.op5.id, self.op4.id, self.op3.id, self.op2.id, self.op1.id]
 
-    @authors("levysotsky")
-    def test_access_filter_errors(self, read_from):
         # Missing subject.
         access = {"permissions": ["read", "manage"]}
         with pytest.raises(YtError):
-            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
 
         # Missing permissions.
         access = {"subject": "user1"}
         with pytest.raises(YtError):
-            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
 
         access = {"subject": "unknown_subject", "permissions": ["read", "manage"]}
         with pytest.raises(YtError):
-            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
 
         access = {"subject": "user1", "permissions": ["unknown_permission"]}
         with pytest.raises(YtError):
-            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.finish_time, access=access, read_from=read_from)
+            list_operations(include_archive=self.include_archive, from_time=self.op1.before_start_time, to_time=self.op5.after_start_time, access=access, read_from=read_from)
 
 
 class TestListOperationsCypressOnly(_TestListOperationsBase):
-    USE_DYNAMIC_TABLES = False
-
     include_archive = False
     read_from_values = ["cache", "follower"]
     check_failed_jobs_count = True
 
-    @classmethod
-    def setup_class(cls):
-        super(TestListOperationsCypressOnly, cls).setup_class()
+    def setup_method(self, method):
+        super(TestListOperationsCypressOnly, self).setup_method(method)
         op6_spec = {
             "pool_trees": ["other"],
             "scheduling_options_per_pool_tree": {
@@ -503,9 +514,9 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
             },
         }
         before_start_time = datetime.utcnow().strftime(YT_DATETIME_FORMAT_STRING)
-        cls.op6 = start_op("sort", in_=cls._input_path, out=cls._output_path, track=False, authenticated_user="user5", spec=op6_spec, sort_by="key")
-        cls.op6.before_start_time = before_start_time
-        wait(lambda: get(cls.op6.get_path() + "/@state") == "pending")
+        self.op6 = start_op("sort", in_=self._input_path, out=self._create_output_path(), track=False, authenticated_user="user5", spec=op6_spec, sort_by="key")
+        self.op6.before_start_time = before_start_time
+        wait(lambda: get(self.op6.get_path() + "/@state") == "pending")
 
     @authors("levysotsky")
     def test_no_filters(self, read_from):
@@ -536,7 +547,7 @@ class TestListOperationsCypressArchive(_TestListOperationsBase):
     USE_DYNAMIC_TABLES = True
 
     include_archive = True
-    read_from_values=["follower"]
+    read_from_values = ["follower"]
     check_failed_jobs_count = False
 
     DELTA_SCHEDULER_CONFIG = {
@@ -549,7 +560,7 @@ class TestListOperationsCypressArchive(_TestListOperationsBase):
     @authors("levysotsky")
     def test_time_range_missing(self):
         with pytest.raises(YtError):
-            list_operations(include_archive=True, to_time=self.op5.finish_time)
+            list_operations(include_archive=True, to_time=self.op5.after_start_time)
         with pytest.raises(YtError):
             list_operations(include_archive=True, from_time=self.op1.before_start_time)
 
@@ -558,7 +569,7 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
     USE_DYNAMIC_TABLES = True
 
     include_archive = True
-    read_from_values=["follower"]
+    read_from_values = ["follower"]
     check_failed_jobs_count = False
 
     DELTA_SCHEDULER_CONFIG = {
@@ -577,9 +588,8 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
         },
     }
 
-    @classmethod
-    def setup_class(cls):
-        super(TestListOperationsArchiveOnly, cls).setup_class()
+    def setup_method(self, method):
+        super(TestListOperationsArchiveOnly, self).setup_method(method)
         wait(lambda: not operation_nodes_exist())
 
 
@@ -587,12 +597,11 @@ class TestListOperationsArchiveHacks(ListOperationsSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
-    SINGLE_SETUP_TEARDOWN = True
 
     USE_DYNAMIC_TABLES = True
 
     include_archive = True
-    read_from_values=["follower"]
+    read_from_values = ["follower"]
     check_failed_jobs_count = False
 
     DELTA_SCHEDULER_CONFIG = {
@@ -611,9 +620,8 @@ class TestListOperationsArchiveHacks(ListOperationsSetup):
         },
     }
 
-    @classmethod
-    def setup_class(cls):
-        super(TestListOperationsArchiveHacks, cls).setup_class()
+    def setup_method(self, method):
+        super(TestListOperationsArchiveHacks, self).setup_method(method)
         wait(lambda: not operation_nodes_exist())
 
     @authors("ilpauzner")

@@ -8,6 +8,7 @@
 #include "data_node_service_proxy.h"
 #include "helpers.h"
 #include "chunk_reader_allowing_repair.h"
+#include "chunk_replica_locator.h"
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
@@ -19,6 +20,8 @@
 #include <yt/ytlib/chunk_client/replication_reader.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+
+#include <yt/ytlib/table_client/lookup_reader.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 #include <yt/ytlib/node_tracker_client/channel.h>
@@ -43,8 +46,6 @@
 #include <yt/core/ytalloc/memory_zone.h>
 
 #include <yt/core/net/local_address.h>
-
-#include <yt/core/rpc/dispatcher.h>
 
 #include <util/generic/ymath.h>
 
@@ -124,8 +125,11 @@ struct TPeerQueueEntry
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TReplicationReader)
+
 class TReplicationReader
     : public IChunkReaderAllowingRepair
+    , public ILookupReader
 {
 public:
     TReplicationReader(
@@ -152,30 +156,28 @@ public:
         , RpsThrottler_(std::move(rpsThrottler))
         , Networks_(client->GetNativeConnection()->GetNetworks())
         , TrafficMeter_(trafficMeter)
-        , LocateChunksInvoker_(CreateFixedPriorityInvoker(
-            NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),
-            // We locate chunks with batch workload category.
-            TWorkloadDescriptor(EWorkloadCategory::UserBatch).GetPriority()))
         , Logger(NLogging::TLogger(ChunkClientLogger)
             .AddTag("ChunkId: %v", ChunkId_))
-        , InitialSeedReplicas_(seedReplicas)
-    { }
-
-    void Initialize()
+        , ChunkReplicaLocator_(New<TChunkReplicaLocator>(
+            Client_,
+            NodeDirectory_,
+            ChunkId_,
+            Config_->SeedsTimeout,
+            seedReplicas,
+            Logger))
     {
-        if (!Options_->AllowFetchingSeedsFromMaster && InitialSeedReplicas_.empty()) {
+        if (!Options_->AllowFetchingSeedsFromMaster && seedReplicas.empty()) {
             THROW_ERROR_EXCEPTION(
                 "Cannot read chunk %v: master seeds retries are disabled and no initial seeds are given",
                 ChunkId_);
         }
 
-        if (!InitialSeedReplicas_.empty()) {
-            SeedsPromise_ = MakePromise(InitialSeedReplicas_);
-        }
+        ChunkReplicaLocator_->SubscribeReplicasLocated(
+            BIND(&TReplicationReader::OnChunkReplicasLocated, MakeWeak(this)));
 
         YT_LOG_DEBUG("Reader initialized (InitialSeedReplicas: %v, FetchPromPeers: %v, LocalDescriptor: %v, PopulateCache: %v, "
             "AllowFetchingSeedsFromMaster: %v, Networks: %v)",
-            MakeFormattableView(InitialSeedReplicas_, TChunkReplicaAddressFormatter(NodeDirectory_)),
+            MakeFormattableView(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)),
             Config_->FetchFromPeers,
             LocalDescriptor_,
             Config_->PopulateCache,
@@ -212,11 +214,6 @@ public:
         NCompression::ECodec codecId,
         bool produceAllVersions) override;
 
-    virtual bool IsLookupSupported() const override
-    {
-        return true;
-    }
-
     virtual TChunkId GetChunkId() const override
     {
         return ChunkId_;
@@ -252,7 +249,6 @@ private:
     class TReadBlockRangeSession;
     class TGetMetaSession;
     class TLookupRowsSession;
-    class TAsyncGetSeedsSession;
 
     const TReplicationReaderConfigPtr Config_;
     const TRemoteReaderOptionsPtr Options_;
@@ -267,14 +263,8 @@ private:
     const TNetworkPreferenceList Networks_;
     const TTrafficMeterPtr TrafficMeter_;
 
-    const IInvokerPtr LocateChunksInvoker_;
-
     const NLogging::TLogger Logger;
-
-    TSpinLock SeedsSpinLock_;
-    TChunkReplicaList InitialSeedReplicas_;
-    TInstant SeedsTimestamp_;
-    TPromise<TChunkReplicaList> SeedsPromise_;
+    const TChunkReplicaLocatorPtr ChunkReplicaLocator_;
 
     TSpinLock PeersSpinLock_;
     //! Peers returning NoSuchChunk error are banned forever.
@@ -282,32 +272,23 @@ private:
     //! Every time peer fails (e.g. time out occurs), we increase ban counter.
     THashMap<TString, int> PeerBanCountMap_;
 
-    std::atomic<bool> Failed_ = {false};
+    std::atomic<bool> Failed_ = false;
 
     TCallback<TError(i64, TDuration)> SlownessChecker_;
 
-    void DiscardSeeds(TFuture<TChunkReplicaList> result)
+
+    void DiscardSeeds(const TFuture<TChunkReplicaList>& future)
     {
-        YT_VERIFY(result);
-        YT_VERIFY(result.IsSet());
-
-        TGuard<TSpinLock> guard(SeedsSpinLock_);
-
-        if (!Options_->AllowFetchingSeedsFromMaster) {
-            // We're not allowed to ask master for seeds.
-            // Better keep the initial ones.
-            return;
+        if (!Options_->AllowFetchingSeedsFromMaster) {	
+            // We're not allowed to ask master for seeds.	
+            // Better keep the initial ones.	
+            return;	
         }
 
-        if (SeedsPromise_.ToFuture() != result) {
-            return;
-        }
-
-        YT_VERIFY(SeedsPromise_.IsSet());
-        SeedsPromise_.Reset();
+        ChunkReplicaLocator_->DiscardReplicas(future);
     }
 
-    void ExcludeFreshSeedsFromBannedForeverPeers(const TChunkReplicaList& seedReplicas)
+    void OnChunkReplicasLocated(const TChunkReplicaList& seedReplicas)
     {
         TGuard<TSpinLock> guard(PeersSpinLock_);
         for (auto replica : seedReplicas) {
@@ -368,127 +349,7 @@ private:
     }
 };
 
-using TReplicationReaderPtr = TIntrusivePtr<TReplicationReader>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TReplicationReader::TAsyncGetSeedsSession
-    : public TRefCounted
-{
-public:
-    TAsyncGetSeedsSession(
-        TReplicationReaderPtr reader,
-        const NLogging::TLogger& logger)
-        : Reader_(std::move(reader))
-        , Logger(logger)
-        , Config_(Reader_->Config_)
-        , Client_(Reader_->Client_)
-        , NodeDirectory_(Reader_->NodeDirectory_)
-        , ChunkId_(Reader_->ChunkId_)
-        , LocateChunksInvoker_(Reader_->LocateChunksInvoker_)
-    { }
-
-    TFuture<TChunkReplicaList> Run()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        TGuard<TSpinLock> guard(Reader_->SeedsSpinLock_);
-
-        if (!Reader_->SeedsPromise_) {
-            YT_LOG_DEBUG("Need fresh chunk seeds");
-            Reader_->SeedsPromise_ = NewPromise<TChunkReplicaList>();
-            auto locateChunk = BIND(&TAsyncGetSeedsSession::LocateChunk, MakeStrong(this))
-                .Via(Reader_->LocateChunksInvoker_);
-
-            if (Reader_->SeedsTimestamp_ + Config_->SeedsTimeout > TInstant::Now()) {
-                // Don't ask master for fresh seeds too often.
-                TDelayedExecutor::Submit(
-                    locateChunk,
-                    Reader_->SeedsTimestamp_ + Config_->SeedsTimeout);
-            } else {
-                locateChunk.Run();
-            }
-        }
-
-        return Reader_->SeedsPromise_;
-    }
-
-private:
-    const TReplicationReaderPtr Reader_;
-    const NLogging::TLogger Logger;
-
-    const TReplicationReaderConfigPtr Config_;
-    const NNative::IClientPtr Client_;
-    const TNodeDirectoryPtr NodeDirectory_;
-    const TChunkId ChunkId_;
-    const IInvokerPtr LocateChunksInvoker_;
-
-    void LocateChunk()
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        YT_LOG_DEBUG("Requesting chunk seeds from master");
-
-        try {
-            auto channel = Client_->GetMasterChannelOrThrow(
-                EMasterChannelKind::Follower,
-                CellTagFromId(ChunkId_));
-
-            TChunkServiceProxy proxy(channel);
-
-            auto req = proxy.LocateChunks();
-            req->SetHeavy(true);
-            ToProto(req->add_subrequests(), ChunkId_);
-            req->Invoke().Subscribe(
-                BIND(&TAsyncGetSeedsSession::OnLocateChunkResponse, MakeStrong(this))
-                    .Via(LocateChunksInvoker_));
-        } catch (const std::exception& ex) {
-            Reader_->SeedsPromise_.Set(TError(
-                "Failed to request seeds for chunk %v from master",
-                ChunkId_)
-                << ex);
-        }
-    }
-
-    void OnLocateChunkResponse(const TChunkServiceProxy::TErrorOrRspLocateChunksPtr& rspOrError)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(Reader_->SeedsPromise_);
-
-        {
-            TGuard<TSpinLock> guard(Reader_->SeedsSpinLock_);
-            Reader_->SeedsTimestamp_ = TInstant::Now();
-        }
-
-        if (!rspOrError.IsOK()) {
-            YT_VERIFY(!Reader_->SeedsPromise_.IsSet());
-            Reader_->SeedsPromise_.Set(TError(rspOrError));
-            return;
-        }
-
-        const auto& rsp = rspOrError.Value();
-        YT_VERIFY(rsp->subresponses_size() == 1);
-        const auto& subresponse = rsp->subresponses(0);
-        if (subresponse.missing()) {
-            YT_VERIFY(!Reader_->SeedsPromise_.IsSet());
-            Reader_->SeedsPromise_.Set(TError(
-                NChunkClient::EErrorCode::NoSuchChunk,
-                "No such chunk %v",
-                ChunkId_));
-            return;
-        }
-
-        NodeDirectory_->MergeFrom(rsp->node_directory());
-        auto seedReplicas = FromProto<TChunkReplicaList>(subresponse.replicas());
-        Reader_->ExcludeFreshSeedsFromBannedForeverPeers(seedReplicas);
-
-        YT_LOG_DEBUG("Chunk seeds received (SeedReplicas: %v)",
-            MakeFormattableView(seedReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
-
-        YT_VERIFY(!Reader_->SeedsPromise_.IsSet());
-        Reader_->SeedsPromise_.Set(seedReplicas);
-    }
-};
+DEFINE_REFCOUNTED_TYPE(TReplicationReader)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -777,7 +638,7 @@ protected:
 
         YT_VERIFY(!SeedsFuture_);
 
-        YT_LOG_DEBUG("Retry started: %v of %v",
+        YT_LOG_DEBUG("Retry started (RetryIndex: %v/%v)",
             RetryIndex_ + 1,
             ReaderConfig_->RetryCount);
 
@@ -786,8 +647,7 @@ protected:
 
         RetryStartTime_ = TInstant::Now();
 
-        auto getSeedsSession = New<TAsyncGetSeedsSession>(reader, Logger);
-        SeedsFuture_ = getSeedsSession->Run();
+        SeedsFuture_ = reader->ChunkReplicaLocator_->GetReplicas();
         SeedsFuture_.Subscribe(
             BIND(&TSessionBase::OnGotSeeds, MakeStrong(this))
                 .Via(SessionInvoker_));
@@ -798,7 +658,7 @@ protected:
         DiscardSeeds();
 
         int retryCount = ReaderConfig_->RetryCount;
-        YT_LOG_DEBUG("Retry failed: %v of %v",
+        YT_LOG_DEBUG("Retry failed (RetryIndex: %v/%v)",
             RetryIndex_ + 1,
             retryCount);
 
@@ -842,7 +702,7 @@ protected:
             return false;
         }
 
-        YT_LOG_DEBUG("Pass started: %v of %v",
+        YT_LOG_DEBUG("Pass started (PassIndex: %v/%v)",
             PassIndex_ + 1,
             ReaderConfig_->PassCount);
 
@@ -893,7 +753,7 @@ protected:
         }
 
         int passCount = ReaderConfig_->PassCount;
-        YT_LOG_DEBUG("Pass completed: %v of %v",
+        YT_LOG_DEBUG("Pass completed (PassIndex: %v/%v)",
             PassIndex_ + 1,
             passCount);
 
@@ -1271,7 +1131,7 @@ private:
 
         if (bestPeer) {
             if (receivedNewPeers) {
-                YT_LOG_DEBUG("Discard best peer since p2p was activated (Address: %v, PeerType: %v)",
+                YT_LOG_DEBUG("Discard best peer since P2P was activated (Address: %v, PeerType: %v)",
                     bestPeer->AddressWithNetwork,
                     bestPeer->Type);
                 ReinstallPeer(bestPeer->AddressWithNetwork.Address);
@@ -1389,7 +1249,6 @@ private:
             RequestBlocks();
             return;
         }
-
 
         if (peerAddressWithNetwork.Address != GetLocalHostName() && BytesThrottled_ == 0 && EstimatedSize_) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
@@ -2451,7 +2310,7 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     YT_VERIFY(client);
     YT_VERIFY(nodeDirectory);
 
-    auto reader = New<TReplicationReader>(
+    return New<TReplicationReader>(
         std::move(config),
         std::move(options),
         std::move(client),
@@ -2464,8 +2323,6 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
         std::move(bandwidthThrottler),
         std::move(rpsThrottler),
         std::move(trafficMeter));
-    reader->Initialize();
-    return reader;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -47,6 +47,8 @@
 
 #include <yt/server/lib/cell_server/proto/cell_manager.pb.h>
 
+#include <yt/server/lib/hydra/mutation_context.h>
+
 #include <yt/ytlib/election/config.h>
 
 #include <yt/ytlib/hive/cell_directory.h>
@@ -245,9 +247,22 @@ public:
 
     void SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr options)
     {
-        if (options->PeerCount != cellBundle->GetOptions()->PeerCount && !cellBundle->Cells().empty()) {
+        Bootstrap_->GetSecurityManager()->ValidatePermission(cellBundle, EPermission::Use);
+
+        const auto& currentOptions = cellBundle->GetOptions();
+        if (options->PeerCount != currentOptions->PeerCount && !cellBundle->Cells().empty()) {
             THROW_ERROR_EXCEPTION("Cannot change peer count since tablet cell bundle has %v tablet cell(s)",
                                   cellBundle->Cells().size());
+        }
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        if (currentOptions->SnapshotAccount != options->SnapshotAccount) {
+            auto* account = securityManager->GetAccountByNameOrThrow(options->SnapshotAccount);
+            securityManager->ValidatePermission(account, EPermission::Use);
+        }
+        if (currentOptions->ChangelogAccount != options->ChangelogAccount) {
+            auto* account = securityManager->GetAccountByNameOrThrow(options->ChangelogAccount);
+            securityManager->ValidatePermission(account, EPermission::Use);
         }
 
         auto snapshotAcl = ConvertToYsonString(options->SnapshotAcl, EYsonFormat::Binary).GetData();
@@ -255,12 +270,15 @@ public:
 
         cellBundle->SetOptions(std::move(options));
 
+        auto* rootUser = securityManager->GetRootUser();
+
         for (auto* cell : GetValuesSortedByKey(cellBundle->Cells())) {
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsPrimaryMaster()) {
                 if (auto node = FindCellNode(cell->GetId())) {
-                    auto cellNode = node->AsMap();
+                    TAuthenticatedUserGuard userGuard(securityManager, rootUser);
 
+                    auto cellNode = node->AsMap();
                     try {
                         {
                             auto req = TCypressYPathProxy::Set("/snapshots/@acl");
@@ -469,8 +487,11 @@ public:
             }
 
             // Revoke extra peers.
-            for (int revokingPeerIndex = newPeerCount; revokingPeerIndex < oldPeerCount; ++revokingPeerIndex) {
-                DoRevokePeer(cell, revokingPeerIndex);
+            auto revocationReason = TError("Peer count reduced from %v to %v",
+                oldPeerCount,
+                newPeerCount);
+            for (int peerId = newPeerCount; peerId < oldPeerCount; ++peerId) {
+                DoRevokePeer(cell, peerId, revocationReason);
             }
 
             cell->Peers().resize(newPeerCount);
@@ -919,14 +940,18 @@ private:
         UpdateBundlesHealth();
     }
 
-    void HydraUpdateCellHealth(TReqUpdateTabletCellHealthStatistics* request)
+    void HydraUpdateCellHealth(TReqUpdateTabletCellHealthStatistics* /*request*/)
     {
-        UpdateCellsHeath();
+        UpdateCellsHealth();
         UpdateBundlesHealth();
     }
 
-    void UpdateCellsHeath()
+    void UpdateCellsHealth()
     {
+        auto peerRevocationReasonDeadline =
+            NHydra::GetCurrentMutationContext()->GetTimestamp() -
+            GetDynamicConfig()->PeerRevocationReasonExpirationTime;
+
         for (const auto [cellId, cell] : CellMap_) {
             if (!IsObjectAlive(cell)) {
                 continue;
@@ -947,6 +972,8 @@ private:
                     cell->RecomputeClusterStatus();
                 }
             }
+
+            cell->ExpirePeerRevocationReasons(peerRevocationReasonDeadline);
         }
     }
 
@@ -1068,6 +1095,8 @@ private:
             ToProto(protoInfo->mutable_cell_descriptor(), cellDescriptor);
             ToProto(protoInfo->mutable_prerequisite_transaction_id(), prerequisiteTransactionId);
             protoInfo->set_abandon_leader_lease_during_recovery(GetDynamicConfig()->AbandonLeaderLeaseDuringRecovery);
+            protoInfo->set_options(ConvertToYsonString(cell->GetCellBundle()->GetOptions()).GetData());
+
 
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet slot configuration update requested "
                 "(Address: %v, CellId: %v, PeerId: %v, Version: %v, PrerequisiteTransactionId: %v, AbandonLeaderLeaseDuringRecovery: %v)",
@@ -1254,9 +1283,13 @@ private:
             auto it = AddressToCell_.find(address);
             if (it != AddressToCell_.end()) {
                 for (auto [cell, peerId] : it->second) {
+                    if (!availableSlots) {
+                        break;
+                    }
                     if (!IsObjectAlive(cell)) {
                         continue;
                     }
+
                     if (actualCells.find(cell) == actualCells.end()) {
                         requestCreateSlot(cell);
                         requestConfigureSlot(cell);
@@ -1365,7 +1398,7 @@ private:
             if (peerId == cell->GetLeadingPeerId()) {
                 leadingPeerRevoked = true;
             }
-            DoRevokePeer(cell, peerId);
+            DoRevokePeer(cell, peerId, FromProto<TError>(request->reason()));
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -1675,16 +1708,14 @@ private:
         cell->SetPrerequisiteTransaction(nullptr);
         TransactionToCellMap_.erase(it);
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell prerequisite transaction finished (CellId: %v, TransactionId: %v)",
-            cell->GetId(),
+        auto revocationReason = TError("Tablet cell prerequisite transaction %v finished",
             transaction->GetId());
-
         for (auto peerId = 0; peerId < cell->Peers().size(); ++peerId) {
-            DoRevokePeer(cell, peerId);
+            DoRevokePeer(cell, peerId, revocationReason);
         }
     }
 
-    void DoRevokePeer(TCellBase* cell, TPeerId peerId)
+    void DoRevokePeer(TCellBase* cell, TPeerId peerId, const TError& reason)
     {
         const auto& peer = cell->Peers()[peerId];
         const auto& descriptor = peer.Descriptor;
@@ -1692,7 +1723,7 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), reason, "Tablet cell peer revoked (CellId: %v, Address: %v, PeerId: %v)",
             cell->GetId(),
             descriptor.GetDefaultAddress(),
             peerId);
@@ -1700,8 +1731,10 @@ private:
         if (peer.Node) {
             peer.Node->DetachTabletCell(cell);
         }
+        
         RemoveFromAddressToCellMap(descriptor, cell);
-        cell->RevokePeer(peerId);
+        
+        cell->RevokePeer(peerId, reason);
     }
 
     IMapNodePtr GetCellMapNode()

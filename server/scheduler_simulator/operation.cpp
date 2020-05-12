@@ -84,25 +84,15 @@ bool TOperation::SetCompleting()
     return !Completing_.exchange(true);
 }
 
+void TOperation::EraseTrees(const std::vector<TString>& treeIds)
+{
+    YT_UNIMPLEMENTED();
+}
+
 bool TOperation::GetActivated() const
 {
     // NB(renadeen): return value doesn't matter in simulator.
     return true;
-}
-
-void TOperation::SetErasedTrees(std::vector<TString> erasedTrees)
-{
-    ErasedTrees_ = std::move(erasedTrees);
-}
-
-const std::vector<TString>& TOperation::ErasedTrees() const
-{
-    return ErasedTrees_;
-}
-
-void TOperation::EraseTree(const TString& treeId)
-{
-    ErasedTrees_.push_back(treeId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

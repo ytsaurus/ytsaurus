@@ -23,7 +23,8 @@ TChunk* TChunkTree::AsChunk()
     YT_ASSERT(
         GetType() == EObjectType::Chunk ||
         GetType() == EObjectType::ErasureChunk ||
-        GetType() == EObjectType::JournalChunk);
+        GetType() == EObjectType::JournalChunk ||
+        GetType() == EObjectType::ErasureJournalChunk);
     return As<TChunk>();
 }
 
@@ -32,7 +33,8 @@ const TChunk* TChunkTree::AsChunk() const
     YT_ASSERT(
         GetType() == EObjectType::Chunk ||
         GetType() == EObjectType::ErasureChunk ||
-        GetType() == EObjectType::JournalChunk);
+        GetType() == EObjectType::JournalChunk ||
+        GetType() == EObjectType::ErasureJournalChunk);
     return As<TChunk>();
 }
 

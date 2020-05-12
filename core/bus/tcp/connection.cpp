@@ -289,7 +289,10 @@ void TTcpConnection::OnAddressResolveFinished(const TErrorOr<TNetworkAddress>& r
     YT_LOG_DEBUG("Connection network address resolved (Address: %v)",
         address);
 
-    if (IsLocalBusTransportEnabled() && TAddressResolver::Get()->IsLocalAddress(address)) {
+    if (IsLocalBusTransportEnabled() &&
+        NetworkName_ == DefaultNetworkName &&
+        TAddressResolver::Get()->IsLocalAddress(address))
+    {
         address = GetLocalBusAddress(Port_);
         NetworkName_ = LocalNetworkName;
     }
@@ -452,13 +455,13 @@ TFuture<void> TTcpConnection::Send(TSharedRefArray message, const TSendOptions& 
 
     auto pendingOutPayloadBytes = PendingOutPayloadBytes_.fetch_add(queuedMessage.PayloadSize);
 
-    // NB: Log first to avoid producing weird traces.
+    // Log first to avoid producing weird traces.
     YT_LOG_DEBUG("Outcoming message enqueued (PacketId: %v, PendingOutPayloadBytes: %v)",
         queuedMessage.PacketId,
         pendingOutPayloadBytes);
 
     if (LastIncompleteWriteTime_ == std::numeric_limits<NProfiling::TCpuInstant>::max()) {
-        // Arm stall detection
+        // Arm stall detection.
         LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
     }
 
@@ -504,17 +507,21 @@ void TTcpConnection::Terminate(const TError& error)
         State_ == EState::Aborted ||
         State_ == EState::Closed)
     {
+        YT_LOG_DEBUG("Connection is already terminated, termination request ignored (State: %v, Pending: %v, PendingOutPayloadBytes: %v)",
+            State_.load(),
+            Pending_,
+            PendingOutPayloadBytes_.load());
         return;
     }
 
     YT_LOG_DEBUG("Sending termination request");
 
-    // Save error for OnTerminate()
+    // Save error for OnTerminate().
     YT_VERIFY(!error.IsOK());
     YT_VERIFY(CloseError_.IsOK());
     CloseError_ = error;
 
-    // Arm calling OnTerminate() from OnEvent()
+    // Arm calling OnTerminate() from OnEvent().
     Pending_ |= EPollControl::Terminate;
     if (Pending_ == EPollControl::Terminate) {
         Poller_->Retry(this);
@@ -556,7 +563,7 @@ void TTcpConnection::OnEvent(EPollControl control)
 
     {
         // OnEvent should never be called for offline socket.
-        YT_VERIFY(!Any(action & EPollControl::Offline));
+        YT_VERIFY(None(action & EPollControl::Offline));
 
         if (Any(action & EPollControl::Terminate)) {
             OnTerminate();
@@ -874,7 +881,7 @@ void TTcpConnection::OnSocketWrite()
         FlushWrittenPackets(bytesWritten);
 
         if (bytesWritten) {
-            // Rearm stall detection after progress
+            // Rearm stall detection after progress.
             LastIncompleteWriteTime_ = NProfiling::GetCpuInstant();
         }
 
@@ -1114,6 +1121,13 @@ void TTcpConnection::OnMessagePacketSent(const TPacket& packet)
         packet.PacketId);
 
     PendingOutPayloadBytes_.fetch_sub(packet.PayloadSize);
+
+    // Arm read stall timeout for incoming ACK.
+    if (Any(packet.Flags & EPacketFlags::RequestAcknowledgement) &&
+        LastIncompleteReadTime_ == std::numeric_limits<NProfiling::TCpuInstant>::max())
+    {
+        LastIncompleteReadTime_ = NProfiling::GetCpuInstant();
+    }
 }
 
 void TTcpConnection::OnTerminate()
@@ -1207,7 +1221,19 @@ bool TTcpConnection::IsSocketError(ssize_t result)
 
 void TTcpConnection::InitSocketTosLevel(TTosLevel tosLevel)
 {
-    if (TrySetSocketTosLevel(Socket_, tosLevel)) {
+    if (TosLevel_ == BlackHoleTosLevel && tosLevel != BlackHoleTosLevel) {
+        if (!TrySetSocketInputFilter(Socket_, false)) {
+            YT_LOG_DEBUG("Failed to remove socket input filter");
+        }
+    }
+
+    if (tosLevel == BlackHoleTosLevel) {
+        if (TrySetSocketInputFilter(Socket_, true)) {
+            YT_LOG_DEBUG("Socket TOS level set to BlackHole");
+        } else {
+            YT_LOG_DEBUG("Failed to set socket input filter");
+        }
+    } else if (TrySetSocketTosLevel(Socket_, tosLevel)) {
         YT_LOG_DEBUG("Socket TOS level set (TosLevel: %x)",
             tosLevel);
     } else {

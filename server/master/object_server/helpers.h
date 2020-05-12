@@ -25,6 +25,9 @@ TYPathRewrite MakeYPathRewrite(
     const NYPath::TYPath& originalPath,
     NObjectClient::TObjectId targetObjectId,
     const NYPath::TYPath& pathSuffix);
+TYPathRewrite MakeYPathRewrite(
+    const NYPath::TYPath& originalPath,
+    const NYPath::TYPath& rewrittenPath);
 
 TDuration ComputeForwardingTimeout(
     TDuration timeout,

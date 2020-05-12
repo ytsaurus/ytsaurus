@@ -31,6 +31,8 @@ class TBlockWriter;
 
 class THorizontalBlockReader;
 
+DECLARE_REFCOUNTED_STRUCT(ILookupReader)
+
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
 
 DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcher)

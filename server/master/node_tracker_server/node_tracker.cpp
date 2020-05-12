@@ -1060,6 +1060,9 @@ private:
                 response->set_disable_scheduler_jobs(node->GetDisableSchedulerJobs());
                 response->set_disable_write_sessions(node->GetDisableWriteSessions());
                 response->set_decommissioned(node->GetDecommissioned());
+
+                node->SetDisableWriteSessionsReportedByNode(request->write_sessions_disabled());
+                node->SetDisableWriteSessionsSentToNode(node->GetDisableWriteSessions());
             }
 
             IncrementalHeartbeat_.Fire(node, request, response);

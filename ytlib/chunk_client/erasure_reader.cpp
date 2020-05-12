@@ -74,7 +74,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
             }
 
             TChunkReplicaList partReplicas(it, jt);
-            auto partId = ErasurePartIdFromChunkId(chunkId, it->GetReplicaIndex());
+            auto partChunkId = ErasurePartIdFromChunkId(chunkId, it->GetReplicaIndex());
             auto reader = CreateReplicationReader(
                 config,
                 options,
@@ -83,7 +83,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
                 // Locality doesn't matter, since we typically have only one replica.
                 /* localDescriptor */ {},
                 /* partitionTag */ std::nullopt,
-                partId,
+                partChunkId,
                 partReplicas,
                 blockCache,
                 trafficMeter,

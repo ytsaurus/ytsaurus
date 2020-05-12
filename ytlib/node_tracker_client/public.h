@@ -47,6 +47,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((Query)                       (9))
     ((TmpfsLayers)                (11))
     ((MasterCache)                (12))
+    ((LookupRowsCache)            (13))
 );
 
 DEFINE_ENUM(EMemoryLimitType,

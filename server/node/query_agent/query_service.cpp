@@ -291,6 +291,7 @@ private:
                         tabletSnapshot,
                         timestamp,
                         user,
+                        false,
                         blockReadOptions,
                         retentionConfig,
                         &reader,
@@ -345,6 +346,8 @@ private:
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
 
+        bool useLookupCache = request->use_lookup_cache();
+
         std::vector<TCallback<TFuture<TSharedRef>()>> batchCallbacks;
         for (size_t index = 0; index < batchCount; ++index) {
             auto tabletId = tabletIds[index];
@@ -383,6 +386,7 @@ private:
                                 tabletSnapshot,
                                 timestamp,
                                 user,
+                                useLookupCache,
                                 blockReadOptions,
                                 retentionConfig,
                                 &reader,

@@ -271,6 +271,21 @@ TError TError::Sanitize() const
     return result;
 }
 
+TError TError::Sanitize(TInstant datetime) const
+{
+    TError result;
+    result.Code_ = Code_;
+    result.Message_ = Message_;
+    result.Datetime_ = datetime;
+    if (Attributes_) {
+        result.Attributes_ = Attributes_->Clone();
+    }
+    for (const auto& innerError : InnerErrors_) {
+        result.InnerErrors_.push_back(innerError.Sanitize(datetime));
+    }
+    return result;
+}
+
 TError TError::Truncate() const
 {
     TError result;

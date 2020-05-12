@@ -126,11 +126,14 @@ public:
     void SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter);
 
     DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessions);
-
-    // Used for graceful restart.
     DEFINE_BYVAL_RW_PROPERTY(bool, DisableSchedulerJobs);
-
     DEFINE_BYVAL_RW_PROPERTY(bool, DisableTabletCells);
+
+    bool GetEffectiveDisableWriteSessions() const;
+
+    // Transient copies of DisableWriteSessions.
+    DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessionsSentToNode);
+    DEFINE_BYVAL_RO_PROPERTY(bool, DisableWriteSessionsReportedByNode);
 
     // NB: Randomize replica hashing to avoid collisions during balancing.
     using TMediumReplicaSet = THashSet<TChunkPtrWithIndexes>;
@@ -165,9 +168,8 @@ public:
 
     //! Key:
     //!   Indicates an unsealed chunk.
-    //! Value:
-    //!   Indicates media where seal of this chunk is scheduled.
-    using TChunkSealQueue = THashMap<TChunk*, TMediumIndexSet>;
+    //!   Medium index indicates the medium where this replica is being stored.
+    using TChunkSealQueue = THashSet<TChunkPtrWithIndexes>;
     DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
 
     // Cell Manager stuff.
@@ -340,6 +342,7 @@ private:
 
     bool DoAddReplica(TChunkPtrWithIndexes replica);
     bool DoRemoveReplica(TChunkPtrWithIndexes replica);
+    void DoRemoveJournalReplicas(TChunkPtrWithIndexes replica);
     bool DoHasReplica(TChunkPtrWithIndexes replica) const;
 
     // Private accessors for TNodeTracker.
@@ -349,6 +352,8 @@ private:
     void SetBanned(bool value);
     void SetDecommissioned(bool value);
     void SetDisableWriteSessions(bool value);
+    void SetDisableWriteSessionsSentToNode(bool value);
+    void SetDisableWriteSessionsReportedByNode(bool value);
 
     void SetNodeTags(const std::vector<TString>& tags);
     void SetUserTags(const std::vector<TString>& tags);

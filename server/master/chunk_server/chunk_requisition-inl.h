@@ -131,7 +131,7 @@ inline void TChunkReplication::Aggregate(int mediumIndex, TReplicationPolicy pol
     }
 }
 
-inline const TReplicationPolicy& TChunkReplication::Get(int mediumIndex) const
+inline TReplicationPolicy TChunkReplication::Get(int mediumIndex) const
 {
     auto it = Find(mediumIndex);
     if (it != end()) {

@@ -2,10 +2,6 @@
 
 #include "public.h"
 
-#include <yt/server/master/cell_master/public.h>
-
-#include <yt/server/master/node_tracker_server/public.h>
-
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,18 +41,29 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A compact representation for a triplet of T*, an 7-bit number and a 5-bit
-//! number - all fit into a single 8-byte pointer.
+//! A compact representation for:
+//! * a pointer to T
+//! * replica index (5 bits)
+//! * medium index (7 bits)
+//! * replica state (2 bits)
+//! - all fit into a single 8-byte pointer.
 template <class T>
 class TPtrWithIndexes
 {
 public:
     TPtrWithIndexes();
-    TPtrWithIndexes(T* ptr, int replicaIndex, int mediumIndex);
+    TPtrWithIndexes(
+        T* ptr,
+        int replicaIndex,
+        int mediumIndex,
+        EChunkReplicaState state = EChunkReplicaState::Generic);
 
     T* GetPtr() const;
     int GetReplicaIndex() const;
     int GetMediumIndex() const;
+    EChunkReplicaState GetState() const;
+
+    TPtrWithIndexes<T> ToGenericState() const;
 
     size_t GetHash() const;
 
@@ -82,10 +89,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, TNodePtrWithIndexes value, TStringBuf spec);
 TString ToString(TNodePtrWithIndexes value);
+
+void FormatValue(TStringBuilderBase* builder, TChunkPtrWithIndexes value, TStringBuf spec);
 TString ToString(TChunkPtrWithIndexes value);
 
+//! Serializes node id, replica index, medium index.
 void ToProto(ui64* protoValue, TNodePtrWithIndexes value);
+//! Serializes node id, replica index.
 void ToProto(ui32* protoValue, TNodePtrWithIndexes value);
 
 TChunkId EncodeChunkId(TChunkPtrWithIndexes chunkWithIndex);
@@ -93,8 +105,6 @@ TChunkId EncodeChunkId(TChunkPtrWithIndexes chunkWithIndex);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
-
-////////////////////////////////////////////////////////////////////////////////
 
 #define CHUNK_REPLICA_INL_H_
 #include "chunk_replica-inl.h"

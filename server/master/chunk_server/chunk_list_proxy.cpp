@@ -131,7 +131,8 @@ private:
             }
 
             default:
-                YT_ABORT();
+                THROW_ERROR_EXCEPTION("Unsupported chunk tree type %Qlv",
+                    chunkTree->GetType());
         }
     }
 

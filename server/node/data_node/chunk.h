@@ -144,9 +144,11 @@ struct IChunk
     //! Returns the object type extracted from chunk id.
     NObjectClient::EObjectType GetType() const;
 
+    //! Returns |true| is this is a journal type.
+    bool IsJournalChunk() const;
+
     //! Returns the instance cast to TJournalChunk. Fails if cast is not possible.
     TJournalChunkPtr AsJournalChunk();
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunk)

@@ -2,11 +2,11 @@
 
 #include "host.h"
 
-#include <yt/core/logging/log.h>
-
 #include <yt/client/ypath/rich.h>
 
 #include <yt/client/object_client/helpers.h>
+
+#include <yt/core/logging/log.h>
 
 namespace NYT::NClickHouseServer {
 

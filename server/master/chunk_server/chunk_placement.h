@@ -162,11 +162,11 @@ public:
 
     int GetMaxReplicasPerRack(
         const TMedium* medium,
-        TChunk* chunk,
+        const TChunk* chunk,
         std::optional<int> replicationFactorOverride = std::nullopt);
     int GetMaxReplicasPerRack(
         int mediumIndex,
-        TChunk* chunk,
+        const TChunk* chunk,
         std::optional<int> replicationFactorOverride = std::nullopt);
 
 private:

@@ -16,6 +16,7 @@ struct TCellMoveDescriptor
     int PeerId;
     const NNodeTrackerServer::TNode* Source;
     const NNodeTrackerServer::TNode* Target;
+    TError Reason;
 
     TCellMoveDescriptor() = default;
 
@@ -23,7 +24,8 @@ struct TCellMoveDescriptor
         const TCellBase* cell,
         int peerId,
         const NNodeTrackerServer::TNode* source,
-        const NNodeTrackerServer::TNode* target);
+        const NNodeTrackerServer::TNode* target,
+        TError reason);
 
     bool operator<(const TCellMoveDescriptor& other) const;
     bool operator==(const TCellMoveDescriptor& other) const;
@@ -75,7 +77,7 @@ struct ICellBalancer
 {
     virtual ~ICellBalancer() = default;
     virtual void AssignPeer(const TCellBase* cell, int peerId) = 0;
-    virtual void RevokePeer(const TCellBase* cell, int peerId) = 0;
+    virtual void RevokePeer(const TCellBase* cell, int peerId, const TError& reason) = 0;
     virtual std::vector<TCellMoveDescriptor> GetCellMoveDescriptors() = 0;
 };
 

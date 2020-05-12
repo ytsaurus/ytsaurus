@@ -10,7 +10,7 @@
 
 #include <yt/server/master/security_server/security_manager.h>
 
-#include <yt/ytlib/chunk_client/public.h>
+#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/object_client/public.h>
 
@@ -18,6 +18,7 @@
 
 namespace NYT::NChunkServer {
 
+using namespace NChunkClient;
 using namespace NYTree;
 
 using NYT::ToProto;
@@ -27,7 +28,7 @@ static const auto& Logger = ChunkServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReplicationPolicy& TReplicationPolicy::operator|=(const TReplicationPolicy& rhs)
+TReplicationPolicy& TReplicationPolicy::operator|=(TReplicationPolicy rhs)
 {
     if (this == &rhs) {
         return *this;
@@ -65,7 +66,7 @@ TString ToString(TReplicationPolicy policy)
     return ToStringViaBuilder(policy);
 }
 
-void Serialize(const TReplicationPolicy& policy, NYson::IYsonConsumer* consumer)
+void Serialize(TReplicationPolicy policy, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -77,8 +78,14 @@ void Serialize(const TReplicationPolicy& policy, NYson::IYsonConsumer* consumer)
 void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node)
 {
     auto map = node->AsMap();
-    policy.SetReplicationFactor(map->GetChild("replication_factor")->AsInt64()->GetValue());
-    policy.SetDataPartsOnly(map->GetChild("data_parts_only")->AsBoolean()->GetValue());
+    auto replicationFactor = map->GetChild("replication_factor")->GetValue<i64>();
+    if (replicationFactor != 0) {
+        ValidateReplicationFactor(replicationFactor);
+    }
+    auto dataPartsOnly = map->GetChild("data_parts_only")->GetValue<bool>();
+
+    policy.SetReplicationFactor(replicationFactor);
+    policy.SetDataPartsOnly(dataPartsOnly);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -166,7 +173,7 @@ TSerializableChunkReplication::TSerializableChunkReplication(
     const TChunkReplication& replication,
     const TChunkManagerPtr& chunkManager)
 {
-    for (const auto& entry : replication) {
+    for (auto entry : replication) {
         if (entry.Policy()) {
             auto* medium = chunkManager->GetMediumByIndex(entry.GetMediumIndex());
             YT_VERIFY(IsObjectAlive(medium));
@@ -213,19 +220,6 @@ void Deserialize(TSerializableChunkReplication& serializer, INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ValidateReplicationFactor(int replicationFactor)
-{
-    if (replicationFactor != 0 && // Zero is a special - and permitted - case.
-        (replicationFactor < NChunkClient::MinReplicationFactor ||
-         replicationFactor > NChunkClient::MaxReplicationFactor))
-    {
-        THROW_ERROR_EXCEPTION("Replication factor %v is out of range [%v,%v]",
-            replicationFactor,
-            NChunkClient::MinReplicationFactor,
-            NChunkClient::MaxReplicationFactor);
-    }
-}
-
 void ValidateChunkReplication(
     const TChunkManagerPtr& chunkManager,
     const TChunkReplication& replication,
@@ -237,7 +231,7 @@ void ValidateChunkReplication(
             "configuring otherwise would result in a data loss");
     }
 
-    for (const auto& entry : replication) {
+    for (auto entry : replication) {
         auto* medium = chunkManager->FindMediumByIndex(entry.GetMediumIndex());
         YT_VERIFY(IsObjectAlive(medium));
 
@@ -256,7 +250,7 @@ void ValidateChunkReplication(
         }
         if (policy.GetDataPartsOnly()) {
             THROW_ERROR_EXCEPTION("Medium %Qv stores no parity parts and cannot be made primary",
-                                  primaryMedium->GetName());
+                primaryMedium->GetName());
         }
     }
 }
@@ -388,7 +382,7 @@ void TChunkRequisition::AggregateWith(
 
     Vital_ = Vital_ || replication.GetVital();
 
-    for (const auto& entry : replication) {
+    for (auto entry : replication) {
         if (entry.Policy()) {
             Entries_.emplace_back(account, entry.GetMediumIndex(), entry.Policy(), committed);
         }

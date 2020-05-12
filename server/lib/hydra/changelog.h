@@ -38,12 +38,11 @@ struct IChangelog
 
     //! Asynchronously appends a record to the changelog.
     /*!
-     *  \param recordId Record ids must be contiguous.
-     *  \param data Record data
+     *  \param records Records data
      *  \returns an asynchronous flag either indicating an error or
-     *  a successful flush of the just appended record.
+     *  a successful flush of all just appended records.
      */
-    virtual TFuture<void> Append(const TSharedRef& data) = 0;
+    virtual TFuture<void> Append(TRange<TSharedRef> records) = 0;
 
     //! Asynchronously flushes all previously appended records.
     /*!

@@ -258,64 +258,52 @@ private:
     void RemoveChunkFromQueuesOnDestroy(TChunk* chunk);
     void CancelChunkJobs(TChunk* chunk);
 
-    TChunkStatistics ComputeChunkStatistics(TChunk* chunk);
-    TChunkStatistics ComputeRegularChunkStatistics(TChunk* chunk);
-    TChunkStatistics ComputeErasureChunkStatistics(TChunk* chunk);
-    TChunkStatistics ComputeJournalChunkStatistics(TChunk* chunk);
+    TChunkStatistics ComputeChunkStatistics(const TChunk* chunk);
 
-    // Implementation details for Compute{Regular,Erasure}ChunkStatistics().
+    TChunkStatistics ComputeRegularChunkStatistics(const TChunk* chunk);
     void ComputeRegularChunkStatisticsForMedium(
         TPerMediumChunkStatistics& result,
-        int replicationFactor,
-        int replicaCount,
-        int decommissionedReplicaCount,
-        const TNodePtrWithIndexesList& decommissionedReplicas,
-        bool hasUnsafelyPlacedReplicas);
-    void ComputeRegularChunkStatisticsCrossMedia(
-        TChunkStatistics& result,
-        bool precarious,
-        bool allMediaTransient,
-        const SmallVector<int, MaxMediumCount>& mediaOnWhichLost,
-        int mediaOnWhichPresentCount,
-        int mediaOnWhichUnderreplicatedCount);
-    void ComputeErasureChunkStatisticsForMedium(
-        TPerMediumChunkStatistics& result,
-        NErasure::ICodec* codec,
-        int replicationFactor,
-        std::array<TNodePtrWithIndexesList, NChunkClient::ChunkReplicaIndexBound>& decommissionedReplicas,
-        int unsafelyPlacedReplicaIndex,
-        NErasure::TPartIndexSet& erasedIndexes,
-        bool dataPartsOnly);
-    void ComputeErasureChunkStatisticsCrossMedia(
-        TChunkStatistics& result,
-        NErasure::ICodec* codec,
-        bool allMediaTransient,
-        bool allMediaDataPartsOnly,
-        const TMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
-        const TMediumSet& activeMedia);
-    void ComputeJournalChunkStatisticsForMedium(
-        TPerMediumChunkStatistics& result,
+        const TChunk* chunk,
         TReplicationPolicy replicationPolicy,
         int replicaCount,
         int decommissionedReplicaCount,
         const TNodePtrWithIndexesList& decommissionedReplicas,
-        int sealedReplicaCount,
-        int unsealedReplicaCount,
-        bool hasUnsafelyPlacedReplicas,
-        bool isSealed,
-        int readQuorum);
-    void ComputeJournalChunkStatisticsCrossMedia(
+        bool hasSealedReplica,
+        bool totallySealed,
+        bool hasUnsafelyPlacedReplica);
+    void ComputeRegularChunkStatisticsCrossMedia(
         TChunkStatistics& result,
+        const TChunk* chunk,
         int totalReplicaCount,
         int totalDecommissionedReplicaCount,
-        int totalSealedReplicaCount,
+        bool hasSealedReplicas,
         bool precarious,
         bool allMediaTransient,
         const SmallVector<int, MaxMediumCount>& mediaOnWhichLost,
-        int mediaOnWhichPresentCount,
-        int mediaOnWhichUnderreplicatedCount,
-        int mediaOnWhichSealedMissingCount,
-        int readQuorum);
+        bool hasMediumOnWhichPresent,
+        bool hasMediumOnWhichUnderreplicated,
+        bool hasMediumOnWhichSealedMissing);
+
+    TChunkStatistics ComputeErasureChunkStatistics(const TChunk* chunk);
+    void ComputeErasureChunkStatisticsForMedium(
+        TPerMediumChunkStatistics& result,
+        const TChunk* chunk,
+        NErasure::ICodec* codec,
+        TReplicationPolicy replicationPolicy,
+        std::array<TNodePtrWithIndexesList, NChunkClient::ChunkReplicaIndexBound>& decommissionedReplicas,
+        int unsafelyPlacedSealedReplicaIndex,
+        NErasure::TPartIndexSet& erasedIndexes,
+        bool totallySealed);
+    void ComputeErasureChunkStatisticsCrossMedia(
+        TChunkStatistics& result,
+        const TChunk* chunk,
+        NErasure::ICodec* codec,
+        bool allMediaTransient,
+        bool allMediaDataPartsOnly,
+        const TMediumMap<NErasure::TPartIndexSet>& mediumToErasedIndexes,
+        const TMediumSet& activeMedia,
+        const NErasure::TPartIndexSet& replicaIndexes,
+        bool totallySealed);
 
     bool IsReplicaDecommissioned(TNodePtrWithIndexes replica);
 

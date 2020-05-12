@@ -8,7 +8,7 @@ NLogging::TLogger JobProxyClientLogger("JobProxyClient");
 
 TString GetDefaultJobsMetaContainerName()
 {
-    return "yt_jobs_meta";
+    return "jm";
 }
 
 TString GetSlotMetaContainerName(int slotIndex)

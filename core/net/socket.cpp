@@ -12,6 +12,10 @@
     #include <sys/stat.h>
 #endif
 
+#ifdef _linux_
+    #include <linux/filter.h>
+#endif
+
 namespace NYT::NNet {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -421,6 +425,25 @@ bool TrySetSocketTosLevel(SOCKET socket, int tosLevel)
         return false;
     }
     return true;
+}
+
+bool TrySetSocketInputFilter(SOCKET socket, bool drop)
+{
+#ifdef _linux_
+    static struct sock_filter filter_code[] = {
+        BPF_STMT(BPF_RET, 0),
+    };
+    static const struct sock_fprog filter = {
+        .len = Y_ARRAY_SIZE(filter_code),
+        .filter = filter_code,
+    };
+
+    return setsockopt(socket, SOL_SOCKET, drop ? SO_ATTACH_FILTER : SO_DETACH_FILTER, &filter, sizeof(filter)) == 0;
+#else
+    Y_UNUSED(socket);
+    Y_UNUSED(drop);
+    return false;
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -283,33 +283,35 @@ private:
         // NB: Copy all the needed properties into locals. The subsequent code involves yields
         // and the chunk may expire. See YT-8120.
         auto chunkId = chunk->GetId();
+        auto codecId = chunk->GetErasureCodec();
         auto readQuorum = chunk->GetReadQuorum();
-        auto replicas = GetChunkReplicas(chunk);
+        auto replicaDescriptors = GetChunkReplicaDescriptors(chunk);
         auto dynamicConfig = GetDynamicConfig();
 
         YT_LOG_DEBUG("Sealing journal chunk (ChunkId: %v)",
             chunkId);
 
         {
-            auto asyncResult = AbortSessionsQuorum(
+            auto future = AbortSessionsQuorum(
                 chunkId,
-                replicas,
+                replicaDescriptors,
                 dynamicConfig->JournalRpcTimeout,
                 readQuorum,
                 Bootstrap_->GetNodeChannelFactory());
-            WaitFor(asyncResult)
+            WaitFor(future)
                 .ThrowOnError();
         }
 
         TMiscExt miscExt;
         {
-            auto asyncMiscExt = ComputeQuorumInfo(
+            auto future = ComputeQuorumInfo(
                 chunkId,
-                replicas,
+                codecId,
+                replicaDescriptors,
                 dynamicConfig->JournalRpcTimeout,
                 readQuorum,
                 Bootstrap_->GetNodeChannelFactory());
-            miscExt = WaitFor(asyncMiscExt)
+            miscExt = WaitFor(future)
                 .ValueOrThrow();
             miscExt.set_sealed(true);
         }
@@ -342,17 +344,6 @@ private:
             THROW_ERROR_EXCEPTION("No replicas of chunk %v are known",
                 chunk->GetId());
         }
-    }
-
-    std::vector<TChunkReplicaDescriptor> GetChunkReplicas(TChunk* chunk)
-    {
-        std::vector<TChunkReplicaDescriptor> result;
-        for (auto replica : chunk->StoredReplicas()) {
-            auto* node = replica.GetPtr();
-            auto mediumIndex = replica.GetMediumIndex();
-            result.push_back(TChunkReplicaDescriptor{node->GetDescriptor(), mediumIndex});
-        }
-        return result;
     }
 };
 

@@ -255,7 +255,7 @@ class Clique(object):
         output = ""
         if result.status_code != 200:
             output += "Query failed, HTTP code: {}\n".format(result.status_code)
-            error = self._parse_error(result.text).strip()
+            error = self._parse_error(result.content).strip()
             if error:
                 output += "Error: {}\n".format(error)
             else:
@@ -266,7 +266,7 @@ class Clique(object):
             output += "Headers:\n"
             output += json.dumps(dict(result.headers)) + "\n"
             output += "Data:\n"
-            output += result.text
+            output += result.content
 
         print_debug(output)
 
@@ -1122,7 +1122,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                                 headers={"X-ClickHouse-User": "root",
                                         "X-Yt-Request-Id": query_id,
                                         "X-Clique-Id": "wrong-id"})
-            print_debug(result.text)
+            print_debug(result.content)
             assert result.status_code == 301
 
             result = requests.post("http://{}:{}/query?query_id={}".format(host, port, query_id),
@@ -1130,7 +1130,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                                 headers={"X-ClickHouse-User": "root",
                                         "X-Yt-Request-Id": query_id,
                                         "X-Clique-Id": clique.op.id})
-            print_debug(result.text)
+            print_debug(result.content)
             assert result.status_code == 200
 
             self._signal_instance(instance.attributes["pid"], "INT")
@@ -1140,7 +1140,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
                                 headers={"X-ClickHouse-User": "root",
                                         "X-Yt-Request-Id": query_id,
                                         "X-Clique-Id": clique.op.id})
-            print_debug(result.text)
+            print_debug(result.content)
             assert result.status_code == 301
 
     @authors("dakovalkov")
@@ -1671,7 +1671,8 @@ class TestCompositeTypes(ClickHouseTestBase):
         create("table", "//tmp/t", attributes={"schema": [
             {"name": "i", "type": "int64"},
             {"name": "v", "type": "any"},
-            {"name": "key", "type": "string"}]})
+            {"name": "key", "type": "string"},
+            {"name": "fmt", "type": "string"}]})
         write_table("//tmp/t", [
             {
                 "i": 0,
@@ -1689,24 +1690,27 @@ class TestCompositeTypes(ClickHouseTestBase):
                     "arr_dbl": [-1.1, 2.71],
                     "arr_bool": [False, True, False],
                 },
-                "key": "/arr_i64/0"
+                "key": "/arr_i64/0",
             },
             {
                 "i": 1,
                 "v": {
                     "i64": "xyz",  # Wrong type.
                 },
-                "key": "/i64"
+                "key": "/i64",
+                "fmt": "text",
             },
             {
                 "i": 2,
                 "v": {
                     "i64": yson.YsonUint64(2**63 + 42),  # Out of range for getting value as i64.
                 },
+                "fmt": "text",
             },
             {
                 "i": 3,
                 "v": {},  # Key i64 is missing.
+                "fmt": "pretty",
             },
             {
                 "i": 4,
@@ -1714,11 +1718,12 @@ class TestCompositeTypes(ClickHouseTestBase):
                     "i64": 57,
                 },
                 "key": None,
+                "fmt": "pretty",
             },
             {
                 "i": 5,
                 "v": None,
-                "key": "/unknown"
+                "key": "/unknown",
             },
         ])
 
@@ -1888,6 +1893,21 @@ class TestCompositeTypes(ClickHouseTestBase):
 
             assert clique.make_query("select a from `//tmp/t2`")[0] == {"a": yson.dumps(lst, yson_format="binary")}
 
+
+    # CHYT-370.
+    @authors("max42")
+    def test_const_arguments(self):
+        with Clique(1) as clique:
+            assert clique.make_query("select YPathRaw('[foo; bar]', '', 'text') as a")[0] == {"a": "[\"foo\";\"bar\";]"}
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("select YPathRaw('[invalid_yson', '', 'text') as a")
+                clique.make_query("select YPathRawStrict('[invalid_yson', '', 'text') as a")
+
+    @authors("max42")
+    def test_different_format_per_row(self):
+        with Clique(1) as clique:
+            assert clique.make_query("select YPathRaw(v, '', fmt) as a from `//tmp/t[#1:#5]`") == \
+                [{"a": yson.dumps(row["v"], row["fmt"])} for row in read_table("//tmp/t[#1:#5]")]
 
 
 class TestYtDictionaries(ClickHouseTestBase):

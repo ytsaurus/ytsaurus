@@ -375,6 +375,12 @@ public:
             }
         }
 
+        if (configureInfo.has_options()) {
+            YT_LOG_DEBUG("Tablet cell options updated to: %v",
+                ConvertToYsonString(TYsonString(configureInfo.options()), EYsonFormat::Text).GetData());
+            Options_ = ConvertTo<TTabletCellOptionsPtr>(TYsonString(configureInfo.options()));
+        }
+
         TDistributedHydraManagerDynamicOptions hydraManagerDynamicOptions;
         hydraManagerDynamicOptions.AbandonLeaderLeaseDuringRecovery = configureInfo.abandon_leader_lease_during_recovery();
 
@@ -652,7 +658,7 @@ private:
 
     const NProfiling::TTagIdList ProfilingTagIds_;
 
-    const TTabletCellOptionsPtr Options_;
+    TTabletCellOptionsPtr Options_;
 
     TSpinLock DynamicOptionsLock_;
     TDynamicTabletCellOptionsPtr DynamicOptions_ = New<TDynamicTabletCellOptions>();

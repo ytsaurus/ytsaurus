@@ -38,7 +38,7 @@ TFuture<std::vector<TErrorOr<TAttributeMap>>> FetchAttributes(
             cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));
 
             auto* balancingHeaderExt = req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
-            balancingHeaderExt->set_enable_stickness(true);
+            balancingHeaderExt->set_enable_stickiness(true);
             balancingHeaderExt->set_sticky_group_size(options.CacheStickyGroupSize);
         }
         batchReq->AddRequest(req);
