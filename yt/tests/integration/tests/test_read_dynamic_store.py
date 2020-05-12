@@ -396,7 +396,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         if disturbance_type == "unmount":
             sync_unmount_table("//tmp/t")
 
-        with Restarter(self.Env, NODES_SERVICE, [node_id]):
+        with Restarter(self.Env, NODES_SERVICE, indexes=[node_id]):
             op.track()
 
         # Stupid testing libs require quadratic time to compare lists
