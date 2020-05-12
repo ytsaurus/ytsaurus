@@ -5780,7 +5780,10 @@ private:
         // Parse and prepare mount config.
         try {
             *mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
-            (*mountConfig)->ProfilingMode = dynamicConfig->DynamicTableProfilingMode;
+            // TODO(akozhikhov): avoid explicit string, when ProfilingMode attribute will be interned.
+            if (!tableAttributes.Contains("profiling_mode")) {
+                (*mountConfig)->ProfilingMode = dynamicConfig->DynamicTableProfilingMode;
+            }
             (*mountConfig)->EnableDynamicStoreRead = IsDynamicStoreReadEnabled(table);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")

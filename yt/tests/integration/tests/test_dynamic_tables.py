@@ -129,6 +129,15 @@ class DynamicTablesBase(YTEnvSetup):
                         raise
                 return 0
 
+            def get_latest_tags(self, counter_name):
+                try:
+                    counters = get("//sys/cluster_nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))
+                    return counters[-1]["tags"]
+                except YtResponseError as error:
+                    if not error.is_resolve_error():
+                        raise
+                return []
+
         return Profiling()
 
     def _disable_tablet_cells_on_peer(self, cell):
@@ -489,6 +498,36 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             {"key1": 100, "key2": "lol"},
             {"key1": 200},
             {"key1": 300, "key2": "abacaba"}]
+
+    @authors("akozhikhov")
+    def test_override_profiling_mode_attribute(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+
+        table_profiling = self._get_table_profiling("//tmp/t")
+
+        def _check(expected_tag, expected_value, missing_tag=None):
+            insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
+            latest_tags = table_profiling.get_latest_tags("commit/row_count")
+            if expected_tag not in latest_tags:
+                return False
+            if latest_tags[expected_tag] != expected_value:
+                return False
+            if missing_tag is not None and missing_tag in latest_tags:
+                return False
+            return True
+
+        wait(lambda: _check("table_path", "//tmp/t"), sleep_backoff=0.1)
+
+        set("//sys/@config/tablet_manager/dynamic_table_profiling_mode", "tag")
+        set("//tmp/t/@profiling_tag", "custom_tag")
+        remount_table("//tmp/t")
+        wait(lambda: _check("table_tag", "custom_tag", "table_path"), sleep_backoff=0.1)
+
+        set("//tmp/t/@profiling_mode", "path")
+        remount_table("//tmp/t")
+        wait(lambda: _check("table_path", "//tmp/t", "table_tag"), sleep_backoff=0.1)
 
 ##################################################################
 
