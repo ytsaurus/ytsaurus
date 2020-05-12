@@ -461,7 +461,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
             return op
 
         op = start_op()
-        with Restarter(self.Env, NODES_SERVICE, [0]):
+        with Restarter(self.Env, NODES_SERVICE, indexes=[0]):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
             wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
             wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
@@ -469,7 +469,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
             wait(lambda: get(op.get_path() + "/@state") == "completed")
 
         op = start_op()
-        with Restarter(self.Env, NODES_SERVICE, [0]):
+        with Restarter(self.Env, NODES_SERVICE, indexes=[0]):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
             wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node)) == "offline")
             wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/scheduler_state".format(node)) == "offline")
@@ -478,7 +478,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
 
         op = start_op()
         set("//sys/scheduler/config/max_offline_node_age", 20000)
-        with Restarter(self.Env, NODES_SERVICE, [0]):
+        with Restarter(self.Env, NODES_SERVICE, indexes=[0]):
             wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
             wait(lambda: not exists("//sys/scheduler/orchid/scheduler/nodes/{}".format(node)))
             release_breakpoint(op.tag)
