@@ -8,6 +8,8 @@
 #include <yt/core/bus/tcp/client.h>
 #include <yt/core/bus/tcp/server.h>
 
+#include <yt/core/net/socket.h>
+
 #include <yt/core/concurrency/event_count.h>
 
 #include <yt/core/misc/fs.h>
@@ -204,6 +206,37 @@ TEST(TBusTest, Terminate)
     server->Stop()
         .Get()
         .ThrowOnError();
+}
+
+TEST(TBusTest, TerminateBeforeAccept)
+{
+    /* make blocking server socket */
+    auto serverSocket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+    EXPECT_NE(serverSocket, INVALID_SOCKET);
+    NNet::SetReuseAddrFlag(serverSocket);
+    NNet::BindSocket(serverSocket, NNet::TNetworkAddress::CreateIPv6Loopback(2000));
+    NNet::ListenSocket(serverSocket, 0);
+
+    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000", "non-local"));
+    auto bus = client->CreateBus(New<TEmptyBusHandler>());
+
+    auto terminated = NewPromise<void>();
+    bus->SubscribeTerminated(
+        BIND([&] (const TError& error) {
+            terminated.Set(error);
+        }));
+    auto error = TError(54321, "Terminated");
+    bus->Terminate(error);
+    EXPECT_FALSE(terminated.IsSet());
+
+    NNet::TNetworkAddress clientAddress;
+    auto clientSocket = NNet::AcceptSocket(serverSocket, &clientAddress);
+    EXPECT_NE(clientSocket, INVALID_SOCKET);
+
+    EXPECT_EQ(terminated.Get().GetCode(), error.GetCode());
+
+    close(clientSocket);
+    close(serverSocket);
 }
 
 TEST(TBusTest, Failed)
