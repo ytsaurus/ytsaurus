@@ -59,8 +59,7 @@ void ValidateJournalAttributes(
         // BEWARE: Changing this list requires master reign promotion.
         static const std::vector<NErasure::ECodec> BytewiseCodecIds{
             NErasure::ECodec::IsaLrc_12_2_2,
-            NErasure::ECodec::IsaReedSolomon_3_3,
-            NErasure::ECodec::IsaReedSolomon_6_3
+            NErasure::ECodec::IsaReedSolomon_3_3
         };
         if (Find(BytewiseCodecIds, erasureCodecId) == BytewiseCodecIds.end()) {
             THROW_ERROR_EXCEPTION("%Qlv codec is not suitable for erasure journals",

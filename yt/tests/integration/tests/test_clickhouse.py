@@ -48,9 +48,9 @@ else:
     TEST_DIR = arcadia_interop.yatest_common.source_path(test_dir)
     assert os.path.exists(TEST_DIR)
 
-    YTSERVER_CLICKHOUSE_PATH = arcadia_interop.yatest_common.binary_path("ytserver-clickhouse")
-    CLICKHOUSE_TRAMPOLINE_PATH = arcadia_interop.yatest_common.binary_path("clickhouse-trampoline")
-    YT_LOG_TAILER_PATH = arcadia_interop.yatest_common.binary_path("ytserver-log-tailer")
+    YTSERVER_CLICKHOUSE_PATH = arcadia_interop.search_binary_path("ytserver-clickhouse")
+    CLICKHOUSE_TRAMPOLINE_PATH = arcadia_interop.search_binary_path("clickhouse-trampoline")
+    YT_LOG_TAILER_PATH = arcadia_interop.search_binary_path("ytserver-log-tailer")
 
 DEFAULTS = {
     "memory_footprint": 1 * 1000**3,
