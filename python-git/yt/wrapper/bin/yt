@@ -8,7 +8,7 @@ import yt.wrapper.yson as yson
 from yt.wrapper.common import chunk_iter_stream, MB, \
                               DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources, \
                               chunk_iter_rows, format_disk_space
-from yt.wrapper.cli_helpers import write_silently, run_main, ParseStructuredArgument
+from yt.wrapper.cli_helpers import write_silently, run_main, ParseStructuredArgument, populate_argument_help
 from yt.wrapper.default_config import get_default_config
 from yt.wrapper.spec_builders import MapSpecBuilder, ReduceSpecBuilder, MapReduceSpecBuilder, EraseSpecBuilder, \
                                      MergeSpecBuilder, SortSpecBuilder, JoinReduceSpecBuilder, RemoteCopySpecBuilder, \
@@ -140,20 +140,6 @@ See also:
     ACL                     https://yt.yandex-team.ru/docs/description/common/access_control
     transactions            https://yt.yandex-team.ru/docs/description/storage/transactions.html
 '''
-
-def fix_parser(parser):
-    old_add_argument = parser.add_argument
-    def add_argument(*args, **kwargs):
-        help = []
-        if kwargs.get("required", False):
-            help.append("(Required) ")
-        help.append(kwargs.get("help", ""))
-        if kwargs.get("action") == "append":
-            help.append(" Accepted multiple times.")
-        kwargs["help"] = "".join(help)
-        return old_add_argument(*args, **kwargs)
-    parser.add_argument = add_argument
-    return parser
 
 def yson_dumps(data):
     return yson._dumps_to_native_str(data, yson_format="pretty", indent=2)
@@ -1371,7 +1357,7 @@ def add_download_core_dump_parser(add_parser):
                         help="A directory to save the core dumps. Defaults to the current working directory")
 
 def add_idm_parser(root_subparsers):
-    parser = fix_parser(root_subparsers.add_parser("idm", description="IDM-related commands"))
+    parser = populate_argument_help(root_subparsers.add_parser("idm", description="IDM-related commands"))
 
     object_group = parser.add_mutually_exclusive_group(required=True)
     object_group.add_argument("--path", help="Cypress node path")
@@ -1388,7 +1374,7 @@ def add_idm_parser(root_subparsers):
     add_idm_show_parser(idm_subparsers)
 
     # idm request
-    request_parser = fix_parser(idm_subparsers.add_parser("request", description="Show IDM information"))
+    request_parser = populate_argument_help(idm_subparsers.add_parser("request", description="Show IDM information"))
     add_idm_request_or_revoke_parser(request_parser)
     request_parser.add_argument("--permissions", "-p", action="store", dest="permissions",
         type=idm.decode_permissions, default=[],
@@ -1396,7 +1382,7 @@ def add_idm_parser(root_subparsers):
     request_parser.set_defaults(func=idm.request)
 
     # idm revoke
-    revoke_parser = fix_parser(idm_subparsers.add_parser("revoke", description="Show IDM information"))
+    revoke_parser = populate_argument_help(idm_subparsers.add_parser("revoke", description="Show IDM information"))
     add_idm_request_or_revoke_parser(revoke_parser)
     revoke_parser.add_argument("--revoke-all-roles", help="Revoke all IDM roles", action="store_true")
     revoke_parser.set_defaults(func=idm.revoke)
@@ -1405,7 +1391,7 @@ def add_idm_parser(root_subparsers):
     add_idm_copy_parser(idm_subparsers)
 
 def add_idm_show_parser(idm_subparsers):
-    parser = fix_parser(idm_subparsers.add_parser("show", description="Show IDM information"))
+    parser = populate_argument_help(idm_subparsers.add_parser("show", description="Show IDM information"))
     parser.set_defaults(func=idm.show)
 
 def add_idm_request_or_revoke_parser(parser):
@@ -1448,7 +1434,7 @@ def add_idm_request_or_revoke_parser(parser):
 
 
 def add_idm_copy_parser(idm_subparsers):
-    parser = fix_parser(idm_subparsers.add_parser("copy", description="Copy IDM permissions"))
+    parser = populate_argument_help(idm_subparsers.add_parser("copy", description="Copy IDM permissions"))
     parser.add_argument("destination", help="Destination object")
     parser.add_argument("--erase", "-e", action="store_true",
                         help="Erase all existing permissions from destination object")
@@ -1458,7 +1444,7 @@ def add_idm_copy_parser(idm_subparsers):
 
 
 def add_spark_parser(root_subparsers):
-    parser = fix_parser(root_subparsers.add_parser("spark", description="Spark over YT commands"))
+    parser = populate_argument_help(root_subparsers.add_parser("spark", description="Spark over YT commands"))
     spark_subparsers = parser.add_subparsers(metavar="spark_command")
     add_spark_subparser = add_subparser(spark_subparsers, params_argument=False)
     add_start_spark_cluster_parser(add_spark_subparser)
@@ -1489,7 +1475,7 @@ def add_start_clique_parser(add_parser):
 
 
 def add_clickhouse_parser(root_subparsers):
-    parser = fix_parser(root_subparsers.add_parser("clickhouse", description="ClickHouse over YT commands"))
+    parser = populate_argument_help(root_subparsers.add_parser("clickhouse", description="ClickHouse over YT commands"))
     clickhouse_subparsers = parser.add_subparsers(metavar="clickhouse_command")
     add_clickhouse_subparser = add_subparser(clickhouse_subparsers, params_argument=False)
     add_start_clique_parser(add_clickhouse_subparser)
@@ -1553,7 +1539,7 @@ def add_subparser(subparsers, params_argument=True):
     def add_parser(command_name, function=None, help=None, pythonic_help=None, *args, **kwargs):
         if pythonic_help is None:
             pythonic_help = extract_help(help, function)
-        parser = fix_parser(subparsers.add_parser(command_name, *args, description=help, help=pythonic_help, **kwargs))
+        parser = populate_argument_help(subparsers.add_parser(command_name, *args, description=help, help=pythonic_help, **kwargs))
         parser.set_defaults(func=function)
 
         if params_argument:
