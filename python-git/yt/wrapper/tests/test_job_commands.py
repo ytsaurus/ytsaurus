@@ -8,14 +8,10 @@ import yt.ypath
 
 import yt.wrapper as yt
 
-from flaky import flaky
-
-import os
 import pytest
 import re
 
 @pytest.mark.usefixtures("yt_env_with_porto")
-@pytest.mark.usefixtures("yt_env_with_rpc")
 class TestJobCommands(object):
     def _poll_until_prompt(self, shell):
         output = b""
