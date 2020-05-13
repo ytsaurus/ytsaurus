@@ -40,12 +40,27 @@ public:
 
     void SetProfilerTags(NProfiling::TTagIdList tags);
     const NProfiling::TTagIdList& GetProfilerTags() const;
-    
-private:
+    void Disable();
+
+protected:
     const NProfiling::TProfiler* Profiler_;
     const NYPath::TYPath Path_;
     NProfiling::TCpuInstant StartInstant_;
     NProfiling::TTagIdList TagIds_;
+    bool Enabled_ = true;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCumulativeServiceProfilerGuard
+    : public TServiceProfilerGuard
+{
+public:
+    TCumulativeServiceProfilerGuard(
+        const NProfiling::TProfiler* profiler,
+        const NYPath::TYPath& path);
+
+    ~TCumulativeServiceProfilerGuard();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

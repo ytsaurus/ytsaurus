@@ -41,12 +41,14 @@ struct TServiceProfilerCounters
     using TKey = std::pair<TYPath, TTagIdList>;
 
     explicit TServiceProfilerCounters(const TKey& key)
-        : RequestCount(key.first + "/request_count", key.second) 
-        , RequestExecutionTime(key.first + "/request_time", key.second) 
+        : RequestCount(key.first + "/request_count", key.second)
+        , RequestExecutionTime(key.first + "/request_time", key.second)
+        , CumulativeTime(key.first + "/cumulative_time", key.second)
     { }
 
     TMonotonicCounter RequestCount;
     TAggregateGauge RequestExecutionTime;
+    TMonotonicCounter CumulativeTime;
 };
 
 using TServiceProfilerTrait = TProfilerTrait<TServiceProfilerCounters::TKey, TServiceProfilerCounters>;
@@ -63,7 +65,7 @@ TServiceProfilerGuard::TServiceProfilerGuard(
 
 TServiceProfilerGuard::~TServiceProfilerGuard()
 {
-    if (GetProfilerTags().empty()) {
+    if (!Enabled_ || GetProfilerTags().empty()) {
         return;
     }
 
@@ -81,6 +83,30 @@ void TServiceProfilerGuard::SetProfilerTags(TTagIdList tags)
 const TTagIdList& TServiceProfilerGuard::GetProfilerTags() const
 {
     return TagIds_;
+}
+
+void TServiceProfilerGuard::Disable()
+{
+    Enabled_ = false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCumulativeServiceProfilerGuard::TCumulativeServiceProfilerGuard(
+    const TProfiler* profiler,
+    const TYPath& path)
+    : TServiceProfilerGuard(profiler, path)
+{ }
+
+TCumulativeServiceProfilerGuard::~TCumulativeServiceProfilerGuard()
+{
+    if (!Enabled_ || GetProfilerTags().empty()) {
+        return;
+    }
+
+    auto value = CpuDurationToValue(GetCpuInstant() - StartInstant_);
+    auto& counters = GetLocallyGloballyCachedValue<TServiceProfilerTrait>(TServiceProfilerCounters::TKey{Path_, TagIds_});
+    Profiler_->Increment(counters.CumulativeTime, value);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
