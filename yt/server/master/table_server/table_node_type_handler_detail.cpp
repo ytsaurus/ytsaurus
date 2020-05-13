@@ -324,8 +324,10 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
     using NYT::Load;
 
     auto* bundle = Load<TTabletCellBundle*>(*context);
-    bundle->ValidateActiveLifeStage();
-    tabletManager->SetTabletCellBundle(node, bundle);
+    if (bundle) {
+        bundle->ValidateActiveLifeStage();
+        tabletManager->SetTabletCellBundle(node, bundle);
+    }
 
     if (Load<bool>(*context)) {
         auto schema = Load<TInternedTableSchema>(*context);
