@@ -19,7 +19,10 @@ class TestCypressAnnotations(YTEnvSetup):
 
     DELTA_MASTER_CONFIG = {
         "cypress_annotations" : { "whoami" : "master" },
-        "annotation_setter_period" : 100
+        "world_initializer": {
+            "init_retry_period": 100,
+            "update_period": 100,
+        },
     }
 
     DELTA_NODE_CONFIG = {

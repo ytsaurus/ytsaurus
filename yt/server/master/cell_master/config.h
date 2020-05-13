@@ -202,7 +202,6 @@ public:
 
     NBus::TTcpBusConfigPtr BusClient;
 
-    TDuration AnnotationSetterPeriod;
     NYTree::IMapNodePtr CypressAnnotations;
 
     bool AbortOnUnrecognizedOptions;
