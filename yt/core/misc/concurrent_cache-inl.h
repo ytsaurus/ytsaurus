@@ -25,7 +25,7 @@ struct TConcurrentCache<T>::TLookupTable final
 };
 
 template <class T>
-void TConcurrentCache<T>::IncrementElementCount(const TRefCountedPtr<TLookupTable>& head)
+void TConcurrentCache<T>::IncrementElementCount(const TIntrusivePtr<TLookupTable>& head)
 {
     auto elementCount = ++head->Size;
 
@@ -68,7 +68,7 @@ TConcurrentCache<T>::~TConcurrentCache()
 template <class T>
 TConcurrentCache<T>::TInsertAccessor::TInsertAccessor(
     TConcurrentCache* parent,
-    TRefCountedPtr<TLookupTable> primary)
+    TIntrusivePtr<TLookupTable> primary)
     : Parent_(parent)
     , Primary_(std::move(primary))
 {
@@ -110,8 +110,8 @@ typename TConcurrentCache<T>::TInsertAccessor TConcurrentCache<T>::GetInsertAcce
 template <class T>
 TConcurrentCache<T>::TLookupAccessor::TLookupAccessor(
     TConcurrentCache* parent,
-    TRefCountedPtr<TLookupTable> primary,
-    TRefCountedPtr<TLookupTable> secondary)
+    TIntrusivePtr<TLookupTable> primary,
+    TIntrusivePtr<TLookupTable> secondary)
     : TInsertAccessor(parent, std::move(primary))
     , Secondary_(std::move(secondary))
 { }
@@ -124,7 +124,7 @@ TConcurrentCache<T>::TLookupAccessor::TLookupAccessor(TLookupAccessor&& other)
 
 template <class T>
 template <class TKey>
-TRefCountedPtr<T> TConcurrentCache<T>::TLookupAccessor::Lookup(const TKey& key, bool touch)
+TIntrusivePtr<T> TConcurrentCache<T>::TLookupAccessor::Lookup(const TKey& key, bool touch)
 {
     auto fingerprint = THash<T>()(key);
 

@@ -33,7 +33,7 @@ TAtomicPtr<T>::TAtomicPtr(std::nullptr_t)
 { }
 
 template <class T>
-TAtomicPtr<T>::TAtomicPtr(TRefCountedPtr<T> other)
+TAtomicPtr<T>::TAtomicPtr(TIntrusivePtr<T> other)
     : Ptr_(other.Release())
 { }
 
@@ -54,7 +54,7 @@ TAtomicPtr<T>::~TAtomicPtr()
 }
 
 template <class T>
-TAtomicPtr<T>& TAtomicPtr<T>::operator=(TRefCountedPtr<T> other)
+TAtomicPtr<T>& TAtomicPtr<T>::operator=(TIntrusivePtr<T> other)
 {
     Exchange(std::move(other));
     return *this;
@@ -63,18 +63,18 @@ TAtomicPtr<T>& TAtomicPtr<T>::operator=(TRefCountedPtr<T> other)
 template <class T>
 TAtomicPtr<T>& TAtomicPtr<T>::operator=(std::nullptr_t)
 {
-    Exchange(TRefCountedPtr<T>());
+    Exchange(TIntrusivePtr<T>());
     return *this;
 }
 
 template <class T>
-TRefCountedPtr<T> TAtomicPtr<T>::Release()
+TIntrusivePtr<T> TAtomicPtr<T>::Release()
 {
-    return Exchange(TRefCountedPtr<T>());
+    return Exchange(TIntrusivePtr<T>());
 }
 
 template <class T>
-TRefCountedPtr<T> TAtomicPtr<T>::AcquireWeak() const
+TIntrusivePtr<T> TAtomicPtr<T>::AcquireWeak() const
 {
     auto hazardPtr = THazardPtr<T>::Acquire([&] {
         return Ptr_.load(std::memory_order_relaxed);
@@ -83,7 +83,7 @@ TRefCountedPtr<T> TAtomicPtr<T>::AcquireWeak() const
 }
 
 template <class T>
-TRefCountedPtr<T> TAtomicPtr<T>::Acquire() const
+TIntrusivePtr<T> TAtomicPtr<T>::Acquire() const
 {
     while (auto hazardPtr = THazardPtr<T>::Acquire([&] {
         return Ptr_.load(std::memory_order_relaxed);
@@ -97,21 +97,21 @@ TRefCountedPtr<T> TAtomicPtr<T>::Acquire() const
 }
 
 template <class T>
-TRefCountedPtr<T> TAtomicPtr<T>::Exchange(TRefCountedPtr<T>&& other)
+TIntrusivePtr<T> TAtomicPtr<T>::Exchange(TIntrusivePtr<T>&& other)
 {
     auto oldPtr = Ptr_.exchange(other.Release());
-    return TRefCountedPtr<T>(oldPtr, false);
+    return TIntrusivePtr<T>(oldPtr, false);
 }
 
 template <class T>
-TRefCountedPtr<T> TAtomicPtr<T>::SwapIfCompare(THazardPtr<T>& compare, TRefCountedPtr<T> target)
+TIntrusivePtr<T> TAtomicPtr<T>::SwapIfCompare(THazardPtr<T>& compare, TIntrusivePtr<T> target)
 {
     auto comparePtr = compare.Get();
     auto targetPtr = target.Get();
 
     if (Ptr_.compare_exchange_strong(comparePtr, targetPtr)) {
         target.Release();
-        return TRefCountedPtr<T>(comparePtr, false);
+        return TIntrusivePtr<T>(comparePtr, false);
     } else {
         compare.Reset();
         compare = THazardPtr<T>::Acquire([&] {
@@ -119,11 +119,11 @@ TRefCountedPtr<T> TAtomicPtr<T>::SwapIfCompare(THazardPtr<T>& compare, TRefCount
         }, comparePtr);
     }
 
-    return TRefCountedPtr<T>();
+    return TIntrusivePtr<T>();
 }
 
 template <class T>
-TRefCountedPtr<T> TAtomicPtr<T>::SwapIfCompare(T* comparePtr, TRefCountedPtr<T> target)
+TIntrusivePtr<T> TAtomicPtr<T>::SwapIfCompare(T* comparePtr, TIntrusivePtr<T> target)
 {
     auto targetPtr = target.Get();
 
@@ -135,7 +135,7 @@ TRefCountedPtr<T> TAtomicPtr<T>::SwapIfCompare(T* comparePtr, TRefCountedPtr<T> 
             comparePtr,
             targetPtr);
         target.Release();
-        return TRefCountedPtr<T>(comparePtr, false);
+        return TIntrusivePtr<T>(comparePtr, false);
     } else {
         YT_LOG_TRACE("CAS failed (Current: %v, Compare: %v, Target: %v)",
             comparePtr,
@@ -144,17 +144,17 @@ TRefCountedPtr<T> TAtomicPtr<T>::SwapIfCompare(T* comparePtr, TRefCountedPtr<T> 
     }
 
     // TODO(lukyan): Use ptr if compare_exchange_strong fails?
-    return TRefCountedPtr<T>();
+    return TIntrusivePtr<T>();
 }
 
 template <class T>
-TRefCountedPtr<T> TAtomicPtr<T>::SwapIfCompare(const TRefCountedPtr<T>& compare, TRefCountedPtr<T> target)
+TIntrusivePtr<T> TAtomicPtr<T>::SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T> target)
 {
     return SwapIfCompare(compare.Get(), std::move(target));
 }
 
 template <class T>
-bool TAtomicPtr<T>::SwapIfCompare(const TRefCountedPtr<T>& compare, TRefCountedPtr<T>* target)
+bool TAtomicPtr<T>::SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T>* target)
 {
      auto ptr = compare.Get();
     if (Ptr_.compare_exchange_strong(ptr, target->Ptr_)) {
@@ -173,25 +173,25 @@ TAtomicPtr<T>::operator bool() const
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-bool operator==(const TAtomicPtr<T>& lhs, const TRefCountedPtr<T>& rhs)
+bool operator==(const TAtomicPtr<T>& lhs, const TIntrusivePtr<T>& rhs)
 {
     return lhs.Ptr_.load() == rhs.Get();
 }
 
 template <class T>
-bool operator==(const TRefCountedPtr<T>& lhs, const TAtomicPtr<T>& rhs)
+bool operator==(const TIntrusivePtr<T>& lhs, const TAtomicPtr<T>& rhs)
 {
     return lhs.Get() == rhs.Ptr_.load();
 }
 
 template <class T>
-bool operator!=(const TAtomicPtr<T>& lhs, const TRefCountedPtr<T>& rhs)
+bool operator!=(const TAtomicPtr<T>& lhs, const TIntrusivePtr<T>& rhs)
 {
     return lhs.Ptr_.load() != rhs.Get();
 }
 
 template <class T>
-bool operator!=(const TRefCountedPtr<T>& lhs, const TAtomicPtr<T>& rhs)
+bool operator!=(const TIntrusivePtr<T>& lhs, const TAtomicPtr<T>& rhs)
 {
     return lhs.Get() != rhs.Ptr_.load();
 }

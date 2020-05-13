@@ -14,7 +14,7 @@ public:
     //! 64-bit hash table entry contains 16-bit stamp and 48-bit value.
     using TStamp = ui16;
     using TEntry = ui64;
-    using TValuePtr = TRefCountedPtr<T>;
+    using TValuePtr = TIntrusivePtr<T>;
 
     explicit TLockFreeHashTable(size_t maxElementCount);
 
@@ -36,7 +36,7 @@ public:
     bool Insert(TFingerprint fingerprint, TValuePtr value);
 
     template <class TKey>
-    TRefCountedPtr<T> Find(TFingerprint fingerprint, const TKey& key);
+    TIntrusivePtr<T> Find(TFingerprint fingerprint, const TKey& key);
 
 private:
     const size_t Size_;
