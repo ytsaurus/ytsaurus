@@ -78,7 +78,7 @@ private:
 
 };
 
-TEST(TLockFreePtrTest, RefCountedPtrBehavior)
+TEST(THazardPtrTest, RefCountedPtrBehavior)
 {
     TStringStream output;
     TTestAllocator allocator(&output);
@@ -103,7 +103,7 @@ TEST(TLockFreePtrTest, RefCountedPtrBehavior)
     EXPECT_STREQ("AC!!!DF", output.Str().c_str());
 }
 
-TEST(TLockFreePtrTest, DelayedDeallocation)
+TEST(THazardPtrTest, DelayedDeallocation)
 {
     TStringStream output;
     TTestAllocator allocator(&output);
@@ -129,7 +129,7 @@ TEST(TLockFreePtrTest, DelayedDeallocation)
     EXPECT_STREQ("AC!DF", output.Str().c_str());
 }
 
-TEST(TLockFreePtrTest, CombinedLogic)
+TEST(THazardPtrTest, CombinedLogic)
 {
     TStringStream output;
     TTestAllocator allocator(&output);
@@ -208,7 +208,7 @@ private:
 
 };
 
-TEST(TLockFreePtrTest, DelayedDeallocationPolymorphic)
+TEST(THazardPtrTest, DelayedDeallocationPolymorphic)
 {
     TStringStream output;
     TTestAllocator allocator(&output);
