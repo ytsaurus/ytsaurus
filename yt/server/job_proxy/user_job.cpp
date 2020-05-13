@@ -585,6 +585,7 @@ private:
             auto shellManagerUid = UserId_;
             if (Config_->TestPollJobShell) {
                 shellManagerUid = std::nullopt;
+                shellEnvironment.push_back("PS1=\"test_job@shell:\\W$ \"");
             }
 
             ShellManager_ = CreateShellManager(

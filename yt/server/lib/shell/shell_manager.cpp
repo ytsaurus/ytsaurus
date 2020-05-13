@@ -119,7 +119,13 @@ public:
                 if (parameters.Command) {
                     options->Command = parameters.Command;
                 } else {
-                    options->Bashrc = Bashrc;
+                    auto bashrc = TString{Bashrc};
+                    for (const auto& variable : Environment_) {
+                        if (variable.StartsWith("PS1=")) {
+                            bashrc = Format("export %v\n%v", variable, bashrc);
+                        }
+                    }
+                    options->Bashrc = bashrc;
                     options->MessageOfTheDay = MessageOfTheDay_;
                     options->InactivityTimeout = parameters.InactivityTimeout;
                 }
