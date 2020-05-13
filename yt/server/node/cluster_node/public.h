@@ -14,6 +14,7 @@ class TBootstrap;
 
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TClusterNodeConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TClusterNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TClusterNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TBatchingChunkServiceConfig)
