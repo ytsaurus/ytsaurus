@@ -25,7 +25,7 @@ class TestJobTool(object):
     if yatest_common is None:
         JOB_TOOL_BINARY = os.path.join(os.path.dirname(get_tests_location()), "bin", "yt-job-tool")
     else:
-        JOB_TOOL_BINARY = yatest_common.binary_path("yt-job-tool")
+        JOB_TOOL_BINARY = arcadia_interop.search_binary_path("yt-job-tool")
 
     TEXT_YSON = "<format=pretty>yson"
 
