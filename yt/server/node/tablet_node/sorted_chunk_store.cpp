@@ -351,7 +351,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto createFilteringReader = [&] (IVersionedReaderPtr underlyingReader) -> IVersionedReaderPtr {
         if (skippedBefore == 0 && skippedAfter == 0) {
-            return std::move(underlyingReader);
+            return underlyingReader;
         }
         return New<TFilteringReader>(std::move(underlyingReader), skippedBefore, skippedAfter);
     };
