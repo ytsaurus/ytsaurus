@@ -174,6 +174,25 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConfigManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TClusterNodeConnectionConfig
+    : public NApi::NNative::TConnectionConfig
+{
+public:
+    TClusterNodeConnectionConfig()
+    {
+        RegisterPreprocessor([&] {
+            // Provide a lower channel cache TTL to reduce the total number
+            // of inter-cluster connections. This also gets propagated to job proxy config
+            // and helps decreasing memory footprint.
+            IdleChannelTtl = TDuration::Seconds(60);
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TClusterNodeConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TClusterNodeConfig
     : public TServerConfig
 {
@@ -182,7 +201,7 @@ public:
     TDuration OrchidCacheUpdatePeriod;
 
     //! Node-to-master connection.
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
+    TClusterNodeConnectionConfigPtr ClusterConnection;
 
     //! Data node configuration part.
     NDataNode::TDataNodeConfigPtr DataNode;
@@ -281,7 +300,7 @@ public:
         RegisterParameter("dynamic_config_manager", DynamicConfigManager)
             .DefaultNew();
 
-        RegisterPostprocessor([&] () {
+        RegisterPostprocessor([&] {
             NNodeTrackerClient::ValidateNodeTags(Tags);
 
             // COMPAT(gritukan): Drop this code after configs migration.
