@@ -38,6 +38,7 @@
 #include <yt/server/lib/hive/helpers.h>
 
 #include <yt/server/lib/misc/interned_attributes.h>
+#include <yt/server/lib/misc/profiling_helpers.h>
 
 #include <yt/server/master/node_tracker_server/node.h>
 #include <yt/server/master/node_tracker_server/node_tracker.h>
@@ -86,6 +87,9 @@
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/random_access_queue.h>
 #include <yt/core/misc/string.h>
+#include <yt/core/misc/tls_cache.h>
+
+#include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/ypath/token.h>
 
@@ -124,6 +128,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NCellServer;
+using namespace NProfiling;
 
 using NNodeTrackerClient::TNodeDescriptor;
 using NNodeTrackerServer::NProto::TReqIncrementalHeartbeat;
@@ -138,6 +143,24 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletServerLogger;
+static const auto& Profiler = TabletServerProfiler;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProfilingCounters
+{
+    TProfilingCounters(const TTagIdList& list)
+        : CopyChunkListIfSharedActionCount("/copy_chunk_list_if_shared/action_count", list)
+        , UpdateTabletStoresStoreCount("/update_tablet_stores/store_count", list)
+    { }
+
+    TMonotonicCounter CopyChunkListIfSharedActionCount;
+    TMonotonicCounter UpdateTabletStoresStoreCount;
+};
+
+using TTabletManagerProfilerTrait = TTagListProfilerTrait<TProfilingCounters>;
+
+static TMonotonicCounter IncrementalHeartbeatCounter("/incremental_heartbeat");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,6 +249,8 @@ public:
         cellManager->SubscribeAfterSnapshotLoaded(BIND(&TImpl::OnAfterCellManagerSnapshotLoaded, MakeWeak(this)));
         cellManager->SubscribeCellBundleDestroyed(BIND(&TImpl::OnTabletCellBundleDestroyed, MakeWeak(this)));
         cellManager->SubscribeCellDecommissionStarted(BIND(&TImpl::OnTabletCellDecommissionStarted, MakeWeak(this)));
+
+        FillProfilerTags();
 
         TabletService_->Initialize();
     }
@@ -2362,6 +2387,10 @@ private:
 
     IReconfigurableThroughputThrottlerPtr TableStatisticsGossipThrottler_;
 
+    TEnumIndexedVector<ETabletStoresUpdateReason, TTagId> UpdateTabletStoresProfilerTags_;
+    TTagId SortedTableProfilerTag_;
+    TTagId OrderedTableProfilerTag_;
+
     TTabletCellBundleId DefaultTabletCellBundleId_;
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
 
@@ -4159,6 +4188,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        NProfiling::TWallTimer timer;
+
         // Copy tablet statistics, update performance counters and table replica statistics.
         auto now = TInstant::Now();
 
@@ -4253,6 +4284,8 @@ private:
 
             TabletBalancer_->OnTabletHeartbeat(tablet);
         }
+
+        TabletServerProfiler.Increment(IncrementalHeartbeatCounter, timer.GetElapsedValue());
     }
 
     void HydraUpdateUpstreamTabletState(TReqUpdateUpstreamTabletState* request)
@@ -4841,6 +4874,24 @@ private:
         int lastTabletIndex,
         bool force = false)
     {
+        TCumulativeServiceProfilerGuard profilerGuard(&Profiler, "/copy_chunk_list_if_shared");
+        TTagIdList tagIds;
+
+        // NB: When the table is resharded during creation it has no tablet cell bundle.
+        if (IsRecovery() || !table->GetTabletCellBundle()) {
+            profilerGuard.Disable();
+        } else {
+            tagIds = TTagIdList{
+                table->GetTabletCellBundle()->GetProfilingTag(),
+                table->IsPhysicallySorted()
+                    ? SortedTableProfilerTag_
+                    : OrderedTableProfilerTag_
+            };
+            profilerGuard.SetProfilerTags(tagIds);
+        }
+
+        int actionCount = 0;
+
         auto* oldRootChunkList = table->GetChunkList();
         auto& chunkLists = oldRootChunkList->Children();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -4863,12 +4914,16 @@ private:
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                 auto* newTabletChunkList = chunkManager->CloneTabletChunkList(chunkLists[index]->AsChunkList());
                 chunkManager->AttachToChunkList(newRootChunkList, newTabletChunkList);
+
+                actionCount += newTabletChunkList->Statistics().ChunkCount;
             }
 
             chunkManager->AttachToChunkList(
                 newRootChunkList,
                 chunkLists.data() + lastTabletIndex + 1,
                 chunkLists.data() + chunkLists.size());
+
+            actionCount += newRootChunkList->Children().size();
 
             // Replace root chunk list.
             table->SetChunkList(newRootChunkList);
@@ -4893,6 +4948,8 @@ private:
                     auto* newTabletChunkList = chunkManager->CloneTabletChunkList(oldTabletChunkList);
                     chunkManager->ReplaceChunkListChild(oldRootChunkList, index, newTabletChunkList);
 
+                    actionCount += newTabletChunkList->Statistics().ChunkCount;
+
                     // ReplaceChunkListChild assumes that statistics are updated by caller.
                     // Here everything remains the same except for missing subtablet chunk lists.
                     int subtabletChunkListCount = oldTabletChunkList->Statistics().ChunkListCount - 1;
@@ -4912,6 +4969,13 @@ private:
                     oldRootChunkList->Statistics(),
                     statistics);
             }
+        }
+
+        if (actionCount > 0 && !IsRecovery()) {
+            auto& counters = GetLocallyGloballyCachedValue<TTabletManagerProfilerTrait>(tagIds);
+            Profiler.Increment(
+                counters.CopyChunkListIfSharedActionCount,
+                actionCount);
         }
     }
 
@@ -5077,8 +5141,22 @@ private:
             return;
         }
 
+        TCumulativeServiceProfilerGuard profilerGuard(&Profiler, "/update_tablet_stores");
+        auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
+        auto tagIds = TTagIdList{
+            tablet->GetTable()->GetTabletCellBundle()->GetProfilingTag(),
+            UpdateTabletStoresProfilerTags_[updateReason],
+            tablet->GetTable()->IsPhysicallySorted()
+                ? SortedTableProfilerTag_
+                : OrderedTableProfilerTag_
+        };
+        profilerGuard.SetProfilerTags(tagIds);
+        if (IsRecovery()) {
+            profilerGuard.Disable();
+        }
+
         if (tablet->GetStoresUpdatePreparedTransaction() != transaction) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly unprepared tablet; ignored "
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update commit for an improperly prepared tablet; ignored "
                 "(TabletId: %v, ExpectedTransactionId: %v, ActualTransactionId: %v)",
                 tabletId,
                 transaction->GetId(),
@@ -5104,7 +5182,6 @@ private:
             return;
         }
 
-        auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SetModified(table, EModificationType::Content);
@@ -5263,6 +5340,14 @@ private:
             .SetTabletStaticMemory(newMemorySize - oldMemorySize);
         securityManager->UpdateTabletResourceUsage(table, resourceUsageDelta);
         ScheduleTableStatisticsUpdate(table);
+
+        if (!IsRecovery()) {
+            int storeCount = chunksToAttach.size() + chunksToDetach.size();
+            auto& counters = GetLocallyGloballyCachedValue<TTabletManagerProfilerTrait>(tagIds);
+            Profiler.Increment(
+                counters.UpdateTabletStoresStoreCount,
+                storeCount);
+        }
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkOrViewIds: %v, "
@@ -5963,6 +6048,19 @@ private:
         }
     }
 
+    void FillProfilerTags()
+    {
+        const auto& profilerManager = NProfiling::TProfileManager::Get();
+        SortedTableProfilerTag_ = profilerManager->RegisterTag("table_type", "sorted");
+        OrderedTableProfilerTag_ = profilerManager->RegisterTag("table_type", "ordered");
+
+        using TTraits = TEnumTraits<ETabletStoresUpdateReason>;
+        for (int index = 0; index < TTraits::DomainSize; ++index) {
+            auto value = TTraits::GetDomainValues()[index];
+            auto name = TTraits::GetDomainNames()[index];
+            UpdateTabletStoresProfilerTags_[value] = profilerManager->RegisterTag("update_reason", name);
+        }
+    }
 
     static void PopulateTableReplicaDescriptor(TTableReplicaDescriptor* descriptor, const TTableReplica* replica, const TTableReplicaInfo& info)
     {
