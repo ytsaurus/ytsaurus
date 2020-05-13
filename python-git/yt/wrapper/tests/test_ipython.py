@@ -17,7 +17,7 @@ class TestIPython(object):
         output_table = TEST_DIR + "/output_table"
         yt.write_table(input_table, [{"x": 1}])
 
-        ipython = arcadia_interop.yatest_common.binary_path("yt_ipython")
+        ipython = arcadia_interop.search_binary_path("yt_ipython")
         _, script_filename = tempfile.mkstemp(dir=yt_env.env.path, suffix=".py")
         with open(script_filename, "w") as fout:
             fout.write(
