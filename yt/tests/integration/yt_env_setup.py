@@ -790,6 +790,8 @@ class YTEnvSetup(object):
                 continue
             if "Lease for node" in title:
                 continue
+            if "World initialization" in title:
+                continue
             requests.append(yt_commands.make_batch_request(command_name, transaction_id=id))
         yt_commands.execute_batch(requests, driver=driver)
 
