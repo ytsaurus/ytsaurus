@@ -346,6 +346,51 @@ TEST_F(TWeakPtrTest, UpCast)
     EXPECT_EQ(object.Get(), ptr.Lock().Get());
 }
 
+class TIntricateObjectVirtual
+    : public virtual TRefCounted
+{
+public:
+    TIntricateObjectVirtual()
+    {
+        ++ConstructorShadowState;
+    }
+
+    virtual ~TIntricateObjectVirtual()
+    {
+        ++DestructorShadowState;
+    }
+
+    // Prevent the counter from destruction by holding an additional
+    // reference to the counter.
+    void LockCounter()
+    {
+        WeakRef();
+    }
+
+    // Release an additional reference to the reference counter acquired by
+    // #LockCounter().
+    void UnlockCounter()
+    {
+        WeakUnref();
+    }
+
+private:
+    // Explicitly non-copyable.
+    TIntricateObjectVirtual(const TIntricateObjectVirtual&);
+    TIntricateObjectVirtual(TIntricateObjectVirtual&&);
+    TIntricateObjectVirtual& operator=(const TIntricateObjectVirtual&);
+    TIntricateObjectVirtual& operator=(TIntricateObjectVirtual&&);
+};
+
+TEST_F(TWeakPtrTest, VirtualBase)
+{
+    auto object = New<TIntricateObjectVirtual>();
+    TWeakPtr<TIntricateObjectVirtual> ptr = object;
+
+    object.Reset();
+    ptr.Reset();
+}
+
 static void* AsynchronousDeleter(void* param)
 {
     TSlowlyDyingObjectPtr* indirectObject =
