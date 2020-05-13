@@ -11,9 +11,11 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-struct TConcurrentCache<T>::TLookupTable
+struct TConcurrentCache<T>::TLookupTable final
     : public THashTable
 {
+    using TEnableHazard = void;
+
     std::atomic<size_t> Size = {0};
     TAtomicPtr<TLookupTable> Next;
 
@@ -32,7 +34,7 @@ void TConcurrentCache<T>::IncrementElementCount(const TRefCountedPtr<TLookupTabl
     }
 
     // Rotate lookup table.
-    auto newHead = CreateObject<TLookupTable>(Capacity_);
+    auto newHead = New<TLookupTable>(Capacity_);
     newHead->Next = head;
 
     if (Head_.SwapIfCompare(head, std::move(newHead))) {
@@ -49,7 +51,7 @@ void TConcurrentCache<T>::IncrementElementCount(const TRefCountedPtr<TLookupTabl
 template <class T>
 TConcurrentCache<T>::TConcurrentCache(size_t capacity)
     : Capacity_(capacity)
-    , Head_(CreateObject<TLookupTable>(Capacity_))
+    , Head_(New<TLookupTable>(Capacity_))
 { }
 
 template <class T>

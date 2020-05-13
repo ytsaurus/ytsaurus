@@ -187,7 +187,10 @@ bool THazardPointerManager::Scan(TThreadState* threadState)
     while (popCount-- > 0) {
         auto item = std::move(deleteList.front());
         deleteList.pop();
-        if (std::binary_search(protectedPointers.begin(), protectedPointers.end(), item.Ptr)) {
+
+        void* ptr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(item.Ptr) & PtrMask);
+
+        if (std::binary_search(protectedPointers.begin(), protectedPointers.end(), ptr)) {
             deleteList.push(item);
             ++pushedCount;
         } else {

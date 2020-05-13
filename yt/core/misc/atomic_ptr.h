@@ -1,79 +1,17 @@
 #pragma once
 
 #include "hazard_ptr.h"
-#include "allocator_traits.h"
+#include "intrusive_ptr.h"
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TAtomicRefCounter
-{
-    mutable std::atomic<int> Count = {1};
-    TDeleterBase* Deleter;
-
-    explicit TAtomicRefCounter(TDeleterBase* deleter) noexcept
-        : Deleter(deleter)
-    { }
-};
+template <class T>
+using TRefCountedPtr = TIntrusivePtr<T>;
 
 template <class T>
-T* AcquireRef(T* ptr);
-
-template <class T>
-T* AcquireRef(const THazardPtr<T>& ptr);
-
-template <class TTraits, class T>
-void ReleaseRef(T* ptr);
-
-template <class T>
-class TRefCountedPtr
-{
-public:
-    TRefCountedPtr() = default;
-
-    TRefCountedPtr(std::nullptr_t);
-
-    explicit TRefCountedPtr(T* obj, bool addReference = true);
-
-    explicit TRefCountedPtr(const THazardPtr<T>& ptr);
-
-    TRefCountedPtr(const TRefCountedPtr& other);
-
-    TRefCountedPtr(TRefCountedPtr&& other);
-
-    ~TRefCountedPtr();
-
-    TRefCountedPtr& operator=(TRefCountedPtr other);
-
-    TRefCountedPtr& operator=(std::nullptr_t);
-
-    TRefCountedPtr Exchange(TRefCountedPtr&& other);
-
-    T* Release();
-
-    T* Get() const;
-
-    T& operator*() const;
-
-    T* operator->() const;
-
-    explicit operator bool() const;
-
-private:
-    T* Ptr_ = nullptr;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T, class TAllocator, class... As>
-TRefCountedPtr<T> CreateObjectWithExtraSpace(
-    TAllocator* allocator,
-    size_t extraSpaceSize,
-    As&&... args);
-
-template <class T, class... As>
-TRefCountedPtr<T> CreateObject(As&&... args);
+TIntrusivePtr<T> MakeStrong(const THazardPtr<T>& ptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

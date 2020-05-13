@@ -16,8 +16,28 @@ extern const NLogging::TLogger LockFreePtrLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TPtrLoader>
-void* AcquireHazardPointer(const TPtrLoader& ptrLoader, void* localPtr)
+class TRefCountedBase;
+
+template <class T, bool = std::is_base_of_v<TRefCountedBase, T>>
+struct TGetIdentityPtr
+{
+    Y_FORCE_INLINE static void* Do(T* object)
+    {
+        return object;
+    }
+};
+
+template <class T>
+struct TGetIdentityPtr<T, true>
+{
+    Y_FORCE_INLINE static void* Do(TRefCountedBase* object)
+    {
+        return object;
+    }
+};
+
+template <class T, class TPtrLoader>
+T* AcquireHazardPointer(const TPtrLoader& ptrLoader, T* localPtr)
 {
     YT_ASSERT(!HazardPointer.load(std::memory_order_relaxed));
 
@@ -27,7 +47,7 @@ void* AcquireHazardPointer(const TPtrLoader& ptrLoader, void* localPtr)
 
     void* checkPtr;
     do {
-        HazardPointer.store(localPtr, std::memory_order_relaxed);
+        HazardPointer.store(TGetIdentityPtr<T>::Do(localPtr), std::memory_order_relaxed);
         checkPtr = localPtr;
         localPtr = ptrLoader();
     } while (localPtr != checkPtr);
@@ -62,7 +82,7 @@ template <class T>
 template <class TPtrLoader>
 THazardPtr<T> THazardPtr<T>::Acquire(const TPtrLoader& ptrLoader, T* localPtr)
 {
-    localPtr = static_cast<T*>(AcquireHazardPointer(ptrLoader, localPtr));
+    localPtr = AcquireHazardPointer(ptrLoader, localPtr);
     return THazardPtr(localPtr);
 }
 
@@ -70,7 +90,7 @@ template <class T>
 template <class TPtrLoader>
 THazardPtr<T> THazardPtr<T>::Acquire(const TPtrLoader& ptrLoader)
 {
-    auto localPtr = static_cast<T*>(AcquireHazardPointer(ptrLoader, ptrLoader()));
+    auto localPtr = AcquireHazardPointer(ptrLoader, ptrLoader());
     return THazardPtr(localPtr);
 }
 
@@ -122,6 +142,20 @@ template <class T>
 THazardPtr<T>::THazardPtr(T* ptr)
     : Ptr_(ptr)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class U>
+bool operator==(const THazardPtr<U>& lhs, const U* rhs)
+{
+    return lhs.Get() == rhs;
+}
+
+template <class U>
+bool operator!=(const THazardPtr<U>& lhs, const U* rhs)
+{
+    return lhs.Get() != rhs;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -10,8 +10,8 @@ extern thread_local std::atomic<void*> HazardPointer;
 
 using TDeleter = void (*)(void*);
 
-template <class TPtrLoader>
-void* AcquireHazardPointer(const TPtrLoader& ptrLoader, void* localPtr);
+template <class T, class TPtrLoader>
+T* AcquireHazardPointer(const TPtrLoader& ptrLoader, T* localPtr);
 void ReleaseHazardPointer();
 
 void ScheduleObjectDeletion(void* ptr, TDeleter deleter);
@@ -32,6 +32,8 @@ template <class T>
 class THazardPtr
 {
 public:
+    using TRequireHazardEnabled = typename T::TEnableHazard;
+
     THazardPtr() = default;
     THazardPtr(const THazardPtr&) = delete;
     THazardPtr(THazardPtr&& other);
