@@ -71,10 +71,12 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExportedObjects)
             .SetOpaque(true));
-        descriptors->push_back(EInternedAttributeKey::ExportedObjectCount);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExportedObjectCount)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImportedObjectIds)
             .SetOpaque(true));
-        descriptors->push_back(EInternedAttributeKey::ImportedObjectCount);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ImportedObjectCount)
+            .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StagedNodeIds)
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::BranchedNodeIds)
@@ -83,8 +85,10 @@ private:
             .SetOpaque(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LockIds)
             .SetOpaque(true));
-        descriptors->push_back(EInternedAttributeKey::ResourceUsage);
-        descriptors->push_back(EInternedAttributeKey::MulticellResourceUsage);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceUsage)
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MulticellResourceUsage)
+            .SetOpaque(true));
         descriptors->push_back(EInternedAttributeKey::PrerequisiteTransactionIds);
         descriptors->push_back(EInternedAttributeKey::DependentTransactionIds);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Deadline)
