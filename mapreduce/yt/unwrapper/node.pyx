@@ -6,7 +6,7 @@ from util.generic.string cimport TString
 from util.system.types cimport i64, ui64
 
 
-cdef extern from "library/yson/node/node.h" namespace "NYT" nogil:
+cdef extern from "library/cpp/yson/node/node.h" namespace "NYT" nogil:
     cdef cppclass TNode:
         TNode() except +
         TNode(const char*) except +
