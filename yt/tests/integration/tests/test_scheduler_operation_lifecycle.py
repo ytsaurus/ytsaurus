@@ -1348,12 +1348,14 @@ class TestAsyncControllerActions(YTEnvSetup):
         set("//sys/controller_agents/config/snapshot_period", 300)
         wait(lambda: get(controller_agent_orchid + "/config/snapshot_period") == 300)
 
-        op = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_revive": 500}})
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"testing": {"delay_inside_revive": 500}})
 
         op.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
+
+        release_breakpoint()
 
         op.track()
 
@@ -1378,14 +1380,16 @@ class TestAsyncControllerActions(YTEnvSetup):
         set("//sys/controller_agents/config/snapshot_period", 300)
         wait(lambda: get(controller_agent_orchid + "/config/snapshot_period") == 300)
 
-        op1 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_revive": 500}})
-        op2 = run_test_vanilla("sleep 1", spec={"testing": {"delay_inside_revive": 500}})
+        op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"testing": {"delay_inside_revive": 500}})
+        op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"testing": {"delay_inside_revive": 500}})
 
         op1.wait_for_fresh_snapshot()
         op2.wait_for_fresh_snapshot()
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
+
+        release_breakpoint()
 
         op1.track()
         op2.track()
@@ -1485,7 +1489,7 @@ class TestAsyncControllerActions(YTEnvSetup):
     @authors("eshcherbin")
     def test_slow_everything_revive(self):
         op = run_test_vanilla(
-            "sleep 1",
+            with_breakpoint("BREAKPOINT"),
             spec={
                 "testing": {
                     "delay_inside_initialize": 500,
@@ -1498,6 +1502,8 @@ class TestAsyncControllerActions(YTEnvSetup):
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
+
+        release_breakpoint()
 
         op.track()
 
