@@ -78,9 +78,9 @@ def get_python():
         return sys.executable
     else:
         if PY3:
-            return yatest_common.binary_path("yt-python3")
+            return arcadia_interop.search_binary_path("yt-python3")
         else:
-            return yatest_common.binary_path("yt-python")
+            return arcadia_interop.search_binary_path("yt-python")
 
 @contextmanager
 def set_config_option(name, value, final_action=None):
