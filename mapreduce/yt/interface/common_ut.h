@@ -1,8 +1,8 @@
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/serialize.h>
 
-#include <library/yson/node/node_io.h>
-#include <library/yson/node/node_builder.h>
+#include <library/cpp/yson/node/node_io.h>
+#include <library/cpp/yson/node/node_builder.h>
 
 #include <library/cpp/unittest/registar.h>
 
