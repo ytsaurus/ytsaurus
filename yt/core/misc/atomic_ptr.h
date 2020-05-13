@@ -8,15 +8,12 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-using TRefCountedPtr = TIntrusivePtr<T>;
-
-template <class T>
 TIntrusivePtr<T> MakeStrong(const THazardPtr<T>& ptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Operators * and -> for TAtomicPtr are useless because it is not safe to work with atomic ptr such way
-// Safe usage is to convert to TRefCountedPtr. Not HazardPtr. HazardPtr can only be used to try ref count.
+// Safe usage is to convert to TIntrusivePtr. Not HazardPtr. HazardPtr can only be used to try ref count.
 
 template <class T>
 class TAtomicPtr
@@ -26,46 +23,46 @@ public:
 
     TAtomicPtr(std::nullptr_t);
 
-    explicit TAtomicPtr(TRefCountedPtr<T> other);
+    explicit TAtomicPtr(TIntrusivePtr<T> other);
 
     TAtomicPtr(TAtomicPtr&& other);
 
     ~TAtomicPtr();
 
-    TAtomicPtr& operator=(TRefCountedPtr<T> other);
+    TAtomicPtr& operator=(TIntrusivePtr<T> other);
 
     TAtomicPtr& operator=(std::nullptr_t);
 
-    TRefCountedPtr<T> Release();
+    TIntrusivePtr<T> Release();
 
-    TRefCountedPtr<T> AcquireWeak() const;
+    TIntrusivePtr<T> AcquireWeak() const;
 
-    TRefCountedPtr<T> Acquire() const;
+    TIntrusivePtr<T> Acquire() const;
 
-    TRefCountedPtr<T> Exchange(TRefCountedPtr<T>&& other);
+    TIntrusivePtr<T> Exchange(TIntrusivePtr<T>&& other);
 
-    TRefCountedPtr<T> SwapIfCompare(THazardPtr<T>& compare, TRefCountedPtr<T> target);
+    TIntrusivePtr<T> SwapIfCompare(THazardPtr<T>& compare, TIntrusivePtr<T> target);
 
-    TRefCountedPtr<T> SwapIfCompare(T* comparePtr, TRefCountedPtr<T> target);
+    TIntrusivePtr<T> SwapIfCompare(T* comparePtr, TIntrusivePtr<T> target);
 
-    TRefCountedPtr<T> SwapIfCompare(const TRefCountedPtr<T>& compare, TRefCountedPtr<T> target);
+    TIntrusivePtr<T> SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T> target);
 
-    bool SwapIfCompare(const TRefCountedPtr<T>& compare, TRefCountedPtr<T>* target);
+    bool SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T>* target);
 
     explicit operator bool() const;
 
 private:
     template <class U>
-    friend bool operator==(const TAtomicPtr<U>& lhs, const TRefCountedPtr<U>& rhs);
+    friend bool operator==(const TAtomicPtr<U>& lhs, const TIntrusivePtr<U>& rhs);
 
     template <class U>
-    friend bool operator==(const TRefCountedPtr<U>& lhs, const TAtomicPtr<U>& rhs);
+    friend bool operator==(const TIntrusivePtr<U>& lhs, const TAtomicPtr<U>& rhs);
 
     template <class U>
-    friend bool operator!=(const TAtomicPtr<U>& lhs, const TRefCountedPtr<U>& rhs);
+    friend bool operator!=(const TAtomicPtr<U>& lhs, const TIntrusivePtr<U>& rhs);
 
     template <class U>
-    friend bool operator!=(const TRefCountedPtr<U>& lhs, const TAtomicPtr<U>& rhs);
+    friend bool operator!=(const TIntrusivePtr<U>& lhs, const TAtomicPtr<U>& rhs);
 
     std::atomic<T*> Ptr_ = {nullptr};
 };

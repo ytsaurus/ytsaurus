@@ -29,7 +29,7 @@ struct TCachedRow final
     }
 };
 
-using TCachedRowPtr = TRefCountedPtr<TCachedRow>;
+using TCachedRowPtr = TIntrusivePtr<TCachedRow>;
 
 template <class TAlloc>
 TCachedRowPtr CachedRowFromVersionedRow(TAlloc* allocator, NTableClient::TVersionedRow row)

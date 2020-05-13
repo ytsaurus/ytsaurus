@@ -60,7 +60,7 @@ TEST(TLockFreeHashTableTest, Simple)
     THash<TElement> hash;
     TEqualTo<TElement> equalTo;
 
-    std::vector<TRefCountedPtr<TElement>> checkTable;
+    std::vector<TIntrusivePtr<TElement>> checkTable;
 
     size_t iterations = 1000;
 
@@ -79,15 +79,15 @@ TEST(TLockFreeHashTableTest, Simple)
     }
 
     std::sort(checkTable.begin(), checkTable.end(), [] (
-        const TRefCountedPtr<TElement>& lhs,
-        const TRefCountedPtr<TElement>& rhs)
+        const TIntrusivePtr<TElement>& lhs,
+        const TIntrusivePtr<TElement>& rhs)
     {
         return memcmp(lhs->Data, rhs->Data, lhs->Size) < 0;
     });
 
     auto it = std::unique(checkTable.begin(), checkTable.end(), [&] (
-        const TRefCountedPtr<TElement>& lhs,
-        const TRefCountedPtr<TElement>& rhs)
+        const TIntrusivePtr<TElement>& lhs,
+        const TIntrusivePtr<TElement>& rhs)
     {
         return equalTo(lhs.Get(), rhs.Get());
     });
@@ -108,7 +108,7 @@ TEST(TLockFreeHashTableTest, Simple)
         EXPECT_TRUE(found);
     }
 
-    std::vector<TRefCountedPtr<TElement>> updateTable;
+    std::vector<TIntrusivePtr<TElement>> updateTable;
     for (size_t index = 0; index < checkTable.size(); index += 2) {
         const auto& current = checkTable[index];
 

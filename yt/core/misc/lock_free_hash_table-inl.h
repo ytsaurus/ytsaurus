@@ -153,7 +153,7 @@ bool TLockFreeHashTable<T>::Insert(TFingerprint fingerprint, TValuePtr value)
 
 template <class T>
 template <class TKey>
-TRefCountedPtr<T> TLockFreeHashTable<T>::Find(TFingerprint fingerprint, const TKey& key)
+TIntrusivePtr<T> TLockFreeHashTable<T>::Find(TFingerprint fingerprint, const TKey& key)
 {
     auto index = IndexFromFingerprint(fingerprint) % Size_;
     auto stamp = StampFromFingerprint(fingerprint);
@@ -168,7 +168,7 @@ TRefCountedPtr<T> TLockFreeHashTable<T>::Find(TFingerprint fingerprint, const TK
 
         if (tableStamp == stamp) {
             // This hazard ptr protects from Unref. We do not want to change ref count so frequently.
-            // TRefCountedPtr::AcquireUnchecked could be used outside this function.
+            // TIntrusivePtr::AcquireUnchecked could be used outside this function.
 
             auto item = THazardPtr<T>::Acquire([&] {
                 return ValueFromEntry(HashTable_[index].load(std::memory_order_relaxed));

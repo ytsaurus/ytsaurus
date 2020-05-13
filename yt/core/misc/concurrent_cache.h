@@ -16,10 +16,10 @@ private:
 
     struct TLookupTable;
 
-    void IncrementElementCount(const TRefCountedPtr<TLookupTable>& head);
+    void IncrementElementCount(const TIntrusivePtr<TLookupTable>& head);
 
 public:
-    using TValuePtr = TRefCountedPtr<T>;
+    using TValuePtr = TIntrusivePtr<T>;
 
     explicit TConcurrentCache(size_t maxElementCount);
 
@@ -30,7 +30,7 @@ public:
     public:
         TInsertAccessor(
             TConcurrentCache* parent,
-            TRefCountedPtr<TLookupTable> primary);
+            TIntrusivePtr<TLookupTable> primary);
 
         TInsertAccessor(TInsertAccessor&& other);
 
@@ -40,7 +40,7 @@ public:
         bool Insert(TValuePtr value);
     protected:
         TConcurrentCache* const Parent_;
-        TRefCountedPtr<TLookupTable> Primary_;
+        TIntrusivePtr<TLookupTable> Primary_;
     };
 
     TInsertAccessor GetInsertAccessor();
@@ -53,13 +53,13 @@ public:
 
         TLookupAccessor(
             TConcurrentCache* parent,
-            TRefCountedPtr<TLookupTable> primary,
-            TRefCountedPtr<TLookupTable> secondary);
+            TIntrusivePtr<TLookupTable> primary,
+            TIntrusivePtr<TLookupTable> secondary);
 
         TLookupAccessor(TLookupAccessor&& other);
 
         template <class TKey>
-        TRefCountedPtr<T> Lookup(const TKey& key, bool touch = false);
+        TIntrusivePtr<T> Lookup(const TKey& key, bool touch = false);
 
         bool Update(TFingerprint fingerprint, TValuePtr item);
 
@@ -69,7 +69,7 @@ public:
         using TInsertAccessor::Primary_;
 
         // TODO(lukyan): Acquire secondary lazily
-        TRefCountedPtr<TLookupTable> Secondary_;
+        TIntrusivePtr<TLookupTable> Secondary_;
 
     };
 
