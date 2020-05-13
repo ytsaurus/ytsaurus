@@ -89,9 +89,11 @@ class YtIdmClient(object):
             self._base_url = base_url
         self._certificate = load_certificate(certificate_path)
 
-    def _make_request(self, method, name, params=None, body=None, extra_headers=None):
+    def _make_request(self, method, name, params=None, body=None, extra_headers=None, v2=False):
         # NB: `extra_headers` is only used to supply additional headers in integration tests.
         url = "{}/{}/api/{}".format(self._base_url, self._cluster, name)
+        if v2:
+            url = "{}/{}/api/v2/{}".format(self._base_url, self._cluster, name)
         headers = {
             "Authorization": "OAuth {}".format(self._token),
             "Content-Type": "application/json"
@@ -155,7 +157,7 @@ class YtIdmClient(object):
     @_with_object_id
     def get_responsible(self, object_id):
         """Gets subject responsible for object."""
-        return self._make_request("get", "responsible", dict(id=object_id))
+        return self._make_request("get", "responsible", dict(id=object_id), v2=True)
 
     @_with_object_id
     def set_responsible(self, object_id, version, responsible, inherit_acl=None):
@@ -167,10 +169,9 @@ class YtIdmClient(object):
 
     def get_group(self, group_name):
         """Gets legacy YT group info by group name."""
-        return self._make_request("get", "group", dict(group_name=group_name))
+        return self._make_request("get", "group", dict(group_name=group_name), v2=True)
 
     def update_group(self, name, version, group):
         """Updates legacy YT group."""
         params = dict(group_name=name, version=version)
-        body = dict(group=group)
-        return self._make_request("put", "group", params, body)
+        return self._make_request("put", "group", params, group)
