@@ -124,15 +124,15 @@ class ObjectIdmSnapshot(object):
         self.object_id = object_id
 
         responsibles_reply = idm_client.get_responsible(**object_id)
-        self.inherit_acl = responsibles_reply.get("inherit_acl", False)
+        self.inherit_acl = "disable_acl_inheritance" in responsibles_reply
         self.version = responsibles_reply["version"]
 
         responsibles = responsibles_reply["responsible"]
-        self.responsibles = list(map(Subject, responsibles.get("responsible", [])))
-        self.read_approvers = list(map(Subject, responsibles.get("read_approvers", [])))
-        self.auditors = list(map(Subject, responsibles.get("auditors", [])))
-        self.disable_responsible_inheritance = responsibles.get("disable_inheritance", False)
-        self.require_boss_approval = responsibles.get("require_boss_approval", False)
+        self.responsibles = list(map(lambda role: Subject(role["subject"]), responsibles.get("responsible", [])))
+        self.read_approvers = list(map(lambda role: Subject(role["subject"]), responsibles.get("read_approvers", [])))
+        self.auditors = list(map(lambda role: Subject(role["subject"]), responsibles.get("auditors", [])))
+        self.disable_responsible_inheritance = "disable_inheritance" in responsibles
+        self.require_boss_approval = "require_boss_approval" in responsibles
 
         roles = idm_client.get_acl(**object_id)
         self.roles = list(map(Role, roles.get("roles", [])))
