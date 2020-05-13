@@ -73,7 +73,7 @@ class TestJobCommands(object):
         job_events.release_breakpoint()
         op.wait()
 
-    def test_job_shell_command(self, yt_env_with_rpc, job_events):
+    def test_job_shell_command(self, job_events):
         if arcadia_interop.yatest_common is not None:
             pytest.skip()
         if yt.config["backend"] in ("native", "rpc"):
