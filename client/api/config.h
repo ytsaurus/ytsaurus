@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/ytlib/journal_client/config.h>
+#include <yt/client/journal_client/config.h>
 
 #include <yt/client/tablet_client/config.h>
 
