@@ -1,6 +1,5 @@
 #include "bootstrap.h"
 #include "private.h"
-#include "annotation_setter.h"
 #include "config.h"
 #include "config_manager.h"
 #include "epoch_history_manager.h"
@@ -793,8 +792,6 @@ void TBootstrap::DoInitialize()
 
     RpcServer_->Configure(Config_->RpcServer);
 
-    AnnotationSetter_ = New<TAnnotationSetter>(this);
-
     Profiler_ = BootstrapProfiler;
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
@@ -844,8 +841,6 @@ void TBootstrap::DoRun()
     YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
     RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker()));
     RpcServer_->Start();
-
-    AnnotationSetter_->Start();
 }
 
 void TBootstrap::DoLoadSnapshot(

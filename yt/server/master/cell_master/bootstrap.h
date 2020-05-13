@@ -165,7 +165,6 @@ private:
     NConcurrency::TActionQueuePtr ControlQueue_;
     NConcurrency::TActionQueuePtr ProfilerQueue_;
     ICoreDumperPtr CoreDumper_;
-    TAnnotationSetterPtr AnnotationSetter_;
     NConcurrency::TActionQueuePtr DiscoveryQueue_;
     NDiscoveryServer::TDiscoveryServerPtr DiscoveryServer_;
 

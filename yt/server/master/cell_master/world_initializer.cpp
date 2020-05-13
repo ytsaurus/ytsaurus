@@ -29,6 +29,7 @@
 
 #include <yt/core/logging/log.h>
 
+#include <yt/core/misc/atomic_object.h>
 #include <yt/core/misc/collection_helpers.h>
 
 #include <yt/core/ypath/token.h>
@@ -108,12 +109,17 @@ private:
 
     std::vector<TFuture<void>> ScheduledMutations_;
 
+    TAtomicObject<std::vector<TYPath>> OrchidAddresses_;
+    TAtomicObject<THashMap<TYPath, TYsonString>> OrchidAddressToAnnotations_;
+
     void OnLeaderActive()
     {
         // NB: Initialization cannot be carried out here since not all subsystems
         // are fully initialized yet.
         // We'll post an initialization callback to the automaton invoker instead.
         ScheduleInitialize();
+
+        ScheduleUpdateAnnotations();
     }
 
     void ScheduleInitialize(TDuration delay = TDuration::Zero())
@@ -127,6 +133,21 @@ private:
             delay);
         TDelayedExecutor::Submit(
             BIND(&TImpl::Initialize, MakeStrong(this))
+                .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic)),
+            delay);
+    }
+
+    void ScheduleUpdateAnnotations(TDuration delay = TDuration::Zero())
+    {
+        if (!Bootstrap_->GetHydraFacade()->GetHydraManager()->IsLeader()) {
+            YT_LOG_INFO("Master is not leading anymore, ignore annotations update schedule request");
+            return;
+        }
+
+        YT_LOG_DEBUG("Schedule annotations update (Delay: %v)",
+            delay);
+        TDelayedExecutor::Submit(
+            BIND(&TImpl::UpdateAnnotations, MakeStrong(this))
                 .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic)),
             delay);
     }
@@ -564,7 +585,11 @@ private:
                 transactionId,
                 EObjectType::MapNode);
 
+            std::vector<TYPath> orchidAddresses;
+
             auto createOrchidNode = [&] (const TYPath& addressPath, const TString& address) {
+                orchidAddresses.push_back(addressPath);
+
                 ScheduleCreateNode(
                     addressPath + "/orchid",
                     transactionId,
@@ -598,6 +623,22 @@ private:
                 createOrchidNode(addressPath, timestampProviderAddress);
             }
 
+            OrchidAddresses_.Store(orchidAddresses);
+
+            FlushScheduled();
+
+            // Level 4
+
+            auto orchidAddressToAnnotations = OrchidAddressToAnnotations_.Load();
+            for (const auto& orchidAddress : orchidAddresses) {
+                if (orchidAddressToAnnotations.contains(orchidAddress)) {
+                    ScheduleSetNode(
+                        orchidAddress + "/@annotations",
+                        transactionId,
+                        orchidAddressToAnnotations[orchidAddress]);
+                }
+            }
+
             FlushScheduled();
 
             CommitTransaction(transactionId);
@@ -619,6 +660,29 @@ private:
         ScheduleInitialize(IsInitialized()
             ? Config_->WorldInitializer->UpdatePeriod
             : Config_->WorldInitializer->InitRetryPeriod);
+    }
+
+    void UpdateAnnotations()
+    {
+        YT_LOG_DEBUG("Updating annotations");
+
+        auto orchidAddresses = OrchidAddresses_.Load();
+        THashMap<TYPath, TYsonString> orchidAddressToAnnotations;
+
+        for (const auto& orchidAddress : orchidAddresses) {
+            try {
+                auto annotations = GetNode(orchidAddress + "/orchid/config/cypress_annotations");
+                YT_VERIFY(orchidAddressToAnnotations.emplace(orchidAddress, annotations).second);
+            } catch (const std::exception& ex) {
+                YT_LOG_DEBUG(ex, "Failed to get annotations (OrchidAddress: %v)", orchidAddress);
+            }
+        }
+
+        OrchidAddressToAnnotations_.Store(std::move(orchidAddressToAnnotations));
+
+        YT_LOG_DEBUG("Annotations updated");
+
+        ScheduleUpdateAnnotations(Config_->WorldInitializer->UpdatePeriod);
     }
 
     TTransactionId StartTransaction()
@@ -666,7 +730,28 @@ private:
             req->set_ignore_type_mismatch(true);
         }
         ToProto(req->mutable_node_attributes(), *ConvertToAttributes(attributes));
-        ScheduledMutations_.push_back(ExecuteVerb(service, req).As<void>());
+        ScheduledMutations_.push_back(ExecuteVerb(service, req).AsVoid());
+    }
+
+    void ScheduleSetNode(
+        const TYPath& path,
+        TTransactionId transactionId,
+        const TYsonString& value)
+    {
+        auto service = Bootstrap_->GetObjectManager()->GetRootService();
+        auto req = TCypressYPathProxy::Set(path);
+        SetTransactionId(req, transactionId);
+        req->set_value(value.GetData());
+        ScheduledMutations_.push_back(ExecuteVerb(service, req).AsVoid());
+    }
+
+    TYsonString GetNode(const TYPath& path)
+    {
+        auto service = Bootstrap_->GetObjectManager()->GetRootService();
+        auto req = TCypressYPathProxy::Get(path);
+        auto rsp = WaitFor(ExecuteVerb(service, req))
+            .ValueOrThrow();
+        return TYsonString(rsp->value());
     }
 
     void FlushScheduled()
