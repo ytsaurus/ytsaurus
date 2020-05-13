@@ -109,15 +109,17 @@ def _check_transaction_type(client):
     require(not is_master_transaction(transaction_id),
             lambda: YtError("Dynamic table commands can not be performed under master transaction"))
 
+def get_dynamic_table_retriable_errors():
+    return tuple(list(get_retriable_errors()) + [YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict, YtNoSuchTablet, YtTabletNotMounted])
+
 class DynamicTableRequestRetrier(Retrier):
     def __init__(self, retry_config, command, params, data=None, client=None):
         request_timeout = get_config(client)["proxy"]["heavy_request_timeout"]
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
-        retriable_errors = tuple(list(get_retriable_errors()) + [YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict, YtNoSuchTablet, YtTabletNotMounted])
         super(DynamicTableRequestRetrier, self).__init__(
             retry_config=retry_config,
             timeout=request_timeout,
-            exceptions=retriable_errors,
+            exceptions=get_dynamic_table_retriable_errors(),
             chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
 
         self.request_timeout = request_timeout
