@@ -559,8 +559,9 @@ class YTInstance(object):
 
             # TODO(asaitgalin): Create this user inside master.
             client = self._create_cluster_client()
-            if not client.exists("//sys/users/application_operations"):
-                user_id = client.create("user", attributes={"name": "application_operations"})
+            user_id = client.create("user", attributes={"name": "application_operations"})
+            # Tests suites that delay secondary master start probably won't need this user anyway.
+            if start_secondary_master_cells:
                 wait(lambda: client.get("#" + user_id + "/@life_stage") == "creation_committed")
                 client.add_member("application_operations", "superusers")
 
