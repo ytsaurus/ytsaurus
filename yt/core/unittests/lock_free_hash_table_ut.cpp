@@ -9,6 +9,45 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TElement final
+{
+    ui64 Hash;
+    ui32 Size;
+    char Data[0];
+
+    using TEnableHazard = void;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT
+
+template <>
+struct THash<NYT::TElement>
+{
+    size_t operator()(const NYT::TElement* value) const
+    {
+        return value->Hash;
+    }
+};
+
+template <>
+struct TEqualTo<NYT::TElement>
+{
+    bool operator()(const NYT::TElement* lhs, const NYT::TElement* rhs) const
+    {
+        return lhs->Hash == rhs->Hash &&
+            lhs->Size == rhs->Size &&
+            memcmp(lhs->Data, rhs->Data, lhs->Size) == 0;
+    }
+};
+
+namespace NYT {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NYT::NConcurrency;
 
 TEST(TLockFreeHashTableTest, Simple)
@@ -17,7 +56,6 @@ TEST(TLockFreeHashTableTest, Simple)
     size_t columnCount = 5;
 
     TLockFreeHashTable<TElement> table(1000);
-    TDefaultAllocator allocator;
 
     THash<TElement> hash;
     TEqualTo<TElement> equalTo;
@@ -29,7 +67,7 @@ TEST(TLockFreeHashTableTest, Simple)
     TRandomCharGenerator randomChar(0);
 
     for (size_t index = 0; index < iterations; ++index) {
-        auto item = CreateObjectWithExtraSpace<TElement>(&allocator, columnCount);
+        auto item = NewWithExtraSpace<TElement>(columnCount);
         {
             item->Size = keyColumnCount;
             for (size_t pos = 0; pos < columnCount; ++pos) {
@@ -74,7 +112,7 @@ TEST(TLockFreeHashTableTest, Simple)
     for (size_t index = 0; index < checkTable.size(); index += 2) {
         const auto& current = checkTable[index];
 
-        auto item = CreateObjectWithExtraSpace<TElement>(&allocator, columnCount);
+        auto item = NewWithExtraSpace<TElement>(columnCount);
         memcpy(item.Get(), current.Get(), sizeof(TElement) + columnCount);
         std::swap(item->Data[columnCount - 1], item->Data[columnCount - 2]);
 
@@ -98,3 +136,4 @@ TEST(TLockFreeHashTableTest, Simple)
 
 } // namespace
 } // namespace NYT
+

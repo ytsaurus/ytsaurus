@@ -9,43 +9,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TElement
-{
-    ui64 Hash;
-    ui32 Size;
-    char Data[0];
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
-} // namespace NYT
-
-template <>
-struct THash<NYT::TElement>
-{
-    inline size_t operator()(const NYT::TElement* value) const
-    {
-        return value->Hash;
-    }
-};
-
-template <>
-struct TEqualTo<NYT::TElement>
-{
-    inline bool operator()(const NYT::TElement* lhs, const NYT::TElement* rhs) const
-    {
-        return lhs->Hash == rhs->Hash &&
-            lhs->Size == rhs->Size &&
-            memcmp(lhs->Data, rhs->Data, lhs->Size) == 0;
-    }
-};
-
-namespace NYT {
-namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TRandomCharGenerator
 {
     std::default_random_engine Engine;

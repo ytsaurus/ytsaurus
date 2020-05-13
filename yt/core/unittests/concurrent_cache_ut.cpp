@@ -10,6 +10,47 @@
 
 #include <yt/core/logging/log_manager.h>
 
+
+namespace NYT {
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TElement final
+{
+    ui64 Hash;
+    ui32 Size;
+    char Data[0];
+
+    using TAllocator = TSlabAllocator;
+    using TEnableHazard = void;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+} // namespace NYT
+
+template <>
+struct THash<NYT::TElement>
+{
+    size_t operator()(const NYT::TElement* value) const
+    {
+        return value->Hash;
+    }
+};
+
+template <>
+struct TEqualTo<NYT::TElement>
+{
+    bool operator()(const NYT::TElement* lhs, const NYT::TElement* rhs) const
+    {
+        return lhs->Hash == rhs->Hash &&
+            lhs->Size == rhs->Size &&
+            memcmp(lhs->Data, rhs->Data, lhs->Size) == 0;
+    }
+};
+
 namespace NYT {
 namespace {
 
@@ -68,7 +109,7 @@ TEST_P(TConcurrentCacheTest, Stress)
                 auto found = accessor.Lookup(key, reinsert);
 
                 if (!found) {
-                    auto value = CreateObjectWithExtraSpace<TElement>(&allocator, columnCount);
+                    auto value = NewWithExtraSpace<TElement>(&allocator, columnCount);
                     memcpy(value.Get(), key, sizeof(TElement) + columnCount);
                     bool inserted = accessor.Insert(std::move(value));
 

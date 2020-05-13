@@ -4,44 +4,17 @@
 #include <yt/core/misc/new.h>
 #include <yt/core/misc/public.h>
 #include <yt/core/misc/atomic_ptr.h>
-#include <yt/core/misc/allocator_traits.h>
 
 namespace NYT {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSampleObject
-{
-public:
-    explicit TSampleObject(IOutputStream* output)
-        : Output_(output)
-    {
-        *Output_ << 'C';
-    }
-
-    ~TSampleObject()
-    {
-        *Output_ << 'D';
-    }
-
-    void DoSomething()
-    {
-        *Output_ << '!';
-    }
-
-private:
-    IOutputStream* const Output_;
-
-};
-
 class TTestAllocator
-    : public TDeleterBase
 {
 public:
     explicit TTestAllocator(IOutputStream* output)
-        : TDeleterBase(&Deallocate)
-        , Output_(output)
+        : Output_(output)
     { }
 
     void* Allocate(size_t size)
@@ -54,16 +27,6 @@ public:
         auto* header = static_cast<TTestAllocator**>(ptr);
         *header = this;
         return header + 1;
-    }
-
-    TDeleterBase* GetDeleter(size_t size)
-    {
-        return this;
-    }
-
-    static void Deallocate(TDeleterBase* deleter, void* ptr)
-    {
-        static_cast<TTestAllocator*>(deleter)->Free(ptr);
     }
 
     static void Free(void* ptr)
@@ -88,13 +51,40 @@ private:
     size_t DeallocatedCount_ = 0;
 };
 
+class TSampleObject final
+{
+public:
+    using TAllocator = TTestAllocator;
+    using TEnableHazard = void;
+
+    explicit TSampleObject(IOutputStream* output)
+        : Output_(output)
+    {
+        *Output_ << 'C';
+    }
+
+    ~TSampleObject()
+    {
+        *Output_ << 'D';
+    }
+
+    void DoSomething()
+    {
+        *Output_ << '!';
+    }
+
+private:
+    IOutputStream* const Output_;
+
+};
+
 TEST(TLockFreePtrTest, RefCountedPtrBehavior)
 {
     TStringStream output;
     TTestAllocator allocator(&output);
 
     {
-        auto ptr = CreateObjectWithExtraSpace<TSampleObject>(&allocator, 0, &output);
+        auto ptr = New<TSampleObject>(&allocator, &output);
         {
             auto anotherPtr = ptr;
             anotherPtr->DoSomething();
@@ -118,7 +108,7 @@ TEST(TLockFreePtrTest, DelayedDeallocation)
     TStringStream output;
     TTestAllocator allocator(&output);
 
-    auto ptr = CreateObjectWithExtraSpace<TSampleObject>(&allocator, 0, &output);
+    auto ptr = New<TSampleObject>(&allocator, &output);
     ptr->DoSomething();
 
     auto hazardPtr = THazardPtr<TSampleObject>::Acquire([&] {
@@ -144,7 +134,7 @@ TEST(TLockFreePtrTest, CombinedLogic)
     TStringStream output;
     TTestAllocator allocator(&output);
 
-    auto ptr = CreateObjectWithExtraSpace<TSampleObject>(&allocator, 0, &output);
+    auto ptr = New<TSampleObject>(&allocator, &output);
     ptr->DoSomething();
 
     auto ptrCopy = ptr;
@@ -159,7 +149,7 @@ TEST(TLockFreePtrTest, CombinedLogic)
     EXPECT_STREQ("AC!", output.Str().c_str());
 
     ScheduleObjectDeletion(rawPtr, [] (void* ptr) {
-        ReleaseRef(reinterpret_cast<TSampleObject*>(ptr));
+        Unref(static_cast<TSampleObject*>(ptr));
     });
 
     ScanDeleteList();
@@ -186,6 +176,62 @@ TEST(TLockFreePtrTest, CombinedLogic)
         ScanDeleteList();
         EXPECT_STREQ("AC!DF", output.Str().c_str());
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSamplePolymorphicObject
+    : public TRefCounted
+{
+public:
+    using TAllocator = TTestAllocator;
+    using TEnableHazard = void;
+
+    explicit TSamplePolymorphicObject(IOutputStream* output)
+        : Output_(output)
+    {
+        *Output_ << 'C';
+    }
+
+    ~TSamplePolymorphicObject()
+    {
+        *Output_ << 'D';
+    }
+
+    void DoSomething()
+    {
+        *Output_ << '!';
+    }
+
+private:
+    IOutputStream* const Output_;
+
+};
+
+TEST(TLockFreePtrTest, DelayedDeallocationPolymorphic)
+{
+    TStringStream output;
+    TTestAllocator allocator(&output);
+
+    auto ptr = New<TSamplePolymorphicObject>(&allocator, &output);
+    ptr->DoSomething();
+
+    auto hazardPtr = THazardPtr<TSamplePolymorphicObject>::Acquire([&] {
+        return ptr.Get();
+    });
+
+    ptr = nullptr;
+
+    EXPECT_STREQ("AC!D", output.Str().c_str());
+
+    ScanDeleteList();
+
+    EXPECT_STREQ("AC!D", output.Str().c_str());
+
+    hazardPtr.Reset();
+    ScanDeleteList();
+
+    EXPECT_STREQ("AC!DF", output.Str().c_str());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

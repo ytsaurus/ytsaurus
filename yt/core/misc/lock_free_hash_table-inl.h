@@ -24,7 +24,7 @@ TLockFreeHashTable<T>::~TLockFreeHashTable()
         auto stamp = StampFromEntry(tableEntry);
         if (stamp != 0) {
             ScheduleObjectDeletion(ValueFromEntry(tableEntry), [] (void* ptr) {
-                ReleaseRef(static_cast<T*>(ptr));
+                Unref(static_cast<T*>(ptr));
             });
         }
     }
@@ -91,7 +91,7 @@ bool TLockFreeHashTable<T>::Update(TFingerprint fingerprint, TValuePtr value)
                 item.Reset();
 
                 ScheduleObjectDeletion(ValueFromEntry(oldElement), [] (void* ptr) {
-                    ReleaseRef(static_cast<T*>(ptr));
+                    Unref(static_cast<T*>(ptr));
                 });
 
                 return true;

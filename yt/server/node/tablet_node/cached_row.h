@@ -10,10 +10,13 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCachedRow
+struct TCachedRow final
 {
     ui64 Hash;
     char Data[0];
+
+    using TAllocator = TSlabAllocator;
+    using TEnableHazard = void;
 
     NTableClient::TVersionedRow GetVersionedRow() const
     {
@@ -46,7 +49,7 @@ TCachedRowPtr CachedRowFromVersionedRow(TAlloc* allocator, NTableClient::TVersio
         }
     }
 
-    auto cachedRow = CreateObjectWithExtraSpace<TCachedRow>(allocator, rowSize + stringDataSize);
+    auto cachedRow = NewWithExtraSpace<TCachedRow>(allocator, rowSize + stringDataSize);
 
     memcpy(&cachedRow->Data[0], row.GetMemoryBegin(), rowSize);
 

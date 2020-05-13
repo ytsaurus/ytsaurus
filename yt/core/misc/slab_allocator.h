@@ -5,7 +5,6 @@
 #include "format.h"
 #include "error.h"
 #include "memory_usage_tracker.h"
-#include "allocator_traits.h"
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
@@ -16,7 +15,6 @@ namespace NYT {
 /////////////////////////////////////////////////////////////////////////////
 
 class TArenaPool
-    : public TDeleterBase
 {
 public:
     struct TFreeListItem
@@ -33,12 +31,6 @@ public:
     ~TArenaPool();
 
     void* Allocate();
-
-    static void Deallocate(TDeleterBase* deleter, void* obj)
-    {
-        auto self = static_cast<TArenaPool*>(deleter);
-        self->Free(obj);
-    }
 
     void Free(void* obj);
 
@@ -69,8 +61,7 @@ public:
     explicit TSlabAllocator(IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
     void* Allocate(size_t size);
-
-    TDeleterBase* GetDeleter(size_t size);
+    static void Free(void* ptr);
 
 private:
     struct TArenaDeleter

@@ -10,43 +10,12 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-TAtomicRefCounter* GetAtomicRefCounter(void* ptr)
-{
-    return static_cast<TAtomicRefCounter*>(ptr) - 1;
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class T>
-T* AcquireRef(T* ptr)
+TIntrusivePtr<T> MakeStrong(const THazardPtr<T>& ptr)
 {
     if (ptr) {
-        auto* refCounter = GetAtomicRefCounter(ptr);
-
-        auto oldStrongCount = refCounter->Count.fetch_add(1, std::memory_order_relaxed);
-        YT_ASSERT(oldStrongCount > 0);
-
-        return ptr;
-    }
-
-    return nullptr;
-}
-
-template <class T>
-T* AcquireRef(const THazardPtr<T>& ptr)
-{
-    if (ptr) {
-        auto* refCounter = GetAtomicRefCounter(ptr.Get());
-
-        auto count = refCounter->Count.load();
-        while (count > 0 && !refCounter->Count.compare_exchange_weak(count, count + 1));
-
-        if (count > 0) {
-            return ptr.Get();
+        if (GetRefCounter(ptr.Get())->TryRef()) {
+             return TIntrusivePtr<T>(ptr.Get(), false);
         } else {
             static const auto& Logger = LockFreePtrLogger;
             YT_LOG_TRACE("Failed to acquire ref (Ptr: %v)",
@@ -55,196 +24,6 @@ T* AcquireRef(const THazardPtr<T>& ptr)
     }
 
     return nullptr;
-}
-
-template <class T>
-void ReleaseRef(T* ptr)
-{
-    auto* refCounter = GetAtomicRefCounter(ptr);
-    auto oldStrongCount = refCounter->Count.fetch_sub(1, std::memory_order_release);
-    YT_ASSERT(oldStrongCount > 0);
-
-    if (oldStrongCount == 1) {
-        refCounter->Count.load(std::memory_order_acquire);
-
-        // Destroy object.
-        ptr->~T();
-
-        // Free memory.
-        ScheduleObjectDeletion(ptr, [] (void* ptr) {
-            auto* refCounter = GetAtomicRefCounter(ptr);
-            (*refCounter->Deleter)(refCounter);
-        });
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-TRefCountedPtr<T>::TRefCountedPtr(std::nullptr_t)
-{ }
-
-template <class T>
-TRefCountedPtr<T>::TRefCountedPtr(T* obj, bool addReference)
-    : Ptr_(addReference ? AcquireRef(obj) : obj)
-{ }
-
-template <class T>
-TRefCountedPtr<T>::TRefCountedPtr(const THazardPtr<T>& ptr)
-    : Ptr_(AcquireRef(ptr))
-{ }
-
-template <class T>
-TRefCountedPtr<T>::TRefCountedPtr(const TRefCountedPtr<T>& other)
-    : TRefCountedPtr(other.Ptr_)
-{ }
-
-template <class T>
-TRefCountedPtr<T>::TRefCountedPtr(TRefCountedPtr&& other)
-    : Ptr_(other.Ptr_)
-{
-    other.Ptr_ = nullptr;
-}
-
-template <class T>
-TRefCountedPtr<T>::~TRefCountedPtr()
-{
-    if (Ptr_) {
-        ReleaseRef(Ptr_);
-    }
-}
-
-template <class T>
-TRefCountedPtr<T>& TRefCountedPtr<T>::operator=(TRefCountedPtr other)
-{
-    Exchange(std::move(other));
-    return *this;
-}
-
-template <class T>
-TRefCountedPtr<T>& TRefCountedPtr<T>::operator=(std::nullptr_t)
-{
-    Exchange(TRefCountedPtr());
-    return *this;
-}
-
-template <class T>
-TRefCountedPtr<T> TRefCountedPtr<T>::Exchange(TRefCountedPtr&& other)
-{
-    auto oldPtr = Ptr_;
-    Ptr_ = other.Ptr_;
-    other.Ptr_ = nullptr;
-    return TRefCountedPtr(oldPtr, false);
-}
-
-template <class T>
-T* TRefCountedPtr<T>::Release()
-{
-    auto ptr = Ptr_;
-    Ptr_ = nullptr;
-    return ptr;
-}
-
-template <class T>
-T* TRefCountedPtr<T>::Get() const
-{
-    return Ptr_;
-}
-
-template <class T>
-T& TRefCountedPtr<T>::operator*() const
-{
-    YT_ASSERT(Ptr_);
-    return *Ptr_;
-}
-
-template <class T>
-T* TRefCountedPtr<T>::operator->() const
-{
-    YT_ASSERT(Ptr_);
-    return Ptr_;
-}
-
-template <class T>
-TRefCountedPtr<T>::operator bool() const
-{
-    return Ptr_ != nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-template <class T, class... As>
-TRefCountedPtr<T> ConstructObject(void* ptr, TDeleterBase* deleter, As&&... args)
-{
-    auto* refCounter = static_cast<TAtomicRefCounter*>(ptr);
-    auto* object = reinterpret_cast<T*>(refCounter + 1);
-
-    // Move TAtomicRefCounter out?
-    new (refCounter) TAtomicRefCounter(deleter);
-
-    try {
-        new (object) T(std::forward<As>(args)...);
-    } catch (const std::exception& ex) {
-        // Do not forget to free the memory.
-        (*deleter)(ptr);
-        throw;
-    }
-
-    return TRefCountedPtr<T>(object, false);
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T, class TAllocator, class... As>
-TRefCountedPtr<T> CreateObjectWithExtraSpace(
-    TAllocator* allocator,
-    size_t extraSpaceSize,
-    As&&... args)
-{
-    auto totalSize = sizeof(TAtomicRefCounter) + sizeof(T) + extraSpaceSize;
-    void* ptr = allocator->Allocate(totalSize);
-    // Where to get deleter? Supply it with args or return from allocator?
-    auto* deleter = allocator->GetDeleter(totalSize);
-    return ConstructObject<T>(ptr, deleter, std::forward<As>(args)...);
-}
-
-template <class T, class... As>
-TRefCountedPtr<T> CreateObject(As&&... args)
-{
-    auto* ptr = NYTAlloc::AllocateConstSize<sizeof(TAtomicRefCounter) + sizeof(T)>();
-    return ConstructObject<T>(ptr, &DefaultDeleter, std::forward<As>(args)...);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class U>
-bool operator==(const THazardPtr<U>& lhs, const U* rhs)
-{
-    return lhs.Get() == rhs;
-}
-
-template <class U>
-bool operator!=(const THazardPtr<U>& lhs, const U* rhs)
-{
-    return lhs.Get() != rhs;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-bool operator==(const TRefCountedPtr<T>& lhs, const TRefCountedPtr<T>& rhs)
-{
-    return lhs.Get() == rhs.Get();
-}
-
-template <class T>
-bool operator!=(const TRefCountedPtr<T>& lhs, const TRefCountedPtr<T>& rhs)
-{
-    return lhs.Get() != rhs.Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -270,7 +49,7 @@ TAtomicPtr<T>::~TAtomicPtr()
 {
     auto ptr = Ptr_.load();
     if (ptr) {
-        ReleaseRef(ptr);
+        Unref(ptr);
     }
 }
 
@@ -300,7 +79,7 @@ TRefCountedPtr<T> TAtomicPtr<T>::AcquireWeak() const
     auto hazardPtr = THazardPtr<T>::Acquire([&] {
         return Ptr_.load(std::memory_order_relaxed);
     });
-    return TRefCountedPtr(hazardPtr);
+    return MakeStrong(hazardPtr);
 }
 
 template <class T>
@@ -309,7 +88,7 @@ TRefCountedPtr<T> TAtomicPtr<T>::Acquire() const
     while (auto hazardPtr = THazardPtr<T>::Acquire([&] {
         return Ptr_.load(std::memory_order_relaxed);
     })) {
-        if (auto ptr = TRefCountedPtr(hazardPtr)) {
+        if (auto ptr = MakeStrong(hazardPtr)) {
             return ptr;
         }
     }
