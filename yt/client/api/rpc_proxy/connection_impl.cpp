@@ -97,14 +97,29 @@ std::vector<TString> GetRpcProxiesFromHttp(
     return ConvertTo<std::vector<TString>>(node);
 }
 
+TString MakeConnectionLoggingId(const TConnectionConfigPtr& config)
+{
+    TStringBuilder builder;
+    TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+    if (config->ClusterUrl) {
+        delimitedBuilder->AppendFormat("ClusterUrl: %v", *config->ClusterUrl);
+    }
+    if (config->ProxyRole) {
+        delimitedBuilder->AppendFormat("ProxyRole: %v", *config->ProxyRole);
+    }
+    delimitedBuilder->AppendFormat("ConnectionId: %v", TGuid::Create());
+    return builder.Flush();
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TConnection::TConnection(TConnectionConfigPtr config)
     : Config_(std::move(config))
+    , LoggingId_(MakeConnectionLoggingId(Config_))
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
-        .AddTag("ConnectionId: %v", TGuid::Create()))
+        .AddRawTag(LoggingId_))
     , ActionQueue_(New<TActionQueue>("RpcProxyConn"))
     , ChannelFactory_(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient))
     , ChannelPool_(New<TDynamicChannelPool>(
@@ -119,8 +134,8 @@ TConnection::TConnection(TConnectionConfigPtr config)
     Config_->Postprocess();
 
     if (!Config_->EnableProxyDiscovery) {
-        ChannelPool_->SetAddressList(Config_->Addresses);
-    } else if (!Config_->Addresses.empty()) {
+        ChannelPool_->SetAddressList(Config_->ProxyAddresses);
+    } else if (!Config_->ProxyAddresses.empty()) {
         UpdateProxyListExecutor_->Start();
     }
 }
@@ -135,6 +150,11 @@ TConnection::~TConnection()
 NObjectClient::TCellTag TConnection::GetCellTag()
 {
     YT_UNIMPLEMENTED();
+}
+
+const TString& TConnection::GetLoggingId()
+{
+    return LoggingId_;
 }
 
 IInvokerPtr TConnection::GetInvoker()
@@ -237,10 +257,10 @@ void TConnection::OnProxyListUpdate()
                 YT_LOG_DEBUG("Updating proxy list from RPC (ProxyRole: %v)",
                     Config_->ProxyRole);
                 
-                attributes->Set("rpc_proxy_addresses", Config_->Addresses);
+                attributes->Set("rpc_proxy_addresses", Config_->ProxyAddresses);
 
                 if (!DiscoveryChannel_) {
-                    auto address = Config_->Addresses[RandomNumber(Config_->Addresses.size())];
+                    auto address = Config_->ProxyAddresses[RandomNumber(Config_->ProxyAddresses.size())];
                     DiscoveryChannel_ = ChannelFactory_->CreateChannel(address);
                 }
 

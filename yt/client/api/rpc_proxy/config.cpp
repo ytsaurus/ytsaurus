@@ -10,7 +10,8 @@ TConnectionConfig::TConnectionConfig()
         .Default();
     RegisterParameter("proxy_role", ProxyRole)
         .Optional();
-    RegisterParameter("addresses", Addresses)
+    RegisterParameter("proxy_addresses", ProxyAddresses)
+        .Alias("addresses")
         .Default();
     RegisterParameter("proxy_host_order", ProxyHostOrder)
         .Default();
@@ -72,16 +73,15 @@ TConnectionConfig::TConnectionConfig()
         .Default(0);
 
 
-    RegisterPostprocessor([this] {
-        if (!ClusterUrl && Addresses.empty()) {
+    RegisterPostprocessor([&] {
+        if (!ClusterUrl && ProxyAddresses.empty()) {
             THROW_ERROR_EXCEPTION("Either \"cluster_url\" or \"addresses\" must be specified");
         }
 
         if (!EnableProxyDiscovery) {
-            if (Addresses.empty()) {
+            if (ProxyAddresses.empty()) {
                 THROW_ERROR_EXCEPTION("\"addresses\" must be specified");
             }
-
             ClusterUrl.reset();
         }
     });
