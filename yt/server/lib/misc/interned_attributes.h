@@ -31,6 +31,7 @@
     XX(AvailableSpacePerMedium, available_space_per_medium) \
     XX(Banned, banned) \
     XX(BannedNodeCount, banned_node_count) \
+    XX(BestAllocationRatioUpdatePeriod, best_allocation_ratio_update_period) \
     XX(BoundaryKeys, boundary_keys) \
     XX(BranchedNodeIds, branched_node_ids) \
     XX(Broken, broken) \
