@@ -21,7 +21,7 @@ class TConnectionConfig
 public:
     std::optional<TString> ClusterUrl;
     std::optional<TString> ProxyRole;
-    std::vector<TString> Addresses;
+    std::vector<TString> ProxyAddresses;
     std::vector<NRe2::TRe2Ptr> ProxyHostOrder;
 
     //! Number of open connection to rpc proxies.

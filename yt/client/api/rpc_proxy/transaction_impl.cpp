@@ -148,8 +148,8 @@ void TTransaction::RegisterAlienTransaction(const ITransactionPtr& transaction)
         AlienTransactions_.push_back(std::move(transaction));
     }
 
-    // TODO(babenko): cell tag
-    YT_LOG_DEBUG("Alien transaction registered");
+    YT_LOG_DEBUG("Alien transaction registered (AlienConnectionId: %v)",
+        transaction->GetConnection()->GetLoggingId());
 }
 
 TFuture<void> TTransaction::Ping(const NApi::TTransactionPingOptions& /*options*/)
@@ -290,9 +290,9 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 
                     const auto& result = resultOrError.Value();
 
-                    // TODO(babenko): cell tag
-                    YT_LOG_DEBUG("Alien transaction flushed (ParticipantCellIds: %v)",
-                        result.ParticipantCellIds);
+                    YT_LOG_DEBUG("Alien transaction flushed (ParticipantCellIds: %v, AlienConnectionId: %v)",
+                        result.ParticipantCellIds,
+                        transaction->GetConnection()->GetLoggingId());
 
                     for (auto cellId : result.ParticipantCellIds) {
                         AdditionalParticipantCellIds_.insert(cellId);

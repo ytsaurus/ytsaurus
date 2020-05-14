@@ -278,8 +278,8 @@ public:
             AlienTransactions_.push_back(transaction);
         }
 
-        // TODO(babenko): cell tag
-        YT_LOG_DEBUG("Alien transaction registered");
+        YT_LOG_DEBUG("Alien transaction registered (AlienConnectionId: %v)",
+            transaction->GetConnection()->GetLoggingId());
     }
 
 
@@ -1759,8 +1759,8 @@ private:
             AlienTransactions_.push_back(transaction);
         }
 
-        // TODO(babenko): cell tag
-        YT_LOG_DEBUG("Alien transaction registered");
+        YT_LOG_DEBUG("Alien transaction registered (AlienConnectionId: %v)",
+            transaction->GetConnection()->GetLoggingId());
     }
 
     std::vector<NApi::ITransactionPtr> GetAlienTransactions()
