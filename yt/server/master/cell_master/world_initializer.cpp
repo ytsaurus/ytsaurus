@@ -308,14 +308,16 @@ private:
                 transactionId,
                 EObjectType::Orchid);
 
-            ScheduleCreateNode(
-                "//sys/operations",
-                transactionId,
-                EObjectType::MapNode,
-                BuildYsonStringFluently()
-                    .BeginMap()
-                        .Item("opaque").Value(true)
-                    .EndMap());
+            if (!IsInitialized()) {
+                ScheduleCreateNode(
+                    "//sys/operations",
+                    transactionId,
+                    EObjectType::MapNode,
+                    BuildYsonStringFluently()
+                        .BeginMap()
+                            .Item("opaque").Value(true)
+                        .EndMap());
+            }
 
             ScheduleCreateNode(
                 "//sys/proxies",
