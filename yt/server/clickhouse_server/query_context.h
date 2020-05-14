@@ -1,8 +1,6 @@
 #pragma once
 
 #include "private.h"
-#include "bootstrap.h"
-#include "host.h"
 
 #include "schema.h"
 
@@ -25,22 +23,19 @@
 
 namespace NYT::NClickHouseServer {
 
-using namespace NLogging;
-using namespace NConcurrency;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TQueryContext
     : public TRefCounted
 {
 public:
-    TLogger Logger;
+    NLogging::TLogger Logger;
     const TString User;
     NProfiling::TTagId UserTagId;
     const NTracing::TTraceContextPtr TraceContext;
     const TQueryId QueryId;
     const EQueryKind QueryKind;
-    TBootstrap* const Bootstrap;
+    THost* const Host;
     TString Query;
     TString CurrentUser;
     TString CurrentAddress;
@@ -57,11 +52,10 @@ public:
     NTableClient::TRowBufferPtr RowBuffer;
 
     TQueryContext(
-        TBootstrap* bootstrap,
+        THost* host,
         const DB::Context& context,
         TQueryId queryId,
-        NTracing::TTraceContextPtr
-        traceContext,
+        NTracing::TTraceContextPtr traceContext,
         std::optional<TString> dataLensRequestId);
 
     ~TQueryContext();
@@ -73,7 +67,6 @@ public:
     EQueryPhase GetQueryPhase() const;
 
 private:
-    TClickHouseHostPtr Host_;
     NTracing::TTraceContextGuard TraceContextGuard_;
 
     TInstant StartTime_;
@@ -84,7 +77,7 @@ private:
     TString PhaseDebugString_ = ToString(EQueryPhase::Start);
 
     //! Spinlock controlling lazy client creation.
-    mutable TReaderWriterSpinLock ClientLock_;
+    mutable NConcurrency::TReaderWriterSpinLock ClientLock_;
 
     //! Native client for the user that initiated the query. Created on first use.
     mutable NApi::NNative::IClientPtr Client_;
@@ -95,7 +88,7 @@ void Serialize(const TQueryContext& queryContext, NYson::IYsonConsumer* consumer
 ////////////////////////////////////////////////////////////////////////////////
 
 void SetupHostContext(
-    TBootstrap* bootstrap,
+    THost* host,
     DB::Context& context,
     TQueryId queryId,
     NTracing::TTraceContextPtr traceContext,

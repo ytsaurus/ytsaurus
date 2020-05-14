@@ -10,7 +10,7 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(TBootstrap* bootstrap, DB::IServer& server);
+Poco::Net::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(THost* host, DB::IServer& server);
 
 ////////////////////////////////////////////////////////////////////////////////
 

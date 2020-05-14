@@ -123,6 +123,12 @@ Poco::AutoPtr<Poco::Util::AbstractConfiguration> ConvertToPocoConfig(const INode
     return new TPocoConfigWrapper(node->AsMap());
 }
 
+Poco::AutoPtr<Poco::Util::LayeredConfiguration> ConvertToLayeredConfig(const INodePtr& node)
+{
+    auto* layeredConfig = new Poco::Util::LayeredConfiguration();
+    layeredConfig->add(ConvertToPocoConfig(node));
+    return layeredConfig;
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

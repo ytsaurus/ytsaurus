@@ -1,7 +1,7 @@
 #include "health_checker.h"
 
-#include <yt/server/clickhouse_server/config.h>
-#include <yt/server/clickhouse_server/query_context.h>
+#include "config.h"
+#include "query_context.h"
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -21,6 +21,8 @@
 #include <contrib/libs/clickhouse/dbms/src/Core/Types.h>
 
 namespace NYT::NClickHouseServer {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -45,7 +47,7 @@ DB::Context PrepareContextForQuery(
     const DB::Context* databaseContext,
     const TString& dataBaseUser,
     TDuration timeout,
-    TBootstrap* bootstrap)
+    THost* host)
 {
     DB::Context contextForQuery = *databaseContext;
 
@@ -74,7 +76,7 @@ DB::Context PrepareContextForQuery(
     auto traceContext =
         New<NTracing::TTraceContext>(spanContext, /*spanName =*/"HealthCheckerQuery");
 
-    SetupHostContext(bootstrap, contextForQuery, queryId, std::move(traceContext));
+    SetupHostContext(host, contextForQuery, queryId, std::move(traceContext));
 
     return contextForQuery;
 }
@@ -106,7 +108,7 @@ void THealthChecker::ExecuteQuery(const TString& query)
 
     NDetail::ValidateQueryResult(DB::InterpreterSelectWithUnionQuery(
         querySyntaxTree,
-        NDetail::PrepareContextForQuery(DatabaseContext_, DatabaseUser_, Config_->Timeout, Bootstrap_),
+        NDetail::PrepareContextForQuery(DatabaseContext_, DatabaseUser_, Config_->Timeout, Host_),
         DB::SelectQueryOptions())
         .execute());
 }
@@ -115,11 +117,11 @@ THealthChecker::THealthChecker(
     THealthCheckerConfigPtr config,
     TString dataBaseUser,
     const DB::Context* databaseContext,
-    TBootstrap* bootstrap)
+    THost* host)
     : Config_(std::move(config))
     , DatabaseUser_(std::move(dataBaseUser))
     , DatabaseContext_(databaseContext)
-    , Bootstrap_(bootstrap)
+    , Host_(host)
     , ActionQueue_(New<TActionQueue>("HealthChecker"))
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         ActionQueue_->GetInvoker(),
@@ -171,8 +173,6 @@ void THealthChecker::ExecuteQueries()
 
 void THealthChecker::OnProfiling()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
-
     std::vector<bool> lastResultSnapshot;
 
     // Make a copy in order to not hold lock for a long time in case of profiling overload.

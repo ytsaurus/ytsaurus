@@ -22,6 +22,7 @@ namespace NYT::NClickHouseServer {
 using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
+using namespace NConcurrency;
 
 static const auto& Logger = ClickHouseYtLogger;
 
@@ -187,15 +188,16 @@ class TQueryRegistry::TImpl
 public:
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, OrchidService);
 
-    TImpl(TBootstrap* bootstrap)
+    TImpl(IInvokerPtr invoker, DB::Context* context, TDuration processListSnapshotUpdatePeriod)
         : OrchidService_(IYPathService::FromProducer(BIND(&TImpl::BuildYson, MakeWeak(this))))
-        , Bootstrap_(bootstrap)
+        , Invoker_(std::move(invoker))
+        , Context_(context)
         , UserTagCache_("user")
         , IdlePromise_(MakePromise<void>(TError()))
         , ProcessListSnapshotExecutor_(New<TPeriodicExecutor>(
-            Bootstrap_->GetControlInvoker(),
+            Invoker_,
             BIND(&TImpl::UpdateProcessListSnapshot, MakeWeak(this)),
-            Bootstrap_->GetConfig()->ProcessListSnapshotUpdatePeriod))
+            processListSnapshotUpdatePeriod))
         , QueryRegistryProfiler_(ClickHouseYtProfiler.AppendPath("/query_registry"))
     {
         for (const auto& queryPhase : TEnumTraits<EQueryPhase>::GetDomainValues()) {
@@ -216,7 +218,7 @@ public:
 
     void Register(TQueryContextPtr queryContext)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        VERIFY_INVOKER_AFFINITY(Invoker_);
 
         const auto& Logger = queryContext->Logger;
 
@@ -250,7 +252,7 @@ public:
 
     void Unregister(TQueryContextPtr queryContext)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        VERIFY_INVOKER_AFFINITY(Invoker_);
 
         const auto& Logger = queryContext->Logger;
 
@@ -300,21 +302,21 @@ public:
 
     size_t GetQueryCount() const
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        VERIFY_INVOKER_AFFINITY(Invoker_);
 
         return QueryContexts_.size();
     }
 
     TFuture<void> GetIdleFuture() const
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        VERIFY_INVOKER_AFFINITY(Invoker_);
 
         return IdlePromise_.ToFuture();
     }
 
     void OnProfiling() const
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        VERIFY_INVOKER_AFFINITY(Invoker_);
 
         for (const auto& [user, userProfilingInfo] : UserToUserProfilingEntry_) {
             QueryRegistryProfiler_.Enqueue(
@@ -391,7 +393,7 @@ public:
 
     void SaveState()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        VERIFY_INVOKER_AFFINITY(Invoker_);
 
         TStringStream stream;
         TYsonWriter writer(&stream, EYsonFormat::Pretty);
@@ -403,7 +405,7 @@ public:
 
     void UpdateProcessListSnapshot()
     {
-        ProcessListSnapshot_ = TProcessListSnapshot(Bootstrap_->GetHost()->GetContext().getProcessList());
+        ProcessListSnapshot_ = TProcessListSnapshot(Context_->getProcessList());
     }
 
     NProfiling::TTagId GetUserProfilingTag(const TString& user)
@@ -414,7 +416,8 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    IInvokerPtr Invoker_;
+    DB::Context* Context_;
     THashSet<TQueryContextPtr> QueryContexts_;
 
     TTagCache<TString> UserTagCache_;
@@ -434,7 +437,7 @@ private:
 
     void BuildYson(IYsonConsumer* consumer) const
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        VERIFY_INVOKER_AFFINITY(Invoker_);
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -453,7 +456,7 @@ private:
 
     TUserProfilingEntry& GetOrRegisterUserProfilingEntry(const TString& user)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        VERIFY_INVOKER_AFFINITY(Invoker_);
 
         THashMap<TString, TUserProfilingEntry>::insert_ctx ctx;
         auto it = UserToUserProfilingEntry_.find(user, ctx);
@@ -467,8 +470,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryRegistry::TQueryRegistry(NYT::NClickHouseServer::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
+TQueryRegistry::TQueryRegistry(IInvokerPtr invoker, DB::Context* context, TDuration processListSnapshotUpdatePeriod)
+    : Impl_(New<TImpl>(std::move(invoker), context, processListSnapshotUpdatePeriod))
 { }
 
 TQueryRegistry::~TQueryRegistry()

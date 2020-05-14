@@ -1,7 +1,7 @@
-#include "private.h"
-
-#include "bootstrap.h"
 #include "clickhouse_service.h"
+
+#include "config.h"
+#include "host.h"
 #include "clickhouse_service_proxy.h"
 
 #include <yt/core/rpc/message.h>
@@ -18,20 +18,18 @@ class TClickHouseService
     : public TServiceBase
 {
 public:
-    TClickHouseService(TBootstrap* bootstrap, TString instanceId)
+    explicit TClickHouseService(THost* host)
         : TServiceBase(
-            bootstrap->GetControlInvoker(),
+            host->GetControlInvoker(),
             TClickHouseServiceProxy::GetDescriptor(),
             ClickHouseYtLogger)
-        , InstanceId_(std::move(instanceId))
-        , Bootstrap_(bootstrap)
+        , Host_(host)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProcessGossip));
     }
 
 private:
-    TString InstanceId_;
-    TBootstrap* Bootstrap_;
+    THost* Host_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ProcessGossip)
     {
@@ -39,24 +37,24 @@ private:
             request->instance_id(),
             static_cast<EInstanceState>(request->instance_state()));
 
-        response->set_instance_id(InstanceId_);
-        auto state = Bootstrap_->GetState();
+        response->set_instance_id(ToString(Host_->GetConfig()->InstanceId));
+        auto state = Host_->GetInstanceState();
         response->set_instance_state(static_cast<int>(state));
 
-        context->SetResponseInfo("InstanceId: %v, State: %v",
-            InstanceId_,
+        context->SetResponseInfo("SelfInstanceId: %v, SelfState: %v",
+            Host_->GetConfig()->InstanceId,
             state);
 
-        Bootstrap_->GetHost()->HandleIncomingGossip(request->instance_id(), static_cast<EInstanceState>(request->instance_state()));
+        Host_->HandleIncomingGossip(request->instance_id(), static_cast<EInstanceState>(request->instance_state()));
         context->Reply();
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServicePtr CreateClickHouseService(TBootstrap* bootstrap, TString instanceId)
+IServicePtr CreateClickHouseService(THost* host)
 {
-    return New<TClickHouseService>(bootstrap, std::move(instanceId));
+    return New<TClickHouseService>(host);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

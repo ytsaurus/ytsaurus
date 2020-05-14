@@ -20,31 +20,29 @@ class TTcpHandlerFactory
     : public Poco::Net::TCPServerConnectionFactory
 {
 private:
-    TBootstrap* Bootstrap_;
+    THost* Host_;
     IServer& Server;
 
 public:
-    TTcpHandlerFactory(TBootstrap* bootstrap, IServer& server)
-        : Bootstrap_(bootstrap)
+    TTcpHandlerFactory(THost* host, IServer& server)
+        : Host_(host)
         , Server(server)
     { }
 
-    Poco::Net::TCPServerConnection* createConnection(
-        const Poco::Net::StreamSocket& socket) override;
+    Poco::Net::TCPServerConnection* createConnection(const Poco::Net::StreamSocket& socket) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
-    const Poco::Net::StreamSocket& socket)
+Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco::Net::StreamSocket& socket)
 {
     class TTcpHandler
         : public DB::TCPHandler
     {
     public:
-        TTcpHandler(TBootstrap* bootstrap, DB::IServer& server, const Poco::Net::StreamSocket& socket)
+        TTcpHandler(THost* host, DB::IServer& server, const Poco::Net::StreamSocket& socket)
             : DB::TCPHandler(server, socket)
-            , Bootstrap_(bootstrap)
+            , Host_(host)
         { }
 
         virtual void customizeContext(DB::Context& context) override
@@ -90,21 +88,21 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(
                 THROW_ERROR_EXCEPTION("Queries via native TCP protocol are not supported (CHYT-342)");
             }
 
-            SetupHostContext(Bootstrap_, context, queryId, std::move(traceContext));
+            SetupHostContext(Host_, context, queryId, std::move(traceContext));
         }
 
     private:
-        TBootstrap* const Bootstrap_;
+        THost* const Host_;
     };
 
-    return new TTcpHandler(Bootstrap_, Server, socket);
+    return new TTcpHandler(Host_, Server, socket);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(TBootstrap* bootstrap, IServer& server)
+Poco::Net::TCPServerConnectionFactory::Ptr CreateTcpHandlerFactory(THost* host, IServer& server)
 {
-    return new TTcpHandlerFactory(bootstrap, server);
+    return new TTcpHandlerFactory(host, server);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

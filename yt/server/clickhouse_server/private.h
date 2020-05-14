@@ -8,9 +8,13 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! General-purpose logger for our code.
 extern const NLogging::TLogger ClickHouseYtLogger;
+//! Profiler for our own metrics.
 extern const NLogging::TLogger ClickHouseNativeLogger;
+//! Logger which is used by ClickHouse native code.
 extern const NProfiling::TProfiler ClickHouseYtProfiler;
+//! Profiler exporting raw ClickHouse metrics.
 extern const NProfiling::TProfiler ClickHouseNativeProfiler;
 
 constexpr int MemoryLimitExceededExitCode = 42;
@@ -41,14 +45,18 @@ DECLARE_REFCOUNTED_CLASS(TSubqueryConfig);
 DECLARE_REFCOUNTED_CLASS(TSystemLogConfig);
 DECLARE_REFCOUNTED_CLASS(TMemoryWatchdogConfig);
 DECLARE_REFCOUNTED_CLASS(THealthCheckerConfig);
-DECLARE_REFCOUNTED_CLASS(TClickHouseHost);
 DECLARE_REFCOUNTED_CLASS(TQueryRegistry);
 DECLARE_REFCOUNTED_CLASS(THealthChecker);
 DECLARE_REFCOUNTED_STRUCT(TTable);
 DECLARE_REFCOUNTED_STRUCT(TQueryContext);
+DECLARE_REFCOUNTED_CLASS(TClickHouseConfig);
+DECLARE_REFCOUNTED_CLASS(TYtConfig);
+DECLARE_REFCOUNTED_STRUCT(IClickHouseHost);
+DECLARE_REFCOUNTED_STRUCT(IClickHouseServer);
+DECLARE_REFCOUNTED_CLASS(THost);
+DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig);
 
 struct TValue;
-class TBootstrap;
 class TSubquerySpec;
 struct TSubquery;
 struct TQueryAnalysisResult;

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "private.h"
+
 #include <Client/ConnectionPoolWithFailover.h>
 #include <Interpreters/Cluster.h>
 #include <Interpreters/Context.h>
@@ -11,7 +13,7 @@ namespace NYT::NClickHouseServer {
 struct TClusterNodeName
 {
     std::string Host;
-    uint64_t Port;
+    i64 Port;
 
     std::string ToString() const
     {
@@ -79,8 +81,7 @@ using TClusterNodes = std::vector<IClusterNodePtr>;
 
 IClusterNodePtr CreateClusterNode(
     const TClusterNodeName& name,
-    const DB::Settings& settings,
-    uint64_t clickhouse_port);
+    const DB::Settings& settings);
 
 ////////////////////////////////////////////////////////////////////////////////
 

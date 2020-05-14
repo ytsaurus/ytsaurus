@@ -6,6 +6,7 @@
 #include "schema.h"
 #include "helpers.h"
 #include "table.h"
+#include "host.h"
 #include "query_analyzer.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
@@ -51,9 +52,12 @@
 #include <yt/core/logging/log.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/ytree/convert.h>
+#include <yt/core/concurrency/action_queue.h>
 
 #include <Storages/MergeTree/KeyCondition.h>
 #include <DataTypes/IDataType.h>
+
+#include <cmath>
 
 namespace NYT::NClickHouseServer {
 
@@ -70,7 +74,7 @@ using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
-using namespace DB;
+using namespace NLogging;
 
 using NYT::ToProto;
 
@@ -91,11 +95,11 @@ public:
         TQueryContext* queryContext,
         const TQueryAnalysisResult& queryAnalysisResult)
         : Client_(queryContext->Client())
-        , Invoker_(queryContext->Bootstrap->GetSerializedWorkerInvoker())
+        , Invoker_(CreateSerializedInvoker(queryContext->Host->GetWorkerInvoker()))
         , TableSchemas_(queryAnalysisResult.TableSchemas)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
         , KeyColumnCount_(queryAnalysisResult.KeyColumnCount)
-        , Config_(queryContext->Bootstrap->GetConfig()->Engine->Subquery)
+        , Config_(queryContext->Host->GetConfig()->Subquery)
         , Logger(queryContext->Logger)
     {
         OperandCount_ = queryAnalysisResult.Tables.size();
@@ -120,10 +124,10 @@ private:
     IInvokerPtr Invoker_;
 
     std::vector<TTableSchema> TableSchemas_;
-    std::vector<std::optional<KeyCondition>> KeyConditions_;
+    std::vector<std::optional<DB::KeyCondition>> KeyConditions_;
 
     std::optional<int> KeyColumnCount_ = 0;
-    DataTypes KeyColumnDataTypes_;
+    DB::DataTypes KeyColumnDataTypes_;
 
     //! Number of operands to join. May be either 1 (if no JOIN present or joinee is not a YT table) or 2 (otherwise).
     int OperandCount_ = 0;
@@ -245,8 +249,8 @@ private:
         YT_VERIFY(static_cast<int>(lowerKey.GetCount()) >= *KeyColumnCount_);
         YT_VERIFY(static_cast<int>(upperKey.GetCount()) >= *KeyColumnCount_);
 
-        Field minKey[*KeyColumnCount_];
-        Field maxKey[*KeyColumnCount_];
+        DB::Field minKey[*KeyColumnCount_];
+        DB::Field maxKey[*KeyColumnCount_];
         ConvertToFieldRow(lowerKey, *KeyColumnCount_, minKey);
         ConvertToFieldRow(upperKey, *KeyColumnCount_, maxKey);
 

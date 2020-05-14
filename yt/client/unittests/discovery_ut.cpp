@@ -57,8 +57,7 @@ TEST(TDiscoveryTest, Simple)
     EXPECT_CALL(*MockClient, ListNode(path, _))
         .WillRepeatedly(Return(MakeFuture(listRet)));
 
-    TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
-    config->Directory = path;
+    TDiscoveryConfigPtr config = New<TDiscoveryConfig>(path);
     config->UpdatePeriod = TDuration::Seconds(1);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
     WaitFor(discovery->StartPolling())
@@ -132,8 +131,7 @@ TEST(TDiscoveryTest, Enter)
               return VoidFuture;
         }));
 
-    TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
-    config->Directory = path;
+    TDiscoveryConfigPtr config = New<TDiscoveryConfig>(path);
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
     WaitFor(discovery->StartPolling())
@@ -216,8 +214,7 @@ TEST(TDiscoveryTest, Leave) {
     EXPECT_CALL(*MockTransaction, UnsubscribeAborted(_))
         .Times(1);
 
-    TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
-    config->Directory = path;
+    TDiscoveryConfigPtr config = New<TDiscoveryConfig>(path);
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
     WaitFor(discovery->StartPolling())
@@ -258,8 +255,7 @@ TEST(TDiscoveryTest, Ban)
 
     std::vector<TString> expected = {"alive_node1", "alive_node2"};
 
-    TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
-    config->Directory = path;
+    TDiscoveryConfigPtr config = New<TDiscoveryConfig>(path);
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     config->BanTimeout = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
@@ -323,8 +319,7 @@ TEST(TDiscoveryTest, Attributes)
                     .Value("alive_node2")
             .EndList())));
 
-    TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
-    config->Directory = path;
+    TDiscoveryConfigPtr config = New<TDiscoveryConfig>(path);
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
     WaitFor(discovery->StartPolling())
@@ -385,7 +380,7 @@ TEST(TDiscoveryTest, CreationRace)
     EXPECT_CALL(*MockTransaction, SubscribeAborted(_))
         .Times(1);
 
-    TDiscoveryConfigPtr config = New<TDiscoveryConfig>();
+    TDiscoveryConfigPtr config = New<TDiscoveryConfig>(path);
     config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
 

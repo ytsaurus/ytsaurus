@@ -472,8 +472,7 @@ private:
                     }
                 }
 
-                auto config = New<TDiscoveryConfig>();
-                config->Directory = path;
+                auto config = New<TDiscoveryConfig>(path);
                 config->BanTimeout = Config_->CliqueCache->UnavailableInstanceBanTimeout;
                 config->ReadFrom = NApi::EMasterChannelKind::Cache;
                 config->MasterCacheExpireTime = Config_->CliqueCache->MasterCacheExpireTime;

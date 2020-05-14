@@ -4,6 +4,8 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// See comments around declaration of these objects in private.h.
+
 const NLogging::TLogger ClickHouseYtLogger("ClickHouseYT");
 const NProfiling::TProfiler ClickHouseYtProfiler("/clickhouse/yt");
 

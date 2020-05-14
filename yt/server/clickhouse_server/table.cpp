@@ -47,7 +47,7 @@ TTable::TTable(TRichYPath path, const TAttributeMap& attributes)
 
 std::vector<TTablePtr> FetchTables(
     const NApi::NNative::IClientPtr& client,
-    const TClickHouseHostPtr& host,
+    THost* host,
     const std::vector<TRichYPath>& richPaths,
     bool skipUnsuitableNodes,
     TLogger logger)

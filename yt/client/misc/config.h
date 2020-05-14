@@ -42,9 +42,13 @@ public:
     // Used only for ReadFrom == Cache.
     TDuration MasterCacheExpireTime;
 
-    TDiscoveryConfig()
+    TDiscoveryConfig() = default;
+
+    explicit TDiscoveryConfig(NYPath::TYPath directoryPath)
     {
-        RegisterParameter("directory", Directory);
+        RegisterParameter("directory", Directory)
+            .Default(directoryPath);
+
         RegisterParameter("update_period", UpdatePeriod)
             .Default(TDuration::Seconds(30));
 

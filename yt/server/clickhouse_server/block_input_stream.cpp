@@ -1,6 +1,7 @@
 #include "block_input_stream.h"
 
-#include "bootstrap.h"
+#include "query_context.h"
+#include "host.h"
 #include "helpers.h"
 #include "config.h"
 #include "subquery_spec.h"
@@ -185,14 +186,15 @@ TBlockInputStream::TBlockInputStream(
     ISchemalessMultiChunkReaderPtr reader,
     TTableSchema readSchema,
     TTraceContextPtr traceContext,
-    TBootstrap* bootstrap,
+    THost* host,
     TLogger logger,
     DB::PrewhereInfoPtr prewhereInfo)
     : Reader_(std::move(reader))
     , ReadSchema_(std::move(readSchema))
     , TraceContext_(std::move(traceContext))
-    , Bootstrap_(bootstrap)
+    , Host_(host)
     , Logger(std::move(logger))
+    , RowBuffer_(New<NTableClient::TRowBuffer>())
     , PrewhereInfo_(std::move(prewhereInfo))
 {
     Prepare();
@@ -264,7 +266,7 @@ DB::Block TBlockInputStream::readImpl()
             IdToColumnIndex_,
             RowBuffer_,
             InputHeaderBlock_.cloneEmpty())
-            .AsyncVia(Bootstrap_->GetWorkerInvoker())
+            .AsyncVia(Host_->GetWorkerInvoker())
             .Run())
             .ValueOrThrow();
 
@@ -277,7 +279,7 @@ DB::Block TBlockInputStream::readImpl()
                 IdToColumnIndex_,
                 RowBuffer_,
                 InputHeaderBlock_,
-                Bootstrap_->GetWorkerInvoker());
+                Host_->GetWorkerInvoker());
         }
 
         // NB: ConvertToField copies all strings, so clearing row buffer is safe here.
@@ -315,7 +317,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     ISchemalessMultiChunkReaderPtr reader,
     TTableSchema readSchema,
     TTraceContextPtr traceContext,
-    TBootstrap* bootstrap,
+    THost* host,
     TLogger logger,
     DB::PrewhereInfoPtr prewhereInfo)
 {
@@ -323,7 +325,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         std::move(reader),
         std::move(readSchema),
         std::move(traceContext),
-        bootstrap,
+        host,
         logger,
         std::move(prewhereInfo));
 }
@@ -442,8 +444,8 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         "ClickHouseYt.BlockInputStream");
     NTracing::TTraceContextGuard guard(blockInputStreamTraceContext);
 
-    auto readerMemoryManager = queryContext->Bootstrap->GetHost()->GetMultiReaderMemoryManager()->CreateMultiReaderMemoryManager(
-        queryContext->Bootstrap->GetConfig()->ReaderMemoryRequirement,
+    auto readerMemoryManager = queryContext->Host->GetMultiReaderMemoryManager()->CreateMultiReaderMemoryManager(
+        queryContext->Host->GetConfig()->ReaderMemoryRequirement,
         {queryContext->UserTagId});
     auto reader = CreateSchemalessParallelMultiReader(
         NDetail::CreateTableReaderConfig(),
@@ -469,7 +471,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         reader,
         schema,
         blockInputStreamTraceContext,
-        queryContext->Bootstrap,
+        queryContext->Host,
         TLogger(queryContext->Logger).AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId),
         prewhereInfo);
 }

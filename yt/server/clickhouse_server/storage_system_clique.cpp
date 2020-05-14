@@ -24,13 +24,13 @@ class TStorageSystemClique
 private:
     const std::string TableName_;
     TDiscoveryPtr Discovery_;
-    TString InstanceId_;
+    TGuid InstanceId_;
 
 public:
     TStorageSystemClique(
         TDiscoveryPtr discovery,
         std::string tableName,
-        TString instanceId)
+        TGuid instanceId)
         : TableName_(std::move(tableName))
         , Discovery_(std::move(discovery))
         , InstanceId_(std::move(instanceId))
@@ -73,7 +73,7 @@ public:
             res_columns[4]->insert(attributes.at("http_port")->GetValue<ui64>());
             res_columns[5]->insert(std::string(name));
             res_columns[6]->insert(attributes.at("pid")->GetValue<i64>());
-            res_columns[7]->insert(name == InstanceId_);
+            res_columns[7]->insert(name == ToString(InstanceId_));
             res_columns[8]->insert(attributes.at("job_cookie")->GetValue<ui64>());
         }
 
@@ -84,42 +84,15 @@ private:
     static ColumnsDescription CreateColumnList()
     {
         return ColumnsDescription({
-            {
-                "host",
-                std::make_shared<DataTypeString>(),
-            },
-            {
-                "rpc_port",
-                std::make_shared<DataTypeUInt16>(),
-            },
-            {
-                "monitoring_port",
-                std::make_shared<DataTypeUInt16>(),
-            },
-            {
-                "tcp_port",
-                std::make_shared<DataTypeUInt16>(),
-            },
-            {
-                "http_port",
-                std::make_shared<DataTypeUInt16>(),
-            },
-            {
-                "job_id",
-                std::make_shared<DataTypeString>(),
-            },
-            {
-                "pid",
-                std::make_shared<DataTypeInt32>(),
-            },
-            {
-                "self",
-                std::make_shared<DataTypeUInt8>(),
-            },
-            {
-                "job_cookie",
-                std::make_shared<DataTypeUInt32>(),
-            }
+            {"host", std::make_shared<DataTypeString>()},
+            {"rpc_port", std::make_shared<DataTypeUInt16>()},
+            {"monitoring_port", std::make_shared<DataTypeUInt16>()},
+            {"tcp_port", std::make_shared<DataTypeUInt16>()},
+            {"http_port", std::make_shared<DataTypeUInt16>()},
+            {"job_id", std::make_shared<DataTypeString>()},
+            {"pid", std::make_shared<DataTypeInt32>()},
+            {"self", std::make_shared<DataTypeUInt8>()},
+            {"job_cookie", std::make_shared<DataTypeUInt32>()},
         });
     }
 };
@@ -129,12 +102,12 @@ private:
 DB::StoragePtr CreateStorageSystemClique(
     TDiscoveryPtr discovery,
     std::string tableName,
-    TString instanceId)
+    TGuid instanceId)
 {
     return std::make_shared<TStorageSystemClique>(
         std::move(discovery),
         std::move(tableName),
-        std::move(instanceId));
+        instanceId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

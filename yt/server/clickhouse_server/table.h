@@ -39,7 +39,7 @@ struct TTable
 // otherwise throws an error for them.
 std::vector<TTablePtr> FetchTables(
     const NApi::NNative::IClientPtr& client,
-    const TClickHouseHostPtr& host,
+    THost* host,
     const std::vector<NYPath::TRichYPath>& richPaths,
     bool skipUnsuitableNodes,
     NLogging::TLogger logger);
