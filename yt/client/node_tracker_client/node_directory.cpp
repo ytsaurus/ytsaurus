@@ -167,7 +167,6 @@ void FormatValue(TStringBuilderBase* builder, const TNodeDescriptor& descriptor,
         builder->AppendChar('#');
         builder->AppendString(*dataCenter);
     }
-    builder->AppendFormat("%v", descriptor.GetTags());
 }
 
 TString ToString(const TNodeDescriptor& descriptor)
