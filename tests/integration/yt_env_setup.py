@@ -195,9 +195,8 @@ def is_asan_build():
 
 def is_gcc_build():
     if arcadia_interop.yatest_common is not None:
-        return arcadia_interop.yatest_common.c_compiler_path().endswith("gcc")
-
-        return False
+        c_compiler_path = arcadia_interop.yatest_common.c_compiler_path() or "<unknown>"
+        return c_compiler_path.endswith("gcc")
 
     binary = find_executable("ytserver-clickhouse")
     svnrevision = subprocess.check_output([binary, "--svnrevision"])

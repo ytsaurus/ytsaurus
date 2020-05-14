@@ -50,7 +50,7 @@ def main():
         })
 
 
-    yt.start_clickhouse_clique(
+    yt.start_clique(
         16 if args.type != "prestable" else 4,
         alias,
         cpu_limit=cpu_limit,

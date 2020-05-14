@@ -49,14 +49,14 @@ def add_structured_argument(parser, name, help="", **kwargs):
     description = "structured %s in %s format" % (name.strip("-"), "yson")
     add_argument(parser, name, help, description=description, action=ParseStructuredArgument, action_load_method=yson._loads_from_native_str, **kwargs)
 
-@copy_docstring_from(yt.start_clickhouse_clique)
-def start_clickhouse_clique_handler(*args, **kwargs):
-    op = yt.start_clickhouse_clique(*args, **kwargs)
+@copy_docstring_from(yt.start_clique)
+def start_clique_handler(*args, **kwargs):
+    op = yt.start_clique(*args, **kwargs)
     print(op.id)
 
 # TODO(max42): move to common part.
-def add_start_clickhouse_clique_parser(add_parser):
-    parser = add_parser("start-clickhouse-clique", start_clickhouse_clique_handler)
+def add_start_clique_parser(add_parser):
+    parser = add_parser("start-clickhouse-clique", start_clique_handler)
     parser.add_argument("--instance-count", required=True, type=int)
     parser.add_argument("--operation-alias", required=True, help="Alias for clique")
     parser.add_argument("--cypress-ytserver-clickhouse-path")
@@ -104,7 +104,7 @@ def main():
         add_structured_argument(parser, "--params", "specify additional params")
         return parser
 
-    add_start_clickhouse_clique_parser(add_parser)
+    add_start_clique_parser(add_parser)
 
     if "_ARGCOMPLETE" in os.environ:
         completers.autocomplete(parser, enable_bash_fallback=False,
