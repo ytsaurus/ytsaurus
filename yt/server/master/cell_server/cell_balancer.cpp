@@ -167,7 +167,7 @@ public:
             YT_LOG_DEBUG(reason, "Tablet tracker revoking peer (CellId: %v, PeerId: %v, Node: %v, DescriptorAddress: %v)",
                 cell->GetId(),
                 peerId,
-                node ? node->GetDefaultAddress() : "<null>",
+                node ? node->GetDefaultAddress() : NullNodeAddress(),
                 descriptor.GetDefaultAddress());
         }
 
