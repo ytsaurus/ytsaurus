@@ -134,6 +134,14 @@ public:
         ReportStatistics(MakeDefaultJobStatistics());
     }
 
+    ~TJob()
+    {
+        // Offload job spec destruction to a large thread pool.
+        auto jobSpec = New<TRefCountedProto<TJobSpec>>(std::move(JobSpec_));
+        NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
+            BIND([jobSpec = jobSpec.Release()] { NYT::Unref(jobSpec); }));
+    }
+
     virtual void Start() override
     {
         VERIFY_THREAD_AFFINITY(JobThread);
