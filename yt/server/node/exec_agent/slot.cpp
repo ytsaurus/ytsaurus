@@ -216,7 +216,7 @@ private:
     const int SlotIndex_;
     const IJobEnvironmentPtr JobEnvironment_;
     const TSlotLocationPtr Location_;
-    IVolumeManagerPtr VolumeManager_;
+    const IVolumeManagerPtr VolumeManager_;
 
     //! Uniquely identifies a node process on the current host.
     //! Used for unix socket name generation, to communicate between node and job proxies.
