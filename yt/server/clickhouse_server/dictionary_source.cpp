@@ -1,9 +1,9 @@
 #include "dictionary_source.h"
 
-#include "bootstrap.h"
 #include "helpers.h"
 #include "table.h"
-#include "private.h"
+#include "host.h"
+#include "schema.h"
 #include "revision_tracker.h"
 #include "block_input_stream.h"
 
@@ -27,6 +27,8 @@ namespace NYT::NClickHouseServer {
 
 using namespace NTableClient;
 using namespace NYPath;
+using namespace NLogging;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,15 +37,15 @@ class TTableDictionarySource
 {
 public:
     TTableDictionarySource(
-        TBootstrap* bootstrap,
+        THost* host,
         DB::DictionaryStructure dictionaryStructure,
         TRichYPath path,
         DB::NamesAndTypesList namesAndTypesList)
-        : Bootstrap_(bootstrap)
+        : Host_(host)
         , DictionaryStructure_(std::move(dictionaryStructure))
         , Path_(std::move(path))
         , NamesAndTypesList_(std::move(namesAndTypesList))
-        , RevisionTracker_(path.GetPath(), bootstrap->GetRootClient())
+        , RevisionTracker_(path.GetPath(), host->GetRootClient())
         , Logger(TLogger(ClickHouseYtLogger)
             .AddTag("Path: %v", Path_))
     { }
@@ -55,8 +57,8 @@ public:
         YT_LOG_INFO("Reloading dictionary (Revision: %v)", RevisionTracker_.GetRevision());
 
         auto table = FetchTables(
-            Bootstrap_->GetRootClient(),
-            Bootstrap_->GetHost(),
+            Host_->GetRootClient(),
+            Host_,
             {Path_},
             /* skipUnsuitableNodes */ false,
             Logger).front();
@@ -65,14 +67,14 @@ public:
 
         auto result = WaitFor(
             NApi::NNative::CreateSchemalessMultiChunkReader(
-                Bootstrap_->GetRootClient(),
+                Host_->GetRootClient(),
                 Path_,
                 NApi::TTableReaderOptions(),
                 NTableClient::TNameTable::FromSchema(table->Schema),
                 NTableClient::TColumnFilter(table->Schema.GetColumnCount())))
             .ValueOrThrow();
 
-        return CreateBlockInputStream(result.Reader, table->Schema, nullptr /* traceContext */, Bootstrap_, Logger, nullptr /* prewhereInfo */);
+        return CreateBlockInputStream(result.Reader, table->Schema, nullptr /* traceContext */, Host_, Logger, nullptr /* prewhereInfo */);
     }
 
     virtual DB::BlockInputStreamPtr loadIds(const std::vector<UInt64>& /* ids */) override
@@ -101,7 +103,7 @@ public:
     virtual DB::DictionarySourcePtr clone() const override
     {
         return std::make_unique<TTableDictionarySource>(
-            Bootstrap_,
+            Host_,
             DictionaryStructure_,
             Path_,
             NamesAndTypesList_);
@@ -123,7 +125,7 @@ public:
     }
 
 private:
-    TBootstrap* Bootstrap_;
+    THost* Host_;
     DB::DictionaryStructure DictionaryStructure_;
     TRichYPath Path_;
     DB::NamesAndTypesList NamesAndTypesList_;
@@ -143,9 +145,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RegisterTableDictionarySource(TBootstrap* bootstrap)
+void RegisterTableDictionarySource(THost* host)
 {
-    auto creator = [bootstrap] (
+    auto creator = [host] (
         const DB::DictionaryStructure& dictionaryStructure,
         const Poco::Util::AbstractConfiguration& config,
         const std::string& dictSectionPath,
@@ -154,7 +156,7 @@ void RegisterTableDictionarySource(TBootstrap* bootstrap)
     {
         const auto& path = TRichYPath::Parse(TString(config.getString(dictSectionPath + ".yt.path")));
         return std::make_unique<TTableDictionarySource>(
-            bootstrap,
+            host,
             dictionaryStructure,
             path,
             sampleBlock.getNamesAndTypesList());

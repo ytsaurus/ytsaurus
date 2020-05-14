@@ -1,20 +1,22 @@
 #pragma once
 
+#include <yt/core/actions/public.h>
+
 #include "private.h"
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Class that keeps information about all currently running queries.
+//! Class that keeps information about all currently running queries for given server context.
 /*!
- *  Thread affinity: ControlInvoker
+ *  Invoker affinity: `invoker`
  */
 class TQueryRegistry
     : public TRefCounted
 {
 public:
-    TQueryRegistry(TBootstrap* bootstrap);
+    TQueryRegistry(IInvokerPtr invoker, DB::Context* context, TDuration processListSnapshotUpdatePeriod);
     ~TQueryRegistry();
 
     void Register(TQueryContextPtr queryContext);

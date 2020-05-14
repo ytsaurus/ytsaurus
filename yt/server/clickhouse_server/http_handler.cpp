@@ -1,8 +1,7 @@
 #include "http_handler.h"
 
 #include "query_context.h"
-
-#include <yt/core/misc/string.h>
+#include "host.h"
 
 #include <server/HTTPHandler.h>
 #include <server/NotFoundHandler.h>
@@ -20,6 +19,7 @@
 namespace NYT::NClickHouseServer {
 
 using namespace NTracing;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,9 +52,9 @@ class THttpHandler
     : public DB::HTTPHandler
 {
 public:
-    THttpHandler(TBootstrap* bootstrap, DB::IServer& server, const Poco::Net::HTTPServerRequest& request)
+    THttpHandler(THost* host, DB::IServer& server, const Poco::Net::HTTPServerRequest& request)
         : DB::HTTPHandler(server)
-        , Bootstrap_(bootstrap)
+        , Host_(host)
     {
         TraceContext_ = SetupTraceContext(ClickHouseYtLogger, request);
 
@@ -79,7 +79,7 @@ public:
 
         // For HTTP queries (which are always initial) query id is same as trace id.
         context.getClientInfo().current_query_id = context.getClientInfo().initial_query_id = ToString(QueryId_);
-        SetupHostContext(Bootstrap_, context, QueryId_, TraceContext_, DataLensRequestId_);
+        SetupHostContext(Host_, context, QueryId_, TraceContext_, DataLensRequestId_);
     }
 
     virtual void handleRequest(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response) override
@@ -89,7 +89,7 @@ public:
     }
 
 private:
-    TBootstrap* const Bootstrap_;
+    THost* const Host_;
     TTraceContextPtr TraceContext_;
     std::optional<TString> DataLensRequestId_;
     TQueryId QueryId_;
@@ -156,12 +156,12 @@ class THttpHandlerFactory
     : public Poco::Net::HTTPRequestHandlerFactory
 {
 private:
-    TBootstrap* Bootstrap_;
+    THost* Host_;
     DB::IServer& Server;
 
 public:
-    THttpHandlerFactory(TBootstrap* bootstrap, DB::IServer& server)
-        : Bootstrap_(bootstrap)
+    THttpHandlerFactory(THost* host, DB::IServer& server)
+        : Host_(host)
         , Server(server)
     { }
 
@@ -189,8 +189,8 @@ public:
         }
 
         auto cliqueId = request.find("X-Clique-Id");
-        if (Bootstrap_->GetState() == EInstanceState::Stopped ||
-            (cliqueId != request.end() && TString(cliqueId->second) != Bootstrap_->GetCliqueId()))
+        if (Host_->GetInstanceState() == EInstanceState::Stopped ||
+            (cliqueId != request.end() && TString(cliqueId->second) != ToString(Host_->GetConfig()->CliqueId)))
         {
             return new TMovedPermanentlyRequestHandler(Server);
         }
@@ -200,7 +200,7 @@ public:
         {
             if ((uri.getPath() == "/") ||
                 (uri.getPath() == "/query")) {
-                auto* handler = new THttpHandler(Bootstrap_, Server, request);
+                auto* handler = new THttpHandler(Host_, Server, request);
                 return handler;
             }
         }
@@ -211,9 +211,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Poco::Net::HTTPRequestHandlerFactory::Ptr CreateHttpHandlerFactory(TBootstrap* bootstrap, DB::IServer& server)
+Poco::Net::HTTPRequestHandlerFactory::Ptr CreateHttpHandlerFactory(THost* host, DB::IServer& server)
 {
-    return new THttpHandlerFactory(bootstrap, server);
+    return new THttpHandlerFactory(host, server);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

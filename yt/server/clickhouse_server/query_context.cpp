@@ -24,6 +24,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace DB;
 using namespace NTracing;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +33,7 @@ TLogger QueryLogger("Query");
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueryContext::TQueryContext(
-    TBootstrap* bootstrap,
+    THost* host,
     const DB::Context& context,
     TQueryId queryId,
     TTraceContextPtr traceContext,
@@ -42,10 +43,9 @@ TQueryContext::TQueryContext(
     , TraceContext(std::move(traceContext))
     , QueryId(queryId)
     , QueryKind(static_cast<EQueryKind>(context.getClientInfo().query_kind))
-    , Bootstrap(bootstrap)
+    , Host(host)
     , DataLensRequestId(std::move(dataLensRequestId))
     , RowBuffer(New<NTableClient::TRowBuffer>())
-    , Host_(Bootstrap->GetHost())
     , TraceContextGuard_(TraceContext)
 {
     Logger.AddTag("QueryId: %v", QueryId);
@@ -74,7 +74,7 @@ TQueryContext::TQueryContext(
         HttpUserAgent = clientInfo.http_user_agent;
     }
 
-    UserTagId = Bootstrap->GetQueryRegistry()->GetUserProfilingTag(User);
+    UserTagId = Host->GetQueryRegistry()->GetUserProfilingTag(User);
 
     YT_LOG_INFO(
         "Query client info (CurrentUser: %v, CurrentAddress: %v, InitialUser: %v, InitialAddress: %v, "
@@ -91,7 +91,7 @@ TQueryContext::TQueryContext(
 
 TQueryContext::~TQueryContext()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap->GetControlInvoker());
+    VERIFY_INVOKER_AFFINITY(Host->GetControlInvoker());
 
     MoveToPhase(EQueryPhase::Finish);
 
@@ -114,7 +114,7 @@ const NApi::NNative::IClientPtr& TQueryContext::Client() const
 
     if (!clientPresent) {
         ClientLock_.AcquireWriter();
-        Client_ = Bootstrap->GetClientCache()->GetClient(User);
+        Client_ = Host->CreateClient(User);
         ClientLock_.ReleaseWriter();
     }
 
@@ -148,11 +148,11 @@ void TQueryContext::MoveToPhase(EQueryPhase nextPhase)
     if (nextPhase != EQueryPhase::Finish) {
         WaitFor(BIND(
             &TQueryRegistry::AccountPhaseCounter,
-            Bootstrap->GetQueryRegistry(),
+            Host->GetQueryRegistry(),
             MakeStrong(this),
             oldPhase,
             nextPhase)
-            .AsyncVia(Bootstrap->GetControlInvoker())
+            .AsyncVia(Host->GetControlInvoker())
             .Run())
             .ThrowOnError();
     }
@@ -201,11 +201,11 @@ void Serialize(const TQueryContext& queryContext, IYsonConsumer* consumer, const
 struct THostContext
     : public DB::IHostContext
 {
-    TBootstrap* Bootstrap;
+    THost* Host;
     TQueryContextPtr QueryContext;
 
-    THostContext(TBootstrap* bootstrap, TQueryContextPtr queryContext)
-        : Bootstrap(bootstrap)
+    THostContext(THost* host, TQueryContextPtr queryContext)
+        : Host(host)
         , QueryContext(std::move(queryContext))
     { }
 
@@ -214,15 +214,15 @@ struct THostContext
     // from control invoker.
     virtual ~THostContext() override
     {
-        Bootstrap->GetControlInvoker()->Invoke(
-            BIND([bootstrap = Bootstrap, queryContext = std::move(QueryContext)] () mutable {
-                bootstrap->GetQueryRegistry()->Unregister(queryContext);
+        Host->GetControlInvoker()->Invoke(
+            BIND([host = Host, queryContext = std::move(QueryContext)] () mutable {
+                host->GetQueryRegistry()->Unregister(queryContext);
                 queryContext.Reset();
             }));
     }
 };
 
-void SetupHostContext(TBootstrap* bootstrap,
+void SetupHostContext(THost* host,
     DB::Context& context,
     TQueryId queryId,
     TTraceContextPtr traceContext,
@@ -231,7 +231,7 @@ void SetupHostContext(TBootstrap* bootstrap,
     YT_VERIFY(traceContext);
 
     auto queryContext = New<TQueryContext>(
-        bootstrap,
+        host,
         context,
         queryId,
         std::move(traceContext),
@@ -239,13 +239,13 @@ void SetupHostContext(TBootstrap* bootstrap,
 
     WaitFor(BIND(
         &TQueryRegistry::Register,
-        bootstrap->GetQueryRegistry(),
+        host->GetQueryRegistry(),
         queryContext)
-        .AsyncVia(bootstrap->GetControlInvoker())
+        .AsyncVia(host->GetControlInvoker())
         .Run())
         .ThrowOnError();
 
-    context.getHostContext() = std::make_shared<THostContext>(bootstrap, std::move(queryContext));
+    context.getHostContext() = std::make_shared<THostContext>(host, std::move(queryContext));
 }
 
 TQueryContext* GetQueryContext(const DB::Context& context)

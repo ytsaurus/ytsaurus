@@ -26,7 +26,7 @@ TDiscovery::TDiscovery(
     , PeriodicExecutor_(New<TPeriodicExecutor>(
         invoker,
         BIND(&TDiscovery::DoUpdateList, MakeWeak(this)),
-        config->UpdatePeriod))
+        Config_->UpdatePeriod))
     , Logger(logger
         .AddTag("Group: %v", Config_->Directory)
         .AddTag("DiscoveryId: %v", TGuid::Create()))

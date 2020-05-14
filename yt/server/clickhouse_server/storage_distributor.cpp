@@ -1,7 +1,6 @@
 #include "storage_distributor.h"
 
 #include "config.h"
-#include "bootstrap.h"
 #include "block_input_stream.h"
 #include "block_output_stream.h"
 #include "helpers.h"
@@ -12,6 +11,7 @@
 #include "query_registry.h"
 #include "query_analyzer.h"
 #include "table.h"
+#include "host.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
@@ -50,6 +50,8 @@ using namespace NYTree;
 using namespace NChunkPools;
 using namespace NChunkClient;
 using namespace NTracing;
+using namespace NLogging;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,8 +171,7 @@ void ValidateReadPermissions(
         tablePath.SetColumns(columnNames);
         tablePathsWithColumns.emplace_back(std::move(tablePath));
     }
-    queryContext->Bootstrap->GetHost()->ValidateReadPermissions(tablePathsWithColumns,
-        queryContext->Client()->GetOptions().GetUser());
+    queryContext->Host->ValidateReadPermissions(tablePathsWithColumns, queryContext->User);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -249,7 +250,7 @@ public:
         // If we use WithMergeableState while using single node, caller would process aggregation functions incorrectly.
         // See also: need_second_distinct_pass at DB::InterpreterSelectQuery::executeImpl().
         if (!context.getSettingsRef().distributed_group_by_no_merge &&
-            QueryContext_->Bootstrap->GetHost()->GetNodes().size() != 1)
+            QueryContext_->Host->GetNodes().size() != 1)
         {
             return DB::QueryProcessingStage::WithMergeableState;
         }
@@ -272,7 +273,7 @@ public:
         SpecTemplate_.InitialQueryId = QueryContext_->QueryId;
         SpecTemplate_.InitialQuery = ToString(queryInfo.query);
 
-        auto cliqueNodes = QueryContext_->Bootstrap->GetHost()->GetNodes();
+        auto cliqueNodes = QueryContext_->Host->GetNodes();
         if (cliqueNodes.empty()) {
             THROW_ERROR_EXCEPTION("There are no instances available through discovery");
         }
@@ -409,7 +410,7 @@ public:
         auto path = Tables_.front()->Path;
         path.SetAppend(path.GetAppend(true /* defaultValue */));
         auto writer = WaitFor(CreateSchemalessTableWriter(
-            QueryContext_->Bootstrap->GetConfig()->TableWriterConfig,
+            QueryContext_->Host->GetConfig()->TableWriterConfig,
             New<TTableWriterOptions>(),
             path,
             New<TNameTable>(),
@@ -483,7 +484,7 @@ private:
             std::max<int>(1, subqueryCount * context.getSettings().max_threads),
             samplingRate,
             context,
-            QueryContext_->Bootstrap->GetConfig()->Engine->Subquery);
+            QueryContext_->Host->GetConfig()->Subquery);
 
         size_t totalInputDataWeight = 0;
 
@@ -493,13 +494,13 @@ private:
 
         for (const auto& subquery : Subqueries_) {
             if (static_cast<ui64>(subquery.StripeList->TotalDataWeight) >
-                QueryContext_->Bootstrap->GetConfig()->Engine->Subquery->MaxDataWeightPerSubquery)
+                QueryContext_->Host->GetConfig()->Subquery->MaxDataWeightPerSubquery)
             {
                 THROW_ERROR_EXCEPTION(
                     NClickHouseServer::EErrorCode::SubqueryDataWeightLimitExceeded,
                     "Subquery exceeds data weight limit: %v > %v",
                     subquery.StripeList->TotalDataWeight,
-                    QueryContext_->Bootstrap->GetConfig()->Engine->Subquery->MaxDataWeightPerSubquery)
+                    QueryContext_->Host->GetConfig()->Subquery->MaxDataWeightPerSubquery)
                     << TErrorAttribute("total_input_data_weight", totalInputDataWeight);
             }
         }
@@ -537,7 +538,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         args.columns.toString(),
         keyColumns);
 
-    auto attributes = ConvertToAttributes(queryContext->Bootstrap->GetConfig()->Engine->CreateTableDefaultAttributes);
+    auto attributes = ConvertToAttributes(queryContext->Host->GetConfig()->CreateTableDefaultAttributes);
     if (!args.engine_args.empty()) {
         if (static_cast<int>(args.engine_args.size()) > 1) {
             THROW_ERROR_EXCEPTION("YtTable accepts at most one argument");
@@ -575,8 +576,9 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         .ValueOrThrow();
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
 
-    auto table = FetchTables(queryContext->Client(),
-        queryContext->Bootstrap->GetHost(),
+    auto table = FetchTables(
+        queryContext->Client(),
+        queryContext->Host,
         {path},
         /* skipUnsuitableNodes */ false,
         queryContext->Logger);

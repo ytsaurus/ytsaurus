@@ -31,7 +31,7 @@ public:
         NTableClient::ISchemalessMultiChunkReaderPtr reader,
         NTableClient::TTableSchema readSchema,
         NTracing::TTraceContextPtr traceContext,
-        TBootstrap* bootstrap,
+        THost* host,
         NLogging::TLogger logger,
         DB::PrewhereInfoPtr prewhereInfo);
 
@@ -47,12 +47,12 @@ private:
     NTableClient::TTableSchema ReadSchema_;
     NTracing::TTraceContextPtr TraceContext_;
 
-    TBootstrap* Bootstrap_;
+    THost* Host_;
     NLogging::TLogger Logger;
     DB::Block InputHeaderBlock_;
     DB::Block OutputHeaderBlock_;
     std::vector<int> IdToColumnIndex_;
-    NTableClient::TRowBufferPtr RowBuffer_ = New<NTableClient::TRowBuffer>();
+    NTableClient::TRowBufferPtr RowBuffer_;
     DB::PrewhereInfoPtr PrewhereInfo_;
 
     DB::Block readImpl() override;
@@ -65,7 +65,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     NTableClient::ISchemalessMultiChunkReaderPtr reader,
     NTableClient::TTableSchema readSchema,
     NTracing::TTraceContextPtr traceContext,
-    TBootstrap* bootstrap,
+    THost* host,
     NLogging::TLogger logger,
     DB::PrewhereInfoPtr prewhereInfo);
 

@@ -1,17 +1,15 @@
 #pragma once
 
-#include <yt/client/misc/public.h>
+#include "private.h"
 
 #include <Databases/IDatabase.h>
+#include <Interpreters/Cluster.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AttachSystemTables(
-    DB::IDatabase& system,
-    TDiscoveryPtr clusterNodeTracker,
-    const TString& instanceId);
+DB::DatabasePtr CreateYtDatabase();
 
 ////////////////////////////////////////////////////////////////////////////////
 

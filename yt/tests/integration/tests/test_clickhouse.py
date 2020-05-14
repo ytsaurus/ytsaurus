@@ -57,7 +57,7 @@ class Clique(object):
     core_dump_path = None
     proxy_address = None
 
-    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, enable_core_dump=True, cpu_limit=None, **kwargs):
+    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, enable_core_dump=False, cpu_limit=None, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else copy.deepcopy(Clique.base_config)
         spec = {"pool": None}
         self.is_tracing = False
@@ -406,6 +406,9 @@ class ClickHouseTestBase(YTEnvSetup):
 
         # We need to inject cluster_connection into yson config.
         Clique.base_config = get_clickhouse_server_config()
+        # COMPAT(max42): see get_clickhouse_server_config() compats.
+        Clique.base_config["clickhouse"] = Clique.base_config["engine"]
+        del Clique.base_config["engine"]
         Clique.base_config["cluster_connection"] = self.__class__.Env.configs["driver"]
         Clique.proxy_address = self._get_proxy_address()
 
@@ -429,8 +432,10 @@ def get_async_expiring_cache_config(expire_after_access_time, expire_after_succe
 
 def get_object_attibute_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time):
     return {
-        "table_attribute_cache": get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time),
-        "permission_cache": get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time),
+        "yt": {
+            "table_attribute_cache": get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time),
+            "permission_cache": get_async_expiring_cache_config(expire_after_access_time, expire_after_successful_update_time, refresh_time),
+        },
     }
 
 def get_schema_from_description(describe_info):
@@ -458,7 +463,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("evgenstf")
     def test_distinct_one_instance_several_threads(self):
-        with Clique(1, config_patch={"engine": {"settings": {"max_threads": 2}}}, cpu_limit=2) as clique:
+        with Clique(1, config_patch={"clickhouse": {"settings": {"max_threads": 2}}}, cpu_limit=2) as clique:
             table_schema = [{"name": "value", "type": "int64"}]
             create("table", "//tmp/test_table",
                     attributes={"schema": table_schema})
@@ -571,29 +576,34 @@ class TestClickHouseCommon(ClickHouseTestBase):
         ])
 
         with pytest.raises(YtError):
-            with Clique(1, config_patch={"user": "test_user"}, enable_core_dump=False) as clique:
+            with Clique(1, config_patch={"yt": {"user": "test_user"}}, enable_core_dump=False) as clique:
                 pass
 
 
     @authors("evgenstf")
     def test_monitoring_orchids(self):
-        with Clique(3) as clique:
-            for i in range(3):
-                assert 'monitoring' in clique.get_orchid(clique.get_active_instances()[i], "/")
+        node_to_ban = None
+        try:
+            with Clique(3) as clique:
+                for i in range(3):
+                    assert 'monitoring' in clique.get_orchid(clique.get_active_instances()[i], "/")
 
-	    job_to_abort = str(clique.get_active_instances()[0])
-            node_to_ban = clique.op.get_node(job_to_abort)
+                job_to_abort = str(clique.get_active_instances()[0])
+                node_to_ban = clique.op.get_node(job_to_abort)
 
-            abort_job(job_to_abort)
-            set_banned_flag(True, [node_to_ban])
+                abort_job(job_to_abort)
+                set_banned_flag(True, [node_to_ban])
 
-            wait(lambda: len(clique.get_active_instances()) == 2)
-            wait(lambda: len(clique.get_active_instances()) == 3)
-            for instance in clique.get_active_instances():
-                assert str(instance) != job_to_abort
+                wait(lambda: len(clique.get_active_instances()) == 2)
+                wait(lambda: len(clique.get_active_instances()) == 3)
+                for instance in clique.get_active_instances():
+                    assert str(instance) != job_to_abort
 
-            for i in range(3):
-                assert 'monitoring' in clique.get_orchid(clique.get_active_instances()[i], "/")
+                for i in range(3):
+                    assert 'monitoring' in clique.get_orchid(clique.get_active_instances()[i], "/")
+        finally:
+            if node_to_ban is not None:
+                set_banned_flag(False, [node_to_ban])
 
 
     @authors("evgenstf")
@@ -621,7 +631,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
     @authors("evgenstf")
     def test_subquery_data_weight_limit_exceeded(self):
-        with Clique(1, config_patch={"engine": {"subquery": {"max_data_weight_per_subquery": 0}}}) as clique:
+        with Clique(1, config_patch={"yt": {"subquery": {"max_data_weight_per_subquery": 0}}}) as clique:
             create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
             write_table("//tmp/t", [{"a": "2012-12-12 20:00:00"}])
             with raises_yt_error(QueryFailedError):
@@ -700,7 +710,6 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1) as clique:
             # I took some random option from the documentation and changed it in config.yson.
             # Let's see if it changed in internal table with settings.
-
             result = clique.make_query("select * from system.settings where name = 'max_temporary_non_const_columns'")
             assert result[0]["value"] == "1234"
             assert result[0]["changed"] == 1
@@ -936,9 +945,11 @@ class TestClickHouseCommon(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_ban_nodes(self):
         patch = {
-            "discovery": {
-                # Set big value to prevent unlocking node.
-                "transaction_timeout": 1000000,
+            "yt": {
+                "discovery": {
+                    # Set big value to prevent unlocking node.
+                    "transaction_timeout": 1000000,
+                }
             }
         }
         with Clique(2, config_patch=patch) as clique:
@@ -1323,7 +1334,7 @@ class TestJobInput(ClickHouseTestBase):
             clique.assert_read_row_count('select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', min=2, max=4)
 
         # Forcefully disable chunk slicing.
-        with Clique(1, config_patch={"engine": {"subquery": {"max_sliced_chunk_count": 0}}}) as clique:
+        with Clique(1, config_patch={"yt": {"subquery": {"max_sliced_chunk_count": 0}}}) as clique:
             # Due to inclusiveness issues each of the row counts should be correct with some error.
             clique.assert_read_row_count('select i from "//tmp/t" where i >= 3', exact=10)
             clique.assert_read_row_count('select i from "//tmp/t" where i < 2', exact=10)
@@ -1395,7 +1406,7 @@ class TestJobInput(ClickHouseTestBase):
                 assert delta_stat[0] == (1 if instance == initial_instance else 0)
                 assert delta_stat[1] == 1
 
-        with Clique(3, config_patch={"engine": {"subquery": {"min_data_weight_per_thread": 5000}}}) as clique:
+        with Clique(3, config_patch={"yt": {"subquery": {"min_data_weight_per_thread": 5000}}}) as clique:
             instances = clique.get_active_instances()
             assert len(instances) == 3
             initial_instance = instances[random.randint(0, 2)]
@@ -1505,7 +1516,7 @@ class TestMutations(ClickHouseTestBase):
 
     @authors("max42")
     def test_create_table_simple(self):
-        with Clique(1, config_patch={"engine": {"create_table_default_attributes": {"foo": 42}}}) as clique:
+        with Clique(1, config_patch={"yt": {"create_table_default_attributes": {"foo": 42}}}) as clique:
             clique.make_query('create table "//tmp/t"(i64 Int64, ui64 UInt64, str String, dbl Float64, i32 Int32, dt Date, dtm DateTime) '
                               'engine YtTable() order by (str, i64)')
             assert normalize_schema(get("//tmp/t/@schema")) == make_schema([
@@ -1898,7 +1909,7 @@ class TestYtDictionaries(ClickHouseTestBase):
         ])
 
         with Clique(1, config_patch={
-            "engine": {"dictionaries": [
+            "clickhouse": {"dictionaries": [
                 {
                     "name": "dict",
                     "layout": {"flat": {}},
@@ -1944,7 +1955,7 @@ class TestYtDictionaries(ClickHouseTestBase):
                                       {"key": "b", "subkey": 2}])
 
         with Clique(1, config_patch={
-            "engine": {"dictionaries": [
+            "clickhouse": {"dictionaries": [
                 {
                     "name": "dict",
                     "layout": {"complex_key_hashed": {}},
@@ -1975,7 +1986,7 @@ class TestYtDictionaries(ClickHouseTestBase):
             "table_attribute_cache": get_async_expiring_cache_config(2000, 2000, None),
             "permission_cache": get_async_expiring_cache_config(2000, 2000, None),
 
-            "engine": {"dictionaries": [
+            "clickhouse": {"dictionaries": [
                 {
                     "name": "dict",
                     "layout": {"flat": {}},
@@ -2154,21 +2165,23 @@ class TestClickHouseAccess(ClickHouseTestBase):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 1}])
 
-        with Clique(1, config_patch={"validate_operation_access": False}) as clique:
+        with Clique(1, config_patch={"yt": {"security_manager": {"enable": False}}}) as clique:
             assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
 
-        with Clique(1, config_patch={"validate_operation_access": True}) as clique:
+        with Clique(1, config_patch={"yt": {"security_manager": {"enable": True}}}) as clique:
             with raises_yt_error(QueryFailedError):
                 clique.make_query("select * from \"//tmp/t\"", user="u1")
 
         allow_g = {"subjects": ["g"], "action": "allow", "permissions": ["read"]}
         deny_u2 = {"subjects": ["u2"], "action": "deny", "permissions": ["read"]}
 
-        with Clique(1,
-                    config_patch={"validate_operation_access": True, "operation_acl_update_period": 100},
-                    spec={
-                        "acl": [allow_g]
-                    }) as clique:
+        with Clique(1, config_patch={"yt": {"security_manager": {
+                    "enable": True,
+                    "operation_acl_update_period": 100,
+                }}},
+                spec={
+                    "acl": [allow_g]
+                }) as clique:
             assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
             assert len(clique.make_query("select * from \"//tmp/t\"", user="u2")) == 1
 
@@ -2193,7 +2206,7 @@ class TestQueryLog(ClickHouseTestBase):
 
     @authors("max42")
     def DISABLED_test_query_log(self):
-        with Clique(1, config_patch={"engine": {"settings": {"log_queries": 1}}}) as clique:
+        with Clique(1, config_patch={"clickhouse": {"settings": {"log_queries": 1}}}) as clique:
             clique.make_query("select 1")
             wait(lambda: len(clique.make_query("select * from system.tables where database = 'system' and "
                                                "name = 'query_log';")) >= 1)
@@ -2208,7 +2221,7 @@ class TestQueryRegistry(ClickHouseTestBase):
     def test_query_registry(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": 0}])
-        with Clique(1, config_patch={"process_list_snapshot_update_period": 100}) as clique:
+        with Clique(1, config_patch={"yt": {"process_list_snapshot_update_period": 100}}) as clique:
             monitoring_port = clique.get_active_instances()[0].attributes["monitoring_port"]
 
             def check_query_registry():
@@ -2245,7 +2258,7 @@ class TestQueryRegistry(ClickHouseTestBase):
         merge(in_=["//tmp/t"] * 200,
               out="//tmp/t",
               spec={"force_transform": True})  # 800 Mb.
-        clique = Clique(1, config_patch={"memory_watchdog": {"memory_limit": 2 * 1024**3, "period": 50}})
+        clique = Clique(1, config_patch={"yt": {"memory_watchdog": {"memory_limit": 2 * 1024**3, "period": 50}}})
         with pytest.raises(YtError):
             clique.__enter__()
             clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
@@ -2509,7 +2522,7 @@ class TestJoinAndIn(ClickHouseTestBase):
         write_table("<append=%true>//tmp/t2", [{"key": 4}, {"key": 5}])
         write_table("<append=%true>//tmp/t2", [{"key": 6}, {"key": 7}])
         write_table("<append=%true>//tmp/t2", [{"key": 8}, {"key": 9}])
-        with Clique(2, config_patch={"engine": {"subquery": {"min_data_weight_per_thread": 5000}}}) as clique:
+        with Clique(2, config_patch={"yt": {"subquery": {"min_data_weight_per_thread": 5000}}}) as clique:
             assert clique.make_query("select * from \"//tmp/t1\" join \"//tmp/t2\" using key") == [{"key": 0}, {"key": 1}]
 
     @authors("max42")
@@ -2600,9 +2613,11 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
     @authors("dakovalkov")
     def test_ban_dead_instance_in_proxy(self):
         patch = {
-            "discovery": {
-                # Set big value to prevent unlocking node.
-                "transaction_timeout": 1000000,
+            "yt": {
+                "discovery": {
+                    # Set big value to prevent unlocking node.
+                    "transaction_timeout": 1000000,
+                }
             }
         }
 

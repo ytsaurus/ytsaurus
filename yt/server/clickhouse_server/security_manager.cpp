@@ -1,32 +1,22 @@
-#include "users_manager.h"
+#include "security_manager.h"
 
-#include "private.h"
-#include "bootstrap.h"
 #include "config.h"
-
-#include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/scheduler/helpers.h>
 
+#include <yt/ytlib/api/native/client.h>
 #include <yt/client/security_client/acl.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/ytree/permission.h>
 
-#include <Poco/Net/IPAddress.h>
-#include <Poco/Util/AbstractConfiguration.h>
-
-#include <Common/Exception.h>
 #include <Interpreters/Users.h>
 #include <Interpreters/IUsersManager.h>
 
-#include <util/generic/maybe.h>
-#include <util/system/rwlock.h>
-
-#include <map>
+#include <Poco/Util/AbstractConfiguration.h>
+#include <Poco/Net/IPAddress.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -38,14 +28,16 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLogger Logger("UsersManager");
+TLogger Logger("SecurityManager");
 
-class TUsersManager
+////////////////////////////////////////////////////////////////////////////////
+
+class TSecurityManager
     : public DB::IUsersManager
 {
 public:
-    TUsersManager(TBootstrap* bootstrap, TString cliqueId)
-        : Impl_(New<TImpl>(bootstrap, std::move(cliqueId)))
+    TSecurityManager(TSecurityManagerConfigPtr config, NApi::NNative::IClientPtr client, TGuid cliqueId)
+        : Impl_(New<TImpl>(std::move(config), std::move(client), cliqueId))
     { }
 
     void loadFromConfig(const Poco::Util::AbstractConfiguration& config) override
@@ -90,23 +82,24 @@ private:
         : public TRefCounted
     {
     public:
-        TImpl(TBootstrap* bootstrap, TString cliqueId)
+        TImpl(TSecurityManagerConfigPtr config, NApi::NNative::IClientPtr client, TGuid cliqueId)
             : ActionQueue_(New<TActionQueue>("SecurityManager"))
             , Invoker_(ActionQueue_->GetInvoker())
+            , Config_(std::move(config))
+            , Client_(std::move(client))
             , UpdateExecutor_(New<TPeriodicExecutor>(
                 Invoker_,
                 BIND(&TImpl::DoUpdateCurrentAcl, MakeWeak(this)),
-                bootstrap->GetConfig()->OperationAclUpdatePeriod))
-            , Bootstrap_(bootstrap)
+                Config_->OperationAclUpdatePeriod))
             , CliqueId_(std::move(cliqueId))
         {
             VERIFY_THREAD_AFFINITY_ANY();
 
-            if (Bootstrap_->GetConfig()->ValidateOperationAccess) {
+            if (Config_->Enable) {
                 YT_LOG_INFO("Updating ACL for the first time");
                 UpdateExecutor_->Start();
             } else {
-                YT_LOG_INFO("Operation access validation is disabled");
+                YT_LOG_INFO("Security manager is disabled");
             }
         }
 
@@ -170,13 +163,14 @@ private:
     private:
         TActionQueuePtr ActionQueue_;
         IInvokerPtr Invoker_;
+        TSecurityManagerConfigPtr Config_;
+        NApi::NNative::IClientPtr Client_;
         TPeriodicExecutorPtr UpdateExecutor_;
 
         THashMap<TString, DB::IUsersManager::UserPtr> Users_;
         std::optional<DB::User> UserTemplate_;
 
-        TBootstrap* Bootstrap_;
-        TString CliqueId_;
+        TGuid CliqueId_;
 
         std::optional<TSerializableAccessControlList> CurrentAcl_;
 
@@ -205,8 +199,8 @@ private:
 
             // At this point we only check if the user has access to current clique.
             // Storage layer is responsible for access control for specific tables.
-            if (!Bootstrap_->GetConfig()->ValidateOperationAccess) {
-                YT_LOG_DEBUG("Operation access validation disabled, allowing access to user (User: %v)", userName);
+            if (!Config_->Enable) {
+                YT_LOG_DEBUG("Security manager is disabled, allowing access to user (User: %v)", userName);
                 return;
             }
 
@@ -215,7 +209,7 @@ private:
                 return;
             }
 
-            if (userName == Bootstrap_->GetConfig()->User) {
+            if (userName == Client_->GetOptions().PinnedUser) {
                 YT_LOG_DEBUG("Username is %Qv which is default user from config, allowing this user to register",
                     userName);
                 return;
@@ -228,11 +222,11 @@ private:
 
             NScheduler::ValidateOperationAccess(
                 userName,
-                TGuid::FromString(CliqueId_),
+                CliqueId_,
                 TGuid() /* jobId */,
                 EPermission::Read,
                 *CurrentAcl_,
-                Bootstrap_->GetRootClient(),
+                Client_,
                 Logger);
             YT_LOG_DEBUG("User access validated using master, allowing access to user (User: %v)", userName);
         }
@@ -264,8 +258,8 @@ private:
             NApi::TGetOperationOptions options;
             options.IncludeRuntime = true;
             options.Attributes = THashSet<TString>{"runtime_parameters"};
-            auto runtimeParametersYsonString = WaitFor(Bootstrap_->GetRootClient()->GetOperation(
-                TGuid::FromString(CliqueId_),
+            auto runtimeParametersYsonString = WaitFor(Client_->GetOperation(
+                CliqueId_,
                 std::move(options)))
                 .ValueOrThrow();
             auto runtimeParametersNode = ConvertTo<IMapNodePtr>(runtimeParametersYsonString)
@@ -301,11 +295,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<DB::IUsersManager> CreateUsersManager(
-    TBootstrap* bootstrap,
-    TString cliqueId)
+std::unique_ptr<DB::IUsersManager> CreateSecurityManager(
+    TSecurityManagerConfigPtr config,
+    NApi::NNative::IClientPtr client,
+    TGuid cliqueId)
 {
-    return std::make_unique<TUsersManager>(bootstrap, cliqueId);
+    return std::make_unique<TSecurityManager>(std::move(config), std::move(client), cliqueId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

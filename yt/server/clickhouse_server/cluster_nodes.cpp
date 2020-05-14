@@ -45,15 +45,13 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IClusterNodePtr CreateClusterNode(const TClusterNodeName& name, const DB::Settings& settings, uint64_t clickhouse_port)
+IClusterNodePtr CreateClusterNode(const TClusterNodeName& name, const DB::Settings& settings)
 {
-    // This is really weird...
-
     DB::Cluster::Address address(
         /*host_port=*/ name.ToString(),
         /*user=*/ "",
         /*password=*/ "",
-        /*clickhouse_port=*/ clickhouse_port);
+        /*clickhouse_port=*/0);
 
     ConnectionPoolPtrs pools;
     ConnectionTimeouts timeouts(Cluster::saturate(settings.connect_timeout, settings.max_execution_time),

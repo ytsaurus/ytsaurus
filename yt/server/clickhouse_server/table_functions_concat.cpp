@@ -2,24 +2,16 @@
 
 #include "query_context.h"
 #include "storage_distributor.h"
-#include "helpers.h"
-#include "query_context.h"
 #include "table.h"
 
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/object_attribute_cache.h>
-
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/client/table_client/schema.h>
 
-#include <yt/client/object_client/public.h>
-
 #include <yt/client/ypath/rich.h>
 
-#include <yt/core/ytree/node.h>
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/yson/string.h>
@@ -27,7 +19,6 @@
 #include <Common/Exception.h>
 #include <Common/OptimizedRegularExpression.h>
 #include <Common/typeid_cast.h>
-#include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/evaluateConstantExpression.h>
@@ -49,6 +40,7 @@ using namespace NCypressClient;
 using namespace NYson;
 using namespace NYPath;
 using namespace NTableClient;
+using namespace NConcurrency;
 
 using NYT::ToProto;
 
@@ -145,7 +137,7 @@ public:
 
         auto tables = FetchTables(
             queryContext->Client(),
-            queryContext->Bootstrap->GetHost(),
+            queryContext->Host,
             std::move(tablePaths),
             /* skipUnsuitableNodes */ false,
             queryContext->Logger);
@@ -217,7 +209,7 @@ public:
         // We intentionally skip all non-table items for better user experience.
         auto tables = FetchTables(
             queryContext->Client(),
-            queryContext->Bootstrap->GetHost(),
+            queryContext->Host,
             std::move(itemPaths),
             /* skipUnsuitableItems */ true,
             queryContext->Logger);

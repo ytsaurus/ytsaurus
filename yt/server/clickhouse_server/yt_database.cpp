@@ -1,10 +1,11 @@
-#include "database.h"
+#include "yt_database.h"
 
 #include "storage_distributor.h"
 #include "helpers.h"
 #include "query_context.h"
 #include "query_registry.h"
 #include "table.h"
+#include "host.h"
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -29,10 +30,11 @@ using namespace DB;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDatabase
+class TYtDatabase
     : public IDatabase
 {
 public:
@@ -110,7 +112,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-StoragePtr TDatabase::GetTable(
+StoragePtr TYtDatabase::GetTable(
     const Context& context,
     const std::string& path) const
 {
@@ -120,16 +122,12 @@ StoragePtr TDatabase::GetTable(
     // so it is not present in client info for query. That's why if we crash somewhere during coordination
     // phase, dumped query registry in crash handler will lack crashing query itself. As a workaround,
     // we forcefully rebuild query registry state when creating TStorageDistributor.
-    WaitFor(
-        BIND(&TQueryRegistry::SaveState, queryContext->Bootstrap->GetQueryRegistry())
-            .AsyncVia(queryContext->Bootstrap->GetControlInvoker())
-            .Run())
-        .ThrowOnError();
+    queryContext->Host->SaveQueryRegistryState();
 
     try {
         auto tables = FetchTables(
             queryContext->Client(),
-            queryContext->Bootstrap->GetHost(),
+            queryContext->Host,
             {TRichYPath::Parse(path.data())},
             /* skipUnsuitableNodes */ false,
             queryContext->Logger);
@@ -145,33 +143,33 @@ StoragePtr TDatabase::GetTable(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::string TDatabase::getEngineName() const
+std::string TYtDatabase::getEngineName() const
 {
     return "YT";
 }
 
-void TDatabase::loadTables(
+void TYtDatabase::loadTables(
     Context& /* context */,
     bool /* hasForceRestoreDataFlag */)
 {
     // nothing to do
 }
 
-bool TDatabase::isTableExist(
+bool TYtDatabase::isTableExist(
     const Context& context,
     const std::string& name) const
 {
     return GetTable(context, name) != nullptr;
 }
 
-StoragePtr TDatabase::tryGetTable(
+StoragePtr TYtDatabase::tryGetTable(
     const Context& context,
     const std::string& name) const
 {
     return GetTable(context, name);
 }
 
-DatabaseIteratorPtr TDatabase::getIterator(const Context& /* context */, const FilterByNameFunction & /* filter_by_table_name */)
+DatabaseIteratorPtr TYtDatabase::getIterator(const Context& /* context */, const FilterByNameFunction & /* filter_by_table_name */)
 {
     class TDummyIterator
         : public IDatabaseIterator
@@ -201,13 +199,13 @@ DatabaseIteratorPtr TDatabase::getIterator(const Context& /* context */, const F
     return std::make_unique<TDummyIterator>();
 }
 
-bool TDatabase::empty(const Context& /* context */) const
+bool TYtDatabase::empty(const Context& /* context */) const
 {
     // it is too expensive to check
     return false;
 }
 
-void TDatabase::createTable(
+void TYtDatabase::createTable(
     const Context& /* context */,
     const std::string& /* name */,
     const StoragePtr& /* table */,
@@ -216,7 +214,7 @@ void TDatabase::createTable(
     // Table already created, nothing to do here.
 }
 
-void TDatabase::removeTable(
+void TYtDatabase::removeTable(
     const Context&  context,
     const std::string& name)
 {
@@ -225,34 +223,34 @@ void TDatabase::removeTable(
         .ThrowOnError();
 }
 
-void TDatabase::attachTable(
+void TYtDatabase::attachTable(
     const std::string& /* name */,
     const StoragePtr& /* table */)
 {
     throw Exception(
-        "TDatabase: attachTable() is not supported",
+        "TYtDatabase: attachTable() is not supported",
         ErrorCodes::NOT_IMPLEMENTED);
 }
 
-StoragePtr TDatabase::detachTable(const std::string& /* name */)
+StoragePtr TYtDatabase::detachTable(const std::string& /* name */)
 {
     throw Exception(
-        "TDatabase: detachTable() is not supported",
+        "TYtDatabase: detachTable() is not supported",
         ErrorCodes::NOT_IMPLEMENTED);
 }
 
-void TDatabase::renameTable(
+void TYtDatabase::renameTable(
     const Context& /* context */,
     const std::string& /* name */,
     IDatabase& /* newDatabase */,
     const std::string& /* newName */)
 {
     throw Exception(
-        "TDatabase: renameTable() is not supported",
+        "TYtDatabase: renameTable() is not supported",
         ErrorCodes::NOT_IMPLEMENTED);
 }
 
-void TDatabase::alterTable(
+void TYtDatabase::alterTable(
     const Context& /* context */,
     const std::string& /* name */,
     const ColumnsDescription & /* columns */,
@@ -260,11 +258,11 @@ void TDatabase::alterTable(
     const ASTModifier& /* engineModifier */)
 {
     throw Exception(
-        "TDatabase: alterTable() is not supported",
+        "TYtDatabase: alterTable() is not supported",
         ErrorCodes::NOT_IMPLEMENTED);
 }
 
-time_t TDatabase::getTableMetadataModificationTime(
+time_t TYtDatabase::getTableMetadataModificationTime(
     const Context& /* context */,
     const std::string& /* name */)
 {
@@ -272,40 +270,40 @@ time_t TDatabase::getTableMetadataModificationTime(
     return 0;
 }
 
-ASTPtr TDatabase::getCreateTableQuery(const Context& context, const std::string& name) const
+ASTPtr TYtDatabase::getCreateTableQuery(const Context& context, const std::string& name) const
 {
     return DoGetCreateTableQuery(context, name, true /* throwOnError */);
 }
 
-ASTPtr TDatabase::tryGetCreateTableQuery(const Context& context, const std::string& name) const
+ASTPtr TYtDatabase::tryGetCreateTableQuery(const Context& context, const std::string& name) const
 {
     return DoGetCreateTableQuery(context, name, false /* throwOnError */);
 }
 
-ASTPtr TDatabase::getCreateDatabaseQuery(
+ASTPtr TYtDatabase::getCreateDatabaseQuery(
     const Context& /* context */) const
 {
     throw Exception(
-        "TDatabase: getCreateDatabaseQuery() is not supported",
+        "TYtDatabase: getCreateDatabaseQuery() is not supported",
         ErrorCodes::NOT_IMPLEMENTED);
 }
 
-std::string TDatabase::getDatabaseName() const
+std::string TYtDatabase::getDatabaseName() const
 {
     return {};
 };
 
-void TDatabase::shutdown()
+void TYtDatabase::shutdown()
 {
     // nothing to do
 }
 
-void TDatabase::drop()
+void TYtDatabase::drop()
 {
     // nothing to do
 }
 
-ASTPtr TDatabase::DoGetCreateTableQuery(const DB::Context& context, const DB::String& tableName, bool throwOnError) const
+ASTPtr TYtDatabase::DoGetCreateTableQuery(const DB::Context& context, const DB::String& tableName, bool throwOnError) const
 {
     auto* queryContext = GetQueryContext(context);
     auto path = TRichYPath::Parse(TString(tableName));
@@ -317,7 +315,7 @@ ASTPtr TDatabase::DoGetCreateTableQuery(const DB::Context& context, const DB::St
         "optimize_for",
         "schema",
     };
-    auto result = WaitFor(queryContext->Client()->GetNode(path.GetPath(), options))
+    auto result = NConcurrency::WaitFor(queryContext->Client()->GetNode(path.GetPath(), options))
         .ValueOrThrow();
     auto attributesYson = ConvertToYsonString(
         ConvertToNode(result)->Attributes().ToMap(),
@@ -346,9 +344,9 @@ ASTPtr TDatabase::DoGetCreateTableQuery(const DB::Context& context, const DB::St
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DatabasePtr CreateDatabase()
+DatabasePtr CreateYtDatabase()
 {
-    return std::make_shared<TDatabase>();
+    return std::make_shared<TYtDatabase>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

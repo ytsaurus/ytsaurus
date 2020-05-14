@@ -1,8 +1,8 @@
 #pragma once
 
 #include "cluster_nodes.h"
-#include "query_context.h"
 #include "private.h"
+#include "config.h"
 
 #include <yt/ytlib/api/native/public.h>
 
@@ -22,28 +22,23 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClickHouseHost
+class THost
     : public TRefCounted
 {
 public:
-    TClickHouseHost(
-        TBootstrap* bootstrap,
-        TClickHouseServerBootstrapConfigPtr nativeConfig,
-        std::string cliqueId,
-        std::string instanceId,
-        ui16 rpcPort,
-        ui16 monitoringPort,
-        ui16 tcpPort,
-        ui16 httpPort);
+    THost(
+        IInvokerPtr controlInvoker,
+        TPorts ports,
+        TYtConfigPtr config,
+        NApi::NNative::TConnectionConfigPtr connectionConfig);
 
-    ~TClickHouseHost();
+    virtual ~THost() override;
 
     void Start();
 
     void HandleIncomingGossip(const TString& instanceId, EInstanceState state);
 
     TFuture<void> StopDiscovery();
-    void StopTcpServers();
 
     void ValidateReadPermissions(const std::vector<NYPath::TRichYPath>& paths, const TString& user);
 
@@ -52,19 +47,40 @@ public:
         const NApi::NNative::IClientPtr& client);
 
     const IInvokerPtr& GetControlInvoker() const;
+    const IInvokerPtr& GetWorkerInvoker() const;
 
-    DB::Context& GetContext() const;
+    NApi::NNative::IClientPtr GetRootClient() const;
+    NApi::NNative::IClientPtr CreateClient(TString user);
 
     TClusterNodes GetNodes() const;
 
     const NChunkClient::IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const;
+
+    TYtConfigPtr GetConfig() const;
+
+    EInstanceState GetInstanceState() const;
+
+    void HandleCrashSignal() const;
+    void HandleSigint();
+
+    TQueryRegistryPtr GetQueryRegistry() const;
+
+    //! Return future which is set when no query is executing.
+    TFuture<void> GetIdleFuture() const;
+
+    void SaveQueryRegistryState();
+
+    std::unique_ptr<DB::IUsersManager> CreateUsersManager() const;
+    void PopulateSystemDatabase(DB::IDatabase* systemDatabase) const;
+    std::shared_ptr<DB::IDatabase> CreateYtDatabase() const;
+    void SetContext(DB::Context* context);
 
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TClickHouseHost)
+DEFINE_REFCOUNTED_TYPE(THost)
 
 ////////////////////////////////////////////////////////////////////////////////
 

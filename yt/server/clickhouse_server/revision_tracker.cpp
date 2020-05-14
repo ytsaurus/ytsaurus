@@ -1,7 +1,5 @@
 #include "revision_tracker.h"
 
-#include "query_context.h"
-
 #include <yt/client/api/client.h>
 
 namespace NYT::NClickHouseServer {
@@ -9,6 +7,7 @@ namespace NYT::NClickHouseServer {
 using namespace NYPath;
 using namespace NApi;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -14,10 +14,12 @@ using namespace DB;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NTableClient;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStorageSubquery : public DB::IStorage
+class TStorageSubquery
+    : public DB::IStorage
 {
 public:
     TStorageSubquery(TQueryContext* queryContext, TSubquerySpec subquerySpec)

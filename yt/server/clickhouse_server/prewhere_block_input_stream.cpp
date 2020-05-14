@@ -1,8 +1,9 @@
 #include "prewhere_block_input_stream.h"
-#include "subquery_spec.h"
 
-#include <yt/server/clickhouse_server/block_input_stream.h>
-#include <yt/server/clickhouse_server/query_context.h>
+#include "subquery_spec.h"
+#include "host.h"
+#include "block_input_stream.h"
+#include "query_context.h"
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 
@@ -14,6 +15,8 @@ namespace NYT::NClickHouseServer {
 using namespace DB;
 using namespace NChunkClient;
 using namespace NTableClient;
+using namespace NConcurrency;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,7 +71,7 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
         prewhereInfo);
 
     return WaitFor(BIND(&GetFilteredDataSliceDescriptors, blockInputStream)
-        .AsyncVia(queryContext->Bootstrap->GetWorkerInvoker())
+        .AsyncVia(queryContext->Host->GetWorkerInvoker())
         .Run())
         .ValueOrThrow();
 }

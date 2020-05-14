@@ -1,16 +1,18 @@
 #include "config_repository.h"
 
-#include "config.h"
-
+#include "clickhouse_config.h"
 #include "poco_config.h"
 
 #include <yt/core/misc/common.h>
+#include <yt/core/ytree/fluent.h>
 
 #include <Poco/Util/LayeredConfiguration.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using namespace NYTree;
 
 class TDictionaryConfigRepository
     : public DB::IExternalLoaderConfigRepository
@@ -46,7 +48,7 @@ public:
         const std::string& configFile,
         const std::string & /* preprocessed_dir = "" */) const override
     {
-        return ConvertToPocoConfig(NYTree::BuildYsonNodeFluently()
+        return ConvertToPocoConfig(BuildYsonNodeFluently()
             .BeginMap()
                 .Item("dictionary").Value(GetOrCrash(Dictionaries_, configFile))
             .EndMap());

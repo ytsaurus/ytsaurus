@@ -1,19 +1,11 @@
 #include "helpers.h"
 
-#include "bootstrap.h"
 #include "schema.h"
 #include "table.h"
-
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
-
-#include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/api/native/client.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
-#include <yt/ytlib/object_client/object_attribute_cache.h>
-
-#include <yt/ytlib/security_client/permission_cache.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 
