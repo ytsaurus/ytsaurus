@@ -160,9 +160,9 @@ class YtIdmClient(object):
         return self._make_request("get", "responsible", dict(id=object_id), v2=True)
 
     @_with_object_id
-    def set_responsible(self, object_id, version, responsible, inherit_acl=None):
+    def set_responsible(self, object_id, version, responsible, inherit_acl=None, comment=""):
         """Sets subject responsible for object."""
-        params = dict(id=object_id, version=version)
+        params = dict(id=object_id, version=version, comment=comment)
         if inherit_acl is not None:
             params["inherit_acl"] = inherit_acl
         return self._make_request("post", "responsible", params, responsible)
@@ -171,7 +171,7 @@ class YtIdmClient(object):
         """Gets legacy YT group info by group name."""
         return self._make_request("get", "group", dict(group_name=group_name), v2=True)
 
-    def update_group(self, name, version, group):
+    def update_group(self, name, version, group, comment=""):
         """Updates legacy YT group."""
-        params = dict(group_name=name, version=version)
+        params = dict(group_name=name, version=version, comment=comment)
         return self._make_request("put", "group", params, group)
