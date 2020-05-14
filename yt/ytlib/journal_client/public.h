@@ -1,14 +1,12 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
+#include <yt/client/journal_client/public.h>
 
 namespace NYT::NJournalClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkReplicaDescriptor;
-
-DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

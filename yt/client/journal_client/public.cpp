@@ -1,8 +1,4 @@
-#pragma once
-
 #include "public.h"
-
-#include <yt/client/journal_client/config.h>
 
 namespace NYT::NJournalClient {
 
@@ -11,3 +7,4 @@ namespace NYT::NJournalClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJournalClient
+
