@@ -892,7 +892,6 @@ private:
             ToProto(entry->mutable_cell_id(), cell->GetId());
 
             if (multicellManager->IsPrimaryMaster()) {
-                cell->RecomputeClusterStatus();
                 ToProto(entry->mutable_status(), cell->GossipStatus().Cluster());
             } else {
                 ToProto(entry->mutable_status(), cell->GossipStatus().Local());
@@ -951,6 +950,7 @@ private:
 
     void UpdateCellsHealth()
     {
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto peerRevocationReasonDeadline =
             NHydra::GetCurrentMutationContext()->GetTimestamp() -
             GetDynamicConfig()->PeerRevocationReasonExpirationTime;
@@ -959,6 +959,9 @@ private:
             if (!IsObjectAlive(cell)) {
                 continue;
             }
+
+            cell->RecomputeClusterStatus();
+            tabletManager->RecomputeTabletCellStatistics(cell);
 
             auto& health = cell->GossipStatus().Local().Health;
             auto newHealth = cell->GetHealth();

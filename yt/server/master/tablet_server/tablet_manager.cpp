@@ -2333,6 +2333,16 @@ public:
         SendTableStatisticsUpdates(table);
     }
 
+    void RecomputeTabletCellStatistics(TCellBase* cellBase)
+    {
+        if (!IsObjectAlive(cellBase) || cellBase->GetType() != EObjectType::TabletCell) {
+            return;
+        }
+
+        auto* cell = cellBase->As<TTabletCell>();
+        cell->RecomputeClusterStatistics();
+    }
+
 
     TEntityMap<TTabletCellBundle>& CompatTabletCellBundleMap()
     {
@@ -4154,7 +4164,6 @@ private:
             ToProto(entry->mutable_tablet_cell_id(), cell->GetId());
 
             if (multicellManager->IsPrimaryMaster()) {
-                cell->RecomputeClusterStatistics();
                 ToProto(entry->mutable_statistics(), cell->GossipStatistics().Cluster());
             } else {
                 ToProto(entry->mutable_statistics(), cell->GossipStatistics().Local());
@@ -6528,6 +6537,10 @@ TEntityMap<TTabletCell>& TTabletManager::CompatTabletCellMap()
     return Impl_->CompatTabletCellMap();
 }
 
+void TTabletManager::RecomputeTabletCellStatistics(TCellBase* cellBase)
+{
+    return Impl_->RecomputeTabletCellStatistics(cellBase);
+}
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TableReplica, TTableReplica, *Impl_)
