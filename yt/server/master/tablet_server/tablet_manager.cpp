@@ -4152,13 +4152,17 @@ private:
             auto* cell = cellBase->As<TTabletCell>();
             auto* entry = request.add_entries();
             ToProto(entry->mutable_tablet_cell_id(), cell->GetId());
-            ToProto(
-                entry->mutable_statistics(),
-                multicellManager->IsPrimaryMaster() ? cell->GossipStatistics().Cluster() : cell->GossipStatistics().Local());
+
+            if (multicellManager->IsPrimaryMaster()) {
+                cell->RecomputeClusterStatistics();
+                ToProto(entry->mutable_statistics(), cell->GossipStatistics().Cluster());
+            } else {
+                ToProto(entry->mutable_statistics(), cell->GossipStatistics().Local());
+            }
         }
 
-    if (multicellManager->IsPrimaryMaster()) {
-        multicellManager->PostToSecondaryMasters(request, false);
+        if (multicellManager->IsPrimaryMaster()) {
+            multicellManager->PostToSecondaryMasters(request, false);
         } else {
             multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
         }
@@ -4190,7 +4194,6 @@ private:
 
             if (multicellManager->IsPrimaryMaster()) {
                 *cell->GossipStatistics().Remote(cellTag) = newStatistics;
-                cell->RecomputeClusterStatistics();
             } else {
                 cell->GossipStatistics().Cluster() = newStatistics;
             }
