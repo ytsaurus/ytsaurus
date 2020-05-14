@@ -42,6 +42,7 @@ def get_clickhouse_server_config():
         "address_resolver": {"localhost_fqdn": "localhost"},
         "validate_operation_access": False,
         "user": "root",
+        # COMPAT(max42): rename to clickhouse and remove /subquery.
         "engine": {
             "settings": {
                 "max_temporary_non_const_columns": 1234,
@@ -56,6 +57,13 @@ def get_clickhouse_server_config():
             "directory": "//sys/clickhouse/cliques",
             "update_period": 500,
             "transaction_timeout": 1000,
+        },
+        # COMPAT(max42): leave only new config format.
+        "yt": {
+            "user": "root",
+            "security_manager": {"enable": False},
+            "discovery": {"update_period": 500, "transaction_timeout": 1000},
+            "subquery": {"min_data_weight_per_thread": 0},
         },
     }
 
