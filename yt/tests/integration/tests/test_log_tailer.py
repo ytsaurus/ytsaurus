@@ -12,56 +12,34 @@ from yt_env_setup import YTEnvSetup
 
 from yt.environment.helpers import OpenPortIterator
 
+from yt.clickhouse.test_helpers import get_log_tailer_config, get_host_paths
+
 from distutils.spawn import find_executable
 
-if arcadia_interop.yatest_common is None:
-    TEST_DIR = os.path.join(os.path.dirname(__file__))
-
-    YT_LOG_TAILER_BINARY = os.environ.get("YT_LOG_TAILER_BINARY")
-    if YT_LOG_TAILER_BINARY is None:
-        YT_LOG_TAILER_BINARY = find_executable("ytserver-log-tailer")
-
-    YT_DUMMY_LOGGER_BINARY = os.environ.get("YT_DUMMY_LOGGER_BINARY")
-    if YT_DUMMY_LOGGER_BINARY is None:
-        YT_DUMMY_LOGGER_BINARY = find_executable("dummy_logger")
-else:
-    test_dir = os.environ.get("YT_ROOT") + "/yt/tests/integration/tests"
-    TEST_DIR = arcadia_interop.yatest_common.source_path(test_dir)
-    assert os.path.exists(TEST_DIR)
-
-    YT_LOG_TAILER_BINARY = arcadia_interop.search_binary_path("ytserver-log-tailer")
-    YT_DUMMY_LOGGER_BINARY = arcadia_interop.search_binary_path("dummy_logger")
+HOST_PATHS = get_host_paths(arcadia_interop, ["dummy-logger", "ytserver-log-tailer"])
 
 #################################################################
-
 
 class TestLogTailer(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    def _read_local_config_file(self, name):
-        return open(os.path.join(TEST_DIR, "test_clickhouse", name)).read()
-
-    def setup(self):
-        if YT_LOG_TAILER_BINARY is None:
-            pytest.skip("This test requires log_tailer binary being built")
-        if YT_DUMMY_LOGGER_BINARY is None:
-            pytest.skip("This test requires dummy_logger binary being built")
-
     @authors("gritukan")
     def test_log_rotation(self):
-        log_tailer_config = yson.loads(self._read_local_config_file("log_tailer_config.yson"))
+        log_tailer_config = get_log_tailer_config()
         log_path = \
             os.path.join(self.path_to_run,
             "logs",
             "dummy_logger",
             "log")
 
-        log_tables = ["//sys/clickhouse/logs/log1", "//sys/clickhouse/logs/log2"]
+        log_tailer_config["log_tailer"]["log_files"] = [{
+            "path": log_path,
+            "tables": [{"path": "//sys/log1"}, {"path": "//sys/log2", "require_trace_id": True}]
+        }]
 
-        log_tailer_config["log_tailer"]["log_files"][0]["path"] = log_path
-        log_tailer_config["log_tailer"]["log_files"][0]["table_paths"] = log_tables
+        log_tailer_config["log_tailer"]["log_files"] = log_tailer_config["log_tailer"]["log_files"][:1]
 
         log_tailer_config["logging"]["writers"]["debug"]["file_name"] = \
             os.path.join(self.path_to_run,
@@ -83,10 +61,7 @@ class TestLogTailer(YTEnvSetup):
         create_tablet_cell_bundle("sys")
         sync_create_cells(1, tablet_cell_bundle="sys")
 
-        create("map_node", "//sys/clickhouse")
-        create("map_node", "//sys/clickhouse/logs")
-
-        create("table", "//sys/clickhouse/logs/log1", attributes={
+        create("table", "//sys/log1", attributes={
                 "dynamic": True,
                 "schema": [
                     {"name": "job_id_shard", "type": "uint64", "expression": "farm_hash(job_id) % 123", "sort_order": "ascending"},
@@ -105,7 +80,7 @@ class TestLogTailer(YTEnvSetup):
                 "atomicity": "none",
             })
 
-        create("table", "//sys/clickhouse/logs/log2", attributes={
+        create("table", "//sys/log2", attributes={
                 "dynamic": True,
                 "schema": [
                     {"name": "trace_id_hash", "type": "uint64", "expression": "farm_hash(trace_id)", "sort_order": "ascending"},
@@ -124,6 +99,8 @@ class TestLogTailer(YTEnvSetup):
                 "atomicity": "none",
             })
 
+        log_tables = ["//sys/log1", "//sys/log2"]
+
         for log_table in log_tables:
             sync_mount_table(log_table)
 
@@ -135,9 +112,9 @@ class TestLogTailer(YTEnvSetup):
             local_port_range=self.Env.local_port_range)
         log_tailer_monitoring_port = next(port_iterator)
 
-        dummy_logger = subprocess.Popen([YT_DUMMY_LOGGER_BINARY, log_path, "5", "1000", "2000"])
+        dummy_logger = subprocess.Popen([HOST_PATHS["dummy-logger"], log_path, "5", "1000", "2000"])
         log_tailer = subprocess.Popen([
-            YT_LOG_TAILER_BINARY,
+            HOST_PATHS["ytserver-log-tailer"],
             str(dummy_logger.pid),
             "--config",
             log_tailer_config_file,
