@@ -183,7 +183,7 @@ public:
     MOCK_METHOD0(Detach, void());
     MOCK_METHOD0(Flush, TFuture<TTransactionFlushResult>());
 
-    MOCK_METHOD1(RegisterForeignTransaction, void(const NApi::ITransactionPtr& transaction));
+    MOCK_METHOD1(RegisterAlienTransaction, void(const NApi::ITransactionPtr& transaction));
 
     MOCK_METHOD1(SubscribeCommitted, void(const TCallback<void()>& callback));
     MOCK_METHOD1(UnsubscribeCommitted, void(const TCallback<void()>& callback));

@@ -116,7 +116,7 @@ TDuration TTransaction::GetTimeout() const
     return Timeout_;
 }
 
-void TTransaction::RegisterForeignTransaction(const ITransactionPtr& transaction)
+void TTransaction::RegisterAlienTransaction(const ITransactionPtr& transaction)
 {
     {
         auto guard = Guard(SpinLock_);
@@ -131,25 +131,25 @@ void TTransaction::RegisterForeignTransaction(const ITransactionPtr& transaction
 
         if (GetType() != ETransactionType::Tablet) {
             THROW_ERROR_EXCEPTION(
-                NTransactionClient::EErrorCode::MalformedForeignTransaction,
-                "Transaction %v is of type %Qlv and hence does not allow foreign transactions",
+                NTransactionClient::EErrorCode::MalformedAlienTransaction,
+                "Transaction %v is of type %Qlv and hence does not allow alien transactions",
                 GetId(),
                 GetType());
         }
 
         if (GetId() != transaction->GetId()) {
             THROW_ERROR_EXCEPTION(
-                NTransactionClient::EErrorCode::MalformedForeignTransaction,
-                "Transaction id mismatch: native %v, foreign %v",
+                NTransactionClient::EErrorCode::MalformedAlienTransaction,
+                "Transaction id mismatch: native %v, alien %v",
                 GetId(),
                 transaction->GetId());
         }
 
-        ForeignTransactions_.push_back(std::move(transaction));
+        AlienTransactions_.push_back(std::move(transaction));
     }
 
     // TODO(babenko): cell tag
-    YT_LOG_DEBUG("Foreign transaction registered");
+    YT_LOG_DEBUG("Alien transaction registered");
 }
 
 TFuture<void> TTransaction::Ping(const NApi::TTransactionPingOptions& /*options*/)
@@ -211,12 +211,12 @@ TFuture<TTransactionFlushResult> TTransaction::Flush()
                 State_));
         }
 
-        if (!ForeignTransactions_.empty()) {
+        if (!AlienTransactions_.empty()) {
             return MakeFuture<TTransactionFlushResult>(TError(
-                NTransactionClient::EErrorCode::ForeignTransactionsForbidden,
-                "Cannot flush transaction %v since it has %v foreign transaction(s)",
+                NTransactionClient::EErrorCode::AlienTransactionsForbidden,
+                "Cannot flush transaction %v since it has %v alien transaction(s)",
                 GetId(),
-                ForeignTransactions_.size()));
+                AlienTransactions_.size()));
         }
 
         State_ = ETransactionState::Flushing;
@@ -262,7 +262,7 @@ TFuture<TTransactionFlushResult> TTransaction::Flush()
 TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions&)
 {
     std::vector<TFuture<void>> futures;
-    std::vector<NApi::ITransactionPtr> foreignTransactions;
+    std::vector<NApi::ITransactionPtr> alienTransactions;
     {
         auto guard = Guard(SpinLock_);
 
@@ -276,22 +276,22 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 
         State_ = ETransactionState::Committing;
         futures = FlushModifyRowsRequests();
-        foreignTransactions = std::move(ForeignTransactions_);
+        alienTransactions = std::move(AlienTransactions_);
     }
 
-    YT_LOG_DEBUG("Committing transaction (ForeignTransactionCount: %v)",
-        foreignTransactions.size());
+    YT_LOG_DEBUG("Committing transaction (AlienTransactionCount: %v)",
+        alienTransactions.size());
 
-    for (const auto& transaction : foreignTransactions) {
+    for (const auto& transaction : alienTransactions) {
         futures.push_back(
             transaction->Flush().Apply(
                 BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TTransactionFlushResult>& resultOrError) {
-                    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Error flushing foreign transaction");
+                    THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Error flushing alien transaction");
 
                     const auto& result = resultOrError.Value();
 
                     // TODO(babenko): cell tag
-                    YT_LOG_DEBUG("Foreign transaction flushed (ParticipantCellIds: %v)",
+                    YT_LOG_DEBUG("Alien transaction flushed (ParticipantCellIds: %v)",
                         result.ParticipantCellIds);
 
                     for (auto cellId : result.ParticipantCellIds) {
@@ -299,7 +299,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
                     }
                 })));
     }
-    if (!foreignTransactions.empty()) {
+    if (!alienTransactions.empty()) {
         auto req = Proxy_.FlushTransaction();
         ToProto(req->mutable_transaction_id(), GetId());
         futures.push_back(req->Invoke().AsVoid());
@@ -328,7 +328,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
                     }
                 }
 
-                for (const auto& transaction : foreignTransactions) {
+                for (const auto& transaction : alienTransactions) {
                     transaction->Detach();
                 }
 
@@ -764,7 +764,7 @@ TFuture<void> TTransaction::DoAbort(TGuard<TSpinLock>* guard, const TTransaction
 
     State_ = ETransactionState::Aborting;
 
-    auto foreignTransactions = ForeignTransactions_;
+    auto alienTransactions = AlienTransactions_;
 
     guard->Release();
 
@@ -800,7 +800,7 @@ TFuture<void> TTransaction::DoAbort(TGuard<TSpinLock>* guard, const TTransaction
             Aborted_.Fire();
         })));
 
-    for (const auto& transaction : foreignTransactions) {
+    for (const auto& transaction : alienTransactions) {
         transaction->Abort();
     }
 

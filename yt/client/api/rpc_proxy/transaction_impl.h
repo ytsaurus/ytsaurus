@@ -55,7 +55,7 @@ public:
     virtual TFuture<NApi::TTransactionCommitResult> Commit(const NApi::TTransactionCommitOptions&) override;
     virtual TFuture<void> Abort(const NApi::TTransactionAbortOptions& options = {}) override;
     virtual void Detach() override;
-    virtual void RegisterForeignTransaction(const ITransactionPtr& transaction) override;
+    virtual void RegisterAlienTransaction(const ITransactionPtr& transaction) override;
 
     virtual void SubscribeCommitted(const TClosure&) override;
     virtual void UnsubscribeCommitted(const TClosure&) override;
@@ -208,7 +208,7 @@ private:
     TSpinLock SpinLock_;
     ETransactionState State_ = ETransactionState::Active;
     const TPromise<void> AbortPromise_ = NewPromise<void>();
-    std::vector<NApi::ITransactionPtr> ForeignTransactions_;
+    std::vector<NApi::ITransactionPtr> AlienTransactions_;
     
     THashSet<NObjectClient::TCellId> AdditionalParticipantCellIds_;
 

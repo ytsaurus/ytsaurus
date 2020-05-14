@@ -165,16 +165,16 @@ Py::Object TDriverBase::Execute(Py::Tuple& args, Py::Dict& kwargs)
     return pythonResponse;
 }
 
-Py::Object TDriverBase::RegisterForeignTransaction(Py::Tuple& args, Py::Dict& kwargs)
+Py::Object TDriverBase::RegisterAlienTransaction(Py::Tuple& args, Py::Dict& kwargs)
 {
     try {
         auto pyTransactionId = ExtractArgument(args, kwargs, "transaction_id");
         auto transactionId = NTransactionClient::TTransactionId::FromString(ConvertStringObjectToString(pyTransactionId));
 
-        auto pyForeignDriver = ExtractArgument(args, kwargs, "foreign_driver");
-        auto* foreignDriver = dynamic_cast<TDriverBase*>(Py::getPythonExtensionBase(pyForeignDriver.ptr()));
-        if (!foreignDriver) {
-            THROW_ERROR_EXCEPTION("'foreign_driver' does not represent a valid driver instance");
+        auto pyAlienDriver = ExtractArgument(args, kwargs, "alien_driver");
+        auto* alienDriver = dynamic_cast<TDriverBase*>(Py::getPythonExtensionBase(pyAlienDriver.ptr()));
+        if (!alienDriver) {
+            THROW_ERROR_EXCEPTION("'alien_driver' does not represent a valid driver instance");
         }
 
         const auto& localTransactionPool = UnderlyingDriver_->GetStickyTransactionPool();
@@ -184,17 +184,17 @@ Py::Object TDriverBase::RegisterForeignTransaction(Py::Tuple& args, Py::Dict& kw
                 transactionId);
         }
 
-        const auto& foreignTransactionPool = foreignDriver->UnderlyingDriver_->GetStickyTransactionPool();
-        auto foreignTransaction = foreignTransactionPool->FindTransactionAndRenewLease(transactionId);
-        if (!foreignTransaction) {
-            THROW_ERROR_EXCEPTION("Foreign transaction %v is not registered",
+        const auto& alienTransactionPool = alienDriver->UnderlyingDriver_->GetStickyTransactionPool();
+        auto alienTransaction = alienTransactionPool->FindTransactionAndRenewLease(transactionId);
+        if (!alienTransaction) {
+            THROW_ERROR_EXCEPTION("Alien transaction %v is not registered",
                 transactionId);
         }
 
-        localTransaction->RegisterForeignTransaction(foreignTransaction);
+        localTransaction->RegisterAlienTransaction(alienTransaction);
 
         return Py::None();
-    } CATCH_AND_CREATE_YT_ERROR("Error registering foreign transaction");
+    } CATCH_AND_CREATE_YT_ERROR("Error registering alien transaction");
 }
 
 Py::Object TDriverBase::GetCommandDescriptor(Py::Tuple& args, Py::Dict& kwargs)
