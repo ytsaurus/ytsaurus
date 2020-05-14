@@ -339,7 +339,7 @@ TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributes& 
         Attributes_.AdjustedMinShareRatio,
         Attributes_.GuaranteedResourcesRatio,
         Attributes_.MaxPossibleUsageRatio,
-        Attributes_.BestAllocationRatio,
+        PersistentAttributes_.BestAllocationRatio,
         GetStarving(),
         GetWeight());
 }
@@ -648,6 +648,11 @@ TJobResources TSchedulerElement::GetTotalResourceLimits() const
     return TotalResourceLimits_;
 }
 
+double TSchedulerElement::GetBestAllocationRatio() const
+{
+    return PersistentAttributes_.BestAllocationRatio;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
@@ -758,7 +763,7 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicA
 {
     YT_VERIFY(Mutable_);
 
-    Attributes_.BestAllocationRatio = 0.0;
+    PersistentAttributes_.BestAllocationRatio = 0.0;
     PendingJobCount_ = 0;
 
     SchedulableChildren_.clear();
@@ -775,9 +780,9 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicA
             child->PersistentAttributes_.HistoricUsageAggregator.UpdateAt(context->Now, usage);
         }
 
-        Attributes_.BestAllocationRatio = std::max(
-            Attributes_.BestAllocationRatio,
-            child->Attributes().BestAllocationRatio);
+        PersistentAttributes_.BestAllocationRatio = std::max(
+            PersistentAttributes_.BestAllocationRatio,
+            child->PersistentAttributes().BestAllocationRatio);
         PendingJobCount_ += child->GetPendingJobCount();
 
         maxPossibleChildrenResourceUsage += child->MaxPossibleResourceUsage();
@@ -1201,6 +1206,7 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList* , TUpdateFai
     int index = 0;
     for (const auto& child : children) {
         auto& childAttributes = child->Attributes();
+        const auto& childPersistentAttributes = child->PersistentAttributes();
 
         childAttributes.MinShareRatio = 0.0;
         childAttributes.AdjustedMinShareRatio = 0.0;
@@ -1213,7 +1219,7 @@ void TCompositeSchedulerElement::UpdateFifo(TDynamicAttributesList* , TUpdateFai
 
         double childFairShareRatio = offeredFairShareRatio;
         childFairShareRatio = std::min(childFairShareRatio, childAttributes.MaxPossibleUsageRatio);
-        childFairShareRatio = std::min(childFairShareRatio, childAttributes.BestAllocationRatio);
+        childFairShareRatio = std::min(childFairShareRatio, childPersistentAttributes.BestAllocationRatio);
         child->SetFairShareRatio(childFairShareRatio);
 
         auto acceptedResources = offeredFairShareRatio > 0
@@ -1288,13 +1294,14 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList* dynamic
     ComputeByFitting(
         [&] (double fitFactor, const TSchedulerElementPtr& child) -> double {
             const auto& childAttributes = child->Attributes();
+            const auto& childPersistentAttributes = child->PersistentAttributes();
             double result = fitFactor * child->GetWeight() / minWeight;
             // Never give less than promised by min share.
             result = std::max(result, childAttributes.MinShareRatio);
             // Never give more than can be used.
             result = std::min(result, childAttributes.MaxPossibleUsageRatio);
             // Never give more than we can allocate.
-            result = std::min(result, childAttributes.BestAllocationRatio);
+            result = std::min(result, childPersistentAttributes.BestAllocationRatio);
             return result;
         },
         [&] (const TSchedulerElementPtr& child, double value, double uncertaintyRatio) {
@@ -1340,11 +1347,12 @@ void TCompositeSchedulerElement::UpdateFairShare(TDynamicAttributesList* dynamic
     // Compute adjusted min share ratios.
     for (const auto& child : EnabledChildren_) {
         auto& childAttributes = child->Attributes();
+        const auto& childPersistentAttributes = child->PersistentAttributes();
         double result = childAttributes.MinShareRatio;
         // Never give more than can be used.
         result = std::min(result, childAttributes.MaxPossibleUsageRatio);
         // Never give more than we can allocate.
-        result = std::min(result, childAttributes.BestAllocationRatio);
+        result = std::min(result, childPersistentAttributes.BestAllocationRatio);
         childAttributes.AdjustedMinShareRatio = result;
     }
 }
@@ -2371,14 +2379,17 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
     // these fields are used to calculate dominant resource.
     TSchedulerElement::UpdateBottomUp(dynamicAttributesList, context);
 
-    auto allocationLimits = GetAdjustedResourceLimits(
-        ResourceDemand_,
-        TotalResourceLimits_,
-        GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
-    auto dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
-    auto dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
-    Attributes_.BestAllocationRatio =
-        dominantLimit == 0 ? 1.0 : dominantAllocationLimit / dominantLimit;
+    if (PersistentAttributes_.LastBestAllocationRatioUpdateTime + TreeConfig_->BestAllocationRatioUpdatePeriod > context->Now) {
+        auto allocationLimits = GetAdjustedResourceLimits(
+            ResourceDemand_,
+            TotalResourceLimits_,
+            GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
+        auto dominantLimit = GetResource(TotalResourceLimits_, Attributes_.DominantResource);
+        auto dominantAllocationLimit = GetResource(allocationLimits, Attributes_.DominantResource);
+        PersistentAttributes_.BestAllocationRatio =
+            dominantLimit == 0 ? 1.0 : dominantAllocationLimit / dominantLimit;
+        PersistentAttributes_.LastBestAllocationRatioUpdateTime = context->Now;
+    }
 
     if (!IsSchedulable()) {
         (*dynamicAttributesList)[GetTreeIndex()].Active = false;

@@ -148,6 +148,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
         // Effectively disabled.
         .Default(1.0);
 
+    RegisterParameter("best_allocation_ratio_update_period", BestAllocationRatioUpdatePeriod)
+        .Default(TDuration::Minutes(1));
+
     RegisterParameter("enable_by_user_profiling", EnableByUserProfiling)
         .Default(true);
 
@@ -410,9 +413,6 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("enable_unrecognized_alert", EnableUnrecognizedAlert)
         .Default(true);
-
-    RegisterParameter("memory_distribution_different_node_types_threshold", MemoryDistributionDifferentNodeTypesThreshold)
-        .Default(4);
 
     RegisterParameter("job_revival_abort_timeout", JobRevivalAbortTimeout)
         .Default(TDuration::Minutes(5));

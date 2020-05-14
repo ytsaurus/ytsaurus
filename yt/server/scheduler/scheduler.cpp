@@ -116,23 +116,6 @@ static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class K, class V>
-THashMap<K, V> FilterLargestValues(const THashMap<K, V>& input, size_t threshold)
-{
-    threshold = std::min(threshold, input.size());
-    std::vector<std::pair<K, V>> items(input.begin(), input.end());
-    std::partial_sort(
-        items.begin(),
-        items.begin() + threshold,
-        items.end(),
-        [] (const std::pair<K, V>& lhs, const std::pair<K, V>& rhs) {
-            return lhs.second > rhs.second;
-        });
-    return THashMap<K, V>(items.begin(), items.begin() + threshold);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TPoolTreeKeysHolder
 {
     TPoolTreeKeysHolder()
@@ -2480,7 +2463,7 @@ private:
             }
         }
 
-        return FilterLargestValues(result, Config_->MemoryDistributionDifferentNodeTypesThreshold);
+        return result;
     }
 
     void DoStartOperation(const TOperationPtr& operation)

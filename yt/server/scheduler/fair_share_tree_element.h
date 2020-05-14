@@ -88,12 +88,6 @@ struct TSchedulableAttributes
         return MaxComponent(MaxPossibleUsageShare);
     }
 
-    double GetBestAllocationRatio() const
-    {
-        // TODO(ignat): support it for vector HDRF.
-        return 1.0;
-    }
-
     TResourceVector GetGuaranteedResourcesShare() const
     {
         return GuaranteedResourcesShare;
@@ -107,6 +101,9 @@ struct TPersistentAttributes
     TInstant LastNonStarvingTime;
     std::optional<TInstant> BelowFairShareSince;
     THistoricUsageAggregator HistoricUsageAggregator;
+
+    TResourceVector BestAllocationShare = TResourceVector::Ones();
+    TInstant LastBestAllocationRatioUpdateTime;
 };
 
 struct TDynamicAttributes
@@ -404,6 +401,8 @@ public:
     TJobResources ComputeResourceLimits() const;
 
     TJobResources GetTotalResourceLimits() const;
+
+    virtual double GetBestAllocationRatio() const;
 
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
@@ -721,7 +720,6 @@ class TOperationElementFixedState
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(TResourceVector, RemainingDemandShare);
-    DEFINE_BYREF_RO_PROPERTY(TResourceVector, BestAllocationShare);
 
 protected:
     TOperationElementFixedState(
@@ -969,6 +967,8 @@ public:
     TString GetUserName() const;
 
     bool DetailedLogsEnabled() const;
+
+    virtual double GetBestAllocationRatio() const override;
 
     bool OnJobStarted(
         TJobId jobId,
