@@ -174,8 +174,8 @@ private:
                     << HardErrorAttribute;
             }
 
-            auto foreignConnection = LocalConnection_->GetClusterDirectory()->FindConnection(ClusterName_);
-            if (!foreignConnection) {
+            auto alienConnection = LocalConnection_->GetClusterDirectory()->FindConnection(ClusterName_);
+            if (!alienConnection) {
                 THROW_ERROR_EXCEPTION("Replica cluster %Qv is not known", ClusterName_)
                     << HardErrorAttribute;
             }
@@ -229,7 +229,7 @@ private:
             }
 
             NNative::ITransactionPtr localTransaction;
-            ITransactionPtr foreignTransaction;
+            ITransactionPtr alienTransaction;
             PROFILE_AGGREGATED_TIMING(counters->ReplicationTransactionStartTime) {
                 YT_LOG_DEBUG("Starting replication transactions");
 
@@ -237,7 +237,7 @@ private:
                 localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
                     .ValueOrThrow();
 
-                auto foreignClient = foreignConnection->CreateClient(TClientOptions(NSecurityClient::ReplicatorUserName));
+                auto alienClient = alienConnection->CreateClient(TClientOptions(NSecurityClient::ReplicatorUserName));
 
                 TTransactionStartOptions transactionStartOptions;
                 transactionStartOptions.Id = localTransaction->GetId();
@@ -245,10 +245,10 @@ private:
                     transactionStartOptions.Atomicity = replicaRuntimeData->Atomicity;
                 }
 
-                foreignTransaction = WaitFor(foreignClient->StartTransaction(ETransactionType::Tablet, transactionStartOptions))
+                alienTransaction = WaitFor(alienClient->StartTransaction(ETransactionType::Tablet, transactionStartOptions))
                     .ValueOrThrow();
 
-                localTransaction->RegisterForeignTransaction(foreignTransaction);
+                localTransaction->RegisterAlienTransaction(alienTransaction);
 
                 YT_LOG_DEBUG("Replication transactions started (TransactionId: %v)",
                     localTransaction->GetId());
@@ -295,7 +295,7 @@ private:
             PROFILE_AGGREGATED_TIMING(counters->ReplicationRowsWriteTime) {
                 TModifyRowsOptions options;
                 options.UpstreamReplicaId = ReplicaId_;
-                foreignTransaction->ModifyRows(
+                alienTransaction->ModifyRows(
                     ReplicaPath_,
                     NameTable_,
                     MakeSharedRange(std::move(replicationRows), std::move(rowBuffer)),

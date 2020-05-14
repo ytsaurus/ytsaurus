@@ -72,7 +72,7 @@ struct ITransaction
     virtual TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions()) = 0;
     virtual void Detach() = 0;
     virtual TFuture<TTransactionFlushResult> Flush() = 0;
-    virtual void RegisterForeignTransaction(const ITransactionPtr& transaction) = 0;
+    virtual void RegisterAlienTransaction(const ITransactionPtr& transaction) = 0;
 
     DECLARE_INTERFACE_SIGNAL(void(), Committed);
     DECLARE_INTERFACE_SIGNAL(void(), Aborted);

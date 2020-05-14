@@ -47,7 +47,7 @@ class TestCrossClusterTransactions(YTEnvSetup):
         REMOTE_ROWS = [{"key": 2, "value": "world"}]
         insert_rows("//tmp/remote", REMOTE_ROWS, driver=self.remote_driver, tx=tx)
 
-        self.primary_driver.register_foreign_transaction(transaction_id=tx, foreign_driver=self.remote_driver)
+        self.primary_driver.register_alien_transaction(transaction_id=tx, alien_driver=self.remote_driver)
 
         commit_transaction(tx)
 

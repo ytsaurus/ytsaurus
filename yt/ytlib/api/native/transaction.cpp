@@ -194,12 +194,12 @@ public:
                     State_));
             }
 
-            if (!ForeignTransactions_.empty()) {
+            if (!AlienTransactions_.empty()) {
                 return MakeFuture<TTransactionFlushResult>(TError(
-                    NTransactionClient::EErrorCode::ForeignTransactionsForbidden,
-                    "Cannot flush transaction %v since it has %v foreign transaction(s)",
+                    NTransactionClient::EErrorCode::AlienTransactionsForbidden,
+                    "Cannot flush transaction %v since it has %v alien transaction(s)",
                     GetId(),
-                    ForeignTransactions_.size()));
+                    AlienTransactions_.size()));
             }
 
             State_ = ETransactionState::Flushing;
@@ -246,7 +246,7 @@ public:
     }
 
 
-    virtual void RegisterForeignTransaction(const NApi::ITransactionPtr& transaction) override
+    virtual void RegisterAlienTransaction(const NApi::ITransactionPtr& transaction) override
     {
         {
             auto guard = Guard(SpinLock_);
@@ -261,25 +261,25 @@ public:
 
             if (GetType() != ETransactionType::Tablet) {
                 THROW_ERROR_EXCEPTION(
-                    NTransactionClient::EErrorCode::MalformedForeignTransaction,
-                    "Transaction %v is of type %Qlv and hence does not allow foreign transactions",
+                    NTransactionClient::EErrorCode::MalformedAlienTransaction,
+                    "Transaction %v is of type %Qlv and hence does not allow alien transactions",
                     GetId(),
                     GetType());
             }
 
             if (GetId() != transaction->GetId()) {
                 THROW_ERROR_EXCEPTION(
-                    NTransactionClient::EErrorCode::MalformedForeignTransaction,
-                    "Transaction id mismatch: local %v, foreign %v",
+                    NTransactionClient::EErrorCode::MalformedAlienTransaction,
+                    "Transaction id mismatch: local %v, alien %v",
                     GetId(),
                     transaction->GetId());
             }
 
-            ForeignTransactions_.push_back(transaction);
+            AlienTransactions_.push_back(transaction);
         }
 
         // TODO(babenko): cell tag
-        YT_LOG_DEBUG("Foreign transaction registered");
+        YT_LOG_DEBUG("Alien transaction registered");
     }
 
 
@@ -530,7 +530,7 @@ private:
     TSpinLock SpinLock_;
     ETransactionState State_ = ETransactionState::Active;
     TPromise<void> AbortPromise_;
-    std::vector<NApi::ITransactionPtr> ForeignTransactions_;
+    std::vector<NApi::ITransactionPtr> AlienTransactions_;
 
     class TTableCommitSession;
     using TTableCommitSessionPtr = TIntrusivePtr<TTableCommitSession>;
@@ -1412,7 +1412,7 @@ private:
 
         {
             auto guard = Guard(SpinLock_);
-            ForeignTransactions_.push_back(transaction);
+            AlienTransactions_.push_back(transaction);
         }
 
         YT_VERIFY(ClusterNameToSyncReplicaTransaction_.emplace(replicaInfo->ClusterName, transaction).second);
@@ -1517,7 +1517,7 @@ private:
 
         guard->Release();
 
-        for (const auto& transaction : GetForeignTransactions()) {
+        for (const auto& transaction : GetAlienTransactions()) {
             transaction->Abort();
         }
 
@@ -1604,14 +1604,14 @@ private:
     {
         std::vector<TFuture<TTransactionFlushResult>> flushFutures;
         if (needsFlush) {
-            // Issue flush requests first to paralellize local preparation and foreign flushes.
-            for (const auto& transaction : GetForeignTransactions()) {
+            // Issue flush requests first to paralellize local preparation and alien flushes.
+            for (const auto& transaction : GetAlienTransactions()) {
                 flushFutures.push_back(transaction->Flush());
             }
 
             PrepareRequests();
 
-            // NB: The call above could have extended the set of foreign transactions.
+            // NB: The call above could have extended the set of alien transactions.
             // Let's flush these new guys as well.
             for (const auto& [clusterName, transaction] : ClusterNameToSyncReplicaTransaction_) {
                 flushFutures.push_back(transaction->Flush());
@@ -1658,7 +1658,7 @@ private:
                         }
                     }
 
-                    for (const auto& transaction : GetForeignTransactions()) {
+                    for (const auto& transaction : GetAlienTransactions()) {
                         transaction->Detach();
                     }
 
@@ -1727,7 +1727,7 @@ private:
     }
 
     
-    void DoRegisterForeignTransaction(const NApi::ITransactionPtr& transaction, ETransactionState expectedState)
+    void DoRegisterAlienTransaction(const NApi::ITransactionPtr& transaction, ETransactionState expectedState)
     {
         {
             auto guard = Guard(SpinLock_);
@@ -1742,31 +1742,31 @@ private:
 
             if (GetType() != ETransactionType::Tablet) {
                 THROW_ERROR_EXCEPTION(
-                    NTransactionClient::EErrorCode::MalformedForeignTransaction,
-                    "Transaction %v is of type %Qlv and hence does not allow foreign transactions",
+                    NTransactionClient::EErrorCode::MalformedAlienTransaction,
+                    "Transaction %v is of type %Qlv and hence does not allow alien transactions",
                     GetId(),
                     GetType());
             }
 
             if (GetId() != transaction->GetId()) {
                 THROW_ERROR_EXCEPTION(
-                    NTransactionClient::EErrorCode::MalformedForeignTransaction,
-                    "Transaction id mismatch: local %v, foreign %v",
+                    NTransactionClient::EErrorCode::MalformedAlienTransaction,
+                    "Transaction id mismatch: local %v, alien %v",
                     GetId(),
                     transaction->GetId());
             }
 
-            ForeignTransactions_.push_back(transaction);
+            AlienTransactions_.push_back(transaction);
         }
 
         // TODO(babenko): cell tag
-        YT_LOG_DEBUG("Foreign transaction registered");
+        YT_LOG_DEBUG("Alien transaction registered");
     }
 
-    std::vector<NApi::ITransactionPtr> GetForeignTransactions()
+    std::vector<NApi::ITransactionPtr> GetAlienTransactions()
     {
         auto guard = Guard(SpinLock_);
-        return ForeignTransactions_;
+        return AlienTransactions_;
     }
 
 
