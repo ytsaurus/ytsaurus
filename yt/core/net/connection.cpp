@@ -337,30 +337,25 @@ class TFDConnectionImpl
     : public IPollable
 {
 public:
-    TFDConnectionImpl(
+    static TFDConnectionImplPtr Create(
         int fd,
         const TString& filePath,
         const IPollerPtr& poller)
-        : Name_(Format("File{%v}", filePath))
-        , FD_(fd)
-        , Poller_(poller)
     {
-        Init();
+        auto impl = New<TFDConnectionImpl>(fd, filePath, poller);
+        impl->Init();
+        return impl;
     }
 
-    TFDConnectionImpl(
+    static TFDConnectionImplPtr Create(
         int fd,
         const TNetworkAddress& localAddress,
         const TNetworkAddress& remoteAddress,
         const IPollerPtr& poller)
-        : Name_(Format("FD{%v<->%v}", localAddress, remoteAddress))
-        , LoggingId_(Format("ConnectionId: %v", Name_))
-        , LocalAddress_(localAddress)
-        , RemoteAddress_(remoteAddress)
-        , FD_(fd)
-        , Poller_(poller)
     {
-        Init();
+        auto impl = New<TFDConnectionImpl>(fd, localAddress, remoteAddress, poller);
+        impl->Init();
+        return impl;
     }
 
     virtual const TString& GetLoggingId() const override
@@ -572,6 +567,29 @@ private:
     const TNetworkAddress RemoteAddress_;
     int FD_ = -1;
 
+    TFDConnectionImpl(
+        int fd,
+        const TString& filePath,
+        const IPollerPtr& poller)
+        : Name_(Format("File{%v}", filePath))
+        , FD_(fd)
+        , Poller_(poller)
+    { }
+
+    TFDConnectionImpl(
+        int fd,
+        const TNetworkAddress& localAddress,
+        const TNetworkAddress& remoteAddress,
+        const IPollerPtr& poller)
+        : Name_(Format("FD{%v<->%v}", localAddress, remoteAddress))
+        , LoggingId_(Format("ConnectionId: %v", Name_))
+        , LocalAddress_(localAddress)
+        , RemoteAddress_(remoteAddress)
+        , FD_(fd)
+        , Poller_(poller)
+    { }
+
+    DECLARE_NEW_FRIEND();
 
     class TSynchronousIOGuard
     {
@@ -815,7 +833,7 @@ public:
         const TString& pipePath,
         const IPollerPtr& poller,
         TIntrusivePtr<TRefCounted> pipeHolder = nullptr)
-        : Impl_(New<TFDConnectionImpl>(fd, pipePath, poller))
+        : Impl_(TFDConnectionImpl::Create(fd, pipePath, poller))
         , PipeHolder_(std::move(pipeHolder))
     { }
 
@@ -824,7 +842,7 @@ public:
         const TNetworkAddress& localAddress,
         const TNetworkAddress& remoteAddress,
         const IPollerPtr& poller)
-        : Impl_(New<TFDConnectionImpl>(fd, localAddress, remoteAddress, poller))
+        : Impl_(TFDConnectionImpl::Create(fd, localAddress, remoteAddress, poller))
     { }
 
     ~TFDConnection()
@@ -1027,7 +1045,7 @@ public:
         int fd,
         const TNetworkAddress& localAddress,
         const IPollerPtr& poller)
-        : Impl_(New<TFDConnectionImpl>(fd, localAddress, TNetworkAddress{}, poller))
+        : Impl_(TFDConnectionImpl::Create(fd, localAddress, TNetworkAddress{}, poller))
     { }
 
     ~TPacketConnection()
