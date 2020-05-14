@@ -653,7 +653,7 @@ TEST_F(TClassicFairShareTreeTest, TestBestAllocationRatio)
     rootElement->Update(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(1.125, operationElementX->Attributes().DemandRatio);
-    EXPECT_EQ(0.375, operationElementX->Attributes().BestAllocationRatio);
+    EXPECT_EQ(0.375, operationElementX->GetBestAllocationRatio());
     EXPECT_EQ(0.375, operationElementX->Attributes().FairShareRatio);
 }
 
@@ -934,12 +934,12 @@ TEST_F(TClassicFairShareTreeTest, MaxPossibleResourceUsage)
         rootElement->Update(&dynamicAttributes, &updateContext);
 
         EXPECT_NEAR(0.3, operationElementX->Attributes().DemandRatio, 1e-7);
-        EXPECT_NEAR(1.0, operationElementX->Attributes().BestAllocationRatio, 1e-7);
+        EXPECT_NEAR(1.0, operationElementX->GetBestAllocationRatio(), 1e-7);
         EXPECT_NEAR(0.3, operationElementX->Attributes().MaxPossibleUsageRatio, 1e-7);
         EXPECT_NEAR(0.3, operationElementX->Attributes().FairShareRatio, 1e-7);
 
         EXPECT_NEAR(1.0, operationElementY->Attributes().DemandRatio, 1e-7);
-        EXPECT_NEAR(1.0, operationElementY->Attributes().BestAllocationRatio, 1e-7);
+        EXPECT_NEAR(1.0, operationElementY->GetBestAllocationRatio(), 1e-7);
         EXPECT_NEAR(1.0, operationElementY->Attributes().MaxPossibleUsageRatio, 1e-7);
         EXPECT_NEAR(0.7, operationElementY->Attributes().FairShareRatio, 1e-7);
 

@@ -41,7 +41,6 @@ struct TSchedulableAttributes
     double AdjustedMinShareRatio = 0.0;
     double MinShareRatio = 0.0;
     double MaxPossibleUsageRatio = 1.0;
-    double BestAllocationRatio = 1.0;
     double GuaranteedResourcesRatio = 0.0;
     double DominantLimit = 0;
     int FifoIndex = -1;
@@ -81,11 +80,6 @@ struct TSchedulableAttributes
         return MaxPossibleUsageRatio;
     }
 
-    double GetBestAllocationRatio() const
-    {
-        return BestAllocationRatio;
-    }
-
     TResourceVector GetGuaranteedResourcesShare() const
     {
         return TResourceVector::FromDouble(GuaranteedResourcesRatio);
@@ -99,6 +93,9 @@ struct TPersistentAttributes
     TInstant LastNonStarvingTime;
     std::optional<TInstant> BelowFairShareSince;
     THistoricUsageAggregator HistoricUsageAggregator;
+
+    double BestAllocationRatio = 1.0;
+    TInstant LastBestAllocationRatioUpdateTime;
 };
 
 struct TDynamicAttributes
@@ -361,6 +358,8 @@ public:
     TJobResources ComputeResourceLimits() const;
 
     TJobResources GetTotalResourceLimits() const;
+
+    double GetBestAllocationRatio() const;
 
 private:
     TResourceTreeElementPtr ResourceTreeElement_;

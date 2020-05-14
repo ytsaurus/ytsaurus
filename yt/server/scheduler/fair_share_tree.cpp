@@ -1697,7 +1697,7 @@ auto TFairShareTree<TFairShareImpl>::DoBuildElementYson(
         .Item("usage_ratio").Value(element->GetResourceUsageRatio())
         .Item("demand_ratio").Value(attributes.GetDemandRatio())
         .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
-        .Item("best_allocation_ratio").Value(attributes.GetBestAllocationRatio())
+        .Item("best_allocation_ratio").Value(element->GetBestAllocationRatio())
         .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio);
 }
 

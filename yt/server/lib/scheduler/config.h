@@ -177,7 +177,11 @@ public:
     //! List of operation types which should not be run in that tree as tentative.
     std::optional<THashSet<EOperationType>> NonTentativeOperationTypes;
 
+    // TODO(ignat): Remove this.
     double LogFairShareRatioDisagreementThreshold;
+
+    //! Period of best allocation ratio update for operations.
+    TDuration BestAllocationRatioUpdatePeriod;
 
     bool EnableByUserProfiling;
 
@@ -462,9 +466,6 @@ public:
     TDuration GracefulPreemptionJobInterruptTimeout;
 
     bool EnableUnrecognizedAlert;
-
-    // Number of nodes to store by memory distribution.
-    int MemoryDistributionDifferentNodeTypesThreshold;
 
     // How much time we wait before aborting the revived job that was not confirmed
     // by the corresponding execution node.

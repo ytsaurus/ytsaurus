@@ -718,6 +718,13 @@ TJobResources TSchedulerElement::GetTotalResourceLimits() const
     return TotalResourceLimits_;
 }
 
+double TSchedulerElement::GetBestAllocationRatio() const
+{
+    // NB(eshcherbin): Best allocation ratio only makes sense for operation elements in vector strategy.
+    // For other elements, return 1.0 for compatibility with classic strategy.
+    return 1.0;
+}
+
 TResourceVector TSchedulerElement::GetVectorSuggestion(double suggestion) const
 {
     // TODO(ignat): move this YT_VERIFY to another place.
@@ -2779,13 +2786,16 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
     // these fields are used to calculate dominant resource.
     TSchedulerElement::UpdateBottomUp(dynamicAttributesList, context);
 
-    auto allocationLimits = GetAdjustedResourceLimits(
-        ResourceDemand_,
-        TotalResourceLimits_,
-        GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
-    BestAllocationShare_ = TResourceVector::Max(
-        Attributes_.UsageShare,
-        TResourceVector::FromJobResources(allocationLimits, TotalResourceLimits_, 0, 1));
+    if (PersistentAttributes_.LastBestAllocationRatioUpdateTime + TreeConfig_->BestAllocationRatioUpdatePeriod > context->Now) {
+        auto allocationLimits = GetAdjustedResourceLimits(
+            ResourceDemand_,
+            TotalResourceLimits_,
+            GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
+        PersistentAttributes_.BestAllocationShare = TResourceVector::Max(
+            Attributes_.UsageShare,
+            TResourceVector::FromJobResources(allocationLimits, TotalResourceLimits_, 0, 1));
+        PersistentAttributes_.LastBestAllocationRatioUpdateTime = context->Now;
+    }
 
     RemainingDemandShare_ = Attributes_.DemandShare - Attributes_.UsageShare;
     YT_VERIFY(Dominates(RemainingDemandShare_, TResourceVector::Zero()));
@@ -2863,10 +2873,10 @@ void TOperationElement::PrepareFairShareByFitFactor(TUpdateFairShareContext* con
             continue;
         }
 
-        if (BestAllocationShare_[r] - Attributes_.UsageShare[r] < RemainingDemandShare_[r]) {
+        if (PersistentAttributes_.BestAllocationShare[r] - Attributes_.UsageShare[r] < RemainingDemandShare_[r]) {
             maxRemainingDemandFitFactor = std::min(
                 maxRemainingDemandFitFactor,
-                (BestAllocationShare_[r] - Attributes_.UsageShare[r]) / RemainingDemandShare_[r]);
+                (PersistentAttributes_.BestAllocationShare[r] - Attributes_.UsageShare[r]) / RemainingDemandShare_[r]);
         }
     }
 
@@ -3380,6 +3390,12 @@ std::optional<int> TOperationElement::GetMaybeSlotIndex() const
 TString TOperationElement::GetUserName() const
 {
     return UserName_;
+}
+
+double TOperationElement::GetBestAllocationRatio() const
+{
+    // TODO(eshcherbin): Return |PersistentAttributes_.BestAllocationShare[Attributes_.DominantResource]|.
+    return 1.0;
 }
 
 bool TOperationElement::OnJobStarted(

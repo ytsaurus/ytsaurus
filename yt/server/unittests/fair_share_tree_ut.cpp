@@ -660,7 +660,7 @@ TEST_F(TFairShareTreeTest, TestBestAllocationShare)
     auto demandShare = TResourceVector::FromJobResources(jobResources * 3., totalResources, 0, 1);
     auto fairShare = TResourceVector::FromJobResources(jobResources, totalResources, 0, 1);
     EXPECT_EQ(demandShare, operationElementX->Attributes().DemandShare);
-    EXPECT_EQ(0.375, operationElementX->BestAllocationShare()[EJobResourceType::Memory]);
+    EXPECT_EQ(0.375, operationElementX->PersistentAttributes().BestAllocationShare[EJobResourceType::Memory]);
     EXPECT_EQ(fairShare, operationElementX->Attributes().FairShare);
 }
 
