@@ -9,7 +9,8 @@ case class YtClientConfiguration(proxy: String,
                                  user: String,
                                  token: String,
                                  timeout: Duration,
-                                 proxyRole: Option[String]) {
+                                 proxyRole: Option[String],
+                                 byopEnabled: Boolean) {
   def shortProxy: String = proxy.split("\\.").head.split(":").head
 
   def fullProxy: String = if (proxy.contains(".") || proxy.contains(":")) {
@@ -28,7 +29,8 @@ object YtClientConfiguration {
       getByName("user").orElse(sys.env.get("YT_SECURE_VAULT_YT_USER")).getOrElse(DefaultRpcCredentials.user),
       getByName("token").orElse(sys.env.get("YT_SECURE_VAULT_YT_TOKEN")).getOrElse(DefaultRpcCredentials.token),
       getByName("timeout").map(_.toInt.seconds).getOrElse(60 seconds),
-      getByName("proxyRole")
+      getByName("proxyRole"),
+      getByName("byop.enabled").exists(_.toBoolean)
     )
   }
 }

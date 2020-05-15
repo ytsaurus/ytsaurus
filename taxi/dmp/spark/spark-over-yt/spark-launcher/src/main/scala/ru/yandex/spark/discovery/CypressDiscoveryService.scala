@@ -4,12 +4,13 @@ import com.google.common.net.HostAndPort
 import org.apache.log4j.Logger
 import org.joda.time.{Duration => JDuration}
 import ru.yandex.inside.yt.kosher.common.GUID
+import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
-import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType, RemoveNode, TransactionalOptions}
+import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.yt.ytclient.proxy.request._
 
-import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.Try
@@ -18,7 +19,7 @@ class CypressDiscoveryService(config: YtClientConfiguration,
                               discoveryPath: String) extends DiscoveryService {
   private val log = Logger.getLogger(getClass)
   private val client = YtWrapper.createRpcClient(config)
-  private val yt = client.yt
+  val yt: YtClient = client.yt
 
   private def addressPath: String = s"$discoveryPath/spark_address"
 
@@ -32,9 +33,14 @@ class CypressDiscoveryService(config: YtClientConfiguration,
 
   private def clusterVersionPath: String = s"$discoveryPath/version"
 
-  override def register(operationId: String, address: Address, clusterVersion: String): Unit = {
+  private def confPath: String = s"$discoveryPath/conf"
+
+  override def register(operationId: String,
+                        address: Address,
+                        clusterVersion: String,
+                        clusterConf: SparkClusterConf): Unit = {
     discoverAddress() match {
-      case Some(address) if DiscoveryService.isAlive(address.hostAndPort) && operation.exists(_ != operationId) =>
+      case Some(address) if DiscoveryService.isAlive(address.hostAndPort, 3) && operation.exists(_ != operationId) =>
         throw new IllegalStateException(s"Spark instance with path $discoveryPath already exists")
       case Some(_) =>
         log.info(s"Spark instance with path $discoveryPath registered, but is not alive, rewriting id")
@@ -51,6 +57,7 @@ class CypressDiscoveryService(config: YtClientConfiguration,
       createNode(s"$restPath/${address.restHostAndPort}", transaction)
       createNode(s"$operationPath/$operationId", transaction)
       createNode(s"$clusterVersionPath/$clusterVersion", transaction)
+      createDocument(confPath, clusterConf, transaction)
     } catch {
       case e: Throwable =>
         yt.abortTransaction(transaction, true)
@@ -68,11 +75,18 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     yt.commitTransaction(transaction, true)
   }
 
-  private def createNode(path: String, transaction: GUID): Unit = {
-    val request = new CreateNode(path, ObjectType.MapNode)
+  private def createNode(path: String, transaction: GUID, nodeType: ObjectType = ObjectType.MapNode): Unit = {
+    val request = new CreateNode(path, nodeType)
       .setRecursive(true)
       .setTransactionalOptions(new TransactionalOptions(transaction))
     yt.createNode(request).join()
+  }
+
+  private def createDocument(path: String, doc: SparkClusterConf, transaction: GUID): Unit = {
+    createNode(path, transaction, ObjectType.Document)
+    val request = new SetNode(YPath.simple(path), doc.toYson)
+      .setTransactionalOptions(new TransactionalOptions(transaction))
+    yt.setNode(request).join()
   }
 
   private def removeNode(path: String, transaction: Option[GUID] = None): Unit = {
@@ -85,42 +99,39 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     }
   }
 
-  private def cypressHostAndPort(path: String): HostAndPort = {
-    HostAndPort.fromString(yt.getNode(path).join().asMap().keys().first())
+  private def cypressHostAndPort(path: String): Option[HostAndPort] = {
+    if (yt.existsNode(path).join()) {
+      val subdirs = yt.listNode(path).join().asList()
+      if (!subdirs.isEmpty) {
+        Some(HostAndPort.fromString(subdirs.first().stringValue()))
+      } else None
+    } else None
   }
 
-  override def discoverAddress(): Option[Address] = Try {
-    val hostAndPort = cypressHostAndPort(addressPath)
-    val webUiHostAndPort = cypressHostAndPort(webUiPath)
-    val restHostAndPort = cypressHostAndPort(restPath)
-    Address(hostAndPort, webUiHostAndPort, restHostAndPort)
-  }.toOption
+  override def discoverAddress(): Option[Address] = {
+    for {
+      hostAndPort <- cypressHostAndPort(addressPath)
+      webUiHostAndPort <- cypressHostAndPort(webUiPath)
+      restHostAndPort <- cypressHostAndPort(restPath)
+    } yield Address(hostAndPort, webUiHostAndPort, restHostAndPort)
+  }
 
   private def operation: Option[String] = Try {
     yt.getNode(operationPath).join().asMap().keys().first()
   }.toOption
 
   override def waitAddress(timeout: Duration): Option[Address] = {
-    DiscoveryService.waitFor(discoverAddress().filter(a => DiscoveryService.isAlive(a.hostAndPort)), timeout.toMillis)
+    DiscoveryService.waitFor(
+      discoverAddress().filter(a => DiscoveryService.isAlive(a.hostAndPort, 0)),
+      timeout
+    )
   }
 
   override def waitAlive(hostPort: HostAndPort, timeout: Duration): Boolean = {
-    waitAlive(hostPort, timeout.toMillis)
-  }
-
-  @tailrec
-  private def waitAlive(hostPort: HostAndPort, timeout: Long, retryCount: Int = 2): Boolean = {
-    val start = System.currentTimeMillis()
-    if (timeout < 0) {
-      false
-    } else {
-      if (!DiscoveryService.isAlive(hostPort)) {
-        Thread.sleep((10 seconds).toMillis)
-        waitAlive(hostPort, timeout - (System.currentTimeMillis() - start), retryCount + 1)
-      } else {
-        true
-      }
-    }
+    DiscoveryService.waitFor(
+      DiscoveryService.isAlive(hostPort, 0),
+      timeout
+    )
   }
 
   override def removeAddress(): Unit = {
@@ -129,6 +140,7 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     removeNode(restPath)
     removeNode(operationPath)
     removeNode(clusterVersionPath)
+    removeNode(confPath)
   }
 
   override def close(): Unit = {

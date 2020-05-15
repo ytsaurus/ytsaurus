@@ -27,9 +27,16 @@ lazy val `spark-launcher` = (project in file("spark-launcher"))
 lazy val commonDependencies = yandexIceberg ++ spark ++ circe ++ logging.map(_ % Provided)
 
 lazy val `data-source` = (project in file("data-source"))
+  .configs(IntegrationTest)
   .dependsOn(`yt-wrapper`, `file-system`, `file-system` % "test->test")
   .settings(
-    version := "0.1.2-SNAPSHOT",
+    version := "0.2.0-SNAPSHOT",
+    Defaults.itSettings,
+    libraryDependencies ++= Seq(
+      "org.scalacheck" %% "scalacheck" % "1.14.1" % "it,test",
+      "org.scalactic" %% "scalactic" % scalatestVersion,
+      "org.scalatest" %% "scalatest" % scalatestVersion % "it,test"
+    ),
     libraryDependencies ++= commonDependencies,
     libraryDependencies += organization.value %% "spark-yt-common-utils" % "0.0.1",
     assemblyJarName in assembly := "spark-yt-data-source.jar",
@@ -126,6 +133,12 @@ lazy val `client` = (project in file("client"))
     publishYtArtifacts ++= sparkYtConfigs.value
   )
 
+
+lazy val `common-logging` = (project in file("common-logging"))
+  .settings(
+    libraryDependencies ++= logging
+  )
+
 // benchmark and test ----
 
 lazy val benchmark = (project in file("benchmark"))
@@ -142,7 +155,9 @@ lazy val `test-job` = (project in file("test-job"))
     libraryDependencies ++= logging.map(_ % Provided),
     libraryDependencies ++= scaldingArgs,
     excludeDependencies += ExclusionRule(organization = "org.slf4j"),
-    mainClass in assembly := Some("ru.yandex.spark.test.Test")
+    mainClass in assembly := Some("ru.yandex.spark.test.Test"),
+    publishYtArtifacts += YtPublishFile(assembly.value, "//home/sashbel", None),
+    publishYtArtifacts += YtPublishFile(sourceDirectory.value / "main" / "python" / "test_conf.py", "//home/sashbel", None)
   )
 
 // -----

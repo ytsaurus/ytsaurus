@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(spark_home, "bin", "python"))
 from yt.wrapper import YtClient
 from yt.wrapper.cli_helpers import ParseStructuredArgument
 from yt.wrapper.http_helpers import get_user_name
-from spyt.standalone import start_spark_cluster, find_spark_cluster, SparkDefaultArguments
+from spyt.standalone import start_spark_cluster, find_spark_cluster, SparkDefaultArguments, SpytEnablers
 from spyt import utils as spark_utils
 
 
@@ -27,6 +27,7 @@ def main():
     parser.add_argument("--worker-cores", required=True, type=int)
     parser.add_argument("--worker-memory", required=True)
     parser.add_argument("--worker-num", required=True, type=int)
+    parser.add_argument("--worker-cores-overhead", required=False, type=int)
     parser.add_argument("--worker-timeout", required=False, default="5m")
     parser.add_argument("--pool", required=False)
     parser.add_argument("--tmpfs-limit", required=False, default="150G")
@@ -38,6 +39,12 @@ def main():
                         default=SparkDefaultArguments.get_params())
     parser.add_argument("--spark-cluster-version", required=False)
 
+    default_enablers = SpytEnablers()
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--enable-byop', dest='enable_byop', action='store_true')
+    group.add_argument('--disable-byop', dest='enable_byop', action='store_false')
+    parser.set_defaults(enable_byop=default_enablers.enable_byop)
+
     args, unknown_args = spark_utils.parse_args(parser)
 
     yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token())
@@ -45,6 +52,7 @@ def main():
     start_spark_cluster(worker_cores=args.worker_cores,
                         worker_memory=args.worker_memory,
                         worker_num=args.worker_num,
+                        worker_cores_overhead=args.worker_cores_overhead,
                         worker_timeout=args.worker_timeout,
                         operation_alias=args.operation_alias,
                         discovery_path=args.discovery_path,
@@ -54,6 +62,7 @@ def main():
                         history_server_memory_limit=args.history_server_memory_limit,
                         params=args.params,
                         spark_cluster_version=args.spark_cluster_version,
+                        enablers=SpytEnablers(enable_byop=args.enable_byop),
                         client=yt_client)
 
 

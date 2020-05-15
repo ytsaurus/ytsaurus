@@ -4,7 +4,7 @@ import os
 import re
 
 from yt.wrapper import YPath
-from yt.wrapper.cypress_commands import list as yt_list, create
+from yt.wrapper.cypress_commands import list as yt_list, create, exists
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.http_helpers import get_proxy_url, get_user_name
 from yt.wrapper.operation_commands import get_operation_url
@@ -79,6 +79,9 @@ class SparkDiscovery(object):
     def spark_cluster_version(self):
         return self.discovery().join("version")
 
+    def conf(self):
+        return self.discovery().join("conf")
+
 
 def parse_memory(memory):
     if isinstance(memory, int):
@@ -125,13 +128,17 @@ def base_spark_conf(client, discovery):
     yt_proxy = get_proxy_url(required=True, client=client)
     yt_user = get_user_name(client=client)
     spark_cluster_version = SparkDiscovery.get(discovery.spark_cluster_version(), client=client)
-    return {
+    spark_cluster_conf = discovery.conf()
+    conf = {
         "spark.hadoop.yt.proxy": yt_proxy,
         "spark.hadoop.yt.user": yt_user,
         "spark.master.rest.enabled": "true",
         "spark.eventLog.dir": "yt:/{}".format(discovery.event_log()),
         "spark.yt.cluster.version": spark_cluster_version
     }
+    if exists(spark_cluster_conf):
+        conf["spark.yt.cluster.confPath"] = str(spark_cluster_conf)
+    return conf
 
 
 def set_conf(conf, dict_conf):
@@ -163,3 +170,13 @@ def parse_args(parser=None, parser_arguments=None):
     args, unknown_args = parser.parse_known_args()
     args.discovery_path = args.discovery_path or args.discovery_dir or default_discovery_dir()
     return args, unknown_args
+
+
+def spark_conf_args_to_dict(args):
+    res = {}
+    for (i, arg) in enumerate(args):
+        if arg == "--conf" and (i + 1) < len(args):
+            conf_name, conf_value = args[i + 1].split("=", 2)
+            env_name = conf_name.upper().replace(".", "_")
+            res[env_name] = conf_value
+    return res

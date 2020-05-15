@@ -13,6 +13,10 @@ import ru.yandex.yt.ytclient.proxy.YtClient
 
 object SessionUtils {
   private val log = Logger.getLogger(getClass)
+  private val sparkDefaults = Map(
+    "spark.hadoop.yt.byop.enabled" -> "false",
+    "spark.yt.enablers" -> "spark.hadoop.yt.byop.enabled"
+  )
 
   private def parseRemoteConfig(path: String, yt: YtClient): Map[String, String] = {
     import scala.collection.JavaConverters._
@@ -22,16 +26,48 @@ object SessionUtils {
     }.getOrElse(Map.empty)
   }
 
+  implicit class RichSparkConf(conf: SparkConf) {
+    def setEnabler(name: String, clusterConf: Map[String, String]): SparkConf = {
+      val enableApp = conf.getOption(name).getOrElse(sparkDefaults(name)).toBoolean
+      val enableCluster = clusterConf.get(name).exists(_.toBoolean)
+      conf.set(name, (enableApp && enableCluster).toString)
+    }
+
+    def setEnablers(names: Set[String], clusterConf: Map[String, String]): SparkConf = {
+      names.foldLeft(conf) { case (res, next) => res.setEnabler(next, clusterConf) }
+    }
+
+    def setAllNoOverride(settings: Map[String, String]): SparkConf = {
+      settings.foldLeft(conf) { case (res, (key, value)) =>
+        if (!res.contains(key)) res.set(key, value) else res
+      }
+    }
+  }
+
+  private def parseEnablers(conf: Map[String, String]): Set[String] = {
+    conf
+      .get("spark.yt.enablers")
+      .map(_.split(",").map(_.trim).toSet)
+      .getOrElse(Set.empty[String])
+  }
+
   def prepareSparkConf(): SparkConf = {
     val conf = new SparkConf()
     val sparkClusterVersion = conf.get("spark.yt.cluster.version")
+    val sparkClusterConfPath = conf.getOption("spark.yt.cluster.confPath")
     val id = s"tmpYtClient-${UUID.randomUUID()}"
     val yt = YtClientProvider.ytClient(ytClientConfiguration(conf), id)
     try {
       val remoteGlobalConfig = parseRemoteConfig(remoteGlobalConfigPath, yt)
       val remoteVersionConfig = parseRemoteConfig(remoteVersionConfigPath(sparkClusterVersion), yt)
-      conf.setAll(remoteGlobalConfig)
-      conf.setAll(remoteVersionConfig)
+      val remoteClusterConfig = sparkClusterConfPath.map(parseRemoteConfig(_, yt)).getOrElse(Map.empty[String, String])
+      val enablers = parseEnablers(remoteClusterConfig).union(parseEnablers(sparkDefaults))
+
+      conf
+        .setAllNoOverride(remoteClusterConfig.filterKeys(k => !enablers.contains(k)))
+        .setAllNoOverride(remoteVersionConfig)
+        .setAllNoOverride(remoteGlobalConfig)
+        .setEnablers(enablers, remoteClusterConfig)
     } finally {
       YtClientProvider.close(id)
     }
