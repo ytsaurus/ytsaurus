@@ -16,24 +16,23 @@ import scala.language.postfixOps
 import scala.sys.process._
 
 trait SparkLauncher {
-  self =>
+  self: VanillaLauncher =>
 
   private val log = Logger.getLogger(getClass)
   private val masterClass = "org.apache.spark.deploy.master.Master"
   private val workerClass = "org.apache.spark.deploy.worker.Worker"
   private val historyServerClass = "org.apache.spark.deploy.history.HistoryServer"
-  private var sparkThread: Thread = _
 
-  def startMaster(): Address = {
+  def startMaster(): (Address, Thread) = {
     val host = InetAddress.getLocalHost.getHostName
-    sparkThread = runSparkThread(masterClass, namedArgs = Map("host" -> host))
+    val thread = runSparkThread(masterClass, namedArgs = Map("host" -> host))
 
-    readAddress("master", 5 minutes)
+    readAddress("master", 5 minutes) -> thread
   }
 
   def startWorker(master: Address,
-                  cores: Int, memory: String): Unit = {
-    sparkThread = runSparkThread(
+                  cores: Int, memory: String): Thread = {
+    runSparkThread(
       workerClass,
       namedArgs = Map(
         "cores" -> cores.toString,
@@ -43,15 +42,15 @@ trait SparkLauncher {
     )
   }
 
-  def startHistoryServer(path: String): Address = {
-    sparkThread = runSparkThread(
+  def startHistoryServer(path: String): (Address, Thread) = {
+    val thread = runSparkThread(
       historyServerClass,
       systemProperties = Map(
         "spark.history.fs.logDirectory" -> path
       )
     )
 
-    readAddress("history", 5 minutes)
+    readAddress("history", 5 minutes) -> thread
   }
 
   private def readAddress(name: String, timeout: Duration): Address = {
@@ -95,22 +94,11 @@ trait SparkLauncher {
     thread
   }
 
-  private def env(name: String, default: => String): String = {
-    val home = new File(sys.env.getOrElse("HOME", ".")).getAbsolutePath
-    sys.env.getOrElse(name, default).replaceAll("\\$HOME", home)
-  }
-
   private def runSparkClass(className: String,
                             systemProperties: Map[String, String],
                             namedArgs: Map[String, String],
                             positionalArgs: Seq[String],
                             log: Logger): Process = {
-    import scala.collection.JavaConverters._
-    val sparkSystemProperties = System.getProperties
-      .stringPropertyNames().asScala
-      .collect {
-        case name if name.startsWith("spark.") => name -> System.getProperty(name)
-      }
     val fullSystemProperties = systemProperties ++ sparkSystemProperties
 
     val sparkHome = new File(env("SPARK_HOME", "./spark")).getAbsolutePath
@@ -131,8 +119,6 @@ trait SparkLauncher {
     ).run(ProcessLogger(log.info(_)))
   }
 
-  def sparkThreadIsAlive: Boolean = sparkThread.isAlive
-
   @tailrec
   final def checkPeriodically(p: => Boolean): Unit = {
     if (p) {
@@ -149,7 +135,6 @@ trait SparkLauncher {
     } finally {
       log.info("Closing discovery service")
       discoveryService.close()
-      Option(sparkThread).foreach(_.interrupt())
     }
   }
 }

@@ -1,0 +1,140 @@
+{
+    "address_resolver" = {
+        "enable_ipv4" = "false";
+        "enable_ipv6" = "true";
+    };
+    "blackbox_token_authenticator" = {
+        "cache" = {
+            "expire_after_access_time" = 21600000;
+            "expire_after_successful_update_time" = 21600000;
+            "refresh_time" = 60000;
+        };
+        "scope" = "yt:api";
+    };
+    "cluster_connection" = {
+        "cache_sticky_group_size_override" = 3;
+        "networks" = [
+            "default";
+            "fastbone";
+            "cloud";
+        ];
+        "table_mount_cache" = {
+            "expire_after_successful_update_time" = 30000;
+        };
+        "thread_pool_size" = 8;
+        "udf_registry_path" = "//sys/udfs";
+        "upload_transaction_timeout" = 30000;
+    };
+    "cypress_token_authenticator" = {
+        "secure" = %true;
+    };
+    "discovery_service" = {
+        "enable" = %false;
+    };
+    "logging" = {
+        "check_space_period" = 5000;
+        "flush_period" = 1000;
+        "min_disk_space" = 5368709120;
+        "rules" = [
+            {
+                "exclude_categories" = [
+                    "Bus";
+                ];
+                "min_level" = "debug";
+                "writers" = [
+                    "debug";
+                ];
+            };
+            {
+                "min_level" = "info";
+                "writers" = [
+                    "info";
+                ];
+            };
+            {
+                "min_level" = "warning";
+                "writers" = [
+                    "error";
+                ];
+            };
+        ];
+        "watch_period" = 5000;
+        "writers" = {
+            "debug" = {
+                "enable_compression" = %true;
+                "file_name" = "$HOME/rpc-proxy-logs/proxy-local.debug.log.gz";
+                "type" = "file";
+            };
+            "error" = {
+                "file_name" = "$HOME/rpc-proxy-logs/proxy-local.error.log";
+                "type" = "file";
+            };
+            "info" = {
+                "file_name" = "$HOME/rpc-proxy-logs/proxy-local.log";
+                "type" = "file";
+            };
+        };
+    };
+    "monitoring_port" = $SPARK_YT_BYOP_MONITORING_PORT;
+    "rpc_dispatcher" = {
+        "multiplexing_bands" = {
+            "control" = {
+                "network_to_tos_level" = {
+                    "fastbone" = 64;
+                };
+                "tos_level" = 96;
+            };
+            "default" = {
+                "network_to_tos_level" = {
+                    "fastbone" = 64;
+                };
+                "tos_level" = 96;
+            };
+            "heavy" = {
+                "network_to_tos_level" = {
+                    "fastbone" = 64;
+                };
+                "tos_level" = 128;
+            };
+        };
+    };
+    "rpc_port" = $SPARK_YT_BYOP_PORT;
+    "rpc_server" = {
+        "services" = {
+            "ApiService" = {
+                "methods" = {
+                    "AbortTransaction" = {
+                        "max_concurrency" = 10000;
+                        "max_queue_size" = 10000;
+                    };
+                    "CommitTransaction" = {
+                        "max_concurrency" = 10000;
+                        "max_queue_size" = 10000;
+                    };
+                    "LookupRows" = {
+                        "max_concurrency" = 10000;
+                        "max_queue_size" = 10000;
+                    };
+                    "ModifyRows" = {
+                        "max_concurrency" = 10000;
+                        "max_queue_size" = 10000;
+                    };
+                    "PingTransaction" = {
+                        "max_concurrency" = 10000;
+                        "max_queue_size" = 10000;
+                    };
+                    "StartTransaction" = {
+                        "max_concurrency" = 10000;
+                        "max_queue_size" = 10000;
+                    };
+                };
+            };
+        };
+    };
+    "profile_manager" = {
+        "global_tags" = {
+            "cookie" = "$YT_JOB_COOKIE";
+            "operation_alias" = "$YT_OPERATION_ALIAS";
+        };
+    };
+}

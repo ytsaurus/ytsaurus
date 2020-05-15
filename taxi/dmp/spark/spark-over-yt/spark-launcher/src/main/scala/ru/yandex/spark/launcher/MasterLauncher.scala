@@ -2,30 +2,36 @@ package ru.yandex.spark.launcher
 
 import com.twitter.scalding.Args
 import org.apache.log4j.Logger
+import ru.yandex.spark.discovery.SparkClusterConf
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.Try
 
-object MasterLauncher extends App with SparkLauncher {
+object MasterLauncher extends App with VanillaLauncher with SparkLauncher {
   private val log = Logger.getLogger(getClass)
   val masterArgs = MasterLauncherArgs(args)
 
   run(masterArgs.ytConfig, masterArgs.discoveryPath) { discoveryService =>
     log.info("Start master")
-    val masterAddress = startMaster()
-    val masterAlive = discoveryService.waitAlive(masterAddress.hostAndPort, 5 minutes)
-    if (!masterAlive) {
-      throw new RuntimeException("Master is not started")
+    val (address, thread) = startMaster()
+    Try {
+      val masterAlive = discoveryService.waitAlive(address.hostAndPort, 5 minutes)
+      if (!masterAlive) {
+        throw new RuntimeException("Master is not started")
+      }
+      log.info(s"Master started at port ${address.port}")
+
+      log.info("Register master")
+      discoveryService.register(masterArgs.operationId, address, masterArgs.clusterVersion,
+        SparkClusterConf(sparkSystemProperties))
+      log.info("Master registered")
+
+      checkPeriodically(thread.isAlive)
+      log.error("Master is not alive")
     }
-    log.info(s"Master started at port ${masterAddress.port}")
-
-    log.info("Register master")
-    discoveryService.register(masterArgs.operationId, masterAddress, masterArgs.clusterVersion)
-    log.info("Master registered")
-
-    checkPeriodically(sparkThreadIsAlive)
-    log.info("Master thread is not alive!")
+    thread.interrupt()
   }
 }
 

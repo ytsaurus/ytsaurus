@@ -3,15 +3,16 @@ import os
 import sys
 from contextlib import contextmanager
 
-from yt.wrapper import YtClient
+from yt.wrapper import YtClient, get
 from yt.wrapper.http_helpers import get_token
 
 logger = logging.getLogger(__name__)
 
 from .utils import default_token, default_discovery_dir, get_spark_master, set_conf, \
     SparkDiscovery, parse_memory, format_memory, base_spark_conf
-from .conf import read_remote_conf, spyt_jar_path, spyt_python_path, validate_versions_compatibility
-from .version import __version__
+from .conf import read_remote_conf, spyt_jar_path, spyt_python_path, validate_versions_compatibility, \
+    read_cluster_conf, SELF_VERSION
+from .enabler import set_enablers, set_except_enablers, get_enablers_list
 
 
 class Defaults(object):
@@ -141,7 +142,7 @@ def _configure_client_mode(spark_conf,
     os.environ["SPARK_YT_TOKEN"] = get_token(client=client)
     spark_conf.set("spark.yt.master.discoveryPath", str(discovery.base_discovery_path))
 
-    spyt_version = __version__ if "b" not in __version__ else "{}-SNAPSHOT".format(__version__.split("b")[0])
+    spyt_version = SELF_VERSION
     spark_cluster_version = spark_conf.get("spark.yt.cluster.version")
     validate_versions_compatibility(spyt_version, spark_cluster_version)
     spark_conf.set("spark.yt.version", spyt_version)
@@ -180,6 +181,30 @@ def _read_local_conf(conf_path):
     return {}
 
 
+def _configure_resources(spark_conf, local_conf,
+                         num_executors,
+                         cores_per_executor,
+                         executor_memory_per_core,
+                         driver_memory,
+                         dynamic_allocation):
+    num_executors = num_executors or local_conf.get("num_executors")
+    cores_per_executor = cores_per_executor or local_conf.get("cores_per_executor")
+    executor_memory_per_core = parse_memory(executor_memory_per_core or local_conf.get("executor_memory_per_core"))
+    _validate_resources(num_executors, cores_per_executor, executor_memory_per_core)
+    driver_memory = parse_memory(driver_memory or local_conf.get("driver_memory"))
+    executor_memory = executor_memory_per_core * cores_per_executor if executor_memory_per_core and cores_per_executor else None
+    max_cores = num_executors * cores_per_executor if num_executors and cores_per_executor else None
+
+    _set_none_safe(spark_conf, "spark.dynamicAllocation.enabled", dynamic_allocation)
+    _set_none_safe(spark_conf, "spark.dynamicAllocation.executorIdleTimeout", "10m")
+    _set_none_safe(spark_conf, "spark.cores.max", max_cores)
+    _set_none_safe(spark_conf, "spark.dynamicAllocation.maxExecutors", num_executors)
+    _set_none_safe(spark_conf, "spark.executor.cores", cores_per_executor)
+    _set_none_safe(spark_conf, "spark.executor.memory", format_memory(executor_memory))
+    _set_none_safe(spark_conf, "spark.driver.memory", format_memory(driver_memory))
+    _set_none_safe(spark_conf, "spark.driver.maxResultSize", format_memory(driver_memory))
+
+
 def _build_spark_conf(num_executors=None,
                       yt_proxy=None,
                       discovery_path=None,
@@ -204,9 +229,16 @@ def _build_spark_conf(num_executors=None,
         client = client or create_yt_client(yt_proxy, local_conf)
         _configure_client_mode(spark_conf, discovery_path, local_conf, spark_id, client)
         spark_cluster_version = spark_conf.get("spark.yt.cluster.version")
+        spark_cluster_conf_path = spark_conf.get("spark.yt.cluster.confPath")
     else:
         client = client or create_yt_client_spark_conf(yt_proxy, spark_conf)
         spark_cluster_version = os.getenv("SPARK_CLUSTER_VERSION")
+        spark_cluster_conf_path = os.getenv("SPARK_YT_CLUSTER_CONFPATH")
+
+    _set_none_safe(spark_conf, "spark.app.name", app_name)
+    _configure_resources(spark_conf, local_conf,
+                         num_executors, cores_per_executor, executor_memory_per_core,
+                         driver_memory, dynamic_allocation)
 
     remote_conf = read_remote_conf(spark_cluster_version, client=client)
     set_conf(spark_conf, remote_conf["spark_conf"])
@@ -214,24 +246,11 @@ def _build_spark_conf(num_executors=None,
     if is_client_mode:
         _configure_python(remote_conf["python_cluster_paths"])
 
-    num_executors = num_executors or local_conf.get("num_executors")
-    cores_per_executor = cores_per_executor or local_conf.get("cores_per_executor")
-    executor_memory_per_core = parse_memory(executor_memory_per_core or local_conf.get("executor_memory_per_core"))
-    _validate_resources(num_executors, cores_per_executor, executor_memory_per_core)
-    driver_memory = parse_memory(driver_memory or local_conf.get("driver_memory"))
-    executor_memory = executor_memory_per_core * cores_per_executor if executor_memory_per_core and cores_per_executor else None
-    max_cores = num_executors * cores_per_executor if num_executors and cores_per_executor else None
-
-    _set_none_safe(spark_conf, "spark.dynamicAllocation.enabled", dynamic_allocation)
-    _set_none_safe(spark_conf, "spark.dynamicAllocation.executorIdleTimeout", "10m")
-    _set_none_safe(spark_conf, "spark.cores.max", max_cores)
-    _set_none_safe(spark_conf, "spark.dynamicAllocation.maxExecutors", num_executors)
-    _set_none_safe(spark_conf, "spark.executor.cores", cores_per_executor)
-    _set_none_safe(spark_conf, "spark.executor.memory", format_memory(executor_memory))
-    _set_none_safe(spark_conf, "spark.driver.memory", format_memory(driver_memory))
-    _set_none_safe(spark_conf, "spark.driver.maxResultSize", format_memory(driver_memory))
-    _set_none_safe(spark_conf, "spark.app.name", app_name)
-    set_conf(spark_conf, spark_conf_args)
+    spark_cluster_conf = read_cluster_conf(spark_cluster_conf_path, client=client).get("spark_conf") or {}
+    enablers = get_enablers_list(spark_cluster_conf)
+    set_enablers(spark_conf, spark_conf_args, spark_cluster_conf, enablers)
+    set_except_enablers(spark_conf, spark_cluster_conf, enablers)
+    set_except_enablers(spark_conf, spark_conf_args, enablers)
 
     return spark_conf
 
@@ -265,6 +284,7 @@ def connect(num_executors=5,
     )
 
     spark = SparkSession.builder.config(conf=conf).getOrCreate()
+
     logger.info("SPYT Cluster version: {}".format(spark.conf.get("spark.yt.cluster.version", default=None)))
     logger.info("SPYT library version: {}".format(spark.conf.get("spark.yt.version", default=None)))
 

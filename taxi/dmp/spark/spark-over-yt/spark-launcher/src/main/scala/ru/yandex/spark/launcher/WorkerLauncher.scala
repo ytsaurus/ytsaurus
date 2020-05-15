@@ -7,23 +7,49 @@ import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.Try
 
-object WorkerLauncher extends App with SparkLauncher {
-  val log = Logger.getLogger(getClass)
-  val workerArgs = WorkerLauncherArgs(args)
+object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with RpcProxyLauncher {
+  private val log = Logger.getLogger(getClass)
+  private val workerArgs = WorkerLauncherArgs(args)
+  private val rpcProxyConfig = RpcProxyConfig.create(sparkSystemProperties, args)
 
   run(workerArgs.ytConfig, workerArgs.discoveryPath) { discoveryService =>
     log.info("Waiting for master http address")
     val masterAddress = discoveryService.waitAddress(workerArgs.waitMasterTimeout)
       .getOrElse(throw new IllegalStateException(s"Empty discovery path ${workerArgs.discoveryPath}, master is not started"))
 
-    log.info(s"Starting worker for master $masterAddress")
-    startWorker(masterAddress, workerArgs.cores, workerArgs.memory)
+    val rpcProxyThread = rpcProxyConfig.map(startRpcProxy(workerArgs.ytConfig, _))
 
-    def masterIsAlive: Boolean = DiscoveryService.isAlive(masterAddress.webUiHostAndPort)
+    Try {
+      val rpcProxyAddress = rpcProxyConfig.map(waitRpcProxyStart(_, workerArgs.waitMasterTimeout))
 
-    checkPeriodically(sparkThreadIsAlive && masterIsAlive)
-    log.warn(s"Worker is alive: $sparkThreadIsAlive, master is alive: $masterIsAlive")
+      log.info(s"Starting worker for master $masterAddress")
+      val workerThread = startWorker(masterAddress, workerArgs.cores, workerArgs.memory)
+
+      Try {
+        def isAlive: Boolean = {
+          val isMasterAlive = DiscoveryService.isAlive(masterAddress.webUiHostAndPort, 3)
+          val isWorkerAlive = workerThread.isAlive
+          val isRpcProxyAlive = rpcProxyThread.forall(_.isAlive) &&
+            rpcProxyAddress.forall(DiscoveryService.isAlive(_, 3))
+
+          if (!isMasterAlive) log.error("Master is not alive")
+          if (!isWorkerAlive) log.error("Worker is not alive")
+          if (!isRpcProxyAlive) log.error("Rpc proxy is not alive")
+
+          isMasterAlive && isWorkerAlive && isRpcProxyAlive
+        }
+
+        checkPeriodically(isAlive)
+      }
+
+      log.info("Interrupt worker thread")
+      workerThread.interrupt()
+    }
+
+    log.info("Interrupt rpc proxy thread")
+    rpcProxyThread.foreach(_.interrupt())
   }
 }
 

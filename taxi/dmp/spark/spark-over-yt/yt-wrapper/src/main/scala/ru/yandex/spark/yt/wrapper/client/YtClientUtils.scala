@@ -22,23 +22,19 @@ trait YtClientUtils {
     val connector = new DefaultBusConnector(new NioEventLoopGroup(1), true)
       .setReadTimeout(toJavaDuration(config.timeout))
       .setWriteTimeout(toJavaDuration(config.timeout))
+
     try {
       val rpcOptions = new RpcOptions()
       rpcOptions.setTimeouts(config.timeout)
 
-      val cluster = new YtCluster(
-        config.shortProxy,
-        config.fullProxy,
-        config.port,
-        new JArrayList(),
-        config.proxyRole.map(Optional.of[String]).getOrElse(Optional.empty[String]))
-
-      val client = new YtClient(
-        connector,
-        cluster,
-        config.rpcCredentials,
-        rpcOptions
-      )
+      val client = byopConfig(config) match {
+        case Some(byop) =>
+          log.info(s"Create BYOP client with config $byop")
+          createByopProxyClient(connector, rpcOptions, config, byop)
+        case None =>
+          log.info(s"Create remote proxies client")
+          createRemoteProxiesClient(connector, rpcOptions, config)
+      }
 
       try {
         client.waitProxies.join
@@ -56,6 +52,45 @@ trait YtClientUtils {
     }
   }
 
+  private def byopConfig(config: YtClientConfiguration): Option[YtByopConfiguration] = {
+    if (config.byopEnabled && sys.env.get("SPARK_YT_BYOP_ENABLED").exists(_.toBoolean)) {
+      for {
+        host <- sys.env.get("SPARK_YT_BYOP_HOST")
+        port <- sys.env.get("SPARK_YT_BYOP_PORT").map(_.toInt)
+      } yield YtByopConfiguration(host, port)
+    } else None
+  }
+
+  private def createByopProxyClient(connector: DefaultBusConnector,
+                                    rpcOptions: RpcOptions,
+                                    config: YtClientConfiguration,
+                                    byopConfig: YtByopConfiguration): YtClient = {
+    new SingleProxyYtClient(
+      connector,
+      config.rpcCredentials,
+      rpcOptions,
+      byopConfig.address
+    )
+  }
+
+  private def createRemoteProxiesClient(connector: DefaultBusConnector,
+                                        rpcOptions: RpcOptions,
+                                        config: YtClientConfiguration): YtClient = {
+    val cluster = new YtCluster(
+      config.shortProxy,
+      config.fullProxy,
+      config.port,
+      new JArrayList(),
+      config.proxyRole.map(Optional.of[String]).getOrElse(Optional.empty[String]))
+
+    new YtClient(
+      connector,
+      cluster,
+      config.rpcCredentials,
+      rpcOptions
+    )
+  }
+
   def createHttpClient(config: YtClientConfiguration): Yt = {
     InsideYtUtils.http(s"${config.fullProxy}:${config.port}", config.token)
   }
@@ -67,4 +102,5 @@ trait YtClientUtils {
       options.setStreamingWriteTimeout(toJavaDuration(timeout))
     }
   }
+
 }

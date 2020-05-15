@@ -3,22 +3,26 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 
 sealed trait SparkConfig {
   def toYson: String = {
-    val node = this.getClass.getDeclaredFields.foldLeft(new YTreeBuilder().beginMap()) {
+    val node = toYson(new YTreeBuilder()).build()
+    YTreeTextSerializer.serialize(node)
+  }
+
+  def toYson(builder: YTreeBuilder): YTreeBuilder = {
+    this.getClass.getDeclaredFields.foldLeft(builder.beginMap()) {
       case (res, nextField) =>
         nextField.setAccessible(true)
         SparkConfig.toYson(nextField.get(this), res.key(nextField.getName))
-    }.endMap().build()
-    YTreeTextSerializer.serialize(node)
+    }.endMap()
   }
 }
 
 object SparkConfig {
   def toYson(value: Any, builder: YTreeBuilder): YTreeBuilder = {
     value match {
-      case s: String => builder.value(s)
-      case m: Map[String, String] => m.foldLeft(builder.beginMap()) { case (res, (k, v)) => res.key(k).value(v) }.endMap()
+      case m: Map[String, _] => m.foldLeft(builder.beginMap()) { case (res, (k, v)) => res.key(k).value(v) }.endMap()
       case ss: Seq[String] => ss.foldLeft(builder.beginList()) { case (res, next) => res.value(next) }.endList()
-      case i: Int => builder.value(i)
+      case c: SparkConfig => c.toYson(builder)
+      case any => builder.value(any)
     }
   }
 
@@ -52,17 +56,24 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
 
 case class SparkLaunchConfig(spark_yt_base_path: String,
                              file_paths: Seq[String],
-                             spark_conf: Map[String, String]) extends SparkConfig
+                             spark_conf: Map[String, String],
+                             enablers: SpytEnablers) extends SparkConfig
+
+case class SpytEnablers(enable_byop: Boolean = true) extends SparkConfig
 
 object SparkLaunchConfig {
   def apply(spark_yt_base_path: String,
-            spark_conf: Map[String, String] = Map.empty): SparkLaunchConfig = {
+            spark_conf: Map[String, String] = Map.empty,
+            enablers: SpytEnablers = SpytEnablers()): SparkLaunchConfig = {
     new SparkLaunchConfig(
       spark_yt_base_path = spark_yt_base_path,
       file_paths = Seq(
         s"$spark_yt_base_path/spark.tgz",
-        s"$spark_yt_base_path/spark-yt-launcher.jar"
+        s"$spark_yt_base_path/spark-yt-launcher.jar",
+        "//home/sashbel/byop/ytserver-proxy",
+        "//home/sashbel/byop/ytserver-proxy.template.yson"
       ),
-      spark_conf = spark_conf)
+      spark_conf = spark_conf,
+      enablers = enablers)
   }
 }

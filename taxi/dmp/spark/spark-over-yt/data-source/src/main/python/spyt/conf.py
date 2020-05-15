@@ -3,6 +3,8 @@ import logging
 from yt.wrapper import get, YPath, list as yt_list, exists
 from yt.wrapper.common import update_inplace
 
+from .version import __version__
+
 SPARK_BASE_PATH = YPath("//sys/spark")
 
 CONF_BASE_PATH = SPARK_BASE_PATH.join("conf")
@@ -12,6 +14,8 @@ SPYT_BASE_PATH = SPARK_BASE_PATH.join("spyt")
 
 RELEASES_SUBDIR = "releases"
 SNAPSHOTS_SUBDIR = "snapshots"
+
+SELF_VERSION = __version__ if "b" not in __version__ else "{}-SNAPSHOT".format(__version__.split("b")[0])
 
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
@@ -30,6 +34,10 @@ def validate_spyt_version(spyt_version, client=None):
         raise RuntimeError("Unknown SPYT library version: {}. Available release versions are: {}".format(
             spyt_version, get_available_spyt_versions(client=client)
         ))
+    if spyt_version > SELF_VERSION:
+        logger.warning("You required SPYT library version {} which is older than your local version {}. "
+                       "Some new features may not work as expected. "
+                       "Please update your local yandex-spyt".format(spyt_version, SELF_VERSION))
 
 
 def validate_versions_compatibility(spyt_version, spark_cluster_version):
@@ -70,6 +78,12 @@ def read_remote_conf(cluster_version=None, client=None):
     return update_inplace(global_conf, version_conf)
 
 
+def read_cluster_conf(path=None, client=None):
+    if path is None:
+        return {}
+    return get(path, client=client)
+
+
 def update_config_inplace(base, patch):
     file_paths = _get_or_else(patch, "file_paths", []) + _get_or_else(base, "file_paths", [])
     layer_paths = _get_or_else(patch, "layer_paths", []) + _get_or_else(base, "layer_paths", [])
@@ -77,6 +91,12 @@ def update_config_inplace(base, patch):
     base["file_paths"] = file_paths
     base["layer_paths"] = layer_paths
     return base
+
+
+def validate_custom_params(params):
+    if "enablers" in params:
+        raise RuntimeError("Argument 'params' contains 'enablers' field, which is prohibited. "
+                           "Use argument 'enablers' instead")
 
 
 def spyt_jar_path(spyt_version):
