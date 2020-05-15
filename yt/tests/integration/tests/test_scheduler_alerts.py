@@ -381,24 +381,27 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
     @authors("ignat")
     def test_event_log(self):
-        create_test_tables(row_count=4)
+        create_test_tables()
 
         op = map(
-            command="cat",
+            command="echo abcdef >local_file; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
-                "data_size_per_job": 1,
+                "mapper": {
+                    "tmpfs_size": 5 * 1024 * 1024,
+                    "tmpfs_path": "."
+                }
             })
 
-        assert "short_jobs_duration" in op.get_alerts()
+        wait(lambda: "unused_tmpfs_space" in op.get_alerts())
 
         def check():
             events = read_table("//sys/scheduler/event_log")
             for event in events:
                 if event["event_type"] == "operation_completed" and event["operation_id"] == op.id:
                     assert len(event["alerts"]) >= 1
-                    assert "short_jobs_duration" in event["alerts"]
+                    assert "unused_tmpfs_space" in event["alerts"]
                     return True
             return False
         wait(check)
