@@ -3,8 +3,6 @@
 #include "chunk_meta_extensions.h"
 #include "config.h"
 
-#include <yt/client/api/client.h>
-
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
@@ -13,12 +11,14 @@
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
 #include <yt/ytlib/chunk_client/config.h>
-#include <yt/ytlib/chunk_client/multi_reader_base.h>
+#include <yt/ytlib/chunk_client/multi_reader_manager.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/io_engine.h>
 #include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
+
+#include <yt/client/api/client.h>
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
@@ -287,7 +287,6 @@ private:
 
         return TBlock(block.Data.Slice(begin, end));
     }
-
 };
 
 IFileReaderPtr CreateFileChunkReader(
@@ -315,14 +314,19 @@ IFileReaderPtr CreateFileChunkReader(
 
 class TFileMultiChunkReader
     : public IFileReader
-    , public TSequentialMultiReaderBase
 {
 public:
-    using TSequentialMultiReaderBase::TSequentialMultiReaderBase;
+    TFileMultiChunkReader(IMultiReaderManagerPtr multiReaderManager)
+        : MultiReaderManager_(std::move(multiReaderManager))
+    {
+        MultiReaderManager_->SubscribeReaderSwitched(BIND(
+            &TFileMultiChunkReader::OnReaderSwitched,
+            MakeWeak(this)));
+    }
 
     virtual bool ReadBlock(TBlock* block) override
     {
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
             return true;
         }
 
@@ -338,7 +342,7 @@ public:
             return true;
         }
 
-        if (OnEmptyRead(readerFinished)) {
+        if (MultiReaderManager_->OnEmptyRead(readerFinished)) {
             return true;
         } else {
             CurrentReader_.Reset();
@@ -346,12 +350,43 @@ public:
         }
     }
 
+    void Open()
+    {
+        MultiReaderManager_->Open();
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return MultiReaderManager_->GetReadyEvent();
+    }
+
+    virtual TDataStatistics GetDataStatistics() const override
+    {
+        return MultiReaderManager_->GetDataStatistics();
+    }
+
+    virtual TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return MultiReaderManager_->GetDecompressionStatistics();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return MultiReaderManager_->IsFetchingCompleted();
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return MultiReaderManager_->GetFailedChunkIds();
+    }
+
 private:
+    IMultiReaderManagerPtr MultiReaderManager_;
     IFileReaderPtr CurrentReader_;
 
-    virtual void OnReaderSwitched() override
+    void OnReaderSwitched()
     {
-        CurrentReader_ = dynamic_cast<IFileReader*>(CurrentSession_.Reader.Get());
+        CurrentReader_ = dynamic_cast<IFileReader*>(MultiReaderManager_->GetCurrentSession().Reader.Get());
         YT_VERIFY(CurrentReader_);
     }
 };
@@ -431,11 +466,12 @@ IFileReaderPtr CreateFileMultiChunkReader(
             TDataSliceDescriptor(chunkSpec)));
     }
 
-    auto reader = New<TFileMultiChunkReader>(
-        config,
-        options,
+    auto reader = New<TFileMultiChunkReader>(CreateSequentialMultiReaderManager(
+        std::move(config),
+        std::move(options),
         factories,
-        multiReaderMemoryManager);
+        std::move(multiReaderMemoryManager)));
+
     reader->Open();
     return reader;
 }

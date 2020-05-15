@@ -6,11 +6,13 @@
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
-#include <yt/ytlib/chunk_client/multi_reader_base.h>
+#include <yt/ytlib/chunk_client/multi_reader_manager.h>
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/transaction_client/public.h>
+
+#include <yt/client/chunk_client/reader_base.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
@@ -71,7 +73,6 @@ private:
     virtual void InitNextBlock() override;
 
     void InitNameTable(TNameTablePtr chunkNameTable);
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TPartitionChunkReader)
@@ -79,10 +80,10 @@ DEFINE_REFCOUNTED_TYPE(TPartitionChunkReader)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPartitionMultiChunkReader
-    : public NChunkClient::TParallelMultiReaderBase
+    : public NChunkClient::IReaderBase
 {
 public:
-    using TParallelMultiReaderBase::TParallelMultiReaderBase;
+    TPartitionMultiChunkReader(NChunkClient::IMultiReaderManagerPtr multiReaderManager);
 
     template <class TValueInsertIterator, class TRowDescriptorInsertIterator>
     bool Read(
@@ -90,11 +91,42 @@ public:
         TRowDescriptorInsertIterator& rowDescriptorInserter,
         i64* rowCount);
 
+    void Open()
+    {
+        MultiReaderManager_->Open();
+    }
+
+    virtual TFuture<void> GetReadyEvent() override
+    {
+        return MultiReaderManager_->GetReadyEvent();
+    }
+
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
+    {
+        return MultiReaderManager_->GetDataStatistics();
+    }
+
+    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
+    {
+        return MultiReaderManager_->GetDecompressionStatistics();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return MultiReaderManager_->IsFetchingCompleted();
+    }
+
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    {
+        return MultiReaderManager_->GetFailedChunkIds();
+    }
+
+
 private:
+    NChunkClient::IMultiReaderManagerPtr MultiReaderManager_;
     TPartitionChunkReaderPtr CurrentReader_;
 
-    virtual void OnReaderSwitched() override;
-
+    void OnReaderSwitched();
 };
 
 DEFINE_REFCOUNTED_TYPE(TPartitionMultiChunkReader)
