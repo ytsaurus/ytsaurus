@@ -223,6 +223,24 @@ TJobMetrics operator+(const TJobMetrics& lhs, const TJobMetrics& rhs)
     return result;
 }
 
+bool Dominates(const TJobMetrics& lhs, const TJobMetrics& rhs)
+{
+    for (auto metric : TEnumTraits<EJobMetricName>::GetDomainValues()) {
+        if (lhs.Values()[metric] < rhs.Values()[metric]) {
+            return false;
+        }
+    }
+
+    for (const auto& [jobMetricDescription, value] : rhs.CustomValues()) {
+        auto it = lhs.CustomValues().find(jobMetricDescription);
+        if (it == lhs.CustomValues().end() || it->second < value) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 void ToProto(NControllerAgent::NProto::TJobMetrics* protoJobMetrics, const NScheduler::TJobMetrics& jobMetrics)
 {
     ToProto(protoJobMetrics->mutable_values(), jobMetrics.Values());

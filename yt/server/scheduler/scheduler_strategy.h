@@ -4,6 +4,7 @@
 
 #include <yt/server/lib/scheduler/event_log.h>
 #include <yt/server/lib/scheduler/job_metrics.h>
+#include <yt/server/lib/scheduler/resource_metering.h>
 #include <yt/server/lib/scheduler/structs.h>
 
 #include <yt/client/node_tracker_client/proto/node.pb.h>
@@ -71,6 +72,9 @@ struct ISchedulerStrategyHost
         EOperationAlertType alertType,
         const TError& alert,
         std::optional<TDuration> timeout = std::nullopt) = 0;
+
+    virtual void LogResourceMetering(const TMeteringKey& key, const TMeteringStatistics& statistics, TInstant now) = 0;
+    virtual int GetDefaultAbcId() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,6 +233,9 @@ struct ISchedulerStrategy
     virtual void ScanWaitingForPoolOperations() = 0;
 
     virtual TFuture<void> GetFullFairShareUpdateFinished() = 0;
+
+    //! Called periodically to build resource guarantees and usages statistics.
+    virtual void OnBuildResourceMetering() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulerStrategy)

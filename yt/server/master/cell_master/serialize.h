@@ -74,6 +74,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_11951_FixMountLock)                                        (1114))  // savrus
     ((FixNetworkProjectSerialization_19_8)                          (1115))  // gritukan
     ((BeginUploadConcatenateFixes_19_8)                             (1116))  // shakurov
+    ((InternalizeAbcSchedulerPoolAttribute_19_8)                    (1117))  // mrkastep
     ((TruncateJournals)                                             (1200))  // aleksandra-zh
     ((PrevRandomSeed)                                               (1201))  // aleksandra-zh
     ((FixDenseMapSerialization)                                     (1202))  // aleksandra-zh
@@ -98,6 +99,7 @@ DEFINE_ENUM(EMasterReign,
     ((CellPeerRevocationReason)                                     (1311))  // babenko
     ((ErasureJournals)                                              (1312))  // babenko
     ((CellReconfigurationFixes)                                     (1313))  // akozhikhov
+    ((InternalizeAbcSchedulerPoolAttribute)                         (1314))  // mrkastep
 );
 
 ////////////////////////////////////////////////////////////////////////////////

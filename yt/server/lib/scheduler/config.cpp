@@ -182,6 +182,9 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("min_needed_resources_update_period", MinNeededResourcesUpdatePeriod)
         .Default(TDuration::Seconds(3));
 
+    RegisterParameter("resource_metering_period", ResourceMeteringPeriod)
+        .Default(TDuration::Minutes(1));
+
     RegisterParameter("operation_unschedulable_check_period", OperationUnschedulableCheckPeriod)
         .Default(TDuration::Minutes(1));
 
@@ -501,6 +504,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("use_classic_scheduler", UseClassicScheduler)
         .Default(true);
+
+    RegisterParameter("default_abc_id", DefaultAbcId)
+        .Default(-1);
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

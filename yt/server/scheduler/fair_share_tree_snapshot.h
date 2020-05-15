@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/server/lib/scheduler/resource_metering.h>
+
 #include <yt/ytlib/scheduler/job_resources.h>
 
 namespace NYT::NScheduler {
@@ -32,6 +34,7 @@ struct IFairShareTreeSnapshot
     virtual const TSchedulingTagFilter& GetNodesFilter() const = 0;
     virtual TJobResources GetTotalResourceLimits() const = 0;
     virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
+    virtual void BuildResourceMetering(TMeteringMap* statistics) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFairShareTreeSnapshot);
