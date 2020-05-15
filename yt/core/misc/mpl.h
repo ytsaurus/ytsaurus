@@ -320,25 +320,6 @@ struct TTypesPack
     const static size_t Size = sizeof...(TTypes);
 };
 
-template <unsigned N, class THead, class TTail>
-struct TSplitVariadicHelper;
-
-template <unsigned N, class THead, class TTail>
-struct TSplitVariadic : TSplitVariadicHelper<N, THead, TTail>
-{ };
-
-template <class THeadParam, class TTailParam>
-struct TSplitVariadic<0, THeadParam, TTailParam>
-{
-    typedef THeadParam THead;
-    typedef TTailParam TTail;
-};
-
-template <unsigned N, class... THead, class TPivot, class... TTail>
-struct TSplitVariadicHelper<N, TTypesPack<THead...>, TTypesPack<TPivot, TTail...> >
-    : TSplitVariadic<N - 1, TTypesPack<THead..., TPivot>, TTypesPack<TTail...> >
-{ };
-
 template <unsigned...>
 struct TSequence { };
 
@@ -352,24 +333,6 @@ struct TGenerateSequence<0, Indexes...>
 {
     typedef TSequence<Indexes...> TType;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-template <class R, unsigned... S, class... As, class F>
-R CallWithTupleImpl(TSequence<S...>, const F& f, const std::tuple<As...>& args)
-{
-    return f(std::get<S>(args)...);
-}
-
-} // namespace NDetail
-
-template <class R, class... As, class F>
-R CallWithTuple(const F& f, const std::tuple<As...>& args)
-{
-    return NDetail::CallWithTupleImpl<R>(typename TGenerateSequence<sizeof...(As)>::TType(), f, args);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -410,57 +373,6 @@ constexpr T Min(T x, Ts... args)
 {
     return Min(x, Min(args...));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class... Ts>
-struct TNothrowDestructible;
-
-template <>
-struct TNothrowDestructible<>
-{
-    static constexpr bool Value = true;
-};
-
-template <class T, class... Ts>
-struct TNothrowDestructible<T, Ts...>
-{
-    static constexpr bool Value = std::is_nothrow_destructible<T>::value && TNothrowDestructible<Ts...>::Value;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class... Ts>
-struct TNothrowMoveConstructible;
-
-template <>
-struct TNothrowMoveConstructible<>
-{
-    static constexpr bool Value = true;
-};
-
-template <class T, class... Ts>
-struct TNothrowMoveConstructible<T, Ts...>
-{
-    static constexpr bool Value = std::is_nothrow_move_constructible<T>::value && TNothrowMoveConstructible<Ts...>::Value;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class... Ts>
-struct TNothrowMoveAssignable;
-
-template <>
-struct TNothrowMoveAssignable<>
-{
-    static constexpr bool Value = true;
-};
-
-template <class T, class... Ts>
-struct TNothrowMoveAssignable<T, Ts...>
-{
-    static constexpr bool Value = std::is_nothrow_move_assignable<T>::value && TNothrowMoveAssignable<Ts...>::Value;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

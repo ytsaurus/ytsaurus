@@ -18,8 +18,6 @@ $$==============================================================================
 #include <yt/core/misc/source_location.h>
 #endif
 
-#include <yt/core/tracing/trace_context.h>
-
 namespace NYT::NDetail {
 /*! \internal */
 ////////////////////////////////////////////////////////////////////////////////

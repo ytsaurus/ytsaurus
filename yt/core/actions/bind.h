@@ -1,37 +1,184 @@
 #pragma once
 
-#include "bind_internal.h"
-#include "callback_internal.h"
+#include <yt/core/actions/callback.h>
 
 namespace NYT {
-/*! \internal */
+
 ////////////////////////////////////////////////////////////////////////////////
 //
-// See "callback.h" for how to use these functions. If reading
-// the implementation, before proceeding further, you should read the top
-// comment of "bind_internal.h" for a definition of common terms and concepts.
+// This file defines a set of argument wrappers that can be used specify
+// the reference counting and reference semantics of arguments that are bound
+// by the #Bind() function in "bind.h".
 //
-// IMPLEMENTATION NOTE
+////////////////////////////////////////////////////////////////////////////////
 //
-// Though #Bind()'s result is meant to be stored in a #TCallback<> type, it
-// cannot actually return the exact type without requiring a large amount
-// of extra template specializations. The problem is that in order to
-// discern the correct specialization of #TCallback<>, #Bind() would need to
-// unwrap the function signature to determine the signature's arity, and
-// whether or not it is a method.
+// ARGUMENT BINDING WRAPPERS
 //
-// Each unique combination of (arity, function_type, num_prebound) where
-// |function_type| is one of {function, method, const_method} would require
-// one specialization. We eventually have to do a similar number of
-// specializations anyways in the implementation (see the #TInvoker<>,
-// classes). However, it is avoidable in #Bind() if we return the result
-// via an indirection like we do below.
+// The wrapper functions are #Unretained(), #Owned(), #Passed() and #ConstRef().
 //
-// It is possible to move most of the compile time asserts into #TBindState<>,
-// but it feels a little nicer to have the asserts here so people do not
-// need to crack open "bind_internal.h". On the other hand, it makes #Bind()
-// harder to read.
+// #Unretained() allows #Bind() to bind a non-reference counted class,
+// and to disable reference counting on arguments that are reference counted
+// objects.
 //
+// #Owned() transfers ownership of an object to the #TCallback<> resulting from
+// binding; the object will be deleted when the #TCallback<> is deleted.
+//
+// #Passed() is for transferring movable-but-not-copyable types through
+// a #TCallback<>. Logically, this signifies a destructive transfer of the state
+// of the argument into the target function. Invoking #TCallback<>::Run() twice
+// on a TCallback that was created with a #Passed() argument will YT_ASSERT()
+// because the first invocation would have already transferred ownership
+// to the target function.
+//
+// #ConstRef() allows binding a const reference to an argument rather than
+// a copy.
+//
+//
+// EXAMPLE OF Unretained()
+//
+//   class TFoo {
+//     public:
+//       void Bar() { Cout << "Hello!" << Endl; }
+//   };
+//
+//   // Somewhere else.
+//   TFoo foo;
+//   TClosure cb = Bind(&TFoo::Bar, Unretained(&foo));
+//   cb.Run(); // Prints "Hello!".
+//
+// Without the #Unretained() wrapper on |&foo|, the above call would fail
+// to compile because |TFoo| does not support the Ref() and Unref() methods.
+//
+//
+// EXAMPLE OF Owned()
+//
+//   void Foo(int* arg) { Cout << *arg << Endl; }
+//
+//   int* px = new int(17);
+//   TClosure cb = Bind(&Foo, Owned(px));
+//
+//   cb.Run(); // Prints "17"
+//   cb.Run(); // Prints "17"
+//   *n = 42;
+//   cb.Run(); // Prints "42"
+//
+//   cb.Reset(); // |px| is deleted.
+//   // Also will happen when |cb| goes out of scope.
+//
+// Without #Owned(), someone would have to know to delete |px| when the last
+// reference to the #TCallback<> is deleted.
+//
+//
+// EXAMPLE OF Passed()
+//
+//   void TakesOwnership(TIntrusivePtr<TFoo> arg) { ... }
+//   TIntrusivePtr<TFoo> CreateFoo() { return New<TFoo>(); }
+//   TIntrusivePtr<TFoo> foo = New<TFoo>();
+//
+//   // |cb| is given ownership of the |TFoo| instance. |foo| is now NULL.
+//   // You may also use std::move(foo), but its more verbose.
+//   TClosure cb = Bind(&TakesOwnership, Passed(&foo));
+//
+//   // Run was never called so |cb| still owns the instance and deletes
+//   // it on #Reset().
+//   cb.Reset();
+//
+//   // |cb| is given a new |TFoo| created by |CreateFoo()|.
+//   TClosure cb = Bind(&TakesOwnership, Passed(CreateFoo()));
+//
+//   // |arg| in TakesOwnership() is given ownership of |TFoo|.
+//   // |cb| no longer owns |TFoo| and, if reset, would not delete anything.
+//   cb.Run(); // |TFoo| is now transferred to |arg| and deleted.
+//   cb.Run(); // This YT_ASSERT()s since |TFoo| already been used once.
+//
+//
+// EXAMPLE OF ConstRef()
+//
+//   void Foo(int arg) { Cout << arg << Endl; }
+//
+//   int n = 1;
+//   TClosure noRef = Bind(&Foo, n);
+//   TClosure hasRef = Bind(&Foo, ConstRef(n));
+//
+//   noRef.Run();  // Prints "1"
+//   hasRef.Run(); // Prints "1"
+//   n = 2;
+//   noRef.Run();  // Prints "1"
+//   hasRef.Run(); // Prints "2"
+//
+// Note that because #ConstRef() takes a reference on |n|,
+// |n| must outlive all its bound callbacks.
+//
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+static auto Unretained(T* x);
+
+template <class T>
+static auto Owned(T* x);
+
+template <class T>
+static auto Passed(T&& x);
+
+template <class T>
+static auto ConstRef(const T& x);
+
+template <class T>
+static auto IgnoreResult(const T& x);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+class TFuture;
+
+// NB: Needed here due to TExtendedCallback::Via and TExtendedCallback::AsyncVia.
+template <class T>
+struct TFutureTraits
+{
+    using TUnderlying = T;
+    using TWrapped = TFuture<T>;
+};
+
+template <class T>
+struct TFutureTraits<TFuture<T>>
+{
+    typedef T TUnderlying;
+    typedef TFuture<T> TWrapped;
+};
+
+
+template <class TSignature>
+struct TExtendedCallback;
+
+template <class TR, class... TAs>
+struct TExtendedCallback<TR(TAs...)>
+    : public TCallback<TR(TAs...)>
+{
+    using TCallback<TR(TAs...)>::TCallback;
+
+    TExtendedCallback(const TCallback<TR(TAs...)>& callback)
+        : TCallback<TR(TAs...)>(callback)
+    { }
+
+    using TCallback<TR(TAs...)>::operator ==;
+    using TCallback<TR(TAs...)>::operator !=;
+
+    // TODO: Make &&
+    TExtendedCallback Via(TIntrusivePtr<IInvoker> invoker) const;
+
+    TExtendedCallback<typename TFutureTraits<TR>::TWrapped(TAs...)>
+    AsyncVia(TIntrusivePtr<IInvoker> invoker) const;
+
+    //! This version of AsyncVia is designed for cases when invoker may discard submitted callbacks
+    //! (for example, if it is cancellable invoker). Regular AsyncVia results in "Promise abandoned"
+    //! error, which is almost non-informative and quite frustrating, while this overload
+    //! allows you to specify the cancellation error, which costs a bit more allocations
+    //! but much more convenient.
+    TExtendedCallback<typename TFutureTraits<TR>::TWrapped(TAs...)>
+    AsyncViaGuarded(TIntrusivePtr<IInvoker> invoker, TError cancellationError) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <
     bool CaptureTraceContext,
@@ -40,67 +187,31 @@ template <
     int Counter,
 #endif
     class TFunctor,
-    class... TAs>
-TCallback<
-    typename NYT::NDetail::TBindState<
-        CaptureTraceContext,
-        typename NYT::NDetail::TFunctorTraits<TFunctor>::TRunnable,
-        typename NYT::NDetail::TFunctorTraits<TFunctor>::TSignature,
-        void(typename NMpl::TDecay<TAs>::TType...)
-    >::TUnboundSignature>
-Bind(
+    class... TBs>
+auto Bind(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     const TSourceLocation& location,
 #endif
-    TFunctor functor,
-    TAs&&... args)
-{
-    // Typedefs for how to store and run the functor.
-    typedef NYT::NDetail::TFunctorTraits<TFunctor> TFunctorTraits;
-    typedef typename TFunctorTraits::TRunnable TRunnable;
-    typedef typename TFunctorTraits::TSignature TSignature;
+    TFunctor&& functor,
+    TBs&&... bound);
 
-    // Use TRunnable::TSignature instead of TSignature above because our
-    // checks should below for bound references need to know what the actual
-    // functor is going to interpret the argument as.
+////////////////////////////////////////////////////////////////////////////////
 
-    // Do not allow binding a non-const reference parameter. Binding a
-    // non-const reference parameter can make for subtle bugs because the
-    // invoked function will receive a reference to the stored copy of the
-    // argument and not the original.
-    //
-    // Do not allow binding a raw pointer parameter for a reference-counted
-    // type.
-    // Binding a raw pointer can result in invocation with dead parameters,
-    // because #TBindState do not hold references to parameters.
-
-    typedef NYT::NDetail::TBindState<
-            CaptureTraceContext,
-            TRunnable,
-            TSignature,
-            void(typename NMpl::TDecay<TAs>::TType...)
-        > TTypedBindState;
-
-    NYT::NDetail::TCheckFirstArgument<TRunnable, typename NMpl::TDecay<TAs>::TType...> checkFirstArgument;
-    NYT::NDetail::TCheckReferencesInBoundArgs<typename TTypedBindState::TBoundArgsPack> checkReferencesInBoundArgs;
-    NYT::NDetail::TCheckParamsIsRawPtrToRefCountedType<typename NMpl::TDecay<TAs>::TType...> checkParamsIsRawPtrToRefCountedType;
-
-    Y_UNUSED(checkFirstArgument);
-    Y_UNUSED(checkReferencesInBoundArgs);
-    Y_UNUSED(checkParamsIsRawPtrToRefCountedType);
-
-    return TCallback<typename TTypedBindState::TUnboundSignature>(
+template <
+    bool CaptureTraceContext,
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
-        NewWithLocation<TTypedBindState, TTag, Counter>(
-            location,
-            location,
-#else
-        New<TTypedBindState>(
+    class TTag,
+    int Counter,
 #endif
-            NYT::NDetail::MakeRunnable(std::move(functor)),
-            std::forward<TAs>(args)...)
-    );
-}
+    class T
+>
+auto Bind(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+    const TSourceLocation& location,
+#endif
+    const TCallback<T>& callback);
+
+////////////////////////////////////////////////////////////////////////////////
 
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
     #define BIND_IMPL(captureTraceContext, ...) ::NYT::Bind<captureTraceContext, ::NYT::TCurrentTranslationUnitTag, __COUNTER__>(FROM_HERE, __VA_ARGS__)
@@ -112,5 +223,9 @@ Bind(
 #define BIND_DONT_CAPTURE_TRACE_CONTEXT(...) BIND_IMPL(false, __VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
-/*! \endinternal */
+
 } // namespace NYT
+
+#define BIND_INL_H_
+#include "bind-inl.h"
+#undef BIND_INL_H_

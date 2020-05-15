@@ -1453,8 +1453,8 @@ template <class R, class... TArgs>
 struct TAsyncViaHelper<R(TArgs...)>
 {
     using TUnderlying = typename TFutureTraits<R>::TUnderlying;
-    using TSourceCallback = TCallback<R(TArgs...)>;
-    using TTargetCallback = TCallback<TFuture<TUnderlying>(TArgs...)>;
+    using TSourceCallback = TExtendedCallback<R(TArgs...)>;
+    using TTargetCallback = TExtendedCallback<TFuture<TUnderlying>(TArgs...)>;
 
     static void Inner(
         const TSourceCallback& this_,
@@ -1521,15 +1521,15 @@ struct TAsyncViaHelper<R(TArgs...)>
 } // namespace NDetail
 
 template <class R, class... TArgs>
-TCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
-TCallback<R(TArgs...)>::AsyncVia(IInvokerPtr invoker) const
+TExtendedCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
+TExtendedCallback<R(TArgs...)>::AsyncVia(IInvokerPtr invoker) const
 {
     return NYT::NDetail::TAsyncViaHelper<R(TArgs...)>::Do(*this, std::move(invoker));
 }
 
 template <class R, class... TArgs>
-TCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
-TCallback<R(TArgs...)>::AsyncViaGuarded(IInvokerPtr invoker, TError cancellationError) const
+TExtendedCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
+TExtendedCallback<R(TArgs...)>::AsyncViaGuarded(IInvokerPtr invoker, TError cancellationError) const
 {
     return NYT::NDetail::TAsyncViaHelper<R(TArgs...)>::DoGuarded(*this, std::move(invoker), std::move(cancellationError));
 }
