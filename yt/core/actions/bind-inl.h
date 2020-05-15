@@ -260,7 +260,7 @@ struct TToVoidSignature;
 template <class TR, class... TAs>
 struct TToVoidSignature<TR(TAs...)>
 {
-    using TType = void(TAs...);
+    using TType = void (TAs...);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -271,7 +271,7 @@ struct TCallableSignature;
 template <class TR, class TC, class... TAs>
 struct TCallableSignature<TR (TC::*)(TAs...) const>
 {
-    using TSignature = TR(TAs...);
+    using TSignature = TR (TAs...);
 };
 
 template <class TR, class TC, class... TAs>
@@ -423,8 +423,8 @@ struct TSplit<0, TSignature>
 };
 
 template <unsigned N, class TR, class TA0, class... TAs>
-struct TSplitHelper<N, TR(TA0, TAs...)>
-    : public TSplit<N - 1, TR(TAs...)>
+struct TSplitHelper<N, TR (TA0, TAs...)>
+    : public TSplit<N - 1, TR (TAs...)>
 {
     static_assert(
         !TIsNonConstReference<TA0>::Value,
