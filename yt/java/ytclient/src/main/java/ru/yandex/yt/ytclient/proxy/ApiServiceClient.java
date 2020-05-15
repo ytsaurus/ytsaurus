@@ -82,10 +82,8 @@ import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TReqResumeOperation;
 import ru.yandex.yt.rpcproxy.TReqSelectRows;
 import ru.yandex.yt.rpcproxy.TReqSetNode;
-import ru.yandex.yt.rpcproxy.TReqSignalJob;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
-import ru.yandex.yt.rpcproxy.TReqStraceJob;
 import ru.yandex.yt.rpcproxy.TReqSuspendOperation;
 import ru.yandex.yt.rpcproxy.TReqTrimTable;
 import ru.yandex.yt.rpcproxy.TReqUnfreezeTable;
@@ -141,10 +139,8 @@ import ru.yandex.yt.rpcproxy.TRspReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TRspResumeOperation;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
 import ru.yandex.yt.rpcproxy.TRspSetNode;
-import ru.yandex.yt.rpcproxy.TRspSignalJob;
 import ru.yandex.yt.rpcproxy.TRspStartOperation;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
-import ru.yandex.yt.rpcproxy.TRspStraceJob;
 import ru.yandex.yt.rpcproxy.TRspSuspendOperation;
 import ru.yandex.yt.rpcproxy.TRspTrimTable;
 import ru.yandex.yt.rpcproxy.TRspUnfreezeTable;
@@ -1456,23 +1452,6 @@ public class ApiServiceClient implements TransactionalClient {
         return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getInfo()));
     }
 
-    public CompletableFuture<YTreeNode> straceJob(GUID jobId) {
-        return straceJob(jobId, null);
-    }
-
-    public CompletableFuture<YTreeNode> straceJob(GUID jobId, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqStraceJob.Builder, RpcClientResponse<TRspStraceJob>>
-                builder = service.straceJob();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body()
-                .setJobId(RpcUtil.toProto(jobId));
-
-        return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getTrace()));
-    }
-
     public CompletableFuture<Void> dumpJobContext(GUID jobId) {
         return dumpJobContext(jobId, null);
     }
@@ -1480,23 +1459,6 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<Void> dumpJobContext(GUID jobId, @Nullable Duration requestTimeout) {
         RpcClientRequestBuilder<TReqDumpJobContext.Builder, RpcClientResponse<TRspDumpJobContext>>
                 builder = service.dumpJobContext();
-
-        if (requestTimeout != null) {
-            builder.setTimeout(requestTimeout);
-        }
-        builder.body()
-                .setJobId(RpcUtil.toProto(jobId));
-
-        return RpcUtil.apply(invoke(builder), response -> null);
-    }
-
-    public CompletableFuture<Void> signalJob(GUID jobId) {
-        return signalJob(jobId, null);
-    }
-
-    public CompletableFuture<Void> signalJob(GUID jobId, @Nullable Duration requestTimeout) {
-        RpcClientRequestBuilder<TReqSignalJob.Builder, RpcClientResponse<TRspSignalJob>>
-                builder = service.signalJob();
 
         if (requestTimeout != null) {
             builder.setTimeout(requestTimeout);

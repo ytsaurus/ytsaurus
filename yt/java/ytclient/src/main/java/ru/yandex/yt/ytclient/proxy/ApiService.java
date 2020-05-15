@@ -47,10 +47,8 @@ import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TReqResumeOperation;
 import ru.yandex.yt.rpcproxy.TReqSelectRows;
 import ru.yandex.yt.rpcproxy.TReqSetNode;
-import ru.yandex.yt.rpcproxy.TReqSignalJob;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
-import ru.yandex.yt.rpcproxy.TReqStraceJob;
 import ru.yandex.yt.rpcproxy.TReqSuspendOperation;
 import ru.yandex.yt.rpcproxy.TReqTrimTable;
 import ru.yandex.yt.rpcproxy.TReqUnfreezeTable;
@@ -106,10 +104,8 @@ import ru.yandex.yt.rpcproxy.TRspReshardTableAutomatic;
 import ru.yandex.yt.rpcproxy.TRspResumeOperation;
 import ru.yandex.yt.rpcproxy.TRspSelectRows;
 import ru.yandex.yt.rpcproxy.TRspSetNode;
-import ru.yandex.yt.rpcproxy.TRspSignalJob;
 import ru.yandex.yt.rpcproxy.TRspStartOperation;
 import ru.yandex.yt.rpcproxy.TRspStartTransaction;
-import ru.yandex.yt.rpcproxy.TRspStraceJob;
 import ru.yandex.yt.rpcproxy.TRspSuspendOperation;
 import ru.yandex.yt.rpcproxy.TRspTrimTable;
 import ru.yandex.yt.rpcproxy.TRspUnfreezeTable;
@@ -227,11 +223,7 @@ public interface ApiService extends DiscoverableRpcService {
     /* Jobs */
     RpcClientRequestBuilder<TReqGetJob.Builder, RpcClientResponse<TRspGetJob>> getJob();
 
-    RpcClientRequestBuilder<TReqStraceJob.Builder, RpcClientResponse<TRspStraceJob>> straceJob();
-
     RpcClientRequestBuilder<TReqDumpJobContext.Builder, RpcClientResponse<TRspDumpJobContext>> dumpJobContext();
-
-    RpcClientRequestBuilder<TReqSignalJob.Builder, RpcClientResponse<TRspSignalJob>> signalJob();
 
     RpcClientRequestBuilder<TReqAbandonJob.Builder, RpcClientResponse<TRspAbandonJob>> abandonJob();
 
