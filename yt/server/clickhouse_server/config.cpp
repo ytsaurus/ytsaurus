@@ -187,11 +187,11 @@ TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
 
 TPorts TClickHouseServerBootstrapConfig::GetPorts() const
 {
-    return TPorts {
-        .Rpc = RpcPort,
+    return TPorts{
         .Monitoring = MonitoringPort,
-        .Tcp = ClickHouse->TcpPort,
-        .Http = ClickHouse->HttpPort
+        .Rpc = RpcPort,
+        .Http = ClickHouse->HttpPort,
+        .Tcp = ClickHouse->TcpPort
     };
 }
 
