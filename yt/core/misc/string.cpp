@@ -342,6 +342,11 @@ TString EncodeEnumValue(TStringBuf value)
     return CamelCaseToUnderscoreCase(value);
 }
 
+void ThrowEnumParsingError(TStringBuf name, TStringBuf value)
+{
+    THROW_ERROR_EXCEPTION("Error parsing %v value %qv", name, value);
+}
+
 void FormatUnknownEnum(TStringBuilderBase* builder, TStringBuf name, i64 value)
 {
     builder->AppendFormat("%v(%v)", name, value);
