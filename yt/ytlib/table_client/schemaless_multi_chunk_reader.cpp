@@ -27,7 +27,7 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/multi_reader_manager.h>
+#include <yt/ytlib/chunk_client/multi_reader_base.h>
 #include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
@@ -80,8 +80,6 @@ using NYT::TRange;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-////////////////////////////////////////////////////////////////////////////////
 
 TColumnarChunkMetaPtr DownloadChunkMeta(
     IChunkReaderPtr chunkReader,
@@ -256,21 +254,35 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
     return factories;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TBase>
 class TSchemalessMultiChunkReader
     : public ISchemalessMultiChunkReader
+    , public TBase
 {
 public:
     TSchemalessMultiChunkReader(
-        IMultiReaderManagerPtr multiReaderManager,
+        TTableReaderConfigPtr config,
+        TTableReaderOptionsPtr options,
+        NNative::IClientPtr client,
+        const TNodeDescriptor& localDescriptor,
+        std::optional<TNodeId> localNodeId,
+        IBlockCachePtr blockCache,
+        TNodeDirectoryPtr nodeDirectory,
+        const TDataSourceDirectoryPtr& dataSourceDirectory,
+        const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
         TNameTablePtr nameTable,
+        const TClientBlockReadOptions& blockReadOptions,
+        const TColumnFilter& columnFilter,
         const TKeyColumns& keyColumns,
-        const std::vector<TDataSliceDescriptor>& dataSliceDescriptors);
+        std::optional<int> partitionTag,
+        TTrafficMeterPtr trafficMeter,
+        IThroughputThrottlerPtr bandwidthThrottler,
+        IThroughputThrottlerPtr rpsThrottler,
+        NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
     ~TSchemalessMultiChunkReader();
 
@@ -292,39 +304,7 @@ public:
 
     virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
 
-    void Open()
-    {
-        MultiReaderManager_->Open();
-    }
-
-    virtual TFuture<void> GetReadyEvent() override
-    {
-        return MultiReaderManager_->GetReadyEvent();
-    }
-
-    virtual TDataStatistics GetDataStatistics() const override
-    {
-        return MultiReaderManager_->GetDataStatistics();
-    }
-
-    virtual TCodecStatistics GetDecompressionStatistics() const override
-    {
-        return MultiReaderManager_->GetDecompressionStatistics();
-    }
-
-    virtual bool IsFetchingCompleted() const override
-    {
-        return MultiReaderManager_->IsFetchingCompleted();
-    }
-
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
-    {
-        return MultiReaderManager_->GetFailedChunkIds();
-    }
-
 private:
-    IMultiReaderManagerPtr MultiReaderManager_;
-
     const TNameTablePtr NameTable_;
     const TKeyColumns KeyColumns_;
 
@@ -336,45 +316,89 @@ private:
 
     std::atomic<bool> Finished_ = {false};
 
-    void OnReaderSwitched();
+    using TBase::ReadyEvent_;
+    using TBase::CurrentSession_;
+
+    virtual void OnReaderSwitched() override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchemalessMultiChunkReader::TSchemalessMultiChunkReader(
-    IMultiReaderManagerPtr multiReaderManager,
+template <class TBase>
+TSchemalessMultiChunkReader<TBase>::TSchemalessMultiChunkReader(
+    TTableReaderConfigPtr config,
+    TTableReaderOptionsPtr options,
+    NNative::IClientPtr client,
+    const TNodeDescriptor& localDescriptor,
+    std::optional<TNodeId> localNodeId,
+    IBlockCachePtr blockCache,
+    TNodeDirectoryPtr nodeDirectory,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
+    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     TNameTablePtr nameTable,
+    const TClientBlockReadOptions& blockReadOptions,
+    const TColumnFilter& columnFilter,
     const TKeyColumns& keyColumns,
-    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors)
-    : MultiReaderManager_(std::move(multiReaderManager))
+    std::optional<int> partitionTag,
+    TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr bandwidthThrottler,
+    IThroughputThrottlerPtr rpsThrottler,
+    NChunkClient::IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
+    : TBase(
+        config,
+        options,
+        CreateReaderFactories(
+            config,
+            options,
+            client,
+            localDescriptor,
+            localNodeId,
+            blockCache,
+            nodeDirectory,
+            dataSourceDirectory,
+            dataSliceDescriptors,
+            nameTable,
+            blockReadOptions,
+            columnFilter,
+            keyColumns,
+            partitionTag,
+            trafficMeter,
+            bandwidthThrottler,
+            rpsThrottler,
+            multiReaderMemoryManager),
+        multiReaderMemoryManager)
     , NameTable_(nameTable)
     , KeyColumns_(keyColumns)
     , RowCount_(GetCumulativeRowCount(dataSliceDescriptors))
 {
-    MultiReaderManager_->SubscribeReaderSwitched(BIND(&TSchemalessMultiChunkReader::OnReaderSwitched, MakeWeak(this)));
     if (dataSliceDescriptors.empty()) {
         Finished_ = true;
     }
 }
 
-TSchemalessMultiChunkReader::~TSchemalessMultiChunkReader()
+template <class TBase>
+TSchemalessMultiChunkReader<TBase>::~TSchemalessMultiChunkReader()
 {
-    const auto& Logger = MultiReaderManager_->GetLogger();
+    const auto& Logger = TMultiReaderBase::Logger;
     // Log all statistics. NB:
-    YT_LOG_DEBUG("Reader data statistics (DataStatistics: %v)", MultiReaderManager_->GetDataStatistics());
-    YT_LOG_DEBUG("Reader decompression codec statistics (CodecStatistics: %v)", MultiReaderManager_->GetDecompressionStatistics());
+    YT_LOG_DEBUG("Reader data statistics (DataStatistics: %v)", TMultiReaderBase::GetDataStatistics());
+    YT_LOG_DEBUG("Reader decompression codec statistics (CodecStatistics: %v)", TMultiReaderBase::GetDecompressionStatistics());
 }
 
-bool TSchemalessMultiChunkReader::Read(std::vector<TUnversionedRow>* rows)
+template <class TBase>
+bool TSchemalessMultiChunkReader<TBase>::Read(std::vector<TUnversionedRow>* rows)
 {
     rows->clear();
 
-    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
+    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
     }
 
     if (Finished_) {
         RowCount_ = RowIndex_.load();
+
+
+
         return false;
     }
 
@@ -390,68 +414,77 @@ bool TSchemalessMultiChunkReader::Read(std::vector<TUnversionedRow>* rows)
         FinishedInterruptDescriptor_.MergeFrom(std::move(interruptDescriptor));
     }
 
-    if (!MultiReaderManager_->OnEmptyRead(readerFinished)) {
+    if (!TBase::OnEmptyRead(readerFinished)) {
         Finished_ = true;
     }
 
     return true;
 }
 
-void TSchemalessMultiChunkReader::OnReaderSwitched()
+template <class TBase>
+void TSchemalessMultiChunkReader<TBase>::OnReaderSwitched()
 {
-    CurrentReader_ = dynamic_cast<ISchemalessChunkReader*>(MultiReaderManager_->GetCurrentSession().Reader.Get());
+    CurrentReader_ = dynamic_cast<ISchemalessChunkReader*>(CurrentSession_.Reader.Get());
     YT_VERIFY(CurrentReader_);
 }
 
-i64 TSchemalessMultiChunkReader::GetTotalRowCount() const
+template <class TBase>
+i64 TSchemalessMultiChunkReader<TBase>::GetTotalRowCount() const
 {
     return RowCount_;
 }
 
-i64 TSchemalessMultiChunkReader::GetSessionRowIndex() const
+template <class TBase>
+i64 TSchemalessMultiChunkReader<TBase>::GetSessionRowIndex() const
 {
     return RowIndex_;
 }
 
-i64 TSchemalessMultiChunkReader::GetTableRowIndex() const
+template <class TBase>
+i64 TSchemalessMultiChunkReader<TBase>::GetTableRowIndex() const
 {
     return CurrentReader_ ? CurrentReader_->GetTableRowIndex() : 0;
 }
 
-const TNameTablePtr& TSchemalessMultiChunkReader::GetNameTable() const
+template <class TBase>
+const TNameTablePtr& TSchemalessMultiChunkReader<TBase>::GetNameTable() const
 {
     return NameTable_;
 }
 
-const TKeyColumns& TSchemalessMultiChunkReader::GetKeyColumns() const
+template <class TBase>
+const TKeyColumns& TSchemalessMultiChunkReader<TBase>::GetKeyColumns() const
 {
     return KeyColumns_;
 }
 
-void TSchemalessMultiChunkReader::Interrupt()
+template <class TBase>
+void TSchemalessMultiChunkReader<TBase>::Interrupt()
 {
     if (!Finished_.exchange(true)) {
-        MultiReaderManager_->Interrupt();
+        TBase::OnInterrupt();
     }
 }
 
-void TSchemalessMultiChunkReader::SkipCurrentReader()
+template <class TBase>
+void TSchemalessMultiChunkReader<TBase>::SkipCurrentReader()
 {
-    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
+    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return;
     }
 
-    // Pretend that current reader already finished.
-    if (!MultiReaderManager_->OnEmptyRead(/* readerFinished */ true)) {
+     // Pretend that current reader already finished.
+    if (!TBase::OnEmptyRead(/* readerFinished */ true)) {
         Finished_ = true;
     }
 }
 
-TInterruptDescriptor TSchemalessMultiChunkReader::GetInterruptDescriptor(
+template <class TBase>
+TInterruptDescriptor TSchemalessMultiChunkReader<TBase>::GetInterruptDescriptor(
     TRange<TUnversionedRow> unreadRows) const
 {
     static TRange<TUnversionedRow> emptyRange;
-    auto state = MultiReaderManager_->GetUnreadState();
+    auto state = TBase::GetUnreadState();
 
     auto result = FinishedInterruptDescriptor_;
     if (state.CurrentReader) {
@@ -471,7 +504,8 @@ TInterruptDescriptor TSchemalessMultiChunkReader::GetInterruptDescriptor(
     return result;
 }
 
-const TDataSliceDescriptor& TSchemalessMultiChunkReader::GetCurrentReaderDescriptor() const
+template <class TBase>
+const TDataSliceDescriptor& TSchemalessMultiChunkReader<TBase>::GetCurrentReaderDescriptor() const
 {
     return CurrentReader_->GetCurrentReaderDescriptor();
 }
@@ -507,33 +541,25 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSequentialMultiReader(
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
 
-    auto reader = New<TSchemalessMultiChunkReader>(
-        CreateSequentialMultiReaderManager(
-            config,
-            options,
-            CreateReaderFactories(
-                config,
-                options,
-                client,
-                localDescriptor,
-                localNodeId,
-                blockCache,
-                nodeDirectory,
-                dataSourceDirectory,
-                dataSliceDescriptors,
-                nameTable,
-                blockReadOptions,
-                columnFilter,
-                keyColumns,
-                partitionTag,
-                trafficMeter,
-                std::move(bandwidthThrottler),
-                std::move(rpsThrottler),
-                multiReaderMemoryManager),
-            std::move(multiReaderMemoryManager)),
+    auto reader = New<TSchemalessMultiChunkReader<TSequentialMultiReaderBase>>(
+        config,
+        options,
+        client,
+        localDescriptor,
+        localNodeId,
+        blockCache,
+        nodeDirectory,
+        dataSourceDirectory,
+        dataSliceDescriptors,
         nameTable,
+        blockReadOptions,
+        columnFilter,
         keyColumns,
-        dataSliceDescriptors);
+        partitionTag,
+        trafficMeter,
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler),
+        std::move(multiReaderMemoryManager));
 
     reader->Open();
     return reader;
@@ -570,33 +596,25 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessParallelMultiReader(
             NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
     }
 
-    auto reader = New<TSchemalessMultiChunkReader>(
-        CreateParallelMultiReaderManager(
-            config,
-            options,
-            CreateReaderFactories(
-                config,
-                options,
-                client,
-                localDescriptor,
-                localNodeId,
-                blockCache,
-                nodeDirectory,
-                dataSourceDirectory,
-                dataSliceDescriptors,
-                nameTable,
-                blockReadOptions,
-                columnFilter,
-                keyColumns,
-                partitionTag,
-                trafficMeter,
-                std::move(bandwidthThrottler),
-                std::move(rpsThrottler),
-                multiReaderMemoryManager),
-            std::move(multiReaderMemoryManager)),
+    auto reader = New<TSchemalessMultiChunkReader<TParallelMultiReaderBase>>(
+        config,
+        options,
+        client,
+        localDescriptor,
+        localNodeId,
+        blockCache,
+        nodeDirectory,
+        dataSourceDirectory,
+        dataSliceDescriptors,
         nameTable,
+        blockReadOptions,
+        columnFilter,
         keyColumns,
-        dataSliceDescriptors);
+        partitionTag,
+        trafficMeter,
+        std::move(bandwidthThrottler),
+        std::move(rpsThrottler),
+        std::move(multiReaderMemoryManager));
 
     reader->Open();
     return reader;

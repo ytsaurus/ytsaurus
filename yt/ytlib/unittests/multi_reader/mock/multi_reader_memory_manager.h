@@ -1,8 +1,11 @@
 #pragma once
 
+#include <yt/ytlib/chunk_client/multi_reader_base.h>
 #include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 namespace NYT::NChunkClient {
+
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
