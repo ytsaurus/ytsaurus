@@ -1295,7 +1295,7 @@ private:
         {
             std::vector<TFuture<void>> result;
             for (const auto& action : actions) {
-                auto asyncError = action
+                auto asyncError = BIND(action)
                     .AsyncVia(invoker)
                     .Run();
                 result.emplace_back(asyncError.Apply(onError));

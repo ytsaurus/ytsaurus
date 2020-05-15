@@ -354,7 +354,7 @@ private:
 
             auto throttler = Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletStoreFlush);
 
-            auto asyncFlushResult = flushCallback
+            auto asyncFlushResult = BIND(flushCallback)
                 .AsyncVia(ThreadPool_->GetInvoker())
                 .Run(transaction, std::move(throttler), currentTimestamp, writerProfiler);
 

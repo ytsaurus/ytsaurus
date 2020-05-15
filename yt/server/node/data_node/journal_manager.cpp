@@ -899,7 +899,7 @@ public:
 
     TFuture<IChangelogPtr> OpenChangelog(TChunkId chunkId)
     {
-        return Location_->DisableOnError(BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId))
+        return BIND(Location_->DisableOnError(BIND(&TImpl::DoOpenChangelog, MakeStrong(this), chunkId)))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run()
             .ToUncancelable();
@@ -910,13 +910,13 @@ public:
         bool enableMultiplexing,
         const TWorkloadDescriptor& workloadDescriptor)
     {
-        auto creator = Location_->DisableOnError(
+        auto creator = BIND(Location_->DisableOnError(
             BIND(
                 &TImpl::DoCreateChangelog,
                 MakeStrong(this),
                 chunkId,
                 enableMultiplexing,
-                workloadDescriptor))
+                workloadDescriptor)))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
 
         TFuture<IChangelogPtr> asyncChangelog;
@@ -938,11 +938,11 @@ public:
         const TJournalChunkPtr& chunk,
         bool enableMultiplexing)
     {
-        auto remover = Location_->DisableOnError(
+        auto remover = BIND(Location_->DisableOnError(
             BIND(
                 &TImpl::DoRemoveChangelog,
                 MakeStrong(this),
-                chunk))
+                chunk)))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker());
 
         TFuture<void> asyncResult;
@@ -973,14 +973,14 @@ public:
 
     TFuture<bool> IsChangelogSealed(TChunkId chunkId)
     {
-        return Location_->DisableOnError(BIND(&TImpl::DoIsChangelogSealed, MakeStrong(this), chunkId))
+        return BIND(Location_->DisableOnError(BIND(&TImpl::DoIsChangelogSealed, MakeStrong(this), chunkId)))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run();
     }
 
     TFuture<void> SealChangelog(const TJournalChunkPtr& chunk)
     {
-        return Location_->DisableOnError(BIND(&TImpl::DoSealChangelog, MakeStrong(this), chunk))
+        return BIND(Location_->DisableOnError(BIND(&TImpl::DoSealChangelog, MakeStrong(this), chunk)))
             .AsyncVia(SplitChangelogDispatcher_->GetInvoker())
             .Run()
             .ToUncancelable();

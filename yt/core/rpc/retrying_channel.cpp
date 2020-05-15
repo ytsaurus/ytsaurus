@@ -308,7 +308,7 @@ IChannelPtr CreateRetryingChannel(
     IChannelPtr underlyingChannel,
     TCallback<bool(const TError&)> retryChecker)
 {
-    static const auto DefaultRetryChecker = BIND(&IsRetriableError);
+    static auto DefaultRetryChecker = BIND(&IsRetriableError);
     return New<TRetryingChannel>(
         std::move(config),
         std::move(underlyingChannel),
