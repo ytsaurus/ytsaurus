@@ -2,6 +2,8 @@
 #include "mock/multi_chunk_reader.h"
 #include "mock/reader_factory.h"
 
+#include <yt/ytlib/chunk_client/multi_reader_manager.h>
+
 #include <yt/client/table_client/helpers.h>
 
 #include <yt/core/test_framework/framework.h>
@@ -16,7 +18,15 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMultiChunkReaderMockPtr CreateMultiReader(std::vector<IReaderBasePtr> readers)
+DEFINE_ENUM(EMultiReaderManagerType,
+    ((Parallel)   (0))
+    ((Sequential) (1))
+);
+
+
+TMultiChunkReaderMockPtr CreateMultiReader(
+    std::vector<IReaderBasePtr> readers,
+    EMultiReaderManagerType multiReaderManagerType)
 {
     auto config = New<TMultiChunkReaderConfig>();
     auto options = New<TMultiChunkReaderOptions>();
@@ -29,11 +39,22 @@ TMultiChunkReaderMockPtr CreateMultiReader(std::vector<IReaderBasePtr> readers)
 
     auto memoryManager = New<TMultiReaderMemoryManagerMock>();
 
-    return New<TMultiChunkReaderMock>(
-        std::move(config),
-        std::move(options),
-        std::move(factories),
-        std::move(memoryManager));
+    switch (multiReaderManagerType) {
+        case EMultiReaderManagerType::Parallel:
+            return New<TMultiChunkReaderMock>(
+                CreateParallelMultiReaderManager(
+                    std::move(config),
+                    std::move(options),
+                    std::move(factories),
+                    std::move(memoryManager)));
+        case EMultiReaderManagerType::Sequential:
+            return New<TMultiChunkReaderMock>(
+                CreateSequentialMultiReaderManager(
+                    std::move(config),
+                    std::move(options),
+                    std::move(factories),
+                    std::move(memoryManager)));
+    };
 }
 
 std::vector<IReaderBasePtr> CreateMockReaders(int readerCount, int filledRowCount, int emptyRowCount = 0)
@@ -68,18 +89,23 @@ IReaderBasePtr CreateReaderWithError(int filledRowCount)
 
 } // namespace
 
-class TMultiReaderTest
+class TMultiReaderManagerTest
     : public ::testing::Test
-    , public ::testing::WithParamInterface<std::tuple<int, const char*>>
+    , public ::testing::WithParamInterface<EMultiReaderManagerType>
 {
 protected:
     virtual void SetUp() override
     { }
 };
 
-TEST(TMultiReaderTest, DataWithEmptyRows)
+TEST_P(TMultiReaderManagerTest, DataWithEmptyRows)
 {
-    auto multiReader = CreateMultiReader(CreateMockReaders(/*readerCount =*/ 10, /*filledRowCount =*/ 10, /*emptyRowCount =*/ 10));
+    auto multiReader = CreateMultiReader(
+        CreateMockReaders(
+            /*readerCount =*/ 10,
+            /*filledRowCount =*/ 10,
+            /*emptyRowCount =*/ 10),
+        GetParam());
 
     multiReader->Open();
 
@@ -104,12 +130,12 @@ TEST(TMultiReaderTest, DataWithEmptyRows)
     EXPECT_EQ(0, values.size());
 }
 
-TEST(TMultiReaderTest, ReaderWithError)
+TEST_P(TMultiReaderManagerTest, ReaderWithError)
 {
     auto readers = CreateMockReaders(/*readerCount =*/ 2, /*filledRowCount =*/ 5);
     readers.emplace_back(CreateReaderWithError(/*filledRowCount =*/ 5));
 
-    auto multiReader = CreateMultiReader(std::move(readers));
+    auto multiReader = CreateMultiReader(std::move(readers), GetParam());
 
     multiReader->Open();
 
@@ -137,11 +163,11 @@ TEST(TMultiReaderTest, ReaderWithError)
     EXPECT_FALSE(WaitFor(multiReader->GetReadyEvent()).IsOK());
 }
 
-TEST(TMultiReaderTest, Interrupt)
+TEST_P(TMultiReaderManagerTest, Interrupt)
 {
     auto readers = CreateMockReaders(/*readerCount =*/ 5, /*filledRowCount =*/ 10);
 
-    auto multiReader = CreateMultiReader(std::move(readers));
+    auto multiReader = CreateMultiReader(std::move(readers), GetParam());
 
     multiReader->Open();
 
@@ -174,6 +200,12 @@ TEST(TMultiReaderTest, Interrupt)
     }
     EXPECT_EQ(5, remainingRowCount);
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    TMultiReaderManagerTest,
+    TMultiReaderManagerTest,
+    ::testing::Values(EMultiReaderManagerType::Parallel, EMultiReaderManagerType::Sequential)
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

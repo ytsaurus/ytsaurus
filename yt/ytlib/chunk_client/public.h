@@ -19,6 +19,8 @@ namespace NYT::NChunkClient {
 
 namespace NProto {
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TReqFetch;
 
 class TReqExportChunks;
@@ -34,6 +36,8 @@ class TDataSource;
 class TDataSourceDirectoryExt;
 
 class TReqGetChunkMeta;
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NProto
 
@@ -120,6 +124,8 @@ DECLARE_REFCOUNTED_STRUCT(IChunkReaderAllowingRepair)
 
 DECLARE_REFCOUNTED_STRUCT(IReaderBase)
 DECLARE_REFCOUNTED_STRUCT(IReaderFactory)
+
+DECLARE_REFCOUNTED_STRUCT(IMultiReaderManager)
 
 DECLARE_REFCOUNTED_CLASS(TTrafficMeter)
 
