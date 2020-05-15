@@ -89,7 +89,7 @@ using NYT::ToProto;
 
 void SetTimeoutOptions(
     TTimeoutOptions* options,
-    IServiceContext* context)
+    const IServiceContext* context)
 {
     options->Timeout = context->GetTimeout();
 }
@@ -216,6 +216,21 @@ void FromProto(
     } else {
         attributes->emplace();
         NYT::CheckedHashSetFromProto(&(**attributes), protoAttributes.columns());
+    }
+}
+
+template <class TRequest>
+void SetMutatingOptions(
+    TMutatingOptions* options,
+    const TRequest* request,
+    const IServiceContext* context)
+{
+    if (request->has_mutating_options()) {
+        FromProto(options, request->mutating_options());
+    }
+    const auto& header = context->RequestHeader();
+    if (header.retry()) {
+        options->Retry = true;
     }
 }
 
@@ -994,6 +1009,7 @@ private:
 
         TCreateNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_attributes()) {
             options.Attributes = NYTree::FromProto(request->attributes());
         }
@@ -1017,9 +1033,6 @@ private:
         }
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
-        }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
         }
 
         context->SetRequestInfo("Path: %v, Type: %v",
@@ -1047,6 +1060,7 @@ private:
 
         TRemoveNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
@@ -1058,9 +1072,6 @@ private:
         }
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
-        }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
         }
 
         context->SetRequestInfo("Path: %v",
@@ -1081,6 +1092,7 @@ private:
 
         TSetNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
@@ -1089,9 +1101,6 @@ private:
         }
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
-        }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
         }
         if (request->has_suppressable_access_tracking_options()) {
             FromProto(&options, request->suppressable_access_tracking_options());
@@ -1115,6 +1124,7 @@ private:
 
         TLockNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_waitable()) {
             options.Waitable = request->waitable();
         }
@@ -1129,9 +1139,6 @@ private:
         }
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
-        }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
         }
 
         context->SetRequestInfo("Path: %v, Mode: %v",
@@ -1161,14 +1168,12 @@ private:
 
         TUnlockNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
-        }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
         }
 
         context->SetRequestInfo("Path: %v", path);
@@ -1188,6 +1193,7 @@ private:
 
         TCopyNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
@@ -1227,9 +1233,6 @@ private:
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
         }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
 
         context->SetRequestInfo("SrcPath: %v, DstPath: %v",
             srcPath,
@@ -1257,6 +1260,7 @@ private:
 
         TMoveNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
@@ -1287,9 +1291,6 @@ private:
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
         }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
 
         context->SetRequestInfo("SrcPath: %v, DstPath: %v",
             srcPath,
@@ -1317,6 +1318,7 @@ private:
 
         TLinkNodeOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_recursive()) {
             options.Recursive = request->recursive();
         }
@@ -1334,9 +1336,6 @@ private:
         }
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
-        }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
         }
 
         context->SetRequestInfo("SrcPath: %v, DstPath: %v",
@@ -1368,11 +1367,9 @@ private:
 
         TConcatenateNodesOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
-        }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
         }
 
         options.ChunkMetaFetcherConfig = New<NChunkClient::TFetcherConfig>();
@@ -1447,6 +1444,7 @@ private:
 
         TMountTableOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_cell_id()) {
             FromProto(&options.CellId, request->cell_id());
         }
@@ -1455,9 +1453,6 @@ private:
             options.Freeze = request->freeze();
         }
 
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
         if (request->has_tablet_range_options()) {
             FromProto(&options, request->tablet_range_options());
         }
@@ -1479,11 +1474,9 @@ private:
 
         TUnmountTableOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_force()) {
             options.Force = request->force();
-        }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
         }
         if (request->has_tablet_range_options()) {
             FromProto(&options, request->tablet_range_options());
@@ -1506,9 +1499,7 @@ private:
 
         TRemountTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_tablet_range_options()) {
             FromProto(&options, request->tablet_range_options());
         }
@@ -1530,9 +1521,7 @@ private:
 
         TFreezeTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_tablet_range_options()) {
             FromProto(&options, request->tablet_range_options());
         }
@@ -1554,9 +1543,7 @@ private:
 
         TUnfreezeTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_tablet_range_options()) {
             FromProto(&options, request->tablet_range_options());
         }
@@ -1578,9 +1565,7 @@ private:
 
         TReshardTableOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_tablet_range_options()) {
             FromProto(&options, request->tablet_range_options());
         }
@@ -1625,9 +1610,7 @@ private:
 
         TReshardTableAutomaticOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_tablet_range_options()) {
             FromProto(&options, request->tablet_range_options());
         }
@@ -1679,6 +1662,7 @@ private:
 
         TAlterTableOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_schema()) {
             options.Schema = ConvertTo<TTableSchema>(TYsonString(request->schema()));
         }
@@ -1687,9 +1671,6 @@ private:
         }
         if (request->has_upstream_replica_id()) {
             options.UpstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
-        }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
         }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
@@ -1748,9 +1729,7 @@ private:
 
         TBalanceTabletCellsOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
+        SetMutatingOptions(&options, request, context.Get());
         options.KeepActions = request->keep_actions();
 
         TFuture<std::vector<TTabletActionId>> result;
@@ -1774,12 +1753,10 @@ private:
 
         TStartOperationOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
-        }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
         }
 
         context->SetRequestInfo("OperationType: %v, Spec: %v",
@@ -2835,9 +2812,7 @@ private:
 
         TAddMemberOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
         }
@@ -2863,9 +2838,7 @@ private:
 
         TRemoveMemberOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
         }
@@ -3138,9 +3111,7 @@ private:
 
         TTruncateJournalOptions options;
         SetTimeoutOptions(&options, context.Get());
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
+        SetMutatingOptions(&options, request, context.Get());
         if (request->has_prerequisite_options()) {
             FromProto(&options, request->prerequisite_options());
         }
@@ -3340,6 +3311,7 @@ private:
 
         TPutFileToCacheOptions options;
         SetTimeoutOptions(&options, context.Get());
+        SetMutatingOptions(&options, request, context.Get());
 
         options.CachePath = request->cache_path();
         if (request->has_transactional_options()) {
@@ -3350,9 +3322,6 @@ private:
         }
         if (request->has_master_read_options()) {
             FromProto(&options, request->master_read_options());
-        }
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
         }
 
         context->SetRequestInfo("Path: %v, MD5: %v, CachePath: %v",

@@ -246,6 +246,8 @@ private:
     TLazyIntrusivePtr<NTransactionClient::ITimestampProvider> TimestampProvider_;
     NTransactionClient::ITimestampProviderPtr CreateTimestampProvider() const;
 
+    NRpc::IChannelPtr MaybeCreateRetryingChannel(NRpc::IChannelPtr channel, bool retryProxyBanned);
+
     virtual TConnectionPtr GetRpcProxyConnection() override;
     virtual TClientPtr GetRpcProxyClient() override;
     virtual NRpc::IChannelPtr GetChannel() override;

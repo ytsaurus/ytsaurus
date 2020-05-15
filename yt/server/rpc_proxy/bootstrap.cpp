@@ -115,7 +115,7 @@ void TBootstrap::DoRun()
         Config_->ClusterConnection->PrimaryMaster->Addresses);
 
     NNative::TConnectionOptions connectionOptions;
-    connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
+    connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
     NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
 
     TClientOptions clientOptions;

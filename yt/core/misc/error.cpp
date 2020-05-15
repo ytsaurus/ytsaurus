@@ -466,7 +466,6 @@ std::optional<TError> TError::FindMatching(TErrorCode code) const
 
     return std::nullopt;
 }
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {

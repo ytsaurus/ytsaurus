@@ -43,14 +43,21 @@ public:
         YT_ASSERT(request);
         YT_ASSERT(responseHandler);
 
-        return New<TRetryingRequest>(
-            Config_,
-            UnderlyingChannel_,
-            std::move(request),
-            std::move(responseHandler),
-            options,
-            RetryChecker_)
-        ->Send();
+        if (request->IsStreamingEnabled()) {
+            return UnderlyingChannel_->Send(
+                request,
+                responseHandler,
+                options);
+        } else {
+            return New<TRetryingRequest>(
+                Config_,
+                UnderlyingChannel_,
+                std::move(request),
+                std::move(responseHandler),
+                options,
+                RetryChecker_)
+            ->Send();
+        }
     }
 
 

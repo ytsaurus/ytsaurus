@@ -199,6 +199,10 @@ NJobTrackerClient::EJobState ConvertJobStateFromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsRetriableError(const TError& error, bool retryProxyBanned = true);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ValidateRowsetDescriptor(
     const NProto::TRowsetDescriptor& descriptor,
     int expectedVersion,
@@ -243,6 +247,8 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
     const NTableClient::TNameTablePtr& nameTable,
     NProto::TRowsetDescriptor* descriptor,
     NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr);
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Invokes std::stable_sort reordering addesses by the index of the first regex they match;
 //! addresses not matching any regex are placed at the very end.

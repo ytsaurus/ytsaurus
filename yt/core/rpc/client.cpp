@@ -129,6 +129,11 @@ const NProto::TRequestHeader& TClientRequest::Header() const
     return Header_;
 }
 
+bool TClientRequest::IsStreamingEnabled() const
+{
+    return StreamingEnabled_;
+}
+
 const TStreamingParameters& TClientRequest::ClientAttachmentsStreamingParameters() const
 {
     return ClientAttachmentsStreamingParameters_;

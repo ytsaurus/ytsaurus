@@ -15,7 +15,7 @@ class TestRpcProxy(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
-    @authors("kiselyovp")
+    @authors("shakurov")
     def test_non_sticky_transactions_dont_stick(self):
         tx = start_transaction(timeout=1000)
         wait(lambda: not exists("//sys/transactions/" + tx))
@@ -71,7 +71,7 @@ class TestRpcProxyBase(YTEnvSetup):
             insert_rows(path, data)
             sync_unmount_table(path)
         else:
-            insert_rows(path, data)
+            write_table(path, data)
 
     def _start_simple_operation(self, cmd, **kwargs):
         self._create_simple_table("//tmp/t_in",
@@ -97,9 +97,108 @@ class TestRpcProxyBase(YTEnvSetup):
         alter_table("//tmp/t_out", dynamic=True, schema=self._schema_sorted)
         sync_mount_table("//tmp/t_out")
 
-    def _remove_simple_tables(self):
-        remove("//tmp/t_in", recursive=True)
-        remove("//tmp/t_out", recursive=True)
+##################################################################
+
+class TestRpcProxyClientRetries(TestRpcProxyBase):
+    NUM_NODES = 2
+    DELTA_DRIVER_CONFIG = {
+        "enable_retries" : True,
+        "retry_backoff_time" : 100,
+        "retry_attempts" : 15,
+        "retry_timeout" : 2000,
+        "default_total_streaming_timeout" : 1000,
+        "proxy_list_update_period" : 1000,
+        "proxy_list_retry_period" : 100}
+    DELTA_RPC_PROXY_CONFIG = {
+        "retry_request_queue_size_limit_exceeded" : False,
+        "discovery_service": {
+            "proxy_update_period": 100
+        }}
+    DELTA_MASTER_CONFIG = {
+        "object_service": {
+            "sticky_user_error_expire_time": 0
+        }
+    }
+
+    @classmethod
+    def setup_class(cls):
+        super(TestRpcProxyBase, cls).setup_class()
+        native_config = deepcopy(cls.Env.configs["driver"])
+        native_config["connection_type"] = "native"
+        native_config["api_version"] = 3
+        cls.native_driver = Driver(native_config)
+
+    @authors("kiselyovp")
+    def test_proxy_banned(self):
+        rpc_proxy_addresses = ls("//sys/rpc_proxies")
+        try:
+            for i in xrange(5):
+                set("//sys/rpc_proxies/{0}/@banned".format(rpc_proxy_addresses[i % self.NUM_RPC_PROXIES]), True)
+                time.sleep(0.1)
+                get("//@")
+                set("//sys/rpc_proxies/{0}/@banned".format(rpc_proxy_addresses[i % self.NUM_RPC_PROXIES]), False)
+        finally:
+            for address in rpc_proxy_addresses:
+                set("//sys/rpc_proxies/{0}/@banned".format(address), False, driver=self.native_driver)
+
+    @authors("kiselyovp")
+    def test_proxy_banned_sticky(self):
+        rpc_proxy_addresses = ls("//sys/rpc_proxies")
+        try:
+            tx = start_transaction(sticky=True)
+            fails = 0
+            for i, address in enumerate(rpc_proxy_addresses):
+                set("//sys/rpc_proxies/{0}/@banned".format(address), True)
+                time.sleep(0.2)
+                start = time.time()
+                try:
+                    ping_transaction(tx)
+                except YtError:
+                    fails += 1
+                end = time.time()
+                assert end - start < 1.4
+                set("//sys/rpc_proxies/{0}/@banned".format(address), False)
+            assert fails == 1
+        finally:
+            for address in rpc_proxy_addresses:
+                set("//sys/rpc_proxies/{0}/@banned".format(address), False, driver=self.native_driver)
+
+    @authors("kiselyovp")
+    def test_request_queue_size_limit_exceeded(self):
+        create_user("u")
+        set("//sys/users/u/@request_queue_size_limit", 0)
+        start = time.time()
+        with pytest.raises(YtError): get("//@", authenticated_user="u")
+        end = time.time()
+        assert end - start >= 1.4
+
+        rsp = get("//@", authenticated_user="u", return_response=True)
+        time.sleep(0.1)
+        assert not rsp.is_set()
+        set("//sys/users/u/@request_queue_size_limit", 1)
+        rsp.wait()
+        if not rsp.is_ok():
+            raise YtResponseError(rsp.error())
+
+    @authors("kiselyovp")
+    def test_streaming_without_retries(self):
+        create("file", "//tmp/file")
+        write_file("//tmp/file", "abacaba")
+        assert read_file("//tmp/file") == "abacaba"
+
+        create("table", "//tmp/table")
+        write_table("//tmp/table", {"a" : "b"})
+        assert read_table("//tmp/table") == [{"a" : "b"}]
+
+        nodes = ls("//sys/cluster_nodes")
+        set_node_banned(nodes[0], True)
+        try:
+            start = time.time()
+            with pytest.raises(YtError): write_file("//tmp/file", "dabacaba")
+            end = time.time()
+            assert end - start < 1.4
+        finally:
+            set_node_banned(nodes[0], False)
 
 ##################################################################
 

@@ -140,6 +140,8 @@ public:
     NYTree::IMapNodePtr CypressAnnotations;
 
     bool AbortOnUnrecognizedOptions;
+    //! For testing purposes.
+    bool RetryRequestQueueSizeLimitExceeded;
 
     TRpcProxyConfig()
     {
@@ -165,6 +167,9 @@ public:
 
         RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
             .Default(false);
+
+        RegisterParameter("retry_request_queue_size_limit_exceeded", RetryRequestQueueSizeLimitExceeded)
+            .Default(true);
 
         RegisterPostprocessor([&] {
             ClusterConnection->ThreadPoolSize = std::nullopt;

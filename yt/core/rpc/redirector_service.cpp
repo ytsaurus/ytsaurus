@@ -60,6 +60,11 @@ public:
         return *Header_;
     }
 
+    virtual bool IsStreamingEnabled() const override
+    {
+        return false;
+    }
+
     virtual const NRpc::TStreamingParameters& ClientAttachmentsStreamingParameters() const override
     {
         YT_ABORT();
