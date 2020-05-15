@@ -142,8 +142,8 @@ struct TFutureTraits
 template <class T>
 struct TFutureTraits<TFuture<T>>
 {
-    typedef T TUnderlying;
-    typedef TFuture<T> TWrapped;
+    using TUnderlying = T;
+    using TWrapped = TFuture<T>;
 };
 
 
