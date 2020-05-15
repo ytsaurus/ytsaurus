@@ -17,6 +17,7 @@ namespace NYT::NApi::NRpcProxy {
 
 class TConnectionConfig
     : public NApi::TConnectionConfig
+    , public NRpc::TRetryingChannelConfig
 {
 public:
     std::optional<TString> ClusterUrl;
@@ -48,6 +49,7 @@ public:
     NCompression::ECodec ResponseCodec;
     bool EnableLegacyRpcCodecs;
     bool EnableProxyDiscovery;
+    bool EnableRetries;
     i64 ModifyRowsBatchCapacity;
 
     TConnectionConfig();

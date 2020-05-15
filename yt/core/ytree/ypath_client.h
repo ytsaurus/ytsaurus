@@ -58,6 +58,8 @@ public:
     virtual const NRpc::NProto::TRequestHeader& Header() const override;
     virtual NRpc::NProto::TRequestHeader& Header() override;
 
+    virtual bool IsStreamingEnabled() const override;
+
     virtual const NRpc::TStreamingParameters& ClientAttachmentsStreamingParameters() const override;
     virtual NRpc::TStreamingParameters& ClientAttachmentsStreamingParameters() override;
 

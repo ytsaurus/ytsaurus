@@ -35,6 +35,8 @@ struct IClientRequest
     virtual const NProto::TRequestHeader& Header() const = 0;
     virtual NProto::TRequestHeader& Header() = 0;
 
+    virtual bool IsStreamingEnabled() const = 0;
+
     virtual const TStreamingParameters& ClientAttachmentsStreamingParameters() const = 0;
     virtual TStreamingParameters& ClientAttachmentsStreamingParameters() = 0;
 
@@ -125,6 +127,8 @@ public:
 
     virtual NProto::TRequestHeader& Header() override;
     virtual const NProto::TRequestHeader& Header() const override;
+
+    virtual bool IsStreamingEnabled() const override;
 
     virtual const TStreamingParameters& ClientAttachmentsStreamingParameters() const override;
     virtual TStreamingParameters& ClientAttachmentsStreamingParameters() override;

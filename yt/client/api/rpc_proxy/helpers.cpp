@@ -1264,6 +1264,22 @@ NJobTrackerClient::EJobState ConvertJobStateFromProto(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsRetriableError(const TError& error, bool retryProxyBanned)
+{
+    if (error.FindMatching(NRpcProxy::EErrorCode::ProxyBanned)) {
+        return retryProxyBanned;
+    }
+
+    //! Retriable error codes are based on the ones used in http client.
+    return
+        error.FindMatching(NRpc::EErrorCode::RequestQueueSizeLimitExceeded) ||
+        error.FindMatching(NRpc::EErrorCode::TransportError) ||
+        error.FindMatching(NRpc::EErrorCode::Unavailable) ||
+        error.FindMatching(NSecurityClient::EErrorCode::RequestQueueSizeLimitExceeded);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void SetTimeoutOptions(
     NRpc::TClientRequest& request,
     const TTimeoutOptions& options)
@@ -1514,6 +1530,8 @@ TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
 
     return MakeSharedRange(rowset->GetRows(), rowset);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void SortByRegexes(std::vector<TString>& values, const std::vector<NRe2::TRe2Ptr>& regexes)
 {

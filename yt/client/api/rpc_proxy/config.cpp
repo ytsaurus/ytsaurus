@@ -68,6 +68,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("enable_proxy_discovery", EnableProxyDiscovery)
         .Default(true);
 
+    RegisterParameter("enable_retries", EnableRetries)
+        .Default(false);
+
     RegisterParameter("modify_rows_batch_capacity", ModifyRowsBatchCapacity)
         .GreaterThanOrEqual(0)
         .Default(0);

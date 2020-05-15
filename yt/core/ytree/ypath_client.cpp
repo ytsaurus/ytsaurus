@@ -145,6 +145,11 @@ NRpc::NProto::TRequestHeader& TYPathRequest::Header()
     return Header_;
 }
 
+bool TYPathRequest::IsStreamingEnabled() const
+{
+    return false;
+}
+
 const NRpc::TStreamingParameters& TYPathRequest::ClientAttachmentsStreamingParameters() const
 {
     YT_ABORT();

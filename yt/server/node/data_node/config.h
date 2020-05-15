@@ -85,7 +85,7 @@ public:
     //! Length of the window in which we consider events of blocks being accessed.
     TDuration WindowLength;
 
-    //! Configuration of the retying channel used for `PopulateCache` requests.
+    //! Configuration of the retrying channel used for `PopulateCache` requests.
     NRpc::TRetryingChannelConfigPtr NodeChannel;
 
     //! Node tag filter defining which nodes will be considered as candidates for distribution.

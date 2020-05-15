@@ -349,7 +349,7 @@ private:
         EPeerKind kind,
         const TConnectionOptions& options)
     {
-        auto isRetryableError = BIND([options] (const TError& error) {
+        auto isRetriableError = BIND([options] (const TError& error) {
             if (error.FindMatching(NChunkClient::EErrorCode::OptimisticLockFailure)) {
                 return true;
             }
@@ -364,7 +364,7 @@ private:
         });
 
         auto channel = NHydra::CreatePeerChannel(config, channelFactory, kind);
-        channel = CreateRetryingChannel(config, channel, isRetryableError);
+        channel = CreateRetryingChannel(config, channel, isRetriableError);
         channel = CreateDefaultTimeoutChannel(channel, config->RpcTimeout);
         return channel;
     }

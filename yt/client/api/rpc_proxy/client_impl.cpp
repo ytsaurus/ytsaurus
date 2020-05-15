@@ -12,6 +12,7 @@
 
 #include <yt/core/misc/small_set.h>
 
+#include <yt/core/rpc/retrying_channel.h>
 #include <yt/core/rpc/stream.h>
 
 #include <yt/core/ytree/convert.h>
@@ -81,7 +82,9 @@ TClient::TClient(
     const TClientOptions& clientOptions)
     : Connection_(std::move(connection))
     , ChannelPool_(channelPool)
-    , Channel_(CreateCredentialsInjectingChannel(CreateDynamicChannel(channelPool), clientOptions))
+    , Channel_(MaybeCreateRetryingChannel(
+        CreateCredentialsInjectingChannel(CreateDynamicChannel(channelPool), clientOptions),
+        true /* retryProxyBanned */))
     , ClientOptions_(clientOptions)
     , TableMountCache_(BIND(
         &CreateTableMountCache,
@@ -120,11 +123,28 @@ IChannelPtr TClient::GetChannel()
     return Channel_;
 }
 
+NRpc::IChannelPtr TClient::MaybeCreateRetryingChannel(NRpc::IChannelPtr channel, bool retryProxyBanned)
+{
+    const auto& config = Connection_->GetConfig();
+    if (config->EnableRetries) {
+        return NRpc::CreateRetryingChannel(
+            config,
+            std::move(channel),
+            BIND([=] (const TError& error) {
+                return IsRetriableError(error, retryProxyBanned);
+            }));
+    } else {
+        return channel;
+    }
+}
+
 IChannelPtr TClient::GetStickyChannel()
 {
-    return CreateCredentialsInjectingChannel(
-        CreateStickyChannel(ChannelPool_),
-        ClientOptions_);
+    return MaybeCreateRetryingChannel(
+        CreateCredentialsInjectingChannel(
+            CreateStickyChannel(ChannelPool_),
+            ClientOptions_),
+        false /* retryProxyBanned */);
 }
 
 ITimestampProviderPtr TClient::CreateTimestampProvider() const
