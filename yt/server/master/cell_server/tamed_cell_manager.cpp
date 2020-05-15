@@ -890,13 +890,9 @@ private:
 
             auto* entry = request.add_entries();
             ToProto(entry->mutable_cell_id(), cell->GetId());
-
-            if (multicellManager->IsPrimaryMaster()) {
-                cell->RecomputeClusterStatus();
-                ToProto(entry->mutable_status(), cell->GossipStatus().Cluster());
-            } else {
-                ToProto(entry->mutable_status(), cell->GossipStatus().Local());
-            }
+            ToProto(
+                entry->mutable_status(),
+                multicellManager->IsPrimaryMaster() ? cell->GossipStatus().Cluster() : cell->GossipStatus().Local());
         }
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
@@ -935,6 +931,7 @@ private:
             auto newStatus = FromProto<TCellStatus>(entry.status());
             if (multicellManager->IsPrimaryMaster()) {
                 *cell->GossipStatus().Remote(cellTag) = newStatus;
+                cell->RecomputeClusterStatus();
             } else {
                 cell->GossipStatus().Cluster() = newStatus;
             }
