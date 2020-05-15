@@ -329,3 +329,24 @@ func TestInferMap(t *testing.T) {
 
 	require.Equal(t, s, Schema{Columns: columnsExpected})
 }
+
+type testTimeTypes struct {
+	D0 Date
+	D1 Datetime
+	D2 Timestamp
+	D3 Interval
+}
+
+func TestInferTime(t *testing.T) {
+	s, err := Infer(&testTimeTypes{})
+	require.NoError(t, err)
+
+	require.Equal(t, s, Schema{
+		Columns: []Column{
+			{Name: "D0", Type: TypeDate, Required: true},
+			{Name: "D1", Type: TypeDatetime, Required: true},
+			{Name: "D2", Type: TypeTimestamp, Required: true},
+			{Name: "D3", Type: TypeInterval, Required: true},
+		},
+	})
+}

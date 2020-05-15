@@ -33,6 +33,17 @@ func ytTypeFor(typ reflect.Type) (ytTyp Type, err error) {
 		typ = typ.Elem()
 	}
 
+	switch {
+	case typ == reflect.TypeOf(Date(0)):
+		return TypeDate, nil
+	case typ == reflect.TypeOf(Datetime(0)):
+		return TypeDatetime, nil
+	case typ == reflect.TypeOf(Timestamp(0)):
+		return TypeTimestamp, nil
+	case typ == reflect.TypeOf(Interval(0)):
+		return TypeInterval, nil
+	}
+
 	switch typ.Kind() {
 	case reflect.Int, reflect.Int64:
 		return TypeInt64, nil
