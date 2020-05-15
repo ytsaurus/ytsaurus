@@ -184,8 +184,6 @@ public:
     NHydra::TEntityMap<TTabletCellBundle>& CompatTabletCellBundleMap();
     NHydra::TEntityMap<TTabletCell>& CompatTabletCellMap();
 
-    void RecomputeTabletCellStatistics(NCellServer::TCellBase* cellBase);
-
 private:
     template <class TImpl>
     friend class NTableServer::TTableNodeTypeHandlerBase;
