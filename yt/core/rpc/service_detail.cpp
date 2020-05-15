@@ -1265,7 +1265,7 @@ void TServiceBase::RunRequest(const TServiceContextPtr& context)
     const auto& runtimeInfo = context->GetRuntimeInfo();
     const auto& options = runtimeInfo->Descriptor.Options;
     if (options.Heavy) {
-        runtimeInfo->Descriptor.HeavyHandler
+        BIND(runtimeInfo->Descriptor.HeavyHandler)
             .AsyncVia(TDispatcher::Get()->GetHeavyInvoker())
             .Run(context, options)
             .Subscribe(BIND(&TServiceContext::CheckAndRun, context));

@@ -215,7 +215,7 @@ public:
     void Open()
     {
         auto transferClosure = UserJobReadController_->PrepareJobInputTransfer(AsyncStreamPipe_);
-        TransferResultFuture_ = transferClosure
+        TransferResultFuture_ = BIND(transferClosure)
             .AsyncVia(Invoker_)
             .Run();
 
