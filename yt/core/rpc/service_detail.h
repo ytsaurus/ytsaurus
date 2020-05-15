@@ -715,7 +715,7 @@ private:
     const TProtocolVersion ProtocolVersion_;
 
     const NProfiling::TTagId ServiceTagId_;
-    
+
     const NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
 
     struct TPendingPayloadsEntry
@@ -741,7 +741,7 @@ private:
     NProfiling::TSimpleGauge AuthenticationQueueSizeCounter_;
     NProfiling::TAggregateGauge AuthenticationTimeCounter_;
     int AuthenticationQueueSizeLimit_ = TServiceConfig::DefaultAuthenticationQueueSizeLimit;
-    
+
 private:
     struct TAcceptedRequest
     {
@@ -762,7 +762,7 @@ private:
         const NYT::NBus::IBusPtr& replyBus);
     void OnRequestAuthenticated(
         const NProfiling::TWallTimer& timer,
-        TAcceptedRequest&& acceptedRequest,
+        TAcceptedRequest acceptedRequest,
         const TErrorOr<TAuthenticationResult>& authResultOrError);
     void HandleAuthenticatedRequest(TAcceptedRequest acceptedRequest);
 
@@ -786,7 +786,7 @@ private:
     TMethodPerformanceCounters* GetMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
         const TString& user);
-    
+
     void OnProfiling();
 };
 

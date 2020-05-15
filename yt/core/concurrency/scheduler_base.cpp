@@ -516,7 +516,7 @@ public:
         : Fiber_(std::move(fiber))
     { }
 
-    explicit TResumeGuard(TResumeGuard&& other)
+    TResumeGuard(TResumeGuard&& other)
         : Fiber_(std::move(other.Fiber_))
     { }
 

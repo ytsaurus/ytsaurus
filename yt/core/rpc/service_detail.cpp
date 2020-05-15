@@ -1082,7 +1082,7 @@ void TServiceBase::ReplyError(
 
 void TServiceBase::OnRequestAuthenticated(
     const NProfiling::TWallTimer& timer,
-    TAcceptedRequest&& acceptedRequest,
+    TAcceptedRequest acceptedRequest,
     const TErrorOr<TAuthenticationResult>& authResultOrError)
 {
     Profiler.Update(AuthenticationTimeCounter_, timer.GetElapsedValue());
