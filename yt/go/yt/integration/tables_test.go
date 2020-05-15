@@ -276,3 +276,29 @@ func TestHighLevelTableWriter(t *testing.T) {
 		checkTable(t, tmpTableName, testSize, schema.Schema{Strict: ptr.Bool(false)})
 	})
 }
+
+type testTimeTypes struct {
+	D0 schema.Date
+	D1 schema.Datetime
+	D2 schema.Timestamp
+	D3 schema.Interval
+}
+
+func TestTimeTables(t *testing.T) {
+	t.Parallel()
+
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	rows := []testTimeTypes{
+		{D0: 1, D1: 2, D2: 3, D3: 4},
+	}
+
+	path := env.TmpPath()
+	require.NoError(t, env.UploadSlice(path, rows))
+
+	var outRows []testTimeTypes
+	require.NoError(t, env.DownloadSlice(path, &outRows))
+
+	require.Equal(t, rows, outRows)
+}

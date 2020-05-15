@@ -34,6 +34,11 @@ const (
 	TypeBytes   Type = "string"
 	TypeString  Type = "utf8"
 	TypeAny     Type = "any"
+
+	TypeDate      Type = "date"
+	TypeDatetime  Type = "datetime"
+	TypeTimestamp Type = "timestamp"
+	TypeInterval  Type = "interval"
 )
 
 type SortOrder string
