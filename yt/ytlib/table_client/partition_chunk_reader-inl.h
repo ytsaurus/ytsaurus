@@ -1,5 +1,4 @@
 #pragma once
-
 #ifndef PARTITION_CHUNK_READER_INL_H_
 #error "Direct inclusion of this file is not allowed, include partition_chunk_reader.h"
 // For the sake of sane code completion.
@@ -58,7 +57,7 @@ bool TPartitionMultiChunkReader::Read(
     TRowDescriptorInsertIterator& rowDescriptorInserter,
     i64* rowCount)
 {
-    if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
+    if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
         return true;
     }
 
@@ -71,7 +70,7 @@ bool TPartitionMultiChunkReader::Read(
 
     bool readerFinished = !CurrentReader_->Read(valueInserter, rowDescriptorInserter, rowCount);
     if (*rowCount == 0) {
-        return MultiReaderManager_->OnEmptyRead(readerFinished);
+        return TParallelMultiReaderBase::OnEmptyRead(readerFinished);
     } else {
         return true;
     }

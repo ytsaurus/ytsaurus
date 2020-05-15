@@ -2,7 +2,7 @@
 
 #include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
-#include <yt/ytlib/chunk_client/multi_reader_manager.h>
+#include <yt/ytlib/chunk_client/multi_reader_base.h>
 #include <yt/ytlib/chunk_client/config.h>
 
 namespace NYT::NChunkClient {
@@ -13,19 +13,16 @@ using namespace NTableClient;
 
 class TMultiChunkReaderMock
     : public ISchemalessMultiChunkReader
+    , public TSequentialMultiReaderBase
 {
 public:
-    TMultiChunkReaderMock(IMultiReaderManagerPtr multiReaderManager):
-        MultiReaderManager_(std::move(multiReaderManager))
-    {
-        MultiReaderManager_->SubscribeReaderSwitched(BIND(&TMultiChunkReaderMock::OnReaderSwitched, MakeWeak(this)));
-    }
+    using TSequentialMultiReaderBase::TSequentialMultiReaderBase;
 
     virtual bool Read(std::vector<TUnversionedRow>* rows) override
     {
         rows->clear();
 
-        if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return true;
         }
 
@@ -38,7 +35,7 @@ public:
             return true;
         }
 
-        if (!MultiReaderManager_->OnEmptyRead(readerFinished)) {
+        if (!TSequentialMultiReaderBase::OnEmptyRead(readerFinished)) {
             Finished_ = true;
         }
 
@@ -72,7 +69,7 @@ public:
 
     virtual void Interrupt() override
     {
-        MultiReaderManager_->Interrupt();
+        OnInterrupt();
     }
 
     virtual void SkipCurrentReader() override
@@ -90,47 +87,16 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void Open()
-    {
-        MultiReaderManager_->Open();
-    }
-
-    virtual TFuture<void> GetReadyEvent() override
-    {
-        return MultiReaderManager_->GetReadyEvent();
-    }
-
-    virtual NProto::TDataStatistics GetDataStatistics() const override
-    {
-        return MultiReaderManager_->GetDataStatistics();
-    }
-
-    virtual TCodecStatistics GetDecompressionStatistics() const override
-    {
-        return MultiReaderManager_->GetDecompressionStatistics();
-    }
-
-    virtual bool IsFetchingCompleted() const override
-    {
-        return MultiReaderManager_->IsFetchingCompleted();
-    }
-
-    virtual std::vector<TChunkId> GetFailedChunkIds() const override
-    {
-        return MultiReaderManager_->GetFailedChunkIds();
-    }
-
 private:
-    IMultiReaderManagerPtr MultiReaderManager_;
+    virtual void OnReaderSwitched() override
+    {
+        CurrentReader_ = dynamic_cast<ISchemalessChunkReader*>(CurrentSession_.Reader.Get());
+        YT_VERIFY(CurrentReader_);
+    }
+
     ISchemalessChunkReaderPtr CurrentReader_;
 
     std::atomic<bool> Finished_ = {false};
-
-    void OnReaderSwitched()
-    {
-        CurrentReader_ = dynamic_cast<ISchemalessChunkReader*>(MultiReaderManager_->GetCurrentSession().Reader.Get());
-        YT_VERIFY(CurrentReader_);
-    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderMock);

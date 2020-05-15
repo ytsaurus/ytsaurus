@@ -148,17 +148,9 @@ void TPartitionChunkReader::InitNameTable(TNameTablePtr chunkNameTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPartitionMultiChunkReader::TPartitionMultiChunkReader(IMultiReaderManagerPtr multiReaderManager)
-    : MultiReaderManager_(std::move(multiReaderManager))
-{
-    MultiReaderManager_->SubscribeReaderSwitched(BIND(
-        &TPartitionMultiChunkReader::OnReaderSwitched,
-        MakeWeak(this)));
-}
-
 void TPartitionMultiChunkReader::OnReaderSwitched()
 {
-    CurrentReader_ = dynamic_cast<TPartitionChunkReader*>(MultiReaderManager_->GetCurrentSession().Reader.Get());
+    CurrentReader_ = dynamic_cast<TPartitionChunkReader*>(CurrentSession_.Reader.Get());
     YT_VERIFY(CurrentReader_);
 }
 
@@ -243,17 +235,18 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
         }
     }
 
-    auto reader = New<TPartitionMultiChunkReader>(CreateParallelMultiReaderManager(
-        std::move(config),
-        std::move(options),
+    auto reader = New<TPartitionMultiChunkReader>(
+        config,
+        options,
         factories,
-        std::move(multiReaderMemoryManager)));
+        multiReaderMemoryManager);
 
     reader->Open();
     return reader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
 
 } // namespace NYT::NTableClient
 
