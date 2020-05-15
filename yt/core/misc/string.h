@@ -197,21 +197,45 @@ TString DecodeEnumValue(TStringBuf value);
 TString EncodeEnumValue(TStringBuf value);
 
 template <class T>
-T ParseEnum(TStringBuf value)
+std::optional<T> TryParseEnum(TStringBuf value)
 {
     static_assert(TEnumTraits<T>::IsEnum);
+
+    auto tryFromString = [] (TStringBuf value) -> std::optional<T> {
+        T result;
+        if (auto ok = TEnumTraits<T>::FindValueByLiteral(DecodeEnumValue(value), &result)) {
+            return result;
+        }
+        return {};
+    };
 
     if constexpr (TEnumTraits<T>::IsBitEnum) {
         T result = {};
         TStringBuf token;
-        while (value.TrySplit('|', token, value)) {
-            result |= TEnumTraits<T>::FromString(DecodeEnumValue(StripString(token)));
+        while (value.NextTok('|', token)) {
+            if (auto scalar = tryFromString(StripString(token))) {
+                result |= *scalar;
+            } else {
+                return {};
+            }
         }
-        result |= TEnumTraits<T>::FromString(DecodeEnumValue(StripString(value)));
         return result;
     } else {
-        return TEnumTraits<T>::FromString(DecodeEnumValue(value));
+        return tryFromString(value);
     }
+}
+
+[[noreturn]] void ThrowEnumParsingError(TStringBuf name, TStringBuf value);
+
+template <class T>
+T ParseEnum(TStringBuf value)
+{
+    if (auto optionalResult = TryParseEnum<T>(value)) {
+        return *optionalResult;
+    }
+    ThrowEnumParsingError(
+        TEnumTraits<T>::GetTypeName(),
+        value);
 }
 
 void FormatUnknownEnum(TStringBuilderBase* builder, TStringBuf name, i64 value);
