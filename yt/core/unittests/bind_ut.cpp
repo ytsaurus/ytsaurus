@@ -938,7 +938,7 @@ TEST_F(TBindTest, ArgumentProbing)
             BIND(&VoidPolymorphic1<TProbe>, probe);
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 0), NoAssignments()));
         boundValue.Run();
-        EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(2, 1), NoAssignments()));
+        EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(2, 0), NoAssignments()));
 
         // Bind T&
         state.Reset();
@@ -946,7 +946,7 @@ TEST_F(TBindTest, ArgumentProbing)
             BIND(&VoidPolymorphic1<TProbe>, probeRef);
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 0), NoAssignments()));
         boundRef.Run();
-        EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(2, 1), NoAssignments()));
+        EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(2, 0), NoAssignments()));
 
         // Bind const T&
         state.Reset();
@@ -954,7 +954,7 @@ TEST_F(TBindTest, ArgumentProbing)
             BIND(&VoidPolymorphic1<TProbe>, probeConstRef);
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 0), NoAssignments()));
         boundConstRef.Run();
-        EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(2, 1), NoAssignments()));
+        EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(2, 0), NoAssignments()));
 
         // Bind T&&
         state.Reset();
@@ -962,7 +962,7 @@ TEST_F(TBindTest, ArgumentProbing)
             BIND(&VoidPolymorphic1<TProbe>, static_cast<TProbe&&>(TProbe(&state)));
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(0, 1), NoAssignments()));
         boundRvRef.Run();
-        EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 2), NoAssignments()));
+        EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 1), NoAssignments()));
 
         // Pass all of above as a forwarded argument.
         // We expect almost perfect forwarding (copy + move)

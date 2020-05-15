@@ -13,8 +13,8 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class R, class... TArgs>
-TCallback<R(TArgs...)>
-TCallback<R(TArgs...)>::Via(IInvokerPtr invoker) const
+TExtendedCallback<R(TArgs...)>
+TExtendedCallback<R(TArgs...)>::Via(IInvokerPtr invoker) const
 {
     static_assert(
         NMpl::TIsVoid<R>::Value,

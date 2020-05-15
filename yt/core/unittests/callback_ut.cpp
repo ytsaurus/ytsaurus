@@ -19,7 +19,7 @@ struct TFakeInvoker
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
+namespace {
 
 template <
     bool CaptureTraceContext,
@@ -36,7 +36,7 @@ struct TBindState;
 // one-definition-rule.
 template <>
 struct TBindState<true, void(), void(), void(TFakeInvoker)>
-    : public TBindStateBase
+    : public NDetail::TBindStateBase
 {
 public:
     typedef TFakeInvoker TInvokerType;
@@ -51,7 +51,7 @@ public:
 
 template <>
 struct TBindState<true, void(), void(), void(TFakeInvoker, TFakeInvoker)>
-    : public TBindStateBase
+    : public NDetail::TBindStateBase
 {
     typedef TFakeInvoker TInvokerType;
     TBindState()
@@ -63,17 +63,25 @@ struct TBindState<true, void(), void(), void(TFakeInvoker, TFakeInvoker)>
     { }
 };
 
-} // namespace NDetail
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
+
+template <bool CaptureTraceContext, class TRunnable, class TSignature, class TBoundArgs>
+TCallback<TSignature> MakeCallback(
+    TIntrusivePtr<NYT::TBindState<CaptureTraceContext, TRunnable, TSignature, TBoundArgs>>&& bindState)
+{
+    auto invokeFunction = &NYT::TBindState<CaptureTraceContext, TRunnable, TSignature, TBoundArgs>::TInvokerType::Run;
+    return TCallback<TSignature>(std::move(bindState), invokeFunction);
+}
 
 namespace {
 
 // TODO(sandello): Implement accurate check on the number of Ref() and Unref()s.
 
-typedef NDetail::TBindState<true, void(), void(), void(TFakeInvoker)>
+typedef TBindState<true, void(), void(), void(TFakeInvoker)>
     TFakeBindState1;
-typedef NDetail::TBindState<true, void(), void(), void(TFakeInvoker, TFakeInvoker)>
+typedef TBindState<true, void(), void(), void(TFakeInvoker, TFakeInvoker)>
     TFakeBindState2;
 
 class TCallbackTest
@@ -81,8 +89,8 @@ class TCallbackTest
 {
 public:
     TCallbackTest()
-        : FirstCallback(New<TFakeBindState1>())
-        , SecondCallback(New<TFakeBindState2>())
+        : FirstCallback(MakeCallback(New<TFakeBindState1>()))
+        , SecondCallback(MakeCallback(New<TFakeBindState2>()))
     { }
 
     virtual ~TCallbackTest()
@@ -149,7 +157,7 @@ TEST_F(TCallbackTest, Equals)
     EXPECT_NE(SecondCallback, FirstCallback);
 
     // We should compare based on instance, not type.
-    TCallback<void()> localCallback(New<TFakeBindState1>());
+    TCallback<void()> localCallback(MakeCallback(New<TFakeBindState1>()));
     TCallback<void()> anotherCallback = FirstCallback;
 
     EXPECT_EQ(FirstCallback, anotherCallback);

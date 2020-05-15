@@ -1,17 +1,5 @@
 #pragma once
 
-/*
-//==============================================================================
-// The following code is merely an adaptation of Chromium's Binds and Callbacks.
-// Kudos to Chromium authors.
-//
-// Original Chromium revision:
-//   - git-treeish: 206a2ae8a1ebd2b040753fff7da61bbca117757f
-//   - git-svn-id:  svn://svn.chromium.org/chrome/trunk/src@115607
-//
-// See bind.h for an extended commentary.
-//==============================================================================
-*/
 // NOTE: Header files that do not require the full definition of #TCallback<> or
 // #TClosure should include "public.h" instead of this file.
 
@@ -103,9 +91,8 @@
 
 #include "public.h"
 #include "callback_internal.h"
-#include "bind_internal.h"
 
-#include <yt/core/misc/mpl.h>
+// TODO(lukyan): Remove this header and fix includes in other places
 #include <yt/core/misc/error.h>
 
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
@@ -116,58 +103,70 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-/*! \internal */
-////////////////////////////////////////////////////////////////////////////////
-//
-// First, we forward declare the #TCallback<> class template. This informs the
-// compiler that the template only has 1 type parameter which is the function
-// signature that the #TCallback<> is representing.
-//
-// After this, create template specializations for 0-7 parameters. Note that
-// even though the template type list grows, the specialization still has
-// only one type: the function signature.
-//
-// If you are thinking of forward declaring #TCallback<> in your own header
-// file, please include "public.h" instead.
-//
-
-namespace NDetail {
-
-template <
-    bool CaptureTraceContext,
-    class TRunnable,
-    class TSignature,
-    class TBoundArgs
->
-struct TBindState;
-
 template <class S1, class S2>
-class TCallbackRunnableAdapter;
+struct TCallableBindState;
 
-} // namespace NDetail
-
-template <class T>
-class TFuture;
-
-// NB: Needed here due to TCallback::Via and TCallback::AsyncVia.
-template <class T>
-struct TFutureTraits
+template <class S1, class R2, class... TArgs2>
+struct TCallableBindState<S1, R2(TArgs2...)>
+    : public NDetail::TBindStateBase
 {
-    typedef T TUnderlying;
-    typedef TFuture<T> TWrapped;
+    TCallback<S1> Callback;
+
+    explicit TCallableBindState(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+        const TSourceLocation& location,
+#endif
+        TCallback<S1> callback)
+        : NDetail::TBindStateBase(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+            location
+#endif
+        )
+        , Callback(std::move(callback))
+    { }
+
+    static R2 Run(NDetail::TBindStateBase* base, TArgs2&&... args)
+    {
+        auto* state = static_cast<TCallableBindState*>(base);
+        return state->Callback(std::forward<TArgs2>(args)...);
+    }
 };
 
-template <class T>
-struct TFutureTraits<TFuture<T>>
+template <class S1, class... TArgs2>
+struct TCallableBindState<S1, void(TArgs2...)>
+    : public NDetail::TBindStateBase
 {
-    typedef T TUnderlying;
-    typedef TFuture<T> TWrapped;
+    TCallback<S1> Callback;
+
+    explicit TCallableBindState(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+        const TSourceLocation& location,
+#endif
+        TCallback<S1> callback)
+        : NDetail::TBindStateBase(
+#ifdef YT_ENABLE_BIND_LOCATION_TRACKING
+            location
+#endif
+        )
+        , Callback(std::move(callback))
+    { }
+
+    static void Run(NDetail::TBindStateBase* base, TArgs2&&... args)
+    {
+        auto* state = static_cast<TCallableBindState*>(base);
+        state->Callback(std::forward<TArgs2>(args)...);
+    }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class R, class... TArgs>
 class TCallback<R(TArgs...)>
     : public NYT::NDetail::TCallbackBase
 {
+private:
+    typedef R(*TTypedInvokeFunction)(NYT::NDetail::TBindStateBase*, TArgs&&...);
+
 public:
     typedef R(TSignature)(TArgs...);
 
@@ -183,31 +182,24 @@ public:
         : TCallbackBase(std::move(other))
     { }
 
-    template <bool CaptureTraceContext, class TRunnable, class TSignature, class TBoundArgs>
-    explicit TCallback(TIntrusivePtr<
-            NYT::NDetail::TBindState<CaptureTraceContext, TRunnable, TSignature, TBoundArgs>
-       >&& bindState)
+    TCallback(TIntrusivePtr<NDetail::TBindStateBase>&& bindState, TTypedInvokeFunction invokeFunction)
         : TCallbackBase(std::move(bindState))
     {
-        // Force the assignment to a local variable of TTypedInvokeFunction
-        // so the compiler will typecheck that the passed in Run() method has
-        // the correct type.
-        auto invokeFunction = &NYT::NDetail::TBindState<CaptureTraceContext, TRunnable, TSignature, TBoundArgs>::TInvokerType::Run;
         UntypedInvoke = reinterpret_cast<TUntypedInvokeFunction>(invokeFunction);
     }
 
     template <class R2, class... TArgs2>
     operator TCallback<R2(TArgs2...)>() const
     {
-        typedef NYT::NDetail::TCallbackRunnableAdapter<R(TArgs...), R2(TArgs2...)> TRunnable;
-        typedef R2(TSignature2)(TArgs2...);
+        typedef TCallableBindState<R(TArgs...), R2(TArgs2...)> TBindState;
+
         return TCallback<R2(TArgs2...)>(
-            New<NYT::NDetail::TBindState<false, TRunnable, TSignature2, void()>>(
+            New<TBindState>(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING
                 BindState->Location,
 #endif
-                TRunnable(*this))
-            );
+                *this),
+            &TBindState::Run);
     }
 
     using TCallbackBase::operator ==;
@@ -228,36 +220,17 @@ public:
     R Run(TArgs... args) const
     {
         auto invokeFunction = reinterpret_cast<TTypedInvokeFunction>(UntypedInvoke);
-        return invokeFunction(
-            BindState.Get(),
-            std::forward<TArgs>(args)...);
+        return invokeFunction(BindState.Get(), std::forward<TArgs>(args)...);
     }
 
     R operator()(TArgs... args) const
     {
         return Run(std::forward<TArgs>(args)...);
     }
-
-    TCallback Via(TIntrusivePtr<IInvoker> invoker) const;
-
-    TCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
-    AsyncVia(TIntrusivePtr<IInvoker> invoker) const;
-
-    //! This version of AsyncVia is designed for cases when invoker may discard submitted callbacks
-    //! (for example, if it is cancellable invoker). Regular AsyncVia results in "Promise abandoned"
-    //! error, which is almost non-informative and quite frustrating, while this overload
-    //! allows you to specify the cancellation error, which costs a bit more allocations
-    //! but much more convenient.
-    TCallback<typename TFutureTraits<R>::TWrapped(TArgs...)>
-    AsyncViaGuarded(TIntrusivePtr<IInvoker> invoker, TError cancellationError) const;
-
-private:
-    typedef R(*TTypedInvokeFunction)(NYT::NDetail::TBindStateBase*, TArgs&& ...);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-/*! \endinternal */
+
 } // namespace NYT
 
 #include "bind.h"
