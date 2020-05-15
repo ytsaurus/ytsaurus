@@ -10,6 +10,7 @@
 #include "fair_share_strategy_operation_controller.h"
 
 #include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/resource_metering.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -79,6 +80,11 @@ public:
             Host->GetControlInvoker(EControlQueue::FairShareStrategy),
             BIND(&TFairShareStrategy::OnMinNeededJobResourcesUpdate, MakeWeak(this)),
             Config->MinNeededResourcesUpdatePeriod);
+
+        ResourceMeteringExecutor_ = New<TPeriodicExecutor>(
+            Host->GetControlInvoker(EControlQueue::FairShareStrategy),
+            BIND(&TFairShareStrategy::OnBuildResourceMetering, MakeWeak(this)),
+            Config->ResourceMeteringPeriod);
     }
 
     virtual void OnMasterConnected() override
@@ -89,6 +95,7 @@ public:
         FairShareLoggingExecutor_->Start();
         FairShareUpdateExecutor_->Start();
         MinNeededJobResourcesUpdateExecutor_->Start();
+        ResourceMeteringExecutor_->Start();
     }
 
     virtual void OnMasterDisconnected() override
@@ -99,6 +106,7 @@ public:
         FairShareLoggingExecutor_->Stop();
         FairShareUpdateExecutor_->Stop();
         MinNeededJobResourcesUpdateExecutor_->Stop();
+        ResourceMeteringExecutor_->Stop();
 
         OperationIdToOperationState_.clear();
         IdToTree_.clear();
@@ -448,6 +456,7 @@ public:
         FairShareUpdateExecutor_->SetPeriod(Config->FairShareUpdatePeriod);
         FairShareLoggingExecutor_->SetPeriod(Config->FairShareLogPeriod);
         MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config->MinNeededResourcesUpdatePeriod);
+        ResourceMeteringExecutor_->SetPeriod(Config->ResourceMeteringPeriod);
     }
 
     virtual void BuildOperationInfoForEventLog(const IOperationStrategyHost* operation, TFluentMap fluent)
@@ -953,6 +962,11 @@ public:
         return FairShareUpdateExecutor_->GetExecutedEvent();
     }
 
+    virtual void OnBuildResourceMetering() override
+    {
+        DoBuildResourceMeteringAt(TInstant::Now());
+    }
+
 private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
@@ -965,6 +979,7 @@ private:
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
     TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
+    TPeriodicExecutorPtr ResourceMeteringExecutor_;
 
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
@@ -977,6 +992,8 @@ private:
     // We should not expect that the set of trees or their structure in the snapshot are the same as
     // in the current |IdToTree_| map. Snapshots could be a little bit behind.
     TAtomicObject<THashMap<TString, IFairShareTreeSnapshotPtr>> TreeIdToSnapshot_;
+
+    TMeteringMap MeteringStatistics_;
 
     struct TPoolTreeDescription
     {
@@ -1429,6 +1446,37 @@ private:
                         .Item().Value(descriptor.Address);
                 })
             .EndList();
+    }
+
+    virtual void DoBuildResourceMeteringAt(TInstant now)
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        TMeteringMap newStatistics;
+        auto snapshots = TreeIdToSnapshot_.Load();
+        for (const auto& [_, snapshot] : snapshots) {
+            snapshot->BuildResourceMetering(&newStatistics);
+        }
+
+        for (const auto& [key, value] : newStatistics) {
+            auto it = MeteringStatistics_.find(key);
+            if (it != MeteringStatistics_.end()) {
+                // NB(mrkastep): Here we check if the metrics have actually increased before subtracting them.
+                // This might not be true if the pool has been removed and created again between metering iterations.
+                // Such a recreation can still be missed if the metrics have increased above the previous value
+                // after recreation, but such case is considered too rare and negligible to account for it.
+                const auto& oldMetrics = it->second.JobMetrics();
+                const auto& newMetrics = value.JobMetrics();
+                const auto& metricsDelta = Dominates(newMetrics, oldMetrics) ? newMetrics - oldMetrics : newMetrics;
+
+                TMeteringStatistics delta(value.MinShareResources(), value.AllocatedResources(), metricsDelta);
+                Host->LogResourceMetering(key, delta, now);
+            } else {
+                Host->LogResourceMetering(key, value, now);
+            }
+        }
+
+        MeteringStatistics_.swap(newStatistics);
     }
 };
 

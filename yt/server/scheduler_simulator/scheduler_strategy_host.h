@@ -87,6 +87,13 @@ public:
         const TError& alert,
         std::optional<TDuration> timeout) override;
 
+    virtual void LogResourceMetering(
+        const NScheduler::TMeteringKey& key,
+        const NScheduler::TMeteringStatistics& statistics,
+        TInstant now) override;
+
+    virtual int GetDefaultAbcId() const override;
+
     void CloseEventLogger();
 
 private:

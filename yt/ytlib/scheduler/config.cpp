@@ -1438,6 +1438,18 @@ TEphemeralSubpoolConfig::TEphemeralSubpoolConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAbcConfig::TAbcConfig()
+{
+    RegisterParameter("id", Id)
+        .GreaterThan(0);
+    RegisterParameter("name", Name)
+        .NonEmpty();
+    RegisterParameter("slug", Slug)
+        .NonEmpty();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPoolConfig::TPoolConfig()
 {
     RegisterParameter("mode", Mode)
@@ -1477,6 +1489,9 @@ TPoolConfig::TPoolConfig()
         .Default();
 
     RegisterParameter("enable_by_user_profiling", EnableByUserProfiling)
+        .Default();
+
+    RegisterParameter("abc", Abc)
         .Default();
 }
 

@@ -68,6 +68,7 @@ DEFINE_ENUM(EJobRevivalPhase,
 
 extern const NLogging::TLogger SchedulerLogger;
 extern const NLogging::TLogger SchedulerEventLogger;
+extern const NLogging::TLogger SchedulerResourceMeteringLogger;
 
 extern const NProfiling::TProfiler SchedulerProfiler;
 

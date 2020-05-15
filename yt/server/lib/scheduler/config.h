@@ -204,6 +204,9 @@ public:
     //! How often min needed resources for jobs are retrieved from controller.
     TDuration MinNeededResourcesUpdatePeriod;
 
+    //! How often to build and log resource usage and guarantee statistics.
+    TDuration ResourceMeteringPeriod;
+
     //! Limit on number of operations in cluster.
     int MaxOperationCount;
 
@@ -547,6 +550,9 @@ public:
 
     //! Use scheduling strategy based on fair share ratio instead of new one based on vector fair share.
     bool UseClassicScheduler;
+
+    //! Default ABC id for use in resource metering
+    int DefaultAbcId;
 
     TSchedulerConfig();
 };

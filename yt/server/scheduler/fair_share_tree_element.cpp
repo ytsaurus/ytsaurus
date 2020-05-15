@@ -896,6 +896,14 @@ void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext*
     std::ignore = errorHandler;
 }
 
+std::optional<TMeteringKey> TSchedulerElement::GetMeteringKey() const
+{
+    return std::nullopt;
+}
+
+void TSchedulerElement::BuildResourceMetering(const std::optional<TMeteringKey>& /*key*/, TMeteringMap* /*statistics*/) const
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCompositeSchedulerElement::TCompositeSchedulerElement(
@@ -1870,6 +1878,24 @@ int TCompositeSchedulerElement::GetAvailableRunningOperationCount() const
     return std::max(GetMaxRunningOperationCount() - RunningOperationCount_, 0);
 }
 
+void TCompositeSchedulerElement::BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap *statistics) const
+{
+    auto key = GetMeteringKey();
+    YT_VERIFY(key || parentKey);
+
+    if (key) {
+        YT_VERIFY(statistics->insert({*key, TMeteringStatistics(GetMinShareResources(), GetInstantResourceUsage(), GetJobMetrics())}).second);
+    }
+
+    for (const auto& child : EnabledChildren_) {
+        child->BuildResourceMetering(key ? key : parentKey, statistics);
+    }
+
+    if (key && parentKey) {
+        statistics->at(*parentKey) -= statistics->at(*key);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPoolFixedState::TPoolFixedState(TString id)
@@ -2173,6 +2199,19 @@ void TPool::BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TR
 {
     poolMap->emplace(GetId(), this);
     TCompositeSchedulerElement::BuildElementMapping(enabledOperationMap, disabledOperationMap, poolMap);
+}
+
+std::optional<TMeteringKey> TPool::GetMeteringKey() const
+{
+    if (Config_->Abc) {
+        return TMeteringKey{
+            .AbcId  = Config_->Abc->Id,
+            .TreeId = GetTreeId(),
+            .PoolId = GetId(),
+        };
+    }
+
+    return std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3913,6 +3952,15 @@ TRootElementPtr TRootElement::Clone()
 bool TRootElement::IsDefaultConfigured() const
 {
     return false;
+}
+
+std::optional<TMeteringKey> TRootElement::GetMeteringKey() const
+{
+    return TMeteringKey{
+        .AbcId = Host_->GetDefaultAbcId(),
+        .TreeId = GetTreeId(),
+        .PoolId = GetId(),
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

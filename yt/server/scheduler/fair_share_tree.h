@@ -5,6 +5,7 @@
 #include "fair_share_tree_snapshot.h"
 
 #include <yt/server/lib/scheduler/job_metrics.h>
+#include <yt/server/lib/scheduler/resource_metering.h>
 
 namespace NYT::NScheduler {
 
@@ -304,6 +305,8 @@ private:
         virtual TJobResources GetTotalResourceLimits() const override;
 
         virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const override;
+
+        virtual void BuildResourceMetering(TMeteringMap* statistics) const override;
 
     private:
         const TIntrusivePtr<TFairShareTree> Tree_;

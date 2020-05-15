@@ -173,6 +173,21 @@ DEFINE_REFCOUNTED_TYPE(TEphemeralSubpoolConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAbcConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int Id;
+    TString Name;
+    TString Slug;
+
+    TAbcConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TAbcConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPoolConfig
     : public TSchedulableConfig
 {
@@ -198,6 +213,8 @@ public:
     THashSet<TString> AllowedProfilingTags;
 
     std::optional<bool> EnableByUserProfiling;
+
+    TAbcConfigPtr Abc;
 
     TPoolConfig();
 

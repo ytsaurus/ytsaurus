@@ -269,6 +269,13 @@ auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::GetMaybeStateSnapsh
     return std::nullopt;
 }
 
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::BuildResourceMetering(TMeteringMap* statistics) const -> void
+{
+    auto rootElement = RootElementSnapshot_->RootElement;
+    rootElement->BuildResourceMetering(std::nullopt, statistics);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TFairShareImpl>

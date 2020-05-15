@@ -1,3 +1,5 @@
+#include "private.h"
+
 #include "scheduler_pool.h"
 
 #include "scheduler_pool_manager.h"
@@ -11,6 +13,10 @@ using namespace NObjectServer;
 using namespace NScheduler;
 using namespace NYTree;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const NLogging::TLogger& Logger = SchedulerPoolServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -114,6 +120,24 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
     Load(context, MaybePoolTree_);
 
     FullConfig_->Load(ConvertToNode(SpecifiedAttributes_));
+
+    // COMPAT(mrkastep)
+    // NB(mrkastep): Since we remove the attribute from Attributes_ field, this change is idempotent i.e. can be
+    // safely re-applied to snapshots after upgrading masters to a new major version.
+    if (context.GetVersion() < EMasterReign::InternalizeAbcSchedulerPoolAttribute) {
+        static const auto abcAttributeName = "abc";
+        if (auto abc = FindAttribute(abcAttributeName)) {
+            try {
+                FullConfig_->LoadParameter(abcAttributeName, NYTree::ConvertToNode(*abc), EMergeStrategy::Overwrite);
+                YT_VERIFY(SpecifiedAttributes_.emplace(TInternedAttributeKey::Lookup(abcAttributeName), *abc).second);
+                YT_VERIFY(Attributes_->Remove(abcAttributeName));
+            } catch (const std::exception& e) {
+                // Since we make this attribute well-known, the error needs to be logged and subsequently fixed.
+                YT_LOG_ERROR(e, "Unable to load %q attribute of pool %v", abcAttributeName, GetName());
+                return;
+            }
+        }
+    }
 }
 
 void TSchedulerPool::GuardedUpdatePoolAttribute(

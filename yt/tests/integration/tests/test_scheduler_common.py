@@ -1946,3 +1946,86 @@ class TestJobStatisticsPorto(YTEnvSetup):
             assert get_statistics(statistics, component + ".max_memory.$.completed.map.sum") > 0
 
         assert get_statistics(statistics, "user_job.cumulative_memory_mb_sec.$.completed.map.sum") > 0
+
+##################################################################
+
+class TestResourceMetering(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 5
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "default_abc_id": 42,
+            "resource_metering_period": 1000,
+        }
+    }
+
+    @authors("mrkastep")
+    def test_resource_metering_log(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"a": "b"}])
+
+        create_pool_tree("yggdrasil", wait_for_orchid=False)
+        set("//sys/pool_trees/default/@nodes_filter", "!other")
+        set("//sys/pool_trees/yggdrasil/@nodes_filter", "other")
+
+        nodes = ls("//sys/cluster_nodes")
+        for node in nodes[:3]:
+            set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
+
+        create_pool("pixies",
+                    pool_tree="yggdrasil",
+                    attributes={
+                        "min_share_resources": {"cpu": 3},
+                        "abc": {"id": 1, "slug": "pixies", "name": "pixies"}
+                    },
+                    wait_for_orchid=False)
+
+        create_pool("francis",
+                    pool_tree="yggdrasil",
+                    attributes={
+                        "min_share_resources": {"cpu": 1},
+                        "abc": {"id": 2, "slug": "francis", "name": "pixies"}
+                    },
+                    parent_name="pixies",
+                    wait_for_orchid=False)
+
+        root_key = (42, "yggdrasil", "<Root>")
+
+        desired_cpu_limits = {
+            (1, "yggdrasil", "pixies"): 2,
+            (2, "yggdrasil", "francis"): 1,
+        }
+
+        def check_structured():
+            def extract_metering_log(filename):
+                with open(filename) as f:
+                    items = [json.loads(line) for line in f]
+                    events = list(filter(lambda e: "event_type" not in e, items))
+                    return events
+
+            scheduler_log_file = os.path.join(self.path_to_run, "logs/scheduler-0.json.log")
+
+            structured_log = extract_metering_log(scheduler_log_file)
+
+            last_reports = {}
+
+            for entry in structured_log:
+                if "abc_id" not in entry:
+                    continue
+
+                key = (entry["abc_id"], entry["tree_id"], entry["pool"])
+                last_reports[key] = entry["min_share_resources"]["cpu"]
+
+            if root_key not in last_reports:
+                return False
+
+            for key, value in desired_cpu_limits.items():
+                if key not in last_reports or last_reports[key] != value:
+                    return False
+
+            return True
+
+        wait(check_structured)
+
+

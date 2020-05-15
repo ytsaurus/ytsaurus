@@ -12,8 +12,9 @@
 #include "packing.h"
 
 #include <yt/server/lib/scheduler/config.h>
-#include <yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/server/lib/scheduler/job_metrics.h>
+#include <yt/server/lib/scheduler/scheduling_tag.h>
+#include <yt/server/lib/scheduler/resource_metering.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
@@ -361,6 +362,9 @@ public:
 
     double GetBestAllocationRatio() const;
 
+    virtual std::optional<TMeteringKey> GetMeteringKey() const;
+    virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* statistics) const;
+
 private:
     TResourceTreeElementPtr ResourceTreeElement_;
 
@@ -516,6 +520,8 @@ public:
 
     virtual bool IsDefaultConfigured() const = 0;
 
+    virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* statistics) const override;
+
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
@@ -641,6 +647,8 @@ public:
     virtual THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;
 
     virtual void BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap) override;
+
+    virtual std::optional<TMeteringKey> GetMeteringKey() const override;
 private:
     TPoolConfigPtr Config_;
     TSchedulingTagFilter SchedulingTagFilter_;
@@ -1043,6 +1051,8 @@ public:
     virtual bool IsDefaultConfigured() const override;
 
     TRootElementPtr Clone();
+
+    virtual std::optional<TMeteringKey> GetMeteringKey() const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRootElement)

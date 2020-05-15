@@ -176,6 +176,14 @@ struct TSchedulerStrategyHostMock
         return NScheduler::FormatResourceUsage(usage, limits, diskResources, MediumDirectory_);
     }
 
+    virtual void LogResourceMetering(const TMeteringKey& /*key*/, const TMeteringStatistics& /*statistics*/, TInstant /*now*/) override
+    { }
+
+    virtual int GetDefaultAbcId() const override
+    {
+        return -1;
+    }
+
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() const
     {
         return MediumDirectory_;
@@ -1119,6 +1127,95 @@ TEST_F(TClassicFairShareTreeTest, TestFifo2)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TClassicFairShareTreeTest, TestResourceMetering)
+{
+    // Total resource vector is <100, 100>.
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(100);
+    nodeResources.SetCpu(100);
+    nodeResources.SetMemory(100);
+
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList({nodeResources}));
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto poolA = CreateTestPool(host.Get(), "A");
+    poolA->GetConfig()->MinShareResources->UserSlots = 20;
+    poolA->GetConfig()->MinShareResources->Cpu = 20;
+    poolA->GetConfig()->MinShareResources->Memory = 20;
+
+    poolA->GetConfig()->Abc = New<TAbcConfig>();
+    poolA->GetConfig()->Abc->Id = 1;
+
+    poolA->AttachParent(rootElement.Get());
+
+    auto poolB = CreateTestPool(host.Get(), "B");
+    poolB->GetConfig()->MinShareResources->UserSlots = 20;
+    poolB->GetConfig()->MinShareResources->Cpu = 20;
+    poolB->GetConfig()->MinShareResources->Memory = 20;
+
+    poolB->AttachParent(rootElement.Get());
+
+    TJobResourcesWithQuota jobResources;
+    jobResources.SetUserSlots(1);
+    jobResources.SetCpu(1);
+    jobResources.SetMemory(10);
+
+    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+
+    auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
+
+    operationElementX->AttachParent(poolA.Get(), true);
+    operationElementX->Enable();
+
+    auto operationY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
+    auto operationElementY = CreateTestOperationElement(host.Get(), operationOptions, operationY.Get());
+
+    operationElementY->AttachParent(poolB.Get(), true);
+    operationElementY->Enable();
+
+    TJobMetrics jobMetrics;
+    jobMetrics.Values()[EJobMetricName::TotalTime] = 10;
+    operationElementX->ApplyJobMetricsDelta(jobMetrics);
+    operationElementY->ApplyJobMetricsDelta(jobMetrics);
+
+    {
+        auto dynamicAttributes = TDynamicAttributesList(3);
+
+        TUpdateFairShareContext updateContext;
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+
+        rootElement->UpdateBottomUp(&dynamicAttributes, &updateContext);
+        rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
+
+        TMeteringMap meteringStatistics;
+        rootElement->BuildResourceMetering(std::nullopt, &meteringStatistics);
+
+        auto rootKey = TMeteringKey{ -1, "default", RootPoolName };
+        auto poolKeyA = TMeteringKey{ 1, "default", "A" };
+
+        EXPECT_TRUE(meteringStatistics.contains(rootKey));
+        EXPECT_TRUE(meteringStatistics.contains(poolKeyA));
+        EXPECT_EQ(meteringStatistics.size(), 2);
+
+        auto poolStatisticsA = meteringStatistics.at(poolKeyA);
+
+        EXPECT_EQ(poolStatisticsA.MinShareResources().GetUserSlots(), 20);
+        EXPECT_EQ(poolStatisticsA.MinShareResources().GetCpu(), 20);
+        EXPECT_EQ(poolStatisticsA.MinShareResources().GetMemory(), 20);
+
+        EXPECT_EQ(poolStatisticsA.JobMetrics().Values()[EJobMetricName::TotalTime], 10);
+
+        auto rootStatistics = meteringStatistics.at(rootKey);
+
+        EXPECT_EQ(rootStatistics.MinShareResources().GetUserSlots(), 80);
+        EXPECT_EQ(rootStatistics.MinShareResources().GetCpu(), 80);
+        EXPECT_EQ(rootStatistics.MinShareResources().GetMemory(), 80);
+
+        EXPECT_EQ(rootStatistics.JobMetrics().Values()[EJobMetricName::TotalTime], 10);
+    }
+}
 
 } // namespace
 } // namespace NYT::NScheduler::NClassicScheduler

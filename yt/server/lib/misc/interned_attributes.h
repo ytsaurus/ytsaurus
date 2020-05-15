@@ -5,6 +5,7 @@
 #include <yt/core/ytree/interned_attributes.h>
 
 #define FOR_EACH_INTERNED_ATTRIBUTE(XX) \
+    XX(Abc, abc) \
     XX(AccessCounter, access_counter) \
     XX(AccessTime, access_time) \
     XX(Account, account) \

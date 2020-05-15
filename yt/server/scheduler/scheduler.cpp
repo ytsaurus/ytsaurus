@@ -59,6 +59,8 @@
 #include <yt/core/rpc/message.h>
 #include <yt/core/rpc/response_keeper.h>
 
+#include <yt/core/logging/fluent_log.h>
+
 #include <yt/core/misc/lock_free.h>
 #include <yt/core/misc/finally.h>
 #include <yt/core/misc/numeric_helpers.h>
@@ -1257,6 +1259,23 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return &SchedulerEventLogger;
+    }
+
+    virtual void LogResourceMetering(const TMeteringKey& key, const TMeteringStatistics& statistics, TInstant now) override
+    {
+        // TODO(mrkastep): Add job metrics when the format is fixed
+        NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger, NLogging::ELogLevel::Info)
+            .Item("timestamp").Value(now)
+            .Item("abc_id").Value(key.AbcId)
+            .Item("tree_id").Value(key.TreeId)
+            .Item("pool").Value(key.PoolId)
+            .Item("min_share_resources").Value(statistics.MinShareResources())
+            .Item("allocated_resources").Value(statistics.AllocatedResources());
+    }
+
+    virtual int GetDefaultAbcId() const override
+    {
+        return Config_->DefaultAbcId;
     }
 
     // NB(eshcherbin): Separate method due to separate invoker.

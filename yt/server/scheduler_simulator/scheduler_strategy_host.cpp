@@ -224,6 +224,19 @@ TFuture<void> TSchedulerStrategyHost::SetOperationAlert(
     return VoidFuture;
 }
 
+void TSchedulerStrategyHost::LogResourceMetering(
+    const TMeteringKey& /*key*/,
+    const TMeteringStatistics& statistics,
+    TInstant now)
+{
+    // Skip!
+}
+
+int TSchedulerStrategyHost::GetDefaultAbcId() const
+{
+    return -1;
+}
+
 void TSchedulerStrategyHost::CloseEventLogger() {
     if (RemoteEventLogWriter_) {
         WaitFor(RemoteEventLogWriter_->Close())
