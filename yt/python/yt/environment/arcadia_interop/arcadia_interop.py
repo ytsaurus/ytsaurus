@@ -32,7 +32,7 @@ def is_inside_distbuild():
 
 def get_root_paths(source_prefix="", inside_arcadia=None):
     if is_inside_arcadia(inside_arcadia):
-        yt_root = source_prefix + "yt/19_4/"
+        yt_root = source_prefix + "yt/"
         python_root = source_prefix + "yt/python/"
         global_root = source_prefix
     else:
