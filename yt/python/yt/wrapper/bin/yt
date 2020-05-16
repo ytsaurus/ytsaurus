@@ -744,12 +744,12 @@ def add_select_rows_parser(add_parser):
         parser.add_argument("--execution-pool", type=str)
         parser.add_argument("--format", action=ParseFormat)
 
-@copy_docstring_from(yt.explain_query)
+@copy_docstring_from(yt.select_rows)
 def explain_query(**args):
     write_silently(chunk_iter_stream(yt.explain_query(raw=True, **args), yt.config["read_buffer_size"]))
 
 def add_explain_query_parser(add_parser):
-    parser = add_parser("explain-query", explain_query)
+    parser = add_parser("explain-query", yt.explain_query)
     add_hybrid_argument(parser, "query")
     parser.add_argument("--timestamp", type=int)
     parser.add_argument("--input-row-limit", type=int)

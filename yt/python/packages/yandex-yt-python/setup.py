@@ -47,7 +47,8 @@ def main():
         version=version,
         packages=["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff"] + recursive("yt/packages"),
         package_dir={"yt.packages.certifi": "yt/packages/certifi"},
-        package_data={"yt.packages.certifi": ["*.pem"]},
+        package_data={"yt.packages.certifi": ["*.pem"],
+                      "yt.wrapper": ["YandexInternalRootCA.crt"]},
         scripts=scripts,
 
         author="Ignat Kolesnichenko",
