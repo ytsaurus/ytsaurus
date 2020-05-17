@@ -7,9 +7,7 @@ except ImportError:
     yatest_common = None
 
 if yatest_common is None:
-    sys.path.insert(0, os.path.abspath('../../../python'))
-    sys.path.append(os.path.abspath('.'))
-
+    # You should have prepared python repo.
     pytest_plugins = "yt.test_runner.plugin"
 
 def pytest_configure(config):
