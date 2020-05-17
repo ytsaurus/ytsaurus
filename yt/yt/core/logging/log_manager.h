@@ -51,6 +51,7 @@ public:
     void Enqueue(TLogEvent&& event);
 
     void Reopen();
+    void EnableReopenOnSighup();
 
     void SuppressTrace(NTracing::TTraceId traceId);
 

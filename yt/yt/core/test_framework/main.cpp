@@ -29,6 +29,7 @@ int main(int argc, char **argv)
         NYT::NYTAlloc::ConfigureFromEnv();
         NYT::NYTAlloc::EnableStockpile();
         NYT::NLogging::TLogManager::Get()->ConfigureFromEnv();
+        NYT::NLogging::TLogManager::Get()->EnableReopenOnSighup();
 
         ::testing::InitGoogleTest(&argc, argv);
         ::testing::InitGoogleMock(&argc, argv);

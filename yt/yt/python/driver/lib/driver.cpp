@@ -322,6 +322,7 @@ Py::Object TDriverModuleBase::ConfigureLogging(const Py::Tuple& args_, const Py:
     ValidateArgumentsEmpty(args, kwargs);
     auto config = ConvertTo<NLogging::TLogManagerConfigPtr>(configNode);
 
+    NLogging::TLogManager::Get()->EnableReopenOnSighup();
     NLogging::TLogManager::Get()->Configure(config);
 
     return Py::None();

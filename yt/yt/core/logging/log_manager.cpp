@@ -21,6 +21,7 @@
 #include <yt/core/misc/variant.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/heap.h>
+#include <yt/core/misc/signal_registry.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/profiler.h>
@@ -230,17 +231,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-void ReloadSignalHandler(int signal)
-{
-    NLogging::TLogManager::Get()->Reopen();
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TElement>
 class TExpiringSet
 {
@@ -404,69 +394,9 @@ public:
         future.Get();
     }
 
-    void ConfigureSimple(
-        const char* logLevelStr,
-        const char* logExcludeCategoriesStr,
-        const char* logIncludeCategoriesStr)
-    {
-        if (!logLevelStr && !logExcludeCategoriesStr && !logIncludeCategoriesStr) {
-            return;
-        }
-
-        const char* const stderrWriterName = "stderr";
-
-        auto rule = New<TRuleConfig>();
-        rule->Writers.push_back(stderrWriterName);
-        rule->MinLevel = ELogLevel::Fatal;
-
-        if (logLevelStr) {
-            TString logLevel = logLevelStr;
-            if (!logLevel.empty()) {
-                // This handles most typical casings like "DEBUG", "debug", "Debug".
-                logLevel.to_title();
-                rule->MinLevel = TEnumTraits<ELogLevel>::FromString(logLevel);
-            }
-        }
-
-        std::vector<TString> logExcludeCategories;
-        if (logExcludeCategoriesStr) {
-            logExcludeCategories = SplitString(logExcludeCategoriesStr, ",");
-        }
-
-        for (const auto& excludeCategory : logExcludeCategories) {
-            rule->ExcludeCategories.insert(excludeCategory);
-        }
-
-        std::vector<TString> logIncludeCategories;
-        if (logIncludeCategoriesStr) {
-            logIncludeCategories = SplitString(logIncludeCategoriesStr, ",");
-        }
-
-        if (!logIncludeCategories.empty()) {
-            rule->IncludeCategories.emplace();
-            for (const auto& includeCategory : logIncludeCategories) {
-                rule->IncludeCategories->insert(includeCategory);
-            }
-        }
-
-        auto config = New<TLogManagerConfig>();
-        config->Rules.push_back(std::move(rule));
-
-        config->MinDiskSpace = 0;
-        config->HighBacklogWatermark = std::numeric_limits<int>::max();
-        config->LowBacklogWatermark = 0;
-
-        auto stderrWriter = New<TWriterConfig>();
-        stderrWriter->Type = EWriterType::Stderr;
-
-        config->WriterConfigs.insert(std::make_pair(stderrWriterName, std::move(stderrWriter)));
-
-        Configure(std::move(config));
-    }
-
     void ConfigureFromEnv()
     {
-        ConfigureSimple(
+        DoConfigureFromEnv(
             getenv("YT_LOG_LEVEL"),
             getenv("YT_LOG_EXCLUDE_CATEGORIES"),
             getenv("YT_LOG_INCLUDE_CATEGORIES"));
@@ -608,6 +538,15 @@ public:
         ReopenRequested_ = true;
     }
 
+    void EnableReopenOnSighup()
+    {
+#ifdef _unix_
+        TSignalRegistry::Get()->PushCallback(
+            SIGHUP,
+            [=] { Reopen(); });
+#endif
+    }
+
     void SuppressTrace(TTraceId traceId)
     {
         if (traceId == InvalidTraceId) {
@@ -646,25 +585,6 @@ private:
 
     private:
         TImpl* const Owner_;
-
-        virtual void OnThreadStart() override
-        {
-#ifdef _unix_
-            // Set mask.
-            sigset_t ss;
-            sigemptyset(&ss);
-            sigaddset(&ss, SIGHUP);
-            sigprocmask(SIG_UNBLOCK, &ss, nullptr);
-
-            // Set handler.
-            struct sigaction sa;
-            memset(&sa, 0, sizeof(sa));
-            sigemptyset(&sa.sa_mask);
-            sa.sa_handler = &ReloadSignalHandler;
-
-            YT_VERIFY(sigaction(SIGHUP, &sa, nullptr) == 0);
-#endif
-        }
 
         virtual TClosure BeginExecute() override
         {
@@ -1246,6 +1166,66 @@ private:
         return &it->second;
     }
 
+    void DoConfigureFromEnv(
+        const char* logLevelStr,
+        const char* logExcludeCategoriesStr,
+        const char* logIncludeCategoriesStr)
+    {
+        if (!logLevelStr) {
+            return;
+        }
+
+        const char* const stderrWriterName = "stderr";
+
+        auto rule = New<TRuleConfig>();
+        rule->Writers.push_back(stderrWriterName);
+        rule->MinLevel = ELogLevel::Fatal;
+
+        if (logLevelStr) {
+            TString logLevel = logLevelStr;
+            if (!logLevel.empty()) {
+                // This handles most typical casings like "DEBUG", "debug", "Debug".
+                logLevel.to_title();
+                rule->MinLevel = TEnumTraits<ELogLevel>::FromString(logLevel);
+            }
+        }
+
+        std::vector<TString> logExcludeCategories;
+        if (logExcludeCategoriesStr) {
+            logExcludeCategories = SplitString(logExcludeCategoriesStr, ",");
+        }
+
+        for (const auto& excludeCategory : logExcludeCategories) {
+            rule->ExcludeCategories.insert(excludeCategory);
+        }
+
+        std::vector<TString> logIncludeCategories;
+        if (logIncludeCategoriesStr) {
+            logIncludeCategories = SplitString(logIncludeCategoriesStr, ",");
+        }
+
+        if (!logIncludeCategories.empty()) {
+            rule->IncludeCategories.emplace();
+            for (const auto& includeCategory : logIncludeCategories) {
+                rule->IncludeCategories->insert(includeCategory);
+            }
+        }
+
+        auto config = New<TLogManagerConfig>();
+        config->Rules.push_back(std::move(rule));
+
+        config->MinDiskSpace = 0;
+        config->HighBacklogWatermark = std::numeric_limits<int>::max();
+        config->LowBacklogWatermark = 0;
+
+        auto stderrWriter = New<TWriterConfig>();
+        stderrWriter->Type = EWriterType::Stderr;
+
+        config->WriterConfigs.insert(std::make_pair(stderrWriterName, std::move(stderrWriter)));
+
+        Configure(std::move(config));
+    }
+
 private:
     const std::shared_ptr<TEventCount> EventCount_ = std::make_shared<TEventCount>();
     const TInvokerQueuePtr EventQueue_;
@@ -1259,8 +1239,8 @@ private:
     TForkAwareSpinLock SpinLock_;
     // Version forces this very module's Logger object to update to our own
     // default configuration (default level etc.).
-    std::atomic<int> Version_ = {0};
-    std::atomic<bool> AbortOnAlert_ = {0};
+    std::atomic<int> Version_ = 0;
+    std::atomic<bool> AbortOnAlert_ = 0;
     TLogManagerConfigPtr Config_;
     THashMap<const char*, std::unique_ptr<TLoggingCategory>> NameToCategory_;
     const TLoggingCategory* SystemCategory_;
@@ -1272,7 +1252,7 @@ private:
 
     bool Suspended_ = false;
     std::once_flag Started_;
-    std::atomic_flag ScheduledOutOfBand_ = {false};
+    std::atomic_flag ScheduledOutOfBand_ = false;
 
     THashSet<TThreadLocalQueue*> LocalQueues_;
     TMultipleProducerSingleConsumerLockFreeStack<TThreadLocalQueue*> RegisteredLocalQueues_;
@@ -1286,19 +1266,19 @@ private:
 
     THashMap<TString, TMonotonicCounter> CategoryToEvents_;
 
-    std::atomic<ui64> EnqueuedEvents_ = {0};
-    std::atomic<ui64> WrittenEvents_ = {0};
-    std::atomic<ui64> FlushedEvents_ = {0};
-    std::atomic<ui64> SuppressedEvents_ = {0};
-    std::atomic<ui64> DroppedEvents_ = {0};
+    std::atomic<ui64> EnqueuedEvents_ = 0;
+    std::atomic<ui64> WrittenEvents_ = 0;
+    std::atomic<ui64> FlushedEvents_ = 0;
+    std::atomic<ui64> SuppressedEvents_ = 0;
+    std::atomic<ui64> DroppedEvents_ = 0;
 
     THashMap<TString, ILogWriterPtr> Writers_;
     THashMap<TLogWritersCacheKey, std::vector<ILogWriterPtr>> CachedWriters_;
     std::vector<ILogWriterPtr> SystemWriters_;
 
-    std::atomic<bool> ReopenRequested_ = {false};
-    std::atomic<bool> ShutdownRequested_ = {false};
-    std::atomic<bool> TraceSuppressionEnabled_ = {false};
+    std::atomic<bool> ReopenRequested_ = false;
+    std::atomic<bool> ShutdownRequested_ = false;
+    std::atomic<bool> TraceSuppressionEnabled_ = false;
 
     TPeriodicExecutorPtr FlushExecutor_;
     TPeriodicExecutorPtr WatchExecutor_;
@@ -1394,6 +1374,11 @@ void TLogManager::Enqueue(TLogEvent&& event)
 void TLogManager::Reopen()
 {
     Impl_->Reopen();
+}
+
+void TLogManager::EnableReopenOnSighup()
+{
+    Impl_->EnableReopenOnSighup();
 }
 
 void TLogManager::SuppressTrace(TTraceId traceId)

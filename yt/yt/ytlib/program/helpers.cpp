@@ -33,7 +33,9 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
         NConcurrency::SetFiberStackPoolSize(ParseEnum<NConcurrency::EExecutionStackKind>(kind), size);
     }
 
+    NLogging::TLogManager::Get()->EnableReopenOnSighup();
     NLogging::TLogManager::Get()->Configure(config->Logging);
+    NLogging::TLogManager::Get()->ConfigureFromEnv();
 
     NNet::TAddressResolver::Get()->Configure(config->AddressResolver);
     if (!NNet::TAddressResolver::Get()->IsLocalHostNameOK()) {
