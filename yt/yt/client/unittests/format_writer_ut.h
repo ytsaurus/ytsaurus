@@ -8,21 +8,19 @@
 namespace NYT::NFormats {
 namespace {
 
-using namespace NTableClient;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-void TestNameTableExpansion(ISchemalessFormatWriterPtr writer, TNameTablePtr nameTable)
+void TestNameTableExpansion(ISchemalessFormatWriterPtr writer, NTableClient::TNameTablePtr nameTable)
 {
     // We write five rows, on each iteration we double number of
     // columns in the NameTable.
     for (int iteration = 0; iteration < 5; ++iteration) {
-        TUnversionedOwningRowBuilder row;
+        NTableClient::TUnversionedOwningRowBuilder row;
         for (int index = 0; index < (1 << iteration); ++index) {
             auto key = "Column" + ToString(index);
             auto value = "Value" + ToString(index);
             int columnId = nameTable->GetIdOrRegisterName(key);
-            row.AddValue(MakeUnversionedStringValue(value, columnId));
+            row.AddValue(NTableClient::MakeUnversionedStringValue(value, columnId));
         }
         auto completeRow = row.FinishRow();
         EXPECT_EQ(true, writer->Write({completeRow.Get()}));

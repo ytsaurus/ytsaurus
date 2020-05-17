@@ -5,19 +5,19 @@
 
 namespace NYT::NChunkClient {
 
-using namespace NTableClient;
+// TODO(max42): move implementation to .cpp
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkReaderMock
-    : public ISchemalessChunkReader
+    : public NTableClient::ISchemalessChunkReader
 {
 public:
-    TChunkReaderMock(std::vector<std::vector<TUnversionedOwningRow>> data)
+    TChunkReaderMock(std::vector<std::vector<NTableClient::TUnversionedOwningRow>> data)
         : Data_(std::move(data))
     { }
 
-    bool Read(std::vector<TUnversionedRow>* rows) override
+    bool Read(std::vector<NTableClient::TUnversionedRow>* rows) override
     {
         rows->clear();
         if (CurrentDataIndex_ >= Data_.size()) {
@@ -36,7 +36,7 @@ public:
         return VoidFuture;
     }
 
-    virtual NProto::TDataStatistics GetDataStatistics() const override
+    virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
         NProto::TDataStatistics dataStatistics;
         dataStatistics.set_chunk_count(1);
@@ -63,12 +63,12 @@ public:
         return {};
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual const TKeyColumns& GetKeyColumns() const override
+    virtual const NTableClient::TKeyColumns& GetKeyColumns() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -78,7 +78,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override
+    virtual TInterruptDescriptor GetInterruptDescriptor(TRange<NTableClient::TUnversionedRow> unreadRows) const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -89,7 +89,7 @@ public:
     }
 
 protected:
-    const std::vector<std::vector<TUnversionedOwningRow>> Data_;
+    const std::vector<std::vector<NTableClient::TUnversionedOwningRow>> Data_;
     int CurrentDataIndex_ = 0;
     std::atomic_bool Error_{false};
 };
@@ -100,7 +100,7 @@ class TChunkReaderWithErrorMock
 public:
     using TChunkReaderMock::TChunkReaderMock;
 
-    bool Read(std::vector<TUnversionedRow>* rows) override
+    bool Read(std::vector<NTableClient::TUnversionedRow>* rows) override
     {
         if (Error_.load()) {
             return true;

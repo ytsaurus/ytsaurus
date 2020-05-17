@@ -16,12 +16,6 @@
 
 namespace NYT::NDataNode {
 
-using namespace NClusterNode;
-using namespace NChunkClient;
-using namespace NTabletNode;
-using namespace NQueryClient;
-using namespace NYT::NTableClient;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
@@ -32,12 +26,12 @@ class TLookupSession
 {
 public:
     TLookupSession(
-        TBootstrap* bootstrap,
+        NClusterNode::TBootstrap* bootstrap,
         TChunkId chunkId,
-        TReadSessionId readSessionId,
+        NChunkClient::TReadSessionId readSessionId,
         TWorkloadDescriptor workloadDescriptor,
-        TColumnFilter columnFilter,
-        TTimestamp timestamp,
+        NQueryClient::TColumnFilter columnFilter,
+        NQueryClient::TTimestamp timestamp,
         bool produceAllVersions,
         TCachedTableSchemaPtr tableSchema,
         const TString& requestedKeysString,
@@ -45,34 +39,34 @@ public:
 
     TSharedRef Run();
 
-    const TChunkReaderStatisticsPtr& GetChunkReaderStatistics();
+    const NChunkClient::TChunkReaderStatisticsPtr& GetChunkReaderStatistics();
 
     //! Second value in tuple indicates whether we request schema from remote node.
     static std::tuple<TCachedTableSchemaPtr, bool> FindTableSchema(
         TChunkId chunkId,
-        TReadSessionId readSessionId,
+        NChunkClient::TReadSessionId readSessionId,
         const NChunkClient::NProto::TReqLookupRows::TTableSchemaData& schemaData,
         const TTableSchemaCachePtr& tableSchemaCache);
 
 private:
     struct TKeyReaderBufferTag { };
 
-    TBootstrap const* Bootstrap_;
+    NClusterNode::TBootstrap const* Bootstrap_;
     const TChunkId ChunkId_;
-    const TReadSessionId ReadSessionId_;
+    const NChunkClient::TReadSessionId ReadSessionId_;
     const TWorkloadDescriptor WorkloadDescriptor_;
-    const TColumnFilter ColumnFilter_;
-    const TTimestamp Timestamp_;
+    const NQueryClient::TColumnFilter ColumnFilter_;
+    const NQueryClient::TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
     const TCachedTableSchemaPtr TableSchema_;
     NCompression::ICodec* const Codec_;
 
     IChunkPtr Chunk_;
     TBlockReadOptions Options_;
-    IChunkReaderPtr UnderlyingChunkReader_;
-    TSharedRange<TUnversionedRow> RequestedKeys_;
-    const TRowBufferPtr KeyReaderRowBuffer_ = New<TRowBuffer>(TKeyReaderBufferTag());
-    const TChunkReaderStatisticsPtr ChunkReaderStatistics_ = New<TChunkReaderStatistics>();
+    NChunkClient::IChunkReaderPtr UnderlyingChunkReader_;
+    TSharedRange<NTableClient::TUnversionedRow> RequestedKeys_;
+    const NTableClient::TRowBufferPtr KeyReaderRowBuffer_ = New<NTableClient::TRowBuffer>(TKeyReaderBufferTag());
+    const NChunkClient::TChunkReaderStatisticsPtr ChunkReaderStatistics_ = New<NChunkClient::TChunkReaderStatistics>();
 
     void Verify();
 

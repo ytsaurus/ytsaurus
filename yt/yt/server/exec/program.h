@@ -22,15 +22,11 @@
 
 namespace NYT::NExec {
 
-using namespace NUserJobSynchronizerClient;
-using namespace NYTree;
-using namespace NYson;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecProgram
     : public TProgram
-    , public TProgramConfigMixin<TUserJobSynchronizerConnectionConfig>
+    , public TProgramConfigMixin<NUserJobSynchronizerClient::TUserJobSynchronizerConnectionConfig>
     , public TProgramCgroupMixin
 {
 public:
@@ -47,7 +43,7 @@ public:
             .AddLongOption("pipe", "configure a data pipe (could be used multiple times)")
             .Handler1T<TString>([&] (const TString& arg) {
                 try {
-                    auto config = ConvertTo<NPipes::TNamedPipeConfig>(TYsonString(arg));
+                    auto config = NYTree::ConvertTo<NPipes::TNamedPipeConfig>(NYson::TYsonString(arg));
                     Pipes_.push_back(std::move(config));
                 } catch (const std::exception& ex) {
                     throw TProgramException(Format("Bad pipe config: %v", ex.what()));

@@ -12,25 +12,17 @@
 
 namespace NYT::NDataNode {
 
-using namespace NHydra;
-using namespace NObjectClient;
-using namespace NTabletNode;
-using namespace NConcurrency;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-using TSchemaCacheKey = std::pair<TObjectId, TRevision>;
+using TSchemaCacheKey = std::pair<NObjectClient::TObjectId, NHydra::TRevision>;
 
 struct TCachedTableSchema
     : public TIntrinsicRefCounted
 {
-    TCachedTableSchema(TTableSchema tableSchema, TSortedDynamicRowKeyComparer rowKeyComparer)
-        : TableSchema(std::move(tableSchema))
-        , RowKeyComparer(std::move(rowKeyComparer))
-    { }
+    TCachedTableSchema(NTableClient::TTableSchema tableSchema, NTabletNode::TSortedDynamicRowKeyComparer rowKeyComparer);
 
-    TTableSchema TableSchema;
-    TSortedDynamicRowKeyComparer RowKeyComparer;
+    NTableClient::TTableSchema TableSchema;
+    NTabletNode::TSortedDynamicRowKeyComparer RowKeyComparer;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCachedTableSchema)
@@ -58,7 +50,7 @@ private:
     std::atomic<TInstant> NextRequestTime_;
 
     // NB: For concurrent access of CachedTableSchema_.
-    TReaderWriterSpinLock SpinLock_;
+    NConcurrency::TReaderWriterSpinLock SpinLock_;
     TCachedTableSchemaPtr CachedTableSchema_;
 
     bool CheckSchemaSet();

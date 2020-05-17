@@ -19,8 +19,6 @@
 
 namespace NYT::NControllerAgent {
 
-using namespace NScheduler;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSpec>
@@ -140,8 +138,8 @@ TFuture<std::optional<T>> WithSoftTimeout(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiskQuota CreateDiskQuota(
-    const TDiskRequestConfigPtr& diskRequestConfig,
+NScheduler::TDiskQuota CreateDiskQuota(
+    const NScheduler::TDiskRequestConfigPtr& diskRequestConfig,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
