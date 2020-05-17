@@ -1249,11 +1249,11 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
         create("table", "//tmp/out")
         write_table("//tmp/in", data)
 
-        assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
-        assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 0
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 0)
 
-        assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_limits/user_slots") == 2
-        assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 0
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_limits/user_slots") == 2)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 0)
 
         op = map(
             track=False,
@@ -1262,14 +1262,12 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
             out="//tmp/out",
             spec={"data_size_per_job": 1, "locality_timeout": 0})
 
-        time.sleep(2)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_usage/user_slots".format(op.id)) == 2)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 2)
 
-        assert get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/resource_usage/user_slots".format(op.id)) == 2
-        assert get("//sys/scheduler/orchid/scheduler/cell/resource_limits/user_slots") == 2
-        assert get("//sys/scheduler/orchid/scheduler/cell/resource_usage/user_slots") == 2
-
-        assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_limits/user_slots") == 2
-        assert get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 2
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_limits/user_slots") == 2)
+        wait(lambda: get("//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/default/resource_usage/user_slots") == 2)
 
 ###############################################################################################
 
