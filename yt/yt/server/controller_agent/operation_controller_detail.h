@@ -280,7 +280,7 @@ public:
         const NScheduler::TUserJobSpecPtr& config,
         const std::vector<TUserFile>& files,
         const TString& fileAccount) override;
-    virtual const std::vector<TUserFile>& GetUserFiles(const TUserJobSpecPtr& userJobSpec) const override;
+    virtual const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const override;
 
     virtual void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
     virtual void CustomizeJoblet(const TJobletPtr& joblet) override;
@@ -342,7 +342,7 @@ public:
 
     virtual void Dispose() override;
 
-    virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override;
+    virtual void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersUpdatePtr& update) override;
 
     //! Returns the aggregated delta of job metrics and resets it to zero.
     //! When `force` is true, the delta is returned unconditionally, otherwise a zero delta is
@@ -460,7 +460,7 @@ protected:
 
     TIntermediateTablePtr IntermediateTable = New<TIntermediateTable>();
 
-    THashMap<TUserJobSpecPtr, std::vector<TUserFile>> UserJobFiles_;
+    THashMap<NScheduler::TUserJobSpecPtr, std::vector<TUserFile>> UserJobFiles_;
 
     struct TInputQuery
     {
@@ -509,8 +509,8 @@ protected:
 
     bool CheckJobLimits(
         const TTaskPtr& task,
-        const TJobResourcesWithQuota& jobLimits,
-        const TJobResourcesWithQuota& nodeResourceLimits);
+        const NScheduler::TJobResourcesWithQuota& jobLimits,
+        const NScheduler::TJobResourcesWithQuota& nodeResourceLimits);
 
     void CheckTimeLimit();
 
@@ -588,7 +588,7 @@ protected:
     void LockOutputTablesAndGetAttributes();
     void FetchUserFiles();
     void ValidateUserFileSizes();
-    void DoFetchUserFiles(const TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files);
+    void DoFetchUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec, std::vector<TUserFile>& files);
     void LockUserFiles();
     void GetUserFilesAttributes();
     void SuppressLivePreviewIfNeeded();
@@ -673,7 +673,7 @@ protected:
     virtual void ValidateSnapshot() const;
 
     //! Is called by controller on stage of structure initialization.
-    virtual std::vector<TUserJobSpecPtr> GetUserJobSpecs() const;
+    virtual std::vector<NScheduler::TUserJobSpecPtr> GetUserJobSpecs() const;
 
     //! What to do with intermediate chunks that are not useful any more.
     virtual EIntermediateChunkUnstageMode GetIntermediateChunkUnstageMode() const;
@@ -1182,7 +1182,7 @@ private:
 
     void BuildMemoryUsageYson(NYTree::TFluentAny fluent) const;
     void BuildStateYson(NYTree::TFluentAny fluent) const;
-    
+
     void BuildTestingState(NYTree::TFluentAny fluent) const;
 
     void ProcessFinishedJobResult(std::unique_ptr<TJobSummary> summary, bool suggestCreateJobNodeByStatus);
@@ -1219,18 +1219,18 @@ private:
 
     void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId);
 
-    std::vector<NYPath::TRichYPath> GetLayerPaths(const TUserJobSpecPtr& userJobSpec);
+    std::vector<NYPath::TRichYPath> GetLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec);
 
     void AnalyzeProcessingUnitUsage(
         const std::vector<TString>& usageStatistics,
         const std::vector<TString>& jobStates,
-        const std::function<double(const TUserJobSpecPtr&)>& getLimit,
+        const std::function<double(const NScheduler::TUserJobSpecPtr&)>& getLimit,
         const std::function<bool(i64, i64, double)>& needSetAlert,
         const TString& name,
         EOperationAlertType alertType,
         const TString& message);
 
-    void MaybeCancel(ECancelationStage cancelationStage);
+    void MaybeCancel(NScheduler::ECancelationStage cancelationStage);
 
     void MarkJobHasCompetitors(const TJobletPtr& joblet);
 

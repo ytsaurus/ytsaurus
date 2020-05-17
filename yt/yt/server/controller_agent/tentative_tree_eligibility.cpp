@@ -11,7 +11,7 @@ using namespace NJobTrackerClient;
 ///////////////////////////////////////////////////////////////////////////////
 
 TTentativeTreeEligibility::TTentativeTreeEligibility(
-    const TTentativeTreeEligibilityConfigPtr& config)
+    const NScheduler::TTentativeTreeEligibilityConfigPtr& config)
     : Logger(ControllerAgentLogger)
     , SampleJobCount_(config->SampleJobCount)
     , MaxTentativeTreeJobDurationRatio_(config->MaxTentativeJobDurationRatio)

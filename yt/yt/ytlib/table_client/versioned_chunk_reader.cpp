@@ -1929,4 +1929,56 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TRowReaderAdapter::TRowReaderAdapter(
+    TChunkReaderConfigPtr config,
+    IChunkReaderPtr chunkReader,
+    const TChunkStatePtr& chunkState,
+    const TCachedVersionedChunkMetaPtr& chunkMeta,
+    const TClientBlockReadOptions& blockReadOptions,
+    const TSharedRange<TKey>& keys,
+    const TColumnFilter& columnFilter,
+    TTimestamp timestamp,
+    bool produceAllVersions)
+    : KeyCount_(keys.Size())
+    , UnderlyingReader_(
+        CreateVersionedChunkReader(
+            config,
+            chunkReader,
+            chunkState,
+            chunkMeta,
+            blockReadOptions,
+            keys,
+            columnFilter,
+            timestamp,
+            produceAllVersions))
+{
+    Rows_.reserve(RowBufferCapacity);
+}
+
+void TRowReaderAdapter::ReadRowset(const std::function<void(TVersionedRow)>& onRow)
+{
+    for (int i = 0; i < KeyCount_; ++i) {
+        onRow(FetchRow());
+    }
+}
+
+TVersionedRow TRowReaderAdapter::FetchRow()
+{
+    ++RowIndex_;
+    if (RowIndex_ >= Rows_.size()) {
+        RowIndex_ = 0;
+        while (true) {
+            YT_VERIFY(UnderlyingReader_->Read(&Rows_));
+            if (!Rows_.empty()) {
+                break;
+            }
+            NConcurrency::WaitFor(UnderlyingReader_->GetReadyEvent())
+                .ThrowOnError();
+        }
+    }
+    return Rows_[RowIndex_];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

@@ -16,6 +16,17 @@ namespace NYT::NDataNode {
 
 using namespace NObjectClient;
 using namespace NProfiling;
+using namespace NHydra;
+using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCachedTableSchema::TCachedTableSchema(
+    NTableClient::TTableSchema tableSchema,
+    NTabletNode::TSortedDynamicRowKeyComparer rowKeyComparer)
+    : TableSchema(std::move(tableSchema))
+    , RowKeyComparer(std::move(rowKeyComparer))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

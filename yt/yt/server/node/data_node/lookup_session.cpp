@@ -31,6 +31,9 @@ using namespace NYT::NConcurrency;
 using namespace NTableClient;
 using namespace NTabletNode;
 using namespace NObjectClient;
+using namespace NClusterNode;
+using namespace NHydra;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 

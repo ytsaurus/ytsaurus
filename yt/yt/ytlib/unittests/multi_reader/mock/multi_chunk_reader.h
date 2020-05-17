@@ -7,18 +7,18 @@
 
 namespace NYT::NChunkClient {
 
-using namespace NTableClient;
+// TODO(max42): move to .cpp
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMultiChunkReaderMock
-    : public ISchemalessMultiChunkReader
+    : public NTableClient::ISchemalessMultiChunkReader
     , public TSequentialMultiReaderBase
 {
 public:
     using TSequentialMultiReaderBase::TSequentialMultiReaderBase;
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual bool Read(std::vector<NTableClient::TUnversionedRow>* rows) override
     {
         rows->clear();
 
@@ -57,12 +57,12 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual const TNameTablePtr& GetNameTable() const override
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const override
     {
         YT_UNIMPLEMENTED();
     }
 
-    virtual const TKeyColumns& GetKeyColumns() const override
+    virtual const NTableClient::TKeyColumns& GetKeyColumns() const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -77,7 +77,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override
+    virtual TInterruptDescriptor GetInterruptDescriptor(TRange<NTableClient::TUnversionedRow> unreadRows) const override
     {
         YT_UNIMPLEMENTED();
     }
@@ -94,7 +94,7 @@ private:
         YT_VERIFY(CurrentReader_);
     }
 
-    ISchemalessChunkReaderPtr CurrentReader_;
+    NTableClient::ISchemalessChunkReaderPtr CurrentReader_;
 
     std::atomic<bool> Finished_ = {false};
 };

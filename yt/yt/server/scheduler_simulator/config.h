@@ -9,17 +9,17 @@
 
 namespace NYT::NSchedulerSimulator {
 
-using namespace NYTree;
-
 ////////////////////////////////////////////////////////////////////////////////
+
+// TODO(max42): move to -inl.h
 
 template<class TConfig>
 TIntrusivePtr<TConfig> LoadConfig(const TString& configFilename)
 {
-    INodePtr configNode;
+    NYTree::INodePtr configNode;
     try {
         TIFStream configStream(configFilename);
-        configNode = ConvertToNode(&configStream);
+        configNode = NYTree::ConvertToNode(&configStream);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error reading scheduler simulator configuration") << ex;
     }

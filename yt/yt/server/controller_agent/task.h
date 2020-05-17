@@ -88,7 +88,7 @@ public:
 
     void ScheduleJob(
         ISchedulingContext* context,
-        const TJobResourcesWithQuota& jobLimits,
+        const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
         bool treeIsTentative,
         NScheduler::TControllerScheduleJobResult* scheduleJobResult);
@@ -110,10 +110,10 @@ public:
 
     // First checks against a given node, then against all nodes if needed.
     void CheckResourceDemandSanity(
-        const TJobResourcesWithQuota& nodeResourceLimits,
-        const TJobResourcesWithQuota& neededResources);
+        const NScheduler::TJobResourcesWithQuota& nodeResourceLimits,
+        const NScheduler::TJobResourcesWithQuota& neededResources);
 
-    void DoCheckResourceDemandSanity(const TJobResourcesWithQuota& neededResources);
+    void DoCheckResourceDemandSanity(const NScheduler::TJobResourcesWithQuota& neededResources);
 
     virtual bool IsCompleted() const;
 
@@ -295,7 +295,7 @@ struct TTaskGroup
     : public TIntrinsicRefCounted
 {
     //! No task from this group is considered for scheduling unless this requirement is met.
-    TJobResourcesWithQuota MinNeededResources;
+    NScheduler::TJobResourcesWithQuota MinNeededResources;
 
     //! All non-local tasks.
     THashSet<TTaskPtr> NonLocalTasks;
