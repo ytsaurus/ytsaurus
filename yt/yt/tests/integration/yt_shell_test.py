@@ -136,45 +136,6 @@ class YtShellTestException(Exception):
         return "\n".join(out)
 
 
-class PerlItem(ExecutableItem):
-    def __init__(self, parent, driver_backend):
-        super(PerlItem, self).__init__(parent, driver_backend)
-        self.comment_line_begin = "#"
-
-    def on_runtest(self, env):
-        # XXX(sandello): This is a hacky way to set proper include path.
-        inc = os.path.abspath(
-            os.path.join(os.path.dirname(str(self.fspath)), ".."))
-
-        environment = {}
-        if env.master_count > 0:
-            environment["YT_DRIVER_CONFIG_PATH"] = env.config_paths["driver"]
-        if "PERL5LIB" in os.environ:
-            environment["PERL5LIB"] = os.environ["PERL5LIB"]
-
-        child = subprocess.Popen(
-            ["perl", "-I" + inc, str(self.fspath)],
-            cwd=self.sandbox_path,
-            env=environment,
-            stdin=subprocess.PIPE,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE)
-
-        stdout, stderr = child.communicate()
-        child.wait()
-
-        if child.returncode != 0:
-            raise YtShellTestException(
-                "Perl",
-                self.name,
-                child.returncode,
-                stdout,
-                stderr)
-
-    def reportinfo(self):
-        return self.fspath, 0, "perl:%s" % self.name
-
-
 class CppItem(ExecutableItem):
     def __init__(self, parent, driver_backend):
         super(CppItem, self).__init__(parent, driver_backend)
@@ -219,15 +180,6 @@ class ExecutableFile(pytest.File):
             driver_backends.append('native')
 
         return driver_backends
-
-class PerlFile(ExecutableFile):
-    def __init__(self, path, parent):
-        super(ExecutableFile, self).__init__(path, parent)
-        self.comment_line_begin = '#'
-
-    def collect(self):
-        for backend in self.extract_driver_backends():
-            yield PerlItem(self, backend)
 
 class CppFile(ExecutableFile):
     def __init__(self, path, parent):
