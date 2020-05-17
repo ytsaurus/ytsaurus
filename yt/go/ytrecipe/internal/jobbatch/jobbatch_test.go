@@ -40,7 +40,7 @@ func TestJobBatching(t *testing.T) {
 		GroupKey:  "foobar123",
 
 		PollInterval:  time.Millisecond,
-		BatchingDelay: time.Second,
+		BatchingDelay: time.Second * 20,
 		StartDeadline: time.Minute,
 	}
 
