@@ -113,10 +113,6 @@ protected:
         ConfigureSingletons(config);
         StartDiagnosticDump(config);
 
-        if (dumpSnapshot || validateSnapshot || exportSnapshot) {
-            NLogging::TLogManager::Get()->ConfigureFromEnv();
-        }
-
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.

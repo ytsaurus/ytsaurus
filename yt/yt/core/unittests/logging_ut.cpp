@@ -94,25 +94,52 @@ protected:
 
         return lines;
     }
+
+    void Configure(const TString& configYson)
+    {
+        auto configNode = ConvertToNode(TYsonString(configYson));
+        auto config = ConvertTo<TLogManagerConfigPtr>(configNode);
+        TLogManager::Get()->Configure(config);
+    }
 };
 
 #ifndef _win_
 
-TEST_F(TLoggingTest, ReloadsOnSigHup)
+TEST_F(TLoggingTest, ReloadOnSigHup)
 {
-    YT_LOG_INFO("Preparing logging thread");
-    Sleep(TDuration::MilliSeconds(100)); // In sleep() we trust.
+    NFs::Remove("test.log");
+    NFs::Remove("test.log.1");
 
-    int version = TLogManager::Get()->GetVersion();
+    Configure(R"({
+        rules = [
+            {
+                "min_level" = "info";
+                "writers" = [ "info" ];
+            };
+        ];
+        "writers" = {
+            "info" = {
+                "file_name" = "test.log";
+                "type" = "file";
+            };
+        };
+    })");
 
-    kill(getpid(), SIGHUP);
+    YT_LOG_INFO("Message1");
+    
+    Sleep(TDuration::Seconds(1));
 
-    YT_LOG_INFO("Awaking logging thread");
+    EXPECT_TRUE(NFs::Exists("test.log"));
+
+    NFs::Rename("test.log", "test.log.1");
+
+    ::kill(::getpid(), SIGHUP);
+
     Sleep(TDuration::Seconds(1)); // In sleep() we trust.
 
-    int newVersion = TLogManager::Get()->GetVersion();
+    YT_LOG_INFO("Message2");
 
-    EXPECT_NE(version, newVersion);
+    EXPECT_TRUE(NFs::Exists("test.log"));
 }
 
 #endif
@@ -121,8 +148,7 @@ TEST_F(TLoggingTest, FileWriter)
 {
     NFs::Remove("test.log");
 
-    TIntrusivePtr<TFileLogWriter> writer;
-    writer = New<TFileLogWriter>(std::make_unique<TPlainTextLogFormatter>(), "test_writer", "test.log", false);
+    auto writer = New<TFileLogWriter>(std::make_unique<TPlainTextLogFormatter>(), "test_writer", "test.log", false);
     WritePlainTextEvent(writer.Get());
 
     {
@@ -152,8 +178,7 @@ TEST_F(TLoggingTest, Compression)
 {
     NFs::Remove("test.log.gz");
 
-    TIntrusivePtr<TFileLogWriter> writer;
-    writer = New<TFileLogWriter>(std::make_unique<TPlainTextLogFormatter>(), "test_writer", "test.log.gz", true);
+    auto writer = New<TFileLogWriter>(std::make_unique<TPlainTextLogFormatter>(), "test_writer", "test.log.gz", true);
     WritePlainTextEvent(writer.Get());
 
     writer->Reload();
@@ -204,7 +229,7 @@ TEST_F(TLoggingTest, LogManager)
     NFs::Remove("test.log");
     NFs::Remove("test.error.log");
 
-    auto configText = R"({
+    Configure(R"({
         rules = [
             {
                 "min_level" = "info";
@@ -225,13 +250,7 @@ TEST_F(TLoggingTest, LogManager)
                 "type" = "file";
             };
         };
-    })";
-
-    auto configNode = ConvertToNode(TYsonString(configText));
-
-    auto config = ConvertTo<TLogManagerConfigPtr>(configNode);
-
-    TLogManager::Get()->Configure(config);
+    })");
 
     YT_LOG_DEBUG("Debug message");
     YT_LOG_INFO("Info message");
@@ -345,7 +364,7 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
     NFs::Remove("test.log");
     NFs::Remove("test.error.log");
 
-    auto configText = R"({
+    Configure(R"({
         rules = [
             {
                 "min_level" = "info";
@@ -358,13 +377,7 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
                 "type" = "file";
             };
         };
-    })";
-
-    auto configNode = ConvertToNode(TYsonString(configText));
-
-    auto config = ConvertTo<TLogManagerConfigPtr>(configNode);
-
-    TLogManager::Get()->Configure(config);
+    })");
 
     YT_LOG_INFO("Info message");
 
@@ -381,7 +394,7 @@ TEST_F(TLoggingTest, TraceSuppression)
 {
     NFs::Remove("test.log");
 
-    auto configText = R"({
+    Configure(R"({
         rules = [
             {
                 "min_level" = "info";
@@ -395,13 +408,7 @@ TEST_F(TLoggingTest, TraceSuppression)
             };
         };
         "trace_suppression_timeout" = 100;
-    })";
-
-    auto configNode = ConvertToNode(TYsonString(configText));
-
-    auto config = ConvertTo<TLogManagerConfigPtr>(configNode);
-
-    TLogManager::Get()->Configure(config);
+    })");
 
     {
         auto traceContext = NTracing::CreateRootTraceContext("Test");
@@ -445,7 +452,7 @@ protected:
     {
         NFs::Remove("test.log");
 
-        auto configText = R"({
+        Configure(R"({
             rules = [
                 {
                     "min_level" = "info";
@@ -459,11 +466,7 @@ protected:
                     "type" = "file";
                 };
             };
-        })";
-
-        auto configNode = ConvertToNode(TYsonString(configText));
-        auto config = ConvertTo<TLogManagerConfigPtr>(configNode);
-        TLogManager::Get()->Configure(config);
+        })");
     }
 
     void LogLongMessages()
