@@ -30,7 +30,7 @@ protected:
         config->Host = MockHttpServer_.GetHost();
         config->Port = MockHttpServer_.GetPort();
         config->Secure = false;
-        config->RequestTimeout = TDuration::MilliSeconds(100);
+        config->RequestTimeout = TDuration::Seconds(1);
         config->Consumer = "yp.unittest";
         return config;
     }
