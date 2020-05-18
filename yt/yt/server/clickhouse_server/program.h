@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "config.h"
 #include "clickhouse_config.h"
+#include "version.h"
 
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_config_mixin.h>
@@ -42,7 +43,8 @@ private:
 
 public:
     TClickHouseServerProgram()
-        : TProgramPdeathsigMixin(Opts_)
+        : TProgram(true /* suppressVersion */)
+        , TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
         , TProgramCgroupMixin(Opts_)
         , TProgramConfigMixin(Opts_)
@@ -68,6 +70,9 @@ public:
         Opts_.AddLongOption("clickhouse-version", "ClickHouse version")
             .NoArgument()
             .Handler0(std::bind(&TClickHouseServerProgram::PrintClickHouseVersionAndExit, this));
+        Opts_.AddLongOption("version", "CHYT version")
+            .NoArgument()
+            .Handler0(std::bind(&TClickHouseServerProgram::PrintVersionAndExit, this));
 
         SetCrashOnError();
     }
@@ -135,6 +140,12 @@ private:
     {
         Cout << VERSION_DESCRIBE << Endl;
         Cout << VERSION_GITHASH << Endl;
+        _exit(0);
+    }
+
+    void PrintVersionAndExit() const
+    {
+        Cout << GetVersion() << Endl;
         _exit(0);
     }
 };
