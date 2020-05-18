@@ -51,6 +51,9 @@ void FromUnversionedValue(TString* value, TUnversionedValue unversionedValue);
 void ToUnversionedValue(TUnversionedValue* unversionedValue, TStringBuf value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(TStringBuf* value, TUnversionedValue unversionedValue);
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, const char* value, const TRowBufferPtr& rowBuffer, int id = 0);
+void FromUnversionedValue(const char** value, TUnversionedValue unversionedValue);
+
 void ToUnversionedValue(TUnversionedValue* unversionedValue, bool value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(bool* value, TUnversionedValue unversionedValue);
 
@@ -193,6 +196,30 @@ std::tuple<Ts...> FromUnversionedRow(TUnversionedRow row);
 //! Values get sequential ids 0..N-1.
 template <class... Ts>
 TUnversionedOwningRow MakeUnversionedOwningRow(Ts&&... values);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUnversionedRowsBuilder
+    : private TNonCopyable
+{
+public:
+    TUnversionedRowsBuilder();
+    explicit TUnversionedRowsBuilder(TRowBufferPtr rowBuffer);
+
+    void ReserveRows(int rowCount);
+
+    void AddRow(TUnversionedRow row);
+    void AddRow(TMutableUnversionedRow row);
+    template <class... Ts>
+    void AddRow(Ts&&... values);
+
+    TSharedRange<TUnversionedRow> Build();
+
+private:
+    const TRowBufferPtr RowBuffer_;
+
+    std::vector<TUnversionedRow> Rows_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -401,6 +401,18 @@ TUnversionedOwningRow MakeUnversionedOwningRow(Ts&&... values)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class... Ts>
+void TUnversionedRowsBuilder::AddRow(Ts&&... values)
+{
+    auto row = RowBuffer_->AllocateUnversioned(sizeof...(Ts));
+    auto* current = row.Begin();
+    int id = 0;
+    (ToUnversionedValue(current++, std::forward<Ts>(values), RowBuffer_, id++), ...);
+    Rows_.push_back(row);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TReader, class TRow>
 TFuture<void> AsyncReadRows(const TIntrusivePtr<TReader>& reader, std::vector<TRow>* rows)
 {
