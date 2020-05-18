@@ -136,7 +136,7 @@ def base_spark_conf(client, discovery):
         "spark.eventLog.dir": "yt:/{}".format(discovery.event_log()),
         "spark.yt.cluster.version": spark_cluster_version
     }
-    if exists(spark_cluster_conf):
+    if exists(spark_cluster_conf, client=client):
         conf["spark.yt.cluster.confPath"] = str(spark_cluster_conf)
     return conf
 
