@@ -3,7 +3,6 @@ OWNER(g:yt)
 ALLOCATOR(YT)
 
 CXXFLAGS(${YT_ARCADIA_CXXFLAGS})
-CFLAGS(${YT_ARCADIA_CFLAGS})
 
 SRCS(
     ${YT_ROOT}/yt/server/all/main.cpp
