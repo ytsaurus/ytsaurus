@@ -30,7 +30,7 @@ lazy val `data-source` = (project in file("data-source"))
   .configs(IntegrationTest)
   .dependsOn(`yt-wrapper`, `file-system`, `file-system` % "test->test")
   .settings(
-    version := "0.2.1",
+    version := "0.2.2-SNAPSHOT",
     Defaults.itSettings,
     libraryDependencies ++= Seq(
       "org.scalacheck" %% "scalacheck" % "1.14.1" % "it,test",
