@@ -5,6 +5,10 @@
 
 #include <yt/server/lib/containers/instance.h>
 
+#ifdef __linux__
+#include <yt/server/lib/containers/porto_executor.h>
+#endif
+
 #include <yt/server/lib/misc/public.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
@@ -130,7 +134,24 @@ public:
                     options->InactivityTimeout = parameters.InactivityTimeout;
                 }
                 options->Id = TGuid::Create();
+
                 options->ContainerName = Format("%v/job-shell-%v", RootInstance_->GetAbsoluteName(), options->Id);
+
+#ifdef _linux_
+                {
+                    auto properties = WaitFor(
+                        PortoExecutor_->GetContainerProperties(
+                            RootInstance_->GetAbsoluteName(),
+                            {"enable_porto"}))
+                        .ValueOrThrow();
+                    if (properties.contains("enable_porto")) {
+                        auto enablePortoProperty = properties["enable_porto"];
+                        if (enablePortoProperty.IsOK() && enablePortoProperty.Value() != "none" && enablePortoProperty.Value() != "false") {
+                            options->EnablePorto = true;
+                        }
+                    }
+                }
+#endif
 
                 shell = CreateShell(PortoExecutor_, std::move(options));
                 Register(shell);
