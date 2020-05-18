@@ -25,15 +25,15 @@
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/transaction.h>
 
-#include <yt/client/api/transaction.h>
-
 #include <yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/ytlib/transaction_client/action.h>
 
+#include <yt/client/api/transaction.h>
+
 #include <yt/client/transaction_client/timestamp_provider.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/client/transaction_client/helpers.h>
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/core/concurrency/thread_pool.h>

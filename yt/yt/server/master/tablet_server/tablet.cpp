@@ -13,7 +13,7 @@
 #include <yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/server/master/chunk_server/medium.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/client/transaction_client/helpers.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 
