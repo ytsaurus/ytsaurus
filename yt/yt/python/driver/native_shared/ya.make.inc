@@ -7,7 +7,6 @@ CXXFLAGS(
     ${YT_ARCADIA_CXXFLAGS}
     ${PYCXX_FLAGS}
 )
-CFLAGS(${YT_ARCADIA_CFLAGS})
 
 PEERDIR(
     ${YT_ROOT}/yt/python/driver/native
