@@ -1,6 +1,5 @@
-INCLUDE(${ARCADIA_ROOT}/yt/ya.make.environment.inc)
 
-SET(YT_TEST_SRCDIR ${YT_PYTHON_ROOT}/python/yt/yson/tests)
+SET(YT_TEST_SRCDIR yt/python/yt/yson/tests)
 
 SET(YT_TEST_SRCS
     test_common.py
@@ -11,8 +10,8 @@ SET(YT_TEST_SRCS
 )
 
 PEERDIR(
-    ${YT_PYTHON_ROOT}/python/yt/yson
-    ${YT_PYTHON_ROOT}/python/yt/wrapper
+    yt/python/yt/yson
+    yt/python/yt/wrapper
 )
 
 NO_LINT()

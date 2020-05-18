@@ -1,6 +1,5 @@
-INCLUDE(${ARCADIA_ROOT}/yt/ya.make.environment.inc)
 
-SET(YT_TEST_SRCDIR ${YT_PYTHON_ROOT}/python/yt/wrapper/tests)
+SET(YT_TEST_SRCDIR yt/python/yt/wrapper/tests)
 
 SET(YT_TEST_SRCS
     __init__.py
@@ -37,11 +36,11 @@ SET(YT_TEST_SRCS
 )
 
 PEERDIR(
-    ${YT_PYTHON_ROOT}/python/yt/wrapper
-    ${YT_PYTHON_ROOT}/python/yt/clickhouse
-    ${YT_PYTHON_ROOT}/python/yt/yson
-    ${YT_PYTHON_ROOT}/python/yt/local
-    ${YT_PYTHON_ROOT}/python/yt/environment
+    yt/python/yt/wrapper
+    yt/python/yt/clickhouse
+    yt/python/yt/yson
+    yt/python/yt/local
+    yt/python/yt/environment
     ${YT_ROOT}/yt/python/yt_driver_bindings
     ${YT_ROOT}/yt/python/yt_driver_rpc_bindings
     ${YT_ROOT}/yt/python/yt_yson_bindings
@@ -52,11 +51,11 @@ PEERDIR(
 INCLUDE(../../environment/ya_programs.make.inc)
 
 DEPENDS(
-    ${YT_PYTHON_ROOT}/python/yt/local/bin/yt_local_make
-    ${YT_PYTHON_ROOT}/python/yt/wrapper/bin/yt-job-tool_make
-    ${YT_PYTHON_ROOT}/python/yt/wrapper/tests/yt_python
-    ${YT_PYTHON_ROOT}/python/yt/wrapper/tests/yt_python3
-    ${YT_PYTHON_ROOT}/python/yt/wrapper/tests/yt_ipython
+    yt/python/yt/local/bin/yt_local_make
+    yt/python/yt/wrapper/bin/yt-job-tool_make
+    yt/python/yt/wrapper/tests/yt_python
+    yt/python/yt/wrapper/tests/yt_python3
+    yt/python/yt/wrapper/tests/yt_ipython
     ${YT_ROOT}/yt/server/clickhouse_server/bin
     ${YT_ROOT}/yt/server/clickhouse_trampoline
     ${YT_ROOT}/yt/server/log_tailer/bin
@@ -96,7 +95,7 @@ SPLIT_FACTOR(6)
 
 # Sandbox version.
 # DATA(
-#     arcadia/${YT_PYTHON_ROOT}/python/yt
+#     arcadia/yt/python/yt
 # )
 # REQUIREMENTS(
 #     ram_disk:56
