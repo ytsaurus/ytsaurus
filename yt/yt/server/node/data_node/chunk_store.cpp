@@ -265,8 +265,8 @@ void TChunkStore::DoRegisterExistingChunk(const IChunkPtr& chunk)
 
             case EObjectType::JournalChunk:
             case EObjectType::ErasureJournalChunk: {
-                auto longerRowCount = chunk->AsJournalChunk()->GetCachedRowCount();
-                auto shorterRowCount = oldChunk->AsJournalChunk()->GetCachedRowCount();
+                auto longerRowCount = chunk->AsJournalChunk()->GetFlushedRowCount();
+                auto shorterRowCount = oldChunk->AsJournalChunk()->GetFlushedRowCount();
 
                 auto longerChunk = chunk;
                 auto shorterChunk = oldChunk;

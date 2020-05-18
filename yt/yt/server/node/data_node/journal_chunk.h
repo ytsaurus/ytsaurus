@@ -39,9 +39,11 @@ public:
         int blockCount,
         const TBlockReadOptions& options) override;
 
-    void UpdateCachedParams(const NHydra::IChangelogPtr& changelog);
-    i64 GetCachedRowCount() const;
-    i64 GetCachedDataSize() const;
+    i64 GetFlushedRowCount() const;
+    void UpdateFlushedRowCount(i64 rowCount);
+
+    i64 GetDataSize() const;
+    void UpdateDataSize(i64 dataSize);
 
     TFuture<void> Seal();
     bool IsSealed() const;
@@ -51,8 +53,8 @@ private:
 
     std::atomic<bool> Active_ = false;
 
-    std::atomic<i64> CachedRowCount_ = 0;
-    std::atomic<i64> CachedDataSize_ = 0;
+    std::atomic<i64> FlushedRowCount_ = 0;
+    std::atomic<i64> DataSize_ = 0;
     
     std::atomic<bool> Sealed_ = false;
 

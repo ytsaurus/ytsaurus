@@ -79,7 +79,7 @@ TFuture<TChunkInfo> TJournalSession::DoFinish(
         error.ThrowOnError();
 
         TChunkInfo info;
-        info.set_disk_space(Chunk_->GetCachedDataSize());
+        info.set_disk_space(Chunk_->GetDataSize());
         info.set_sealed(Chunk_->IsSealed());
         return info;
     }).AsyncVia(SessionInvoker_));
@@ -118,10 +118,13 @@ TFuture<void> TJournalSession::DoPutBlocks(
     }
 
     if (!records.empty()) {
-        LastAppendResult_ = Changelog_->Append(records);
+        auto flushedRowCount = startBlockIndex + blocks.size();
+        LastAppendResult_ = Changelog_->Append(records)
+            .Apply(BIND([chunk = Chunk_, changelog = Changelog_, flushedRowCount] {
+                chunk->UpdateFlushedRowCount(flushedRowCount);
+                chunk->UpdateDataSize(changelog->GetDataSize());
+            }));
     }
-
-    Chunk_->UpdateCachedParams(Changelog_);
 
     return VoidFuture;
 }
@@ -157,7 +160,8 @@ void TJournalSession::OnFinished()
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
     if (Changelog_) {
-        Chunk_->UpdateCachedParams(Changelog_);
+        Chunk_->UpdateFlushedRowCount(Changelog_->GetRecordCount());
+        Chunk_->UpdateDataSize(Changelog_->GetDataSize());
     }
     
     Chunk_->SetActive(false);

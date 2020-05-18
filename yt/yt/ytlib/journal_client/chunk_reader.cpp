@@ -55,7 +55,7 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
     options->AllowFetchingSeedsFromMaster = false;
 
     std::vector<IChunkReaderPtr> partReaders;
-    for (int replicaIndex = 0; replicaIndex < replicas.back().GetReplicaIndex(); ++replicaIndex) {
+    for (int replicaIndex = 0; replicaIndex < ChunkReplicaIndexBound; ++replicaIndex) {
         auto partChunkId = EncodeChunkId(TChunkIdWithIndex(chunkId, replicaIndex));
         TChunkReplicaList partReplicas;
         for (auto replica : replicas) {

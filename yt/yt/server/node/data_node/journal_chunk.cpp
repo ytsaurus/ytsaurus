@@ -37,6 +37,22 @@ static TMonotonicCounter DiskJournalReadByteCounter("/disk_journal_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+void UpdateMax(std::atomic<i64>& value, i64 candidate)
+{
+    auto current = value.load();
+    while (current < candidate) {
+        if (value.compare_exchange_weak(current, candidate)) {
+            break;
+        }
+    }
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TJournalChunk::TJournalChunk(
     TBootstrap* bootstrap,
     TStoreLocationPtr location,
@@ -47,8 +63,8 @@ TJournalChunk::TJournalChunk(
         descriptor.Id)
     , StoreLocation_(location)
 {
-    CachedRowCount_.store(descriptor.RowCount);
-    CachedDataSize_.store(descriptor.DiskSpace);
+    FlushedRowCount_.store(descriptor.RowCount);
+    DataSize_.store(descriptor.DiskSpace);
     Sealed_.store(descriptor.Sealed);
 }
 
@@ -79,7 +95,7 @@ TChunkInfo TJournalChunk::GetInfo() const
 
     TChunkInfo info;
     info.set_sealed(IsSealed());
-    info.set_disk_space(GetCachedDataSize());
+    info.set_disk_space(GetDataSize());
     return info;
 }
 
@@ -97,8 +113,8 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
     }
 
     TMiscExt miscExt;
-    miscExt.set_row_count(GetCachedRowCount());
-    miscExt.set_uncompressed_data_size(GetCachedDataSize());
+    miscExt.set_row_count(GetFlushedRowCount());
+    miscExt.set_uncompressed_data_size(GetDataSize());
     miscExt.set_compressed_data_size(miscExt.uncompressed_data_size());
     miscExt.set_sealed(IsSealed());
 
@@ -250,26 +266,32 @@ TFuture<void> TJournalChunk::AsyncRemove()
     return dispatcher->RemoveChangelog(this, true);
 }
 
-void TJournalChunk::UpdateCachedParams(const IChangelogPtr& changelog)
+i64 TJournalChunk::GetFlushedRowCount() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    CachedRowCount_.store(changelog->GetRecordCount());
-    CachedDataSize_.store(changelog->GetDataSize());
+    return FlushedRowCount_.load();
 }
 
-i64 TJournalChunk::GetCachedRowCount() const
+void TJournalChunk::UpdateFlushedRowCount(i64 rowCount)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return CachedRowCount_.load();
+    UpdateMax(FlushedRowCount_, rowCount);
 }
 
-i64 TJournalChunk::GetCachedDataSize() const
+i64 TJournalChunk::GetDataSize() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return CachedDataSize_.load();
+    return DataSize_.load();
+}
+
+void TJournalChunk::UpdateDataSize(i64 dataSize)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    UpdateMax(DataSize_, dataSize);
 }
 
 bool TJournalChunk::IsSealed() const
