@@ -124,6 +124,14 @@ TEST(TMakeUnversionedOwningRow, SingleValue)
     CheckSingleValue(TDuration::Seconds(10));
 }
 
+TEST(TMakeUnversionedOwningRow, CharPtr)
+{
+    auto row = MakeUnversionedOwningRow("test");
+    EXPECT_EQ(1, row.GetCount());
+    EXPECT_EQ(0, row[0].Id);
+    EXPECT_EQ("test", FromUnversionedValue<TString>(row[0]));
+}
+
 TEST(TMakeUnversionedOwningRow, NullValue)
 {
     auto row = MakeUnversionedOwningRow(std::nullopt);
@@ -161,6 +169,39 @@ TEST(TMakeUnversionedOwningRow, TupleFromUnversionedRow)
     EXPECT_EQ("hello", a);
     EXPECT_EQ("world", b);
     EXPECT_EQ(123, c);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TUnversionedRowsBuilder, Empty)
+{
+    TUnversionedRowsBuilder builder;
+    auto rows = builder.Build();
+    EXPECT_EQ(0, rows.size());
+}
+
+TEST(TUnversionedRowsBuilder, SomeValues)
+{
+    TUnversionedRowsBuilder builder;
+    builder.AddRow(1, "hello");
+    builder.AddRow(2, "world");
+    auto rows = builder.Build();
+    EXPECT_EQ(2, rows.size());
+    {
+        fprintf(stderr, "%s\n", Format("%v", rows[0]).c_str());
+        auto [i, s] = FromUnversionedRow<int, TString>(rows[0]);
+        EXPECT_EQ(1, i);
+        EXPECT_EQ("hello", s);
+        EXPECT_EQ(0, rows[0][0].Id);
+        EXPECT_EQ(1, rows[0][1].Id);
+    }
+    {
+        auto [i, s] = FromUnversionedRow<int, TString>(rows[1]);
+        EXPECT_EQ(2, i);
+        EXPECT_EQ("world", s);
+        EXPECT_EQ(0, rows[1][0].Id);
+        EXPECT_EQ(1, rows[1][1].Id);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

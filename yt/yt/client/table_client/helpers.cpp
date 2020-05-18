@@ -335,6 +335,18 @@ void FromUnversionedValue(TStringBuf* value, TUnversionedValue unversionedValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, const char* value, const TRowBufferPtr& rowBuffer, int id)
+{
+    ToUnversionedValue(unversionedValue, TStringBuf(value), rowBuffer, id);
+}
+
+void FromUnversionedValue(const char** value, TUnversionedValue unversionedValue)
+{
+    *value = FromUnversionedValue<TStringBuf>(unversionedValue).data();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToUnversionedValue(TUnversionedValue* unversionedValue, bool value, const TRowBufferPtr& rowBuffer, int id)
 {
     *unversionedValue = rowBuffer->Capture(MakeUnversionedBooleanValue(value, id));
@@ -1182,5 +1194,37 @@ void PrintTo(const TUnversionedRow& value, ::std::ostream* os)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDefaultUnversionedRowsBuilderTag
+{ };
+
+TUnversionedRowsBuilder::TUnversionedRowsBuilder()
+    : TUnversionedRowsBuilder(New<TRowBuffer>(TDefaultUnversionedRowsBuilderTag()))
+{ }
+
+TUnversionedRowsBuilder::TUnversionedRowsBuilder(TRowBufferPtr rowBuffer)
+    : RowBuffer_(std::move(rowBuffer))
+{ }
+
+void TUnversionedRowsBuilder::ReserveRows(int rowCount)
+{
+    Rows_.reserve(rowCount);
+}
+
+void TUnversionedRowsBuilder::AddRow(TUnversionedRow row)
+{
+    Rows_.push_back(RowBuffer_->Capture(row));
+}
+
+void TUnversionedRowsBuilder::AddRow(TMutableUnversionedRow row)
+{
+    AddRow(TUnversionedRow(row));
+}
+
+TSharedRange<TUnversionedRow> TUnversionedRowsBuilder::Build()
+{
+    return MakeSharedRange(std::move(Rows_), std::move(RowBuffer_));
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
