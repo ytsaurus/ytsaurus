@@ -1163,7 +1163,8 @@ private:
                 .ThrowOnError();
 
             auto journalChunk = chunk->AsJournalChunk();
-            journalChunk->UpdateCachedParams(changelog);
+            journalChunk->UpdateFlushedRowCount(changelog->GetRecordCount());
+            journalChunk->UpdateDataSize(changelog->GetDataSize());
         }
 
         virtual bool RemoveSplitChangelog(TChunkId chunkId) override

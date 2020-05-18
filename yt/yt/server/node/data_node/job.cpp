@@ -1035,7 +1035,8 @@ private:
 
         YT_LOG_DEBUG("Finished sealing journal chunk");
 
-        journalChunk->UpdateCachedParams(changelog);
+        journalChunk->UpdateFlushedRowCount(changelog->GetRecordCount());
+        journalChunk->UpdateDataSize(changelog->GetDataSize());
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         chunkStore->UpdateExistingChunk(chunk);
