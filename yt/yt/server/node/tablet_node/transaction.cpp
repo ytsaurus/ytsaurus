@@ -7,11 +7,11 @@
 
 #include <yt/server/lib/hydra/composite_automaton.h>
 
-#include <yt/client/table_client/versioned_row.h>
-
 #include <yt/ytlib/tablet_client/public.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/client/table_client/versioned_row.h>
+
+#include <yt/client/transaction_client/helpers.h>
 
 #include <yt/client/object_client/helpers.h>
 

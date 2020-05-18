@@ -3,7 +3,7 @@
 
 #include <yt/ytlib/query_client/column_evaluator.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
+#include <yt/client/transaction_client/helpers.h>
 
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schema.h>
