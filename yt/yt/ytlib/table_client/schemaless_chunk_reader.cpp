@@ -26,7 +26,7 @@
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
-#include <yt/ytlib/chunk_client/multi_reader_base.h>
+#include <yt/ytlib/chunk_client/multi_reader_manager.h>
 #include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 #include <yt/ytlib/chunk_client/reader_factory.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
@@ -1061,7 +1061,6 @@ public:
                         Completed_ = true;
                     }
                 }
-
             } else if (RowIndex_ >= SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
                 auto keys = ReadKeys(rowLimit);
                 while (rowLimit > 0 && keys[rowLimit - 1] >= UpperLimit_.GetKey()) {
