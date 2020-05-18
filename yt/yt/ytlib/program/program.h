@@ -17,7 +17,7 @@ DEFINE_ENUM(EProgramExitCode,
 class TProgram
 {
 public:
-    TProgram();
+    explicit TProgram(bool suppressVersion = false);
     ~TProgram();
 
     TProgram(const TProgram&) = delete;

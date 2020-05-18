@@ -47,12 +47,18 @@ private:
     TProgram* Owner_;
 };
 
-TProgram::TProgram()
+TProgram::TProgram(bool suppressVersion)
 {
     Opts_.AddHelpOption();
-    Opts_.AddLongOption("version", "print version and exit")
+    Opts_.AddLongOption("yt-version", "print version and exit")
         .NoArgument()
         .Handler0(std::bind(&TProgram::PrintVersionAndExit, this));
+    // Some components like clickhouse-server have their own meaning of --version.
+    if (!suppressVersion) {
+        Opts_.AddLongOption("version", "print version and exit")
+            .NoArgument()
+            .Handler0(std::bind(&TProgram::PrintVersionAndExit, this));
+    }
     Opts_.AddLongOption("build", "print build information and exit")
         .NoArgument()
         .Handler0(std::bind(&TProgram::PrintBuildAndExit, this));
