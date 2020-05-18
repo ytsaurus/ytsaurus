@@ -1,4 +1,3 @@
-INCLUDE(${ARCADIA_ROOT}/yt/ya.make.environment.inc)
 
 DEPENDS(
     ${YT_ROOT}/yt/server/all
