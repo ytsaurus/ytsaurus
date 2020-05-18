@@ -39,8 +39,8 @@ TString GenerateRandomFileName(const char* prefix);
 
 void WaitForPredicate(
     std::function<bool()> predicate,
-    int iterationCount = 100,
-    TDuration period = TDuration::Seconds(1));
+    int iterationCount = 300,
+    TDuration period = TDuration::MilliSeconds(100));
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,11 +176,12 @@ template <>
 class Matcher<const TStringBuf&>
     : public internal::MatcherBase<const TStringBuf&> {
 public:
-    Matcher() {}
+    Matcher()
+    { }
 
     explicit Matcher(const MatcherInterface<const TStringBuf&>* impl)
         : internal::MatcherBase<const TStringBuf&>(impl)
-    {}
+    { }
 
     Matcher(const TString& s); // NOLINT
     Matcher(const char* s); // NOLINT
@@ -193,15 +194,16 @@ template <>
 class Matcher<TStringBuf>
     : public internal::MatcherBase<TStringBuf> {
 public:
-    Matcher() {}
+    Matcher()
+    { }
 
     explicit Matcher(const MatcherInterface<TStringBuf>* impl)
         : internal::MatcherBase<TStringBuf>(impl)
-    {}
+    { }
 
     explicit Matcher(const MatcherInterface<const TStringBuf&>* impl)
         : internal::MatcherBase<TStringBuf>(impl)
-    {}
+    { }
 
     Matcher(const TString& s); // NOLINT
     Matcher(const char* s); // NOLINT
@@ -230,15 +232,16 @@ template <>
 class Matcher<TString>
     : public internal::MatcherBase<TString> {
 public:
-    Matcher() {}
+    Matcher()
+    { }
 
     explicit Matcher(const MatcherInterface<TString>* impl)
         : internal::MatcherBase<TString>(impl)
-    {}
+    { }
 
     explicit Matcher(const MatcherInterface<const TString&>* impl)
         : internal::MatcherBase<TString>(impl)
-    {}
+    { }
 
     Matcher(const TString& s); // NOLINT
     Matcher(const char* s);

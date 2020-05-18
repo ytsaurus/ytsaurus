@@ -31,7 +31,7 @@ using namespace NJson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TLogger Logger("Test");
+static const TLogger Logger("Test");
 
 class TLoggingTest
     : public ::testing::Test
@@ -58,7 +58,8 @@ protected:
         return builder->EndTree()->AsMap();
     }
 
-    void WritePlainTextEvent(ILogWriter* writer) {
+    void WritePlainTextEvent(ILogWriter* writer)
+    {
         TLogEvent event;
         event.MessageFormat = ELogMessageFormat::PlainText;
         event.Category = &Category;
@@ -103,12 +104,12 @@ protected:
     }
 };
 
-#ifndef _win_
+#ifdef _unix_
 
-TEST_F(TLoggingTest, ReloadOnSigHup)
+TEST_F(TLoggingTest, ReloadOnSighup)
 {
-    NFs::Remove("test.log");
-    NFs::Remove("test.log.1");
+    NFs::Remove("reload-on-sighup.log");
+    NFs::Remove("reload-on-sighup.log.1");
 
     Configure(R"({
         rules = [
@@ -119,27 +120,25 @@ TEST_F(TLoggingTest, ReloadOnSigHup)
         ];
         "writers" = {
             "info" = {
-                "file_name" = "test.log";
+                "file_name" = "reload-on-sighup.log";
                 "type" = "file";
             };
         };
     })");
 
-    YT_LOG_INFO("Message1");
+    WaitForPredicate([&] {
+        YT_LOG_INFO("Message1");
+        return NFs::Exists("reload-on-sighup.log");
+    });
     
-    Sleep(TDuration::Seconds(1));
-
-    EXPECT_TRUE(NFs::Exists("test.log"));
-
-    NFs::Rename("test.log", "test.log.1");
+    NFs::Rename("reload-on-sighup.log", "reload-on-sighup.log.1");
 
     ::kill(::getpid(), SIGHUP);
 
-    Sleep(TDuration::Seconds(1)); // In sleep() we trust.
-
-    YT_LOG_INFO("Message2");
-
-    EXPECT_TRUE(NFs::Exists("test.log"));
+    WaitForPredicate([&] {
+        YT_LOG_INFO("Message2");
+        return NFs::Exists("reload-on-sighup.log");
+    });
 }
 
 #endif
