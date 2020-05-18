@@ -20,6 +20,7 @@
 #include <yt/server/lib/containers/instance.h>
 
 #include <util/system/platform.h>
+#include <util/system/env.h>
 
 namespace NYT::NContainers {
 namespace {
@@ -28,7 +29,15 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#if !defined(AUTOCHECK) && !defined(DISTBUILD)
+class TPortoProcessTest : public ::testing::Test
+{
+    virtual void SetUp() override
+    {
+        if (GetEnv("SKIP_PORTO_TESTS") != "") {
+            GTEST_SKIP();
+        }
+    }
+};
 
 static TString GetUniqueName()
 {
@@ -40,7 +49,7 @@ IPortoExecutorPtr CreatePortoExecutor()
     return CreatePortoExecutor(New<TPortoExecutorConfig>(), "default");
 }
 
-TEST(TPortoProcessTest, Basic)
+TEST_F(TPortoProcessTest, Basic)
 {
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
@@ -55,7 +64,7 @@ TEST(TPortoProcessTest, Basic)
     portoInstance->Destroy();
 }
 
-TEST(TPortoProcessTest, RunFromPathEnv)
+TEST_F(TPortoProcessTest, RunFromPathEnv)
 {
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
@@ -70,7 +79,7 @@ TEST(TPortoProcessTest, RunFromPathEnv)
     portoInstance->Destroy();
 }
 
-TEST(TPortoProcessTest, MultiBasic)
+TEST_F(TPortoProcessTest, MultiBasic)
 {
     auto portoExecutor = CreatePortoExecutor();
     auto c1 = CreatePortoInstance(GetUniqueName(), portoExecutor);
@@ -89,7 +98,7 @@ TEST(TPortoProcessTest, MultiBasic)
     c2->Destroy();
 }
 
-TEST(TPortoProcessTest, InvalidPath)
+TEST_F(TPortoProcessTest, InvalidPath)
 {
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
@@ -104,7 +113,7 @@ TEST(TPortoProcessTest, InvalidPath)
     portoInstance->Destroy();
 }
 
-TEST(TPortoProcessTest, StdOut)
+TEST_F(TPortoProcessTest, StdOut)
 {
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
@@ -127,7 +136,7 @@ TEST(TPortoProcessTest, StdOut)
     portoInstance->Destroy();
 }
 
-TEST(TPortoProcessTest, GetCommandLine)
+TEST_F(TPortoProcessTest, GetCommandLine)
 {
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
@@ -141,7 +150,7 @@ TEST(TPortoProcessTest, GetCommandLine)
     portoInstance->Destroy();
 }
 
-TEST(TPortoProcessTest, ProcessReturnCode0)
+TEST_F(TPortoProcessTest, ProcessReturnCode0)
 {
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
@@ -159,7 +168,7 @@ TEST(TPortoProcessTest, ProcessReturnCode0)
     portoInstance->Destroy();
 }
 
-TEST(TPortoProcessTest, ProcessReturnCode123)
+TEST_F(TPortoProcessTest, ProcessReturnCode123)
 {
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
@@ -178,7 +187,7 @@ TEST(TPortoProcessTest, ProcessReturnCode123)
     portoInstance->Destroy();
 }
 
-TEST(TPortoProcessTest, Params1)
+TEST_F(TPortoProcessTest, Params1)
 {
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
@@ -193,7 +202,7 @@ TEST(TPortoProcessTest, Params1)
     portoInstance->Destroy();
 }
 
-TEST(TPortoProcessTest, Params2)
+TEST_F(TPortoProcessTest, Params2)
 {
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
@@ -208,7 +217,7 @@ TEST(TPortoProcessTest, Params2)
     portoInstance->Destroy();
 }
 
-TEST(TPortoProcessTest, InheritEnvironment)
+TEST_F(TPortoProcessTest, InheritEnvironment)
 {
     const char* name = "SPAWN_TEST_ENV_VAR";
     const char* value = "42";
@@ -229,7 +238,7 @@ TEST(TPortoProcessTest, InheritEnvironment)
     portoInstance->Destroy();
 }
 
-TEST(TPortoProcessTest, Kill)
+TEST_F(TPortoProcessTest, Kill)
 {
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
@@ -251,7 +260,7 @@ TEST(TPortoProcessTest, Kill)
     portoInstance->Destroy();
 }
 
-TEST(TPortoProcessTest, KillFinished)
+TEST_F(TPortoProcessTest, KillFinished)
 {
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
@@ -269,7 +278,7 @@ TEST(TPortoProcessTest, KillFinished)
     portoInstance->Destroy();
 }
 
-TEST(TPortoProcessTest, PollDuration)
+TEST_F(TPortoProcessTest, PollDuration)
 {
     auto portoInstance = CreatePortoInstance(
         GetUniqueName(),
@@ -282,8 +291,6 @@ TEST(TPortoProcessTest, PollDuration)
     EXPECT_TRUE(p->IsFinished());
     portoInstance->Destroy();
 }
-
-#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
