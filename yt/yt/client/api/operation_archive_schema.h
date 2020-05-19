@@ -77,7 +77,7 @@ struct TJobTableDescriptor
 
     struct TIndex
     {
-        explicit TIndex(const NTableClient::TNameTablePtr& n);
+        explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
 
         const int OperationIdHi;
         const int OperationIdLo;
@@ -114,7 +114,7 @@ struct TJobSpecTableDescriptor
 
     struct TIndex
     {
-        explicit TIndex(const NTableClient::TNameTablePtr& n);
+        explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
 
         const int JobIdHi;
         const int JobIdLo;
@@ -133,7 +133,7 @@ struct TJobStderrTableDescriptor
 
     struct TIndex
     {
-        explicit TIndex(const NTableClient::TNameTablePtr& n);
+        explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
 
         const int OperationIdHi;
         const int OperationIdLo;
@@ -152,7 +152,7 @@ struct TJobProfileTableDescriptor
 
     struct TIndex
     {
-        explicit TIndex(const NTableClient::TNameTablePtr& n);
+        explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
 
         const int OperationIdHi;
         const int OperationIdLo;
@@ -173,7 +173,7 @@ struct TJobFailContextTableDescriptor
 
     struct TIndex
     {
-        explicit TIndex(const NTableClient::TNameTablePtr& n);
+        explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
 
         const int OperationIdHi;
         const int OperationIdLo;
@@ -192,7 +192,7 @@ struct TOperationAliasesTableDescriptor
 
     struct TIndex
     {
-        explicit TIndex(const NTableClient::TNameTablePtr& n);
+        explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
 
         const int AliasHash;
         const int Alias;
