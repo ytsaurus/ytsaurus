@@ -31,6 +31,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DynamicStoreRead)                     (300300))
     ((SortedOperationsSliceSize)            (300301))
     ((ChunkCountInUserObject)               (300302))
+    ((JobTaskName)                          (300303))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

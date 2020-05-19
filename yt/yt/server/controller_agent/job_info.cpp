@@ -139,6 +139,7 @@ void TJobInfoBase::Persist(const TPersistenceContext& context)
     Persist(context, Phase);
     Persist(context, JobCompetitionId);
     Persist(context, HasCompetitors);
+    Persist(context, TaskName);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

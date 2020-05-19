@@ -274,6 +274,8 @@ message TSchedulerJobSpecExt
     optional int64 waiting_job_timeout = 23;
 
     optional NYT.NProto.TGuid job_competition_id = 24;
+
+    optional string task_name = 25;
 }
 
 message TSchedulerJobResultExt

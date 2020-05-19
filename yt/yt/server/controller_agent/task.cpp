@@ -99,6 +99,11 @@ TString TTask::GetTitle() const
     return ToString(GetJobType());
 }
 
+TString TTask::GetName() const
+{
+    return "";
+}
+
 TDataFlowGraph::TVertexDescriptor TTask::GetVertexDescriptor() const
 {
     return FormatEnum(GetJobType());
@@ -989,6 +994,10 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
 
     YT_VERIFY(joblet->JobCompetitionId);
     ToProto(schedulerJobSpecExt->mutable_job_competition_id(), joblet->JobCompetitionId);
+
+    if (auto taskName = GetName()) {
+        schedulerJobSpecExt->set_task_name(taskName);
+    }
 
     return SerializeProtoToRefWithEnvelope(*jobSpec, TaskHost_->GetConfig()->JobSpecCodec);
 }

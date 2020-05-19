@@ -619,6 +619,7 @@ static const THashSet<TString> SupportedOperationAttributes = {
     "suspended",
     "slot_index_per_pool_tree",
     "alerts",
+    "task_names",
 };
 
 // Attribute names allowed for 'get_job' and 'list_jobs' commands.
@@ -637,6 +638,7 @@ static const THashSet<TString> SupportedJobAttributes = {
     "job_competition_id",
     "has_competitors",
     "exec_attributes",
+    "task_name",
 };
 
 // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
@@ -938,6 +940,7 @@ TYsonString TClient::DoGetOperationFromArchive(
                 SET_ITEM_YSON_STRING_VALUE("events")
                 SET_ITEM_YSON_STRING_VALUE("slot_index_per_pool_tree")
                 SET_ITEM_YSON_STRING_VALUE("alerts")
+                SET_ITEM_YSON_STRING_VALUE("task_names")
             .EndMap();
 #undef SET_ITEM_STRING_VALUE
 #undef SET_ITEM_YSON_STRING_VALUE
@@ -2341,6 +2344,10 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
             operation.Alerts = getYson(row[*indexOrNull]);
         }
 
+        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.TaskNames)) {
+            operation.TaskNames = getYson(row[*indexOrNull]);
+        }
+
         idToOperation.emplace(*operation.Id, std::move(operation));
     }
 
@@ -2619,6 +2626,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
     auto jobCompetitionIdIndex = builder.AddSelectExpression("job_competition_id");
     auto hasCompetitorsIndex = builder.AddSelectExpression("has_competitors");
     auto execAttributesIndex = builder.AddSelectExpression("exec_attributes");
+    auto taskNameIndex = builder.AddSelectExpression("task_name");
 
     int coreInfosIndex = -1;
     {
@@ -2828,6 +2836,10 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 
             if (row[execAttributesIndex].Type != EValueType::Null) {
                 job.ExecAttributes = TYsonString(TString(row[execAttributesIndex].Data.String, row[execAttributesIndex].Length));
+            }
+
+            if (row[taskNameIndex].Type != EValueType::Null) {
+                job.TaskName = TString(row[taskNameIndex].Data.String, row[taskNameIndex].Length);
             }
 
             // We intentionally mark stderr as missing if job has no spec since
@@ -3137,6 +3149,7 @@ static void ParseJobsFromControllerAgentResponse(
     auto needJobCompetitionId = attributes.contains("job_competition_id");
     auto needHasCompetitors = attributes.contains("has_competitors");
     auto needError = attributes.contains("error");
+    auto needTaskName = attributes.contains("task_name");
 
     for (const auto& [jobIdString, jobNode] : jobNodes) {
         if (!filter(jobNode)) {
@@ -3199,6 +3212,11 @@ static void ParseJobsFromControllerAgentResponse(
         if (needError) {
             if (auto child = jobMapNode->FindChild("error")) {
                 job.Error = ConvertToYsonString(ConvertTo<TError>(child));
+            }
+        }
+        if (needTaskName) {
+            if (auto child = jobMapNode->FindChild("task_name")) {
+                job.TaskName = ConvertTo<TString>(child);
             }
         }
     }
@@ -3283,6 +3301,7 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
         "brief_statistics",
         "job_competition_id",
         "has_competitors",
+        "task_name",
     };
 
     TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
@@ -3409,6 +3428,7 @@ static void MergeJob(TSourceJob&& source, TJob* target)
     MERGE_NULLABLE_FIELD(JobCompetitionId);
     MERGE_NULLABLE_FIELD(HasCompetitors);
     MERGE_NULLABLE_FIELD(ExecAttributes);
+    MERGE_NULLABLE_FIELD(TaskName);
 #undef MERGE_NULLABLE_FIELD
     if (source.StderrSize && target->StderrSize.value_or(0) < source.StderrSize) {
         target->StderrSize = source.StderrSize;
@@ -3897,6 +3917,12 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
             job.HasCompetitors = false;
         }
     }
+    if (auto execAttributes = FindValue<TYsonString>(row, columnFilter, table.Index.ExecAttributes)) {
+        job.ExecAttributes = std::move(*execAttributes);
+    }
+    if (auto taskName = FindValue<TStringBuf>(row, columnFilter, table.Index.TaskName)) {
+        job.TaskName = taskName;
+    }
 
     return job;
 }
@@ -3978,6 +4004,8 @@ TYsonString TClient::DoGetJob(
         "has_spec",
         "job_competition_id",
         "has_competitors",
+        "exec_attributes",
+        "task_name",
     };
 
     const auto& attributes = options.Attributes.value_or(DefaultAttributes);

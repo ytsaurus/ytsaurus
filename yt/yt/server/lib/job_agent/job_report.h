@@ -74,6 +74,7 @@ struct TJobReport
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobCompetitionId)
     DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasCompetitors)
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ExecAttributes);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TaskName);
 
 protected:
     TJobReport() = default;
@@ -112,6 +113,7 @@ struct TNodeJobReport
     void SetStartTime(TInstant startTime);
     void SetFinishTime(TInstant finishTime);
     void SetJobCompetitionId(NJobTrackerClient::TJobId jobCompetitionId);
+    void SetTaskName(const TString& taskName);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

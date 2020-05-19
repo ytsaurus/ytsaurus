@@ -465,6 +465,11 @@ private:
             if (GetSharedData()->GetOperationArchiveVersion() >= 34 && statistics.ExecAttributes()) {
                 builder.AddValue(MakeUnversionedAnyValue(*statistics.ExecAttributes(), Table_.Index.ExecAttributes));
             }
+            // COMPAT(gritukan)
+            if (GetSharedData()->GetOperationArchiveVersion() >= 35 && statistics.TaskName()) {
+                builder.AddValue(MakeUnversionedStringValue(*statistics.TaskName(), Table_.Index.TaskName));
+            }
+
             rows.push_back(rowBuffer->Capture(builder.GetRow()));
             dataWeight += GetDataWeight(rows.back());
         }

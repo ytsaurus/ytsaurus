@@ -117,6 +117,42 @@ class TestGetJob(YTEnvSetup):
         # zombie operation orchids.
         self._check_get_job(op.id, job_id, before_start_time, state="failed", check_has_spec=False)
 
+    @authors("gritukan")
+    def test_get_job_task_name_attribute_vanilla(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "master": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="master"),
+                    },
+                    "slave": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="slave"),
+                    },
+                },
+            })
+
+        master_job_ids = wait_breakpoint(breakpoint_name="master", job_count=1)
+        slave_job_ids = wait_breakpoint(breakpoint_name="slave", job_count=2)
+
+        def check_task_names():
+            for job_id in master_job_ids:
+                job_info = retry(lambda: get_job(op.id, job_id))
+                assert job_info["task_name"] == "master"
+            for job_id in slave_job_ids:
+                job_info = retry(lambda: get_job(op.id, job_id))
+                assert job_info["task_name"] == "slave"
+
+        check_task_names()
+
+        release_breakpoint(breakpoint_name="master")
+        release_breakpoint(breakpoint_name="slave")
+        op.track()
+
+        check_task_names()
+
     @authors("levysotsky")
     def test_get_stubborn_job(self):
         create("table", "//tmp/t1")

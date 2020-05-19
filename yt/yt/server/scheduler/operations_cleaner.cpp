@@ -74,6 +74,7 @@ void TArchiveOperationRequest::InitializeFromOperation(const TOperationPtr& oper
     RuntimeParameters = ConvertToYsonString(operation->GetRuntimeParameters(), EYsonFormat::Binary);
     Alias = operation->Alias();
     SlotIndexPerPoolTree = ConvertToYsonString(operation->GetSlotIndices(), EYsonFormat::Binary);
+    TaskNames = ConvertToYsonString(operation->GetTaskNames(), EYsonFormat::Binary);
 
     const auto& attributes = operation->ControllerAttributes();
     const auto& initializationAttributes = attributes.InitializeAttributes;
@@ -105,6 +106,7 @@ const std::vector<TString>& TArchiveOperationRequest::GetAttributeKeys()
         "runtime_parameters",
         "alias",
         "slot_index_per_pool_tree",
+        "task_names",
     };
 
     return attributeKeys;
@@ -140,6 +142,7 @@ void TArchiveOperationRequest::InitializeFromAttributes(const IAttributeDictiona
     RuntimeParameters = attributes.FindYson("runtime_parameters");
     Alias = ConvertTo<TOperationSpecBasePtr>(Spec)->Alias;
     SlotIndexPerPoolTree = attributes.FindYson("slot_index_per_pool_tree");
+    TaskNames = attributes.FindYson("task_names");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -301,6 +304,10 @@ TUnversionedRow BuildOrderedByIdTableRow(
 
     if (version >= 27 && request.SlotIndexPerPoolTree) {
         builder.AddValue(MakeUnversionedAnyValue(request.SlotIndexPerPoolTree.GetData(), index.SlotIndexPerPoolTree));
+    }
+
+    if (version >= 35 && request.TaskNames) {
+        builder.AddValue(MakeUnversionedAnyValue(request.TaskNames.GetData(), index.TaskNames));
     }
 
     return rowBuffer->Capture(builder.GetRow());

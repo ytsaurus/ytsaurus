@@ -2221,6 +2221,7 @@ void TOperationControllerBase::SafeOnJobStarted(std::unique_ptr<TStartedJobSumma
 
     auto joblet = GetJoblet(jobId);
     joblet->LastActivityTime = jobSummary->StartTime;
+    joblet->TaskName = joblet->Task->GetName();
 
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(jobId)
@@ -2783,7 +2784,8 @@ void TOperationControllerBase::BuildJobAttributes(
         })
         .Item("suspicious").Value(job->Suspicious)
         .Item("job_competition_id").Value(job->JobCompetitionId)
-        .Item("has_competitors").Value(job->HasCompetitors);
+        .Item("has_competitors").Value(job->HasCompetitors)
+        .Item("task_name").Value(job->TaskName);
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
