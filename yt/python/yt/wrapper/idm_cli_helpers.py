@@ -239,7 +239,7 @@ class ObjectIdmSnapshot(object):
                     comment_to_roles[role.comment] = []
                 comment_to_roles[role.comment].append(role)
             for comment, roles in iteritems(comment_to_roles):
-                roles = [role.to_json() for role in self._new_roles]
+                roles = [role.to_json_type() for role in self._new_roles]
                 self.idm_client.add_role(roles=roles, comment=comment, **self.object_id)
         if self._roles_to_remove:
             for role in self._roles_to_remove:
