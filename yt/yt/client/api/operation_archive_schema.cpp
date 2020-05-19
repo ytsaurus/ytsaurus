@@ -64,30 +64,30 @@ TJobTableDescriptor::TJobTableDescriptor()
     , Index(NameTable)
 { }
 
-TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
-    : OperationIdHi(n->RegisterName("operation_id_hi"))
-    , OperationIdLo(n->RegisterName("operation_id_lo"))
-    , JobIdHi(n->RegisterName("job_id_hi"))
-    , JobIdLo(n->RegisterName("job_id_lo"))
-    , Type(n->RegisterName("type"))
-    , State(n->RegisterName("state"))
-    , TransientState(n->RegisterName("transient_state"))
-    , StartTime(n->RegisterName("start_time"))
-    , FinishTime(n->RegisterName("finish_time"))
-    , UpdateTime(n->RegisterName("update_time"))
-    , Address(n->RegisterName("address"))
-    , Error(n->RegisterName("error"))
-    , Statistics(n->RegisterName("statistics"))
-    , Events(n->RegisterName("events"))
-    , StderrSize(n->RegisterName("stderr_size"))
-    , HasSpec(n->RegisterName("has_spec"))
-    , HasFailContext(n->RegisterName("has_fail_context"))
-    , FailContextSize(n->RegisterName("fail_context_size"))
-    , CoreInfos(n->RegisterName("core_infos"))
-    , JobCompetitionId(n->RegisterName("job_competition_id"))
-    , HasCompetitors(n->RegisterName("has_competitors"))
-    , ExecAttributes(n->RegisterName("exec_attributes"))
-    , TaskName(n->RegisterName("task_name"))
+TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
+    : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
+    , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
+    , JobIdHi(nameTable->RegisterName("job_id_hi"))
+    , JobIdLo(nameTable->RegisterName("job_id_lo"))
+    , Type(nameTable->RegisterName("type"))
+    , State(nameTable->RegisterName("state"))
+    , TransientState(nameTable->RegisterName("transient_state"))
+    , StartTime(nameTable->RegisterName("start_time"))
+    , FinishTime(nameTable->RegisterName("finish_time"))
+    , UpdateTime(nameTable->RegisterName("update_time"))
+    , Address(nameTable->RegisterName("address"))
+    , Error(nameTable->RegisterName("error"))
+    , Statistics(nameTable->RegisterName("statistics"))
+    , Events(nameTable->RegisterName("events"))
+    , StderrSize(nameTable->RegisterName("stderr_size"))
+    , HasSpec(nameTable->RegisterName("has_spec"))
+    , HasFailContext(nameTable->RegisterName("has_fail_context"))
+    , FailContextSize(nameTable->RegisterName("fail_context_size"))
+    , CoreInfos(nameTable->RegisterName("core_infos"))
+    , JobCompetitionId(nameTable->RegisterName("job_competition_id"))
+    , HasCompetitors(nameTable->RegisterName("has_competitors"))
+    , ExecAttributes(nameTable->RegisterName("exec_attributes"))
+    , TaskName(nameTable->RegisterName("task_name"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,12 +97,12 @@ TJobSpecTableDescriptor::TJobSpecTableDescriptor()
     , Index(NameTable)
 { }
 
-TJobSpecTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
-    : JobIdHi(n->RegisterName("job_id_hi"))
-    , JobIdLo(n->RegisterName("job_id_lo"))
-    , Spec(n->RegisterName("spec"))
-    , SpecVersion(n->RegisterName("spec_version"))
-    , Type(n->RegisterName("type"))
+TJobSpecTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& nameTable)
+    : JobIdHi(nameTable->RegisterName("job_id_hi"))
+    , JobIdLo(nameTable->RegisterName("job_id_lo"))
+    , Spec(nameTable->RegisterName("spec"))
+    , SpecVersion(nameTable->RegisterName("spec_version"))
+    , Type(nameTable->RegisterName("type"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -112,12 +112,12 @@ TJobStderrTableDescriptor::TJobStderrTableDescriptor()
     , Index(NameTable)
 { }
 
-TJobStderrTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
-    : OperationIdHi(n->RegisterName("operation_id_hi"))
-    , OperationIdLo(n->RegisterName("operation_id_lo"))
-    , JobIdHi(n->RegisterName("job_id_hi"))
-    , JobIdLo(n->RegisterName("job_id_lo"))
-    , Stderr(n->RegisterName("stderr"))
+TJobStderrTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& nameTable)
+    : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
+    , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
+    , JobIdHi(nameTable->RegisterName("job_id_hi"))
+    , JobIdLo(nameTable->RegisterName("job_id_lo"))
+    , Stderr(nameTable->RegisterName("stderr"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -127,14 +127,14 @@ TJobProfileTableDescriptor::TJobProfileTableDescriptor()
     , Index(NameTable)
 { }
 
-TJobProfileTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
-    : OperationIdHi(n->RegisterName("operation_id_hi"))
-    , OperationIdLo(n->RegisterName("operation_id_lo"))
-    , JobIdHi(n->RegisterName("job_id_hi"))
-    , JobIdLo(n->RegisterName("job_id_lo"))
-    , PartIndex(n->RegisterName("part_index"))
-    , ProfileType(n->RegisterName("profile_type"))
-    , ProfileBlob(n->RegisterName("profile_blob"))
+TJobProfileTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& nameTable)
+    : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
+    , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
+    , JobIdHi(nameTable->RegisterName("job_id_hi"))
+    , JobIdLo(nameTable->RegisterName("job_id_lo"))
+    , PartIndex(nameTable->RegisterName("part_index"))
+    , ProfileType(nameTable->RegisterName("profile_type"))
+    , ProfileBlob(nameTable->RegisterName("profile_blob"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,12 +144,12 @@ TJobFailContextTableDescriptor::TJobFailContextTableDescriptor()
     , Index(NameTable)
 { }
 
-TJobFailContextTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
-    : OperationIdHi(n->RegisterName("operation_id_hi"))
-    , OperationIdLo(n->RegisterName("operation_id_lo"))
-    , JobIdHi(n->RegisterName("job_id_hi"))
-    , JobIdLo(n->RegisterName("job_id_lo"))
-    , FailContext(n->RegisterName("fail_context"))
+TJobFailContextTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& nameTable)
+    : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
+    , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
+    , JobIdHi(nameTable->RegisterName("job_id_hi"))
+    , JobIdLo(nameTable->RegisterName("job_id_lo"))
+    , FailContext(nameTable->RegisterName("fail_context"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -159,11 +159,11 @@ TOperationAliasesTableDescriptor::TOperationAliasesTableDescriptor()
     , Index(NameTable)
 { }
 
-TOperationAliasesTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& n)
-    : AliasHash(n->RegisterName("alias_hash"))
-    , Alias(n->RegisterName("alias"))
-    , OperationIdHi(n->RegisterName("operation_id_hi"))
-    , OperationIdLo(n->RegisterName("operation_id_lo"))
+TOperationAliasesTableDescriptor::TIndex::TIndex(const NTableClient::TNameTablePtr& nameTable)
+    : AliasHash(nameTable->RegisterName("alias_hash"))
+    , Alias(nameTable->RegisterName("alias"))
+    , OperationIdHi(nameTable->RegisterName("operation_id_hi"))
+    , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
