@@ -998,6 +998,8 @@ struct TOperation
 
     NYson::TYsonString SlotIndexPerPoolTree;
     NYson::TYsonString Alerts;
+
+    NYson::TYsonString TaskNames;
 };
 
 struct TListOperationsResult
@@ -1036,6 +1038,7 @@ struct TJob
     NYson::TYsonString Events;
     std::optional<bool> IsStale;
     NYson::TYsonString ExecAttributes;
+    std::optional<TString> TaskName;
 };
 
 void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey);

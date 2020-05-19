@@ -177,7 +177,8 @@ void TListOperationsCommand::BuildOperations(const TListOperationsResult& result
             .OptionalItem("result", operation.Result)
             .OptionalItem("events", operation.Events)
             .OptionalItem("slot_index_per_pool_tree", operation.SlotIndexPerPoolTree)
-            .OptionalItem("alerts", operation.Alerts);
+            .OptionalItem("alerts", operation.Alerts)
+            .OptionalItem("task_names", operation.TaskNames);
     };
 
     if (EnableUIMode) {

@@ -13,7 +13,7 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::ChunkCountInUserObject) &&
+    return version >= ToUnderlying(ESnapshotVersion::JobTaskName) &&
         version <= GetCurrentSnapshotVersion();
 }
 

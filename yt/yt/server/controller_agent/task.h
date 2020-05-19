@@ -49,6 +49,9 @@ public:
     //! with the vertex descriptor and a partition index in brackets (if applicable).
     virtual TString GetTitle() const;
 
+    //! Human-readable name of a particular task that appears in archive. Supported for vanilla tasks only for now.
+    virtual TString GetName() const;
+
     virtual TTaskGroupPtr GetGroup() const = 0;
 
     virtual int GetPendingJobCount() const;

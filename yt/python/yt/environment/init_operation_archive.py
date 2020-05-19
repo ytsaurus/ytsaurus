@@ -630,6 +630,70 @@ TRANSFORMS[34] = [
             attributes={"atomicity": "none"})),
 ]
 
+TRANSFORMS[35] = [
+    Conversion(
+        "ordered_by_id",
+        table_info=TableInfo([
+                ("id_hash", "uint64", "farm_hash(id_hi, id_lo)"),
+                ("id_hi", "uint64"),
+                ("id_lo", "uint64"),
+            ], [
+                ("state", "string"),
+                ("authenticated_user", "string"),
+                ("operation_type", "string"),
+                ("progress", "any"),
+                ("spec", "any"),
+                ("brief_progress", "any"),
+                ("brief_spec", "any"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("filter_factors", "string"),
+                ("result", "any"),
+                ("events", "any"),
+                ("alerts", "any"),
+                ("slot_index", "int64"),
+                ("unrecognized_spec", "any"),
+                ("full_spec", "any"),
+                ("runtime_parameters", "any"),
+                ("slot_index_per_pool_tree", "any"),
+                ("annotations", "any"),
+                ("task_names", "any")
+            ],
+            in_memory=True)),
+    Conversion(
+        "jobs",
+        table_info=TableInfo([
+                ("operation_id_hash", "uint64", "farm_hash(operation_id_hi, operation_id_lo)"),
+                ("operation_id_hi", "uint64"),
+                ("operation_id_lo", "uint64"),
+                ("job_id_hi", "uint64"),
+                ("job_id_lo", "uint64")
+            ], [
+                ("type", "string"),
+                ("state", "string"),
+                ("start_time", "int64"),
+                ("finish_time", "int64"),
+                ("address", "string"),
+                ("error", "any"),
+                ("statistics", "any"),
+                ("stderr_size", "uint64"),
+                ("spec", "string"),
+                ("spec_version", "int64"),
+                ("has_spec", "boolean"),
+                ("has_fail_context", "boolean"),
+                ("fail_context_size", "uint64"),
+                ("events", "any"),
+                ("transient_state", "string"),
+                ("update_time", "int64"),
+                ("core_infos", "any"),
+                ("job_competition_id", "string"),
+                ("has_competitors", "boolean"),
+                ("exec_attributes", "any"),
+                ("task_name", "string"),
+            ],
+            attributes={"atomicity": "none"}))
+]
+
 def swap_table(client, target, source, version):
     backup_path = target + ".bak.{0}".format(version)
     has_target = False

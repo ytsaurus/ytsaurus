@@ -190,6 +190,23 @@ const TYsonString& TOperation::GetSpecString() const
     return SpecString_;
 }
 
+std::vector<TString> TOperation::GetTaskNames() const
+{
+    if (Type_ != EOperationType::Vanilla) {
+        return {};
+    }
+
+    auto vanillaOperationSpec = ConvertTo<TVanillaOperationSpecPtr>(SpecString_);
+
+    std::vector<TString> taskNames;
+    taskNames.reserve(vanillaOperationSpec->Tasks.size());
+    for (const auto& [taskName, taskSpec] : vanillaOperationSpec->Tasks) {
+        taskNames.push_back(taskName);
+    }
+
+    return taskNames;
+}
+
 TFuture<TOperationPtr> TOperation::GetStarted()
 {
     return StartedPromise_.ToFuture().Apply(BIND([this_ = MakeStrong(this)] () -> TOperationPtr {

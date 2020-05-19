@@ -175,6 +175,7 @@ void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey
             .OptionalItem("statistics", job.Statistics)
             .OptionalItem("is_stale", job.IsStale)
             .OptionalItem("exec_attributes", job.ExecAttributes)
+            .OptionalItem("task_name", job.TaskName)
         .EndMap();
 }
 

@@ -274,6 +274,36 @@ class TestGetOperation(YTEnvSetup):
         with raises_yt_error(NoSuchAttribute):
             get_operation(op.id, attributes=["nonexistent-attribute-ZZZ"])
 
+    @authors("gritukan")
+    def test_task_names_attribute_vanilla(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "master": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT"),
+                    },
+                    "slave": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                    },
+                },
+            })
+
+        wait(lambda: len(op.get_running_jobs()) == 3)
+
+        def check_task_names():
+            assert sorted(list(get_operation(op.id, attributes=["task_names"])["task_names"])) == ["master", "slave"]
+
+        check_task_names()
+
+        release_breakpoint()
+        op.track()
+        clean_operations()
+
+        check_task_names()
+
     @authors("asaitgalin", "levysotsky")
     def test_get_operation_and_half_deleted_operation_node(self):
         create("table", "//tmp/t1")

@@ -50,6 +50,7 @@ struct TJobInfoBase
     EJobPhase Phase = EJobPhase::Missing;
     TJobId JobCompetitionId;
     bool HasCompetitors = false;
+    TString TaskName;
 
     virtual void Persist(const TPersistenceContext& context);
 };

@@ -1909,6 +1909,9 @@ private:
         if (SchedulerJobSpecExt_->has_job_competition_id()) {
             statistics.SetJobCompetitionId(FromProto<TGuid>(SchedulerJobSpecExt_->job_competition_id()));
         }
+        if (SchedulerJobSpecExt_ && SchedulerJobSpecExt_->has_task_name()) {
+            statistics.SetTaskName(SchedulerJobSpecExt_->task_name());
+        }
 
         return statistics;
     }

@@ -591,6 +591,10 @@ void ToProto(NProto::TOperation* protoOperation, const NApi::TOperation& operati
     if (operation.SlotIndexPerPoolTree) {
         protoOperation->set_slot_index_per_pool_tree(operation.SlotIndexPerPoolTree.GetData());
     }
+
+    if (operation.TaskNames) {
+        protoOperation->set_task_names(operation.TaskNames.GetData());
+    }
 }
 
 void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOperation)
@@ -688,6 +692,12 @@ void FromProto(NApi::TOperation* operation, const NProto::TOperation& protoOpera
     } else {
         operation->SlotIndexPerPoolTree = NYson::TYsonString();
     }
+
+    if (protoOperation.has_task_names()) {
+        operation->TaskNames = NYson::TYsonString(protoOperation.task_names());
+    } else {
+        operation->TaskNames = NYson::TYsonString();
+    }
 }
 
 void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
@@ -759,6 +769,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     }
     if (job.ExecAttributes) {
         protoJob->set_exec_attributes(job.ExecAttributes.GetData());
+    }
+    if (job.TaskName) {
+        protoJob->set_task_name(*job.TaskName);
     }
 }
 
@@ -868,6 +881,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->ExecAttributes = NYson::TYsonString(protoJob.exec_attributes());
     } else {
         job->ExecAttributes = NYson::TYsonString();
+    }
+    if (protoJob.has_task_name()) {
+        job->TaskName = protoJob.task_name();
+    } else {
+        job->TaskName.reset();
     }
 }
 

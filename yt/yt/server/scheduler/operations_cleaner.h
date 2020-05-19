@@ -35,6 +35,8 @@ struct TArchiveOperationRequest
     std::optional<TString> Alias;
     // Archive version >= 27
     NYson::TYsonString SlotIndexPerPoolTree;
+    // Archive version >= 35
+    NYson::TYsonString TaskNames;
 
     void InitializeFromOperation(const TOperationPtr& operation);
 

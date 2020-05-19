@@ -82,6 +82,7 @@ void BuildFullOperationAttributes(TOperationPtr operation, TFluentMap fluent)
             fluent
                 .Items(prepareAttributes);
         })
+        .Item("task_names").Value(operation->GetTaskNames())
         .Do(BIND(&BuildMutableOperationAttributes, operation));
 }
 

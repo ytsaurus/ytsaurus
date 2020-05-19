@@ -1888,6 +1888,8 @@ message TOperation
     optional bytes result = 19; // YSON
 
     optional bytes slot_index_per_pool_tree = 20; // YSON
+
+    optional bytes task_names = 21; // YSON
 }
 
 message TListOperationsResult
@@ -1970,6 +1972,7 @@ message TJob
     optional bool has_competitors = 19;
     optional bool is_stale = 20;
     optional bytes exec_attributes = 21; // YSON
+    optional string task_name = 22;
 }
 
 message TListJobsStatistics

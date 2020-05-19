@@ -202,6 +202,11 @@ public:
         TransferAndGetYson("alerts", Operation_.Alerts, cursor);
     }
 
+    void OnTaskNames(TYsonPullParserCursor* cursor)
+    {
+        TransferAndGetYson("task_names", Operation_.TaskNames, cursor);
+    }
+
     // COMPAT(gritukan)
     void OnAnnotations(TYsonPullParserCursor* cursor)
     {
@@ -299,6 +304,9 @@ void ParseOperationToConsumer(TYsonPullParserCursor* cursor, TConsumer* consumer
         } else if (key == AsStringBuf("annotations")) {
             cursor->Next();
             consumer->OnAnnotations(cursor);
+        } else if (key == AsStringBuf("task_names")) {
+            cursor->Next();
+            consumer->OnTaskNames(cursor);
         } else {
             cursor->Next();
             cursor->SkipComplexValue();
@@ -545,6 +553,11 @@ public:
     }
 
     void OnAlerts(TYsonPullParserCursor* cursor)
+    {
+        cursor->SkipComplexValue();
+    }
+
+    void OnTaskNames(TYsonPullParserCursor* cursor)
     {
         cursor->SkipComplexValue();
     }

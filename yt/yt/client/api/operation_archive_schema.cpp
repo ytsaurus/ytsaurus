@@ -33,6 +33,7 @@ TOrderedByIdTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
     , FullSpec(nameTable->RegisterName("full_spec"))
     , RuntimeParameters(nameTable->RegisterName("runtime_parameters"))
     , SlotIndexPerPoolTree(nameTable->RegisterName("slot_index_per_pool_tree"))
+    , TaskNames(nameTable->RegisterName("task_names"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,6 +87,7 @@ TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& n)
     , JobCompetitionId(n->RegisterName("job_competition_id"))
     , HasCompetitors(n->RegisterName("has_competitors"))
     , ExecAttributes(n->RegisterName("exec_attributes"))
+    , TaskName(n->RegisterName("task_name"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

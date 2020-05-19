@@ -274,6 +274,10 @@ public:
     //! Returns operation spec as a yson string.
     const NYson::TYsonString& GetSpecString() const override;
 
+    //! Returns names of operation tasks.
+    //! Works for vanilla operations only.
+    std::vector<TString> GetTaskNames() const;
+
     //! Gets set when the operation is started.
     TFuture<TOperationPtr> GetStarted();
 

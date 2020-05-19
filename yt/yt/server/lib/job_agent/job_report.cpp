@@ -420,6 +420,11 @@ void TNodeJobReport::SetJobCompetitionId(NJobTrackerClient::TJobId jobCompetitio
     JobCompetitionId_ = jobCompetitionId;
 }
 
+void TNodeJobReport::SetTaskName(const TString& taskName)
+{
+    TaskName_ = taskName;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobAgent
