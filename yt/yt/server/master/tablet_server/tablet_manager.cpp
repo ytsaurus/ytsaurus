@@ -1163,9 +1163,17 @@ public:
                     tablet->GetId(),
                     cell->GetId());
 
-                cell->GossipStatistics().Local() -= GetTabletStatistics(tablet);
-                tablet->SetInMemoryMode(mountConfig->InMemoryMode);
-                cell->GossipStatistics().Local() += GetTabletStatistics(tablet);
+                if (tablet->GetInMemoryMode() != mountConfig->InMemoryMode) {
+                    auto tabletStatistics = GetTabletStatistics(tablet);
+                    cell->GossipStatistics().Local() -= GetTabletStatistics(tablet);
+                    tablet->GetTable()->DiscountTabletStatistics(tabletStatistics);
+
+                    tablet->SetInMemoryMode(mountConfig->InMemoryMode);
+
+                    tabletStatistics = GetTabletStatistics(tablet);
+                    cell->GossipStatistics().Local() += GetTabletStatistics(tablet);
+                    tablet->GetTable()->AccountTabletStatistics(tabletStatistics);
+                }
 
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
 
@@ -1570,7 +1578,9 @@ public:
                 totalMemorySizeDelta -= tablet->GetTabletStaticMemorySize();
 
                 auto* cell = tablet->GetCell();
-                cell->GossipStatistics().Local() -= GetTabletStatistics(tablet);
+                auto tabletStatistics = GetTabletStatistics(tablet);
+                cell->GossipStatistics().Local() -= tabletStatistics;
+                originatingNode->DiscountTabletStatistics(tabletStatistics);
             }
         }
 
@@ -1593,12 +1603,14 @@ public:
                 }
             }
 
+            auto newStatistics = GetTabletStatistics(tablet);
+            originatingNode->AccountTabletStatistics(newStatistics);
+
             if (tablet->GetState() == ETabletState::Unmounted) {
                 continue;
             }
 
             auto newMemorySize = tablet->GetTabletStaticMemorySize();
-            auto newStatistics = GetTabletStatistics(tablet);
 
             totalMemorySizeDelta += newMemorySize;
 
@@ -1932,6 +1944,7 @@ public:
             chunkManager->AttachToChunkList(clonedRootChunkList, tabletChunkList);
 
             clonedTablets.push_back(clonedTablet);
+            trunkClonedTable->AccountTabletStatistics(GetTabletStatistics(clonedTablet));
         }
         trunkClonedTable->RecomputeTabletMasterMemoryUsage();
 
@@ -2054,6 +2067,8 @@ public:
         securityManager->UpdateMasterMemoryUsage(table);
         ScheduleTableStatisticsUpdate(table, false);
 
+        table->AccountTabletStatistics(GetTabletStatistics(tablet));
+
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Table is switched to dynamic mode (TableId: %v)",
             table->GetId());
     }
@@ -2091,6 +2106,10 @@ public:
 
         if (table->IsExternal()) {
             return;
+        }
+
+        for (auto* tablet : table->Tablets()) {
+            table->DiscountTabletStatistics(GetTabletStatistics(tablet));
         }
 
         auto tabletResourceUsage = table->GetTabletResourceUsage();
@@ -2396,6 +2415,7 @@ private:
 
     bool RecomputeTabletCellStatistics_ = false;
     bool EnableUpdateStatisticsOnHeartbeat_ = true;
+    bool RecomputeAggregateTabletStatistics_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -3101,16 +3121,21 @@ private:
             YT_VERIFY(cell->Tablets().insert(tablet).second);
             objectManager->RefObject(cell);
 
+            table->DiscountTabletStatistics(GetTabletStatistics(tablet));
+
             tablet->SetState(freeze ? ETabletState::FrozenMounting : ETabletState::Mounting);
             tablet->SetInMemoryMode(inMemoryMode);
 
             cell->GossipStatistics().Local() += GetTabletStatistics(tablet);
+            table->AccountTabletStatistics(GetTabletStatistics(tablet));
 
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
             if (mountTimestamp != NullTimestamp) {
                 tablet->NodeStatistics().set_unflushed_timestamp(mountTimestamp);
             }
+
+            int preloadPendingStoreCount = 0;
 
             auto* mailbox = hiveManager->GetMailbox(cell->GetId());
 
@@ -3167,6 +3192,10 @@ private:
                     CreateAndAttachDynamicStores(tablet, &req);
                 }
 
+                if (inMemoryMode != EInMemoryMode::None) {
+                    preloadPendingStoreCount = chunksOrViews.size();
+                }
+
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
                     "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v)",
                     table->GetId(),
@@ -3179,6 +3208,17 @@ private:
                     table->GetUpstreamReplicaId());
 
                 hiveManager->PostMessage(mailbox, req);
+            }
+
+            {
+                TTabletStatistics delta;
+
+                // The latter should be zero, but we observe the formalities.
+                delta.PreloadPendingStoreCount = preloadPendingStoreCount -
+                    tablet->NodeStatistics().preload_pending_store_count();
+                table->AccountTabletStatisticsDelta(delta);
+
+                tablet->NodeStatistics().set_preload_pending_store_count(preloadPendingStoreCount);
             }
 
             for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
@@ -3474,6 +3514,7 @@ private:
             if (table->IsPhysicallySorted()) {
                 oldPivotKeys.push_back(tablet->GetPivotKey());
             }
+            table->DiscountTabletStatistics(GetTabletStatistics(tablet));
             tablet->SetTable(nullptr);
             objectManager->UnrefObject(tablet);
         }
@@ -3691,6 +3732,11 @@ private:
         oldRootChunkList->RemoveOwningNode(table);
         objectManager->UnrefObject(oldRootChunkList);
 
+        // Account new tablet statistics.
+        for (auto* newTablet : newTablets) {
+            table->AccountTabletStatistics(GetTabletStatistics(newTablet));
+        }
+
         // TODO(savrus) Looks like this is unnecessary. Need to check.
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
 
@@ -3845,12 +3891,23 @@ private:
 
         // COMPAT(savrus)
         RecomputeTabletCellStatistics_ = (context.GetVersion() < EMasterReign::CellServer);
+
+        // COMPAT(ifsmirnov)
+        RecomputeAggregateTabletStatistics_ = (context.GetVersion() < EMasterReign::AggregateTabletStatistics);
     }
 
 
     virtual void OnAfterSnapshotLoaded() override
     {
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        if (RecomputeAggregateTabletStatistics_) {
+            for (const auto& [id, tablet] : Tablets()) {
+                if (auto* table = tablet->GetTable()) {
+                    table->AccountTabletStatistics(GetTabletStatistics(tablet));
+                }
+            }
+        }
 
         InitBuiltins();
     }
@@ -4211,9 +4268,15 @@ private:
                 continue;
             }
 
-            cell->GossipStatistics().Local() -= GetTabletStatistics(tablet);
+            auto tabletStatistics = GetTabletStatistics(tablet);
+            tablet->GetTable()->DiscountTabletStatistics(tabletStatistics);
+            cell->GossipStatistics().Local() -= tabletStatistics;
+
             tablet->NodeStatistics() = tabletInfo.statistics();
-            cell->GossipStatistics().Local() += GetTabletStatistics(tablet);
+
+            tabletStatistics = GetTabletStatistics(tablet);
+            tablet->GetTable()->AccountTabletStatistics(tabletStatistics);
+            cell->GossipStatistics().Local() += tabletStatistics;
 
             auto* table = tablet->GetTable();
             if (table) {
@@ -4766,6 +4829,7 @@ private:
         TTabletStatistics statisticsDelta;
         statisticsDelta.ChunkCount = -static_cast<int>(dynamicStores.size());
         tablet->GetCell()->GossipStatistics().Local() += statisticsDelta;
+        table->AccountTabletStatisticsDelta(statisticsDelta);
     }
 
     void DoTabletUnmounted(TTablet* tablet)
@@ -4778,7 +4842,10 @@ private:
             tablet->GetId(),
             cell->GetId());
 
-        cell->GossipStatistics().Local() -= GetTabletStatistics(tablet);
+        auto tabletStatistics = GetTabletStatistics(tablet);
+        cell->GossipStatistics().Local() -= tabletStatistics;
+        table->DiscountTabletStatistics(tabletStatistics);
+
         auto resourceUsageBefore = table->GetTabletResourceUsage();
 
         tablet->NodeStatistics().Clear();
@@ -4820,6 +4887,8 @@ private:
             table->ConfirmDynamicTableLock(transactionId);
         }
         tablet->UnconfirmedDynamicTableLocks().clear();
+
+        table->AccountTabletStatistics(GetTabletStatistics(tablet));
     }
 
     TDynamicStoreId GenerateDynamicStoreId(const TTablet* tablet, TDynamicStoreId hintId = NullObjectId)
@@ -4856,6 +4925,7 @@ private:
         TTabletStatistics statisticsDelta;
         statisticsDelta.ChunkCount = 1;
         tablet->GetCell()->GossipStatistics().Local() += statisticsDelta;
+        tablet->GetTable()->AccountTabletStatisticsDelta(statisticsDelta);
     }
 
     template <class TRequest>
@@ -5306,8 +5376,10 @@ private:
         auto newStatistics = GetTabletStatistics(tablet);
         auto deltaStatistics = newStatistics - oldStatistics;
 
-        // Update cell statistics.
+        // Update cell and table statistics.
         cell->GossipStatistics().Local() += deltaStatistics;
+        table->DiscountTabletStatistics(oldStatistics);
+        table->AccountTabletStatistics(newStatistics);
 
         // Update table resource usage.
 
@@ -5781,6 +5853,8 @@ private:
         }
 
         if (force) {
+            // NB: CopyChunkListIfShared may be called. It expects the table to be the owning node
+            // of the root chunk list, which is not the case upon destruction.
             if (!onDestroy) {
                 DiscardDynamicStores(tablet);
             }

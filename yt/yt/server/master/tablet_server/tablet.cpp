@@ -28,6 +28,7 @@ using namespace NTableServer;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
+using namespace NYson;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -81,7 +82,7 @@ void TTabletStatistics::Persist(NCellMaster::TPersistenceContext& context)
     TTabletStatisticsBase::Persist(context);
 }
 
-TTabletCellStatisticsBase& operator +=(TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
+TTabletCellStatisticsBase& operator += (TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
     lhs.UnmergedRowCount += rhs.UnmergedRowCount;
     lhs.UncompressedDataSize += rhs.UncompressedDataSize;
@@ -107,14 +108,14 @@ TTabletCellStatisticsBase& operator +=(TTabletCellStatisticsBase& lhs, const TTa
     return lhs;
 }
 
-TTabletCellStatisticsBase operator +(const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
+TTabletCellStatisticsBase operator + (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
     auto result = lhs;
     result += rhs;
     return result;
 }
 
-TTabletCellStatisticsBase& operator -=(TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
+TTabletCellStatisticsBase& operator -= (TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
     lhs.UnmergedRowCount -= rhs.UnmergedRowCount;
     lhs.UncompressedDataSize -= rhs.UncompressedDataSize;
@@ -140,40 +141,74 @@ TTabletCellStatisticsBase& operator -=(TTabletCellStatisticsBase& lhs, const TTa
     return lhs;
 }
 
-TTabletCellStatisticsBase operator -(const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
+TTabletCellStatisticsBase operator - (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
 {
     auto result = lhs;
     result -= rhs;
     return result;
 }
 
-TTabletCellStatistics& operator +=(TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
+bool operator == (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
+{
+    return
+        lhs.UnmergedRowCount == rhs.UnmergedRowCount &&
+        lhs.UncompressedDataSize == rhs.UncompressedDataSize &&
+        lhs.CompressedDataSize == rhs.CompressedDataSize &&
+        lhs.MemorySize == rhs.MemorySize &&
+        lhs.DynamicMemoryPoolSize == rhs.DynamicMemoryPoolSize &&
+        lhs.ChunkCount == rhs.ChunkCount &&
+        lhs.PartitionCount == rhs.PartitionCount &&
+        lhs.StoreCount == rhs.StoreCount &&
+        lhs.PreloadPendingStoreCount == rhs.PreloadPendingStoreCount &&
+        lhs.PreloadCompletedStoreCount == rhs.PreloadCompletedStoreCount &&
+        lhs.PreloadFailedStoreCount == rhs.PreloadFailedStoreCount &&
+        lhs.TabletCount == rhs.TabletCount &&
+        std::equal(
+            lhs.TabletCountPerMemoryMode.begin(),
+            lhs.TabletCountPerMemoryMode.end(),
+            rhs.TabletCountPerMemoryMode.begin()) &&
+        lhs.DiskSpacePerMedium.size() == rhs.DiskSpacePerMedium.size() &&
+        std::all_of(
+            lhs.DiskSpacePerMedium.begin(),
+            lhs.DiskSpacePerMedium.end(),
+            [&] (const TMediumMap<i64>::value_type& value) {
+                auto it = rhs.DiskSpacePerMedium.find(value.first);
+                return it != rhs.DiskSpacePerMedium.end() && it->second == value.second;
+            });
+}
+
+bool operator != (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs)
+{
+    return !(lhs == rhs);
+}
+
+TTabletCellStatistics& operator += (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
 {
     static_cast<TTabletCellStatisticsBase&>(lhs) += rhs;
     return lhs;
 }
 
-TTabletCellStatistics operator +(const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
+TTabletCellStatistics operator + (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
 {
     auto result = lhs;
     result += rhs;
     return result;
 }
 
-TTabletCellStatistics& operator -=(TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
+TTabletCellStatistics& operator -= (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
 {
     static_cast<TTabletCellStatisticsBase&>(lhs) += rhs;
     return lhs;
 }
 
-TTabletCellStatistics operator -(const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
+TTabletCellStatistics operator - (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs)
 {
     auto result = lhs;
     result -= rhs;
     return result;
 }
 
-TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& rhs)
+TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     static_cast<TTabletCellStatisticsBase&>(lhs) += rhs;
 
@@ -181,11 +216,38 @@ TTabletStatistics& operator +=(TTabletStatistics& lhs, const TTabletStatistics& 
     return lhs;
 }
 
-TTabletStatistics operator +(const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+TTabletStatistics operator + (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
 {
     auto result = lhs;
     result += rhs;
     return result;
+}
+
+TTabletStatistics& operator -= (TTabletStatistics& lhs, const TTabletStatistics& rhs)
+{
+    static_cast<TTabletCellStatisticsBase&>(lhs) -= rhs;
+
+    // Overlapping store count cannot be subtracted.
+
+    return lhs;
+}
+
+TTabletStatistics operator - (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+{
+    auto result = lhs;
+    result -= rhs;
+    return result;
+}
+
+bool operator == (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+{
+    return static_cast<const TTabletCellStatisticsBase&>(lhs) == static_cast<const TTabletCellStatisticsBase&>(rhs) &&
+        lhs.OverlappingStoreCount == rhs.OverlappingStoreCount;
+}
+
+bool operator != (const TTabletStatistics& lhs, const TTabletStatistics& rhs)
+{
+    return !(lhs == rhs);
 }
 
 void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics)
@@ -251,6 +313,15 @@ void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStati
         statistics->DiskSpacePerMedium[item.medium_index()] = item.disk_space();
     }
     FromProto(&statistics->TabletCountPerMemoryMode, protoStatistics.tablet_count_per_memory_mode());
+}
+
+TString ToString(const TTabletStatistics& tabletStatistics, const TChunkManagerPtr& chunkManager)
+{
+    TStringStream output;
+    TYsonWriter writer(&output, EYsonFormat::Text);
+    New<TSerializableTabletStatistics>(tabletStatistics, chunkManager)->Save(&writer, true);
+    writer.Flush();
+    return output.Str();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -488,7 +559,6 @@ void TTablet::CopyFrom(const TTablet& other)
     MountRevision_ = other.MountRevision_;
     YT_VERIFY(!Cell_);
     PivotKey_ = other.PivotKey_;
-    NodeStatistics_ = other.NodeStatistics_;
     InMemoryMode_ = other.InMemoryMode_;
     TrimmedRowCount_ = other.TrimmedRowCount_;
 }

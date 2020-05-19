@@ -444,6 +444,14 @@ public:
     //! Peer revocation reason is reset after this period of time.
     TDuration PeerRevocationReasonExpirationTime;
 
+    //! If set, tablet statistics will be validated upon each attributes request
+    //! to the table node.
+    bool EnableAggressiveTabletStatisticsValidation;
+
+    //! If set, tablet statistics will be validated upon each @tablet_statistics request
+    //! to the table node.
+    bool EnableRelaxedTabletStatisticsValidation;
+
     TDynamicTabletManagerConfig()
     {
         RegisterParameter("peer_revocation_timeout", PeerRevocationTimeout)
@@ -498,6 +506,10 @@ public:
             .Default(false);
         RegisterParameter("peer_revocation_reason_expiration_time", PeerRevocationReasonExpirationTime)
             .Default(TDuration::Minutes(15));
+        RegisterParameter("enable_relaxed_tablet_statistics_validation", EnableRelaxedTabletStatisticsValidation)
+            .Default(false);
+        RegisterParameter("enable_aggressive_tablet_statistics_validation", EnableAggressiveTabletStatisticsValidation)
+            .Default(false);
 
         // COMPAT(savrus) Special parameter to apply old file configs on fly.
         RegisterParameter("compatibility_version", CompatibilityVersion)

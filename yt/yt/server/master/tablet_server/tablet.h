@@ -16,6 +16,7 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 
+#include <yt/core/misc/aggregate_property.h>
 #include <yt/core/misc/enum.h>
 #include <yt/core/misc/optional.h>
 #include <yt/core/misc/property.h>
@@ -76,11 +77,65 @@ struct TTabletStatistics
     void Persist(NCellMaster::TPersistenceContext& context);
 };
 
+class TTabletStatisticsAggregate
+    : public TNonCopyable
+{
+public:
+    TTabletStatistics Get() const
+    {
+        auto statistics = CellStatistics_.Get();
+        statistics.OverlappingStoreCount = OverlappingStoreCount_.Get();
+        return statistics;
+    }
+
+    void Account(const TTabletStatistics& tabletStatistics)
+    {
+        CellStatistics_.Account(tabletStatistics);
+        OverlappingStoreCount_.Account(tabletStatistics.OverlappingStoreCount);
+    }
+
+    void Discount(const TTabletStatistics& tabletStatistics)
+    {
+        CellStatistics_.Discount(tabletStatistics);
+        OverlappingStoreCount_.Discount(tabletStatistics.OverlappingStoreCount);
+    }
+
+    void AccountDelta(const TTabletStatistics& tabletStatistics)
+    {
+        CellStatistics_.AccountDelta(tabletStatistics);
+
+        YT_VERIFY(tabletStatistics.OverlappingStoreCount == 0);
+    }
+
+    void Save(NCellMaster::TSaveContext& context) const
+    {
+        using NYT::Save;
+
+        Save(context, CellStatistics_);
+        Save(context, OverlappingStoreCount_);
+    }
+
+    void Load(NCellMaster::TLoadContext& context)
+    {
+        using NYT::Load;
+
+        Load(context, CellStatistics_);
+        Load(context, OverlappingStoreCount_);
+    }
+
+private:
+    TSumAggregate<TTabletStatistics> CellStatistics_;
+    TMaxAggregate<int> OverlappingStoreCount_{0};
+};
+
 TTabletCellStatisticsBase& operator += (TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
 TTabletCellStatisticsBase  operator +  (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
 
 TTabletCellStatisticsBase& operator -= (TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
 TTabletCellStatisticsBase  operator -  (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
+
+bool operator == (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
+bool operator != (const TTabletCellStatisticsBase& lhs, const TTabletCellStatisticsBase& rhs);
 
 TTabletCellStatistics& operator += (TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
 TTabletCellStatistics  operator +  (const TTabletCellStatistics& lhs, const TTabletCellStatistics& rhs);
@@ -91,8 +146,16 @@ TTabletCellStatistics  operator -  (const TTabletCellStatistics& lhs, const TTab
 TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs);
 TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
 
+TTabletStatistics& operator += (TTabletStatistics& lhs, const TTabletStatistics& rhs);
+TTabletStatistics  operator +  (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
+
+bool operator == (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
+bool operator != (const TTabletStatistics& lhs, const TTabletStatistics& rhs);
+
 void ToProto(NProto::TTabletCellStatistics* protoStatistics, const TTabletCellStatistics& statistics);
 void FromProto(TTabletCellStatistics* statistics, const NProto::TTabletCellStatistics& protoStatistics);
+
+TString ToString(const TTabletStatistics& statistics, const NChunkServer::TChunkManagerPtr& chunkManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
