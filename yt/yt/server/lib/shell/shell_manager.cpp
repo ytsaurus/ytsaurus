@@ -134,8 +134,7 @@ public:
                     options->InactivityTimeout = parameters.InactivityTimeout;
                 }
                 options->Id = TGuid::Create();
-
-                options->ContainerName = Format("%v/job-shell-%v", RootInstance_->GetAbsoluteName(), options->Id);
+                options->ContainerName = Format("%v/js-%v", RootInstance_->GetAbsoluteName(), options->Id.Parts32[3]);
 
 #ifdef _linux_
                 {

@@ -215,7 +215,7 @@ protected:
 
         auto alert = TError("Job environment is disabled") << error;
 
-        YT_LOG_ERROR(alert);
+        YT_LOG_ALERT(alert);
 
         auto masterConnector = Bootstrap_->GetMasterConnector();
         masterConnector->RegisterAlert(alert);
@@ -612,8 +612,12 @@ private:
     void InitJobProxyInstance(int slotIndex, TJobId jobId)
     {
         if (!JobProxyInstances_[slotIndex]) {
+            TString jobProxyContainerName = Config_->UseShortContainerNames
+                ? "/jp"
+                : ("/jp_" + ToString(jobId));
+
             JobProxyInstances_[slotIndex] = CreatePortoInstance(
-                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/jp_" + ToString(jobId),
+                GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + jobProxyContainerName,
                 PortoExecutor_);
         }
     }

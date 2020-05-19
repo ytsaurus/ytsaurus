@@ -102,6 +102,8 @@ public:
     double JobsIOWeight;
     double NodeDedicatedCpu;
 
+    bool UseShortContainerNames;
+
     TPortoJobEnvironmentConfig()
     {
         RegisterParameter("porto_executor", PortoExecutor)
@@ -118,6 +120,9 @@ public:
         RegisterParameter("node_dedicated_cpu", NodeDedicatedCpu)
             .GreaterThanOrEqual(0)
             .Default(2);
+
+        RegisterParameter("use_short_container_names", UseShortContainerNames)
+            .Default(false);
     }
 };
 
