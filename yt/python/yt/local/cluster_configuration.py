@@ -137,7 +137,7 @@ NODE_CONFIG_PATCHES = [
             "resource_limits": {
                 "slots": 1,
                 "tablet_dynamic_memory": 500 * MB,
-                "tablet_static_memory": 0
+                "tablet_static_memory": 1 * GB,
             },
             "hydra_manager": {
                 "leader_lease_check_period": 100,
