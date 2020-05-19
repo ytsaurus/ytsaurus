@@ -2651,6 +2651,10 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
         }
     }
 
+    if (options.TaskName) {
+        builder.AddWhereConjunct(Format("task_name = %Qv", *options.TaskName));
+    }
+
     if (options.SortField != EJobSortField::None) {
         EOrderByDirection orderByDirection;
         switch (options.SortOrder) {
@@ -3071,6 +3075,12 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
                 }
             }
 
+            if (options.TaskName) {
+                if (options.TaskName != attributes.Find<TString>("task_name")) {
+                    continue;
+                }
+            }
+
             jobs.emplace_back();
             auto& job = jobs.back();
 
@@ -3232,11 +3242,16 @@ static void ParseJobsFromControllerAgentResponse(
         auto hasCompetitors = hasCompetitorsNode  //COMPAT(renadeen): can remove this check when 19.8 will be on all clusters
             ? ConvertTo<bool>(hasCompetitorsNode)
             : false;
+        auto taskNameNode = jobNode->AsMap()->FindChild("task_name");
+        auto taskName = taskNameNode
+            ? ConvertTo<TString>(taskNameNode)
+            : "";
         return
             (!options.WithStderr || *options.WithStderr == (stderrSize > 0)) &&
             (!options.WithFailContext || *options.WithFailContext == (failContextSize > 0)) &&
             (!options.JobCompetitionId || options.JobCompetitionId == jobCompetitionId) &&
-            (!options.WithCompetitors || options.WithCompetitors == hasCompetitors);
+            (!options.WithCompetitors || options.WithCompetitors == hasCompetitors) &&
+            (!options.TaskName || options.TaskName == taskName);
     };
 
     ParseJobsFromControllerAgentResponse(

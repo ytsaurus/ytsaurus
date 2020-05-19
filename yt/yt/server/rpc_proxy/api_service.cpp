@@ -2037,6 +2037,9 @@ private:
         if (request->has_job_competition_id()) {
             options.JobCompetitionId = FromProto<NJobTrackerClient::TJobId>(request->job_competition_id());
         }
+        if (request->has_task_name()) {
+            options.TaskName = request->task_name();
+        }
 
         options.SortField = static_cast<EJobSortField>(request->sort_field());
         options.SortOrder = static_cast<EJobSortDirection>(request->sort_order());

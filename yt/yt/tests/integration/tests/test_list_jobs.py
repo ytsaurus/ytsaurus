@@ -767,6 +767,45 @@ class TestListJobs(YTEnvSetup):
             assert res_job["archive_state"] == "running"
             assert res_job.get("is_stale") == True
 
+    @authors("gritukan")
+    def test_task_name(self):
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "master": {
+                        "job_count": 1,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="master"),
+                    },
+                    "slave": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT", breakpoint_name="slave"),
+                    },
+                },
+            })
+
+        master_job_ids = wait_breakpoint(breakpoint_name="master", job_count=1)
+        slave_job_ids = wait_breakpoint(breakpoint_name="slave", job_count=2)
+
+        def check_task_names(data_source):
+            jobs = checked_list_jobs(op.id, task_name="master", data_source=data_source)["jobs"]
+            assert sorted([job["id"] for job in jobs]) == sorted(master_job_ids)
+
+            jobs = checked_list_jobs(op.id, task_name="slave", data_source=data_source)["jobs"]
+            assert sorted([job["id"] for job in jobs]) == sorted(slave_job_ids)
+
+            jobs = checked_list_jobs(op.id, task_name="non_existent_task", data_source=data_source)["jobs"]
+            assert jobs == []
+
+        check_task_names("runtime")
+
+        release_breakpoint(breakpoint_name="master")
+        release_breakpoint(breakpoint_name="slave")
+        op.track()
+        clean_operations()
+
+        check_task_names("archive")
+
 ##################################################################
 
 class TestListJobsRpcProxy(TestListJobs):
