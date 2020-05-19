@@ -107,7 +107,7 @@ void TTcpConnection::Close()
         if (CloseError_.IsOK()) {
             CloseError_ = TError(NBus::EErrorCode::TransportError, "Bus terminated")
                 << *EndpointAttributes_;
-        }        
+        }
 
         if (Socket_ != INVALID_SOCKET) {
             if (State_ == EState::Open) {
@@ -504,7 +504,7 @@ void TTcpConnection::Terminate(const TError& error)
 {
     auto guard = Guard(Lock_);
 
-    if (Any(Pending_ & EPollControl::Terminate) ||
+    if (!CloseError_.IsOK() ||
         State_ == EState::Aborted ||
         State_ == EState::Closed)
     {
@@ -519,7 +519,6 @@ void TTcpConnection::Terminate(const TError& error)
 
     // Save error for OnTerminate().
     YT_VERIFY(!error.IsOK());
-    YT_VERIFY(CloseError_.IsOK());
     CloseError_ = error;
 
     // Arm calling OnTerminate() from OnEvent().
