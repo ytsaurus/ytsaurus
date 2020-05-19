@@ -596,7 +596,8 @@ public:
         std::vector<TString> gpuDevices,
         std::vector<TIP6Address> networkAddresses,
         const std::optional<TString>& hostName)
-        : RootFS_(rootFS)
+        : Config_(config)
+        , RootFS_(rootFS)
         , GpuDevices_(std::move(gpuDevices))
         , BlockIOWatchdogPeriod_(config->BlockIOWatchdogPeriod)
         , PortoExecutor_(CreatePortoExecutor(config->PortoExecutor, "environ"))
@@ -638,7 +639,10 @@ public:
 
     virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TString& jobId) override
     {
-        auto containerName = Format("%v/uj_%v", SlotAbsoluteName_, jobId);
+        auto containerName = Config_->UseShortContainerNames
+            ? Format("%v/uj", SlotAbsoluteName_)
+            : Format("%v/uj_%v", SlotAbsoluteName_, jobId);
+
         auto instance = CreatePortoInstance(containerName, PortoExecutor_);
         if (RootFS_) {
             auto newPath = NFS::CombinePaths(RootFS_->RootPath, "slot");
@@ -695,6 +699,7 @@ public:
     }
 
 private:
+    const TPortoJobEnvironmentConfigPtr Config_;
     std::optional<TRootFS> RootFS_;
     const std::vector<TString> GpuDevices_;
     const TDuration BlockIOWatchdogPeriod_;
