@@ -49,10 +49,12 @@ using NScheduler::EAbortReason;
 using NScheduler::EInterruptReason;
 using NScheduler::EOperationType;
 using NScheduler::EJobType;
-using NScheduler::EJobState;
-using NScheduler::EJobPhase;
 using NScheduler::TOperationSpecBasePtr;
-using NScheduler::EOperationAlertType;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NJobTrackerClient::EJobState;
+using NJobTrackerClient::EJobPhase;
 
 ////////////////////////////////////////////////////////////////////////////////
 

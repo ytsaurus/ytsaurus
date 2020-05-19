@@ -11,6 +11,9 @@
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
 
+#include <yt/ytlib/controller_agent/helpers.h>
+
+#include <yt/client/api/rowset.h>
 #include <yt/client/api/transaction.h>
 #include <yt/client/api/operation_archive_schema.h>
 
@@ -248,9 +251,7 @@ bool NeedProgressInRequest(const TYsonString& progress)
         return false;
     }
     auto stateEnum = ParseEnum<NControllerAgent::EControllerState>(*stateString);
-    return stateEnum == NControllerAgent::EControllerState::Completed ||
-        stateEnum == NControllerAgent::EControllerState::Failed ||
-        stateEnum == NControllerAgent::EControllerState::Aborted;
+    return NControllerAgent::IsFinishedState(stateEnum);
 }
 
 TUnversionedRow BuildOrderedByIdTableRow(
@@ -1102,6 +1103,33 @@ private:
         }
     }
 
+    void FetchBriefProgressFromArchive(std::vector<TArchiveOperationRequest>& requests)
+    {
+        const TOrderedByIdTableDescriptor descriptor;
+        std::vector<TOperationId> ids;
+        ids.reserve(requests.size());
+        for (const auto& req : requests) {
+            ids.push_back(req.Id);
+        }
+        auto filter = TColumnFilter({descriptor.Index.BriefProgress});
+        auto briefProgressIndex = filter.GetPosition(descriptor.Index.BriefProgress);
+        auto timeout = Config_->FinishedOperationsArchiveLookupTimeout;
+        auto rowsetOrError = LookupOperationsInArchive(Client_, ids, filter, timeout);
+        if (!rowsetOrError.IsOK()) {
+            YT_LOG_WARNING("Failed to fetch operation brief progress from archive (Error: %v)",
+                rowsetOrError);
+            return;
+        }
+        auto rows = rowsetOrError.Value()->GetRows();
+        YT_VERIFY(rows.size() == requests.size());
+        for (int i = 0; i < static_cast<int>(requests.size()); ++i) {
+            if (!requests[i].BriefProgress && rows[i] && rows[i][briefProgressIndex].Type != EValueType::Null) {
+                auto value = rows[i][briefProgressIndex];
+                requests[i].BriefProgress = TYsonString(TString(value.Data.String, value.Length));
+            }
+        }
+    }
+
     void DoFetchFinishedOperations()
     {
         YT_LOG_INFO("Fetching all finished operations from Cypress");
@@ -1124,6 +1152,11 @@ private:
         auto operations = FetchOperationsFromCypressForCleaner(
             listOperationsResult.OperationsToArchive,
             createBatchRequest);
+
+        // Controller agent reports brief_progress only to archive,
+        // but it is necessary to fill ordered_by_start_time table,
+        // so we request it here.
+        FetchBriefProgressFromArchive(operations);
 
         // NB: needed for us to store the latest operation for each alias in operation_aliases archive table.
         std::sort(operations.begin(), operations.end(), [] (const auto& lhs, const auto& rhs) {

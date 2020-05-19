@@ -97,4 +97,12 @@ void ValidateOperationAccess(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TErrorOr<NApi::IUnversionedRowsetPtr> LookupOperationsInArchive(
+    const NApi::NNative::IClientPtr& client,
+    const std::vector<TOperationId>& ids,
+    const NTableClient::TColumnFilter& columnFilter,
+    std::optional<TDuration> timeout = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

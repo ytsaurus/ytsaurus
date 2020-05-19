@@ -323,6 +323,9 @@ public:
     //! Number of operations failed to archive to set scheduler alert.
     int MinOperationCountEnqueuedForAlert;
 
+    //! Timeout to wait for finished operations information from archive.
+    TDuration FinishedOperationsArchiveLookupTimeout;
+
     TOperationsCleanerConfig();
 };
 

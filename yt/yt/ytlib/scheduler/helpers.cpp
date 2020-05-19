@@ -15,9 +15,12 @@
 
 #include <yt/client/security_client/acl.h>
 
+#include <yt/client/api/operation_archive_schema.h>
 #include <yt/client/api/transaction.h>
 
 #include <yt/client/object_client/helpers.h>
+
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
 
@@ -40,6 +43,7 @@ using namespace NChunkClient;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NFileClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NSecurityClient;
 using namespace NLogging;
@@ -576,6 +580,44 @@ void ValidateOperationAccess(
         user,
         permissionSet,
         ConvertToYsonString(acl, EYsonFormat::Text));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static TUnversionedRow CreateOperationKey(
+    const TOperationId& operationId,
+    const TOrderedByIdTableDescriptor::TIndex& index,
+    const TRowBufferPtr& rowBuffer)
+{
+    auto key = rowBuffer->AllocateUnversioned(2);
+    key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], index.IdHi);
+    key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], index.IdLo);
+    return key;
+}
+
+TErrorOr<IUnversionedRowsetPtr> LookupOperationsInArchive(
+    const NNative::IClientPtr& client,
+    const std::vector<TOperationId>& ids,
+    const NTableClient::TColumnFilter& columnFilter,
+    std::optional<TDuration> timeout)
+{
+    static const TOrderedByIdTableDescriptor tableDescriptor;
+    auto rowBuffer = New<TRowBuffer>();
+    std::vector<TUnversionedRow> keys;
+    keys.reserve(ids.size());
+    for (const auto& id : ids) {
+        keys.push_back(CreateOperationKey(id, tableDescriptor.Index, rowBuffer));
+    }
+
+    TLookupRowsOptions lookupOptions;
+    lookupOptions.ColumnFilter = columnFilter;
+    lookupOptions.Timeout = timeout;
+    lookupOptions.KeepMissingRows = true;
+    return WaitFor(client->LookupRows(
+        GetOperationsArchiveOrderedByIdPath(),
+        tableDescriptor.NameTable,
+        MakeSharedRange(std::move(keys), std::move(rowBuffer)),
+        lookupOptions));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

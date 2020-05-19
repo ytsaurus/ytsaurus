@@ -150,17 +150,6 @@ TUnversionedOwningRow CreateJobKey(TJobId jobId, const TNameTablePtr& nameTable)
     return keyBuilder.FinishRow();
 }
 
-TUnversionedRow CreateOperationKey(
-    const TOperationId& operationId,
-    const TOrderedByIdTableDescriptor::TIndex& index,
-    const TRowBufferPtr& rowBuffer)
-{
-    auto key = rowBuffer->AllocateUnversioned(2);
-    key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], index.IdHi);
-    key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], index.IdLo);
-    return key;
-}
-
 TYsonString GetLatestProgress(const TYsonString& cypressProgress, const TYsonString& archiveProgress)
 {
     auto getBuildTime = [&] (const TYsonString& progress) {
@@ -870,87 +859,71 @@ TYsonString TClient::DoGetOperationFromArchive(
     THashSet<TString> fields(fieldsVector.begin(), fieldsVector.end());
 
     TOrderedByIdTableDescriptor tableDescriptor;
-    auto rowBuffer = New<TRowBuffer>();
-
-    std::vector<TUnversionedRow> keys;
-    keys.push_back(CreateOperationKey(operationId, tableDescriptor.Index, rowBuffer));
-
-    std::vector<int> columnIndexes;
-    THashMap<TString, int> fieldToIndex;
-
-    int index = 0;
+    std::vector<int> columnIndices;
     for (const auto& field : fields) {
-        columnIndexes.push_back(tableDescriptor.NameTable->GetIdOrThrow(field));
-        fieldToIndex[field] = index++;
+        columnIndices.push_back(tableDescriptor.NameTable->GetIdOrThrow(field));
     }
-
-    TLookupRowsOptions lookupOptions;
-    lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
-    lookupOptions.KeepMissingRows = true;
-    lookupOptions.Timeout = deadline - Now();
-
-    auto rowset = WaitFor(LookupRows(
-        GetOperationsArchiveOrderedByIdPath(),
-        tableDescriptor.NameTable,
-        MakeSharedRange(std::move(keys), std::move(rowBuffer)),
-        lookupOptions))
+    const auto columnFilter = NTableClient::TColumnFilter(columnIndices);
+    auto rowset = LookupOperationsInArchive(
+        this,
+        {operationId},
+        columnFilter,
+        deadline - Now())
         .ValueOrThrow();
-
     auto rows = rowset->GetRows();
     YT_VERIFY(!rows.Empty());
+    auto row = rows[0];
+    if (!row) {
+        return {};
+    }
 
-    if (rows[0]) {
 #define SET_ITEM_STRING_VALUE_WITH_FIELD(itemKey, fieldName) \
-        SET_ITEM_VALUE_WITH_FIELD(itemKey, fieldName, TString(rows[0][index].Data.String, rows[0][index].Length))
+    SET_ITEM_VALUE_WITH_FIELD(itemKey, fieldName, TString(row[index].Data.String, row[index].Length))
 #define SET_ITEM_STRING_VALUE(itemKey) SET_ITEM_STRING_VALUE_WITH_FIELD(itemKey, itemKey)
 #define SET_ITEM_YSON_STRING_VALUE(itemKey) \
-        SET_ITEM_VALUE(itemKey, TYsonString(rows[0][index].Data.String, rows[0][index].Length))
+    SET_ITEM_VALUE(itemKey, TYsonString(row[index].Data.String, row[index].Length))
 #define SET_ITEM_INSTANT_VALUE(itemKey) \
-        SET_ITEM_VALUE(itemKey, TInstant::MicroSeconds(rows[0][index].Data.Int64))
+    SET_ITEM_VALUE(itemKey, TInstant::MicroSeconds(row[index].Data.Int64))
 #define SET_ITEM_VALUE_WITH_FIELD(itemKey, fieldName, operation) \
-        .DoIf(fields.find(fieldName) != fields.end() && rows[0][GET_INDEX(fieldName)].Type != EValueType::Null, \
+    .DoIf(fields.find(fieldName) != fields.end() && row[GET_INDEX(fieldName)].Type != EValueType::Null, \
         [&] (TFluentMap fluent) { \
             auto index = GET_INDEX(fieldName); \
             fluent.Item(itemKey).Value(operation); \
         })
 #define SET_ITEM_VALUE(itemKey, operation) SET_ITEM_VALUE_WITH_FIELD(itemKey, itemKey, operation)
-#define GET_INDEX(itemKey) fieldToIndex.find(itemKey)->second
+#define GET_INDEX(itemKey) columnFilter.GetPosition(tableDescriptor.NameTable->GetIdOrThrow(itemKey))
 
-        auto ysonResult = BuildYsonStringFluently()
-            .BeginMap()
-                .DoIf(fields.contains("id_lo"), [&] (TFluentMap fluent) {
-                    fluent.Item("id").Value(operationId);
-                })
-                SET_ITEM_STRING_VALUE("state")
-                SET_ITEM_STRING_VALUE("authenticated_user")
-                SET_ITEM_STRING_VALUE_WITH_FIELD("type", "operation_type")
-                // COMPAT(levysotsky): Add this field under old name for
-                // backward compatibility. Should be removed when all the clients migrate.
-                SET_ITEM_STRING_VALUE("operation_type")
-                SET_ITEM_YSON_STRING_VALUE("progress")
-                SET_ITEM_YSON_STRING_VALUE("spec")
-                SET_ITEM_YSON_STRING_VALUE("full_spec")
-                SET_ITEM_YSON_STRING_VALUE("unrecognized_spec")
-                SET_ITEM_YSON_STRING_VALUE("brief_progress")
-                SET_ITEM_YSON_STRING_VALUE("brief_spec")
-                SET_ITEM_YSON_STRING_VALUE("runtime_parameters")
-                SET_ITEM_INSTANT_VALUE("start_time")
-                SET_ITEM_INSTANT_VALUE("finish_time")
-                SET_ITEM_YSON_STRING_VALUE("result")
-                SET_ITEM_YSON_STRING_VALUE("events")
-                SET_ITEM_YSON_STRING_VALUE("slot_index_per_pool_tree")
-                SET_ITEM_YSON_STRING_VALUE("alerts")
-                SET_ITEM_YSON_STRING_VALUE("task_names")
-            .EndMap();
+    return BuildYsonStringFluently()
+        .BeginMap()
+            .DoIf(fields.contains("id_lo"), [&] (TFluentMap fluent) {
+                fluent.Item("id").Value(operationId);
+            })
+            SET_ITEM_STRING_VALUE("state")
+            SET_ITEM_STRING_VALUE("authenticated_user")
+            SET_ITEM_STRING_VALUE_WITH_FIELD("type", "operation_type")
+            // COMPAT(levysotsky): Add this field under old name for
+            // backward compatibility. Should be removed when all the clients migrate.
+            SET_ITEM_STRING_VALUE("operation_type")
+            SET_ITEM_YSON_STRING_VALUE("progress")
+            SET_ITEM_YSON_STRING_VALUE("spec")
+            SET_ITEM_YSON_STRING_VALUE("full_spec")
+            SET_ITEM_YSON_STRING_VALUE("unrecognized_spec")
+            SET_ITEM_YSON_STRING_VALUE("brief_progress")
+            SET_ITEM_YSON_STRING_VALUE("brief_spec")
+            SET_ITEM_YSON_STRING_VALUE("runtime_parameters")
+            SET_ITEM_INSTANT_VALUE("start_time")
+            SET_ITEM_INSTANT_VALUE("finish_time")
+            SET_ITEM_YSON_STRING_VALUE("result")
+            SET_ITEM_YSON_STRING_VALUE("events")
+            SET_ITEM_YSON_STRING_VALUE("slot_index_per_pool_tree")
+            SET_ITEM_YSON_STRING_VALUE("alerts")
+            SET_ITEM_YSON_STRING_VALUE("task_names")
+        .EndMap();
 #undef SET_ITEM_STRING_VALUE
 #undef SET_ITEM_YSON_STRING_VALUE
 #undef SET_ITEM_INSTANT_VALUE
 #undef SET_ITEM_VALUE
 #undef GET_INDEX
-        return ysonResult;
-    }
-
-    return TYsonString();
 }
 
 TOperationId TClient::ResolveOperationAlias(
@@ -1955,24 +1928,18 @@ void TClient::DoListOperationsFromCypress(
     // Lookup all operations with currently filtered ids, add their brief progress.
     if (DoesOperationsArchiveExist()) {
         TOrderedByIdTableDescriptor tableDescriptor;
-        auto rowBuffer = New<TRowBuffer>();
-        std::vector<TUnversionedRow> keys;
-        keys.reserve(filter.GetCount());
+        std::vector<TOperationId> ids;
+        ids.reserve(filter.GetCount());
         filter.ForEachOperationImmutable([&] (int index, const TListOperationsFilter::TLightOperation& lightOperation) {
-            keys.push_back(CreateOperationKey(lightOperation.GetId(), tableDescriptor.Index, rowBuffer));
+            ids.push_back(lightOperation.GetId());
         });
 
-        std::vector<int> columnIndexes = {tableDescriptor.NameTable->GetIdOrThrow("brief_progress")};
-
-        TLookupRowsOptions lookupOptions;
-        lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
-        lookupOptions.Timeout = options.ArchiveFetchingTimeout;
-        lookupOptions.KeepMissingRows = true;
-        auto rowsetOrError = WaitFor(LookupRows(
-            GetOperationsArchiveOrderedByIdPath(),
-            tableDescriptor.NameTable,
-            MakeSharedRange(std::move(keys), std::move(rowBuffer)),
-            lookupOptions));
+        auto columnFilter = NTableClient::TColumnFilter({tableDescriptor.Index.BriefProgress});
+        auto rowsetOrError = LookupOperationsInArchive(
+            this,
+            ids,
+            columnFilter,
+            options.ArchiveFetchingTimeout);
 
         if (!rowsetOrError.IsOK()) {
             YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' brief_progress from Archive");
@@ -1980,12 +1947,12 @@ void TClient::DoListOperationsFromCypress(
             auto rows = rowsetOrError.ValueOrThrow()->GetRows();
             YT_VERIFY(rows.Size() == filter.GetCount());
 
+            auto position = columnFilter.FindPosition(tableDescriptor.Index.BriefProgress);
             filter.ForEachOperationMutable([&] (int index, TListOperationsFilter::TLightOperation& lightOperation) {
                 auto row = rows[index];
                 if (!row) {
                     return;
                 }
-                auto position = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.BriefProgress);
                 if (!position) {
                     return;
                 }
@@ -2038,9 +2005,163 @@ void TClient::DoListOperationsFromCypress(
     }
 }
 
+THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
+    const std::vector<TOperationId>& ids,
+    const std::optional<THashSet<TString>>& attributes,
+    std::optional<TDuration> timeout)
+{
+    const THashSet<TString> RequiredAttributes = {"id", "start_time"};
+    const THashSet<TString> DefaultAttributes = {
+        "authenticated_user",
+        "brief_progress",
+        "brief_spec",
+        "finish_time",
+        "id",
+        "runtime_parameters",
+        "start_time",
+        "state",
+        "type",
+    };
+    const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
+
+    auto attributesToRequest = MakeFinalAttributeSet(
+        attributes,
+        RequiredAttributes,
+        DefaultAttributes,
+        IgnoredAttributes);
+
+    TOrderedByIdTableDescriptor tableDescriptor;
+    std::vector<int> columns;
+    for (const auto& columnName : MakeArchiveOperationAttributes(attributesToRequest)) {
+        columns.push_back(tableDescriptor.NameTable->GetIdOrThrow(columnName));
+    }
+    auto columnFilter = NTableClient::TColumnFilter(columns);
+    auto rowset = LookupOperationsInArchive(this, ids, columnFilter, timeout).ValueOrThrow();
+
+    auto getYson = [&] (TUnversionedValue value) {
+        return value.Type == EValueType::Null
+            ? TYsonString()
+            : TYsonString(value.Data.String, value.Length);
+    };
+    auto getString = [&] (TUnversionedValue value, TStringBuf name) {
+        if (value.Type == EValueType::Null) {
+            THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name);
+        }
+        return TStringBuf(value.Data.String, value.Length);
+    };
+
+    THashMap<TOperationId, TOperation> idToOperation;
+
+    const auto& tableIndex = tableDescriptor.Index;
+    auto idHiIndex = columnFilter.GetPosition(tableIndex.IdHi);
+    auto idLoIndex = columnFilter.GetPosition(tableIndex.IdLo);
+    auto typeIndex = columnFilter.FindPosition(tableIndex.OperationType);
+    auto stateIndex = columnFilter.FindPosition(tableIndex.State);
+    auto authenticatedUserIndex = columnFilter.FindPosition(tableIndex.AuthenticatedUser);
+    auto startTimeIndex = columnFilter.FindPosition(tableIndex.StartTime);
+    auto finishTimeIndex = columnFilter.FindPosition(tableIndex.FinishTime);
+    auto briefSpecIndex = columnFilter.FindPosition(tableIndex.BriefSpec);
+    auto fullSpecIndex = columnFilter.FindPosition(tableIndex.FullSpec);
+    auto specIndex = columnFilter.FindPosition(tableIndex.Spec);
+    auto unrecognizedSpecIndex = columnFilter.FindPosition(tableIndex.UnrecognizedSpec);
+    auto briefProgressIndex = columnFilter.FindPosition(tableIndex.BriefProgress);
+    auto progressIndex = columnFilter.FindPosition(tableIndex.Progress);
+    auto runtimeParametersIndex = columnFilter.FindPosition(tableIndex.RuntimeParameters);
+    auto eventsIndex = columnFilter.FindPosition(tableIndex.Events);
+    auto resultIndex = columnFilter.FindPosition(tableIndex.Result);
+    auto slotIndexPerPoolTreeIndex = columnFilter.FindPosition(tableIndex.SlotIndexPerPoolTree);
+    auto alertsIndex = columnFilter.FindPosition(tableIndex.Alerts);
+    auto taskNamesIndex = columnFilter.FindPosition(tableIndex.TaskNames);
+
+    for (auto row : rowset->GetRows()) {
+        if (!row) {
+            continue;
+        }
+
+        TOperation operation;
+
+        operation.Id = TOperationId(
+            FromUnversionedValue<ui64>(row[idHiIndex]),
+            FromUnversionedValue<ui64>(row[idLoIndex]));
+
+        if (typeIndex) {
+            operation.Type = ParseEnum<EOperationType>(getString(row[*typeIndex], "operation_type"));
+        }
+
+        if (stateIndex) {
+            operation.State = ParseEnum<EOperationState>(getString(row[*stateIndex], "state"));
+        }
+
+        if (authenticatedUserIndex) {
+            operation.AuthenticatedUser = TString(getString(row[*authenticatedUserIndex], "authenticated_user"));
+        }
+
+        if (startTimeIndex) {
+            auto value = row[*startTimeIndex];
+            if (value.Type == EValueType::Null) {
+                THROW_ERROR_EXCEPTION("Unexpected null value in column start_time in operations archive");
+            }
+            operation.StartTime = TInstant::MicroSeconds(FromUnversionedValue<i64>(value));
+        }
+
+        if (finishTimeIndex) {
+            if (row[*finishTimeIndex].Type != EValueType::Null) {
+                operation.FinishTime = TInstant::MicroSeconds(FromUnversionedValue<i64>(row[*finishTimeIndex]));
+            }
+        }
+
+        if (briefSpecIndex) {
+            operation.BriefSpec = getYson(row[*briefSpecIndex]);
+        }
+        if (fullSpecIndex) {
+            operation.FullSpec = getYson(row[*fullSpecIndex]);
+        }
+        if (specIndex) {
+            operation.Spec = getYson(row[*specIndex]);
+        }
+        if (unrecognizedSpecIndex) {
+            operation.UnrecognizedSpec = getYson(row[*unrecognizedSpecIndex]);
+        }
+
+        if (briefProgressIndex) {
+            operation.BriefProgress = getYson(row[*briefProgressIndex]);
+        }
+        if (progressIndex) {
+            operation.Progress = getYson(row[*progressIndex]);
+        }
+
+        if (runtimeParametersIndex) {
+            operation.RuntimeParameters = getYson(row[*runtimeParametersIndex]);
+        }
+
+        if (eventsIndex) {
+            operation.Events = getYson(row[*eventsIndex]);
+        }
+        if (resultIndex) {
+            operation.Result = getYson(row[*resultIndex]);
+        }
+
+        if (slotIndexPerPoolTreeIndex) {
+            operation.SlotIndexPerPoolTree = getYson(row[*slotIndexPerPoolTreeIndex]);
+        }
+
+        if (alertsIndex) {
+            operation.Alerts = getYson(row[*alertsIndex]);
+        }
+
+        if (taskNamesIndex) {
+            operation.TaskNames = getYson(row[*taskNamesIndex]);
+        }
+
+        idToOperation.emplace(*operation.Id, std::move(operation));
+    }
+
+    return idToOperation;
+}
+
 // Searches in archive for operations satisfying given filters.
 // Returns operations with requested fields plus necessarily "start_time" and "id".
-THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArchive(
+THashMap<TOperationId, TOperation> TClient::DoListOperationsFromArchive(
     TInstant deadline,
     TListOperationsCountingFilter& countingFilter,
     const TListOperationsOptions& options)
@@ -2137,8 +2258,8 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
     NQueryClient::TQueryBuilder builder;
     builder.SetSource(GetOperationsArchiveOrderedByStartTimePath());
 
-    builder.AddSelectExpression("id_hi");
-    builder.AddSelectExpression("id_lo");
+    auto idHiIndex = builder.AddSelectExpression("id_hi");
+    auto idLoIndex = builder.AddSelectExpression("id_lo");
 
     addCommonWhereConjuncts(&builder);
 
@@ -2198,160 +2319,16 @@ THashMap<NScheduler::TOperationId, TOperation> TClient::DoListOperationsFromArch
     selectOptions.Timeout = deadline - Now();
     selectOptions.InputRowLimit = std::numeric_limits<i64>::max();
     selectOptions.MemoryLimitPerNode = 100_MB;
-
     auto rowsItemsId = WaitFor(SelectRows(builder.Build(), selectOptions))
         .ValueOrThrow();
+    auto rows = rowsItemsId.Rowset->GetRows();
 
-    TOrderedByIdTableDescriptor tableDescriptor;
-    auto rowBuffer = New<TRowBuffer>();
-    std::vector<TUnversionedRow> keys;
-
-    keys.reserve(rowsItemsId.Rowset->GetRows().Size());
-    for (auto row : rowsItemsId.Rowset->GetRows()) {
-        auto id = TOperationId(FromUnversionedValue<ui64>(row[0]), FromUnversionedValue<ui64>(row[1]));
-        keys.push_back(CreateOperationKey(id, tableDescriptor.Index, rowBuffer));
+    std::vector<TOperationId> ids;
+    ids.reserve(rows.Size());
+    for (auto row : rows) {
+        ids.emplace_back(FromUnversionedValue<ui64>(row[idHiIndex]), FromUnversionedValue<ui64>(row[idLoIndex]));
     }
-
-    const THashSet<TString> RequiredAttributes = {"id", "start_time"};
-    const THashSet<TString> DefaultAttributes = {
-        "authenticated_user",
-        "brief_progress",
-        "brief_spec",
-        "finish_time",
-        "id",
-        "runtime_parameters",
-        "start_time",
-        "state",
-        "type",
-    };
-    const THashSet<TString> IgnoredAttributes = {"suspended", "memory_usage"};
-
-    auto attributesToRequest = MakeFinalAttributeSet(
-        options.Attributes,
-        RequiredAttributes,
-        DefaultAttributes,
-        IgnoredAttributes);
-
-    std::vector<int> columns;
-    for (const auto& columnName : MakeArchiveOperationAttributes(attributesToRequest)) {
-        columns.push_back(tableDescriptor.NameTable->GetIdOrThrow(columnName));
-    }
-
-    const NTableClient::TColumnFilter columnFilter(columns);
-
-    TLookupRowsOptions lookupOptions;
-    lookupOptions.ColumnFilter = columnFilter;
-    lookupOptions.KeepMissingRows = true;
-    lookupOptions.Timeout = deadline - Now();
-
-    auto rowset = WaitFor(LookupRows(
-        GetOperationsArchiveOrderedByIdPath(),
-        tableDescriptor.NameTable,
-        MakeSharedRange(std::move(keys), std::move(rowBuffer)),
-        lookupOptions))
-        .ValueOrThrow();
-
-    auto getYson = [&] (TUnversionedValue value) {
-        return value.Type == EValueType::Null
-            ? TYsonString()
-            : TYsonString(value.Data.String, value.Length);
-    };
-    auto getString = [&] (TUnversionedValue value, TStringBuf name) {
-        if (value.Type == EValueType::Null) {
-            THROW_ERROR_EXCEPTION("Unexpected null value in column %Qv in job archive", name);
-        }
-        return TStringBuf(value.Data.String, value.Length);
-    };
-
-    THashMap<NScheduler::TOperationId, TOperation> idToOperation;
-
-    const auto& tableIndex = tableDescriptor.Index;
-    for (auto row : rowset->GetRows()) {
-        if (!row) {
-            continue;
-        }
-
-        TOperation operation;
-
-        TGuid operationId(
-            row[columnFilter.GetPosition(tableIndex.IdHi)].Data.Uint64,
-            row[columnFilter.GetPosition(tableIndex.IdLo)].Data.Uint64);
-
-        operation.Id = operationId;
-
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.OperationType)) {
-            operation.Type = ParseEnum<EOperationType>(getString(row[*indexOrNull], "operation_type"));
-        }
-
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.State)) {
-            operation.State = ParseEnum<EOperationState>(getString(row[*indexOrNull], "state"));
-        }
-
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.AuthenticatedUser)) {
-            operation.AuthenticatedUser = TString(getString(row[*indexOrNull], "authenticated_user"));
-        }
-
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.StartTime)) {
-            auto value = row[*indexOrNull];
-            if (value.Type == EValueType::Null) {
-                THROW_ERROR_EXCEPTION("Unexpected null value in column start_time in operations archive");
-            }
-            operation.StartTime = TInstant::MicroSeconds(value.Data.Int64);
-        }
-
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.FinishTime)) {
-            if (row[*indexOrNull].Type != EValueType::Null) {
-                operation.FinishTime = TInstant::MicroSeconds(row[*indexOrNull].Data.Int64);
-            }
-        }
-
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.BriefSpec)) {
-            operation.BriefSpec = getYson(row[*indexOrNull]);
-        }
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.FullSpec)) {
-            operation.FullSpec = getYson(row[*indexOrNull]);
-        }
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Spec)) {
-            operation.Spec = getYson(row[*indexOrNull]);
-        }
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.UnrecognizedSpec)) {
-            operation.UnrecognizedSpec = getYson(row[*indexOrNull]);
-        }
-
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.BriefProgress)) {
-            operation.BriefProgress = getYson(row[*indexOrNull]);
-        }
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Progress)) {
-            operation.Progress = getYson(row[*indexOrNull]);
-        }
-
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.RuntimeParameters)) {
-            operation.RuntimeParameters = getYson(row[*indexOrNull]);
-        }
-
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Events)) {
-            operation.Events = getYson(row[*indexOrNull]);
-        }
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Result)) {
-            operation.Result = getYson(row[*indexOrNull]);
-        }
-
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.SlotIndexPerPoolTree)) {
-            operation.SlotIndexPerPoolTree = getYson(row[*indexOrNull]);
-        }
-
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.Alerts)) {
-            operation.Alerts = getYson(row[*indexOrNull]);
-        }
-
-        if (auto indexOrNull = columnFilter.FindPosition(tableIndex.TaskNames)) {
-            operation.TaskNames = getYson(row[*indexOrNull]);
-        }
-
-        idToOperation.emplace(*operation.Id, std::move(operation));
-    }
-
-    return idToOperation;
+    return LookupOperationsInArchiveTyped(ids, options.Attributes, deadline - Now());
 }
 
 THashSet<TString> TClient::GetSubjectClosure(
@@ -2475,42 +2452,36 @@ TListOperationsResult TClient::DoListOperations(
 
     // Fetching progress for operations with mentioned ids.
     if (DoesOperationsArchiveExist()) {
-        std::vector<TUnversionedRow> keys;
-
-        TOrderedByIdTableDescriptor tableDescriptor;
-        auto rowBuffer = New<TRowBuffer>();
+        std::vector<TOperationId> ids;
         for (const auto& operation: result.Operations) {
-            keys.push_back(CreateOperationKey(*operation.Id, tableDescriptor.Index, rowBuffer));
+            ids.push_back(*operation.Id);
         }
 
         bool needBriefProgress = !options.Attributes || options.Attributes->contains("brief_progress");
         bool needProgress = options.Attributes && options.Attributes->contains("progress");
 
-        std::vector<TString> fields;
+        TOrderedByIdTableDescriptor tableDescriptor;
+        std::vector<int> columnIndices;
         if (needBriefProgress) {
-            fields.emplace_back("brief_progress");
+            columnIndices.push_back(tableDescriptor.Index.BriefProgress);
         }
         if (needProgress) {
-            fields.emplace_back("progress");
-        }
-        std::vector<int> columnIndexes;
-        for (const auto& field : fields) {
-            columnIndexes.push_back(tableDescriptor.NameTable->GetIdOrThrow(field));
+            columnIndices.push_back(tableDescriptor.Index.Progress);
         }
 
-        TLookupRowsOptions lookupOptions;
-        lookupOptions.ColumnFilter = NTableClient::TColumnFilter(columnIndexes);
-        lookupOptions.Timeout = options.ArchiveFetchingTimeout;
-        lookupOptions.KeepMissingRows = true;
-        auto rowsetOrError = WaitFor(LookupRows(
-            GetOperationsArchiveOrderedByIdPath(),
-            tableDescriptor.NameTable,
-            MakeSharedRange(std::move(keys), std::move(rowBuffer)),
-            lookupOptions));
+        auto columnFilter = NTableClient::TColumnFilter(columnIndices);
+        auto rowsetOrError = LookupOperationsInArchive(
+            this,
+            ids,
+            columnFilter,
+            options.ArchiveFetchingTimeout);
 
         if (!rowsetOrError.IsOK()) {
             YT_LOG_DEBUG(rowsetOrError, "Failed to get information about operations' progress and brief_progress from Archive");
         } else {
+            auto briefProgressPosition = columnFilter.FindPosition(tableDescriptor.Index.BriefProgress);
+            auto progressPosition = columnFilter.FindPosition(tableDescriptor.Index.Progress);
+
             const auto& rows = rowsetOrError.Value()->GetRows();
 
             for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
@@ -2520,14 +2491,14 @@ TListOperationsResult TClient::DoListOperations(
                 }
 
                 auto& operation = result.Operations[rowIndex];
-                if (auto briefProgressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.BriefProgress)) {
+                if (briefProgressPosition) {
                     auto briefProgressValue = row[*briefProgressPosition];
                     if (briefProgressValue.Type != EValueType::Null) {
                         auto briefProgressYsonString = FromUnversionedValue<TYsonString>(briefProgressValue);
                         operation.BriefProgress = GetLatestProgress(operation.BriefProgress, briefProgressYsonString);
                     }
                 }
-                if (auto progressPosition = lookupOptions.ColumnFilter.FindPosition(tableDescriptor.Index.Progress)) {
+                if (progressPosition) {
                     auto progressValue = row[*progressPosition];
                     if (progressValue.Type != EValueType::Null) {
                         auto progressYsonString = FromUnversionedValue<TYsonString>(progressValue);
