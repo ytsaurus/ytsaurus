@@ -896,6 +896,7 @@ struct TListJobsOptions
     std::optional<bool> WithFailContext;
     std::optional<bool> WithSpec;
     std::optional<bool> WithCompetitors;
+    std::optional<TString> TaskName;
 
     EJobSortField SortField = EJobSortField::None;
     EJobSortDirection SortOrder = EJobSortDirection::Ascending;

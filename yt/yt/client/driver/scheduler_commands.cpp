@@ -277,6 +277,8 @@ TListJobsCommand::TListJobsCommand()
         .Optional();
     RegisterParameter("job_competition_id", Options.JobCompetitionId)
         .Optional();
+    RegisterParameter("task_name", Options.TaskName)
+        .Optional();
 
     RegisterParameter("sort_field", Options.SortField)
         .Optional();

@@ -1502,6 +1502,8 @@ message TReqListJobs
     optional NYT.NProto.TGuid job_competition_id = 17;
     optional bool with_competitors = 18;
 
+    optional string task_name = 19;
+
     optional TMasterReadOptions master_read_options = 102;
 }
 
