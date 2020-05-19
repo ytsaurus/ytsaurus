@@ -455,3 +455,5 @@ def start_clique(instance_count,
 
     if wait_for_instances:
         do_wait_for_instances(op, instance_count, operation_alias, client=client)
+
+    return op.id
