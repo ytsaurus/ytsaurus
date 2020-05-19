@@ -306,6 +306,7 @@ class YTEnvSetup(object):
     NODE_PORT_SET_SIZE = None
 
     DELTA_DRIVER_CONFIG = {}
+    DELTA_RPC_DRIVER_CONFIG = {}
     DELTA_MASTER_CONFIG = {}
     DELTA_NODE_CONFIG = {}
     DELTA_SCHEDULER_CONFIG = {}
@@ -580,6 +581,9 @@ class YTEnvSetup(object):
 
         for key, config in configs["driver"].iteritems():
             configs["driver"][key] = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
+
+        for key, config in configs["rpc_driver"].iteritems():
+            configs["rpc_driver"][key] = update_inplace(config, cls.get_param("DELTA_RPC_DRIVER_CONFIG", cluster_index))
 
     @classmethod
     def teardown_class(cls):

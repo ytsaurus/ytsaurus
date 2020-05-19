@@ -97,6 +97,7 @@ class TDiscoveryServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    bool Enable;
     TDuration LivenessUpdatePeriod;
     TDuration ProxyUpdatePeriod;
     TDuration AvailabilityPeriod;
@@ -104,6 +105,8 @@ public:
 
     TDiscoveryServiceConfig()
     {
+        RegisterParameter("enable", Enable)
+            .Default(true);
         RegisterParameter("liveness_update_period", LivenessUpdatePeriod)
             .Default(TDuration::Seconds(5));
         RegisterParameter("proxy_update_period", ProxyUpdatePeriod)

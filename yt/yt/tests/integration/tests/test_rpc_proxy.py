@@ -494,3 +494,18 @@ class TestModifyRowsRpcProxy(TestRpcProxyBase):
         self._test_modify_rows_batching(60, 7, "tablet")
         self._test_modify_rows_batching(65, 7, "master")
 
+##################################################################
+
+class TestRpcProxyWithoutDiscovery(TestRpcProxyBase):
+    NUM_RPC_PROXIES = 1
+    DELTA_RPC_PROXY_CONFIG = {"discovery_service": {"enable": False}}
+    DELTA_RPC_DRIVER_CONFIG = {"enable_proxy_discovery": False}
+
+    @authors("sashbel")
+    def test_proxy_without_discovery(self):
+        # check discovery dir is empty
+        assert ls("//sys/rpc_proxies") == []
+
+        self._create_simple_table("//tmp/t_in", data=[self._sample_line])
+        sync_mount_table("//tmp/t_in")
+        assert select_rows("* from [//tmp/t_in]") == [self._sample_line]
