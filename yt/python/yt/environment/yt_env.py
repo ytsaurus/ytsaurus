@@ -4,7 +4,8 @@ from .configs_provider import init_logging, get_default_provision, create_config
 from .default_configs import get_dynamic_master_config
 from .helpers import (
     read_config, write_config, is_dead_or_zombie, OpenPortIterator,
-    wait_for_removing_file_lock, get_value_from_config, WaitFailed)
+    wait_for_removing_file_lock, get_value_from_config, WaitFailed,
+    is_port_opened)
 from .porto_helpers import PortoSubprocess, porto_avaliable
 from .watcher import ProcessWatcher
 try:
@@ -12,7 +13,7 @@ try:
 except:
     get_gdb_path = None
 
-from yt.common import YtError, remove_file, makedirp, update, which
+from yt.common import YtError, remove_file, makedirp, update, which, get_value
 from yt.wrapper.common import generate_uuid, flatten
 from yt.wrapper.errors import YtResponseError
 from yt.wrapper import YtClient
@@ -1365,8 +1366,9 @@ class YTInstance(object):
                 else:
                     if driver_type == "rpc":
                         config = rpc_driver_configs[tag]
+                        discovery_enabled = get_value(config.get("enable_proxy_discovery"), True)
                         # TODO(ignat): Fix this hack.
-                        if "addresses" in config and http_proxy_url is not None:
+                        if "addresses" in config and http_proxy_url is not None and discovery_enabled:
                             del config["addresses"]
                             config["cluster_url"] = http_proxy_url
                             config["discover_proxies_from_cypress"] = False
@@ -1487,11 +1489,26 @@ class YTInstance(object):
 
         client = self._create_cluster_client()
 
+        proxies_with_discovery_count = 0
+        proxies_ports = []
+        for proxy in self.configs["rpc_proxy"]:
+            proxies_ports.append(proxy["rpc_port"])
+
+            discovery_service_config = get_value(proxy.get("discovery_service"), {})
+            discovery_service_enabled = get_value(discovery_service_config.get("enable"), True)
+            if discovery_service_enabled:
+                proxies_with_discovery_count += 1
+
         def rpc_proxy_ready():
             self._validate_processes_are_running("rpc_proxy")
 
-            proxies = client.get("//sys/rpc_proxies")
-            return len(proxies) == self.rpc_proxy_count and all("alive" in proxy for proxy in proxies.values())
+            proxies_from_discovery = client.get("//sys/rpc_proxies")
+            proxies_discovery_ready = len(proxies_from_discovery) == proxies_with_discovery_count and \
+                all("alive" in proxy for proxy in proxies_from_discovery.values())
+
+            proxies_ports_ready = all(is_port_opened(port) for port in proxies_ports)
+            
+            return proxies_discovery_ready and proxies_ports_ready
 
         self._wait_or_skip(lambda: self._wait_for(rpc_proxy_ready, "rpc_proxy", max_wait_time=20), sync)
 

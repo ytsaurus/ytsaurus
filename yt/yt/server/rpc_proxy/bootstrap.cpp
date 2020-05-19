@@ -161,15 +161,21 @@ void TBootstrap::DoRun()
         GetControlInvoker()));
 
     ApiService_ = CreateApiService(this);
-    DiscoveryService_ = CreateDiscoveryService(this);
-
     RpcServer_->RegisterService(ApiService_);
-    RpcServer_->RegisterService(DiscoveryService_);
+
+    if (Config_->DiscoveryService->Enable) {
+        DiscoveryService_ = CreateDiscoveryService(this);
+        RpcServer_->RegisterService(DiscoveryService_);
+    } else {
+        ProxyCoordinator_->SetAvailableState(true);
+    }
 
     if (Config_->GrpcServer) {
         GrpcServer_ = NRpc::NGrpc::CreateServer(Config_->GrpcServer);
         GrpcServer_->RegisterService(ApiService_);
-        GrpcServer_->RegisterService(DiscoveryService_);
+        if (Config_->DiscoveryService->Enable) {
+            GrpcServer_->RegisterService(DiscoveryService_);
+        }
     }
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);

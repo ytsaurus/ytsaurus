@@ -115,31 +115,6 @@ class OpenPortIteratorNonArcadia(Iterator):
     def __iter__(self):
         return self
 
-    def _is_port_free_for_inet(self, port, inet, verbose):
-        sock = None
-        try:
-            sock = socket.socket(inet, socket.SOCK_STREAM)
-            sock.bind(("", port))
-            sock.listen(1)
-            return True
-        except:
-            if verbose:
-                logger.exception(
-                    "Exception occurred while trying to check port freeness "
-                    "for port {} and inet {}".format(
-                        port,
-                        inet,
-                    )
-                )
-            return False
-        finally:
-            if sock is not None:
-                sock.close()
-
-    def _is_port_free(self, port, verbose):
-        return self._is_port_free_for_inet(port, socket.AF_INET, verbose) and \
-            self._is_port_free_for_inet(port, socket.AF_INET6, verbose)
-
     def _next_impl(self, verbose, error_counter=None):
         if error_counter is None:
             error_counter = collections.Counter()
@@ -152,7 +127,7 @@ class OpenPortIteratorNonArcadia(Iterator):
             if self._random_generator is None:
                 self._random_generator = random.Random(random.SystemRandom().random())
             port_value = self._random_generator.randint(*port_range)
-            if self._is_port_free(port_value, verbose):
+            if _is_port_free(port_value, verbose):
                 port = port_value
             else:
                 error_counter["is_port_free"] += 1
@@ -166,7 +141,7 @@ class OpenPortIteratorNonArcadia(Iterator):
                 port_value = sock.getsockname()[1]
             finally:
                 sock.close()
-            if self._is_port_free(port_value, verbose):
+            if _is_port_free(port_value, verbose):
                 port = port_value
             else:
                 error_counter["is_port_free"] += 1
@@ -227,6 +202,34 @@ class OpenPortIteratorNonArcadia(Iterator):
 
             raise RuntimeError("Failed to generate open port after {0} attempts"
                                .format(self.GEN_PORT_ATTEMPTS))
+
+def _is_port_free_for_inet(port, inet, verbose):
+    sock = None
+    try:
+        sock = socket.socket(inet, socket.SOCK_STREAM)
+        sock.bind(("", port))
+        sock.listen(1)
+        return True
+    except:
+        if verbose:
+            logger.exception(
+                "Exception occurred while trying to check port freeness "
+                "for port {} and inet {}".format(
+                    port,
+                    inet,
+                )
+            )
+        return False
+    finally:
+        if sock is not None:
+            sock.close()
+
+def _is_port_free(port, verbose):
+    return _is_port_free_for_inet(port, socket.AF_INET, verbose) and \
+        _is_port_free_for_inet(port, socket.AF_INET6, verbose)
+
+def is_port_opened(port, verbose=False):
+    return not _is_port_free(port, verbose)
 
 def versions_cmp(version1, version2):
     def normalize(v):
