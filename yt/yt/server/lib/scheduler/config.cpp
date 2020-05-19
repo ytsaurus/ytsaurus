@@ -272,6 +272,8 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
         .Default(TDuration::Seconds(5));
     RegisterParameter("min_operation_count_enqueued_for_alert", MinOperationCountEnqueuedForAlert)
         .Default(500);
+    RegisterParameter("finished_operations_archive_lookup_timeout", FinishedOperationsArchiveLookupTimeout)
+        .Default(TDuration::Seconds(30));
 
     RegisterPostprocessor([&] {
         if (MaxArchivationRetrySleepDelay <= MinArchivationRetrySleepDelay) {

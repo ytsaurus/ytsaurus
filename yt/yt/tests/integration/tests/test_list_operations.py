@@ -575,7 +575,7 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "operations_cleaner": {
-                "enable": True,
+                "enable": False,
                 # Analyze all operations each 100ms
                 "analysis_period": 100,
                 # Cleanup all operations
@@ -590,7 +590,7 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
 
     def setup_method(self, method):
         super(TestListOperationsArchiveOnly, self).setup_method(method)
-        wait(lambda: not operation_nodes_exist())
+        clean_operations()
 
 
 class TestListOperationsArchiveHacks(ListOperationsSetup):
@@ -607,7 +607,7 @@ class TestListOperationsArchiveHacks(ListOperationsSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "operations_cleaner": {
-                "enable": True,
+                "enable": False,
                 # Analyze all operations each 100ms
                 "analysis_period": 100,
                 # Cleanup all operations
@@ -622,9 +622,9 @@ class TestListOperationsArchiveHacks(ListOperationsSetup):
 
     def setup_method(self, method):
         super(TestListOperationsArchiveHacks, self).setup_method(method)
-        wait(lambda: not operation_nodes_exist())
+        clean_operations()
 
-    @authors("ilpauzner")
+    @authors("levysotsky")
     def test_list_operation_sorting(self):
         clear_start_time("//sys/operations_archive/ordered_by_start_time")
         clear_start_time("//sys/operations_archive/ordered_by_id")

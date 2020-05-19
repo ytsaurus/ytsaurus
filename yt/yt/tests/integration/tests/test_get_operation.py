@@ -217,7 +217,6 @@ class TestGetOperation(YTEnvSetup):
         assert res_get_operation_new["brief_progress"] != {"ivan": "ivanov"}
         assert res_get_operation_new["progress"] != {"semen": "semenych", "semenych": "gorbunkov"}
 
-
     @authors("ignat")
     def test_attributes(self):
         create("table", "//tmp/t1")
@@ -304,7 +303,7 @@ class TestGetOperation(YTEnvSetup):
 
         check_task_names()
 
-    @authors("asaitgalin", "levysotsky")
+    @authors("levysotsky")
     def test_get_operation_and_half_deleted_operation_node(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -331,7 +330,7 @@ class TestGetOperation(YTEnvSetup):
         with raises_yt_error(NoSuchOperation):
             get_operation("00000000-00000000-0000000-00000001")
 
-    @authors("ilpauzner")
+    @authors("levysotsky")
     def test_archive_progress(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -360,7 +359,7 @@ class TestGetOperation(YTEnvSetup):
         release_breakpoint()
         op.track()
 
-    @authors("ilpauzner")
+    @authors("levysotsky")
     def test_archive_failure(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -404,9 +403,11 @@ class TestGetOperation(YTEnvSetup):
         res_cypress = _get_operation_from_cypress(op.id)
 
         assert res_api["brief_progress"]["jobs"]["running"] == 0
+        # Brief progress in Cypress is obsolete as archive is up now.
         assert res_cypress["brief_progress"]["jobs"]["running"] > 0
 
         assert res_api["progress"]["jobs"]["running"] == 0
+        # Progress in Cypress is obsolete as archive is up now.
         assert res_cypress["progress"]["jobs"]["running"] > 0
 
         clean_operations()

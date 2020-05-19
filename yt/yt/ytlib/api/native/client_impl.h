@@ -899,6 +899,11 @@ private:
         const TListOperationsOptions& options,
         THashMap<NScheduler::TOperationId, TOperation>* idToOperation);
 
+    THashMap<NScheduler::TOperationId, TOperation> LookupOperationsInArchiveTyped(
+        const std::vector<NScheduler::TOperationId>& ids,
+        const std::optional<THashSet<TString>>& attributes,
+        std::optional<TDuration> timeout);
+
     // Searches in archive for operations satisfying given filters.
     // Returns operations with requested fields plus necessarily "start_time" and "id".
     THashMap<NScheduler::TOperationId, TOperation> DoListOperationsFromArchive(

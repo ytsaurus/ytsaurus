@@ -14,6 +14,7 @@ using NScheduler::TExecNodeDescriptorMap;
 using NScheduler::TRefCountedExecNodeDescriptorMapPtr;
 using NScheduler::TIncarnationId;
 using NScheduler::TAgentId;
+using NScheduler::EOperationAlertType;
 
 ////////////////////////////////////////////////////////////////////////////////
 

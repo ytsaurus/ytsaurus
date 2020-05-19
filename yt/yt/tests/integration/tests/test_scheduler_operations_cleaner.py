@@ -4,13 +4,42 @@ from yt_commands import *
 import yt.environment.init_operation_archive as init_operation_archive
 from yt.test_helpers import wait
 
-from yt.common import uuid_to_parts
+from yt.common import uuid_to_parts, YT_DATETIME_FORMAT_STRING
+
+from datetime import datetime, timedelta
 
 import __builtin__
+
+import pytest
 
 ##################################################################
 
 CLEANER_ORCHID = "//sys/scheduler/orchid/scheduler/operations_cleaner"
+
+
+def _run_maps_parallel(count, command, expect_fail=False):
+    create("table", "//tmp/input", ignore_existing=True)
+    write_table("//tmp/input", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+    ops = []
+    for i in xrange(count):
+        create("table", "//tmp/output_{}".format(i), ignore_existing=True)
+        op = map(
+            in_="//tmp/input",
+            out="//tmp/output_{}".format(i),
+            track=False,
+            spec={"max_failed_job_count": 2},
+            command=command,
+        )
+        ops.append(op)
+    for op in ops:
+        if expect_fail:
+            with pytest.raises(YtError):
+                op.track()
+        else:
+            op.track()
+
+    return [op.id for op in ops]
+
 
 class TestSchedulerOperationsCleaner(YTEnvSetup):
     NUM_MASTERS = 1
@@ -76,18 +105,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
     def test_basic_sanity(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
-
-        ops = []
-        op_count = 7
-        for _ in xrange(op_count):
-            op = map(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                command="cat")
-            ops.append(op.id)
+        ops = _run_maps_parallel(7, "cat")
 
         wait(lambda: len(self._get_removed_operations(ops)) == 4)
         archived_operations = self._get_removed_operations(ops)
@@ -95,8 +113,8 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             row = self._lookup_ordered_by_id_row(op)
             assert row["state"] == "completed"
             assert op in row["filter_factors"]
-            assert "//tmp/t1" in row["filter_factors"]
-            assert "//tmp/t2" in row["filter_factors"]
+            assert "//tmp/input" in row["filter_factors"]
+            assert "//tmp/output" in row["filter_factors"]
             assert row["progress"]["jobs"]["failed"] == 0
             assert row["authenticated_user"] == "root"
             assert "finish_time" in row
@@ -106,26 +124,11 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
     @authors("asaitgalin")
     def test_operations_archive_is_not_initialized(self):
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
-
-        ops = []
-        op_count = 7
-        for _ in xrange(op_count):
-            op = map(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                command="cat")
-            ops.append(op.id)
+        ops = _run_maps_parallel(7, "cat")
 
         wait(lambda: get(CLEANER_ORCHID + "/archive_pending") == 4)
 
-        for _ in xrange(3):
-            map(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                command="cat")
+        _run_maps_parallel(3, "cat")
 
         # Earliest operations should be removed
         wait(lambda: len(self._get_removed_operations(ops)) == 7)
@@ -139,48 +142,33 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(scheduler_alert_set)
 
-    @authors("asaitgalin")
-    def test_start_stop(self):
+    def _test_start_stop_impl(self, command, lookup_timeout=None):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
-
-        set("//sys/scheduler/config", {"operations_cleaner": {"enable": False}})
+        config = {"enable": False}
+        if lookup_timeout is not None:
+            config["finished_operations_archive_lookup_timeout"] = int(lookup_timeout.total_seconds() * 1000)
+        set("//sys/scheduler/config", {"operations_cleaner": config})
         wait(lambda: not get(CLEANER_ORCHID + "/enable"))
         wait(lambda: not get(CLEANER_ORCHID + "/enable_archivation"))
 
-        ops = []
-        op_count = 7
-        for _ in xrange(op_count):
-            op = map(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                command="cat")
-            ops.append(op.id)
+        ops = _run_maps_parallel(7, command)
 
         assert get(CLEANER_ORCHID + "/archive_pending") == 0
         set("//sys/scheduler/config/operations_cleaner/enable", True)
 
         wait(lambda: len(self._get_removed_operations(ops)) == 4)
+        return ops
+
+    @authors("asaitgalin")
+    def test_start_stop(self):
+        self._test_start_stop_impl("cat")
 
     @authors("asaitgalin")
     def test_revive(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
-
-        ops = []
-        op_count = 7
-        for _ in xrange(op_count):
-            op = map(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                command="cat")
-            ops.append(op.id)
+        _run_maps_parallel(7, "cat")
 
         wait(lambda: get(CLEANER_ORCHID + "/submitted_count") == 3)
 
@@ -192,25 +180,43 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
     @authors("asaitgalin")
     def test_max_operation_count_per_user(self):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
-
-        create("table", "//tmp/t1")
-        create("table", "//tmp/t2")
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
-
-        ops = []
-        op_count = 5
-        for _ in xrange(op_count):
-            try:
-                op = map(
-                    in_="//tmp/t1",
-                    out="//tmp/t2",
-                    command="false",
-                    spec={"max_failed_job_count": 1},
-                    track=False)
-                ops.append(op.id)
-                op.track()
-                assert False, "Operation expected to fail"
-            except YtError:
-                pass
-
+        ops = _run_maps_parallel(5, "false", expect_fail=True)
         wait(lambda: len(self._get_removed_operations(ops)) == 2)
+
+    @staticmethod
+    def list_op_format(t):
+        return t.strftime(YT_DATETIME_FORMAT_STRING)
+
+    @authors("levysotsky")
+    def test_archive_lookup(self):
+        before_start_time = datetime.utcnow()
+        ops = self._test_start_stop_impl('if [ "$YT_JOB_INDEX" -eq 0 ]; then exit 1; fi; cat')
+
+        # We expect to get all the operations by "with_failed_jobs" filter
+        # as brief_progress is reported only to archive and must be fetched
+        # by cleaner on startup.
+        res = list_operations(
+            include_archive=True,
+            from_time=self.list_op_format(before_start_time),
+            to_time=self.list_op_format(datetime.utcnow()),
+            with_failed_jobs=True)
+        assert res["failed_jobs_count"] == len(ops)
+        assert list(reversed(ops)) == [op["id"] for op in res["operations"]]
+
+    @authors("levysotsky")
+    def test_archive_lookup_failure(self):
+        before_start_time = datetime.utcnow()
+        self._test_start_stop_impl(
+            'if [ "$YT_JOB_INDEX" -eq 0 ]; then exit 1; fi; cat',
+            lookup_timeout=timedelta(milliseconds=1))
+
+        # We expect to get only not removed operations by "with_failed_jobs" filter
+        # as brief_progress is reported only to archive and will not be
+        # fetched due to low timeout.
+        res = list_operations(
+            include_archive=True,
+            from_time=self.list_op_format(before_start_time),
+            to_time=self.list_op_format(datetime.utcnow()),
+            with_failed_jobs=True)
+        assert res["failed_jobs_count"] == 3
+        assert len(res["operations"]) == 3
