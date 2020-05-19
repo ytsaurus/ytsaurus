@@ -10,6 +10,7 @@
 #include <yt/server/master/cypress_server/node_detail.h>
 
 #include <yt/server/master/tablet_server/public.h>
+#include <yt/server/master/tablet_server/tablet.h>
 
 #include <yt/ytlib/chunk_client/chunk_owner_ypath_proxy.h>
 
@@ -17,6 +18,7 @@
 
 #include <yt/ytlib/transaction_client/public.h>
 
+#include <yt/core/misc/aggregate_property.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/small_vector.h>
 
@@ -72,6 +74,7 @@ private:
         int UnconfirmedDynamicTableLockCount = 0;
         std::optional<bool> EnableDynamicStoreRead;
         bool MountedWithEnabledDynamicStoreRead = false;
+        NTabletServer::TTabletStatisticsAggregate TabletStatistics;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -112,6 +115,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, UnconfirmedDynamicTableLockCount);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableDynamicStoreRead);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MountedWithEnabledDynamicStoreRead);
+    DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(DynamicTableAttributes, TabletStatistics);
 
     // COMPAT(ifsmirnov)
     DECLARE_BYVAL_RW_PROPERTY(std::optional<bool>, EnableTabletBalancer);

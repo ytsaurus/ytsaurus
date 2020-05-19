@@ -745,7 +745,10 @@ class YTEnvSetup(object):
                     },
                     force=True,
                     driver=driver)
-        
+
+            # TODO(ifsmirnov): remove in a while.
+            yt_commands.set("//sys/@config/tablet_manager/enable_aggressive_tablet_statistics_validation", True)
+
     def teardown_method(self, method):
         yt_commands._zombie_responses[:] = []
 

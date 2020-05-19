@@ -372,6 +372,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 assert actual_preload_completed == 0
             assert get("//tmp/t/@tablets/0/statistics/preload_pending_store_count") == 0
             assert get("//tmp/t/@tablets/0/statistics/preload_failed_store_count") == 0
+            assert get("//tmp/t/@preload_state") == "complete"
 
         # Check preload after mount.
         rows = [{"key": i, "value": str(i)} for i in xrange(10)]
@@ -1442,11 +1443,13 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         # mount small table, preload must fail
         sync_mount_table(SMALL)
         self._wait_for_in_memory_stores_preload_failed(SMALL)
+        wait(lambda: get(SMALL + "/@preload_state") == "failed")
 
         # unmounting large table releases the memory to allow small table to be preloaded
         sync_unmount_table(LARGE)
         self._wait_for_in_memory_stores_preload(SMALL)
         check_lookup(SMALL, *small_data)
+        wait(lambda: get(SMALL + "/@preload_state") == "complete")
 
         # cleanup
         sync_unmount_table(SMALL)

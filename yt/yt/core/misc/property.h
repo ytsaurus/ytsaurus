@@ -209,6 +209,12 @@ private: \
 #define DEFINE_EXTRA_PROPERTY_HOLDER(class, type, holder) \
     const type class::Default##holder##_;
 
+//! Initializes extra property holder if it is not initialized.
+#define INITIALIZE_EXTRA_PROPERTY_HOLDER(holder, name) \
+    if (!holder##_) { \
+        holder##_.reset(new decltype(holder##_)::element_type()); \
+    }
+
 //! Defines a public read-write extra property that is passed by value.
 #define DEFINE_BYVAL_RW_EXTRA_PROPERTY(holder, name) \
 public: \
@@ -225,7 +231,7 @@ public: \
             if (val == Default##holder##_.name) { \
                 return; \
             } \
-            holder##_.reset(new decltype(holder##_)::element_type()); \
+            INITIALIZE_EXTRA_PROPERTY_HOLDER(holder, name); \
         } \
         holder##_->name = val; \
     }
@@ -242,9 +248,7 @@ public: \
     } \
     Y_FORCE_INLINE decltype(holder##_->name)& Mutable##name() \
     { \
-        if (!holder##_) { \
-            holder##_.reset(new decltype(holder##_)::element_type()); \
-        } \
+        INITIALIZE_EXTRA_PROPERTY_HOLDER(holder, name); \
         return holder##_->name; \
     }
 

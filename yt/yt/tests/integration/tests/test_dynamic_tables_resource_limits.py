@@ -390,6 +390,23 @@ class TestDynamicTablesResourceLimits(DynamicTablesBase):
         _verify("test_account", 0)
         _verify("other_account", disk_space)
 
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("in_memory_mode", ["none", "compressed", "uncompressed"])
+    @pytest.mark.parametrize("table_type", ["sorted", "ordered"])
+    def test_preload_state_attribute(self, in_memory_mode, table_type):
+        sync_create_cells(1)
+        if table_type == "sorted":
+            self._create_sorted_table("//tmp/t")
+        else:
+            self._create_ordered_table("//tmp/t")
+        set("//tmp/t/@in_memory_mode", in_memory_mode)
+        sync_mount_table("//tmp/t")
+        assert get("//tmp/t/@preload_state") == "complete"
+        insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        wait(lambda: get("//tmp/t/@preload_state") == "complete")
+
 class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
     NUM_SECONDARY_MASTER_CELLS = 2
 

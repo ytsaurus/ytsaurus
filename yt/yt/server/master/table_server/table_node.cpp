@@ -72,6 +72,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, UnconfirmedDynamicTableLockCount);
     Save(context, EnableDynamicStoreRead);
     Save(context, MountedWithEnabledDynamicStoreRead);
+    Save(context, TabletStatistics);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -105,6 +106,10 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     if (context.GetVersion() >= EMasterReign::DynamicStoreRead) {
         Load(context, EnableDynamicStoreRead);
         Load(context, MountedWithEnabledDynamicStoreRead);
+    }
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::AggregateTabletStatistics) {
+        Load(context, TabletStatistics);
     }
 }
 

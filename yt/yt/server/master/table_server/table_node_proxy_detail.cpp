@@ -68,11 +68,16 @@ using namespace NSecurityServer;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletServer;
+using namespace NTabletNode;
 using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
 
 using NChunkClient::TReadLimit;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -305,6 +310,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetRemovable(true)
         .SetExternal(isExternal)
         .SetPresent(isDynamic || trunkTable->GetEnableDynamicStoreRead().has_value()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PreloadState)
+        .SetExternal(isExternal)
+        .SetPresent(isDynamic));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -319,6 +327,29 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
     const auto& tabletManager = Bootstrap_->GetTabletManager();
     const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
+
+    auto validateTabletStatistics = [&] {
+        TTabletStatistics oldFashionedStatistics;
+        for (const auto* tablet : trunkTable->Tablets()) {
+            oldFashionedStatistics += tabletManager->GetTabletStatistics(tablet);
+        }
+
+        auto ultraModernStatistics = trunkTable->GetTabletStatistics();
+
+        if (oldFashionedStatistics == ultraModernStatistics) {
+            return;
+        }
+
+        YT_LOG_ALERT("Tablet statistics mismatch (TableId: %v, OldStatistics: %v, NewStatistics: %v)",
+            trunkTable->GetId(),
+            ToString(oldFashionedStatistics, chunkManager),
+            ToString(ultraModernStatistics, chunkManager));
+    };
+
+    if (isDynamic && !isExternal && config->TabletManager->EnableAggressiveTabletStatisticsValidation) {
+        validateTabletStatistics();
+    }
 
     switch (key) {
         case EInternedAttributeKey::ChunkRowCount:
@@ -522,13 +553,14 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             if (!isDynamic || isExternal) {
                 break;
             }
-            TTabletStatistics tabletStatistics;
-            for (const auto* tablet : trunkTable->Tablets()) {
-                tabletStatistics += tabletManager->GetTabletStatistics(tablet);
+
+            if (config->TabletManager->EnableRelaxedTabletStatisticsValidation) {
+                validateTabletStatistics();
             }
+
             BuildYsonFluently(consumer)
                 .Value(New<TSerializableTabletStatistics>(
-                    tabletStatistics,
+                    trunkTable->GetTabletStatistics(),
                     chunkManager));
             return true;
         }
@@ -693,7 +725,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
                 if (auto explicitValue = trunkTable->GetEnableDynamicStoreRead()) {
                     value = *explicitValue;
-                } else if (trunkTable->GetTabletState() == ETabletState::Unmounted) {
+                } else if (trunkTable->GetTabletState() == NTabletClient::ETabletState::Unmounted) {
                     value = Bootstrap_->GetConfigManager()->GetConfig()
                         ->TabletManager->EnableDynamicStoreReadByDefault;
                 } else {
@@ -713,6 +745,29 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
                 break;
             }
+
+        case EInternedAttributeKey::PreloadState: {
+            if (!isDynamic || isExternal) {
+                break;
+            }
+
+            auto statistics = trunkTable->GetTabletStatistics();
+
+            EStorePreloadState preloadState;
+
+            if (statistics.PreloadFailedStoreCount > 0) {
+                preloadState = EStorePreloadState::Failed;
+            } else if (statistics.PreloadPendingStoreCount > 0) {
+                preloadState = EStorePreloadState::Running;
+            } else {
+                preloadState = EStorePreloadState::Complete;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(preloadState);
+
+            return true;
+        }
 
         default:
             break;

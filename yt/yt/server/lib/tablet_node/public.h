@@ -158,6 +158,7 @@ DEFINE_ENUM(EStorePreloadState,
     (Scheduled)
     (Running)
     (Complete)
+    (Failed)
 );
 
 DEFINE_ENUM(EAutomatonThreadQueue,

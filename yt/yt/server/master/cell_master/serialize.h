@@ -100,6 +100,7 @@ DEFINE_ENUM(EMasterReign,
     ((ErasureJournals)                                              (1312))  // babenko
     ((CellReconfigurationFixes)                                     (1313))  // akozhikhov
     ((InternalizeAbcSchedulerPoolAttribute)                         (1314))  // mrkastep
+    ((AggregateTabletStatistics)                                    (1315))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
