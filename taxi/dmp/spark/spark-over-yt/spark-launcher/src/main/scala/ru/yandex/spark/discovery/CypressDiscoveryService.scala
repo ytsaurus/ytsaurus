@@ -39,19 +39,21 @@ class CypressDiscoveryService(config: YtClientConfiguration,
                         address: Address,
                         clusterVersion: String,
                         clusterConf: SparkClusterConf): Unit = {
-    discoverAddress() match {
+    val clearDir = discoverAddress() match {
       case Some(address) if DiscoveryService.isAlive(address.hostAndPort, 3) && operation.exists(_ != operationId) =>
         throw new IllegalStateException(s"Spark instance with path $discoveryPath already exists")
       case Some(_) =>
         log.info(s"Spark instance with path $discoveryPath registered, but is not alive, rewriting id")
-        removeAddress()
+        true
       case _ =>
         log.info(s"Spark instance with path $discoveryPath doesn't exist, registering new one")
+        false
     }
 
     val tm = new TransactionManager(yt)
     val transaction = tm.start(JDuration.standardMinutes(1)).join()
     try {
+      if (clearDir) removeAddress()
       createNode(s"$addressPath/${address.hostAndPort}", transaction)
       createNode(s"$webUiPath/${address.webUiHostAndPort}", transaction)
       createNode(s"$restPath/${address.restHostAndPort}", transaction)
@@ -101,10 +103,11 @@ class CypressDiscoveryService(config: YtClientConfiguration,
 
   private def cypressHostAndPort(path: String): Option[HostAndPort] = {
     if (yt.existsNode(path).join()) {
-      val subdirs = yt.listNode(path).join().asList()
-      if (!subdirs.isEmpty) {
-        Some(HostAndPort.fromString(subdirs.first().stringValue()))
-      } else None
+      Try(yt.listNode(path).join().asList())
+        .toOption
+        .filterNot(_.isEmpty)
+        .map(_.first().stringValue())
+        .map(HostAndPort.fromString)
     } else None
   }
 
