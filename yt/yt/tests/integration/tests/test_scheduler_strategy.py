@@ -3,7 +3,7 @@ import pytest
 from yt_commands import *
 from yt_helpers import *
 
-from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, require_ytserver_root_privileges, get_porto_delta_node_config
+from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, get_porto_delta_node_config
 from yt.test_helpers import are_almost_equal
 from yt.common import date_string_to_timestamp
 import yt.common
@@ -884,6 +884,8 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         }
     }
 
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "event_log": {
@@ -992,7 +994,6 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         assert get(op1.get_path() + "/@progress/jobs/completed/total") == (4 if interruptible else 3)
 
     @authors("dakovalkov")
-    @require_ytserver_root_privileges
     def test_graceful_preemption(self):
         create_test_tables(row_count=1)
 
@@ -1021,7 +1022,6 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         assert read_table("//tmp/t_out") == [{"interrupt": 42}]
 
     @authors("dakovalkov")
-    @require_ytserver_root_privileges
     def test_graceful_preemption_timeout(self):
         create_test_tables(row_count=1)
 

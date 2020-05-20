@@ -640,8 +640,12 @@ private:
 
     IInstancePtr CreateSetupInstance(int slotIndex, TJobId jobId, const TRootFS& rootFS, const TString& user)
     {
+        TString setupCommandContainerName = Config_->UseShortContainerNames
+            ? "/sc"
+            : ("/sc_" + ToString(jobId));
+
         auto instance = CreatePortoInstance(
-            GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + "/sc_" + ToString(jobId),
+            GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + setupCommandContainerName,
             PortoExecutor_);
         instance->SetRoot(rootFS);
         instance->SetUser(user);

@@ -196,6 +196,9 @@ default_scheduler_simulator_config = {
     "scheduler_config_file": None,
     "node_groups_file": None,
     "cycles_per_flush": 1000000,
+    "address_resolver": {
+        "localhost_fqdn": "localhost",
+    },
     "logging": {
         "flush_period": 1000,
         "rules": [

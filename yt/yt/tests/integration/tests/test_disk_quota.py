@@ -222,14 +222,8 @@ class TestDiskUsagePorto(BaseTestDiskUsage, YTEnvSetup):
 
     @classmethod
     def modify_node_config(cls, config):
-        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is None:
-            pytest.skip("SANDBOX_STORAGE_ROOTDIR should be specified for tests with disk quotas in porto")
-
-        cls.run_name = os.path.basename(cls.path_to_run)
-        cls.disk_path = os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name, "disk_default")
-        os.makedirs(cls.disk_path)
-
-        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.disk_path
+        os.makedirs(cls.default_disk_path)
+        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
 
     @classmethod
     def teardown_class(cls):
@@ -282,10 +276,6 @@ class TestDiskMediumsPorto(YTEnvSetup):
 
     @classmethod
     def modify_node_config(cls, config):
-        cls.run_name = os.path.basename(cls.path_to_run)
-        cls.default_disk_path = os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name, "disk_default")
-        cls.ssd_disk_path = os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name, "disk_ssd")
-
         for disk in (cls.default_disk_path, cls.ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)
@@ -544,10 +534,6 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
 
     @classmethod
     def modify_node_config(cls, config):
-        cls.run_name = os.path.basename(cls.path_to_run)
-        cls.default_disk_path = os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name, "disk_default")
-        cls.ssd_disk_path = os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name, "disk_ssd")
-
         for disk in (cls.default_disk_path, cls.ssd_disk_path):
             if os.path.exists(disk):
                 shutil.rmtree(disk)

@@ -26,8 +26,10 @@ class QuotaMixin(YTEnvSetup):
     def setup_class(cls):
         if cls.get_param("USE_PORTO_FOR_SERVERS", 0):
             return
+        else:
+            pytest.skip("Quota tests without porto are useless")
 
-        if arcadia_interop.yatest_common is not None:
+        if arcadia_interop.is_inside_distbuild():
             pytest.skip("Quota tests are not supported inside distbuild")
 
         path_to_test = os.path.join(SANDBOX_ROOTDIR, cls.__name__)
@@ -60,6 +62,8 @@ class QuotaMixin(YTEnvSetup):
     def clear(cls, ignore_errors):
         if cls.get_param("USE_PORTO_FOR_SERVERS", 0):
             return
+        else:
+            pytest.skip("Quota tests without porto are useless")
 
         try:
             subprocess.check_call(["sudo", "umount", "-ld", cls.mount_path])

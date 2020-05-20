@@ -108,7 +108,7 @@ class TestJobProber(YTEnvSetup):
 
     def _poll_until_prompt(self, job_id, shell_id):
         output = ""
-        while len(output) < 4 or output[-4:] != ":~$ ":
+        while len(output) < 4 or (output[-4:] != ":~$ " and output[-4:] != ":~# "):
             r = poll_job_shell(job_id, operation="poll", shell_id=shell_id)
             output += r["output"]
         return output

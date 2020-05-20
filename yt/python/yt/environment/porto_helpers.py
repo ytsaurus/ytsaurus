@@ -10,6 +10,7 @@ from yt.wrapper.common import generate_uuid
 
 import os
 import socket
+import time
 import logging
 from pipes import quote
 
@@ -45,16 +46,21 @@ class PortoSubprocess(object):
     @classmethod
     def Popen(cls, args, shell=None, close_fds=None, preexec_fn=None, cwd=None, stdout=None, stderr=None, env=None):
         conn = Connection()
-        name = generate_uuid()
+        name = generate_uuid()[:4]
         command = " ".join(["'" + quote(a) + "'" for a in args])
         p = PortoSubprocess()
-        p._container = conn.Create(str(name), weak=True)
+        p._container = conn.Create("self/" + str(name), weak=True)
         p._portoName = name
         p._connection = conn
         p._container.SetProperty("command", command)
         p._container.SetProperty("ulimit", "core: unlimited")
-        p._container.SetProperty("porto_namespace", name + "/")
+        p._container.SetProperty("enable_porto", "isolate")
         p._container.SetProperty("isolate", "true")
+
+        # TODO(prime@): enable controllers only when needed
+        p._container.SetProperty("controllers[cpu]", "true")
+        p._container.SetProperty("controllers[memory]", "true")
+
         p._returncode = None
         p._set_env(env)
         if stdout is not None:

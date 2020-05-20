@@ -23,6 +23,8 @@ class TestSandboxTmpfs(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    USE_PORTO_FOR_SERVERS = True
+    DELTA_NODE_CONFIG = get_porto_delta_node_config()
 
     @authors("ignat")
     def test_simple(self):

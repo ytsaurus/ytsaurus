@@ -62,22 +62,30 @@ def prepare_yatest_environment(need_suid):
         SANDBOX_STORAGE_ROOTDIR = os.environ.get("TESTS_SANDBOX_STORAGE")
         return
 
+    ytrecipe = os.environ.get("YTRECIPE") is not None
+
     ram_drive_path = arcadia_interop.yatest_common.get_param("ram_drive_path")
     if ram_drive_path is None:
         destination = os.path.join(arcadia_interop.yatest_common.work_path(), "build")
     else:
         destination = os.path.join(ram_drive_path, "build")
+
     if not os.path.exists(destination):
         os.makedirs(destination)
         path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False, use_ytserver_all=True, copy_ytserver_all=True, need_suid=need_suid)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
-    if ram_drive_path is None:
+    if ytrecipe:
+        SANDBOX_ROOTDIR = arcadia_interop.yatest_common.work_path("ytrecipe_output")
+    elif ram_drive_path is None:
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.work_path()
     else:
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.output_ram_drive_path()
 
-    SANDBOX_STORAGE_ROOTDIR = arcadia_interop.yatest_common.output_path()
+    if ytrecipe:
+        SANDBOX_STORAGE_ROOTDIR = None
+    else:
+        SANDBOX_STORAGE_ROOTDIR = arcadia_interop.yatest_common.output_path()
 
 def _retry_with_gc_collect(func, driver=None):
     while True:
@@ -202,30 +210,6 @@ def is_gcc_build():
     svnrevision = subprocess.check_output([binary, "--svnrevision"])
     return "GCC" in svnrevision
 
-def check_root_privileges():
-    if arcadia_interop.is_inside_distbuild():
-        pytest.skip("root is not available inside distbuild")
-
-    for binary in ["ytserver-exec", "ytserver-job-proxy", "ytserver-node",
-                   "ytserver-tools"]:
-        binary_path = find_executable(binary)
-        if binary_path is None:
-            pytest.fail('Executable {} is not found in PATH'.format(binary))
-        binary_stat = os.stat(binary_path)
-        if (binary_stat.st_mode & stat.S_ISUID) == 0:
-            pytest.fail('This test requires a suid bit set for "{}"'.format(binary))
-        if binary_stat.st_uid != 0:
-            pytest.fail('This test requires "{}" being owned by root'.format(binary))
-
-# doesn't work with @patch_porto_env_only on the same class, wrap each method
-def require_ytserver_root_privileges(func):
-    def wrap_func(self, *args, **kwargs):
-        check_root_privileges()
-        func(self, *args, **kwargs)
-
-    return wrap_func
-
-
 def skip_if_rpc_driver_backend(func):
     def wrapper(func, self, *args, **kwargs):
         if self.DRIVER_BACKEND == "rpc":
@@ -245,15 +229,6 @@ def parametrize_external(func):
 
     return pytest.mark.parametrize("external", [False, True])(
         decorator.decorate(func, wrapper))
-
-def require_enabled_core_dump(func):
-    def wrapper(func, self, *args, **kwargs):
-        rlimit_core = resource.getrlimit(resource.RLIMIT_CORE)
-        if rlimit_core[0] == 0:
-            pytest.skip('This test requires enabled core dump (how about "ulimit -c unlimited"?)')
-        return func(self, *args, **kwargs)
-
-    return decorator.decorate(func, wrapper)
 
 def resolve_test_paths(name):
     path_to_sandbox = os.path.join(SANDBOX_ROOTDIR, name)
@@ -434,7 +409,8 @@ class YTEnvSetup(object):
         need_suid = False
         if cls.get_param("REQUIRE_YTSERVER_ROOT_PRIVILEGES", False):
             need_suid = True
-            check_root_privileges()
+            if arcadia_interop.is_inside_distbuild():
+                pytest.skip("root is not available inside distbuild")
 
         if cls.get_param("USE_PORTO_FOR_SERVERS", False):
             need_suid = True
@@ -473,6 +449,16 @@ class YTEnvSetup(object):
         else:
             cls.run_id = None
             cls.path_to_run = cls.path_to_test
+
+        cls.run_name = os.path.basename(cls.path_to_run)
+
+        if os.environ.get("YTRECIPE") is None:
+            disk_path = SANDBOX_STORAGE_ROOTDIR
+        else:
+            disk_path = arcadia_interop.yatest_common.work_path("ytrecipe_hdd")
+        
+        cls.default_disk_path = os.path.join(disk_path, cls.run_name, "disk_default")
+        cls.ssd_disk_path = os.path.join(disk_path, cls.run_name, "disk_ssd")
 
         cls.primary_cluster_path = cls.path_to_run
         if cls.NUM_REMOTE_CLUSTERS > 0:
