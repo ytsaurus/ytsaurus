@@ -16,6 +16,7 @@
 #include <yt/core/misc/range_formatters.h>
 
 #include <util/system/fs.h>
+#include <util/system/env.h>
 
 #include <util/stream/zlib.h>
 
@@ -42,6 +43,12 @@ public:
         , DateLength(SomeDate.length())
     {
         Category.Name = "category";
+
+        // TODO(ignat): support ram_drive_path when this feature would be supported in gtest machinery.
+        auto testSandboxPath = GetEnv("TESTS_SANDBOX");
+        if (!testSandboxPath.empty()) {
+            NFs::SetCurrentWorkingDirectory(testSandboxPath);
+        }
     }
 
 protected:
@@ -130,7 +137,7 @@ TEST_F(TLoggingTest, ReloadOnSighup)
         YT_LOG_INFO("Message1");
         return NFs::Exists("reload-on-sighup.log");
     });
-    
+
     NFs::Rename("reload-on-sighup.log", "reload-on-sighup.log.1");
 
     ::kill(::getpid(), SIGHUP);
