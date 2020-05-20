@@ -746,7 +746,9 @@ public:
         TSortedControllerBase::PrepareOutputTables();
 
         auto& table = OutputTables_[0];
-        table->TableUploadOptions.LockMode = ELockMode::Exclusive;
+        if (!table->Dynamic) {
+            table->TableUploadOptions.LockMode = ELockMode::Exclusive;
+        }
 
         auto prepareOutputKeyColumns = [&] () {
             if (table->TableUploadOptions.TableSchema.IsSorted()) {

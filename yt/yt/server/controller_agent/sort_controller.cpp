@@ -2307,7 +2307,9 @@ private:
     virtual void PrepareOutputTables() override
     {
         auto& table = OutputTables_[0];
-        table->TableUploadOptions.LockMode = ELockMode::Exclusive;
+        if (!table->Dynamic) {
+            table->TableUploadOptions.LockMode = ELockMode::Exclusive;
+        }
         table->TableWriterOptions->EvaluateComputedColumns = false;
 
         // Sort output MUST be sorted.

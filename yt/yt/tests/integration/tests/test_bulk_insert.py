@@ -314,6 +314,78 @@ class TestBulkInsert(DynamicTablesBase):
         assert read_table("//tmp/t_output") == [{"key": i, "value": str(i)} for i in range(len(operations))]
         assert_items_equal(select_rows("* from [//tmp/t_output]"), [{"key": i, "value": str(i)} for i in range(len(operations))])
 
+    @pytest.mark.parametrize("operation", ["sorted_merge", "ordered_merge", "sort"])
+    def test_simultaneous_sorted_operations(self, operation):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        tables = []
+        rows = []
+        for i in range(5):
+            table = "//tmp/t_input_{}".format(i)
+            row = {"key": i, "value": str(i)}
+            if operation == "sorted_merge":
+                self._create_simple_dynamic_table(table, dynamic=False)
+            else:
+                create("table", table)
+            write_table(table, [row])
+            tables.append(table)
+            rows.append(row)
+
+        operations = []
+        for table in tables:
+            if operation.endswith("merge"):
+                op = merge(
+                    in_=table,
+                    out="<append=%true>//tmp/t_output",
+                    mode="sorted" if operation == "sorted_merge" else "ordered",
+                    track=False,
+                    verbose=True)
+            else:
+                op = sort(
+                    in_=table,
+                    out="<append=%true>//tmp/t_output",
+                    sort_by=["key"],
+                    track=False)
+            operations.append(op)
+
+        for op in operations:
+            op.wait_for_state("completed")
+
+        assert read_table("//tmp/t_output") == rows
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
+
+    def test_no_simultaneous_bulk_inserts_overwrite_mode(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_input")
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+
+        rows = [{"key": 1, "value": "1"}]
+        write_table("//tmp/t_input", rows)
+
+        def run_op():
+            return map(
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                command="sleep 5; cat",
+                track=False)
+
+        op1 = run_op()
+        wait(lambda: op1.get_state() == "running")
+        locks = get("//tmp/t_output/@locks")
+        assert len(locks) == 1
+        assert locks[0]["mode"] == "exclusive"
+
+        op2 = run_op()
+        op2.wait_for_state("failed")
+
+        op1.wait_for_state("completed")
+
+        assert read_table("//tmp/t_output") == rows
+        assert_items_equal(select_rows("* from [//tmp/t_output]"), rows)
+
     def test_timestamp_preserved_after_mount_unmount(self):
         sync_create_cells(1)
         create("table", "//tmp/t_input")
