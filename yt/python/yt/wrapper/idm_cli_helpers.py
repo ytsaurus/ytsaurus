@@ -124,15 +124,15 @@ class ObjectIdmSnapshot(object):
         self.object_id = object_id
 
         responsibles_reply = idm_client.get_responsible(**object_id)
-        self.inherit_acl = "disable_acl_inheritance" in responsibles_reply
+        self.inherit_acl = responsibles_reply.get("inherit_acl", False)
         self.version = responsibles_reply["version"]
 
         responsibles = responsibles_reply["responsible"]
         self.responsibles = list(map(lambda role: Subject(role["subject"]), responsibles.get("responsible", [])))
         self.read_approvers = list(map(lambda role: Subject(role["subject"]), responsibles.get("read_approvers", [])))
         self.auditors = list(map(lambda role: Subject(role["subject"]), responsibles.get("auditors", [])))
-        self.disable_responsible_inheritance = "disable_inheritance" in responsibles
-        self.require_boss_approval = "require_boss_approval" in responsibles
+        self.disable_responsible_inheritance = responsibles.get("disable_inheritance", False)
+        self.require_boss_approval = responsibles.get("require_boss_approval", False)
 
         roles = idm_client.get_acl(**object_id)
         self.roles = list(map(Role, roles.get("roles", [])))
@@ -218,6 +218,9 @@ class ObjectIdmSnapshot(object):
             if role not in self.roles:
                 self._new_roles.append(role)
 
+    def effective_roles(self):
+        return self.roles + self._new_roles
+
     def commit(self):
         subjects_to_json = lambda subjects: [subj.to_json_type() for subj in subjects]
         self.idm_client.set_responsible(
@@ -262,7 +265,7 @@ def pretty_print_idm_info(object_idm_snapshot, indent=0):
     print_aligned("Inherit ACL:", object_idm_snapshot.inherit_acl, indent)
 
     print_indented("ACL roles:", indent)
-    for role in object_idm_snapshot.roles:
+    for role in object_idm_snapshot.effective_roles():
         print_indented(role.to_pretty_string(), indent + 2)
 
 def subjects_from_string(subjects):
