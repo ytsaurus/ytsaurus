@@ -565,12 +565,14 @@ public:
                 getBlockWriter(column)));
         }
 
-        if (!Schema_.GetStrict()) {
-             auto blockWriter = std::make_unique<TDataBlockWriter>();
-             ValueColumnWriters_.emplace_back(CreateSchemalessColumnWriter(
-                Schema_.Columns().size(),
-                blockWriter.get()));
-             BlockWriters_.emplace_back(std::move(blockWriter));
+        if (!Schema_.GetStrict() || BlockWriters_.size() == 0) {
+            // When we have empty strict schema, we create schemaless writer (trash writer) to fullfill the invariant
+            // that at least one writer should be present.
+            auto blockWriter = std::make_unique<TDataBlockWriter>();
+            ValueColumnWriters_.emplace_back(CreateSchemalessColumnWriter(
+               Schema_.Columns().size(),
+               blockWriter.get()));
+            BlockWriters_.emplace_back(std::move(blockWriter));
         }
 
         YT_VERIFY(BlockWriters_.size() > 0);
