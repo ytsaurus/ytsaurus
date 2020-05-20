@@ -115,6 +115,7 @@ def prepare_configs(instance_count,
     require(memory_limit is not None, lambda: YtError("Memory limit should be set to prepare the ClickHouse config"))
 
     clickhouse_config_base = {
+        # COMPAT(max42): rename into "clickhouse".
         "engine": {
             "settings": {
                 "max_threads": cpu_limit,
@@ -123,14 +124,8 @@ def prepare_configs(instance_count,
                 "queue_max_wait_ms": 30 * 1000,
             },
         },
-        "memory_watchdog": {
-            "memory_limit": memory_limit + uncompressed_block_cache_size + memory_footprint,
-        },
         "profile_manager": {
             "global_tags": {"operation_alias": operation_alias[1:]} if operation_alias is not None else {},
-        },
-        "discovery": {
-            "directory": "//sys/clickhouse/cliques",
         },
         "cluster_connection": {
             "block_cache": {
@@ -139,8 +134,22 @@ def prepare_configs(instance_count,
                 },
             },
         },
+        # COMPAT(max42): remove four fields below.
+        "discovery": {
+            "directory": "//sys/clickhouse/cliques",
+        },
+        "memory_watchdog": {
+            "memory_limit": memory_limit + uncompressed_block_cache_size + memory_footprint,
+        },
         "worker_thread_count": cpu_limit,
         "cpu_limit": cpu_limit,
+        "yt": {
+            "worker_thread_count": cpu_limit,
+            "cpu_limit": cpu_limit,
+            "memory_watchdog": {
+                "memory_limit": memory_limit + uncompressed_block_cache_size + memory_footprint,
+            },
+        }
     }
 
     cluster_connection_patch = {
