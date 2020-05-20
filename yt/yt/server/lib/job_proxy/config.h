@@ -93,6 +93,28 @@ DEFINE_REFCOUNTED_TYPE(TCoreWatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TUserJobNetworkAddress
+    : public NYTree::TYsonSerializable
+{
+public:
+    NNet::TIP6Address Address;
+
+    TString Name;
+
+    TUserJobNetworkAddress()
+    {
+        RegisterParameter("address", Address)
+            .Default();
+
+        RegisterParameter("name", Name)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TUserJobNetworkAddress)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobProxyConfig
     : public TServerConfig
 {
@@ -133,8 +155,8 @@ public:
     //! Hostname to set in container.
     std::optional<TString> HostName;
 
-    //! IP addresses to bind into container.
-    std::vector<NNet::TIP6Address> NetworkAddresses;
+    //! Network addresses to bind into container.
+    std::vector<TUserJobNetworkAddressPtr> NetworkAddresses;
 
     bool AbortOnUnrecognizedOptions;
 

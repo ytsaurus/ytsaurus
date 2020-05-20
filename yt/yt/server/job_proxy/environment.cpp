@@ -537,6 +537,24 @@ public:
             }
         }
 
+        if (options.HostName) {
+            Instance_->SetHostName(*options.HostName);
+        }
+
+        if (!options.NetworkAddresses.empty()) {
+            Instance_->SetNet("L3 veth0");
+
+            TString ipProperty;
+            for (const auto& networkAddress : options.NetworkAddresses) {
+                if (!ipProperty.empty()) {
+                    ipProperty += ";";
+                }
+                ipProperty += "veth0 " + ToString(networkAddress->Address);
+
+            }
+            Instance_->SetIP(ipProperty);
+        }
+
         Instance_->SetEnablePorto(options.EnablePorto);
         if (options.EnablePorto == EEnablePorto::Full) {
             Instance_->SetIsolate(false);
@@ -562,6 +580,15 @@ public:
         if (options.EnableCudaGpuCoreDump) {
             Process_->AddArguments({"--env", "CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1"});
             Process_->AddArguments({"--env", Format("CUDA_COREDUMP_FILE=%v", gpuCorePipeFile)});
+        }
+        for (int addressIndex = 0; addressIndex < options.NetworkAddresses.size(); ++addressIndex) {
+            const auto& networkAddress = options.NetworkAddresses[addressIndex];
+            Process_->AddArguments({"--env", Format("YT_IP_ADDRESS_%v=%v", addressIndex, networkAddress->Address)});
+            if (networkAddress->Name == "fastbone") {
+                Process_->AddArguments({"--env", Format("YT_IP_ADDRESS_FB=%v", networkAddress->Address)});
+            } else if (networkAddress->Name == "default" || networkAddress->Name == "backbone") {
+                Process_->AddArguments({"--env", Format("YT_IP_ADDRESS_BB=%v", networkAddress->Address)});
+            }
         }
 
         return Process_;
@@ -593,9 +620,7 @@ public:
     TPortoJobProxyEnvironment(
         TPortoJobEnvironmentConfigPtr config,
         const std::optional<TRootFS>& rootFS,
-        std::vector<TString> gpuDevices,
-        std::vector<TIP6Address> networkAddresses,
-        const std::optional<TString>& hostName)
+        std::vector<TString> gpuDevices)
         : Config_(config)
         , RootFS_(rootFS)
         , GpuDevices_(std::move(gpuDevices))
@@ -603,9 +628,7 @@ public:
         , PortoExecutor_(CreatePortoExecutor(config->PortoExecutor, "environ"))
         , Self_(GetSelfPortoInstance(PortoExecutor_))
         , ResourceTracker_(New<TPortoResourceTracker>(Self_, TDuration::MilliSeconds(100)))
-        , NetworkAddresses_(std::move(networkAddresses))
         , SlotAbsoluteName_(GetAbsoluteName(Self_))
-        , HostName_(hostName)
     {
         PortoExecutor_->SubscribeFailed(BIND(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
     }
@@ -670,23 +693,6 @@ public:
             }
         }
 
-        if (HostName_) {
-            instance->SetHostName(*HostName_);
-        }
-
-        if (!NetworkAddresses_.empty()) {
-            instance->SetNet("L3 veth0");
-
-            TString ipProperty;
-            for (const auto& address : NetworkAddresses_) {
-                if (!ipProperty.empty()) {
-                    ipProperty += ";";
-                }
-                ipProperty += "veth0 " + ToString(address);
-            }
-            instance->SetIP(ipProperty);
-        }
-
         // Restrict access to devices, that are not explicitly granted.
         instance->SetDevices(std::move(devices));
 
@@ -706,9 +712,7 @@ private:
     const IPortoExecutorPtr PortoExecutor_;
     const IInstancePtr Self_;
     const TPortoResourceTrackerPtr ResourceTracker_;
-    const std::vector<TIP6Address> NetworkAddresses_;
     const TString SlotAbsoluteName_;
-    const std::optional<TString> HostName_;
 
     bool UsePortoMemoryTracking_ = false;
 
@@ -740,9 +744,7 @@ DEFINE_REFCOUNTED_TYPE(TPortoJobProxyEnvironment)
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     NYTree::INodePtr config,
     const std::optional<TRootFS>& rootFS,
-    std::vector<TString> gpuDevices,
-    const std::vector<TIP6Address>& networkAddresses,
-    const std::optional<TString>& hostName)
+    std::vector<TString> gpuDevices)
 {
 
     auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(config);
@@ -756,12 +758,6 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
                 YT_LOG_WARNING("CGroups job environment does not support GPU device isolation (Devices: %v)", gpuDevices);
             }
 
-            if (!networkAddresses.empty() || hostName) {
-                YT_LOG_WARNING("CGroups job environment does not support network isolation (NetworkAddresses: %v, Hostname: %v)",
-                    networkAddresses,
-                    hostName);
-            }
-
             return New<TCGroupsJobProxyEnvironment>(ConvertTo<TCGroupJobEnvironmentConfigPtr>(config));
 
 #ifdef _linux_
@@ -769,9 +765,7 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
             return New<TPortoJobProxyEnvironment>(
                 ConvertTo<TPortoJobEnvironmentConfigPtr>(config),
                 rootFS,
-                std::move(gpuDevices),
-                networkAddresses,
-                hostName);
+                std::move(gpuDevices));
 #endif
 
         case EJobEnvironmentType::Simple:
@@ -783,11 +777,6 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
                 YT_LOG_WARNING("Simple job environment does not support GPU device isolation (Devices: %v)", gpuDevices);
             }
 
-            if (!networkAddresses.empty() || hostName) {
-                YT_LOG_WARNING("Simple job environment does not support network isolation (NetworkAddresses: %v, HostName: %v)",
-                    networkAddresses,
-                    hostName);
-            }
             return nullptr;
 
         default:

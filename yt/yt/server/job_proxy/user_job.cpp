@@ -218,6 +218,8 @@ public:
             }
             options.EnablePorto = TranslateEnablePorto(CheckedEnumCast<NScheduler::EEnablePorto>(UserJobSpec_.enable_porto()));
             options.EnableCudaGpuCoreDump = UserJobSpec_.enable_cuda_gpu_core_dump();
+            options.HostName = Config_->HostName;
+            options.NetworkAddresses = Config_->NetworkAddresses;
 
             Process_ = UserJobEnvironment_->CreateUserJobProcess(
                 ExecProgramName,

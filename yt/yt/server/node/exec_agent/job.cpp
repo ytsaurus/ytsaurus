@@ -1384,11 +1384,15 @@ private:
                     THROW_ERROR_EXCEPTION("No resolved IPv6 node addresses found");
                 }
                 proxyConfig->NetworkAddresses.reserve(nodeAddresses.size());
-                for (const auto& address : nodeAddresses) {
-                    proxyConfig->NetworkAddresses.emplace_back(TMtnAddress{address}
+                for (const auto& [addressName, address] : nodeAddresses) {
+                    auto networkAddress = New<TUserJobNetworkAddress>();
+                    networkAddress->Address = TMtnAddress{address}
                         .SetProjectId(*NetworkProjectId_)
                         .SetHost(Slot_->GetSlotIndex())
-                        .ToIP6Address());
+                        .ToIP6Address();
+                    networkAddress->Name = addressName;
+
+                    proxyConfig->NetworkAddresses.push_back(networkAddress);
                 }
             }
 
@@ -1403,7 +1407,7 @@ private:
 
             ExecAttributes_.IPAddresses.reserve(proxyConfig->NetworkAddresses.size());
             for (const auto& address : proxyConfig->NetworkAddresses) {
-                ExecAttributes_.IPAddresses.push_back(ToString(address));
+                ExecAttributes_.IPAddresses.push_back(ToString(address->Address));
             }
 
             ExecAttributes_.GpuDevices.reserve(GpuSlots_.size());

@@ -128,7 +128,7 @@ public:
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks();
     std::optional<TString> GetDefaultNetworkName();
     NExecAgent::EJobEnvironmentType GetEnvironmentType() const;
-    const std::vector<NNet::TIP6Address>& GetResolvedNodeAddresses() const;
+    const std::vector<std::pair<TString, NNet::TIP6Address>>& GetResolvedNodeAddresses() const;
 
     NJobProxy::TJobProxyConfigPtr BuildJobProxyConfig() const;
 
@@ -231,7 +231,7 @@ private:
 
     TNodeResourceManagerPtr NodeResourceManager_;
 
-    std::vector<NNet::TIP6Address> ResolvedNodeAddresses_;
+    std::vector<std::pair<TString, NNet::TIP6Address>> ResolvedNodeAddresses_;
 
     void DoInitialize();
     void DoRun();
