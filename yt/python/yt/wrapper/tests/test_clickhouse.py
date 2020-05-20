@@ -27,6 +27,7 @@ DEFAULTS = {
     "cypress_log_tailer_config_path": "//sys/clickhouse/log_tailer_config",
     "log_tailer_table_attribute_patch": {"primary_medium": "default"},
     "log_tailer_tablet_count": 1,
+    "skip_version_compatibility_validation": True,
 }
 
 

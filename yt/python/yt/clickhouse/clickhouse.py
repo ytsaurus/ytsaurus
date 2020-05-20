@@ -1,6 +1,7 @@
 from .defaults import patch_defaults
 from .spec_builder import get_clique_spec_builder
 from .log_tailer import prepare_log_tailer_tables
+from .compatibility import validate_ytserver_clickhouse_version, LAUNCHER_VERSION
 
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
 from yt.wrapper.common import YtError, require, update, update_inplace
@@ -149,6 +150,9 @@ def prepare_configs(instance_count,
             "memory_watchdog": {
                 "memory_limit": memory_limit + uncompressed_block_cache_size + memory_footprint,
             },
+        },
+        "launcher": {
+            "version": LAUNCHER_VERSION,
         }
     }
 
@@ -300,6 +304,7 @@ def start_clique(instance_count,
                  artifact_path=None,
                  client=None,
                  wait_for_instances=None,
+                 skip_version_compatibility_validation=None,
                  **kwargs):
     """Starts a clickhouse clique consisting of a given number of instances.
 
@@ -351,6 +356,9 @@ def start_clique(instance_count,
     :type artifact_path: str or None
     :param cypress_geodata_path: path to archive with geodata in Cypress
     :type cypress_geodata_path str or None
+    :param skip_version_compatibility_validation: skip version compatibility validation; do not use this without consulting
+    with CHYT team.
+    :type skip_version_compatibility_validation bool or None
     .. seealso::  :ref:`operation_parameters`.
     """
 
@@ -365,6 +373,9 @@ def start_clique(instance_count,
 
     if abort_existing is None:
         abort_existing = False
+
+    if skip_version_compatibility_validation is None:
+        skip_version_compatibility_validation = defaults.get("skip_version_compatibility_validation", False)
 
     prev_operation = _resolve_alias(operation_alias, client=client)
     if operation_alias is not None:
@@ -402,6 +413,20 @@ def start_clique(instance_count,
     cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path = \
         resolve_path(cypress_ytserver_log_tailer_path, host_ytserver_log_tailer_path, "ytserver-log-tailer", client=client)
 
+    description = update(description, _build_description(cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
+                                                         cypress_ytserver_log_tailer_path=cypress_ytserver_log_tailer_path,
+                                                         cypress_clickhouse_trampoline_path=cypress_clickhouse_trampoline_path,
+                                                         operation_alias=operation_alias,
+                                                         prev_operation_id=prev_operation_id,
+                                                         enable_monitoring=enable_monitoring,
+                                                         defaults=defaults,
+                                                         client=client))
+
+    if not skip_version_compatibility_validation:
+        validate_ytserver_clickhouse_version(description.get("ytserver-clickhouse"))
+    else:
+        logger.warning("Version validation has been skipped")
+
     if wait_for_instances is None:
         wait_for_instances = True
 
@@ -427,15 +452,6 @@ def start_clique(instance_count,
                       client=client)
 
     cypress_config_paths = upload_configs(configs, client=client)
-
-    description = update(description, _build_description(cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
-                                                         cypress_ytserver_log_tailer_path=cypress_ytserver_log_tailer_path,
-                                                         cypress_clickhouse_trampoline_path=cypress_clickhouse_trampoline_path,
-                                                         operation_alias=operation_alias,
-                                                         prev_operation_id=prev_operation_id,
-                                                         enable_monitoring=enable_monitoring,
-                                                         defaults=defaults,
-                                                         client=client))
 
     op = run_operation(get_clique_spec_builder(instance_count,
                                                artifact_path=artifact_path,

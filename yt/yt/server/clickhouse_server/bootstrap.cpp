@@ -1,5 +1,6 @@
 #include "bootstrap.h"
 
+#include "launcher_compatibility.h"
 #include "stack_size_checker.h"
 #include "host.h"
 #include "clickhouse_server.h"
@@ -79,6 +80,8 @@ void TBootstrap::Run()
 void TBootstrap::DoRun()
 {
     YT_LOG_INFO("Starting ClickHouse server");
+
+    ValidateLauncherCompatibility(Config_->Launcher);
 
     // Make RSS predictable.
     NYTAlloc::SetEnableEagerMemoryRelease(true);
