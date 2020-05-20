@@ -228,6 +228,26 @@ public class YtClientTest {
                 .join();
     }
 
+    @Test(timeout = 10000)
+    public void selectRowsWithKnownPool() {
+        final String dir1 = path + "/dir1";
+        final String table5 = dir1 + "/table5";
+
+        createDirectory(client, dir1);
+        createTable(client, table5);
+
+        final String poolName = "known_test_pool";
+        client.createNode(new CreateNode(YPath.simple("//sys/ql_pools/" + poolName),
+                CypressNodeType.MAP, Map.of("weight", YTree.integerNode(5)))
+                .setRecursive(true)
+                .setIgnoreExisting(true));
+
+        final String query = String.format("* from [%s]", table5);
+
+        final SelectRowsRequest request = SelectRowsRequest.of(query).setExecutionPool(poolName);
+        Assert.assertEquals(0, client.selectRows(request).join().getRows().size());
+    }
+
     private void readTableImpl(String dir, String table, String path, MappedObject... expect) throws Exception {
         createDirectory(client, dir);
         createTable(client, table, false);

@@ -16,6 +16,7 @@ public class SelectRowsRequest extends RequestBase<SelectRowsRequest> {
     private Integer maxSubqueries;
     private Boolean allowJoinWithoutIndex;
     private String udfRegistryPath;
+    private String executionPool;
 
     private SelectRowsRequest(String query) {
         this.query = query;
@@ -89,5 +90,14 @@ public class SelectRowsRequest extends RequestBase<SelectRowsRequest> {
 
     public Optional<String> getUdfRegistryPath() {
         return Optional.ofNullable(udfRegistryPath);
+    }
+
+    public SelectRowsRequest setExecutionPool(String executionPool) {
+        this.executionPool = executionPool;
+        return this;
+    }
+
+    public Optional<String> getExecutionPool() {
+        return Optional.ofNullable(executionPool);
     }
 }
