@@ -630,6 +630,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
             fqdn = "{0}:{1}".format(provision["fqdn"], proxy_config["port"])
             set_at(proxy_config, "coordinator/public_fqdn", fqdn)
+            set_at(proxy_config, "address_resolver/localhost_fqdn", provision["fqdn"])
 
             proxy_config["logging"] = init_logging(
                 proxy_config.get("logging"),
@@ -704,6 +705,7 @@ class ConfigsProvider_19(ConfigsProvider):
 
             layer_location_config = {
                 "low_watermark" : 1,
+                "location_is_absolute": False,
             }
 
             if provision["node"]["chunk_store_quota"] is not None:
@@ -715,6 +717,10 @@ class ConfigsProvider_19(ConfigsProvider):
             else:
                 store_location_config["path"] = os.path.join(node_dirs[index], "chunk_store")
                 layer_location_config["path"] = os.path.join(node_dirs[index], "layers")
+
+            ytrecipe_host_sandbox_path = os.environ.get("YTRECIPE_HOST_SANDBOX_PATH")
+            if ytrecipe_host_sandbox_path is not None:
+                layer_location_config["path"] = os.path.join(ytrecipe_host_sandbox_path, "layers", str(index))
 
             set_at(config, "data_node/store_locations", [store_location_config])
             set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])

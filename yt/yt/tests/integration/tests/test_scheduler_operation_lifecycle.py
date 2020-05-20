@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, wait, Restarter, require_ytserver_root_privileges, unix_only, is_asan_build,
+    YTEnvSetup, wait, Restarter, unix_only, is_asan_build,
     SCHEDULERS_SERVICE, MASTERS_SERVICE, CONTROLLER_AGENTS_SERVICE,
     get_porto_delta_node_config, porto_avaliable,
 )
@@ -51,6 +51,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
+    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat")
     def test_connection_time(self):
@@ -71,7 +72,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     @authors("ignat")
     @flaky(max_runs=3)
-    @require_ytserver_root_privileges
     def test_revive(self):
         def get_connection_time():
             return datetime.strptime(get("//sys/scheduler/@connection_time"), "%Y-%m-%dT%H:%M:%S.%fZ")
@@ -94,7 +94,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
     @authors("ignat")
-    @require_ytserver_root_privileges
     def test_banned_operation(self):
         self._prepare_tables()
 
@@ -114,7 +113,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         wait(lambda: ls("//sys/scheduler/orchid/scheduler/operations") == [op2.id])
 
     @authors("ignat")
-    @require_ytserver_root_privileges
     def test_disconnect_during_revive(self):
         op_count = 20
 
@@ -148,7 +146,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             assert read_table("//tmp/t_out" + str(i)) == [{"foo": "bar"}]
 
     @authors("ignat")
-    @require_ytserver_root_privileges
     def test_user_transaction_abort_when_scheduler_is_down(self):
         self._prepare_tables()
 
@@ -164,7 +161,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             op.track()
 
     @authors("ignat")
-    @require_ytserver_root_privileges
     def test_scheduler_transaction_abort_when_scheduler_is_down(self):
         self._prepare_tables()
 
@@ -181,7 +177,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert read_table("//tmp/t_out") == [{"foo": "bar"}]
 
     @authors("ignat")
-    @require_ytserver_root_privileges
     def test_suspend_during_revive(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
@@ -209,7 +204,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         wait(lambda: op.get_job_count("running") == 1)
 
     @authors("ignat")
-    @require_ytserver_root_privileges
     def test_operation_time_limit(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out1")
@@ -240,7 +234,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             op2.track()
 
     @authors("ignat")
-    @require_ytserver_root_privileges
     def test_operation_suspend_with_account_limit_exceeded(self):
         create_account("limited")
         set("//sys/accounts/limited/@resource_limits/chunk_count", 1)
@@ -277,7 +270,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert not get(op.get_path() + "/@alerts")
 
     @authors("max42")
-    @require_ytserver_root_privileges
     def test_suspend_operation_after_materialization(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
@@ -296,7 +288,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         op.track()
 
     @authors("ignat")
-    @require_ytserver_root_privileges
     def test_fail_context_saved_on_time_limit(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out")
@@ -324,7 +315,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     # and in this case we can successfully schedule job for the next operation in queue.
     @authors("ignat")
     @flaky(max_runs=3)
-    @require_ytserver_root_privileges
     def test_fifo_default(self):
         self._create_table("//tmp/in")
         self._create_table("//tmp/out1")
@@ -359,7 +349,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     # and in this case we can successfully schedule job for the next operation in queue.
     @authors("ignat")
     @flaky(max_runs=3)
-    @require_ytserver_root_privileges
     def test_fifo_by_pending_job_count(self):
         op_count = 3
 
@@ -434,7 +423,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert get(op.get_path() + "/@result/error/inner_errors/0/message") == "Test abort"
 
     @authors("ignat")
-    @require_ytserver_root_privileges
     def test_operation_pool_attributes(self):
         self._prepare_tables()
 
@@ -442,7 +430,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert get(op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default/pool") == "root"
 
     @authors("babenko", "gritukan")
-    @require_ytserver_root_privileges
     def test_operation_events_attribute(self):
         self._prepare_tables()
 
@@ -489,7 +476,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     @authors("ignat")
     @flaky(max_runs=3)
-    @require_ytserver_root_privileges
     def test_within_job_time_limit(self):
         self._prepare_tables()
         map(in_="//tmp/t_in",
@@ -498,7 +484,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
             spec={"max_failed_job_count": 1, "mapper": {"job_time_limit": 3000}})
 
     @authors("ignat")
-    @require_ytserver_root_privileges
     def test_suspend_resume(self):
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
@@ -530,7 +515,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         assert sorted(read_table("//tmp/t_out")) == [{"foo": i} for i in xrange(10)]
 
     @authors("ignat")
-    @require_ytserver_root_privileges
     def test_table_changed_during_operation_prepare(self):
         self._prepare_tables()
 
@@ -1150,9 +1134,26 @@ class TestSafeAssertionsMode(YTEnvSetup):
         },
     }
 
+    VERY_USEFUL_AND_READABLE_LOGS = [
+        "coredumper.log",
+        "coredumper_inner.log",
+        "coredumper_lister.log",
+    ]
+
+    @classmethod
+    def setup_class(cls):
+        super(TestSafeAssertionsMode, cls).setup_class()
+
+        for log in cls.VERY_USEFUL_AND_READABLE_LOGS:
+            open("/tmp/" + log, "w")
+
     @classmethod
     def teardown_class(cls):
         shutil.rmtree(cls.core_path)
+
+        for log in cls.VERY_USEFUL_AND_READABLE_LOGS:
+            if os.path.exists("/tmp/" + log):
+                shutil.copyfile("/tmp/" + log, cls.path_to_run + "/" + log)
         super(TestSafeAssertionsMode, cls).teardown_class()
 
     @classmethod

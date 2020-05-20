@@ -1,0 +1,39 @@
+{
+    cluster=freud;
+    pool="yt-integration-tests";
+    cache_path="//home/yt-integration-tests/cache";
+    cache_ttl_hours=24;
+
+    output_path="//home/yt-integration-tests/output";
+    output_ttl_hours=168;
+
+    upload_binaries=[
+        "yt/yt/tests/integration/ytrecipe/yt-yt-tests-integration-ytrecipe";
+        "yt/yt/server/all/ytserver-all";
+        "yt/yt/server/all/stripped/ytserver-all-stripped";
+        "yt/yt/server/scheduler_simulator/bin/converter/convert_operations_to_binary_format";
+        "yt/yt/server/scheduler_simulator/bin/simulator/scheduler_simulator";
+        "yt/yt/tools/yt_sudo_fixup/yt-sudo-fixup";
+        "yt/yt/tools/cuda_core_dump_injection/libcuda_core_dump_injection.so";
+        "yt/yt/tests/cuda_core_dump_simulator/cuda_core_dump_simulator";
+        "infra/nanny/logrotate/logrotate";
+        "yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher";
+    ];
+
+    upload_workfile=[
+        "layers/static-bin.tar.gz";
+        "layers/static_cat";
+        "layers/test.tar.gz";
+        "layers/corrupted.tar.gz";
+        "layers/playground.tar.gz";
+        "layers/olli.tar.gz";
+        "layers/marko.tar.gz";
+    ];
+
+    resource_limits={
+        cpu_limit=4;
+        memory_limit=20000000000;
+    };
+
+    job_timeout_seconds=540;
+}

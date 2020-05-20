@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, unix_only, wait, require_enabled_core_dump, \
+from yt_env_setup import YTEnvSetup, unix_only, wait, \
     patch_porto_env_only, skip_if_porto, is_asan_build, \
     Restarter, SCHEDULERS_SERVICE, get_porto_delta_node_config
 from yt_commands import *
@@ -949,9 +949,10 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42", "gritukan")
     @skip_if_porto
-    @require_enabled_core_dump
     @unix_only
     def test_core_when_user_job_was_killed(self):
+        pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to porto.")
+        
         op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1)
 
         release_breakpoint()
@@ -970,9 +971,10 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("max42", "gritukan")
     @skip_if_porto
-    @require_enabled_core_dump
     @unix_only
     def test_core_timeout_when_user_job_was_killed(self):
+        pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to porto.")
+
         op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1)
 
         release_breakpoint()
@@ -992,7 +994,6 @@ class TestCoreTable(YTEnvSetup):
 
     @authors("ignat", "gritukan")
     @skip_if_porto
-    @require_enabled_core_dump
     @unix_only
     def test_core_infos_from_archive(self):
         sync_create_cells(1)
