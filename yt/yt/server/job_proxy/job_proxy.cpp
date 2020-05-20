@@ -219,6 +219,47 @@ void TJobProxy::OnHeartbeatResponse(const TError& error)
     YT_LOG_DEBUG("Successfully reported heartbeat to supervisor");
 }
 
+void TJobProxy::LogJobSpec(TJobSpec jobSpec)
+{
+    // We patch copy of job spec for better reading experience.
+    if (jobSpec.HasExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext)) {
+        auto* schedulerJobSpecExt = jobSpec.MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+        // Some fields are serialized in binary YSON, let's make them human readable.
+        #define TRANSFORM_TO_PRETTY_YSON(object, field) \
+            if (object->has_ ## field() && !object->field().empty()) { \
+                object->set_ ## field(ConvertToYsonString(TYsonString(object->field()), EYsonFormat::Pretty).GetData()); \
+            }
+        TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, io_config);
+        TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, table_reader_options);
+        TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, acl);
+        TRANSFORM_TO_PRETTY_YSON(schedulerJobSpecExt, job_cpu_monitor_config);
+
+        // Input table specs may be large, so we print them separately.
+        NProtoBuf::RepeatedPtrField<TTableInputSpec> primaryInputTableSpecs;
+        schedulerJobSpecExt->mutable_input_table_specs()->Swap(&primaryInputTableSpecs);
+
+        NProtoBuf::RepeatedPtrField<TTableInputSpec> foreignInputTableSpecs;
+        schedulerJobSpecExt->mutable_foreign_input_table_specs()->Swap(&foreignInputTableSpecs);
+
+        for (const auto& [name, inputTableSpecs] : {
+            std::make_pair("primary", &primaryInputTableSpecs),
+            std::make_pair("foreign", &foreignInputTableSpecs)
+        })
+        {
+            TStringBuilder builder;
+            for (const auto& tableSpec : *inputTableSpecs) {
+                builder.AppendString(tableSpec.DebugString());
+                builder.AppendChar('\n');
+            }
+            YT_LOG_DEBUG("Job spec %v input table specs\n%v", name, builder.Flush());
+        }
+
+        // Node directory is huge and useless when debugging.
+        schedulerJobSpecExt->clear_input_node_directory();
+    }
+    YT_LOG_DEBUG("Job spec debug string\n%v", jobSpec.DebugString());
+}
+
 void TJobProxy::RetrieveJobSpec()
 {
     YT_LOG_INFO("Requesting job spec");
@@ -246,12 +287,14 @@ void TJobProxy::RetrieveJobSpec()
 
     Ports_ = FromProto<std::vector<int>>(rsp->ports());
 
-    YT_LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})\n%v",
+    YT_LOG_INFO("Job spec received (JobType: %v, ResourceLimits: {Cpu: %v, Memory: %v, Network: %v})",
         NScheduler::EJobType(rsp->job_spec().type()),
         resourceUsage.cpu(),
         resourceUsage.memory(),
-        resourceUsage.network(),
-        rsp->job_spec().DebugString());
+        resourceUsage.network());
+
+    // Job spec is copied intentionally.
+    LogJobSpec(rsp->job_spec());
 
     JobProxyMemoryReserve_ = resourceUsage.memory();
     CpuShare_ = resourceUsage.cpu();
