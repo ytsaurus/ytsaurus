@@ -530,9 +530,7 @@ TJobResult TJobProxy::DoRun()
         auto environment = CreateJobProxyEnvironment(
             Config_->JobEnvironment,
             createRootFS(),
-            Config_->GpuDevices,
-            Config_->NetworkAddresses,
-            Config_->HostName);
+            Config_->GpuDevices);
         SetJobProxyEnvironment(environment);
 
         LocalDescriptor_ = NNodeTrackerClient::TNodeDescriptor(Config_->Addresses, Config_->Rack, Config_->DataCenter);

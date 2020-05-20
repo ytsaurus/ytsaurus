@@ -478,7 +478,7 @@ void TBootstrap::DoInitialize()
         for (const auto& [addressName, address] : Config_->Addresses) {
             auto resolvedAddress = resolver->Resolve(address).Get().ValueOrThrow();
             YT_VERIFY(resolvedAddress.IsIP6());
-            ResolvedNodeAddresses_.emplace_back(resolvedAddress.ToIP6Address());
+            ResolvedNodeAddresses_.emplace_back(addressName, resolvedAddress.ToIP6Address());
         }
     }
 
@@ -1208,7 +1208,7 @@ EJobEnvironmentType TBootstrap::GetEnvironmentType() const
     return ConvertTo<EJobEnvironmentType>(Config_->ExecAgent->SlotManager->JobEnvironment->AsMap()->FindChild("type"));
 }
 
-const std::vector<TIP6Address>& TBootstrap::GetResolvedNodeAddresses() const
+const std::vector<std::pair<TString, TIP6Address>>& TBootstrap::GetResolvedNodeAddresses() const
 {
     return ResolvedNodeAddresses_;
 }

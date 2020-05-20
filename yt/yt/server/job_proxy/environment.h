@@ -50,6 +50,8 @@ struct IUserJobEnvironment
         std::optional<TString> CoreWatcherDirectory;
         NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
         bool EnableCudaGpuCoreDump = false;
+        std::optional<TString> HostName;
+        std::vector<TUserJobNetworkAddressPtr> NetworkAddresses;
     };
 
     virtual TProcessBasePtr CreateUserJobProcess(
@@ -80,9 +82,7 @@ DEFINE_REFCOUNTED_TYPE(IJobProxyEnvironment)
 IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
     NYTree::INodePtr config,
     const std::optional<NContainers::TRootFS>& rootFS,
-    std::vector<TString> gpuDevices,
-    const std::vector<NNet::TIP6Address>& networkAddresses,
-    const std::optional<TString>& hostName);
+    std::vector<TString> gpuDevices);
 
 ////////////////////////////////////////////////////////////////////////////////
 
