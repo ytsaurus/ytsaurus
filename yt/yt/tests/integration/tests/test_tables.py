@@ -22,7 +22,7 @@ class TestTables(YTEnvSetup):
     def _wait_until_no_nested_tx(self, tx_id):
         wait(lambda: get("#{}/@nested_transaction_ids".format(tx_id)) == [])
 
-    
+
     @authors("ignat")
     def test_invalid_type(self):
         with pytest.raises(YtError):
@@ -113,12 +113,12 @@ class TestTables(YTEnvSetup):
         write_table("<append=true>//tmp/table", [{"a": 1}, {"a": 2}], sorted_by=["a"])
 
         tx_b3 = start_transaction(tx=tx_b1)
-        
+
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", [{"a": 1}, {"a": 2}], sorted_by=["a"], tx=tx_b3)
         self._wait_until_unlocked("//tmp/table")
         self._wait_until_no_nested_tx(tx_b3)
-        
+
         commit_transaction(tx_b3)
         commit_transaction(tx_b1)
 
@@ -212,30 +212,30 @@ class TestTables(YTEnvSetup):
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", yson.loads("string"))
         self._wait_until_unlocked("//tmp/table")
-        
+
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", yson.loads("100"))
         self._wait_until_unlocked("//tmp/table")
-        
+
         with pytest.raises(YtError):
             write_table("<append=true>//tmp/table", yson.loads("3.14"))
         self._wait_until_unlocked("//tmp/table")
-        
+
         # check max_row_weight limit
         with pytest.raises(YtError):
             write_table("//tmp/table", {"a" : "long_string"}, table_writer = {"max_row_weight" : 2})
         self._wait_until_unlocked("//tmp/table")
-        
+
         # check max_key_weight limit
         with pytest.raises(YtError):
             write_table("//tmp/table", {"a" : "long_string"}, sorted_by=["a"], table_writer = {"max_key_weight" : 2})
         self._wait_until_unlocked("//tmp/table")
-        
+
         # check duplicate ids
         with pytest.raises(YtError):
             write_table("//tmp/table", "{a=version1; a=version2}", is_raw=True)
         self._wait_until_unlocked("//tmp/table")
-        
+
     @authors("psushin")
     def test_cannot_read_file_as_table(self):
         content = "some_data"
@@ -344,6 +344,14 @@ class TestTables(YTEnvSetup):
         assert get("//tmp/table/@schema_mode") == "strong"
         assert get("//tmp/table/@schema/@unique_keys")
         assert read_table("//tmp/table") == [{"key": i} for i in xrange(3)]
+
+    @authors("psushin")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_empty_strict_schema(self, optimize_for):
+        create("table", "//tmp/table")
+
+        write_table("<optimize_for={}; schema=<strict=%true>[]>//tmp/table".format(optimize_for), [{}, {}])
+        assert read_table("//tmp/table") == [{}, {}]
 
     @authors("savrus")
     def test_computed_columns(self):
