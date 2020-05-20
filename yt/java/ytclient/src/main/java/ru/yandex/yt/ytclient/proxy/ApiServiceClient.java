@@ -791,6 +791,9 @@ public class ApiServiceClient implements TransactionalClient {
         if (request.getUdfRegistryPath().isPresent()) {
             builder.body().setUdfRegistryPath(request.getUdfRegistryPath().get());
         }
+        if (request.getExecutionPool().isPresent()) {
+            builder.body().setExecutionPool(request.getExecutionPool().get());
+        }
         return handleHeavyResponse(invoke(builder), response -> {
             logger.trace("SelectRows incoming rowset descriptor: {}", response.body().getRowsetDescriptor());
             return responseReader.apply(response);
