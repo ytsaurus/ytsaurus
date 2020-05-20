@@ -170,6 +170,14 @@ TYtConfig::TYtConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TLauncherConfig::TLauncherConfig()
+{
+    RegisterParameter("version", Version)
+        .Default(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
 {
     RegisterParameter("cluster_connection", ClusterConnection);
@@ -179,6 +187,9 @@ TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
 
     RegisterParameter("interruption_graceful_timeout", InterruptionGracefulTimeout)
         .Default(TDuration::Seconds(2));
+
+    RegisterParameter("launcher", Launcher)
+        .DefaultNew();
 
     RegisterParameter("clickhouse", ClickHouse)
         .Alias("engine")

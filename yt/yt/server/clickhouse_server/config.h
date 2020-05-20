@@ -167,6 +167,19 @@ DEFINE_REFCOUNTED_TYPE(TYtConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLauncherConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    int Version;
+
+    TLauncherConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TLauncherConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPorts
 {
     // YT ports.
@@ -191,6 +204,8 @@ public:
     //! if there are not any running queries.
     //! To avoid receiving queries after shutdown, this value should be greater than GossipPeriod.
     TDuration InterruptionGracefulTimeout;
+
+    TLauncherConfigPtr Launcher;
 
     TPorts GetPorts() const;
 
