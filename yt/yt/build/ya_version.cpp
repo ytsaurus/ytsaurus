@@ -38,13 +38,16 @@ TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch)
     // When Hermes looks at such horrors it goes crazy.
     // Here are some hacks to help Hermes keep its saninty.
     if (commit == "-1") {
-        commit = TString(20, '0');
+        commit = TString(40, '0');
     }
     if (buildUser == "Unknown user") {
         buildUser = "distbuild";
     }
 
-    out << "~" << commit.substr(0, 10);
+    // TODO(max42): YT-12891.
+    // Uncomment this when Arc is able to work with commits by their hash prefixes.
+    // out << "~" << commit.substr(0, 10);
+    out << "~" << commit;
     if (buildUser != "teamcity") {
         out << "+" << buildUser;
     }
