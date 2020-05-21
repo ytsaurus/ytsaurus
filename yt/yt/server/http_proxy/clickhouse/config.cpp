@@ -22,28 +22,36 @@ TCliqueCacheConfig::TCliqueCacheConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TClickHouseConfig::TClickHouseConfig()
+TStaticClickHouseConfig::TStaticClickHouseConfig()
+{
+    RegisterParameter("profiling_period", ProfilingPeriod)
+        .Default(TDuration::Seconds(1));
+    RegisterParameter("clique_cache", CliqueCache)
+        .DefaultNew();
+    RegisterParameter("force_enqueue_profiling", ForceEnqueueProfiling)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDynamicClickHouseConfig::TDynamicClickHouseConfig()
 {
     RegisterParameter("discovery_path", DiscoveryPath)
         .Default("//sys/clickhouse/cliques");
     RegisterParameter("http_client", HttpClient)
         .DefaultNew();
-    RegisterParameter("profiling_period", ProfilingPeriod)
-        .Default(TDuration::Seconds(1));
-    RegisterParameter("clique_cache", CliqueCache)
-        .DefaultNew();
     RegisterParameter("ignore_missing_credentials", IgnoreMissingCredentials)
         .Default(false);
     RegisterParameter("dead_instance_retry_count", DeadInstanceRetryCount)
-        .Default(4);
+        .Default(6);
     RegisterParameter("retry_without_update_limit", RetryWithoutUpdateLimit)
-        .Default(2);
+        .Default(3);
     RegisterParameter("force_discovery_update_age_threshold", ForceDiscoveryUpdateAgeThreshold)
         .Default(TDuration::Seconds(1));
     RegisterParameter("alias_resolution_timeout", AliasResolutionTimeout)
         .Default(TDuration::Seconds(30));
-    RegisterParameter("force_enqueue_profiling", ForceEnqueueProfiling)
-        .Default(false);
+    RegisterParameter("datalens_tracing_override", DatalensTracingOverride)
+        .Default();
 
     RegisterPreprocessor([&] {
         HttpClient->HeaderReadTimeout = TDuration::Hours(1);

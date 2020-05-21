@@ -56,20 +56,20 @@ public:
     TClickHouseContext(
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp,
-        const TClickHouseConfigPtr& config,
+        const TDynamicClickHouseConfigPtr& config,
         TBootstrap* bootstrap,
-        const NHttp::IClientPtr& httpClient,
         const NApi::IClientPtr& client,
         const TCliqueCachePtr cliqueCache,
         IInvokerPtr controlInvoker,
-        TClickHouseHandler::TClickHouseProxyMetrics& metrics)
-        : Logger(TLogger(ClickHouseLogger).AddTag("RequestId: %v", req->GetRequestId()))
+        TClickHouseHandler::TClickHouseProxyMetrics& metrics,
+        NLogging::TLogger logger)
+        : Logger(logger)
         , Request_(req)
         , Response_(rsp)
         , Config_(config)
         , Bootstrap_(bootstrap)
         , Client_(client)
-        , HttpClient_(httpClient)
+        , HttpClient_(CreateClient(Config_->HttpClient, Bootstrap_->GetPoller()))
         , CliqueCache_(cliqueCache)
         , ControlInvoker_(controlInvoker)
         , Metrics_(metrics)
@@ -151,7 +151,7 @@ public:
             YT_VERIFY(traceContext);
 
             if (isDatalens) {
-                if (auto tracingOverride = Bootstrap_->GetCoordinator()->GetDynamicConfig()->DatalensTracingOverride) {
+                if (auto tracingOverride = Config_->DatalensTracingOverride) {
                     traceContext->SetSampled(*tracingOverride);
                 }
             } else {
@@ -183,7 +183,10 @@ public:
 
     bool TryPickInstance(bool forceUpdate)
     {
+        YT_LOG_DEBUG("Trying to pick instance (ForceUpdate: %v)", forceUpdate);
+
         if (!TryDiscoverInstances(forceUpdate)) {
+            YT_LOG_DEBUG("Failed to discover instances");
             return false;
         }
 
@@ -284,10 +287,10 @@ private:
     TLogger Logger;
     const IRequestPtr& Request_;
     const IResponseWriterPtr& Response_;
-    const TClickHouseConfigPtr& Config_;
+    const TDynamicClickHouseConfigPtr& Config_;
     TBootstrap* const Bootstrap_;
     const NApi::IClientPtr& Client_;
-    const NHttp::IClientPtr& HttpClient_;
+    NHttp::IClientPtr HttpClient_;
     const TCliqueCachePtr CliqueCache_;
     IInvokerPtr ControlInvoker_;
 
@@ -336,6 +339,12 @@ private:
             .ThrowOnError();
     }
 
+    void PushError(TError error)
+    {
+        YT_LOG_INFO(error, "Error while handling query");
+        RequestErrors_.emplace_back(error);
+    }
+
     bool TryResolveAlias()
     {
         if (CliqueId_) {
@@ -365,7 +374,7 @@ private:
             YT_LOG_DEBUG("Alias resolved (Alias: %v, CliqueId: %v)", CliqueIdOrAlias_, CliqueId_);
             return true;
         } catch (const std::exception& ex) {
-            RequestErrors_.emplace_back(TError("Error while resolving alias %Qv", CliqueIdOrAlias_)
+            PushError(TError("Error while resolving alias %Qv", CliqueIdOrAlias_)
                 << ex);
             return false;
         }
@@ -447,15 +456,19 @@ private:
     bool TryFindDiscovery()
     {
         if (Discovery_) {
+            YT_LOG_DEBUG("Discovery is already ready");
             return true;
         }
+
+        YT_LOG_DEBUG("Getting discovery");
 
         try {
             auto cookie = CliqueCache_->BeginInsert(CliqueIdOrAlias_);
             if (cookie.IsActive()) {
-                YT_LOG_DEBUG("Clique cache missed (CliqueId: %v)", CliqueIdOrAlias_);
+                YT_LOG_DEBUG("Clique cache missed (CliqueIdOrAlias: %v)", CliqueIdOrAlias_);
 
                 if (!TryResolveAlias()) {
+                    YT_LOG_DEBUG("Failed to get discovery due to alias resolution error");
                     return false;
                 }
 
@@ -472,10 +485,12 @@ private:
                     }
                 }
 
+                YT_LOG_DEBUG("Fetched discovery version (Version: %v)", version);
+
                 auto config = New<TDiscoveryConfig>(path);
-                config->BanTimeout = Config_->CliqueCache->UnavailableInstanceBanTimeout;
+                config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->CliqueCache->UnavailableInstanceBanTimeout;
                 config->ReadFrom = NApi::EMasterChannelKind::Cache;
-                config->MasterCacheExpireTime = Config_->CliqueCache->MasterCacheExpireTime;
+                config->MasterCacheExpireTime = Bootstrap_->GetConfig()->ClickHouse->CliqueCache->MasterCacheExpireTime;
                 if (version == 0) {
                     config->SkipUnlockedParticipants = false;
                 }
@@ -488,6 +503,8 @@ private:
                     ControlInvoker_,
                     std::vector<TString>{"host", "http_port", "job_cookie"},
                     Logger));
+
+                YT_LOG_DEBUG("Insert new discovery to the cache (CliqueIdOrAlias: %v)", CliqueIdOrAlias_);
             }
 
             PROFILE_AGGREGATED_TIMING(Metrics_.FindDiscoveryTime) {
@@ -495,46 +512,60 @@ private:
                     .ValueOrThrow();
             }
 
+            YT_LOG_DEBUG("Discovery is ready");
+
             if (!CliqueId_) {
                 SetCliqueId(Discovery_->GetCliqueId());
+                YT_LOG_DEBUG(
+                    "Determined cached clique id (CliqueId: %v)",
+                    CliqueId_);
             }
         } catch (const std::exception& ex) {
-            RequestErrors_.push_back(TError("Failed to create discovery")
+            PushError(TError("Failed to create discovery")
                 << ex);
             return false;
         }
+
+        YT_LOG_DEBUG("Discovery is ready");
 
         return true;
     }
 
     bool TryDiscoverInstances(bool forceUpdate)
     {
+        YT_LOG_DEBUG("Discovering instances (ForceUpdate: %v)", forceUpdate);
+
         try {
             if (!TryFindDiscovery()) {
+                YT_LOG_DEBUG("Failed to discover instances due to missing discovery");
                 return false;
             }
 
-            Discovery_->UpdateList(Config_->CliqueCache->SoftAgeThreshold);
+            YT_LOG_DEBUG("Updating discovery (AgeThreshold: %v)", Bootstrap_->GetConfig()->ClickHouse->CliqueCache->SoftAgeThreshold);
+            Discovery_->UpdateList(Bootstrap_->GetConfig()->ClickHouse->CliqueCache->SoftAgeThreshold);
             auto updatedFuture = Discovery_->UpdateList(
-                forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Config_->CliqueCache->HardAgeThreshold);
+                forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Bootstrap_->GetConfig()->ClickHouse->CliqueCache->HardAgeThreshold);
             if (!updatedFuture.IsSet()) {
+                YT_LOG_DEBUG("Waiting for discovery");
                 ClickHouseProfiler.Increment(Metrics_.ForceUpdateCount);
                 PROFILE_AGGREGATED_TIMING(Metrics_.DiscoveryForceUpdateTime) {
                     WaitFor(updatedFuture)
                         .ThrowOnError();
                 }
+                YT_LOG_DEBUG("Discovery updated");
             }
 
             auto instances = Discovery_->List();
+            YT_LOG_DEBUG("Instances discovered (Count: %v)", instances.size());
             if (instances.empty()) {
-                RequestErrors_.emplace_back("Clique %v has no running instances", CliqueIdOrAlias_);
+                PushError(TError("Clique %v has no running instances", CliqueIdOrAlias_));
                 return false;
             }
 
             Instances_ = instances;
             return true;
         } catch (const std::exception& ex) {
-            RequestErrors_.push_back(TError("Failed to get discovery instances")
+            PushError(TError("Failed to discover instances")
                 << ex);
             return false;
         }
@@ -570,14 +601,10 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , Coordinator_(bootstrap->GetCoordinator())
     , Config_(Bootstrap_->GetConfig()->ClickHouse)
-    , HttpClient_(CreateClient(Config_->HttpClient, Bootstrap_->GetPoller()))
     , Client_(Bootstrap_->GetRootClient()->GetConnection()->CreateClient(NApi::TClientOptions(ClickHouseUserName)))
     , ControlInvoker_(Bootstrap_->GetControlInvoker())
 {
-    if (!Bootstrap_->GetConfig()->Auth->RequireAuthentication) {
-        Config_->IgnoreMissingCredentials = true;
-    }
-    if (Bootstrap_->GetConfig()->ClickHouse->ForceEnqueueProfiling) {
+    if (Config_->ForceEnqueueProfiling) {
         ClickHouseProfiler.ForceEnqueue() = true;
     }
     CliqueCache_ = New<TCliqueCache>(Config_->CliqueCache, ClickHouseProfiler.AppendPath("/clique_cache"));
@@ -593,7 +620,7 @@ DEFINE_ENUM(ERetryState,
     (Retrying)
     (FailedToPickInstance)
     (ForceUpdated)
-    (CacheRemoved)
+    (CacheInvalidated)
     (Success)
 );
 
@@ -601,6 +628,9 @@ void TClickHouseHandler::HandleRequest(
     const IRequestPtr& request,
     const IResponseWriterPtr& response)
 {
+    auto Logger = ClickHouseLogger;
+    Logger.AddTag("RequestId: %v", request->GetRequestId());
+
     if (!Coordinator_->CanHandleHeavyRequests()) {
         // We intentionally read the body of the request and drop it to make sure
         // that client does not block on writing the body.
@@ -609,63 +639,91 @@ void TClickHouseHandler::HandleRequest(
     } else PROFILE_AGGREGATED_TIMING(Metrics_.TotalQueryTime) {
         ClickHouseProfiler.Increment(Metrics_.QueryCount);
         ProcessDebugHeaders(request, response, Coordinator_);
+
+        auto config = Bootstrap_->GetCoordinator()->GetDynamicConfig()->ClickHouse;
+
+        if (!Bootstrap_->GetConfig()->Auth->RequireAuthentication) {
+            YT_LOG_INFO("Authorization is not set up in config, ignoring missing credentials");
+            config->IgnoreMissingCredentials = true;
+        }
+
         auto context = New<TClickHouseContext>(
             request,
             response,
-            Config_,
+            config,
             Bootstrap_,
-            HttpClient_,
             Client_,
             CliqueCache_,
             ControlInvoker_,
-            Metrics_);
+            Metrics_,
+            Logger);
 
         if (!context->TryPrepare()) {
+            YT_LOG_INFO("Failed to prepare context");
             return;
         }
 
-        const auto& Logger = ClickHouseLogger;
-
         auto state = ERetryState::Retrying;
 
-        for (int retry = 0; retry <= Config_->DeadInstanceRetryCount; ++retry) {
-            YT_LOG_DEBUG("Starting new retry (RetryIndex: %v, State: %v)", retry, state);
+        auto setState = [&] (ERetryState newState) {
+            YT_LOG_DEBUG("Setting new state (State: %v -> %v)", state, newState);
+            state = newState;
+        };
+
+        YT_LOG_INFO("Starting retry routine (DeadInstanceRetryCount: %v)", config->DeadInstanceRetryCount);
+
+        for (int retryIndex = 0; retryIndex <= config->DeadInstanceRetryCount; ++retryIndex) {
+            YT_LOG_DEBUG("Starting new retry (RetryIndex: %v, State: %v)", retryIndex, state);
             bool needForceUpdate = false;
 
-            if (state == ERetryState::Retrying && retry > Config_->RetryWithoutUpdateLimit) {
+            if (state == ERetryState::Retrying && retryIndex > config->RetryWithoutUpdateLimit) {
+                YT_LOG_DEBUG("Forcing update due to long retrying");
                 needForceUpdate = true;
             } else if (state == ERetryState::FailedToPickInstance) {
+                YT_LOG_DEBUG("Forcing update due to instance pick failure");
                 // If we did not find any instances on previous step, we need to do force update right now.
                 needForceUpdate = true;
             }
 
             if (needForceUpdate) {
-                state = ERetryState::ForceUpdated;
+                setState(ERetryState::ForceUpdated);
             }
 
+            YT_LOG_DEBUG("Picking instance");
             if (!context->TryPickInstance(needForceUpdate)) {
+                YT_LOG_DEBUG("Failed to pick instance (State: %v)", state);
                 // There is no chance to invoke the request if we can not pick an instance even after deleting from cache.
-                if (state == ERetryState::CacheRemoved) {
+                if (state == ERetryState::CacheInvalidated) {
+                    YT_LOG_DEBUG("Stopping retrying due to failure after cache invalidation");
                     break;
                 }
                 // Cache may be not relevant if we can not pick an instance after discovery force update.
                 if (state == ERetryState::ForceUpdated) {
                     // We may have banned all instances because of network problems or we have resolved CliqueId incorrectly
                     // (possibly due to clique restart under same alias), and cached discovery is not relevant any more.
+                    YT_LOG_DEBUG("Failed to pick instance after force update, invalidating cache entry");
                     context->RemoveCliqueFromCache();
-                    state = ERetryState::CacheRemoved;
+                    setState(ERetryState::CacheInvalidated);
                 } else {
-                    state = ERetryState::FailedToPickInstance;
+                    YT_LOG_DEBUG("Failed to pick instance");
+                    setState(ERetryState::FailedToPickInstance);
                 }
 
                 continue;
             }
 
-            if (context->TryIssueProxiedRequest(retry)) {
-                state = ERetryState::Success;
+            YT_LOG_DEBUG("Pick successful, issuing proxied request");
+
+            if (context->TryIssueProxiedRequest(retryIndex)) {
+                YT_LOG_DEBUG("Successfully proxied request");
+                setState(ERetryState::Success);
                 break;
             }
+
+            YT_LOG_DEBUG("Failed to proxy request (State: %v)", state);
         }
+
+        YT_LOG_DEBUG("Finished retrying (State: %v)", state);
 
         if (state == ERetryState::Success) {
             ControlInvoker_->Invoke(BIND(&TClickHouseHandler::AdjustQueryCount, MakeWeak(this), context->GetUser(), +1));

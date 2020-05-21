@@ -37,7 +37,27 @@ DEFINE_REFCOUNTED_TYPE(TCliqueCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClickHouseConfig
+class TStaticClickHouseConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration ProfilingPeriod;
+
+    //! Cache for cliques's discovery.
+    TCliqueCacheConfigPtr CliqueCache;
+
+    //! If set to true, profiler won't wait a second to update a counter.
+    //! It is useful for testing.
+    bool ForceEnqueueProfiling;
+
+    TStaticClickHouseConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TStaticClickHouseConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicClickHouseConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -45,10 +65,6 @@ public:
     TString DiscoveryPath;
 
     NHttp::TClientConfigPtr HttpClient;
-    TDuration ProfilingPeriod;
-
-    //! Cache for cliques's discovery.
-    TCliqueCacheConfigPtr CliqueCache;
 
     //! Prevent throwing an error if the request does not contain an authorization header.
     //! If authorization is disabled in proxy config, this flag will be set to true automatically.
@@ -68,14 +84,13 @@ public:
     //! Timeout to resolve alias.
     TDuration AliasResolutionTimeout;
 
-    //! If set to true, profiler won't wait a second to update a counter.
-    //! It is useful for testing.
-    bool ForceEnqueueProfiling;
+    //! If set, force enable or disable tracing for requests from DataLens.
+    std::optional<bool> DatalensTracingOverride;
 
-    TClickHouseConfig();
+    TDynamicClickHouseConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TClickHouseConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicClickHouseConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

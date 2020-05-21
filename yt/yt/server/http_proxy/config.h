@@ -113,7 +113,7 @@ public:
     TCoordinatorConfigPtr Coordinator;
     TApiConfigPtr Api;
 
-    NClickHouse::TClickHouseConfigPtr ClickHouse;
+    NClickHouse::TStaticClickHouseConfigPtr ClickHouse;
 
     TString UIRedirectUrl;
 
@@ -149,8 +149,7 @@ public:
 
     bool RelaxCsrfCheck;
 
-    //! If set, force enable or disable tracing for requests from DataLens.
-    std::optional<bool> DatalensTracingOverride;
+    NClickHouse::TDynamicClickHouseConfigPtr ClickHouse;
 
     TDynamicConfig();
 };
