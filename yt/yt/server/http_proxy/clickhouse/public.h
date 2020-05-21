@@ -8,7 +8,8 @@ namespace NYT::NHttpProxy::NClickHouse {
 
 DECLARE_REFCOUNTED_CLASS(TClickHouseHandler)
 
-DECLARE_REFCOUNTED_CLASS(TClickHouseConfig)
+DECLARE_REFCOUNTED_CLASS(TStaticClickHouseConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicClickHouseConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

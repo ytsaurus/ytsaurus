@@ -45,7 +45,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
     const TCoordinatorPtr Coordinator_;
-    const TClickHouseConfigPtr Config_;
+    const TStaticClickHouseConfigPtr Config_;
     const NHttp::IClientPtr HttpClient_;
     const NApi::IClientPtr Client_;
 

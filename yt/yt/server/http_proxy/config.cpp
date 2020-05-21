@@ -274,8 +274,8 @@ TDynamicConfig::TDynamicConfig()
     RegisterParameter("concurrent_requests_weight", ConcurrentRequestsWeight)
         .Default(10);
 
-    RegisterParameter("datalens_tracing_override", DatalensTracingOverride)
-        .Default();
+    RegisterParameter("clickhouse", ClickHouse)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
