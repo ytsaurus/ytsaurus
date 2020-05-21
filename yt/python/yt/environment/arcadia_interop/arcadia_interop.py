@@ -46,7 +46,7 @@ def get_root_paths(source_prefix="", inside_arcadia=None):
 
 
 def search_binary_path(binary_name):
-    binary_root = yatest_common.binary_path('.')
+    binary_root = yatest_common.build_path()
     for dirpath, _, filenames in os.walk(binary_root):
         for f in filenames:
             if f == binary_name:
