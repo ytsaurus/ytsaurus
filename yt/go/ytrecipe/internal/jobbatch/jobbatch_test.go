@@ -28,6 +28,8 @@ func init() {
 }
 
 func TestJobBatching(t *testing.T) {
+	t.Skip("This code is not used")
+
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
