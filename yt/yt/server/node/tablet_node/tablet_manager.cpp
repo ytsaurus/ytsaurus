@@ -3248,6 +3248,17 @@ private:
                 fluent
                     .Item(ToString(store->GetId()))
                     .Do(BIND(&TImpl::BuildStoreOrchidYson, Unretained(this), store));
+            })
+            .DoIf(partition->IsImmediateSplitRequested(), [&] (TFluentMap fluent) {
+                fluent
+                    .Item("immediate_split_keys").DoListFor(
+                        partition->PivotKeysForImmediateSplit(),
+                        [&] (TFluentList fluent, const TOwningKey& key)
+                    {
+                        fluent
+                            .Item().Value(key);
+                    });
+
             });
     }
 

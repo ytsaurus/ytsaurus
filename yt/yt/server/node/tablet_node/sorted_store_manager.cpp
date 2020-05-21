@@ -523,14 +523,6 @@ void TSortedStoreManager::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
             partition->GetId(),
             addedStores.size());
 
-        if (partition->GetState() == EPartitionState::Splitting || partition->GetState() == EPartitionState::Merging) {
-            YT_LOG_DEBUG_IF(Tablet_->GetConfig()->EnableLsmVerboseLogging,
-                "Will not request partition split due to improper partition state (PartitionId: %v, PartitionState: %v)",
-                partition->GetId(),
-                partition->GetState());
-            continue;
-        }
-
         TrySplitPartitionByAddedStores(partition, std::move(addedStores));
     }
 }
@@ -917,7 +909,7 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
     std::vector<TOwningKey> proposedPivots{partition->GetPivotKey()};
     i64 cumulativeDataSize = 0;
     int cumulativeStoreCount = 0;
-    TOwningKey lastKey = partition->GetPivotKey();
+    TOwningKey lastKey = MinKey();
 
     for (int storeIndex = 0; storeIndex < addedStores.size(); ++storeIndex) {
         const auto& store = addedStores[storeIndex];
@@ -934,9 +926,11 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
             cumulativeStoreCount + formerPartitionStoreCount >= config->OverlappingStoreImmediateSplitThreshold;
 
         if (strongEvidence || (weakEvidence && cumulativeDataSize >= config->MinPartitionDataSize)) {
-            proposedPivots.push_back(store->GetMinKey());
-            cumulativeDataSize = 0;
-            cumulativeStoreCount = 0;
+            if (store->GetMinKey() >= partition->GetPivotKey()) {
+                proposedPivots.push_back(store->GetMinKey());
+                cumulativeDataSize = 0;
+                cumulativeStoreCount = 0;
+            }
         }
 
         cumulativeDataSize += dataSize;
