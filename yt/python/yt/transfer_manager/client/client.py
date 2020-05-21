@@ -20,6 +20,7 @@ from yt.packages.six.moves import queue
 
 import sys
 import time
+import random
 from threading import Thread, Semaphore
 from copy import deepcopy
 
@@ -114,7 +115,7 @@ class HTTPRequestRetrier(Retrier):
 
         params = get_value(params, {})
         if is_mutating:
-            params["mutation_id"] = generate_uuid()
+            params["mutation_id"] = generate_uuid(random.SystemRandom())
             params["retry"] = bool_to_string(False)
 
         self.params = params
@@ -125,7 +126,7 @@ class HTTPRequestRetrier(Retrier):
 
         if self.is_mutating:
             if isinstance(exception, TransferManagerUnavailableError):
-                self.params["mutation_id"] = generate_uuid()
+                self.params["mutation_id"] = generate_uuid(random.SystemRandom())
                 self.params["retry"] = bool_to_string(False)
             else:
                 self.params["retry"] = bool_to_string(True)
@@ -472,7 +473,7 @@ class TransferManager(object):
 
             # Generating local task id because during restart below task will be
             # started with new id.
-            local_task_id = generate_uuid()
+            local_task_id = generate_uuid(random.SystemRandom())
             task_to_src_dst_pair[local_task_id] = (source_table, destination_table)
 
             tasks.append(task_id)
