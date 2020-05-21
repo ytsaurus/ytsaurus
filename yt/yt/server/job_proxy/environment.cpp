@@ -581,14 +581,8 @@ public:
             Process_->AddArguments({"--env", "CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1"});
             Process_->AddArguments({"--env", Format("CUDA_COREDUMP_FILE=%v", gpuCorePipeFile)});
         }
-        for (int addressIndex = 0; addressIndex < options.NetworkAddresses.size(); ++addressIndex) {
-            const auto& networkAddress = options.NetworkAddresses[addressIndex];
-            Process_->AddArguments({"--env", Format("YT_IP_ADDRESS_%v=%v", addressIndex, networkAddress->Address)});
-            if (networkAddress->Name == "fastbone") {
-                Process_->AddArguments({"--env", Format("YT_IP_ADDRESS_FB=%v", networkAddress->Address)});
-            } else if (networkAddress->Name == "default" || networkAddress->Name == "backbone") {
-                Process_->AddArguments({"--env", Format("YT_IP_ADDRESS_BB=%v", networkAddress->Address)});
-            }
+        for (const auto& networkAddress : options.NetworkAddresses) {
+            Process_->AddArguments({"--env", Format("YT_IP_ADDRESS_%v=%v", networkAddress->Name.to_upper(), networkAddress->Address)});
         }
 
         return Process_;
