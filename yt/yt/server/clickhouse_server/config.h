@@ -207,6 +207,9 @@ public:
 
     TLauncherConfigPtr Launcher;
 
+    // COMPAT(max42): deprecate in favor of yt/cpu_limit.
+    std::optional<int> CpuLimit;
+
     TPorts GetPorts() const;
 
     TClickHouseServerBootstrapConfig();

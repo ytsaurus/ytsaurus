@@ -194,6 +194,15 @@ TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
     RegisterParameter("clickhouse", ClickHouse)
         .Alias("engine")
         .DefaultNew();
+
+    RegisterParameter("cpu_limit", CpuLimit)
+        .Default();
+
+    RegisterPostprocessor([&] {
+        if (CpuLimit) {
+            Yt->CpuLimit = CpuLimit;
+        }
+    });
 }
 
 TPorts TClickHouseServerBootstrapConfig::GetPorts() const
