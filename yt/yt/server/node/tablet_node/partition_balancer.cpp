@@ -345,6 +345,14 @@ private:
                 partition->PivotKeysForImmediateSplit().clear();
                 return false;
             }
+
+            if (pivotKeys.size() <= 1) {
+                YT_LOG_DEBUG_IF(tablet->GetConfig()->EnableLsmVerboseLogging,
+                    "Aborting immediate partition split: too few pivot keys");
+
+                partition->PivotKeysForImmediateSplit().clear();
+                return false;
+            }
         }
 
         return true;

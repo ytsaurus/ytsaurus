@@ -818,6 +818,13 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
     std::vector<TKey> mergedSampleKeys;
     auto rowBuffer = New<TRowBuffer>(TSampleKeyListTag());
 
+    std::vector<TOwningKey> immediateSplitKeys;
+    int immediateSplitKeyCount = 0;
+    for (int index = firstIndex; index <= lastIndex; ++index) {
+        immediateSplitKeyCount += PartitionList_[index]->PivotKeysForImmediateSplit().size();
+    }
+    immediateSplitKeys.reserve(immediateSplitKeyCount);
+
     for (int index = firstIndex; index <= lastIndex; ++index) {
         const auto& existingPartition = PartitionList_[index];
         const auto& existingSampleKeys = existingPartition->GetSampleKeys()->Keys;
@@ -828,6 +835,10 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
             mergedSampleKeys.push_back(rowBuffer->Capture(key));
         }
 
+        for (auto& key : existingPartition->PivotKeysForImmediateSplit()) {
+            immediateSplitKeys.push_back(std::move(key));
+        }
+
         for (const auto& store : existingPartition->Stores()) {
             YT_VERIFY(store->GetPartition() == existingPartition.get());
             store->SetPartition(mergedPartition.get());
@@ -836,6 +847,11 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex)
     }
 
     mergedPartition->GetSampleKeys()->Keys = MakeSharedRange(std::move(mergedSampleKeys), std::move(rowBuffer));
+
+    if (!immediateSplitKeys.empty()) {
+        YT_VERIFY(immediateSplitKeys[0] == mergedPartition->GetPivotKey());
+        mergedPartition->RequestImmediateSplit(std::move(immediateSplitKeys));
+    }
 
     auto firstPartitionIt = PartitionList_.begin() + firstIndex;
     auto lastPartitionIt = PartitionList_.begin() + lastIndex;
@@ -867,7 +883,9 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
 
     std::vector<std::unique_ptr<TPartition>> splitPartitions;
     const auto& existingSampleKeys = existingPartition->GetSampleKeys()->Keys;
+    auto& existingImmediateSplitKeys = existingPartition->PivotKeysForImmediateSplit();
     int sampleKeyIndex = 0;
+    int immediateSplitKeyIndex = 0;
     for (int pivotKeyIndex = 0; pivotKeyIndex < pivotKeys.size(); ++pivotKeyIndex) {
         auto thisPivotKey = pivotKeys[pivotKeyIndex];
         auto nextPivotKey = (pivotKeyIndex == pivotKeys.size() - 1)
@@ -895,6 +913,33 @@ void TTablet::SplitPartition(int index, const std::vector<TOwningKey>& pivotKeys
         }
 
         partition->GetSampleKeys()->Keys = MakeSharedRange(std::move(sampleKeys), std::move(rowBuffer));
+
+        if (existingPartition->IsImmediateSplitRequested() && immediateSplitKeyIndex != existingImmediateSplitKeys.size()) {
+            if (existingImmediateSplitKeys[immediateSplitKeyIndex] == thisPivotKey) {
+                ++immediateSplitKeyIndex;
+            }
+
+            int lastKeyIndex = immediateSplitKeyIndex;
+            while (lastKeyIndex < existingImmediateSplitKeys.size() && existingImmediateSplitKeys[lastKeyIndex] < nextPivotKey) {
+                ++lastKeyIndex;
+            }
+
+            if (lastKeyIndex != immediateSplitKeyIndex) {
+                std::vector<TOwningKey> immediateSplitKeys;
+                immediateSplitKeys.reserve(lastKeyIndex - immediateSplitKeyIndex + 1);
+
+                immediateSplitKeys.push_back(thisPivotKey);
+
+                immediateSplitKeys.insert(
+                    immediateSplitKeys.end(),
+                    std::make_move_iterator(existingImmediateSplitKeys.begin()) + immediateSplitKeyIndex,
+                    std::make_move_iterator(existingImmediateSplitKeys.begin()) + lastKeyIndex);
+                immediateSplitKeyIndex = lastKeyIndex;
+
+                partition->RequestImmediateSplit(std::move(immediateSplitKeys));
+            }
+        }
+
         splitPartitions.push_back(std::move(partition));
     }
 
