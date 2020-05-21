@@ -890,9 +890,12 @@ private:
 
             auto* entry = request.add_entries();
             ToProto(entry->mutable_cell_id(), cell->GetId());
-            ToProto(
-                entry->mutable_status(),
-                multicellManager->IsPrimaryMaster() ? cell->GossipStatus().Cluster() : cell->GossipStatus().Local());
+
+            if (multicellManager->IsPrimaryMaster()) {
+                ToProto(entry->mutable_status(), cell->GossipStatus().Cluster());
+            } else {
+                ToProto(entry->mutable_status(), cell->GossipStatus().Local());
+            }
         }
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
@@ -931,7 +934,6 @@ private:
             auto newStatus = FromProto<TCellStatus>(entry.status());
             if (multicellManager->IsPrimaryMaster()) {
                 *cell->GossipStatus().Remote(cellTag) = newStatus;
-                cell->RecomputeClusterStatus();
             } else {
                 cell->GossipStatus().Cluster() = newStatus;
             }
@@ -948,6 +950,8 @@ private:
 
     void UpdateCellsHealth()
     {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
         auto peerRevocationReasonDeadline =
             NHydra::GetCurrentMutationContext()->GetTimestamp() -
             GetDynamicConfig()->PeerRevocationReasonExpirationTime;
@@ -965,12 +969,12 @@ private:
                     cell->GetId(),
                     health,
                     newHealth);
-
                 health = newHealth;
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                if (multicellManager->IsPrimaryMaster()) {
-                    cell->RecomputeClusterStatus();
-                }
+            }
+
+            if (multicellManager->IsMulticell() && multicellManager->IsPrimaryMaster()) {
+                cell->RecomputeClusterStatus();
+                tabletManager->RecomputeTabletCellStatistics(cell);
             }
 
             cell->ExpirePeerRevocationReasons(peerRevocationReasonDeadline);

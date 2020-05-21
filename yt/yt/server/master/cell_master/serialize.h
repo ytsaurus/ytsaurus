@@ -74,7 +74,9 @@ DEFINE_ENUM(EMasterReign,
     ((YT_11951_FixMountLock)                                        (1114))  // savrus
     ((FixNetworkProjectSerialization_19_8)                          (1115))  // gritukan
     ((BeginUploadConcatenateFixes_19_8)                             (1116))  // shakurov
+    ((TuneTabletStatisticsUpdate_19_8)                              (1117))  // savrus
     ((InternalizeAbcSchedulerPoolAttribute_19_8)                    (1118))  // mrkastep
+    ((FixTabletStatisticsUpdate_19_8)                               (1119))  // savrus
     ((TruncateJournals)                                             (1200))  // aleksandra-zh
     ((PrevRandomSeed)                                               (1201))  // aleksandra-zh
     ((FixDenseMapSerialization)                                     (1202))  // aleksandra-zh
@@ -101,6 +103,7 @@ DEFINE_ENUM(EMasterReign,
     ((CellReconfigurationFixes)                                     (1313))  // akozhikhov
     ((InternalizeAbcSchedulerPoolAttribute)                         (1314))  // mrkastep
     ((AggregateTabletStatistics)                                    (1315))  // ifsmirnov
+    ((TuneTabletStatisticsUpdate_20_2)                              (1316))  // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////

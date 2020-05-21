@@ -2352,6 +2352,16 @@ public:
         SendTableStatisticsUpdates(table);
     }
 
+    void RecomputeTabletCellStatistics(TCellBase* cellBase)
+    {
+        if (!IsObjectAlive(cellBase) || cellBase->GetType() != EObjectType::TabletCell) {
+            return;
+        }
+
+        auto* cell = cellBase->As<TTabletCell>();
+        cell->RecomputeClusterStatistics();
+    }
+
 
     TEntityMap<TTabletCellBundle>& CompatTabletCellBundleMap()
     {
@@ -2381,25 +2391,45 @@ private:
     TEntityMap<TTableReplica> TableReplicaMap_;
     TEntityMap<TTabletAction> TabletActionMap_;
 
-    struct TTableStatistics
+    struct TTableStatisticsUpdateRequest
     {
-        std::optional<TDataStatistics> DataStatistics;
-        std::optional<TClusterResources> TabletResourceUsage;
-        std::optional<TInstant> ModificationTime;
-        std::optional<TInstant> AccessTime;
+        bool UpdateDataStatistics;
+        bool UpdateTabletResourceUsage;
+        bool UpdateModificationTime;
+        bool UpdateAccessTime;
 
         void Persist(NCellMaster::TPersistenceContext& context)
         {
             using NYT::Persist;
 
-            Persist(context, DataStatistics);
-            Persist(context, TabletResourceUsage);
-            Persist(context, ModificationTime);
-            Persist(context, AccessTime);
+            // COMPAT(savrus)
+            if ((context.GetVersion() >= EMasterReign::TuneTabletStatisticsUpdate_19_8 && context.GetVersion() <= EMasterReign::TruncateJournals) ||
+                context.GetVersion() >= EMasterReign::TuneTabletStatisticsUpdate_20_2)
+            {
+                Persist(context, UpdateDataStatistics);
+                Persist(context, UpdateTabletResourceUsage);
+                Persist(context, UpdateModificationTime);
+                Persist(context, UpdateAccessTime);
+            } else {
+                std::optional<TDataStatistics> dataStatistics;
+                std::optional<TClusterResources> tabletResourceUsage;
+                std::optional<TInstant> modificationTime;
+                std::optional<TInstant> accessTime;
+
+                Persist(context, dataStatistics);
+                Persist(context, tabletResourceUsage);
+                Persist(context, modificationTime);
+                Persist(context, accessTime);
+
+                UpdateDataStatistics = dataStatistics.has_value();
+                UpdateTabletResourceUsage = tabletResourceUsage.has_value();
+                UpdateModificationTime = modificationTime.has_value();
+                UpdateAccessTime = accessTime.has_value();
+            }
         }
     };
 
-    TRandomAccessQueue<TTableId, TTableStatistics> TableStatisticsUpdates_;
+    TRandomAccessQueue<TTableId, TTableStatisticsUpdateRequest> TabletStatistisUpdateRequests_;
 
     TPeriodicExecutorPtr TabletCellStatisticsGossipExecutor_;
     TPeriodicExecutorPtr TableStatisticsGossipExecutor_;
@@ -3857,7 +3887,7 @@ private:
         TabletMap_.SaveValues(context);
         TableReplicaMap_.SaveValues(context);
         TabletActionMap_.SaveValues(context);
-        Save(context, TableStatisticsUpdates_);
+        Save(context, TabletStatistisUpdateRequests_);
     }
 
 
@@ -3887,7 +3917,7 @@ private:
         TabletMap_.LoadValues(context);
         TableReplicaMap_.LoadValues(context);
         TabletActionMap_.LoadValues(context);
-        Load(context, TableStatisticsUpdates_);
+        Load(context, TabletStatistisUpdateRequests_);
 
         // COMPAT(savrus)
         RecomputeTabletCellStatistics_ = (context.GetVersion() < EMasterReign::CellServer);
@@ -3963,7 +3993,7 @@ private:
         TabletMap_.Clear();
         TableReplicaMap_.Clear();
         TabletActionMap_.Clear();
-        TableStatisticsUpdates_.Clear();
+        TabletStatistisUpdateRequests_.Clear();
 
         DefaultTabletCellBundle_ = nullptr;
     }
@@ -4031,29 +4061,17 @@ private:
                 updateDataStatistics,
                 updateTabletStatistics);
 
-            auto& statistics = TableStatisticsUpdates_[table->GetId()];
-
-            if (updateTabletStatistics) {
-                auto resourceUsage = table->GetTabletResourceUsage();
-                 statistics.TabletResourceUsage = resourceUsage;
-
-                // FIXME(savrus) Remove this.
-                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Schedule table statistics update (TableId: %v, TabletStaticUsage: %v, ExternalTabletResourceUsage: %v)",
-                    table->GetId(),
-                    resourceUsage.TabletStaticMemory,
-                    table->GetExternalTabletResourceUsage().TabletStaticMemory);
-            }
-            if (updateDataStatistics) {
-                statistics.DataStatistics = table->SnapshotStatistics();
-            }
-            statistics.ModificationTime = table->GetModificationTime();
-            statistics.AccessTime = table->GetAccessTime();
+            auto& statistics = TabletStatistisUpdateRequests_[table->GetId()];
+            statistics.UpdateTabletResourceUsage |= updateTabletStatistics;
+            statistics.UpdateDataStatistics |= updateDataStatistics;
+            statistics.UpdateModificationTime = true;
+            statistics.UpdateAccessTime = true;
         }
     }
 
     void OnTableStatisticsGossip()
     {
-        auto tableCount = TableStatisticsUpdates_.Size();
+        auto tableCount = TabletStatistisUpdateRequests_.Size();
         tableCount = TableStatisticsGossipThrottler_->TryAcquireAvailable(tableCount);
         if (tableCount == 0) {
             return;
@@ -4083,11 +4101,12 @@ private:
         entry->set_access_time(ToProto<ui64>(table->GetAccessTime()));
         multicellManager->PostToMaster(req, table->GetNativeCellTag());
 
-        TableStatisticsUpdates_.Pop(table->GetId());
+        TabletStatistisUpdateRequests_.Pop(table->GetId());
     }
 
     void HydraSendTableStatisticsUpdates(NProto::TReqSendTableStatisticsUpdates* request)
     {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsSecondaryMaster());
 
@@ -4096,26 +4115,33 @@ private:
         std::vector<TTableId> tableIds;
         // NB: Ordered map is needed to make things deterministic.
         std::map<TCellTag, NProto::TReqUpdateTableStatistics> cellTagToRequest;
-        while (remainingTableCount-- > 0 && !TableStatisticsUpdates_.IsEmpty()) {
-            const auto& [tableId, statistics] = TableStatisticsUpdates_.Pop();
-            tableIds.push_back(tableId);
+        while (remainingTableCount-- > 0 && !TabletStatistisUpdateRequests_.IsEmpty()) {
+            const auto& [tableId, statistics] = TabletStatistisUpdateRequests_.Pop();
+
+            auto* node = cypressManager->FindNode(TVersionedNodeId(tableId));
+            if (!IsObjectAlive(node)) {
+                continue;
+            }
+            YT_VERIFY(IsTableType(node->GetType()));
+            auto* table = node->As<TTableNode>();
 
             auto cellTag = CellTagFromId(tableId);
             auto& request = cellTagToRequest[cellTag];
             auto* entry = request.add_entries();
             ToProto(entry->mutable_table_id(), tableId);
-            if (statistics.DataStatistics) {
-                ToProto(entry->mutable_data_statistics(), *statistics.DataStatistics);
+            if (statistics.UpdateDataStatistics) {
+                ToProto(entry->mutable_data_statistics(), table->SnapshotStatistics());
             }
-            if (statistics.TabletResourceUsage) {
-                ToProto(entry->mutable_tablet_resource_usage(), *statistics.TabletResourceUsage);
+            if (statistics.UpdateTabletResourceUsage) {
+                ToProto(entry->mutable_tablet_resource_usage(), table->GetTabletResourceUsage());
             }
-            if (statistics.ModificationTime) {
-                entry->set_modification_time(ToProto<ui64>(*statistics.ModificationTime));
+            if (statistics.UpdateModificationTime) {
+                entry->set_modification_time(ToProto<ui64>(table->GetModificationTime()));
             }
-            if (statistics.AccessTime) {
-                entry->set_access_time(ToProto<ui64>(*statistics.AccessTime));
+            if (statistics.UpdateAccessTime) {
+                entry->set_access_time(ToProto<ui64>(table->GetAccessTime()));
             }
+            tableIds.push_back(tableId);
         }
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Sending table statistics update (RequestedTableCount: %v, TableIds: %v)",
@@ -4193,13 +4219,16 @@ private:
             auto* cell = cellBase->As<TTabletCell>();
             auto* entry = request.add_entries();
             ToProto(entry->mutable_tablet_cell_id(), cell->GetId());
-            ToProto(
-                entry->mutable_statistics(),
-                multicellManager->IsPrimaryMaster() ? cell->GossipStatistics().Cluster() : cell->GossipStatistics().Local());
+
+            if (multicellManager->IsPrimaryMaster()) {
+                ToProto(entry->mutable_statistics(), cell->GossipStatistics().Cluster());
+            } else {
+                ToProto(entry->mutable_statistics(), cell->GossipStatistics().Local());
+            }
         }
 
-    if (multicellManager->IsPrimaryMaster()) {
-        multicellManager->PostToSecondaryMasters(request, false);
+        if (multicellManager->IsPrimaryMaster()) {
+            multicellManager->PostToSecondaryMasters(request, false);
         } else {
             multicellManager->PostToMaster(request, PrimaryMasterCellTag, false);
         }
@@ -4231,7 +4260,6 @@ private:
 
             if (multicellManager->IsPrimaryMaster()) {
                 *cell->GossipStatistics().Remote(cellTag) = newStatistics;
-                cell->RecomputeClusterStatistics();
             } else {
                 cell->GossipStatistics().Cluster() = newStatistics;
             }
@@ -6583,6 +6611,10 @@ TEntityMap<TTabletCell>& TTabletManager::CompatTabletCellMap()
     return Impl_->CompatTabletCellMap();
 }
 
+void TTabletManager::RecomputeTabletCellStatistics(TCellBase* cellBase)
+{
+    return Impl_->RecomputeTabletCellStatistics(cellBase);
+}
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, Tablet, TTablet, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TTabletManager, TableReplica, TTableReplica, *Impl_)
