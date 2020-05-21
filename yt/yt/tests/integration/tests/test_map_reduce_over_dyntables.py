@@ -437,13 +437,6 @@ class TestMapOnDynamicTablesPortal(TestMapOnDynamicTablesMulticell):
 
 ##################################################################
 
-@patch_porto_env_only(TestMapOnDynamicTables)
-class TestMapOnDynamicTablesPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    USE_PORTO_FOR_SERVERS = True
-
-##################################################################
-
 class MROverOrderedDynTablesHelper(YTEnvSetup):
     CONTROL_ATTRIBUTES_SPEC = {
         "control_attributes": {
