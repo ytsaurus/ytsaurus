@@ -1,15 +1,15 @@
 
 DEPENDS(
-    ${YT_ROOT}/yt/server/all
-    ${YT_ROOT}/yt/server/all/stripped
-    ${YT_ROOT}/yt/server/clock_server/bin
-    ${YT_ROOT}/yt/server/controller_agent/bin
-    ${YT_ROOT}/yt/server/exec/bin
-    ${YT_ROOT}/yt/server/http_proxy/bin
-    ${YT_ROOT}/yt/server/job_proxy/bin
-    ${YT_ROOT}/yt/server/master/bin
-    ${YT_ROOT}/yt/server/node/bin
-    ${YT_ROOT}/yt/server/rpc_proxy/bin
-    ${YT_ROOT}/yt/server/scheduler/bin
-    ${YT_ROOT}/yt/server/tools/bin
+    yt/yt/server/all
+    yt/yt/server/all/stripped
+    yt/yt/server/clock_server/bin
+    yt/yt/server/controller_agent/bin
+    yt/yt/server/exec/bin
+    yt/yt/server/http_proxy/bin
+    yt/yt/server/job_proxy/bin
+    yt/yt/server/master/bin
+    yt/yt/server/node/bin
+    yt/yt/server/rpc_proxy/bin
+    yt/yt/server/scheduler/bin
+    yt/yt/server/tools/bin
 )
