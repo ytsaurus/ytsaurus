@@ -40,6 +40,8 @@
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/fluent.h>
 
+#include <library/cpp/unittest/tests_data.h>
+
 #include <random>
 
 namespace NYT::NRpc {
@@ -53,7 +55,7 @@ using namespace NConcurrency;
 using namespace NCrypto;
 using namespace NYTAlloc;
 
-static const TString DefaultAddress = "localhost:2000";
+// static const TString DefaultAddress = "localhost:2000";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -418,7 +420,11 @@ class TTestBase
 public:
     virtual void SetUp() override final
     {
-        Server_ = CreateServer();
+        TPortManager portManager;
+        Port_ = portManager.GetPort();
+        Address_ = Format("localhost:%v", Port_);
+
+        Server_ = CreateServer(Port_);
         WorkerPool_ = New<TThreadPool>(4, "Worker");
         bool secure = TImpl::Secure;
         Service_ = New<TMyService>(WorkerPool_->GetInvoker(), secure);
@@ -432,14 +438,18 @@ public:
         Server_.Reset();
     }
 
-    IServerPtr CreateServer()
+    IServerPtr CreateServer(ui16 port)
     {
-        return TImpl::CreateServer();
+        return TImpl::CreateServer(port);
     }
 
-    IChannelPtr CreateChannel(const TString& address = DefaultAddress)
+    IChannelPtr CreateChannel(const std::optional<TString>& address = std::nullopt)
     {
-        return TImpl::CreateChannel(address);
+        if (address) {
+            return TImpl::CreateChannel(*address, Address_);
+        } else {
+            return TImpl::CreateChannel(Address_, Address_);
+        }
     }
 
     static bool CheckCancelCode(TErrorCode code)
@@ -465,6 +475,9 @@ public:
     }
 
 protected:
+    ui16 Port_;
+    TString Address_;
+
     NConcurrency::TThreadPoolPtr WorkerPool_;
     TIntrusivePtr<TMyService> Service_;
     IServerPtr Server_;
@@ -479,20 +492,20 @@ public:
     static constexpr bool AllowTransportErrors = false;
     static constexpr bool Secure = false;
 
-    static IServerPtr CreateServer()
+    static IServerPtr CreateServer(ui16 port)
     {
-        auto busServer = MakeBusServer();
+        auto busServer = MakeBusServer(port);
         return NRpc::NBus::CreateBusServer(busServer);
     }
 
-    static IChannelPtr CreateChannel(const TString& address)
+    static IChannelPtr CreateChannel(const TString& address, const TString& serverAddress)
     {
-        return TImpl::CreateChannel(address);
+        return TImpl::CreateChannel(address, serverAddress);
     }
 
-    static IBusServerPtr MakeBusServer()
+    static IBusServerPtr MakeBusServer(ui16 port)
     {
-        return TImpl::MakeBusServer();
+        return TImpl::MakeBusServer(port);
     }
 };
 
@@ -502,16 +515,16 @@ template <bool ForceTcp>
 class TRpcOverBusImpl
 {
 public:
-    static IChannelPtr CreateChannel(const TString& address)
+    static IChannelPtr CreateChannel(const TString& address, const TString& /* serverAddress */)
     {
         TString network = ForceTcp ? TString("non-local") : DefaultNetworkName;
         auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(address, network));
         return NRpc::NBus::CreateBusChannel(client);
     }
 
-    static IBusServerPtr MakeBusServer()
+    static IBusServerPtr MakeBusServer(ui16 port)
     {
-        auto busConfig = TTcpBusServerConfig::CreateTcp(2000);
+        auto busConfig = TTcpBusServerConfig::CreateTcp(port);
         return CreateTcpBusServer(busConfig);
     }
 };
@@ -665,7 +678,7 @@ public:
     static constexpr bool AllowTransportErrors = true;
     static constexpr bool Secure = EnableSsl;
 
-    static IChannelPtr CreateChannel(const TString& address)
+    static IChannelPtr CreateChannel(const TString& address, const TString& /* serverAddress */)
     {
         auto channelConfig = New<NGrpc::TChannelConfig>();
         if (EnableSsl) {
@@ -682,7 +695,7 @@ public:
         return NGrpc::CreateGrpcChannel(channelConfig);
     }
 
-    static IServerPtr CreateServer()
+    static IServerPtr CreateServer(ui16 port)
     {
         auto serverAddressConfig = New<NGrpc::TServerAddressConfig>();
         if (EnableSsl) {
@@ -695,7 +708,10 @@ public:
             serverAddressConfig->Credentials->PemKeyCertPairs[0]->CertChain = New<TPemBlobConfig>();
             serverAddressConfig->Credentials->PemKeyCertPairs[0]->CertChain->Value = ServerCert;
         }
-        serverAddressConfig->Address = DefaultAddress;
+
+        auto address = Format("localhost:%v", port);
+
+        serverAddressConfig->Address = address;
         auto serverConfig = New<NGrpc::TServerConfig>();
         serverConfig->Addresses.push_back(serverAddressConfig);
         return NGrpc::CreateServer(serverConfig);
@@ -708,16 +724,16 @@ public:
 class TRpcOverUnixDomainImpl
 {
 public:
-    static IBusServerPtr MakeBusServer()
+    static IBusServerPtr MakeBusServer(ui16 port)
     {
         auto busConfig = TTcpBusServerConfig::CreateUnixDomain("./socket");
         return CreateTcpBusServer(busConfig);
     }
 
-    static IChannelPtr CreateChannel(const TString& address)
+    static IChannelPtr CreateChannel(const TString& address, const TString& serverAddress)
     {
         auto clientConfig = TTcpBusClientConfig::CreateUnixDomain(
-            address == DefaultAddress ? "./socket" : address);
+            address == serverAddress ? "./socket" : address);
         auto client = CreateTcpBusClient(clientConfig);
         return NRpc::NBus::CreateBusChannel(client);
     }
