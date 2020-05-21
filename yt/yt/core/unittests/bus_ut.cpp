@@ -14,6 +14,8 @@
 
 #include <yt/core/misc/fs.h>
 
+#include <library/cpp/unittest/tests_data.h>
+
 namespace NYT::NBus {
 namespace {
 
@@ -41,14 +43,6 @@ TString Deserialize(TSharedRefArray message)
     YT_ASSERT(message.Size() == 1);
     const auto& part = message[0];
     return TString(part.Begin(), part.Size());
-}
-
-IBusServerPtr StartBusServer(IMessageHandlerPtr handler)
-{
-    auto config = TTcpBusServerConfig::CreateTcp(2000);
-    auto server = CreateTcpBusServer(config);
-    server->Start(handler);
-    return server;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,58 +112,83 @@ private:
 
 };
 
-void TestReplies(int numRequests, int numParts, EDeliveryTrackingLevel level = EDeliveryTrackingLevel::Full)
+////////////////////////////////////////////////////////////////////////////////
+
+class TBusTest
+    : public testing::Test
 {
-    auto server = StartBusServer(New<TReplying42BusHandler>(numParts));
-    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000"));
-    auto handler = New<TChecking42BusHandler>(numRequests);
-    auto bus = client->CreateBus(handler);
-    auto message = CreateMessage(numParts);
+public:
+    ui16 Port;
+    TString Address;
 
-    std::vector<TFuture<void>> results;
-    for (int i = 0; i < numRequests; ++i) {
-        auto result = bus->Send(message, NBus::TSendOptions(level));
-        if (result) {
-            results.push_back(result);
+    TBusTest()
+    {
+        TPortManager portManager;
+        Port = portManager.GetPort();
+        Address = Format("localhost:%v", Port);
+    }
+
+    IBusServerPtr StartBusServer(IMessageHandlerPtr handler)
+    {
+        auto config = TTcpBusServerConfig::CreateTcp(Port);
+        auto server = CreateTcpBusServer(config);
+        server->Start(handler);
+        return server;
+    }
+
+    void TestReplies(int numRequests, int numParts, EDeliveryTrackingLevel level = EDeliveryTrackingLevel::Full)
+    {
+        auto server = StartBusServer(New<TReplying42BusHandler>(numParts));
+        auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Address));
+        auto handler = New<TChecking42BusHandler>(numRequests);
+        auto bus = client->CreateBus(handler);
+        auto message = CreateMessage(numParts);
+
+        std::vector<TFuture<void>> results;
+        for (int i = 0; i < numRequests; ++i) {
+            auto result = bus->Send(message, NBus::TSendOptions(level));
+            if (result) {
+                results.push_back(result);
+            }
         }
+
+        for (const auto& result : results) {
+            auto error = result.Get();
+            EXPECT_TRUE(error.IsOK());
+        }
+
+        handler->WaitUntilDone();
+
+        server->Stop()
+            .Get()
+            .ThrowOnError();
     }
-
-    for (const auto& result : results) {
-        auto error = result.Get();
-        EXPECT_TRUE(error.IsOK());
-    }
-
-    handler->WaitUntilDone();
-
-    server->Stop()
-        .Get()
-        .ThrowOnError();
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TBusTest, ConfigDefaultConstructor)
+TEST_F(TBusTest, ConfigDefaultConstructor)
 {
     auto config = New<TTcpBusClientConfig>();
 }
 
-TEST(TBusTest, CreateTcpBusClientConfig)
+TEST_F(TBusTest, CreateTcpBusClientConfig)
 {
-    auto config = TTcpBusClientConfig::CreateTcp("localhost:2000");
-    EXPECT_EQ("localhost:2000", *config->Address);
+    auto config = TTcpBusClientConfig::CreateTcp(Address);
+    EXPECT_EQ(Address, *config->Address);
     EXPECT_FALSE(config->UnixDomainSocketPath);
 }
 
-TEST(TBusTest, CreateUnixDomainBusClientConfig)
+TEST_F(TBusTest, CreateUnixDomainBusClientConfig)
 {
     auto config = TTcpBusClientConfig::CreateUnixDomain("unix-socket");
     EXPECT_EQ("unix-socket", *config->UnixDomainSocketPath);
 }
 
-TEST(TBusTest, OK)
+TEST_F(TBusTest, OK)
 {
     auto server = StartBusServer(New<TEmptyBusHandler>());
-    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000"));
+    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Address));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message, NBus::TSendOptions(EDeliveryTrackingLevel::Full))
@@ -180,10 +199,10 @@ TEST(TBusTest, OK)
         .ThrowOnError();
 }
 
-TEST(TBusTest, Terminate)
+TEST_F(TBusTest, Terminate)
 {
     auto server = StartBusServer(New<TEmptyBusHandler>());
-    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000"));
+    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Address));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
 
@@ -208,16 +227,16 @@ TEST(TBusTest, Terminate)
         .ThrowOnError();
 }
 
-TEST(TBusTest, TerminateBeforeAccept)
+TEST_F(TBusTest, TerminateBeforeAccept)
 {
     /* make blocking server socket */
     auto serverSocket = socket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
     EXPECT_NE(serverSocket, INVALID_SOCKET);
     NNet::SetReuseAddrFlag(serverSocket);
-    NNet::BindSocket(serverSocket, NNet::TNetworkAddress::CreateIPv6Loopback(2000));
+    NNet::BindSocket(serverSocket, NNet::TNetworkAddress::CreateIPv6Loopback(Port));
     NNet::ListenSocket(serverSocket, 0);
 
-    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000", "non-local"));
+    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Address, "non-local"));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
 
     auto terminated = NewPromise<void>();
@@ -239,19 +258,22 @@ TEST(TBusTest, TerminateBeforeAccept)
     close(serverSocket);
 }
 
-TEST(TBusTest, Failed)
+TEST_F(TBusTest, Failed)
 {
-    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp("localhost:2000"));
+    TPortManager portManager;
+    auto port = portManager.GetPort();
+
+    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Format("localhost:%v", port)));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message, NBus::TSendOptions(EDeliveryTrackingLevel::Full)).Get();
     EXPECT_FALSE(result.IsOK());
 }
 
-TEST(TBusTest, BlackHole)
+TEST_F(TBusTest, BlackHole)
 {
     auto server = StartBusServer(New<TEmptyBusHandler>());
-    auto config = TTcpBusClientConfig::CreateTcp("localhost:2000", "non-local");
+    auto config = TTcpBusClientConfig::CreateTcp(Address, "non-local");
 
     config->ReadStallTimeout = TDuration::Seconds(1);
 
@@ -274,22 +296,22 @@ TEST(TBusTest, BlackHole)
         .ThrowOnError();
 }
 
-TEST(TBusTest, OneReplyNoTracking)
+TEST_F(TBusTest, OneReplyNoTracking)
 {
     TestReplies(1, 1, EDeliveryTrackingLevel::None);
 }
 
-TEST(TBusTest, OneReplyFullTracking)
+TEST_F(TBusTest, OneReplyFullTracking)
 {
     TestReplies(1, 1, EDeliveryTrackingLevel::Full);
 }
 
-TEST(TBusTest, OneReplyErrorOnlyTracking)
+TEST_F(TBusTest, OneReplyErrorOnlyTracking)
 {
     TestReplies(1, 1, EDeliveryTrackingLevel::ErrorOnly);
 }
 
-TEST(TBusTest, ManyReplies)
+TEST_F(TBusTest, ManyReplies)
 {
     TestReplies(1000, 100);
 }
