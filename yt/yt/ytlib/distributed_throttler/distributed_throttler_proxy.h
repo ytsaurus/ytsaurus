@@ -15,6 +15,7 @@ public:
     DEFINE_RPC_PROXY(TDistributedThrottlerProxy, DistributedThrottlerProxy);
 
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);
+    DEFINE_RPC_PROXY_METHOD(NProto, Throttle);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -15,8 +15,10 @@ TDistributedThrottlerConfig::TDistributedThrottlerConfig()
     RegisterParameter("discovery_client", DiscoveryClient)
         .DefaultNew();
 
-    RegisterParameter("rpc_timeout", RpcTimeout)
+    RegisterParameter("control_rpc_timeout", ControlRpcTimeout)
         .Default(TDuration::Seconds(5));
+    RegisterParameter("throttle_rpc_timeout", ThrottleRpcTimeout)
+        .Default(TDuration::Seconds(60));
 
     RegisterParameter("limit_update_period", LimitUpdatePeriod)
         .Default(TDuration::Seconds(1));
@@ -29,8 +31,8 @@ TDistributedThrottlerConfig::TDistributedThrottlerConfig()
     RegisterParameter("shard_count", ShardCount)
         .Default(16);
 
-    RegisterParameter("distribute_limits_uniformly", DistributeLimitsUniformly)
-        .Default(true);
+    RegisterParameter("mode", Mode)
+        .Default(EDistributedThrottlerMode::Adaptive);
     RegisterParameter("extra_limit_ratio", ExtraLimitRatio)
         .Default(0.1);
     RegisterParameter("ema_alpha", EmaAlpha)
