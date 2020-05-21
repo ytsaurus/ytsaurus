@@ -25,4 +25,13 @@ message TRspHeartbeat
     repeated TThrottlerLimit throttlers = 1;
 }
 
+message TReqThrottle
+{
+    required string throttler_id = 1;
+    required int64 count = 2;
+}
+
+message TRspThrottle
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////

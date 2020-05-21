@@ -12,6 +12,12 @@ namespace NYT::NDistributedThrottler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EDistributedThrottlerMode,
+    (Uniform)
+    (Adaptive)
+    (Precise)
+);
+
 class TDistributedThrottlerConfig
     : public NYTree::TYsonSerializable
 {
@@ -19,7 +25,8 @@ public:
     NDiscoveryClient::TMemberClientConfigPtr MemberClient;
     NDiscoveryClient::TDiscoveryClientConfigPtr DiscoveryClient;
 
-    TDuration RpcTimeout;
+    TDuration ControlRpcTimeout;
+    TDuration ThrottleRpcTimeout;
 
     TDuration LimitUpdatePeriod;
     TDuration LeaderUpdatePeriod;
@@ -28,7 +35,7 @@ public:
 
     int ShardCount;
 
-    bool DistributeLimitsUniformly;
+    EDistributedThrottlerMode Mode;
     double ExtraLimitRatio;
     double EmaAlpha;
 
@@ -40,4 +47,3 @@ DEFINE_REFCOUNTED_TYPE(TDistributedThrottlerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDistributedThrottler
-

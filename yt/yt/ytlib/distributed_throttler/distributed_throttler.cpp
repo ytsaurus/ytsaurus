@@ -24,6 +24,161 @@ using namespace NConcurrency;
 static const TString AddressAttributeKey = "address";
 static const TString RealmIdAttributeKey = "realm_id";
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TWrappedThrottler)
+
+class TWrappedThrottler
+    : public IReconfigurableThroughputThrottler
+{
+public:
+    TWrappedThrottler(
+        TString throttlerId,
+        TDistributedThrottlerConfigPtr config,
+        TThroughputThrottlerConfigPtr throttlerConfig)
+        : Underlying_(CreateReconfigurableThroughputThrottler(throttlerConfig))
+        , ThrottlerId_(std::move(throttlerId))
+        , Config_(std::move(config))
+        , ThrottlerConfig_(std::move(throttlerConfig))
+    {
+        HistoricUsageAggregator_.UpdateParameters(THistoricUsageAggregationParameters(
+            EHistoricUsageAggregationMode::ExponentialMovingAverage,
+            Config_->EmaAlpha
+        ));
+    }
+
+    double GetUsageRate()
+    {
+        return HistoricUsageAggregator_.GetHistoricUsage();
+    }
+
+    const TThroughputThrottlerConfigPtr& GetConfig()
+    {
+        return ThrottlerConfig_;
+    }
+
+    TFuture<void> Throttle(i64 count)
+    {
+        if (Config_->Mode == EDistributedThrottlerMode::Precise) {
+            auto leaderChannel = GetLeaderChannel();
+            // Either we are leader or we dont know the leader yet.
+            if (!leaderChannel) {
+                return Underlying_->Throttle(count);
+            }
+
+            TDistributedThrottlerProxy proxy(leaderChannel);
+
+            auto req = proxy.Throttle();
+            req->SetTimeout(Config_->ThrottleRpcTimeout);
+            req->set_throttler_id(ThrottlerId_);
+            req->set_count(count);
+
+            return req->Invoke().As<void>();
+        }
+
+        auto future = Underlying_->Throttle(count);
+        future.Subscribe(BIND([=] (const TError& error) {
+            if (error.IsOK()) {
+                HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
+            }
+        }));
+        return future;
+    }
+
+    bool TryAcquire(i64 count)
+    {
+        YT_VERIFY(Config_->Mode != EDistributedThrottlerMode::Precise);
+
+        auto result = Underlying_->TryAcquire(count);
+        if (result) {
+            HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
+        }
+        return result;
+    }
+
+    i64 TryAcquireAvailable(i64 count)
+    {
+        YT_VERIFY(Config_->Mode != EDistributedThrottlerMode::Precise);
+
+        auto result = Underlying_->TryAcquireAvailable(count);
+        if (result > 0) {
+            HistoricUsageAggregator_.UpdateAt(TInstant::Now(), result);
+        }
+        return result;
+    }
+
+    void Acquire(i64 count)
+    {
+        YT_VERIFY(Config_->Mode != EDistributedThrottlerMode::Precise);
+
+        HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
+        Underlying_->Acquire(count);
+    }
+
+    bool IsOverdraft()
+    {
+        YT_VERIFY(Config_->Mode != EDistributedThrottlerMode::Precise);
+
+        return Underlying_->IsOverdraft();
+    }
+
+    i64 GetQueueTotalCount() const
+    {
+        YT_VERIFY(Config_->Mode != EDistributedThrottlerMode::Precise);
+
+        return Underlying_->GetQueueTotalCount();
+    }
+
+    void Reconfigure(TThroughputThrottlerConfigPtr config)
+    {
+        if (Config_->Mode == EDistributedThrottlerMode::Precise) {
+            DoReconfigure(std::move(config));
+        } else {
+            ThrottlerConfig_ = CloneYsonSerializable(std::move(config));
+        }
+    }
+
+    void DoReconfigure(TThroughputThrottlerConfigPtr config)
+    {
+        Underlying_->Reconfigure(std::move(config));
+    }
+
+    void SetLeaderChannel(const IChannelPtr& leaderChannel)
+    {
+        TWriterGuard guard(Lock_);
+        LeaderChannel_ = leaderChannel;
+    }
+
+private:
+    const IReconfigurableThroughputThrottlerPtr Underlying_;
+    const TString ThrottlerId_;
+
+    TDistributedThrottlerConfigPtr Config_;
+    TThroughputThrottlerConfigPtr ThrottlerConfig_;
+
+    TReaderWriterSpinLock Lock_;
+    IChannelPtr LeaderChannel_;
+
+    THistoricUsageAggregator HistoricUsageAggregator_;
+
+    IChannelPtr GetLeaderChannel()
+    {
+        TReaderGuard guard(Lock_);
+        return LeaderChannel_;
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TWrappedThrottler)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TThrottlers
+{
+    TReaderWriterSpinLock Lock;
+    THashMap<TString, TWeakPtr<TWrappedThrottler>> Throttlers;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TDistributedThrottlerService)
@@ -39,6 +194,7 @@ public:
         TGroupId groupId,
         TDistributedThrottlerConfigPtr config,
         TRealmId realmId,
+        TThrottlers* throttlers,
         NLogging::TLogger logger)
         : TServiceBase(
             invoker,
@@ -53,22 +209,28 @@ public:
             std::move(invoker),
             BIND(&TDistributedThrottlerService::UpdateLimits, MakeWeak(this)),
             Config_->LimitUpdatePeriod))
+        , Throttlers_(throttlers)
         , Logger(std::move(logger))
         , MemberShards_(Config_->ShardCount)
         , ThrottlerShards_(Config_->ShardCount)
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Throttle));
     }
 
     void Initialize()
     {
         RpcServer_->RegisterService(this);
-        UpdatePeriodicExecutor_->Start();
+        if (Config_->Mode != EDistributedThrottlerMode::Precise) {
+            UpdatePeriodicExecutor_->Start();
+        }
     }
 
     void Finalize()
     {
-        UpdatePeriodicExecutor_->Stop();
+        if (Config_->Mode != EDistributedThrottlerMode::Precise) {
+            UpdatePeriodicExecutor_->Stop();
+        }
         RpcServer_->UnregisterService(this);
     }
 
@@ -150,7 +312,7 @@ public:
                 }
             };
 
-            if (Config_->DistributeLimitsUniformly) {
+            if (Config_->Mode == EDistributedThrottlerMode::Uniform) {
                 TReaderGuard uniformLimitGuard(throttlerShard.UniformLimitLock);
                 fillLimits(throttlerShard.ThrottlerIdToUniformLimit);
             } else {
@@ -173,6 +335,7 @@ private:
     const TString GroupId_;
     const TDistributedThrottlerConfigPtr Config_;
     const TPeriodicExecutorPtr UpdatePeriodicExecutor_;
+    const TThrottlers* Throttlers_;
     const NLogging::TLogger Logger;
 
     struct TMemberShard
@@ -200,6 +363,8 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NDistributedThrottler::NProto, Heartbeat)
     {
+        YT_VERIFY(Config_->Mode != EDistributedThrottlerMode::Precise);
+
         const auto& memberId = request->member_id();
 
         context->SetRequestInfo("MemberId: %v, ThrottlerCount: %v",
@@ -224,6 +389,43 @@ private:
         UpdateUsageRate(memberId, std::move(throttlerIdToUsageRate));
 
         context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NDistributedThrottler::NProto, Throttle)
+    {
+        YT_VERIFY(Config_->Mode == EDistributedThrottlerMode::Precise);
+
+        const auto& throttlerId = request->throttler_id();
+        auto count = request->count();
+
+        context->SetRequestInfo("ThrottlerId: %v, Count: %v",
+            throttlerId,
+            count);
+
+        Throttle(throttlerId, count).Subscribe(BIND([=] (const TErrorOr<void>& resultOrError) {
+            context->Reply(resultOrError);
+        }));
+    }
+
+    IReconfigurableThroughputThrottlerPtr FindThrottler(const TString& throttlerId)
+    {
+        TReaderGuard guard(Throttlers_->Lock);
+
+        auto it = Throttlers_->Throttlers.find(throttlerId);
+        if (it == Throttlers_->Throttlers.end()) {
+            return nullptr;
+        }
+        return it->second.Lock();
+    }
+
+    TFuture<void> Throttle(const TString& throttlerId, i64 count)
+    {
+        auto throttler = FindThrottler(throttlerId);
+        if (!throttler) {
+            MakeFuture(TError(NDistributedThrottler::EErrorCode::NoSuchThrottler, "No such throttler %Qv", throttlerId));
+        }
+
+        return throttler->Throttle(count);
     }
 
     int GetShardIndex(const TMemberId& memberId)
@@ -283,7 +485,11 @@ private:
     {
         ForgetDeadThrottlers();
 
-        if (Config_->DistributeLimitsUniformly) {
+        if (Config_->Mode == EDistributedThrottlerMode::Precise) {
+            return;
+        }
+
+        if (Config_->Mode == EDistributedThrottlerMode::Uniform) {
             UpdateUniformLimitDistribution();
             return;
         }
@@ -425,101 +631,6 @@ DEFINE_REFCOUNTED_TYPE(TDistributedThrottlerService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TWrappedThrottler)
-
-class TWrappedThrottler
-    : public IReconfigurableThroughputThrottler
-{
-public:
-    TWrappedThrottler(
-        TDistributedThrottlerConfigPtr config,
-        TThroughputThrottlerConfigPtr throttlerConfig)
-        : Underlying_(CreateReconfigurableThroughputThrottler(throttlerConfig))
-        , Config_(std::move(throttlerConfig))
-    {
-        HistoricUsageAggregator_.UpdateParameters(THistoricUsageAggregationParameters(
-            EHistoricUsageAggregationMode::ExponentialMovingAverage,
-            config->EmaAlpha
-        ));
-    }
-
-    double GetUsageRate()
-    {
-        return HistoricUsageAggregator_.GetHistoricUsage();
-    }
-
-    const TThroughputThrottlerConfigPtr& GetConfig()
-    {
-        return Config_;
-    }
-
-    TFuture<void> Throttle(i64 count)
-    {
-        auto future = Underlying_->Throttle(count);
-        future.Subscribe(BIND([=] (const TError& error) {
-            if (error.IsOK()) {
-                HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
-            }
-        }));
-        return future;
-    }
-
-    bool TryAcquire(i64 count)
-    {
-        auto result = Underlying_->TryAcquire(count);
-        if (result) {
-            HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
-        }
-        return result;
-    }
-
-    i64 TryAcquireAvailable(i64 count)
-    {
-        auto result = Underlying_->TryAcquireAvailable(count);
-        if (result > 0) {
-            HistoricUsageAggregator_.UpdateAt(TInstant::Now(), result);
-        }
-        return result;
-    }
-
-    void Acquire(i64 count)
-    {
-        HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
-        Underlying_->Acquire(count);
-    }
-
-    bool IsOverdraft()
-    {
-        return Underlying_->IsOverdraft();
-    }
-
-    i64 GetQueueTotalCount() const
-    {
-        return Underlying_->GetQueueTotalCount();
-    }
-
-    void Reconfigure(TThroughputThrottlerConfigPtr config)
-    {
-        Config_ = CloneYsonSerializable(std::move(config));
-    }
-
-    void DoReconfigure(TThroughputThrottlerConfigPtr config)
-    {
-        Underlying_->Reconfigure(std::move(config));
-    }
-
-private:
-    const IReconfigurableThroughputThrottlerPtr Underlying_;
-
-    TThroughputThrottlerConfigPtr Config_;
-
-    THistoricUsageAggregator HistoricUsageAggregator_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TWrappedThrottler)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TDistributedThrottlerFactory::TImpl
     : public TRefCounted
 {
@@ -566,6 +677,7 @@ public:
             GroupId_,
             Config_,
             RealmId_,
+            &Throttlers_,
             Logger))
     {
         auto* attributes = MemberClient_->GetAttributes();
@@ -593,8 +705,8 @@ public:
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(const TString& throttlerId, TThroughputThrottlerConfigPtr throttlerConfig)
     {
         auto findThrottler = [&] (const TString& throttlerId) -> IReconfigurableThroughputThrottlerPtr {
-            auto it = Throttlers_.find(throttlerId);
-            if (it == Throttlers_.end()) {
+            auto it = Throttlers_.Throttlers.find(throttlerId);
+            if (it == Throttlers_.Throttlers.end()) {
                 return nullptr;
             }
             auto throttler = it->second.Lock();
@@ -606,7 +718,7 @@ public:
         };
 
         {
-            TReaderGuard guard(Lock_);
+            TReaderGuard guard(Throttlers_.Lock);
             auto throttler = findThrottler(throttlerId);
             if (throttler) {
                 return throttler;
@@ -614,15 +726,19 @@ public:
         }
 
         {
-            TWriterGuard guard(Lock_);
+            TWriterGuard guard(Throttlers_.Lock);
             auto throttler = findThrottler(throttlerId);
             if (throttler) {
                 return throttler;
             }
 
             DistributedThrottlerService_->SetTotalLimit(throttlerId, throttlerConfig->Limit);
-            auto wrappedThrottler = New<TWrappedThrottler>(Config_, std::move(throttlerConfig));
-            Throttlers_[throttlerId] = wrappedThrottler;
+            auto wrappedThrottler = New<TWrappedThrottler>(throttlerId, Config_, std::move(throttlerConfig));
+            {
+                TReaderGuard readerGuard(Lock_);
+                wrappedThrottler->SetLeaderChannel(LeaderChannel_);
+            }
+            Throttlers_.Throttlers[throttlerId] = wrappedThrottler;
 
             return wrappedThrottler;
         }
@@ -640,9 +756,7 @@ private:
     const TRealmId RealmId_;
     const NLogging::TLogger Logger;
 
-    TReaderWriterSpinLock ThrottlersLock_;
-    THashMap<TString, TWeakPtr<TWrappedThrottler>> Throttlers_;
-
+    TThrottlers Throttlers_;
     TReaderWriterSpinLock Lock_;
     std::optional<TMemberId> LeaderId_;
     IChannelPtr LeaderChannel_;
@@ -658,6 +772,10 @@ private:
 
     void UpdateLimits()
     {
+        if (Config_->Mode == EDistributedThrottlerMode::Precise) {
+            return;
+        }
+
         std::optional<TMemberId> optionalCurrentLeaderId;
         {
             TReaderGuard guard(Lock_);
@@ -671,9 +789,9 @@ private:
         THashMap<TString, TWrappedThrottlerPtr> throttlers;
         std::vector<TString> deadThrottlers;
         {
-            TReaderGuard guard(ThrottlersLock_);
+            TReaderGuard guard(Throttlers_.Lock);
 
-            for (const auto& [throttlerId, throttler] : Throttlers_) {
+            for (const auto& [throttlerId, throttler] : Throttlers_.Throttlers) {
                 if (auto throttlerPtr = throttler.Lock()) {
                     YT_VERIFY(throttlers.emplace(throttlerId, throttlerPtr).second);
                 } else {
@@ -683,9 +801,9 @@ private:
         }
 
         if (!deadThrottlers.empty()) {
-            TWriterGuard guard(ThrottlersLock_);
+            TWriterGuard guard(Throttlers_.Lock);
             for (const auto& throttlerId : deadThrottlers) {
-                Throttlers_.erase(throttlerId);
+                Throttlers_.Throttlers.erase(throttlerId);
             }
         }
 
@@ -726,7 +844,7 @@ private:
         TDistributedThrottlerProxy proxy(currentLeaderChannel);
 
         auto req = proxy.Heartbeat();
-        req->SetTimeout(Config_->RpcTimeout);
+        req->SetTimeout(Config_->ControlRpcTimeout);
         req->set_member_id(MemberId_);
 
         for (const auto& [throttlerId, throttler] : throttlers) {
@@ -793,6 +911,7 @@ private:
 
         const auto& leaderId = members[0].Id;
         std::optional<TMemberId> oldLeaderId;
+        IChannelPtr leaderChannel;
         {
             TWriterGuard guard(Lock_);
             if (LeaderId_ == leaderId) {
@@ -803,7 +922,19 @@ private:
                 leaderId);
             oldLeaderId = LeaderId_;
             LeaderId_ = leaderId;
-            LeaderChannel_ = CreateRealmChannel(ChannelFactory_->CreateChannel(*optionalAddress), *optionalRealmId);
+            LeaderChannel_ = leaderId == MemberId_ ? nullptr : CreateRealmChannel(ChannelFactory_->CreateChannel(*optionalAddress), *optionalRealmId);
+            leaderChannel = LeaderChannel_;
+        }
+
+        if (Config_->Mode == EDistributedThrottlerMode::Precise) {
+            TReaderGuard guard(Throttlers_.Lock);
+            for (const auto& [throttlerId, weakThrottler] : Throttlers_.Throttlers) {
+                auto throttler = weakThrottler.Lock();
+                if (!throttler) {
+                    continue;
+                }
+                throttler->SetLeaderChannel(leaderChannel);
+            }
         }
 
         if (oldLeaderId == MemberId_) {

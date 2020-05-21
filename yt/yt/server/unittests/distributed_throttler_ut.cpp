@@ -117,6 +117,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
     auto leaderThrottlerConfig = New<TThroughputThrottlerConfig>(100);
     auto throttlerConfig = New<TThroughputThrottlerConfig>(1);
     auto config = GenerateThrottlerConfig();
+    config->Mode = EDistributedThrottlerMode::Uniform;
 
     const auto& channelFactory = GetChannelFactory();
     auto rpcServer = CreateLocalServer();
@@ -197,7 +198,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
 {
     auto throttlerConfig = New<TThroughputThrottlerConfig>(100);
     auto config = GenerateThrottlerConfig();
-    config->DistributeLimitsUniformly = false;
+    config->Mode = EDistributedThrottlerMode::Adaptive;
 
     const auto& channelFactory = GetChannelFactory();
     auto rpcServer = CreateLocalServer();
