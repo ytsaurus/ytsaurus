@@ -1,5 +1,5 @@
 PEERDIR(
-   ${YT_ROOT}/yt/tests/integration
+   yt/yt/tests/integration
 )
 
 NO_CHECK_IMPORTS()
@@ -15,18 +15,18 @@ DATA(
 )
 
 PEERDIR(
-    ${YT_ROOT}/yt/ytlib/query_client/unittests/udf
+    yt/yt/ytlib/query_client/unittests/udf
 )
 
 DEPENDS(
-    ${YT_ROOT}/yt/server/scheduler_simulator/bin/converter
-    ${YT_ROOT}/yt/server/scheduler_simulator/bin/simulator
-    ${YT_ROOT}/yt/tools/yt_sudo_fixup
-    ${YT_ROOT}/yt/tools/cuda_core_dump_injection
-    ${YT_ROOT}/yt/tests/cuda_core_dump_simulator
+    yt/yt/server/scheduler_simulator/bin/converter
+    yt/yt/server/scheduler_simulator/bin/simulator
+    yt/yt/tools/yt_sudo_fixup
+    yt/yt/tools/cuda_core_dump_injection
+    yt/yt/tests/cuda_core_dump_simulator
 )
 
-DEPENDS(${YT_ROOT}/yt/packages/tests_package)
+DEPENDS(yt/yt/packages/tests_package)
 
 PY_SRCS(protobuf_format.py)
 

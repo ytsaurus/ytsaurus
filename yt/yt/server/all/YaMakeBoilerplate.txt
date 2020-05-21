@@ -5,18 +5,18 @@ ALLOCATOR(YT)
 CXXFLAGS(${YT_ARCADIA_CXXFLAGS})
 
 SRCS(
-    ${YT_ROOT}/yt/server/all/main.cpp
+    yt/yt/server/all/main.cpp
 )
 
 PEERDIR(
-    ${YT_ROOT}/yt/server/master
-    ${YT_ROOT}/yt/server/clock_server
-    ${YT_ROOT}/yt/server/node
-    ${YT_ROOT}/yt/server/scheduler
-    ${YT_ROOT}/yt/server/controller_agent
-    ${YT_ROOT}/yt/server/http_proxy
-    ${YT_ROOT}/yt/server/rpc_proxy
-    ${YT_ROOT}/yt/server/job_proxy
-    ${YT_ROOT}/yt/server/log_tailer
-    ${YT_ROOT}/yt/server/exec
+    yt/yt/server/master
+    yt/yt/server/clock_server
+    yt/yt/server/node
+    yt/yt/server/scheduler
+    yt/yt/server/controller_agent
+    yt/yt/server/http_proxy
+    yt/yt/server/rpc_proxy
+    yt/yt/server/job_proxy
+    yt/yt/server/log_tailer
+    yt/yt/server/exec
 )
