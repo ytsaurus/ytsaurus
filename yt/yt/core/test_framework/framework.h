@@ -2,6 +2,7 @@
 
 #include <yt/core/actions/public.h>
 
+#include <library/cpp/testing/gmock_extension/string_ext.h>
 #include <library/cpp/ytalloc/core/misc/preprocessor.h>
 
 // Include Google Test and Google Mock headers.
@@ -170,84 +171,6 @@ template <class T>
 namespace testing {
 
 ////////////////////////////////////////////////////////////////////////////////
-//! Argument matcher for (const TStringBuf&).
-//! Semantics: Match by equality.
-template <>
-class Matcher<const TStringBuf&>
-    : public internal::MatcherBase<const TStringBuf&> {
-public:
-    Matcher()
-    { }
-
-    explicit Matcher(const MatcherInterface<const TStringBuf&>* impl)
-        : internal::MatcherBase<const TStringBuf&>(impl)
-    { }
-
-    Matcher(const TString& s); // NOLINT
-    Matcher(const char* s); // NOLINT
-    Matcher(TStringBuf s); // NOLINT
-};
-
-//! Argument matcher for (TStringBuf).
-//! Semantics: Match by equality.
-template <>
-class Matcher<TStringBuf>
-    : public internal::MatcherBase<TStringBuf> {
-public:
-    Matcher()
-    { }
-
-    explicit Matcher(const MatcherInterface<TStringBuf>* impl)
-        : internal::MatcherBase<TStringBuf>(impl)
-    { }
-
-    explicit Matcher(const MatcherInterface<const TStringBuf&>* impl)
-        : internal::MatcherBase<TStringBuf>(impl)
-    { }
-
-    Matcher(const TString& s); // NOLINT
-    Matcher(const char* s); // NOLINT
-    Matcher(TStringBuf s); // NOLINT
-};
-
-//! Argument matcher for (const TString&).
-//! Semantics: Match by equality.
-template <>
-class Matcher<const TString&>
-    : public internal::MatcherBase<const TString&> {
-public:
-    Matcher() {}
-
-    explicit Matcher(const MatcherInterface<const TString&>* impl)
-        : internal::MatcherBase<const TString&>(impl)
-    {}
-
-    Matcher(const TString& s); // NOLINT
-    Matcher(const char* s); // NOLINT
-};
-
-//! Argument matcher for (TString)
-//! Semantics: Match by equality.
-template <>
-class Matcher<TString>
-    : public internal::MatcherBase<TString> {
-public:
-    Matcher()
-    { }
-
-    explicit Matcher(const MatcherInterface<TString>* impl)
-        : internal::MatcherBase<TString>(impl)
-    { }
-
-    explicit Matcher(const MatcherInterface<const TString&>* impl)
-        : internal::MatcherBase<TString>(impl)
-    { }
-
-    Matcher(const TString& s); // NOLINT
-    Matcher(const char* s);
-};
-
-////////////////////////////////////////////////////////////////////////////////
 
 void RunAndTrackFiber(NYT::TClosure closure);
 
@@ -287,9 +210,6 @@ void GTEST_TEST_CLASS_NAME_(test_case_name, test_name)::TestInnerBody()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace testing
-
-void PrintTo(const TString& string, ::std::ostream* os);
-void PrintTo(TStringBuf string, ::std::ostream* os);
 
 #define FRAMEWORK_INL_H_
 #include "framework-inl.h"

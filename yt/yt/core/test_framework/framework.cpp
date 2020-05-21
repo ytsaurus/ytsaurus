@@ -54,45 +54,6 @@ using namespace NYT::NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Matcher<TStringBuf>::Matcher(const TString& s)
-{
-    *this = Eq(TStringBuf(s));
-}
-
-Matcher<TStringBuf>::Matcher(const char* s)
-{
-    *this = Eq(TStringBuf(s));
-}
-
-Matcher<TStringBuf>::Matcher(TStringBuf s)
-{
-    *this = Eq(s);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-Matcher<const TString&>::Matcher(const TString& s)
-{
-    *this = Eq(s);
-}
-
-Matcher<const TString&>::Matcher(const char* s)
-{
-    *this = Eq(TString(s));
-}
-
-Matcher<TString>::Matcher(const TString& s)
-{
-    *this = Eq(s);
-}
-
-Matcher<TString>::Matcher(const char* s)
-{
-    *this = Eq(TString(s));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void RunAndTrackFiber(TClosure closure)
 {
     auto queue = New<TActionQueue>("Main");
@@ -124,15 +85,3 @@ void RunAndTrackFiber(TClosure closure)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace testing
-
-void PrintTo(const TString& string, ::std::ostream* os)
-{
-    ::testing::internal::PrintTo(string.c_str(), os);
-}
-
-void PrintTo(TStringBuf string, ::std::ostream* os)
-{
-    ::testing::internal::PrintTo(TString(string).c_str(), os);
-}
-
-////////////////////////////////////////////////////////////////////////////////
