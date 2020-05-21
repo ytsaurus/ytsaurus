@@ -3,7 +3,7 @@
 #include "udf/short_invalid_ir.h"
 #include "udf/long_invalid_ir.h"
 
-#include <library/resource/resource.h>
+#include <library/cpp/resource/resource.h>
 
 #include <yt/ytlib/query_client/callbacks.h>
 #include <yt/ytlib/query_client/column_evaluator.h>
