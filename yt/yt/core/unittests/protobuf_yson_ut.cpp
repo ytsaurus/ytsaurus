@@ -143,6 +143,12 @@ TEST(TYsonToProtobufYsonTest, Success)
                     .EndMap()
                 .EndMap()
             .EndMap()
+            .Item("extension").BeginMap()
+                .Item("extension_extension").BeginMap()
+                    .Item("extension_extension_field").Value(23U)
+                .EndMap()
+                .Item("extension_field").Value(12U)
+            .EndMap()
         .EndMap();
 
 
@@ -215,6 +221,12 @@ TEST(TYsonToProtobufYsonTest, Success)
     EXPECT_EQ(1, message.nested_message_map().at("world").nested_message_map().at("test").repeated_int32_field(0));
     EXPECT_EQ(2, message.nested_message_map().at("world").nested_message_map().at("test").repeated_int32_field(1));
     EXPECT_EQ(3, message.nested_message_map().at("world").nested_message_map().at("test").repeated_int32_field(2));
+
+    EXPECT_EQ(12U, message.GetExtension(NYT::NProto::TMessageExtension::extension).extension_field());
+    EXPECT_EQ(23U, message
+        .GetExtension(NYT::NProto::TMessageExtension::extension)
+        .GetExtension(NYT::NProto::TMessageExtensionExtension::extension_extension)
+        .extension_extension_field());
 }
 
 TEST(TYsonToProtobufYsonTest, ParseMapFromList)
@@ -878,6 +890,12 @@ TEST(TProtobufToYsonTest, Success)
 
     message.mutable_nested_message1()->mutable_nested_message()->set_color(NYT::NProto::Color_Green);
 
+    message.MutableExtension(NYT::NProto::TMessageExtension::extension)->set_extension_field(12);
+    message
+        .MutableExtension(NYT::NProto::TMessageExtension::extension)
+        ->MutableExtension(NYT::NProto::TMessageExtensionExtension::extension_extension)
+        ->set_extension_extension_field(23);
+
     {
         auto* proto = message.add_repeated_nested_message1();
         proto->set_int32_field(456);
@@ -1029,7 +1047,14 @@ TEST(TProtobufToYsonTest, Success)
                     .EndMap()
                 .EndMap()
             .EndMap()
+            .Item("extension").BeginMap()
+                .Item("extension_extension").BeginMap()
+                    .Item("extension_extension_field").Value(23U)
+                .EndMap()
+                .Item("extension_field").Value(12U)
+            .EndMap()
         .EndMap();
+
     EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
 }
 
