@@ -171,8 +171,8 @@ public:
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, PassCall)
     {
         context->SetRequestInfo();
-        response->set_user(context->GetUser());
-        response->set_mutation_id(ToString(context->GetMutationId()));
+        WriteAuthenticationIdentityToProto(response, context->GetAuthenticationIdentity());
+        ToProto(response->mutable_mutation_id(), context->GetMutationId());
         response->set_retry(context->IsRetry());
         context->Reply();
     }
@@ -802,19 +802,32 @@ TYPED_TEST(TRpcTest, RetryingSend)
     });
 }
 
+TYPED_TEST(TRpcTest, UserTag)
+{
+    TMyProxy proxy(this->CreateChannel());
+    auto req = proxy.PassCall();
+    req->SetUser("test-user");
+    req->SetUserTag("test-user-tag");
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+    const auto& rsp = rspOrError.Value();
+    EXPECT_EQ(req->GetUser(), rsp->user());
+    EXPECT_EQ(req->GetUserTag(), rsp->user_tag());
+}
+
 TYPED_TEST(TNotGrpcTest, SendSimple)
 {
     TMyProxy proxy(this->CreateChannel());
     auto req = proxy.PassCall();
-    auto mutation_id = TGuid::Create();
-    req->SetUser("test");
-    req->SetMutationId(mutation_id);
+    req->SetUser("test-user");
+    req->SetMutationId(TGuid::Create());
     req->SetRetry(true);
     auto rspOrError = req->Invoke().Get();
     EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
     const auto& rsp = rspOrError.Value();
-    EXPECT_EQ("test", rsp->user());
-    EXPECT_EQ(ToString(mutation_id), rsp->mutation_id());
+    EXPECT_EQ(req->GetUser(), rsp->user());
+    EXPECT_FALSE(rsp->has_user_tag());
+    EXPECT_EQ(req->GetMutationId(), NYT::FromProto<TMutationId>(rsp->mutation_id()));
     EXPECT_EQ(true, rsp->retry());
 }
 

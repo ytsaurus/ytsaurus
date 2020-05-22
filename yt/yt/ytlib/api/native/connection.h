@@ -71,7 +71,7 @@ struct IConnection
 
     virtual const NSecurityClient::TPermissionCachePtr& GetPermissionCache() = 0;
 
-    virtual IClientPtr CreateNativeClient(const TClientOptions& options = TClientOptions()) = 0;
+    virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 

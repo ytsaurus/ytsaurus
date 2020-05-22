@@ -40,6 +40,7 @@
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/rpc/service_detail.h>
+#include <yt/core/rpc/authentication_identity.h>
 
 namespace NYT::NQueryAgent {
 
@@ -189,10 +190,6 @@ private:
             options.MemoryLimitPerNode,
             dataSources.size());
 
-        const auto& user = context->GetUser();
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        TAuthenticatedUserGuard userGuard(securityManager, user);
-
         TClientBlockReadOptions blockReadOptions;
         blockReadOptions.WorkloadDescriptor = options.WorkloadDescriptor;
         blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
@@ -262,10 +259,6 @@ private:
 
         auto requestData = requestCodec->Decompress(request->Attachments()[0]);
 
-        const auto& user = context->GetUser();
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        TAuthenticatedUserGuard userGuard(securityManager, user);
-
         const auto& slotManager = Bootstrap_->GetTabletSlotManager();
 
         try {
@@ -276,7 +269,7 @@ private:
                     auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
                     if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
-                        profilerGuard.SetProfilerTags(AddUserTag(user, tabletSnapshot->ProfilerTags));
+                        profilerGuard.SetProfilerTags(AddCurrentUserTag(tabletSnapshot->ProfilerTags));
                     }
 
                     slotManager->ValidateTabletAccess(tabletSnapshot, timestamp);
@@ -290,7 +283,6 @@ private:
                     LookupRead(
                         tabletSnapshot,
                         timestamp,
-                        user,
                         false,
                         blockReadOptions,
                         retentionConfig,
@@ -356,20 +348,17 @@ private:
 
             if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId)) {
                 if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
-                    const auto& user = context->GetUser();
-                    profilerGuard.SetProfilerTags(AddUserTag(user, tabletSnapshot->ProfilerTags));
+                    profilerGuard.SetProfilerTags(AddCurrentUserTag(tabletSnapshot->ProfilerTags));
                 }
             }
 
-            auto callback = BIND([=] () -> TSharedRef {
+            auto callback = BIND([=, identity = NRpc::GetCurrentAuthenticationIdentity()] {
                 try {
                     return ExecuteRequestWithRetries<TSharedRef>(
                         Config_->MaxQueryRetries,
                         Logger,
-                        [&] () -> TSharedRef {
-                            const auto& user = context->GetUser();
-                            const auto& securityManager = Bootstrap_->GetSecurityManager();
-                            TAuthenticatedUserGuard userGuard(securityManager, user);
+                        [&] {
+                            TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
                             auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
 
@@ -385,7 +374,6 @@ private:
                             LookupRead(
                                 tabletSnapshot,
                                 timestamp,
-                                user,
                                 useLookupCache,
                                 blockReadOptions,
                                 retentionConfig,

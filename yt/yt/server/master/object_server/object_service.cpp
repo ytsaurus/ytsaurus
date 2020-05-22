@@ -275,11 +275,11 @@ public:
         , RpcContext_(std::move(rpcContext))
         , Bootstrap_(Owner_->Bootstrap_)
         , TotalSubrequestCount_(RpcContext_->Request().part_counts_size())
-        , UserName_(RpcContext_->GetUser())
+        , UserName_(RpcContext_->GetAuthenticationIdentity().User)
         , RequestId_(RpcContext_->GetRequestId())
-        , CodicilData_(Format("RequestId: %v, User: %v",
+        , CodicilData_(Format("RequestId: %v, %v",
             RequestId_,
-            UserName_))
+            RpcContext_->GetAuthenticationIdentity()))
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetTentativeState())
     { }
 
@@ -513,7 +513,7 @@ private:
 
             const auto& requestProfilingManager = Bootstrap_->GetRequestProfilingManager();
             subrequest.ProfilingCounters = requestProfilingManager->GetCounters(
-                UserName_,
+                RpcContext_->GetAuthenticationIdentity().UserTag,
                 requestHeader.method());
 
             // Propagate various parameters to the subrequest.
@@ -524,7 +524,7 @@ private:
                 requestHeader.set_retry(true);
             }
             if (!requestHeader.has_user()) {
-                requestHeader.set_user(UserName_);
+                NRpc::WriteAuthenticationIdentityToProto(&requestHeader, RpcContext_->GetAuthenticationIdentity());
             }
             if (!requestHeader.has_timeout()) {
                 requestHeader.set_timeout(ToProto<i64>(RpcContext_->GetTimeout().value_or(Owner_->Config_->DefaultExecuteTimeout)));
@@ -576,7 +576,7 @@ private:
 
                 TObjectServiceCacheKey key(
                     Bootstrap_->GetCellTag(),
-                    RpcContext_->GetUser(),
+                    RpcContext_->GetAuthenticationIdentity().User,
                     subrequest.YPathExt->target_path(),
                     requestHeader.service(),
                     requestHeader.method(),
@@ -802,7 +802,7 @@ private:
 
         if (subrequest->YPathExt->mutating()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            subrequest->Mutation = objectManager->CreateExecuteMutation(UserName_, subrequest->RpcContext);
+            subrequest->Mutation = objectManager->CreateExecuteMutation(subrequest->RpcContext, subrequest->RpcContext->GetAuthenticationIdentity());
             subrequest->Mutation->SetMutationId(subrequest->RpcContext->GetMutationId(), subrequest->RpcContext->IsRetry());
             subrequest->Type = EExecutionSessionSubrequestType::LocalWrite;
             Profiler.Increment(subrequest->ProfilingCounters->LocalWriteRequestCounter);
@@ -997,7 +997,7 @@ private:
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                 batchReq->SetOriginalRequestId(RequestId_);
                 batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
-                batchReq->SetUser(RpcContext_->GetUser());
+                NRpc::SetAuthenticationIdentity(batchReq, RpcContext_->GetAuthenticationIdentity());
 
                 it = batchMap.emplace(key, TBatchValue{
                     .BatchReq = std::move(batchReq)
@@ -1023,7 +1023,7 @@ private:
             AcquireReplyLock();
 
             YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
-                "%v%v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+                "%v%v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
                 RequestId_,
                 batch->BatchReq->GetRequestId(),
                 requestHeader.service(),
@@ -1043,7 +1043,7 @@ private:
                        builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", *subrequest.PrerequisiteRevisionPathRewrites);
                    }
                 }),
-                UserName_,
+                RpcContext_->GetAuthenticationIdentity(),
                 ypathExt.mutating(),
                 subrequest.ForwardedCellTag,
                 peerKind);
@@ -1808,7 +1808,7 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
     Y_UNUSED(request);
     Y_UNUSED(response);
 
-    const auto& userName = context->GetUser();
+    const auto& userName = context->GetAuthenticationIdentity().User;
     auto error = StickyUserErrorCache_.Get(userName);
     if (!error.IsOK()) {
         context->Reply(error);

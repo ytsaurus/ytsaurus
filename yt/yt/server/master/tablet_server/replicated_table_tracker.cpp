@@ -328,7 +328,7 @@ private:
         void CreateClient()
         {
             Client_ = Connection_
-                ? Connection_->CreateClient(NApi::TClientOptions(RootUserName))
+                ? Connection_->CreateClient(NApi::TClientOptions::FromUser(RootUserName))
                 : IClientPtr();
         }
     };

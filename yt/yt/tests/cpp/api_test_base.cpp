@@ -47,8 +47,7 @@ void TApiTestBase::TearDownTestCase()
 
 IClientPtr TApiTestBase::CreateClient(const TString& userName)
 {
-    TClientOptions clientOptions;
-    clientOptions.PinnedUser = userName;
+    auto clientOptions = TClientOptions::FromUser(userName);
     return Connection_->CreateClient(clientOptions);
 }
 

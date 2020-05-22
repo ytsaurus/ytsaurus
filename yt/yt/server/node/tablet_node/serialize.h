@@ -20,6 +20,7 @@ DEFINE_ENUM(ETabletReign,
     ((BulkInsertOverwrite)           (100016)) // ifsmirnov
     ((ChunkViewWideRange_YT_12532)   (100017)) // ifsmirnov
     ((DynamicStoreRead)              (100100)) // ifsmirnov
+    ((AuthenticationIdentity)        (100101)) // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

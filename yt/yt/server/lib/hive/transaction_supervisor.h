@@ -26,7 +26,6 @@ public:
         NHydra::TCompositeAutomatonPtr automaton,
         NRpc::TResponseKeeperPtr responseKeeper,
         ITransactionManagerPtr transactionManager,
-        NSecurityServer::ISecurityManagerPtr securityManager,
         TCellId selfCellId,
         NTransactionClient::ITimestampProviderPtr timestampProvider,
         const std::vector<ITransactionParticipantProviderPtr>& participantProviders);
@@ -37,7 +36,6 @@ public:
 
     TFuture<void> CommitTransaction(
         TTransactionId transactionId,
-        const TString& userName,
         const std::vector<NHydra::TCellId>& participantCellIds = {},
         const std::vector<NHydra::TCellId>& prepareOnlyParticipantCellIds = {});
 

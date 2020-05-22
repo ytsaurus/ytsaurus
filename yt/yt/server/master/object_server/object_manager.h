@@ -161,8 +161,8 @@ public:
      *  Thread affinity: any
      */
     std::unique_ptr<NHydra::TMutation> CreateExecuteMutation(
-        const TString& userName,
-        const NRpc::IServiceContextPtr& context);
+        const NRpc::IServiceContextPtr& context,
+        const NRpc::TAuthenticationIdentity& identity);
 
     //! Creates a mutation that destroys given objects.
     /*!

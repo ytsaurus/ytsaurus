@@ -945,9 +945,7 @@ private:
             hydraRequest.add_request_parts(part.Begin(), part.Size());
         }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-        hydraRequest.set_user_name(user->GetName());
+        WriteAuthenticationIdentityToProto(&hydraRequest, GetCurrentAuthenticationIdentity());
 
         return NHiveServer::SerializeOutcomingMessage(hydraRequest);
     }

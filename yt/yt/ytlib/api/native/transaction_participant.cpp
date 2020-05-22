@@ -61,7 +61,7 @@ public:
         return ETransactionParticipantState::Valid;
     }
 
-    virtual TFuture<void> PrepareTransaction(TTransactionId transactionId, TTimestamp prepareTimestamp, const TString& user) override
+    virtual TFuture<void> PrepareTransaction(TTransactionId transactionId, TTimestamp prepareTimestamp) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
@@ -69,7 +69,7 @@ public:
                 PrepareRequest(req);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_prepare_timestamp(prepareTimestamp);
-                req->SetUser(user);
+                // req->SetUser(user); XXX
                 return req;
             });
     }

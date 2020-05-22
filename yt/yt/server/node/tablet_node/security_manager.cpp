@@ -8,7 +8,6 @@
 
 #include <yt/ytlib/api/native/client.h>
 
-#include <yt/core/concurrency/fls.h>
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/async_expiring_cache.h>
@@ -26,14 +25,6 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletNodeLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TAuthenticatedUserGuard::TAuthenticatedUserGuard(
-    TSecurityManagerPtr securityManager,
-    const std::optional<TString>& optionalUser)
-    : TAuthenticatedUserGuardBase(std::move(securityManager), optionalUser)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,23 +151,6 @@ public:
         , ResourceLimitsCache_(New<TResourceLimitsCache>(Config_->ResourceLimitsCache, Bootstrap_))
     { }
 
-    void SetAuthenticatedUserByNameOrThrow(const TString& user)
-    {
-        YT_ASSERT(!*AuthenticatedUser_);
-        *AuthenticatedUser_ = user;
-    }
-
-    void ResetAuthenticatedUser()
-    {
-        YT_ASSERT(*AuthenticatedUser_);
-        AuthenticatedUser_->reset();
-    }
-
-    std::optional<TString> GetAuthenticatedUserName()
-    {
-        return *AuthenticatedUser_;
-    }
-
     TFuture<void> CheckResourceLimits(
         const TString& account,
         const TString& mediumName,
@@ -201,9 +175,6 @@ private:
     NClusterNode::TBootstrap* const Bootstrap_;
 
     const TResourceLimitsCachePtr ResourceLimitsCache_;
-
-    TFls<std::optional<TString>> AuthenticatedUser_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,21 +188,6 @@ TSecurityManager::TSecurityManager(
 { }
 
 TSecurityManager::~TSecurityManager() = default;
-
-void TSecurityManager::SetAuthenticatedUserByNameOrThrow(const TString& user)
-{
-    Impl_->SetAuthenticatedUserByNameOrThrow(user);
-}
-
-void TSecurityManager::ResetAuthenticatedUser()
-{
-    Impl_->ResetAuthenticatedUser();
-}
-
-std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
-{
-    return Impl_->GetAuthenticatedUserName();
-}
 
 TFuture<void> TSecurityManager::CheckResourceLimits(
     const TString& account,

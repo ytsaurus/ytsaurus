@@ -16,6 +16,8 @@
 #include <yt/server/lib/hydra/hydra_service.h>
 #include <yt/server/lib/hydra/mutation.h>
 
+#include <yt/server/lib/misc/profiling_helpers.h>
+
 #include <yt/ytlib/tablet_client/config.h>
 #include <yt/ytlib/tablet_client/tablet_service_proxy.h>
 
@@ -91,8 +93,7 @@ private:
         ValidateTabletTransactionId(transactionId);
 
         auto atomicity = AtomicityFromTransactionId(transactionId);
-        auto durability = EDurability(request->durability());
-        const auto& user = context->GetUser();
+        auto durability = CheckedEnumCast<EDurability>(request->durability());
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %llx, "
             "TransactionTimeout: %v, Atomicity: %v, Durability: %v, Signature: %x, RowCount: %v, DataWeight: %v, "
@@ -114,9 +115,6 @@ private:
         // NB: Must serve the whole request within a single epoch.
         TCurrentInvokerGuard invokerGuard(Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Write));
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        TAuthenticatedUserGuard userGuard(securityManager, user);
-
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
 
         if (tabletSnapshot->Atomicity != atomicity) {
@@ -125,7 +123,7 @@ private:
                 tabletSnapshot->Atomicity);
         }
 
-        if (versioned && user != NSecurityClient::ReplicatorUserName) {
+        if (versioned && context->GetAuthenticationIdentity().User != NSecurityClient::ReplicatorUserName) {
             THROW_ERROR_EXCEPTION("Versioned writes are only allowed for %Qv user",
                 NSecurityClient::ReplicatorUserName);
         }
@@ -146,6 +144,7 @@ private:
             }
         }
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidateResourceLimits(
             tabletSnapshot->WriterOptions->Account,
             tabletSnapshot->WriterOptions->MediumName,
@@ -186,7 +185,6 @@ private:
                     signature,
                     rowCount,
                     dataWeight,
-                    user,
                     versioned,
                     syncReplicaIds,
                     &reader,
@@ -222,9 +220,14 @@ private:
             signature);
 
         const auto& transactionManager = Slot_->GetTransactionManager();
-        transactionManager
-            ->CreateRegisterTransactionActionsMutation(context)
-            ->CommitAndReply(context);
+        auto future = transactionManager->RegisterTransactionActions(
+            transactionId,
+            transactionStartTimestamp,
+            transactionTimeout,
+            signature,
+            std::move(*request->mutable_actions()));
+
+        context->ReplyFrom(std::move(future));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NTabletClient::NProto, Trim)
@@ -239,17 +242,12 @@ private:
             tabletId,
             trimmedRowCount);
 
-        const auto& user = context->GetUser();
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        TAuthenticatedUserGuard userGuard(securityManager, user);
-
         auto tabletSnapshot = GetTabletSnapshotOrThrow(tabletId, mountRevision);
 
         const auto& tabletManager = Slot_->GetTabletManager();
-        WaitFor(tabletManager->Trim(tabletSnapshot, trimmedRowCount))
-            .ThrowOnError();
+        auto future = tabletManager->Trim(tabletSnapshot, trimmedRowCount);
 
-        context->Reply();
+        context->ReplyFrom(std::move(future));
     }
 
 

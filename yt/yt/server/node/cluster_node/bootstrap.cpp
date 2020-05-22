@@ -271,7 +271,7 @@ void TBootstrap::DoInitialize()
         TProfiler("/cluster_node/memory_usage"));
 
     MasterConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
-    MasterClient_ = MasterConnection_->CreateNativeClient(TClientOptions(NSecurityClient::RootUserName));
+    MasterClient_ = MasterConnection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     MasterCacheQueue_ = New<TActionQueue>("MasterCache");
     TabletLookupThreadPool_ = New<TThreadPool>(

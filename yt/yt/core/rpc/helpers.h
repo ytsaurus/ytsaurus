@@ -49,10 +49,10 @@ IChannelFactoryPtr CreateDefaultTimeoutChannelFactory(
 //! Returns a wrapper that sets "authenticated_user" attribute in every request.
 IChannelPtr CreateAuthenticatedChannel(
     IChannelPtr underlyingChannel,
-    const TString& user);
+    TAuthenticationIdentity identity);
 IChannelFactoryPtr CreateAuthenticatedChannelFactory(
     IChannelFactoryPtr underlyingFactory,
-    const TString& user);
+    TAuthenticationIdentity identity);
 
 //! Returns a wrapper that sets realm id in every request.
 IChannelPtr CreateRealmChannel(
@@ -88,6 +88,14 @@ void SetMutationId(NProto::TRequestHeader* header, TMutationId id, bool retry);
 void SetMutationId(const IClientRequestPtr& request, TMutationId id, bool retry);
 void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, bool retry);
 
+void SetAuthenticationIdentity(const IClientRequestPtr& request, const TAuthenticationIdentity& identity);
+void SetCurrentAuthenticationIdentity(const IClientRequestPtr& request);
+
+template <class T>
+void WriteAuthenticationIdentityToProto(T* proto, const TAuthenticationIdentity& identity);
+template <class T>
+TAuthenticationIdentity ParseAuthenticationIdentityFromProto(const T& proto);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TFuture<std::vector<TSharedRef>> AsyncCompressAttachments(
@@ -117,3 +125,7 @@ struct THash<NYT::NRpc::TAddressWithNetwork>
 {
     size_t operator()(const NYT::NRpc::TAddressWithNetwork& addressWithNetwork) const;
 };
+
+#define HELPERS_INL_H_
+#include "helpers-inl.h"
+#undef HELPERS_INL_H_

@@ -78,8 +78,9 @@ struct IServiceContext
     //! Returns request realm id.
     virtual TRealmId GetRealmId() const = 0;
 
-    //! Returns the name of the user issuing the request.
-    virtual const TString& GetUser() const = 0;
+    //! Returns the authentication identity passed from the client (and possibly validated by the infrastructure).
+    //! Could be used for authentication and authorization.
+    virtual const TAuthenticationIdentity& GetAuthenticationIdentity() const = 0;
 
     //! Returns |true| if the request was already replied.
     virtual bool IsReplied() const = 0;

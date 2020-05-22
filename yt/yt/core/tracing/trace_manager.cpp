@@ -38,9 +38,9 @@ void ToProto(NProto::TSpan* proto, const TTraceContextPtr& traceContext)
     proto->set_duration(traceContext->GetDuration().NanoSeconds());
 
     for (const auto& tag : traceContext->GetTags()) {
-        auto tag_proto = proto->add_tags();
-        tag_proto->set_key(tag.first);
-        tag_proto->set_value(tag.second);
+        auto* protoTag = proto->add_tags();
+        protoTag->set_key(tag.first);
+        protoTag->set_value(tag.second);
     }
 }
 

@@ -8,12 +8,15 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Adds user tag to specified tags and returns the resultant tag list.
-NProfiling::TTagIdList AddUserTag(const TString& user, NProfiling::TTagIdList tags = {});
+//! Adds user tag to #tags and returns the resultant tag list.
+NProfiling::TTagIdList AddUserTag(NProfiling::TTagIdList tags, const TString& userTag);
+
+//! Adds the current user tag (installed via TUserTagTag) to #tags and returns the resultant tag list.
+NProfiling::TTagIdList AddCurrentUserTag(NProfiling::TTagIdList tags);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Trait to store profiler counters in tls cache.
+//! Trait to store profiler counters in TLS cache.
 template <typename TCountersKey, typename TCounters>
 struct TProfilerTrait
 {
@@ -67,7 +70,7 @@ public:
 
 } // namespace NYT
 
-#define LOCK_FREE_INL_H_
+#define PROFILING_HELPERS_INL_H_
 #include "profiling_helpers-inl.h"
-#undef LOCK_FREE_INL_H_
+#undef PROFILING_HELPERS_H_
 

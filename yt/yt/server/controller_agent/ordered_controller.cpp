@@ -1106,8 +1106,7 @@ private:
     {
         TOperationControllerBase::InitializeClients();
 
-        TClientOptions options;
-        options.PinnedUser = AuthenticatedUser;
+        auto options = TClientOptions::FromUser(AuthenticatedUser);
         InputClient = GetRemoteConnection()->CreateNativeClient(options);
     }
 

@@ -235,7 +235,7 @@ public:
         const std::vector<TYPath>& paths,
         const IClientPtr& client)
     {
-        const auto& user = client->GetOptions().GetUser();
+        const auto& user = client->GetOptions().GetAuthenticatedUser();
         auto cachedAttributes = TableAttributeCache_->Find(paths);
         std::vector<TYPath> missedPaths;
         for (int index = 0; index < (int)paths.size(); ++index) {
@@ -334,9 +334,11 @@ public:
         return RootClient_;
     }
 
-    NApi::NNative::IClientPtr CreateClient(TString user)
+    NApi::NNative::IClientPtr CreateClient(const TString& user)
     {
-        return ClientCache_->GetClient(user);
+        auto identity = NRpc::TAuthenticationIdentity(user);
+        auto options = NApi::TClientOptions::FromAuthenticationIdentity(identity);
+        return ClientCache_->Get(identity, options);
     }
 
     void HandleSigint()
@@ -433,8 +435,13 @@ private:
 
         ClientCache_ = New<NApi::NNative::TClientCache>(Config_->ClientCache, Connection_);
 
-        RootClient_ = ClientCache_->GetClient(Config_->User);
-        CacheClient_ = ClientCache_->GetClient(CacheUserName);
+        auto getClientForUser = [&] (const TString& user) {
+            auto identity = NRpc::TAuthenticationIdentity(user);
+            auto options = NApi::TClientOptions::FromAuthenticationIdentity(identity);
+            return ClientCache_->Get(identity, options);
+        };
+        RootClient_ = getClientForUser(Config_->User);
+        CacheClient_ = getClientForUser(CacheUserName);
     }
 
     void InitializeCaches()
@@ -715,7 +722,7 @@ NApi::NNative::IClientPtr THost::GetRootClient() const
     return Impl_->GetRootClient();
 }
 
-NApi::NNative::IClientPtr THost::CreateClient(TString user)
+NApi::NNative::IClientPtr THost::CreateClient(const TString& user)
 {
     return Impl_->CreateClient(user);
 }

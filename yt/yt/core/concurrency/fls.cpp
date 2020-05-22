@@ -89,7 +89,7 @@ void SetCurrentFsdHolder(TFsdHolder* currentFsd)
 
 uintptr_t& FlsAt(int index)
 {
-    YT_VERIFY(CurrentFsdHolder);
+    YT_ASSERT(CurrentFsdHolder);
     return CurrentFsdHolder->FsdAt(index);
 }
 

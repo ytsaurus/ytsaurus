@@ -1198,7 +1198,7 @@ private:
                 case ETableSchemaMode::Strong:
                     if (schema.IsSorted()) {
                         YT_LOG_DEBUG("Using sorted concatenation (PinnedUser: %v)",
-                            Client_->Options_.PinnedUser);
+                            Client_->Options_.User);
                         Sorted_ = true;
                     }
                     outputSchemaInferer = CreateSchemaCompatibilityChecker(DstObject_.GetPath(), schema);

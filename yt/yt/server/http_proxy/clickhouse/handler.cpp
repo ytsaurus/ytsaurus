@@ -601,7 +601,7 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
     , Coordinator_(bootstrap->GetCoordinator())
     , Config_(Bootstrap_->GetConfig()->ClickHouse)
-    , Client_(Bootstrap_->GetRootClient()->GetConnection()->CreateClient(NApi::TClientOptions(ClickHouseUserName)))
+    , Client_(Bootstrap_->GetRootClient()->GetConnection()->CreateClient(NApi::TClientOptions::FromUser(ClickHouseUserName)))
     , ControlInvoker_(Bootstrap_->GetControlInvoker())
 {
     if (Config_->ForceEnqueueProfiling) {

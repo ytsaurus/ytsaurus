@@ -4,16 +4,18 @@
 
 #include <yt/core/misc/sync_cache.h>
 
+#include <yt/core/rpc/authentication_identity.h>
+
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCachedClient
-    : public TSyncCacheValueBase<TString, TCachedClient>
+    : public TSyncCacheValueBase<NRpc::TAuthenticationIdentity, TCachedClient>
 {
 public:
     TCachedClient(
-        const TString& user,
+        const NRpc::TAuthenticationIdentity& identity,
         IClientPtr client);
 
     const IClientPtr& GetClient();
@@ -31,16 +33,16 @@ private:
  *  Cache is completely thread-safe.
  */
 class TClientCache
-    : public TSyncSlruCacheBase<TString, TCachedClient>
+    : public TSyncSlruCacheBase<NRpc::TAuthenticationIdentity, TCachedClient>
 {
 public:
     TClientCache(
         TSlruCacheConfigPtr config,
         IConnectionPtr connection);
 
-    IClientPtr GetClient(
-        const TString& user,
-        const std::optional<TString>& userToken = std::nullopt);
+    IClientPtr Get(
+        const NRpc::TAuthenticationIdentity& identity,
+        const TClientOptions& options);
 
 private:
     const IConnectionPtr Connection_;

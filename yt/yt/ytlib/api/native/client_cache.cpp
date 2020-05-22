@@ -14,9 +14,11 @@ TClientCache::TClientCache(
         std::move(connection))
 { }
 
-IClientPtr TClientCache::GetClient(const TString& user, const std::optional<TString>& token)
+IClientPtr TClientCache::Get(
+    const NRpc::TAuthenticationIdentity& identity,
+    const TClientOptions& options)
 {
-    auto client = NApi::TClientCache::GetClient(user, token);
+    auto client = NApi::TClientCache::Get(identity, options);
     return IClientPtr(static_cast<IClient*>(client.Get()));
 }
 

@@ -125,8 +125,7 @@ void TBootstrap::DoRun()
     // Force start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
 
-    TClientOptions clientOptions;
-    clientOptions.PinnedUser = NSecurityClient::SchedulerUserName;
+    auto clientOptions = TClientOptions::FromUser(NSecurityClient::SchedulerUserName);
     Client_ = Connection_->CreateNativeClient(clientOptions);
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);

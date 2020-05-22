@@ -36,24 +36,21 @@ public:
 private:
     const ICoreDumperPtr CoreDumper_;
 
-    void ValidateRoot(TStringBuf user)
+
+    virtual void BeforeInvoke(NRpc::IServiceContext* context) override
     {
-        if (user != RootUserName) {
+        if (context->GetAuthenticationIdentity().User != RootUserName) {
             THROW_ERROR_EXCEPTION("Only root is allowed to use AdminService");
         }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Die)
     {
-        ValidateRoot(context->GetUser());
-
         _exit(request->exit_code());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, WriteCoreDump)
     {
-        ValidateRoot(context->GetUser());
-
         if (!CoreDumper_) {
             THROW_ERROR_EXCEPTION("Core dumper is not set up");
         }

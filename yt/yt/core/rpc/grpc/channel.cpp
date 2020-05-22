@@ -178,6 +178,9 @@ private:
 
             InitialMetadataBuilder_.Add(RequestIdMetadataKey, ToString(Request_->GetRequestId()));
             InitialMetadataBuilder_.Add(UserMetadataKey, Request_->GetUser());
+            if (Request_->GetUserTag()) {
+                InitialMetadataBuilder_.Add(UserTagMetadataKey, Request_->GetUserTag());
+            }
 
             TProtocolVersion protocolVersion{
                 Request_->Header().protocol_version_major(),

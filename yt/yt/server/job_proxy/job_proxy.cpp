@@ -550,7 +550,7 @@ TJobResult TJobProxy::DoRun()
 
         auto clusterConnection = NApi::NNative::CreateConnection(Config_->ClusterConnection);
 
-        Client_ = clusterConnection->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
+        Client_ = clusterConnection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::JobUserName));
 
         RetrieveJobSpec();
 

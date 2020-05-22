@@ -339,8 +339,7 @@ void TOperationControllerBase::SleepInInitialize()
 
 void TOperationControllerBase::InitializeClients()
 {
-    TClientOptions options;
-    options.PinnedUser = AuthenticatedUser;
+    auto options = TClientOptions::FromUser(AuthenticatedUser);
     Client = Host
         ->GetClient()
         ->GetNativeConnection()

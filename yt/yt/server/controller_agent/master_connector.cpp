@@ -515,7 +515,7 @@ private:
                     continue;
                 }
                 auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-                auto authenticatedChannel = CreateAuthenticatedChannel(channel, SchedulerUserName);
+                auto authenticatedChannel = CreateAuthenticatedChannel(channel, NRpc::TAuthenticationIdentity(SchedulerUserName));
                 TObjectServiceProxy proxy(authenticatedChannel);
                 batchReqs[cellTag] = proxy.ExecuteBatch();
             }

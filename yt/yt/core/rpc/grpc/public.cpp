@@ -6,6 +6,7 @@ namespace NYT::NRpc::NGrpc {
 
 const char* const RequestIdMetadataKey = "yt-request-id";
 const char* const UserMetadataKey = "yt-user";
+const char* const UserTagMetadataKey = "yt-user-tag";
 const char* const UserAgentMetadataKey = "user-agent";
 const char* const AuthTokenMetadataKey = "yt-auth-token";
 const char* const AuthSessionIdMetadataKey = "yt-auth-session-id";

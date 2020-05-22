@@ -124,8 +124,7 @@ void TBootstrap::DoRun()
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
     Connection_ = NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
 
-    TClientOptions clientOptions;
-    clientOptions.PinnedUser = NSecurityClient::SchedulerUserName;
+    auto clientOptions = TClientOptions::FromUser(NSecurityClient::SchedulerUserName);
     Client_ = Connection_->CreateNativeClient(clientOptions);
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
@@ -205,7 +204,7 @@ const NNative::IClientPtr& TBootstrap::GetRemoteMasterClient(TCellTag tag) const
     auto it = RemoteClients_.find(tag);
     if (it == RemoteClients_.end()) {
         auto connection = NNative::GetRemoteConnectionOrThrow(Client_->GetNativeConnection(), tag);
-        auto client = connection->CreateNativeClient(TClientOptions(NSecurityClient::SchedulerUserName));
+        auto client = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::SchedulerUserName));
         auto result = RemoteClients_.emplace(tag, client);
         YT_VERIFY(result.second);
         it = result.first;

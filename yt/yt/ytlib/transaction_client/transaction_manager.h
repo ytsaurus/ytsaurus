@@ -132,6 +132,7 @@ class TTransactionManager
 public:
     TTransactionManager(
         NApi::NNative::IConnectionPtr connection,
+        // XXX
         const TString& user);
 
     ~TTransactionManager();

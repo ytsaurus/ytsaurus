@@ -158,12 +158,6 @@ public:
             ->Via(Slot_->GetGuardedAutomatonInvoker());
     }
 
-    std::unique_ptr<TMutation> CreateRegisterTransactionActionsMutation(
-        TCtxRegisterTransactionActionsPtr context)
-    {
-        return CreateMutation(HydraManager_, std::move(context));
-    }
-
     TTransaction* FindPersistentTransaction(TTransactionId transactionId)
     {
         return PersistentTransactionMap_.Find(transactionId);
@@ -213,7 +207,6 @@ public:
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
-        const TString& user = TString(),
         bool* fresh = nullptr)
     {
         if (fresh) {
@@ -244,7 +237,7 @@ public:
         transactionHolder->SetStartTimestamp(startTimestamp);
         transactionHolder->SetState(ETransactionState::Active);
         transactionHolder->SetTransient(transient);
-        transactionHolder->SetUser(user);
+        transactionHolder->AuthenticationIdentity() = NRpc::GetCurrentAuthenticationIdentity();
 
         auto& map = transient ? TransientTransactionMap_ : PersistentTransactionMap_;
         auto* transaction = map.Insert(transactionId, std::move(transactionHolder));
@@ -315,6 +308,24 @@ public:
         return transactions;
     }
 
+    TFuture<void> RegisterTransactionActions(
+        TTransactionId transactionId,
+        TTimestamp transactionStartTimestamp,
+        TDuration transactionTimeout,
+        TTransactionSignature signature,
+        ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions)
+    {
+        NTabletNode::NProto::TReqRegisterTransactionActions request;
+        ToProto(request.mutable_transaction_id(), transactionId);
+        request.set_transaction_start_timestamp(transactionStartTimestamp);
+        request.set_transaction_timeout(ToProto<i64>(transactionTimeout));
+        request.set_signature(signature);
+        request.mutable_actions()->Swap(&actions);
+        NRpc::WriteAuthenticationIdentityToProto(&request, NRpc::GetCurrentAuthenticationIdentity());
+        return CreateMutation(HydraManager_, request)
+            ->CommitAndLog(Logger).AsVoid();
+    }
+
     IYPathServicePtr GetOrchidService()
     {
         return OrchidService_;
@@ -341,6 +352,8 @@ public:
             state = transaction->GetState();
             signature = transaction->GetTransientSignature();
         }
+
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&transaction->AuthenticationIdentity());
 
         // Allow preparing transactions in Active and TransientCommitPrepared (for persistent mode) states.
         if (state != ETransactionState::Active &&
@@ -383,6 +396,8 @@ public:
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&transaction->AuthenticationIdentity());
+
         if (!transaction->IsActive() && !force) {
             transaction->ThrowInvalidState();
         }
@@ -400,6 +415,10 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetPersistentTransactionOrThrow(transactionId);
+
+        // Make a copy, transaction may die.
+        auto identity = transaction->AuthenticationIdentity();
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::Committed) {
@@ -447,6 +466,10 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetPersistentTransactionOrThrow(transactionId);
+
+        // Make a copy, transaction may die.
+        auto identity = transaction->AuthenticationIdentity();
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
         auto state = transaction->GetPersistentState();
         if (state == ETransactionState::PersistentCommitPrepared && !force) {
@@ -834,12 +857,15 @@ private:
     }
 
 
-    void HydraRegisterTransactionActions(NTabletClient::NProto::TReqRegisterTransactionActions* request)
+    void HydraRegisterTransactionActions(NTabletNode::NProto::TReqRegisterTransactionActions* request)
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto signature = request->signature();
+
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
         auto* transaction = GetOrCreateTransaction(
             transactionId,
@@ -1056,12 +1082,6 @@ TTransactionManager::TTransactionManager(
 
 TTransactionManager::~TTransactionManager() = default;
 
-std::unique_ptr<TMutation> TTransactionManager::CreateRegisterTransactionActionsMutation(
-    TCtxRegisterTransactionActionsPtr context)
-{
-    return Impl_->CreateRegisterTransactionActionsMutation(std::move(context));
-}
-
 IYPathServicePtr TTransactionManager::GetOrchidService()
 {
     return Impl_->GetOrchidService();
@@ -1072,7 +1092,6 @@ TTransaction* TTransactionManager::GetOrCreateTransaction(
     TTimestamp startTimestamp,
     TDuration timeout,
     bool transient,
-    const TString& user,
     bool* fresh)
 {
     return Impl_->GetOrCreateTransaction(
@@ -1080,7 +1099,6 @@ TTransaction* TTransactionManager::GetOrCreateTransaction(
         startTimestamp,
         timeout,
         transient,
-        user,
         fresh);
 }
 
@@ -1097,6 +1115,21 @@ void TTransactionManager::DropTransaction(TTransaction* transaction)
 std::vector<TTransaction*> TTransactionManager::GetTransactions()
 {
     return Impl_->GetTransactions();
+}
+
+TFuture<void> TTransactionManager::RegisterTransactionActions(
+    TTransactionId transactionId,
+    TTimestamp transactionStartTimestamp,
+    TDuration transactionTimeout,
+    TTransactionSignature signature,
+    ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions)
+{
+    return Impl_->RegisterTransactionActions(
+        transactionId,
+        transactionStartTimestamp,
+        transactionTimeout,
+        signature,
+        std::move(actions));
 }
 
 void TTransactionManager::RegisterTransactionActionHandlers(

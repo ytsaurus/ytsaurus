@@ -2,6 +2,7 @@
 #include "private.h"
 #include "config.h"
 #include "message.h"
+#include "authentication_identity.h"
 
 #include <yt/core/bus/bus.h>
 
@@ -50,9 +51,8 @@ void TServiceContextBase::Initialize()
 {
     RequestId_ = FromProto<TRequestId>(RequestHeader_->request_id());
     RealmId_ = FromProto<TRealmId>(RequestHeader_->realm_id());
-    User_ = RequestHeader_->has_user()
-        ? RequestHeader_->user()
-        : RootUserName;
+    AuthenticationIdentity_.User = RequestHeader_->has_user() ? RequestHeader_->user() : RootUserName;
+    AuthenticationIdentity_.UserTag = RequestHeader_->has_user_tag() ? RequestHeader_->user_tag() : AuthenticationIdentity_.User;
 
     YT_ASSERT(RequestMessage_.Size() >= 2);
     RequestBody_ = RequestMessage_[1];
@@ -310,9 +310,9 @@ TRealmId TServiceContextBase::GetRealmId() const
     return RealmId_;
 }
 
-const TString& TServiceContextBase::GetUser() const
+const TAuthenticationIdentity& TServiceContextBase::GetAuthenticationIdentity() const
 {
-    return User_;
+    return AuthenticationIdentity_;
 }
 
 const TRequestHeader& TServiceContextBase::RequestHeader() const
@@ -448,9 +448,9 @@ TRealmId TServiceContextWrapper::GetRealmId() const
     return UnderlyingContext_->GetRealmId();
 }
 
-const TString& TServiceContextWrapper::GetUser() const
+const TAuthenticationIdentity& TServiceContextWrapper::GetAuthenticationIdentity() const
 {
-    return UnderlyingContext_->GetUser();
+    return UnderlyingContext_->GetAuthenticationIdentity();
 }
 
 bool TServiceContextWrapper::IsReplied() const

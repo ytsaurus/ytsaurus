@@ -685,7 +685,6 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomaton(),
         HydraFacade_->GetResponseKeeper(),
         TransactionManager_,
-        SecurityManager_,
         CellId_,
         TimestampProvider_,
         std::vector<ITransactionParticipantProviderPtr>{

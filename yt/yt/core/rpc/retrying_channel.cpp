@@ -276,11 +276,20 @@ private:
 
         void DoSend()
         {
-            YT_LOG_DEBUG("Request attempt started (RequestId: %v, Method: %v.%v, User: %v, Attempt: %v of %v, RequestTimeout: %v, RetryTimeout: %v)",
+            YT_LOG_DEBUG("Request attempt started (RequestId: %v, Method: %v.%v, %v%vAttempt: %v of %v, RequestTimeout: %v, RetryTimeout: %v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),
-                Request_->GetUser(),
+                MakeFormatterWrapper([&] (auto* builder) {
+                    if (Request_->GetUser()) {
+                        builder->AppendFormat("User: %v, ", Request_->GetUser());
+                    }
+                }),
+                MakeFormatterWrapper([&] (auto* builder) {
+                    if (Request_->GetUserTag() && Request_->GetUserTag() != Request_->GetUser()) {
+                        builder->AppendFormat("UserTag: %v, ", Request_->GetUserTag());
+                    }
+                }),
                 CurrentAttempt_,
                 Config_->RetryAttempts,
                 Options_.Timeout,

@@ -50,8 +50,7 @@ void TBootstrap::Run()
 
     Connection_ = CreateConnection(Config_->ClusterConnection);
 
-    NApi::TClientOptions clientOptions;
-    clientOptions.PinnedUser = Config_->ClusterUser;
+    auto clientOptions = NApi::TClientOptions::FromUser(Config_->ClusterUser);
     Client_ = Connection_->CreateNativeClient(clientOptions);
 
     LogTailer_->Run();

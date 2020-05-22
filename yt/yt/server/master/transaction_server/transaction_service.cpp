@@ -66,13 +66,13 @@ private:
         if (request->has_deadline()) {
             hydraRequest.set_deadline(request->deadline());
         }
-        hydraRequest.set_user_name(context->GetUser());
         hydraRequest.mutable_hint_id()->Swap(request->mutable_hint_id());
         hydraRequest.mutable_replicate_to_cell_tags()->Swap(request->mutable_replicate_to_cell_tags());
         hydraRequest.set_dont_replicate(request->dont_replicate());
         if (title) {
             hydraRequest.set_title(*title);
         }
+        NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, context->GetAuthenticationIdentity());
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager

@@ -44,9 +44,8 @@ Y_FORCE_INLINE TSpanId TTraceContext::GetFollowsFromSpanId() const
     return FollowsFromSpanId_;
 }
 
-Y_FORCE_INLINE TString TTraceContext::GetSpanName() const
+Y_FORCE_INLINE const TString& TTraceContext::GetSpanName() const
 {
-    auto guard = Guard(Lock_);
     return SpanName_;
 }
 

@@ -93,6 +93,8 @@
 
 #include <yt/core/ypath/token.h>
 
+#include <yt/core/rpc/authentication_identity.h>
+
 #include <algorithm>
 
 namespace NYT::NTabletServer {
@@ -1908,10 +1910,9 @@ public:
                     YT_ABORT();
             }
         } catch (const std::exception& ex) {
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
-            YT_LOG_ALERT_UNLESS(IsRecovery(), ex, "Error cloning table (TableId: %v, User: %v)",
+            YT_LOG_ALERT_UNLESS(IsRecovery(), ex, "Error cloning table (TableId: %v, %v)",
                 sourceTable->GetId(),
-                securityManager->GetAuthenticatedUserName());
+                NRpc::GetCurrentAuthenticationIdentity());
         }
 
         // Undo the harm done in TChunkOwnerTypeHandler::DoClone.

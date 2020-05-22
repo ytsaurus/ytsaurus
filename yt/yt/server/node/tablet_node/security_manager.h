@@ -4,7 +4,7 @@
 
 #include <yt/server/node/cluster_node/public.h>
 
-#include <yt/server/lib/security_server/security_manager.h>
+#include <yt/server/lib/security_server/resource_limits_manager.h>
 
 #include <yt/core/actions/future.h>
 
@@ -16,33 +16,14 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A simple RAII guard for setting the authenticated user.
-/*!
- *  \see #TSecurityManager::SetAuthenticatedUser
- *  \see #TSecurityManager::ResetAuthenticatedUser
- */
-class TAuthenticatedUserGuard
-    : public NSecurityServer::TAuthenticatedUserGuardBase
-{
-public:
-    TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, const std::optional<TString>& optionalUser);
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSecurityManager
-    : public NSecurityServer::ISecurityManager
-    , public NSecurityServer::IResourceLimitsManager
+ class TSecurityManager
+    : public NSecurityServer::IResourceLimitsManager
 {
 public:
     TSecurityManager(
         TSecurityManagerConfigPtr config,
         NClusterNode::TBootstrap* bootstrap);
     ~TSecurityManager();
-
-    virtual void SetAuthenticatedUserByNameOrThrow(const TString& user) override;
-    virtual void ResetAuthenticatedUser() override;
-    virtual std::optional<TString> GetAuthenticatedUserName() override;
 
     TFuture<void> CheckResourceLimits(
         const TString& account,

@@ -57,15 +57,13 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, StartOperation)
     {
-        auto type = EOperationType(request->type());
+        auto type = CheckedEnumCast<EOperationType>(request->type());
         auto transactionId = GetTransactionId(context);
         auto mutationId = context->GetMutationId();
-        const auto& user = context->GetUser();
 
-        context->SetRequestInfo("Type: %v, TransactionId: %v, User: %v",
+        context->SetRequestInfo("Type: %v, TransactionId: %v",
             type,
-            transactionId,
-            user);
+            transactionId);
 
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
@@ -81,7 +79,7 @@ private:
             type,
             transactionId,
             mutationId,
-            user,
+            context->GetAuthenticationIdentity().User,
             std::move(parseSpecResult));
 
         auto operation = WaitFor(asyncResult)
@@ -108,8 +106,7 @@ private:
             return;
         }
 
-        const auto& user = context->GetUser();
-
+        const auto& user = context->GetAuthenticationIdentity().User;
         auto error = TError("Operation aborted by user request")
             << TErrorAttribute("user", user);
         if (request->has_abort_message()) {
@@ -145,7 +142,7 @@ private:
         auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);
         auto asyncResult = scheduler->SuspendOperation(
             operation,
-            context->GetUser(),
+            context->GetAuthenticationIdentity().User,
             abortRunningJobs);
 
         context->ReplyFrom(asyncResult);
@@ -168,7 +165,7 @@ private:
         auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);
         auto asyncResult = scheduler->ResumeOperation(
             operation,
-            context->GetUser());
+            context->GetAuthenticationIdentity().User);
 
         context->ReplyFrom(asyncResult);
     }
@@ -191,7 +188,7 @@ private:
         auto asyncResult = scheduler->CompleteOperation(
             operation,
             TError("Operation completed by user request"),
-            context->GetUser());
+            context->GetAuthenticationIdentity().User);
 
         context->ReplyFrom(asyncResult);
     }
@@ -219,7 +216,7 @@ private:
         }
 
         auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);
-        auto asyncResult = scheduler->UpdateOperationParameters(operation, context->GetUser(), parametersNode);
+        auto asyncResult = scheduler->UpdateOperationParameters(operation, context->GetAuthenticationIdentity().User, parametersNode);
         context->ReplyFrom(asyncResult);
     }
 };

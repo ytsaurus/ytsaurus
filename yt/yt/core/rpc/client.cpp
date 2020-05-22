@@ -87,8 +87,7 @@ TClientRequest::TClientRequest(const TClientRequest& other)
 TSharedRefArray TClientRequest::Serialize()
 {
     if (FirstTimeSerialization_) {
-        SetCodecsInHeader();
-        SetStreamingParametersInHeader();
+        PrepareHeader();
     } else {
         if (StreamingEnabled_) {
             THROW_ERROR_EXCEPTION("Retries are not supported for requests with streaming");
@@ -197,18 +196,22 @@ const TString& TClientRequest::GetMethod() const
 
 const TString& TClientRequest::GetUser() const
 {
-    return Header_.has_user()
-        ? Header_.user()
-        : RootUserName;
+    return User_;
 }
 
 void TClientRequest::SetUser(const TString& user)
 {
-    if (user == RootUserName) {
-        Header_.clear_user();
-    } else {
-        Header_.set_user(user);
-    }
+    User_ = user;
+}
+
+const TString& TClientRequest::GetUserTag() const
+{
+    return UserTag_;
+}
+
+void TClientRequest::SetUserTag(const TString& tag)
+{
+    UserTag_ = tag;
 }
 
 void TClientRequest::SetUserAgent(const TString& userAgent)
@@ -384,24 +387,25 @@ void TClientRequest::TraceRequest(const NTracing::TTraceContextPtr& traceContext
     traceContext->AddTag(EndpointAnnotation, Channel_->GetEndpointDescription());
 }
 
-void TClientRequest::SetCodecsInHeader()
+void TClientRequest::PrepareHeader()
 {
     // COMPAT(kiselyovp): legacy RPC codecs
-    if (EnableLegacyRpcCodecs_) {
-        return;
+    if (!EnableLegacyRpcCodecs_) {
+        Header_.set_request_codec(ToProto<int>(RequestCodec_));
+        Header_.set_response_codec(ToProto<int>(ResponseCodec_));
     }
 
-    Header_.set_request_codec(static_cast<int>(RequestCodec_));
-    Header_.set_response_codec(static_cast<int>(ResponseCodec_));
-}
-
-void TClientRequest::SetStreamingParametersInHeader()
-{
-    if (!StreamingEnabled_) {
-        return;
+    if (StreamingEnabled_) {
+        ToProto(Header_.mutable_server_attachments_streaming_parameters(), ServerAttachmentsStreamingParameters_);
     }
 
-    ToProto(Header_.mutable_server_attachments_streaming_parameters(), ServerAttachmentsStreamingParameters_);
+    if (User_ && User_ != RootUserName) {
+        Header_.set_user(User_);
+    }
+
+    if (UserTag_ && UserTag_ != Header_.user()) {
+        Header_.set_user_tag(UserTag_);
+    }
 }
 
 const TSharedRefArray& TClientRequest::GetSerializedData() const

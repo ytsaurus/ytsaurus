@@ -95,19 +95,55 @@ static const auto ProfilingPeriod = TDuration::MilliSeconds(10000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAuthenticatedUserGuard::TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, TUser* user)
+TAuthenticatedUserGuard::TAuthenticatedUserGuard(
+    TSecurityManagerPtr securityManager,
+    TUser* user,
+    const TString& userTag)
 {
-    if (user) {
-        securityManager->SetAuthenticatedUser(user);
-        SecurityManager_ = std::move(securityManager);
+    if (!user) {
+        return;
     }
+
+    User_ = user;
+    securityManager->SetAuthenticatedUser(user);
+    SecurityManager_ = std::move(securityManager);
+
+    AuthenticationIdentity_ = NRpc::TAuthenticationIdentity(
+        user->GetName(),
+        userTag ? userTag : user->GetName());
+    AuthenticationIdentityGuard_ = NRpc::TCurrentAuthenticationIdentityGuard(&AuthenticationIdentity_);
 }
+
+TAuthenticatedUserGuard::TAuthenticatedUserGuard(
+    TSecurityManagerPtr securityManager,
+    NRpc::TAuthenticationIdentity identity)
+{
+    User_ = securityManager->GetUserByNameOrThrow(identity.User);
+    
+    securityManager->SetAuthenticatedUser(User_);
+    SecurityManager_ = std::move(securityManager);
+
+    AuthenticationIdentity_ = std::move(identity);
+    AuthenticationIdentityGuard_ = NRpc::TCurrentAuthenticationIdentityGuard(&AuthenticationIdentity_);
+}
+
+TAuthenticatedUserGuard::TAuthenticatedUserGuard(
+    TSecurityManagerPtr securityManager)
+    : TAuthenticatedUserGuard(
+        std::move(securityManager),
+        NRpc::GetCurrentAuthenticationIdentity())
+{ }
 
 TAuthenticatedUserGuard::~TAuthenticatedUserGuard()
 {
     if (SecurityManager_) {
         SecurityManager_->ResetAuthenticatedUser();
     }
+}
+
+TUser* TAuthenticatedUserGuard::GetUser() const
+{
+    return User_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1238,11 +1274,6 @@ public:
         *AuthenticatedUser_ = user;
     }
 
-    void SetAuthenticatedUserByNameOrThrow(const TString& userName)
-    {
-        SetAuthenticatedUser(GetUserByNameOrThrow(userName));
-    }
-
     void ResetAuthenticatedUser()
     {
         *AuthenticatedUser_ = nullptr;
@@ -1257,14 +1288,6 @@ public:
         }
 
         return result ? result : RootUser_;
-    }
-
-    std::optional<TString> GetAuthenticatedUserName()
-    {
-        if (auto* user = GetAuthenticatedUser()) {
-            return user->GetName();
-        }
-        return std::nullopt;
     }
 
 
@@ -3694,11 +3717,6 @@ void TSecurityManager::SetAuthenticatedUser(TUser* user)
     Impl_->SetAuthenticatedUser(user);
 }
 
-void TSecurityManager::SetAuthenticatedUserByNameOrThrow(const TString& userName)
-{
-    Impl_->SetAuthenticatedUserByNameOrThrow(userName);
-}
-
 void TSecurityManager::ResetAuthenticatedUser()
 {
     Impl_->ResetAuthenticatedUser();
@@ -3707,11 +3725,6 @@ void TSecurityManager::ResetAuthenticatedUser()
 TUser* TSecurityManager::GetAuthenticatedUser()
 {
     return Impl_->GetAuthenticatedUser();
-}
-
-std::optional<TString> TSecurityManager::GetAuthenticatedUserName()
-{
-    return Impl_->GetAuthenticatedUserName();
 }
 
 bool TSecurityManager::IsSafeMode()

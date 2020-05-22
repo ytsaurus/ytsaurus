@@ -599,7 +599,7 @@ TRowset TClient::DoLookupRowsOnce(
 
     NSecurityClient::TPermissionKey permissionKey{
         .Object = FromObjectId(tableInfo->TableId),
-        .User = Options_.GetUser(),
+        .User = Options_.GetAuthenticatedUser(),
         .Permission = EPermission::Read,
         .Columns = GetLookupColumns(remappedColumnFilter, schema)
     };
@@ -1004,7 +1004,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         }
         permissionKeys.push_back(NSecurityClient::TPermissionKey{
             .Object = FromObjectId(id),
-            .User = Options_.GetUser(),
+            .User = Options_.GetAuthenticatedUser(),
             .Permission = EPermission::Read,
             .Columns = std::move(columns)
         });
@@ -1017,7 +1017,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     if (options.ExecutionPool) {
         permissionKeys.push_back(NSecurityClient::TPermissionKey{
             .Object = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool),
-            .User = Options_.GetUser(),
+            .User = Options_.GetAuthenticatedUser(),
             .Permission = EPermission::Use
         });
     }
@@ -1472,7 +1472,7 @@ void TClient::DoTrimTable(
     const auto& permissionCache = Connection_->GetPermissionCache();
     NSecurityClient::TPermissionKey permissionKey{
         .Object = FromObjectId(tableInfo->TableId),
-        .User = Options_.GetUser(),
+        .User = Options_.GetAuthenticatedUser(),
         .Permission = NYTree::EPermission::Write
     };
     WaitFor(permissionCache->Get(permissionKey))

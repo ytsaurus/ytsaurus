@@ -39,7 +39,7 @@ void TClient::SetTouchedAttribute(
     const TPrerequisiteOptions& options,
     TTransactionId transactionId)
 {
-    auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions(NSecurityClient::FileCacheUserName));
+    auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::FileCacheUserName));
 
     // Set /@touched attribute.
     {
@@ -175,8 +175,8 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
             THROW_ERROR_EXCEPTION("You need %Qlv or %Qlv permission to use file cache",
                 EPermission::Use,
                 EPermission::Write)
-                << usePermissionResult.ToError(Options_.GetUser(), EPermission::Use)
-                << writePermissionResult.ToError(Options_.GetUser(), EPermission::Write);
+                << usePermissionResult.ToError(Options_.GetAuthenticatedUser(), EPermission::Use)
+                << writePermissionResult.ToError(Options_.GetAuthenticatedUser(), EPermission::Write);
         }
     }
 
@@ -214,7 +214,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
     }
 
     auto destination = GetFilePathInCache(expectedMD5, options.CachePath);
-    auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions(NSecurityClient::FileCacheUserName));
+    auto fileCacheClient = Connection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::FileCacheUserName));
 
     // Copy file.
     {

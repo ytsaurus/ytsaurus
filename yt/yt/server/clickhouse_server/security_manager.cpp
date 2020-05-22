@@ -209,7 +209,7 @@ private:
                 return;
             }
 
-            if (userName == Client_->GetOptions().PinnedUser) {
+            if (userName == Client_->GetOptions().User) {
                 YT_LOG_DEBUG("Username is %Qv which is default user from config, allowing this user to register",
                     userName);
                 return;

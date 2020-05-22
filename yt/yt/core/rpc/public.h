@@ -41,6 +41,8 @@ class TTypedServiceContext;
 
 struct TServiceId;
 
+struct TAuthenticationContext;
+struct TAuthenticationIdentity;
 struct TAuthenticationResult;
 
 DECLARE_REFCOUNTED_STRUCT(IClientRequest)

@@ -15,7 +15,6 @@ namespace NYT::NTabletNode {
 void LookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
-    const TString& user,
     bool useLookupCache,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NTableClient::TWireProtocolReader* reader,
@@ -24,7 +23,6 @@ void LookupRows(
 void VersionedLookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
-    const TString& user,
     bool useLookupCache,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NTableClient::TRetentionConfigPtr retentionConfig,
@@ -34,7 +32,6 @@ void VersionedLookupRows(
 void LookupRead(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
-    const TString& user,
     bool useLookupCache,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NTableClient::TRetentionConfigPtr retentionConfig,

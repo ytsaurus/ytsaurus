@@ -55,7 +55,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        WaitFor(scheduler->DumpInputContext(jobId, path, context->GetUser()))
+        WaitFor(scheduler->DumpInputContext(jobId, path, context->GetAuthenticationIdentity().User))
             .ThrowOnError();
 
         context->Reply();
@@ -64,7 +64,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobNode)
     {
         auto jobId = FromProto<TJobId>(request->job_id());
-        auto requiredPermissions = EPermissionSet(request->required_permissions());
+        auto requiredPermissions = FromProto<EPermissionSet>(request->required_permissions());
         context->SetRequestInfo("JobId: %v, RequiredPermissions: %v",
             jobId,
             requiredPermissions);
@@ -72,7 +72,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        auto jobNodeDescriptor = WaitFor(scheduler->GetJobNode(jobId, context->GetUser(), requiredPermissions))
+        auto jobNodeDescriptor = WaitFor(scheduler->GetJobNode(jobId, context->GetAuthenticationIdentity().User, requiredPermissions))
             .ValueOrThrow();
 
         context->SetResponseInfo("NodeDescriptor: %v", jobNodeDescriptor);
@@ -90,7 +90,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        WaitFor(scheduler->AbandonJob(jobId, context->GetUser()))
+        WaitFor(scheduler->AbandonJob(jobId, context->GetAuthenticationIdentity().User))
             .ThrowOnError();
 
         context->Reply();
@@ -109,7 +109,7 @@ private:
         auto scheduler = Bootstrap_->GetScheduler();
         scheduler->ValidateConnected();
 
-        WaitFor(scheduler->AbortJob(jobId, interruptTimeout, context->GetUser()))
+        WaitFor(scheduler->AbortJob(jobId, interruptTimeout, context->GetAuthenticationIdentity().User))
             .ThrowOnError();
 
         context->Reply();

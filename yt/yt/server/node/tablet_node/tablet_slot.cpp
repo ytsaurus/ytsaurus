@@ -406,8 +406,8 @@ public:
         }
 
         auto connection = Bootstrap_->GetMasterClient()->GetNativeConnection();
-        auto snapshotClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellSnapshotterUserName));
-        auto changelogClient = connection->CreateNativeClient(TClientOptions(NSecurityClient::TabletCellChangeloggerUserName));
+        auto snapshotClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
+        auto changelogClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
 
         auto snapshotStore = CreateRemoteSnapshotStore(
             Config_->Snapshots,
@@ -544,7 +544,6 @@ public:
                 Automaton_,
                 GetResponseKeeper(),
                 TransactionManager_,
-                Bootstrap_->GetSecurityManager(),
                 GetCellId(),
                 connection->GetTimestampProvider(),
                 std::vector<ITransactionParticipantProviderPtr>{

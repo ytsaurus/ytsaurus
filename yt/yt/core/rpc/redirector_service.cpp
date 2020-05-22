@@ -87,12 +87,12 @@ public:
 
     virtual NConcurrency::IAsyncZeroCopyOutputStreamPtr GetRequestAttachmentsStream() const override
     {
-        YT_UNIMPLEMENTED();
+        YT_ABORT();
     }
 
     virtual NConcurrency::IAsyncZeroCopyInputStreamPtr GetResponseAttachmentsStream() const override
     {
-        YT_UNIMPLEMENTED();
+        YT_ABORT();
     }
 
     virtual bool IsHeavy() const override
@@ -122,23 +122,27 @@ public:
 
     virtual const TString& GetUser() const override
     {
-        return Header_->has_user()
-            ? Header_->user()
-            : RootUserName;
+        return Header_->has_user() ? Header_->user() : RootUserName;
     }
 
     virtual void SetUser(const TString& user) override
     {
-        if (user == RootUserName) {
-            Header_->clear_user();
-        } else {
-            Header_->set_user(user);
-        }
+        YT_ABORT();
     }
 
-    virtual void SetUserAgent(const TString& userAgent) override
+    virtual const TString& GetUserTag() const override
     {
-        Header_->set_user_agent(userAgent);
+        return Header_->has_user_tag() ? Header_->user_tag() : GetUser();
+    }
+
+    virtual void SetUserTag(const TString& /*tag*/) override
+    {
+        YT_ABORT();
+    }
+
+    virtual void SetUserAgent(const TString& /*userAgent*/) override
+    {
+        YT_ABORT();
     }
 
     virtual bool GetRetry() const override
@@ -181,7 +185,6 @@ private:
     const TSharedRefArray Message_;
 
     bool FirstTimeSerialization_ = true;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

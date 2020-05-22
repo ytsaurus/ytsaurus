@@ -153,6 +153,7 @@ private:
             ToProto(hydraRequest.mutable_tablet_id(), tablet->GetId());
             hydraRequest.set_mount_revision(tablet->GetMountRevision());
             hydraRequest.set_trimmed_row_count(trimmedRowCount);
+            NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
             CreateMutation(slot->GetHydraManager(), hydraRequest)
                 ->Commit();
         }

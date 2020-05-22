@@ -17,7 +17,8 @@ message TReqStartTransaction
     optional int64 timeout = 4;
     optional uint64 deadline = 10;
 
-    optional string user_name = 5;
+    required string user = 5;
+    optional string user_tag = 12;
 
     // See NYT.NTransactionClient.NProto.TReqStartTransaction.
     repeated int32 replicate_to_cell_tags = 9;
@@ -28,7 +29,8 @@ message TReqPrepareTransactionCommit
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required uint64 prepare_timestamp = 2;
-    optional string user_name = 3;
+    required string user = 3;
+    optional string user_tag = 4;
 }
 
 message TReqCommitTransaction
