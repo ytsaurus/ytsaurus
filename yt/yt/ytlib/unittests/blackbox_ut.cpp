@@ -40,8 +40,8 @@ protected:
         config->Port = MockHttpServer_.IsStarted() ? MockHttpServer_.GetPort() : static_cast<ui16>(0);
         config->Secure = false;
         config->RequestTimeout = TDuration::Seconds(10);
-        config->AttemptTimeout = TDuration::Seconds(1);
-        config->BackoffTimeout = TDuration::MilliSeconds(10);
+        config->AttemptTimeout = TDuration::Seconds(10);
+        config->BackoffTimeout = TDuration::Seconds(10);
         config->UseTvm = true;
         return config;
     }
