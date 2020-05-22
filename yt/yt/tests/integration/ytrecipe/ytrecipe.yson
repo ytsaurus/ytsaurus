@@ -31,9 +31,9 @@
     ];
 
     resource_limits={
-        cpu_limit=4;
+        cpu_limit=6;
         memory_limit=20000000000;
     };
 
-    job_timeout_seconds=540;
+    job_timeout_seconds=1700;
 }

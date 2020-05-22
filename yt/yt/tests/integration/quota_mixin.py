@@ -29,9 +29,6 @@ class QuotaMixin(YTEnvSetup):
         else:
             pytest.skip("Quota tests without porto are useless")
 
-        if arcadia_interop.is_inside_distbuild():
-            pytest.skip("Quota tests are not supported inside distbuild")
-
         path_to_test = os.path.join(SANDBOX_ROOTDIR, cls.__name__)
         run_id = "run_" + uuid.uuid4().hex[:8]
         cls.path_to_run = os.path.join(path_to_test, run_id)
