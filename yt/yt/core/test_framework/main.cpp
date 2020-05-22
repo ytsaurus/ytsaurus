@@ -4,9 +4,12 @@
 
 #include <yt/core/logging/log_manager.h>
 
+#include <yt/core/ytalloc/bindings.h>
+
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
-#include <yt/core/ytalloc/bindings.h>
+#include <util/system/fs.h>
+#include <util/system/env.h>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +37,12 @@ int main(int argc, char **argv)
         ::testing::InitGoogleTest(&argc, argv);
         ::testing::InitGoogleMock(&argc, argv);
         ::testing::AddGlobalTestEnvironment(new TYTEnvironment());
+
+        // TODO(ignat): support ram_drive_path when this feature would be supported in gtest machinery.
+        auto testSandboxPath = GetEnv("TESTS_SANDBOX");
+        if (!testSandboxPath.empty()) {
+            NFs::SetCurrentWorkingDirectory(testSandboxPath);
+        }
 
         result = RUN_ALL_TESTS();
     } catch (const std::exception& ex) {
