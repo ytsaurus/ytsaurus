@@ -34,6 +34,7 @@ private:
         : public THttpServer::ICallBack
     {
     public:
+        TCallback GetCallback();
         void SetCallback(TCallback callback);
         virtual TClientRequest* CreateClient() override;
 
@@ -49,6 +50,7 @@ private:
             THttpServerImpl* const Owner_;
         };
 
+        TSpinLock Lock_;
         TCallback Callback_;
     };
 

@@ -89,8 +89,15 @@ int TMockHttpServer::GetPort() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMockHttpServer::TCallback TMockHttpServer::THttpServerImpl::GetCallback()
+{
+    auto guard = Guard(Lock_);
+    return Callback_;
+}
+
 void TMockHttpServer::THttpServerImpl::SetCallback(TCallback callback)
 {
+    auto guard = Guard(Lock_);
     Callback_ = std::move(callback);
 }
 
@@ -107,10 +114,14 @@ TMockHttpServer::THttpServerImpl::TRequest::TRequest(TMockHttpServer::THttpServe
 
 bool TMockHttpServer::THttpServerImpl::TRequest::Reply(void* /*opaque*/)
 {
-    if (!Owner_ || !Owner_->Callback_) {
+    TCallback callback;
+    if (Owner_) {
+        callback = Owner_->GetCallback();
+    }
+    if (!callback) {
         Output() << "HTTP/1.0 501 Not Implemented\r\n\r\n";
     } else {
-        Owner_->Callback_(this);
+        callback(this);
     }
     return true;
 }
