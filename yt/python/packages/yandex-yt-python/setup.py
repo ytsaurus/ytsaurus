@@ -45,7 +45,7 @@ def main():
     setup(
         name=PACKAGE_NAME,
         version=version,
-        packages=["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff"] + recursive("yt/packages"),
+        packages=["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff", "yt.clickhouse"] + recursive("yt/packages"),
         package_dir={"yt.packages.certifi": "yt/packages/certifi"},
         package_data={"yt.packages.certifi": ["*.pem"],
                       "yt.wrapper": ["YandexInternalRootCA.crt"]},
