@@ -3,6 +3,7 @@
 #include "dispatcher.h"
 #include "channel_detail.h"
 #include "service.h"
+#include "authentication_identity.h"
 
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/fluent.h>
@@ -152,9 +153,11 @@ class TAuthenticatedChannel
     : public TChannelWrapper
 {
 public:
-    TAuthenticatedChannel(IChannelPtr underlyingChannel, const TString& user)
+    TAuthenticatedChannel(
+        IChannelPtr underlyingChannel,
+        TAuthenticationIdentity identity)
         : TChannelWrapper(std::move(underlyingChannel))
-        , User_(user)
+        , AuthenticationIdentity_(std::move(identity))
     { }
 
     virtual IClientRequestControlPtr Send(
@@ -162,7 +165,7 @@ public:
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
     {
-        request->SetUser(User_);
+        SetAuthenticationIdentity(request, AuthenticationIdentity_);
         return UnderlyingChannel_->Send(
             request,
             responseHandler,
@@ -170,15 +173,19 @@ public:
     }
 
 private:
-    const TString User_;
+    const TAuthenticationIdentity AuthenticationIdentity_;
 
 };
 
-IChannelPtr CreateAuthenticatedChannel(IChannelPtr underlyingChannel, const TString& user)
+IChannelPtr CreateAuthenticatedChannel(
+    IChannelPtr underlyingChannel,
+    TAuthenticationIdentity identity)
 {
     YT_VERIFY(underlyingChannel);
 
-    return New<TAuthenticatedChannel>(std::move(underlyingChannel), user);
+    return New<TAuthenticatedChannel>(
+        std::move(underlyingChannel),
+        std::move(identity));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -189,36 +196,38 @@ class TAuthenticatedChannelFactory
 public:
     TAuthenticatedChannelFactory(
         IChannelFactoryPtr underlyingFactory,
-        const TString& user)
+        TAuthenticationIdentity identity)
         : UnderlyingFactory_(std::move(underlyingFactory))
-        , User_(user)
+        , AuthenticationIdentity_(identity)
     { }
 
     virtual IChannelPtr CreateChannel(const TAddressWithNetwork& addressWithNetwork) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(addressWithNetwork);
-        return CreateAuthenticatedChannel(underlyingChannel, User_);
+        return CreateAuthenticatedChannel(underlyingChannel, AuthenticationIdentity_);
     }
 
     virtual IChannelPtr CreateChannel(const TString& address) override
     {
         auto underlyingChannel = UnderlyingFactory_->CreateChannel(address);
-        return CreateAuthenticatedChannel(underlyingChannel, User_);
+        return CreateAuthenticatedChannel(underlyingChannel, AuthenticationIdentity_);
     }
 
 private:
     const IChannelFactoryPtr UnderlyingFactory_;
-    const TString User_;
+    const TAuthenticationIdentity AuthenticationIdentity_;
 
 };
 
 IChannelFactoryPtr CreateAuthenticatedChannelFactory(
     IChannelFactoryPtr underlyingFactory,
-    const TString& user)
+    TAuthenticationIdentity identity)
 {
     YT_VERIFY(underlyingFactory);
 
-    return New<TAuthenticatedChannelFactory>(std::move(underlyingFactory), user);
+    return New<TAuthenticatedChannelFactory>(
+        std::move(underlyingFactory),
+        std::move(identity));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -492,6 +501,19 @@ void SetMutationId(const IClientRequestPtr& request, TMutationId id, bool retry)
 void SetOrGenerateMutationId(const IClientRequestPtr& request, TMutationId id, bool retry)
 {
     SetMutationId(request, id ? id : TMutationId::Create(), retry);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void SetAuthenticationIdentity(const IClientRequestPtr& request, const TAuthenticationIdentity& identity)
+{
+    request->SetUser(identity.User);
+    request->SetUserTag(identity.UserTag);
+}
+
+void SetCurrentAuthenticationIdentity(const IClientRequestPtr& request)
+{
+    SetAuthenticationIdentity(request, GetCurrentAuthenticationIdentity());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

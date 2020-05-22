@@ -643,7 +643,7 @@ protected:
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
 
         NConcurrency::TReaderWriterSpinLock PerformanceCountersLock;
-        THashMap<TString, TMethodPerformanceCountersPtr> UserToPerformanceCounters;
+        THashMap<TString, TMethodPerformanceCountersPtr> UserTagToPerformanceCounters;
         TMethodPerformanceCountersPtr RootPerformanceCounters;
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr LoggingSuppressionFailedRequestThrottler;
@@ -782,10 +782,10 @@ private:
 
     TMethodPerformanceCountersPtr CreateMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
-        const TString& user);
+        const TString& userTag);
     TMethodPerformanceCounters* GetMethodPerformanceCounters(
         const TRuntimeMethodInfoPtr& runtimeInfo,
-        const TString& user);
+        const TString& userTag);
 
     void OnProfiling();
 };

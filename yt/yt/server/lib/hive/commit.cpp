@@ -20,22 +20,22 @@ TCommit::TCommit(TTransactionId transationId)
 TCommit::TCommit(
     TTransactionId transationId,
     TMutationId mutationId,
-    const std::vector<TCellId>& participantCellIds,
-    const std::vector<TCellId>& prepareOnlyParticipantCellIds,
+    std::vector<TCellId> participantCellIds,
+    std::vector<TCellId> prepareOnlyParticipantCellIds,
     bool distributed,
     bool generatePrepareTimestamp,
     bool inheritCommitTimestamp,
     NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
-    const TString& userName)
+    NRpc::TAuthenticationIdentity identity)
     : TransactionId_(transationId)
     , MutationId_(mutationId)
-    , ParticipantCellIds_(participantCellIds)
-    , PrepareOnlyParticipantCellIds_(prepareOnlyParticipantCellIds)
+    , ParticipantCellIds_(std::move(participantCellIds))
+    , PrepareOnlyParticipantCellIds_(std::move(prepareOnlyParticipantCellIds))
     , Distributed_(distributed)
     , GeneratePrepareTimestamp_(generatePrepareTimestamp)
     , InheritCommitTimestamp_(inheritCommitTimestamp)
     , CoordinatorCommitMode_(coordinatorCommitMode)
-    , UserName_(userName)
+    , AuthenticationIdentity_(std::move(identity))
 { }
 
 TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()
@@ -70,7 +70,8 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, CommitTimestamps_);
     Save(context, PersistentState_);
     Save(context, CoordinatorCommitMode_);
-    Save(context, UserName_);
+    Save(context, AuthenticationIdentity_.User);
+    Save(context, AuthenticationIdentity_.UserTag);
 }
 
 void TCommit::Load(TLoadContext& context)
@@ -103,9 +104,15 @@ void TCommit::Load(TLoadContext& context)
     }
     // COMPAT(savrus)
     if (context.GetVersion() >= 6) {
-        Load(context, UserName_);
+        // COMPAT(babenko)
+        Load(context, AuthenticationIdentity_.User);
+        if (context.GetVersion() >= 9) {
+            Load(context, AuthenticationIdentity_.UserTag);
+        } else {
+            AuthenticationIdentity_.UserTag = AuthenticationIdentity_.User;
+        }
     } else {
-        UserName_ = RootUserName;
+        AuthenticationIdentity_ = GetRootAuthenticationIdentity();
     }
 }
 

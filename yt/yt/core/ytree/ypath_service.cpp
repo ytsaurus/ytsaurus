@@ -578,7 +578,7 @@ private:
     virtual bool DoInvoke(const IServiceContextPtr& context) override
     {
         // TODO(max42): choose permission depending on method.
-        PermissionValidator_.Validate(EPermission::Read, context->GetUser());
+        PermissionValidator_.Validate(EPermission::Read, context->GetAuthenticationIdentity().User);
         ExecuteVerb(UnderlyingService_, context);
         return true;
     }

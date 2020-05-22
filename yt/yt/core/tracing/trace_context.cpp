@@ -63,20 +63,20 @@ TString ToString(const TSpanContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTraceContext::TTraceContext(TSpanContext parentSpanContext, const TString& spanName, TTraceContextPtr parentTraceContext)
+TTraceContext::TTraceContext(TSpanContext parentSpanContext, TString spanName, TTraceContextPtr parentTraceContext)
     : ParentSpanId_(parentSpanContext.SpanId)
+    , ParentContext_(std::move(parentTraceContext))
+    , SpanName_(std::move(spanName))
     , StartTime_(GetCpuInstant())
     , SpanContext_(parentSpanContext.CreateChild())
-    , SpanName_(spanName)
-    , ParentContext_(std::move(parentTraceContext))
 { }
 
-TTraceContext::TTraceContext(TFollowsFrom, TSpanContext parent, const TString& spanName, TTraceContextPtr parentTraceContext)
+TTraceContext::TTraceContext(TFollowsFrom, TSpanContext parent, TString spanName, TTraceContextPtr parentTraceContext)
     : FollowsFromSpanId_(parent.SpanId)
+    , ParentContext_(std::move(parentTraceContext))
+    , SpanName_(std::move(spanName))
     , StartTime_(GetCpuInstant())
     , SpanContext_(parent.CreateChild())
-    , SpanName_(spanName)
-    , ParentContext_(std::move(parentTraceContext))
 { }
 
 TTraceContextPtr TTraceContext::CreateChild(const TString& name)
@@ -87,12 +87,6 @@ TTraceContextPtr TTraceContext::CreateChild(const TString& name)
 TDuration TTraceContext::GetElapsedTime() const
 {
     return CpuDurationToDuration(GetElapsedCpuTime());
-}
-
-void TTraceContext::SetSpanName(const TString& spanName)
-{
-    auto guard = Guard(Lock_);
-    SpanName_ = spanName;
 }
 
 void TTraceContext::SetSampled(bool value)
@@ -128,8 +122,9 @@ TDuration TTraceContext::GetDuration() const
     return NProfiling::CpuDurationToDuration(Duration_);
 }
 
-const TTraceContext::TTagList& TTraceContext::GetTags() const
+TTraceContext::TTagList TTraceContext::GetTags() const
 {
+    auto guard = Guard(Lock_);
     return Tags_;
 }
 

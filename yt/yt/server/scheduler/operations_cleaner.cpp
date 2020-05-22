@@ -403,7 +403,7 @@ public:
             Config_->ArchiveBatchSize,
             Config_->ArchiveBatchTimeout))
         , Client_(Bootstrap_->GetMasterClient()->GetNativeConnection()
-            ->CreateNativeClient(TClientOptions(NSecurityClient::OperationsCleanerUserName)))
+            ->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::OperationsCleanerUserName)))
     { }
 
     void Start()

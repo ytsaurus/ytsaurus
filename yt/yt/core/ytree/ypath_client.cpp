@@ -81,12 +81,22 @@ const TString& TYPathRequest::GetService() const
     return Header_.service();
 }
 
+const TString& TYPathRequest::GetUser() const
+{
+    YT_ABORT();
+}
+
 void TYPathRequest::SetUser(const TString& /*user*/)
 {
     YT_ABORT();
 }
 
-const TString& TYPathRequest::GetUser() const
+const TString& TYPathRequest::GetUserTag() const
+{
+    YT_ABORT();
+}
+
+void TYPathRequest::SetUserTag(const TString& /*tag*/)
 {
     YT_ABORT();
 }

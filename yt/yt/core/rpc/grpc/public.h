@@ -17,6 +17,7 @@ DECLARE_REFCOUNTED_CLASS(TChannelConfig)
 
 extern const char* const RequestIdMetadataKey;
 extern const char* const UserMetadataKey;
+extern const char* const UserTagMetadataKey;
 extern const char* const UserAgentMetadataKey;
 extern const char* const AuthTokenMetadataKey;
 extern const char* const AuthSessionIdMetadataKey;

@@ -138,6 +138,7 @@ message TReqWriteRows
     repeated NYT.NProto.TGuid sync_replica_ids = 12;
     optional int64 data_weight = 13;
     optional string user = 14;
+    optional string user_tag = 15;
 }
 
 message TReqTrimRows
@@ -145,6 +146,8 @@ message TReqTrimRows
     required NYT.NProto.TGuid tablet_id = 1;
     required int64 mount_revision = 2;
     required int64 trimmed_row_count = 3;
+    optional string user = 4;
+    optional string user_tag = 5;
 }
 
 message TReqRotateStore

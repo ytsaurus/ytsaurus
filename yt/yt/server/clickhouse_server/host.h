@@ -50,7 +50,7 @@ public:
     const IInvokerPtr& GetWorkerInvoker() const;
 
     NApi::NNative::IClientPtr GetRootClient() const;
-    NApi::NNative::IClientPtr CreateClient(TString user);
+    NApi::NNative::IClientPtr CreateClient(const TString& user);
 
     TClusterNodes GetNodes() const;
 

@@ -323,6 +323,7 @@ private:
 
         TRequestId RequestId_;
         std::optional<TString> User_;
+        std::optional<TString> UserTag_;
         std::optional<TString> UserAgent_;
         std::optional<NGrpc::NProto::TSslCredentialsExt> SslCredentialsExt_;
         std::optional<NRpc::NProto::TCredentialsExt> RpcCredentialsExt_;
@@ -379,6 +380,7 @@ private:
 
             ParseRequestId();
             ParseUser();
+            ParseUserTag();
             ParseUserAgent();
             ParseRpcCredentials();
             ParseSslCredentials();
@@ -402,12 +404,21 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Request accepted (RequestId: %v, Host: %v, Method: %v.%v, User: %v, PeerAddress: %v, Timeout: %v, ProtocolVersion: %v)",
+            YT_LOG_DEBUG("Request accepted (RequestId: %v, Host: %v, Method: %v.%v, %v%vPeerAddress: %v, Timeout: %v, ProtocolVersion: %v)",
                 RequestId_,
                 ToStringBuf(CallDetails_->host),
                 ServiceName_,
                 MethodName_,
-                User_,
+                MakeFormatterWrapper([&] (auto* builder) {
+                    if (User_) {
+                        builder->AppendFormat("User: %v, ", *User_);
+                    }
+                }),
+                MakeFormatterWrapper([&] (auto* builder) {
+                    if (User_ && UserTag_ && *UserTag_ != *User_) {
+                        builder->AppendFormat("UserTag: %v, ", *UserTag_);
+                    }
+                }),
                 PeerAddressString_,
                 Timeout_,
                 ProtocolVersion_);
@@ -471,6 +482,16 @@ private:
             }
 
             User_ = TString(userString);
+        }
+
+        void ParseUserTag()
+        {
+            auto userTagString = CallMetadata_.Find(UserTagMetadataKey);
+            if (!userTagString) {
+                return;
+            }
+
+            UserTag_ = TString(userTagString);
         }
 
         void ParseUserAgent()
@@ -683,6 +704,9 @@ private:
             ToProto(header->mutable_request_id(), RequestId_);
             if (User_) {
                 header->set_user(*User_);
+            }
+            if (UserTag_) {
+                header->set_user_tag(*UserTag_);
             }
             if (UserAgent_) {
                 header->set_user_agent(*UserAgent_);

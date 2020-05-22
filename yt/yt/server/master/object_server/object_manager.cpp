@@ -59,6 +59,7 @@
 #include <yt/core/profiling/timing.h>
 
 #include <yt/core/rpc/response_keeper.h>
+#include <yt/core/rpc/authentication_identity.h>
 
 #include <yt/core/ytree/node_detail.h>
 
@@ -192,8 +193,8 @@ public:
     IObjectProxyPtr GetSchemaProxy(EObjectType type);
 
     std::unique_ptr<TMutation> CreateExecuteMutation(
-        const TString& userName,
-        const IServiceContextPtr& context);
+        const IServiceContextPtr& context,
+        const TAuthenticationIdentity& identity);
     std::unique_ptr<TMutation> CreateDestroyObjectsMutation(
         const NProto::TReqDestroyObjects& request);
 
@@ -293,9 +294,9 @@ private:
     virtual void OnLeaderActive() override;
     virtual void OnStopLeading() override;
 
-    static TString MakeCodicilData(const TString& userName);
+    static TString MakeCodicilData(const TAuthenticationIdentity& identity);
     void HydraExecuteLeader(
-        const TString& userName,
+        const TAuthenticationIdentity& identity,
         const TString& codicilData,
         const IServiceContextPtr& rpcContext,
         TMutationContext*);
@@ -413,7 +414,7 @@ public:
             }
         }
 
-        if (auto mutationId = NRpc::GetMutationId(forwardedRequestHeader)) {
+        if (auto mutationId = GetMutationId(forwardedRequestHeader)) {
             SetMutationId(&forwardedRequestHeader, GenerateNextForwardedMutationId(mutationId), forwardedRequestHeader.retry());
         }
 
@@ -431,17 +432,17 @@ public:
         auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
         batchReq->SetOriginalRequestId(context->GetRequestId());
         batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService));
-        batchReq->SetUser(context->GetUser());
+        SetAuthenticationIdentity(batchReq, context->GetAuthenticationIdentity());
         batchReq->AddRequestMessage(std::move(forwardedMessage));
 
         auto forwardedRequestId = batchReq->GetRequestId();
 
         const auto& requestProfilingManager = Bootstrap_->GetRequestProfilingManager();
-        auto counters = requestProfilingManager->GetCounters(context->GetUser(), context->GetMethod());
+        auto counters = requestProfilingManager->GetCounters(context->GetAuthenticationIdentity().UserTag, context->GetMethod());
         ObjectServerProfiler.Increment(counters->AutomatonForwardingRequestCounter);
 
         YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
-            "TargetPath: %v, %v%vUser: %v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+            "TargetPath: %v, %v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
             context->GetRequestId(),
             forwardedRequestId,
             context->GetService(),
@@ -457,7 +458,7 @@ public:
                    builder->AppendFormat("PrerequisiteRevisionPaths: %v, ", prerequisiteRevisionPathRewrites);
                }
             }),
-            context->GetUser(),
+            context->GetAuthenticationIdentity(),
             isMutating,
             ForwardedCellTag_,
             peerKind);
@@ -539,11 +540,8 @@ public:
 
     virtual void Invoke(const IServiceContextPtr& context) override
     {
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->GetAuthenticatedUser();
-
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto mutation = objectManager->CreateExecuteMutation(user->GetName(), context);
+        auto mutation = objectManager->CreateExecuteMutation(context, context->GetAuthenticationIdentity());
         mutation->SetAllowLeaderForwarding(true);
         mutation->Commit()
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
@@ -1159,11 +1157,12 @@ void TObjectManager::TImpl::FillAttributes(
 }
 
 std::unique_ptr<TMutation> TObjectManager::TImpl::CreateExecuteMutation(
-    const TString& userName,
-    const IServiceContextPtr& context)
+    const IServiceContextPtr& context,
+    const TAuthenticationIdentity& identity)
 {
     NProto::TReqExecute request;
-    request.set_user_name(userName);
+    WriteAuthenticationIdentityToProto(&request, identity);
+    
     auto requestMessage = context->GetRequestMessage();
     for (const auto& part : requestMessage) {
         request.add_request_parts(part.Begin(), part.Size());
@@ -1173,8 +1172,8 @@ std::unique_ptr<TMutation> TObjectManager::TImpl::CreateExecuteMutation(
     mutation->SetHandler(BIND(
         &TImpl::HydraExecuteLeader,
         MakeStrong(this),
-        userName,
-        MakeCodicilData(userName),
+        identity,
+        MakeCodicilData(identity),
         context));
     return mutation;
 }
@@ -1463,7 +1462,7 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     auto requestId = FromProto<TRequestId>(header.request_id());
     const auto& ypathExt = header.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
 
-    if (auto mutationId = NRpc::GetMutationId(header)) {
+    if (auto mutationId = GetMutationId(header)) {
         SetMutationId(&header, GenerateNextForwardedMutationId(mutationId), header.retry());
     }
 
@@ -1477,21 +1476,23 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
     const auto& cellDirectory = Bootstrap_->GetCellDirectory();
     auto channel = cellDirectory->GetChannelOrThrow(cellId, peerKind);
 
+    auto identity = ParseAuthenticationIdentityFromProto(header);
+
     TObjectServiceProxy proxy(std::move(channel));
     auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
     batchReq->SetOriginalRequestId(requestId);
     batchReq->SetTimeout(timeout);
-    batchReq->SetUser(header.user());
     batchReq->AddRequestMessage(std::move(requestMessage));
+    SetAuthenticationIdentity(batchReq, identity);
 
-    YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, Path: %v, User: %v, Mutating: %v, "
+    YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, Path: %v, %v, Mutating: %v, "
         "CellTag: %v, PeerKind: %v)",
         requestId,
         batchReq->GetRequestId(),
         header.service(),
         header.method(),
         ypathExt.target_path(),
-        header.user(),
+        identity,
         ypathExt.mutating(),
         cellTag,
         peerKind);
@@ -1503,7 +1504,7 @@ TFuture<TSharedRefArray> TObjectManager::TImpl::ForwardObjectRequest(
                 batchReq->GetRequestId());
             auto error = TError(NObjectClient::EErrorCode::ForwardedRequestFailed, "Forwarded request failed")
                 << batchRspOrError;
-            return NRpc::CreateErrorResponseMessage(requestId, batchRspOrError);
+            return CreateErrorResponseMessage(requestId, batchRspOrError);
         }
 
         YT_LOG_DEBUG("Object request forwarding succeeded (RequestId: %v)",
@@ -1553,13 +1554,13 @@ void TObjectManager::TImpl::ReplicateObjectAttributesToSecondaryMaster(
     multicellManager->PostToMaster(req, cellTag);
 }
 
-TString TObjectManager::TImpl::MakeCodicilData(const TString& userName)
+TString TObjectManager::TImpl::MakeCodicilData(const TAuthenticationIdentity& identity)
 {
-    return Format("User: %v", userName);
+    return ToString(identity);
 }
 
 void TObjectManager::TImpl::HydraExecuteLeader(
-    const TString& userName,
+    const TAuthenticationIdentity& identity,
     const TString& codicilData,
     const IServiceContextPtr& rpcContext,
     TMutationContext* mutationContext)
@@ -1572,8 +1573,8 @@ void TObjectManager::TImpl::HydraExecuteLeader(
 
     TUser* user = nullptr;
     try {
-        user = securityManager->GetUserByNameOrThrow(userName);
-        TAuthenticatedUserGuard userGuard(securityManager, user);
+        TAuthenticatedUserGuard userGuard(securityManager, identity);
+        user = userGuard.GetUser();
         ExecuteVerb(RootService_, rpcContext);
     } catch (const std::exception& ex) {
         rpcContext->Reply(ex);
@@ -1610,10 +1611,11 @@ void TObjectManager::TImpl::HydraExecuteFollower(NProto::TReqExecute* request)
         IsRecovery() ? NLogging::TLogger() : ObjectServerLogger,
         NLogging::ELogLevel::Debug);
 
-    const auto& userName = request->user_name();
-    auto codicilData = MakeCodicilData(userName);
+    auto identity = ParseAuthenticationIdentityFromProto(*request);
 
-    HydraExecuteLeader(userName, codicilData, context, GetCurrentMutationContext());
+    auto codicilData = MakeCodicilData(identity);
+
+    HydraExecuteLeader(identity, codicilData, context, GetCurrentMutationContext());
 }
 
 void TObjectManager::TImpl::HydraDestroyObjects(NProto::TReqDestroyObjects* request)
@@ -2201,9 +2203,9 @@ IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
     return Impl_->GetSchemaProxy(type);
 }
 
-std::unique_ptr<TMutation> TObjectManager::CreateExecuteMutation(const TString& userName, const IServiceContextPtr& context)
+std::unique_ptr<TMutation> TObjectManager::CreateExecuteMutation(const IServiceContextPtr& context, const TAuthenticationIdentity& identity)
 {
-    return Impl_->CreateExecuteMutation(userName, context);
+    return Impl_->CreateExecuteMutation(context, identity);
 }
 
 std::unique_ptr<TMutation> TObjectManager::CreateDestroyObjectsMutation(const NProto::TReqDestroyObjects& request)

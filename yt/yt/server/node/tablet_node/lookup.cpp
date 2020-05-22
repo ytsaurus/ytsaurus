@@ -95,7 +95,6 @@ public:
     TLookupSession(
         TTabletSnapshotPtr tabletSnapshot,
         TTimestamp timestamp,
-        const TString& user,
         bool produceAllVersions,
         bool useLookupCache,
         const TColumnFilter& columnFilter,
@@ -121,7 +120,7 @@ public:
             false /*mergeRowsOnFlush*/)
     {
         if (TabletSnapshot_->IsProfilingEnabled()) {
-            Tags_ = AddUserTag(user, TabletSnapshot_->ProfilerTags);
+            Tags_ = AddCurrentUserTag(TabletSnapshot_->ProfilerTags);
         }
     }
 
@@ -446,7 +445,6 @@ static NTableClient::TColumnFilter DecodeColumnFilter(
 void LookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
-    const TString& user,
     bool useLookupCache,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TWireProtocolReader* reader,
@@ -475,7 +473,6 @@ void LookupRows(
     TLookupSession session(
         std::move(tabletSnapshot),
         timestamp,
-        user,
         false,
         useLookupCache,
         columnFilter,
@@ -494,7 +491,6 @@ void LookupRows(
 void VersionedLookupRows(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
-    const TString& user,
     bool useLookupCache,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TRetentionConfigPtr retentionConfig,
@@ -531,7 +527,6 @@ void VersionedLookupRows(
     TLookupSession session(
         std::move(tabletSnapshot),
         timestamp,
-        user,
         true,
         useLookupCache,
         UniversalColumnFilter,
@@ -550,7 +545,6 @@ void VersionedLookupRows(
 void ExecuteSingleRead(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
-    const TString& user,
     bool useLookupCache,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TRetentionConfigPtr retentionConfig,
@@ -563,7 +557,6 @@ void ExecuteSingleRead(
             LookupRows(
                 std::move(tabletSnapshot),
                 timestamp,
-                user,
                 useLookupCache,
                 blockReadOptions,
                 reader,
@@ -574,7 +567,6 @@ void ExecuteSingleRead(
             VersionedLookupRows(
                 std::move(tabletSnapshot),
                 timestamp,
-                user,
                 useLookupCache,
                 blockReadOptions,
                 std::move(retentionConfig),
@@ -591,7 +583,6 @@ void ExecuteSingleRead(
 void LookupRead(
     TTabletSnapshotPtr tabletSnapshot,
     TTimestamp timestamp,
-    const TString& user,
     bool useLookupCache,
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     TRetentionConfigPtr retentionConfig,
@@ -609,7 +600,6 @@ void LookupRead(
         ExecuteSingleRead(
             tabletSnapshot,
             timestamp,
-            user,
             useLookupCache,
             blockReadOptions,
             retentionConfig,

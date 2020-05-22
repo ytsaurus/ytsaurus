@@ -46,6 +46,8 @@
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/fluent.h>
 
+#include <yt/core/rpc/authentication_identity.h>
+
 namespace NYT::NTransactionServer {
 
 using namespace NCellMaster;
@@ -63,10 +65,6 @@ using namespace NCypressServer;
 using namespace NTransactionClient;
 using namespace NTransactionClient::NProto;
 using namespace NSecurityServer;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const TString NullUserId("<null>");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -409,7 +407,7 @@ public:
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction committed (TransactionId: %v, User: %v, CommitTimestamp: %llx, WallTime: %v)",
             transactionId,
-            user ? user->GetName() : NullUserId,
+            user->GetName(),
             commitTimestamp,
             time);
 
@@ -501,7 +499,7 @@ public:
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Transaction aborted (TransactionId: %v, User: %v, Force: %v, WallTime: %v)",
             transactionId,
-            user ? user->GetName() : NullUserId,
+            user->GetName(),
             force,
             time);
 
@@ -752,6 +750,10 @@ public:
             return;
         }
 
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager);
+        securityManager->ValidatePermission(transaction, EPermission::Write);
+
         transaction->SetState(ETransactionState::TransientAbortPrepared);
 
         YT_LOG_DEBUG("Transaction abort prepared (TransactionId: %v)",
@@ -854,17 +856,14 @@ private:
         NTransactionServer::NProto::TReqStartTransaction* request,
         NTransactionServer::NProto::TRspStartTransaction* response)
     {
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-
-        auto* user = request->has_user_name()
-            ? securityManager->GetUserByNameOrThrow(request->user_name())
-            : nullptr;
-
-        TAuthenticatedUserGuard userGuard(securityManager, user);
+        TAuthenticatedUserGuard userGuard(securityManager, std::move(identity));
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto* schema = objectManager->GetSchema(EObjectType::Transaction);
-        securityManager->ValidatePermission(schema, user, EPermission::Create);
+        securityManager->ValidatePermission(schema, EPermission::Create);
 
         auto hintId = FromProto<TTransactionId>(request->hint_id());
 
@@ -961,14 +960,10 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto prepareTimestamp = request->prepare_timestamp();
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-
-        auto* user = request->has_user_name()
-            ? securityManager->GetUserByNameOrThrow(request->user_name())
-            : nullptr;
-
-        TAuthenticatedUserGuard(securityManager, user);
+        TAuthenticatedUserGuard userGuard(securityManager, std::move(identity));
 
         PrepareTransactionCommit(transactionId, true, prepareTimestamp);
     }

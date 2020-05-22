@@ -10,8 +10,6 @@
 #include <yt/server/lib/hydra/entity_map.h>
 #include <yt/server/lib/hydra/mutation.h>
 
-#include <yt/server/lib/security_server/security_manager.h>
-
 #include <yt/server/master/object_server/public.h>
 
 #include <yt/server/master/chunk_server/public.h>
@@ -22,7 +20,7 @@
 
 #include <yt/server/master/transaction_server/public.h>
 
-#include <yt/core/rpc/service.h>
+#include <yt/core/rpc/authentication_identity.h>
 
 namespace NYT::NSecurityServer {
 
@@ -80,11 +78,24 @@ class TAuthenticatedUserGuard
     : public TNonCopyable
 {
 public:
-    TAuthenticatedUserGuard(TSecurityManagerPtr securityManager, TUser* user);
+    TAuthenticatedUserGuard(
+        TSecurityManagerPtr securityManager,
+        TUser* user,
+        const TString& userTag = {});
+    TAuthenticatedUserGuard(
+        TSecurityManagerPtr securityManager,
+        NRpc::TAuthenticationIdentity identity);
+    explicit TAuthenticatedUserGuard(
+        TSecurityManagerPtr securityManager);
     ~TAuthenticatedUserGuard();
 
+    TUser* GetUser() const;
+
 private:
+    TUser* User_ = nullptr;
     TSecurityManagerPtr SecurityManager_;
+    NRpc::TAuthenticationIdentity AuthenticationIdentity_;
+    NRpc::TCurrentAuthenticationIdentityGuard AuthenticationIdentityGuard_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -99,7 +110,7 @@ struct TUserWorkload
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSecurityManager
-    : public ISecurityManager
+    : public TRefCounted
 {
 public:
     explicit TSecurityManager(NCellMaster::TBootstrap* bootstrap);
@@ -269,17 +280,11 @@ public:
     //! Sets the authenticated user.
     void SetAuthenticatedUser(TUser* user);
 
-    //! Sets the authenticated user by user name.
-    virtual void SetAuthenticatedUserByNameOrThrow(const TString& userName) override;
-
-    //! Returns the current user or |nullptr| if there's no one.
+    //! Returns the current user; root if none is set.
     TUser* GetAuthenticatedUser();
 
-    //! Returns the current user or null if there's no one.
-    virtual std::optional<TString> GetAuthenticatedUserName() override;
-
     //! Resets the authenticated user.
-    virtual void ResetAuthenticatedUser() override;
+    virtual void ResetAuthenticatedUser();
 
 
     //! Returns |true| if safe mode is active.

@@ -12,6 +12,8 @@
 
 #include <yt/core/concurrency/public.h>
 
+#include <yt/core/rpc/authentication_identity.h>
+
 #include <yt/core/misc/persistent_queue.h>
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
@@ -76,7 +78,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTransactionSignature, TransientSignature, InitialTransactionSignature);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, ReplicatedRowsPrepared, false);
-    DEFINE_BYVAL_RW_PROPERTY(TString, User);
+    DEFINE_BYREF_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity);
 
 public:
     explicit TTransaction(TTransactionId id);

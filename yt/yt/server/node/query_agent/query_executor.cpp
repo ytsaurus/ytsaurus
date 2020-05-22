@@ -74,6 +74,8 @@
 #include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/async_expiring_cache.h>
 
+#include <yt/core/rpc/authentication_identity.h>
+
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -337,11 +339,8 @@ public:
             }
         }
 
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        MaybeUser_ = securityManager->GetAuthenticatedUserName();
-
         if (profilerGuard.GetProfilerTags().empty() && !TabletSnapshots_.GetProfilerTags().empty()) {
-            profilerGuard.SetProfilerTags(MaybeAddUserTag(TabletSnapshots_.GetProfilerTags()));
+            profilerGuard.SetProfilerTags(AddCurrentUserTag(TabletSnapshots_.GetProfilerTags()));
         }
 
         return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
@@ -370,8 +369,6 @@ private:
     TTabletSnapshotCache TabletSnapshots_;
     const IInvokerPtr Invoker_;
 
-    std::optional<TString> MaybeUser_;
-
     typedef std::function<ISchemafulReaderPtr()> TSubreaderCreator;
 
     void LogSplits(const std::vector<TDataRanges>& splits)
@@ -390,9 +387,7 @@ private:
         std::vector<TSubreaderCreator> subreaderCreators,
         std::vector<std::vector<TDataRanges>> readRanges)
     {
-        NApi::TClientOptions clientOptions;
-        clientOptions.PinnedUser = MaybeUser_;
-
+        auto clientOptions = NApi::TClientOptions::FromAuthenticationIdentity(NRpc::GetCurrentAuthenticationIdentity());
         auto client = Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()
@@ -433,8 +428,6 @@ private:
                 ] (const TQueryPtr& subquery, const TConstJoinClausePtr& joinClause) -> TJoinSubqueryEvaluator {
                     auto remoteOptions = Options_;
                     remoteOptions.MaxSubqueries = 1;
-
-                    auto verboseLogging = Options_.VerboseLogging;
 
                     size_t minKeyWidth = std::numeric_limits<size_t>::max();
                     for (const auto& split : dataSplits) {
@@ -480,7 +473,7 @@ private:
 
                                 prefixRanges.emplace_back(lowerBound, upperBound);
 
-                                YT_LOG_DEBUG_IF(verboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
+                                YT_LOG_DEBUG_IF(Options_.VerboseLogging, "Transforming range [%v .. %v] -> [%v .. %v]",
                                     range.first,
                                     range.second,
                                     lowerBound,
@@ -655,12 +648,9 @@ private:
 
     TQueryStatistics DoExecute()
     {
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        TAuthenticatedUserGuard userGuard(securityManager, MaybeUser_);
-
         auto statistics = DoExecuteImpl();
 
-        auto profilerTags = MaybeAddUserTag(TabletSnapshots_.GetProfilerTags());
+        auto profilerTags = AddCurrentUserTag(TabletSnapshots_.GetProfilerTags());
         if (!profilerTags.empty()) {
             auto& counters = GetLocallyGloballyCachedValue<TSelectCpuProfilerTrait>(profilerTags);
             TabletNodeProfiler.Increment(counters.CpuTime, DurationToValue(statistics.SyncTime));
@@ -1018,7 +1008,7 @@ private:
                 BlockReadOptions_);
         }
 
-        return New<TProfilingReaderWrapper>(reader, MaybeAddUserTag(profilerTags));
+        return New<TProfilingReaderWrapper>(reader, AddCurrentUserTag(profilerTags));
     }
 
     ISchemafulReaderPtr GetTabletReader(
@@ -1036,16 +1026,7 @@ private:
             Options_.Timestamp,
             BlockReadOptions_);
 
-        return New<TProfilingReaderWrapper>(reader, MaybeAddUserTag(profilerTags));
-    }
-
-    TTagIdList MaybeAddUserTag(const TTagIdList& tags)
-    {
-        if (MaybeUser_) {
-            return AddUserTag(*MaybeUser_, tags);
-        } else {
-            return tags;
-        }
+        return New<TProfilingReaderWrapper>(reader, AddCurrentUserTag(profilerTags));
     }
 };
 

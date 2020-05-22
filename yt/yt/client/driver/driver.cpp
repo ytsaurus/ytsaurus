@@ -308,9 +308,16 @@ public:
         YT_LOG_DEBUG("Command received (RequestId: %" PRIx64 ", Command: %v, User: %v)",
             request.Id,
             request.CommandName,
-            user);
+            request.AuthenticatedUser);
 
-        auto client = ClientCache_->GetClient(user, request.UserToken);
+        auto identity = NRpc::TAuthenticationIdentity(user);
+
+        TClientOptions options{
+            .User = request.AuthenticatedUser,
+            .Token = request.UserToken
+        };
+
+        auto client = ClientCache_->Get(identity, options);
 
         auto context = New<TCommandContext>(
             this,

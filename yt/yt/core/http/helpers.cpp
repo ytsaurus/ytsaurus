@@ -375,20 +375,20 @@ bool TryParseTraceParent(const TString& traceParent, NTracing::TSpanContext& spa
 NTracing::TTraceContextPtr GetOrCreateTraceContext(const IRequestPtr& req)
 {
     const auto& headers = req->GetHeaders();
-    NTracing::TTraceContextPtr trace;
+    NTracing::TTraceContextPtr traceContext;
     if (auto* traceParent = headers->Find("traceparent")) {
         NTracing::TSpanContext parentSpan;
         if (TryParseTraceParent(*traceParent, parentSpan)) {
-            trace = New<NTracing::TTraceContext>(parentSpan, "HttpServer");
+            traceContext = New<NTracing::TTraceContext>(parentSpan, "HttpServer");
         }
     }
-    if (!trace) {
+    if (!traceContext) {
         // Generate new trace context from scratch.
-        trace = NTracing::CreateRootTraceContext("HttpServer");
+        traceContext = NTracing::CreateRootTraceContext("HttpServer");
     }
 
-    trace->AddTag("path", TString(req->GetUrl().Path));
-    return trace;
+    traceContext->AddTag("path", TString(req->GetUrl().Path));
+    return traceContext;
 }
 
 std::optional<std::pair<int64_t, int64_t>> GetRange(const THeadersPtr& headers)

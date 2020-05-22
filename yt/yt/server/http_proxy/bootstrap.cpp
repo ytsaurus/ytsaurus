@@ -174,11 +174,8 @@ TBootstrap::~TBootstrap() = default;
 
 void TBootstrap::SetupClients()
 {
-    {
-        TClientOptions options;
-        options.PinnedUser = NSecurityClient::RootUserName;
-        RootClient_ = Connection_->CreateClient(options);
-    }
+    auto options = TClientOptions::FromUser(NSecurityClient::RootUserName);
+    RootClient_ = Connection_->CreateClient(options);
 }
 
 void TBootstrap::HandleRequest(

@@ -890,11 +890,11 @@ private:
             , TabletInfo_(std::move(tabletInfo))
             , TableSession_(std::move(tableSession))
             , Config_(transaction->Client_->GetNativeConnection()->GetConfig())
-            , UserName_(transaction->Client_->GetOptions().GetUser())
             , ColumnEvaluator_(std::move(columnEvaluator))
             , TableMountCache_(transaction->Client_->GetNativeConnection()->GetTableMountCache())
             , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
             , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].GetKeyColumnCount())
+            , EnforceRowCountLimit_(transaction->Client_->GetOptions().GetAuthenticatedUser() != NSecurityClient::ReplicatorUserName)
             , Logger(NLogging::TLogger(transaction->Logger)
                 .AddTag("TabletId: %v", TabletInfo_->TabletId))
         { }
@@ -957,11 +957,11 @@ private:
         const TTabletInfoPtr TabletInfo_;
         const TTableCommitSessionPtr TableSession_;
         const TConnectionConfigPtr Config_;
-        const TString UserName_;
         const TColumnEvaluatorPtr ColumnEvaluator_;
         const ITableMountCachePtr TableMountCache_;
         const int ColumnCount_;
         const int KeyColumnCount_;
+        const bool EnforceRowCountLimit_;
 
         struct TCommitSessionBufferTag
         { };
@@ -1131,9 +1131,7 @@ private:
         void IncrementAndCheckRowCount()
         {
             ++TotalBatchedRowCount_;
-            if (UserName_ != NSecurityClient::ReplicatorUserName &&
-                TotalBatchedRowCount_ > Config_->MaxRowsPerTransaction)
-            {
+            if (EnforceRowCountLimit_ && TotalBatchedRowCount_ > Config_->MaxRowsPerTransaction) {
                 THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::TooManyRowsInTransaction,
                     "Transaction affects too many rows")
@@ -1457,7 +1455,7 @@ private:
             const auto& permissionCache = Client_->GetNativeConnection()->GetPermissionCache();
             NSecurityClient::TPermissionKey permissionKey{
                 .Object = FromObjectId(tableInfo->TableId),
-                .User = Client_->GetOptions().GetUser(),
+                .User = Client_->GetOptions().GetAuthenticatedUser(),
                 .Permission = NYTree::EPermission::Write
             };
             WaitFor(permissionCache->Get(permissionKey))

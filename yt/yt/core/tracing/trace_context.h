@@ -40,12 +40,12 @@ class TTraceContext
 public:
     TTraceContext(
         TSpanContext parentSpanContext,
-        const TString& spanName,
+        TString spanName,
         TTraceContextPtr parentTraceContext = nullptr);
     TTraceContext(
         TFollowsFrom,
         TSpanContext parent,
-        const TString& spanName,
+        TString spanName,
         TTraceContextPtr parentTraceContext = nullptr);
 
     void Finish();
@@ -59,15 +59,14 @@ public:
     TSpanId GetParentSpanId() const;
     TSpanId GetFollowsFromSpanId() const;
 
-    TString GetSpanName() const;
+    const TString& GetSpanName() const;
 
     TInstant GetStartTime() const;
     TDuration GetDuration() const;
 
     using TTagList = SmallVector<std::pair<TString, TString>, 4>;
-    const TTagList& GetTags() const;
+    TTagList GetTags() const;
 
-    void SetSpanName(const TString& spanName);
     void SetSampled(bool value = true);
     void AddTag(const TString& tagKey, const TString& tagValue);
     void ResetStartTime();
@@ -82,17 +81,17 @@ public:
 private:
     const TSpanId ParentSpanId_ = InvalidSpanId;
     const TSpanId FollowsFromSpanId_ = InvalidSpanId;
+    const TTraceContextPtr ParentContext_;
+    const TString SpanName_;
 
     TSpinLock Lock_;
     NProfiling::TCpuInstant StartTime_;
     NProfiling::TCpuDuration Duration_;
     TSpanContext SpanContext_;
-    TString SpanName_;
     TTagList Tags_;
     bool Finished_ = false;
 
     std::atomic<NProfiling::TCpuDuration> ElapsedCpuTime_ = {0};
-    TTraceContextPtr ParentContext_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTraceContext)

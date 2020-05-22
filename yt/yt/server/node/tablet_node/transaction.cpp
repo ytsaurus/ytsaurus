@@ -86,7 +86,8 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, CommitTimestamp_);
     Save(context, PersistentSignature_);
     Save(context, ReplicatedRowsPrepared_);
-    Save(context, User_);
+    Save(context, AuthenticationIdentity_.User);
+    Save(context, AuthenticationIdentity_.UserTag);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -105,7 +106,13 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, PersistentSignature_);
     TransientSignature_ = PersistentSignature_;
     Load(context, ReplicatedRowsPrepared_);
-    Load(context, User_);
+    Load(context, AuthenticationIdentity_.User);
+    // COMPAT(babenko)
+    if (context.GetVersion() < ETabletReign::AuthenticationIdentity) {
+        AuthenticationIdentity_.UserTag = AuthenticationIdentity_.User;
+    } else {
+        Load(context, AuthenticationIdentity_.UserTag);
+    }
 }
 
 TCallback<void(TSaveContext&)> TTransaction::AsyncSave()

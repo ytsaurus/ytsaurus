@@ -252,12 +252,16 @@ TClient::TClient(
     , Logger(NLogging::TLogger(ApiLogger)
         .AddTag("ClientId: %v", TGuid::Create()))
 {
+    if (!Options_.User) {
+        THROW_ERROR_EXCEPTION("Native connection requires non-null \"user\" parameter");
+    }
+    
     auto wrapChannel = [&] (IChannelPtr channel) {
-        channel = CreateAuthenticatedChannel(channel, options.GetUser());
+        channel = CreateAuthenticatedChannel(channel, options.GetAuthenticationIdentity());
         return channel;
     };
     auto wrapChannelFactory = [&] (IChannelFactoryPtr factory) {
-        factory = CreateAuthenticatedChannelFactory(factory, options.GetUser());
+        factory = CreateAuthenticatedChannelFactory(factory, options.GetAuthenticationIdentity());
         return factory;
     };
 
@@ -282,7 +286,7 @@ TClient::TClient(
 
     TransactionManager_ = New<TTransactionManager>(
         Connection_,
-        Options_.GetUser());
+        Options_.GetAuthenticatedUser());
 
     FunctionImplCache_ = CreateFunctionImplCache(
         Connection_->GetConfig()->FunctionImplCache,
@@ -346,7 +350,7 @@ IChannelPtr TClient::GetCellChannelOrThrow(TCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
     auto channel = cellDirectory->GetChannelOrThrow(cellId);
-    return CreateAuthenticatedChannel(std::move(channel), Options_.GetUser());
+    return CreateAuthenticatedChannel(std::move(channel), Options_.GetAuthenticationIdentity());
 }
 
 IChannelPtr TClient::GetSchedulerChannel()
@@ -389,7 +393,7 @@ const IChannelPtr& TClient::GetOperationArchiveChannel(EMasterChannelKind kind)
         // requests for operations archive should be performed under the same user.
         channels[kind] = CreateAuthenticatedChannel(
             Connection_->GetMasterChannelOrThrow(kind, PrimaryMasterCellTag),
-            OperationsClientUserName);
+            NRpc::TAuthenticationIdentity(OperationsClientUserName));
     }
 
     {
@@ -1160,7 +1164,7 @@ TErrorOr<TNodeDescriptor> TClient::TryGetJobNodeDescriptor(
 {
     const auto& cache = Connection_->GetJobNodeDescriptorCache();
     NJobProberClient::TJobNodeDescriptorKey key{
-        .User = Options_.GetUser(),
+        .User = Options_.GetAuthenticatedUser(),
         .JobId = jobId,
         .Permissions = requiredPermissions
     };

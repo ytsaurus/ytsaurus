@@ -2,6 +2,7 @@
 
 #include "server.h"
 #include "service.h"
+#include "authentication_identity.h"
 
 #include <yt/core/ytalloc/memory_zone.h>
 
@@ -37,7 +38,7 @@ public:
     virtual const TString& GetService() const override;
     virtual const TString& GetMethod() const override;
     virtual TRealmId GetRealmId() const override;
-    virtual const TString& GetUser() const override;
+    virtual const TAuthenticationIdentity& GetAuthenticationIdentity() const override;
 
     //! \note Thread affinity: any
     virtual bool IsReplied() const override;
@@ -95,12 +96,12 @@ protected:
     TRequestId RequestId_;
     TRealmId RealmId_;
 
-    TString User_;
+    TAuthenticationIdentity AuthenticationIdentity_;
 
     TSharedRef RequestBody_;
     std::vector<TSharedRef> RequestAttachments_;
 
-    std::atomic<bool> Replied_ = {false};
+    std::atomic<bool> Replied_ = false;
     TError Error_;
 
     TSharedRef ResponseBody_;
@@ -161,7 +162,7 @@ public:
     virtual const TString& GetService() const override;
     virtual const TString& GetMethod() const override;
     virtual TRealmId GetRealmId() const override;
-    virtual const TString& GetUser() const override;
+    virtual const TAuthenticationIdentity& GetAuthenticationIdentity() const override;
 
     virtual bool IsReplied() const override;
     virtual void Reply(const TError& error) override;
@@ -229,7 +230,7 @@ public:
 protected:
     const NLogging::TLogger Logger;
 
-    std::atomic<bool> Started_ = {false};
+    std::atomic<bool> Started_ = false;
 
     NConcurrency::TReaderWriterSpinLock ServicesLock_;
     TServerConfigPtr Config_;

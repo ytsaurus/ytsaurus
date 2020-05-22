@@ -28,7 +28,7 @@ using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr int AccessLogStackBufferSize = 1024;
+static constexpr int AccessLogStackBufferSize = 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -61,6 +61,21 @@ void TraverseTransactionAncestors(
                 .EndMap();
         });
 }
+
+namespace {
+
+TOneShotFluentLogEvent LogStructuredEventFluently(ELogLevel level)
+{
+    const auto& identity = NRpc::GetCurrentAuthenticationIdentity();
+    return NLogging::LogStructuredEventFluently(AccessLogger, level)
+        .Item("user").Value(identity.User)
+        .DoIf(identity.UserTag != identity.User, [&] (auto fluent) {
+            fluent
+                .Item("user_tag").Value(identity.UserTag);
+        });
+}
+
+} // namespace
 
 void LogAccess(
     NCellMaster::TBootstrap* bootstrap,
@@ -96,8 +111,7 @@ void LogAccess(
         }
     };
 
-    LogStructuredEventFluently(AccessLogger, ELogLevel::Info)
-        .Item("user").Value(context->GetUser())
+    LogStructuredEventFluently(ELogLevel::Info)
         .Item("method").Value(methodOverride.value_or(context->GetMethod()))
         .Item("path").Do([&] (auto fluent) {
             doPath(fluent, path, !targetSuffixIsForDestinationPath);
@@ -151,8 +165,7 @@ void LogAccess(
     YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsLeader());
     YT_ASSERT(!bootstrap->GetHydraFacade()->GetHydraManager()->IsRecovery());
 
-    LogStructuredEventFluently(AccessLogger, ELogLevel::Info)
-        .Item("user").Value(bootstrap->GetSecurityManager()->GetAuthenticatedUserName())
+    LogStructuredEventFluently(ELogLevel::Info)
         .Item("method").Value(method)
         .Item("path").Value(path)
         .DoIf(transaction, [&] (auto fluent) {
@@ -162,7 +175,8 @@ void LogAccess(
         });
 }
 
-bool IsAccessLoggedType(const EObjectType type) {
+bool IsAccessLoggedType(const EObjectType type)
+{
     static const THashSet<EObjectType> typesForAccessLog = {
         EObjectType::File,
         EObjectType::Journal,
@@ -171,5 +185,7 @@ bool IsAccessLoggedType(const EObjectType type) {
     };
     return typesForAccessLog.contains(type);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityServer

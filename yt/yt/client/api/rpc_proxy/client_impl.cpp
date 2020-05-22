@@ -61,16 +61,16 @@ IChannelPtr CreateCredentialsInjectingChannel(
     if (options.Token) {
         return CreateTokenInjectingChannel(
             underlying,
-            options.PinnedUser,
+            options.User,
             *options.Token);
     } else if (options.SessionId || options.SslSessionId) {
         return CreateCookieInjectingChannel(
             underlying,
-            options.PinnedUser,
+            options.User,
             options.SessionId.value_or(TString()),
             options.SslSessionId.value_or(TString()));
     } else {
-        return CreateUserInjectingChannel(underlying, options.PinnedUser);
+        return CreateUserInjectingChannel(underlying, options.User);
     }
 }
 

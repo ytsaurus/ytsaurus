@@ -102,7 +102,7 @@ public:
         auto remoteConnectionConfig = ConvertTo<NNative::TConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
         RemoteConnection_ = NNative::CreateConnection(remoteConnectionConfig);
 
-        RemoteClient_ = RemoteConnection_->CreateNativeClient(TClientOptions(NSecurityClient::JobUserName));
+        RemoteClient_ = RemoteConnection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::JobUserName));
 
         for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
             TotalChunkCount_ += dataSliceDescriptor.ChunkSpecs.size();

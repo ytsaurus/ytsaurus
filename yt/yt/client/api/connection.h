@@ -14,7 +14,7 @@
 
 #include <yt/core/actions/callback.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/core/rpc/authentication_identity.h>
 
 namespace NYT::NApi {
 
@@ -27,22 +27,22 @@ struct TClientOptions
 {
     TClientOptions() = default;
 
-    explicit TClientOptions(const TString& user)
-        : PinnedUser(user)
-    { }
+    static TClientOptions FromUser(const TString& user, const std::optional<TString>& userTag = {});
+    static TClientOptions FromAuthenticationIdentity(const NRpc::TAuthenticationIdentity& identity);
+    static TClientOptions FromToken(const TString& token);
 
-    const TString& GetUser() const
-    {
-        // NB: value_or returns value, not const-ref.
-        return PinnedUser ? *PinnedUser : NSecurityClient::GuestUserName;
-    }
+    const TString& GetAuthenticatedUser() const;
+    NRpc::TAuthenticationIdentity GetAuthenticationIdentity() const;
 
     //! This field is not required for authentication.
-    //!
     //! When not specified, user is derived from credentials. When
-    //! specified, server additionally checks that PinnedUser is
+    //! specified, server additionally checks that #User is
     //! matching user derived from credentials.
-    std::optional<TString> PinnedUser;
+    std::optional<TString> User;
+
+    //! Provides an additional annotation to differentiate between
+    //! various clients that authenticate via the same effective user.
+    std::optional<TString> UserTag;
 
     std::optional<TString> Token;
     std::optional<TString> SessionId;

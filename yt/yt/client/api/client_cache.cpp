@@ -1,13 +1,16 @@
 #include "client_cache.h"
-
 #include "connection.h"
 
 namespace NYT::NApi {
 
+using namespace NRpc;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TCachedClient::TCachedClient(const TString& user, IClientPtr client)
-    : TSyncCacheValueBase(user)
+TCachedClient::TCachedClient(
+    const TAuthenticationIdentity& identity,
+    IClientPtr client)
+    : TSyncCacheValueBase(identity)
     , Client_(std::move(client))
 { }
 
@@ -21,22 +24,17 @@ const IClientPtr& TCachedClient::GetClient()
 TClientCache::TClientCache(
     TSlruCacheConfigPtr config,
     IConnectionPtr connection)
-    : TSyncSlruCacheBase<TString, TCachedClient>(std::move(config))
+    : TSyncSlruCacheBase<TAuthenticationIdentity, TCachedClient>(std::move(config))
     , Connection_(std::move(connection))
 { }
 
-IClientPtr TClientCache::GetClient(const TString& user, const std::optional<TString>& userToken)
+IClientPtr TClientCache::Get(
+    const TAuthenticationIdentity& identity,
+    const TClientOptions& options)
 {
-    auto cachedClient = Find(user);
+    auto cachedClient = Find(identity);
     if (!cachedClient) {
-        TClientOptions options;
-        options.PinnedUser = user;
-        if (userToken) {
-            options.Token = userToken;
-        }
-
-        cachedClient = New<TCachedClient>(user, Connection_->CreateClient(options));
-
+        cachedClient = New<TCachedClient>(identity, Connection_->CreateClient(options));
         TryInsert(cachedClient, &cachedClient);
     }
     return cachedClient->GetClient();

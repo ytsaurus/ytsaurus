@@ -12,8 +12,7 @@ NEventLog::IEventLogWriterPtr CreateRemoteEventLogWriter(const TRemoteEventLogCo
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
     auto connection = NApi::NNative::CreateConnection(config->Connection, connectionOptions);
 
-    NApi::TClientOptions clientOptions;
-    clientOptions.PinnedUser = config->User;
+    auto clientOptions = NApi::TClientOptions::FromUser(config->User);
     auto client = connection->CreateNativeClient(clientOptions);
 
     return New<NEventLog::TEventLogWriter>(

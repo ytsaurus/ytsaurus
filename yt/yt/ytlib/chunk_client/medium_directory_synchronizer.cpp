@@ -113,7 +113,7 @@ private:
 
             YT_LOG_DEBUG("Started synchronizing medium directory");
 
-            auto client = connection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
+            auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
             TGetClusterMetaOptions options;
             options.ReadFrom = NApi::EMasterChannelKind::SecondLevelCache;

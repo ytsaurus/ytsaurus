@@ -234,11 +234,11 @@ private:
             PROFILE_AGGREGATED_TIMING(counters->ReplicationTransactionStartTime) {
                 YT_LOG_DEBUG("Starting replication transactions");
 
-                auto localClient = LocalConnection_->CreateNativeClient(TClientOptions(NSecurityClient::ReplicatorUserName));
+                auto localClient = LocalConnection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
                 localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet))
                     .ValueOrThrow();
 
-                auto alienClient = alienConnection->CreateClient(TClientOptions(NSecurityClient::ReplicatorUserName));
+                auto alienClient = alienConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
 
                 TTransactionStartOptions transactionStartOptions;
                 transactionStartOptions.Id = localTransaction->GetId();

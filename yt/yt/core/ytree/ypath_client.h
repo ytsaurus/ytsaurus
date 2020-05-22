@@ -42,6 +42,9 @@ public:
     virtual const TString& GetUser() const override;
     virtual void SetUser(const TString& user) override;
 
+    virtual const TString& GetUserTag() const override;
+    virtual void SetUserTag(const TString& tag) override;
+
     virtual void SetUserAgent(const TString& userAgent) override;
 
     virtual bool GetRetry() const override;

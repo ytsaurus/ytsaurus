@@ -2,8 +2,12 @@
 
 #include <yt/core/misc/tls_cache.h>
 
+#include <yt/core/concurrency/fls.h>
+
 #include <yt/core/profiling/profiler.h>
 #include <yt/core/profiling/profile_manager.h>
+
+#include <yt/core/rpc/authentication_identity.h>
 
 namespace NYT {
 
@@ -28,10 +32,19 @@ struct TUserTagTrait
     }
 };
 
-TTagIdList AddUserTag(const TString& user, TTagIdList tags)
+TTagIdList AddUserTag(TTagIdList tags, const TString& userTag)
 {
-    tags.push_back(GetLocallyCachedValue<TUserTagTrait>(user));
+    tags.push_back(GetLocallyCachedValue<TUserTagTrait>(userTag));
     return tags;
+}
+
+TTagIdList AddCurrentUserTag(TTagIdList tags)
+{
+    const auto& identity = NRpc::GetCurrentAuthenticationIdentity();
+    if (&identity == &NRpc::GetRootAuthenticationIdentity()) {
+        return tags;
+    }
+    return AddUserTag(tags, identity.UserTag);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -155,7 +155,7 @@ TCheckPermissionResult TClient::InternalCheckPermission(
     const TCheckPermissionOptions& options)
 {
     // TODO(babenko): consider passing proper timeout
-    const auto& user = Options_.GetUser();
+    const auto& user = Options_.GetAuthenticatedUser();
     return DoCheckPermission(user, path, permission, options);
 }
 
@@ -165,7 +165,7 @@ void TClient::InternalValidatePermission(
     const TCheckPermissionOptions& options)
 {
     // TODO(babenko): consider passing proper timeout
-    const auto& user = Options_.GetUser();
+    const auto& user = Options_.GetAuthenticatedUser();
     DoCheckPermission(user, path, permission, options)
         .ToError(user, permission)
         .ThrowOnError();

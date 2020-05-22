@@ -714,7 +714,7 @@ public:
         const NApi::NNative::IConnectionPtr& masterConnection,
         std::optional<TString> localAddress)
         : Client_(
-            masterConnection->CreateNativeClient(TClientOptions(reporterConfig->User)))
+            masterConnection->CreateNativeClient(TClientOptions::FromUser(reporterConfig->User)))
         , JobHandler_(
             New<TJobHandler>(
                 std::move(localAddress),

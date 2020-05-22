@@ -13,6 +13,8 @@
 
 #include <yt/core/ytree/public.h>
 
+#include <yt/core/rpc/public.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,12 +50,6 @@ public:
         NClusterNode::TBootstrap* bootstrap);
     ~TTransactionManager();
 
-    using TCtxRegisterTransactionActions = NRpc::TTypedServiceContext<
-        NTabletClient::NProto::TReqRegisterTransactionActions,
-        NTabletClient::NProto::TRspRegisterTransactionActions>;
-    using TCtxRegisterTransactionActionsPtr = TIntrusivePtr<TCtxRegisterTransactionActions>;
-    std::unique_ptr<NHydra::TMutation> CreateRegisterTransactionActionsMutation(TCtxRegisterTransactionActionsPtr context);
-
     //! Finds transaction by id.
     //! If it does not exist then creates a new transaction
     //! (either persistent or transient, depending on #transient).
@@ -63,7 +59,6 @@ public:
         TTimestamp startTimestamp,
         TDuration timeout,
         bool transient,
-        const TString& user = TString(),
         bool* fresh = nullptr);
 
     //! Finds a transaction by id.
@@ -77,6 +72,15 @@ public:
 
     //! Returns the full list of transactions, including transient and persistent.
     std::vector<TTransaction*> GetTransactions();
+
+    //! Schedules a mutation that creates a given transaction (if missing) and
+    //! registers a set of actions.
+    TFuture<void> RegisterTransactionActions(
+        TTransactionId transactionId,
+        TTimestamp transactionStartTimestamp,
+        TDuration transactionTimeout,
+        TTransactionSignature signature,
+        ::google::protobuf::RepeatedPtrField<NTransactionClient::NProto::TTransactionActionData>&& actions);
 
     void RegisterTransactionActionHandlers(
         const NHiveServer::TTransactionPrepareActionHandlerDescriptor<TTransaction>& prepareActionDescriptor,

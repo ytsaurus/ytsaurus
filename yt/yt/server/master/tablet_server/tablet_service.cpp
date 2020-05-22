@@ -16,6 +16,8 @@
 
 #include <yt/ytlib/tablet_client/master_tablet_service.h>
 
+#include <yt/core/rpc/authentication_identity.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -117,7 +119,8 @@ private:
     }
 
 
-    void ValidateUsePermissionOnCellBundle(TTableNode* table) {
+    void ValidateUsePermissionOnCellBundle(TTableNode* table)
+    {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* cellBundle = table->GetTabletCellBundle();
         securityManager->ValidatePermission(cellBundle, EPermission::Use);
@@ -135,11 +138,14 @@ private:
         const auto& path = request->path();
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table mount (TableId: %v, TransactionId: %v, User: %v, "
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table mount (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             firstTabletIndex,
             lastTabletIndex,
             hintCellId,
@@ -205,11 +211,11 @@ private:
         const auto& path = request->path();
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table mount (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table mount (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             firstTabletIndex,
             lastTabletIndex,
             hintCellId,
@@ -252,11 +258,11 @@ private:
         auto tableId = FromProto<TTableId>(request->table_id());
         auto targetCellIds = FromProto<std::vector<TTabletCellId>>(request->target_cell_ids());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table mount (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table mount (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v, CellId: %v, TargetCellIds: %v, Freeze: %v, MountTimestamp: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             firstTabletIndex,
             lastTabletIndex,
             hintCellId,
@@ -283,11 +289,14 @@ private:
         bool force = request->force();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table unmount (TableId: %v, TransactionId: %v, User: %v, "
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table unmount (TableId: %v, TransactionId: %v, %v, "
             "Force: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             force,
             firstTabletIndex,
             lastTabletIndex);
@@ -300,7 +309,6 @@ private:
         ValidateUsePermissionOnCellBundle(table);
 
         if (force) {
-            const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto* cellBundle = table->GetTabletCellBundle();
             securityManager->ValidatePermission(cellBundle, EPermission::Administer);
         }
@@ -330,11 +338,11 @@ private:
         bool force = request->force();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table unmount (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table unmount (TableId: %v, TransactionId: %v, %v, "
             "Force: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             force,
             firstTabletIndex,
             lastTabletIndex);
@@ -367,11 +375,11 @@ private:
         bool force = request->force();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table unmount (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table unmount (TableId: %v, TransactionId: %v, %v, "
             "Force: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             force,
             firstTabletIndex,
             lastTabletIndex);
@@ -394,11 +402,14 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table freeze (TableId: %v, TransactionId: %v, User: %v, "
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table freeze (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -432,11 +443,11 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table freeze (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table freeze (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -466,11 +477,11 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table freeze (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table freeze (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -492,11 +503,14 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table unfreeze (TableId: %v, TransactionId: %v, User: %v, "
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table unfreeze (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -530,11 +544,11 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table unfreeze (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table unfreeze (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -565,11 +579,11 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table unfreeze (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table unfreeze (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -591,11 +605,14 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table remount (TableId: %v, TransactionId: %v, User: %v, "
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table remount (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -629,11 +646,11 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table remount (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table remount (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -661,11 +678,11 @@ private:
         int lastTabletIndex = request->last_tablet_index();
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table remount (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table remount (TableId: %v, TransactionId: %v, %v, "
             "FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             firstTabletIndex,
             lastTabletIndex);
 
@@ -689,11 +706,14 @@ private:
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table reshard (TableId: %v, TransactionId: %v, User: %v, "
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        TAuthenticatedUserGuard userGuard(securityManager);
+
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Preparing table reshard (TableId: %v, TransactionId: %v, %v, "
             "TabletCount: %v, PivotKeysSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             tabletCount,
             pivotKeys.size(),
             firstTabletIndex,
@@ -733,11 +753,11 @@ private:
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table reshard (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Committing table reshard (TableId: %v, TransactionId: %v, %v, "
             "TabletCount: %v, PivotKeysSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             tabletCount,
             pivotKeys.size(),
             firstTabletIndex,
@@ -773,11 +793,11 @@ private:
         auto pivotKeys = FromProto<std::vector<TOwningKey>>(request->pivot_keys());
         auto tableId = FromProto<TTableId>(request->table_id());
 
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table reshard (TableId: %v, TransactionId: %v, User: %v, "
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Aborting table reshard (TableId: %v, TransactionId: %v, %v, "
             "TabletCount: %v, PivotKeysSize: %v, FirstTabletIndex: %v, LastTabletIndex: %v)",
             tableId,
             transaction->GetId(),
-            Bootstrap_->GetSecurityManager()->GetAuthenticatedUserName(),
+            NRpc::GetCurrentAuthenticationIdentity(),
             tabletCount,
             pivotKeys.size(),
             firstTabletIndex,

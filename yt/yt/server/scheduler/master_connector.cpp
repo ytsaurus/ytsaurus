@@ -297,7 +297,7 @@ public:
                 chunkId,
                 "input_context"
             };
-            auto client = Bootstrap_->GetMasterClient()->GetNativeConnection()->CreateNativeClient(TClientOptions(user));
+            auto client = Bootstrap_->GetMasterClient()->GetNativeConnection()->CreateNativeClient(TClientOptions::FromUser(user));
             SaveJobFiles(client, operationId, { file });
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error saving input context for job %v into %v", jobId, path)

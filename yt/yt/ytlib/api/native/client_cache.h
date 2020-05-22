@@ -24,9 +24,9 @@ public:
         TSlruCacheConfigPtr config,
         NApi::NNative::IConnectionPtr connection);
 
-    IClientPtr GetClient(
-        const TString& user,
-        const std::optional<TString>& token = std::nullopt);
+    IClientPtr Get(
+        const NRpc::TAuthenticationIdentity& identity,
+        const TClientOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientCache)

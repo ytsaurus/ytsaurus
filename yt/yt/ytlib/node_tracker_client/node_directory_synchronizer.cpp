@@ -71,7 +71,7 @@ private:
 
             YT_LOG_DEBUG("Started synchronizing node directory");
 
-            auto client = connection->CreateClient(TClientOptions(NSecurityClient::RootUserName));
+            auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::RootUserName));
 
             TGetClusterMetaOptions options;
             options.ReadFrom = EMasterChannelKind::Cache;

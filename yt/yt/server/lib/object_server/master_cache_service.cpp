@@ -87,7 +87,7 @@ private:
             , Proxy_(std::move(channel))
         {
             Request_ = Proxy_.Execute();
-            Request_->SetUser(Context_->GetUser());
+            SetAuthenticationIdentity(Request_, Context_->GetAuthenticationIdentity());
             MergeRequestHeaderExtensions(&Request_->Header(), Context_->RequestHeader());
         }
 
@@ -147,7 +147,8 @@ private:
                     attachments.begin() + attachmentIndex + partCount);
                 Promises_[subresponseIndex].Set({
                     TSharedRefArray(std::move(parts), TSharedRefArray::TMoveParts{}),
-                    NHydra::NullRevision});
+                    NHydra::NullRevision
+                });
                 attachmentIndex += partCount;
             }
         }
@@ -168,8 +169,6 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 
     context->SetRequestInfo("RequestCount: %v",
         request->part_counts_size());
-
-    const auto& user = context->GetUser();
 
     int attachmentIndex = 0;
     const auto& attachments = request->Attachments();
@@ -198,7 +197,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
 
         TObjectServiceCacheKey key(
             CellTagFromId(CellId_),
-            user,
+            context->GetAuthenticationIdentity().User,
             ypathExt.target_path(),
             subrequestHeader.service(),
             subrequestHeader.method(),
@@ -243,12 +242,12 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
             if (cookie.IsActive()) {
                 TObjectServiceProxy proxy(MasterChannel_);
                 auto req = proxy.Execute();
-                req->SetUser(key.User);
                 req->add_part_counts(subrequestMessage.Size());
                 req->Attachments().insert(
                     req->Attachments().end(),
                     subrequestMessage.Begin(),
                     subrequestMessage.End());
+                SetCurrentAuthenticationIdentity(req);
 
                 if (enableTwoLevelObjectServiceCache) {
                     auto* balancingHeaderExt = req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);

@@ -118,8 +118,7 @@ void TBootstrap::DoRun()
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
     NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, connectionOptions);
 
-    TClientOptions clientOptions;
-    clientOptions.PinnedUser = NSecurityClient::RootUserName;
+    auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
     AuthenticationManager_ = New<TAuthenticationManager>(

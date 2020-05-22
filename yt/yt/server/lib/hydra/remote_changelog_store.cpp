@@ -4,7 +4,7 @@
 #include "config.h"
 #include "lazy_changelog.h"
 
-#include <yt/server/lib/security_server/security_manager.h>
+#include <yt/server/lib/security_server/resource_limits_manager.h>
 
 #include <yt/ytlib/api/native/journal_reader.h>
 #include <yt/ytlib/api/native/journal_writer.h>

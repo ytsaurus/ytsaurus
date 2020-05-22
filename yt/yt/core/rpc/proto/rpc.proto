@@ -39,6 +39,7 @@ message TRequestHeader
     optional int64 timeout = 10;
 
     optional string user = 12;
+    optional string user_tag = 25;
 
     optional int32 tos_level = 14;
 

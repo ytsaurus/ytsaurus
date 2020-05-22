@@ -709,7 +709,7 @@ private:
     void CommitTransaction(TTransactionId transactionId)
     {
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        WaitFor(transactionSupervisor->CommitTransaction(transactionId, RootUserName))
+        WaitFor(transactionSupervisor->CommitTransaction(transactionId))
             .ThrowOnError();
     }
 

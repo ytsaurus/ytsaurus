@@ -143,7 +143,6 @@ protected:
             LookupRows(
                 Tablet_->BuildSnapshot(nullptr),
                 timestamp,
-                "ut",
                 false,
                 BlockReadOptions_,
                 &reader,

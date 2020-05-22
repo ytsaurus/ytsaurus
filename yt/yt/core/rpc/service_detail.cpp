@@ -7,6 +7,7 @@
 #include "response_keeper.h"
 #include "server_detail.h"
 #include "authenticator.h"
+#include "authentication_identity.h"
 #include "stream.h"
 
 #include <yt/core/bus/bus.h>
@@ -112,7 +113,7 @@ public:
         , RequestId_(acceptedRequest.RequestId)
         , ReplyBus_(std::move(acceptedRequest.ReplyBus))
         , RuntimeInfo_(std::move(acceptedRequest.RuntimeInfo))
-        , PerformanceCounters_(Service_->GetMethodPerformanceCounters(RuntimeInfo_, User_))
+        , PerformanceCounters_(Service_->GetMethodPerformanceCounters(RuntimeInfo_, GetAuthenticationIdentity().UserTag))
         , TraceContext_(std::move(acceptedRequest.TraceContext))
         , ArriveInstant_(GetCpuInstant())
 
@@ -458,6 +459,10 @@ private:
         if (RequestHeader_->has_user()) {
             delimitedBuilder->AppendFormat("User: %v", RequestHeader_->user());
         }
+        
+        if (RequestHeader_->has_user_tag() && RequestHeader_->user_tag() != RequestHeader_->user()) {
+            delimitedBuilder->AppendFormat("UserTag: %v", RequestHeader_->user_tag());
+        }
 
         if (RequestHeader_->has_mutation_id()) {
             delimitedBuilder->AppendFormat("MutationId: %v", FromProto<TMutationId>(RequestHeader_->mutation_id()));
@@ -607,7 +612,10 @@ private:
             return;
         }
 
-        handler.Run(this, descriptor.Options);
+        {
+            TCurrentAuthenticationIdentityGuard identityGuard(&GetAuthenticationIdentity());
+            handler.Run(this, descriptor.Options);
+        }
     }
 
     void DoAfterRun(NProfiling::TValue handlerElapsedValue)
@@ -1042,9 +1050,10 @@ void TServiceBase::HandleRequest(
 
     NProfiling::TWallTimer timer;
 
-    TAuthenticationContext context;
-    context.Header = acceptedRequest.Header.get();
-    context.UserIP = acceptedRequest.ReplyBus->GetEndpointAddress();
+    TAuthenticationContext context{
+        .Header = acceptedRequest.Header.get(),
+        .UserIP = acceptedRequest.ReplyBus->GetEndpointAddress()
+    };
     auto asyncAuthResult = Authenticator_->Authenticate(context);
     if (asyncAuthResult.IsSet()) {
         OnRequestAuthenticated(timer, std::move(acceptedRequest), asyncAuthResult.Get());
@@ -1283,13 +1292,13 @@ void TServiceBase::RegisterRequest(TServiceContext* context)
     {
         TGuard<TSpinLock> guard(RequestMapLock_);
         // NB: We're OK with duplicate request ids.
-        RequestIdToContext_.insert(std::make_pair(requestId, context));
+        RequestIdToContext_.emplace(requestId, context);
         auto it = ReplyBusToContexts_.find(context->GetReplyBus());
         if (it == ReplyBusToContexts_.end()) {
             subscribe = true;
-            it = ReplyBusToContexts_.insert(std::make_pair(
+            it = ReplyBusToContexts_.emplace(
                 context->GetReplyBus(),
-                THashSet<TServiceContext*>())).first;
+                THashSet<TServiceContext*>()).first;
         }
         auto& contexts = it->second;
         contexts.insert(context);
@@ -1381,7 +1390,7 @@ void TServiceBase::OnPendingPayloadsLeaseExpired(TRequestId requestId)
 
 TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanceCounters(
     const TRuntimeMethodInfoPtr& runtimeInfo,
-    const TString& userName)
+    const TString& userTag)
 {
     struct TCacheTrait
     {
@@ -1400,34 +1409,34 @@ TServiceBase::TMethodPerformanceCountersPtr TServiceBase::CreateMethodPerformanc
     };
 
     auto tagIds = runtimeInfo->TagIds;
-    tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("user", userName));
+    tagIds.push_back(NProfiling::TProfileManager::Get()->RegisterTag("user", userTag));
     return GetGloballyCachedValue<TCacheTrait>(tagIds);
 }
 
 TServiceBase::TMethodPerformanceCounters* TServiceBase::GetMethodPerformanceCounters(
     const TRuntimeMethodInfoPtr& runtimeInfo,
-    const TString& user)
+    const TString& userTag)
 {
     // Fast path.
-    if (user == RootUserName) {
+    if (userTag == RootUserName) {
         return runtimeInfo->RootPerformanceCounters.Get();
     }
 
     // Slow path.
     {
         TReaderGuard guard(runtimeInfo->PerformanceCountersLock);
-        auto it = runtimeInfo->UserToPerformanceCounters.find(user);
-        if (it != runtimeInfo->UserToPerformanceCounters.end()) {
+        auto it = runtimeInfo->UserTagToPerformanceCounters.find(userTag);
+        if (it != runtimeInfo->UserTagToPerformanceCounters.end()) {
             return it->second.Get();
         }
     }
 
-    auto counters = CreateMethodPerformanceCounters(runtimeInfo, user);
+    auto counters = CreateMethodPerformanceCounters(runtimeInfo, userTag);
     {
         TWriterGuard guard(runtimeInfo->PerformanceCountersLock);
-        auto it = runtimeInfo->UserToPerformanceCounters.find(user);
-        if (it == runtimeInfo->UserToPerformanceCounters.end()) {
-            it = runtimeInfo->UserToPerformanceCounters.insert(std::make_pair(user, counters)).first;
+        auto it = runtimeInfo->UserTagToPerformanceCounters.find(userTag);
+        if (it == runtimeInfo->UserTagToPerformanceCounters.end()) {
+            it = runtimeInfo->UserTagToPerformanceCounters.emplace(userTag, counters).first;
         }
         return it->second.Get();
     }
@@ -1457,12 +1466,12 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
     };
 
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
-    runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo, "root");
+    runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo, RootUserName);
 
     {
         TWriterGuard guard(MethodMapLock_);
         // Failure here means that such method is already registered.
-        YT_VERIFY(MethodMap_.insert(std::make_pair(descriptor.Method, runtimeInfo)).second);
+        YT_VERIFY(MethodMap_.emplace(descriptor.Method, runtimeInfo).second);
         return runtimeInfo;
     }
 }
@@ -1475,9 +1484,7 @@ void TServiceBase::Configure(INodePtr configNode)
         AuthenticationQueueSizeLimit_ = config->AuthenticationQueueSizeLimit;
         PendingPayloadsTimeout_ = config->PendingPayloadsTimeout;
 
-        for (const auto& pair : config->Methods) {
-            const auto& methodName = pair.first;
-            const auto& methodConfig = pair.second;
+        for (const auto& [methodName, methodConfig] : config->Methods) {
             auto runtimeInfo = FindMethodInfo(methodName);
             if (!runtimeInfo) {
                 THROW_ERROR_EXCEPTION("Cannot find RPC method %v.%v to configure",

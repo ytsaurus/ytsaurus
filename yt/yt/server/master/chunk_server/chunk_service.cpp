@@ -28,6 +28,8 @@
 
 #include <yt/ytlib/hive/cell_directory.h>
 
+#include <yt/core/rpc/helpers.h>
+
 #include <yt/library/erasure/codec.h>
 
 namespace NYT::NChunkServer {
@@ -108,7 +110,7 @@ private:
         TChunkServiceProxy leaderProxy(std::move(leaderChannel));
         auto leaderRequest = leaderProxy.TouchChunks();
         leaderRequest->SetTimeout(context->GetTimeout());
-        leaderRequest->SetUser(context->GetUser());
+        NRpc::SetCurrentAuthenticationIdentity(leaderRequest);
 
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         bool follower = hydraFacade->GetHydraManager()->IsFollower();

@@ -264,7 +264,6 @@ public:
         TTransactionSignature signature,
         int rowCount,
         size_t dataWeight,
-        const TString& user,
         bool versioned,
         const TSyncReplicaIdList& syncReplicaIds,
         TWireProtocolReader* reader,
@@ -322,7 +321,6 @@ public:
                     transactionStartTimestamp,
                     transactionTimeout,
                     true,
-                    user,
                     &transactionIsFresh);
                 ValidateTransactionActive(transaction);
             }
@@ -390,13 +388,11 @@ public:
                     tablet->GetMountRevision(),
                     adjustedSignature,
                     lockless,
-                    writeRecord,
-                    user));
+                    writeRecord));
                 *commitResult = mutation->Commit().As<void>();
 
-                if (tablet->IsProfilingEnabled() && user) {
-                    auto& counters = GetLocallyGloballyCachedValue<TWriteProfilerTrait>(
-                        AddUserTag(user, tablet->GetProfilerTags()));
+                if (tablet->IsProfilingEnabled()) {
+                    auto& counters = GetLocallyGloballyCachedValue<TWriteProfilerTrait>(AddCurrentUserTag(tablet->GetProfilerTags()));
                     TabletNodeProfiler.Increment(counters.RowCount, writeRecord.RowCount);
                     TabletNodeProfiler.Increment(counters.DataWeight, writeRecord.DataWeight);
                 }
@@ -1388,7 +1384,6 @@ private:
         TTransactionSignature signature,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
-        const TString& user,
         TMutationContext* /*context*/) noexcept
     {
         auto atomicity = AtomicityFromTransactionId(transactionId);
@@ -1476,9 +1471,8 @@ private:
                 YT_VERIFY(storeManager->ExecuteWrites(&reader, &context));
                 YT_VERIFY(writeRecord.RowCount == context.RowCount);
 
-                if (tablet->IsProfilingEnabled() && user) {
-                    auto& counters = GetLocallyGloballyCachedValue<TCommitProfilerTrait>(
-                        AddUserTag(user, tablet->GetProfilerTags()));
+                if (tablet->IsProfilingEnabled()) {
+                    auto& counters = GetLocallyGloballyCachedValue<TCommitProfilerTrait>(AddCurrentUserTag(tablet->GetProfilerTags()));
                     TabletNodeProfiler.Increment(counters.RowCount, writeRecord.RowCount);
                     TabletNodeProfiler.Increment(counters.DataWeight, writeRecord.DataWeight);
                 }
@@ -1509,7 +1503,6 @@ private:
         auto rowCount = request->row_count();
         auto dataWeight = request->data_weight();
         auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
-        const auto& user = request->user();
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = FindTablet(tabletId);
@@ -1524,8 +1517,10 @@ private:
             return;
         }
 
-        ECodec codecId;
-        YT_VERIFY(TryEnumCast<ECodec>(request->codec(), &codecId));
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
+        auto codecId = FromProto<ECodec>(request->codec());
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
         auto recordData = codec->Decompress(compressedRecordData);
@@ -1541,8 +1536,7 @@ private:
                     transactionId,
                     transactionStartTimestamp,
                     transactionTimeout,
-                    false,
-                    user);
+                    false);
 
                 bool immediate = tablet->GetCommitOrdering() == ECommitOrdering::Weak;
                 auto* writeLog = immediate
@@ -1620,6 +1614,9 @@ private:
         }
 
         auto trimmedRowCount = request->trimmed_row_count();
+
+        auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
         UpdateTrimmedRowCount(tablet, trimmedRowCount);
     }
@@ -2572,28 +2569,25 @@ private:
             UnlockLockedTablets(transaction);
         }
 
-        if (transaction->GetUser()) {
-            auto updateProfileCounters = [&] (const TTransactionWriteLog& log) {
-                for (const auto& record : log) {
-                    auto* tablet = FindTablet(record.TabletId);
-                    if (!tablet) {
-                        continue;
-                    }
-                    if (!tablet->IsProfilingEnabled()) {
-                        continue;
-                    }
-
-                    auto& counters = GetLocallyGloballyCachedValue<TCommitProfilerTrait>(
-                        AddUserTag(transaction->GetUser(), tablet->GetProfilerTags()));
-                    TabletNodeProfiler.Increment(counters.RowCount, record.RowCount);
-                    TabletNodeProfiler.Increment(counters.DataWeight, record.DataWeight);
+        auto updateProfileCounters = [&] (const TTransactionWriteLog& log) {
+            for (const auto& record : log) {
+                auto* tablet = FindTablet(record.TabletId);
+                if (!tablet) {
+                    continue;
                 }
-            };
+                if (!tablet->IsProfilingEnabled()) {
+                    continue;
+                }
 
-            updateProfileCounters(transaction->ImmediateLockedWriteLog());
-            updateProfileCounters(transaction->ImmediateLocklessWriteLog());
-            updateProfileCounters(transaction->DelayedLocklessWriteLog());
-        }
+                auto& counters = GetLocallyGloballyCachedValue<TCommitProfilerTrait>(
+                    AddCurrentUserTag(tablet->GetProfilerTags()));
+                TabletNodeProfiler.Increment(counters.RowCount, record.RowCount);
+                TabletNodeProfiler.Increment(counters.DataWeight, record.DataWeight);
+            }
+        };
+        updateProfileCounters(transaction->ImmediateLockedWriteLog());
+        updateProfileCounters(transaction->ImmediateLocklessWriteLog());
+        updateProfileCounters(transaction->DelayedLocklessWriteLog());
 
         ClearTransactionWriteLog(&transaction->ImmediateLockedWriteLog());
         ClearTransactionWriteLog(&transaction->ImmediateLocklessWriteLog());
@@ -3845,7 +3839,6 @@ void TTabletManager::Write(
     TTransactionSignature signature,
     int rowCount,
     size_t dataWeight,
-    const TString& user,
     bool versioned,
     const TSyncReplicaIdList& syncReplicaIds,
     TWireProtocolReader* reader,
@@ -3859,7 +3852,6 @@ void TTabletManager::Write(
         signature,
         rowCount,
         dataWeight,
-        user,
         versioned,
         syncReplicaIds,
         reader,

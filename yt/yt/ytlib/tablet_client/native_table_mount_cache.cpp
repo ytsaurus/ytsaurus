@@ -174,7 +174,7 @@ private:
 
             auto channel = CreateAuthenticatedChannel(
                 connection->GetMasterChannelOrThrow(options.ReadFrom),
-                NSecurityClient::TableMountInformerUserName);
+                NRpc::TAuthenticationIdentity(NSecurityClient::TableMountInformerUserName));
 
             auto primaryProxy = TObjectServiceProxy(channel);
             auto batchReq = primaryProxy.ExecuteBatch();
@@ -235,7 +235,7 @@ private:
 
             auto channel = CreateAuthenticatedChannel(
                 connection->GetMasterChannelOrThrow(options.ReadFrom, CellTag_),
-                NSecurityClient::TableMountInformerUserName);
+                NRpc::TAuthenticationIdentity(NSecurityClient::TableMountInformerUserName));
 
             auto secondaryProxy = TObjectServiceProxy(channel);
             auto batchReq = secondaryProxy.ExecuteBatch();

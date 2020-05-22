@@ -56,6 +56,9 @@ struct IClientRequest
     virtual const TString& GetUser() const = 0;
     virtual void SetUser(const TString& user) = 0;
 
+    virtual const TString& GetUserTag() const = 0;
+    virtual void SetUserTag(const TString& tag) = 0;
+
     virtual void SetUserAgent(const TString& userAgent) = 0;
 
     virtual bool GetRetry() const = 0;
@@ -147,6 +150,9 @@ public:
     virtual const TString& GetUser() const override;
     virtual void SetUser(const TString& user) override;
 
+    virtual const TString& GetUserTag() const override;
+    virtual void SetUserTag(const TString& tag) override;
+
     virtual void SetUserAgent(const TString& userAgent) override;
 
     virtual bool GetRetry() const override;
@@ -177,6 +183,9 @@ protected:
     TAttachmentsOutputStreamPtr RequestAttachmentsStream_;
     TAttachmentsInputStreamPtr ResponseAttachmentsStream_;
 
+    TString User_;
+    TString UserTag_;
+
 
     TClientRequest(
         IChannelPtr channel,
@@ -204,9 +213,7 @@ private:
 
     void TraceRequest(const NTracing::TTraceContextPtr& traceContext);
 
-    void SetCodecsInHeader();
-    void SetStreamingParametersInHeader();
-
+    void PrepareHeader();
     const TSharedRefArray& GetSerializedData() const;
 
     TWeakPtr<IClientRequestControl> RequestControl_;

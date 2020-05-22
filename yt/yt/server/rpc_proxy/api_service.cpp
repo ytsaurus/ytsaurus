@@ -392,7 +392,9 @@ private:
 
     NNative::IClientPtr GetOrCreateClient(const TString& user)
     {
-        return AuthenticatedClientCache_->GetClient(user);
+        auto identity = NRpc::TAuthenticationIdentity(user);
+        auto options = TClientOptions::FromAuthenticationIdentity(identity);
+        return AuthenticatedClientCache_->Get(identity, options);
     }
 
     TString ExtractIP(TString address)
@@ -414,18 +416,22 @@ private:
         return address;
     }
 
-    void SetupTracing(const TString& user)
+    void SetupTracing(const IServiceContextPtr& context)
     {
-        if (auto trace = NTracing::GetCurrentTraceContext()) {
-            trace->AddTag("user", user);
+        if (auto traceContext = NTracing::GetCurrentTraceContext()) {
+            const auto& identity = context->GetAuthenticationIdentity();
+            traceContext->AddTag("user", identity.User);
+            if (identity.UserTag != identity.User) {
+                traceContext->AddTag("user_tag", identity.UserTag);
+            }
 
             if (Config_->ForceTracing) {
-                trace->SetSampled();
+                traceContext->SetSampled();
             }
 
             auto sampler = Coordinator_->GetTraceSampler();
-            if (sampler->IsTraceSampled(user)) {
-                trace->SetSampled();
+            if (sampler->IsTraceSampled(identity.User)) {
+                traceContext->SetSampled();
             }
         }
     }
@@ -434,9 +440,9 @@ private:
         const IServiceContextPtr& context,
         const google::protobuf::Message* request)
     {
-        const auto& user = context->GetUser();
-        SetupTracing(user);
+        SetupTracing(context);
 
+        const auto& user = context->GetAuthenticationIdentity().User;
         SecurityManager_.ValidateUser(user);
 
         Coordinator_->ValidateOperable();
@@ -2741,7 +2747,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, BuildSnapshot)
     {
         if (Bootstrap_->GetConfig()->RequireAuthentication ||
-            context->GetUser() != NSecurityClient::RootUserName)
+            context->GetAuthenticationIdentity().User != NSecurityClient::RootUserName)
         {
             context->Reply(TError(
                 NSecurityClient::EErrorCode::AuthorizationError,
@@ -2778,7 +2784,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GCCollect)
     {
         if (Bootstrap_->GetConfig()->RequireAuthentication ||
-            context->GetUser() != NSecurityClient::RootUserName)
+            context->GetAuthenticationIdentity().User != NSecurityClient::RootUserName)
         {
             context->Reply(TError(
                 NSecurityClient::EErrorCode::AuthorizationError,

@@ -220,37 +220,37 @@ public:
         { }
 
         template <class TFunc>
-        TDeepThis& Do(TFunc func)
+        TDeepThis Do(TFunc func)
         {
             InvokeFluentFunc<TShallowThis>(func, this->Consumer);
-            return *static_cast<TDeepThis*>(this);
+            return static_cast<TDeepThis&&>(*this);
         }
 
         template <class TFunc>
-        TDeepThis& DoIf(bool condition, TFunc func)
+        TDeepThis DoIf(bool condition, TFunc func)
         {
             if (condition) {
                 InvokeFluentFunc<TShallowThis>(func, this->Consumer);
             }
-            return *static_cast<TDeepThis*>(this);
+            return static_cast<TDeepThis&&>(*this);
         }
 
         template <class TFunc, class TIterator>
-        TDeepThis& DoFor(TIterator begin, TIterator end, TFunc func)
+        TDeepThis DoFor(TIterator begin, TIterator end, TFunc func)
         {
             for (auto current = begin; current != end; ++current) {
                 InvokeFluentFunc<TShallowThis>(func, this->Consumer, current);
             }
-            return *static_cast<TDeepThis*>(this);
+            return static_cast<TDeepThis&&>(*this);
         }
 
         template <class TFunc, class TCollection>
-        TDeepThis& DoFor(const TCollection& collection, TFunc func)
+        TDeepThis DoFor(const TCollection& collection, TFunc func)
         {
             for (const auto& item : collection) {
                 InvokeFluentFunc<TShallowThis>(func, this->Consumer, item);
             }
-            return *static_cast<TDeepThis*>(this);
+            return static_cast<TDeepThis&&>(*this);
         }
     };
 

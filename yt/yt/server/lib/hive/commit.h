@@ -15,7 +15,7 @@
 #include <yt/core/misc/property.h>
 #include <yt/core/misc/ref_tracked.h>
 
-#include <yt/core/rpc/public.h>
+#include <yt/core/rpc/authentication_identity.h>
 
 #include <yt/core/tracing/public.h>
 
@@ -52,20 +52,20 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, TransientState, ECommitState::Start);
     DEFINE_BYVAL_RW_PROPERTY(ECommitState, PersistentState, ECommitState::Start);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TCellId>, RespondedCellIds);
-    DEFINE_BYVAL_RW_PROPERTY(TString, UserName);
+    DEFINE_BYREF_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity);
 
 public:
     explicit TCommit(TTransactionId transactionId);
     TCommit(
         TTransactionId transactionId,
         NRpc::TMutationId mutationId,
-        const std::vector<TCellId>& participantCellIds,
-        const std::vector<TCellId>& prepareOnlyPrticipantCellIds,
+        std::vector<TCellId> participantCellIds,
+        std::vector<TCellId> prepareOnlyPrticipantCellIds,
         bool distributed,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        const TString& userName);
+        NRpc::TAuthenticationIdentity identity);
 
     TFuture<TSharedRefArray> GetAsyncResponseMessage();
     void SetResponseMessage(TSharedRefArray message);
