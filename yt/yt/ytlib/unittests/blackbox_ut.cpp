@@ -39,8 +39,8 @@ protected:
         config->Host = MockHttpServer_.IsStarted() ? MockHttpServer_.GetHost() : "localhost";
         config->Port = MockHttpServer_.IsStarted() ? MockHttpServer_.GetPort() : static_cast<ui16>(0);
         config->Secure = false;
-        config->RequestTimeout = TDuration::MilliSeconds(10);
-        config->AttemptTimeout = TDuration::MilliSeconds(10);
+        config->RequestTimeout = TDuration::Seconds(10);
+        config->AttemptTimeout = TDuration::Seconds(1);
         config->BackoffTimeout = TDuration::MilliSeconds(10);
         config->UseTvm = true;
         return config;
