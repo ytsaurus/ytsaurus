@@ -50,6 +50,30 @@ message TMessage
     map<string, TNestedMessage> nested_message_map = 22 [(NYT.NYson.NProto.yson_map) = true];
     map<string, int32> string_to_int32_map = 23 [(NYT.NYson.NProto.yson_map) = true];
     map<int32, int32> int32_to_int32_map = 24 [(NYT.NYson.NProto.yson_map) = true];
+
+    extensions 100 to 199;
+}
+
+message TMessageExtension
+{
+    extend TMessage
+    {
+        optional TMessageExtension extension = 123;
+    }
+
+    optional uint32 extension_field = 1;
+
+    extensions 200 to 299;
+}
+
+message TMessageExtensionExtension
+{
+    extend TMessageExtension
+    {
+        optional TMessageExtensionExtension extension_extension = 234;
+    }
+
+    optional uint32 extension_extension_field = 1;
 }
 
 message TNestedMessageWithRequriedFields

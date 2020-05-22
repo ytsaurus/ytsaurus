@@ -339,17 +339,14 @@ public:
     {
         for (int index = 0; index < Underlying_->field_count(); ++index) {
             const auto* fieldDescriptor = Underlying_->field(index);
-            auto fieldHolder = std::make_unique<TProtobufField>(Registry_, fieldDescriptor);
-            auto* field = fieldHolder.get();
-            if (field->IsRequired()) {
-                RequiredFieldNumbers_.push_back(field->GetNumber());
-            }
-            YT_VERIFY(NameToField_.emplace(field->GetYsonName(), field).second);
-            for (auto name : field->GetYsonNameAliases()) {
-                YT_VERIFY(NameToField_.emplace(name, field).second);
-            }
-            YT_VERIFY(NumberToField_.emplace(field->GetNumber(), field).second);
-            Fields_.push_back(std::move(fieldHolder));
+            RegisterField(fieldDescriptor);
+        }
+
+        auto descriptorPool = Underlying_->file()->pool();
+        std::vector<const FieldDescriptor*> extensionFieldDescriptors;
+        descriptorPool->FindAllExtensions(Underlying_, &extensionFieldDescriptors);
+        for (const auto* extensionFieldDescriptor : extensionFieldDescriptors) {
+            RegisterField(extensionFieldDescriptor);
         }
 
         for (int index = 0; index < Underlying_->reserved_name_count(); ++index) {
@@ -436,6 +433,21 @@ private:
     THashMap<TStringBuf, const TProtobufField*> NameToField_;
     THashMap<int, const TProtobufField*> NumberToField_;
     THashSet<TString> ReservedFieldNames_;
+
+    void RegisterField(const FieldDescriptor* fieldDescriptor)
+    {
+        auto fieldHolder = std::make_unique<TProtobufField>(Registry_, fieldDescriptor);
+        auto* field = fieldHolder.get();
+        if (field->IsRequired()) {
+            RequiredFieldNumbers_.push_back(field->GetNumber());
+        }
+        YT_VERIFY(NameToField_.emplace(field->GetYsonName(), field).second);
+        for (auto name : field->GetYsonNameAliases()) {
+            YT_VERIFY(NameToField_.emplace(name, field).second);
+        }
+        YT_VERIFY(NumberToField_.emplace(field->GetNumber(), field).second);
+        Fields_.push_back(std::move(fieldHolder));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
