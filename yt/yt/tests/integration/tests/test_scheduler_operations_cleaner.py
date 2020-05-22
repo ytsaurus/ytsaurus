@@ -17,7 +17,19 @@ import pytest
 CLEANER_ORCHID = "//sys/scheduler/orchid/scheduler/operations_cleaner"
 
 
-def _run_maps_parallel(count, command, expect_fail=False):
+def _try_track(op, expect_fail=False):
+    if expect_fail:
+        with pytest.raises(YtError):
+            op.track()
+    else:
+        try:
+            op.track()
+        except YtResponseError as e:
+            if not e.is_resolve_error():
+                raise
+
+
+def _run_maps_parallel(count, command, expect_fail=False, max_failed_job_count=1):
     create("table", "//tmp/input", ignore_existing=True)
     write_table("//tmp/input", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
     ops = []
@@ -27,17 +39,12 @@ def _run_maps_parallel(count, command, expect_fail=False):
             in_="//tmp/input",
             out="//tmp/output_{}".format(i),
             track=False,
-            spec={"max_failed_job_count": 2},
+            spec={"max_failed_job_count": max_failed_job_count},
             command=command,
         )
         ops.append(op)
     for op in ops:
-        if expect_fail:
-            with pytest.raises(YtError):
-                op.track()
-        else:
-            op.track()
-
+        _try_track(op, expect_fail=expect_fail)
     return [op.id for op in ops]
 
 
@@ -142,7 +149,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(scheduler_alert_set)
 
-    def _test_start_stop_impl(self, command, lookup_timeout=None):
+    def _test_start_stop_impl(self, command, lookup_timeout=None, max_failed_job_count=1):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
         config = {"enable": False}
@@ -152,7 +159,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         wait(lambda: not get(CLEANER_ORCHID + "/enable"))
         wait(lambda: not get(CLEANER_ORCHID + "/enable_archivation"))
 
-        ops = _run_maps_parallel(7, command)
+        ops = _run_maps_parallel(7, command, max_failed_job_count=max_failed_job_count)
 
         assert get(CLEANER_ORCHID + "/archive_pending") == 0
         set("//sys/scheduler/config/operations_cleaner/enable", True)
@@ -190,7 +197,10 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
     @authors("levysotsky")
     def test_archive_lookup(self):
         before_start_time = datetime.utcnow()
-        ops = self._test_start_stop_impl('if [ "$YT_JOB_INDEX" -eq 0 ]; then exit 1; fi; cat')
+        ops = self._test_start_stop_impl(
+            'if [ "$YT_JOB_INDEX" -eq 0 ]; then exit 1; fi; cat',
+            max_failed_job_count=2,
+        )
 
         # We expect to get all the operations by "with_failed_jobs" filter
         # as brief_progress is reported only to archive and must be fetched
@@ -208,7 +218,9 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         before_start_time = datetime.utcnow()
         self._test_start_stop_impl(
             'if [ "$YT_JOB_INDEX" -eq 0 ]; then exit 1; fi; cat',
-            lookup_timeout=timedelta(milliseconds=1))
+            lookup_timeout=timedelta(milliseconds=1),
+            max_failed_job_count=2,
+        )
 
         # We expect to get only not removed operations by "with_failed_jobs" filter
         # as brief_progress is reported only to archive and will not be
