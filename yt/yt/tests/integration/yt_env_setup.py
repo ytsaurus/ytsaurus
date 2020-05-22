@@ -407,20 +407,18 @@ class YTEnvSetup(object):
         logging.basicConfig(level=logging.INFO)
 
         need_suid = False
+        cls.cleanup_root_files = False
         if cls.get_param("REQUIRE_YTSERVER_ROOT_PRIVILEGES", False):
             need_suid = True
-            if arcadia_interop.is_inside_distbuild():
-                pytest.skip("root is not available inside distbuild")
+            cls.cleanup_root_files = True
 
         if cls.get_param("USE_PORTO_FOR_SERVERS", False):
             need_suid = True
-            if arcadia_interop.is_inside_distbuild():
-                pytest.skip("porto is not available on distbuild")
+            cls.cleanup_root_files = True
 
         if cls.get_param("REQUIRE_SUID_TOOL", False):
             need_suid = True
-            if arcadia_interop.is_inside_distbuild():
-                pytest.skip("SUID ytserver-tool is not available on distbuild")
+            cls.cleanup_root_files = True
 
         # Initialize `cls` fields before actual setup to make teardown correct.
 
@@ -591,12 +589,12 @@ class YTEnvSetup(object):
         if SANDBOX_STORAGE_ROOTDIR is not None:
             makedirp(SANDBOX_STORAGE_ROOTDIR)
 
-            if not arcadia_interop.is_inside_distbuild():
-                if cls.get_param("USE_PORTO_FOR_SERVERS", False):
-                    # XXX(psushin): unlink all porto volumes.
-                    remove_all_volumes(cls.path_to_run)
+            if cls.cleanup_root_files:
+                # XXX(psushin): unlink all porto volumes.
+                remove_all_volumes(cls.path_to_run)
 
                 # XXX(asaitgalin): Unmount everything.
+                # TODO(prime@): remove this, since we are using porto everywhere
                 subprocess.check_call(["sudo", "find", cls.path_to_run, "-type", "d", "-exec",
                                        "mountpoint", "-q", "{}", ";", "-exec", "sudo",
                                        "umount", "{}", ";"])
@@ -620,6 +618,7 @@ class YTEnvSetup(object):
                     raise subprocess.CalledProcessError(p.returncode, " ".join(chmod_command))
 
                 # XXX(dcherednik): Delete named pipes.
+                # TODO(prime@): remove this garbage
                 subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
 
             destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name)
