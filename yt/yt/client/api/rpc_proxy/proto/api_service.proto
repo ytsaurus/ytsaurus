@@ -204,6 +204,13 @@ enum ETableSchemaModification
     TSM_UNVERSIONED_UPDATE_UNSORTED = 2;
 }
 
+enum EColumnarStatisticsFetcherMode
+{
+    CSFM_FROM_NODES = 0;
+    CSFM_FROM_MASTER = 1;
+    CSFM_FALLBACK = 2;
+}
+
 // XXX(babenko): this is a very unconventional analog of NYT.NYTree.NProto.TAttributeKeys
 // Only sandello@ knows why we need this.
 message TAttributeKeys
@@ -1254,6 +1261,7 @@ message TReqGetColumnarStatistics
     repeated string path = 1; // RichYPath
     required TFetchChunkSpec fetch_chunk_spec = 2;
     required TFetcher fetcher = 3;
+    optional EColumnarStatisticsFetcherMode fetcher_mode = 4;
 
     optional TTransactionalOptions transactional_options = 100;
 }

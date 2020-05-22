@@ -338,6 +338,7 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
     const TNodeDirectoryPtr& nodeDirectory,
     const TFetchChunkSpecConfigPtr& config,
     TTransactionId transactionId,
+    bool fetchHeavyColumnStatisticsExt,
     const TLogger& logger)
 {
     auto Logger = NLogging::TLogger(logger)
@@ -406,6 +407,9 @@ std::vector<TInputChunkPtr> CollectTableInputChunks(
         config->MaxChunksPerLocateRequest,
         [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+            if (fetchHeavyColumnStatisticsExt) {
+                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
+            }
             req->set_fetch_all_meta_extensions(false);
             SetTransactionId(req, transactionId);
         },
@@ -493,6 +497,50 @@ void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<TChu
     }
 
     *chunkSpecs = std::move(availableChunkSpecs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TString& columnName)
+{
+    size_t hash = 0;
+    HashCombine(hash, salt);
+    HashCombine(hash, columnName);
+
+    return static_cast<ui32>(hash ^ (hash >> 32));
+}
+
+TColumnarStatistics GetColumnarStatistics(
+    const NProto::THeavyColumnStatisticsExt& statistics,
+    const std::vector<TString>& columnNames)
+{
+    YT_VERIFY(statistics.version() == 1);
+
+    auto salt = statistics.salt();
+
+    THashMap<ui32, i64> columnNameHashToDataWeight;
+    i64 minHeavyColumnWeight = std::numeric_limits<i64>::max();
+
+    for (int columnIndex = 0; columnIndex < statistics.column_name_hashes_size(); ++columnIndex) {
+        auto columnDataWeight = statistics.data_weight_unit() * static_cast<ui8>(statistics.column_data_weights()[columnIndex]);
+        auto columnNameHash = statistics.column_name_hashes(columnIndex);
+        minHeavyColumnWeight = std::min<i64>(minHeavyColumnWeight, columnDataWeight);
+        columnNameHashToDataWeight[columnNameHash] = std::max<i64>(columnNameHashToDataWeight[columnNameHash], columnDataWeight);
+    }
+
+    TColumnarStatistics columnarStatistics;
+    columnarStatistics.ColumnDataWeights.reserve(columnNames.size());
+    for (const auto& columnName : columnNames) {
+        auto columnNameHash = GetHeavyColumnStatisticsHash(salt, columnName);
+        auto it = columnNameHashToDataWeight.find(columnNameHash);
+        if (it == columnNameHashToDataWeight.end()) {
+            columnarStatistics.ColumnDataWeights.push_back(minHeavyColumnWeight);
+        } else {
+            columnarStatistics.ColumnDataWeights.push_back(it->second);
+        }
+    }
+
+    return columnarStatistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

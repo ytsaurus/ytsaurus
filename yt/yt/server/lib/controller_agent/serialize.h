@@ -32,6 +32,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((SortedOperationsSliceSize)            (300301))
     ((ChunkCountInUserObject)               (300302))
     ((JobTaskName)                          (300303))
+    ((ApproximateColumnarStatistics)        (300304))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

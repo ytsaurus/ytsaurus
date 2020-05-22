@@ -3366,6 +3366,8 @@ private:
         options.FetcherConfig = New<NChunkClient::TFetcherConfig>();
         options.FetcherConfig->NodeRpcTimeout = FromProto<TDuration>(request->fetcher().node_rpc_timeout());
 
+        options.FetcherMode = CheckedEnumCast<NTableClient::EColumnarStatisticsFetcherMode>(request->fetcher_mode());
+
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }

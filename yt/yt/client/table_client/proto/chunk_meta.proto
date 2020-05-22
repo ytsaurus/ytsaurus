@@ -192,4 +192,17 @@ message TColumnRenameDescriptor
     required string new_name = 2;
 }
 
+message THeavyColumnStatisticsExt
+{
+    required int32 version = 1;
+
+    optional uint32 salt = 2;
+
+    optional int64 data_weight_unit = 3;
+
+    repeated uint32 column_name_hashes = 4;
+
+    optional bytes column_data_weights = 5;
+}
+
 ////////////////////////////////////////////////////////////////////////////////

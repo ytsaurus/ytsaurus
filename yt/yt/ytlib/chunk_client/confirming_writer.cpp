@@ -271,7 +271,8 @@ private:
 
         static const THashSet<int> masterMetaTags{
             TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value,
-            TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
+            TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
+            TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value
         };
 
         NChunkClient::NProto::TChunkMeta masterChunkMeta(*ChunkMeta_);

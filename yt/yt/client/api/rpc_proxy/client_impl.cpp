@@ -1085,6 +1085,8 @@ TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
         req->add_path(ConvertToYsonString(subPath).GetData());
     }
 
+    req->set_fetcher_mode(static_cast<NProto::EColumnarStatisticsFetcherMode>(options.FetcherMode));
+
     req->mutable_fetch_chunk_spec()->set_max_chunk_per_fetch(
         options.FetchChunkSpecConfig->MaxChunksPerFetch);
     req->mutable_fetch_chunk_spec()->set_max_chunk_per_locate_request(

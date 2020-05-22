@@ -290,6 +290,9 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
 TGetTableColumnarStatisticsCommand::TGetTableColumnarStatisticsCommand()
 {
     RegisterParameter("paths", Paths);
+    RegisterParameter("fetcher_mode", FetcherMode)
+        .Default(EColumnarStatisticsFetcherMode::FromNodes);
+
     RegisterPostprocessor([&] {
         for (auto& path : Paths) {
             path = path.Normalize();
@@ -312,6 +315,8 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     for (int index = 0; index < Paths.size(); ++index) {
         allColumns.push_back(*Paths[index].GetColumns());
     }
+
+    Options.FetcherMode = FetcherMode;
 
     auto transaction = AttachTransaction(context, false);
 

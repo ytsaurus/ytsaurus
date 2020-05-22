@@ -13,7 +13,7 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::JobTaskName) &&
+    return version >= ToUnderlying(ESnapshotVersion::ApproximateColumnarStatistics) &&
         version <= GetCurrentSnapshotVersion();
 }
 

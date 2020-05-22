@@ -87,12 +87,15 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TReadLimitHolder, UpperLimit);
 
     // Here are boundary keys. They are not read-only because of chunk pool unittests.
-    typedef std::unique_ptr<NTableClient::TOwningBoundaryKeys> TInputChunkBoundaryKeys;
+    using TInputChunkBoundaryKeys = std::unique_ptr<NTableClient::TOwningBoundaryKeys>;
     DEFINE_BYREF_RW_PROPERTY(TInputChunkBoundaryKeys, BoundaryKeys);
 
     // These fields are not used directly by scheduler.
-    typedef std::unique_ptr<NTableClient::NProto::TPartitionsExt> TInputChunkPartitionsExt;
+    using TInputChunkPartitionsExt = std::unique_ptr<NTableClient::NProto::TPartitionsExt>;
     DEFINE_BYREF_RO_PROPERTY(TInputChunkPartitionsExt, PartitionsExt);
+
+    using TInputChunkHeavyColumnarStatisticsExt = std::unique_ptr<NTableClient::NProto::THeavyColumnStatisticsExt>;
+    DEFINE_BYREF_RO_PROPERTY(TInputChunkHeavyColumnarStatisticsExt, HeavyColumnarStatisticsExt);
 
 public:
     TInputChunk() = default;
@@ -108,10 +111,12 @@ public:
     //! Returns |true| iff the chunk is complete and is large enough.
     bool IsLargeCompleteChunk(i64 desiredChunkSize) const;
 
-    //! Releases memory occupied by BoundaryKeys
+    //! Releases memory occupied by BoundaryKeys.
     void ReleaseBoundaryKeys();
-    //! Releases memory occupied by PartitionsExt
+    //! Releases memory occupied by PartitionsExt.
     void ReleasePartitionsExt();
+    //! Releases memory occupied by HeavyColumnarStatisticsExt.
+    void ReleaseHeavyColumnarStatisticsExt();
 
     i64 GetRowCount() const;
     i64 GetDataWeight() const;

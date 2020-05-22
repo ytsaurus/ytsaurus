@@ -56,6 +56,8 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
         CreateSerializedInvoker(GetCurrentInvoker()),
         nullptr /* scraper */,
         this,
+        options.FetcherMode,
+        true, /* storeChunkStatistics */
         Logger);
 
     for (const auto& path : paths) {
@@ -71,9 +73,12 @@ std::vector<TColumnarStatistics> TClient::DoGetColumnarStatistics(
             transactionId
                 ? *transactionId
                 : options.TransactionId,
+            options.FetcherMode != EColumnarStatisticsFetcherMode::FromNodes,
             Logger);
 
-        YT_LOG_INFO("Fetching columnar statistics (Columns: %v)", *path.GetColumns());
+        YT_LOG_INFO("Fetching columnar statistics (Columns: %v, FetcherMode: %v)",
+            *path.GetColumns(),
+            options.FetcherMode);
 
 
         for (const auto& inputChunk : inputChunks) {

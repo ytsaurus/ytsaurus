@@ -5,6 +5,7 @@
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/adapters.h>
+#include <yt/client/table_client/columnar_statistics.h> 
 #include <yt/client/table_client/table_output.h>
 
 #include <yt/client/chunk_client/public.h>
@@ -102,6 +103,7 @@ std::vector<NChunkClient::TInputChunkPtr> CollectTableInputChunks(
     const NNodeTrackerClient::TNodeDirectoryPtr& nodeDirectory,
     const NChunkClient::TFetchChunkSpecConfigPtr& config,
     NObjectClient::TTransactionId transactionId,
+    bool fetchHeavyColumnStatisticsExt,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,6 +115,14 @@ void UpdateColumnarStatistics(NProto::TColumnarStatisticsExt& columnarStatistics
 ////////////////////////////////////////////////////////////////////////////////
 
 void CheckUnavailableChunks(EUnavailableChunkStrategy strategy, std::vector<NChunkClient::NProto::TChunkSpec>* chunkSpecs);
+
+////////////////////////////////////////////////////////////////////////////////
+
+ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TString& columnName);
+
+TColumnarStatistics GetColumnarStatistics(
+    const NProto::THeavyColumnStatisticsExt& statistics,
+    const std::vector<TString>& columnNames);
 
 ////////////////////////////////////////////////////////////////////////////////
 

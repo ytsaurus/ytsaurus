@@ -475,7 +475,8 @@ private:
 
         static const THashSet<int> masterMetaTags {
             TProtoExtensionTag<TMiscExt>::Value,
-            TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value
+            TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
+            TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value
         };
 
         YT_VERIFY(!writtenReplicas.empty());

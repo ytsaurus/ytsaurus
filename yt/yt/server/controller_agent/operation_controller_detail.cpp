@@ -153,6 +153,7 @@ using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
 using NProfiling::TCpuInstant;
 using NTableClient::NProto::TBoundaryKeysExt;
+using NTableClient::NProto::THeavyColumnStatisticsExt;
 using NTableClient::TTableReaderOptions;
 using NScheduler::TExecNodeDescriptor;
 using NScheduler::NProto::TSchedulerJobResultExt;
@@ -5032,8 +5033,9 @@ void TOperationControllerBase::FetchInputTables()
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         CreateFetcherChunkScraper(),
         InputClient,
-        Logger,
-        /*storeChunkStatistics=*/false);
+        EColumnarStatisticsFetcherMode::Fallback,
+        /*storeChunkStatistics=*/false,
+        Logger);
 
     auto chunkSpecFetcher = New<TChunkSpecFetcher>(
         InputClient,
@@ -5045,6 +5047,9 @@ void TOperationControllerBase::FetchInputTables()
             const auto& table = InputTables_[tableIndex];
             req->set_fetch_all_meta_extensions(false);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+            if (table->Path.GetColumns() && Spec_->UseColumnarStatistics) {
+                req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
+            }
             if (table->Dynamic || IsBoundaryKeysFetchEnabled()) {
                 req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
             }
@@ -5794,6 +5799,9 @@ void TOperationControllerBase::FetchUserFiles()
             const auto& file = *userFiles[fileIndex];
             req->set_fetch_all_meta_extensions(false);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
+            if (file.Type == EObjectType::File && file.Path.GetColumns() && Spec_->UseColumnarStatistics) {
+                req->add_extension_tags(TProtoExtensionTag<THeavyColumnStatisticsExt>::Value);
+            }
             if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
                 req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
             }
@@ -5858,8 +5866,9 @@ void TOperationControllerBase::ValidateUserFileSizes()
         CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default),
         CreateFetcherChunkScraper(),
         InputClient,
-        Logger,
-        /*storeChunkStatistics=*/false);
+        EColumnarStatisticsFetcherMode::Fallback,
+        /*storeChunkStatistics=*/false,
+        Logger);
 
     // Collect columnar statistics for table files with column selectors.
     for (auto& pair : UserJobFiles_) {

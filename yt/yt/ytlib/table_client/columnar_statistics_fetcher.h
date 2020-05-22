@@ -25,8 +25,9 @@ public:
         IInvokerPtr invoker,
         NChunkClient::IFetcherChunkScraperPtr chunkScraper,
         NApi::NNative::IClientPtr client,
-        const NLogging::TLogger& logger,
-        bool storeChunkStatistics = true);
+        EColumnarStatisticsFetcherMode mode,
+        bool storeChunkStatistics,
+        const NLogging::TLogger& logger);
 
     //! Return per-chunk columnar statistics.
     const std::vector<TColumnarStatistics>& GetChunkStatistics() const;
@@ -38,7 +39,8 @@ public:
     void AddChunk(NChunkClient::TInputChunkPtr chunk, std::vector<TString> columnNames);
 
 private:
-    bool StoreChunkStatistics_;
+    const EColumnarStatisticsFetcherMode Mode_;
+    const bool StoreChunkStatistics_;
 
     std::vector<TColumnarStatistics> ChunkStatistics_;
     std::vector<TLightweightColumnarStatistics> LightweightChunkStatistics_;

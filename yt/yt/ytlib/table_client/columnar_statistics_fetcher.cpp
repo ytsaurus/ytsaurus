@@ -3,6 +3,8 @@
 #include <yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/ytlib/chunk_client/config.h>
 
+#include <yt/ytlib/table_client/helpers.h>
+
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/client/table_client/name_table.h>
@@ -24,8 +26,9 @@ TColumnarStatisticsFetcher::TColumnarStatisticsFetcher(
     IInvokerPtr invoker,
     IFetcherChunkScraperPtr chunkScraper,
     NNative::IClientPtr client,
-    const TLogger& logger,
-    bool storeChunkStatistics)
+    EColumnarStatisticsFetcherMode mode,
+    bool storeChunkStatistics,
+    const TLogger& logger)
     : TFetcherBase(
         config,
         nodeDirectory,
@@ -33,6 +36,7 @@ TColumnarStatisticsFetcher::TColumnarStatisticsFetcher(
         chunkScraper,
         client,
         logger)
+    , Mode_(mode)
     , StoreChunkStatistics_(storeChunkStatistics)
     , ColumnFilterDictionary_(/*sortColumns=*/false)
 { }
@@ -176,6 +180,10 @@ TFuture<void> TColumnarStatisticsFetcher::Fetch()
         LightweightChunkStatistics_.resize(Chunks_.size());
     }
 
+    if (Mode_ == EColumnarStatisticsFetcherMode::FromMaster) {
+        return VoidFuture;
+    }
+
     return TFetcherBase::Fetch();
 }
 
@@ -185,8 +193,28 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TStr
         // Do not fetch anything. The less rpc requests, the better.
         Chunks_.emplace_back(std::move(chunk));
     } else {
-        TFetcherBase::AddChunk(std::move(chunk));
+        const NProto::THeavyColumnStatisticsExt* heavyColumnStatistics = nullptr;
+        if (Mode_ == EColumnarStatisticsFetcherMode::FromMaster || Mode_ == EColumnarStatisticsFetcherMode::Fallback) {
+            heavyColumnStatistics = chunk->HeavyColumnarStatisticsExt().get();
+        }
+        if (heavyColumnStatistics || Mode_ == EColumnarStatisticsFetcherMode::FromMaster) {
+            TColumnarStatistics columnarStatistics;
+            if (heavyColumnStatistics) {
+                columnarStatistics = GetColumnarStatistics(*heavyColumnStatistics, columnNames);
+            }
+            Chunks_.emplace_back(std::move(chunk));
+            if (StoreChunkStatistics_) {
+                ChunkStatistics_.resize(Chunks_.size());
+                ChunkStatistics_.back() = columnarStatistics;
+            } else {
+                LightweightChunkStatistics_.resize(Chunks_.size());
+                LightweightChunkStatistics_.back() = columnarStatistics.MakeLightweightStatistics();
+            }
+        } else {
+            TFetcherBase::AddChunk(std::move(chunk));
+        }
     }
+
     ChunkColumnFilterIds_.emplace_back(ColumnFilterDictionary_.GetIdOrRegisterAdmittedColumns(columnNames));
 }
 
