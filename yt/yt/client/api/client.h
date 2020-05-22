@@ -740,6 +740,7 @@ struct TGetColumnarStatisticsOptions
 {
     NChunkClient::TFetchChunkSpecConfigPtr FetchChunkSpecConfig;
     NChunkClient::TFetcherConfigPtr FetcherConfig;
+    NTableClient::EColumnarStatisticsFetcherMode FetcherMode = NTableClient::EColumnarStatisticsFetcherMode::FromNodes;
 };
 
 struct TLocateSkynetShareOptions

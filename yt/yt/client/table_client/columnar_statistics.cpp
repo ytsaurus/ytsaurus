@@ -6,6 +6,10 @@ namespace NYT::NTableClient {
 
 TColumnarStatistics& TColumnarStatistics::operator +=(const TColumnarStatistics& other)
 {
+    if (other.ColumnDataWeights.empty()) {
+        return *this;
+    }
+
     for (int index = 0; index < ColumnDataWeights.size(); ++index) {
         ColumnDataWeights[index] += other.ColumnDataWeights[index];
     }

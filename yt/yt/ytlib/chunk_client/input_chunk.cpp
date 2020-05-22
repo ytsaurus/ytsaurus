@@ -142,6 +142,10 @@ TInputChunk::TInputChunk(const NProto::TChunkSpec& chunkSpec)
         ? std::make_unique<NTableClient::NProto::TPartitionsExt>(
             GetProtoExtension<NTableClient::NProto::TPartitionsExt>(chunkSpec.chunk_meta().extensions()))
         : nullptr)
+    , HeavyColumnarStatisticsExt_(HasProtoExtension<NTableClient::NProto::THeavyColumnStatisticsExt>(chunkSpec.chunk_meta().extensions())
+        ? std::make_unique<NTableClient::NProto::THeavyColumnStatisticsExt>(
+            GetProtoExtension<NTableClient::NProto::THeavyColumnStatisticsExt>(chunkSpec.chunk_meta().extensions()))
+        : nullptr)
 {
     if (TypeFromId(ChunkId_) == EObjectType::SortedDynamicTabletStore) {
         BoundaryKeys_ = std::make_unique<TOwningBoundaryKeys>();
@@ -159,6 +163,11 @@ void TInputChunk::Persist(const TStreamPersistenceContext& context)
     Persist<TUniquePtrSerializer<>>(context, UpperLimit_);
     Persist<TUniquePtrSerializer<>>(context, BoundaryKeys_);
     Persist<TUniquePtrSerializer<>>(context, PartitionsExt_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= 300303) {
+        Persist<TUniquePtrSerializer<>>(context, HeavyColumnarStatisticsExt_);
+    }
 }
 
 size_t TInputChunk::SpaceUsed() const
@@ -168,7 +177,8 @@ size_t TInputChunk::SpaceUsed() const
        (LowerLimit_ ? LowerLimit_->SpaceUsed() : 0) +
        (UpperLimit_ ? UpperLimit_->SpaceUsed() : 0) +
        (BoundaryKeys_ ? BoundaryKeys_->SpaceUsed() : 0) +
-       (PartitionsExt_ ? PartitionsExt_->SpaceUsed() : 0);
+       (PartitionsExt_ ? PartitionsExt_->SpaceUsed() : 0) +
+       (HeavyColumnarStatisticsExt_ ? HeavyColumnarStatisticsExt_->SpaceUsed() : 0);
 }
 
 //! Returns |false| iff the chunk has nontrivial limits.
@@ -191,16 +201,19 @@ bool TInputChunk::IsLargeCompleteChunk(i64 desiredChunkSize) const
     return 0.9 * CompressedDataSize_ >= desiredChunkSize;
 }
 
-//! Release memory occupied by BoundaryKeys
 void TInputChunk::ReleaseBoundaryKeys()
 {
     BoundaryKeys_.reset();
 }
 
-//! Release memory occupied by PartitionsExt
 void TInputChunk::ReleasePartitionsExt()
 {
     PartitionsExt_.reset();
+}
+
+void TInputChunk::ReleaseHeavyColumnarStatisticsExt()
+{
+    HeavyColumnarStatisticsExt_.reset();
 }
 
 i64 TInputChunk::GetRowCount() const

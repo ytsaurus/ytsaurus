@@ -279,6 +279,9 @@ public:
 
     EOptimizeFor OptimizeFor;
 
+    //! Maximum number of heavy columns in approximate statistics.
+    int MaxHeavyColumns;
+
     TChunkWriterOptions()
     {
         RegisterParameter("validate_sorted", ValidateSorted)
@@ -305,6 +308,8 @@ public:
             .Default(true);
         RegisterParameter("schema_modification", SchemaModification)
             .Default(ETableSchemaModification::None);
+        RegisterParameter("max_heavy_columns", MaxHeavyColumns)
+            .Default(0);
 
         RegisterPostprocessor([&] () {
             if (ValidateUniqueKeys && !ValidateSorted) {

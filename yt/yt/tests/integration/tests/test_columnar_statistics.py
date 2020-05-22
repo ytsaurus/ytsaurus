@@ -22,11 +22,12 @@ class TestColumnarStatistics(YTEnvSetup):
         },
     }
 
-    def _expect_statistics(self, lower_row_index, upper_row_index, columns, expected_data_weights, expected_timestamp_weight=None):
-        path = '["//tmp/t{{{0}}}[{1}:{2}]";]'.format(columns,
-                                                "#" + str(lower_row_index) if lower_row_index is not None else "",
-                                                "#" + str(upper_row_index) if upper_row_index is not None else "")
-        statistics = get_table_columnar_statistics(path)[0]
+    def _expect_statistics(self, lower_row_index, upper_row_index, columns, expected_data_weights, expected_timestamp_weight=None, fetcher_mode="from_nodes", table="//tmp/t"):
+        path = '["{0}{{{1}}}[{2}:{3}]";]'.format(table,
+                                                 columns,
+                                                 "#" + str(lower_row_index) if lower_row_index is not None else "",
+                                                 "#" + str(upper_row_index) if upper_row_index is not None else "")
+        statistics = get_table_columnar_statistics(path, fetcher_mode=fetcher_mode)[0]
         assert statistics["legacy_chunks_data_weight"] == 0
         assert statistics["column_data_weights"] == dict(zip(columns.split(','), expected_data_weights))
         if expected_timestamp_weight is not None:
@@ -73,6 +74,43 @@ class TestColumnarStatistics(YTEnvSetup):
         self._expect_statistics(2, 5, "a", [1200])
         self._expect_statistics(1, 4, "", [])
 
+    @authors("gritukan")
+    def test_get_table_approximate_statistics(self):
+        def make_table(column_weights):
+            if exists("//tmp/t"):
+                remove("//tmp/t")
+            create("table", "//tmp/t")
+            if column_weights:
+                write_table("//tmp/t", [{"x{}".format(i): "a" * column_weights[i] for i in range(len(column_weights))}])
+
+        make_table([255, 12, 45, 1, 0])
+        self._expect_statistics(0, 1, "x0,x1,x2,x3,x4,zzz", [255, 12, 45, 1, 0, 0], fetcher_mode="from_master")
+
+        create("table", "//tmp/t2")
+        remote_copy(in_="//tmp/t", out="//tmp/t2", spec={"cluster_connection": self.__class__.Env.configs["driver"]})
+        self._expect_statistics(0, 1, "x0,x1,x2,x3,x4,zzz", [255, 12, 45, 1, 0, 0], fetcher_mode="from_master", table="//tmp/t2")
+
+        make_table([510, 12, 13, 1, 0])
+        self._expect_statistics(0, 1, "x0,x1,x2,x3,x4", [510, 12, 14, 2, 0], fetcher_mode="from_master")
+
+        make_table([256, 12, 13, 1, 0])
+        self._expect_statistics(0, 1, "x0,x1,x2,x3,x4", [256, 12, 14, 2, 0], fetcher_mode="from_master")
+
+        make_table([1])
+        self._expect_statistics(0, 1, "", [], fetcher_mode="from_master")
+
+        make_table([])
+        self._expect_statistics(0, 1, "x", [0], fetcher_mode="from_master")
+
+        set("//sys/@config/chunk_manager/max_heavy_columns", 1)
+        make_table([255, 42])
+        self._expect_statistics(0, 1, "x0,x1,zzz", [255, 255, 255], fetcher_mode="from_master")
+
+        set("//sys/@config/chunk_manager/max_heavy_columns", 0)
+        make_table([256, 42])
+        self._expect_statistics(0, 1, "x0,x1,zzz", [0, 0, 0], fetcher_mode="from_master")
+        self._expect_statistics(0, 1, "x0,x1,zzz", [256, 42, 0], fetcher_mode="fallback")
+        
     @authors("dakovalkov")
     def test_get_table_columnar_statistics_multi(self):
         create("table", "//tmp/t")

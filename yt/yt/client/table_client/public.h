@@ -141,6 +141,12 @@ DEFINE_ENUM(ETableSchemaModification,
     ((UnversionedUpdateUnsorted)    (2))
 );
 
+DEFINE_ENUM(EColumnarStatisticsFetcherMode,
+    ((FromNodes)             (0))
+    ((FromMaster)            (1))
+    ((Fallback)              (2))
+);
+
 using TTableId = NCypressClient::TNodeId;
 
 //! NB: |int| is important since we use negative values to indicate that

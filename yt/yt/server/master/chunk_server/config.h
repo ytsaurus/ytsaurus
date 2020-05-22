@@ -299,6 +299,9 @@ public:
     TDuration ExpirationCheckPeriod;
     int MaxExpiredChunksUnstagesPerCommit;
 
+    //! Maximum number of heavy columns in chunk approximate statistics.
+    int MaxHeavyColumns;
+
     TDynamicChunkManagerConfig()
     {
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
@@ -400,6 +403,10 @@ public:
             .Default(TDuration::Minutes(1));
         RegisterParameter("max_expired_chunks_unstages_per_commit", MaxExpiredChunksUnstagesPerCommit)
             .Default(1000);
+
+        RegisterParameter("max_heavy_columns", MaxHeavyColumns)
+            .Default(30)
+            .GreaterThanOrEqual(0);
 
         RegisterPreprocessor([&] () {
             JobThrottler->Limit = 10000;

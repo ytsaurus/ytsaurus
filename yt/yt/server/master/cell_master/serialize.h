@@ -104,6 +104,7 @@ DEFINE_ENUM(EMasterReign,
     ((InternalizeAbcSchedulerPoolAttribute)                         (1314))  // mrkastep
     ((AggregateTabletStatistics)                                    (1315))  // ifsmirnov
     ((TuneTabletStatisticsUpdate_20_2)                              (1316))  // savrus
+    ((ApproximateColumnarStatistics)                                (1317))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

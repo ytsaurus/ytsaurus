@@ -54,6 +54,7 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/misc/numeric_helpers.h>
 #include <yt/core/misc/random.h>
 
 #include <yt/core/ytree/helpers.h>
@@ -190,6 +191,10 @@ public:
 
         if (IsSorted()) {
             SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt_);
+        }
+
+        if (Options_->MaxHeavyColumns > 0) {
+            SetProtoExtension(meta.mutable_extensions(), GetHeavyColumnStatisticsExt());
         }
 
         return meta;
@@ -336,6 +341,10 @@ protected:
             SetProtoExtension(meta.mutable_extensions(), BoundaryKeysExt_);
         }
 
+        if (Options_->MaxHeavyColumns > 0) {
+            SetProtoExtension(meta.mutable_extensions(), GetHeavyColumnStatisticsExt());
+        }
+
         if (Schema_.IsSorted()) {
             // Sorted or partition chunks.
             TKeyColumnsExt keyColumnsExt;
@@ -437,6 +446,74 @@ private:
         SamplesExt_.add_entries(entry);
         SamplesExt_.add_weights(weight);
         SamplesExtSize_ += entry.length();
+    }
+
+    NProto::THeavyColumnStatisticsExt GetHeavyColumnStatisticsExt() const
+    {
+        // Column weights here are measured in units, which are equal to 1/255 of the weight
+        // of heaviest column.
+        constexpr int DataWeightGranularity = 256;
+
+        const auto& nameTable = GetNameTable();
+
+        auto salt = RandomNumber<ui32>();
+
+        struct TColumnStatistics
+        {
+            i64 DataWeight;
+            TString Name; 
+        };
+        std::vector<TColumnStatistics> columnStatistics;
+        columnStatistics.reserve(nameTable->GetSize());
+
+        auto heavyColumnCount = std::min<int>(nameTable->GetSize(), Options_->MaxHeavyColumns);
+        i64 maxColumnDataWeight = 0;
+
+        for (int columnIndex = 0; columnIndex < nameTable->GetSize(); ++columnIndex) {
+            YT_VERIFY(columnIndex < ColumnarStatisticsExt_.data_weights_size());
+            auto dataWeight = columnIndex < ColumnarStatisticsExt_.data_weights_size()
+                ? ColumnarStatisticsExt_.data_weights(columnIndex)
+                : 0;
+            maxColumnDataWeight = std::max<i64>(maxColumnDataWeight, dataWeight);
+            columnStatistics.push_back(TColumnStatistics{
+                .DataWeight = dataWeight,
+                .Name = TString{GetNameTable()->GetName(columnIndex)}
+            });
+        }
+
+        auto dataWeightUnit = std::max<i64>(1, DivCeil<i64>(maxColumnDataWeight, DataWeightGranularity - 1));
+
+        if (heavyColumnCount > 0) {
+            std::nth_element(
+                columnStatistics.begin(),
+                columnStatistics.begin() + heavyColumnCount - 1,
+                columnStatistics.end(),
+                [] (const TColumnStatistics& lhs, const TColumnStatistics& rhs) {
+                    return lhs.DataWeight > rhs.DataWeight;
+                });
+        }
+
+        NProto::THeavyColumnStatisticsExt heavyColumnStatistics;
+        heavyColumnStatistics.set_version(1);
+        heavyColumnStatistics.set_salt(salt);
+
+        TBuffer dataWeightBuffer(heavyColumnCount);
+        heavyColumnStatistics.set_data_weight_unit(dataWeightUnit);
+        for (int columnIndex = 0; columnIndex < heavyColumnCount; ++columnIndex) {
+            heavyColumnStatistics.add_column_name_hashes(GetHeavyColumnStatisticsHash(salt, columnStatistics[columnIndex].Name));
+
+            auto dataWeight = DivCeil<i64>(columnStatistics[columnIndex].DataWeight, dataWeightUnit);
+            YT_VERIFY(dataWeight >= 0 && dataWeight < DataWeightGranularity);
+            dataWeightBuffer.Append(static_cast<ui8>(dataWeight));
+
+            // All other columns have weight 0.
+            if (dataWeight == 0) {
+                break;
+            }
+        }
+        heavyColumnStatistics.set_column_data_weights(dataWeightBuffer.data(), dataWeightBuffer.size());
+
+        return heavyColumnStatistics;
     }
 };
 
@@ -2102,9 +2179,12 @@ private:
                     lastKey.Begin() + TableUploadOptions_.TableSchema.GetKeyColumnCount());
             }
 
-            YT_LOG_DEBUG("Table upload parameters received (ChunkListId: %v, HasLastKey: %v)",
+            Options_->MaxHeavyColumns = rsp->max_heavy_columns();
+
+            YT_LOG_DEBUG("Table upload parameters received (ChunkListId: %v, HasLastKey: %v, MaxHeavyColumns: %v)",
                  chunkListId,
-                 static_cast<bool>(writerLastKey));
+                 static_cast<bool>(writerLastKey),
+                 Options_->MaxHeavyColumns);
         }
 
         auto timestamp = WaitFor(Client_->GetNativeConnection()->GetTimestampProvider()->GenerateTimestamps())

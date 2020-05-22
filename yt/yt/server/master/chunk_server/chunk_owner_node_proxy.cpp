@@ -1325,6 +1325,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
         THROW_ERROR_EXCEPTION("Unsupported chunk list kind");
     }
 
+    response->set_max_heavy_columns(Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->MaxHeavyColumns);
+
     context->Reply();
 }
 

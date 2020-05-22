@@ -91,6 +91,7 @@ public:
 
 private:
     std::vector<NYPath::TRichYPath> Paths;
+    NTableClient::EColumnarStatisticsFetcherMode FetcherMode;
 
     virtual void DoExecute(ICommandContextPtr context) override;
 };
