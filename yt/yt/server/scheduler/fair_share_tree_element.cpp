@@ -2765,9 +2765,7 @@ TOperationElement::TOperationElement(
     , OperationElementSharedState_(New<TOperationElementSharedState>(spec->UpdatePreemptableJobsListLoggingPeriod, Logger))
     , Controller_(std::move(controller))
     , SchedulingTagFilter_(spec->SchedulingTagFilter)
-{
-    PersistentAttributes_.LastNonStarvingTime = TInstant::Now();
-}
+{ }
 
 TOperationElement::TOperationElement(
     const TOperationElement& other,

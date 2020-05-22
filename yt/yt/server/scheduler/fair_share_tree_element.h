@@ -99,7 +99,7 @@ struct TSchedulableAttributes
 struct TPersistentAttributes
 {
     bool Starving = false;
-    TInstant LastNonStarvingTime;
+    TInstant LastNonStarvingTime = TInstant::Now();
     std::optional<TInstant> BelowFairShareSince;
     THistoricUsageAggregator HistoricUsageAggregator;
 
