@@ -78,7 +78,7 @@ def prepare_yatest_environment(need_suid):
     if ytrecipe:
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.work_path("ytrecipe_output")
     elif ram_drive_path is None:
-        SANDBOX_ROOTDIR = arcadia_interop.yatest_common.work_path()
+        SANDBOX_ROOTDIR = arcadia_interop.yatest_common.output_path()
     else:
         SANDBOX_ROOTDIR = arcadia_interop.yatest_common.output_ram_drive_path()
 
@@ -633,9 +633,10 @@ class YTEnvSetup(object):
                 if os.path.exists(dir):
                     shutil.rmtree(dir, ignore_errors=True)
 
-            print >>sys.stderr, "Moving test artifacts from", cls.path_to_run, "to", destination_path
-            shutil.move(cls.path_to_run, destination_path)
-            print >>sys.stderr, "Move completed"
+            if SANDBOX_ROOTDIR != SANDBOX_STORAGE_ROOTDIR:
+                print >>sys.stderr, "Moving test artifacts from", cls.path_to_run, "to", destination_path
+                shutil.move(cls.path_to_run, destination_path)
+                print >>sys.stderr, "Move completed"
 
     def setup_method(self, method):
         for cluster_index in xrange(self.NUM_REMOTE_CLUSTERS + 1):
