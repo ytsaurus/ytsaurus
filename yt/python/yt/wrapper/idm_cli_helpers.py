@@ -124,7 +124,6 @@ class ObjectIdmSnapshot(object):
         self.object_id = object_id
 
         responsibles_reply = idm_client.get_responsible(**object_id)
-        self.inherit_acl = responsibles_reply.get("inherit_acl", False)
         self.version = responsibles_reply["version"]
 
         responsibles = responsibles_reply["responsible"]
@@ -135,6 +134,8 @@ class ObjectIdmSnapshot(object):
         self.require_boss_approval = responsibles.get("require_boss_approval", False)
 
         roles = idm_client.get_acl(**object_id)
+        self.inherit_acl = roles.get("acl", {}).get("inherit_acl", False)
+
         self.roles = list(map(Role, roles.get("roles", [])))
         self._new_roles = []
         self._roles_to_remove = []
