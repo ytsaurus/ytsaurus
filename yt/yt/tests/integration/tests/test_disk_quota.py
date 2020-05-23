@@ -13,81 +13,35 @@ import shutil
 
 ##################################################################
 
-class TestDiskQuota(QuotaMixin):
-    NUM_SCHEDULERS = 1
-    NUM_MASTERS = 1
-    NUM_NODES = 3
+class TestDiskUsagePorto(YTEnvSetup):
+    USE_PORTO_FOR_SERVERS = True
 
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
-
-    def _init_tables(self):
-        tables = ["//tmp/t1", "//tmp/t2"]
-        for table in tables:
-            create("table", table)
-        write_table(tables[0], [{"foo": "bar"} for _ in xrange(200)])
-        return tables
-
-    @authors("astiunov")
-    def test_disk_usage(self):
-        tables = self._init_tables()
-        try:
-            map(
-                in_=tables[0],
-                out=tables[1],
-                command="/bin/bash -c 'dd if=/dev/zero of=zeros.txt count=20'",
-                spec={"mapper": {"disk_space_limit": 2 * 1024}, "max_failed_job_count": 1}
-            )
-        except YtError as err:
-            message = str(err)
-            if "quota exceeded" not in message:
-                raise
-        else:
-            assert False, "Operation expected to fail, but completed successfully"
-
-    @authors("astiunov")
-    def test_inodes_count(self):
-        tables = self._init_tables()
-        try:
-            map(
-                in_=tables[0],
-                out=tables[1],
-                command="/bin/bash -c 'touch {1..200}.txt'",
-                spec={"mapper": {"disk_space_limit": 1024 * 1024, "inode_limit": 100}, "max_failed_job_count": 1}
-            )
-        except YtError as err:
-            message = str(err)
-            if "quota exceeded" not in message:
-                raise
-        else:
-            assert False, "Operation expected to fail, but completed successfully"
-
-##################################################################
-
-class BaseTestDiskUsage(object):
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
     NUM_NODES = 1
-    DELTA_NODE_CONFIG_BASE = {
-        "exec_agent": {
-            "slot_manager": {
-                "locations": [
-                    {
-                        "disk_quota": 1024 * 1024,
-                        "disk_usage_watermark": 0
+    DELTA_NODE_CONFIG = yt.common.update(
+        get_porto_delta_node_config(),
+        {
+            "exec_agent": {
+                "slot_manager": {
+                    "locations": [
+                        {
+                            "disk_quota": 1024 * 1024,
+                            "disk_usage_watermark": 0
+                        }
+                    ],
+                    "disk_resources_update_period": 100,
+                },
+                "job_controller": {
+                    "waiting_jobs_timeout": 1000,
+                    "resource_limits": {
+                        "user_slots": 3,
+                        "cpu": 3.0
                     }
-                ],
-                "disk_resources_update_period": 100,
-            },
-            "job_controller": {
-                "waiting_jobs_timeout": 1000,
-                "resource_limits": {
-                    "user_slots": 3,
-                    "cpu": 3.0
-                }
-            },
-            "min_required_disk_space": 0,
-        }
-    }
+                },
+                "min_required_disk_space": 0,
+            }
+        })
 
     DELTA_MASTER_CONFIG = {
         "cypress_manager": {
@@ -101,7 +55,17 @@ class BaseTestDiskUsage(object):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
+    @classmethod
+    def modify_node_config(cls, config):
+        os.makedirs(cls.default_disk_path)
+        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
+
+    @classmethod
+    def teardown_class(cls):
+        super(TestDiskUsagePorto, cls).teardown_class()
+        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
+            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
+
 
     def _init_tables(self):
         tables = ["//tmp/t1", "//tmp/t2", "//tmp/t3"]
@@ -207,30 +171,6 @@ class BaseTestDiskUsage(object):
         wait(lambda: op2.get_job_count("running") == 1)
         op2.abort()
 
-@patch_porto_env_only(BaseTestDiskUsage)
-class TestDiskUsageQuota(BaseTestDiskUsage, QuotaMixin):
-    DELTA_NODE_CONFIG = BaseTestDiskUsage.DELTA_NODE_CONFIG_BASE
-
-@patch_porto_env_only(BaseTestDiskUsage)
-class TestDiskUsagePorto(BaseTestDiskUsage, YTEnvSetup):
-    DELTA_NODE_CONFIG = yt.common.update(
-        get_porto_delta_node_config(),
-        BaseTestDiskUsage.DELTA_NODE_CONFIG_BASE
-    )
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
-    USE_PORTO_FOR_SERVERS = True
-
-    @classmethod
-    def modify_node_config(cls, config):
-        os.makedirs(cls.default_disk_path)
-        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
-
-    @classmethod
-    def teardown_class(cls):
-        super(TestDiskUsagePorto, cls).teardown_class()
-        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
-            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
-
 ##################################################################
 
 class TestDiskMediumsPorto(YTEnvSetup):
@@ -272,7 +212,6 @@ class TestDiskMediumsPorto(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @classmethod
     def modify_node_config(cls, config):
@@ -530,7 +469,6 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @classmethod
     def modify_node_config(cls, config):

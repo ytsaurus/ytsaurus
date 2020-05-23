@@ -53,7 +53,6 @@ TSlotLocation::TSlotLocation(
     , JobDirectoryManager_(jobDirectoryManager)
     , LocationQueue_(New<TActionQueue>(Format("IO:%v", id)))
     , EnableTmpfs_(enableTmpfs)
-    , HasRootPermissions_(HasRootPermissions())
 {
     Enabled_ = true;
 
@@ -79,10 +78,10 @@ TSlotLocation::TSlotLocation(
                     continue;
                 }
 
-                if (HasRootPermissions_) {
-                    RunTool<TRemoveDirAsRootTool>(sandboxPath);
-                } else {
+                if (Bootstrap_->IsSimpleEnvironment()) {
                     NFS::RemoveRecursive(sandboxPath);
+                } else {
+                    RunTool<TRemoveDirAsRootTool>(sandboxPath);
                 }
             }
         }
@@ -387,15 +386,15 @@ TFuture<void> TSlotLocation::FinalizeSandboxPreparation(
             auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
 
             try {
-                if (HasRootPermissions_) {
+                if (Bootstrap_->IsSimpleEnvironment()) {
+                    ChownChmodDirectoriesRecursively(sandboxPath, std::nullopt, permissions);
+                } else {
                     auto config = New<TChownChmodConfig>();
 
                     config->Permissions = permissions;
                     config->Path = sandboxPath;
                     config->UserId = static_cast<uid_t>(userId);
                     RunTool<TChownChmodTool>(config);
-                } else {
-                    ChownChmodDirectoriesRecursively(sandboxPath, std::nullopt, permissions);
                 }
             } catch (const std::exception& ex) {
                 auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set owner and permissions for a job sandbox")
@@ -479,10 +478,10 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
 
                 YT_LOG_DEBUG("Cleaning sandbox directory (Path: %v)", sandboxPath);
 
-                if (HasRootPermissions_) {
-                    RunTool<TRemoveDirAsRootTool>(sandboxPath);
-                } else {
+                if (Bootstrap_->IsSimpleEnvironment()) {
                     NFS::RemoveRecursive(sandboxPath);
+                } else {
+                    RunTool<TRemoveDirAsRootTool>(sandboxPath);
                 }
 
                 auto it = TmpfsPaths_.lower_bound(sandboxPath);
@@ -649,7 +648,7 @@ void TSlotLocation::UpdateDiskResources()
                         // We have to calculate user directory size as root,
                         // because user job could have set restricted permissions for files and
                         // directories inside sandbox.
-                        auto dirSize = (sandboxKind == ESandboxKind::User) && HasRootPermissions_
+                        auto dirSize = (sandboxKind == ESandboxKind::User && !Bootstrap_->IsSimpleEnvironment())
                             ? RunTool<TGetDirectorySizeAsRootTool>(path)
                             : NFS::GetDirectorySize(path);
                         diskUsage += dirSize;

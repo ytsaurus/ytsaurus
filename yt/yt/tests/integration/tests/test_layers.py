@@ -32,7 +32,6 @@ class TestLayers(YTEnvSetup):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
 
     def setup_files(self):
@@ -197,7 +196,6 @@ class TestTmpfsLayerCache(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
@@ -275,7 +273,6 @@ class TestJobSetup(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
@@ -341,7 +338,6 @@ class TestGpuJobSetup(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
@@ -428,7 +424,6 @@ class TestSkipGpuJobSetup(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
@@ -496,7 +491,6 @@ class TestGpuLayer(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         tx = start_transaction()
@@ -573,7 +567,6 @@ class TestGpuLayerUpdate(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def _write_driver_layer(self, name):
         path = "layers/{}.tar.gz".format(name)
@@ -667,7 +660,6 @@ class TestCudaLayer(YTEnvSetup):
     }
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         create("map_node", "//tmp/cuda")
@@ -733,7 +725,6 @@ class TestSetupUser(YTEnvSetup):
         },
     }
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})

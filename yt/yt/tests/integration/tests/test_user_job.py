@@ -22,7 +22,6 @@ class TestSandboxTmpfs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
     DELTA_NODE_CONFIG = get_porto_delta_node_config()
 
@@ -485,7 +484,6 @@ class TestSandboxTmpfsOverflow(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
     DELTA_NODE_CONFIG = yt.common.update(
         get_porto_delta_node_config(),
@@ -741,7 +739,6 @@ class TestNetworkIsolation(YTEnvSetup):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
 
     @authors("gritukan")
@@ -1003,7 +1000,6 @@ class TestJobStderrMulticell(TestJobStderr):
 @patch_porto_env_only(TestJobStderr)
 class TestJobStderrPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################
@@ -1252,7 +1248,6 @@ class TestUserFilesMulticell(TestUserFiles):
 @patch_porto_env_only(TestUserFiles)
 class TestUserFilesPorto(YTEnvSetup):
     DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
 
 ##################################################################

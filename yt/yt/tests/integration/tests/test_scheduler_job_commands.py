@@ -29,7 +29,6 @@ class TestJobProber(YTEnvSetup):
     )
 
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat")
     @unix_only

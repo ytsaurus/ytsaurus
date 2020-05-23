@@ -1208,6 +1208,11 @@ EJobEnvironmentType TBootstrap::GetEnvironmentType() const
     return ConvertTo<EJobEnvironmentType>(Config_->ExecAgent->SlotManager->JobEnvironment->AsMap()->FindChild("type"));
 }
 
+bool TBootstrap::IsSimpleEnvironment() const
+{
+    return GetEnvironmentType() == EJobEnvironmentType::Simple;
+}
+
 const std::vector<std::pair<TString, TIP6Address>>& TBootstrap::GetResolvedNodeAddresses() const
 {
     return ResolvedNodeAddresses_;

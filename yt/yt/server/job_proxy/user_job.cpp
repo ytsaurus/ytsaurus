@@ -200,16 +200,13 @@ public:
             BIND(&TUserJob::CheckMemoryUsage, MakeWeak(this)),
             MemoryWatchdogPeriod_);
 
-        if (HasRootPermissions()) {
+        if (jobEnvironmentConfig->Type != EJobEnvironmentType::Simple) {
             UserId_ = jobEnvironmentConfig->StartUid + Config_->SlotIndex;
         }
 
         if (UserJobEnvironment_) {
             if (!host->GetConfig()->BusServer->UnixDomainSocketPath) {
                 THROW_ERROR_EXCEPTION("Unix domain socket path is not configured");
-            }
-            if (!UserId_) {
-                THROW_ERROR_EXCEPTION("Job proxy process lacks root permissions");
             }
 
             IUserJobEnvironment::TUserJobProcessOptions options;

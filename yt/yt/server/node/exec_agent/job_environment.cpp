@@ -313,15 +313,6 @@ private:
 
     std::vector<TString> CGroups_;
 
-    virtual void DoInit(int slotCount, double cpuLimit) override
-    {
-        if (!HasRootPermissions()) {
-            THROW_ERROR_EXCEPTION("Failed to initialize \"cgroup\" job environment: root permissions required");
-        }
-
-        TProcessJobEnvironmentBase::DoInit(slotCount, cpuLimit);
-    }
-
     virtual void AddArguments(TProcessBasePtr process, int slotIndex) override
     {
         for (const auto& path : GetCGroupPaths(slotIndex)) {
@@ -356,10 +347,6 @@ public:
 
         try {
             EnsureJobProxyFinished(slotIndex, true);
-
-            if (HasRootPermissions_) {
-                RunTool<TKillAllByUidTool>(GetUserId(slotIndex));
-            }
         } catch (const std::exception& ex) {
             auto error = TError("Failed to clean processes (SlotIndex: %v)",
                 slotIndex) << ex;
@@ -368,11 +355,9 @@ public:
         }
     }
 
-    virtual int GetUserId(int slotIndex) const override
+    virtual int GetUserId(int /*slotIndex*/) const override
     {
-        return HasRootPermissions_
-            ? Config_->StartUid + slotIndex
-            : ::getuid();
+        return ::getuid();
     }
 
     virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int /*locationIndex*/) override
@@ -386,25 +371,12 @@ public:
 private:
     const TSimpleJobEnvironmentConfigPtr Config_;
 
-    const bool HasRootPermissions_ = HasRootPermissions();
     const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
-
-    virtual void DoInit(int slotCount, double cpuLimit) override
-    {
-        if (!HasRootPermissions_ && Config_->EnforceJobControl) {
-            THROW_ERROR_EXCEPTION("Failed to initialize \"simple\" job environment: "
-                "\"enforce_job_control\" option set, but no root permissions provided");
-        }
-
-        TProcessJobEnvironmentBase::DoInit(slotCount, cpuLimit);
-    }
 
     virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, TJobId /* jobId */)
     {
         auto process = New<TSimpleProcess>(JobProxyProgramName);
-        if (!HasRootPermissions_) {
-            process->CreateProcessGroup();
-        }
+        process->CreateProcessGroup();
         return process;
     }
 };
