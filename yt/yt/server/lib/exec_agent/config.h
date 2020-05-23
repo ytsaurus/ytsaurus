@@ -56,15 +56,8 @@ class TSimpleJobEnvironmentConfig
     : public TJobEnvironmentConfig
 {
 public:
-    //! When set to |true|, job proxies are run under per-slot pseudousers.
-    //! This option requires node server process to have root privileges.
-    bool EnforceJobControl;
-
     TSimpleJobEnvironmentConfig()
-    {
-        RegisterParameter("enforce_job_control", EnforceJobControl)
-            .Default(false);
-    }
+    { }
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleJobEnvironmentConfig)

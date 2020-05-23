@@ -884,8 +884,6 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
-
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "event_log": {
@@ -2242,7 +2240,6 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
 
     DELTA_NODE_CONFIG = yt.common.update(

@@ -304,9 +304,6 @@ class YTEnvSetup(object):
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
 
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = False
-    REQUIRE_SUID_TOOL = False
-
     NUM_REMOTE_CLUSTERS = 0
 
     # To be redefined in successors
@@ -408,15 +405,7 @@ class YTEnvSetup(object):
 
         need_suid = False
         cls.cleanup_root_files = False
-        if cls.get_param("REQUIRE_YTSERVER_ROOT_PRIVILEGES", False):
-            need_suid = True
-            cls.cleanup_root_files = True
-
         if cls.get_param("USE_PORTO_FOR_SERVERS", False):
-            need_suid = True
-            cls.cleanup_root_files = True
-
-        if cls.get_param("REQUIRE_SUID_TOOL", False):
             need_suid = True
             cls.cleanup_root_files = True
 

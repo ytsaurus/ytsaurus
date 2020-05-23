@@ -26,10 +26,7 @@ class TestSchedulerAcls(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
-    REQUIRE_SUID_TOOL = True
-
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_NODE_CONFIG = yt.common.update(
         get_porto_delta_node_config(),

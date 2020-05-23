@@ -101,7 +101,6 @@ private:
     TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
     const bool EnableTmpfs_;
-    const bool HasRootPermissions_;
 
     std::set<TString> TmpfsPaths_;
     std::set<int> SlotsWithQuota_;

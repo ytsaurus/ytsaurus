@@ -35,7 +35,6 @@ class TestPoolMetrics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {

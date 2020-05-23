@@ -25,7 +25,6 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
 
     DELTA_NODE_CONFIG = get_porto_delta_node_config()
@@ -78,7 +77,6 @@ class TestMemoryReserveFactor(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
 

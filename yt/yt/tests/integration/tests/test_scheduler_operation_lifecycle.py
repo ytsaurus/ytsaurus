@@ -51,7 +51,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat")
     def test_connection_time(self):
@@ -589,7 +588,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
     DELTA_NODE_CONFIG = get_porto_delta_node_config()
     USE_PORTO_FOR_SERVERS = True
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
 
     @authors("ignat", "eshcherbin")
     def test_pool_profiling(self):
@@ -966,7 +964,6 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         }
     }
 
-    REQUIRE_YTSERVER_ROOT_PRIVILEGES = True
     USE_PORTO_FOR_SERVERS = True
     DELTA_NODE_CONFIG = yt.common.update(
         get_porto_delta_node_config(),
