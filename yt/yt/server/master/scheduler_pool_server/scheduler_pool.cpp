@@ -127,13 +127,14 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() < EMasterReign::InternalizeAbcSchedulerPoolAttribute) {
         static const auto abcAttributeName = "abc";
         if (auto abc = FindAttribute(abcAttributeName)) {
+            auto value = std::move(*abc);
+            YT_VERIFY(Attributes_->Remove(abcAttributeName));
             try {
-                FullConfig_->LoadParameter(abcAttributeName, NYTree::ConvertToNode(*abc), EMergeStrategy::Overwrite);
-                YT_VERIFY(SpecifiedAttributes_.emplace(TInternedAttributeKey::Lookup(abcAttributeName), *abc).second);
-                YT_VERIFY(Attributes_->Remove(abcAttributeName));
+                FullConfig_->LoadParameter(abcAttributeName, NYTree::ConvertToNode(value), EMergeStrategy::Overwrite);
+                YT_VERIFY(SpecifiedAttributes_.emplace(TInternedAttributeKey::Lookup(abcAttributeName), std::move(value)).second);
             } catch (const std::exception& e) {
                 // Since we make this attribute well-known, the error needs to be logged and subsequently fixed.
-                YT_LOG_ERROR(e, "Unable to load %q attribute of pool %v", abcAttributeName, GetName());
+                YT_LOG_ERROR(e, "Cannot parse %Qv as %Qv attribute of pool %Qv", value, abcAttributeName, GetName());
                 return;
             }
         }
