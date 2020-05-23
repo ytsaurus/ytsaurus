@@ -45,11 +45,24 @@ def remove_all_volumes(path):
 class PortoSubprocess(object):
     @classmethod
     def Popen(cls, args, shell=None, close_fds=None, preexec_fn=None, cwd=None, stdout=None, stderr=None, env=None):
-        conn = Connection()
-        name = generate_uuid()[:4]
         command = " ".join(["'" + quote(a) + "'" for a in args])
+        conn = Connection()
+
+        for i in range(16):
+            try:
+                # Container name is limited to 200 symbols. When running inside YT job, 120 symbols are
+                # taken by base infractructure. About 40 more symbols are used by YT node. We are left with
+                # 40 symbols to start YT cluster with porto containers inside, so we can't afford to use full
+                # GUID here.
+                name = generate_uuid()[:4]
+                container = conn.Create("self/" + str(name), weak=True)
+                break
+            except exceptions.ContainerAlreadyExists:
+                if i == 15:
+                    raise
+
         p = PortoSubprocess()
-        p._container = conn.Create("self/" + str(name), weak=True)
+        p._container = container
         p._portoName = name
         p._connection = conn
         p._container.SetProperty("command", command)
