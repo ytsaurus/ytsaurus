@@ -626,18 +626,18 @@ class YTEnvSetup(object):
                 # TODO(prime@): remove this garbage
                 subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
 
-            destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name)
-            if cls.run_id:
-                destination_path = os.path.join(destination_path, cls.run_id)
-            if os.path.exists(destination_path):
-                shutil.rmtree(destination_path, ignore_errors=True)
-
             runtime_data = [os.path.join(cls.path_to_run, "runtime_data")] + glob.glob(cls.path_to_run + "/*/runtime_data")
             for dir in runtime_data:
                 if os.path.exists(dir):
                     shutil.rmtree(dir, ignore_errors=True)
 
             if SANDBOX_ROOTDIR != SANDBOX_STORAGE_ROOTDIR:
+                destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name)
+                if cls.run_id:
+                    destination_path = os.path.join(destination_path, cls.run_id)
+                if os.path.exists(destination_path):
+                    shutil.rmtree(destination_path, ignore_errors=True)
+
                 print >>sys.stderr, "Moving test artifacts from", cls.path_to_run, "to", destination_path
                 shutil.move(cls.path_to_run, destination_path)
                 print >>sys.stderr, "Move completed"
