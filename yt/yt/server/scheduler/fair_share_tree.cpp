@@ -1667,7 +1667,7 @@ auto TFairShareTree<TFairShareImpl>::DoBuildOperationProgress(
         .Item("deactivation_reasons").Value(element->GetDeactivationReasons())
         .Item("tentative").Value(element->GetRuntimeParameters()->Tentative)
         .Item("starving_since").Value(element->GetStarving()
-            ? std::optional<TInstant>(element->GetLastNonStarvingTime())
+            ? std::make_optional(element->GetLastNonStarvingTime())
             : std::nullopt)
         .Do(BIND(&TFairShareTree::DoBuildElementYson, Unretained(this), Unretained(element), rootElementSnapshot));
 }
