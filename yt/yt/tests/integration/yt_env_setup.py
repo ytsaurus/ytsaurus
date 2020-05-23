@@ -406,6 +406,9 @@ class YTEnvSetup(object):
         need_suid = False
         cls.cleanup_root_files = False
         if cls.get_param("USE_PORTO_FOR_SERVERS", False):
+            if arcadia_interop.is_inside_distbuild():
+                pytest.skip("porto is not available inside distbuild")
+            
             need_suid = True
             cls.cleanup_root_files = True
 
