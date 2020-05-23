@@ -420,6 +420,11 @@ class YTEnvSetup(object):
             need_suid = True
             cls.cleanup_root_files = True
 
+        # TODO(prime@): teamcity build uses binaries from outside.
+        # Those binaries have suid bit set. That messes up tests, what should not use root.
+        if arcadia_interop.yatest_common.get_param("teamcity"):
+            cls.cleanup_root_files = True
+            
         # Initialize `cls` fields before actual setup to make teardown correct.
 
         # TODO(ignat): Rename Env to env
