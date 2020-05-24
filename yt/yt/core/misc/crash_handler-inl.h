@@ -16,18 +16,18 @@ namespace NYT {
 #ifdef _unix_
 
 template <class TCallback>
-void DumpStackTrace(TCallback flushCallback)
+void DumpStackTrace(TCallback writeCallback)
 {
     // Get the stack trace (without current frame hence +1).
     std::array<void*, 99> frames; // 99 is to keep formatting. :)
     int frameCount = NLibunwind::GetStackTrace(frames.data(), frames.size(), 1);
-    FormatStackTrace(frames.data(), frameCount, flushCallback);
+    FormatStackTrace(frames.begin(), frameCount, writeCallback);
 }
 
 #else
 
 template <class TCallback>
-void DumpStackTrace(TCallback flushCallback)
+void DumpStackTrace(TCallback /*writeCallback*/)
 {
     TRawFormatter<256> formatter;
     formatter.AppendString("(stack trace is not available for this platform)");

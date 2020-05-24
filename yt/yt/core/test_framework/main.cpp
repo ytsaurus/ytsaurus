@@ -28,7 +28,7 @@ int main(int argc, char **argv)
 #endif
         NYT::NYTAlloc::EnableYTLogging();
         NYT::NYTAlloc::EnableYTProfiling();
-        NYT::NYTAlloc::SetLibunwindBacktraceProvider();
+        NYT::NYTAlloc::InitializeLibunwindInterop();
         NYT::NYTAlloc::ConfigureFromEnv();
         NYT::NYTAlloc::EnableStockpile();
         NYT::NLogging::TLogManager::Get()->ConfigureFromEnv();

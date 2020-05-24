@@ -33,14 +33,14 @@ TYsonProducer CreateStatisticsProducer()
                                     .Item("backtrace").Do([&] (auto fluent) {
                                         fluent.GetConsumer()->OnBeginList();
                                         FormatStackTrace(
-                                            const_cast<void**>(allocation.Backtrace.Frames.data()), allocation.Backtrace.FrameCount,
-                                            [&] (const char* data, size_t length) {
+                                            allocation.Backtrace.Frames.data(),
+                                            allocation.Backtrace.FrameCount,
+                                            [&] (TStringBuf str) {
                                                 fluent.GetConsumer()->OnListItem();
-                                                auto line = TStringBuf(data, length);
-                                                if (line.EndsWith('\n')) {
-                                                    line = line.Trunc(line.length() - 1);
+                                                if (str.EndsWith('\n')) {
+                                                    str = str.Trunc(str.length() - 1);
                                                 }
-                                                fluent.GetConsumer()->OnStringScalar(line);
+                                                fluent.GetConsumer()->OnStringScalar(str);
                                             });
                                         fluent.GetConsumer()->OnEndList();
                                     });

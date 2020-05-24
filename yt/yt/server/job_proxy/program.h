@@ -61,7 +61,7 @@ protected:
         CloseAllDescriptors();
         NYTAlloc::EnableYTLogging();
         NYTAlloc::ConfigureFromEnv();
-        NYTAlloc::SetLibunwindBacktraceProvider();
+        NYTAlloc::InitializeLibunwindInterop();
 
         // Make RSS predictable.
         NYTAlloc::SetEnableEagerMemoryRelease(true);

@@ -1,5 +1,6 @@
 #include "stack_trace.h"
 #include "raw_formatter.h"
+#include "string_builder.h"
 
 #include <yt/build/config.h>
 
@@ -13,11 +14,11 @@
 
 namespace NYT {
 
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////s//////////////////////////////////////////
 
 namespace NDetail {
 
-int GetSymbolInfo(void* pc, char* buffer, int length)
+int GetSymbolInfo(const void* pc, char* buffer, int length)
 {
     TBaseFormatter formatter(buffer, length);
 
@@ -86,7 +87,7 @@ int GetSymbolInfo(void* pc, char* buffer, int length)
     return formatter.GetBytesWritten();
 }
 
-void DumpStackFrameInfo(TBaseFormatter* formatter, void* pc)
+void DumpStackFrameInfo(TBaseFormatter* formatter, const void* pc)
 {
     formatter->AppendString("@ ");
     const int width = (sizeof(void*) == 8 ? 12 : 8) + 2;
@@ -96,13 +97,23 @@ void DumpStackFrameInfo(TBaseFormatter* formatter, void* pc)
     // Get the symbol from the previous address of PC,
     // because PC may be in the next function.
     formatter->Advance(GetSymbolInfo(
-        reinterpret_cast<char*>(pc) - 1,
+        reinterpret_cast<const char*>(pc) - 1,
         formatter->GetCursor(),
         formatter->GetBytesRemaining()));
     formatter->AppendString("\n");
 }
 
 } // namespace NDetail
+
+TString FormatStackTrace(const void* const* frames, int frameCount)
+{
+    TStringBuilder builder;
+    FormatStackTrace(
+        frames,
+        frameCount,
+        [&] (TStringBuf str) { builder.AppendString(str); });
+    return builder.Flush();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
