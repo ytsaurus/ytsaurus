@@ -575,7 +575,6 @@ class YTEnvSetup(object):
             if env is None:
                 continue
             env.stop()
-            env.kill_cgroups()
 
         yt_commands.terminate_drivers()
         gc.collect()

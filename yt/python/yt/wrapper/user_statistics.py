@@ -23,25 +23,3 @@ def _get_field(path, name):
 
 def _get_value(path):
     return int(open(path, "r").read())
-
-def get_blkio_cgroup_statistics():
-    """Returns map with blkio statistics from cgroup."""
-    blkio_cgroup_path = os.environ.get("YT_CGROUP_BLKIO")
-    if not blkio_cgroup_path:
-        return {}
-
-    return {
-        "total_amount": _get_field(os.path.join(blkio_cgroup_path, "blkio.io_serviced_recursive"), "Total"),
-        "total_bytes": _get_field(os.path.join(blkio_cgroup_path, "blkio.io_service_bytes_recursive"), "Total"),
-        "total_time": _get_field(os.path.join(blkio_cgroup_path, "blkio.io_service_time_recursive"), "Total")}
-
-def get_memory_cgroup_statistics():
-    """Returns map with memory statistics from cgroups."""
-    # TODO(ignat): this env variable does not exist anymore. YT-9716.
-    memory_cgroup_path = os.environ.get("YT_CGROUP_MEMORY")
-    if not memory_cgroup_path:
-        return {}
-
-    stat_path = os.path.join(memory_cgroup_path, "memory.stat")
-    return {"usage_in_bytes": _get_field(stat_path, "total_rss") + _get_field(stat_path, "total_mapped_file")}
-    # "max_usage_in_bytes": _get_value(os.path.join(memory_cgroup_path, "memory.max_usage_in_bytes"))

@@ -1,6 +1,6 @@
 from __future__ import print_function
 
-from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox, ENABLE_JOB_CONTROL,
+from .helpers import (get_tests_location, TEST_DIR, get_tests_sandbox,
                       sync_create_cell, get_test_file_path, get_port_locks_path,
                       yatest_common, create_job_events, wait)
 
@@ -85,26 +85,13 @@ class YtTestEnvironment(object):
         common_delta_node_config = {
             "exec_agent": {
                 "slot_manager": {
-                    "enforce_job_control": False,
+                    "enforce_job_control": True,
                 },
                 "statistics_reporter": {
                     "reporting_period": 1000,
                 }
             },
         }
-        if ENABLE_JOB_CONTROL:
-            common_delta_node_config.update({
-                "exec_agent": {
-                    "slot_manager": {
-                        "enforce_job_control": True,
-                        "job_environment": {
-                            "type": "cgroups",
-                            "memory_watchdog_period": 100,
-                            "supported_cgroups": ["cpuacct", "blkio", "cpu"],
-                        },
-                    },
-                }
-            })
         common_delta_scheduler_config = {
             "scheduler": {
                 "max_operation_count": 5,
@@ -198,7 +185,6 @@ class YtTestEnvironment(object):
         self.config["read_parallel"]["max_thread_count"] = 10
 
         self.config["enable_token"] = False
-        self.config["pickling"]["enable_tmpfs_archive"] = ENABLE_JOB_CONTROL
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
         if config["backend"] != "rpc":
             self.config["driver_config"] = self.env.configs["driver"]

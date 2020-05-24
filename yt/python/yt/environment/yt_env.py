@@ -45,8 +45,6 @@ from itertools import count
 
 logger = logging.getLogger("Yt.local")
 
-CGROUP_TYPES = frozenset(["cpuacct", "cpu", "blkio", "freezer"])
-
 BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 
 # Used to configure driver logging exactly once per environment (as a set of YT instances).
@@ -130,25 +128,6 @@ def _configure_logger():
     else:
         logger.handlers[0].setFormatter(logging.Formatter("%(message)s"))
 
-
-def _has_cgroups():
-    if not sys.platform.startswith("linux"):
-        return False
-    if not os.path.exists("/sys/fs/cgroup"):
-        return False
-    for cgroup_type in CGROUP_TYPES:
-        checked_path = "/sys/fs/cgroup/{0}/{1}".format(cgroup_type, getpass.getuser())
-        if not os.path.exists(checked_path):
-            checked_path = "/sys/fs/cgroup/{0}".format(cgroup_type)
-        if not os.access(checked_path, os.R_OK | os.W_OK):
-            return False
-    return True
-
-
-def _get_cgroup_path(cgroup_type, *args):
-    return "/sys/fs/cgroup/{0}/{1}/{2}".format(cgroup_type, getpass.getuser(), "/".join(imap(str, args)))
-
-
 def _list_process_children(pid):
     with open("/proc/{pid}/task/{pid}/children".format(pid=pid)) as f:
         return f.read().strip().split()
@@ -178,7 +157,6 @@ class YTInstance(object):
             raise YtError("Option use_porto_for_servers is specified but porto is not available")
 
         self._use_porto_for_servers = use_porto_for_servers
-        self._use_cgroup_for_servers = not use_porto_for_servers and _has_cgroups()
 
         self._subprocess_module = PortoSubprocess if use_porto_for_servers else subprocess
 
@@ -286,8 +264,6 @@ class YTInstance(object):
         self._service_processes = defaultdict(list)
         # Dictionary from pid to tuple with Process and arguments
         self._pid_to_process = {}
-        # List of all used cgroup paths.
-        self._process_cgroup_paths = []
 
         self.master_count = master_count
         self.nonvoting_master_count = nonvoting_master_count
@@ -344,17 +320,6 @@ class YTInstance(object):
                 port_locks_path=self.port_locks_path,
                 local_port_range=self.local_port_range)
             return self._open_port_iterator
-
-    def _get_cgroup_path(self, cgroup_type, *args):
-        return _get_cgroup_path(cgroup_type, "yt", self._uuid, *args)
-
-    def _prepare_cgroups(self):
-        if self._use_cgroup_for_servers:
-            for cgroup_type in CGROUP_TYPES:
-                cgroup_path = self._get_cgroup_path(cgroup_type)
-                makedirp(cgroup_path)
-                self._process_cgroup_paths.append(cgroup_path)
-                logger.info("Registered cgroup {0}".format(cgroup_path))
 
     def _prepare_directories(self):
         master_dirs = []
@@ -489,7 +454,6 @@ class YTInstance(object):
 
         self._cluster_configuration = cluster_configuration
 
-        self._prepare_cgroups()
         if self.master_count + self.secondary_master_cell_count > 0:
             self._prepare_masters(cluster_configuration["master"])
         if self.clock_count > 0:
@@ -681,64 +645,6 @@ class YTInstance(object):
         addresses = get_value_from_config(self.configs["rpc_proxy"][0], "grpc_server/addresses", "rpc_proxy")
         return addresses[0]["address"]
 
-    def kill_cgroups(self):
-        if self._use_cgroup_for_servers:
-            with self._lock:
-                self.kill_cgroups_impl()
-
-    def kill_cgroups_impl(self):
-        freezer_cgroups = []
-        for cgroup_path in self._process_cgroup_paths:
-            if "cgroup/freezer" in cgroup_path:
-                freezer_cgroups.append(cgroup_path)
-
-        for freezer_path in freezer_cgroups:
-            logger.info("Checking tasks in {}".format(freezer_path))
-            with open(os.path.join(freezer_path, "tasks")) as f:
-                for line in f:
-                    pid = int(line)
-                    # Stopping process activity. This prevents
-                    # forking of new processes, for example.
-                    logger.info("Sending SIGSTOP (pid: {})".format(pid))
-                    os.kill(pid, signal.SIGSTOP)
-
-        for freezer_path in freezer_cgroups:
-            with open(os.path.join(freezer_path, "tasks")) as f:
-                for line in f:
-                    pid = int(line)
-                    # Stopping process activity. This prevents
-                    # forking of new processes, for example.
-                    logger.info("Sending SIGKILL (pid: {})".format(pid))
-                    os.kill(pid, signal.SIGKILL)
-
-        for cgroup_path in self._process_cgroup_paths:
-            for dirpath, dirnames, _ in os.walk(cgroup_path, topdown=False):
-                for dirname in dirnames:
-                    inner_cgroup_path = os.path.join(dirpath, dirname)
-                    for iter in xrange(5):
-                        try:
-                            logger.info("Removing {}".format(inner_cgroup_path))
-                            os.rmdir(inner_cgroup_path)
-                            break
-                        except OSError:
-                            try:
-                                with open(os.path.join(inner_cgroup_path, "tasks")) as f:
-                                    logger.exception("Failed to remove cgroup dir, tasks {0}".format(f.readlines()))
-                            except:
-                                logger.exception("Failed to remove cgroup dir")
-
-                            time.sleep(0.5)
-
-            try:
-                # NB(psushin): sometimes cgroups still remain busy.
-                # We don't want to fail tests in this case.
-                logger.info("Removing {}".format(cgroup_path))
-                os.rmdir(cgroup_path)
-            except OSError:
-                logger.exception("Failed to remove cgroup dir {0}".format(cgroup_path))
-
-        self._process_cgroup_paths = []
-
     def kill_schedulers(self, indexes=None):
         self.kill_service("scheduler", indexes=indexes)
 
@@ -911,10 +817,7 @@ class YTInstance(object):
         if has_some_bind_failure:
             raise YtEnvRetriableError("Process failed to bind on some of ports")
 
-    def _run(self, args, name, number=None, cgroup_paths=None, timeout=0.1):
-        if cgroup_paths is None:
-            cgroup_paths = []
-
+    def _run(self, args, name, number=None, timeout=0.1):
         with self._lock:
             index = number if number is not None else 0
             name_with_number = name
@@ -928,9 +831,6 @@ class YTInstance(object):
             stderr_path = os.path.join(self.stderrs_path, "stderr.{0}".format(name_with_number))
             self._stderr_paths[name].append(stderr_path)
 
-            for cgroup_path in cgroup_paths:
-                makedirp(cgroup_path)
-
             stdout = open(os.devnull, "w")
             stderr = None
             if self._capture_stderr_to_file or isinstance(self._subprocess_module, PortoSubprocess):
@@ -938,8 +838,6 @@ class YTInstance(object):
 
             if self._kill_child_processes:
                 args += ["--pdeathsig", str(int(signal.SIGTERM))]
-            for cgroup_path in cgroup_paths:
-                args += ["--cgroup", cgroup_path]
             args += ["--setsid"]
 
             env = copy.copy(os.environ)
@@ -970,7 +868,6 @@ class YTInstance(object):
 
         for i in xrange(len(self.configs[name])):
             args = None
-            cgroup_paths = None
             if self.abi_version[0] >= 19:
                 args = [_get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)]
                 if self._kill_child_processes:
@@ -978,13 +875,7 @@ class YTInstance(object):
             else:
                 raise YtError("Unsupported YT ABI version {0}".format(self.abi_version))
             args.extend([config_option, self.config_paths[name][i]])
-            cgroup_paths = None
-            if self._use_cgroup_for_servers:
-                cgroup_paths = []
-                for cgroup_type in CGROUP_TYPES:
-                    cgroup_path = self._get_cgroup_path(cgroup_type, "{0}-{1}".format(name, i))
-                    cgroup_paths.append(cgroup_path)
-            self._run(args, name, number=i, cgroup_paths=cgroup_paths)
+            self._run(args, name, number=i)
 
     def _get_master_name(self, master_name, cell_index):
         if cell_index == 0:

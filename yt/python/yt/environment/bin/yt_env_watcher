@@ -41,7 +41,6 @@ def main():
     parser.add_argument("--log-path", required=True, help="path for watcher's logs")
     parser.add_argument("--pdeathsig", type=int, help="deathsig")
     parser.add_argument("--setsid", action="store_true", help="call setsid() after start")
-    parser.add_argument("--cgroup", action="append", help="cgroup path where process should be added")
     options = parser.parse_args()
 
     configure_logging(options.log_path)
@@ -57,12 +56,6 @@ def main():
             logger.error(
                 "os.setsid failed: errno = {}({}). pid = {}, pgid = {}"
                 .format(e.errno, e.strerror, os.getpid(), os.getpgid(0)))
-
-    if options.cgroup is not None:
-        for cgroup_path in options.cgroup:
-            with open(os.path.join(cgroup_path, "tasks"), "at") as handle:
-                handle.write(str(os.getpid()))
-                handle.write("\n")
 
     if options.lock_file_path:
         lock_file_descriptor = open(options.lock_file_path, "w+")
