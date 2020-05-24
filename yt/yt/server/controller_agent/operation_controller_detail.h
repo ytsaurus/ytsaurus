@@ -238,6 +238,7 @@ public:
     virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const;
     virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
     virtual void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
+    virtual bool ShouldShowTasksSectionInProgress() const;
 
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
@@ -470,7 +471,7 @@ protected:
 
     std::optional<TInputQuery> InputQuery;
 
-    //! All tasks declared by calling #RegisterTask, mostly for debugging purposes.
+    //! All tasks declared by calling #RegisterTask.
     std::vector<TTaskPtr> Tasks;
 
     //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
@@ -1059,6 +1060,8 @@ private:
 
     std::unique_ptr<TAutoMergeDirector> AutoMergeDirector_;
 
+    bool AutoMergeEnabled_ = false;
+
     //! Release queue of job ids that were completed after the latest snapshot was built.
     //! It is a transient field.
     TReleaseQueue<TJobId> CompletedJobIdsReleaseQueue_;
@@ -1234,6 +1237,10 @@ private:
 
     void MarkJobHasCompetitors(const TJobletPtr& joblet);
 
+    //! Returns list of operation tasks that have a vertex in data flow graph,
+    //! ordered according to topological order of data flow graph.
+    std::vector<TTaskPtr> GetTopologicallyOrderedTasks() const;
+
     //! Helper class that implements IChunkPoolInput interface for output tables.
     class TSink
         : public NChunkPools::IChunkPoolInput
@@ -1253,6 +1260,7 @@ private:
         virtual void Resume(TCookie cookie) override;
         virtual void Reset(TCookie cookie, NChunkPools::TChunkStripePtr stripe, NChunkPools::TInputChunkMappingPtr chunkMapping) override;
         virtual void Finish() override;
+        virtual bool IsFinished() const override;
 
         void Persist(const TPersistenceContext& context);
 

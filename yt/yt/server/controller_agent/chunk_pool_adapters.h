@@ -31,6 +31,8 @@ public:
 
     virtual void Finish() override;
 
+    virtual bool IsFinished() const override;
+
     void Persist(const TPersistenceContext& context);
 
 private:

@@ -86,6 +86,8 @@ public:
 
     const TProgressCounterPtr& GetTotalJobCounter() const;
 
+    const std::vector<TVertexDescriptor>& GetTopologicalOrdering() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

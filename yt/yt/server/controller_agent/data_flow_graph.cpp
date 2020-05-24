@@ -477,6 +477,11 @@ const TProgressCounterPtr& TDataFlowGraph::GetTotalJobCounter() const
     return Impl_->GetTotalJobCounter();
 }
 
+const std::vector<TVertexDescriptor>& TDataFlowGraph::GetTopologicalOrdering() const
+{
+    return Impl_->GetTopologicalOrdering();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent

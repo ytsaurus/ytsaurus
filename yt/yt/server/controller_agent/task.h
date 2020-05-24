@@ -133,6 +133,7 @@ public:
     virtual void Persist(const TPersistenceContext& context) override;
 
     virtual NScheduler::TUserJobSpecPtr GetUserJobSpec() const;
+    bool HasUserJob() const;
 
     // TODO(max42): eliminate necessity for this method (YT-10528).
     virtual bool IsSimpleTask() const;
@@ -164,6 +165,8 @@ public:
     TSharedRef BuildJobSpecProto(TJobletPtr joblet);
 
     virtual bool IsJobInterruptible() const;
+
+    void BuildTaskYson(NYTree::TFluentMap fluent) const;
 
 protected:
     NLogging::TLogger Logger;
@@ -267,7 +270,7 @@ private:
     TJobResources CachedTotalNeededResources_;
     mutable std::optional<NScheduler::TExtendedJobResources> CachedMinNeededResources_;
 
-    bool CompletedFired_;
+    bool CompletedFired_ = false;
 
     using TCookieAndPool = std::pair<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::IChunkPoolInput*>;
 
@@ -285,6 +288,9 @@ private:
     void AbortJobViaScheduler(TJobId jobId, EAbortReason reason);
 
     void OnSpeculativeJobScheduled(const TJobletPtr& joblet);
+
+    double GetJobProxyMemoryReserveFactor() const;
+    double GetUserJobMemoryReserveFactor() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

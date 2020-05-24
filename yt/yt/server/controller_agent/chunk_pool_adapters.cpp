@@ -44,6 +44,11 @@ void TChunkPoolInputAdapterBase::Finish()
     return UnderlyingInput_->Finish();
 }
 
+bool TChunkPoolInputAdapterBase::IsFinished() const
+{
+    return UnderlyingInput_->IsFinished();
+}
+
 void TChunkPoolInputAdapterBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;

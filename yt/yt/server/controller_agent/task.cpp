@@ -47,7 +47,6 @@ TTask::TTask()
     : Logger(ControllerLogger)
     , CachedPendingJobCount_(-1)
     , CachedTotalJobCount_(-1)
-    , CompletedFired_(false)
     , CompetitiveJobManager_(
         std::bind(&TTask::OnSpeculativeJobScheduled, this, _1),
         std::bind(&TTask::AbortJobViaScheduler, this, _1, _2),
@@ -62,7 +61,6 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors
     , TentativeTreeEligibility_(taskHost->GetSpec()->TentativeTreeEligibility)
     , CachedPendingJobCount_(0)
     , CachedTotalJobCount_(0)
-    , CompletedFired_(false)
     , InputChunkMapping_(New<TInputChunkMapping>())
     , CompetitiveJobManager_(
         std::bind(&TTask::OnSpeculativeJobScheduled, this, _1),
@@ -261,6 +259,11 @@ TUserJobSpecPtr TTask::GetUserJobSpec() const
     return nullptr;
 }
 
+bool TTask::HasUserJob() const
+{
+    return static_cast<bool>(GetUserJobSpec());
+}
+
 ITaskHost* TTask::GetTaskHost()
 {
     return TaskHost_;
@@ -397,12 +400,10 @@ void TTask::ScheduleJob(
     joblet->Restarted = restarted;
     joblet->JobType = jobType;
     joblet->NodeDescriptor = context->GetNodeDescriptor();
-    joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryDigest()->GetQuantile(
-        TaskHost_->GetConfig()->JobProxyMemoryReserveQuantile);
+    joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryReserveFactor();
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec) {
-        joblet->UserJobMemoryReserveFactor = GetUserJobMemoryDigest()->GetQuantile(
-            TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
+        joblet->UserJobMemoryReserveFactor = GetUserJobMemoryReserveFactor();
     }
 
     if (userJobSpec && userJobSpec->JobSpeculationTimeout) {
@@ -471,6 +472,22 @@ bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
 bool TTask::IsJobInterruptible() const
 {
     return TaskHost_->IsJobInterruptible();
+}
+
+void TTask::BuildTaskYson(TFluentMap fluent) const
+{
+    fluent
+        .Item("task_name").Value(GetVertexDescriptor())
+        .Item("job_type").Value(GetJobType())
+        .Item("has_user_job").Value(HasUserJob())
+        .Item("job_counter").Value(GetJobCounter())
+        .Item("input_finished").Value(GetChunkPoolInput() && GetChunkPoolInput()->IsFinished())
+        .Item("completed").Value(IsCompleted())
+        .Item("min_needed_resources").Value(GetMinNeededResources())
+        .Item("job_proxy_memory_reserve_factor").Value(GetJobProxyMemoryReserveFactor())
+        .DoIf(HasUserJob(), [&] (TFluentMap fluent) {
+            fluent.Item("user_job_memory_reserve_factor").Value(GetUserJobMemoryReserveFactor());
+        });
 }
 
 std::optional<EAbortReason> TTask::ShouldAbortJob(const TJobletPtr& joblet)
@@ -909,11 +926,9 @@ TJobResources TTask::ApplyMemoryReserve(const TExtendedJobResources& jobResource
     result.SetGpu(jobResources.GetGpu());
     result.SetUserSlots(jobResources.GetUserSlots());
     i64 memory = jobResources.GetFootprintMemory();
-    memory += jobResources.GetJobProxyMemory() * GetJobProxyMemoryDigest()
-        ->GetQuantile(TaskHost_->GetConfig()->JobProxyMemoryReserveQuantile);
-    if (GetUserJobSpec()) {
-        memory += jobResources.GetUserJobMemory() * GetUserJobMemoryDigest()
-            ->GetQuantile(TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
+    memory += jobResources.GetJobProxyMemory() * GetJobProxyMemoryReserveFactor();
+    if (HasUserJob()) {
+        memory += jobResources.GetUserJobMemory() * GetUserJobMemoryReserveFactor();
     } else {
         YT_VERIFY(jobResources.GetUserJobMemory() == 0);
     }
@@ -1228,6 +1243,18 @@ void TTask::AbortJobViaScheduler(TJobId jobId, EAbortReason reason)
 void TTask::OnSpeculativeJobScheduled(const TJobletPtr& joblet)
 {
     GetTaskHost()->OnSpeculativeJobScheduled(joblet);
+}
+
+double TTask::GetJobProxyMemoryReserveFactor() const
+{
+    return GetJobProxyMemoryDigest()->GetQuantile(TaskHost_->GetConfig()->JobProxyMemoryReserveQuantile);
+}
+
+double TTask::GetUserJobMemoryReserveFactor() const
+{
+    YT_VERIFY(HasUserJob());
+
+    return GetUserJobMemoryDigest()->GetQuantile(TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

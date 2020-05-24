@@ -35,6 +35,8 @@ struct IChunkPoolInput
     virtual void Reset(TCookie cookie, TChunkStripePtr stripe, TInputChunkMappingPtr mapping) = 0;
 
     virtual void Finish() = 0;
+
+    virtual bool IsFinished() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,6 +47,8 @@ class TChunkPoolInputBase
 public:
     // IChunkPoolInput implementation.
     virtual void Finish() override;
+
+    virtual bool IsFinished() const override;
 
     //! This implementation checks that key is not set (that is true for all standard
     //! chunk pools) and that `stripe` contains data slices, after that it

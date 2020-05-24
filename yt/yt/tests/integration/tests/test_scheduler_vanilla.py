@@ -65,6 +65,16 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert get(data_flow_graph_path + "/vertices/slave/job_type") ==  "vanilla"
         assert get(data_flow_graph_path + "/vertices/slave/job_counter/completed/total") == 2
 
+        tasks = {}
+        for task in get(op.get_path() + "/@progress/tasks"):
+            tasks[task["task_name"]] = task
+        
+        assert tasks["master"]["job_type"] == "vanilla"
+        assert tasks["master"]["job_counter"]["completed"]["total"] == 1
+        assert tasks["slave"]["job_type"] == "vanilla"
+        assert tasks["slave"]["job_counter"]["completed"]["total"] == 2
+        assert get(op.get_path() + "/@progress/total_job_counter/completed/total") == 3
+
     @authors("max42", "ignat")
     def test_task_job_index(self):
         master_command = " ; ".join([
@@ -108,6 +118,16 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         assert get(data_flow_graph_path + "/vertices/master/job_counter/completed/total") == 1
         assert get(data_flow_graph_path + "/vertices/slave/job_type") ==  "vanilla"
         assert get(data_flow_graph_path + "/vertices/slave/job_counter/completed/total") == 3
+
+        tasks = {}
+        for task in get(op.get_path() + "/@progress/tasks"):
+            tasks[task["task_name"]] = task
+        
+        assert tasks["master"]["job_type"] == "vanilla"
+        assert tasks["master"]["job_counter"]["completed"]["total"] == 1
+        assert tasks["slave"]["job_type"] == "vanilla"
+        assert tasks["slave"]["job_counter"]["completed"]["total"] == 3
+        assert get(op.get_path() + "/@progress/total_job_counter/completed/total") == 4
 
     @authors("max42")
     def test_files(self):
