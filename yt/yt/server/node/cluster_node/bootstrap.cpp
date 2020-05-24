@@ -233,7 +233,8 @@ void TBootstrap::ValidateSnapshot(const TString& fileName)
 
 bool TBootstrap::IsReadOnly() const
 {
-    return !DynamicConfigManager_->IsDynamicConfigLoaded();
+    // TOOD(gritukan): Make node without dynamic config read-only after YT-12933.
+    return false;
 }
 
 void TBootstrap::DoInitialize()
