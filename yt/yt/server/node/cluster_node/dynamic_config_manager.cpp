@@ -54,9 +54,14 @@ void TDynamicConfigManager::Start()
     Executor_->Start();
 
     // Fetch config for the first time before further node initialization.
-    // In case of failure node will become read-only until successful config fetch.
     WaitFor(Executor_->GetExecutedEvent())
         .ThrowOnError();
+    
+    if (!CurrentConfig_) {
+        YT_LOG_WARNING("Dynamic node config was not loaded during dynamic config manager initialization, ",
+            "using default config");
+        ConfigUpdated_.Fire(New<TClusterNodeDynamicConfig>());
+    }
 }
 
 TFuture<void> TDynamicConfigManager::Stop()
@@ -117,6 +122,19 @@ void TDynamicConfigManager::TryFetchConfig()
     options.ReadFrom = EMasterChannelKind::Cache;
 
     const auto& client = Bootstrap_->GetMasterClient();
+
+    auto configExistsOrError = WaitFor(client->NodeExists("//sys/cluster_nodes/@config"));
+    THROW_ERROR_EXCEPTION_IF_FAILED(configExistsOrError,
+        NClusterNode::EErrorCode::FailedToFetchDynamicConfig,
+        "Failed to check dynamic config Cypress node existence");
+
+    // Silently ignore dynamic config absence.
+    // TODO(gritukan): Set alert here after YT-12933.
+    if (!configExistsOrError.Value()) {
+        YT_LOG_INFO("Dynamic config node does not exist, will not try to fetch dynamic config");
+        return;
+    }
+
     auto configOrError = WaitFor(client->GetNode("//sys/cluster_nodes/@config", options));
     THROW_ERROR_EXCEPTION_IF_FAILED(configOrError,
         NClusterNode::EErrorCode::FailedToFetchDynamicConfig,

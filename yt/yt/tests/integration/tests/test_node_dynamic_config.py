@@ -297,23 +297,22 @@ class TestNodeDynamicConfig(YTEnvSetup):
         assert self.get_dynamic_config_last_update_time(nodes[1]) > node_b_config_last_update_time
 
     @authors("gritukan")
-    def test_node_read_only(self):
-        create("table", "//tmp/t")
-        write_table("//tmp/t", [{"x": "y"}])
+    def test_no_config_node(self):
+        create("table", "//tmp/r")
+        create("table", "//tmp/w")
+
+        write_table("//tmp/r", [{"x": "y"}])
 
         sync_create_cells(1)
         cell_id = ls("//sys/tablet_cells")[0]
         assert get("#{0}/@health".format(cell_id)) == "good"
 
-        with Restarter(self.Env, NODES_SERVICE):
-            remove("//sys/cluster_nodes/@config")
-
         def check_reads():
-            return read_table("//tmp/t") == [{"x": "y"}]
+            return read_table("//tmp/r") == [{"x": "y"}]
 
         def check_writes():
             try:
-                write_table("//tmp/t", [{"x": "y"}])
+                write_table("//tmp/w", [{"x": "y"}])
                 return True
             except:
                 return False
@@ -330,12 +329,18 @@ class TestNodeDynamicConfig(YTEnvSetup):
             return get("#{0}/@health".format(cell_id)) == "good"
 
         assert check_reads()
-        assert not check_writes()
-        assert not check_jobs()
-        assert not check_tablet_cells()
+        assert check_writes()
+        assert check_jobs()
+        assert check_tablet_cells()
 
-        set("//sys/cluster_nodes/@config", {"%true": {}})
+        with Restarter(self.Env, NODES_SERVICE):
+            remove("//sys/cluster_nodes/@config")
 
+        wait(lambda: check_reads())
         wait(lambda: check_writes())
         wait(lambda: check_jobs())
         wait(lambda: check_tablet_cells())
+        for node in ls("//sys/cluster_nodes"):
+            # Default dynamic config has no annotation.
+            assert self.get_dynamic_config_annotation(node) == ""
+            assert len(get("//sys/cluster_nodes/{0}/@alerts".format(node))) == 0
