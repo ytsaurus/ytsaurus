@@ -807,7 +807,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
         sleep(1.0)
         for delay in xrange(0, 10):
-            assert lookup_rows("//tmp/t", keys, read_from="follower", backup_request_delay=delay, timestamp=AsyncLastCommittedTimestamp) == rows
+            assert lookup_rows("//tmp/t", keys, read_from="follower", rpc_hedging_delay=delay, timestamp=AsyncLastCommittedTimestamp) == rows
 
     @authors("babenko")
     def test_erasure(self):

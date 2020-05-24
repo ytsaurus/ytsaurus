@@ -124,7 +124,7 @@ TReadOnlyTabletCommandBase<
 {
     this->RegisterParameter("read_from", this->Options.ReadFrom)
         .Optional();
-    this->RegisterParameter("backup_request_delay", this->Options.BackupRequestDelay)
+    this->RegisterParameter("rpc_hedging_delay", this->Options.RpcHedgingDelay)
         .Optional();
     this->RegisterParameter("timestamp", this->Options.Timestamp)
         .Optional();

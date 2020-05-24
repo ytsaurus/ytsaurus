@@ -9,7 +9,7 @@
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/helpers.h>
 
-#include <yt/core/rpc/latency_taming_channel.h>
+#include <yt/core/rpc/hedging_channel.h>
 
 namespace NYT::NApi::NNative {
 
@@ -119,17 +119,19 @@ IChannelPtr CreateTabletReadChannel(
 {
     const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, options.ReadFrom);
     auto primaryChannel = channelFactory->CreateChannel(primaryPeerDescriptor.GetAddressWithNetworkOrThrow(networks));
-    if (cellDescriptor.Peers.size() == 1 || !options.BackupRequestDelay) {
+    if (cellDescriptor.Peers.size() == 1 || !options.RpcHedgingDelay) {
         return primaryChannel;
     }
 
     const auto& backupPeerDescriptor = GetBackupTabletPeerDescriptor(cellDescriptor, primaryPeerDescriptor);
     auto backupChannel = channelFactory->CreateChannel(backupPeerDescriptor.GetAddressWithNetworkOrThrow(networks));
 
-    return CreateLatencyTamingChannel(
+    return CreateHedgingChannel(
         std::move(primaryChannel),
         std::move(backupChannel),
-        *options.BackupRequestDelay);
+        THedgingChannelOptions{
+            .Delay = *options.RpcHedgingDelay
+        });
 }
 
 void ValidateTabletMountedOrFrozen(const TTabletInfoPtr& tabletInfo)

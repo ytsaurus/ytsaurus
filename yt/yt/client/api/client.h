@@ -431,7 +431,7 @@ struct TTabletReadOptions
     : public TTimeoutOptions
 {
     NHydra::EPeerKind ReadFrom = NHydra::EPeerKind::Leader;
-    std::optional<TDuration> BackupRequestDelay;
+    std::optional<TDuration> RpcHedgingDelay;
     //! Ignored when queried via transaction.
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::SyncLastCommittedTimestamp;
 };

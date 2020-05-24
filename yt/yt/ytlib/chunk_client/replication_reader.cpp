@@ -47,6 +47,8 @@
 
 #include <yt/core/net/local_address.h>
 
+#include <yt/core/rpc/hedging_channel.h>
+
 #include <util/generic/ymath.h>
 
 #include <util/random/shuffle.h>
@@ -87,13 +89,14 @@ DEFINE_ENUM(EPeerType,
 
 struct TPeer
 {
+    TPeer() = default;
     TPeer(
-        const TAddressWithNetwork& addressWithNetwork,
+        TAddressWithNetwork addressWithNetwork,
         TNodeDescriptor nodeDescriptor,
         EPeerType peerType,
         EAddressLocality locality)
-        : AddressWithNetwork(addressWithNetwork)
-        , NodeDescriptor(nodeDescriptor)
+        : AddressWithNetwork(std::move(addressWithNetwork))
+        , NodeDescriptor(std::move(nodeDescriptor))
         , Type(peerType)
         , Locality(locality)
     { }
@@ -104,17 +107,19 @@ struct TPeer
     EAddressLocality Locality;
 };
 
-TString ToString(const TPeer& peer)
+void FormatValue(TStringBuilderBase* builder, const TPeer& peer, TStringBuf format)
 {
-    return ToString(peer.AddressWithNetwork);
+    FormatValue(builder, peer.AddressWithNetwork, format);
 }
+
+using TPeerList = SmallVector<TPeer, 3>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TPeerQueueEntry
 {
-    TPeerQueueEntry(const TPeer& peer, int banCount)
-        : Peer(peer)
+    TPeerQueueEntry(TPeer peer, int banCount)
+        : Peer(std::move(peer))
         , BanCount(banCount)
     { }
 
@@ -308,12 +313,12 @@ private:
     void OnPeerBanned(const TString& peerAddress)
     {
         TGuard<TSpinLock> guard(PeersSpinLock_);
-        auto pair = PeerBanCountMap_.insert(std::make_pair(peerAddress, 1));
-        if (!pair.second) {
-            ++pair.first->second;
+        auto [it, inserted] = PeerBanCountMap_.emplace(peerAddress, 1);
+        if (!inserted) {
+            ++it->second;
         }
 
-        if (pair.first->second > Config_->MaxBanCount) {
+        if (it->second > Config_->MaxBanCount) {
             BannedForeverPeers_.insert(peerAddress);
         }
     }
@@ -328,11 +333,7 @@ private:
     {
         TGuard<TSpinLock> guard(PeersSpinLock_);
         auto it = PeerBanCountMap_.find(peerAddress);
-        if (it == PeerBanCountMap_.end()) {
-            return 0;
-        } else {
-            return it->second;
-        }
+        return it == PeerBanCountMap_.end() ? 0 : it->second;
     }
 
     bool IsPeerBannedForever(const TString& peerAddress) const
@@ -447,6 +448,36 @@ protected:
         return locality;
     }
 
+    bool SyncThrottle(const IThroughputThrottlerPtr& throttler, i64 count)
+    {
+        auto throttleResult = WaitFor(throttler->Throttle(count));
+        if (!throttleResult.IsOK()) {
+            auto error = TError(
+                NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                "Failed to apply throttling in reader")
+                << throttleResult;
+            OnSessionFailed(true, error);
+            return false;
+        }
+        return true;
+    }
+
+    void AsyncThrottle(const IThroughputThrottlerPtr& throttler, i64 count, TClosure onSuccess)
+    {
+        throttler->Throttle(count)
+            .Subscribe(BIND([=, this_ = MakeStrong(this), onSuccess = std::move(onSuccess)] (const TError& throttleResult) {
+                if (!throttleResult.IsOK()) {
+                    auto error = TError(
+                        NChunkClient::EErrorCode::BandwidthThrottlingFailed,
+                        "Failed to apply throttling in reader")
+                        << throttleResult;
+                    OnSessionFailed(true, error);
+                    return;
+                }
+                onSuccess();
+            }).Via(SessionInvoker_));
+    }
+
     void BanPeer(const TString& address, bool forever)
     {
         auto reader = Reader_.Lock();
@@ -544,8 +575,12 @@ protected:
     template <class TResponsePtr>
     void ProcessError(const TErrorOr<TResponsePtr>& rspOrError, const TString& peerAddress, const TError& wrappingError)
     {
-        auto error = wrappingError << rspOrError;
         auto code = rspOrError.GetCode();
+        if (code == NYT::EErrorCode::Canceled) {
+            return;
+        }
+        
+        auto error = wrappingError << rspOrError;
         if (code == NRpc::EErrorCode::Unavailable ||
             code == NRpc::EErrorCode::RequestQueueSizeLimitExceeded ||
             code == NHydra::EErrorCode::InvalidChangelogState)
@@ -558,12 +593,13 @@ protected:
         RegisterError(error);
     }
 
-    std::vector<TPeer> PickPeerCandidates(
+    TPeerList PickPeerCandidates(
+        const TReplicationReaderPtr& reader,
         int count,
-        std::function<bool(const TString&)> filter,
-        const TReplicationReaderPtr& reader)
+        bool enableEarlyExit,
+        std::function<bool(const TString&)> filter = {})
     {
-        std::vector<TPeer> candidates;
+        TPeerList candidates;
         while (!PeerQueue_.empty() && candidates.size() < count) {
             const auto& top = PeerQueue_.top();
             if (top.BanCount != reader->GetBanCount(top.Peer.AddressWithNetwork.Address)) {
@@ -574,7 +610,7 @@ protected:
                 continue;
             }
 
-            if (!candidates.empty()) {
+            if (!candidates.empty() && enableEarlyExit) {
                 if (candidates.front().Type == EPeerType::Peer) {
                     // If we have peer candidate, ask it first.
                     break;
@@ -587,36 +623,35 @@ protected:
                 }
             }
 
-            if (filter(top.Peer.AddressWithNetwork.Address) && !IsPeerBanned(top.Peer.AddressWithNetwork.Address)) {
+            if ((!filter || filter(top.Peer.AddressWithNetwork.Address)) && !IsPeerBanned(top.Peer.AddressWithNetwork.Address)) {
                 candidates.push_back(top.Peer);
             }
+            
             PeerQueue_.pop();
         }
-
         return candidates;
     }
 
-    // Intended for usage in lookups.
-    std::vector<TPeer> GetMultiplePeerCandidates(int count, const TReplicationReaderPtr& reader)
+    IChannelPtr MakePeersChannel(
+        const TPeerList& peers,
+        std::optional<TDuration> delay,
+        bool cancelPrimary)
     {
-        std::vector<TPeer> candidates;
-        while (!PeerQueue_.empty() && candidates.size() < count) {
-            const auto& top = PeerQueue_.top();
-            if (top.BanCount != reader->GetBanCount(top.Peer.AddressWithNetwork.Address)) {
-                auto queueEntry = top;
-                PeerQueue_.pop();
-                queueEntry.BanCount = reader->GetBanCount(queueEntry.Peer.AddressWithNetwork.Address);
-                PeerQueue_.push(queueEntry);
-                continue;
-            }
-
-            if (!IsPeerBanned(top.Peer.AddressWithNetwork.Address)) {
-                candidates.push_back(top.Peer);
-            }
-            PeerQueue_.pop();
+        if (peers.empty()) {
+            return nullptr;
         }
 
-        return candidates;
+        if (peers.size() == 1 || !delay) {
+            return GetChannel(peers[0].AddressWithNetwork);
+        }
+
+        return CreateHedgingChannel(
+            GetChannel(peers[0].AddressWithNetwork),
+            GetChannel(peers[1].AddressWithNetwork),
+            THedgingChannelOptions{
+                .Delay = *delay,
+                .CancelPrimary = cancelPrimary
+            });
     }
 
     void NextRetry()
@@ -762,7 +797,7 @@ protected:
         }
 
         if (RetryStartTime_ + ReaderConfig_->RetryTimeout < TInstant::Now()) {
-            RegisterError(TError(EErrorCode::ReaderTimeout, "Replication reader retry %v out of %v timed out)",
+            RegisterError(TError(EErrorCode::ReaderTimeout, "Replication reader retry %v out of %v timed out",
                  RetryIndex_,
                  ReaderConfig_->RetryCount)
                  << TErrorAttribute("retry_start_time", RetryStartTime_)
@@ -798,10 +833,9 @@ protected:
     }
 
     virtual bool IsCanceled() const = 0;
-
     virtual void NextPass() = 0;
-
     virtual void OnSessionFailed(bool fatal) = 0;
+    virtual void OnSessionFailed(bool fatal, const TError& error) = 0;
 
 private:
     //! Errors collected by the session.
@@ -940,13 +974,14 @@ public:
         std::optional<i64> estimatedSize)
         : TSessionBase(reader, options)
         , BlockIndexes_(blockIndexes)
+        , EstimatedSize_(estimatedSize)
     {
         Logger.AddTag("Blocks: %v", blockIndexes);
     }
 
     ~TReadBlockSetSession()
     {
-        Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader terminated"));
+        Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader destroyed"));
     }
 
     TFuture<std::vector<TBlock>> Run()
@@ -962,13 +997,12 @@ public:
 private:
     //! Block indexes to read during the session.
     const std::vector<int> BlockIndexes_;
-
     const std::optional<i64> EstimatedSize_;
 
-    i64 BytesThrottled_ = 0;
-
     //! Promise representing the session.
-    TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
+    const TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
+
+    i64 BytesThrottled_ = 0;
 
     //! Blocks that are fetched so far.
     THashMap<int, TBlock> Blocks_;
@@ -1028,27 +1062,31 @@ private:
                 auto block = reader->BlockCache_->Find(blockId, EBlockType::CompressedData);
                 if (block) {
                     YT_LOG_DEBUG("Block is fetched from cache (Block: %v)", blockIndex);
-                    YT_VERIFY(Blocks_.insert(std::make_pair(blockIndex, block)).second);
+                    YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
                 }
             }
         }
     }
 
-    std::optional<TPeer> SelectBestPeer(
-        const std::vector<TPeer>& candidates,
+    TPeerList ProbeAndSelectBestPeers(
+        const TPeerList& candidates,
+        int count,
         const std::vector<int>& blockIndexes,
         const TReplicationReaderPtr& reader)
     {
-        YT_LOG_DEBUG("Gathered candidate peers (Addresses: %v)", candidates);
+        YT_LOG_DEBUG("Gathered candidate peers for probing (Addresses: %v)",
+            candidates);
 
-        if (candidates.empty()) {
-            return std::nullopt;
+        if (count <= 0) {
+            return {};
+        }
+
+        if (candidates.size() <= 1) {
+            return {candidates.begin(), candidates.end()};
         }
 
         // Multiple candidates - send probing requests.
-        std::vector<TFuture<TDataNodeServiceProxy::TRspGetBlockSetPtr>> asyncResults;
-        std::vector<TPeer> probePeers;
-
+        std::vector<TFuture<std::pair<TPeer, TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr>>> probeResultFutures;
         for (const auto& peer : candidates) {
             auto channel = GetChannel(peer.AddressWithNetwork);
             if (!channel) {
@@ -1065,30 +1103,22 @@ private:
             ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
             ToProto(req->mutable_block_indexes(), blockIndexes);
             req->SetAcknowledgementTimeout(std::nullopt);
-
-            probePeers.push_back(peer);
-            asyncResults.push_back(req->Invoke());
+            probeResultFutures.push_back(req->Invoke().Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError) {
+                return std::make_pair(peer, rspOrError);
+            })));
         }
 
-        auto errorOrResults = WaitFor(CombineAll(asyncResults));
-        if (!errorOrResults.IsOK()) {
-            return std::nullopt;
+        auto probeResultsOrError = WaitFor(AllSucceeded(std::move(probeResultFutures)));
+        if (!probeResultsOrError.IsOK()) {
+            return {};
         }
 
-        const auto& results = errorOrResults.Value();
+        const auto& probeResults = probeResultsOrError.Value();
 
-        TDataNodeServiceProxy::TRspGetBlockSetPtr bestRsp;
-        std::optional<TPeer> bestPeer;
-
-        auto getLoad = [&] (const TDataNodeServiceProxy::TRspGetBlockSetPtr& rsp) {
-            return ReaderConfig_->NetQueueSizeFactor * rsp->net_queue_size() +
-                ReaderConfig_->DiskQueueSizeFactor * rsp->disk_queue_size();
-        };
-
+        std::vector<std::pair<TPeer, TDataNodeServiceProxy::TRspGetBlockSetPtr>> successfulProbeResults;
         bool receivedNewPeers = false;
-        for (int i = 0; i < probePeers.size(); ++i) {
-            const auto& peer = probePeers[i];
-            const auto& rspOrError = results[i];
+        for (const auto& result : probeResults) {
+            const auto& [peer, rspOrError] = result;
             if (!rspOrError.IsOK()) {
                 ProcessError(
                     rspOrError,
@@ -1111,47 +1141,61 @@ private:
                 continue;
             }
 
-            if (!bestPeer) {
-                bestRsp = rsp;
-                bestPeer = peer;
-                continue;
+            successfulProbeResults.emplace_back(peer, rsp);
+        }
+
+        if (successfulProbeResults.empty()) {
+            YT_LOG_DEBUG("All peer candidates were discarded");
+            return {};
+        }
+
+        if (receivedNewPeers) {
+            YT_LOG_DEBUG("P2P was activated");
+            for (const auto& result : successfulProbeResults) {
+                const auto& [peer, rsp] = result;
+                ReinstallPeer(peer.AddressWithNetwork.Address);
             }
+            return {};
+        }
 
-            if (getLoad(rsp) < getLoad(bestRsp)) {
-                ReinstallPeer(bestPeer->AddressWithNetwork.Address);
+        SortBy(
+            successfulProbeResults,
+            [&] (const auto& result) {
+                const auto& [peer, rsp] = result;
+                return
+                    ReaderConfig_->NetQueueSizeFactor * rsp->net_queue_size() +
+                    ReaderConfig_->DiskQueueSizeFactor * rsp->disk_queue_size();
+            });
 
-                bestRsp = rsp;
-                bestPeer = peer;
+        count = std::min(count, static_cast<int>(successfulProbeResults.size()));
+        TPeerList bestPeers;
+        for (int index = 0; index < static_cast<int>(successfulProbeResults.size()); ++index) {
+            const auto& [peer, rsp] = successfulProbeResults[index];
+            if (index < count) {
+                bestPeers.push_back(peer);
             } else {
                 ReinstallPeer(peer.AddressWithNetwork.Address);
             }
         }
 
-        if (bestPeer) {
-            if (receivedNewPeers) {
-                YT_LOG_DEBUG("Discard best peer since P2P was activated (Address: %v, PeerType: %v)",
-                    bestPeer->AddressWithNetwork,
-                    bestPeer->Type);
-                ReinstallPeer(bestPeer->AddressWithNetwork.Address);
-                bestPeer = std::nullopt;
-            } else {
-                YT_LOG_DEBUG("Best peer selected (Address: %v, DiskQueueSize: %v, NetQueueSize: %v)",
-                    bestPeer->AddressWithNetwork,
-                    bestRsp->disk_queue_size(),
-                    bestRsp->net_queue_size());
-            }
-        } else {
-            YT_LOG_DEBUG("All peer candidates were discarded");
-        }
-
-        return bestPeer;
+        YT_LOG_DEBUG("Best peers selected (Peers: %v)",
+            MakeFormattableView(
+                MakeRange(successfulProbeResults.begin(), successfulProbeResults.begin() + count),
+                [] (auto* builder, const auto& result) {
+                    const auto& [peer, rsp] = result;
+                    builder->AppendFormat("{Address: %v, DiskQueueSize: %v, NetQueueSize: %v}",
+                        peer.AddressWithNetwork,
+                        rsp->disk_queue_size(),
+                        rsp->net_queue_size());
+                }));
+                
+        return bestPeers;
     }
 
     void RequestBlocks()
     {
-        BIND(&TReadBlockSetSession::DoRequestBlocks, MakeStrong(this))
-            .Via(SessionInvoker_)
-            .Run();
+        SessionInvoker_->Invoke(
+            BIND(&TReadBlockSetSession::DoRequestBlocks, MakeStrong(this)));
     }
 
     bool UpdatePeerBlockMap(
@@ -1199,8 +1243,9 @@ private:
     void DoRequestBlocks()
     {
         auto reader = Reader_.Lock();
-        if (!reader || IsCanceled())
+        if (!reader || IsCanceled()) {
             return;
+        }
 
         FetchBlocksFromCache(reader);
 
@@ -1210,62 +1255,57 @@ private:
             return;
         }
 
-        std::optional<TPeer> optionalPeer;
+        TPeerList candidates;
         NProfiling::TWallTimer pickPeerTimer;
-        while (!optionalPeer) {
-            auto candidates = PickPeerCandidates(
+        int desiredPeerCount = ReaderConfig_->BlockRpcHedgingDelay ? 2 : 1;
+        while (candidates.size() < desiredPeerCount) {
+            auto moreCandidates = PickPeerCandidates(
+                reader,
                 ReaderConfig_->ProbePeerCount,
-                [&] (const TString& address) {
-                    return HasUnfetchedBlocks(address, blockIndexes);
-                },
-                reader);
-            if (candidates.empty()) {
-                OnPassCompleted();
-                return;
+                /* enableEarlyExit */ !ReaderConfig_->BlockRpcHedgingDelay,
+                [&] (const TString& address) { return HasUnfetchedBlocks(address, blockIndexes); });
+            if (moreCandidates.empty()) {
+                break;
             }
-
-            // One extra request for actually getting blocks.
-            auto throttleResult = WaitFor(reader->RpsThrottler_->Throttle(1 + candidates.size()));
-            if (!throttleResult.IsOK()) {
-                auto error = TError(
-                    NChunkClient::EErrorCode::BandwidthThrottlingFailed,
-                    "Failed to throttle bandwidth in reader")
-                    << throttleResult;
-                YT_LOG_WARNING(error, "Chunk reader failed");
-                OnSessionFailed(true, error);
-                return;
-            }
-
-            optionalPeer = SelectBestPeer(candidates, blockIndexes, reader);
+            candidates.insert(candidates.end(), moreCandidates.begin(), moreCandidates.end());
         }
 
+        if (candidates.empty()) {
+            OnPassCompleted();
+            return;
+        }
+
+        // One extra request for actually getting blocks.
+        // Hedging requests are disregarded.
+        if (!SyncThrottle(reader->RpsThrottler_, 1 + candidates.size())) {
+            return;
+        }
+
+        auto peers = ProbeAndSelectBestPeers(
+            candidates,
+            desiredPeerCount,
+            blockIndexes,
+            reader);
+        
         SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime += pickPeerTimer.GetElapsedValue();
 
-        const auto& peerAddressWithNetwork = optionalPeer->AddressWithNetwork;
-        auto channel = GetChannel(peerAddressWithNetwork);
+        auto channel = MakePeersChannel(peers, ReaderConfig_->BlockRpcHedgingDelay, ReaderConfig_->CancelPrimaryBlockRpcRequestOnHedging);
         if (!channel) {
             RequestBlocks();
             return;
         }
 
-        if (peerAddressWithNetwork.Address != GetLocalHostName() && BytesThrottled_ == 0 && EstimatedSize_) {
+        if (peers[0].AddressWithNetwork.Address != GetLocalHostName() && BytesThrottled_ == 0 && EstimatedSize_) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we use BandwidthThrottled_ flag.
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
-
             BytesThrottled_ = *EstimatedSize_;
-            auto throttleResult = WaitFor(reader->BandwidthThrottler_->Throttle(*EstimatedSize_));
-            if (!throttleResult.IsOK()) {
-                auto error = TError(
-                    NChunkClient::EErrorCode::BandwidthThrottlingFailed,
-                    "Failed to throttle bandwidth in reader")
-                    << throttleResult;
-                YT_LOG_WARNING(error, "Chunk reader failed");
-                OnSessionFailed(true, error);
+            if (!SyncThrottle(reader->BandwidthThrottler_, *EstimatedSize_)) {
                 return;
             }
         }
+        
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
 
@@ -1275,7 +1315,6 @@ private:
         ToProto(req->mutable_block_indexes(), blockIndexes);
         req->set_populate_cache(ReaderConfig_->PopulateCache);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
-
         req->Header().set_response_memory_zone(static_cast<i32>(EMemoryZone::Undumpable));
         if (ReaderOptions_->EnableP2P && reader->LocalNodeId_) {
             auto expirationTime = TInstant::Now() + ReaderConfig_->PeerExpirationTimeout;
@@ -1287,27 +1326,31 @@ private:
         auto rspOrError = WaitFor(req->Invoke());
         SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
 
+        bool backup = IsBackup(rspOrError);
+        const auto& respondedPeer = backup ? peers[1] : peers[0];
+
         if (!rspOrError.IsOK()) {
             ProcessError(
                 rspOrError,
-                peerAddressWithNetwork.Address,
-                TError("Error fetching blocks from node %v", peerAddressWithNetwork));
-
+                respondedPeer.AddressWithNetwork.Address,
+                TError("Error fetching blocks from node %v", respondedPeer.AddressWithNetwork));
             RequestBlocks();
             return;
         }
 
         const auto& rsp = rspOrError.Value();
 
+        if (backup) {
+            BanPeer(peers[0].AddressWithNetwork.Address, false);
+        }
+
         SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted += rsp->GetTotalSize();
-        reader->AccountTraffic(
-            rsp->GetTotalSize(),
-            optionalPeer->NodeDescriptor);
+        reader->AccountTraffic(rsp->GetTotalSize(), respondedPeer.NodeDescriptor);
 
         UpdatePeerBlockMap(rsp, reader);
 
         if (rsp->net_throttling() || rsp->disk_throttling()) {
-            YT_LOG_DEBUG("Peer is throttling (Address: %v)", peerAddressWithNetwork);
+            YT_LOG_DEBUG("Peer is throttling (Address: %v)", respondedPeer.AddressWithNetwork);
         }
 
         if (rsp->has_chunk_reader_statistics()) {
@@ -1321,8 +1364,9 @@ private:
         auto blocks = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
         for (int index = 0; index < blocks.size(); ++index) {
             const auto& block = blocks[index];
-            if (!block)
+            if (!block) {
                 continue;
+            }
 
             int blockIndex = req->block_indexes(index);
             auto blockId = TBlockId(reader->ChunkId_, blockIndex);
@@ -1330,7 +1374,7 @@ private:
             if (!block.IsChecksumValid()) {
                 RegisterError(TError("Failed to validate received block checksum")
                     << TErrorAttribute("block_id", ToString(blockId))
-                    << TErrorAttribute("peer", peerAddressWithNetwork)
+                    << TErrorAttribute("peer", respondedPeer.AddressWithNetwork)
                     << TErrorAttribute("actual", GetChecksum(block.Data))
                     << TErrorAttribute("expected", block.Checksum));
 
@@ -1339,47 +1383,41 @@ private:
             }
 
             auto sourceDescriptor = ReaderOptions_->EnableP2P
-                ? std::optional<TNodeDescriptor>(GetPeerDescriptor(peerAddressWithNetwork.Address))
+                ? std::optional<TNodeDescriptor>(GetPeerDescriptor(respondedPeer.AddressWithNetwork.Address))
                 : std::optional<TNodeDescriptor>(std::nullopt);
 
             reader->BlockCache_->Put(blockId, EBlockType::CompressedData, block, sourceDescriptor);
 
-            YT_VERIFY(Blocks_.insert(std::make_pair(blockIndex, block)).second);
+            YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
             bytesReceived += block.Size();
             TotalBytesReceived_ += block.Size();
             receivedBlockIndexes.push_back(blockIndex);
         }
+
         if (invalidBlockCount > 0) {
-            BanPeer(peerAddressWithNetwork.Address, false);
+            BanPeer(respondedPeer.AddressWithNetwork.Address, false);
         }
 
-        BanSeedIfUncomplete(rsp, peerAddressWithNetwork.Address);
+        BanSeedIfUncomplete(rsp, respondedPeer.AddressWithNetwork.Address);
 
         if (bytesReceived > 0) {
             // Reinstall peer into peer queue, if some data was received.
-            ReinstallPeer(peerAddressWithNetwork.Address);
+            ReinstallPeer(respondedPeer.AddressWithNetwork.Address);
         }
 
         YT_LOG_DEBUG("Finished processing block response (Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v, "
               "InvalidBlockCount: %v)",
-              peerAddressWithNetwork,
-              optionalPeer->Type,
+              respondedPeer.AddressWithNetwork,
+              respondedPeer.Type,
               MakeShrunkFormattableView(receivedBlockIndexes, TDefaultFormatter(), 3),
               bytesReceived,
               rsp->peer_descriptors_size(),
               invalidBlockCount);
 
-        if (peerAddressWithNetwork.Address != GetLocalHostName() && TotalBytesReceived_ > BytesThrottled_) {
+        if (respondedPeer.AddressWithNetwork.Address != GetLocalHostName() && TotalBytesReceived_ > BytesThrottled_) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
-            auto throttleResult = WaitFor(reader->BandwidthThrottler_->Throttle(delta));
-            if (!throttleResult.IsOK()) {
-                auto error = TError(
-                    NChunkClient::EErrorCode::BandwidthThrottlingFailed,
-                    "Failed to throttle bandwidth in reader")
-                    << throttleResult;
-                YT_LOG_WARNING(error, "Chunk reader failed");
-                OnSessionFailed(true, error);
+            if (!SyncThrottle(reader->BandwidthThrottler_, delta)) {
                 return;
             }
         }
@@ -1409,7 +1447,7 @@ private:
         OnSessionFailed(fatal, error);
     }
 
-    void OnSessionFailed(bool fatal, const TError& error)
+    virtual void OnSessionFailed(bool fatal, const TError& error) override
     {
         YT_LOG_DEBUG(error, "Reader session failed (Fatal: %v)", fatal);
 
@@ -1474,7 +1512,7 @@ private:
     std::optional<i64> EstimatedSize_;
 
     //! Promise representing the session.
-    TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
+    const TPromise<std::vector<TBlock>> Promise_ = NewPromise<std::vector<TBlock>>();
 
     //! Blocks that are fetched so far.
     std::vector<TBlock> FetchedBlocks_;
@@ -1496,26 +1534,23 @@ private:
 
     void RequestBlocks()
     {
-        BIND(&TReadBlockRangeSession::DoRequestBlocks, MakeStrong(this))
-            .Via(SessionInvoker_)
-            .Run();
+        SessionInvoker_->Invoke(
+            BIND(&TReadBlockRangeSession::DoRequestBlocks, MakeStrong(this)));
     }
 
     void DoRequestBlocks()
     {
         auto reader = Reader_.Lock();
-        if (!reader || IsCanceled())
+        if (!reader || IsCanceled()) {
             return;
+        }
 
         YT_VERIFY(FetchedBlocks_.empty());
 
         auto candidates = PickPeerCandidates(
-            1,
-            [] (const TString& address) {
-                return true;
-            },
-            reader);
-
+            reader,
+            /* count */ 1,
+            /* enableEarlyExit */ true);
         if (candidates.empty()) {
             OnPassCompleted();
             return;
@@ -1535,25 +1570,16 @@ private:
             EstimatedSize_,
             BytesThrottled_);
 
-
         if (peerAddressWithNetwork.Address != GetLocalHostName() && BytesThrottled_ == 0 && EstimatedSize_) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we use BandwidthThrottled_ flag.
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
-
             BytesThrottled_ = *EstimatedSize_;
-            auto throttleResult = WaitFor(reader->BandwidthThrottler_->Throttle(*EstimatedSize_));
-            if (!throttleResult.IsOK()) {
-                auto error = TError(
-                    NChunkClient::EErrorCode::BandwidthThrottlingFailed,
-                    "Failed to throttle bandwidth in reader")
-                    << throttleResult;
-                OnSessionFailed(true, error);
+            if (!SyncThrottle(reader->BandwidthThrottler_, *EstimatedSize_)) {
                 return;
             }
         }
-
 
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
@@ -1574,7 +1600,6 @@ private:
                 rspOrError,
                 peerAddressWithNetwork.Address,
                 TError("Error fetching blocks from node %v", peerAddressWithNetwork));
-
             RequestBlocks();
             return;
         }
@@ -1636,13 +1661,7 @@ private:
         if (peerAddressWithNetwork.Address != GetLocalHostName() && TotalBytesReceived_ > BytesThrottled_) {
             auto delta = TotalBytesReceived_ - BytesThrottled_;
             BytesThrottled_ = TotalBytesReceived_;
-            auto throttleResult = WaitFor(reader->BandwidthThrottler_->Throttle(delta));
-            if (!throttleResult.IsOK()) {
-                auto error = TError(
-                    NChunkClient::EErrorCode::BandwidthThrottlingFailed,
-                    "Failed to throttle bandwidth in reader")
-                    << throttleResult;
-                OnSessionFailed(true, error);
+            if (!SyncThrottle(reader->BandwidthThrottler_, delta)) {
                 return;
             }
         }
@@ -1671,7 +1690,7 @@ private:
         OnSessionFailed(fatal, error);
     }
 
-    void OnSessionFailed(bool fatal, const TError& error)
+    virtual void OnSessionFailed(bool fatal, const TError& error) override
     {
         YT_LOG_DEBUG(error, "Reader session failed (Fatal: %v)", fatal);
 
@@ -1713,7 +1732,7 @@ public:
 
     ~TGetMetaSession()
     {
-        Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader terminated"));
+        Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader destroyed"));
     }
 
     TFuture<TRefCountedChunkMetaPtr> Run()
@@ -1728,14 +1747,14 @@ private:
     const std::optional<std::vector<int>> ExtensionTags_;
 
     //! Promise representing the session.
-    TPromise<TRefCountedChunkMetaPtr> Promise_ = NewPromise<TRefCountedChunkMetaPtr>();
+    const TPromise<TRefCountedChunkMetaPtr> Promise_ = NewPromise<TRefCountedChunkMetaPtr>();
 
     virtual bool IsCanceled() const override
     {
         return Promise_.IsCanceled();
     }
 
-    virtual void NextPass()
+    virtual void NextPass() override
     {
         if (!PrepareNextPass())
             return;
@@ -1746,37 +1765,33 @@ private:
     void RequestMeta()
     {
         // NB: strong ref here is the only reference that keeps session alive.
-        BIND(&TGetMetaSession::DoRequestMeta, MakeStrong(this))
-            .Via(SessionInvoker_)
-            .Run();
+        SessionInvoker_->Invoke(
+            BIND(&TGetMetaSession::DoRequestMeta, MakeStrong(this)));
     }
 
     void DoRequestMeta()
     {
         auto reader = Reader_.Lock();
-        if (!reader || IsCanceled())
+        if (!reader || IsCanceled()) {
             return;
+        }
 
-        auto candidates = PickPeerCandidates(
-            1,
-            [] (const TString& address) {
-                return true;
-            },
-            reader);
-
-        if (candidates.empty()) {
+        auto peers = PickPeerCandidates(
+            reader,
+            ReaderConfig_->MetaRpcHedgingDelay ? 2 : 1,
+            /* enableEarlyExit */ false);
+        if (peers.empty()) {
             OnPassCompleted();
             return;
         }
 
-        const auto& peerAddressWithNetwork = candidates.front().AddressWithNetwork;
-        auto channel = GetChannel(peerAddressWithNetwork);
+        auto channel = MakePeersChannel(peers, ReaderConfig_->MetaRpcHedgingDelay, false);
         if (!channel) {
             RequestMeta();
             return;
         }
 
-        YT_LOG_DEBUG("Requesting chunk meta (Address: %v)", peerAddressWithNetwork);
+        YT_LOG_DEBUG("Requesting chunk meta (Addresses: %v)", peers);
 
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->MetaRpcTimeout);
@@ -1800,30 +1815,38 @@ private:
         auto rspOrError = WaitFor(req->Invoke());
         SessionOptions_.ChunkReaderStatistics->DataWaitTime += dataWaitTimer.GetElapsedValue();
 
+        bool backup = IsBackup(rspOrError);
+        const auto& respondedPeer = backup ? peers[1] : peers[0];
+
         if (!rspOrError.IsOK()) {
             ProcessError(
                 rspOrError,
-                peerAddressWithNetwork.Address,
-                TError("Error fetching meta from node %v", peerAddressWithNetwork));
-
+                respondedPeer.AddressWithNetwork.Address,
+                TError("Error fetching meta from node %v", respondedPeer.AddressWithNetwork));
             RequestMeta();
             return;
         }
 
         const auto& rsp = rspOrError.Value();
+
+        if (backup) {
+            BanPeer(peers[0].AddressWithNetwork.Address, false);
+        }
+
         SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted += rsp->GetTotalSize();
 
         if (rsp->net_throttling()) {
-            YT_LOG_DEBUG("Peer is throttling (Address: %v)", peerAddressWithNetwork);
+            YT_LOG_DEBUG("Peer is throttling (Address: %v)", respondedPeer.AddressWithNetwork);
             RequestMeta();
-        } else {
-            if (rsp->has_chunk_reader_statistics()) {
-                UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
-            }
-
-            TotalBytesReceived_ += rsp->ByteSize();
-            OnSessionSucceeded(std::move(*rsp->mutable_chunk_meta()));
+            return;
         }
+
+        if (rsp->has_chunk_reader_statistics()) {
+            UpdateFromProto(&SessionOptions_.ChunkReaderStatistics, rsp->chunk_reader_statistics());
+        }
+
+        TotalBytesReceived_ += rsp->ByteSize();
+        OnSessionSucceeded(std::move(*rsp->mutable_chunk_meta()));
     }
 
     void OnSessionSucceeded(NProto::TChunkMeta&& chunkMeta)
@@ -1840,7 +1863,7 @@ private:
         OnSessionFailed(fatal, error);
     }
 
-    void OnSessionFailed(bool fatal, const TError& error)
+    virtual void OnSessionFailed(bool fatal, const TError& error) override
     {
         if (fatal) {
             SetReaderFailed();
@@ -1900,7 +1923,7 @@ public:
 
     ~TLookupRowsSession()
     {
-        Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader terminated"));
+        Promise_.TrySet(TError(NYT::EErrorCode::Canceled, "Reader destroyed"));
     }
 
     TFuture<TSharedRef> Run()
@@ -1926,6 +1949,8 @@ private:
     TTimestamp Timestamp_;
     const NCompression::ECodec CodecId_;
     const bool ProduceAllVersions_;
+
+    //! Promise representing the session.
     const TPromise<TSharedRef> Promise_ = NewPromise<TSharedRef>();
 
     TSharedRef FetchedRowset_;
@@ -1936,7 +1961,7 @@ private:
 
     int SinglePassIterationCounter_;
     int CandidateIndex_;
-    std::vector<TPeer> SinglePassCandidates_;
+    TPeerList SinglePassCandidates_;
 
     virtual bool IsCanceled() const override
     {
@@ -1973,7 +1998,7 @@ private:
         OnSessionFailed(fatal, error);
     }
 
-    void OnSessionFailed(bool fatal, const TError& error)
+    virtual void OnSessionFailed(bool fatal, const TError& error) override
     {
         if (fatal) {
             SetReaderFailed();
@@ -2003,42 +2028,29 @@ private:
         TotalBytesReceived_ = 0;
         TotalBytesSent_ = 0;
 
-        YT_LOG_DEBUG("Starting new iteration of TLookupRowsSession"
-            " (CandidateIndex: %v, CandidateCount: %v, IterationCount: %v)",
+        YT_LOG_DEBUG("Starting new lookup iteration "
+            "(CandidateIndex: %v, CandidateCount: %v, IterationCount: %v)",
             CandidateIndex_,
             SinglePassCandidates_.size(),
             SinglePassIterationCounter_);
 
         if (SinglePassCandidates_.empty()) {
-            SinglePassCandidates_ = GetMultiplePeerCandidates(
+            SinglePassCandidates_ = PickPeerCandidates(
+                reader,
                 ReaderConfig_->LookupRequestPeerCount,
-                reader);
+                /* enableEarlyExit */ false);
+        }
 
-            if (SinglePassCandidates_.empty()) {
-                OnPassCompleted();
-                return;
-            }
+        if (SinglePassCandidates_.empty()) {
+            OnPassCompleted();
+            return;
         }
 
         if (SinglePassIterationCounter_ == ReaderConfig_->SinglePassIterationLimitForLookup) {
-            // Additionally post-throttling at the end of each pass.
+            // Additional post-throttling at the end of each pass.
             auto totalBytesToThrottle = TotalBytesReceived_ + TotalBytesSent_;
             BytesThrottled_ += totalBytesToThrottle;
-
-            reader->BandwidthThrottler_->Throttle(totalBytesToThrottle)
-                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& throttleResult) {
-                    if (!throttleResult.IsOK()) {
-                        auto error = TError(
-                            NChunkClient::EErrorCode::BandwidthThrottlingFailed,
-                            "Failed to throttle bandwidth in reader")
-                            << throttleResult;
-                        YT_LOG_WARNING(error, "Lookup chunk reader failed");
-                        OnSessionFailed(true, error);
-                        return;
-                    }
-
-                    OnPassCompleted();
-                }).Via(SessionInvoker_));
+            AsyncThrottle(reader->BandwidthThrottler_, totalBytesToThrottle, BIND(&TLookupRowsSession::OnPassCompleted, MakeStrong(this)));
             return;
         }
 
@@ -2078,22 +2090,8 @@ private:
             // In order not to throttle twice, we use BandwidthThrottled_ flag.
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
-
             BytesThrottled_ = *EstimatedSize_;
-            reader->BandwidthThrottler_->Throttle(BytesThrottled_)
-                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& throttleResult) {
-                    if (!throttleResult.IsOK()) {
-                        auto error = TError(
-                            NChunkClient::EErrorCode::BandwidthThrottlingFailed,
-                            "Failed to throttle bandwidth in reader")
-                            << throttleResult;
-                        YT_LOG_WARNING(error, "Lookup chunk reader failed");
-                        OnSessionFailed(true, error);
-                        return;
-                    }
-
-                    RequestRows();
-                }));
+            AsyncThrottle(reader->BandwidthThrottler_, BytesThrottled_, BIND(&TLookupRowsSession::RequestRows, MakeStrong(this)));
             return;
         }
 
@@ -2104,6 +2102,7 @@ private:
             RequestRows();
             return;
         }
+        
         SendRequestToPeer(channel, reader, peerAddressWithNetwork, *chosenPeer, false);
     }
 
@@ -2173,8 +2172,8 @@ private:
                 peerAddressWithNetwork.Address,
                 TError("Error fetching rows from node %v", peerAddressWithNetwork));
 
-            YT_LOG_WARNING("Data node lookup request failed"
-                " (Address: %v, PeerType: %v, IterationCount: %v, BytesSent: %v)",
+            YT_LOG_WARNING("Data node lookup request failed "
+                "(Address: %v, PeerType: %v, IterationCount: %v, BytesSent: %v)",
                 peerAddressWithNetwork,
                 chosenPeer.Type,
                 SinglePassIterationCounter_,
@@ -2226,8 +2225,8 @@ private:
             reader->BandwidthThrottler_->Acquire(delta);
         }
 
-        YT_LOG_DEBUG("Finished processing rows response"
-            " (Address: %v, PeerType: %v, BytesReceived: %v, BytesSent: %v, IterationCount: %v)",
+        YT_LOG_DEBUG("Finished processing rows response "
+            "(Address: %v, PeerType: %v, BytesReceived: %v, BytesSent: %v, IterationCount: %v)",
             peerAddressWithNetwork,
             chosenPeer.Type,
             TotalBytesReceived_,

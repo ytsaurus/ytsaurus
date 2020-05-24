@@ -1,4 +1,4 @@
-#include "latency_taming_channel.h"
+#include "hedging_channel.h"
 #include "channel.h"
 #include "client.h"
 #include "private.h"
@@ -8,6 +8,8 @@
 #include <yt/core/ytree/fluent.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
+
+#include <yt/core/rpc/proto/rpc.pb.h>
 
 #include <atomic>
 
@@ -22,17 +24,17 @@ static const auto& Logger = RpcClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TLatencyTamingResponseHandler)
-DECLARE_REFCOUNTED_CLASS(TLatencyTamingSession)
+DECLARE_REFCOUNTED_CLASS(THedgingResponseHandler)
+DECLARE_REFCOUNTED_CLASS(THedgingSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLatencyTamingResponseHandler
+class THedgingResponseHandler
     : public IClientResponseHandler
 {
 public:
-    TLatencyTamingResponseHandler(
-        TLatencyTamingSessionPtr session,
+    THedgingResponseHandler(
+        THedgingSessionPtr session,
         bool backup)
         : Session_(std::move(session))
         , Backup_(backup)
@@ -46,51 +48,47 @@ public:
     virtual void HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/) override;
 
 private:
-    const TLatencyTamingSessionPtr Session_;
+    const THedgingSessionPtr Session_;
     const bool Backup_;
-
 };
 
-DEFINE_REFCOUNTED_TYPE(TLatencyTamingResponseHandler)
+DEFINE_REFCOUNTED_TYPE(THedgingResponseHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLatencyTamingSession
+class THedgingSession
     : public IClientRequestControl
 {
 public:
-    TLatencyTamingSession(
+    THedgingSession(
         IClientRequestPtr request,
         IClientResponseHandlerPtr responseHandler,
-        const TSendOptions& options,
+        const TSendOptions& sendOptions,
         IChannelPtr primaryChannel,
         IChannelPtr backupChannel,
-        TDuration delay)
+        const THedgingChannelOptions& hedgingOptions)
         : Request_(std::move(request))
         , ResponseHandler_(std::move(responseHandler))
-        , Options_(options)
+        , SendOptions_(sendOptions)
         , PrimaryChannel_(std::move(primaryChannel))
         , BackupChannel_(std::move(backupChannel))
-        , Delay_(delay)
-    { }
-
-    void Run()
+        , HedgingOptions_(hedgingOptions)
     {
-        auto responseHandler = New<TLatencyTamingResponseHandler>(this, false);
+        auto hedgingResponseHandler = New<THedgingResponseHandler>(this, false);
         auto requestControl = PrimaryChannel_->Send(
             Request_,
-            std::move(responseHandler),
-            Options_);
+            std::move(hedgingResponseHandler),
+            SendOptions_);
 
         // NB: No locking is needed
         RequestControls_.push_back(requestControl);
 
-        if (Delay_ == TDuration()) {
+        if (HedgingOptions_.Delay == TDuration::Zero()) {
             OnDeadlineReached(false);
         } else {
             DeadlineCookie_ = TDelayedExecutor::Submit(
-                BIND(&TLatencyTamingSession::OnDeadlineReached, MakeStrong(this)),
-                Delay_);
+                BIND(&THedgingSession::OnDeadlineReached, MakeStrong(this)),
+                HedgingOptions_.Delay);
         }
     }
 
@@ -113,14 +111,35 @@ public:
             return;
         }
 
-        YT_LOG_DEBUG_IF(backup, "Response received from backup (RequestId: %v)",
-            Request_->GetRequestId());
+        if (backup) {
+            YT_LOG_DEBUG("Response received from backup (RequestId: %v)",
+                Request_->GetRequestId());
+
+            NRpc::NProto::TResponseHeader header;
+            if (!ParseResponseHeader(message, &header)) {
+                ResponseHandler_->HandleError(TError(
+                    NRpc::EErrorCode::ProtocolError,
+                    "Error parsing response header from backup")
+                    << TErrorAttribute(BackupFailedKey, Request_->GetRequestId())
+                    << TErrorAttribute("request_id", Request_->GetRequestId()));
+                return;
+            }
+            
+            auto* ext = header.MutableExtension(NRpc::NProto::THedgingExt::hedging_ext);
+            ext->set_backup_responded(true);
+            message = SetResponseHeader(std::move(message), header);
+        }
+
         ResponseHandler_->HandleResponse(std::move(message));
         Cleanup();
     }
 
     void HandleError(const TError& error, bool backup)
     {
+        if (!backup && error.GetCode() == NYT::EErrorCode::Canceled && PrimaryCanceled_.load()) {
+            return;
+        }
+
         bool expected = false;
         if (!Responded_.compare_exchange_strong(expected, true)) {
             return;
@@ -128,7 +147,12 @@ public:
 
         YT_LOG_DEBUG_IF(backup, "Request failed at backup (RequestId: %v)",
             Request_->GetRequestId());
-        ResponseHandler_->HandleError(error);
+        
+        ResponseHandler_->HandleError(
+            backup
+            ? error << TErrorAttribute(BackupFailedKey, true)
+            : error);
+        
         Cleanup();
     }
 
@@ -137,47 +161,50 @@ public:
     {
         Acknowledged_.store(true);
         Responded_.store(true);
-
-        SmallVector<IClientRequestControlPtr, 2> requestControls;
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-            // Avoid receiving any notifications.
-            RequestControls_.swap(requestControls);
-        }
-
         Cleanup();
-
-        for (const auto& control : requestControls) {
-            control->Cancel();
-        }
+        CancelSentRequests();
     }
 
     virtual TFuture<void> SendStreamingPayload(const TStreamingPayload& /*payload*/) override
     {
-        YT_UNIMPLEMENTED();
+        YT_ABORT();
     }
 
     virtual TFuture<void> SendStreamingFeedback(const TStreamingFeedback& /*feedback*/) override
     {
-        YT_UNIMPLEMENTED();
+        YT_ABORT();
     }
 
 private:
     const IClientRequestPtr Request_;
     const IClientResponseHandlerPtr ResponseHandler_;
-    const TSendOptions Options_;
+    const TSendOptions SendOptions_;
     const IChannelPtr PrimaryChannel_;
     const IChannelPtr BackupChannel_;
-    const TDuration Delay_;
+    const THedgingChannelOptions HedgingOptions_;
 
     TDelayedExecutorCookie DeadlineCookie_;
 
-    std::atomic<bool> Acknowledged_ = {false};
-    std::atomic<bool> Responded_ = {false};
+    std::atomic<bool> Acknowledged_ = false;
+    std::atomic<bool> Responded_ = false;
+    std::atomic<bool> PrimaryCanceled_ = false;
 
     TSpinLock SpinLock_;
     SmallVector<IClientRequestControlPtr, 2> RequestControls_; // always at most 2 items
 
+
+    void CancelSentRequests()
+    {
+        SmallVector<IClientRequestControlPtr, 2> requestControls;
+        {
+            TGuard<TSpinLock> guard(SpinLock_);
+            RequestControls_.swap(requestControls);
+        }
+
+        for (const auto& control : requestControls) {
+            control->Cancel();
+        }
+    }
 
     void Cleanup()
     {
@@ -186,16 +213,16 @@ private:
 
     std::optional<TDuration> GetBackupTimeout()
     {
-        if (!Options_.Timeout) {
+        if (!SendOptions_.Timeout) {
             return std::nullopt;
         }
 
-        auto timeout = *Options_.Timeout;
-        if (timeout < Delay_) {
-            return TDuration();
+        auto timeout = *SendOptions_.Timeout;
+        if (timeout < HedgingOptions_.Delay) {
+            return TDuration::Zero();
         }
 
-        return timeout - Delay_;
+        return timeout - HedgingOptions_.Delay;
     }
 
     void OnDeadlineReached(bool aborted)
@@ -210,18 +237,23 @@ private:
         }
 
         auto backupTimeout = GetBackupTimeout();
-        if (backupTimeout == std::make_optional(TDuration())) {
+        if (backupTimeout == TDuration::Zero()) {
             // Makes no sense to send the request anyway.
             return;
         }
 
-        auto backupOptions = Options_;
-        backupOptions.Timeout = backupTimeout;
+        if (HedgingOptions_.CancelPrimary && HedgingOptions_.Delay != TDuration::Zero()) {
+            PrimaryCanceled_.store(true);
+            CancelSentRequests();
+        }
 
         YT_LOG_DEBUG("Resending request to backup (RequestId: %v)",
             Request_->GetRequestId());
 
-        auto responseHandler = New<TLatencyTamingResponseHandler>(this, true);
+        auto responseHandler = New<THedgingResponseHandler>(this, true);
+
+        auto backupOptions = SendOptions_;
+        backupOptions.Timeout = backupTimeout;
         auto requestControl = BackupChannel_->Send(
             Request_,
             std::move(responseHandler),
@@ -234,57 +266,55 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TLatencyTamingSession)
+DEFINE_REFCOUNTED_TYPE(THedgingSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLatencyTamingResponseHandler::HandleAcknowledgement()
+void THedgingResponseHandler::HandleAcknowledgement()
 {
     Session_->HandleAcknowledgement(Backup_);
 }
 
-void TLatencyTamingResponseHandler::HandleError(const TError& error)
+void THedgingResponseHandler::HandleError(const TError& error)
 {
     Session_->HandleError(error, Backup_);
 }
 
-void TLatencyTamingResponseHandler::HandleResponse(TSharedRefArray message)
+void THedgingResponseHandler::HandleResponse(TSharedRefArray message)
 {
     Session_->HandleResponse(std::move(message), Backup_);
 }
 
-void TLatencyTamingResponseHandler::HandleStreamingPayload(const TStreamingPayload& /*payload*/)
+void THedgingResponseHandler::HandleStreamingPayload(const TStreamingPayload& /*payload*/)
 {
-    YT_UNIMPLEMENTED();
+    YT_ABORT();
 }
 
-void TLatencyTamingResponseHandler::HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/)
+void THedgingResponseHandler::HandleStreamingFeedback(const TStreamingFeedback& /*feedback*/)
 {
-    YT_UNIMPLEMENTED();
+    YT_ABORT();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLatencyTamingChannel
+class THedgingChannel
     : public IChannel
 {
 public:
-    TLatencyTamingChannel(
+    THedgingChannel(
         IChannelPtr primaryChannel,
         IChannelPtr backupChannel,
-        TDuration delay)
+        THedgingChannelOptions options)
         : PrimaryChannel_(std::move(primaryChannel))
         , BackupChannel_(std::move(backupChannel))
-        , Delay_(delay)
-        , EndpointDescription_(Format("LatencyTaming(%v,%v,%v)",
+        , Options_(options)
+        , EndpointDescription_(Format("Hedging(%v,%v)",
             PrimaryChannel_->GetEndpointDescription(),
-            BackupChannel_->GetEndpointDescription(),
-            Delay_))
+            BackupChannel_->GetEndpointDescription()))
         , EndpointAttributes_(ConvertToAttributes(BuildYsonStringFluently()
             .BeginMap()
                 .Item("primary").Value(PrimaryChannel_->GetEndpointAttributes())
                 .Item("backup").Value(BackupChannel_->GetEndpointAttributes())
-                .Item("delay").Value(Delay_)
             .EndMap()))
     { }
 
@@ -308,15 +338,13 @@ public:
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
     {
-        auto session = New<TLatencyTamingSession>(
+        return New<THedgingSession>(
             std::move(request),
             std::move(responseHandler),
             options,
             PrimaryChannel_,
             BackupChannel_,
-            Delay_);
-        session->Run();
-        return session;
+            Options_);
     }
 
     virtual void Terminate(const TError& error) override
@@ -340,25 +368,30 @@ public:
 private:
     const IChannelPtr PrimaryChannel_;
     const IChannelPtr BackupChannel_;
-    const TDuration Delay_;
+    const THedgingChannelOptions Options_;
 
     const TString EndpointDescription_;
     const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
-
 };
 
-IChannelPtr CreateLatencyTamingChannel(
+IChannelPtr CreateHedgingChannel(
     IChannelPtr primaryChannel,
     IChannelPtr backupChannel,
-    TDuration delay)
+    const THedgingChannelOptions& options)
 {
     YT_VERIFY(primaryChannel);
     YT_VERIFY(backupChannel);
 
-    return New<TLatencyTamingChannel>(
+    return New<THedgingChannel>(
         std::move(primaryChannel),
         std::move(backupChannel),
-        delay);
+        options);
+}
+
+bool IsBackup(const TClientResponsePtr& response)
+{
+     const auto& ext = response->Header().GetExtension(NRpc::NProto::THedgingExt::hedging_ext);
+     return ext.backup_responded();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

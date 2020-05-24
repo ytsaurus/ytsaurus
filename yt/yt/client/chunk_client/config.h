@@ -85,11 +85,20 @@ public:
     //! Timeout for a block request.
     TDuration BlockRpcTimeout;
 
+    //! Delay before sending a hedged block request. If null then hedging is disabled.
+    std::optional<TDuration> BlockRpcHedgingDelay;
+
+    //! Whether to cancel the primary block request when backup one is sent.
+    bool CancelPrimaryBlockRpcRequestOnHedging;
+
     //! Timeout for a lookup request.
     TDuration LookupRpcTimeout;
 
     //! Timeout for a meta request.
     TDuration MetaRpcTimeout;
+
+    //! Delay before sending for a hedged meta request. If null then hedging is disabled.
+    std::optional<TDuration> MetaRpcHedgingDelay;
 
     //! Timeout for a queue size probing request.
     TDuration ProbeRpcTimeout;
@@ -164,10 +173,16 @@ public:
     {
         RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
             .Default(TDuration::Seconds(120));
+        RegisterParameter("block_rpc_hedging_delay", BlockRpcHedgingDelay)
+            .Default();
+        RegisterParameter("cancel_primary_block_rpc_request_on_hedging", CancelPrimaryBlockRpcRequestOnHedging)
+            .Default(false);
         RegisterParameter("lookup_rpc_timeout", LookupRpcTimeout)
             .Default(TDuration::Seconds(10));
         RegisterParameter("meta_rpc_timeout", MetaRpcTimeout)
             .Default(TDuration::Seconds(30));
+        RegisterParameter("meta_rpc_hedging_delay", MetaRpcHedgingDelay)
+            .Default();
         RegisterParameter("probe_rpc_timeout", ProbeRpcTimeout)
             .Default(TDuration::Seconds(5));
         RegisterParameter("probe_peer_count", ProbePeerCount)

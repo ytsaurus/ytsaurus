@@ -26,7 +26,8 @@ struct TStreamingFeedback;
 struct TServiceDescriptor;
 struct TMethodDescriptor;
 
-class TClientRequest;
+DECLARE_REFCOUNTED_CLASS(TClientRequest)
+DECLARE_REFCOUNTED_CLASS(TClientResponse)
 
 template <class TRequestMessage, class TResponse>
 class TTypedClientRequest;

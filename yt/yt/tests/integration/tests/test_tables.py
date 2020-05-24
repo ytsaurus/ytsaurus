@@ -1729,6 +1729,24 @@ class TestTables(YTEnvSetup):
 
         _check(expected_after_shortening if shortened else expected_after_widening)
 
+    @authors("babenko")
+    def test_read_with_hedging(self):
+        create("table", "//tmp/t")
+
+        ROWS = list([{"key": i} for i in xrange(10)])
+        write_table("//tmp/t", ROWS)
+
+        chunk_id = get("//tmp/t/@chunk_ids/0")
+        wait(lambda: len(get("#{}/@stored_replicas".format(chunk_id))) == 3)
+
+        for _ in xrange(10):
+            rows = read_table("//tmp/t", table_reader={
+                "meta_rpc_hedging_delay": 1,
+                "block_rpc_hedging_delay": 1,
+                "cancel_primary_block_rpc_request_on_hedging": True
+            })
+            assert rows == ROWS
+
 ##################################################################
 
 def check_multicell_statistics(path, chunk_count_map):
