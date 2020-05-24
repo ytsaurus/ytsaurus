@@ -1,4 +1,4 @@
-from .helpers import ENABLE_JOB_CONTROL, TEST_DIR, create_job_events
+from .helpers import TEST_DIR, create_job_events
 
 import yt.environment.arcadia_interop as arcadia_interop
 

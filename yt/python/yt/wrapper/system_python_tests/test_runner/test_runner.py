@@ -2,7 +2,6 @@ from yt.environment import arcadia_interop
 import yt.logger as logger
 
 import library.python.testing.pytest_runner.runner as pytest_runner
-import library.python.cgroups as cgroups
 
 import yatest.common
 
@@ -59,7 +58,6 @@ def run_pytest(python_version):
             os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "driver", "rpc_shared")
         ]),
         "TESTS_SANDBOX": sandbox_dir,
-        "TESTS_JOB_CONTROL": "1",
         "YT_CAPTURE_STDERR_TO_FILE": "1",
         "YT_ENABLE_VERBOSE_LOGGING": "1",
     }
@@ -73,20 +71,14 @@ def run_pytest(python_version):
         if "download_core_dump" not in name
     ]
 
-    cgroup = None
-    try:
-        cgroup = cgroups.CGroup("test", subsystems=("cpuacct", "cpu", "blkio", "freezer")).create()
-        pytest_runner.run(
-            test_files,
-            python_path="/usr/bin/python" + python_version,
-            env=env,
-            pytest_args=["-v", "-s", "--process-count=10"],
-            # Default timeout for large tests is 1 hour.
-            # We use 50 minutes here as we need time to save results.
-            timeout=3000)
-    finally:
-        if cgroup is not None:
-            cgroup.delete()
+    pytest_runner.run(
+        test_files,
+        python_path="/usr/bin/python" + python_version,
+        env=env,
+        pytest_args=["-v", "-s", "--process-count=10"],
+        # Default timeout for large tests is 1 hour.
+        # We use 50 minutes here as we need time to save results.
+        timeout=3000)
 
     pids = []
     for root, dirs, files in os.walk(sandbox_dir):

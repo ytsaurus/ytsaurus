@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, get_test_file_path, check, set_config_option, get_tests_sandbox,
-                      ENABLE_JOB_CONTROL, dumps_yt_config, get_python, wait, get_operation_path)
+                      dumps_yt_config, get_python, wait, get_operation_path)
 
 # Necessary for tests.
 try:
@@ -1630,9 +1630,6 @@ class TestOperationsTmpfs(object):
 
     @add_failed_operation_stderrs_to_error_message
     def test_mount_tmpfs_in_sandbox(self, yt_env_with_rpc):
-        if not ENABLE_JOB_CONTROL:
-            pytest.skip()
-
         def foo(rec):
             size = 0
             for path, dirnames, filenames in os.walk("."):

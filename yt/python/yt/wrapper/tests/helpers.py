@@ -34,7 +34,6 @@ TEST_DIR = "//home/wrapper_tests"
 TESTS_LOCATION = os.path.dirname(os.path.abspath(__file__))
 PYTHONPATH = os.path.abspath(os.path.join(TESTS_LOCATION, "../../../"))
 TESTS_SANDBOX = os.environ.get("TESTS_SANDBOX", TESTS_LOCATION + ".sandbox")
-ENABLE_JOB_CONTROL = bool(int(os.environ.get("TESTS_JOB_CONTROL", False)))
 
 def get_tests_location():
     if yatest_common is not None:
