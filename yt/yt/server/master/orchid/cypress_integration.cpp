@@ -18,6 +18,9 @@
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/retrying_channel.h>
+#include <yt/core/rpc/balancing_channel.h>
+
+#include <yt/core/ytree/fluent.h>
 
 namespace NYT::NOrchid {
 
@@ -61,9 +64,7 @@ public:
 
         auto manifest = LoadManifest();
 
-        auto channel = CreateRetryingChannel(
-            manifest,
-            ChannelFactory_->CreateChannel(manifest->RemoteAddresses));
+        auto channel = CreateChannel(manifest);
 
         TOrchidServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(manifest->Timeout);
@@ -86,8 +87,7 @@ public:
         outerRequest->SetMultiplexingBand(EMultiplexingBand::Heavy);
         outerRequest->Attachments() = innerRequestMessage.ToVector();
 
-        YT_LOG_DEBUG("Sending request to remote Orchid (RemoteAddress: %v, Path: %v, Method: %v, RequestId: %v)",
-            GetDefaultAddress(manifest->RemoteAddresses),
+        YT_LOG_DEBUG("Sending request to remote Orchid (Path: %v, Method: %v, RequestId: %v)",
             path,
             method,
             outerRequest->GetRequestId());
@@ -129,6 +129,36 @@ private:
                 << ex;
         }
         return manifest;
+    }
+
+    IChannelPtr CreateChannel(const TOrchidManifestPtr& manifest)
+    {
+        switch (manifest->RemoteAddresses->GetType()) {
+            case ENodeType::Map:
+                return CreateRetryingChannel(
+                    manifest,
+                    ChannelFactory_->CreateChannel(ConvertTo<TAddressMap>(manifest->RemoteAddresses)));
+
+            case ENodeType::List: {
+                auto channelConfig = New<TBalancingChannelConfig>();
+                channelConfig->Addresses = ConvertTo<std::vector<TString>>(manifest->RemoteAddresses);
+                auto endpointDescription = TString("Orchid@");
+                auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("orchid").Value(true)
+                    .EndMap());
+                return CreateRetryingChannel(
+                    manifest,
+                    CreateBalancingChannel(
+                        channelConfig,
+                        ChannelFactory_,
+                        endpointDescription,
+                        *endpointAttributes));
+            }
+
+            default:
+                YT_ABORT();
+        }
     }
 
     static void OnResponse(
