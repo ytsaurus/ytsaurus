@@ -16,13 +16,15 @@ type Config struct {
 	Cluster string `yson:"cluster"`
 	Pool    string `yson:"pool"`
 
-	CachePath     ypath.Path `yson:"cache_path"`
-	CacheTTLHours int        `yson:"cache_ttl_hours"`
+	CachePath        ypath.Path `yson:"cache_path"`
+	CacheTTLHours    int        `yson:"cache_ttl_hours"`
+	CoordinateUpload bool       `yson:"coordinate_upload"`
 
 	OutputPath     ypath.Path `yson:"output_path"`
 	OutputTTLHours int        `yson:"output_ttl_hours"`
 
-	JobTimeoutSeconds int `yson:"job_timeout_seconds"`
+	UploadTimeoutSeconds int `yson:"upload_timeout_seconds"`
+	JobTimeoutSeconds    int `yson:"job_timeout_seconds"`
 
 	TmpPath ypath.Path `yson:"tmp_path"`
 
@@ -30,6 +32,14 @@ type Config struct {
 
 	UploadBinaries []string `yson:"upload_binaries"`
 	UploadWorkfile []string `yson:"upload_workfile"`
+}
+
+func (c *Config) CacheTTL() time.Duration {
+	return time.Duration(c.CacheTTLHours) * time.Hour
+}
+
+func (c *Config) UploadTimeout() time.Duration {
+	return time.Duration(c.UploadTimeoutSeconds) * time.Second
 }
 
 const (
@@ -43,6 +53,8 @@ var DefaultConfig = Config{
 
 	CachePath:     "//tmp",
 	CacheTTLHours: 1,
+
+	UploadTimeoutSeconds: 180,
 
 	TmpPath: "//tmp",
 

@@ -1,6 +1,8 @@
 {
     cluster=freud;
     pool="yt-integration-tests";
+    cache_path="//home/yt-integration-tests";
+    coordinate_upload=%true;
     upload_binaries=[
         "yt/go/ytrecipe/test/gotest/gotest"
     ];

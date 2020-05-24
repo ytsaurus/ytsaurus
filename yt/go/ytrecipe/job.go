@@ -26,6 +26,7 @@ import (
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/ytrecipe/internal/blobcache"
 )
 
 func init() {
@@ -186,11 +187,13 @@ func (j *Job) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.
 }
 
 func (r *Runner) CreateOutputDir(ctx context.Context) (ypath.Path, error) {
-	path := r.Config.OutputPath.Child(guid.New().String())
+	id := guid.New().String()
+	path := r.Config.OutputPath.Child(id[:2]).Child(id)
 	ttl := time.Duration(r.Config.OutputTTLHours) * time.Hour
 
 	_, err := r.YT.CreateNode(ctx, path, yt.NodeMap, &yt.CreateNodeOptions{
 		Attributes: map[string]interface{}{"expiration_time": yson.Time(time.Now().Add(ttl))},
+		Recursive:  true,
 	})
 
 	return path, err
@@ -235,6 +238,7 @@ type Runner struct {
 	Config *Config
 	YT     yt.Client
 	L      log.Structured
+	Cache  *blobcache.Cache
 }
 
 func (r *Runner) RunJob() error {
@@ -353,7 +357,10 @@ func (r *Runner) PrepareJob(ctx context.Context, env *Env) (job *Job, s *spec.Sp
 		}
 	}
 
-	if err = r.uploadFS(ctx, job.FS, job.Env); err != nil {
+	uploadCtx, cancel := context.WithTimeout(ctx, job.Config.UploadTimeout())
+	defer cancel()
+
+	if err = r.uploadFS(uploadCtx, job.FS, job.Env); err != nil {
 		return
 	}
 

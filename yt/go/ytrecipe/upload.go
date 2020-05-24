@@ -8,13 +8,14 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/cenkalti/backoff"
 	"golang.org/x/sync/errgroup"
 
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/yt"
 )
 
-func (r *Runner) uploadFile(ctx context.Context, relpath string, do func(w io.Writer) error) error {
+func (r *Runner) basicUploadFile(ctx context.Context, relpath string, do func(w io.Writer) error) error {
 	ok, err := r.YT.NodeExists(ctx, r.Config.CachePath.Child(relpath), &yt.NodeExistsOptions{
 		MasterReadOptions: &yt.MasterReadOptions{ReadFrom: yt.ReadFromCache},
 	})
@@ -111,25 +112,43 @@ func (r *Runner) uploadFS(ctx context.Context, fs *FS, env *Env) error {
 		md5Hash := md5Hash
 		f := f
 
-		eg.Go(func() error {
-			f.CypressPath = r.Config.CachePath.Child(md5Hash.String())
+		uploadFile := func() error {
+			if r.Cache != nil {
+				openFile := func() (io.ReadCloser, error) {
+					return os.Open(f.LocalPath)
+				}
 
-			err := r.uploadFile(ctx, md5Hash.String(), func(w io.Writer) error {
-				f, err := os.Open(f.LocalPath)
+				path, err := r.Cache.Upload(ctx, md5Hash.String(), openFile)
 				if err != nil {
 					return err
 				}
-				defer f.Close()
 
-				_, err = io.Copy(w, f)
-				return err
-			})
+				f.CypressPath = path
+				return nil
+			} else {
+				f.CypressPath = r.Config.CachePath.Child(md5Hash.String())
+				err := r.basicUploadFile(ctx, md5Hash.String(), func(w io.Writer) error {
+					f, err := os.Open(f.LocalPath)
+					if err != nil {
+						return err
+					}
+					defer f.Close()
 
-			if err != nil {
-				return fmt.Errorf("error uploading %q to cypress: %w", f.LocalPath, err)
+					_, err = io.Copy(w, f)
+					return err
+				})
+
+				if err != nil {
+					return fmt.Errorf("error uploading %q to cypress: %w", f.LocalPath, err)
+				}
 			}
 
 			return nil
+		}
+
+		eg.Go(func() error {
+			backOffPolicy := backoff.WithContext(backoff.NewExponentialBackOff(), ctx)
+			return backoff.Retry(uploadFile, backOffPolicy)
 		})
 	}
 
