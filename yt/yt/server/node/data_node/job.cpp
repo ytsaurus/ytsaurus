@@ -721,7 +721,7 @@ public:
             config,
             bootstrap)
         , JobSpecExt_(JobSpec_.GetExtension(TRepairChunkJobSpecExt::repair_chunk_job_spec_ext))
-        , ChunkId_(FromProto<TChunkId>(JobSpecExt_.chunk_id()))
+        , ChunkId_(FixChunkId(FromProto<TChunkId>(JobSpecExt_.chunk_id())))
         , SourceReplicas_(FromProto<TChunkReplicaList>(JobSpecExt_.source_replicas()))
         , TargetReplicas_(FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas()))
     { }
@@ -733,6 +733,17 @@ private:
     const TChunkReplicaWithMediumList TargetReplicas_;
 
     const NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory_ = New<NNodeTrackerClient::TNodeDirectory>();
+
+
+    // COMPAT(babenko): pre-20.2 master servers may send encoded chunk id, which is inappropriate.
+    static TChunkId FixChunkId(TChunkId chunkId)
+    {
+        auto type = TypeFromId(chunkId);
+        if (type >= MinErasureChunkPartType && type <= MaxErasureChunkPartType) {
+            return ReplaceTypeInId(chunkId, EObjectType::ErasureChunk);
+        }
+        return chunkId;
+    }
 
     IChunkReaderPtr CreateReader(int partIndex)
     {
