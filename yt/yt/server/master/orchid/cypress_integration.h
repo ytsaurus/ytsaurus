@@ -19,7 +19,7 @@ namespace NYT::NOrchid {
 struct TOrchidManifest
     : public NRpc::TRetryingChannelConfig
 {
-    NNodeTrackerClient::TAddressMap RemoteAddresses;
+    NYTree::INodePtr RemoteAddresses;
     TString RemoteRoot;
     TDuration Timeout;
 
