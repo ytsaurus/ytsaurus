@@ -1764,7 +1764,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
 
         op = run_sleeping_vanilla(spec={"pool": "custom_pool"})
         wait(lambda: len(list(op.get_running_jobs())) == 1)
-        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root/parent") == "custom_pool"
+        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root/parent", default="") == "custom_pool")
 
         create_pool("trigger_pool_update")
         time.sleep(0.5)  # wait orchid update
