@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"time"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -19,6 +20,7 @@ import (
 	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"a.yandex-team.ru/yt/go/yterrors"
 	"a.yandex-team.ru/yt/go/ytrecipe"
+	"a.yandex-team.ru/yt/go/ytrecipe/internal/blobcache"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/secret"
 )
 
@@ -66,10 +68,21 @@ func do() error {
 		return err
 	}
 
+	cacheConfig := blobcache.Config{
+		Root:             config.CachePath,
+		EntryTTL:         config.CacheTTL(),
+		UploadTimeout:    time.Second * 15,
+		UploadPingPeriod: time.Second * 5,
+	}
+
 	r := &ytrecipe.Runner{
 		Config: &config,
 		YT:     yc,
 		L:      l,
+	}
+
+	if config.CoordinateUpload {
+		r.Cache = blobcache.NewCache(l, yc, cacheConfig)
 	}
 
 	return r.RunJob()

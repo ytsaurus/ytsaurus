@@ -1,8 +1,9 @@
 {
     cluster=freud;
     pool="yt-integration-tests";
-    cache_path="//home/yt-integration-tests/cache";
+    cache_path="//home/yt-integration-tests";
     cache_ttl_hours=24;
+    coordinate_upload=%true;
 
     output_path="//home/yt-integration-tests/output";
     output_ttl_hours=168;
