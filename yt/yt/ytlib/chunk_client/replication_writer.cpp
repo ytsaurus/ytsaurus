@@ -77,26 +77,19 @@ struct TNode
 
     TError Error;
     TPeriodicExecutorPtr PingExecutor;
-    std::atomic_flag Canceled = ATOMIC_FLAG_INIT;
 
-    bool IsClosing = false;
-    bool IsFinished = false;
-
-    TClosure CloseDemandedCallback;
-
-    NLogging::TLogger Logger;
+    bool Closing = false;
+    bool Finished = false;
 
     TNode(
         int index,
-        const TNodeDescriptor& descriptor,
+        TNodeDescriptor descriptor,
         TChunkReplicaWithMedium chunkReplica,
-        IChannelPtr channel,
-        NLogging::TLogger logger)
+        IChannelPtr channel)
         : Index(index)
-        , Descriptor(descriptor)
+        , Descriptor(std::move(descriptor))
         , ChunkReplica(chunkReplica)
         , Channel(std::move(channel))
-        , Logger(logger)
     { }
 
     bool IsAlive() const
@@ -104,26 +97,6 @@ struct TNode
         return Error.IsOK();
     }
 
-    void SendPing(const TDuration& rpcTimeout, TSessionId sessionId)
-    {
-        YT_LOG_DEBUG("Sending ping (Address: %v)",
-            Descriptor.GetDefaultAddress());
-
-        TDataNodeServiceProxy proxy(Channel);
-        auto req = proxy.PingSession();
-        req->SetTimeout(rpcTimeout);
-        ToProto(req->mutable_session_id(), sessionId);
-
-        auto rspOrError = WaitFor(req->Invoke());
-        if (rspOrError.IsOK()) {
-            if (rspOrError.Value()->close_demanded() && CloseDemandedCallback) {
-                CloseDemandedCallback();
-            }
-        } else {
-            YT_LOG_DEBUG("Ping failed (Address: %v)",
-                Descriptor.GetDefaultAddress());
-        }
-    }
 };
 
 TString ToString(const TNodePtr& node)
@@ -224,8 +197,8 @@ public:
             return;
         }
 
-        YT_LOG_INFO("Writer canceled");
-        StateError_.TrySet(TError("Writer canceled"));
+        YT_LOG_INFO("Writer destroyed");
+        StateError_.TrySet(TError("Writer destroyed"));
 
         CancelWriter();
     }
@@ -313,7 +286,7 @@ public:
 
         TChunkReplicaWithMediumList chunkReplicas;
         for (const auto& node : Nodes_) {
-            if (node->IsAlive() && node->IsFinished) {
+            if (node->IsAlive() && node->Finished) {
                 chunkReplicas.push_back(node->ChunkReplica);
             }
         }
@@ -336,7 +309,7 @@ public:
 
     virtual bool IsCloseDemanded() const override
     {
-        return IsCloseDemanded_;
+        return CloseDemanded_;
     }
 
 private:
@@ -360,11 +333,11 @@ private:
     const int UploadReplicationFactor_;
     const int MinUploadReplicationFactor_;
 
-    TPromise<void> StateError_ = NewPromise<void>();
-    TPromise<void> ClosePromise_ = NewPromise<void>();
+    const TPromise<void> StateError_ = NewPromise<void>();
+    const TPromise<void> ClosePromise_ = NewPromise<void>();
     //! We use uncancelable future to make sure that we control all the places, where StateError_ is set.
     TFuture<void> UncancelableStateError_;
-    std::atomic<EReplicationWriterState> State_ = { EReplicationWriterState::Created };
+    std::atomic<EReplicationWriterState> State_ = EReplicationWriterState::Created;
 
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
@@ -393,7 +366,34 @@ private:
 
     std::vector<TString> BannedNodeAddresses_;
 
-    bool IsCloseDemanded_ = false;
+    bool CloseDemanded_ = false;
+
+    TSpinLock CandidateNodesLock_;
+    //! Stores the set of nodes where write sessions could have been started.
+    //! Used to avoid leaving dangling sessions behind on writer cancelation.
+    THashSet<IChannelPtr> CandidateNodes_;
+
+
+    void RegisterCandidateNode(const IChannelPtr& channel)
+    {
+        auto guard = Guard(CandidateNodesLock_);
+        CandidateNodes_.insert(channel);
+    }
+
+    void UnregisterCandidateNode(const IChannelPtr& channel)
+    {
+        auto guard = Guard(CandidateNodesLock_);
+        CandidateNodes_.erase(channel);
+    }
+
+    std::vector<IChannelPtr> ExtractCandidateNodes()
+    {
+        auto guard = Guard(CandidateNodesLock_);
+        std::vector<IChannelPtr> result(CandidateNodes_.begin(), CandidateNodes_.end());
+        CandidateNodes_.clear();
+        return result;
+    }
+
 
     void DoOpen()
     {
@@ -703,6 +703,8 @@ private:
                 return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
             }));
 
+        RegisterCandidateNode(channel);
+
         TDataNodeServiceProxy proxy(channel);
         auto req = proxy.StartChunk();
         req->SetTimeout(Config_->NodeRpcTimeout);
@@ -714,10 +716,12 @@ private:
 
         auto rspOrError = WaitFor(req->Invoke());
         if (!rspOrError.IsOK()) {
+            UnregisterCandidateNode(channel);
             if (Config_->BanFailedNodes) {
                 BannedNodeAddresses_.push_back(addressWithNetwork.Address);
             }
-            YT_LOG_WARNING(rspOrError, "Failed to start write session on node %v", addressWithNetwork);
+            YT_LOG_WARNING(rspOrError, "Failed to start write session (Address: %v)",
+                addressWithNetwork);
             return;
         }
 
@@ -727,19 +731,44 @@ private:
             Nodes_.size(),
             nodeDescriptor,
             target,
-            channel,
-            Logger);
-
-        node->CloseDemandedCallback = BIND(&TReplicationWriter::DemandClose, MakeWeak(this));
+            channel);
 
         node->PingExecutor = New<TPeriodicExecutor>(
             TDispatcher::Get()->GetWriterInvoker(),
-            BIND(&TNode::SendPing, MakeWeak(node), Config_->NodeRpcTimeout, SessionId_),
+            BIND(&TReplicationWriter::SendPing, MakeWeak(this), MakeWeak(node)),
             Config_->NodePingPeriod);
         node->PingExecutor->Start();
 
         Nodes_.push_back(node);
         ++AliveNodeCount_;
+    }
+
+    void SendPing(const TWeakPtr<TNode>& weakNode)
+    {
+        auto node = weakNode.Lock();
+        if (!node) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Sending ping (Address: %v)",
+            node->Descriptor.GetDefaultAddress());
+
+        TDataNodeServiceProxy proxy(node->Channel);
+        auto req = proxy.PingSession();
+        req->SetTimeout(Config_->NodeRpcTimeout);
+        ToProto(req->mutable_session_id(), SessionId_);
+
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            YT_LOG_DEBUG("Ping failed (Address: %v)",
+                node->Descriptor.GetDefaultAddress());
+                return;
+        }
+
+        const auto& rsp = rspOrError.Value();
+        if (rsp->close_demanded()) {
+            DemandClose();
+        }
     }
 
     void CloseSessions()
@@ -760,11 +789,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
 
-        if (!node->IsAlive() || node->IsClosing) {
+        if (!node->IsAlive() || node->Closing) {
             return;
         }
 
-        node->IsClosing = true;
+        node->Closing = true;
         YT_LOG_DEBUG("Finishing chunk (Address: %v)",
             node->Descriptor.GetDefaultAddress());
 
@@ -787,8 +816,10 @@ private:
             node->Descriptor.GetDefaultAddress(),
             chunkInfo.disk_space());
 
-        node->IsFinished = true;
+        node->Finished = true;
         node->PingExecutor->Stop();
+        UnregisterCandidateNode(node->Channel);
+
         ChunkInfo_ = chunkInfo;
 
         CheckFinished();
@@ -800,7 +831,7 @@ private:
         bool hasUnfinishedNode = false;
         for (const auto& node : Nodes_) {
             if (node->IsAlive()) {
-                if (node->IsFinished) {
+                if (node->Finished) {
                     ++finishedNodeCount;
                 } else {
                     hasUnfinishedNode = true;
@@ -814,7 +845,7 @@ private:
             State_ = EReplicationWriterState::Closed;
             ClosePromise_.TrySet();
             CancelWriter();
-            YT_LOG_INFO("Writer closed");
+            YT_LOG_DEBUG("Writer closed");
         }
     }
 
@@ -822,21 +853,8 @@ private:
     {
         // No thread affinity; may be called from dtor.
 
-        for (const auto& node : Nodes_) {
-            CancelNode(node);
-        }
-    }
-
-    void CancelNode(const TNodePtr& node)
-    {
-        if (node->Canceled.test_and_set()) {
-            return;
-        }
-
-        node->PingExecutor->Stop();
-
-        if (!node->IsFinished) {
-            TDataNodeServiceProxy proxy(node->Channel);
+        for (const auto& channel : ExtractCandidateNodes()) {
+            TDataNodeServiceProxy proxy(channel);
             auto req = proxy.CancelChunk();
             ToProto(req->mutable_session_id(), SessionId_);
             req->Invoke();
@@ -906,7 +924,7 @@ private:
 
     void DemandClose()
     {
-        IsCloseDemanded_ = true;
+        CloseDemanded_ = true;
     }
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
