@@ -107,7 +107,3 @@ void TRequestSession<TResponse>::TryMakeNextRequest(bool forceProbation)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpc
-
-#define REQUEST_SESSION_INL_H_
-#include "request_session-inl.h"
-#undef REQUEST_SESSION_INL_H_

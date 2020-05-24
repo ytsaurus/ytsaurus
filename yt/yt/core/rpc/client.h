@@ -219,6 +219,8 @@ private:
     TWeakPtr<IClientRequestControl> RequestControl_;
 };
 
+DEFINE_REFCOUNTED_TYPE(TClientRequest)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRequestMessage, class TResponse>
@@ -327,6 +329,8 @@ private:
     void DoHandleResponse(TSharedRefArray message);
     void Deserialize(TSharedRefArray responseMessage);
 };
+
+DEFINE_REFCOUNTED_TYPE(TClientResponse)
 
 ////////////////////////////////////////////////////////////////////////////////
 

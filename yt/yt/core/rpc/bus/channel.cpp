@@ -1009,7 +1009,7 @@ private:
                     << TErrorAttribute("timeout", *requestControl->GetTimeout());
             }
 
-            YT_LOG_DEBUG(detailedError, "%v (RequestId: %v)",
+            YT_LOG_DEBUG("%v (RequestId: %v)",
                 reason,
                 requestControl->GetRequestId());
 

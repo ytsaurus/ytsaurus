@@ -111,6 +111,18 @@ message TResponseHeader
 
     // COMPAT(kiseloyvp): this is missing when legacy mode is used
     optional int32 codec = 6; // ECodec
+
+    extensions 100 to max;
+}
+
+message THedgingExt
+{
+    extend NRpc.NProto.TResponseHeader
+    {
+        optional THedgingExt hedging_ext = 100;
+    }
+
+    optional bool backup_responded = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
