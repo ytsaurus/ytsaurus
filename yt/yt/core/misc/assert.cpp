@@ -59,8 +59,8 @@ void AssertTrapImpl(
             }
         }
         TStringBuilder stackTrace;
-        DumpStackTrace([&stackTrace] (const char* buffer, int length) {
-            stackTrace.AppendString(TStringBuf(buffer, length));
+        DumpStackTrace([&stackTrace] (TStringBuf str) {
+            stackTrace.AppendString(str);
         });
         TString expression(formatter.GetData(), formatter.GetBytesWritten());
         throw TAssertionFailedException(std::move(expression), stackTrace.Flush(), std::move(corePath));

@@ -12,13 +12,13 @@ namespace NYT {
 
 namespace NDetail {
 
-int GetSymbolInfo(void* pc, char* buffer, int length);
-void DumpStackFrameInfo(TBaseFormatter* formatter, void* pc);
+int GetSymbolInfo(const void* pc, char* buffer, int length);
+void DumpStackFrameInfo(TBaseFormatter* formatter, const void* pc);
 
 } // namespace NDetail
 
 template <class TCallback>
-void FormatStackTrace(void** frames, int frameCount, const TCallback& writeCallback)
+void FormatStackTrace(const void* const* frames, int frameCount, TCallback writeCallback)
 {
     TRawFormatter<1024> formatter;
 
@@ -28,7 +28,7 @@ void FormatStackTrace(void** frames, int frameCount, const TCallback& writeCallb
         formatter.AppendNumber(i + 1, 10, 2);
         formatter.AppendString(". ");
         NDetail::DumpStackFrameInfo(&formatter, frames[i]);
-        writeCallback(formatter.GetData(), formatter.GetBytesWritten());
+        writeCallback(TStringBuf(formatter.GetData(), formatter.GetBytesWritten()));
     }
 }
 

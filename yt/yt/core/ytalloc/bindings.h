@@ -13,7 +13,7 @@ void EnableYTLogging();
 void EnableYTProfiling();
 
 // Installs backtrace provider that invokes libunwind.
-void SetLibunwindBacktraceProvider();
+void InitializeLibunwindInterop();
 
 // Configures YTAlloc from YT_ALLOC_CONFIG environment variable.
 void ConfigureFromEnv();

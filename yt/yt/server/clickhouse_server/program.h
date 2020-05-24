@@ -90,7 +90,7 @@ private:
         EnableRefCountedTrackerProfiling();
         NYTAlloc::EnableYTLogging();
         NYTAlloc::EnableYTProfiling();
-        NYTAlloc::SetLibunwindBacktraceProvider();
+        NYTAlloc::InitializeLibunwindInterop();
         NYTAlloc::ConfigureFromEnv();
         NYTAlloc::ConfigureFromEnv();
         NYTAlloc::EnableStockpile();

@@ -7,6 +7,7 @@
 
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/string_builder.h>
+#include <yt/core/misc/stack_trace.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
@@ -333,9 +334,10 @@ void ConfigureFromEnv()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetLibunwindBacktraceProvider()
+void InitializeLibunwindInterop()
 {
     SetBacktraceProvider(NLibunwind::GetStackTrace);
+    SetBacktraceFormatter(FormatStackTrace);
 }
 
 TString FormatAllocationCounters()

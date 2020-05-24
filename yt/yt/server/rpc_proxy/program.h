@@ -45,7 +45,7 @@ protected:
         ConfigureExitZeroOnSigterm();
         NYTAlloc::EnableYTLogging();
         NYTAlloc::EnableYTProfiling();
-        NYTAlloc::SetLibunwindBacktraceProvider();
+        NYTAlloc::InitializeLibunwindInterop();
         NYTAlloc::ConfigureFromEnv();
         NYTAlloc::EnableStockpile();
         NYTAlloc::MlockallCurrentProcess();

@@ -1544,8 +1544,8 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
     TOneShotContextSwitchGuard guard(
         BIND([this, this_ = MakeStrong(this)] {
             TStringBuilder stackTrace;
-            DumpStackTrace([&stackTrace] (const char* buffer, int length) {
-                stackTrace.AppendString(TStringBuf(buffer, length));
+            DumpStackTrace([&stackTrace] (TStringBuf str) {
+                stackTrace.AppendString(str);
             });
             YT_LOG_WARNING("Context switch while loading snapshot (StackTrace: %v)",
                 stackTrace.Flush());

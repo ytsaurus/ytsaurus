@@ -64,7 +64,6 @@ void* GetPC(void* uc)
     return nullptr;
 }
 
-//! Writes the given buffer with the length to the standard error.
 void WriteToStderr(const char* buffer, int length)
 {
     if (write(2, buffer, length) < 0) {
@@ -72,7 +71,11 @@ void WriteToStderr(const char* buffer, int length)
     }
 }
 
-//! Writes the given zero-terminated buffer to the standard error.
+void WriteToStderr(TStringBuf buffer)
+{
+    WriteToStderr(buffer.begin(), buffer.length());
+}
+
 void WriteToStderr(const char* buffer)
 {
     WriteToStderr(buffer, strlen(buffer));
@@ -492,7 +495,7 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc)
     DumpSigcontext(uc);
 
     // Easiest way to choose proper overload...
-    DumpStackTrace([] (const char* buffer, int length) { WriteToStderr(buffer, length); });
+    DumpStackTrace([] (TStringBuf str) { WriteToStderr(str); });
 
     formatter.Reset();
     formatter.AppendString("*** Wait for logger to shut down ***\n");

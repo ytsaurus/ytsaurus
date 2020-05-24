@@ -1,11 +1,15 @@
 #pragma once
 
+#include <util/generic/string.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TCallback>
-void FormatStackTrace(void** frames, int frameCount, const TCallback& writeCallback);
+void FormatStackTrace(const void* const* frames, int frameCount, TCallback writeCallback);
+
+TString FormatStackTrace(const void* const* frames, int frameCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 
