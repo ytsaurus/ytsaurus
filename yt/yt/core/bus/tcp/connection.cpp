@@ -290,14 +290,6 @@ void TTcpConnection::OnAddressResolveFinished(const TErrorOr<TNetworkAddress>& r
     YT_LOG_DEBUG("Connection network address resolved (Address: %v)",
         address);
 
-    if (IsLocalBusTransportEnabled() &&
-        NetworkName_ == DefaultNetworkName &&
-        TAddressResolver::Get()->IsLocalAddress(address))
-    {
-        address = GetLocalBusAddress(Port_);
-        NetworkName_ = LocalNetworkName;
-    }
-
     OnAddressResolved(address);
 }
 
