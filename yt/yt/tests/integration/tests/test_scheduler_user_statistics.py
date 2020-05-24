@@ -93,7 +93,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
 
         op = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"job_count": 2})
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert get_statistics(statistics, "user_job.cpu.user.$.completed.map.count") == 2
+        assert get_statistics(statistics, "data.input.unmerged_data_weight.$.completed.map.count") == 2
 
     @authors("tramsmm", "acid", "babenko")
     def test_job_statistics_progress(self):
