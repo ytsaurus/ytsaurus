@@ -1649,6 +1649,11 @@ protected:
         return CompletedPartitionCount == Partitions.size();
     }
 
+    virtual bool ShouldShowTasksSectionInProgress() const override
+    {
+        return false;
+    }
+
     bool IsSamplingEnabled() const
     {
         for (const auto& jobIOConfig : {

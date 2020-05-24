@@ -1432,7 +1432,6 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
         chunkCountPerMergeJob,
         OperationId);
 
-    bool autoMergeEnabled = false;
     bool sortedOutputAutoMergeRequired = false;
 
     auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
@@ -1458,19 +1457,19 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
                     edgeDescriptor);
                 RegisterTask(task);
                 AutoMergeTasks.emplace_back(std::move(task));
-                autoMergeEnabled = true;
+                AutoMergeEnabled_ = true;
             }
         } else {
             AutoMergeTasks.emplace_back(nullptr);
         }
     }
 
-    if (sortedOutputAutoMergeRequired && !autoMergeEnabled) {
+    if (sortedOutputAutoMergeRequired && !AutoMergeEnabled_) {
         auto error = TError("Sorted output with auto merge is not supported for now, it will be done in YT-8024");
         SetOperationAlert(EOperationAlertType::AutoMergeDisabled, error);
     }
 
-    return autoMergeEnabled;
+    return AutoMergeEnabled_;
 }
 
 std::vector<TEdgeDescriptor> TOperationControllerBase::GetAutoMergeEdgeDescriptors()
@@ -7382,7 +7381,9 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         .EndMap()
         .DoIf(DataFlowGraph_.operator bool(), [=] (TFluentMap fluent) {
             fluent
+                // COMPAT(gritukan): Drop it in favour of "total_job_counter".
                 .Item("jobs").Value(DataFlowGraph_->GetTotalJobCounter())
+                .Item("total_job_counter").Value(DataFlowGraph_->GetTotalJobCounter())
                 .Item("data_flow_graph").BeginMap()
                     .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
                 .EndMap();
@@ -7399,7 +7400,15 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         })
         .Item("snapshot_index").Value(SnapshotIndex_)
         .Item("recent_snapshot_index").Value(RecentSnapshotIndex_)
-        .Item("last_successful_snapshot_time").Value(LastSuccessfulSnapshotTime_);
+        .Item("last_successful_snapshot_time").Value(LastSuccessfulSnapshotTime_)
+        .DoIf(ShouldShowTasksSectionInProgress(), [=] (TFluentMap fluent) {
+            fluent.Item("tasks").DoListFor(GetTopologicallyOrderedTasks(), [=] (TFluentList fluent, const TTaskPtr& task) {
+                fluent.Item()
+                    .BeginMap()
+                        .Do(BIND(&TTask::BuildTaskYson, task))
+                    .EndMap();
+            });
+        });
 }
 
 void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
@@ -7407,7 +7416,11 @@ void TOperationControllerBase::BuildBriefProgress(TFluentMap fluent) const
     if (IsPrepared() && DataFlowGraph_) {
         fluent
             .Item("state").Value(State.load())
+            // COMPAT(gritukan): Drop it in favour of "total_job_counter".
             .Item("jobs").Do(BIND([&] (TFluentAny fluent) {
+                SerializeBriefVersion(DataFlowGraph_->GetTotalJobCounter(), fluent.GetConsumer());
+            }))
+            .Item("total_job_counter").Do(BIND([&] (TFluentAny fluent) {
                 SerializeBriefVersion(DataFlowGraph_->GetTotalJobCounter(), fluent.GetConsumer());
             }))
             .Item("build_time").Value(TInstant::Now());
@@ -7540,6 +7553,11 @@ void TOperationControllerBase::BuildRetainedFinishedJobsYson(TFluentMap fluent) 
         fluent
             .Item(ToString(jobId)).Value(attributes);
     }
+}
+
+bool TOperationControllerBase::ShouldShowTasksSectionInProgress() const
+{
+    return !AutoMergeEnabled_;
 }
 
 void TOperationControllerBase::CheckTentativeTreeEligibility()
@@ -8378,6 +8396,10 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobMetricsDeltaPerTree_);
     Persist(context, TotalTimePerTree_);
     Persist(context, CompletedRowCount_);
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= static_cast<int>(ESnapshotVersion::AutoMergeEnabled)) {
+        Persist(context, AutoMergeEnabled_);
+    }
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
@@ -8819,6 +8841,33 @@ const NChunkClient::TMediumDirectoryPtr& TOperationControllerBase::GetMediumDire
     return MediumDirectory_;
 }
 
+std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() const
+{
+    if (!DataFlowGraph_) {
+        return {};
+    }
+
+    THashMap<TDataFlowGraph::TVertexDescriptor, int> vertexDescriptorToIndex;
+    auto topologicalOrdering = DataFlowGraph_->GetTopologicalOrdering();
+    for (int index = 0; index < topologicalOrdering.size(); ++index) {
+        YT_VERIFY(vertexDescriptorToIndex.emplace(topologicalOrdering[index], index).second);
+    }
+
+    std::vector<TTaskPtr> tasks;
+    tasks.reserve(Tasks.size());
+    for (const auto& task : Tasks) {
+        if (vertexDescriptorToIndex.contains(task->GetVertexDescriptor())) {
+            tasks.push_back(task);
+        }
+    }
+
+    std::sort(tasks.begin(), tasks.end(), [&] (const TTaskPtr& lhs, const TTaskPtr& rhs) {
+        return GetOrCrash(vertexDescriptorToIndex, lhs->GetVertexDescriptor()) < GetOrCrash(vertexDescriptorToIndex, rhs->GetVertexDescriptor());
+    });
+
+    return tasks;    
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TOperationControllerBase::TSink::TSink(TOperationControllerBase* controller, int outputTableIndex)
@@ -8887,6 +8936,11 @@ void TOperationControllerBase::TSink::Reset(
 void TOperationControllerBase::TSink::Finish()
 {
     // Mmkay. Don't know what to do here though :)
+}
+
+bool TOperationControllerBase::TSink::IsFinished() const
+{
+    return false;
 }
 
 void TOperationControllerBase::TSink::Persist(const TPersistenceContext& context)

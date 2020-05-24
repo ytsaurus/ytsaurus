@@ -21,6 +21,11 @@ void TChunkPoolInputBase::Finish()
     Finished = true;
 }
 
+bool TChunkPoolInputBase::IsFinished() const
+{
+    return Finished;
+}
+
 IChunkPoolInput::TCookie TChunkPoolInputBase::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
 {
     // `key` argument should be set to something non-trivial only for sink chunk pool inputs,

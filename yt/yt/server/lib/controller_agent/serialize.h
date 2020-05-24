@@ -33,6 +33,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ChunkCountInUserObject)               (300302))
     ((JobTaskName)                          (300303))
     ((ApproximateColumnarStatistics)        (300304))
+    ((AutoMergeEnabled)                     (300305))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
