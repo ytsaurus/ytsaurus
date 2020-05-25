@@ -69,6 +69,7 @@ struct IConnection
     // TODO(shakurov): unify this with GetPrimaryMasterCellId, GetPrimaryMasterCellTag, and GetSecondaryMasterCellTags.
     virtual NObjectClient::TCellTag GetCellTag() = 0;
     virtual const TString& GetLoggingId() = 0;
+    virtual const TString& GetClusterId() = 0;
 
     virtual IInvokerPtr GetInvoker() = 0;
 

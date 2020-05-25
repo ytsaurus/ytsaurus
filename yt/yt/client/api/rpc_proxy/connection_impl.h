@@ -35,6 +35,7 @@ public:
     // IConnection implementation
     virtual NObjectClient::TCellTag GetCellTag() override;
     virtual const TString& GetLoggingId() override;
+    virtual const TString& GetClusterId() override;
 
     virtual IInvokerPtr GetInvoker() override;
 
@@ -56,6 +57,7 @@ private:
     const TConnectionConfigPtr Config_;
 
     const TString LoggingId_;
+    const TString ClusterId_;
     const NLogging::TLogger Logger;
     const NConcurrency::TActionQueuePtr ActionQueue_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;

@@ -111,6 +111,15 @@ TString MakeConnectionLoggingId(const TConnectionConfigPtr& config)
     return builder.Flush();
 }
 
+TString MakeConnectionClusterId(const TConnectionConfigPtr& config)
+{
+    if (config->ClusterUrl) {
+        return Format("Rpc(Url=%v)", *config->ClusterUrl);
+    } else {
+        return Format("Rpc(ProxyAddresses=%v)", config->ProxyAddresses);
+    }
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,6 +127,7 @@ TString MakeConnectionLoggingId(const TConnectionConfigPtr& config)
 TConnection::TConnection(TConnectionConfigPtr config)
     : Config_(std::move(config))
     , LoggingId_(MakeConnectionLoggingId(Config_))
+    , ClusterId_(MakeConnectionClusterId(Config_))
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
         .AddRawTag(LoggingId_))
     , ActionQueue_(New<TActionQueue>("RpcProxyConn"))
@@ -149,12 +159,17 @@ TConnection::~TConnection()
 
 NObjectClient::TCellTag TConnection::GetCellTag()
 {
-    YT_UNIMPLEMENTED();
+    YT_ABORT();
 }
 
 const TString& TConnection::GetLoggingId()
 {
     return LoggingId_;
+}
+
+const TString& TConnection::GetClusterId()
+{
+    return ClusterId_;
 }
 
 IInvokerPtr TConnection::GetInvoker()
