@@ -248,13 +248,16 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None, jobs_resource_limits=None,
           node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
           meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0,
-          ytserver_all_path=None):
+          ytserver_all_path=None, driver_backend=None):
     options = {}
     for name in _START_DEFAULTS:
         options[name] = get_value(locals()[name], _START_DEFAULTS[name])
 
     if options["rpc_proxy_count"] is None:
         options["rpc_proxy_count"] = 0
+
+    if driver_backend is not None:
+        options["driver_backend"] = driver_backend
 
     require(options["master_count"] >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 

@@ -27,7 +27,8 @@ using namespace NYson;
 
 void TApiTestBase::SetUpTestCase()
 {
-    const auto* configPath = std::getenv("YT_CONSOLE_DRIVER_CONFIG_PATH");
+    auto configPath = TString(std::getenv("YT_CONSOLE_DRIVER_CONFIG_PATH"));
+    YT_VERIFY(configPath);
     TIFStream configStream(configPath);
     auto config = ConvertToNode(&configStream)->AsMap();
 
@@ -273,11 +274,13 @@ void TDynamicTablesTestBase::RemoveTabletCells(
 
     std::vector<TTabletCellId> removedCells;
     std::vector<TFuture<void>> asyncWait;
+    TRemoveNodeOptions removeOptions;
+    removeOptions.Force = true;
     for (const auto& item : itemsList->GetChildren()) {
         const auto& name = item->AsString()->GetValue();
         if (filter(name)) {
             removedCells.push_back(TTabletCellId::FromString(name));
-            asyncWait.push_back(Client_->RemoveNode(path + "/" + name));
+            asyncWait.push_back(Client_->RemoveNode(path + "/" + name, removeOptions));
         }
     }
 
