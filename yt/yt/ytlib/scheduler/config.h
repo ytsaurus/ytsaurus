@@ -1300,6 +1300,9 @@ public:
     NSecurityClient::TSerializableAccessControlList Acl;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
     NYTree::IMapNodePtr Annotations;
+    
+    // Erased trees of operation, should be used only for information purposes.
+    std::vector<TString> ErasedTrees;
 
     TOperationRuntimeParameters();
 };

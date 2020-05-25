@@ -1611,6 +1611,9 @@ TOperationRuntimeParameters::TOperationRuntimeParameters()
     RegisterParameter("annotations", Annotations)
         .Optional();
 
+    RegisterParameter("erased_trees", ErasedTrees)
+        .Optional();
+
     RegisterPostprocessor([&] {
         ValidateOperationAcl(Acl);
         ProcessAclAndOwnersParameters(&Acl, &Owners);
