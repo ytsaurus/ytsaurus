@@ -1615,7 +1615,7 @@ class TestOperationsTracker(object):
         finally:
             logger.LOGGER.setLevel(old_level)
 
-@pytest.mark.usefixtures("yt_env_with_rpc")
+@pytest.mark.usefixtures("yt_env_with_porto")
 class TestOperationsTmpfs(object):
     def setup(self):
         yt.config["tabular_data_format"] = yt.format.JsonFormat()
@@ -1629,7 +1629,7 @@ class TestOperationsTmpfs(object):
         yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
     @add_failed_operation_stderrs_to_error_message
-    def test_mount_tmpfs_in_sandbox(self, yt_env_with_rpc):
+    def test_mount_tmpfs_in_sandbox(self, yt_env_with_porto):
         def foo(rec):
             size = 0
             for path, dirnames, filenames in os.walk("."):
@@ -1652,7 +1652,7 @@ class TestOperationsTmpfs(object):
                 if path.endswith(".so"):
                     dynamic_libraries_size_correction += os.path.getsize(path) * (TMPFS_SIZE_MULTIPLIER - 1.0)
 
-            dir_ = yt_env_with_rpc.env.path
+            dir_ = yt_env_with_porto.env.path
             with tempfile.NamedTemporaryFile(dir=dir_, prefix="local_file", delete=False) as local_file:
                 local_file.write(b"a" * 42000000)
             yt.write_table(table, [{"x": 1}, {"y": 2}])
@@ -1718,7 +1718,7 @@ class TestOperationsTmpfs(object):
             assert False, "Process did not terminate after {0:.2f} seconds".format(timeout)
 
     @add_failed_operation_stderrs_to_error_message
-    def test_sandbox_file_name_specification(self, yt_env_with_rpc):
+    def test_sandbox_file_name_specification(self, yt_env_with_porto):
         def mapper(row):
             with open("cool_name.dat") as f:
                 yield {"k": f.read().strip()}
@@ -1726,7 +1726,7 @@ class TestOperationsTmpfs(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
 
-        dir_ = yt_env_with_rpc.env.path
+        dir_ = yt_env_with_porto.env.path
         with tempfile.NamedTemporaryFile("w", dir=dir_, prefix="mapper", delete=False) as f:
             f.write("etwas")
 
