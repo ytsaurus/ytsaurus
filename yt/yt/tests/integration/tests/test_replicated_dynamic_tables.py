@@ -1283,6 +1283,19 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         assert_items_equal(select_rows("key, value1 from [//tmp/t]", driver=self.primary_driver), rows)
         assert_items_equal(select_rows("key, value1 from [//tmp/r]", driver=self.primary_driver), rows)
 
+    @authors("babenko")
+    def test_local_async_replica_yt_12906(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t")
+        replica_id = create_table_replica("//tmp/t", "primary", "//tmp/r", attributes={"mode": "async"})
+        self._create_replica_table("//tmp/r", replica_id, replica_driver=self.primary_driver)
+        sync_enable_table_replica(replica_id)
+
+        rows = [{"key": i, "value1": "test" + str(i)} for i in xrange(10)]
+        insert_rows("//tmp/t", rows, require_sync_replica=False)
+
+        wait(lambda: select_rows("key, value1 from [//tmp/r]", driver=self.primary_driver) == rows)
+
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_inverted_schema(self, mode):

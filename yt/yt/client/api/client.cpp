@@ -1,4 +1,5 @@
 #include "client.h"
+#include "transaction.h"
 
 #include <yt/core/ytree/fluent.h>
 
@@ -177,6 +178,34 @@ void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey
             .OptionalItem("exec_attributes", job.ExecAttributes)
             .OptionalItem("task_name", job.TaskName)
         .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<ITransactionPtr> StartAlienTransaction(
+    const ITransactionPtr& localTransaction,
+    const IClientPtr& alienClient,
+    const TAlienTransactionStartOptions& options)
+{
+    YT_VERIFY(localTransaction->GetType() == NTransactionClient::ETransactionType::Tablet);
+
+    if (localTransaction->GetConnection()->GetClusterId() ==
+        alienClient->GetConnection()->GetClusterId())
+    {
+        return MakeFuture(localTransaction);        
+    }
+
+    return alienClient->StartTransaction(
+        NTransactionClient::ETransactionType::Tablet,
+        TTransactionStartOptions{
+            .Id = localTransaction->GetId(),
+            .Atomicity = options.Atomicity,
+            .Durability = options.Durability,
+            .StartTimestamp = options.StartTimestamp
+        }).Apply(BIND([=] (const ITransactionPtr& alienTransaction) {
+            localTransaction->RegisterAlienTransaction(alienTransaction);
+            return alienTransaction;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

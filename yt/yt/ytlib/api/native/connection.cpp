@@ -99,6 +99,8 @@ public:
             CellTagFromId(Config_->PrimaryMaster->CellId),
             TGuid::Create(),
             Config_->Name))
+        , ClusterId_(Format("Native(PrimaryCellTag=%v)",
+            CellTagFromId(Config_->PrimaryMaster->CellId)))
         , Logger(NLogging::TLogger(ApiLogger)
             .AddRawTag(LoggingId_))
         , ChannelFactory_(CreateCachingChannelFactory(
@@ -210,6 +212,11 @@ public:
     virtual const TString& GetLoggingId() override
     {
         return LoggingId_;
+    }
+
+    virtual const TString& GetClusterId() override
+    {
+        return ClusterId_;
     }
 
     virtual const ITableMountCachePtr& GetTableMountCache() override
@@ -464,6 +471,7 @@ private:
     const TConnectionOptions Options_;
     
     const TString LoggingId_;
+    const TString ClusterId_;
 
     const NLogging::TLogger Logger;
 

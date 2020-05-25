@@ -240,16 +240,13 @@ private:
 
                 auto alienClient = alienConnection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
 
-                TTransactionStartOptions transactionStartOptions;
-                transactionStartOptions.Id = localTransaction->GetId();
+                TAlienTransactionStartOptions transactionStartOptions;
                 if (!isVersioned) {
                     transactionStartOptions.Atomicity = replicaRuntimeData->Atomicity;
                 }
 
-                alienTransaction = WaitFor(alienClient->StartTransaction(ETransactionType::Tablet, transactionStartOptions))
+                alienTransaction = WaitFor(StartAlienTransaction(localTransaction, alienClient, transactionStartOptions))
                     .ValueOrThrow();
-
-                localTransaction->RegisterAlienTransaction(alienTransaction);
 
                 YT_LOG_DEBUG("Replication transactions started (TransactionId: %v)",
                     localTransaction->GetId());

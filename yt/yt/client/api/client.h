@@ -1448,5 +1448,30 @@ DEFINE_REFCOUNTED_TYPE(IClient)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! A subset of #TTransactionStartOptions tailored for the case of alien
+//! transactions.
+struct TAlienTransactionStartOptions
+{
+    NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
+    NTransactionClient::EDurability Durability = NTransactionClient::EDurability::Sync;
+
+    NTransactionClient::TTimestamp StartTimestamp = NTransactionClient::NullTimestamp;
+};
+
+//! A helper for starting an alien transaction at #alienClient.
+/*!
+ *  Internally, invokes #IClient::StartTransaction and #ITransaction::RegisterAlienTransaction
+ *  but also takes care of the following issues:
+ *  1) Alien and local transaction ids must be same;
+ *  2) If #alienClient and #localTransaction have matching clusters then no
+ *     new transaction must be created.
+ */
+TFuture<ITransactionPtr> StartAlienTransaction(
+    const ITransactionPtr& localTransaction,
+    const IClientPtr& alienClient,
+    const TAlienTransactionStartOptions& options);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NApi
 
