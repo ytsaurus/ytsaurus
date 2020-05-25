@@ -2,7 +2,7 @@
 
 #include <yt/core/actions/public.h>
 
-#include <library/cpp/testing/gmock_extension/string_ext.h>
+#include <library/cpp/testing/gtest_extensions/gtest_extensions.h>
 #include <library/cpp/ytalloc/core/misc/preprocessor.h>
 
 // Include Google Test and Google Mock headers.
