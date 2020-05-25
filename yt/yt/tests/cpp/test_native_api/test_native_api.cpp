@@ -432,6 +432,7 @@ public:
     static void TearDownTestCase()
     {
         ReplicatorClient_.Reset();
+        TDynamicTablesTestBase::TearDownTestCase();
     }
 
 protected:
