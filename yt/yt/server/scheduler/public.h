@@ -10,7 +10,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TOperationRuntimeData)
+DECLARE_REFCOUNTED_CLASS(TOperationControllerData)
 
 DECLARE_REFCOUNTED_CLASS(TOperation)
 DECLARE_REFCOUNTED_CLASS(TJob)

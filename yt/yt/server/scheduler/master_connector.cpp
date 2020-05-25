@@ -899,8 +899,7 @@ private:
                 spec->ScheduleInSingleTree && scheduler->GetConfig()->EnableScheduleInSingleTree,
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
-                /* suspended */ attributes.Get<bool>("suspended", false),
-                attributes.Get<std::vector<TString>>("erased_trees", {}));
+                /* suspended */ attributes.Get<bool>("suspended", false));
 
             operation->SetShouldFlushAcl(true);
 
@@ -1357,13 +1356,6 @@ private:
                 auto req = multisetReq->add_subrequests();
                 req->set_key("alerts");
                 req->set_value(operation->BuildAlertsString().GetData());
-            }
-
-            // Set erased trees.
-            {
-                auto req = multisetReq->add_subrequests();
-                req->set_key("erased_trees");
-                req->set_value(ConvertToYsonString(operation->ErasedTrees()).GetData());
             }
 
             // Set runtime parameters.

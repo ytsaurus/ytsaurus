@@ -987,7 +987,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
     def _run_vanilla_and_check_tree(self, spec, possible_trees, job_count=10):
         op = run_test_vanilla("sleep 0.6", job_count=job_count, spec=spec, track=True)
         wait(lambda: len(list_jobs(op.id)["jobs"]) >= job_count)
-        erased_trees = get(op.get_path() + "/@erased_trees")
+        erased_trees = get(op.get_path() + "/@runtime_parameters/erased_trees")
 
         op_tree = self._check_tree_for_operation_jobs(op, possible_trees, job_count)
         spec_trees = spec["pool_trees"] if "pool_trees" in spec else ["default"]
@@ -1122,11 +1122,11 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         op.wait_for_fresh_snapshot()
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            erased_trees = get(op.get_path() + "/@erased_trees")
+            erased_trees = get(op.get_path() + "/@runtime_parameters/erased_trees")
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id), verbose_error=False) == "running")
         op.wait_for_state("running")
-        wait(lambda: get(op.get_path() + "/@erased_trees") == erased_trees)
+        wait(lambda: get(op.get_path() + "/@runtime_parameters/erased_trees") == erased_trees)
 
         release_breakpoint()
         op.track()
@@ -1150,7 +1150,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         op.wait_for_fresh_snapshot()
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            erased_trees = get(op.get_path() + "/@erased_trees")
+            erased_trees = get(op.get_path() + "/@runtime_parameters/erased_trees")
             assert len(possible_trees) == len(erased_trees) + 1
             for tree in erased_trees:
                 set("//sys/pool_trees/{}/research/@min_share_resources".format(tree), {"cpu": 3})
@@ -1158,7 +1158,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/operations/{}/state".format(op.id), verbose_error=False) == "running")
         op.wait_for_state("running")
-        wait(lambda: get(op.get_path() + "/@erased_trees") == erased_trees)
+        wait(lambda: get(op.get_path() + "/@runtime_parameters/erased_trees") == erased_trees)
 
         release_breakpoint()
         op.track()
@@ -1217,7 +1217,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         op = run_test_vanilla("sleep 0.6", job_count=job_count, spec=spec, track=True)
         wait(lambda: len(list_jobs(op.id)["jobs"]) >= job_count)
-        wait(lambda: get(op.get_path() + "/@erased_trees") == [])
+        wait(lambda: get(op.get_path() + "/@runtime_parameters/erased_trees") == [])
 
     @authors("eshcherbin")
     def test_global_enable_during_operation_materialization(self):
@@ -1256,7 +1256,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
         op.track()
         if option_disabled_during_materialization:
-            wait(lambda: get(op.get_path() + "/@erased_trees") == [])
+            wait(lambda: get(op.get_path() + "/@runtime_parameters/erased_trees") == [])
 
     @authors("eshcherbin")
     def test_abort_does_not_affect_other_operations(self):

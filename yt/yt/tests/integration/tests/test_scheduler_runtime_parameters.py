@@ -238,7 +238,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
         op.wait_for_state("running")
 
-        erased_tree = get(op.get_path() + "/@erased_trees")[0]
+        erased_tree = get(op.get_path() + "/@runtime_parameters/erased_trees")[0]
         chosen_tree = "default" if erased_tree == "other" else "other"
         parameters = {"scheduling_options_per_pool_tree": {chosen_tree: {"pool": "pool2"}}}
         update_op_parameters(op.id, parameters=parameters)
@@ -305,7 +305,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
         remove("//sys/pool_trees/other")
         wait(lambda: sorted(ls(scheduling_options_path)) == ["default"])
-        wait(lambda: get(op.get_path() + "/@erased_trees") == ["other"])
+        wait(lambda: get(op.get_path() + "/@runtime_parameters/erased_trees") == ["other"])
 
         parameters = {"scheduling_options_per_pool_tree": {"default": {"pool": "other_pool"}}}
         update_op_parameters(op.id, parameters=parameters)

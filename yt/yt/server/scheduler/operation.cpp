@@ -123,20 +123,18 @@ TOperation::TOperation(
     bool isScheduledInSingleTree,
     EOperationState state,
     const std::vector<TOperationEvent>& events,
-    bool suspended,
-    std::vector<TString> erasedTrees)
+    bool suspended)
     : MutationId_(mutationId)
     , State_(state)
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
-    , RuntimeData_(New<TOperationRuntimeData>())
+    , ControllerData_(New<TOperationControllerData>())
     , SecureVault_(std::move(secureVault))
     , Events_(events)
     , Spec_(std::move(spec))
     , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , Alias_(alias)
     , BaseAcl_(std::move(baseAcl))
-    , ErasedTrees_(std::move(erasedTrees))
     , Id_(id)
     , Type_(type)
     , StartTime_(startTime)
@@ -445,42 +443,42 @@ void TOperation::EraseTrees(const std::vector<TString>& treeIds)
         ShouldFlush_ = true;
     }
     for (const auto& treeId : treeIds) {
-        ErasedTrees_.push_back(treeId);
+        RuntimeParameters_->ErasedTrees.push_back(treeId);
         YT_VERIFY(RuntimeParameters_->SchedulingOptionsPerPoolTree.erase(treeId));
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int TOperationRuntimeData::GetPendingJobCount() const
+int TOperationControllerData::GetPendingJobCount() const
 {
     return PendingJobCount_.load();
 }
 
-void TOperationRuntimeData::SetPendingJobCount(int value)
+void TOperationControllerData::SetPendingJobCount(int value)
 {
     PendingJobCount_.store(value);
 }
 
-NScheduler::TJobResources TOperationRuntimeData::GetNeededResources()
+NScheduler::TJobResources TOperationControllerData::GetNeededResources()
 {
     NConcurrency::TReaderGuard guard(NeededResourcesLock_);
     return NeededResources_;
 }
 
-void TOperationRuntimeData::SetNeededResources(const NScheduler::TJobResources& value)
+void TOperationControllerData::SetNeededResources(const NScheduler::TJobResources& value)
 {
     NConcurrency::TWriterGuard guard(NeededResourcesLock_);
     NeededResources_ = value;
 }
 
-TJobResourcesWithQuotaList TOperationRuntimeData::GetMinNeededJobResources() const
+TJobResourcesWithQuotaList TOperationControllerData::GetMinNeededJobResources() const
 {
     NConcurrency::TReaderGuard guard(MinNeededResourcesJobLock_);
     return MinNeededJobResources_;
 }
 
-void TOperationRuntimeData::SetMinNeededJobResources(const TJobResourcesWithQuotaList& value)
+void TOperationControllerData::SetMinNeededJobResources(const TJobResourcesWithQuotaList& value)
 {
     NConcurrency::TWriterGuard guard(MinNeededResourcesJobLock_);
     MinNeededJobResources_ = value;

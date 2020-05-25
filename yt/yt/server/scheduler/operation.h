@@ -202,7 +202,7 @@ public:
     //! User-supplied transaction where the operation resides.
     DEFINE_BYVAL_RO_PROPERTY(NTransactionClient::TTransactionId, UserTransactionId);
 
-    DEFINE_BYVAL_RO_PROPERTY(TOperationRuntimeDataPtr, RuntimeData);
+    DEFINE_BYVAL_RO_PROPERTY(TOperationControllerDataPtr, ControllerData);
 
     DEFINE_BYREF_RW_PROPERTY(TControllerAttributes, ControllerAttributes);
 
@@ -255,9 +255,6 @@ public:
     //! ACEs that are always included in operation ACL
     //! regardless any ACL specification and any ACL changes made by user.
     DEFINE_BYREF_RO_PROPERTY(NSecurityClient::TSerializableAccessControlList, BaseAcl);
-
-    //! Erased trees of operation, should be used only for information purposes.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, ErasedTrees);
 
 public:
     //! Returns operation id.
@@ -361,8 +358,7 @@ public:
         bool isScheduledInSingleTree,
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},
-        bool suspended = false,
-        std::vector<TString> erasedTrees = {});
+        bool suspended = false);
 
 private:
     const TOperationId Id_;
@@ -398,7 +394,7 @@ DEFINE_REFCOUNTED_TYPE(TOperation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationRuntimeData
+class TOperationControllerData
     : public TIntrinsicRefCounted
 {
 public:
@@ -421,7 +417,7 @@ private:
     TJobResourcesWithQuotaList MinNeededJobResources_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TOperationRuntimeData)
+DEFINE_REFCOUNTED_TYPE(TOperationControllerData)
 
 ////////////////////////////////////////////////////////////////////////////////
 

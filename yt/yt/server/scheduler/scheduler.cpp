@@ -1140,7 +1140,7 @@ public:
         } else {
             // Operation was revived from snapshot.
             // NB(eshcherbin): NeededResources was set in DoReviveOperation().
-            neededResources = operation->GetRuntimeData()->GetNeededResources();
+            neededResources = operation->GetControllerData()->GetNeededResources();
         }
 
         if (operation->IsScheduledInSingleTree()) {
@@ -2707,7 +2707,7 @@ private:
                     }
                 }
                 // NB(eshcherbin): RuntimeData is used to pass NeededResources to MaterializeOperation().
-                operation->GetRuntimeData()->SetNeededResources(result.NeededResources);
+                operation->GetControllerData()->SetNeededResources(result.NeededResources);
             }
 
             ValidateOperationState(operation, EOperationState::Reviving);

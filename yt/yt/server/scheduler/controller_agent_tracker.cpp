@@ -196,7 +196,7 @@ public:
         : Bootstrap_(bootstrap)
         , Config_(std::move(config))
         , OperationId_(operation->GetId())
-        , RuntimeData_(operation->GetRuntimeData())
+        , ControllerData_(operation->GetControllerData())
         , PreemptionMode_(operation->Spec()->PreemptionMode)
         , Logger(NLogging::TLogger(SchedulerLogger)
             .AddTag("OperationId: %v", OperationId_))
@@ -752,7 +752,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return RuntimeData_->GetNeededResources();
+        return ControllerData_->GetNeededResources();
     }
 
     virtual void UpdateMinNeededJobResources() override
@@ -770,14 +770,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return RuntimeData_->GetMinNeededJobResources();
+        return ControllerData_->GetMinNeededJobResources();
     }
 
     virtual int GetPendingJobCount() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return RuntimeData_->GetPendingJobCount();
+        return ControllerData_->GetPendingJobCount();
     }
 
     virtual EPreemptionMode GetPreemptionMode() const override
@@ -789,7 +789,7 @@ private:
     TBootstrap* const Bootstrap_;
     TSchedulerConfigPtr Config_;
     const TOperationId OperationId_;
-    const TOperationRuntimeDataPtr RuntimeData_;
+    const TOperationControllerDataPtr ControllerData_;
     const EPreemptionMode PreemptionMode_;
     const NLogging::TLogger Logger;
 
@@ -1281,7 +1281,7 @@ public:
                 operation->SetSuspiciousJobs(TYsonString(protoOperation.suspicious_jobs(), EYsonType::MapFragment));
             }
 
-            auto runtimeData = operation->GetRuntimeData();
+            auto runtimeData = operation->GetControllerData();
             runtimeData->SetPendingJobCount(protoOperation.pending_job_count());
             runtimeData->SetNeededResources(FromProto<TJobResources>(protoOperation.needed_resources()));
             runtimeData->SetMinNeededJobResources(FromProto<TJobResourcesWithQuotaList>(protoOperation.min_needed_job_resources()));
