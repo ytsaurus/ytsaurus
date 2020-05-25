@@ -140,7 +140,7 @@ SOCKET CreateTcpClientSocket(int family)
             << TError::FromSystem();
     }
 
-    {
+    if (family == AF_INET6) {
         int value = 0;
         if (setsockopt(clientSocket, IPPROTO_IPV6, IPV6_V6ONLY, (const char*) &value, sizeof(value)) != 0) {
             auto lastError = LastSystemError();
