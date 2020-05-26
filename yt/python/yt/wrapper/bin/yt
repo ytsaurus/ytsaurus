@@ -1392,6 +1392,8 @@ def add_idm_parser(root_subparsers):
 
 def add_idm_show_parser(idm_subparsers):
     parser = populate_argument_help(idm_subparsers.add_parser("show", description="Show IDM information"))
+    parser.add_argument("--immediate", "-i", help="Show only immediate IDM information (not inherited)",
+        action="store_true", default=False)
     parser.set_defaults(func=idm.show)
 
 def add_idm_request_or_revoke_parser(parser):
@@ -1436,6 +1438,8 @@ def add_idm_request_or_revoke_parser(parser):
 def add_idm_copy_parser(idm_subparsers):
     parser = populate_argument_help(idm_subparsers.add_parser("copy", description="Copy IDM permissions"))
     parser.add_argument("destination", help="Destination object")
+    parser.add_argument("--immediate", "-i", help="Only copy immediate IDM permissions",
+        action="store_true", default=False)
     parser.add_argument("--erase", "-e", action="store_true",
                         help="Erase all existing permissions from destination object")
     parser.add_argument("--dry-run", action="store_true", dest="dry_run",
