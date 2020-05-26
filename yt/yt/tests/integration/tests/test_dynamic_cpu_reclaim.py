@@ -11,9 +11,9 @@ import copy
 
 SPEC_WITH_CPU_MONITOR = {
     "job_cpu_monitor": {
-        "check_period": 10,
-        "increase_coefficient": 1.15,
-        "decrease_coefficient": 0.85,
+        "check_period": 100,
+        "increase_coefficient": 1.45,
+        "decrease_coefficient": 0.7,
         "smoothing_factor": 0.2,
         "vote_window_size": 5,
         "vote_decision_threshold": 3,
@@ -149,12 +149,12 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         stats_path = self.wait_and_get_stats_path(job_id)
 
         wait(lambda: get(stats_path + "/smoothed_cpu_usage_x100")["max"] <= 15)
-        wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] >= 85)
+        wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] >= 70)
 
         release_breakpoint()
 
         wait(lambda: get(stats_path + "/smoothed_cpu_usage_x100")["max"] >= 85)
-        wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] == 0)
+        wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] <= 30)
 
     @authors("renadeen")
     def test_new_jobs_are_scheduled_on_reclaimed_cpu(self):
