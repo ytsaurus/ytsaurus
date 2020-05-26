@@ -2,6 +2,8 @@
 
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 
+#include <yt/core/misc/proc.h>
+
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netdb.h>
@@ -66,15 +68,20 @@ TString GetLocalHostName()
     return TString(ReadLocalHostName());
 }
 
-bool UpdateLocalHostName(std::function<void(const char*, const char*)> errorCallback)
+bool UpdateLocalHostName(std::function<void(const char* /* failedCall */, const char* /* details */)> errorCallback, bool resolveIntoFqdn)
 {
     std::array<char, MaxLocalHostNameLength> hostName;
     hostName.fill(0);
 
-    int result = ::gethostname(hostName.data(), hostName.size() - 1);
+    int result = HandleEintr(::gethostname, hostName.data(), hostName.size() - 1);
     if (result != 0) {
-        errorCallback("gethostname failed", ::strerror(errno));
+        errorCallback("gethostname", ::strerror(errno));
         return false;
+    }
+
+    if (!resolveIntoFqdn) {
+        WriteLocalHostName(TStringBuf(hostName.data()));
+        return true;
     }
 
     addrinfo request;
@@ -86,14 +93,14 @@ bool UpdateLocalHostName(std::function<void(const char*, const char*)> errorCall
     addrinfo* response = nullptr;
     result = ::getaddrinfo(hostName.data(), nullptr, &request, &response);
     if (result != 0) {
-        errorCallback("getaddrinfo failed", gai_strerror(result));
+        errorCallback("getaddrinfo", gai_strerror(result));
         return false;
     }
 
     std::unique_ptr<addrinfo, void(*)(addrinfo*)> holder(response, &::freeaddrinfo);
 
     if (!response->ai_canonname) {
-        errorCallback("getaddrinfo failed", "no canonical hostname");
+        errorCallback("getaddrinfo", "no canonical hostname");
         return false;
     }
 

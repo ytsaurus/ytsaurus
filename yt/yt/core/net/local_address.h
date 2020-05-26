@@ -38,7 +38,9 @@ TString GetLocalHostName();
 // of the local machine (by calling `gethostname` and `getaddrinfo`).
 // On success, calls Write* with the hostname, and returns `true`.
 // On failure, calls error callback with diagnostics, and returns `false`.
-bool UpdateLocalHostName(std::function<void(const char*, const char*)> errorCallback);
+bool UpdateLocalHostName(
+    std::function<void(const char* /* failedCall */, const char* /* details */)> errorCallback,
+    bool resolveIntoFqdn);
 
 ////////////////////////////////////////////////////////////////////////////////
 

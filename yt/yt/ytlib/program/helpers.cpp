@@ -38,9 +38,9 @@ void ConfigureSingletons(const TSingletonsConfigPtr& config)
     NLogging::TLogManager::Get()->ConfigureFromEnv();
 
     NNet::TAddressResolver::Get()->Configure(config->AddressResolver);
-    if (!NNet::TAddressResolver::Get()->IsLocalHostNameOK()) {
-        THROW_ERROR_EXCEPTION("Could not determine local host FQDN");
-    }
+    // By default, server component must have reasonable fqdn.
+    // Failure to do so may result in issues like YT-4561.
+    NNet::TAddressResolver::Get()->EnsureLocalHostName();
 
     NRpc::TDispatcher::Get()->Configure(config->RpcDispatcher);
 

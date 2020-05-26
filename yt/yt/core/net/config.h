@@ -54,13 +54,21 @@ class TAddressResolverConfig
 public:
     bool EnableIPv4;
     bool EnableIPv6;
-    std::optional<TString> LocalHostFqdn;
+    //! If true, when determining local host name, it will additionally be resolved
+    //! into FQDN by calling |getaddrinfo|. Setting this option to false may be
+    //! useful in MTN environment, in which hostnames are barely resolvable.
+    //! NB: Set this option to false only if you are sure that process is not being
+    //! exposed under localhost name to anyone; in particular, any kind of discovery
+    //! should be done using some other kind of addresses.
+    bool ResolveHostNameIntoFqdn;
+    //! If set, localhost name will be forcefully set to the given value rather
+    //! than retrieved via |NYT::NNet::UpdateLocalHostName|.
+    std::optional<TString> LocalHostNameOverride;
     int Retries;
     TDuration ResolveTimeout;
     TDuration MaxResolveTimeout;
     double Jitter;
     TDuration WarningTimeout;
-
 
     TAddressResolverConfig()
     {
@@ -68,8 +76,11 @@ public:
             .Default(false);
         RegisterParameter("enable_ipv6", EnableIPv6)
             .Default(true);
-        RegisterParameter("localhost_fqdn", LocalHostFqdn)
+        RegisterParameter("localhost_name_override", LocalHostNameOverride)
+            .Alias("localhost_fqdn")
             .Default();
+        RegisterParameter("resolve_hostname_into_fqdn", ResolveHostNameIntoFqdn)
+            .Default(true);
         RegisterParameter("retries", Retries)
             .Default(25);
         RegisterParameter("resolve_timeout", ResolveTimeout)
