@@ -881,7 +881,7 @@ public:
 
     TFuture<TNetworkAddress> Resolve(const TString& hostName);
 
-    bool IsLocalHostNameOK();
+    void EnsureLocalHostName();
 
     bool IsLocalAddress(const TNetworkAddress& address);
 
@@ -952,14 +952,19 @@ TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const TString& hostname,
         .AsyncVia(Queue_->GetInvoker()));
 }
 
-bool TAddressResolver::TImpl::IsLocalHostNameOK()
+void TAddressResolver::TImpl::EnsureLocalHostName()
 {
-    // Force check & resolution.
-    if (Config_->LocalHostFqdn) {
-        return true;
-    } else {
-        return UpdateLocalHostName([] (const char*, const char*) {});
+    if (Config_->LocalHostNameOverride) {
+        return;
     }
+
+    UpdateLocalHostName([] (const char* failedCall, const char* details) {
+        THROW_ERROR_EXCEPTION("Error updating localhost name; %v failed: %v", failedCall, details);
+    }, Config_->ResolveHostNameIntoFqdn);
+
+    YT_LOG_INFO("Localhost name determined via system call (LocalHostName: %v, ResolveHostNameIntoFqdn: %v)",
+        GetLocalHostName(),
+        Config_->ResolveHostNameIntoFqdn);
 }
 
 bool TAddressResolver::TImpl::IsLocalAddress(const TNetworkAddress& address)
@@ -1026,15 +1031,11 @@ void TAddressResolver::TImpl::Configure(TAddressResolverConfigPtr config)
 {
     Config_ = std::move(config);
 
-    if (Config_->LocalHostFqdn) {
-        WriteLocalHostName(*Config_->LocalHostFqdn);
-    } else {
-        UpdateLocalHostName([&] (const char* message, const char* details) {
-            YT_LOG_INFO("Localhost FQDN resolution failed: %v: %v", message, details);
-        });
+    if (Config_->LocalHostNameOverride) {
+        WriteLocalHostName(*Config_->LocalHostNameOverride);
+        YT_LOG_INFO("Localhost name configured via config override (LocalHostName: %v)",
+            Config_->LocalHostNameOverride);
     }
-
-    YT_LOG_INFO("Localhost FQDN configured: %v", GetLocalHostName());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1063,9 +1064,9 @@ TFuture<TNetworkAddress> TAddressResolver::Resolve(const TString& address)
     return Impl_->Resolve(address);
 }
 
-bool TAddressResolver::IsLocalHostNameOK()
+void TAddressResolver::EnsureLocalHostName()
 {
-    return Impl_->IsLocalHostNameOK();
+    return Impl_->EnsureLocalHostName();
 }
 
 bool TAddressResolver::IsLocalAddress(const TNetworkAddress& address)

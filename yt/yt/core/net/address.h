@@ -186,8 +186,10 @@ public:
      */
     TFuture<TNetworkAddress> Resolve(const TString& address);
 
-    //! Return |true| if the local host FQDN can be properly determined.
-    bool IsLocalHostNameOK();
+    //! Sets localhost name up if it was not provided via |localhost_name_override| config section.
+    //! Depending on |resolve_localhost_into_fqdn| option, localhost name is either additionally resolved
+    //! into FQDN or not.
+    void EnsureLocalHostName();
 
     //! Returns |true| if #address matches one of local host addresses.
     bool IsLocalAddress(const TNetworkAddress& address);
