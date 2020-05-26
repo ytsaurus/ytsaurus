@@ -90,6 +90,7 @@
 #include <util/system/compiler.h>
 #include <util/system/execpath.h>
 #include <util/system/fs.h>
+#include <util/system/shellcommand.h>
 
 namespace NYT::NJobProxy {
 
@@ -809,6 +810,13 @@ private:
         if (!InterruptionSignalSent_.exchange(true) && UserJobSpec_.has_interruption_signal()) {
             YT_LOG_DEBUG("Sending interruption signal to user job (SignalName: %v)",
                 UserJobSpec_.interruption_signal());
+            // TODO(gritukan): Remove it.
+            {
+                TShellCommand listProcessesCommand("bash -c \"ps aux\"");
+                listProcessesCommand.Run();
+                listProcessesCommand.Wait();
+                YT_LOG_DEBUG("ps aux output: %v", listProcessesCommand.GetOutput());
+            }
             try {
                 auto signalerConfig = New<TSignalerConfig>();
                 signalerConfig->SignalName = UserJobSpec_.interruption_signal();
