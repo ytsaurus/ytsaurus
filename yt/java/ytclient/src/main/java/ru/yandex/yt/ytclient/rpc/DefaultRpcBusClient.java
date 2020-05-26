@@ -537,6 +537,7 @@ public class DefaultRpcBusClient implements RpcClient {
 
     private static class Stash implements RpcStreamConsumer {
         ArrayList<StashedMessage> stashedMessages = new ArrayList<>();
+        int nextStashedMessageIndex = 0;
 
         @Override
         public void onFeedback(RpcClient unused, TStreamingFeedbackHeader header, List<byte[]> attachments) {
@@ -570,7 +571,9 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         void unstash(RpcClient sender, RpcStreamConsumer consumer) {
-            for (StashedMessage message : stashedMessages) {
+            while (nextStashedMessageIndex < stashedMessages.size()) {
+                StashedMessage message = stashedMessages.get(nextStashedMessageIndex++);
+
                 if (message.feedbackHeader != null) {
                     consumer.onFeedback(sender, message.feedbackHeader, message.attachments);
                 } else if (message.payloadHeader != null) {
@@ -792,10 +795,17 @@ public class DefaultRpcBusClient implements RpcClient {
         public void subscribe(RpcStreamConsumer consumer) {
             lock.lock();
             try {
-                ((Stash) this.consumer).unstash(sender, consumer);
+                Stash stash = (Stash) this.consumer;
                 this.consumer = consumer;
-            } catch (Throwable e) {
-                handleError(e);
+                // Make sure to fully drain the stash.
+                while (true) {
+                    try {
+                        stash.unstash(sender, this.consumer);
+                        break;
+                    } catch (Throwable e) {
+                        handleError(e);
+                    }
+                }
             } finally {
                 lock.unlock();
             }
