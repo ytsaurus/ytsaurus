@@ -282,7 +282,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     # if these three tests flap - call renadeen@
     @authors("renadeen")
     def test_low_cpu_alert_presence(self):
-        op = run_test_vanilla("sleep 1")
+        op = run_test_vanilla("sleep 3")
         op.track()
 
         assert "low_cpu_usage" in op.get_alerts()
