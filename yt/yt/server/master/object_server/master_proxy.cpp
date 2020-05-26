@@ -88,7 +88,13 @@ private:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         if (ignoreExisting) {
-            if (auto* existingObject = objectManager->FindObjectByAttributes(type, attributes.get())) {
+            auto maybeExistingObject = objectManager->FindObjectByAttributes(type, attributes.get());
+            if (!maybeExistingObject) {
+                THROW_ERROR_EXCEPTION("\"ignore_existing\" option is not supported for type %Qlv",
+                    type);
+            }
+
+            if (auto* existingObject = *maybeExistingObject) {
                 auto existingObjectId = existingObject->GetId();
                 ToProto(response->mutable_object_id(), existingObjectId);
 

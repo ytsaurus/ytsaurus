@@ -90,8 +90,11 @@ public:
     //! Finds object by id, returns |nullptr| if nothing is found.
     TObject* FindObject(TObjectId id);
 
-    //! Finds object by type and attributes, returns |nullptr| if nothing is found.
-    TObject* FindObjectByAttributes(EObjectType type, const NYTree::IAttributeDictionary* attributes);
+    //! Finds object by type and attributes, returns |nullptr| if nothing is found and
+    //! |std::nullopt| if the functionality is not supported for the type.
+    std::optional<TObject*> FindObjectByAttributes(
+        EObjectType type,
+        const NYTree::IAttributeDictionary* attributes);
 
     //! Finds object by id, fails if nothing is found.
     TObject* GetObject(TObjectId id);

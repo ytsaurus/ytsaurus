@@ -86,11 +86,10 @@ public:
         DoUnstageObject(object->As<TImpl>(), recursive);
     }
 
-    virtual TObject* FindObjectByAttributes(
+    virtual std::optional<TObject*> FindObjectByAttributes(
         const NYTree::IAttributeDictionary* /*attributes*/) override
     {
-        THROW_ERROR_EXCEPTION("Searching by attributes is not supported for type %Qlv",
-            GetType());
+        return std::nullopt;
     }
 
     virtual NSecurityServer::TAccessControlDescriptor* FindAcd(TObject* object) override

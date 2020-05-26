@@ -51,8 +51,10 @@ struct IObjectTypeHandler
     //! Finds object by id, returns |nullptr| if nothing is found.
     virtual TObject* FindObject(TObjectId id) = 0;
 
-    //! Finds an object by attributes intended for #CreateObject, returns |nullptr| if nothing is found.
-    virtual TObject* FindObjectByAttributes(const NYTree::IAttributeDictionary* attributes) = 0;
+    //! Finds an object by attributes intended for #CreateObject, returns |nullptr|
+    //! if nothing is found and |std::nullopt| if the functionality is not supported for the type.
+    virtual std::optional<TObject*> FindObjectByAttributes(
+        const NYTree::IAttributeDictionary* attributes) = 0;
 
     //! Finds object by id, fails if nothing is found.
     TObject* GetObject(TObjectId id);
