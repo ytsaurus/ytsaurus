@@ -7,6 +7,8 @@ from argparse import ArgumentTypeError
 from contextlib import contextmanager
 import sys
 
+from copy import deepcopy
+
 class Namespace(object):
     def __init__(self, **kwargs):
         for key, value in iteritems(kwargs):
@@ -31,7 +33,7 @@ def decode_permissions(string):
     return sorted(permissions, key=lambda s: order.index(s))
 
 class Subject(object):
-    def __init__(self, subject):
+    def __init__(self, subject, inherited=False):
         if "user" in subject:
             self.kind = "user"
             self.user = subject["user"]
@@ -39,6 +41,7 @@ class Subject(object):
             self.kind = "group"
             self.group = subject["group"]
             self.human_readable_name = subject.get("group_name", "")
+        self.inherited = inherited
         self.url = subject.get("url", "")
 
     def _signature(self):
@@ -66,10 +69,11 @@ class Subject(object):
             return cls(dict(user=string))
 
     def to_pretty_string(self):
+        postfix = "*" if self.inherited else ""
         if self.kind == "user":
-            return self.user
+            return self.user + postfix
         else:
-            return "{} (idm-group:{})".format(self.url, self.group)
+            return "{} (idm-group:{}){}".format(self.url, self.group, postfix)
 
     def to_json_type(self):
         if self.kind == "user":
@@ -98,7 +102,7 @@ class Role(object):
         self.comment = comment
 
     def _signature(self):
-        return (self.subject, self.permissions, self.columns)
+        return (self.subject, tuple(sorted(self.permissions)), tuple(sorted(self.columns)))
 
     def __hash__(self):
         return hash(self._signature())
@@ -108,7 +112,8 @@ class Role(object):
 
     def to_pretty_string(self):
         permissions = "/".join(self.permissions)
-        return "{:<20} - {}".format(self.subject.to_pretty_string(), permissions)
+        postfix = "*" if self.inherited else ""
+        return "{:<20} - {}".format(self.subject.to_pretty_string() + postfix, permissions)
 
     def to_json_type(self):
         copy_attrs = ("state", "permissions", "columns", "idm_link", "inherited", "member",
@@ -126,10 +131,12 @@ class ObjectIdmSnapshot(object):
         responsibles_reply = idm_client.get_responsible(**object_id)
         self.version = responsibles_reply["version"]
 
+        extract_roles = lambda roles: [Subject(role["subject"], role.get("inherited", False)) for role in roles]
+
         responsibles = responsibles_reply["responsible"]
-        self.responsibles = list(map(lambda role: Subject(role["subject"]), responsibles.get("responsible", [])))
-        self.read_approvers = list(map(lambda role: Subject(role["subject"]), responsibles.get("read_approvers", [])))
-        self.auditors = list(map(lambda role: Subject(role["subject"]), responsibles.get("auditors", [])))
+        self.responsibles = extract_roles(responsibles.get("responsible", []))
+        self.read_approvers = extract_roles(responsibles.get("read_approvers", []))
+        self.auditors = extract_roles(responsibles.get("auditors", []))
         self.disable_responsible_inheritance = responsibles.get("disable_inheritance", False)
         self.require_boss_approval = responsibles.get("require_boss_approval", False)
 
@@ -193,30 +200,39 @@ class ObjectIdmSnapshot(object):
                 self._roles_to_remove.append(role)
         self.roles = [role for role in self.roles if role.subject not in subjects]
 
-    def remove_all_roles(self, comment=""):
+    def remove_all_immediate_roles(self, comment=""):
         for role in self.roles:
-            role.comment = comment
-            self._roles_to_remove.append(role)
-        self.roles = []
+            if not role.inherited:
+                role.comment = comment
+                self._roles_to_remove.append(role)
 
-    def clear(self):
-        self.responsibles = []
-        self.read_approvers = []
-        self.auditors = []
-        self.remove_all_roles()
+        removed = set(self._roles_to_remove)
+        self.roles = [role for role in self.roles if role not in removed]
+
+    def clear_immediate(self):
+        clear = lambda subjects: [sub for sub in subjects if sub.inherited]
+        self.responsibles = clear(self.responsibles)
+        self.read_approvers = clear(self.read_approvers)
+        self.auditors = clear(self.auditors)
+        self.remove_all_immediate_roles()
 
     def copy_flags_from(self, other):
         for flag in ("inherit_acl", "disable_responsible_inheritance", "require_boss_approval"):
             setattr(self, flag, getattr(other, flag))
 
-    def copy_permissions_from(self, other):
+    def copy_permissions_from(self, other, immediate=False):
         for attr in ("responsibles", "read_approvers", "auditors"):
             for subject in getattr(other, attr):
                 my_list = getattr(self, attr)
-                if subject not in my_list:
+                if subject not in my_list and (not immediate or not subject.inherited):
+                    subject = deepcopy(subject)
+                    subject.inherited = False
                     my_list.append(subject)
+
         for role in other.roles:
-            if role not in self.roles:
+            if role not in self.roles and (not immediate or not role.inherited):
+                role = deepcopy(role)
+                role.inherited = False
                 self._new_roles.append(role)
 
     def effective_roles(self):
@@ -256,18 +272,24 @@ def print_aligned(left, right, indent=0):
 def print_indented(string, indent=2):
     print(" " * indent + string)
 
-def pretty_print_idm_info(object_idm_snapshot, indent=0):
-    prettify_list = lambda list_: " ".join(entry.to_pretty_string() for entry in list_)
-    print_aligned("Responsibles:", prettify_list(object_idm_snapshot.responsibles), indent)
-    print_aligned("Read approvers:", prettify_list(object_idm_snapshot.read_approvers), indent)
-    print_aligned("Auditors:", prettify_list(object_idm_snapshot.auditors), indent)
+def pretty_print_idm_info(object_idm_snapshot, indent=0, immediate=False):
+
+    def preprocess_subjects(subjects):
+        if immediate:
+            subjects = (sub for sub in subjects if not sub.inherited)
+        return " ".join(sub.to_pretty_string() for sub in subjects)
+
+    print_aligned("Responsibles:", preprocess_subjects(object_idm_snapshot.responsibles), indent)
+    print_aligned("Read approvers:", preprocess_subjects(object_idm_snapshot.read_approvers), indent)
+    print_aligned("Auditors:", preprocess_subjects(object_idm_snapshot.auditors), indent)
     print_aligned("Inherit responsibles:", (not object_idm_snapshot.disable_responsible_inheritance), indent)
     print_aligned("Boss approval required:", object_idm_snapshot.require_boss_approval, indent)
     print_aligned("Inherit ACL:", object_idm_snapshot.inherit_acl, indent)
 
     print_indented("ACL roles:", indent)
     for role in object_idm_snapshot.effective_roles():
-        print_indented(role.to_pretty_string(), indent + 2)
+        if not immediate or not role.inherited:
+            print_indented(role.to_pretty_string(), indent + 2)
 
 def subjects_from_string(subjects):
     return [Subject.from_string(subj) for subj in subjects]
@@ -316,7 +338,7 @@ def with_idm_info(func):
 
 @with_idm_info
 def show(object_idm_snapshot, args):
-    pretty_print_idm_info(object_idm_snapshot)
+    pretty_print_idm_info(object_idm_snapshot, immediate=args.immediate)
 
 @with_idm_info
 def request(object_idm_snapshot, args):
@@ -343,7 +365,7 @@ def revoke(object_idm_snapshot, args):
         apply_flags(object_idm_snapshot, args)
 
         if args.revoke_all_roles:
-            object_idm_snapshot.remove_all_roles()
+            object_idm_snapshot.remove_all_immediate_roles()
         else:
             object_idm_snapshot.remove_roles(
                 subjects_from_string(args.subjects),
@@ -360,6 +382,6 @@ def copy(source_idm_snapshot, args):
 
     with modify_idm_snapshot(dest_idm_snapshot, args.dry_run):
         if args.erase:
-            dest_idm_snapshot.clear()
+            dest_idm_snapshot.clear_immediate()
             dest_idm_snapshot.copy_flags_from(source_idm_snapshot)
-        dest_idm_snapshot.copy_permissions_from(source_idm_snapshot)
+        dest_idm_snapshot.copy_permissions_from(source_idm_snapshot, immediate=args.immediate)
