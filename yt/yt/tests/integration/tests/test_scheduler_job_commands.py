@@ -1,6 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, unix_only, porto_avaliable, wait,
-    get_porto_delta_node_config
+    YTEnvSetup, unix_only, wait,
 )
 from yt_commands import *
 
@@ -13,22 +12,18 @@ import time
 
 ##################################################################
 
-@pytest.mark.skip_if('not porto_avaliable()')
 class TestJobProber(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
 
-    DELTA_NODE_CONFIG = yt.common.update(
-        get_porto_delta_node_config(),
-        {
-            "exec_agent": {
-                "test_poll_job_shell": True,
-            },
-        }
-    )
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_poll_job_shell": True,
+        },
+    }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     @authors("ignat")
     @unix_only

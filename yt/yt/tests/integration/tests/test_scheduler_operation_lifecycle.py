@@ -1,7 +1,6 @@
 from yt_env_setup import (
     YTEnvSetup, wait, Restarter, unix_only, is_asan_build,
     SCHEDULERS_SERVICE, MASTERS_SERVICE, CONTROLLER_AGENTS_SERVICE,
-    get_porto_delta_node_config, porto_avaliable,
 )
 
 from yt_commands import *
@@ -23,7 +22,6 @@ from datetime import datetime, timedelta
 
 ##################################################################
 
-@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -49,8 +47,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         }
     }
 
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     @authors("ignat")
     def test_connection_time(self):
@@ -560,7 +557,6 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         wait(lambda: op3.get_state() == "failed")
 
 
-@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -586,8 +582,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         }
     }
 
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     @authors("ignat", "eshcherbin")
     def test_pool_profiling(self):
@@ -928,7 +923,6 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
 ##################################################################
 
-@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -964,16 +958,14 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
         }
     }
 
-    USE_PORTO_FOR_SERVERS = True
-    DELTA_NODE_CONFIG = yt.common.update(
-        get_porto_delta_node_config(),
-        {
-            "exec_agent": {
-                "scheduler_connector": {
-                    "heartbeat_period": 100,  # 100 msec
-                },
-            }
-        })
+    USE_PORTO = True
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 100,  # 100 msec
+            },
+        }
+    }
 
     def _get_cypress_metrics(self, operation_id, key, job_state="completed", aggr="sum"):
         statistics = get(get_operation_cypress_path(operation_id) + "/@progress/job_statistics")

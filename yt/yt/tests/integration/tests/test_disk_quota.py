@@ -1,8 +1,6 @@
 import yt_env_setup
-from yt_env_setup import wait, get_porto_delta_node_config, patch_porto_env_only, YTEnvSetup
+from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
-
-from quota_mixin import QuotaMixin
 
 import yt.common
 
@@ -14,34 +12,32 @@ import shutil
 ##################################################################
 
 class TestDiskUsagePorto(YTEnvSetup):
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     NUM_SCHEDULERS = 1
     NUM_MASTERS = 1
     NUM_NODES = 1
-    DELTA_NODE_CONFIG = yt.common.update(
-        get_porto_delta_node_config(),
-        {
-            "exec_agent": {
-                "slot_manager": {
-                    "locations": [
-                        {
-                            "disk_quota": 1024 * 1024,
-                            "disk_usage_watermark": 0
-                        }
-                    ],
-                    "disk_resources_update_period": 100,
-                },
-                "job_controller": {
-                    "waiting_jobs_timeout": 1000,
-                    "resource_limits": {
-                        "user_slots": 3,
-                        "cpu": 3.0
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "locations": [
+                    {
+                        "disk_quota": 1024 * 1024,
+                        "disk_usage_watermark": 0
                     }
-                },
-                "min_required_disk_space": 0,
-            }
-        })
+                ],
+                "disk_resources_update_period": 100,
+            },
+            "job_controller": {
+                "waiting_jobs_timeout": 1000,
+                "resource_limits": {
+                    "user_slots": 3,
+                    "cpu": 3.0
+                }
+            },
+            "min_required_disk_space": 0,
+        }
+    }
 
     DELTA_MASTER_CONFIG = {
         "cypress_manager": {
@@ -178,7 +174,7 @@ class TestDiskMediumsPorto(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
 
-    DELTA_NODE_CONFIG_BASE = {
+    DELTA_NODE_CONFIG = {
         "exec_agent": {
             "slot_manager": {
                 "disk_resources_update_period": 100,
@@ -194,11 +190,6 @@ class TestDiskMediumsPorto(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = yt.common.update(
-        get_porto_delta_node_config(),
-        DELTA_NODE_CONFIG_BASE
-    )
-
     DELTA_MASTER_CONFIG = {
         "cypress_manager": {
             "default_table_replication_factor": 1
@@ -211,7 +202,7 @@ class TestDiskMediumsPorto(YTEnvSetup):
         }
     }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     @classmethod
     def modify_node_config(cls, config):
@@ -422,7 +413,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
 
-    DELTA_NODE_CONFIG_BASE = {
+    DELTA_NODE_CONFIG = {
         "exec_agent": {
             "slot_manager": {
                 "disk_resources_update_period": 100,
@@ -437,11 +428,6 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
             "min_required_disk_space": 0,
         }
     }
-
-    DELTA_NODE_CONFIG = yt.common.update(
-        get_porto_delta_node_config(),
-        DELTA_NODE_CONFIG_BASE
-    )
 
     DELTA_MASTER_CONFIG = {
         "cypress_manager": {
@@ -468,7 +454,7 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
         },
     }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     @classmethod
     def modify_node_config(cls, config):

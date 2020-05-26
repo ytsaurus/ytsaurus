@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, porto_avaliable, get_porto_delta_node_config, unix_only,
+    YTEnvSetup, unix_only,
     Restarter, SCHEDULERS_SERVICE, patch_porto_env_only
 )
 from yt_commands import *
@@ -22,8 +22,7 @@ class TestSandboxTmpfs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
-    USE_PORTO_FOR_SERVERS = True
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    USE_PORTO = True
 
     @authors("ignat")
     def test_simple(self):
@@ -478,36 +477,33 @@ class TestSandboxTmpfs(YTEnvSetup):
 
 ##################################################################
 
-@pytest.mark.skip_if('not porto_avaliable()')
 class TestSandboxTmpfsOverflow(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
-    USE_PORTO_FOR_SERVERS = True
-    DELTA_NODE_CONFIG = yt.common.update(
-        get_porto_delta_node_config(),
-        {
-            "exec_agent": {
-                "statistics_reporter": {
-                    "enabled": True,
-                    "reporting_period": 10,
-                    "min_repeat_delay": 10,
-                    "max_repeat_delay": 10,
-                },
-                "job_controller": {
-                    "resource_limits": {
-                        "memory": 6 * 1024 ** 3,
-                    }
-                },
-                "job_reporter": {
-                    "enabled": True,
-                    "reporting_period": 10,
-                    "min_repeat_delay": 10,
-                    "max_repeat_delay": 10,
-                },
+    USE_PORTO = True
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "statistics_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
             },
-        })
+            "job_controller": {
+                "resource_limits": {
+                    "memory": 6 * 1024 ** 3,
+                }
+            },
+            "job_reporter": {
+                "enabled": True,
+                "reporting_period": 10,
+                "min_repeat_delay": 10,
+                "max_repeat_delay": 10,
+            },
+        },
+    }
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -723,7 +719,6 @@ class TestArtifactCacheBypass(YTEnvSetup):
 
 ##################################################################
 
-@pytest.mark.skip_if('not porto_avaliable()')
 class TestNetworkIsolation(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -739,7 +734,7 @@ class TestNetworkIsolation(YTEnvSetup):
         }
     }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     @authors("gritukan")
     def test_create_network_project_map(self):
@@ -999,8 +994,7 @@ class TestJobStderrMulticell(TestJobStderr):
 
 @patch_porto_env_only(TestJobStderr)
 class TestJobStderrPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
 ##################################################################
 
@@ -1247,8 +1241,7 @@ class TestUserFilesMulticell(TestUserFiles):
 
 @patch_porto_env_only(TestUserFiles)
 class TestUserFilesPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
 ##################################################################
 

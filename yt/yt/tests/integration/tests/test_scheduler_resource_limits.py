@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, get_porto_delta_node_config, porto_avaliable
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only
 from yt_commands import *
 
 from flaky import flaky
@@ -20,14 +20,11 @@ def check_memory_limit(op):
         inner_errors = get(jobs_path + "/" + job_id + "/@error/inner_errors")
         assert "Memory limit exceeded" in inner_errors[0]["message"]
 
-@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerMemoryLimits(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    USE_PORTO_FOR_SERVERS = True
-
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    USE_PORTO = True
 
     #pytest.mark.xfail(run = False, reason = "Set-uid-root before running.")
     @authors("psushin")
@@ -72,13 +69,11 @@ while True:
         command = "cat > /dev/null; mkdir ./tmpxxx; echo 1 > ./tmpxxx/f1; chmod 700 ./tmpxxx;"
         map(in_="//tmp/t_in", out="//tmp/t_out", command=command)
 
-@pytest.mark.skip_if('not porto_avaliable()')
 class TestMemoryReserveFactor(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -153,8 +148,7 @@ time.sleep(5.0)
 ###############################################################################################
 
 class TestContainerCpuLimit(YTEnvSetup):
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
@@ -198,7 +192,7 @@ class TestUpdateInstanceLimits(YTEnvSetup):
         }
     }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
