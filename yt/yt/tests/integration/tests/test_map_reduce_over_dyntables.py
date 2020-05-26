@@ -1,6 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto, parametrize_external,
-    get_porto_delta_node_config,
+    YTEnvSetup, unix_only, wait, parametrize_external,
 )
 from yt_commands import *
 

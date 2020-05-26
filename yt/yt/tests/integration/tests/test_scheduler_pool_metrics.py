@@ -1,6 +1,5 @@
 from yt_env_setup import (
     YTEnvSetup, unix_only, patch_porto_env_only, wait, Restarter, CONTROLLER_AGENTS_SERVICE,
-    get_porto_delta_node_config, porto_avaliable,
 )
 from yt_commands import *
 from yt_helpers import *
@@ -22,15 +21,6 @@ def get_cypress_metrics(operation_id, key, aggr="sum"):
 
 ##################################################################
 
-POOL_METRICS_NODE_CONFIG_PATCH = {
-    "exec_agent": {
-        "scheduler_connector": {
-            "heartbeat_period": 100,  # 100 msec
-        },
-    }
-}
-
-@pytest.mark.skip_if('not porto_avaliable()')
 class TestPoolMetrics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -78,11 +68,14 @@ class TestPoolMetrics(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = yt.common.update(
-        get_porto_delta_node_config(),
-        POOL_METRICS_NODE_CONFIG_PATCH
-    )
-    USE_PORTO_FOR_SERVERS = True
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 100,  # 100 msec
+            },
+        }
+    }
+    USE_PORTO = True
 
     @authors("ignat")
     @unix_only

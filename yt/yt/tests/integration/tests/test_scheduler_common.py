@@ -1,6 +1,5 @@
 from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, wait,\
-    Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE,\
-    get_porto_delta_node_config, porto_avaliable
+    Restarter, SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE
 from yt_commands import *
 from yt_helpers import *
 
@@ -32,7 +31,6 @@ SCHEDULER_COMMON_NODE_CONFIG_PATCH = {
     }
 }
 
-@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerCommon(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -63,11 +61,8 @@ class TestSchedulerCommon(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = update(
-        get_porto_delta_node_config(),
-        SCHEDULER_COMMON_NODE_CONFIG_PATCH
-    )
-    USE_PORTO_FOR_SERVERS = True
+    DELTA_NODE_CONFIG = SCHEDULER_COMMON_NODE_CONFIG_PATCH
+    USE_PORTO = True
 
     @authors("ignat")
     def test_failed_jobs_twice(self):
@@ -1764,7 +1759,7 @@ class TestEventLog(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
@@ -1781,8 +1776,6 @@ class TestEventLog(YTEnvSetup):
             }
         }
     }
-
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
 
     @authors("ignat")
     def test_scheduler_event_log(self):
@@ -1916,8 +1909,7 @@ class TestEventLog(YTEnvSetup):
 @patch_porto_env_only(YTEnvSetup)
 class TestJobStatisticsPorto(YTEnvSetup):
     NUM_SCHEDULERS = 1
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     @authors("babenko")
     def test_statistics(self):

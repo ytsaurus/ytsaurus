@@ -1,18 +1,15 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, patch_porto_env_only, wait, get_porto_delta_node_config, porto_avaliable
+from yt_env_setup import YTEnvSetup, patch_porto_env_only, wait
 from yt_commands import *
 
 ##################################################################
 
-@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerUserStatistics(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
-    USE_PORTO_FOR_SERVERS = True
-
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
+    USE_PORTO = True
 
     @authors("tramsmm")
     def test_job_statistics(self):

@@ -187,7 +187,7 @@ patch_porto_env_only = lambda parent: patch_subclass(parent, not porto_avaliable
 
 def skip_if_porto(func):
     def wrapper(func, self, *args, **kwargs):
-        if hasattr(self, "USE_PORTO_FOR_SERVERS") and self.USE_PORTO_FOR_SERVERS:
+        if hasattr(self, "USE_PORTO") and self.USE_PORTO:
             pytest.skip("This test does not support porto isolation")
         return func(self, *args, **kwargs)
 
@@ -296,7 +296,7 @@ class YTEnvSetup(object):
     DELTA_PROXY_CONFIG = {}
     DELTA_RPC_PROXY_CONFIG = {}
 
-    USE_PORTO_FOR_SERVERS = False
+    USE_PORTO = False
     USE_DYNAMIC_TABLES = False
     USE_MASTER_CACHE = False
     USE_PERMISSION_CACHE = True
@@ -376,7 +376,7 @@ class YTEnvSetup(object):
             watcher_config={"disable_logrotate": True},
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
             kill_child_processes=True,
-            use_porto_for_servers=cls.get_param("USE_PORTO_FOR_SERVERS", index),
+            use_porto_for_servers=cls.USE_PORTO,
             port_locks_path=os.path.join(SANDBOX_ROOTDIR, "ports"),
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
@@ -405,7 +405,7 @@ class YTEnvSetup(object):
 
         need_suid = False
         cls.cleanup_root_files = False
-        if cls.get_param("USE_PORTO_FOR_SERVERS", False):
+        if cls.USE_PORTO:
             if arcadia_interop.is_inside_distbuild():
                 pytest.skip("porto is not available inside distbuild")
             
@@ -549,7 +549,11 @@ class YTEnvSetup(object):
 
             cls.modify_controller_agent_config(configs["controller_agent"][index])
         for index, config in enumerate(configs["node"]):
-            configs["node"][index] = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
+            config = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
+            if cls.USE_PORTO:
+                config = update_inplace(config, get_porto_delta_node_config())
+
+            configs["node"][index] = config
             cls.modify_node_config(configs["node"][index])
 
         for index, config in enumerate(configs["http_proxy"]):

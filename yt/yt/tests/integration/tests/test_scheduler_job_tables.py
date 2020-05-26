@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, unix_only, wait, \
     patch_porto_env_only, skip_if_porto, is_asan_build, \
-    Restarter, SCHEDULERS_SERVICE, get_porto_delta_node_config
+    Restarter, SCHEDULERS_SERVICE
 from yt_commands import *
 
 import yt.environment.init_operation_archive as init_operation_archive
@@ -1083,8 +1083,7 @@ class TestCoreTable(YTEnvSetup):
 
 @patch_porto_env_only(TestCoreTable)
 class TestCoreTablePorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = get_porto_delta_node_config()
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     @authors("dcherednik", "gritukan")
     @unix_only

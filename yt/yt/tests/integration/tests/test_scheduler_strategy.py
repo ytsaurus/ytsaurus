@@ -3,7 +3,7 @@ import pytest
 from yt_commands import *
 from yt_helpers import *
 
-from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE, get_porto_delta_node_config
+from yt_env_setup import YTEnvSetup, wait, Restarter, SCHEDULERS_SERVICE
 from yt.test_helpers import are_almost_equal
 from yt.common import date_string_to_timestamp
 import yt.common
@@ -2235,29 +2235,26 @@ class TestSchedulerPoolsReconfigurationNew(YTEnvSetup):
 
 ##################################################################
 
-@pytest.mark.skip_if('not porto_avaliable()')
 class TestSchedulerSuspiciousJobs(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
-    DELTA_NODE_CONFIG = yt.common.update(
-        get_porto_delta_node_config(),
-        {
-            "exec_agent": {
-                "scheduler_connector": {
-                    "heartbeat_period": 100  # 100 msec
-                },
-                "job_proxy_heartbeat_period": 100,  # 100 msec
-                "job_controller": {
-                    "resource_limits": {
-                        "user_slots": 2,
-                        "cpu": 2
-                    }
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 100  # 100 msec
+            },
+            "job_proxy_heartbeat_period": 100,  # 100 msec
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 2,
+                    "cpu": 2
                 }
             }
-        })
+        }
+    }
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {

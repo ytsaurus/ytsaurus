@@ -1,6 +1,5 @@
 from yt_env_setup import (
     YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto, parametrize_external,
-    get_porto_delta_node_config,
 )
 
 from yt_commands import *
@@ -17,18 +16,6 @@ import time
 import base64
 
 ##################################################################
-
-SCHEDULER_MAP_COMMANDS_NODE_CONFIG_PATCH = {
-    "exec_agent": {
-        "job_controller": {
-            "resource_limits": {
-                "user_slots": 5,
-                "cpu": 5,
-                "memory": 5 * 1024 ** 3,
-            }
-        }
-    }
-}
 
 class TestSchedulerMapCommands(YTEnvSetup):
     NUM_MASTERS = 1
@@ -59,7 +46,17 @@ class TestSchedulerMapCommands(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = SCHEDULER_MAP_COMMANDS_NODE_CONFIG_PATCH
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 5,
+                    "cpu": 5,
+                    "memory": 5 * 1024 ** 3,
+                }
+            }
+        }
+    }
 
     @authors("ignat")
     def test_empty_table(self):
@@ -1343,11 +1340,7 @@ done
 
 @patch_porto_env_only(TestSchedulerMapCommands)
 class TestSchedulerMapCommandsPorto(YTEnvSetup):
-    DELTA_NODE_CONFIG = update(
-        get_porto_delta_node_config(),
-        SCHEDULER_MAP_COMMANDS_NODE_CONFIG_PATCH
-    )
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
 ##################################################################
 

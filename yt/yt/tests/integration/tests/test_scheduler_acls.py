@@ -2,7 +2,6 @@ import yt.environment.init_operation_archive as init_operation_archive
 
 from yt_env_setup import (
     YTEnvSetup, unix_only, Restarter, SCHEDULERS_SERVICE,
-    get_porto_delta_node_config
 )
 from yt_commands import *
 
@@ -26,16 +25,13 @@ class TestSchedulerAcls(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
-    DELTA_NODE_CONFIG = yt.common.update(
-        get_porto_delta_node_config(),
-        {
-            "exec_agent": {
-                "test_poll_job_shell": True,
-            },
-        }
-    )
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "test_poll_job_shell": True,
+        },
+    }
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {

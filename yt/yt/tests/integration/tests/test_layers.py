@@ -2,8 +2,6 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 from yt_commands import *
 from yt_helpers import from_sandbox
 
-from yt.environment.porto_helpers import porto_avaliable
-
 import pytest
 import inspect
 import os
@@ -12,13 +10,6 @@ from functools import partial
 
 from flaky import flaky
 
-@pytest.fixture(scope="module")
-def layers_resource():
-    if arcadia_interop.yatest_common is None:
-        from_sandbox("1367238824")
-
-@pytest.mark.skip_if('not porto_avaliable()')
-@pytest.mark.usefixtures("layers_resource")
 class TestLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     DELTA_NODE_CONFIG = {
@@ -32,7 +23,7 @@ class TestLayers(YTEnvSetup):
         }
     }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     def setup_files(self):
         create("file", "//tmp/layer1")
@@ -169,8 +160,6 @@ class TestLayers(YTEnvSetup):
                     }
                 })
 
-@pytest.mark.usefixtures("layers_resource")
-@pytest.mark.skip_if('not porto_avaliable()')
 @authors("psushin")
 class TestTmpfsLayerCache(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -195,7 +184,7 @@ class TestTmpfsLayerCache(YTEnvSetup):
         }
     }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
@@ -248,8 +237,6 @@ class TestTmpfsLayerCache(YTEnvSetup):
         for node in ls("//sys/cluster_nodes"):
             wait(lambda: get("//sys/cluster_nodes/{0}/{1}/tmpfs_cache/layer_count".format(node, orchid_path)) == 0)
 
-@pytest.mark.usefixtures("layers_resource")
-@pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestJobSetup(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -272,7 +259,7 @@ class TestJobSetup(YTEnvSetup):
         },
     }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
@@ -306,8 +293,6 @@ class TestJobSetup(YTEnvSetup):
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
 
-@pytest.mark.usefixtures("layers_resource")
-@pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestGpuJobSetup(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -337,7 +322,7 @@ class TestGpuJobSetup(YTEnvSetup):
         },
     }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
@@ -393,8 +378,6 @@ class TestGpuJobSetup(YTEnvSetup):
         assert res == "SETUP-GPU-OUTPUT\n"
 
 
-@pytest.mark.usefixtures("layers_resource")
-@pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestSkipGpuJobSetup(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -423,7 +406,7 @@ class TestSkipGpuJobSetup(YTEnvSetup):
         },
     }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
@@ -458,8 +441,6 @@ class TestSkipGpuJobSetup(YTEnvSetup):
         assert res == "SETUP-OUTPUT\n"
 
 
-@pytest.mark.usefixtures("layers_resource")
-@pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestGpuLayer(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -490,7 +471,7 @@ class TestGpuLayer(YTEnvSetup):
         },
     }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     def setup_files(self):
         tx = start_transaction()
@@ -538,8 +519,6 @@ class TestGpuLayer(YTEnvSetup):
         assert res == "SETUP-OUTPUT\n"
 
 
-@pytest.mark.usefixtures("layers_resource")
-@pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestGpuLayerUpdate(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -566,7 +545,7 @@ class TestGpuLayerUpdate(YTEnvSetup):
         },
     }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     def _write_driver_layer(self, name):
         path = "layers/{}.tar.gz".format(name)
@@ -620,8 +599,6 @@ class TestGpuLayerUpdate(YTEnvSetup):
         wait(partial(check_cat, "Marko Saaresto\n"), ignore_exceptions=True)
 
 
-@pytest.mark.usefixtures("layers_resource")
-@pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestCudaLayer(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -659,7 +636,7 @@ class TestCudaLayer(YTEnvSetup):
         }
     }
 
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     def setup_files(self):
         create("map_node", "//tmp/cuda")
@@ -701,8 +678,6 @@ class TestCudaLayer(YTEnvSetup):
         res = op.read_stderr(job_id)
         assert res == "SETUP-OUTPUT\n"
 
-@pytest.mark.usefixtures("layers_resource")
-@pytest.mark.skip_if('not porto_avaliable()')
 @authors("mrkastep")
 class TestSetupUser(YTEnvSetup):
     NUM_SCHEDULERS = 1
@@ -724,7 +699,7 @@ class TestSetupUser(YTEnvSetup):
             }
         },
     }
-    USE_PORTO_FOR_SERVERS = True
+    USE_PORTO = True
 
     def setup_files(self):
         create("file", "//tmp/layer1", attributes={"replication_factor": 1})
