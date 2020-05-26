@@ -7,7 +7,7 @@
 #include <mapreduce/yt/interface/operation.h>
 
 #include <library/cpp/json/json_reader.h>
-#include <library/svnversion/svnversion.h>
+#include <library/cpp/svnversion/svnversion.h>
 #include <library/yson/yson2json_adapter.h>
 
 #include <util/string/strip.h>
