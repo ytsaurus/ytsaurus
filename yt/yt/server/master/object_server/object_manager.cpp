@@ -162,7 +162,7 @@ public:
     TObject* GetWeakGhostObject(TObjectId id);
     void RemoveObject(TObject* object);
 
-    TObject* FindObjectByAttributes(
+    std::optional<TObject*> FindObjectByAttributes(
         EObjectType type,
         const IAttributeDictionary* attributes);
 
@@ -1314,7 +1314,7 @@ TObject* TObjectManager::TImpl::CreateObject(
     return object;
 }
 
-TObject* TObjectManager::TImpl::FindObjectByAttributes(
+std::optional<TObject*> TObjectManager::TImpl::FindObjectByAttributes(
     EObjectType type,
     const IAttributeDictionary* attributes)
 {
@@ -2223,7 +2223,9 @@ TObject* TObjectManager::CreateObject(TObjectId hintId, EObjectType type, IAttri
     return Impl_->CreateObject(hintId, type, attributes);
 }
 
-TObject* TObjectManager::FindObjectByAttributes(EObjectType type, const NYTree::IAttributeDictionary* attributes)
+std::optional<TObject*> TObjectManager::FindObjectByAttributes(
+    EObjectType type,
+    const NYTree::IAttributeDictionary* attributes)
 {
     return Impl_->FindObjectByAttributes(type, attributes);
 }

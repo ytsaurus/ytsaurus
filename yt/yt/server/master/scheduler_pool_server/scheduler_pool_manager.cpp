@@ -361,7 +361,8 @@ protected:
         return New<TSchedulerPoolProxy>(Owner_->Bootstrap_, &Metadata_, object);
     }
 
-    virtual NObjectServer::TObject* FindObjectByAttributes(const NYTree::IAttributeDictionary* attributes) override
+    virtual std::optional<NObjectServer::TObject*> FindObjectByAttributes(
+        const NYTree::IAttributeDictionary* attributes) override
     {
         auto poolTree = attributes->Get<TString>("pool_tree");
         auto parentName = attributes->Get<TString>("parent_name", RootPoolName);
@@ -448,7 +449,8 @@ protected:
         TBase::DoZombifyObject(object);
     }
 
-    NObjectServer::TObject* FindObjectByAttributes(const NYTree::IAttributeDictionary* attributes) override
+    virtual std::optional<NObjectServer::TObject*> FindObjectByAttributes(
+        const NYTree::IAttributeDictionary* attributes) override
     {
         auto name = attributes->Get<TString>("name");
         return Owner_->FindPoolTreeObjectByName(name);

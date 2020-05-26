@@ -176,7 +176,8 @@ public:
 
     virtual std::unique_ptr<TObject> InstantiateObject(TObjectId id) override;
 
-    virtual TObject* FindObjectByAttributes(const NYTree::IAttributeDictionary* attributes) override;
+    virtual std::optional<TObject*> FindObjectByAttributes(
+        const NYTree::IAttributeDictionary* attributes) override;
 
     virtual void RegisterName(const TString& name, TAccount* account) noexcept override;
     virtual void UnregisterName(const TString& name, TAccount* account) noexcept override;
@@ -3361,7 +3362,7 @@ std::unique_ptr<TObject> TSecurityManager::TAccountTypeHandler::InstantiateObjec
     return std::make_unique<TAccount>(id, id == Owner_->RootAccountId_);
 }
 
-TObject* TSecurityManager::TAccountTypeHandler::FindObjectByAttributes(
+std::optional<TObject*> TSecurityManager::TAccountTypeHandler::FindObjectByAttributes(
     const NYTree::IAttributeDictionary* attributes)
 {
     auto name = attributes->Get<TString>("name");
