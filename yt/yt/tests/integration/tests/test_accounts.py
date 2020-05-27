@@ -104,7 +104,7 @@ class AccountsTestSuiteBase(YTEnvSetup):
         set("//sys/accounts/{0}/@resource_limits/chunk_count".format(account), value)
 
     def _set_account_zero_limits(self, account):
-        set("//sys/accounts/{0}/@resource_limits".format(account), self._build_resource_limits())
+        set("//sys/accounts/{0}/@resource_limits".format(account), {})
 
     def _multiply_account_limits(self, account, multiplier):
         old_limits = get("//sys/accounts/{0}/@resource_limits".format(account))
@@ -657,7 +657,7 @@ class TestAccounts(AccountsTestSuiteBase):
     @authors("kiselyovp")
     def test_node_count_limits6(self):
         create_account("max", attributes={
-            "resource_limits": self._build_resource_limits(node_count=1, master_memory=1000)
+            "resource_limits": {"node_count": 1, "master_memory": 1000}
         })
         create("map_node", "//tmp/node", attributes={"account": "max"})
         with pytest.raises(YtError):
@@ -1584,18 +1584,9 @@ class TestAccounts(AccountsTestSuiteBase):
         assert not exists("//sys/accounts/x")
 
         with pytest.raises(YtError):
-            create_account("y", attributes={"resource_limits": {}})
+            create_account("y", attributes={
+                "resource_limits": self._build_resource_limits(disk_space=-1)})
         assert not exists("//sys/accounts/y")
-
-        with pytest.raises(YtError):
-            create_account("z", attributes={
-                "resource_limits": {
-                    "disk_space_per_medium": {"default": -1},
-                    "chunk_count": 0,
-                    "node_count": 0,
-                    "tablet_count": 0,
-                    "tablet_static_memory": 0}})
-        assert not exists("//sys/accounts/z")
 
     @authors("shakurov", "kiselyovp")
     def test_requisitions(self):
@@ -2313,14 +2304,14 @@ class TestAccountTree(AccountsTestSuiteBase):
         self._set_account_node_count_limit("yt", 4)
         self._set_account_master_memory("yt", 10000)
         with pytest.raises(YtError):
-            create_account("max", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=5)})
+            create_account("max", "yt", attributes={"resource_limits": {"node_count": 5}})
 
         create("map_node", "//tmp/yt", attributes={"account": "yt"})
 
-        create_account("min", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=1, master_memory=1000)})
+        create_account("min", "yt", attributes={"resource_limits": {"node_count": 1, "master_memory": 1000}})
         create("map_node", "//tmp/yt/d1", attributes={"account": "min"})
 
-        create_account("max", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=3, master_memory=1000)})
+        create_account("max", "yt", attributes={"resource_limits": {"node_count": 3, "master_memory": 1000}})
         create("map_node", "//tmp/yt/d2", attributes={"account": "max"})
         create("map_node", "//tmp/yt/d3", attributes={"account": "max"})
         with pytest.raises(YtError):
@@ -2332,7 +2323,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         self._set_account_node_count_limit("yt", 4)
         self._set_account_master_memory("yt", 10000)
 
-        create_account("min", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=1, master_memory=1000)})
+        create_account("min", "yt", attributes={"resource_limits": {"node_count": 1, "master_memory": 1000}})
         create("map_node", "//tmp/d1", attributes={"account": "min"})
         with pytest.raises(YtError): create("map_node", "//tmp/d2", attributes={"account": "min"})
         move("//sys/account_tree/yt/min", "//sys/account_tree/yt/minimal")
@@ -2343,10 +2334,10 @@ class TestAccountTree(AccountsTestSuiteBase):
     @authors("shakurov")
     def test_nested_usage(self):
         create_account("yt", attributes={
-            "resource_limits": self._build_resource_limits(node_count=10, master_memory=10000)
+            "resource_limits": {"node_count": 10, "master_memory": 10000}
         })
-        create_account("yt-dev", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=5, master_memory=1000)})
-        create_account("yt-dev-spof", "yt-dev", attributes={"resource_limits": self._build_resource_limits(node_count=2, master_memory=1000)})
+        create_account("yt-dev", "yt", attributes={"resource_limits": {"node_count": 5, "master_memory": 1000}})
+        create_account("yt-dev-spof", "yt-dev", attributes={"resource_limits": {"node_count": 2, "master_memory": 1000}})
         create_account("yt-dev-dt", "yt-dev", empty=True)
         create_account("yt-dev-spof-1", "yt-dev-spof", empty=True)
         create("table", "//tmp/yt", attributes={"account": "yt-dev-spof"})
@@ -2424,9 +2415,9 @@ class TestAccountTree(AccountsTestSuiteBase):
 
     @authors("shakurov")
     def test_nested_usage_account_removal(self):
-        create_account("yt", attributes={"resource_limits": self._build_resource_limits(node_count=10, master_memory=10000)})
-        create_account("yt-dev", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=5, master_memory=2000)})
-        create_account("yt-dev-spof", "yt-dev", attributes={"resource_limits": self._build_resource_limits(node_count=2, master_memory=1000)})
+        create_account("yt", attributes={"resource_limits": {"node_count": 10, "master_memory": 10000}})
+        create_account("yt-dev", "yt", attributes={"resource_limits": {"node_count": 5, "master_memory": 2000}})
+        create_account("yt-dev-spof", "yt-dev", attributes={"resource_limits": {"node_count": 2, "master_memory": 1000}})
         create_account("yt-dev-dt", "yt-dev", empty=True)
         create_account("yt-dev-spof-1", "yt-dev-spof", empty=True)
         create("table", "//tmp/yt", attributes={"account": "yt-dev-spof"})
@@ -2449,10 +2440,10 @@ class TestAccountTree(AccountsTestSuiteBase):
     @authors("kiselyovp")
     def test_no_overdraft_after_move(self):
         create_account("metrika", attributes={
-            "resource_limits": self._build_resource_limits(node_count=3, master_memory=10000)
+            "resource_limits": {"node_count": 3, "master_memory": 10000}
         })
         create_account("metrika-dev", "metrika", attributes={
-            "resource_limits": self._build_resource_limits(node_count=2, master_memory=1000)
+            "resource_limits": {"node_count": 2, "master_memory": 1000}
         })
 
         create("map_node", "//tmp/metrika", attributes={"account": "metrika"})
@@ -2471,10 +2462,10 @@ class TestAccountTree(AccountsTestSuiteBase):
     @authors("kiselyovp")
     def test_failed_move_from_overdrafted(self):
         create_account("metrika", attributes={
-            "resource_limits": self._build_resource_limits(node_count=2, master_memory=10000)
+            "resource_limits": {"node_count": 2, "master_memory": 10000}
         })
         create_account("metrika-dev", "metrika", attributes={
-            "resource_limits": self._build_resource_limits(node_count=1, master_memory=1000)
+            "resource_limits": {"node_count": 1, "master_memory": 1000}
         })
 
         create("map_node", "//tmp/metrika", attributes={"account": "metrika"})
@@ -2501,7 +2492,7 @@ class TestAccountTree(AccountsTestSuiteBase):
     @authors("kiselyovp")
     def test_write_acl(self):
         create_user("u")
-        create_account("parent", attributes={"resource_limits": self._build_resource_limits(master_memory=10000)})
+        create_account("parent", attributes={"resource_limits": {"master_memory": 10000}})
         with pytest.raises(YtError):
             create_account("child", "parent", empty=True, authenticated_user="u")
         with pytest.raises(YtError):
@@ -2512,7 +2503,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account(
             "child",
             "parent",
-            attributes={"resource_limits": self._build_resource_limits(node_count=1, master_memory=1000)},
+            attributes={"resource_limits": {"node_count": 1, "master_memory": 1000}},
             authenticated_user="u")
 
         with pytest.raises(YtError):
@@ -2532,7 +2523,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account(
             "child",
             "parent",
-            attributes={"resource_limits": self._build_resource_limits(node_count=1)},
+            attributes={"resource_limits": {"node_count": 1}},
             authenticated_user="u")
 
         with pytest.raises(YtError):
@@ -2548,7 +2539,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_user("u2")
         create_account("parent", attributes={
             "acl": [make_ace("allow", "u1", "administer")],
-            "resource_limits": self._build_resource_limits(node_count=1000, master_memory=10000)
+            "resource_limits": {"node_count": 1000, "master_memory": 10000}
         })
         with pytest.raises(YtError):
             set("//sys/accounts/parent/@acl/end", make_ace("allow", "u2", "use"), authenticated_user="u2")
@@ -2565,12 +2556,12 @@ class TestAccountTree(AccountsTestSuiteBase):
                 "child",
                 "parent",
                 empty=True,
-                attributes={"acl": [make_ace("allow", "u2", "use")], "resource_limits": self._build_resource_limits(master_memory=1000)},
+                attributes={"acl": [make_ace("allow", "u2", "use")], "resource_limits": {"master_memory": 1000}},
                 authenticated_user="u1")
         create_account(
             "child",
             "parent",
-            attributes={"resource_limits": self._build_resource_limits(node_count=1, master_memory=1000)},
+            attributes={"resource_limits": {"node_count": 1, "master_memory": 1000}},
             authenticated_user="u1")
         set("//sys/accounts/child/@acl/end", make_ace("allow", "u2", "use"))
         create("map_node", "//tmp/u2", attributes={"account": "child"}, authenticated_user="u2")
@@ -2695,10 +2686,10 @@ class TestAccountTree(AccountsTestSuiteBase):
             self._set_account_node_count_limit("yt", 100500, authenticated_user="babenko")
 
         create_account("yt-dev", "yt", authenticated_user="babenko", attributes={
-            "resource_limits": self._build_resource_limits(node_count=4, master_memory=2000)
+            "resource_limits": {"node_count": 4, "master_memory": 2000}
         })
         create_account("yt-prod", "yt", authenticated_user="babenko", attributes={
-            "resource_limits": self._build_resource_limits(node_count=8, master_memory=2000)
+            "resource_limits": {"node_count": 8, "master_memory": 2000}
         })
         set(
             "//sys/account_tree/yt/yt-dev/@acl",
@@ -2720,7 +2711,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         create("map_node", "//tmp/yt/renadeen/never_mind")
         create_account("huj", "yt-dev", authenticated_user="renadeen", attributes={
-            "resource_limits": self._build_resource_limits(node_count=1, master_memory=1000)
+            "resource_limits": {"node_count": 1, "master_memory": 1000}
         })
         set("//tmp/yt/renadeen/never_mind/@account", "huj", authenticated_user="renadeen")
 
@@ -2729,7 +2720,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         with pytest.raises(YtError):
             create("map_node", "//tmp/yt/renadeen/work", attributes={"account": "huj"}, authenticated_user="renadeen")
         create_account("kurwa", "yt-dev", empty=True, authenticated_user="renadeen", attributes={
-            "resource_limits": self._build_resource_limits(node_count=2, master_memory=1000)
+            "resource_limits": {"node_count": 2, "master_memory": 1000}
         })
         create("map_node", "//tmp/yt/renadeen/work", attributes={"account": "kurwa"}, authenticated_user="renadeen")
 
@@ -2757,7 +2748,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         with pytest.raises(YtError):
             move("//sys/account_tree/yt/yt-dev/work", "//sys/account_tree/yt/yt-prod/work", authenticated_user="andozer")
         create_account("interface", "yt-prod", authenticated_user="andozer", attributes={
-            "resource_limits": self._build_resource_limits(node_count=2, master_memory=500)
+            "resource_limits": {"node_count": 2, "master_memory": 500}
         })
         self._set_account_node_count_limit("interface", 1, authenticated_user="andozer")
         create("map_node", "//tmp/yt/andozer/interface", attributes={"account": "interface"}, authenticated_user="andozer")
@@ -2801,7 +2792,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-dyntables", "yt-dev", attributes={"resource_limits": limits_x})
         create_account("yt-prod", "yt", attributes={"resource_limits": limits_x})
 
-        no_violated_limits = self._build_resource_limits(master_memory=0)
+        no_violated_limits = self._build_resource_limits()
         no_violated_limits["disk_space_per_medium"] = {}
 
         assert get("//sys/accounts/yt/@recursive_violated_resource_limits") == no_violated_limits
@@ -2898,11 +2889,11 @@ class TestAccountTree(AccountsTestSuiteBase):
     @pytest.mark.parametrize("allow_overcommit", [False, True])
     def test_single_child_overcommit_impossible(self, allow_overcommit):
         create_account("yt", attributes={
-            "resource_limits": self._build_resource_limits(node_count=1),
+            "resource_limits": {"node_count": 1},
             "allow_children_limit_overcommit": allow_overcommit})
         with pytest.raises(YtError):
-            create_account("yt-dev", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=2)})
-        create_account("yt-dev", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=1)})
+            create_account("yt-dev", "yt", attributes={"resource_limits": {"node_count": 2}})
+        create_account("yt-dev", "yt", attributes={"resource_limits": {"node_count": 1}})
         with pytest.raises(YtError):
             self._set_account_node_count_limit("yt-dev", 2)
         set("//sys/accounts/yt/@allow_children_limit_overcommit", not allow_overcommit)
@@ -2911,7 +2902,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
     @authors("shakurov")
     def test_allow_children_limit_overcommit_validation(self):
-        limits = self._build_resource_limits(node_count=1)
+        limits = {"node_count": 1}
         create_account("yt", attributes={"resource_limits": limits, "allow_children_limit_overcommit": True})
         create_account("yt-dev", "yt", attributes={"resource_limits": limits})
         create_account("yt-front", "yt", attributes={"resource_limits": limits})
@@ -2924,8 +2915,8 @@ class TestAccountTree(AccountsTestSuiteBase):
     @authors("shakurov")
     @pytest.mark.parametrize("allow_overcommit", [False, True])
     def test_move_overcommit_impossible_single_child(self, allow_overcommit):
-        create_account("yt", attributes={"resource_limits": self._build_resource_limits(node_count=1), "allow_children_limit_overcommit": allow_overcommit})
-        create_account("yt2", attributes={"resource_limits": self._build_resource_limits(node_count=2)})
+        create_account("yt", attributes={"resource_limits": {"node_count": 1}, "allow_children_limit_overcommit": allow_overcommit})
+        create_account("yt2", attributes={"resource_limits": {"node_count": 2}})
 
         with pytest.raises(YtError):
             set("//sys/account_tree/yt2/@parent_name", "yt")
@@ -2936,9 +2927,9 @@ class TestAccountTree(AccountsTestSuiteBase):
 
     @authors("shakurov")
     def test_move_overcommit_impossible_children_sum(self):
-        create_account("yt", attributes={"resource_limits": self._build_resource_limits(node_count=2)})
-        create_account("yt-dev", "yt", attributes={"resource_limits": self._build_resource_limits(node_count=1)})
-        create_account("yt2", attributes={"resource_limits": self._build_resource_limits(node_count=3)})
+        create_account("yt", attributes={"resource_limits": {"node_count": 2}})
+        create_account("yt-dev", "yt", attributes={"resource_limits": {"node_count": 1}})
+        create_account("yt2", attributes={"resource_limits": {"node_count": 3}})
 
         with pytest.raises(YtError):
             move("//sys/account_tree/yt2", "//sys/account_tree/yt")
@@ -2951,7 +2942,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
     @authors("shakurov")
     def test_parent_overdraft(self):
-        limits = self._build_resource_limits(node_count=1, master_memory=10000)
+        limits = {"node_count": 1, "master_memory": 10000}
         create_account("yt", attributes={"resource_limits": limits, "allow_children_limit_overcommit": True})
         create_account("yt-dev", "yt", attributes={"resource_limits": limits})
         create_account("yt-front", "yt", attributes={"resource_limits": limits})
@@ -2962,7 +2953,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
     @authors("shakurov")
     def test_ancestor_overdraft(self):
-        limits = self._build_resource_limits(node_count=1, master_memory=10000)
+        limits = {"node_count": 1, "master_memory": 10000}
         create_account("yt", attributes={"resource_limits": limits, "allow_children_limit_overcommit": True})
         create_account("yt-dev", "yt", attributes={"resource_limits": limits})
         create_account("yt-dt", "yt-dev", attributes={"resource_limits": limits})
@@ -2975,13 +2966,13 @@ class TestAccountTree(AccountsTestSuiteBase):
     @authors("shakurov")
     def test_change_limits_overcommit_impossible(self):
         create_account("yt", attributes={
-            "resource_limits": self._build_resource_limits(node_count=4, master_memory=10000)
+            "resource_limits": {"node_count": 4, "master_memory": 10000}
         })
         create_account("yt-dev", "yt", attributes={
-            "resource_limits": self._build_resource_limits(node_count=2, master_memory=1000)
+            "resource_limits": {"node_count": 2, "master_memory": 1000}
         })
         create_account("yt-front", "yt", attributes={
-            "resource_limits": self._build_resource_limits(node_count=2, master_memory=1000)
+            "resource_limits": {"node_count": 2, "master_memory": 1000}
         })
 
         with pytest.raises(YtError):
@@ -3013,13 +3004,13 @@ class TestAccountTree(AccountsTestSuiteBase):
         set("//sys/@config/security_manager/enable_master_memory_usage_account_overcommit_validation", False)
 
         create_account("a", attributes={
-            "resource_limits": self._build_resource_limits(master_memory=10000)
+            "resource_limits": {"master_memory": 10000}
         })
         create_account("b", "a", attributes={
-            "resource_limits": self._build_resource_limits(master_memory=5000)
+            "resource_limits": {"master_memory": 5000}
         })
         create_account("c", "a", attributes={
-            "resource_limits": self._build_resource_limits(master_memory=6000)
+            "resource_limits": {"master_memory": 6000}
         })
 
         with pytest.raises(YtError):
@@ -3040,7 +3031,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         with pytest.raises(YtError):
             create_account("yt", attributes={"resource_limits": self._build_resource_limits(node_count=-1)})
 
-        create_account("yt", attributes={"resource_limits": self._build_resource_limits(node_count=1)})
+        create_account("yt", attributes={"resource_limits": {"node_count": 1}})
 
         with pytest.raises(YtError):
             self._set_account_node_count_limit("yt", -1)
@@ -3048,9 +3039,8 @@ class TestAccountTree(AccountsTestSuiteBase):
     @authors("kiselyovp")
     def test_overcommit_disk_space_with_zero_limit(self):
         create_medium("hdd8")
-        limits = self._build_resource_limits()
-        limits["disk_space_per_medium"]["hdd8"] = 1024
-        create_account("yt", attributes={"resource_limits": self._build_resource_limits(disk_space=1000)})
+        limits = {"disk_space_per_medium": {"hdd8": 1024}}
+        create_account("yt", attributes={"resource_limits": {"disk_space": 1000}})
 
         with pytest.raises(YtError):
             create_account("yt-dev", "yt", attributes={"resource_limits": limits})
