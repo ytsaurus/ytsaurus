@@ -646,7 +646,13 @@ private:
             SetLowerBoundInChunkSpec();
 
             DoCreateRemoteDynamicStoreReader();
+
+            if (ReadyEvent_.IsCanceled()) {
+                YT_LOG_DEBUG("Reader canceled");
+                return;
+            }
             YT_VERIFY(!ReadyEvent_.IsSet());
+
             CurrentReader_->Open().Subscribe(
                 BIND(&TRetryingRemoteDynamicStoreReader::OnUnderlyingReaderReadyEvent, MakeStrong(this))
                     .Via(GetCurrentInvoker()));
