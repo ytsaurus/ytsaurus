@@ -45,6 +45,9 @@ from itertools import count
 
 logger = logging.getLogger("Yt.local")
 
+# YT-12960: disable debug logging about file locks.
+logging.getLogger("library.python.filelock").setLevel(logging.INFO)
+
 BinaryVersion = namedtuple("BinaryVersion", ["abi", "literal"])
 
 # Used to configure driver logging exactly once per environment (as a set of YT instances).
