@@ -57,7 +57,7 @@ TMultiChunkReaderMockPtr CreateMultiReader(
     };
 }
 
-std::vector<IReaderBasePtr> CreateMockReaders(int readerCount, int filledRowCount, int emptyRowCount = 0)
+std::vector<IReaderBasePtr> CreateMockReaders(int readerCount, int filledRowCount, TDuration delayStep, int emptyRowCount = 0)
 {
     std::vector<IReaderBasePtr> readers;
 
@@ -71,7 +71,7 @@ std::vector<IReaderBasePtr> CreateMockReaders(int readerCount, int filledRowCoun
             readerData.push_back({});
         }
         Shuffle(readerData.begin(), readerData.end());
-        readers.emplace_back(New<TChunkReaderMock>(std::move(readerData)));
+        readers.emplace_back(New<TChunkReaderMock>(std::move(readerData), delayStep * readerIndex));
     }
     return readers;
 }
@@ -82,7 +82,7 @@ IReaderBasePtr CreateReaderWithError(int filledRowCount)
     for (int rowIndex = 0; rowIndex < filledRowCount; ++rowIndex) {
         readerData.push_back({MakeUnversionedOwningRow(rowIndex + 100)});
     }
-    return New<TChunkReaderWithErrorMock>(std::move(readerData));
+    return New<TChunkReaderWithErrorMock>(std::move(readerData), TDuration::Zero());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,6 +104,7 @@ TEST_P(TMultiReaderManagerTest, DataWithEmptyRows)
         CreateMockReaders(
             /*readerCount =*/ 10,
             /*filledRowCount =*/ 10,
+            /*delayStep =*/ TDuration::MilliSeconds(1),
             /*emptyRowCount =*/ 10),
         GetParam());
 
@@ -132,7 +133,7 @@ TEST_P(TMultiReaderManagerTest, DataWithEmptyRows)
 
 TEST_P(TMultiReaderManagerTest, ReaderWithError)
 {
-    auto readers = CreateMockReaders(/*readerCount =*/ 2, /*filledRowCount =*/ 5);
+    auto readers = CreateMockReaders(/*readerCount =*/ 2, /*filledRowCount =*/ 5, /*delayStep =*/ TDuration::MilliSeconds(1));
     readers.emplace_back(CreateReaderWithError(/*filledRowCount =*/ 5));
 
     auto multiReader = CreateMultiReader(std::move(readers), GetParam());
@@ -140,32 +141,29 @@ TEST_P(TMultiReaderManagerTest, ReaderWithError)
     multiReader->Open();
 
     std::vector<TUnversionedRow> readRows;
-    for (int i = 0; i < 15; ++i) {
+    for (int i = 0; i < 20; ++i) {
         readRows.clear();
         while (readRows.empty()) {
             multiReader->Read(&readRows);
             if (readRows.empty()) {
-                WaitFor(multiReader->GetReadyEvent())
-                    .ThrowOnError();
-                    continue;
+                auto error = WaitFor(multiReader->GetReadyEvent());
+                if (error.IsOK()) {
+                    EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 0);
+                } else {
+                    EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 1);
+                    break;
+                }
             }
         }
     }
-    while (multiReader->GetFailedChunkIds().empty() && multiReader->Read(&readRows)) {
-        if (readRows.empty()) {
-            auto error = WaitFor(multiReader->GetReadyEvent());
-            if (error.IsOK()) {
-                EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 0);
-            }
-        }
-    }
+
     EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 1);
     EXPECT_FALSE(WaitFor(multiReader->GetReadyEvent()).IsOK());
 }
 
 TEST_P(TMultiReaderManagerTest, Interrupt)
 {
-    auto readers = CreateMockReaders(/*readerCount =*/ 5, /*filledRowCount =*/ 10);
+    auto readers = CreateMockReaders(/*readerCount =*/ 5, /*filledRowCount =*/ 10, /*delayStep =*/ TDuration::MilliSeconds(1));
 
     auto multiReader = CreateMultiReader(std::move(readers), GetParam());
 
