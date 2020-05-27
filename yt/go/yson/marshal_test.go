@@ -16,11 +16,11 @@ func testRoundtrip(t *testing.T, value interface{}) {
 	t.Logf("checking value: %v", value)
 
 	data, err := Marshal(value)
-	assert.Nilf(t, err, "%v", err)
+	assert.NoError(t, err)
 
 	valueCopy := reflect.New(reflect.TypeOf(value))
 	err = Unmarshal(data, valueCopy.Interface())
-	assert.Nilf(t, err, "%v", err)
+	assert.NoError(t, err)
 
 	t.Logf("after unmarshal: %v", valueCopy.Elem())
 	switch vv := value.(type) {
