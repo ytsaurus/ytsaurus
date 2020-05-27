@@ -71,6 +71,8 @@ TYtConfig::TYtConfig()
         .Default();
     RegisterParameter("instance_id", InstanceId)
         .Default();
+    RegisterParameter("address", Address)
+        .Default();
 
     RegisterParameter("client_cache", ClientCache)
         .DefaultNew();

@@ -1,17 +1,18 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 import argparse
 import logging
 import tarfile
 import os
 import os.path
-import shutil
 import glob
 import subprocess
 import signal
 import library.python.svn_version
+import yt.yson
 
 logger = logging.getLogger("clickhouse-trampoline")
+
 
 class SigintHandler(object):
     def __init__(self, ytserver_clickhouse_process, interrupt_child):
@@ -19,6 +20,8 @@ class SigintHandler(object):
         self.sigint_index = 0
         self.ytserver_clickhouse_process = ytserver_clickhouse_process
         self.interrupt_child = interrupt_child
+
+    def install(self):
         logger.info("Installing custom SIGINT handler")
         signal.signal(signal.SIGINT, self.handle)
 
@@ -44,13 +47,6 @@ class SigintHandler(object):
             assert False
 
 
-def sigint_handler(signum, frame):
-    assert signum == signal.SIGINT
-    logger.info("Caught SIGINT")
-
-    raise IOError("Couldn't open device!")
-
-
 def extract_geodata():
     logger.info("Extracting geodata")
     assert os.path.exists("./geodata.tgz")
@@ -67,25 +63,42 @@ def substitute_env(content):
     return content
 
 
-def patch_ytserver_clickhouse_config(prepare_geodata):
-    logger.info("Patching config")
+def disable_fqdn_resolution(config):
+    # In MTN there may be no reasonable fqdn;
+    # hostname returns something human-readable, but barely resolvable.
+    config["address_resolver"] = config.get("address_resolver", dict())
+    config["address_resolver"]["resolve_hostname_into_fqdn"] = False
+
+
+def patch_ytserver_clickhouse_config(prepare_geodata, inside_mtn):
+    logger.info("Patching ytserver-clickhouse config")
     assert os.path.exists("./config.yson")
     with open("./config.yson", "r") as f:
         content = f.read()
     content = substitute_env(content)
     if not prepare_geodata:
         content = "\n".join(filter(lambda line: "./geodata" not in line, content.split("\n")))
+    config = yt.yson.loads(content)
+    if inside_mtn:
+        logger.info("Disabling FQDN resolution in ytserver-clickhouse config")
+        disable_fqdn_resolution(config)
+    content = yt.yson.dumps(config, yson_format="pretty")
     with open("./config_patched.yson", "w") as f:
         f.write(content)
     logger.info("Config patched")
 
 
-def patch_log_tailer_config():
+def patch_log_tailer_config(inside_mtn):
     logger.info("Patching log tailer config")
     assert os.path.exists("./log_tailer_config.yson")
     with open("./log_tailer_config.yson", "r") as f:
         content = f.read()
     content = substitute_env(content)
+    config = yt.yson.loads(content)
+    if inside_mtn:
+        logger.info("Disabling fqdn resolution in ytserver-log-tailer config")
+        disable_fqdn_resolution(config)
+    content = yt.yson.dumps(config, yson_format="pretty")
     with open("./log_tailer_config_patched.yson", "w") as f:
         f.write(content)
     logger.info("Config patched")
@@ -135,7 +148,7 @@ def move_core_dumps(destination):
 
 
 def print_version():
-    print "smth~" + library.python.svn_version.commit_id()[:10]
+    print("0.0.{}~{}".format(library.python.svn_version.svn_revision(), library.python.svn_version.hash()))
 
 
 def setup_logging(log_file):
@@ -150,6 +163,12 @@ def setup_logging(log_file):
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
     logger.addHandler(file_handler)
+
+
+def is_inside_mtn():
+    return any(key in os.environ for key in ("YT_IP_ADDRESS_FB", "YT_IP_ADDRESS_BB",
+                                             "YT_IP_ADDRESS_DEFAULT", "YT_IP_ADDRESS_FASTBONE",
+                                             "YT_IP_ADDRESS_BACKBONE"))
 
 
 def main():
@@ -182,14 +201,23 @@ def main():
 
     if args.prepare_geodata:
         extract_geodata()
-    patch_ytserver_clickhouse_config(args.prepare_geodata)
+
+    inside_mtn = is_inside_mtn()
+    if inside_mtn:
+        logger.info("Apparently we are inside MTN")
+
+    patch_ytserver_clickhouse_config(args.prepare_geodata, inside_mtn)
     ytserver_clickhouse_process = run_ytserver_clickhouse(args.ytserver_clickhouse_bin, args.monitoring_port)
     sigint_handler = SigintHandler(ytserver_clickhouse_process, args.interrupt_child)
+    sigint_handler.install()
+
     log_tailer_process = None
     if args.log_tailer_bin:
-        patch_log_tailer_config()
-        log_tailer_process = run_log_tailer(args.log_tailer_bin,
-            ytserver_clickhouse_process.pid, args.log_tailer_monitoring_port)
+        patch_log_tailer_config(inside_mtn)
+        logger.info("Running ytserver-log-tailer")
+        log_tailer_process = run_log_tailer(
+            args.log_tailer_bin, ytserver_clickhouse_process.pid, args.log_tailer_monitoring_port)
+
     logger.info("Waiting for ytserver-clickhouse to finish")
     exit_code = ytserver_clickhouse_process.wait()
     logger.info("ytserver-clickhouse exit code is %d", exit_code)

@@ -45,13 +45,11 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IClusterNodePtr CreateClusterNode(const TClusterNodeName& name, const DB::Settings& settings)
+IClusterNodePtr CreateClusterNode(TClusterNodeName name, const DB::Settings& settings)
 {
-    DB::Cluster::Address address(
-        /*host_port=*/ name.ToString(),
-        /*user=*/ "",
-        /*password=*/ "",
-        /*clickhouse_port=*/0);
+    if (!name.Host.empty() && name.Host.front() == '[' && name.Host.back() == ']') {
+        name.Host = name.Host.substr(1, name.Host.size() - 2);
+    }
 
     ConnectionPoolPtrs pools;
     ConnectionTimeouts timeouts(Cluster::saturate(settings.connect_timeout, settings.max_execution_time),
@@ -60,12 +58,11 @@ IClusterNodePtr CreateClusterNode(const TClusterNodeName& name, const DB::Settin
 
     pools.push_back(std::make_shared<ConnectionPool>(
         settings.distributed_connections_pool_size,
-        address.host_name,
-        address.port,
-        address.default_database,
-        address.user,
-        address.password,
-        //timeouts,
+        name.Host,
+        name.Port,
+        "" /* defaultDatabase */,
+        "" /* user */,
+        "" /* password */,
         "server",
         Protocol::Compression::Enable,
         Protocol::Secure::Disable));
@@ -77,7 +74,7 @@ IClusterNodePtr CreateClusterNode(const TClusterNodeName& name, const DB::Settin
 
     return std::make_shared<TClusterNode>(
         name,
-        address.is_local,
+        false /* isLocal */,
         std::move(connection));
 }
 
