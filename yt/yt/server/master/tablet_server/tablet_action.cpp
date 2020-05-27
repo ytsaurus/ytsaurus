@@ -3,6 +3,8 @@
 #include "tablet_cell_bundle.h"
 #include "tablet_action.h"
 
+#include <yt/server/master/table_server/table_node.h>
+
 namespace NYT::NTabletServer {
 
 using namespace NCellMaster;
@@ -74,7 +76,7 @@ bool TTabletAction::IsFinished() const
 TString ToString(const TTabletAction& action)
 {
     return Format("ActionId: %v, State: %v, Kind: %v, SkipFreezing: %v, Freeze: %v, TabletCount: %v, Tablets: %v, "
-        "Cells: %v, PivotKeys: %v, TabletBalancerCorrelationId: %v, ExpirationTime: %v",
+        "Cells: %v, PivotKeys: %v, TabletBalancerCorrelationId: %v, ExpirationTime: %v, TableId: %v, Bundle: %v",
         action.GetId(),
         action.GetState(),
         action.GetKind(),
@@ -85,7 +87,9 @@ TString ToString(const TTabletAction& action)
         MakeFormattableView(action.TabletCells(), TObjectIdFormatter()),
         action.PivotKeys(),
         action.GetCorrelationId(),
-        action.GetExpirationTime());
+        action.GetExpirationTime(),
+        action.Tablets()[0]->GetTable()->GetId(),
+        action.GetTabletCellBundle()->GetName());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
