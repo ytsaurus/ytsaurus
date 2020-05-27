@@ -14,7 +14,7 @@ TString GetVersion()
     auto pos = branch.find("chyt/");
     TString hash(GetProgramHash());
     if (hash.size() >= 10) {
-        hash.resize(10);
+        //hash.resize(10);
     }
     if (pos != TString::npos) {
         pos += 5;

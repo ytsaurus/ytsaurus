@@ -14,11 +14,14 @@
 
 #include <yt/library/phdr_cache/phdr_cache.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
 #include <yt/core/ytalloc/bindings.h>
 
 #include <yt/core/misc/ref_counted_tracker_profiler.h>
+
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
+#include <util/system/env.h>
+#include <util/system/hostname.h>
 
 #include <Common/config_version.h>
 
@@ -92,7 +95,6 @@ private:
         NYTAlloc::EnableYTProfiling();
         NYTAlloc::InitializeLibunwindInterop();
         NYTAlloc::ConfigureFromEnv();
-        NYTAlloc::ConfigureFromEnv();
         NYTAlloc::EnableStockpile();
         NYTAlloc::MlockallCurrentProcess();
 
@@ -128,12 +130,37 @@ private:
     void PatchConfigFromEnv()
     {
         auto config = GetConfig();
+
+        std::optional<TString> address;
+        for (const auto& networkName : {"BB", "BACKBONE", "FASTBONE", "DEFAULT"}) {
+            auto addressOrEmpty = GetEnv(Format("YT_IP_ADDRESS_%v", networkName), /*default =*/ "");
+            if (!addressOrEmpty.empty()) {
+                address = addressOrEmpty;
+                break;
+            }
+        }
+
+        if (address) {
+            config->Yt->Address = "[" + *address + "]";
+            // In MTN there may be no reasonable FQDN;
+            // hostname returns something human-readable, but barely resolvable.
+            // COMPAT(max42): move to launcher in future.
+            config->AddressResolver->ResolveHostNameIntoFqdn = false;
+            HttpPort_ = 10042;
+            TcpPort_ = 10043;
+            MonitoringPort_ = 10142;
+            RpcPort_ = 10143;
+        } else {
+            config->Yt->Address = GetFQDNHostName();
+        }
+
         config->MonitoringServer->Port = config->MonitoringPort = MonitoringPort_;
         config->BusServer->Port = config->RpcPort = RpcPort_;
         config->ClickHouse->TcpPort = TcpPort_;
         config->ClickHouse->HttpPort = HttpPort_;
         config->Yt->CliqueId = TGuid::FromString(CliqueId_);
         config->Yt->InstanceId = TGuid::FromString(InstanceId_);
+
     }
 
     void PrintClickHouseVersionAndExit() const

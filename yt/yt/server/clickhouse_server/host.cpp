@@ -47,22 +47,17 @@
 
 #include <yt/core/rpc/bus/channel.h>
 #include <yt/core/rpc/caching_channel_factory.h>
-#include <Common/CurrentMetrics.h>
+
 #include <Common/Exception.h>
 #include <Common/StringUtils/StringUtils.h>
-#include <Common/config.h>
-#include <Common/getMultipleKeysFromConfig.h>
-#include <Common/getNumberOfPhysicalCPUCores.h>
 #include <IO/HTTPCommon.h>
 
 #include <common/DateLUT.h>
 
-#include <util/system/hostname.h>
 #include <util/system/env.h>
 
 #include <atomic>
 #include <memory>
-#include <sstream>
 #include <vector>
 
 namespace NYT::NClickHouseServer {
@@ -487,7 +482,7 @@ private:
         Discovery_->StartPolling();
 
         TAttributeMap attributes = {
-            {"host", ConvertToNode(GetFQDNHostName())},
+            {"host", ConvertToNode(Config_->Address)},
             {"rpc_port", ConvertToNode(Ports_.Rpc)},
             {"monitoring_port", ConvertToNode(Ports_.Monitoring)},
             {"tcp_port", ConvertToNode(Ports_.Tcp)},

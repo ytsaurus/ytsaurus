@@ -106,6 +106,8 @@ public:
     TGuid CliqueId;
     //! Instance id = job id of containing job.
     TGuid InstanceId;
+    //! Address override when entering discovery group.
+    std::optional<TString> Address;
 
     TSlruCacheConfigPtr ClientCache;
 
