@@ -2674,8 +2674,10 @@ private:
                 }
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR_UNLESS(IsRecovery(), ex, "Error mounting missed in action tablet "
-                    "(TabletId: %v, ActionId: %v, TabletBalancerCorrelationId: %v)",
+                    "(TabletId: %v, TableId: %v, Bundle: %v, ActionId: %v, TabletBalancerCorrelationId: %v)",
                     tablet->GetId(),
+                    tablet->GetTable()->GetId(),
+                    action->GetTabletCellBundle()->GetName(),
                     action->GetId(),
                     action->GetCorrelationId());
             }
@@ -2737,9 +2739,15 @@ private:
     void ChangeTabletActionState(TTabletAction* action, ETabletActionState state, bool recursive = true)
     {
         action->SetState(state);
-        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %v, TabletBalancerCorrelationId: %v)",
+        auto tableId = action->Tablets().empty()
+            ? TTableId{}
+            : action->Tablets()[0]->GetTable()->GetId();
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Change tablet action state (ActionId: %v, State: %v, "
+            "TableId: %v, Bundle: %v, TabletBalancerCorrelationId: %v),",
             action->GetId(),
             state,
+            tableId,
+            action->GetTabletCellBundle()->GetName(),
             action->GetCorrelationId());
         if (recursive) {
             OnTabletActionStateChanged(action);
@@ -5586,14 +5594,14 @@ private:
                 correlationId,
                 expirationTime);
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), TError(ex), "Error creating tablet action (Kind: %v, Tablets: %v, TabletCellsL %v, PivotKeys %v, TabletCount %v, TabletBalancerCorrelationId: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), TError(ex), "Error creating tablet action (Kind: %v, "
+                "Tablets: %v, TabletCells: %v, PivotKeys: %v, TabletCount: %v, TabletBalancerCorrelationId: %v)",
                 kind,
                 tablets,
                 cells,
                 pivotKeys,
                 tabletCount,
-                correlationId,
-                TError(ex));
+                correlationId);
         }
     }
 
