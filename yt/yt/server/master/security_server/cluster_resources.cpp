@@ -260,18 +260,19 @@ void FromProto(TClusterResources* resources, const NProto::TClusterResources& pr
 TSerializableClusterResources::TSerializableClusterResources(bool serializeDiskSpace)
 {
     RegisterParameter("node_count", NodeCount_)
+        .Default(0)
         .GreaterThanOrEqual(0);
     RegisterParameter("chunk_count", ChunkCount_)
+        .Default(0)
         .GreaterThanOrEqual(0);
     RegisterParameter("tablet_count", TabletCount_)
-        // COMPAT(savrus) add defaults to environment/init_cluster.py
-        .Default(1000)
+        .Default(0)
         .GreaterThanOrEqual(0);
     RegisterParameter("tablet_static_memory", TabletStaticMemory_)
-        // COMPAT(savrus) add defaults to environment/init_cluster.py
-        .Default(1_GB)
+        .Default(0)
         .GreaterThanOrEqual(0);
-    RegisterParameter("disk_space_per_medium", DiskSpacePerMedium_);
+    RegisterParameter("disk_space_per_medium", DiskSpacePerMedium_)
+        .Optional();
     // NB: this is for (partial) compatibility: 'disk_space' is serialized when
     // read, but ignored when set. Hence no validation.
     if (serializeDiskSpace) {
