@@ -3,6 +3,8 @@
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/chunk_reader_base.h>
 
+#include <yt/core/concurrency/delayed_executor.h>
+
 namespace NYT::NChunkClient {
 
 // TODO(max42): move implementation to .cpp
@@ -13,8 +15,9 @@ class TChunkReaderMock
     : public NTableClient::ISchemalessChunkReader
 {
 public:
-    TChunkReaderMock(std::vector<std::vector<NTableClient::TUnversionedOwningRow>> data)
+    TChunkReaderMock(std::vector<std::vector<NTableClient::TUnversionedOwningRow>> data, TDuration delay)
         : Data_(std::move(data))
+        , Delay_(delay)
     { }
 
     bool Read(std::vector<NTableClient::TUnversionedRow>* rows) override
@@ -33,7 +36,7 @@ public:
         if (Error_.load()) {
             return MakeFuture(TError("Mock error"));
         }
-        return VoidFuture;
+        return NConcurrency::TDelayedExecutor::MakeDelayed(Delay_);
     }
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
@@ -90,6 +93,7 @@ public:
 
 protected:
     const std::vector<std::vector<NTableClient::TUnversionedOwningRow>> Data_;
+    TDuration Delay_;
     int CurrentDataIndex_ = 0;
     std::atomic_bool Error_{false};
 };
