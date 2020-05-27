@@ -178,7 +178,7 @@ class TAbcConfig
 {
 public:
     int Id;
-    TString Name;
+    std::optional<TString> Name;
     TString Slug;
 
     TAbcConfig();

@@ -1443,6 +1443,7 @@ TAbcConfig::TAbcConfig()
     RegisterParameter("id", Id)
         .GreaterThan(0);
     RegisterParameter("name", Name)
+        .Default()
         .NonEmpty();
     RegisterParameter("slug", Slug)
         .NonEmpty();
