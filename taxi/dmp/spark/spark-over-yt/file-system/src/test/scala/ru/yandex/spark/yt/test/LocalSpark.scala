@@ -3,11 +3,14 @@ package ru.yandex.spark.yt.test
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.execution.SparkStrategy
 import org.apache.spark.sql.{SparkSession, Strategy}
+import org.scalatest.TestSuite
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter._
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.YtClient
+import ru.yandex.spark.yt.wrapper.client.YtRpcClient
 
-trait LocalSpark {
+trait LocalSpark extends LocalYtClient {
+  self: TestSuite =>
+
   def sparkConf: SparkConf = new SparkConf()
     .set("fs.ytTable.impl", "ru.yandex.spark.yt.fs.YtTableFileSystem")
     .set("fs.defaultFS", "ytTable:///")
@@ -32,5 +35,5 @@ trait LocalSpark {
     .withExtensions(_.injectPlannerStrategy(_ => plannerStrategy))
     .getOrCreate()
 
-  implicit val ytClient: YtClient = YtWrapper.createRpcClient(ytClientConfiguration(spark)).yt
+  override def ytClient: YtRpcClient = YtWrapper.createRpcClient(ytClientConfiguration(spark))
 }

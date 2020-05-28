@@ -11,10 +11,10 @@ object CommonPlugin extends AutoPlugin {
   override def requires = JvmPlugin && YtPublishPlugin
 
   override def projectSettings: Seq[Def.Setting[_]] = Seq(
+    resolvers += MavenCache("local-maven", Path.userHome / ".m2" / "repository"),
     resolvers += "YandexMediaReleases" at "http://artifactory.yandex.net/artifactory/yandex_media_releases",
     resolvers += "YandexSparkReleases" at "http://artifactory.yandex.net/artifactory/yandex_spark_releases",
-    resolvers += MavenCache("local-maven", Path.userHome / ".m2" / "repository"),
-    version in ThisBuild := "0.2.2-SNAPSHOT",
+    version in ThisBuild := "0.3.0-SNAPSHOT",
     organization := "ru.yandex",
     name := s"spark-yt-${name.value}",
     scalaVersion := "2.12.8",
@@ -26,10 +26,12 @@ object CommonPlugin extends AutoPlugin {
         oldStrategy(x)
     },
     assemblyShadeRules in assembly := Seq(
-      ShadeRule.rename("javax.annotation.**" -> "shaded.javax.annotation.@1")
+      ShadeRule.rename("javax.annotation.**" -> "shaded_spyt.javax.annotation.@1")
         .inLibrary("com.google.code.findbugs" % "annotations" % "2.0.3"),
       ShadeRule.zap("META-INF.org.apache.logging.log4j.core.config.plugins.Log4j2Plugins.dat")
-        .inLibrary("org.apache.logging.log4j" % "log4j-core" % "2.11.0")
+        .inLibrary("org.apache.logging.log4j" % "log4j-core" % "2.11.0"),
+      ShadeRule.rename("com.google.common.**" -> "shaded_spyt.com.google.common.@1")
+        .inAll
     ),
     assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = false),
     publishTo := {

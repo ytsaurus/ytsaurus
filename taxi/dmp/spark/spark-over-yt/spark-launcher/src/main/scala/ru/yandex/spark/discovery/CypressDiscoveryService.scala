@@ -2,24 +2,15 @@ package ru.yandex.spark.discovery
 
 import com.google.common.net.HostAndPort
 import org.apache.log4j.Logger
-import org.joda.time.{Duration => JDuration}
-import ru.yandex.inside.yt.kosher.common.GUID
-import ru.yandex.inside.yt.kosher.cypress.YPath
-import ru.yandex.inside.yt.kosher.impl.rpc.TransactionManager
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.yt.ytclient.proxy.YtClient
-import ru.yandex.yt.ytclient.proxy.request._
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.Try
 
-class CypressDiscoveryService(config: YtClientConfiguration,
-                              discoveryPath: String) extends DiscoveryService {
+class CypressDiscoveryService(discoveryPath: String)(implicit yt: YtClient) extends DiscoveryService {
   private val log = Logger.getLogger(getClass)
-  private val client = YtWrapper.createRpcClient(config)
-  val yt: YtClient = client.yt
 
   private def addressPath: String = s"$discoveryPath/spark_address"
 
@@ -35,10 +26,13 @@ class CypressDiscoveryService(config: YtClientConfiguration,
 
   private def confPath: String = s"$discoveryPath/conf"
 
+  private def masterWrapperPath: String = s"$discoveryPath/master_wrapper"
+
   override def register(operationId: String,
                         address: Address,
                         clusterVersion: String,
-                        clusterConf: SparkClusterConf): Unit = {
+                        masterWrapperEndpoint: HostAndPort,
+                        clusterConf: SparkConfYsonable): Unit = {
     val clearDir = discoverAddress() match {
       case Some(address) if DiscoveryService.isAlive(address.hostAndPort, 3) && operation.exists(_ != operationId) =>
         throw new IllegalStateException(s"Spark instance with path $discoveryPath already exists")
@@ -50,64 +44,44 @@ class CypressDiscoveryService(config: YtClientConfiguration,
         false
     }
 
-    val tm = new TransactionManager(yt)
-    val transaction = tm.start(JDuration.standardMinutes(1)).join()
+    val transaction = YtWrapper.createTransaction(None, 1 minute)
+    val tr = Some(transaction.getId.toString)
     try {
-      if (clearDir) removeAddress()
-      createNode(s"$addressPath/${address.hostAndPort}", transaction)
-      createNode(s"$webUiPath/${address.webUiHostAndPort}", transaction)
-      createNode(s"$restPath/${address.restHostAndPort}", transaction)
-      createNode(s"$operationPath/$operationId", transaction)
-      createNode(s"$clusterVersionPath/$clusterVersion", transaction)
-      createDocument(confPath, clusterConf, transaction)
+      if (clearDir) removeAddress(tr)
+      YtWrapper.createDir(s"$addressPath/${address.hostAndPort}", tr)
+      Map(
+        webUiPath -> address.webUiHostAndPort,
+        restPath -> address.restHostAndPort,
+        operationPath -> operationId,
+        clusterVersionPath -> clusterVersion,
+        masterWrapperPath -> masterWrapperEndpoint
+      ).foreach { case (path, value) =>
+        YtWrapper.createDir(s"$path/$value", tr)
+      }
+      YtWrapper.createDocumentFromProduct(confPath, clusterConf, tr)
     } catch {
       case e: Throwable =>
-        yt.abortTransaction(transaction, true)
+        transaction.abort().join()
         throw e
     }
-    yt.commitTransaction(transaction, true)
+    transaction.commit().join()
   }
-
 
   override def registerSHS(address: Address): Unit = {
-    val tm = new TransactionManager(yt)
-    val transaction = tm.start(JDuration.standardMinutes(1)).join()
-    removeNode(shsPath, Some(transaction))
-    createNode(s"$shsPath/${address.hostAndPort}", transaction)
-    yt.commitTransaction(transaction, true)
-  }
-
-  private def createNode(path: String, transaction: GUID, nodeType: ObjectType = ObjectType.MapNode): Unit = {
-    val request = new CreateNode(path, nodeType)
-      .setRecursive(true)
-      .setTransactionalOptions(new TransactionalOptions(transaction))
-    yt.createNode(request).join()
-  }
-
-  private def createDocument(path: String, doc: SparkClusterConf, transaction: GUID): Unit = {
-    createNode(path, transaction, ObjectType.Document)
-    val request = new SetNode(YPath.simple(path), doc.toYson)
-      .setTransactionalOptions(new TransactionalOptions(transaction))
-    yt.setNode(request).join()
-  }
-
-  private def removeNode(path: String, transaction: Option[GUID] = None): Unit = {
-    if (yt.existsNode(path).join()) {
-      log.info(s"Removing $path")
-      val request = new RemoveNode(path).setRecursive(true)
-      transaction.foreach(t => request.setTransactionalOptions(new TransactionalOptions(t)))
-      yt.removeNode(request).join()
-      log.info(s"Removed $path")
-    }
+    val transaction = YtWrapper.createTransaction(None, 1 minute)
+    val tr = Some(transaction.getId.toString)
+    YtWrapper.removeDirIfExists(shsPath, recursive = true, tr)
+    YtWrapper.createDir(s"$shsPath/${address.hostAndPort}", tr)
+    transaction.commit().join()
   }
 
   private def cypressHostAndPort(path: String): Option[HostAndPort] = {
-    if (yt.existsNode(path).join()) {
-      Try(yt.listNode(path).join().asList())
-        .toOption
-        .filterNot(_.isEmpty)
-        .map(_.first().stringValue())
-        .map(HostAndPort.fromString)
+    getPath(path).map(HostAndPort.fromString)
+  }
+
+  private def getPath(path: String): Option[String] = {
+    if (YtWrapper.exists(path)) {
+      Try(YtWrapper.listDir(path)).toOption.flatMap(_.headOption)
     } else None
   }
 
@@ -119,9 +93,12 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     } yield Address(hostAndPort, webUiHostAndPort, restHostAndPort)
   }
 
-  private def operation: Option[String] = Try {
-    yt.getNode(operationPath).join().asMap().keys().first()
-  }.toOption
+
+  override def masterWrapperEndpoint(): Option[HostAndPort] = {
+    cypressHostAndPort(masterWrapperPath)
+  }
+
+  private def operation: Option[String] = getPath(operationPath)
 
   override def waitAddress(timeout: Duration): Option[Address] = {
     DiscoveryService.waitFor(
@@ -137,16 +114,10 @@ class CypressDiscoveryService(config: YtClientConfiguration,
     )
   }
 
-  override def removeAddress(): Unit = {
-    removeNode(addressPath)
-    removeNode(webUiPath)
-    removeNode(restPath)
-    removeNode(operationPath)
-    removeNode(clusterVersionPath)
-    removeNode(confPath)
-  }
-
-  override def close(): Unit = {
-    client.close()
+  private def removeAddress(transaction: Option[String]): Unit = {
+    YtWrapper.listDir(discoveryPath)
+      .map(name => s"$discoveryPath/$name")
+      .filter(_ != shsPath)
+      .foreach(YtWrapper.removeDirIfExists(_, recursive = true, transaction))
   }
 }

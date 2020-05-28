@@ -2,8 +2,6 @@ package ru.yandex.spark.launcher
 
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import io.circe._
-import io.circe.syntax._
 
 class RpcProxyLauncherTest extends FlatSpec with Matchers {
 

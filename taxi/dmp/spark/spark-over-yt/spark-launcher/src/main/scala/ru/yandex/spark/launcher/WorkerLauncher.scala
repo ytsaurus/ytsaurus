@@ -3,6 +3,8 @@ package ru.yandex.spark.launcher
 import com.twitter.scalding.Args
 import org.apache.log4j.Logger
 import ru.yandex.spark.discovery.DiscoveryService
+import ru.yandex.spark.launcher.RpcProxyLauncher.RpcProxyConfig
+import ru.yandex.spark.yt.wrapper.Utils
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 
 import scala.concurrent.duration._
@@ -65,18 +67,8 @@ object WorkerLauncherArgs {
     args.required("memory"),
     YtClientConfiguration(args.optional),
     args.optional("discovery-path").getOrElse(sys.env("SPARK_DISCOVERY_PATH")),
-    args.optional("wait-master-timeout").map(parseDuration).getOrElse(5 minutes)
+    args.optional("wait-master-timeout").map(Utils.parseDuration).getOrElse(5 minutes)
   )
 
   def apply(args: Array[String]): WorkerLauncherArgs = WorkerLauncherArgs(Args(args))
-
-  private def parseDuration(s: String): Duration = {
-    val regex = """(\d+)(.*)""".r
-    s match {
-      case regex(amount, "m") => amount.toInt.minutes
-      case regex(amount, "s") => amount.toInt.seconds
-      case regex(amount, "h") => amount.toInt.hours
-    }
-  }
 }
-

@@ -14,7 +14,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.language.postfixOps
 import scala.sys.process._
 
-class ItTest extends FlatSpec with Matchers with BeforeAndAfterAll with ItTestUtils {
+class ItTest extends FlatSpec with Matchers with BeforeAndAfterAll with ItTestUtils with HumeYtClient {
   val confName = "spark.hadoop.yt.byop.enabled"
 
   case class Conf(publish: Boolean = false,
@@ -24,19 +24,25 @@ class ItTest extends FlatSpec with Matchers with BeforeAndAfterAll with ItTestUt
 
   private implicit def anyToOption[T](x: T): Option[T] = Some(x)
 
-  override def oldVersion: String = "0.1.0"
+  override def oldVersion: String = "0.2.1"
 
-  override def newVersion: String = "0.2.0-SNAPSHOT"
+  override def newVersion: String = "0.3.0-SNAPSHOT"
+
+  private def beforeByop(version: String): Boolean = version < "0.2.0"
 
   def testDisabled(cluster: String)
                   (implicit l: ProgrammingLanguage): Unit = {
-    submitAndCheckConf(cluster, spytVersion = oldVersion, expected = Map(confName -> None))
+    submitAndCheckConf(cluster, spytVersion = oldVersion,
+      expected = Map(confName -> Some("false").filterNot(_ => beforeByop(oldVersion)))
+    )
     testDisabledNewSpyt(cluster)
   }
 
   def testEnabled(cluster: String)
                  (implicit l: ProgrammingLanguage): Unit = {
-    submitAndCheckConf(cluster, spytVersion = oldVersion, expected = Map(confName -> None))
+    submitAndCheckConf(cluster, spytVersion = oldVersion,
+      expected = Map(confName -> Some("false").filterNot(_ => beforeByop(oldVersion)))
+    )
     testEnabledNewSpyt(cluster)
   }
 
@@ -45,7 +51,7 @@ class ItTest extends FlatSpec with Matchers with BeforeAndAfterAll with ItTestUt
     implicit val ec: ExecutionContext = ExecutionContext.global
     val newDisable = Future(testDisabled("new_disable"))
     val newEnable = Future(testEnabled("new_enable"))
-    val oldNewLauncher = Future(testDisabled("old_new_launcher"))
+    val oldNewLauncher = Future(if (beforeByop(oldVersion)) testDisabled("old_new_launcher") else testEnabled("old_new_launcher"))
     val oldOldLauncher = Future(testDisabled("old_old_launcher"))
     Await.result(newDisable.zip(newEnable).zip(oldNewLauncher).zip(oldOldLauncher), 20 minutes)
   }
@@ -57,7 +63,21 @@ class ItTest extends FlatSpec with Matchers with BeforeAndAfterAll with ItTestUt
     submitAndCheckConf(cluster, spytVersion = newVersion, enableByop = true, expected = Map(confName -> "true"))
   }
 
+  def testEnabledOldSpyt(cluster: String)
+                        (implicit l: ProgrammingLanguage): Unit = {
+    submitAndCheckConf(cluster, spytVersion = oldVersion, expected = Map(confName -> "false"))
+    submitAndCheckConf(cluster, spytVersion = oldVersion, enableByop = false, expected = Map(confName -> "false"))
+    submitAndCheckConf(cluster, spytVersion = oldVersion, enableByop = true, expected = Map(confName -> "true"))
+  }
+
   def testDisabledNewSpyt(cluster: String)
+                         (implicit l: ProgrammingLanguage): Unit = {
+    submitAndCheckConf(cluster, spytVersion = newVersion, expected = Map(confName -> "false"))
+    submitAndCheckConf(cluster, spytVersion = newVersion, enableByop = false, expected = Map(confName -> "false"))
+    submitAndCheckConf(cluster, spytVersion = newVersion, enableByop = true, expected = Map(confName -> "false"))
+  }
+
+  def testDisabledOldSpyt(cluster: String)
                          (implicit l: ProgrammingLanguage): Unit = {
     submitAndCheckConf(cluster, spytVersion = newVersion, expected = Map(confName -> "false"))
     submitAndCheckConf(cluster, spytVersion = newVersion, enableByop = false, expected = Map(confName -> "false"))
@@ -69,16 +89,20 @@ class ItTest extends FlatSpec with Matchers with BeforeAndAfterAll with ItTestUt
     implicit val l: ProgrammingLanguage = language
     testDisabledNewSpyt("new_disable")
     testEnabledNewSpyt("new_enable")
-    testDisabledNewSpyt("old_new_launcher")
+    if (beforeByop(oldVersion)) testDisabledNewSpyt("old_new_launcher") else testEnabledNewSpyt("old_new_launcher")
     testDisabledNewSpyt("old_old_launcher")
   }
 
   def testOldLocalPython(language: LocalPython): Unit = {
     implicit val l: ProgrammingLanguage = language
-    submitAndCheckConf("new_disable", expected = Map(confName -> None))
-    submitAndCheckConf("new_enable", expected = Map(confName -> None))
-    submitAndCheckConf("old_new_launcher", expected = Map(confName -> None))
-    submitAndCheckConf("old_old_launcher", expected = Map(confName -> None))
+    testDisabledOldSpyt("new_disable")
+    testEnabledOldSpyt("new_enable")
+    testEnabledOldSpyt("old_new_launcher")
+    testDisabledOldSpyt("old_old_launcher")
+//    submitAndCheckConf("new_disable", expected = Map(confName -> None))
+//    submitAndCheckConf("new_enable", expected = Map(confName -> None))
+//    submitAndCheckConf("old_new_launcher", expected = Map(confName -> None))
+//    submitAndCheckConf("old_old_launcher", expected = Map(confName -> None))
   }
 
   "ItTest" should "work for scala" in {
@@ -251,9 +275,9 @@ class ItTest extends FlatSpec with Matchers with BeforeAndAfterAll with ItTestUt
     val enableByop = Seq("--enable-byop")
     if (conf.startClusters) {
       Seq(
-        () => startCluster("0.2.0~beta1", "new_enable", args = enableByop),
-        () => startCluster("0.2.0~beta1", "new_disable", args = disableByop),
-        () => startCluster(oldVersion, "old_new_launcher"),
+        () => startCluster("0.3.0~beta1", "new_enable", args = enableByop),
+        () => startCluster("0.3.0~beta1", "new_disable", args = disableByop),
+        () => startCluster(oldVersion, "old_new_launcher", args = enableByop),
         () => startCluster(oldVersion, "old_old_launcher", localPython = LocalPython2(oldVersion))
       ).par.map(_.apply()).toList
     }

@@ -28,8 +28,11 @@ libraryDependencies ++= Seq(
 
 val yandexIcebergVersion = "6453303"
 libraryDependencies ++= Seq(
-  "ru.yandex" % "iceberg-inside-yt" % yandexIcebergVersion excludeAll
-    ExclusionRule(organization = "com.fasterxml.jackson.core")
+  "ru.yandex" % "iceberg-inside-yt" % yandexIcebergVersion excludeAll (
+    ExclusionRule(organization = "com.fasterxml.jackson.core"),
+    ExclusionRule(organization = "ru.yandex", name = "java-ytclient"),
+  ),
+  "ru.yandex" % "java-ytclient" % "custom"
 )
 
 addSbtPlugin("ru.yandex" % "sbt-yandex" % "0.0.3")

@@ -3,20 +3,20 @@ package ru.yandex.spark.yt.fs
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.spark.yt.test.TmpDir
+import ru.yandex.spark.yt.test.{LocalYtClient, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 
 import scala.concurrent.duration._
 import scala.io.Source
 import scala.language.postfixOps
 
-class YtFileSystemTest extends FlatSpec with Matchers with TmpDir {
+class YtFileSystemTest extends FlatSpec with Matchers with LocalYtClient with TmpDir {
 
   behavior of "YtFileSystemTest"
 
   override def testDir: String = "/tmp/test" // should start with single slash
 
-  private val conf = {
+  private val fsConf = {
     val c = new Configuration()
     c.set("yt.proxy", "localhost:8000")
     c.set("yt.user", "root")
@@ -24,8 +24,8 @@ class YtFileSystemTest extends FlatSpec with Matchers with TmpDir {
     c
   }
   private val fs = new YtFileSystem
-  fs.initialize(new Path("/").toUri, conf)
-  fs.setConf(conf)
+  fs.initialize(new Path("/").toUri, fsConf)
+  fs.setConf(fsConf)
 
   def writeBytesToFile(path: String, content: Array[Byte], timeout: Duration = 1 minute): Unit = {
     val os = YtWrapper.writeFile(path, timeout, transaction = None)

@@ -10,11 +10,11 @@ import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.fs.conf.YtLogicalType
-import ru.yandex.spark.yt.test.{TestUtils, TmpDir}
+import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
-class YtFileFormatTest extends FlatSpec with Matchers with TmpDir with TestUtils {
+class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
 
   import YtFileFormatTest._
   import spark.implicits._

@@ -10,6 +10,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode}
 import ru.yandex.spark.discovery.DiscoveryService
+import ru.yandex.spark.launcher.RpcProxyLauncher.RpcProxyConfig
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 
@@ -72,49 +73,6 @@ trait RpcProxyLauncher {
       ytRpc.close()
     }
   }
-
-
-  case class RpcProxyConfig(binaryPath: String,
-                            configPath: String,
-                            rpcPort: Int,
-                            monitoringPort: Int,
-                            operationAlias: String,
-                            ytJobCookie: String)
-
-  object RpcProxyConfig {
-    private val baseName = "byop"
-    private val envBaseName = "SPARK_YT_BYOP"
-
-    def create(sparkConf: Map[String, String], args: Array[String]): Option[RpcProxyConfig] = {
-      create(sparkConf, Args(args))
-    }
-
-    def create(sparkConf: Map[String, String], args: Args): Option[RpcProxyConfig] = {
-      val enabled = sparkConf.get("spark.hadoop.yt.byop.enabled").exists(_.toBoolean)
-
-      def envName(name: String): String = s"${envBaseName}_${name.toUpperCase().replace("-", "_")}"
-
-      def arg(name: String): String = {
-        args.optional(s"$baseName-$name").getOrElse(sys.env(envName(name)))
-      }
-
-      def optionArg(name: String): Option[String] = {
-        args.optional(s"$baseName-$name").orElse(sys.env.get(envName(name)))
-      }
-
-      if (enabled) {
-        Some(RpcProxyConfig(
-          binaryPath = arg("binary-path"),
-          configPath = arg("config-path"),
-          rpcPort = arg("port").toInt,
-          monitoringPort = optionArg("monitoring-port").map(_.toInt).getOrElse(27001),
-          operationAlias = args.optional("operation-alias").getOrElse(sys.env("YT_OPERATION_ALIAS")),
-          ytJobCookie = args.optional("job-cookie").getOrElse(sys.env("YT_JOB_COOKIE"))
-        ))
-      } else None
-    }
-  }
-
 }
 
 object RpcProxyLauncher {
@@ -144,5 +102,57 @@ object RpcProxyLauncher {
 
     inner(Seq(node -> patch))
     node
+  }
+
+  case class RpcProxyConfig(binaryPath: String,
+                            configPath: String,
+                            rpcPort: Int,
+                            monitoringPort: Int,
+                            operationAlias: String,
+                            ytJobCookie: String)
+
+  object RpcProxyConfig {
+    private val baseName = "byop"
+    private val envBaseName = "SPARK_YT_BYOP"
+
+    private def envName(name: String): String = s"${envBaseName}_${name.toUpperCase().replace("-", "_")}"
+
+    private def arg(name: String)(implicit args: Args): String = {
+      args.optional(s"$baseName-$name").getOrElse(sys.env(envName(name)))
+    }
+
+    def optionArg(name: String)(implicit args: Args): Option[String] = {
+      args.optional(s"$baseName-$name").orElse(sys.env.get(envName(name)))
+    }
+
+    def create(sparkConf: Map[String, String], args: Array[String]): Option[RpcProxyConfig] = {
+      create(sparkConf, Args(args))
+    }
+
+    def byopEnabled(sparkConf: Map[String, String]): Boolean = {
+      sparkConf.get("spark.hadoop.yt.byop.enabled").exists(_.toBoolean)
+    }
+
+    def byopPort(sparkConf: Map[String, String], args: Array[String]): Option[Int] = {
+      byopPort(sparkConf, Args(args))
+    }
+
+    def byopPort(sparkConf: Map[String, String], args: Args): Option[Int] = {
+      if (byopEnabled(sparkConf)) Some(arg("port")(args).toInt) else None
+    }
+
+    def create(sparkConf: Map[String, String], args: Args): Option[RpcProxyConfig] = {
+      if (byopEnabled(sparkConf)) {
+        implicit val a = args
+        Some(RpcProxyConfig(
+          binaryPath = arg("binary-path"),
+          configPath = arg("config-path"),
+          rpcPort = arg("port").toInt,
+          monitoringPort = optionArg("monitoring-port").map(_.toInt).getOrElse(27001),
+          operationAlias = args.optional("operation-alias").getOrElse(sys.env("YT_OPERATION_ALIAS")),
+          ytJobCookie = args.optional("job-cookie").getOrElse(sys.env("YT_JOB_COOKIE"))
+        ))
+      } else None
+    }
   }
 }
