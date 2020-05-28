@@ -82,6 +82,9 @@ class SparkDiscovery(object):
     def conf(self):
         return self.discovery().join("conf")
 
+    def master_wrapper(self):
+        return self.discovery().join("master_wrapper")
+
 
 def parse_memory(memory):
     if isinstance(memory, int):
@@ -129,6 +132,7 @@ def base_spark_conf(client, discovery):
     yt_user = get_user_name(client=client)
     spark_cluster_version = SparkDiscovery.get(discovery.spark_cluster_version(), client=client)
     spark_cluster_conf = discovery.conf()
+    master_wrapper_url = SparkDiscovery.get(discovery.master_wrapper(), client=client)
     conf = {
         "spark.hadoop.yt.proxy": yt_proxy,
         "spark.hadoop.yt.user": yt_user,
@@ -138,6 +142,8 @@ def base_spark_conf(client, discovery):
     }
     if exists(spark_cluster_conf, client=client):
         conf["spark.yt.cluster.confPath"] = str(spark_cluster_conf)
+    if master_wrapper_url:
+        conf["spark.hadoop.yt.masterWrapper.url"] = master_wrapper_url
     return conf
 
 

@@ -7,7 +7,9 @@ import io.circe.generic.auto._
 import io.circe.parser._
 import org.apache.log4j.Logger
 import ru.yandex.spark.discovery.{Address, CypressDiscoveryService, DiscoveryService}
+import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
+import ru.yandex.yt.ytclient.proxy.YtClient
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -30,13 +32,13 @@ trait SparkLauncher {
     readAddress("master", 5 minutes) -> thread
   }
 
-  def startWorker(master: Address,
-                  cores: Int, memory: String): Thread = {
+  def startWorker(master: Address, cores: Int, memory: String): Thread = {
     runSparkThread(
       workerClass,
       namedArgs = Map(
         "cores" -> cores.toString,
-        "memory" -> memory
+        "memory" -> memory,
+        "host" -> InetAddress.getLocalHost.getHostName
       ),
       positionalArgs = Seq(s"spark://${master.hostAndPort}")
     )
@@ -128,13 +130,20 @@ trait SparkLauncher {
   }
 
   def run(ytConfig: YtClientConfiguration, discoveryPath: String)(f: DiscoveryService => Unit): Unit = {
-    val discoveryService = new CypressDiscoveryService(ytConfig, discoveryPath)
-
+    val client = YtWrapper.createRpcClient(ytConfig)
     try {
+      val discoveryService = new CypressDiscoveryService(discoveryPath)(client.yt)
       f(discoveryService)
     } finally {
-      log.info("Closing discovery service")
-      discoveryService.close()
+      client.close()
     }
+  }
+
+  def withThread[T](thread: Thread)(f: (Thread) => T): T = {
+    try f(thread) finally thread.interrupt()
+  }
+
+  def withOptionThread[T](thread: Option[Thread])(f: Option[Thread] => T): T = {
+    try f(thread) finally thread.foreach(_.interrupt())
   }
 }

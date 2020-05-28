@@ -9,17 +9,21 @@ import ZipPlugin.autoImport._
 
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .settings(
+    libraryDependencies ++= circe,
+    libraryDependencies ++= sttp,
     libraryDependencies ++= yandexIceberg,
     libraryDependencies ++= logging.map(_ % Provided)
   )
 
 lazy val `spark-launcher` = (project in file("spark-launcher"))
+  .configs(IntegrationTest)
   .dependsOn(`yt-wrapper`)
   .settings(
-    libraryDependencies ++= circe,
     libraryDependencies ++= scaldingArgs,
     libraryDependencies ++= logging,
-    libraryDependencies ++= spark,
+    libraryDependencies ++= scalatra,
+    libraryDependencies ++= itTestDeps,
+    libraryDependencies ++= scalatraTestDeps,
     assemblyJarName in assembly := s"spark-yt-launcher.jar",
     assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = true)
   )
@@ -30,13 +34,9 @@ lazy val `data-source` = (project in file("data-source"))
   .configs(IntegrationTest)
   .dependsOn(`yt-wrapper`, `file-system`, `file-system` % "test->test")
   .settings(
-    version := "0.2.2-SNAPSHOT",
+    version := "0.3.0-SNAPSHOT",
     Defaults.itSettings,
-    libraryDependencies ++= Seq(
-      "org.scalacheck" %% "scalacheck" % "1.14.1" % "it,test",
-      "org.scalactic" %% "scalactic" % scalatestVersion,
-      "org.scalatest" %% "scalatest" % scalatestVersion % "it,test"
-    ),
+    libraryDependencies ++= itTestDeps,
     libraryDependencies ++= commonDependencies,
     libraryDependencies += organization.value %% "spark-yt-common-utils" % "0.0.1",
     assemblyJarName in assembly := "spark-yt-data-source.jar",
@@ -72,6 +72,8 @@ lazy val `file-system` = (project in file("file-system"))
     assemblyShadeRules in assembly ++= Seq(
       ShadeRule.rename(
         "ru.yandex.spark.yt.fs.YtFileSystem" -> "ru.yandex.spark.yt.fs.YtFileSystem",
+        "ru.yandex.misc.log.log4j.mlf.Log4jLoggerFactory" -> "ru.yandex.misc.log.log4j.mlf.Log4jLoggerFactory",
+        "ru.yandex.misc.log.log4j.mlf.Log4jMdcAdapter" -> "ru.yandex.misc.log.log4j.mlf.Log4jMdcAdapter",
         "ru.yandex.**" -> "shadedyandex.@1"
       ).inAll
     ),
@@ -150,7 +152,7 @@ lazy val benchmark = (project in file("benchmark"))
 
 lazy val `test-job` = (project in file("test-job"))
   .settings(
-    libraryDependencies += "ru.yandex" %% "spark-yt-data-source" % "0.1.0" % Provided,
+    libraryDependencies += "ru.yandex" %% "spark-yt-data-source" % "0.2.2-SNAPSHOT" % Provided,
     libraryDependencies ++= spark,
     libraryDependencies ++= logging.map(_ % Provided),
     libraryDependencies ++= scaldingArgs,

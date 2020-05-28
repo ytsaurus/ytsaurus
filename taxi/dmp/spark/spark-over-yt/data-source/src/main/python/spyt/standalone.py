@@ -223,12 +223,12 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["JAVA_HOME"] = "$HOME/tmpfs/jdk8"
     environment["SPARK_HOME"] = "$HOME/tmpfs/spark"
     environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]
+    environment["SPARK_YT_BYOP_PORT"] = "27002"
 
     worker_environment = {
         "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop),
         "SPARK_YT_BYOP_BINARY_PATH": "$HOME/ytserver-proxy",
         "SPARK_YT_BYOP_CONFIG_PATH": "$HOME/ytserver-proxy.template.yson",
-        "SPARK_YT_BYOP_PORT": "27002",
         "SPARK_YT_BYOP_HOST": "localhost"
     }
 

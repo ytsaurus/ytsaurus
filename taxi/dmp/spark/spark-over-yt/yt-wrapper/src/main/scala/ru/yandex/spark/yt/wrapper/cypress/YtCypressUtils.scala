@@ -1,5 +1,6 @@
 package ru.yandex.spark.yt.wrapper.cypress
 
+import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 import ru.yandex.yt.ytclient.proxy.YtClient
@@ -84,5 +85,25 @@ trait YtCypressUtils {
   def readDocument(path: String, transaction: Option[String] = None)(implicit yt: YtClient): YTreeNode = {
     val request = new GetNode(formatPath(path)).optionalTransaction(transaction)
     yt.getNode(request).join()
+  }
+
+  def createEmptyDocument(path: String, transaction: Option[String] = None)
+                         (implicit yt: YtClient): Unit = {
+    val request = new CreateNode(formatPath(path), ObjectType.Document).optionalTransaction(transaction)
+    yt.createNode(request).join()
+  }
+
+  def createDocument[T: YsonWriter](path: String, doc: T, transaction: Option[String] = None)
+                                   (implicit yt: YtClient): Unit = {
+    import YsonSyntax._
+    createEmptyDocument(formatPath(path), transaction)
+    val request = new SetNode(YPath.simple(formatPath(path)), doc.toYson).optionalTransaction(transaction)
+    yt.setNode(request).join()
+  }
+
+  def createDocumentFromProduct[T <: Product](path: String, doc: T, transaction: Option[String] = None)
+                                             (implicit yt: YtClient): Unit = {
+    import YsonableProduct._
+    createDocument(path, doc, transaction)
   }
 }

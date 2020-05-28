@@ -15,16 +15,19 @@ import ru.yandex.yt.ytclient.tables.TableSchema
 import scala.annotation.tailrec
 
 trait TestUtils {
-  def createEmptyTable(path: String, schema: TableSchema)(implicit yt: YtClient): Unit = {
+  def createEmptyTable(path: String, schema: TableSchema)
+                      (implicit yt: YtClient): Unit = {
     import scala.collection.JavaConverters._
     yt.createNode(path, ObjectType.Table, Map("schema" -> schema.toYTree).asJava).join()
   }
 
-  def writeTableFromYson(rows: Seq[String], path: String, schema: TableSchema)(implicit yt: YtClient): Unit = {
+  def writeTableFromYson(rows: Seq[String], path: String, schema: TableSchema)
+                        (implicit yt: YtClient): Unit = {
     writeTableFromYson(rows, path, schema.toYTree, schema)
   }
 
-  def writeTableFromYson(rows: Seq[String], path: String, schema: YTreeNode, physicalSchema: TableSchema)(implicit yt: YtClient): Unit = {
+  def writeTableFromYson(rows: Seq[String], path: String, schema: YTreeNode, physicalSchema: TableSchema)
+                        (implicit yt: YtClient): Unit = {
     import scala.collection.JavaConverters._
 
     val serializer = new YTreeSerializer[String] {

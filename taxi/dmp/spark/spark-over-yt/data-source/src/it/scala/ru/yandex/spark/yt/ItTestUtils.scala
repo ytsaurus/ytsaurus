@@ -19,15 +19,6 @@ trait ItTestUtils {
 
   def newVersion: String
 
-  implicit val yt: YtClient = YtClientProvider.ytClient(YtClientConfiguration(
-    proxy = "hume",
-    user = DefaultRpcCredentials.user,
-    token = DefaultRpcCredentials.token,
-    timeout = 5 minutes,
-    proxyRole = None,
-    byopEnabled = false
-  ))
-
   def discoveryPath(clusterName: String): String = {
     s"//home/sashbel/spark-test-${clusterName.replaceAll("_", "-")}"
   }
@@ -44,7 +35,7 @@ trait ItTestUtils {
       "--worker-memory 16G " +
       "--tmpfs-limit 10G " +
       s"--spark-cluster-version 2.4.4-$version+yandex " +
-      s"--operation-alias spark_sashbel_${clusterName} " +
+      s"--operation-alias spark_sashbel_$clusterName " +
       args.mkString(" ")
 
     println(command)

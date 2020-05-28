@@ -2,10 +2,12 @@ package ru.yandex.spark.yt.test
 
 import java.util.UUID
 
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, Suite}
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, TestSuite}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 
-trait TmpDir extends Suite with BeforeAndAfterEach with BeforeAndAfterAll with LocalSpark {
+trait TmpDir extends BeforeAndAfterEach with BeforeAndAfterAll {
+  self: TestSuite with LocalYtClient =>
+
   def testDir: String = "//tmp/test"
   val tmpPath = s"$testDir/test-${UUID.randomUUID()}"
 
