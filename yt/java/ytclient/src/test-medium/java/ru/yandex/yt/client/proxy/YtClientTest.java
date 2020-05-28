@@ -238,7 +238,7 @@ public class YtClientTest {
 
         final String poolName = "known_test_pool";
         client.createNode(new CreateNode(YPath.simple("//sys/ql_pools/" + poolName),
-                CypressNodeType.MAP, Map.of("weight", YTree.integerNode(5)))
+                CypressNodeType.MAP, Collections.singletonMap("weight", YTree.integerNode(5)))
                 .setRecursive(true)
                 .setIgnoreExisting(true));
 

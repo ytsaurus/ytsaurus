@@ -28,6 +28,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.ytclient.bus.BusConnector;
+import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactoryImpl;
@@ -132,11 +133,22 @@ public class PeriodicDiscovery implements AutoCloseable, Closeable {
         return new DiscoveryServiceClient(rpcClient, options);
     }
 
+    DiscoveryMethod selectDiscoveryMethod() {
+        boolean preferHttp = options.getPreferableDiscoveryMethod() == DiscoveryMethod.HTTP;
+        boolean isRpcAvailable = !proxies.isEmpty();
+        if ((preferHttp || !isRpcAvailable) && clusterUrl.isPresent()) {
+            return DiscoveryMethod.HTTP;
+        } else {
+            return DiscoveryMethod.RPC;
+        }
+    }
+
     private void updateProxies() {
         if (!running.get()) {
             return; // ---
         }
-        if (proxies.isEmpty() && clusterUrl.isPresent()) {
+        DiscoveryMethod discoveryMethod = selectDiscoveryMethod();
+        if (discoveryMethod == DiscoveryMethod.HTTP) {
             updateProxiesFromHttp();
         } else {
             updateProxiesFromRpc();
