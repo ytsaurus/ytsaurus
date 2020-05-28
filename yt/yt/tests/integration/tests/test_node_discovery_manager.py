@@ -40,23 +40,27 @@ class Base:
         ]
 
         def check():
-            time.sleep(0.5)
             metrics_before = [metric.update().get(verbose=True) or 0 for metric in metrics]
-            try:
-                for i in range(4 * len(metrics)):
-                    make_request()
-                make_request()
-            except:
-                return False
-            time.sleep(0.5)
-            metrics_after = [metric.update().get(verbose=True) or 0 for metric in metrics]
+            while True:
+                time.sleep(0.5)
+                try:
+                    for i in range(5):
+                        make_request()
+                except:
+                    continue
+                time.sleep(0.5)
+                metrics_after = [metric.update().get(verbose=True) or 0 for metric in metrics]
 
-            for node_id in xrange(len(metrics)):
-                actual_sign = 1 if metrics_after[node_id] > metrics_before[node_id] else 0
-                expected_sign = 1 if node_id in expected_node_ids else 0
-                if actual_sign != expected_sign:
-                    return False
-            return True
+                ok = True
+                for node_id in xrange(len(metrics)):
+                    actual = metrics_after[node_id] > metrics_before[node_id]
+                    expected = node_id in expected_node_ids
+                    if actual != expected:
+                        if not expected:
+                            return False
+                        ok = False
+                if ok:
+                    return True            
 
         wait(check, "Cache traffic goes through improper nodes")
 
