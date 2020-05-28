@@ -2094,6 +2094,7 @@ auto TFairShareTree<TFairShareImpl>::GetOrCreatePool(const TPoolName& poolName, 
         poolConfig->Mode = parentPoolConfig->EphemeralSubpoolConfig->Mode;
         poolConfig->MaxOperationCount = parentPoolConfig->EphemeralSubpoolConfig->MaxOperationCount;
         poolConfig->MaxRunningOperationCount = parentPoolConfig->EphemeralSubpoolConfig->MaxRunningOperationCount;
+        poolConfig->ResourceLimits = parentPoolConfig->EphemeralSubpoolConfig->ResourceLimits;
     }
     pool = New<TPool>(
         StrategyHost_,

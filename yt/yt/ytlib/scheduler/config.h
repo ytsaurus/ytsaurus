@@ -166,6 +166,8 @@ public:
     std::optional<int> MaxRunningOperationCount;
     std::optional<int> MaxOperationCount;
 
+    TResourceLimitsConfigPtr ResourceLimits;
+
     TEphemeralSubpoolConfig();
 };
 
