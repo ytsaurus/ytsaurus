@@ -155,8 +155,10 @@ private:
 
                 {
                     const auto& attributes = node->Attributes();
-                    Params_.Meta.set_random_seed(attributes.Get<ui64>("random_seed"));
-                    Params_.Meta.set_sequence_number(attributes.Get<i64>("sequence_number"));
+                    // COMPAT(aleksandra-zh)
+                    Params_.Meta.set_random_seed(attributes.Get<ui64>("random_seed", 0));
+                    // COMPAT(aleksandra-zh)
+                    Params_.Meta.set_sequence_number(attributes.Get<i64>("sequence_number", 0));
                     Params_.Checksum = 0;
                     Params_.CompressedLength = Params_.UncompressedLength = -1;
                 }
