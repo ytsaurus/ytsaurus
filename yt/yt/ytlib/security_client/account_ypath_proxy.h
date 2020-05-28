@@ -10,7 +10,11 @@ namespace NYT::NSecurityClient {
 
 struct TAccountYPathProxy
     : public NYTree::TYPathProxy
-{ };
+{
+    DEFINE_YPATH_PROXY(Account);
+
+    DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, TransferQuota);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

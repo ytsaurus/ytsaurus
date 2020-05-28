@@ -8,6 +8,7 @@
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/ytlib/security_client/account_ypath_proxy.h>
 #include <yt/ytlib/security_client/group_ypath_proxy.h>
 #include <yt/client/security_client/acl.h>
 
@@ -209,6 +210,28 @@ void TClient::ValidateOperationAccess(
         acl,
         this,
         Logger);
+}
+
+void TClient::DoTransferQuota(
+    const TString& srcAccount,
+    const TString& dstAccount,
+    NYTree::INodePtr resourceDelta,
+    const TTransferQuotaOptions& options)
+{
+    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto batchReq = proxy->ExecuteBatch();
+
+    auto req = TAccountYPathProxy::TransferQuota(GetAccountPath(dstAccount));
+    req->set_src_account(srcAccount);
+    req->set_resource_delta(ConvertToYsonString(resourceDelta).GetData());
+    SetMutationId(req, options);
+
+    batchReq->AddRequest(req);
+
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+    batchRsp->GetResponse<TAccountYPathProxy::TRspTransferQuota>(0)
+        .ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

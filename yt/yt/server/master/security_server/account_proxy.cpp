@@ -313,6 +313,40 @@ private:
         BuildYsonFluently(consumer)
             .Value(resourceSerializer);
     }
+
+    virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(TransferQuota);
+        return TBase::DoInvoke(context);
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NSecurityClient::NProto, TransferQuota)
+    {
+        Y_UNUSED(response);
+
+        DeclareMutating();
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+
+        auto* impl = GetThisImpl();
+        auto* srcAccount = securityManager->GetAccountByNameOrThrow(request->src_account());
+        auto serializableResourceDelta = ConvertTo<TSerializableClusterResourcesPtr>(
+            TYsonString(request->resource_delta()));
+        auto resourceDelta = serializableResourceDelta->ToClusterResources(chunkManager);
+
+        context->SetRequestInfo("SrcAccount: %v, DstAccount: %v",
+            srcAccount->GetName(),
+            impl->GetName());
+
+        securityManager->TransferQuota(srcAccount, impl, resourceDelta);
+
+        context->Reply();
+
+        if (IsPrimaryMaster()) {
+            PostToSecondaryMasters(context);
+        }
+    }
 };
 
 TIntrusivePtr<TNonversionedMapObjectProxyBase<TAccount>> CreateAccountProxy(

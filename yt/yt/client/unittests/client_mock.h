@@ -276,6 +276,12 @@ public:
         NYTree::INodePtr acl,
         const TCheckPermissionByAclOptions& options));
 
+    MOCK_METHOD4(TransferQuota, TFuture<void>(
+        const TString& srcAccount,
+        const TString& dstAccount,
+        NYTree::INodePtr resourceDelta,
+        const TTransferQuotaOptions& options));
+
     MOCK_METHOD3(StartOperation, TFuture<NScheduler::TOperationId>(
         NScheduler::EOperationType type,
         const NYson::TYsonString& spec,

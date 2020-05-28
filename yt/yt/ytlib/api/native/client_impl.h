@@ -329,6 +329,12 @@ public:
         NYTree::INodePtr acl,
         const TCheckPermissionByAclOptions& options),
         (user, permission, acl, options))
+    IMPLEMENT_METHOD(void, TransferQuota, (
+        const TString& srcAccount,
+        const TString& dstAccount,
+        NYTree::INodePtr resourceDelta,
+        const TTransferQuotaOptions& options),
+        (srcAccount, dstAccount, resourceDelta, options))
 
     IMPLEMENT_METHOD(NScheduler::TOperationId, StartOperation, (
         NScheduler::EOperationType type,
@@ -758,6 +764,11 @@ private:
         NScheduler::TJobId jobId,
         const NJobTrackerClient::NProto::TJobSpec& jobSpec,
         NYTree::EPermissionSet permissions);
+    void DoTransferQuota(
+        const TString& srcAccount,
+        const TString& dstAccount,
+        NYTree::INodePtr resourceDelta,
+        const TTransferQuotaOptions& options);
 
     // Operations
     NScheduler::TOperationId DoStartOperation(

@@ -848,6 +848,12 @@ def check_permission_by_acl(user, permission, acl, **kwargs):
     kwargs["acl"] = acl
     return execute_command("check_permission_by_acl", kwargs, parse_yson=True, unwrap_v4_result=False)
 
+def transfer_quota(source_account, destination_account, resource_delta, **kwargs):
+    kwargs["source_account"] = source_account
+    kwargs["destination_account"] = destination_account
+    kwargs["resource_delta"] = resource_delta
+    execute_command("transfer_quota", kwargs)
+
 def get_file_from_cache(md5, cache_path, **kwargs):
     kwargs["md5"] = md5
     kwargs["cache_path"] = cache_path
@@ -1244,7 +1250,7 @@ def clear_metadata_caches(driver=None):
 
 
 def create_account(name, parent_name=None, empty=False, **kwargs):
-    sync = kwargs.pop('sync_creation', True)
+    sync = kwargs.pop("sync_creation", True)
     kwargs["type"] = "account"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
@@ -1258,11 +1264,20 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
             "node_count": 1000,
             "tablet_count": 0,
             "tablet_static_memory": 0,
-            "master_memory": 100000
+            "master_memory": 0
         }
+
+    if "resource_limits" in kwargs["attributes"]:
+        resource_limits = kwargs["attributes"]["resource_limits"]
+        set_master_memory = isinstance(resource_limits, dict) and resource_limits.get("master_memory", 0) == 0
+    else:
+        set_master_memory = True
+
     execute_command("create", kwargs)
     if sync:
         wait(lambda: get("//sys/accounts/{0}/@life_stage".format(name)) == 'creation_committed')
+    if set_master_memory:
+        set("//sys/accounts/{0}/@resource_limits/master_memory".format(name), 100000)
 
 def remove_account(name, **kwargs):
     gc_collect(kwargs.get("driver"))

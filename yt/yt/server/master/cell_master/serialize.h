@@ -106,6 +106,7 @@ DEFINE_ENUM(EMasterReign,
     ((TuneTabletStatisticsUpdate_20_2)                              (1316))  // savrus
     ((ApproximateColumnarStatistics)                                (1317))  // gritukan
     ((BetterClusterResourcesDeserialization)                        (1318))  // kiselyovp
+    ((TransferQuota)                                                (1319))  // kiselyovp
 );
 
 ////////////////////////////////////////////////////////////////////////////////

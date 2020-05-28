@@ -81,6 +81,9 @@ void TraverseMapObjectSubtreeTopDown(TObject* object, TFunctor functor);
 template <class TObject, class TResult, class TFunctor>
 TResult AccumulateOverMapObjectSubtree(TObject* object, TResult init, TFunctor functor);
 
+template <class TObject>
+TObject* FindMapObjectLCA(TObject* lhs, TObject* rhs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer

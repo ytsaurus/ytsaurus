@@ -147,6 +147,27 @@ void TCheckPermissionByAclCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTransferQuotaCommand::TTransferQuotaCommand()
+{
+    RegisterParameter("source_account", SourceAccount);
+    RegisterParameter("destination_account", DestinationAccount);
+    RegisterParameter("resource_delta", ResourceDelta);
+}
+
+void TTransferQuotaCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->TransferQuota(
+        SourceAccount,
+        DestinationAccount,
+        ResourceDelta,
+        Options))
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TExecuteBatchCommand::TRequest::TRequest()
 {
     RegisterParameter("command", Command);

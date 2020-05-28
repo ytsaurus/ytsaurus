@@ -29,6 +29,41 @@ TResult AccumulateOverMapObjectSubtree(TObject* object, TResult init, TFunctor f
     return result;
 }
 
+template <class TObject>
+TObject* FindMapObjectLCA(TObject* lhs, TObject* rhs)
+{
+    auto getRootAndDepth = [] (TObject* object) {
+        auto depth = 0;
+        auto* root = object;
+        for (; root && root->GetParent(); root = root->GetParent()) {
+            ++depth;
+        }
+        return std::make_pair(root, depth);
+    };
+
+    auto [lhsRoot, lhsDepth] = getRootAndDepth(lhs);
+    auto [rhsRoot, rhsDepth] = getRootAndDepth(rhs);
+    if (lhsRoot != rhsRoot) {
+        return nullptr;
+    }
+
+    if (lhsDepth < rhsDepth) {
+        std::swap(lhs, rhs);
+        std::swap(lhsDepth, rhsDepth);
+    }
+
+    for (auto i = 0; i < lhsDepth - rhsDepth; ++i) {
+        lhs = lhs->GetParent();
+    }
+
+    while (lhs != rhs) {
+        lhs = lhs->GetParent();
+        rhs = rhs->GetParent();
+    }
+
+    return lhs;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
