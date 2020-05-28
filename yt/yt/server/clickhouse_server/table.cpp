@@ -71,9 +71,12 @@ std::vector<TTablePtr> FetchTables(
         const auto& attributesOrError = attributesOrErrors[index];
 
         try {
-            tables.emplace_back(New<TTable>(
-                path,
-                attributesOrError.ValueOrThrow()));
+            const auto& attributes = attributesOrError.ValueOrThrow();
+            if (attributes.contains("type") && attributes.at("type")->GetValue<TString>() == "table") {
+                tables.emplace_back(New<TTable>(path, attributes));
+            } else {
+                THROW_ERROR_EXCEPTION("Path %Qv does not correspond to a table", path);
+            }
         } catch (const std::exception& ex) {
             if (!skipUnsuitableNodes) {
                 errors.emplace_back(TError("Error fetching table %v", path)
