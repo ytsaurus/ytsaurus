@@ -66,6 +66,9 @@ class ProcessWatcher(object):
             except OSError:
                 logger.exception("Failed to kill watcher instance with pid %d", self._process.pid)
 
+    def get_pid(self):
+        return self._process.pid
+
     def _build_config(self, config_dir, process_pids, process_log_paths):
         postrotate_commands = []
         for pid in process_pids:
