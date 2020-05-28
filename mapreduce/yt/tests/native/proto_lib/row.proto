@@ -96,4 +96,4 @@ message TGrepperRecord
 {
     optional string Key = 1;
     optional bytes Other = 2 [(NYT.flags) = OTHER_COLUMNS];
-};
+}
