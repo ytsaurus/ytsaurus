@@ -462,6 +462,20 @@ class TestClickHouseCommon(ClickHouseTestBase):
     }
 
     @authors("evgenstf")
+    def test_not_table_in_query(self):
+        with Clique(1) as clique:
+            table_schema = [{"name": "value", "type": "int64"}]
+            create("table", "//tmp/test_table",
+                   attributes={"schema": table_schema})
+            write_table(
+                "//tmp/test_table",
+                [{"value": 1}])
+
+            # TODO(evgenstf): CHYT-112 - use error code instead of the substring
+            with raises_yt_error("does not correspond to a table"):
+                clique.make_query('select * from \"//tmp/test_table/@schema\"')
+
+    @authors("evgenstf")
     def test_distinct_one_instance_several_threads(self):
         with Clique(1, config_patch={"clickhouse": {"settings": {"max_threads": 2}}}, cpu_limit=2) as clique:
             table_schema = [{"name": "value", "type": "int64"}]
