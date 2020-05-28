@@ -448,7 +448,10 @@ class YTEnvSetup(object):
         cls.run_name = os.path.basename(cls.path_to_run)
 
         if os.environ.get("YTRECIPE") is None:
-            disk_path = SANDBOX_STORAGE_ROOTDIR
+            if SANDBOX_STORAGE_ROOTDIR is not None:
+                disk_path = SANDBOX_STORAGE_ROOTDIR
+            else:
+                disk_path = SANDBOX_ROOTDIR
         else:
             disk_path = arcadia_interop.yatest_common.work_path("ytrecipe_hdd")
         

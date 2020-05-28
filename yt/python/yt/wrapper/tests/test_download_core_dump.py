@@ -1,13 +1,12 @@
 from .helpers import TEST_DIR, get_test_file_path, get_tests_sandbox, yatest_common
 
-from yt.common import makedirp, which
+from yt.common import makedirp
 import yt.wrapper as yt
+import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.packages.six.moves import xrange
 
 import pytest
-
-from flaky import flaky
 
 import os
 import random
@@ -16,13 +15,11 @@ import subprocess
 import time
 
 
-@pytest.mark.skipif("yatest_common is not None")
 @pytest.mark.usefixtures("yt_env_with_porto")
 class TestDownloadCoreDump(object):
-    # More details in YT-12581.
-    @flaky(max_runs=3)
     def test_download_core_dump(self):
-        assert which("g++")
+        if yatest_common is None:
+            pytest.skip("test is not supported in pytest environment")
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -39,9 +36,7 @@ class TestDownloadCoreDump(object):
 
         makedirp(core_output_dir)
 
-        cpp_file = get_test_file_path("bin_core_crash.cpp")
-        cpp_bin_core_crash = os.path.join(test_core_dumps_dir, "cpp_bin_core_crash")
-        subprocess.check_call(["g++", cpp_file, "-g", "-static-libgcc", "-o", cpp_bin_core_crash])
+        cpp_bin_core_crash = arcadia_interop.search_binary_path("cpp_bin_core_crash")
 
         op = yt.run_map("./cpp_bin_core_crash", table, other_table, local_files=cpp_bin_core_crash, format="yson",
                         sync=False, spec={"core_table_path": core_dump_table})
@@ -74,7 +69,8 @@ class TestDownloadCoreDump(object):
         os.remove(core_output_file)
 
     def test_error_core_dump(self):
-        assert which("g++")
+        if yatest_common is None:
+            pytest.skip("test is not supported in pytest environment")
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"

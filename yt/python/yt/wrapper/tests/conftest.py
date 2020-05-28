@@ -27,7 +27,6 @@ from copy import deepcopy
 import shutil
 import logging
 import socket
-import signal
 import warnings
 
 # Disables """cryptography/hazmat/primitives/constant_time.py:26: CryptographyDeprecationWarning: Support for your Python version is deprecated.
@@ -41,16 +40,6 @@ def pytest_ignore_collect(path, config):
     return path.startswith(get_tests_sandbox()) or \
         path.startswith(os.path.join(get_tests_location(), "__pycache__"))
 
-if yatest_common is not None:
-    @pytest.fixture(scope="session", autouse=True)
-    def prepare_path(request):
-        destination = os.path.join(yatest_common.work_path(), "build")
-        if os.path.exists(destination):
-            return
-        os.makedirs(destination)
-        path = arcadia_interop.prepare_yt_environment(destination, use_ytserver_all=True, copy_ytserver_all=True)
-        os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
-
 def rmtree(path):
     if os.path.exists(path):
         shutil.rmtree(path)
@@ -63,7 +52,8 @@ class YtTestEnvironment(object):
                  delta_scheduler_config=None,
                  delta_controller_agent_config=None,
                  delta_node_config=None,
-                 delta_proxy_config=None):
+                 delta_proxy_config=None,
+                 need_suid=False):
         # To use correct version of bindings we must reset it before start environment.
         yt.native_driver.driver_bindings = None
 
@@ -81,6 +71,21 @@ class YtTestEnvironment(object):
         run_id = uuid.uuid4().hex[:8]
         self.uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)
         self.sandbox_dir = os.path.join(get_tests_sandbox(), self.uniq_dir_name)
+
+        if yatest_common is not None:
+            if need_suid and arcadia_interop.is_inside_distbuild():
+                pytest.skip()
+
+            bin_dir = os.path.join(get_tests_sandbox(), "need_suid_" + str(int(need_suid)))
+            if not os.path.exists(bin_dir):
+                os.makedirs(bin_dir)
+
+                path = arcadia_interop.prepare_yt_environment(
+                    bin_dir,
+                    use_ytserver_all=True,
+                    copy_ytserver_all=True,
+                    need_suid=need_suid)
+                os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
         common_delta_node_config = {
             "exec_agent": {
@@ -346,7 +351,8 @@ def test_environment_with_porto(request):
                 },
                 "test_poll_job_shell": True,
             }
-        }
+        },
+        need_suid=True
     )
 
     request.addfinalizer(lambda: environment.cleanup())
