@@ -1434,6 +1434,9 @@ TEphemeralSubpoolConfig::TEphemeralSubpoolConfig()
     RegisterParameter("max_operation_count", MaxOperationCount)
         .Default()
         .GreaterThanOrEqual(0);
+
+    RegisterParameter("resource_limits", ResourceLimits)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

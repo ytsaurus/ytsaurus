@@ -1817,6 +1817,18 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         with pytest.raises(YtError):
             run_test_vanilla(command="", spec={"pool": "custom_pool"}, track=True)
 
+    @authors("renadeen")
+    def test_custom_ephemeral_pool_resource_limits(self):
+        create_pool("custom_pool")
+        set("//sys/pools/custom_pool/@create_ephemeral_subpools", True)
+        set("//sys/pools/custom_pool/@ephemeral_subpool_config", {"resource_limits": {"cpu": 1}})
+        time.sleep(0.2)
+
+        run_sleeping_vanilla(spec={"pool": "custom_pool"})
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root"))
+        pool_info = get(scheduler_orchid_default_pool_tree_path() + "/pools/custom_pool$root")
+        assert pool_info["resource_limits"]["cpu"] == 1.0
+
     @authors("ignat")
     def test_ephemeral_pools_limit(self):
         create("table", "//tmp/t_in")
