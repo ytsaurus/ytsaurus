@@ -200,14 +200,22 @@ public:
         auto now = NProfiling::GetInstant();
         if (limit) {
             Period_ = config->Period;
-            auto millisecondsPassed = (now - LastUpdated_.load()).MilliSeconds();
-            auto newAvailable = Available_.load() + static_cast<i64>(millisecondsPassed * *limit / 1000);
-            newAvailable = std::min(newAvailable, static_cast<i64>(Period_.load().SecondsFloat()) * *limit);
+            auto lastUpdated = LastUpdated_.load();
+            auto millisecondsPassed = (now - lastUpdated).MilliSeconds();
+            auto deltaAvailable = static_cast<i64>(millisecondsPassed * *limit / 1000);
+            auto newAvailable = Available_.load() + deltaAvailable;
+            auto maxAvailable = static_cast<i64>(Period_.load().SecondsFloat()) * *limit;
+            if (newAvailable > maxAvailable) {
+                LastUpdated_ = now;
+                newAvailable = maxAvailable;
+            } else {
+                LastUpdated_ = lastUpdated + TDuration::MilliSeconds(deltaAvailable * 1000 / *limit);
+            }
             Available_ = newAvailable;
         } else {
             Available_ = 0;
+            LastUpdated_ = now;
         }
-        LastUpdated_ = now;
         ProcessRequests(std::move(guard));
     }
 

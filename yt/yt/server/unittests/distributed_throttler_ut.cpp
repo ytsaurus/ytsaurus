@@ -149,7 +149,6 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
             i == 0 ? leaderThrottlerConfig : throttlerConfig));
     }
 
-
     auto discoveryClient = New<TDiscoveryClient>(
         config->DiscoveryClient,
         channelFactory);
@@ -196,7 +195,9 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
 
 TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
 {
-    auto throttlerConfig = New<TThroughputThrottlerConfig>(100);
+    int throttlersCount = 4;
+    auto leaderThrottlerConfig = New<TThroughputThrottlerConfig>(100);
+    auto throttlerConfig = New<TThroughputThrottlerConfig>(1);
     auto config = GenerateThrottlerConfig();
     config->Mode = EDistributedThrottlerMode::Adaptive;
 
@@ -210,7 +211,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
     std::vector<TDistributedThrottlerFactoryPtr> factories;
     std::vector<IReconfigurableThroughputThrottlerPtr> throttlers;
 
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < throttlersCount; ++i) {
         auto memberActionQueue = New<TActionQueue>("MemberClient" + ToString(i));
         actionQueues.push_back(memberActionQueue);
 
@@ -227,15 +228,39 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
 
         throttlers.push_back(factory->GetOrCreateThrottler(
             "throttlerId",
-            throttlerConfig));
+            i == 0 ? leaderThrottlerConfig : throttlerConfig));
     }
 
+    auto discoveryClient = New<TDiscoveryClient>(
+        config->DiscoveryClient,
+        channelFactory);
+
+    while (true) {
+        auto rspOrError = WaitFor(discoveryClient->GetGroupMeta("/group"));
+        if (!rspOrError.IsOK()) {
+            continue;
+        }
+        auto count = rspOrError.Value().MemberCount;
+        if (count >= throttlersCount - 1) {
+            break;
+        }
+        Sleep(TDuration::Seconds(1));
+    }
+
+    Sleep(TDuration::Seconds(1));
+
+    // Wait for leader to update limits.
+    while (throttlers.back()->TryAcquireAvailable(10) < 2) {
+        Sleep(TDuration::Seconds(1));
+    }
+
+    // Just to make sure all throttlers are alive.
     Sleep(TDuration::Seconds(3));
 
     NProfiling::TWallTimer timer;
 
     std::vector<TFuture<void>> futures;
-    for (int i = 0; i < 4; ++i) {
+    for (int i = 0; i < throttlersCount; ++i) {
         futures.push_back(BIND([=] {
             for (int j = 0; j < 10; ++j) {
                 WaitFor(throttlers[i]->Throttle(30)).ThrowOnError();
@@ -247,7 +272,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
     WaitFor(CombineAll(futures)).ThrowOnError();
 
     auto duration = timer.GetElapsedTime().MilliSeconds();
-    EXPECT_GE(duration, 9000);
+    EXPECT_GE(duration, 8000);
     EXPECT_LE(duration, 15000);
 }
 
