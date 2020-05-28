@@ -1145,8 +1145,9 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         Options_.ResponseKeeper->EndRequest(mutationId, context->GetResponseData());
     }
 
+    // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
-        RandomSeed_ != context->GetPrevRandomSeed(),
+        RandomSeed_ != context->GetPrevRandomSeed() && context->GetPrevRandomSeed() != 0,
         "Mutation random seeds differ (AutomatonRandomSeed: %llx, MutationRandomSeed: %llx)",
         RandomSeed_.load(),
         context->GetPrevRandomSeed());
@@ -1154,8 +1155,9 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
     AutomatonVersion_ = automatonVersion.Advance();
 
     ++SequenceNumber_;
+    // COMPAT(aleksandra-zh)
     YT_LOG_FATAL_IF(
-        SequenceNumber_ != context->GetSequenceNumber(),
+        SequenceNumber_ != context->GetSequenceNumber() && context->GetSequenceNumber() != 0,
         "Sequence numbers differ (AutomatonSequenceNumber: %llx, MutationSequenceNumber: %llx)",
         SequenceNumber_.load(),
         context->GetSequenceNumber());
