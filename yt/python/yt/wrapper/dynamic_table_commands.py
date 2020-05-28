@@ -285,7 +285,7 @@ def explain_query(query, timestamp=None, input_row_limit=None, output_row_limit=
 
     response = DynamicTableRequestRetrier(
         get_config(client)["dynamic_table_retries"],
-        "explain_query",
+        "explain",
         params,
         client=client).run()
 
