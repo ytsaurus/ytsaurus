@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.rpc;
 
 import java.time.Duration;
 
+import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolder;
@@ -41,6 +42,8 @@ public class RpcOptions {
     private boolean traceEnabled = false;
     private boolean traceSampled = false;
     private boolean traceDebug = false;
+
+    private DiscoveryMethod preferableDiscoveryMethod = DiscoveryMethod.RPC;
 
     public RpcOptions() {
         // nothing
@@ -258,5 +261,13 @@ public class RpcOptions {
 
     public void setRpcClientSelectionTimeout(Duration rpcClientSelectionTimeout) {
         this.rpcClientSelectionTimeout = rpcClientSelectionTimeout;
+    }
+
+    public DiscoveryMethod getPreferableDiscoveryMethod() {
+        return preferableDiscoveryMethod;
+    }
+
+    public void setPreferableDiscoveryMethod(DiscoveryMethod preferableDiscoveryMethod) {
+        this.preferableDiscoveryMethod = preferableDiscoveryMethod;
     }
 }
