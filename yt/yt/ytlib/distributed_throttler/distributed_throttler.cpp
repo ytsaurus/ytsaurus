@@ -80,7 +80,7 @@ public:
         auto future = Underlying_->Throttle(count);
         future.Subscribe(BIND([=] (const TError& error) {
             if (error.IsOK()) {
-                HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
+                UpdateHistoricUsage(count);
             }
         }));
         return future;
@@ -92,7 +92,7 @@ public:
 
         auto result = Underlying_->TryAcquire(count);
         if (result) {
-            HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
+            UpdateHistoricUsage(count);
         }
         return result;
     }
@@ -103,7 +103,7 @@ public:
 
         auto result = Underlying_->TryAcquireAvailable(count);
         if (result > 0) {
-            HistoricUsageAggregator_.UpdateAt(TInstant::Now(), result);
+            UpdateHistoricUsage(result);
         }
         return result;
     }
@@ -112,7 +112,7 @@ public:
     {
         YT_VERIFY(Config_->Mode != EDistributedThrottlerMode::Precise);
 
-        HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
+        UpdateHistoricUsage(count);
         Underlying_->Acquire(count);
     }
 
@@ -146,7 +146,7 @@ public:
 
     void SetLeaderChannel(const IChannelPtr& leaderChannel)
     {
-        TWriterGuard guard(Lock_);
+        TWriterGuard guard(LeaderChannelLock_);
         LeaderChannel_ = leaderChannel;
     }
 
@@ -157,15 +157,22 @@ private:
     TDistributedThrottlerConfigPtr Config_;
     TThroughputThrottlerConfigPtr ThrottlerConfig_;
 
-    TReaderWriterSpinLock Lock_;
+    TReaderWriterSpinLock LeaderChannelLock_;
     IChannelPtr LeaderChannel_;
 
+    TReaderWriterSpinLock HistoricUsageAggregatorLock_;
     THistoricUsageAggregator HistoricUsageAggregator_;
 
     IChannelPtr GetLeaderChannel()
     {
-        TReaderGuard guard(Lock_);
+        TReaderGuard guard(LeaderChannelLock_);
         return LeaderChannel_;
+    }
+
+    void UpdateHistoricUsage(i64 count)
+    {
+        TWriterGuard guard(HistoricUsageAggregatorLock_);
+        HistoricUsageAggregator_.UpdateAt(TInstant::Now(), count);
     }
 };
 
@@ -422,7 +429,7 @@ private:
     {
         auto throttler = FindThrottler(throttlerId);
         if (!throttler) {
-            MakeFuture(TError(NDistributedThrottler::EErrorCode::NoSuchThrottler, "No such throttler %Qv", throttlerId));
+            return MakeFuture(TError(NDistributedThrottler::EErrorCode::NoSuchThrottler, "No such throttler %Qv", throttlerId));
         }
 
         return throttler->Throttle(count);
