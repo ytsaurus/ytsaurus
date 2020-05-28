@@ -16,8 +16,8 @@ public class LinkNode extends CopyLikeReq<LinkNode> {
     }
 
     public TReqLinkNode.Builder writeTo(TReqLinkNode.Builder builder) {
-        builder.setSrcPath(from)
-                .setDstPath(to)
+        builder.setSrcPath(source)
+                .setDstPath(destination)
                 .setRecursive(recursive)
                 .setForce(force)
                 .setIgnoreExisting(ignoreExisting);

@@ -24,6 +24,14 @@ public class PrerequisiteOptions {
     private GUID [] transactionId;
     private RevisionPrerequsite [] revisions;
 
+    public PrerequisiteOptions() {
+    }
+
+    public PrerequisiteOptions(PrerequisiteOptions prerequisiteOptions) {
+        transactionId = prerequisiteOptions.transactionId;
+        revisions = prerequisiteOptions.revisions;
+    }
+
     public PrerequisiteOptions setTransactionId(GUID [] transactionId) {
         this.transactionId = transactionId;
         return this;

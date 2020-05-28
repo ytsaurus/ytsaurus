@@ -8,6 +8,14 @@ public class MutatingOptions {
     private GUID id;
     private Boolean retry;
 
+    public MutatingOptions() {
+    }
+
+    public MutatingOptions(MutatingOptions mutatingOptions) {
+        id = mutatingOptions.id;
+        retry = mutatingOptions.retry;
+    }
+
     public MutatingOptions setMutationId(GUID id) {
         this.id = id;
         return this;
