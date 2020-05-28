@@ -15,6 +15,7 @@ SET(YT_TEST_SRCS
     test_config.py
     test_cypress_commands.py
     test_driver.py
+    test_download_core_dump.py
     test_dynamic_table_commands.py
     test_errors.py
     test_file_commands.py
@@ -45,6 +46,8 @@ PEERDIR(
     ${YT_ROOT}/yt/python/yt_driver_rpc_bindings
     ${YT_ROOT}/yt/python/yt_yson_bindings
 
+    infra/porto/api_py
+
     contrib/python/flaky
 )
 
@@ -56,17 +59,18 @@ DEPENDS(
     yt/python/yt/wrapper/tests/yt_python
     yt/python/yt/wrapper/tests/yt_python3
     yt/python/yt/wrapper/tests/yt_ipython
+    ${YT_ROOT}/yt/tools/yt_sudo_fixup
     ${YT_ROOT}/yt/server/clickhouse_server/bin
     ${YT_ROOT}/yt/server/clickhouse_trampoline
     ${YT_ROOT}/yt/server/log_tailer/bin
     ${YT_ROOT}/yt/experiments/ytserver_dummy
+    yt/python/yt/wrapper/tests/files/cpp_bin_core_crash
 )
 
 RESOURCE_FILES(
     PREFIX yt_python_test/
     ../files/accumulate_c.py
     ../files/bin.cpp
-    ../files/bin_core_crash.cpp
     ../files/capitalize_b.py
     ../files/collect.py
     ../files/driver_catch_sigint.py
@@ -115,10 +119,12 @@ REQUIREMENTS(
     ram_disk:4
     cpu:4
 )
+
 TAG(
     ya:fat
     ya:force_distbuild
     ya:huge_logs
+    ya:sys_info
 )
 
 NO_LINT()
