@@ -161,8 +161,17 @@ public:
     TViolatedResourceLimits GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const;
 
     //! Sets |resourceLimits| as |account|'s cluster resource limits.
-    //! Throws if it would violate the invariants.
+    //! Throws if that would violate the invariants.
     void TrySetResourceLimits(TAccount* account, const TClusterResources& resourceLimits);
+
+    //! Subtracts |resourceDelta| from |srcAccount| and all its ancestors up to (but not including)
+    //! LCA(|srcAccount|, |dstAccount|), then adds it to |dstAccount| and all its ancestors up to
+    //! (but not including) LCA(|srcAccount|, |dstAccount|).
+    /*!
+     * Throws if transferring quota would violate the invariants or if authenticated user lacks
+     * the write permission for any of the modified accounts.
+     */
+    void TransferQuota(TAccount* srcAccount, TAccount* dstAccount, const TClusterResources& resourceDelta);
 
     //! Adds the #chunk to the resource usage of accounts mentioned in #requisition.
     void UpdateResourceUsage(

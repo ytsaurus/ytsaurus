@@ -13,6 +13,7 @@ namespace NYT::NSecurityClient {
 
 NYPath::TYPath GetUserPath(const TString& name);
 NYPath::TYPath GetGroupPath(const TString& name);
+NYPath::TYPath GetAccountPath(const TString& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 

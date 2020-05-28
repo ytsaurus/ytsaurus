@@ -633,6 +633,26 @@ TFuture<TCheckPermissionByAclResult> TClient::CheckPermissionByAcl(
     }));
 }
 
+TFuture<void> TClient::TransferQuota(
+    const TString& srcAccount,
+    const TString& dstAccount,
+    NYTree::INodePtr resourceDelta,
+    const TTransferQuotaOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.TransferQuota();
+    SetTimeoutOptions(*req, options);
+
+    req->set_src_account(srcAccount);
+    req->set_dst_account(dstAccount);
+    req->set_resource_delta(ConvertToYsonString(resourceDelta).GetData());
+
+    ToProto(req->mutable_mutating_options(), options);
+
+    return req->Invoke().As<void>();
+}
+
 TFuture<NScheduler::TOperationId> TClient::StartOperation(
     NScheduler::EOperationType type,
     const TYsonString& spec,

@@ -20,6 +20,11 @@ TYPath GetGroupPath(const TString& name)
     return "//sys/groups/" + ToYPathLiteral(name);
 }
 
+TYPath GetAccountPath(const TString& name)
+{
+    return "//sys/accounts/" + ToYPathLiteral(name);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 ESecurityAction CheckPermissionsByAclAndSubjectClosure(

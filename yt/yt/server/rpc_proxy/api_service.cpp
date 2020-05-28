@@ -347,6 +347,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMember));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermission));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermissionByAcl));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(TransferQuota));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadFile)
             .SetStreamingEnabled(true)
@@ -2939,6 +2940,31 @@ private:
                 auto* response = &context->Response();
                 ToProto(response->mutable_result(), result);
             });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TransferQuota)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto srcAccount = request->src_account();
+        auto dstAccount = request->dst_account();
+        auto resourceDelta = ConvertToNode(TYsonString(request->resource_delta()));
+
+        TTransferQuotaOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        // XXX(kiselyovp) replace with SetMutatingOptions in arcadia
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+
+        context->SetRequestInfo("SrcAccount: %v, DstAccount: %v",
+            srcAccount,
+            dstAccount);
+
+        CompleteCallWith(
+            client,
+            context,
+            client->TransferQuota(srcAccount, dstAccount, resourceDelta, options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////

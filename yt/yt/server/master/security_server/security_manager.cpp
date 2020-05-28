@@ -598,6 +598,63 @@ public:
         account->ClusterResourceLimits() = resourceLimits;
     }
 
+    void TransferQuota(TAccount* srcAccount, TAccount* dstAccount, const TClusterResources& resourceDelta)
+    {
+        YT_VERIFY(srcAccount);
+        YT_VERIFY(dstAccount);
+
+        TSmallFlatMap<TAccount*, TClusterResources, 4> limitsBackup;
+        try {
+            if (resourceDelta.IsAtLeastOneResourceLessThan(TClusterResources())) {
+                THROW_ERROR_EXCEPTION("Resource delta cannot be negative");
+            }
+
+            auto* lcaAccount = FindMapObjectLCA(srcAccount, dstAccount);
+            if (!lcaAccount) {
+                YT_LOG_ALERT("Two accounts do not have a common ancestor (AccountIds: %v)",
+                    std::vector({srcAccount->GetId(), dstAccount->GetId()}));
+                THROW_ERROR_EXCEPTION("Accounts do not have a common ancestor");
+            }
+
+            for (auto* account = srcAccount; account != lcaAccount; account = account->GetParent()) {
+                ValidatePermission(account, EPermission::Write);
+            }
+            for (auto* account = dstAccount; account != lcaAccount; account = account->GetParent()) {
+                ValidatePermission(account, EPermission::Write);
+            }
+
+            auto tryIncrementLimits = [&] (TAccount* account, const TClusterResources& delta) {
+                auto oldLimits = account->ClusterResourceLimits();
+                auto newLimits = oldLimits + delta;
+
+                ValidateResourceLimits(account, newLimits);
+                YT_VERIFY(limitsBackup.insert({account, oldLimits}).second);
+                account->ClusterResourceLimits() = newLimits;
+            };
+
+            for (auto* account = srcAccount; account != lcaAccount; account = account->GetParent()) {
+                tryIncrementLimits(account, -resourceDelta);
+            }
+
+            SmallVector<TAccount*, 4> dstAncestors;
+            for (auto* account = dstAccount; account != lcaAccount; account = account->GetParent()) {
+                dstAncestors.push_back(account);
+            }
+            std::reverse(dstAncestors.begin(), dstAncestors.end());
+            for (auto* account : dstAncestors) {
+                tryIncrementLimits(account, resourceDelta);
+            }
+        } catch (const std::exception& ex) {
+            for (const auto& [account, oldLimits] : limitsBackup) {
+                account->ClusterResourceLimits() = oldLimits;
+            }
+            THROW_ERROR_EXCEPTION("Failed to transfer quota from account %Qv to account %Qv",
+                srcAccount->GetName(),
+                dstAccount->GetName())
+                << ex;
+        }
+    }
+
     void UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)
     {
         YT_VERIFY(chunk->IsNative());
@@ -1217,7 +1274,6 @@ public:
 
         subject->SetName(newName);
     }
-
 
     TAccessControlDescriptor* FindAcd(TObject* object)
     {
@@ -3553,6 +3609,11 @@ TClusterResources TSecurityManager::GetAccountRecursiveViolatedResourceLimits(co
 void TSecurityManager::TrySetResourceLimits(TAccount* account, const TClusterResources& resourceLimits)
 {
     Impl_->TrySetResourceLimits(account, resourceLimits);
+}
+
+void TSecurityManager::TransferQuota(TAccount* srcAccount, TAccount* dstAccount, const TClusterResources& resourceDelta)
+{
+    Impl_->TransferQuota(srcAccount, dstAccount, resourceDelta);
 }
 
 void TSecurityManager::UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)

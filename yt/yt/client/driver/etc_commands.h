@@ -102,6 +102,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTransferQuotaCommand
+    : public TTypedCommand<NApi::TTransferQuotaOptions>
+{
+public:
+    TTransferQuotaCommand();
+
+private:
+    TString SourceAccount;
+    TString DestinationAccount;
+    NYTree::INodePtr ResourceDelta;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TExecuteBatchOptions
     : public NApi::TMutatingOptions
 {
