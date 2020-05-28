@@ -4,7 +4,7 @@ from yt_env_setup import YTEnvSetup, wait
 from yt_commands import *
 from yt_helpers import *
 
-import yt.common
+from flaky import flaky
 
 import time
 import copy
@@ -143,6 +143,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] > 50, sleep_backoff=0.1)
 
     @authors("renadeen")
+    @flaky(max_runs=5)
     def test_dynamic_cpu_statistics(self):
         run_test_vanilla(with_breakpoint("BREAKPOINT; while true; do : ; done"), SPEC_WITH_CPU_MONITOR)
         job_id = wait_breakpoint()[0]
