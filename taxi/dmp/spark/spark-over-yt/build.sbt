@@ -152,7 +152,7 @@ lazy val benchmark = (project in file("benchmark"))
 
 lazy val `test-job` = (project in file("test-job"))
   .settings(
-    libraryDependencies += "ru.yandex" %% "spark-yt-data-source" % "0.2.2-SNAPSHOT" % Provided,
+    libraryDependencies += "ru.yandex" %% "spark-yt-data-source" % "0.3.0" % Provided,
     libraryDependencies ++= spark,
     libraryDependencies ++= logging.map(_ % Provided),
     libraryDependencies ++= scaldingArgs,
