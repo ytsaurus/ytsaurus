@@ -14,7 +14,7 @@ object CommonPlugin extends AutoPlugin {
     resolvers += MavenCache("local-maven", Path.userHome / ".m2" / "repository"),
     resolvers += "YandexMediaReleases" at "http://artifactory.yandex.net/artifactory/yandex_media_releases",
     resolvers += "YandexSparkReleases" at "http://artifactory.yandex.net/artifactory/yandex_spark_releases",
-    version in ThisBuild := "0.3.0",
+    version in ThisBuild := "0.3.1-SNAPSHOT",
     organization := "ru.yandex",
     name := s"spark-yt-${name.value}",
     scalaVersion := "2.12.8",
