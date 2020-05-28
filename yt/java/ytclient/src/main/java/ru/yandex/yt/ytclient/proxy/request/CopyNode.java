@@ -15,9 +15,13 @@ public class CopyNode extends CopyLikeReq<CopyNode> {
         this(from.toString(), to.toString());
     }
 
+    public CopyNode(CopyNode copyNode) {
+        super(copyNode);
+    }
+
     public TReqCopyNode.Builder writeTo(TReqCopyNode.Builder builder) {
-        builder.setSrcPath(from)
-                .setDstPath(to)
+        builder.setSrcPath(source)
+                .setDstPath(destination)
                 .setRecursive(recursive)
                 .setForce(force)
                 .setPreserveAccount(preserveAccount)
