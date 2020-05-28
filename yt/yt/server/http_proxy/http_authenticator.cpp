@@ -43,13 +43,12 @@ THttpAuthenticator::THttpAuthenticator(
     ITokenAuthenticatorPtr tokenAuthenticator,
     ICookieAuthenticatorPtr cookieAuthenticator,
     TCoordinatorPtr coordinator)
-    : Config_(config)
-    , TokenAuthenticator_(tokenAuthenticator)
-    , CookieAuthenticator_(cookieAuthenticator)
-    , Coordinator_(coordinator)
+    : Config_(std::move(config))
+    , TokenAuthenticator_(std::move(tokenAuthenticator))
+    , CookieAuthenticator_(std::move(cookieAuthenticator))
+    , Coordinator_(std::move(coordinator))
 {
-    YT_VERIFY(TokenAuthenticator_);
-    YT_VERIFY(CookieAuthenticator_);
+    YT_VERIFY(Config_);
 }
 
 void THttpAuthenticator::HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp)
@@ -102,41 +101,63 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
 
     NTracing::TChildTraceContextGuard authSpan("HttpProxy.Auth");
 
-    auto authorizationHeader = request->GetHeaders()->Find("Authorization");
-    auto tokenHash = TString();
-    if (authorizationHeader) {
-        TStringBuf prefix = "OAuth ";
-        if (!authorizationHeader->StartsWith(prefix)) {
-            return TError(NRpc::EErrorCode::InvalidCredentials, "Invalid value of Authorization header");
+    static const TString AuthorizationHeaderName("Authorization");
+    if (auto authorizationHeader = request->GetHeaders()->Find(AuthorizationHeaderName)) {
+        static const TStringBuf Prefix = "OAuth ";
+        if (!authorizationHeader->StartsWith(Prefix)) {
+            return TError(
+                NRpc::EErrorCode::InvalidCredentials,
+                "Malformed Authorization header");
         }
 
-        TTokenCredentials credentials;
-        credentials.UserIP = userIP;
-        credentials.Token = authorizationHeader->substr(prefix.size());
-        tokenHash = GetCryptoHash(credentials.Token);
+        TTokenCredentials credentials{
+            .Token = authorizationHeader->substr(Prefix.size()),
+            .UserIP = userIP
+        };
+
         if (!credentials.Token.empty()) {
+            if (!TokenAuthenticator_) {
+                return TError(
+                    NRpc::EErrorCode::InvalidCredentials,
+                    "Client has provided a token but no token authenticator is configured");
+            }
+
             auto rsp = WaitFor(TokenAuthenticator_->Authenticate(credentials));
             if (!rsp.IsOK()) {
                 return TError(rsp);
-            } else {
-                return TAuthenticationResultAndToken{rsp.Value(), tokenHash};
             }
+            
+            auto tokenHash = GetCryptoHash(credentials.Token);
+            return TAuthenticationResultAndToken{rsp.Value(), tokenHash};
         }
     }
 
-    auto cookieHeader = request->GetHeaders()->Find("Cookie");
-    if (cookieHeader) {
+    static const TString CookieHeaderName("Cookie");
+    if (auto cookieHeader = request->GetHeaders()->Find(CookieHeaderName)) {
         auto cookies = ParseCookies(*cookieHeader);
 
         TCookieCredentials credentials;
         credentials.UserIP = userIP;
-        if (cookies.find("Session_id") == cookies.end()) {
-            return TError(NRpc::EErrorCode::InvalidCredentials, "Request is missing \"Session_id\" cookie");
+        static const TString SessionIdCookieName("Session_id");
+        auto sessionIdIt = cookies.find(SessionIdCookieName);
+        if (sessionIdIt == cookies.end()) {
+            return TError(
+                NRpc::EErrorCode::InvalidCredentials,
+                "Request is missing %Qv cookie",
+                SessionIdCookieName);
         }
-        credentials.SessionId = cookies["Session_id"];
+        credentials.SessionId = sessionIdIt->second;
 
-        if (cookies.find("sessionid2") != cookies.end()) {
-            credentials.SslSessionId = cookies["sessionid2"];
+        static const TString SessionId2CookieName("sessionid2");
+        auto sessionId2It = cookies.find(SessionId2CookieName);
+        if (sessionId2It != cookies.end()) {
+            credentials.SslSessionId = sessionId2It->second;
+        }
+
+        if (!CookieAuthenticator_) {
+            return TError(
+                NRpc::EErrorCode::InvalidCredentials,
+                "Client has provided a cookie but not cookie authenticator is configured");
         }
 
         auto authResult = WaitFor(CookieAuthenticator_->Authenticate(credentials));
@@ -145,9 +166,12 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
 
         if (request->GetMethod() != EMethod::Get && !disableCsrfTokenCheck) {
-            auto csrfTokenHeader = request->GetHeaders()->Find("X-Csrf-Token");
+            static const TString CrfTokenHeaderName("X-Csrf-Token");
+            auto csrfTokenHeader = request->GetHeaders()->Find(CrfTokenHeaderName);
             if (!csrfTokenHeader) {
-                return TError(NRpc::EErrorCode::InvalidCredentials, "CSRF token is missing");
+                return TError(
+                    NRpc::EErrorCode::InvalidCredentials,
+                    "CSRF token is missing");
             }
 
             auto error = CheckCsrfToken(
@@ -156,16 +180,20 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
                 Config_->GetCsrfSecret(),
                 Config_->GetCsrfTokenExpirationTime());
 
-            auto dynamicConfig = Coordinator_->GetDynamicConfig();
-            if (!error.IsOK() && !dynamicConfig->RelaxCsrfCheck) {
-                return error;
+            if (Coordinator_) {
+                auto dynamicConfig = Coordinator_->GetDynamicConfig();
+                if (!error.IsOK() && !dynamicConfig->RelaxCsrfCheck) {
+                    return error;
+                }
             }
         }
 
-        return TAuthenticationResultAndToken{authResult.Value(), tokenHash};
+        return TAuthenticationResultAndToken{authResult.Value(), TString()};
     }
 
-    return TError(NRpc::EErrorCode::InvalidCredentials, "Client is missing credentials");
+    return TError(
+        NRpc::EErrorCode::InvalidCredentials,
+        "Client is missing credentials");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

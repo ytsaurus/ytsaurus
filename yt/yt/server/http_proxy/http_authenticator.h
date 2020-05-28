@@ -44,10 +44,9 @@ public:
 
 private:
     const NAuth::TAuthenticationManagerConfigPtr Config_;
-
-    NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
-    NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
-    TCoordinatorPtr Coordinator_;
+    const NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
+    const NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
+    const TCoordinatorPtr Coordinator_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
