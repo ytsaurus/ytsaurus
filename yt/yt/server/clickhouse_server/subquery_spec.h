@@ -26,8 +26,6 @@ public:
     TQueryId InitialQueryId;
     TString InitialQuery;
     NTableClient::TTableSchema ReadSchema;
-    // TODO(max42): CHYT-154.
-    NYson::TYsonString MembershipHint;
     int SubqueryIndex;
     int TableIndex;
 };

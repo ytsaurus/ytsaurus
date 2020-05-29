@@ -2,8 +2,8 @@
 
 #include <yt/core/ytree/public.h>
 
-#include <contrib/libs/poco/Util/include/Poco/Util/AbstractConfiguration.h>
-#include <contrib/libs/poco/Util/include/Poco/Util/LayeredConfiguration.h>
+#include <Poco/Util/AbstractConfiguration.h>
+#include <Poco/Util/LayeredConfiguration.h>
 
 namespace NYT::NClickHouseServer {
 

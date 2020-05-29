@@ -61,7 +61,7 @@ IClusterNodePtr CreateClusterNode(TClusterNodeName name, const DB::Settings& set
         name.Host,
         name.Port,
         "" /* defaultDatabase */,
-        "" /* user */,
+        std::string(InternalRemoteUserName.data()) /* user */,
         "" /* password */,
         "server",
         Protocol::Compression::Enable,

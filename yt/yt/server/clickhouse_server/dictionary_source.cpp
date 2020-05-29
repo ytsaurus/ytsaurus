@@ -152,7 +152,8 @@ void RegisterTableDictionarySource(THost* host)
         const Poco::Util::AbstractConfiguration& config,
         const std::string& dictSectionPath,
         DB::Block& sampleBlock,
-        const DB::Context& /* context */) -> DB::DictionarySourcePtr
+        const DB::Context& /* context */,
+        bool /* checkConfig */) -> DB::DictionarySourcePtr
     {
         const auto& path = TRichYPath::Parse(TString(config.getString(dictSectionPath + ".yt.path")));
         return std::make_unique<TTableDictionarySource>(

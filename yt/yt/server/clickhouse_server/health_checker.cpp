@@ -12,13 +12,14 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-#include <contrib/libs/clickhouse/dbms/src/Parsers/ParserQuery.h>
-#include <contrib/libs/clickhouse/dbms/src/Parsers/parseQuery.h>
+#include <Parsers/ParserQuery.h>
+#include <Parsers/parseQuery.h>
 
-#include <contrib/libs/clickhouse/dbms/src/Interpreters/ClientInfo.h>
-#include <contrib/libs/clickhouse/dbms/src/Interpreters/InterpreterSelectWithUnionQuery.h>
+#include <Interpreters/ClientInfo.h>
+#include <Interpreters/InterpreterSelectWithUnionQuery.h>
 
-#include <contrib/libs/clickhouse/dbms/src/Core/Types.h>
+#include <Core/Types.h>
+
 
 namespace NYT::NClickHouseServer {
 
@@ -53,11 +54,11 @@ DB::Context PrepareContextForQuery(
 
     contextForQuery.setUser(dataBaseUser,
         /*password =*/"",
-        Poco::Net::SocketAddress(),
-        /*quotaKey =*/"");
+        Poco::Net::SocketAddress());
 
-    contextForQuery.getSettingsRef().max_execution_time.set(
-        Poco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond()));
+    auto settings = contextForQuery.getSettings();
+    settings.max_execution_time.set(Poco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond()));
+    contextForQuery.setSettings(settings);
 
     auto queryId = TQueryId::Create();
 
@@ -104,7 +105,8 @@ void THealthChecker::ExecuteQuery(const TString& query)
         query.begin(),
         query.end(),
         /*description =*/"HealthCheckerQuery",
-        /*maxQuerySize =*/0);
+        /*maxQuerySize =*/0,
+        /*maxParserDepth =*/DBMS_DEFAULT_MAX_PARSER_DEPTH);
 
     NDetail::ValidateQueryResult(DB::InterpreterSelectWithUnionQuery(
         querySyntaxTree,

@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <server/IServer.h>
+#include <Server/IServer.h>
 
 #include <Poco/Net/HTTPRequestHandlerFactory.h>
 

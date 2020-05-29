@@ -66,10 +66,14 @@ public:
 
     EQueryPhase GetQueryPhase() const;
 
+    int RegisterStorageDistributor();
+
 private:
     NTracing::TTraceContextGuard TraceContextGuard_;
 
     TInstant StartTime_;
+
+    int StorageDistributorCount_ = 0;
 
     mutable TSpinLock PhaseLock_;
     std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};

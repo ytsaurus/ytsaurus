@@ -145,6 +145,11 @@ public:
         return CreateStorageDistributor(queryContext, std::move(tables));
     }
 
+    virtual const char* getStorageTypeName() const override
+    {
+        return "YT";
+    }
+
 private:
     std::vector<TRichYPath> EvaluateArguments(
         TArguments& arguments,
@@ -219,6 +224,11 @@ public:
         });
 
         return CreateStorageDistributor(queryContext, std::move(tables));
+    }
+
+    virtual const char* getStorageTypeName() const override
+    {
+        return "YT";
     }
 
 protected:
@@ -376,8 +386,7 @@ void RegisterConcatenatingTableFunctions()
 #define REGISTER_TABLE_FUNCTION(TFunction) \
     factory.registerFunction( \
         TFunction::GetName(), \
-        [=] { return std::make_shared<TFunction>(); } \
-        ); \
+        [=] { return std::make_shared<TFunction>(); }); \
 
     REGISTER_TABLE_FUNCTION(TConcatenateTablesList);
     REGISTER_TABLE_FUNCTION(TConcatenateTablesRange);

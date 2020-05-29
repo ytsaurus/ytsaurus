@@ -70,7 +70,6 @@ public:
 
     void SaveQueryRegistryState();
 
-    std::unique_ptr<DB::IUsersManager> CreateUsersManager() const;
     void PopulateSystemDatabase(DB::IDatabase* systemDatabase) const;
     std::shared_ptr<DB::IDatabase> CreateYtDatabase() const;
     void SetContext(DB::Context* context);

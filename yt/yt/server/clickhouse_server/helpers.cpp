@@ -26,6 +26,9 @@
 #include <Parsers/IAST.h>
 #include <Parsers/formatAST.h>
 
+#include <Access/AccessControlManager.h>
+#include <Access/User.h>
+
 namespace NYT::NClickHouseServer {
 
 using namespace DB;
@@ -45,20 +48,27 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, DB::Field* field)
+TGuid ToGuid(DB::UUID uuid)
 {
-    for (auto* value = row.Begin(); value != row.End(); ) {
-        *(field++) = ConvertToField(*(value++));
-    }
+    TGuid result;
+    memcpy(&result, &uuid, sizeof(uuid));
+    return result;
 }
 
-void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, int count, DB::Field* field)
+////////////////////////////////////////////////////////////////////////////////
+
+void RegisterNewUser(DB::AccessControlManager& accessControlManager, TString userName)
 {
-    auto* value = row.Begin();
-    for (int index = 0; index < count; ++index) {
-        *(field++) = ConvertToField(*(value++));
-    }
+    auto user = std::make_unique<DB::User>();
+    user->setName(userName);
+    user->access.grant(DB::AccessFlags::allFlags(), "YT" /* database */);
+    user->access.grant(DB::AccessType::CREATE_TEMPORARY_TABLE);
+    user->access.grant(DB::AccessType::dictGet);
+
+    accessControlManager.tryInsert(std::move(user));
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 Field ConvertToField(const NTableClient::TUnversionedValue& value)
 {
@@ -90,7 +100,7 @@ void ConvertToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
         case EValueType::Int64:
         case EValueType::Uint64:
         case EValueType::Double: {
-            memcpy(&value->Data, &field.get<ui64>(), sizeof(value->Data));
+            memcpy(&value->Data, &field.reinterpret<ui64>(), sizeof(value->Data));
             break;
         }
         case EValueType::Boolean: {
@@ -213,7 +223,6 @@ THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters&
         ProfileEvents::InsertedRows,
         ProfileEvents::InsertedBytes,
         ProfileEvents::ContextLock,
-        ProfileEvents::NetworkErrors,
         ProfileEvents::RealTimeMicroseconds,
         ProfileEvents::UserTimeMicroseconds,
         ProfileEvents::SystemTimeMicroseconds,

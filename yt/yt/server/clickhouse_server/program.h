@@ -23,8 +23,6 @@
 #include <util/system/env.h>
 #include <util/system/hostname.h>
 
-#include <Common/config_version.h>
-
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -89,7 +87,6 @@ private:
         ConfigureSignals();
         // NB: ConfigureCrashHandler() is not called intentionally; crash handlers is set up in bootstrap.
         ConfigureExitZeroOnSigterm();
-        EnablePhdrCache();
         EnableRefCountedTrackerProfiling();
         NYTAlloc::EnableYTLogging();
         NYTAlloc::EnableYTProfiling();
@@ -165,8 +162,7 @@ private:
 
     void PrintClickHouseVersionAndExit() const
     {
-        Cout << VERSION_DESCRIBE << Endl;
-        Cout << VERSION_GITHASH << Endl;
+        Cout << VERSION_STRING << Endl;
         _exit(0);
     }
 

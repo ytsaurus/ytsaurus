@@ -9,7 +9,6 @@
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
 #include <Parsers/ASTTablesInSelectQuery.h>
@@ -18,7 +17,11 @@
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTFunction.h>
 #include <Interpreters/DatabaseAndTableWithAlias.h>
-#include <Interpreters/SyntaxAnalyzer.h>
+#include <Interpreters/DatabaseCatalog.h>
+#include <Interpreters/IdentifierSemantic.h>
+#include <Interpreters/TableJoin.h>
+#include <Interpreters/ExpressionActions.h>
+#include <Interpreters/TranslateQualifiedNamesVisitor.h>
 
 #include <library/cpp/string_utils/base64/base64.h>
 
@@ -28,6 +31,7 @@ using namespace NChunkPools;
 using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NYPath;
+using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,16 +57,15 @@ void FillDataSliceDescriptors(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQueryInfo& queryInfo)
+TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQueryInfo& queryInfo, const TLogger& logger)
     : Context_(context)
     , QueryInfo_(queryInfo)
-    , Logger(GetQueryContext(context)->Logger)
+    , Logger(logger)
 { }
 
 void TQueryAnalyzer::ValidateKeyColumns()
 {
     const auto& analyzedJoin = QueryInfo_.syntax_analyzer_result->analyzed_join;
-    YT_VERIFY(Storages_.size() == 2);
     YT_VERIFY(Storages_[0]);
 
     struct TJoinArgument
@@ -104,9 +107,9 @@ void TQueryAnalyzer::ValidateKeyColumns()
     YT_VERIFY(joinArguments.size() >= 1);
     YT_VERIFY(joinArguments.size() <= 2);
 
-    auto extractColumnNames = [] (const DB::ASTs& keyAsts) {
+    auto extractColumnNames = [] (const DB::ASTPtr& listAst) {
         std::vector<TString> result;
-        for (const auto& keyAst : keyAsts) {
+        for (const auto& keyAst : listAst->children) {
             if (auto* identifier = keyAst->as<DB::ASTIdentifier>()) {
                 result.emplace_back(identifier->shortName());
             } else {
@@ -117,9 +120,13 @@ void TQueryAnalyzer::ValidateKeyColumns()
         return result;
     };
 
-    joinArguments[0].JoinColumns = extractColumnNames(analyzedJoin.key_asts_left);
+    joinArguments[0].JoinColumns = extractColumnNames(analyzedJoin->leftKeysList());
     if (static_cast<int>(joinArguments.size()) == 2) {
-        joinArguments[1].JoinColumns = extractColumnNames(analyzedJoin.key_asts_right);
+        if (analyzedJoin->hasOn()) {
+            joinArguments[1].JoinColumns = extractColumnNames(analyzedJoin->rightKeysList());
+        } else {
+            joinArguments[1].JoinColumns = joinArguments[0].JoinColumns;
+        }
     }
 
     // Check that join columns occupy prefixes of the key columns.
@@ -225,17 +232,47 @@ void TQueryAnalyzer::ParseQuery()
     // More than 2 tables are not supported in CH yet.
     YT_VERIFY(TableExpressions_.size() <= 2);
 
-    for (const auto& tableExpression : TableExpressions_) {
-        auto& storage = Storages_.emplace_back(GetStorage(tableExpression));
-        if (storage) {
-            YT_LOG_DEBUG("Table expression corresponds to TStorageDistributor (TableExpression: %v)",
+    for (size_t tableExpressionIndex = 0; tableExpressionIndex < TableExpressions_.size(); ++tableExpressionIndex) {
+        const auto& tableExpression = TableExpressions_[tableExpressionIndex];
+
+        if (tableExpressionIndex == 1 && GlobalJoin_) {
+            // Table expression is the one replaced in GlobalSubqueriesVisitor
+            // (like _data1 or sometimes just original table alias which now stands for external table).
+            YT_LOG_DEBUG("Skipping table expression 1 due to global join (TableExpression: %v)",
                 static_cast<DB::IAST&>(*tableExpression));
-            ++YtTableCount_;
         } else {
-            YT_LOG_DEBUG("Table expression does not correspond to TStorageDistributor (TableExpression: %v)",
-                static_cast<DB::IAST&>(*tableExpression));
+            auto& storage = Storages_.emplace_back(GetStorage(tableExpression));
+            if (storage) {
+                YT_LOG_DEBUG("Table expression corresponds to TStorageDistributor (TableExpression: %v)",
+                    static_cast<DB::IAST&>(*tableExpression));
+                ++YtTableCount_;
+            } else {
+                YT_LOG_DEBUG("Table expression does not correspond to TStorageDistributor (TableExpression: %v)",
+                    static_cast<DB::IAST&>(*tableExpression));
+            }
+        }
+
+        if (Join_) {
+            // Validate that if join is present, all table expressions have aliases.
+            DB::ASTWithAlias* astWithAlias = nullptr;
+            if (tableExpression->database_and_table_name) {
+                astWithAlias = dynamic_cast<DB::ASTWithAlias*>(tableExpression->database_and_table_name.get());
+            } else if (tableExpression->table_function) {
+                astWithAlias = dynamic_cast<DB::ASTWithAlias*>(tableExpression->table_function.get());
+            } else if (tableExpression->subquery) {
+                astWithAlias = dynamic_cast<DB::ASTWithAlias*>(tableExpression->subquery.get());
+            } else {
+                YT_VERIFY(false);
+            }
+            YT_VERIFY(astWithAlias);
+            if (astWithAlias->alias.empty()) {
+                THROW_ERROR_EXCEPTION("In queries with JOIN all joined expressions should be provided with aliases")
+                    << TErrorAttribute("table_expression", ToString(static_cast<DB::IAST&>(*tableExpression)))  ;
+            }
         }
     }
+
+    YT_VERIFY(YtTableCount_ > 0);
 
     if (YtTableCount_ == 2) {
         YT_LOG_DEBUG("Query is a two-YT-table join");
@@ -283,7 +320,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
 
     if (TwoYTTableJoin_ || RightOrFullJoin_) {
         result.PoolKind = EPoolKind::Sorted;
-        result.KeyColumnCount = QueryInfo_.syntax_analyzer_result->analyzed_join.key_names_left.size();
+        result.KeyColumnCount = QueryInfo_.syntax_analyzer_result->analyzed_join->leftKeysList()->children.size();
     } else {
         result.PoolKind = EPoolKind::Unordered;
     }
@@ -312,7 +349,8 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
     }
 
     YT_LOG_DEBUG(
-        "Rewriting query (ThreadSubqueryCount: %v, TotalDataWeight: %v, TotalRowCount: %v, TotalChunkCount: %v)",
+        "Rewriting query (YtTableCount: %v, ThreadSubqueryCount: %v, TotalDataWeight: %v, TotalRowCount: %v, TotalChunkCount: %v)",
+        YtTableCount_,
         threadSubqueries.size(),
         totalDataWeight,
         totalRowCount,
@@ -344,7 +382,12 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
         auto tableFunction = makeASTFunction("ytSubquery", std::make_shared<DB::ASTLiteral>(std::string(encodedSpec.data())));
 
         if (tableExpression->database_and_table_name) {
-            tableFunction->alias = static_cast<DB::ASTWithAlias&>(*tableExpression->database_and_table_name).alias;
+            DB::DatabaseAndTableWithAlias databaseAndTable(tableExpression->database_and_table_name);
+            if (!databaseAndTable.alias.empty()) {
+                tableFunction->alias = databaseAndTable.alias;
+            } else {
+                tableFunction->alias = databaseAndTable.table;
+            }
         } else {
             tableFunction->alias = static_cast<DB::ASTWithAlias&>(*tableExpression->table_function).alias;
         }
@@ -383,6 +426,11 @@ DB::ASTPtr TQueryAnalyzer::RewriteQuery(
 
     RollbackModifications();
 
+    YT_LOG_TRACE("Restoring qualified names (QueryBefore: %v)", *result);
+
+    DB::RestoreQualifiedNamesVisitor::Data data;
+    DB::RestoreQualifiedNamesVisitor(data).visit(result);
+
     YT_LOG_DEBUG("Query rewritten (NewQuery: %v)", *result);
 
     return result;
@@ -398,7 +446,10 @@ std::shared_ptr<IStorageDistributor> TQueryAnalyzer::GetStorage(const DB::ASTTab
         storage = const_cast<DB::Context&>(Context_.getQueryContext()).executeTableFunction(tableExpression->table_function);
     } else if (tableExpression->database_and_table_name) {
         auto databaseAndTable = DB::DatabaseAndTableWithAlias(tableExpression->database_and_table_name);
-        storage = const_cast<DB::Context&>(Context_).getTable(databaseAndTable.database, databaseAndTable.table);
+        if (databaseAndTable.database.empty()) {
+            databaseAndTable.database = "YT";
+        }
+        storage = DB::DatabaseCatalog::instance().getTable({databaseAndTable.database, databaseAndTable.table}, Context_);
     }
 
     return std::dynamic_pointer_cast<IStorageDistributor>(storage);
@@ -430,7 +481,7 @@ void TQueryAnalyzer::AppendWhereCondition(
     std::optional<TUnversionedOwningRow> lowerLimit,
     std::optional<TUnversionedOwningRow> upperLimit)
 {
-    auto keyAsts = QueryInfo_.syntax_analyzer_result->analyzed_join.key_asts_right;
+    auto keyAsts = QueryInfo_.syntax_analyzer_result->analyzed_join->leftKeysList()->children;
     int length = keyAsts.size();
     YT_LOG_DEBUG("Appending where-condition (LowerLimit: %v, UpperLimit: %v)", lowerLimit, upperLimit);
 
@@ -508,6 +559,11 @@ void TQueryAnalyzer::AppendWhereCondition(
 
     if (conjunctionArgs.empty()) {
         return;
+    }
+
+    // TODO(max42): why do we need this?
+    for (auto& arg : conjunctionArgs) {
+        arg = createFunction("assumeNotNull", {std::move(arg)});
     }
 
     DB::ASTPtr newWhere;
