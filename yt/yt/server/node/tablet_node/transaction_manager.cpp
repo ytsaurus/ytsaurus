@@ -152,6 +152,7 @@ public:
             BIND(&TImpl::SaveAsync, Unretained(this)));
 
         RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActionsCompat, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraHandleTransactionBarrier, Unretained(this)));
 
         OrchidService_ = IYPathService::FromProducer(BIND(&TImpl::BuildOrchidYson, MakeWeak(this)), TDuration::Seconds(1))
@@ -888,6 +889,18 @@ private:
         }
 
         transaction->SetPersistentSignature(transaction->GetPersistentSignature() + signature);
+    }
+
+    // COMPAT(babenko)
+    void HydraRegisterTransactionActionsCompat(NTabletClient::NProto::TReqRegisterTransactionActions* request)
+    {
+        NTabletNode::NProto::TReqRegisterTransactionActions newRequest;
+        newRequest.mutable_transaction_id()->CopyFrom(request->transaction_id());
+        newRequest.set_transaction_start_timestamp(request->transaction_start_timestamp());
+        newRequest.set_transaction_timeout(request->transaction_timeout());
+        newRequest.set_signature(request->signature());
+        newRequest.mutable_actions()->CopyFrom(request->actions());
+        HydraRegisterTransactionActions(&newRequest);
     }
 
     void HydraHandleTransactionBarrier(NTabletNode::NProto::TReqHandleTransactionBarrier* request)
