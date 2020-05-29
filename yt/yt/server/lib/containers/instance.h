@@ -4,6 +4,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/net/address.h>
+
 namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -50,8 +52,7 @@ struct IInstance
     virtual void SetIsolate(bool isolate) = 0;
     virtual void EnableMemoryTracking() = 0;
     virtual void SetUser(const TString& user) = 0;
-    virtual void SetNet(const TString& net) = 0;
-    virtual void SetIP(const TString& ip) = 0;
+    virtual void SetIPAddresses(const std::vector<NNet::TIP6Address>& addresses) = 0;
     virtual void SetHostName(const TString& hostName) = 0;
 
     //! Returns externally visible pid of the root proccess inside container.

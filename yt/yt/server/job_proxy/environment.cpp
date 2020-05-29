@@ -542,17 +542,13 @@ public:
         }
 
         if (!options.NetworkAddresses.empty()) {
-            Instance_->SetNet("L3 veth0");
-
-            TString ipProperty;
-            for (const auto& networkAddress : options.NetworkAddresses) {
-                if (!ipProperty.empty()) {
-                    ipProperty += ";";
-                }
-                ipProperty += "veth0 " + ToString(networkAddress->Address);
-
+            std::vector<TIP6Address> addresses;
+            addresses.reserve(options.NetworkAddresses.size());
+            for (const auto& address : options.NetworkAddresses) {
+                addresses.push_back(address->Address);
             }
-            Instance_->SetIP(ipProperty);
+
+            Instance_->SetIPAddresses(addresses);
         }
 
         Instance_->SetEnablePorto(options.EnablePorto);
