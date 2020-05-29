@@ -347,6 +347,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestYPath)
     auto ypathService = GetDiscoveryServer()->GetYPathService();
 
     EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1"));
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@"));
     EXPECT_EQ(true, SyncYPathExists(ypathService, "/test/sample_group2"));
     EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1"));
     EXPECT_EQ(true, SyncYPathExists(ypathService, "/test/sample_group2/sample_member2"));
@@ -354,6 +355,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestYPath)
     EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group2"));
     EXPECT_EQ(false, SyncYPathExists(ypathService, "/test/sample_group1"));
 
+    EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@"));
     EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@priority"));
     EXPECT_EQ(false, SyncYPathExists(ypathService, "/sample_group1/sample_member1/@priority/aa"));
 
@@ -363,10 +365,21 @@ TEST_F(TDiscoveryServiceTestSuite, TestYPath)
         EXPECT_EQ((std::vector<TString>{"sample_group1", "test"}), result);
     }
 
-    EXPECT_EQ((std::vector<TString>{"sample_member1"}), SyncYPathList(ypathService, "/sample_group1"));
+    {
+        auto result = SyncYPathList(ypathService, "/@");
+        std::sort(result.begin(), result.end());
+        EXPECT_EQ((std::vector<TString>{"child_count", "id", "type"}), result);
+    }
 
     {
-        auto result = SyncYPathList(ypathService, "/sample_group1/sample_member1");
+        auto result = SyncYPathList(ypathService, "/sample_group1/@");
+        std::sort(result.begin(), result.end());
+        EXPECT_EQ((std::vector<TString>{"child_count", "id", "type"}), result);
+    }
+
+    EXPECT_EQ((std::vector<TString>{"sample_member1"}), SyncYPathList(ypathService, "/sample_group1"));
+    {
+        auto result = SyncYPathList(ypathService, "/sample_group1/sample_member1/@");
         std::vector<TString> expected{"priority", "revision", "last_heartbeat_time", "last_attributes_update_time"};
         EXPECT_EQ(expected, result);
     }
@@ -411,6 +424,40 @@ TEST_F(TDiscoveryServiceTestSuite, TestYPath)
     EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@child_count"));
     EXPECT_EQ(true, SyncYPathExists(ypathService, "/sample_group1/@type"));
     EXPECT_EQ(ConvertToYsonString("group", EYsonFormat::Binary), SyncYPathGet(ypathService, "/sample_group1/@type"));
+}
+
+TEST_F(TDiscoveryServiceTestSuite, TestGroupRemoval)
+{
+    TString groupId1 = "/sample_group1";
+    TString memberId1 = "sample_member1";
+
+    TString groupId2 = "/sample_group2";
+    TString memberId2 = "sample_member2";
+
+    auto memberClient1 = CreateMemberClient(groupId1, memberId1);
+    memberClient1->Start();
+
+    auto memberClient2 = CreateMemberClient(groupId2, memberId2);
+    memberClient2->Start();
+
+    Sleep(TDuration::Seconds(5));
+
+    auto ypathService = GetDiscoveryServer()->GetYPathService();
+
+    {
+        auto result = SyncYPathList(ypathService, "/");
+        std::sort(result.begin(), result.end());
+        EXPECT_EQ((std::vector<TString>{"sample_group1", "sample_group2"}), result);
+    }
+
+    memberClient1->Stop();
+    Sleep(TDuration::Seconds(5));
+
+    {
+        auto result = SyncYPathList(ypathService, "/");
+        std::sort(result.begin(), result.end());
+        EXPECT_EQ((std::vector<TString>{"sample_group2"}), result);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

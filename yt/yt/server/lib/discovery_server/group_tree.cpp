@@ -144,6 +144,15 @@ public:
         NYPath::TTokenizer tokenizer(unresolvedPath);
 
         tokenizer.Advance();
+        if (tokenizer.GetType() == NYPath::ETokenType::At) {
+            tokenizer.Advance();
+            tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+            return BuildYsonStringFluently()
+                .Do([&, node=node] (TFluentAny fluent) {
+                    ListNodeAttributes(node, fluent);
+                });
+        }
+
         tokenizer.Expect(NYPath::ETokenType::Literal);
         const auto& key = tokenizer.GetLiteralValue();
 
@@ -157,20 +166,38 @@ public:
         auto member = group->GetMemberOrThrow(key);
 
         tokenizer.Advance();
-        tokenizer.Expect(NYPath::ETokenType::EndOfStream);
+        tokenizer.Expect(NYPath::ETokenType::Slash);
+        tokenizer.Advance();
+        tokenizer.Expect(NYPath::ETokenType::At);
+        tokenizer.Advance();
 
         auto reader = member->CreateReader();
         auto* attributes = reader.GetAttributes();
-        return BuildYsonStringFluently()
-            .BeginList()
-                .Item().Value(PriorityAttribute)
-                .Item().Value(RevisionAttribute)
-                .Item().Value(LastHeartbeatTimeAttribute)
-                .Item().Value(LastAttributesUpdateTimeAttribute)
-                .DoFor(attributes->ListKeys(), [] (TFluentList fluent, const auto& value) {
-                    fluent.Item().Value(value);
-                })
-            .EndList();
+
+        if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+            return BuildYsonStringFluently()
+                .Do([&] (TFluentAny fluent) {
+                    ListMemberAttributes(member, fluent);
+                });
+        }
+
+        tokenizer.Expect(NYPath::ETokenType::Literal);
+        auto attributeKey = tokenizer.GetLiteralValue();
+        tokenizer.Advance();
+
+        auto internedKey = TInternedAttributeKey::Lookup(attributeKey);
+        if (internedKey == EInternedAttributeKey::Id ||
+            internedKey == EInternedAttributeKey::ChildCount ||
+            internedKey == EInternedAttributeKey::Type)
+        {
+            THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError,
+                "Cannot set system attribute %Qv",
+                attributeKey);
+        }
+
+        const auto& value = attributes->GetYson(attributeKey);
+        auto valueNode = ConvertToNode(value);
+        return ConvertToYsonString(SyncYPathList(valueNode, ToString(tokenizer.GetInput())));
     }
 
     TYsonString Get(const TYPath& path)
@@ -184,7 +211,10 @@ public:
             if (group) {
                 return BuildYsonStringFluently()
                     .DoListFor(group->ListMembers(), [&] (TFluentList fluent, const auto& member) {
-                        WriteMemberAttributes(member, fluent);
+                        fluent
+                            .Item().Do([&] (TFluentAny fluent) {
+                                WriteMemberAttributes(member, fluent);
+                            });
                     });
             }
 
@@ -192,11 +222,9 @@ public:
                 .DoListFor(node->GetChildren(), [&] (TFluentList fluent, const auto& item) {
                     const auto& child = item.second;
                     fluent
-                        .Item().BeginMap()
-                            .Item(EInternedAttributeKey::Id.Unintern()).Value(child->GetKey())
-                            .Item(EInternedAttributeKey::Type.Unintern()).Value(GetNodeType(child))
-                            .Item(EInternedAttributeKey::ChildCount.Unintern()).Value(GetNodeCount(child))
-                        .EndMap();
+                        .Item().Do([&] (TFluentAny fluent) {
+                            WriteNodeAttributes(child, fluent);
+                        });
                 });
         }
 
@@ -216,13 +244,21 @@ public:
 
                 if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                     return BuildYsonStringFluently()
-                        .DoList(BIND(&TImpl::WriteMemberAttributes, Unretained(this), member));
+                        .BeginList()
+                            .Item()
+                            .Do(BIND(&TImpl::WriteMemberAttributes, Unretained(this), member))
+                        .EndList();
                 }
 
                 tokenizer.Expect(NYPath::ETokenType::Slash);
                 tokenizer.Advance();
                 tokenizer.Expect(NYPath::ETokenType::At);
                 tokenizer.Advance();
+
+                if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+                    return BuildYsonStringFluently()
+                        .Do(BIND(&TImpl::WriteMemberAttributes, Unretained(this), member));
+                }
                 tokenizer.Expect(NYPath::ETokenType::Literal);
 
                 auto attributeKey = tokenizer.GetLiteralValue();
@@ -265,6 +301,10 @@ public:
 
             case NYPath::ETokenType::At: {
                 tokenizer.Advance();
+                if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+                    return BuildYsonStringFluently()
+                        .Do(BIND(&TImpl::WriteNodeAttributes, Unretained(this), node));
+                }
                 tokenizer.Expect(NYPath::ETokenType::Literal);
 
                 auto attributeKey = tokenizer.GetLiteralValue();
@@ -325,6 +365,9 @@ public:
                 tokenizer.Advance();
                 tokenizer.Expect(NYPath::ETokenType::At);
                 tokenizer.Advance();
+                if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+                    return true;
+                }
                 tokenizer.Expect(NYPath::ETokenType::Literal);
 
                 auto attributeKey = tokenizer.GetLiteralValue();
@@ -350,6 +393,9 @@ public:
 
             case NYPath::ETokenType::At: {
                 tokenizer.Advance();
+                if (tokenizer.GetType() == NYPath::ETokenType::EndOfStream) {
+                    return true;
+                }
                 tokenizer.Expect(NYPath::ETokenType::Literal);
 
                 auto attributeKey = tokenizer.GetLiteralValue();
@@ -399,26 +445,29 @@ public:
             return result;
         }
 
-        // Slow path.
-        {
-            NConcurrency::TWriterGuard guard(Lock_);
-            for (const auto& id : nonexistingGroupIds) {
-                if (result.contains(id)) {
-                    continue;
-                }
+        auto createGroup = [&] (const TGroupId& id) {
                 NYPath::TTokenizer tokenizer(id);
                 TString key;
                 auto currentNode = Root_;
                 for (auto token = tokenizer.Advance(); token != NYPath::ETokenType::EndOfStream; token = tokenizer.Advance()) {
                     if (currentNode->GetGroup()) {
-                        THROW_ERROR_EXCEPTION("Cannot create group %Qv since the prefix %v of its path matches the path of another group",
+                        YT_LOG_WARNING("Cannot create group since the prefix of its path matches the path of another group (GroupId: %v, Prefix: %v)",
                             id,
                             currentNode->GetPath());
+                        RemovePath(id, currentNode);
+                        return;
                     }
 
-                    tokenizer.Expect(NYPath::ETokenType::Slash);
-                    token = tokenizer.Advance();
-                    tokenizer.Expect(NYPath::ETokenType::Literal);
+                    if (tokenizer.GetType() != NYPath::ETokenType::Slash) {
+                        YT_LOG_WARNING("Invalid group id (GroupId: %v)", id);
+                        RemovePath(id, currentNode);
+                        return;
+                    }
+                    if (tokenizer.Advance() != NYPath::ETokenType::Literal) {
+                        YT_LOG_WARNING("Invalid group id (GroupId: %v)", id);
+                        RemovePath(id, currentNode);
+                        return;
+                    }
 
                     key = tokenizer.GetLiteralValue();
 
@@ -436,7 +485,9 @@ public:
                 }
 
                 if (currentNode->GetChildCount() > 0) {
-                    THROW_ERROR_EXCEPTION("Cannot create group %v since its path matches the prefix of another group's path", id);
+                    YT_LOG_WARNING("Cannot create group since its path matches the prefix of another group's path (GroupId: %v)", id);
+                    RemovePath(id, currentNode);
+                    return;
                 }
 
                 auto group = New<TGroup>(
@@ -445,6 +496,17 @@ public:
                     Logger);
                 currentNode->SetGroup(group);
                 YT_VERIFY(result.emplace(id, group).second);
+        };
+
+        // Slow path.
+        {
+            NConcurrency::TWriterGuard guard(Lock_);
+            for (const auto& id : nonexistingGroupIds) {
+                if (result.contains(id)) {
+                    continue;
+                }
+
+                createGroup(id);
             }
         }
         return result;
@@ -490,18 +552,54 @@ private:
         return {currentNode, ""};
     }
 
-    void WriteMemberAttributes(const TMemberPtr& member, TFluentList fluent)
+    void WriteMemberAttributes(const TMemberPtr& member, TFluentAny fluent)
     {
         auto reader = member->CreateReader();
         auto* attributes = reader.GetAttributes();
         fluent
-            .Item().BeginMap()
+            .BeginMap()
                 .Item(PriorityAttribute).Value(member->GetPriority())
                 .Item(RevisionAttribute).Value(reader.GetRevision())
                 .Item(LastHeartbeatTimeAttribute).Value(member->GetLastHeartbeatTime())
                 .Item(LastAttributesUpdateTimeAttribute).Value(member->GetLastAttributesUpdateTime())
                 .Items(*attributes)
             .EndMap();
+    }
+
+    void WriteNodeAttributes(const TGroupNodePtr& node, TFluentAny fluent)
+    {
+        fluent
+            .BeginMap()
+                .Item(EInternedAttributeKey::Id.Unintern()).Value(node->GetKey())
+                .Item(EInternedAttributeKey::Type.Unintern()).Value(GetNodeType(node))
+                .Item(EInternedAttributeKey::ChildCount.Unintern()).Value(GetNodeCount(node))
+            .EndMap();
+    }
+
+    void ListMemberAttributes(const TMemberPtr& member, TFluentAny fluent)
+    {
+        auto reader = member->CreateReader();
+        auto* attributes = reader.GetAttributes();
+        fluent
+            .BeginList()
+                .Item().Value(PriorityAttribute)
+                .Item().Value(RevisionAttribute)
+                .Item().Value(LastHeartbeatTimeAttribute)
+                .Item().Value(LastAttributesUpdateTimeAttribute)
+                .DoFor(attributes->ListKeys(), [] (TFluentList fluent, const auto& value) {
+                    fluent.Item().Value(value);
+                })
+            .EndList();
+    }
+
+    void ListNodeAttributes(const TGroupNodePtr& node, TFluentAny fluent)
+    {
+        fluent
+            .BeginList()
+                .Item().Value(EInternedAttributeKey::Id.Unintern())
+                .Item().Value(EInternedAttributeKey::Type.Unintern())
+                .Item().Value(EInternedAttributeKey::ChildCount.Unintern())
+            .EndList();
     }
 
     TStringBuf GetNodeType(const TGroupNodePtr& node)
@@ -535,18 +633,24 @@ private:
             return;
         }
 
-        auto currentPath = groupId;
-        while (node != Root_ && node->GetChildCount() > 0) {
-            YT_VERIFY(IdToNode_.erase(currentPath) > 0);
+        RemovePath(groupId, node);
+    }
+
+    void RemovePath(TGroupId path, TGroupNodePtr node)
+    {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(Lock_);
+
+        while (node != Root_ && node->GetChildCount() == 0) {
+            YT_VERIFY(IdToNode_.erase(path) > 0);
 
             auto key = node->GetKey();
             node = node->GetParent().Lock();
             if (!node) {
-                YT_LOG_WARNING("Parent node was already deleted (Path: %v)", currentPath);
+                YT_LOG_WARNING("Parent node was already deleted (Path: %v)", path);
                 break;
             }
             node->RemoveChild(key);
-            currentPath = node->GetPath();
+            path = node->GetPath();
         }
     }
 };
