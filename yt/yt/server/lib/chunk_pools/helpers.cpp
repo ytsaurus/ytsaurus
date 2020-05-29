@@ -117,47 +117,5 @@ void TSuspendableStripe::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBernoulliSampler::TBernoulliSampler(std::optional<double> samplingRate)
-{
-    if (samplingRate) {
-        SamplingRate_ = samplingRate;
-        Distribution_ = std::bernoulli_distribution(*samplingRate);
-    }
-}
-
-bool TBernoulliSampler::Sample()
-{
-    if (!SamplingRate_) {
-        return true;
-    }
-    return Distribution_(Generator_);
-}
-
-void TBernoulliSampler::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, SamplingRate_);
-    // TODO(max42): Understand which type properties should make this possible
-    // and fix TPodSerializer instead of doing this utter garbage.
-    #define SERIALIZE_AS_POD(field) do { \
-        std::vector<char> bytes; \
-        if (context.IsLoad()) { \
-            Persist(context, bytes); \
-            YT_VERIFY(sizeof(field) == bytes.size()); \
-            memcpy(&field, bytes.data(), sizeof(field)); \
-        } else { \
-            bytes.resize(sizeof(field)); \
-            memcpy(&field, bytes.data(), sizeof(field)); \
-            Persist(context, bytes); \
-        } \
-    } while (0)
-    SERIALIZE_AS_POD(Generator_);
-    SERIALIZE_AS_POD(Distribution_);
-    #undef SERIALIZE_AS_POD
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NChunkPools
 

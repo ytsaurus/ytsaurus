@@ -4,6 +4,8 @@
 
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 
+#include <yt/library/random/bernoulli_sampler.h>
+
 #include <yt/core/concurrency/periodic_yielder.h>
 
 namespace NYT::NChunkPools {
@@ -38,7 +40,7 @@ public:
         const TLogger& logger)
         : Options_(options)
         , JobSizeConstraints_(std::move(jobSizeConstraints))
-        , JobSampler_(New<TBernoulliSampler>(JobSizeConstraints_->GetSamplingRate()))
+        , JobSampler_(JobSizeConstraints_->GetSamplingRate())
         , RowBuffer_(rowBuffer)
         , TeleportChunks_(teleportChunks)
         , InSplit_(inSplit)
@@ -206,7 +208,7 @@ private:
     TSortedJobOptions Options_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
-    TBernoulliSamplerPtr JobSampler_;
+    TBernoulliSampler JobSampler_;
 
     TRowBufferPtr RowBuffer_;
 
@@ -393,7 +395,7 @@ private:
             // If current job does not contain primary data slices then we can re-use it,
             // otherwise we should create a new job.
             if (Jobs_.back()->GetSliceCount() > 0) {
-                if (JobSampler_->Sample()) {
+                if (JobSampler_.Sample()) {
                     YT_LOG_DEBUG("Sorted job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, PrimaryRowCount: %v, "
                         "PrimarySliceCount: %v, PreliminaryForeignDataSize: %v, PreliminaryForeignRowCount: %v, "
                         "PreliminaryForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",

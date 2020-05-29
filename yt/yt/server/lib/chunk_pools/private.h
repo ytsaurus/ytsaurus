@@ -27,8 +27,6 @@ DECLARE_REFCOUNTED_CLASS(TJobManager)
 
 DECLARE_REFCOUNTED_CLASS(TOutputOrder)
 
-DECLARE_REFCOUNTED_CLASS(TBernoulliSampler)
-
 struct IChunkPoolInput;
 struct IChunkPoolOutput;
 struct IChunkPool;

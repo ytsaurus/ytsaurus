@@ -34,6 +34,8 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JobTaskName)                          (300303))
     ((ApproximateColumnarStatistics)        (300304))
     ((AutoMergeEnabled)                     (300305))
+    // 20.3 start here
+    ((BernoulliSampler)                     (300306))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

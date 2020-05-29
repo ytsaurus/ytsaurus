@@ -10,6 +10,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/library/random/bernoulli_sampler.h>
+
 #include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/misc/numeric_helpers.h>
@@ -80,7 +82,7 @@ public:
         : OperationId_(options.OperationId)
         , Task_(options.Task)
         , JobSizeConstraints_(options.JobSizeConstraints)
-        , Sampler_(New<TBernoulliSampler>(JobSizeConstraints_->GetSamplingRate()))
+        , Sampler_(JobSizeConstraints_->GetSamplingRate())
         , Mode(options.Mode)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , MinTeleportChunkDataWeight_(options.MinTeleportChunkDataWeight)
@@ -544,7 +546,7 @@ private:
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
     //! Used both for stripe sampling and teleport chunk sampling.
-    TBernoulliSamplerPtr Sampler_;
+    TBernoulliSampler Sampler_;
     std::unique_ptr<IJobSizeAdjuster> JobSizeAdjuster;
 
     //! Indexes in #Stripes.
@@ -618,7 +620,7 @@ private:
                 chunk->GetDataWeight() >= MinTeleportChunkDataWeight_)) &&
                 InputStreamDirectory_.GetDescriptor(dataSlice->GetTableIndex()).IsTeleportable())
             {
-                if (Sampler_->Sample()) {
+                if (Sampler_.Sample()) {
                     TeleportChunks_.emplace_back(chunk);
                 } else {
                     // Drop this teleport chunk.
@@ -675,7 +677,7 @@ private:
 
     void AddStripe(const TChunkStripePtr& stripe)
     {
-        if (!Sampler_->Sample()) {
+        if (!Sampler_.Sample()) {
             return;
         }
 
