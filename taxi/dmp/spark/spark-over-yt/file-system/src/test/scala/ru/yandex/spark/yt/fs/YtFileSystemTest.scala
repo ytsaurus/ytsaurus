@@ -33,9 +33,7 @@ class YtFileSystemTest extends FlatSpec with Matchers with LocalYtClient with Tm
   }
 
   it should "listStatus" in {
-    println(tmpPath)
     YtWrapper.createDir(tmpPath)
-    println("created")
     YtWrapper.createDir(s"$tmpPath/1")
     YtWrapper.createDir(s"$tmpPath/2")
     YtWrapper.createFile(s"$tmpPath/3")

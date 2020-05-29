@@ -62,5 +62,10 @@ package object yt {
       val newColumn = column.as(name, metadata)
       df.withColumn(name, newColumn)
     }
+
+    def selectAs[S](implicit encoder: Encoder[S]): Dataset[S] = {
+      val names = encoder.schema.fieldNames
+      df.select(names.head, names.tail:_*).as[S]
+    }
   }
 }

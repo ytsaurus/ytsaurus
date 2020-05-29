@@ -8,7 +8,7 @@ import ru.yandex.spark.yt.wrapper.YtWrapper
 trait TmpDir extends BeforeAndAfterEach with BeforeAndAfterAll {
   self: TestSuite with LocalYtClient =>
 
-  def testDir: String = "//tmp/test"
+  def testDir: String = s"//tmp/test-${self.getClass.getCanonicalName}"
   val tmpPath = s"$testDir/test-${UUID.randomUUID()}"
 
 

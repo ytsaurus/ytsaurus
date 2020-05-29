@@ -8,7 +8,8 @@ import org.apache.spark.sql.catalyst.planning.PhysicalOperation
 import org.apache.spark.sql.catalyst.plans.logical.LogicalPlan
 import org.apache.spark.sql.execution.SparkPlan
 import org.apache.spark.sql.execution.datasources.{BucketingUtils, HadoopFsRelation, LogicalRelation}
-import org.apache.spark.sql.{Strategy, YtSourceScanExec, execution}
+import org.apache.spark.sql.yt.YtSourceScanExec
+import org.apache.spark.sql.{Strategy, execution}
 import org.apache.spark.util.collection.BitSet
 
 class YtSourceStrategy extends Strategy with Logging {

@@ -2,6 +2,7 @@ package ru.yandex.spark.yt
 
 import org.scalatest.TestSuite
 import ru.yandex.spark.yt.test.LocalYtClient
+import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client._
 
 import scala.concurrent.duration._
@@ -10,7 +11,11 @@ import scala.language.postfixOps
 trait HumeYtClient extends LocalYtClient {
   self: TestSuite =>
 
-  override protected def conf: YtClientConfiguration = YtClientConfiguration(
+  override protected lazy val ytClient: YtRpcClient = HumeYtClient.ytClient
+}
+
+object HumeYtClient {
+  val conf: YtClientConfiguration = YtClientConfiguration(
     proxy = "hume",
     user = DefaultRpcCredentials.user,
     token = DefaultRpcCredentials.token,
@@ -25,4 +30,6 @@ trait HumeYtClient extends LocalYtClient {
     ),
     masterWrapperUrl = None
   )
+
+  lazy val ytClient = YtWrapper.createRpcClient(conf)
 }

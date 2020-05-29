@@ -8,10 +8,14 @@ import ru.yandex.yt.ytclient.proxy.YtClient
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-trait LocalYtClient extends BeforeAndAfterAll {
+trait LocalYtClient {
   self: TestSuite =>
+  protected lazy val ytClient: YtRpcClient = LocalYtClient.ytClient
+  protected implicit lazy val yt: YtClient = ytClient.yt
+}
 
-  protected def conf: YtClientConfiguration = YtClientConfiguration(
+object LocalYtClient {
+  val conf: YtClientConfiguration = YtClientConfiguration(
     proxy = "localhost:8000",
     user = "root",
     token = "",
@@ -24,11 +28,5 @@ trait LocalYtClient extends BeforeAndAfterAll {
     masterWrapperUrl = None
   )
 
-  protected def ytClient: YtRpcClient = YtWrapper.createRpcClient(conf)
-  implicit val yt: YtClient = ytClient.yt
-
-  override protected def afterAll(): Unit = {
-    super.afterAll()
-    ytClient.close()
-  }
+  lazy val ytClient: YtRpcClient = YtWrapper.createRpcClient(conf)
 }

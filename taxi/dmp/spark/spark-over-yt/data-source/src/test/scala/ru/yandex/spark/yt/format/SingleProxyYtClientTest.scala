@@ -72,7 +72,7 @@ class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalSpark wit
       override def run(): Unit = {
         val deserialiser = InternalRowDeserializer.getOrCreate(eventLogSchema)
         val client = SingleProxyYtClient(addresses(1), DefaultRpcCredentials.credentials)
-        val res = readTable(s"//home/sashbel/data/eventlog[#0:#${1}]", deserialiser)(client).toList
+        val res = readTable(s"//home/sashbel/data/eventlog[#0:#${1}]", deserialiser, 1 minute)(client).toList
         println(res.length)
       }
     })
@@ -101,7 +101,7 @@ class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalSpark wit
         if (file.exists()) file.delete()
         val out = new FileWriter(new File("test"))
         try {
-          readTable(path, deserialiser)(client).foreach { row =>
+          readTable(path, deserialiser, 1 minute)(client).foreach { row =>
             out.write(row.toSeq(eventLogSchema).mkString(","))
           }
         } finally {
@@ -111,20 +111,20 @@ class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalSpark wit
     }
   }
 
-  it should "work with dev host" in {
+  it should "work with dev host" ignore {
     val deserialiser = InternalRowDeserializer.getOrCreate(eventLogSchema)
     val client = SingleProxyYtClient("sashbel-dev.man.yp-c.yandex.net:27002", DefaultRpcCredentials.credentials)
-    val res = readTable(s"//home/sashbel/data/eventlog[#0:#${1}]", deserialiser)(client).toList
+    val res = readTable(s"//home/sashbel/data/eventlog[#0:#${1}]", deserialiser, 1 minute)(client).toList
 
     println(res)
   }
 
-  it should "work with byop host" in {
+  it should "work with byop host" ignore {
     val deserialiser = InternalRowDeserializer.getOrCreate(eventLogSchema)
     val client = SingleProxyYtClient("man1-7550-acf.hume.yt.gencfg-c.yandex.net:27002", DefaultRpcCredentials.credentials)
 
     println(YtWrapper.exists("//home/sashbel")(client))
-    val res = readTable(s"//home/sashbel/data/eventlog[#0:#${1}]", deserialiser)(client).toList
+    val res = readTable(s"//home/sashbel/data/eventlog[#0:#${1}]", deserialiser, 1 minute)(client).toList
 
     println(res)
   }

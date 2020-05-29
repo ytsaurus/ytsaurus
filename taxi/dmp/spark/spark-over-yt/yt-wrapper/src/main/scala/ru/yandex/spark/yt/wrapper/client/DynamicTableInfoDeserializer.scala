@@ -1,9 +1,9 @@
-package ru.yandex.spark.yt.serializers
+package ru.yandex.spark.yt.utils
 
 import com.google.protobuf.ByteString
 
 object DynamicTableInfoDeserializer {
-  def deserializePivotKey(ser: ByteString): Seq[BigInt] = {
+  def deserializePivotKey(ser: ByteString): Seq[String] = {
     val bytes = ser.toByteArray
     assert(bytes.head == 0)
     val valuesCount = bytes(1)
@@ -18,7 +18,6 @@ object DynamicTableInfoDeserializer {
     }
 
     def parseValue(position: Int): (BigInt, Int) = {
-      assert(bytes(position) == 0)
       assert(bytes(position + 1) == 4)
       parseBigInt(position + 2)
     }
@@ -27,6 +26,6 @@ object DynamicTableInfoDeserializer {
       val (value, newPosition) = parseValue(position)
       (value +: res, newPosition)
     }
-    result
+    result.map(_.toString)
   }
 }

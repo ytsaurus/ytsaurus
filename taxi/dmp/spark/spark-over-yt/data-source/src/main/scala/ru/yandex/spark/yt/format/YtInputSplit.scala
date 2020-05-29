@@ -2,14 +2,21 @@ package ru.yandex.spark.yt.format
 
 import org.apache.hadoop.mapreduce.InputSplit
 import org.apache.spark.sql.types.StructType
-import ru.yandex.spark.yt.fs.YtPath
+import ru.yandex.inside.yt.kosher.cypress.YPath
 
-case class YtInputSplit(path: YtPath, start: Long, length: Long, schema: StructType) extends InputSplit {
-  override def getLength: Long = length
+case class YtInputSplit(file: YtPartitionedFile, schema: StructType) extends InputSplit {
+  override def getLength: Long = file.endRow - file.beginRow
 
   override def getLocations: Array[String] = Array.empty
 
-  private val startRow: Long = path.startRow + start
+  private val basePath: YPath = YPath.simple(s"/${file.path}{${schema.fieldNames.mkString(",")}}")
 
-  def getFullPath = s"/${path.stringPath}{${schema.fieldNames.mkString(",")}}[#$startRow:#${startRow + length}]"
+  def ytPath: YPath = {
+    if (file.isDynamic) {
+      import ru.yandex.spark.yt.serializers.PivotKeysConverter.toRangeLimit
+      basePath.withRange(toRangeLimit(file.beginKey, file.keyColumns), toRangeLimit(file.endKey, file.keyColumns))
+    } else {
+      basePath.withRange(file.beginRow, file.endRow)
+    }
+  }
 }

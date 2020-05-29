@@ -7,6 +7,7 @@ import org.apache.log4j.Logger
 import ru.yandex.bolts.collection.impl.DefaultListF
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.inside.yt.kosher.common.GUID
+import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.operations.specs.{MergeMode, MergeSpec}
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
@@ -15,41 +16,40 @@ import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
 import ru.yandex.yt.ytclient.proxy.YtClient
 import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType, ReadTable, TransactionalOptions}
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
+import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
 trait YtTableUtils {
-  self: YtCypressUtils =>
+  self: YtCypressUtils with YtTransactionUtils =>
 
   private val log = Logger.getLogger(getClass)
 
   def createTable(path: String,
                   settings: YtTableSettings,
-                  transaction: String)
+                  transaction: Option[String] = None)
                  (implicit yt: YtClient): Unit = {
-    import scala.collection.JavaConverters._
-    val ytOptions = settings.options.map { case (key, value) =>
-      val builder = new YTreeBuilder()
-      builder.onString(value)
-      key -> builder.build()
-    } + ("schema" -> settings.ytSchema)
-
-    createDir(Paths.get(path).getParent.toString, Some(transaction), ignoreExisting = true)
-    createTable(path, ytOptions.asJava, transaction)
+    createDir(Paths.get(path).getParent.toString, transaction, ignoreExisting = true)
+    createTable(path, settings.options, transaction)
   }
 
   def createTable(path: String,
-                  options: java.util.Map[String, YTreeNode],
-                  transaction: String)
+                  options: Map[String, YTreeNode],
+                  transaction: Option[String])
                  (implicit yt: YtClient): Unit = {
-    val transactionGuid = GUID.valueOf(transaction)
-    val request = new CreateNode(formatPath(path), ObjectType.Table, options)
-      .setTransactionalOptions(new TransactionalOptions(transactionGuid))
+    import scala.collection.JavaConverters._
+    val request = new CreateNode(formatPath(path), ObjectType.Table, options.asJava)
+      .optionalTransaction(transaction)
     yt.createNode(request).join()
   }
 
-  def readTable[T](path: String, deserializer: WireRowDeserializer[T], timeout: Duration = 1 minute)
+  def readTable[T](path: YPath, deserializer: WireRowDeserializer[T], timeout: Duration = 1 minute)
+                  (implicit yt: YtClient): TableIterator[T] = {
+    readTable(path.toString, deserializer, timeout)
+  }
+
+  def readTable[T](path: String, deserializer: WireRowDeserializer[T], timeout: Duration)
                   (implicit yt: YtClient): TableIterator[T] = {
     val request = new ReadTable(path, deserializer)
       .setOmitInaccessibleColumns(true)

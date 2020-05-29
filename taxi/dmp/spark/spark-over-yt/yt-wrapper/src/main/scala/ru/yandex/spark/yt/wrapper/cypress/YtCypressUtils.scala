@@ -66,6 +66,11 @@ trait YtCypressUtils {
     }
   }
 
+  def tableType(path: String, transaction: Option[String] = None)(implicit yt: YtClient): TableType = {
+    val isDynamic = attribute(path, "dynamic", transaction).boolValue()
+    if (isDynamic) TableType.Dynamic else TableType.Static
+  }
+
   def exists(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Boolean = {
     val request = new ExistsNode(s"${formatPath(path)}/@").optionalTransaction(transaction)
     yt.existsNode(request).join().booleanValue()
