@@ -254,11 +254,11 @@ public:
                         Id_));
 
                 case ETransactionState::Committed:
-                    MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already committed",
+                    return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already committed",
                         Id_));
 
                 case ETransactionState::Aborted:
-                    MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already aborted",
+                    return MakeFuture<TTransactionCommitResult>(TError("Transaction %v is already aborted",
                         Id_));
 
                 case ETransactionState::Active:

@@ -1284,7 +1284,7 @@ TEST_W(TFutureTest, Holder)
 
 TEST_F(TFutureTest, JustAbanbon)
 {
-    NewPromise<void>();
+    Y_UNUSED(NewPromise<void>());
 }
 
 TEST_F(TFutureTest, AbanbonIsSet)
