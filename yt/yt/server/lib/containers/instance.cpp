@@ -23,6 +23,7 @@
 namespace NYT::NContainers {
 
 using namespace NConcurrency;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,14 +161,20 @@ public:
         SetProperty("core_command", handler);
     }
 
-    virtual void SetNet(const TString& net) override
+    virtual void SetIPAddresses(const std::vector<TIP6Address>& addresses) override
     {
-        SetProperty("net", net);
-    }
+        // This label is intended for HBF-agent: YT-12512.
+        SetProperty("labels", "HBF.ignore_address: 1");
+        SetProperty("net", "L3 veth0");
 
-    virtual void SetIP(const TString& ip) override
-    {
-        SetProperty("ip", ip);
+        TString ipProperty;
+        for (const auto& address : addresses) {
+            if (!ipProperty.empty()) {
+                ipProperty += ";";
+            }
+            ipProperty += "veth0 " + ToString(address);
+        }
+        SetProperty("ip", ipProperty);
     }
 
     virtual void SetHostName(const TString& hostName) override
