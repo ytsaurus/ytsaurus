@@ -9,7 +9,6 @@
 #include "overlapping_reader.h"
 #include "private.h"
 #include "row_merger.h"
-#include "row_sampler.h"
 #include "schemaless_block_reader.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "versioned_chunk_reader.h"

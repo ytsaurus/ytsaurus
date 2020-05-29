@@ -58,29 +58,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! A simple helper that is used in sampling routines across the chunk pools.
-//! It is deterministic and persistable (as POD).
-class TBernoulliSampler
-    : public TIntrinsicRefCounted
-{
-public:
-    TBernoulliSampler() = default;
-
-    explicit TBernoulliSampler(std::optional<double> samplingRate);
-
-    bool Sample();
-
-    void Persist(const TPersistenceContext& context);
-
-private:
-    std::optional<double> SamplingRate_;
-    std::mt19937 Generator_;
-    std::bernoulli_distribution Distribution_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TBernoulliSampler);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT;::NChunkPools
 

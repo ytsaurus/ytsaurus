@@ -9,7 +9,6 @@
 #include "overlapping_reader.h"
 #include "private.h"
 #include "row_merger.h"
-#include "row_sampler.h"
 #include "schemaless_block_reader.h"
 #include "versioned_chunk_reader.h"
 #include "remote_dynamic_store_reader.h"
@@ -34,6 +33,8 @@
 #include <yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/ytlib/query_client/column_evaluator.h>
+
+#include <yt/library/random/bernoulli_sampler.h>
 
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/name_table.h>
@@ -102,6 +103,7 @@ public:
         , KeyColumns_(keyColumns)
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
         , OmittedInaccessibleColumnSet_(OmittedInaccessibleColumns_.begin(), OmittedInaccessibleColumns_.end())
+        , Sampler_(Config_->SamplingRate, std::random_device()())
         , SystemColumnCount_(GetSystemColumnCount(options))
         , Logger(NLogging::TLogger(TableClientLogger)
             .AddTag("ChunkReaderId: %v", TGuid::Create())
@@ -112,11 +114,11 @@ public:
             Logger.AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId);
         }
 
-        if (Config_->SamplingRate) {
-            RowSampler_ = CreateChunkRowSampler(
-                chunkId,
-                *Config_->SamplingRate,
-                Config_->SamplingSeed.value_or(std::random_device()()));
+        if (Config_->SamplingSeed) {
+            auto seed = *Config_->SamplingSeed;
+            seed ^= FarmFingerprint(chunkId.Parts64[0]);
+            seed ^= FarmFingerprint(chunkId.Parts64[1]);
+            Sampler_ = TBernoulliSampler(Config_->SamplingRate, seed);
         }
     }
 
@@ -164,7 +166,7 @@ protected:
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
 
-    std::unique_ptr<IRowSampler> RowSampler_;
+    TBernoulliSampler Sampler_;
     const int SystemColumnCount_;
 
     int RowIndexId_ = -1;
@@ -672,7 +674,7 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
             return true;
         }
 
-        if (!RowSampler_ || RowSampler_->ShouldTakeRow(GetTableRowIndex())) {
+        if (Sampler_.Sample(GetTableRowIndex())) {
             auto row = BlockReader_->GetRow(&MemoryPool_);
             if (Options_->EnableRangeIndex) {
                 *row.End() = MakeUnversionedInt64Value(ChunkSpec_.range_index(), RangeIndexId_);
@@ -1089,14 +1091,14 @@ public:
             }
         }
 
-        if (RowSampler_) {
+        if (TSchemalessChunkReaderBase::Config_->SamplingRate) {
             i64 insertIndex = 0;
             // ToDo(psushin): fix data weight statistics row sampler is used.
 
             std::vector<TUnversionedRow>& rowsRef = *rows;
             for (i64 rowIndex = 0; rowIndex < rows->size(); ++rowIndex) {
                 i64 tableRowIndex = ChunkSpec_.table_row_index() + RowIndex_ - rows->size() + rowIndex;
-                if (RowSampler_->ShouldTakeRow(tableRowIndex)) {
+                if (Sampler_.Sample(tableRowIndex)) {
                     rowsRef[insertIndex] = rowsRef[rowIndex];
                     ++insertIndex;
                 }

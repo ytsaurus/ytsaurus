@@ -7,6 +7,8 @@
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 #include <yt/server/lib/controller_agent/structs.h>
 
+#include <yt/library/random/bernoulli_sampler.h>
+
 #include <yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/core/misc/numeric_helpers.h>
@@ -58,7 +60,7 @@ public:
         : InputStreamDirectory_(std::move(inputStreamDirectory))
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , JobSizeConstraints_(options.JobSizeConstraints)
-        , Sampler_(New<TBernoulliSampler>(JobSizeConstraints_->GetSamplingRate()))
+        , Sampler_(JobSizeConstraints_->GetSamplingRate())
         , SupportLocality_(options.SupportLocality)
         , OperationId_(options.OperationId)
         , Task_(options.Task)
@@ -202,7 +204,7 @@ private:
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
     //! Used both for job sampling and teleport chunk sampling.
-    TBernoulliSamplerPtr Sampler_;
+    TBernoulliSampler Sampler_;
 
     bool SupportLocality_ = false;
 
@@ -271,7 +273,7 @@ private:
                     if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsTeleportable() &&
                         inputChunk->IsLargeCompleteChunk(MinTeleportChunkSize_))
                     {
-                        if (Sampler_->Sample()) {
+                        if (Sampler_.Sample()) {
                             EndJob();
 
                             // Add barrier.
@@ -379,7 +381,7 @@ private:
     void EndJob(bool unsplittable = false)
     {
         if (CurrentJob()->GetSliceCount() > 0) {
-            if (Sampler_->Sample()) {
+            if (Sampler_.Sample()) {
                 YT_LOG_DEBUG("Ordered job created (JobIndex: %v, BuiltJobCount: %v, PrimaryDataWeight: %v, RowCount: %v, SliceCount: %v)",
                     JobIndex_,
                     BuiltJobCount_,

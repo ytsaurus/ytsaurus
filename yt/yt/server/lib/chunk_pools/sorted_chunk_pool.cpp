@@ -10,6 +10,9 @@
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
+
+#include <yt/library/random/bernoulli_sampler.h>
+
 #include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/concurrency/periodic_yielder.h>
@@ -100,7 +103,7 @@ public:
         , ShouldSlicePrimaryTableByKeys_(options.SortedJobOptions.ShouldSlicePrimaryTableByKeys)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , JobSizeConstraints_(options.JobSizeConstraints)
-        , TeleportChunkSampler_(New<TBernoulliSampler>(JobSizeConstraints_->GetSamplingRate()))
+        , TeleportChunkSampler_(JobSizeConstraints_->GetSamplingRate())
         , SupportLocality_(options.SupportLocality)
         , OperationId_(options.OperationId)
         , Task_(options.Task)
@@ -294,7 +297,7 @@ private:
     std::vector<std::vector<TInputDataSlicePtr>> ForeignDataSlicesByStreamIndex_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
-    TBernoulliSamplerPtr TeleportChunkSampler_;
+    TBernoulliSampler TeleportChunkSampler_;
 
     bool SupportLocality_ = false;
 
@@ -531,7 +534,7 @@ private:
             YT_VERIFY(nonIntersectingSlices <= dataSlicesCount - 1);
             if (nonIntersectingSlices == dataSlicesCount - 1) {
                 Stripes_[cookie].SetTeleport(true);
-                if (TeleportChunkSampler_->Sample()) {
+                if (TeleportChunkSampler_.Sample()) {
                     TeleportChunks_.emplace_back(teleportCandidate);
                 } else {
                     // Teleport chunk to /dev/null. He did not make it.

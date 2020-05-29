@@ -13,7 +13,7 @@ int GetCurrentSnapshotVersion()
 
 bool ValidateSnapshotVersion(int version)
 {
-    return version >= ToUnderlying(ESnapshotVersion::ApproximateColumnarStatistics) &&
+    return version >= ToUnderlying(ESnapshotVersion::BernoulliSampler) &&
         version <= GetCurrentSnapshotVersion();
 }
 
