@@ -18,6 +18,7 @@ DEFINE_BIT_ENUM(EPollControl,
     ((Offline)      (0x20))     // Cannot handle events  (for external use)
     ((Terminate)    (0x40))     // Termination requested (for external use)
     ((Running)      (0x80))     // Operation in progress (for external use)
+    ((Shutdown)    (0x100))     // Shutdown in progress  (for external use)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
