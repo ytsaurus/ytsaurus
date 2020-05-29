@@ -72,8 +72,7 @@ lazy val `file-system` = (project in file("file-system"))
     assemblyShadeRules in assembly ++= Seq(
       ShadeRule.rename(
         "ru.yandex.spark.yt.fs.YtFileSystem" -> "ru.yandex.spark.yt.fs.YtFileSystem",
-        "ru.yandex.misc.log.log4j.mlf.Log4jLoggerFactory" -> "ru.yandex.misc.log.log4j.mlf.Log4jLoggerFactory",
-        "ru.yandex.misc.log.log4j.mlf.Log4jMdcAdapter" -> "ru.yandex.misc.log.log4j.mlf.Log4jMdcAdapter",
+        "ru.yandex.misc.log.**" -> "ru.yandex.misc.log.@1",
         "ru.yandex.**" -> "shadedyandex.@1"
       ).inAll
     ),
