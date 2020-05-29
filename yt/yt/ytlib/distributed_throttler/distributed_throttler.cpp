@@ -23,7 +23,7 @@ using namespace NConcurrency;
 
 static const TString AddressAttributeKey = "address";
 static const TString RealmIdAttributeKey = "realm_id";
-
+static const TString LeaderIdAttributeKey = "leader_id";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -927,6 +927,10 @@ private:
             YT_LOG_INFO("Leader changed (OldLeaderId: %v, NewLeaderId: %v)",
                 LeaderId_,
                 leaderId);
+            {
+                auto* attributes = MemberClient_->GetAttributes();
+                attributes->Set(LeaderIdAttributeKey, leaderId);
+            }
             oldLeaderId = LeaderId_;
             LeaderId_ = leaderId;
             LeaderChannel_ = leaderId == MemberId_ ? nullptr : CreateRealmChannel(ChannelFactory_->CreateChannel(*optionalAddress), *optionalRealmId);
