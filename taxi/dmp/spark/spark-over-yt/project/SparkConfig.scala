@@ -59,7 +59,7 @@ case class SparkLaunchConfig(spark_yt_base_path: String,
                              spark_conf: Map[String, String],
                              enablers: SpytEnablers) extends SparkConfig
 
-case class SpytEnablers(enable_byop: Boolean = true) extends SparkConfig
+case class SpytEnablers(enable_byop: Boolean = false) extends SparkConfig
 
 object SparkLaunchConfig {
   def apply(spark_yt_base_path: String,
