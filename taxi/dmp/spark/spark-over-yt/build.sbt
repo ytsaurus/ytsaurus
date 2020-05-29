@@ -34,7 +34,7 @@ lazy val `data-source` = (project in file("data-source"))
   .configs(IntegrationTest)
   .dependsOn(`yt-wrapper`, `file-system`, `yt-wrapper` % "test->test", `file-system` % "test->test")
   .settings(
-    version := "0.3.2-SNAPSHOT",
+    version := "0.3.2",
     Defaults.itSettings,
     libraryDependencies ++= itTestDeps,
     libraryDependencies ++= commonDependencies,
