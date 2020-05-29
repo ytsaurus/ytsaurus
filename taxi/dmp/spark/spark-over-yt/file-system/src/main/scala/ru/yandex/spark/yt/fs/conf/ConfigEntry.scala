@@ -25,8 +25,12 @@ class StringConfigEntry(name: String, default: Option[String] = None) extends Co
   override def get(value: String): String = value
 }
 
+class BooleanConfigEntry(name: String, default: Option[Boolean] = None) extends ConfigEntry[Boolean](name, default) {
+  override def get(value: String): Boolean = value.toBoolean
+}
+
 class StringListConfigEntry(name: String, default: Option[Seq[String]] = None) extends ConfigEntry[Seq[String]](name, default) {
-  override def get(value: String): Seq[String] = value.split(",").map(_.trim)
+  override def get(value: String): Seq[String] = value.split(",").map(_.trim).filter(_.nonEmpty)
 
   override def set(value: Seq[String]): String = value.mkString(",")
 }

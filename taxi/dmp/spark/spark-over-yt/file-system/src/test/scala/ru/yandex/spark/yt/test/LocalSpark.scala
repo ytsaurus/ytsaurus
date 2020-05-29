@@ -35,5 +35,5 @@ trait LocalSpark extends LocalYtClient {
     .withExtensions(_.injectPlannerStrategy(_ => plannerStrategy))
     .getOrCreate()
 
-  override def ytClient: YtRpcClient = YtWrapper.createRpcClient(ytClientConfiguration(spark))
+  override lazy val ytClient: YtRpcClient = YtWrapper.createRpcClient(ytClientConfiguration(spark))
 }

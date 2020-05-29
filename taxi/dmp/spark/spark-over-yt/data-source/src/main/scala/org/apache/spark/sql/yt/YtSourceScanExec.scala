@@ -1,19 +1,21 @@
-package org.apache.spark.sql
+package org.apache.spark.sql.yt
 
 import org.apache.hadoop.fs.{BlockLocation, FileStatus, LocatedFileStatus, Path}
 import org.apache.spark.rdd.RDD
+import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.catalog.BucketSpec
 import org.apache.spark.sql.catalyst.expressions.{Ascending, Attribute, Expression, SortOrder, UnsafeProjection}
 import org.apache.spark.sql.catalyst.plans.QueryPlan
 import org.apache.spark.sql.catalyst.plans.physical.{HashPartitioning, Partitioning, UnknownPartitioning}
 import org.apache.spark.sql.catalyst.{InternalRow, TableIdentifier}
-import org.apache.spark.sql.execution.datasources._
-import org.apache.spark.sql.execution.metric.SQLMetrics
 import org.apache.spark.sql.execution._
+import org.apache.spark.sql.execution.datasources._
+import org.apache.spark.sql.execution.datasources.parquet.{ParquetFileFormat => ParquetSource}
+import org.apache.spark.sql.execution.metric.SQLMetrics
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.util.collection.BitSet
-import org.apache.spark.sql.execution.datasources.parquet.{ParquetFileFormat => ParquetSource}
-import ru.yandex.spark.yt.fs.YtFileStatus
+import ru.yandex.spark.yt.format.{YtFileFormat, YtPartitionedFile}
+import ru.yandex.spark.yt.fs.{YtDynamicPath, YtFileStatus, YtStaticPath}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -27,10 +29,20 @@ case class YtSourceScanExec(
                              override val tableIdentifier: Option[TableIdentifier])
   extends DataSourceScanExec with ColumnarBatchScan {
 
+  lazy val isDynamicTable: Boolean = relation.fileFormat match {
+    case yf: YtFileFormat =>
+      relation.location.asInstanceOf[InMemoryFileIndex]
+        .allFiles().exists(_.asInstanceOf[YtFileStatus].isDynamic)
+    case _ => false
+  }
+
   // Note that some vals referring the file-based relation are lazy intentionally
   // so that this plan can be canonicalized on executor side too. See SPARK-23731.
-  override lazy val supportsBatch: Boolean = relation.fileFormat.supportBatch(
-    relation.sparkSession, StructType.fromAttributes(output))
+  override lazy val supportsBatch: Boolean = relation.fileFormat match {
+    case yf: YtFileFormat =>
+      yf.supportBatch(relation.sparkSession, StructType.fromAttributes(output), isDynamicTable)
+    case f => f.supportBatch(relation.sparkSession, StructType.fromAttributes(output))
+  }
 
   override lazy val needsUnsafeRowConversion: Boolean = {
     if (relation.fileFormat.isInstanceOf[ParquetSource]) {
@@ -166,6 +178,7 @@ case class YtSourceScanExec(
   private lazy val inputRDD: RDD[InternalRow] = {
     // Update metrics for taking effect in both code generation node and normal node.
     updateDriverMetrics()
+    val options = relation.options + ("is_dynamic" -> isDynamicTable.toString)
     val readFile: (PartitionedFile) => Iterator[InternalRow] =
       relation.fileFormat.buildReaderWithPartitionValues(
         sparkSession = relation.sparkSession,
@@ -173,7 +186,7 @@ case class YtSourceScanExec(
         partitionSchema = relation.partitionSchema,
         requiredSchema = requiredSchema,
         filters = pushedDownFilters,
-        options = relation.options,
+        options = options,
         hadoopConf = relation.sparkSession.sessionState.newHadoopConfWithOptions(relation.options))
 
     relation.bucketSpec match {
@@ -308,8 +321,13 @@ case class YtSourceScanExec(
             val remaining = file.getLen - offset
             val size = if (remaining > maxSplitBytes) maxSplitBytes else remaining
             val hosts = getBlockHosts(blockLocations, offset, size)
-            PartitionedFile(
-              partition.values, file.getPath.toUri.toString, offset, size, hosts)
+            file.getPath match {
+              case yp: YtDynamicPath =>
+                new YtPartitionedFile(yp.stringPath, yp.beginKey, yp.endKey, 0, 1, isDynamic = true, yp.keyColumns)
+              case yp: YtStaticPath =>
+                new YtPartitionedFile(yp.stringPath, Array.empty, Array.empty, yp.beginRow + offset,
+                  yp.beginRow + offset + size, isDynamic = false, Nil)
+            }
           }
         } else {
           val hosts = getBlockHosts(blockLocations, 0, file.getLen)

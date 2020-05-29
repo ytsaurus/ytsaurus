@@ -32,7 +32,7 @@ lazy val commonDependencies = yandexIceberg ++ spark ++ circe ++ logging.map(_ %
 
 lazy val `data-source` = (project in file("data-source"))
   .configs(IntegrationTest)
-  .dependsOn(`yt-wrapper`, `file-system`, `file-system` % "test->test")
+  .dependsOn(`yt-wrapper`, `file-system`, `yt-wrapper` % "test->test", `file-system` % "test->test")
   .settings(
     version := "0.3.1-SNAPSHOT",
     Defaults.itSettings,
@@ -64,7 +64,7 @@ lazy val `common-utils` = (project in file("common-utils"))
   )
 
 lazy val `file-system` = (project in file("file-system"))
-  .dependsOn(`yt-wrapper`)
+  .dependsOn(`yt-wrapper`, `yt-wrapper` % "test->test")
   .settings(
     libraryDependencies ++= commonDependencies
   )

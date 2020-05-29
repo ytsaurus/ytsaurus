@@ -285,7 +285,7 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
     parseWithoutAttributes(newFirst, allowEof, dataType)
   }
 
-  def parseNode1(): Any = {
+  def parseNode(): Any = {
     parseNode(readToken(allowEof = false), allowEof = true, dataType)
   }
 }
@@ -293,7 +293,7 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
 object YsonDecoder {
   def decode(bytes: Array[Byte], dataType: IndexedDataType): Any = {
     val decoder = new YsonDecoder(bytes, dataType)
-    decoder.parseNode1()
+    decoder.parseNode()
   }
 }
 

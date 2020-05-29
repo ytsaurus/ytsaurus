@@ -25,10 +25,10 @@ class YtVectorizedReader(capacity: Int, timeout: Duration)(implicit yt: YtClient
       case ys: YtInputSplit =>
         _columnVectors = OnHeapColumnVector.allocateColumns(capacity, ys.schema).asInstanceOf[Array[WritableColumnVector]]
         _batch = new ColumnarBatch(_columnVectors.asInstanceOf[Array[ColumnVector]])
-        _totalRowCount = ys.length
+        _totalRowCount = ys.getLength
 
         if (_columnVectors.nonEmpty) {
-          _iterator = YtWrapper.readTable(ys.getFullPath, ArrayAnyDeserializer.getOrCreate(ys.schema), timeout)
+          _iterator = YtWrapper.readTable(ys.ytPath, ArrayAnyDeserializer.getOrCreate(ys.schema), timeout)
         }
     }
   }

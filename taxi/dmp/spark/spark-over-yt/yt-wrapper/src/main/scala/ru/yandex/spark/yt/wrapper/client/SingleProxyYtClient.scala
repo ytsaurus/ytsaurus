@@ -28,6 +28,10 @@ class SingleProxyYtClient(connector: BusConnector,
     import scala.collection.JavaConverters._
     Seq(client).asJava
   }
+
+  override def toString: String = {
+    s"SingleProxyYtClient: ${super.toString}"
+  }
 }
 
 object SingleProxyYtClient {

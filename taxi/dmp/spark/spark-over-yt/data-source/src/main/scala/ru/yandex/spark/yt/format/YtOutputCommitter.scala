@@ -40,7 +40,7 @@ class YtOutputCommitter(jobId: String,
                         (implicit yt: YtClient): Unit = {
     if (!YtWrapper.exists(path)) {
       val options = YtTableSparkSettings.deserialize(conf)
-      YtWrapper.createTable(path, options, transaction)
+      YtWrapper.createTable(path, options, Some(transaction))
       GlobalTableSettings.setTransaction(path, transaction)
     }
   }
