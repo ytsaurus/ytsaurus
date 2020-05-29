@@ -638,7 +638,8 @@ TNode SerializeParamsForAlterTable(
 
 TNode SerializeParamsForGetTableColumnarStatistics(
     const TTransactionId& transactionId,
-    const TVector<TRichYPath>& paths)
+    const TVector<TRichYPath>& paths,
+    const TGetTableColumnarStatisticsOptions& /* options */)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);

@@ -314,9 +314,19 @@ void TErrorResponse::ParseFromJsonError(const TString& jsonError)
     Setup();
 }
 
+void TErrorResponse::SetIsFromTrailers(bool isFromTrailers)
+{
+    IsFromTrailers_ = isFromTrailers;
+}
+
 int TErrorResponse::GetHttpCode() const
 {
     return HttpCode_;
+}
+
+bool TErrorResponse::IsFromTrailers() const
+{
+    return IsFromTrailers_;
 }
 
 bool TErrorResponse::IsTransportError() const

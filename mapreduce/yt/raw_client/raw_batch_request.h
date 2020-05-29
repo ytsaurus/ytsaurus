@@ -139,7 +139,10 @@ public:
         const TOperationId& operationId,
         const TUpdateOperationParametersOptions& options);
     NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path);
-    NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(const TTransactionId& transaction, const TVector<TRichYPath>& paths);
+    NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(
+        const TTransactionId& transaction,
+        const TVector<TRichYPath>& paths,
+        const TGetTableColumnarStatisticsOptions& options);
 
 private:
     struct TBatchItem {

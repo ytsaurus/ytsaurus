@@ -736,6 +736,7 @@ size_t THttpResponse::DoSkip(size_t len)
 void THttpResponse::CheckTrailers(const THttpHeaders& trailers)
 {
     if (auto errorResponse = ParseError(trailers)) {
+        errorResponse->SetIsFromTrailers(true);
         LOG_ERROR("RSP %s - %s",
             RequestId_.data(),
             errorResponse.GetRef().what());

@@ -156,7 +156,9 @@ public:
     /// @brief Get table columnar statistic
     ///
     /// @see NYT::ICypressClient::GetTableColumnarStatistics
-    virtual NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) = 0;
+    virtual NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(
+        const TVector<TRichYPath>& paths,
+        const TGetTableColumnarStatisticsOptions& options = {}) = 0;
 
     ///
     /// @brief Check permission for given path.

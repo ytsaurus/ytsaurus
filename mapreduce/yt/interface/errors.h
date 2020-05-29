@@ -167,6 +167,9 @@ public:
     /// Get HTTP code of response.
     int GetHttpCode() const;
 
+    /// Is error parsed from response trailers.
+    bool IsFromTrailers() const;
+
     /// Check if error was caused by transport problems inside YT cluster.
     bool IsTransportError() const;
 
@@ -203,6 +206,7 @@ public:
     void SetRawError(const TString& message);
     void SetError(TYtError error);
     void ParseFromJsonError(const TString& jsonError);
+    void SetIsFromTrailers(bool isFromTrailers);
 
 private:
     void Setup();
@@ -211,6 +215,7 @@ private:
     int HttpCode_;
     TString RequestId_;
     TYtError Error_;
+    bool IsFromTrailers_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -78,7 +78,9 @@ public:
 
     TRichYPath CanonizeYPath(const TRichYPath& path) override;
 
-    TVector<TTableColumnarStatistics> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) override;
+    TVector<TTableColumnarStatistics> GetTableColumnarStatistics(
+        const TVector<TRichYPath>& paths,
+        const TGetTableColumnarStatisticsOptions& options) override;
 
     TMaybe<TYPath> GetFileFromCache(
         const TString& md5Signature,

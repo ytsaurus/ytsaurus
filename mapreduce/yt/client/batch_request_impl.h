@@ -104,7 +104,9 @@ public:
 
     virtual NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path) override;
 
-    virtual NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) override;
+    virtual NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(
+        const TVector<TRichYPath>& paths,
+        const TGetTableColumnarStatisticsOptions& options) override;
 
     NThreading::TFuture<TCheckPermissionResponse> CheckPermission(
         const TString& user,

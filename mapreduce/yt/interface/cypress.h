@@ -152,7 +152,9 @@ public:
     /// @note Paths must contain column selectors.
     ///
     /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#get-table-columnar-statistics)
-    virtual TVector<TTableColumnarStatistics> GetTableColumnarStatistics(const TVector<TRichYPath>& paths) = 0;
+    virtual TVector<TTableColumnarStatistics> GetTableColumnarStatistics(
+        const TVector<TRichYPath>& paths,
+        const TGetTableColumnarStatisticsOptions& options = {}) = 0;
 
     ///
     /// @brief Get file from file cache.
