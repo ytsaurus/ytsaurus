@@ -43,6 +43,10 @@ using namespace NYTree;
 static constexpr int CpuShareMultiplier = 10;
 static const TString RootFSBinaryDirectory("/ext_bin/");
 
+#ifdef _linux_
+static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
+#endif
+
 static const NLogging::TLogger Logger("JobProxyEnvironment");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -448,7 +452,7 @@ public:
         , UsePortoMemoryTracking_(usePortoMemoryTracking)
         , PortoExecutor_(std::move(portoExecutor))
         , Instance_(std::move(instance))
-        , ResourceTracker_(New<TPortoResourceTracker>(Instance_, TDuration::MilliSeconds(100)))
+        , ResourceTracker_(New<TPortoResourceTracker>(Instance_, ResourceUsageUpdatePeriod))
     { }
 
     virtual TCpuStatistics GetCpuStatistics() const override
@@ -617,7 +621,7 @@ public:
         , BlockIOWatchdogPeriod_(config->BlockIOWatchdogPeriod)
         , PortoExecutor_(CreatePortoExecutor(config->PortoExecutor, "environ"))
         , Self_(GetSelfPortoInstance(PortoExecutor_))
-        , ResourceTracker_(New<TPortoResourceTracker>(Self_, TDuration::MilliSeconds(100)))
+        , ResourceTracker_(New<TPortoResourceTracker>(Self_, ResourceUsageUpdatePeriod))
         , SlotAbsoluteName_(GetAbsoluteName(Self_))
     {
         PortoExecutor_->SubscribeFailed(BIND(&TPortoJobProxyEnvironment::OnFatalError, MakeWeak(this)));
