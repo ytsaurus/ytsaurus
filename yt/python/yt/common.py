@@ -2,6 +2,11 @@ from yt.packages.six import iteritems, PY3, text_type, binary_type, string_types
 from yt.packages.six.moves import map as imap
 import yt.json_wrapper as json
 
+try:
+    from library.python.prctl import prctl
+except ImportError:
+    prctl = None
+
 # Fix for thread unsafety of datetime module.
 # See http://bugs.python.org/issue7980 for more details.
 import _strptime
@@ -512,12 +517,16 @@ def filter_dict(predicate, dictionary):
 
 def set_pdeathsig(signum=None):
     if sys.platform.startswith("linux"):
-        ctypes.cdll.LoadLibrary("libc.so.6")
-        libc = ctypes.CDLL("libc.so.6")
-        PR_SET_PDEATHSIG = 1
         if signum is None:
             signum = signal.SIGTERM
-        libc.prctl(PR_SET_PDEATHSIG, signum)
+        if prctl:
+            prctl.set_pdeathsig(signum)
+        else:
+            ctypes.cdll.LoadLibrary("libc.so.6")
+            libc = ctypes.CDLL("libc.so.6")
+            PR_SET_PDEATHSIG = 1
+            libc.prctl(PR_SET_PDEATHSIG, signum)
+
 
 def remove_file(path, force=False):
     try:
