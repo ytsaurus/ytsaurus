@@ -163,17 +163,16 @@ TRichYPath TClientBase::CanonizeYPath(const TRichYPath& path)
     return CanonizePath(Auth_, path);
 }
 
-TVector<TTableColumnarStatistics> TClientBase::GetTableColumnarStatistics(const TVector<TRichYPath>& paths)
+TVector<TTableColumnarStatistics> TClientBase::GetTableColumnarStatistics(
+    const TVector<TRichYPath>& paths,
+    const TGetTableColumnarStatisticsOptions& options)
 {
-    THttpHeader header("GET", "get_table_columnar_statistics");
-    header.MergeParameters(NRawClient::SerializeParamsForGetTableColumnarStatistics(TransactionId_, paths));
-    TRequestConfig config;
-    config.IsHeavy = true;
-    auto requestResult = RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header, {}, config);
-    auto response = NodeFromYsonString(requestResult.Response);
-    TVector<TTableColumnarStatistics> result;
-    Deserialize(result, response);
-    return result;
+    return NRawClient::GetTableColumnarStatistics(
+        ClientRetryPolicy_->CreatePolicyForGenericRequest(),
+        Auth_,
+        TransactionId_,
+        paths,
+        options);
 }
 
 TMaybe<TYPath> TClientBase::GetFileFromCache(

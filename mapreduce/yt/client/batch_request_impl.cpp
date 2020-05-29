@@ -170,9 +170,11 @@ TFuture<TRichYPath> TBatchRequest::CanonizeYPath(const TRichYPath& path)
     return Impl_->CanonizeYPath(path);
 }
 
-TFuture<TVector<TTableColumnarStatistics>> TBatchRequest::GetTableColumnarStatistics(const TVector<TRichYPath>& paths)
+TFuture<TVector<TTableColumnarStatistics>> TBatchRequest::GetTableColumnarStatistics(
+    const TVector<TRichYPath>& paths,
+    const NYT::TGetTableColumnarStatisticsOptions& options)
 {
-    return Impl_->GetTableColumnarStatistics(DefaultTransaction_, paths);
+    return Impl_->GetTableColumnarStatistics(DefaultTransaction_, paths, options);
 }
 
 TFuture<TCheckPermissionResponse> TBatchRequest::CheckPermission(

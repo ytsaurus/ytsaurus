@@ -171,7 +171,7 @@ static std::pair<bool,TDuration> GetRetryInfo(const TErrorResponse& errorRespons
     }
 
     using namespace NClusterErrorCodes;
-    if (httpCode / 100 == 4) {
+    if (httpCode / 100 == 4 || errorResponse.IsFromTrailers()) {
         if (httpCode == 429
             || allCodes.count(NSecurityClient::RequestQueueSizeLimitExceeded)
             || allCodes.count(NRpc::RequestQueueSizeLimitExceeded))

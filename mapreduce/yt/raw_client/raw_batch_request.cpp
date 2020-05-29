@@ -543,11 +543,14 @@ TFuture<TRichYPath> TRawBatchRequest::CanonizeYPath(const TRichYPath& path)
     }
 }
 
-TFuture<TVector<TTableColumnarStatistics>> TRawBatchRequest::GetTableColumnarStatistics(const TTransactionId& transaction, const TVector<TRichYPath>& paths)
+TFuture<TVector<TTableColumnarStatistics>> TRawBatchRequest::GetTableColumnarStatistics(
+    const TTransactionId& transaction,
+    const TVector<TRichYPath>& paths,
+    const TGetTableColumnarStatisticsOptions& options)
 {
     return AddRequest<TTableColumnarStatisticsParser>(
         "get_table_columnar_statistics",
-        SerializeParamsForGetTableColumnarStatistics(transaction, paths),
+        SerializeParamsForGetTableColumnarStatistics(transaction, paths, options),
         Nothing());
 }
 

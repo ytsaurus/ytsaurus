@@ -280,6 +280,13 @@ TVector<TTabletInfo> GetTabletInfos(
     const TVector<int>& tabletIndexes,
     const TGetTabletInfosOptions& options);
 
+TVector<TTableColumnarStatistics> GetTableColumnarStatistics(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TVector<TRichYPath>& paths,
+    const TGetTableColumnarStatisticsOptions& options);
+
 //
 // Tables
 //

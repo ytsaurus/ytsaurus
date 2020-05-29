@@ -470,9 +470,23 @@ Y_UNIT_TEST_SUITE(CypressClient) {
         UNIT_ASSERT(statistics.ColumnDataWeight.at("foo") > 0);
         UNIT_ASSERT(statistics.ColumnDataWeight.at("bar") > 0);
 
-        UNIT_ASSERT_EXCEPTION(
-            client->GetTableColumnarStatistics({ TRichYPath(workingDir + "/table").Columns({"bar", "foo"}) }),
-            TErrorResponse);
+        // Set very long retry interval to ensure that any retries will hang the thread.
+        TConfig::Get()->RetryInterval = TDuration::Seconds(100);
+        TConfig::Get()->UseAbortableResponse = true;
+        auto threadPool = CreateThreadPool(2);
+        auto done = NThreading::Async(
+            [&] {
+                // Table doesn't exist in the root transaction.
+                UNIT_ASSERT_EXCEPTION(
+                    client->GetTableColumnarStatistics({ TRichYPath(workingDir + "/table").Columns({"bar", "foo"}) }),
+                    TErrorResponse);
+            },
+            *threadPool);
+        auto start = TInstant::Now();
+        Sleep(TDuration::Seconds(1));
+        TAbortableHttpResponse::AbortAll("/get_table_columnar_statistics");
+        UNIT_ASSERT_NO_EXCEPTION(done.GetValueSync());
+        UNIT_ASSERT(TInstant::Now() - start < TDuration::Seconds(10));
     }
 
     Y_UNIT_TEST(TestConcurrency) {

@@ -22,7 +22,7 @@ namespace NTesting {
         MOCK_METHOD3(Link, TNodeId(const TYPath&, const TYPath&, const TLinkOptions&));
         MOCK_METHOD3(Concatenate, void(const TVector<TYPath>&, const TYPath&, const TConcatenateOptions&));
         MOCK_METHOD1(CanonizeYPath, TRichYPath(const TRichYPath&));
-        MOCK_METHOD1(GetTableColumnarStatistics, TVector<TTableColumnarStatistics>(const TVector<TRichYPath>&));
+        MOCK_METHOD2(GetTableColumnarStatistics, TVector<TTableColumnarStatistics>(const TVector<TRichYPath>&, const TGetTableColumnarStatisticsOptions&));
         MOCK_METHOD0(CreateBatchRequest, TBatchRequestPtr());
         MOCK_METHOD3(GetTabletInfos, TVector<TTabletInfo>(const TYPath&, const TVector<int>&, const TGetTabletInfosOptions&));
 
@@ -118,7 +118,7 @@ namespace NTesting {
         MOCK_METHOD3(Link, TNodeId(const TYPath&, const TYPath&, const TLinkOptions&));
         MOCK_METHOD3(Concatenate, void(const TVector<TYPath>&, const TYPath&, const TConcatenateOptions&));
         MOCK_METHOD1(CanonizeYPath, TRichYPath(const TRichYPath&));
-        MOCK_METHOD1(GetTableColumnarStatistics, TVector<TTableColumnarStatistics>(const TVector<TRichYPath>&));
+        MOCK_METHOD2(GetTableColumnarStatistics, TVector<TTableColumnarStatistics>(const TVector<TRichYPath>&, const TGetTableColumnarStatisticsOptions&));
         MOCK_METHOD0(CreateBatchRequest, TBatchRequestPtr());
 
         MOCK_METHOD2(CreateFileReader, IFileReaderPtr(const TRichYPath&, const TFileReaderOptions&));

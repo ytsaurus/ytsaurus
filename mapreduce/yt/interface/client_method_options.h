@@ -720,6 +720,12 @@ struct TCheckPermissionOptions
     FLUENT_VECTOR_FIELD(TString, Column);
 };
 
+/// Options for @ref NYT::IClient::GetTableColumnarStatistics
+struct TGetTableColumnarStatisticsOptions
+{
+    using TSelf = TGetTableColumnarStatisticsOptions;
+};
+
 /// Options for @ref NYT::IClient::GetTabletInfos
 struct TGetTabletInfosOptions
 {

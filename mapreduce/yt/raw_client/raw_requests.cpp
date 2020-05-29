@@ -801,6 +801,24 @@ TVector<TTabletInfo> GetTabletInfos(
     return result;
 }
 
+TVector<TTableColumnarStatistics> GetTableColumnarStatistics(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TTransactionId& transactionId,
+    const TVector<TRichYPath>& paths,
+    const TGetTableColumnarStatisticsOptions& options)
+{
+    THttpHeader header("GET", "get_table_columnar_statistics");
+    header.MergeParameters(SerializeParamsForGetTableColumnarStatistics(transactionId, paths, options));
+    TRequestConfig config;
+    config.IsHeavy = true;
+    auto requestResult = RetryRequestWithPolicy(retryPolicy, auth, header, {}, config);
+    auto response = NodeFromYsonString(requestResult.Response);
+    TVector<TTableColumnarStatistics> result;
+    Deserialize(result, response);
+    return result;
+}
+
 void AlterTable(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
