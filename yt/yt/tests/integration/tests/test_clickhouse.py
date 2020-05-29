@@ -57,7 +57,7 @@ class Clique(object):
     core_dump_path = None
     proxy_address = None
 
-    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, enable_core_dump=False, cpu_limit=None, **kwargs):
+    def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, **kwargs):
         config = update(Clique.base_config, config_patch) if config_patch is not None else copy.deepcopy(Clique.base_config)
         spec = {"pool": None}
         self.is_tracing = False
@@ -83,9 +83,8 @@ class Clique(object):
         if "cypress_ytserver_log_tailer_config_path" in kwargs:
             cypress_config_paths["log_tailer"] = (kwargs.pop("cypress_ytserver_log_tailer_config_path"), "log_tailer_config.yson")
 
-        core_dump_destination = None
-        if enable_core_dump:
-            core_dump_destination = Clique.core_dump_path
+        core_dump_destination = os.environ.get("YT_CORE_DUMP_DESTINATION")
+
         spec_builder = get_clique_spec_builder(instance_count,
                                                           cypress_config_paths=cypress_config_paths,
                                                           max_failed_job_count=max_failed_job_count,
@@ -96,7 +95,7 @@ class Clique(object):
                                                           trampoline_log_file=os.path.join(self.log_root, "trampoline.debug.log"),
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
-        if not is_asan_build() and enable_core_dump:
+        if not is_asan_build() and core_dump_destination is not None:
             self.spec["tasks"]["instances"]["force_core_dump"] = True
         self.instance_count = instance_count
 
@@ -590,7 +589,7 @@ class TestClickHouseCommon(ClickHouseTestBase):
         ])
 
         with pytest.raises(YtError):
-            with Clique(1, config_patch={"yt": {"user": "test_user"}}, enable_core_dump=False) as clique:
+            with Clique(1, config_patch={"yt": {"user": "test_user"}}) as clique:
                 pass
 
 
@@ -1445,21 +1444,20 @@ class TestMutations(ClickHouseTestBase):
         with Clique(1) as clique:
             clique.make_query('insert into "//tmp/t"(i64) values (1), (-2)')
             clique.make_query('insert into "//tmp/t"(ui64) values (7), (8)')
-            with raises_yt_error(QueryFailedError):
-                clique.make_query('insert into "//tmp/t"(str) values (2)')
+            clique.make_query('insert into "//tmp/t"(str) values (2)')
             clique.make_query('insert into "//tmp/t"(i64, ui64, str, dbl, bool) values (-1, 1, \'abc\', 3.14, 1)')
             clique.make_query('insert into "//tmp/t"(i64, ui64, str, dbl, bool) values (NULL, NULL, NULL, NULL, NULL)')
             with raises_yt_error(QueryFailedError):
                 clique.make_query('insert into "//tmp/t"(bool) values (3)')
-            # This insert leads to NULL insertion.
-            clique.make_query('insert into "//tmp/t"(bool) values (2.4)')
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('insert into "//tmp/t"(bool) values (2.4)')
             assert read_table("//tmp/t") == [
                 {"i64": 1, "ui64": None, "str": None, "dbl": None, "bool": None},
                 {"i64": -2, "ui64": None, "str": None, "dbl": None, "bool": None},
                 {"i64": None, "ui64": 7, "str": None, "dbl": None, "bool": None},
                 {"i64": None, "ui64": 8, "str": None, "dbl": None, "bool": None},
+                {"i64": None, "ui64": None, "str": "2", "dbl": None, "bool": None},
                 {"i64": -1, "ui64": 1, "str": "abc", "dbl": 3.14, "bool": True},
-                {"i64": None, "ui64": None, "str": None, "dbl": None, "bool": None},
                 {"i64": None, "ui64": None, "str": None, "dbl": None, "bool": None},
             ]
             assert get("//tmp/t/@chunk_count") == 5
@@ -2170,6 +2168,7 @@ class TestClickHouseAccess(ClickHouseTestBase):
         self._setup()
 
     @authors("max42")
+    @pytest.mark.xfail(True, reason="CHYT-387")
     def test_clique_access(self):
         create_group("g")
         create_user("u1")
@@ -2304,9 +2303,6 @@ class TestJoinAndIn(ClickHouseTestBase):
         write_table("//tmp/t3", [{"a": 42, "e": 3.14}, {"a": 27, "e": 2.718}])
         with Clique(1) as clique:
             expected = [{"a": 42, "b": "qwe", "c": 42, "d": "asd"}]
-            assert clique.make_query("select * from \"//tmp/t1\" global join \"//tmp/t2\" on a = c") == expected
-            # TODO(max42): uncomment next line when https://github.com/yandex/ClickHouse/issues/5976 is fixed.
-            # assert clique.make_query("select * from \"//tmp/t1\" global join \"//tmp/t2\" on c = a") == expected
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t2\" t2 on t1.a = t2.c") == expected
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t2\" t2 on t2.c = t1.a") == expected
 
@@ -2319,6 +2315,12 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t3.a = t1.a order by a") == expected_on
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t1.a = t3.a order by t1.a") == expected_on
             assert clique.make_query("select * from \"//tmp/t1\" t1 global join \"//tmp/t3\" t3 on t3.a = t1.a order by t3.a") == expected_on
+
+            with raises_yt_error(QueryFailedError):
+                # When JOIN is present, all joined expressions should be provided with aliases.
+                assert clique.make_query("select * from \"//tmp/t1\" global join \"//tmp/t2\" on a = c") == expected
+                assert clique.make_query("select * from \"//tmp/t1\" global join \"//tmp/t2\" on c = a") == expected
+                assert clique.make_query("select * from \"//tmp/t1\" global join \"//tmp/t3\" using a order by a") == expected_using
 
     @authors("max42")
     @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
@@ -2365,7 +2367,7 @@ class TestJoinAndIn(ClickHouseTestBase):
                         {"key": 2, "lhs": "foo2", "rhs": "bar2"},
                         {"key": 3, "lhs": "foo3", "rhs": "bar3"},
                         {"key": 4, "lhs": "foo4", "rhs": "bar4"}]
-            assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" join \"//tmp/t2\" using key order by key") == expected
+            assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" t1 join \"//tmp/t2\" t2 using key order by key") == expected
             assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" t1 join \"//tmp/t2\" t2 on t1.key = t2.key order by key") == expected
 
     @authors("max42")
@@ -2410,8 +2412,8 @@ class TestJoinAndIn(ClickHouseTestBase):
                              {"key": 7, "lhs": "foo7", "rhs": None},
                              {"key": 8, "lhs": "foo8", "rhs": None},
                              {"key": 9, "lhs": None, "rhs": "bar9"}]
-            assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" global right join \"//tmp/t2\" using key order by key") == expected_right
-            assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" global full join \"//tmp/t2\" using key order by key") == expected_full
+            assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" t1 global right join \"//tmp/t2\" t2 using key order by key") == expected_right
+            assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" t1 global full join \"//tmp/t2\" t2 using key order by key") == expected_full
 
     @authors("max42")
     @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
@@ -2497,14 +2499,15 @@ class TestJoinAndIn(ClickHouseTestBase):
             return dict([(sanitize(key), sanitize(value)) for key, value in unicode_dict.iteritems()])
 
         index = 0
-        for instance_count in range(1, 6):
+        for instance_count in range(1, 5):
             with Clique(instance_count) as clique:
+                # TODO(max42): CHYT-390.
                 for lhs_arg in ("\"//tmp/t1\"", "(select * from \"//tmp/t1\")"):
                     for rhs_arg in ("\"//tmp/t2\"", "(select * from \"//tmp/t2\")"):
                         for globalness in ("", "global"):
                             for kind in ("inner", "left", "right", "full"):
                                 query = \
-                                    "select key, lhs, rhs from {lhs_arg} {globalness} {kind} join {rhs_arg} " \
+                                    "select key, lhs, rhs from {lhs_arg} l {globalness} {kind} join {rhs_arg} r " \
                                     "using key order by key, lhs, rhs nulls first".format(**locals())
                                 result = list(imap(sanitize_dict, clique.make_query(query, verbose=False)))
 
@@ -2537,7 +2540,7 @@ class TestJoinAndIn(ClickHouseTestBase):
         write_table("<append=%true>//tmp/t2", [{"key": 6}, {"key": 7}])
         write_table("<append=%true>//tmp/t2", [{"key": 8}, {"key": 9}])
         with Clique(2, config_patch={"yt": {"subquery": {"min_data_weight_per_thread": 5000}}}) as clique:
-            assert clique.make_query("select * from \"//tmp/t1\" join \"//tmp/t2\" using key") == [{"key": 0}, {"key": 1}]
+            assert clique.make_query("select * from \"//tmp/t1\" t1 join \"//tmp/t2\" t2 using key") == [{"key": 0}, {"key": 1}]
 
     @authors("max42")
     @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")

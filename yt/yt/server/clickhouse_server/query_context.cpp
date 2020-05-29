@@ -165,6 +165,11 @@ EQueryPhase TQueryContext::GetQueryPhase() const
     return QueryPhase_.load();
 }
 
+int TQueryContext::RegisterStorageDistributor()
+{
+    return StorageDistributorCount_++;
+}
+
 DEFINE_REFCOUNTED_TYPE(TQueryContext)
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -34,7 +34,6 @@ void ToProto(NProto::TSubquerySpec* protoSpec, const TSubquerySpec& spec)
     ToProto(protoSpec->mutable_initial_query_id(), spec.InitialQueryId);
     ToProto(protoSpec->mutable_read_schema(), spec.ReadSchema);
 
-    protoSpec->set_membership_hint(spec.MembershipHint.GetData());
     protoSpec->set_subquery_index(spec.SubqueryIndex);
     protoSpec->set_table_index(spec.TableIndex);
     protoSpec->set_initial_query(spec.InitialQuery);
@@ -56,7 +55,6 @@ void FromProto(TSubquerySpec* spec, const NProto::TSubquerySpec& protoSpec)
     FromProto(&spec->InitialQueryId, protoSpec.initial_query_id());
     FromProto(&spec->ReadSchema, protoSpec.read_schema());
 
-    spec->MembershipHint = TYsonString(protoSpec.membership_hint());
     spec->SubqueryIndex = protoSpec.subquery_index();
     spec->TableIndex = protoSpec.table_index();
     spec->InitialQuery = protoSpec.initial_query();

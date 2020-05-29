@@ -20,13 +20,16 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGuid ToGuid(DB::UUID uuid);
+
+void RegisterNewUser(DB::AccessControlManager& accessControlManager, TString userName);
+
+////////////////////////////////////////////////////////////////////////////////
+
 DB::Field ConvertToField(const NTableClient::TUnversionedValue& value);
 
 //! `value` should have Type field filled.
 void ConvertToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue* value);
-
-void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, DB::Field* field);
-void ConvertToFieldRow(const NTableClient::TUnversionedRow& row, int count, DB::Field* field);
 
 ////////////////////////////////////////////////////////////////////////////////
 

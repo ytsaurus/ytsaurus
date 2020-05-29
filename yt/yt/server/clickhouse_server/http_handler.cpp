@@ -2,17 +2,21 @@
 
 #include "query_context.h"
 #include "host.h"
+#include "helpers.h"
 
-#include <server/HTTPHandler.h>
-#include <server/NotFoundHandler.h>
-#include <server/PingRequestHandler.h>
-#include <server/RootRequestHandler.h>
+#include <Poco/Util/LayeredConfiguration.h>
+#include <Server/HTTPHandler.h>
+#include <Server/NotFoundHandler.h>
+#include <Server/StaticRequestHandler.h>
+
+#include <Access/AccessControlManager.h>
+#include <Access/User.h>
 
 #include <Poco/Net/HTTPServerRequest.h>
 #include <Poco/Net/HTTPServerResponse.h>
 #include <Poco/URI.h>
 
-#include <Common/getFQDNOrHostName.h>
+#include <common/getFQDNOrHostName.h>
 
 #include <util/string/cast.h>
 
@@ -49,12 +53,13 @@ private:
 };
 
 class THttpHandler
-    : public DB::HTTPHandler
+    : public DB::DynamicQueryHandler
 {
 public:
     THttpHandler(THost* host, DB::IServer& server, const Poco::Net::HTTPServerRequest& request)
-        : DB::HTTPHandler(server)
+        : DB::DynamicQueryHandler(server, "handler")
         , Host_(host)
+        , Server_(server)
     {
         TraceContext_ = SetupTraceContext(ClickHouseYtLogger, request);
 
@@ -73,7 +78,7 @@ public:
         }
     }
 
-    virtual void customizeContext(DB::Context& context) override
+    virtual void customizeContext(Poco::Net::HTTPServerRequest & /* request */, DB::Context& context) override
     {
         YT_VERIFY(TraceContext_);
 
@@ -85,11 +90,24 @@ public:
     virtual void handleRequest(Poco::Net::HTTPServerRequest& request, Poco::Net::HTTPServerResponse& response) override
     {
         response.set("X-Yt-Trace-Id", ToString(TraceContext_->GetTraceId()));
+
+        auto userName = request.get("X-ClickHouse-User", "");
+        if (userName.empty()) {
+            THROW_ERROR_EXCEPTION("User name should be specified via X-ClickHouse-User header");
+        }
+
+        const auto& Logger = ClickHouseYtLogger;
+
+        YT_LOG_DEBUG("Registering new user (UserName: %v)", userName);
+        RegisterNewUser(Server_.context().getAccessControlManager(), TString(userName));
+        YT_LOG_DEBUG("User registered");
+
         DB::HTTPHandler::handleRequest(request, response);
     }
 
 private:
     THost* const Host_;
+    DB::IServer& Server_;
     TTraceContextPtr TraceContext_;
     std::optional<TString> DataLensRequestId_;
     TQueryId QueryId_;
@@ -155,14 +173,10 @@ private:
 class THttpHandlerFactory
     : public Poco::Net::HTTPRequestHandlerFactory
 {
-private:
-    THost* Host_;
-    DB::IServer& Server;
-
 public:
     THttpHandlerFactory(THost* host, DB::IServer& server)
         : Host_(host)
-        , Server(server)
+        , Server_(server)
     { }
 
     Poco::Net::HTTPRequestHandler* createRequestHandler(const Poco::Net::HTTPServerRequest& request) override
@@ -180,11 +194,8 @@ public:
         if (request.getMethod() == Poco::Net::HTTPServerRequest::HTTP_HEAD ||
             request.getMethod() == Poco::Net::HTTPServerRequest::HTTP_GET)
         {
-            if (uri == "/") {
-                return new DB::RootRequestHandler(Server);
-            }
-            if (uri == "/ping") {
-                return new DB::PingRequestHandler(Server);
+            if (uri == "/" || uri == "/ping") {
+                return new DB::StaticRequestHandler(Server_, "Ok.\n");
             }
         }
 
@@ -192,7 +203,7 @@ public:
         if (Host_->GetInstanceState() == EInstanceState::Stopped ||
             (cliqueId != request.end() && TString(cliqueId->second) != ToString(Host_->GetConfig()->CliqueId)))
         {
-            return new TMovedPermanentlyRequestHandler(Server);
+            return new TMovedPermanentlyRequestHandler(Server_);
         }
 
         if (request.getMethod() == Poco::Net::HTTPServerRequest::HTTP_GET ||
@@ -200,13 +211,17 @@ public:
         {
             if ((uri.getPath() == "/") ||
                 (uri.getPath() == "/query")) {
-                auto* handler = new THttpHandler(Host_, Server, request);
+                auto* handler = new THttpHandler(Host_, Server_, request);
                 return handler;
             }
         }
 
         return new DB::NotFoundHandler();
     }
+
+private:
+    THost* Host_;
+    DB::IServer& Server_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

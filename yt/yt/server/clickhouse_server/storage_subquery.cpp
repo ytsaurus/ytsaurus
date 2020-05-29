@@ -8,9 +8,11 @@
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
+#include <Processors/Sources/SourceFromInputStream.h>
+#include <Processors/Pipe.h>
+
 namespace NYT::NClickHouseServer {
 
-using namespace DB;
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NTableClient;
@@ -23,7 +25,9 @@ class TStorageSubquery
 {
 public:
     TStorageSubquery(TQueryContext* queryContext, TSubquerySpec subquerySpec)
-        : QueryContext_(queryContext), SubquerySpec_(std::move(subquerySpec))
+        : DB::IStorage({"subquery_db", "subquery"})
+        , QueryContext_(queryContext)
+        , SubquerySpec_(std::move(subquerySpec))
     {
         if (SubquerySpec_.InitialQueryId != queryContext->QueryId) {
             queryContext->Logger.AddTag("InitialQueryId: %v", SubquerySpec_.InitialQueryId);
@@ -39,7 +43,7 @@ public:
             SubquerySpec_.SubqueryIndex,
             SubquerySpec_.TableIndex);
 
-        setColumns(ColumnsDescription(ToNamesAndTypesList(SubquerySpec_.ReadSchema)));
+        setColumns(DB::ColumnsDescription(ToNamesAndTypesList(SubquerySpec_.ReadSchema)));
 
         queryContext->MoveToPhase(EQueryPhase::Preparation);
     }
@@ -47,16 +51,6 @@ public:
     std::string getName() const override
     {
         return "YT";
-    }
-
-    std::string getTableName() const override
-    {
-        return "Subquery";
-    }
-
-    std::string getDatabaseName() const override
-    {
-        return "";
     }
 
     bool supportsPrewhere() const override
@@ -71,11 +65,11 @@ public:
         return false;
     }
 
-    BlockInputStreams read(
-        const Names& columnNames,
-        const SelectQueryInfo& queryInfo,
-        const Context& context,
-        QueryProcessingStage::Enum /* processedStage */,
+    DB::Pipes read(
+        const DB::Names& columnNames,
+        const DB::SelectQueryInfo& queryInfo,
+        const DB::Context& context,
+        DB::QueryProcessingStage::Enum /* processedStage */,
         size_t /* maxBlockSize */,
         unsigned maxStreamCount) override
     {
@@ -119,7 +113,7 @@ public:
         auto schema = SubquerySpec_.ReadSchema;
 
         YT_LOG_INFO("Creating table readers");
-        BlockInputStreams streams;
+        DB::Pipes pipes;
         const auto& prewhereInfo = queryInfo.prewhere_info;
 
         for (int threadIndex = 0;
@@ -129,21 +123,21 @@ public:
             const auto& threadDataSliceDescriptors = perThreadDataSliceDescriptors[threadIndex];
 
             if (prewhereInfo) {
-                streams.emplace_back(CreatePrewhereBlockInputStream(
+                pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreatePrewhereBlockInputStream(
                     QueryContext_,
                     SubquerySpec_,
                     columnNames,
                     traceContext,
                     threadDataSliceDescriptors,
-                    prewhereInfo));
+                    prewhereInfo)));
             } else {
-                streams.emplace_back(CreateBlockInputStream(
+                pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreateBlockInputStream(
                     QueryContext_,
                     SubquerySpec_,
                     columnNames,
                     traceContext,
                     threadDataSliceDescriptors,
-                    prewhereInfo));
+                    prewhereInfo)));
             }
 
             i64 rowCount = 0;
@@ -178,12 +172,15 @@ public:
                 debugString.Flush());
         }
 
-        return streams;
+        return pipes;
     }
 
-    QueryProcessingStage::Enum getQueryProcessingStage(const Context& /* context */) const override
+    virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(
+        const DB::Context& /* context */,
+        DB::QueryProcessingStage::Enum /* toStage */,
+        const DB::ASTPtr &) const override
     {
-        return QueryProcessingStage::Enum::FetchColumns;
+        return DB::QueryProcessingStage::Enum::FetchColumns;
     }
 
 private:
@@ -194,7 +191,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-StoragePtr CreateStorageSubquery(TQueryContext* queryContext, TSubquerySpec subquerySpec)
+DB::StoragePtr CreateStorageSubquery(TQueryContext* queryContext, TSubquerySpec subquerySpec)
 {
     return std::make_shared<TStorageSubquery>(queryContext, std::move(subquerySpec));
 }

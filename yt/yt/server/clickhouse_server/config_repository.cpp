@@ -29,24 +29,27 @@ public:
         }
     }
 
-    virtual std::set<std::string> list(const Poco::Util::AbstractConfiguration& /* config */, const std::string& /* pathKey */) const override
+    virtual const std::string & getName() const
+    {
+        return Name_;
+    }
+
+    virtual std::set<std::string> getAllLoadablesDefinitionNames() override
     {
         return Keys_;
     }
 
-    virtual bool exists(const std::string& configFile) const override
+    virtual bool exists(const std::string& configFile) override
     {
         return Dictionaries_.contains(configFile);
     }
 
-    virtual Poco::Timestamp getLastModificationTime(const std::string& /* configFile */) const override
+    virtual Poco::Timestamp getUpdateTime(const std::string& /* configFile */) override
     {
         return Poco::Timestamp::TIMEVAL_MAX;
     }
 
-    virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(
-        const std::string& configFile,
-        const std::string & /* preprocessed_dir = "" */) const override
+    virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(const std::string& configFile) override
     {
         return ConvertToPocoConfig(BuildYsonNodeFluently()
             .BeginMap()
@@ -57,7 +60,11 @@ public:
 private:
     THashMap<TString, TDictionaryConfigPtr> Dictionaries_;
     std::set<std::string> Keys_;
+
+    static const std::string Name_;
 };
+
+const std::string TDictionaryConfigRepository::Name_ = "YT";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,46 +72,6 @@ std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateDictionaryConfigRepos
     const std::vector<TDictionaryConfigPtr>& dictionaries)
 {
     return std::make_unique<TDictionaryConfigRepository>(dictionaries);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDummyConfigRepository
-    : public DB::IExternalLoaderConfigRepository
-{
-public:
-    TDummyConfigRepository() = default;
-
-    virtual std::set<std::string> list(
-        const Poco::Util::AbstractConfiguration& /* config */,
-        const std::string& /* pathKey */) const override
-    {
-        return {};
-    }
-
-    virtual bool exists(const std::string& /* configFile */) const override
-    {
-        return false;
-    }
-
-    virtual Poco::Timestamp getLastModificationTime(const std::string& /* configFile */) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    virtual Poco::AutoPtr<Poco::Util::AbstractConfiguration> load(
-        const std::string& /* configFile */,
-        const std::string & /* preprocessed_dir = "" */) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::unique_ptr<DB::IExternalLoaderConfigRepository> CreateDummyConfigRepository()
-{
-    return std::make_unique<TDummyConfigRepository>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

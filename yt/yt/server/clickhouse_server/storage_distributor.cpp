@@ -6,12 +6,12 @@
 #include "helpers.h"
 #include "query_context.h"
 #include "subquery.h"
-#include "join_workaround.h"
 #include "schema.h"
 #include "query_registry.h"
 #include "query_analyzer.h"
 #include "table.h"
 #include "host.h"
+#include "query_context.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
@@ -33,13 +33,14 @@
 #include <DataTypes/DataTypeNullable.h>
 #include <Storages/MergeTree/MergeTreeData.h>
 #include <Storages/StorageFactory.h>
-#include <Parsers/ASTFunction.h>
+#include <Storages/SelectQueryInfo.h>
 #include <Parsers/ASTLiteral.h>
 #include <Parsers/ASTIdentifier.h>
 #include <Parsers/ASTSelectQuery.h>
 #include <Parsers/ASTCreateQuery.h>
 #include <Parsers/ASTSampleRatio.h>
 #include <Parsers/queryToString.h>
+#include <Processors/Sources/SourceFromInputStream.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -127,6 +128,7 @@ DB::BlockInputStreamPtr CreateRemoteStream(
         context,
         DB::SelectQueryOptions(processedStage).analyze()).getSampleBlock());
 
+
     auto stream = std::make_shared<DB::RemoteBlockInputStream>(
         remoteNode->GetConnection(),
         query,
@@ -134,6 +136,7 @@ DB::BlockInputStreamPtr CreateRemoteStream(
         context,
         nullptr,    // will use settings from context
         throttler,
+        context.getScalars(),
         externalTables,
         processedStage);
 
@@ -187,7 +190,8 @@ public:
         TQueryContext* queryContext,
         std::vector<TTablePtr> tables,
         TTableSchema schema)
-        : QueryContext_(queryContext)
+        : DB::IStorage({"YT", "distributor"})
+        , QueryContext_(queryContext)
         , Tables_(std::move(tables))
         , Schema_(std::move(schema))
         , Logger(QueryContext_->Logger)
@@ -206,11 +210,6 @@ public:
     std::string getName() const override
     {
         return "StorageDistributor";
-    }
-
-    virtual std::string getDatabaseName() const override
-    {
-        return "";
     }
 
     bool supportsPrewhere() const override
@@ -245,19 +244,29 @@ public:
         return result;
     }
 
-    virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(const DB::Context& context) const override
+    virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(
+        const DB::Context& context,
+        DB::QueryProcessingStage::Enum toStage,
+        const DB::ASTPtr &) const override
     {
         // If we use WithMergeableState while using single node, caller would process aggregation functions incorrectly.
         // See also: need_second_distinct_pass at DB::InterpreterSelectQuery::executeImpl().
-        if (!context.getSettingsRef().distributed_group_by_no_merge &&
-            QueryContext_->Host->GetNodes().size() != 1)
-        {
+        if (context.getSettings().distributed_group_by_no_merge) {
+            return DB::QueryProcessingStage::Complete;
+        }
+
+        if (toStage == DB::QueryProcessingStage::WithMergeableState) {
             return DB::QueryProcessingStage::WithMergeableState;
         }
-        return DB::QueryProcessingStage::Complete;
+
+        if (QueryContext_->Host->GetNodes().size() != 1) {
+            return DB::QueryProcessingStage::WithMergeableState;
+        } else {
+            return DB::QueryProcessingStage::Complete;
+        }
     }
 
-    virtual DB::BlockInputStreams read(
+    virtual DB::Pipes read(
         const DB::Names& columnNames,
         const DB::SelectQueryInfo& queryInfo,
         const DB::Context& context,
@@ -265,10 +274,12 @@ public:
         size_t /* maxBlockSize */,
         unsigned /* numStreams */) override
     {
+        StorageDistributorIndex_ = QueryContext_->RegisterStorageDistributor();
+        Logger.AddTag("StorageDistributorIndex: %v", StorageDistributorIndex_);
+
+        YT_LOG_DEBUG("StorageDistributor starts reading (QueryAST: %v, Address: %v)", *queryInfo.query, static_cast<void*>(this));
+
         ValidateReadPermissions(ToVectorString(columnNames), Tables_, QueryContext_);
-
-        YT_LOG_TRACE("StorageDistributor started reading (Address: %v)", static_cast<void*>(this));
-
         SpecTemplate_ = TSubquerySpec();
         SpecTemplate_.InitialQueryId = QueryContext_->QueryId;
         SpecTemplate_.InitialQuery = ToString(queryInfo.query);
@@ -297,10 +308,7 @@ public:
         // TODO(max42): do we need them?
         auto throttler = CreateNetThrottler(settings);
 
-        DB::BlockInputStreams streams;
-
-        // TODO(max42): CHYT-154.
-        SpecTemplate_.MembershipHint = DumpMembershipHint(*queryInfo.query, Logger);
+        DB::Pipes pipes;
 
         std::sort(Subqueries_.begin(), Subqueries_.end(), [] (const TSubquery& lhs, const TSubquery& rhs) {
             return lhs.Cookie < rhs.Cookie;
@@ -385,12 +393,12 @@ public:
                     processedStage,
                     Logger);
 
-            streams.push_back(std::move(substream));
+            pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(std::move(substream)));
         }
 
         YT_LOG_INFO("Finished distribution");
 
-        return streams;
+        return pipes;
     }
 
     virtual bool supportsSampling() const override
@@ -443,6 +451,7 @@ private:
     // TMiscExt is used for better memory estimation in readers, but it is dropped when using
     // TInputChunk, so for now we store it explicitly in a map and use when serializing subquery input.
     THashMap<TChunkId, TRefCountedMiscExtPtr> MiscExtMap_;
+    int StorageDistributorIndex_;
     TLogger Logger;
 
     void Prepare(
@@ -455,8 +464,10 @@ private:
         NTracing::GetCurrentTraceContext()->AddTag("chyt.subquery_count", ToString(subqueryCount));
         NTracing::GetCurrentTraceContext()->AddTag("chyt.column_names", Format("%v", MakeFormattableView(columnNames, TDefaultFormatter())));
 
-        QueryAnalyzer_.emplace(context, queryInfo);
+        QueryAnalyzer_.emplace(context, queryInfo, Logger);
         auto queryAnalysisResult = QueryAnalyzer_->Analyze();
+
+        YT_LOG_TRACE("Preparing StorageDistributor for query (Query: %v)", *queryInfo.query);
 
         auto input = FetchInput(
             QueryContext_,
@@ -467,7 +478,7 @@ private:
 
         std::optional<double> samplingRate;
         const auto& selectQuery = queryInfo.query->as<DB::ASTSelectQuery&>();
-        if (auto selectSampleSize = selectQuery.sample_size()) {
+        if (auto selectSampleSize = selectQuery.sampleSize()) {
             auto ratio = selectSampleSize->as<DB::ASTSampleRatio&>().ratio;
             auto rate = static_cast<double>(ratio.numerator) / ratio.denominator;
             if (rate > 1.0) {
@@ -532,7 +543,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         }
     }
 
-    auto path = TRichYPath::Parse(TString(args.table_name));
+    auto path = TRichYPath::Parse(TString(args.table_id.table_name));
     YT_LOG_INFO("Creating table from CH engine (Path: %v, Columns: %v, KeyColumns: %v)",
         path,
         args.columns.toString(),

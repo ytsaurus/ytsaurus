@@ -3,7 +3,6 @@
 #include "private.h"
 
 #include <Databases/IDatabase.h>
-#include <Interpreters/Cluster.h>
 
 namespace NYT::NClickHouseServer {
 

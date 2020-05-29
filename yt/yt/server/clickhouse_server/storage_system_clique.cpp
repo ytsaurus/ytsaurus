@@ -9,12 +9,12 @@
 #include <DataTypes/DataTypesNumber.h>
 #include <DataStreams/OneBlockInputStream.h>
 #include <Storages/IStorage.h>
+#include <Processors/Sources/SourceFromInputStream.h>
+#include <Processors/Pipe.h>
 
 #include <algorithm>
 
 namespace NYT::NClickHouseServer {
-
-using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,16 +22,14 @@ class TStorageSystemClique
     : public DB::IStorage
 {
 private:
-    const std::string TableName_;
     TDiscoveryPtr Discovery_;
     TGuid InstanceId_;
 
 public:
     TStorageSystemClique(
         TDiscoveryPtr discovery,
-        std::string tableName,
         TGuid instanceId)
-        : TableName_(std::move(tableName))
+        : DB::IStorage({"system", "clique"})
         , Discovery_(std::move(discovery))
         , InstanceId_(std::move(instanceId))
     {
@@ -43,27 +41,17 @@ public:
         return "SystemClique";
     }
 
-    std::string getTableName() const override
-    {
-        return TableName_;
-    }
-
-    std::string getDatabaseName() const override
-    {
-        return "system";
-    }
-
-    BlockInputStreams read(
-        const Names& /* columnNames */,
-        const SelectQueryInfo& /* queryInfo */,
-        const Context& /* context */,
-        QueryProcessingStage::Enum /* processedStage */,
+    DB::Pipes read(
+        const DB::Names& /* columnNames */,
+        const DB::SelectQueryInfo& /* queryInfo */,
+        const DB::Context& /* context */,
+        DB::QueryProcessingStage::Enum /* processedStage */,
         size_t /* maxBlockSize */,
         unsigned /* numStreams */)
     {
         auto nodes = Discovery_->List();
 
-        MutableColumns res_columns = getSampleBlock().cloneEmptyColumns();
+        DB::MutableColumns res_columns = getSampleBlock().cloneEmptyColumns();
 
         for (const auto& [name, attributes] : nodes) {
             res_columns[0]->insert(std::string(attributes.at("host")->GetValue<TString>()));
@@ -77,22 +65,27 @@ public:
             res_columns[8]->insert(attributes.at("job_cookie")->GetValue<ui64>());
         }
 
-        return BlockInputStreams(1, std::make_shared<OneBlockInputStream>(getSampleBlock().cloneWithColumns(std::move(res_columns))));
+        auto blockInputStream = std::make_shared<DB::OneBlockInputStream>(getSampleBlock().cloneWithColumns(std::move(res_columns)));
+        auto source = std::make_shared<DB::SourceFromInputStream>(std::move(blockInputStream));
+        DB::Pipe pipe(std::move(source));
+        DB::Pipes result;
+        result.emplace_back(std::move(pipe));
+        return result;
     }
 
 private:
-    static ColumnsDescription CreateColumnList()
+    static DB::ColumnsDescription CreateColumnList()
     {
-        return ColumnsDescription({
-            {"host", std::make_shared<DataTypeString>()},
-            {"rpc_port", std::make_shared<DataTypeUInt16>()},
-            {"monitoring_port", std::make_shared<DataTypeUInt16>()},
-            {"tcp_port", std::make_shared<DataTypeUInt16>()},
-            {"http_port", std::make_shared<DataTypeUInt16>()},
-            {"job_id", std::make_shared<DataTypeString>()},
-            {"pid", std::make_shared<DataTypeInt32>()},
-            {"self", std::make_shared<DataTypeUInt8>()},
-            {"job_cookie", std::make_shared<DataTypeUInt32>()},
+        return DB::ColumnsDescription({
+            {"host", std::make_shared<DB::DataTypeString>()},
+            {"rpc_port", std::make_shared<DB::DataTypeUInt16>()},
+            {"monitoring_port", std::make_shared<DB::DataTypeUInt16>()},
+            {"tcp_port", std::make_shared<DB::DataTypeUInt16>()},
+            {"http_port", std::make_shared<DB::DataTypeUInt16>()},
+            {"job_id", std::make_shared<DB::DataTypeString>()},
+            {"pid", std::make_shared<DB::DataTypeInt32>()},
+            {"self", std::make_shared<DB::DataTypeUInt8>()},
+            {"job_cookie", std::make_shared<DB::DataTypeUInt32>()},
         });
     }
 };
@@ -101,12 +94,10 @@ private:
 
 DB::StoragePtr CreateStorageSystemClique(
     TDiscoveryPtr discovery,
-    std::string tableName,
     TGuid instanceId)
 {
     return std::make_shared<TStorageSystemClique>(
         std::move(discovery),
-        std::move(tableName),
         instanceId);
 }
 

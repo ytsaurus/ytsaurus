@@ -1,8 +1,10 @@
 #include "tcp_handler.h"
 
+#include "helpers.h"
 #include "query_context.h"
 
-#include <server/TCPHandler.h>
+#include <Poco/Util/LayeredConfiguration.h>
+#include <Server/TCPHandler.h>
 
 #include <util/string/cast.h>
 #include <util/string/split.h>
@@ -87,6 +89,10 @@ Poco::Net::TCPServerConnection* TTcpHandlerFactory::createConnection(const Poco:
                 // TODO(max42): support.
                 THROW_ERROR_EXCEPTION("Queries via native TCP protocol are not supported (CHYT-342)");
             }
+
+            YT_LOG_DEBUG("Registering new user (UserName: %v)", context.getClientInfo().current_user);
+            RegisterNewUser(context.getAccessControlManager(), TString(context.getClientInfo().current_user));
+            YT_LOG_DEBUG("User registered");
 
             SetupHostContext(Host_, context, queryId, std::move(traceContext));
         }

@@ -27,7 +27,7 @@ struct TQueryAnalysisResult
 class TQueryAnalyzer
 {
 public:
-    TQueryAnalyzer(const DB::Context& context, const DB::SelectQueryInfo& queryInfo);
+    TQueryAnalyzer(const DB::Context& context, const DB::SelectQueryInfo& queryInfo, const NLogging::TLogger& logger);
 
     DB::ASTPtr RewriteQuery(
         const TRange<TSubquery> subqueries,

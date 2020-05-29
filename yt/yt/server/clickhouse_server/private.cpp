@@ -14,6 +14,8 @@ const NProfiling::TProfiler ClickHouseNativeProfiler("/clickhouse/native");
 
 const TString CacheUserName("yt-clickhouse-cache");
 
+const TString InternalRemoteUserName("$remote");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClickHouseServer

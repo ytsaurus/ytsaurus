@@ -18,7 +18,7 @@
 
 #include <DataTypes/DataTypeNothing.h>
 
-#include <Storages/MergeTree/MergeTreeBaseSelectBlockInputStream.h>
+#include <Interpreters/ExpressionActions.h>
 
 namespace NYT::NClickHouseServer {
 

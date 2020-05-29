@@ -20,6 +20,7 @@ extern const NProfiling::TProfiler ClickHouseNativeProfiler;
 constexpr int MemoryLimitExceededExitCode = 42;
 
 extern const TString CacheUserName;
+extern const TString InternalRemoteUserName;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -141,13 +142,11 @@ struct SelectQueryInfo;
 class Field;
 class ColumnsDescription;
 class StorageFactory;
-class IUsersManager;
-class IExternalLoaderConfigRepository;
-class IRuntimeComponentsFactory;
 struct ProcessListForUserInfo;
 struct QueryStatusInfo;
 class IAST;
 struct ASTTableExpression;
+class AccessControlManager;
 
 // TODO(max42): get rid of this!
 void registerStorageMemory(StorageFactory & factory);
@@ -168,7 +167,6 @@ extern const Event InsertQuery;
 extern const Event InsertedRows;
 extern const Event InsertedBytes;
 extern const Event ContextLock;
-extern const Event NetworkErrors;
 extern const Event RealTimeMicroseconds;
 extern const Event UserTimeMicroseconds;
 extern const Event SystemTimeMicroseconds;

@@ -7,32 +7,31 @@
 #include "tcp_handler.h"
 #include "poco_config.h"
 #include "host.h"
-
-#include "runtime_components_factory.h"
+#include "helpers.h"
 
 #include <yt/core/misc/fs.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
+#include <yt/core/concurrency/coroutine.h>
 
-#include <server/IServer.h>
+#include <Server/IServer.h>
 #include <Interpreters/AsynchronousMetrics.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/ProcessList.h>
-#include <Interpreters/IUsersManager.h>
-#include <Interpreters/IRuntimeComponentsFactory.h>
+#include <Interpreters/ExternalDictionariesLoader.h>
 #include <Storages/System/attachSystemTables.h>
 #include <Storages/StorageFactory.h>
 #include <Storages/StorageMemory.h>
 #include <TableFunctions/registerTableFunctions.h>
-#include <Dictionaries/Embedded/GeoDictionariesLoader.h>
 #include <Dictionaries/registerDictionaries.h>
 #include <Functions/registerFunctions.h>
 #include <AggregateFunctions/registerAggregateFunctions.h>
 #include <Common/ClickHouseRevision.h>
 #include <Databases/DatabaseMemory.h>
+#include <Access/AccessControlManager.h>
+#include <Access/MemoryAccessStorage.h>
 
-#include <Storages/System/attachSystemTables.h>
 #include <Storages/System/StorageSystemProcesses.h>
 #include <Storages/System/StorageSystemAsynchronousMetrics.h>
 #include <Storages/System/StorageSystemDictionaries.h>
@@ -42,20 +41,18 @@
 #include <Poco/DirectoryIterator.h>
 #include <Poco/File.h>
 #include <Poco/Net/HTTPServer.h>
-#include <Poco/Net/NetException.h>
 #include <Poco/Net/TCPServer.h>
-#include <Poco/String.h>
 #include <Poco/ThreadPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
-#include <Poco/Util/XMLConfiguration.h>
 
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ClickHouseYtLogger;
+using namespace NConcurrency;
 
+static const auto& Logger = ClickHouseYtLogger;
 static const auto& ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,14 +67,11 @@ public:
         TClickHouseConfigPtr config)
         : Host_(std::move(host))
         , Config_(config)
-        , ServerContext_(std::make_unique<DB::Context>(
-            DB::Context::createGlobal(CreateRuntimeComponentsFactory(
-                Host_->CreateUsersManager(),
-                CreateDictionaryConfigRepository(Config_->Dictionaries),
-                std::make_unique<GeoDictionariesLoader>()))))
+        , SharedContext_(DB::Context::createShared())
+        , ServerContext_(std::make_unique<DB::Context>(DB::Context::createGlobal(SharedContext_.get())))
         , LayeredConfig_(ConvertToLayeredConfig(ConvertToNode(Config_)))
-        , ProfilingQueue_(New<NConcurrency::TActionQueue>("NativeProfiling"))
-        , ProfilingExecutor_(New<NConcurrency::TPeriodicExecutor>(
+        , ProfilingQueue_(New<TActionQueue>("NativeProfiling"))
+        , ProfilingExecutor_(New<TPeriodicExecutor>(
             ProfilingQueue_->GetInvoker(),
             BIND(&TClickHouseServer::OnProfiling, MakeWeak(this)),
             ProfilingPeriod))
@@ -118,7 +112,7 @@ public:
         return ServerContext_.get();
     }
 
-    // DB::IServer overrides:
+    // DB::Server overrides:
 
     Poco::Logger& logger() const override
     {
@@ -143,6 +137,7 @@ public:
 private:
     THost* Host_;
     const TClickHouseConfigPtr Config_;
+    DB::SharedContextHolder SharedContext_;
     std::unique_ptr<DB::Context> ServerContext_;
 
     // Poco representation of Config_.
@@ -151,15 +146,18 @@ private:
     Poco::AutoPtr<Poco::Channel> LogChannel;
 
     std::unique_ptr<DB::AsynchronousMetrics> AsynchronousMetrics_;
-    std::unique_ptr<DB::SessionCleaner> SessionCleaner_;
 
     std::unique_ptr<Poco::ThreadPool> ServerPool_;
     std::vector<std::unique_ptr<Poco::Net::TCPServer>> Servers_;
 
     std::atomic<bool> Cancelled_ { false };
 
-    NConcurrency::TActionQueuePtr ProfilingQueue_;
-    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
+    TActionQueuePtr ProfilingQueue_;
+    TPeriodicExecutorPtr ProfilingExecutor_;
+
+    std::shared_ptr<DB::IDatabase> SystemDatabase_;
+
+    ext::scope_guard DictionaryGuard_;
 
     void SetupLogger()
     {
@@ -209,35 +207,45 @@ private:
 
         YT_LOG_DEBUG("Asynchronous metrics set up");
 
-        // This object will periodically cleanup sessions.
-        SessionCleaner_ = std::make_unique<DB::SessionCleaner>(*ServerContext_);
+        // Database for system tables.
 
-        ServerContext_->initializeSystemLogs();
+        YT_LOG_DEBUG("Setting up databases");
 
+        SystemDatabase_ = std::make_shared<DB::DatabaseMemory>(DB::DatabaseCatalog::SYSTEM_DATABASE, *ServerContext_);
+
+        DB::DatabaseCatalog::instance().attachDatabase(DB::DatabaseCatalog::SYSTEM_DATABASE, SystemDatabase_);
+
+        SystemDatabase_->attachTable("processes", DB::StorageSystemProcesses::create("processes"));
+        SystemDatabase_->attachTable("metrics", DB::StorageSystemMetrics::create("metrics"));
+        SystemDatabase_->attachTable("dictionaries", DB::StorageSystemDictionaries::create("dictionaries"));
+        SystemDatabase_->attachTable("asynchronous_metrics", DB::StorageSystemAsynchronousMetrics::create("asynchronous_metrics", *AsynchronousMetrics_));
+
+        DB::attachSystemTablesLocal(*SystemDatabase_);
+        Host_->PopulateSystemDatabase(SystemDatabase_.get());
+
+        DB::DatabaseCatalog::instance().attachDatabase("YT", Host_->CreateYtDatabase());
+        ServerContext_->setCurrentDatabase("YT");
+
+        auto DatabaseForTemporaryAndExternalTables = std::make_shared<DB::DatabaseMemory>(DB::DatabaseCatalog::TEMPORARY_DATABASE, *ServerContext_);
+        DB::DatabaseCatalog::instance().attachDatabase(DB::DatabaseCatalog::TEMPORARY_DATABASE, DatabaseForTemporaryAndExternalTables);
+
+        YT_LOG_DEBUG("Initializing system logs");
+        // XXX(max42): fill link :)
+        // NB: under debug build this method does not fit in regular fiber stack
+        // due to https://...
+        TCoroutine<void()> coroutine(BIND([&] (TCoroutine<void()>& /* self */) { ServerContext_->initializeSystemLogs(); }), EExecutionStackKind::Large);
+        coroutine.Run();
+        YT_VERIFY(coroutine.IsCompleted());
         YT_LOG_DEBUG("System logs initialized");
 
-        // Database for system tables.
-        {
-            auto systemDatabase = std::make_shared<DB::DatabaseMemory>("system");
+        YT_LOG_DEBUG("Setting up access manager");
 
-            systemDatabase->attachTable("processes", DB::StorageSystemProcesses::create("processes"));
-            systemDatabase->attachTable("metrics", DB::StorageSystemMetrics::create("metrics"));
-            systemDatabase->attachTable("dictionaries", DB::StorageSystemDictionaries::create("dictionaries"));
-            systemDatabase->attachTable("asynchronous_metrics", DB::StorageSystemAsynchronousMetrics::create("asynchronous_metrics", *AsynchronousMetrics_));
-            DB::attachSystemTablesLocal(*systemDatabase);
-            ServerContext_->addDatabase("system", systemDatabase);
+        ServerContext_->getAccessControlManager().addStorage(std::make_unique<DB::MemoryAccessStorage>());
+        RegisterNewUser(ServerContext_->getAccessControlManager(), InternalRemoteUserName);
 
-            Host_->PopulateSystemDatabase(systemDatabase.get());
-        }
+        YT_LOG_DEBUG("Adding external dictionaries from config");
 
-        YT_LOG_INFO("Creating YT database");
-
-        // Default database that contains all YT tables.
-        {
-            auto defaultDatabase = Host_->CreateYtDatabase();
-            ServerContext_->addDatabase("default", defaultDatabase);
-        }
-        ServerContext_->setCurrentDatabase("default");
+        DictionaryGuard_ = ServerContext_->getExternalDictionariesLoader().addConfigRepository(CreateDictionaryConfigRepository(Config_->Dictionaries));
 
         YT_LOG_INFO("Finished setting up context");
     }
@@ -246,8 +254,6 @@ private:
     {
         YT_LOG_INFO("Warming up dictionaries");
         ServerContext_->getEmbeddedDictionaries();
-        YT_LOG_DEBUG("Embedded dictionaries warmed up");
-        ServerContext_->getExternalDictionaries();
         YT_LOG_INFO("Finished warming up");
     }
 

@@ -249,10 +249,13 @@ private:
         YT_VERIFY(static_cast<int>(lowerKey.GetCount()) >= *KeyColumnCount_);
         YT_VERIFY(static_cast<int>(upperKey.GetCount()) >= *KeyColumnCount_);
 
-        DB::Field minKey[*KeyColumnCount_];
-        DB::Field maxKey[*KeyColumnCount_];
-        ConvertToFieldRow(lowerKey, *KeyColumnCount_, minKey);
-        ConvertToFieldRow(upperKey, *KeyColumnCount_, maxKey);
+        DB::FieldRef minKey[*KeyColumnCount_];
+        DB::FieldRef maxKey[*KeyColumnCount_];
+
+        for (int index = 0; index < *KeyColumnCount_; ++index) {
+            minKey[index] = ConvertToField(lowerKey[index]);
+            maxKey[index] = ConvertToField(upperKey[index]);
+        }
 
         return BoolMask(KeyConditions_[tableIndex]->mayBeTrueInRange(*KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_), false);
     }
@@ -336,13 +339,14 @@ std::vector<TSubquery> BuildSubqueries(
 
     YT_LOG_INFO(
         "Building subqueries (TotalDataWeight: %v, TotalChunkCount: %v, TotalRowCount: %v, "
-        "JobCount: %v, PoolKind: %v, SamplingRate: %v)",
+        "JobCount: %v, PoolKind: %v, SamplingRate: %v, KeyColumnCount: %v)",
         inputStripeList->TotalDataWeight,
         inputStripeList->TotalChunkCount,
         inputStripeList->TotalRowCount,
         jobCount,
         poolKind,
-        samplingRate);
+        samplingRate,
+        keyColumnCount);
 
     std::vector<TSubquery> subqueries;
 

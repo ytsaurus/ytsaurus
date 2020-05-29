@@ -4,7 +4,6 @@
 #include "subquery.h"
 #include "query_context.h"
 #include "subquery_spec.h"
-#include "join_workaround.h"
 
 #include <Columns/ColumnString.h>
 #include <Columns/ColumnsNumber.h>
@@ -29,44 +28,6 @@ namespace NYT::NClickHouseServer {
 using namespace DB;
 
 ////////////////////////////////////////////////////////////////////////////////
-// select * from ytTable('//home/user/table', ...)
-
-class TYtTableTableFunction
-    : public ITableFunction
-{
-public:
-    static constexpr auto name = "ytTable";
-
-    TYtTableTableFunction() = default;
-
-    virtual std::string getName() const override
-    {
-        return name;
-    }
-
-    virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context, const std::string& /* tableName */) const override
-    {
-        const char* err = "Table function 'ytTable' requires at least 1 parameter: name of remote table";
-
-        auto& funcArgs = typeid_cast<ASTFunction &>(*functionAst).children;
-        if (funcArgs.size() != 1) {
-            throw Exception(err, ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
-        }
-
-        auto& args = typeid_cast<ASTExpressionList &>(*funcArgs.at(0)).children;
-        if (args.size() != 1) {
-            throw Exception(err, ErrorCodes::NUMBER_OF_ARGUMENTS_DOESNT_MATCH);
-        }
-
-        args[0] = evaluateConstantExpressionOrIdentifierAsLiteral(args[0], context);
-
-        auto tableName = static_cast<const ASTLiteral &>(*args[0]).value.safeGet<std::string>();
-
-        return context.getTable(context.getCurrentDatabase(), tableName);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
 // select * from ytSubquery(subquerySpec)
 
 class TYtSubqueryTableFunction
@@ -82,11 +43,12 @@ public:
         return name;
     }
 
-#ifdef CHYT154_WORKAROUND
-    virtual StoragePtr execute(const ASTPtr& functionAst, const Context& context, const std::string& /* tableName */, IAST * queryAst) const override
-#else
+    const char* getStorageTypeName() const
+    {
+        return "YT";
+    }
+
     virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context, const std::string& /* tableName */) const override
-#endif
     {
         const auto& Logger = GetQueryContext(context)->Logger;
 
@@ -113,18 +75,6 @@ public:
         protoSpec.ParseFromString(protoSpecString);
         auto subquerySpec = NYT::FromProto<TSubquerySpec>(protoSpec);
 
-#ifdef CHYT154_WORKAROUND
-        if (queryAst) {
-            try {
-                ApplyMembershipHint(*queryAst, subquerySpec.MembershipHint, Logger);
-            } catch (std::exception& ex) {
-                YT_LOG_ERROR(ex, "Error while applying membership hint");
-            }
-        } else {
-            YT_LOG_INFO("Query AST is not available, ignoring membership hint");
-        }
-#endif
-
         return Execute(context, std::move(subquerySpec));
     }
 
@@ -145,7 +95,6 @@ void RegisterTableFunctions()
 {
     auto& factory = TableFunctionFactory::instance();
 
-    factory.registerFunction<TYtTableTableFunction>();
     factory.registerFunction<TYtSubqueryTableFunction>();
 }
 

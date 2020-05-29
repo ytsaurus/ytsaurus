@@ -13,8 +13,6 @@ message TSubquerySpec
     repeated NScheduler.NProto.TTableInputSpec input_specs = 2;
     optional NYT.NProto.TGuid initial_query_id = 4;
     optional NYT.NTableClient.NProto.TTableSchemaExt read_schema = 6;
-    // TODO(max42): CHYT-154.
-    optional string membership_hint = 7;
     optional int64 subquery_index = 8;
     optional int64 table_index = 9;
     optional string initial_query = 10;

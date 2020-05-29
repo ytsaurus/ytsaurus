@@ -3,7 +3,6 @@
 #include "clickhouse_service_proxy.h"
 #include "query_context.h"
 #include "query_registry.h"
-#include "security_manager.h"
 #include "poco_config.h"
 #include "config.h"
 #include "storage_distributor.h"
@@ -365,14 +364,9 @@ public:
         return SigintCounter_ == 0 ? EInstanceState::Active : EInstanceState::Stopped;
     }
 
-    std::unique_ptr<DB::IUsersManager> CreateUsersManager() const
-    {
-        return CreateSecurityManager(Config_->SecurityManager, RootClient_, Config_->CliqueId);
-    }
-
     void PopulateSystemDatabase(DB::IDatabase* systemDatabase) const
     {
-        systemDatabase->attachTable("clique", CreateStorageSystemClique(Discovery_, "discovery", Config_->InstanceId));
+        systemDatabase->attachTable("clique", CreateStorageSystemClique(Discovery_, Config_->InstanceId));
     }
 
     std::shared_ptr<DB::IDatabase> CreateYtDatabase() const
@@ -747,11 +741,6 @@ EInstanceState THost::GetInstanceState() const
     return Impl_->GetInstanceState();
 }
 
-std::unique_ptr<DB::IUsersManager> THost::CreateUsersManager() const
-{
-    return Impl_->CreateUsersManager();
-}
-
 void THost::PopulateSystemDatabase(DB::IDatabase* systemDatabase) const
 {
     return Impl_->PopulateSystemDatabase(systemDatabase);
@@ -766,6 +755,7 @@ void THost::SetContext(DB::Context* context)
 {
     Impl_->SetContext(context);
 }
+
 
 THost::~THost() = default;
 

@@ -20,7 +20,7 @@ def get_host_paths(arcadia_interop, bins):
 
 
 def get_logging_config():
-    return {
+    result = {
         "rules": [
             {"min_level": "debug", "writers": ["debug"]},
             {"min_level": "info", "writers": ["info"]},
@@ -34,6 +34,10 @@ def get_logging_config():
         "flush_period": 1000,
         "watch_period": 5000,
     }
+    if "YT_ENABLE_TRACE_LOG" in os.environ:
+        result["rules"].append({"min_level": "trace", "writers": ["trace"]})
+        result["writers"]["trace"] = {"file_name": "./clickhouse-$YT_JOB_INDEX.trace.log", "type": "file"}
+    return result
 
 
 def get_clickhouse_server_config():
