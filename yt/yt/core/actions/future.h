@@ -60,24 +60,24 @@ void Unref(TFutureState<T>* state);
 
 //! Creates an empty (unset) promise.
 template <class T>
-TPromise<T> NewPromise();
+[[nodiscard]] TPromise<T> NewPromise();
 
 //! Constructs a pre-set promise.
 template <class T>
-TPromise<T> MakePromise(TErrorOr<T> value);
+[[nodiscard]] TPromise<T> MakePromise(TErrorOr<T> value);
 template <class T>
-TPromise<T> MakePromise(T value);
+[[nodiscard]] TPromise<T> MakePromise(T value);
 
 //! Constructs a successful pre-set future.
 template <class T>
-TFuture<T> MakeFuture(TErrorOr<T> value);
+[[nodiscard]] TFuture<T> MakeFuture(TErrorOr<T> value);
 template <class T>
-TFuture<T> MakeFuture(T value);
+[[nodiscard]] TFuture<T> MakeFuture(T value);
 
 //! Constructs a well-known pre-set future like #VoidFuture.
 //! For such futures ref-counting is essentially disabled.
 template <class T>
-TFuture<T> MakeWellKnownFuture(TErrorOr<T> value);
+[[nodiscard]] TFuture<T> MakeWellKnownFuture(TErrorOr<T> value);
 
 ////////////////////////////////////////////////////////////////////////////////
 // Comparison and swap.
