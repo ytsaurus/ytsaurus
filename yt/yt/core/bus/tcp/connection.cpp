@@ -340,7 +340,7 @@ void TTcpConnection::Abort(const TError& error)
 
         // Prevent starting new OnSocketRead/OnSocketWrite and Retry.
         // Already running will continue, Unregister will drain them.
-        Pending_ |= EPollControl::Terminate;
+        Pending_ |= EPollControl::Shutdown;
     }
 
     // Construct a detailed error.
@@ -540,7 +540,7 @@ void TTcpConnection::OnEvent(EPollControl control)
         auto guard = Guard(Lock_);
 
         // New events could come while previous handler is still running.
-        if (Any(Pending_ & EPollControl::Running)) {
+        if (Any(Pending_ & (EPollControl::Running | EPollControl::Shutdown))) {
             Pending_ |= control;
             YT_LOG_TRACE("Event handler is already running (Pending: %v)", Pending_);
             return;
@@ -588,10 +588,13 @@ void TTcpConnection::OnEvent(EPollControl control)
     // increase latency for events already picked by this thread. So, put it
     // away into retry queue without waking other threads. This or any other
     // thread will handle it on next iteration after handling picked events.
+    //
+    // Do not retry processing if socket is already started shutdown sequence.
+    // Retry request could be picked by thread which already passed draining.
     {
         auto guard = Guard(Lock_);
         Pending_ &= ~EPollControl::Running;
-        if (Any(Pending_)) {
+        if (Any(Pending_) && None(Pending_ & EPollControl::Shutdown)) {
             YT_LOG_TRACE("Retry event processing (Pending: %v)", Pending_);
             Poller_->Retry(this, false);
         }
