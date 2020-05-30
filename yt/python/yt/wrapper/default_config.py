@@ -565,7 +565,7 @@ default_config = {
     "allow_fallback_to_native_driver": True,
 
     # TODO(kiselyovp): remove when YT-7898 is deployed.
-    "use_http_backend_for_streaming": True,
+    "use_http_backend_for_streaming": False,
 }
 
 # pydoc :: default_config :: end
