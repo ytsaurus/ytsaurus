@@ -6,8 +6,8 @@
 #include <library/cpp/streams/lz/lz.h>
 #include <library/cpp/streams/brotli/brotli.h>
 
-#include <library/blockcodecs/codecs.h>
-#include <library/blockcodecs/stream.h>
+#include <library/cpp/blockcodecs/codecs.h>
+#include <library/cpp/blockcodecs/stream.h>
 
 #include <util/stream/zlib.h>
 
