@@ -38,9 +38,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Option cpu.share is limited to [2, 1024], see http://git.kernel.org/cgit/linux/kernel/git/tip/tip.git/tree/kernel/sched/sched.h#n279
-// To overcome this limitation we consider one cpu_limit unit as ten cpu.shares units.
-static constexpr int CpuShareMultiplier = 10;
 static const TString RootFSBinaryDirectory("/ext_bin/");
 
 #ifdef _linux_
@@ -48,23 +45,6 @@ static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
 #endif
 
 static const NLogging::TLogger Logger("JobProxyEnvironment");
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TCGroups
-{
-    explicit TCGroups(const TString& name)
-        : Freezer(name)
-        , CpuAccounting(name)
-        , BlockIO(name)
-        , Cpu(name)
-    { }
-
-    TFreezer Freezer;
-    TCpuAccounting CpuAccounting;
-    TBlockIO BlockIO;
-    TCpu Cpu;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -125,167 +105,6 @@ protected:
         return memoryStatistics;
     }
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCGroupsResourceTracker
-    : public virtual IResourceTracker
-{
-public:
-    TCGroupsResourceTracker(
-        TCGroupJobEnvironmentConfigPtr config,
-        const TString& path)
-        : CGroupsConfig_(std::move(config))
-        , Path_(path)
-        , CGroups_(path)
-    { }
-
-    virtual TCpuStatistics GetCpuStatistics() const override
-    {
-        if (CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
-            return CGroups_.CpuAccounting.GetStatistics();
-        }
-        THROW_ERROR_EXCEPTION("CPU accounting cgroup is not supported");
-    }
-
-    virtual TBlockIOStatistics GetBlockIOStatistics() const override
-    {
-        if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
-            return CGroups_.BlockIO.GetStatistics();
-        }
-        THROW_ERROR_EXCEPTION("Block IO cgroup is not supported");
-    }
-
-protected:
-    const TCGroupJobEnvironmentConfigPtr CGroupsConfig_;
-    const TString Path_;
-
-    TCGroups CGroups_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCGroupsUserJobEnvironment
-    : public TCGroupsResourceTracker
-    , public IUserJobEnvironment
-    , private TMemoryTrackerBase
-{
-public:
-    TCGroupsUserJobEnvironment(
-        TCGroupJobEnvironmentConfigPtr config,
-        const TString& path)
-        : TCGroupsResourceTracker(config, path)
-    { }
-
-    virtual TDuration GetBlockIOWatchdogPeriod() const override
-    {
-        return CGroupsConfig_->BlockIOWatchdogPeriod;
-    }
-
-    virtual TMemoryStatistics GetMemoryStatistics() const
-    {
-        return TMemoryTrackerBase::GetMemoryStatistics();
-    }
-
-    virtual i64 GetMaxMemoryUsage() const override
-    {
-        return MaxMemoryUsage_;
-    }
-
-    virtual void CleanProcesses() override
-    {
-        try {
-            // Kill everything for sanity reasons: main user process completed,
-            // but its children may still be alive.
-            RunKiller(CGroups_.Freezer.GetFullPath());
-        } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Failed to kill user processes");
-        }
-    }
-
-    virtual void SetIOThrottle(i64 operations) override
-    {
-        if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
-            CGroups_.BlockIO.ThrottleOperations(operations);
-        }
-    }
-
-    virtual TProcessBasePtr CreateUserJobProcess(
-        const TString& path,
-        int uid,
-        const TUserJobProcessOptions& /*options*/) override
-    {
-        YT_VERIFY(!Process_);
-
-        UserId_ = uid;
-        Process_ =  New<TSimpleProcess>(path, false);
-        try {
-            {
-                CGroups_.Freezer.Create();
-                Process_->AddArguments({"--cgroup", CGroups_.Freezer.GetFullPath()});
-            }
-
-            if (CGroupsConfig_->IsCGroupSupported(TCpuAccounting::Name)) {
-                CGroups_.CpuAccounting.Create();
-                Process_->AddArguments({"--cgroup", CGroups_.CpuAccounting.GetFullPath()});
-                Process_->AddArguments({"--env", Format("YT_CGROUP_CPUACCT=%v", CGroups_.CpuAccounting.GetFullPath())});
-            }
-
-            if (CGroupsConfig_->IsCGroupSupported(TBlockIO::Name)) {
-                CGroups_.BlockIO.Create();
-                Process_->AddArguments({"--cgroup", CGroups_.BlockIO.GetFullPath()});
-                Process_->AddArguments({"--env", Format("YT_CGROUP_BLKIO=%v", CGroups_.BlockIO.GetFullPath())});
-            }
-
-            Process_->AddArguments({"--uid", ::ToString(uid)});
-
-        } catch (const std::exception& ex) {
-            YT_LOG_FATAL(ex, "Failed to create required cgroups");
-        }
-        return Process_;
-    }
-
-    virtual IInstancePtr GetUserJobInstance() const override
-    {
-        return nullptr;
-    }
-};
-
-DECLARE_REFCOUNTED_CLASS(TCGroupsUserJobEnvironment);
-DEFINE_REFCOUNTED_TYPE(TCGroupsUserJobEnvironment);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCGroupsJobProxyEnvironment
-    : public TCGroupsResourceTracker
-    , public IJobProxyEnvironment
-{
-public:
-    TCGroupsJobProxyEnvironment(TCGroupJobEnvironmentConfigPtr config)
-        : TCGroupsResourceTracker(config, "")
-    { }
-
-    virtual void SetCpuShare(double share) override
-    {
-        if (CGroupsConfig_->IsCGroupSupported(TCpu::Name)) {
-            CGroups_.Cpu.SetShare(share * CpuShareMultiplier);
-        }
-    }
-
-    virtual void SetCpuLimit(double share) override
-    { }
-
-    virtual void EnablePortoMemoryTracking() override
-    { }
-
-    virtual IUserJobEnvironmentPtr CreateUserJobEnvironment(const TString& jobId) override
-    {
-        return New<TCGroupsUserJobEnvironment>(CGroupsConfig_, "user_job_" + jobId);
-    }
-};
-
-DECLARE_REFCOUNTED_CLASS(TCGroupsJobProxyEnvironment)
-DEFINE_REFCOUNTED_TYPE(TCGroupsJobProxyEnvironment)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -743,17 +562,6 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
 
     auto environmentConfig = ConvertTo<TJobEnvironmentConfigPtr>(config);
     switch (environmentConfig->Type) {
-        case EJobEnvironmentType::Cgroups:
-            if (rootFS) {
-                THROW_ERROR_EXCEPTION("CGroups job environment does not support custom root FS");
-            }
-
-            if (!gpuDevices.empty()) {
-                YT_LOG_WARNING("CGroups job environment does not support GPU device isolation (Devices: %v)", gpuDevices);
-            }
-
-            return New<TCGroupsJobProxyEnvironment>(ConvertTo<TCGroupJobEnvironmentConfigPtr>(config));
-
 #ifdef _linux_
         case EJobEnvironmentType::Porto:
             return New<TPortoJobProxyEnvironment>(
@@ -782,4 +590,3 @@ IJobProxyEnvironmentPtr CreateJobProxyEnvironment(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy
-

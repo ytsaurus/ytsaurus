@@ -15,9 +15,6 @@ IJobPtr CreateUserJob(IJobHostPtr host,
     const std::vector<int>& ports,
     std::unique_ptr<TUserJobWriteController> userJobWriteController);
 
-const TString& GetCGroupUserJobBase();
-const TString& GetCGroupUserJobPrefix();
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobProxy

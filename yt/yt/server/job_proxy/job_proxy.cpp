@@ -21,8 +21,6 @@
 
 #include <yt/ytlib/api/native/connection.h>
 
-#include <yt/ytlib/cgroup/cgroup.h>
-
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/traffic_meter.h>
@@ -90,7 +88,6 @@ using namespace NJobProxy;
 using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
-using namespace NCGroup;
 using namespace NYTree;
 using namespace NYson;
 using namespace NContainers;

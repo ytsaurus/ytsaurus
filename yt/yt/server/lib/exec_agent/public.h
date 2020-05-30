@@ -48,7 +48,6 @@ DEFINE_ENUM(ESandboxKind,
 
 DEFINE_ENUM(EJobEnvironmentType,
     (Simple)
-    (Cgroups)
     (Porto)
 );
 
@@ -57,7 +56,6 @@ DEFINE_ENUM(EJobEnvironmentType,
 DECLARE_REFCOUNTED_CLASS(TSlotLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TSimpleJobEnvironmentConfig)
-DECLARE_REFCOUNTED_CLASS(TCGroupJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TPortoJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TSlotManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConnectorConfig)

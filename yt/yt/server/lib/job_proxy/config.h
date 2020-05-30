@@ -6,8 +6,6 @@
 
 #include <yt/server/lib/misc/config.h>
 
-#include <yt/ytlib/cgroup/config.h>
-
 #include <yt/client/file_client/config.h>
 
 #include <yt/ytlib/hydra/config.h>

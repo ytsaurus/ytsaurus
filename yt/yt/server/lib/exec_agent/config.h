@@ -10,8 +10,6 @@
 
 #include <yt/server/lib/misc/config.h>
 
-#include <yt/ytlib/cgroup/config.h>
-
 #include <yt/ytlib/chunk_client/public.h>
 
 #include <yt/core/ytree/node.h>
@@ -61,24 +59,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleJobEnvironmentConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCGroupJobEnvironmentConfig
-    : public TJobEnvironmentConfig
-    , public NCGroup::TCGroupConfig
-{
-public:
-    TDuration BlockIOWatchdogPeriod;
-
-    TCGroupJobEnvironmentConfig()
-    {
-        RegisterParameter("block_io_watchdog_period", BlockIOWatchdogPeriod)
-            .Default(TDuration::Seconds(60));
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TCGroupJobEnvironmentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

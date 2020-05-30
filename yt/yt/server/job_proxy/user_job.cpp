@@ -24,8 +24,6 @@
 
 #include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
-#include <yt/ytlib/cgroup/cgroup.h>
-
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
@@ -106,7 +104,6 @@ using namespace NScheduler::NProto;
 using namespace NShell;
 using namespace NTransactionClient;
 using namespace NConcurrency;
-using namespace NCGroup;
 using namespace NJobAgent;
 using namespace NChunkClient;
 using namespace NFileClient;
@@ -1125,7 +1122,7 @@ private:
             DumpCodecStatistics(writer->GetCompressionStatistics(), "/codec/cpu/encode/" + ToYPathLiteral(index), &statistics);
         }
 
-        // Cgroups statistics.
+        // Job environment statistics.
         if (UserJobEnvironment_ && Prepared_) {
             try {
                 auto cpuStatistics = UserJobEnvironment_->GetCpuStatistics();
