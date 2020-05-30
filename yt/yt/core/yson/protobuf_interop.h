@@ -4,6 +4,8 @@
 
 #include <yt/core/ypath/public.h>
 
+#include <yt/core/ytree/public.h>
+
 #include <variant>
 
 namespace NYT::NYson {
@@ -203,6 +205,41 @@ template <class T>
 TStringBuf FindProtobufEnumLiteralByValue(
     const TProtobufEnumType* type,
     T value);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProtobufMessageConverter
+{
+    std::function<void(IYsonConsumer* consumer, const google::protobuf::Message* message)> Serializer;
+    std::function<void(google::protobuf::Message* message, const NYTree::INodePtr& node)> Deserializer;
+};
+
+// This method is called during static initialization and not assumed to be called during runtime.
+void RegisterCustomProtobufConverter(
+    const google::protobuf::Descriptor* descriptor,
+    const TProtobufMessageConverter& converter);
+
+#define REGISTER_INTERMEDIATE_PROTO_INTEROP_REPRESENTATION(ProtoType, Type)                                   \
+    const bool TmpBool##__COUNTER__ = [] {                                                                    \
+        auto* descriptor = ProtoType::default_instance().GetDescriptor();                                     \
+        TProtobufMessageConverter converter;                                                                  \
+        converter.Serializer = [] (IYsonConsumer* consumer, const google::protobuf::Message* message) {       \
+            const auto* typedMessage = dynamic_cast<const ProtoType*>(message);                               \
+            YT_VERIFY(typedMessage);                                                                          \
+            Type value;                                                                                       \
+            FromProto(&value, *typedMessage);                                                                 \
+            Serialize(value, consumer);                                                                       \
+        };                                                                                                    \
+        converter.Deserializer = [] (google::protobuf::Message* message, const NYTree::INodePtr& node) {      \
+            auto* typedMessage = dynamic_cast<ProtoType*>(message);                                           \
+            YT_VERIFY(typedMessage);                                                                          \
+            Type value;                                                                                       \
+            Deserialize(value, node);                                                                         \
+            ToProto(typedMessage, value);                                                                     \
+        };                                                                                                    \
+        RegisterCustomProtobufConverter(descriptor, converter);                                               \
+        return false;                                                                                         \
+    } ();
 
 ////////////////////////////////////////////////////////////////////////////////
 

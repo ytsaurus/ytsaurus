@@ -50,6 +50,9 @@ message TMessage
     map<string, TNestedMessage> nested_message_map = 22 [(NYT.NYson.NProto.yson_map) = true];
     map<string, int32> string_to_int32_map = 23 [(NYT.NYson.NProto.yson_map) = true];
     map<int32, int32> int32_to_int32_map = 24 [(NYT.NYson.NProto.yson_map) = true];
+    optional TNestedMessageWithCustomConverter nested_message_with_custom_converter = 25;
+    repeated TNestedMessageWithCustomConverter repeated_nested_message_with_custom_converter = 26;
+    map<int32, TNestedMessageWithCustomConverter> int32_to_nested_message_with_custom_converter_map = 27 [(NYT.NYson.NProto.yson_map) = true];
 
     extensions 100 to 199;
 }
@@ -113,4 +116,10 @@ message TExtensibleMessage
 message TMessageWithRequiredAnnotation
 {
     optional string required_string = 1 [(NYT.NYson.NProto.required) = true];
+}
+
+message TNestedMessageWithCustomConverter
+{
+    optional int32 x = 1;
+    optional int32 y = 2;
 }

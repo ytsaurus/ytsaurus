@@ -7,6 +7,7 @@
 #include <yt/core/yson/null_consumer.h>
 
 #include <yt/core/ytree/fluent.h>
+#include <yt/core/ytree/node.h>
 #include <yt/core/ytree/ypath_client.h>
 
 #include <yt/core/misc/string.h>
@@ -24,6 +25,43 @@ using namespace NYTree;
 using namespace NYPath;
 using namespace ::google::protobuf::io;
 using namespace ::google::protobuf::internal;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNestedMessageWithCustomConverter
+{
+    int X;
+    int Y;
+};
+
+void FromProto(TNestedMessageWithCustomConverter* message, const NYT::NProto::TNestedMessageWithCustomConverter& protoMessage)
+{
+    message->X = protoMessage.x();
+    message->Y = protoMessage.y();
+}
+
+void ToProto(NYT::NProto::TNestedMessageWithCustomConverter* protoMessage, const TNestedMessageWithCustomConverter& message)
+{
+    protoMessage->set_x(message.X);
+    protoMessage->set_y(message.Y);
+}
+
+void Serialize(const TNestedMessageWithCustomConverter& message, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).BeginMap()
+        .Item("x").Value(message.X + 1)
+        .Item("y").Value(message.Y + 1)
+    .EndMap();
+}
+
+void Deserialize(TNestedMessageWithCustomConverter& message, NYTree::INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    message.X = mapNode->GetChild("x")->AsInt64()->GetValue() - 1;
+    message.Y = mapNode->GetChild("y")->AsInt64()->GetValue() - 1;
+}
+
+REGISTER_INTERMEDIATE_PROTO_INTEROP_REPRESENTATION(NYT::NProto::TNestedMessageWithCustomConverter, TNestedMessageWithCustomConverter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -149,6 +187,22 @@ TEST(TYsonToProtobufYsonTest, Success)
                 .EndMap()
                 .Item("extension_field").Value(12U)
             .EndMap()
+            .Item("nested_message_with_custom_converter").BeginMap()
+                .Item("x").Value(43)
+                .Item("y").Value(101)
+            .EndMap()
+            .Item("repeated_nested_message_with_custom_converter").BeginList()
+                .Item().BeginMap()
+                    .Item("x").Value(13)
+                    .Item("y").Value(24)
+                .EndMap()
+            .EndList()
+            .Item("int32_to_nested_message_with_custom_converter_map").BeginMap()
+                .Item("123").BeginMap()
+                    .Item("x").Value(7)
+                    .Item("y").Value(8)
+                .EndMap()
+            .EndMap()
         .EndMap();
 
 
@@ -221,6 +275,17 @@ TEST(TYsonToProtobufYsonTest, Success)
     EXPECT_EQ(1, message.nested_message_map().at("world").nested_message_map().at("test").repeated_int32_field(0));
     EXPECT_EQ(2, message.nested_message_map().at("world").nested_message_map().at("test").repeated_int32_field(1));
     EXPECT_EQ(3, message.nested_message_map().at("world").nested_message_map().at("test").repeated_int32_field(2));
+
+    EXPECT_EQ(42, message.nested_message_with_custom_converter().x());
+    EXPECT_EQ(100, message.nested_message_with_custom_converter().y());
+
+    EXPECT_EQ(1, message.repeated_nested_message_with_custom_converter_size());
+    EXPECT_EQ(12, message.repeated_nested_message_with_custom_converter().Get(0).x());
+    EXPECT_EQ(23, message.repeated_nested_message_with_custom_converter().Get(0).y());
+
+    EXPECT_EQ(1, message.int32_to_nested_message_with_custom_converter_map_size());
+    EXPECT_EQ(6, message.int32_to_nested_message_with_custom_converter_map().at(123).x());
+    EXPECT_EQ(7, message.int32_to_nested_message_with_custom_converter_map().at(123).y());
 
     EXPECT_EQ(12U, message.GetExtension(NYT::NProto::TMessageExtension::extension).extension_field());
     EXPECT_EQ(23U, message
@@ -964,6 +1029,25 @@ TEST(TProtobufToYsonTest, Success)
         }
     }
 
+    message.mutable_nested_message_with_custom_converter()->set_x(42);
+    message.mutable_nested_message_with_custom_converter()->set_y(100);
+
+    {
+        auto* nestedMessage = message.add_repeated_nested_message_with_custom_converter();
+        nestedMessage->set_x(12);
+        nestedMessage->set_y(23);
+    }
+
+    {
+        auto& map = *message.mutable_int32_to_nested_message_with_custom_converter_map();
+        {
+            NYT::NProto::TNestedMessageWithCustomConverter value;
+            value.set_x(6);
+            value.set_y(7);
+            map[123] = value;
+        }
+    }
+
     TEST_PROLOGUE()
     message.SerializeToCodedStream(&codedStream);
     TEST_EPILOGUE(TMessage)
@@ -1052,6 +1136,22 @@ TEST(TProtobufToYsonTest, Success)
                     .Item("extension_extension_field").Value(23U)
                 .EndMap()
                 .Item("extension_field").Value(12U)
+            .EndMap()
+            .Item("nested_message_with_custom_converter").BeginMap()
+                .Item("x").Value(43)
+                .Item("y").Value(101)
+            .EndMap()
+            .Item("repeated_nested_message_with_custom_converter").BeginList()
+                .Item().BeginMap()
+                    .Item("x").Value(13)
+                    .Item("y").Value(24)
+                .EndMap()
+            .EndList()
+            .Item("int32_to_nested_message_with_custom_converter_map").BeginMap()
+                .Item("123").BeginMap()
+                    .Item("x").Value(7)
+                    .Item("y").Value(8)
+                .EndMap()
             .EndMap()
         .EndMap();
 
