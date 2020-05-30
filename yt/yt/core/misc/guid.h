@@ -4,6 +4,8 @@
 
 #include <yt/core/misc/proto/guid.pb.h>
 
+#include <yt/core/yson/protobuf_interop.h>
+
 #include <util/generic/typetraits.h>
 
 namespace NYT {
