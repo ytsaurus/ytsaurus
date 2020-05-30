@@ -1,10 +1,22 @@
 #!/usr/bin/python
 
 import requests
+import time
+import typing
 
 
 class InfraError(Exception):
-        pass
+    pass
+
+
+class EVENT(object):
+    class TYPE(object):
+        MAINTENANCE = 'maintenance'
+        ISSUE = 'issue'
+
+    class SEVERITY(object):
+        MAJOR = 'major'
+        MINOR = 'minor'
 
 
 class InfraClient(object):
@@ -32,6 +44,53 @@ class InfraClient(object):
         return response
 
     # Events
+    # Constructors
+    @staticmethod
+    def make_event_spec(
+        title,  # type: str
+        description,  # type: str
+        service_id,  # type: int
+        environment_id,  # type: int
+        event_type,  # type: str
+        severity,  # type: str
+        mail=True,  # type: bool
+        start_time=None,  # type: int
+        finish_time=None,  # type: int
+        affected_dcs=None,  # type: typing.List[str]
+    ):
+        if start_time is None:
+            start = int(time.time())
+        event_spec = {
+            'title': title,
+            'description': description,
+            'environmentId': environment_id,
+            'serviceId': service_id,
+            'type': event_type,
+            'severity': severity,
+            'startTime': start_time,
+            'sendEmailNotifications': mail,
+            "man": False,
+            "myt": False,
+            "sas": False,
+            "vla": False,
+            "iva": False,
+        }
+        if finish_time is not None:
+            event_spec['finishTime'] = finish_time
+        if affected_dcs is not None:
+            for dc in affected_dcs:
+                event_spec[dc] = True
+        return event_spec
+
+    @staticmethod
+    def make_event_resolution_spec(finish_time=None):
+        if finish_time is None:
+            finish_time = int(time.time())
+        return {
+            'finishTime': finish_time,
+        }
+
+    # API
     def create_event(self, event):
         return self._request("post", "events", body=event).json()
 

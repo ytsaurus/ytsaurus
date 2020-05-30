@@ -1,5 +1,5 @@
-from .api import InfraError, InfraClient
+from .api import InfraError, InfraClient, EVENT
 
 __all__ = [
-    "InfraClient", "InfraError",
+    "InfraClient", "InfraError", "EVENT"
 ]
