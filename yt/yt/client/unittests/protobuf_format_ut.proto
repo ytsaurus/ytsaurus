@@ -33,6 +33,7 @@ message TMessageWithStructuredEmbedded
         repeated int64 another_repeated_int64_field = 9;
         repeated bytes repeated_optional_any_field = 10;
         repeated EEnum packed_repeated_enum_field = 11 [packed=true];
+        repeated bool optional_repeated_bool_field = 12;
     }
 
     message TSecondMessage
@@ -67,6 +68,8 @@ message TMessageWithStructuredEmbedded
     optional string utf8_field = 16;
 
     repeated int64 packed_repeated_int64_field = 17 [packed=true];
+
+    repeated int64 optional_repeated_int64_field = 18;
 }
 
 message TSeveralTablesMessageFirst
@@ -122,4 +125,16 @@ message TMessage
     optional bytes other_columns_field = 21;
 
     optional int64 missing_int64_field = 22;
+}
+
+message TCompatMessage
+{
+    message TEmbedded
+    {
+        optional string x = 1;
+        optional string y = 2;
+    }
+
+    optional int64 a = 1;
+    optional TEmbedded b = 2;
 }

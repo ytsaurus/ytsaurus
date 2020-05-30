@@ -342,6 +342,10 @@ SCHEMA = [
         "type_v3": list_type("string"),
     },
     {
+        "name": "optional_list_of_int64",
+        "type_v3": optional_type(list_type("int64")),
+    },
+    {
         "name": "optional_boolean",
         "type_v3": optional_type("bool"),
     },
@@ -362,6 +366,10 @@ SCHEMA = [
             ("enum_string", "string"),
             ("enum_int", "int32"),
             ("extra_field", optional_type("string")),
+            ("optional_list_of_structs", optional_type(list_type(struct_type([
+                ("a", "string"),
+                ("b", "bool"),
+            ])))),
         ]),
     },
     {
@@ -439,7 +447,25 @@ SCHEMAFUL_TABLE_PROTOBUF_CONFIG = {
                     "enumeration_name": "MyEnum",
                     "proto_type": "enum_string",
                 },
-            ]
+                {
+                    "name": "optional_list_of_structs",
+                    "field_number": 4,
+                    "proto_type": "structured_message",
+                    "fields": [
+                        {
+                            "name": "a",
+                            "field_number": 1,
+                            "proto_type": "string",
+                        },
+                        {
+                            "name": "b",
+                            "field_number": 2,
+                            "proto_type": "bool",
+                        },
+                    ],
+                    "repeated": True,
+                },
+            ],
         },
         {
             "name": "utf8",
@@ -451,6 +477,12 @@ SCHEMAFUL_TABLE_PROTOBUF_CONFIG = {
             "field_number": 7,
             "proto_type": "int32",
             "packed": True,
+            "repeated": True,
+        },
+        {
+            "name": "optional_list_of_int64",
+            "field_number": 8,
+            "proto_type": "int64",
             "repeated": True,
         },
     ],
@@ -471,9 +503,11 @@ SCHEMAFUL_TABLE_ROWS = [
             "enum_int": -42,
             "enum_string": "Green",
             "extra_field": "baz",
+            "optional_list_of_structs": [{"a": "AAA", "b": False}, {"a": "---", "b": True}],
         },
         "utf8": HELLO_WORLD,
         "packed_repeated_int8": [0, 12, 127],
+        "optional_list_of_int64": yson.YsonEntity(),
     },
     {
         "int16": -32768,
@@ -485,9 +519,11 @@ SCHEMAFUL_TABLE_ROWS = [
             "points": [],
             "enum_int": 12,
             "enum_string": "Red",
+            "optional_list_of_structs": yson.YsonEntity(),
         },
         "utf8": GOODBYE_WORLD,
         "packed_repeated_int8": [],
+        "optional_list_of_int64": [-300, -200, -100],
     },
 ]
 
@@ -502,6 +538,7 @@ PROTOBUF_SCHEMAFUL_TABLE_ROWS = [
             "points": [{"x": 1, "y": 4}, {"x": 5, "y": 4}],
             "enum_int": -42,
             "enum_string": "Green",
+            "optional_list_of_structs": [{"a": "AAA", "b": False}, {"a": "---", "b": True}],
         },
         "utf8": HELLO_WORLD,
         "packed_repeated_int8": [0, 12, 127],
@@ -516,6 +553,7 @@ PROTOBUF_SCHEMAFUL_TABLE_ROWS = [
             "enum_string": "Red",
         },
         "utf8": GOODBYE_WORLD,
+        "optional_list_of_int64": [-300, -200, -100],
     },
 ]
 
@@ -531,14 +569,16 @@ SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD = [
             "enum_int": -42,
             "enum_string": "Green",
             "extra_field": yson.YsonEntity(),
+            "optional_list_of_structs": [{"a": "AAA", "b": False}, {"a": "---", "b": True}],
         },
         "utf8": HELLO_WORLD,
         "packed_repeated_int8": [0, 12, 127],
+        "optional_list_of_int64": yson.YsonEntity(),
     },
     {
         "int16": -32768,
         "list_of_strings": ["a", "bc"],
-        "optional_boolean": None,
+        "optional_boolean": yson.YsonEntity(),
         "list_of_optional_any": [[yson.YsonEntity()], [1, "baz"]],
         "struct": {
             "key": "lol",
@@ -546,11 +586,25 @@ SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD = [
             "enum_int": 12,
             "enum_string": "Red",
             "extra_field": yson.YsonEntity(),
+            "optional_list_of_structs": yson.YsonEntity(),
         },
         "utf8": GOODBYE_WORLD,
         "packed_repeated_int8": [],
+        "optional_list_of_int64": [-300, -200, -100],
     },
 ]
+
+
+def make_random_bool():
+    return random.randrange(2) == 0
+
+
+def make_random_list(max_len, generator, optional=False):
+    min_len = -1 if optional else 0
+    length = random.randrange(min_len, max_len + 1)
+    if length == -1:
+        return yson.YsonEntity()
+    return [generator() for _ in xrange(length)]
 
 
 @authors("levysotsky")
@@ -589,19 +643,23 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
         for _ in xrange(count):
             rows.append({
                 "int16": random.randrange(1 << 15),
-                "list_of_strings": [make_random_string(random.randrange(10)) for _ in xrange(random.randrange(5))],
-                "optional_boolean": random.randrange(2) == 0,
+                "list_of_strings": make_random_list(5, lambda: make_random_string(random.randrange(10))),
+                "optional_boolean": make_random_bool(),
                 "list_of_optional_any": [yson.YsonEntity(), {"x": random.randrange(1 << 64)}, []],
                 "struct": {
                     "key": make_random_string(10),
-                    "points": [{"x": random.randrange(100), "y": random.randrange(100)} for _ in xrange(random.randrange(5))],
+                    "points": make_random_list(5, lambda: {"x": random.randrange(100), "y": random.randrange(100)}),
                     "enum_int": ENUMERATIONS["MyEnum"][random.choice(enum_names)],
                     "enum_string": random.choice(enum_names),
                     "extra_field": make_random_string(7),
+                    "optional_list_of_structs":
+                        make_random_list(5, lambda: {"a": make_random_string(3), "b": make_random_bool()}, optional=True),
                 },
                 "utf8": make_random_string(10),
-                "packed_repeated_int8": [-128 + random.randrange(256) for _ in xrange(random.randrange(5))]
+                "packed_repeated_int8": make_random_list(5, lambda: random.randrange(-128, 128)),
+                "optional_list_of_int64": make_random_list(5, lambda: random.randrange(1 << 63), optional=True),
             })
+        print rows[0]
         return rows
 
     @authors("levysotsky")
@@ -616,8 +674,17 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
         write_table("//tmp/t", value=data, is_raw=True, input_format=format, verbose=False)
         read_rows = read_table("//tmp/t", verbose=False)
         expected_rows = copy.deepcopy(rows)
+
+        def empty_to_entity(d, key):
+            if isinstance(d[key], list) and len(d[key]) == 0:
+                d[key] = yson.YsonEntity()
+
         for row in expected_rows:
             row["struct"]["extra_field"] = yson.YsonEntity()
+            empty_to_entity(row, "optional_list_of_int64")
+            empty_to_entity(row["struct"], "optional_list_of_structs")
+        print read_rows[159]
+        print expected_rows[159]
         assert_rowsets_equal(read_rows, expected_rows)
 
     @authors("levysotsky")
@@ -632,15 +699,19 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
         data = read_table("//tmp/t", output_format=format, verbose=False)
         parsed_rows = protobuf_format.parse_lenval_protobuf(data, format)
 
+        def remove_empty(d, key):
+            value = d[key]
+            if not isinstance(value, list) or len(value) == 0:
+                del d[key]
+
         expected_rows = copy.deepcopy(rows)
         for row in expected_rows:
             del row["struct"]["extra_field"]
-            if len(row["list_of_strings"]) == 0:
-                del row["list_of_strings"]
-            if len(row["struct"]["points"]) == 0:
-                del row["struct"]["points"]
-            if len(row["packed_repeated_int8"]) == 0:
-                del row["packed_repeated_int8"]
+            remove_empty(row, "list_of_strings")
+            remove_empty(row["struct"], "points")
+            remove_empty(row, "packed_repeated_int8")
+            remove_empty(row, "optional_list_of_int64")
+            remove_empty(row["struct"], "optional_list_of_structs")
         assert_rowsets_equal(parsed_rows, expected_rows)
 
     @unix_only
