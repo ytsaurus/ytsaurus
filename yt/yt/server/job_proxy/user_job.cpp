@@ -815,18 +815,23 @@ private:
                 signalerConfig->SignalName = UserJobSpec_.interruption_signal();
                 if (UserId_) {
                     signalerConfig->Pids = GetPidsByUid(*UserId_);
-                    for (auto pid : signalerConfig->Pids) { 
-                        // TODO(gritukan): Remove it.
-                        TShellCommand listProcessesCommand(Format("bash -c \"ps -u -p %v\"", pid));
-                        listProcessesCommand.Run();
-                        listProcessesCommand.Wait();
-                        YT_LOG_DEBUG("ps -u for pid %v: %v", pid, listProcessesCommand.GetOutput());
-                    }
                 } else {
                     // Fallback for non-sudo tests run.
                     auto pid = Process_->GetProcessId();
                     signalerConfig->Pids = GetPidsUnderParent(pid);
                 }
+
+                // TODO(gritukan): Remove it.
+                YT_LOG_DEBUG("Sending signal to used job (SignalName: %v, Pids: %v)",
+                    signalerConfig->SignalName,
+                    signalerConfig->Pids);
+                {
+                    TShellCommand listProcessesCommand(Format("bash -c \"ps aux\""));
+                    listProcessesCommand.Run();
+                    listProcessesCommand.Wait();
+                    YT_LOG_DEBUG("ps aux output (Output: %v)", listProcessesCommand.GetOutput());
+                }                
+
                 WaitFor(BIND([=] () {
                     return RunTool<TSignalerTool>(signalerConfig);
                 })
