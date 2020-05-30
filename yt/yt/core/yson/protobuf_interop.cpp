@@ -18,12 +18,16 @@
 #include <yt/core/misc/small_vector.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/core/ytree/ephemeral_node_factory.h>
+#include <yt/core/ytree/tree_builder.h>
+
 #include <yt/core/concurrency/thread_affinity.h>
 #include <yt/core/concurrency/fork_aware_spinlock.h>
 
 #include <yt/core/ytree/proto/attributes.pb.h>
 
 #include <contrib/libs/protobuf/descriptor.h>
+#include <contrib/libs/protobuf/dynamic_message.h>
 #include <contrib/libs/protobuf/wire_format.h>
 
 #include <contrib/libs/protobuf/io/coded_stream.h>
@@ -175,6 +179,25 @@ public:
         return Singleton<TProtobufTypeRegistry>();
     }
 
+    // This method is called during static initialization and is not expected to be called during runtime.
+    void RegisterMessageTypeConverter(
+        const Descriptor* descriptor,
+        const TProtobufMessageConverter& converter)
+    {
+        YT_VERIFY(MessageTypeConverterMap_.emplace(descriptor, converter).second);
+    }
+
+    std::optional<TProtobufMessageConverter> GetMessageTypeConverter(
+        const Descriptor* descriptor)
+    {
+        auto it = MessageTypeConverterMap_.find(descriptor);
+        if (it == MessageTypeConverterMap_.end()) {
+            return std::nullopt;
+        } else {
+            return it->second;
+        }
+    }
+
     // These are called while reflecting the types recursively;
     // the caller must be holding TypeMapsLock_.
     const TProtobufMessageType* ReflectMessageTypeInternal(const Descriptor* descriptor);
@@ -202,6 +225,8 @@ private:
     NConcurrency::TForkAwareSpinLock TypeMapsLock_;
     THashMap<const Descriptor*, std::unique_ptr<TProtobufMessageType>> MessageTypeMap_;
     THashMap<const EnumDescriptor*, std::unique_ptr<TProtobufEnumType>> EnumTypeMap_;
+
+    THashMap<const Descriptor*, TProtobufMessageConverter> MessageTypeConverterMap_;
 
     NConcurrency::TForkAwareSpinLock InternedStringsLock_;
     std::vector<TString> InternedStrings_;
@@ -333,6 +358,7 @@ public:
         : Registry_(registry)
         , Underlying_(descriptor)
         , AttributeDictionary_(descriptor->options().GetExtension(NYT::NYson::NProto::attribute_dictionary))
+        , Converter_(registry->GetMessageTypeConverter(descriptor))
     { }
 
     void Build()
@@ -374,6 +400,10 @@ public:
         return RequiredFieldNumbers_;
     }
 
+    const std::optional<TProtobufMessageConverter>& GetConverter() const
+    {
+        return Converter_;
+    }
 
     bool IsReservedFieldName(TStringBuf name) const
     {
@@ -433,6 +463,7 @@ private:
     THashMap<TStringBuf, const TProtobufField*> NameToField_;
     THashMap<int, const TProtobufField*> NumberToField_;
     THashSet<TString> ReservedFieldNames_;
+    std::optional<TProtobufMessageConverter> Converter_;
 
     void RegisterField(const FieldDescriptor* fieldDescriptor)
     {
@@ -745,6 +776,7 @@ public:
         , YsonStringWriter_(&YsonStringStream_)
         , UnknownYsonFieldValueStringStream_(UnknownYsonFieldValueString_)
         , UnknownYsonFieldValueStringWriter_(&UnknownYsonFieldValueStringStream_)
+        , TreeBuilder_(CreateBuilderFromFactory(GetEphemeralNodeFactory()))
     { }
 
 private:
@@ -806,11 +838,14 @@ private:
     TStringOutput YsonStringStream_;
     TBufferedBinaryYsonWriter YsonStringWriter_;
 
+    TString SerializedMessage_;
+
     TString UnknownYsonFieldKey_;
     TString UnknownYsonFieldValueString_;
     TStringOutput UnknownYsonFieldValueStringStream_;
     TBufferedBinaryYsonWriter UnknownYsonFieldValueStringWriter_;
 
+    std::unique_ptr<ITreeBuilder> TreeBuilder_;
 
     virtual void OnMyStringScalar(TStringBuf value) override
     {
@@ -927,6 +962,7 @@ private:
         FieldStack_.push_back(FieldStack_.back());
         FieldStack_.back().ParsingList = true;
         YPathStack_.Push(index);
+        TryWriteCustomlyConvertableType();
     }
 
     virtual void OnMyEndList() override
@@ -1042,6 +1078,7 @@ private:
         const auto* valueField = field->GetYsonMapValueField();
         FieldStack_.emplace_back(valueField);
         YPathStack_.Push(TString(key));
+        TryWriteCustomlyConvertableType();
     }
 
     void OnMyKeyedItemRegular(TStringBuf key)
@@ -1095,6 +1132,8 @@ private:
                     BodyCodedStream_.WriteRaw(YsonString_.begin(), static_cast<int>(YsonString_.length()));
                 });
             });
+        } else {
+            TryWriteCustomlyConvertableType();
         }
     }
 
@@ -1449,6 +1488,35 @@ private:
                 << TErrorAttribute("protobuf_field", field->GetFullName());
         }
         return result;
+    }
+
+    void TryWriteCustomlyConvertableType()
+    {
+        if (FieldStack_.empty()) {
+            return;
+        }
+
+        const auto* field = FieldStack_.back().Field;
+        if (field->GetType() == FieldDescriptor::TYPE_MESSAGE && field->GetMessageType()->GetConverter()) {
+            if (field->IsRepeated() && !FieldStack_.back().ParsingList) {
+                return;
+            }
+            const auto* messageType = field->GetMessageType();
+            const auto& converter = *messageType->GetConverter();
+            TreeBuilder_->BeginTree();
+            Forward(TreeBuilder_.get(), [&, messageType] {
+                auto node = TreeBuilder_->EndTree();
+                std::unique_ptr<Message> message(MessageFactory::generated_factory()->GetPrototype(messageType->GetUnderlying())->New());
+                converter.Deserializer(message.get(), node);
+                SerializedMessage_.clear();
+                message->SerializeToString(&SerializedMessage_);
+                WriteTag();
+                BodyCodedStream_.WriteVarint64(SerializedMessage_.length());
+                BodyCodedStream_.WriteRaw(SerializedMessage_.begin(), static_cast<int>(SerializedMessage_.length()));
+                FieldStack_.pop_back();
+                YPathStack_.Pop();
+            });
+        }
     }
 };
 
@@ -2105,10 +2173,21 @@ private:
                     }
 
                     case FieldDescriptor::TYPE_MESSAGE: {
-                        LimitStack_.push_back(CodedStream_.PushLimit(static_cast<int>(length)));
-                        TypeStack_.emplace_back(field->GetMessageType());
-                        if (!IsYsonMapEntry()) {
-                            OnBeginMap();
+                        const auto* messageType = field->GetMessageType();
+                        if (messageType->GetConverter()) {
+                            const auto& converter = *messageType->GetConverter();
+                            std::unique_ptr<Message> message(MessageFactory::generated_factory()->GetPrototype(messageType->GetUnderlying())->New());
+                            PooledString_.resize(length);
+                            CodedStream_.ReadRaw(PooledString_.data(), PooledString_.size());
+                            message->ParseFromArray(PooledString_.data(), PooledString_.size());
+                            converter.Serializer(Consumer_, message.get());
+                            YPathStack_.Pop();
+                        } else {
+                            LimitStack_.push_back(CodedStream_.PushLimit(static_cast<int>(length)));
+                            TypeStack_.emplace_back(field->GetMessageType());
+                            if (!IsYsonMapEntry()) {
+                                OnBeginMap();
+                            }                
                         }
                         break;
                     }
@@ -2442,6 +2521,15 @@ TProtobufElementResolveResult ResolveProtobufElementByYPath(
         }
     }
     return makeResult(currentType->GetElement());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RegisterCustomProtobufConverter(
+    const Descriptor* descriptor,
+    const TProtobufMessageConverter& converter)
+{
+    TProtobufTypeRegistry::Get()->RegisterMessageTypeConverter(descriptor, converter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
