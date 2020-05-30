@@ -63,8 +63,10 @@ void TPortoProcess::DoSpawn()
         try {
             ProcessId_ = ContainerInstance_->GetPid();
         } catch (const std::exception& ex) {
-            // This could happen if porto container has already died.
-            YT_LOG_WARNING(ex, "Failed to get pid of root process (Container: %v)",
+            // This could happen if porto container has already died or pid namespace of
+            // parent container is not a parent of pid namespace of child container.
+            // It's not a problem, since for porto process pid is used for logging purposes only.
+            YT_LOG_DEBUG(ex, "Failed to get pid of root process (Container: %v)",
                 ContainerInstance_->GetName());
         }
     } catch (const std::exception& ex) {
