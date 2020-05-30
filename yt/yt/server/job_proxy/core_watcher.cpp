@@ -404,6 +404,7 @@ void TCoreWatcher::DoAddCoreInfo(const TErrorOr<TCoreInfo>& coreInfo)
             CoreResult_.CoreInfos.resize(coreIndex + 1);
         }
         CoreResult_.CoreInfos[coreIndex] = coreInfo.Value();
+        YT_LOG_DEBUG("Core info added (CoreIndex: %v)", coreIndex);
     } else {
         YT_LOG_INFO(coreInfo, "Failed to get core info");
     }
