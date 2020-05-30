@@ -4,6 +4,8 @@
 #include <yt/core/misc/format.h>
 #include <yt/core/misc/string.h>
 
+#include <yt/core/ytree/serialize.h>
+
 #include <util/datetime/cputimer.h>
 
 #include <util/digest/murmur.h>
@@ -14,6 +16,8 @@
 #include <time.h>
 
 namespace NYT {
+
+using NYTree::Serialize;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -325,6 +329,8 @@ TString ToString(TGuid guid)
 {
     return ToStringViaBuilder(guid);
 }
+
+REGISTER_INTERMEDIATE_PROTO_INTEROP_REPRESENTATION(NProto::TGuid, TGuid)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -203,6 +203,7 @@ TEST(TYsonToProtobufYsonTest, Success)
                     .Item("y").Value(8)
                 .EndMap()
             .EndMap()
+            .Item("guid").Value("0-deadbeef-0-abacaba")
         .EndMap();
 
 
@@ -292,6 +293,9 @@ TEST(TYsonToProtobufYsonTest, Success)
         .GetExtension(NYT::NProto::TMessageExtension::extension)
         .GetExtension(NYT::NProto::TMessageExtensionExtension::extension_extension)
         .extension_extension_field());
+
+    EXPECT_EQ(0xabacaba, message.guid().first());
+    EXPECT_EQ(0xdeadbeef, message.guid().second());
 }
 
 TEST(TYsonToProtobufYsonTest, ParseMapFromList)
@@ -1048,6 +1052,12 @@ TEST(TProtobufToYsonTest, Success)
         }
     }
 
+    {
+        auto* guid = message.mutable_guid();
+        guid->set_first(0xabacaba);
+        guid->set_second(0xdeadbeef);
+    }
+
     TEST_PROLOGUE()
     message.SerializeToCodedStream(&codedStream);
     TEST_EPILOGUE(TMessage)
@@ -1153,6 +1163,7 @@ TEST(TProtobufToYsonTest, Success)
                     .Item("y").Value(8)
                 .EndMap()
             .EndMap()
+            .Item("guid").Value("0-deadbeef-0-abacaba")
         .EndMap();
 
     EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
