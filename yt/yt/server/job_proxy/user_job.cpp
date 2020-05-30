@@ -810,18 +810,18 @@ private:
         if (!InterruptionSignalSent_.exchange(true) && UserJobSpec_.has_interruption_signal()) {
             YT_LOG_DEBUG("Sending interruption signal to user job (SignalName: %v)",
                 UserJobSpec_.interruption_signal());
-            // TODO(gritukan): Remove it.
-            {
-                TShellCommand listProcessesCommand("bash -c \"ps aux\"");
-                listProcessesCommand.Run();
-                listProcessesCommand.Wait();
-                YT_LOG_DEBUG("ps aux output: %v", listProcessesCommand.GetOutput());
-            }
             try {
                 auto signalerConfig = New<TSignalerConfig>();
                 signalerConfig->SignalName = UserJobSpec_.interruption_signal();
                 if (UserId_) {
                     signalerConfig->Pids = GetPidsByUid(*UserId_);
+                    for (auto pid : signalerConfig->Pids) { 
+                        // TODO(gritukan): Remove it.
+                        TShellCommand listProcessesCommand(Format("bash -c \"ps -u -p %v\"", pid));
+                        listProcessesCommand.Run();
+                        listProcessesCommand.Wait();
+                        YT_LOG_DEBUG("ps -u for pid %v: %v", pid, listProcessesCommand.GetOutput());
+                    }
                 } else {
                     // Fallback for non-sudo tests run.
                     auto pid = Process_->GetProcessId();
