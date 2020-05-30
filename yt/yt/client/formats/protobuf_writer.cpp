@@ -632,7 +632,10 @@ private:
         int maxVarIntSize)
     {
         if (fieldDescription.Repeated) {
-            YT_VERIFY(!fieldDescription.Optional);
+            if (fieldDescription.Optional && parser->IsEntity()) {
+                parser->ParseEntity();
+                return;
+            }
             if (fieldDescription.Packed) {
                 TraversePackedRepeated(fieldDescription, parser, maxVarIntSize);
             } else {

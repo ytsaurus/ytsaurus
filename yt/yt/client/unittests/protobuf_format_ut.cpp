@@ -130,6 +130,45 @@ double GetDouble(const TUnversionedValue& row)
     return row.Data.Double;
 }
 
+template <typename TMessage>
+TCollectingValueConsumer ParseRows(
+    const TMessage& message,
+    const TProtobufFormatConfigPtr& config,
+    const TTableSchema& schema = {},
+    int count = 1)
+{
+    TString lenvalBytes;
+    TStringOutput out(lenvalBytes);
+    auto messageSize = static_cast<ui32>(message.ByteSize());
+    for (int i = 0; i < count; ++i) {
+        out.Write(&messageSize, sizeof(messageSize));
+        if (!message.SerializeToStream(&out)) {
+            THROW_ERROR_EXCEPTION("Failed to serialize message");
+        }
+    }
+
+    TCollectingValueConsumer rowCollector(schema);
+    auto parser = CreateParserForProtobuf(&rowCollector, config, 0);
+    parser->Read(lenvalBytes);
+    parser->Finish();
+    if (rowCollector.Size() != count) {
+        THROW_ERROR_EXCEPTION("rowCollector has wrong size: expected %v, actual %v",
+            count,
+            rowCollector.Size());
+    }
+    return rowCollector;
+}
+
+template <typename TMessage>
+TCollectingValueConsumer ParseRows(
+    const TMessage& message,
+    const INodePtr& config,
+    const TTableSchema& schema = {},
+    int count = 1)
+{
+    return ParseRows(message, ParseFormatConfigFromNode(config->Attributes().ToMap()), schema, count);
+}
+
 INodePtr CreateAllFieldsFileDescriptorConfig()
 {
     return BuildYsonNodeFluently()
@@ -506,7 +545,7 @@ TEST(TProtobufFormat, TestConfigParsing)
 
     EXPECT_THROW_WITH_SUBSTRING(
         ParseAndValidateConfig(anyCorrespondsToStruct, {schema}),
-        "Schema and protobuf config mismatch");
+        "Table schema and protobuf format config mismatch");
 
     auto configWithBytes = BuildYsonNodeFluently()
         .BeginMap()
@@ -587,84 +626,55 @@ TEST(TProtobufFormat, TestConfigParsing)
 
     EXPECT_THROW_WITH_SUBSTRING(
         ParseAndValidateConfig(configWithPackedRepeatedString, {schemaWithStringList}),
-        "Packed protobuf field \"SomeColumn\" must have primitive numeric type, got \"string\"");
+        "packed protobuf field must have primitive numeric type, got \"string\"");
 }
 
 TEST(TProtobufFormat, TestParseBigZigZag)
 {
     constexpr i32 value = Min<i32>();
-
-    TCollectingValueConsumer rowCollector;
-
-    auto parser = CreateParserForProtobuf(
-        &rowCollector,
-        ParseFormatConfigFromNode(CreateAllFieldsSchemaConfig()->Attributes().ToMap()),
-        0);
     TMessage message;
     message.set_int32_field(value);
-    parser->Read(LenvalBytes(message));
-    parser->Finish();
-
+    auto config = ParseFormatConfigFromNode(CreateAllFieldsSchemaConfig()->Attributes().ToMap());
+    auto rowCollector = ParseRows(message, config);
     EXPECT_EQ(GetInt64(rowCollector.GetRowValue(0, "Int32")), value);
 }
 
 TEST(TProtobufFormat, TestParseEnumerationString)
 {
-    TCollectingValueConsumer rowCollector;
-
-    auto parser = CreateParserForProtobuf(
-        &rowCollector,
-        ParseFormatConfigFromNode(CreateAllFieldsSchemaConfig()->Attributes().ToMap()),
-        0);
-
+    auto config = ParseFormatConfigFromNode(CreateAllFieldsSchemaConfig()->Attributes().ToMap());
     {
         TMessage message;
         message.set_enum_field(EEnum::one);
-        parser->Read(LenvalBytes(message));
+        auto rowCollector = ParseRows(message, config);
+        EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "Enum")), "One");
     }
     {
         TMessage message;
         message.set_enum_field(EEnum::two);
-        parser->Read(LenvalBytes(message));
+        auto rowCollector = ParseRows(message, config);
+        EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "Enum")), "Two");
     }
     {
         TMessage message;
         message.set_enum_field(EEnum::three);
-        parser->Read(LenvalBytes(message));
+        auto rowCollector = ParseRows(message, config);
+        EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "Enum")), "Three");
     }
     {
         TMessage message;
         message.set_enum_field(EEnum::minus_forty_two);
-        parser->Read(LenvalBytes(message));
+        auto rowCollector = ParseRows(message, config);
+        EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "Enum")), "MinusFortyTwo");
     }
-
-    parser->Finish();
-
-    EXPECT_EQ(GetString(rowCollector.GetRowValue(0, "Enum")), "One");
-    EXPECT_EQ(GetString(rowCollector.GetRowValue(1, "Enum")), "Two");
-    EXPECT_EQ(GetString(rowCollector.GetRowValue(2, "Enum")), "Three");
-    EXPECT_EQ(GetString(rowCollector.GetRowValue(3, "Enum")), "MinusFortyTwo");
 }
 
 TEST(TProtobufFormat, TestParseWrongEnumeration)
 {
-    TCollectingValueConsumer rowCollector;
-
-    auto parser = CreateParserForProtobuf(
-        &rowCollector,
-        ParseFormatConfigFromNode(CreateAllFieldsSchemaConfig()->Attributes().ToMap()),
-        0);
-
-        TMessage message;
-        auto enumTag = TMessage::descriptor()->FindFieldByName("enum_field")->number();
-        message.mutable_unknown_fields()->AddVarint(enumTag, 30);
-
-    auto feedParser = [&] {
-        parser->Read(LenvalBytes(message));
-        parser->Finish();
-    };
-
-    EXPECT_ANY_THROW(feedParser());
+    auto config = ParseFormatConfigFromNode(CreateAllFieldsSchemaConfig()->Attributes().ToMap());
+    TMessage message;
+    auto enumTag = TMessage::descriptor()->FindFieldByName("enum_field")->number();
+    message.mutable_unknown_fields()->AddVarint(enumTag, 30);
+    EXPECT_ANY_THROW(ParseRows(message, config));
 }
 
 TEST(TProtobufFormat, TestParseEnumerationInt)
@@ -1056,6 +1066,7 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(ECo
             {"optional_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
             {"packed_repeated_enum_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            {"optional_repeated_bool_field", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)))},
             {"field_missing_from_proto2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
         })},
         {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
@@ -1091,6 +1102,8 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(ECo
         {"utf8_field", SimpleLogicalType(ESimpleLogicalValueType::Utf8)},
 
         {"packed_repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+
+        {"optional_repeated_int64_field", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
     });
 
     auto config = BuildYsonNodeFluently()
@@ -1203,6 +1216,13 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(ECo
                                     .Item("name").Value("repeated_optional_any_field")
                                     .Item("field_number").Value(10)
                                     .Item("proto_type").Value("any")
+                                    .Item("repeated").Value(true)
+                                .EndMap()
+                                .Item()
+                                .BeginMap()
+                                    .Item("name").Value("optional_repeated_bool_field")
+                                    .Item("field_number").Value(12)
+                                    .Item("proto_type").Value("bool")
                                     .Item("repeated").Value(true)
                                 .EndMap()
                             .EndList()
@@ -1356,6 +1376,14 @@ std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(ECo
                             .Item("repeated").Value(true)
                             .Item("packed").Value(true)
                         .EndMap()
+
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("optional_repeated_int64_field")
+                            .Item("field_number").Value(18)
+                            .Item("proto_type").Value("int64")
+                            .Item("repeated").Value(true)
+                        .EndMap()
                     .EndList()
                 .EndMap()
             .EndList()
@@ -1414,6 +1442,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     auto repeatedOptionalAnyFieldId = nameTable->RegisterName("repeated_optional_any_field");
     auto otherComplexFieldId = nameTable->RegisterName("other_complex_field");
     auto packedRepeatedInt64FieldId = nameTable->RegisterName("packed_repeated_int64_field");
+    auto optionalRepeatedInt64FieldId = nameTable->RegisterName("optional_repeated_int64_field");
 
     auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage(complexTypeMode);
 
@@ -1476,6 +1505,12 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
                 .BeginList()
                     .Item().Value("MinusFortyTwo")
                     .Item().Value("Two")
+                .EndList()
+            .Item()
+                .BeginList()
+                    .Item().Value(false)
+                    .Item().Value(true)
+                    .Item().Value(false)
                 .EndList()
         .EndList();
 
@@ -1552,6 +1587,8 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
 
     builder.AddValue(MakeUnversionedCompositeValue("[12;-10;123456789000;]", packedRepeatedInt64FieldId));
 
+    builder.AddValue(MakeUnversionedCompositeValue("[1;2;3]", optionalRepeatedInt64FieldId));
+
     auto rows = std::vector<TUnversionedRow>(rowCount, builder.GetRow());
     writer->Write(rows);
 
@@ -1620,6 +1657,12 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
         auto expectedFirstPackedRepeatedEnumField = std::vector<EEnum>{EEnum::minus_forty_two, EEnum::two};
         EXPECT_EQ(expectedFirstPackedRepeatedEnumField, actualFirstPackedRepeatedEnumField);
 
+        std::vector<bool> firstOptionalRepeatedBoolField(
+            first.optional_repeated_bool_field().begin(),
+            first.optional_repeated_bool_field().end());
+        auto expectedFirstOptionalRepeatedBoolField = std::vector<bool>{false, true, false};
+        EXPECT_EQ(expectedFirstOptionalRepeatedBoolField, firstOptionalRepeatedBoolField);
+
         const auto& second = message.second();
         EXPECT_EQ(second.one(), 101);
         EXPECT_EQ(second.two(), 102);
@@ -1686,6 +1729,12 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
             message.packed_repeated_int64_field().end());
         auto expectedPackedRepeatedInt64Field = std::vector<i64>{12, -10, 123456789000LL};
         EXPECT_EQ(expectedPackedRepeatedInt64Field, actualPackedRepeatedInt64Field);
+
+        std::vector<i64> actualOptionalRepeatedInt64Field(
+            message.optional_repeated_int64_field().begin(),
+            message.optional_repeated_int64_field().end());
+        auto expectedOptionalRepeatedInt64Field = std::vector<i64>{1, 2, 3};
+        EXPECT_EQ(expectedOptionalRepeatedInt64Field, actualOptionalRepeatedInt64Field);
     }
 
     ASSERT_FALSE(lenvalParser.Next());
@@ -1696,13 +1745,6 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
     auto [complexTypeMode, rowCount] = GetParam();
 
     auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage(complexTypeMode);
-
-    TCollectingValueConsumer rowCollector(schema);
-
-    auto parser = CreateParserForProtobuf(
-        &rowCollector,
-        ParseFormatConfigFromNode(config->Attributes().ToMap()),
-        0);
 
     NYT::TMessageWithStructuredEmbedded message;
 
@@ -1739,6 +1781,8 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
 
     first->add_packed_repeated_enum_field(EEnum::max_int32);
     first->add_packed_repeated_enum_field(EEnum::minus_forty_two);
+
+    // Intentionally do not add optional_repeated_bool_field.
 
     auto* second = message.mutable_second();
     second->set_one(101);
@@ -1809,26 +1853,14 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
     message.add_packed_repeated_int64_field(-123456789000LL);
     message.add_packed_repeated_int64_field(0);
 
-    TString lenvalBytes;
-    {
-        TStringOutput out(lenvalBytes);
-        auto messageSize = static_cast<ui32>(message.ByteSize());
-        for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-            out.Write(&messageSize, sizeof(messageSize));
-            ASSERT_TRUE(message.SerializeToStream(&out));
-        }
-    }
+    message.add_optional_repeated_int64_field(-4242);
 
-    parser->Read(lenvalBytes);
-    parser->Finish();
-
-    ASSERT_EQ(rowCollector.Size(), rowCount);
-
+    auto rowCollector = ParseRows(message, config, schema, rowCount);
     for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
         auto firstNode = GetComposite(rowCollector.GetRowValue(rowIndex, "first"));
         ASSERT_EQ(firstNode->GetType(), ENodeType::List);
         const auto& firstList = firstNode->AsList();
-        ASSERT_EQ(firstList->GetChildCount(), 13);
+        ASSERT_EQ(firstList->GetChildCount(), 14);
 
         EXPECT_EQ(firstList->GetChild(0)->GetType(), ENodeType::Entity);
         EXPECT_EQ(firstList->GetChild(1)->GetValue<TString>(), "Two");
@@ -1889,7 +1921,11 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
                     .Item().Value("MinusFortyTwo")
                 .EndList());
 
+        // optional_repeated_bool_field.
         ASSERT_EQ(firstList->GetChild(12)->GetType(), ENodeType::Entity);
+
+        // field_missing_from_proto2.
+        ASSERT_EQ(firstList->GetChild(13)->GetType(), ENodeType::Entity);
 
         auto secondNode = GetComposite(rowCollector.GetRowValue(rowIndex, "second"));
         ASSERT_EQ(secondNode->GetType(), ENodeType::List);
@@ -1944,14 +1980,13 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         auto actualOtherComplexField = GetComposite(rowCollector.GetRowValue(rowIndex, "other_complex_field"));
         EXPECT_NODES_EQUAL(actualOtherComplexField, otherComplexFieldPositional);
 
-        auto actualPackedRepeatedInt64Field = GetComposite(rowCollector.GetRowValue(rowIndex, "packed_repeated_int64_field"));
         EXPECT_NODES_EQUAL(
-            actualPackedRepeatedInt64Field,
-            BuildYsonNodeFluently()
-                .BeginList()
-                    .Item().Value(-123456789000LL)
-                    .Item().Value(0)
-                .EndList());
+            GetComposite(rowCollector.GetRowValue(rowIndex, "packed_repeated_int64_field")),
+            ConvertToNode(TYsonString("[-123456789000;0]")));
+
+        EXPECT_NODES_EQUAL(
+            GetComposite(rowCollector.GetRowValue(rowIndex, "optional_repeated_int64_field")),
+            ConvertToNode(TYsonString("[-4242]")));
     }
 }
 
@@ -2329,7 +2364,7 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
         "Schema is required for repeated and \"structured_message\" protobuf fields");
     EXPECT_THROW_WITH_SUBSTRING(
         createWriter(TTableSchema(), config_struct_with_int64),
-         "Schema is required for repeated and \"structured_message\" protobuf fields");
+        "Schema is required for repeated and \"structured_message\" protobuf fields");
 
     auto schema_list_int64 = TTableSchema({
         {"repeated", ListLogicalType(
@@ -2373,15 +2408,15 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
         "Schema is required for repeated and \"structured_message\" protobuf fields");
     EXPECT_THROW_WITH_SUBSTRING(
         createWriter(TTableSchema(), config_repeated_int64),
-         "Schema is required for repeated and \"structured_message\" protobuf fields");
+        "Schema is required for repeated and \"structured_message\" protobuf fields");
 
     // List of optional is not allowed.
     EXPECT_THROW_WITH_SUBSTRING(
         createParser(schema_list_optional_int64, config_repeated_int64),
-        "Schema and protobuf config mismatch: expected metatype \"simple\", got \"optional\"");
+        "expected simple type");
     EXPECT_THROW_WITH_SUBSTRING(
         createWriter(schema_list_optional_int64, config_repeated_int64),
-        "Schema and protobuf config mismatch: expected metatype \"simple\", got \"optional\"");
+        "expected simple type");
 
     auto schema_optional_list_int64 = TTableSchema({
         {"repeated", OptionalLogicalType(
@@ -2389,13 +2424,9 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
         )},
     });
 
-    // Optional list is not allowed.
-    EXPECT_THROW_WITH_SUBSTRING(
-        createParser(schema_optional_list_int64, config_repeated_int64),
-        "Optional list is not supported in protobuf");
-    EXPECT_THROW_WITH_SUBSTRING(
-        createWriter(schema_optional_list_int64, config_repeated_int64),
-        "Optional list is not supported in protobuf");
+    // Optional list is OK.
+    EXPECT_NO_THROW(createParser(schema_optional_list_int64, config_repeated_int64));
+    EXPECT_NO_THROW(createWriter(schema_optional_list_int64, config_repeated_int64));
 
     auto schema_optional_optional_int64 = TTableSchema({
         {"field", OptionalLogicalType(
@@ -2425,10 +2456,10 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     // Optional of optional is not allowed.
     EXPECT_THROW_WITH_SUBSTRING(
         createParser(schema_optional_optional_int64, config_int64),
-        "Schema and protobuf config mismatch: expected metatype \"simple\", got \"optional\"");
+        "expected simple type, got \"optional\"");
     EXPECT_THROW_WITH_SUBSTRING(
         createWriter(schema_optional_optional_int64, config_int64),
-        "Schema and protobuf config mismatch: expected metatype \"simple\", got \"optional\"");
+        "expected simple type, got \"optional\"");
 
     auto schema_struct_with_both = TTableSchema({
         {"struct", StructLogicalType({
@@ -2528,11 +2559,11 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
             .EndList()
         .EndMap();
 
-    // Schema has more fields, required field is missing in protobuf config.
+    // Schema has more fields, non-optional field is missing in protobuf config.
     // Parser should fail.
     EXPECT_THROW_WITH_SUBSTRING(
         createParser(schema_struct_with_both, config_struct_with_optional),
-        "Schema and protobuf config mismatch: non-optional field \"required_field\" in schema is missing from protobuf config");
+        "non-optional field \"required_field\" in schema is missing from protobuf config");
     // Writer feels OK.
     EXPECT_NO_THROW(createWriter(schema_struct_with_both, config_struct_with_optional));
 
@@ -2541,13 +2572,9 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     EXPECT_NO_THROW(createParser(schema_struct_with_both, config_struct_with_required));
     EXPECT_NO_THROW(createWriter(schema_struct_with_both, config_struct_with_required));
 
-    // Protobuf config has more fields, it is never OK.
-    EXPECT_THROW_WITH_SUBSTRING(
-        createParser(schema_struct_with_both, config_struct_with_unknown),
-        "Fields [\"unknown_field\"] from protobuf config not found in schema");
-    EXPECT_THROW_WITH_SUBSTRING(
-        createWriter(schema_struct_with_both, config_struct_with_unknown),
-        "Fields [\"unknown_field\"] from protobuf config not found in schema");
+    // Protobuf config has more fields, it is always OK.
+    EXPECT_NO_THROW(createParser(schema_struct_with_both, config_struct_with_unknown));
+    EXPECT_NO_THROW(createWriter(schema_struct_with_both, config_struct_with_unknown));
 
     auto schema_int64 = TTableSchema({
         {"int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
@@ -2819,13 +2846,6 @@ TEST_P(TProtobufFormatAllFields, Parser)
 {
     auto [config, rowCount] = GetParam();
 
-    TCollectingValueConsumer rowCollector;
-
-    auto parser = CreateParserForProtobuf(
-        &rowCollector,
-        ParseFormatConfigFromNode(config->Attributes().ToMap()),
-        0);
-
     TMessage message;
     message.set_double_field(3.14159);
     message.set_float_field(2.71828);
@@ -2877,20 +2897,11 @@ TEST_P(TProtobufFormatAllFields, Parser)
         message.set_other_columns_field(ConvertToYsonString(otherColumnsNode).GetData());
     }
 
-    TString lenvalBytes;
-    {
-        TStringOutput out(lenvalBytes);
-        ui32 messageSize = message.ByteSize();
-        for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-            out.Write(&messageSize, sizeof(messageSize));
-            ASSERT_TRUE(message.SerializeToStream(&out));
-        }
-    }
-
-    parser->Read(lenvalBytes);
-    parser->Finish();
-
-    ASSERT_EQ(rowCollector.Size(), rowCount);
+    auto rowCollector = ParseRows(
+        message,
+        ParseFormatConfigFromNode(config->Attributes().ToMap()),
+        /* schema */ {},
+        rowCount);
 
     for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
         int expectedSize = IsNewFormat() ? 26 : 17;
@@ -2939,6 +2950,286 @@ TEST_P(TProtobufFormatAllFields, Parser)
             ASSERT_EQ(rowCollector.GetRowValue(rowIndex, "OtherNullColumn").Type, EValueType::Null);
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProtobufFormatCompat
+    : public ::testing::Test
+{
+public:
+    static TTableSchema GetEarlySchema()
+    {
+        static const auto schema = TTableSchema({
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        });
+        return schema;
+    }
+
+    static TTableSchema GetFirstMiddleSchema()
+    {
+        static const auto schema = TTableSchema({
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"b", OptionalLogicalType(StructLogicalType({
+                {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            }))},
+        });
+        return schema;
+    }
+
+    static TTableSchema GetSecondMiddleSchema()
+    {
+        static const auto schema = TTableSchema({
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"b", OptionalLogicalType(StructLogicalType({
+                {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }))},
+        });
+        return schema;
+    }
+
+    static TTableSchema GetThirdMiddleSchema()
+    {
+        static const auto schema = TTableSchema({
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"b", OptionalLogicalType(StructLogicalType({
+                {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }))},
+        });
+        return schema;
+    }
+
+    static TTableSchema GetLateSchema()
+    {
+        static const auto schema = TTableSchema({
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"c", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)))},
+            {"b", OptionalLogicalType(StructLogicalType({
+                {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"z", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            }))},
+        });
+        return schema;
+    }
+
+    static TProtobufFormatConfigPtr GetFirstMiddleConfig()
+    {
+        static const auto config = ParseFormatConfigFromNode(BuildYsonNodeFluently()
+            .BeginMap().Item("tables").BeginList().Item().BeginMap().Item("columns").BeginList()
+                .Item().BeginMap()
+                    .Item("name").Value("a")
+                    .Item("field_number").Value(1)
+                    .Item("proto_type").Value("int64")
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("name").Value("b")
+                    .Item("field_number").Value(2)
+                    .Item("proto_type").Value("structured_message")
+                    .Item("fields")
+                    .BeginList()
+                        .Item().BeginMap()
+                            .Item("name").Value("x")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("string")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList().EndMap().EndList().EndMap());
+        return config;
+    }
+
+    static TProtobufFormatConfigPtr GetSecondMiddleConfig()
+    {
+        static const auto config = ParseFormatConfigFromNode(BuildYsonNodeFluently()
+            .BeginMap().Item("tables").BeginList().Item().BeginMap().Item("columns").BeginList()
+                .Item().BeginMap()
+                    .Item("name").Value("a")
+                    .Item("field_number").Value(1)
+                    .Item("proto_type").Value("int64")
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("name").Value("b")
+                    .Item("field_number").Value(2)
+                    .Item("proto_type").Value("structured_message")
+                    .Item("fields")
+                    .BeginList()
+                        .Item().BeginMap()
+                            .Item("name").Value("x")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("string")
+                        .EndMap()
+                        .Item().BeginMap()
+                            .Item("name").Value("y")
+                            .Item("field_number").Value(2)
+                            .Item("proto_type").Value("string")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList().EndMap().EndList().EndMap());
+        return config;
+    }
+};
+
+TEST_F(TProtobufFormatCompat, Write)
+{
+    auto nameTable = TNameTable::FromSchema(GetLateSchema());
+    auto aId = nameTable->GetIdOrThrow("a");
+    auto bId = nameTable->GetIdOrThrow("b");
+    auto cId = nameTable->GetIdOrThrow("c");
+
+    auto config = GetSecondMiddleConfig();
+
+    auto writeRow = [&] (TUnversionedRow row, const TTableSchema& schema) {
+        TString result;
+        TStringOutput resultStream(result);
+
+        auto writer = CreateWriterForProtobuf(
+            config,
+            {schema},
+            nameTable,
+            CreateAsyncAdapter(&resultStream),
+            true,
+            New<TControlAttributesConfig>(),
+            0);
+        writer->Write(std::vector<TUnversionedRow>{row});
+        writer->Close().Get().ThrowOnError();
+
+        TStringInput input(result);
+        TLenvalParser lenvalParser(&input);
+        auto entry = lenvalParser.Next();
+        if (!entry) {
+            THROW_ERROR_EXCEPTION("Unexpected end of stream in lenval parser");
+        }
+        NYT::TCompatMessage message;
+        if (!message.ParseFromString(entry->RowData)) {
+            THROW_ERROR_EXCEPTION("Failed to parse message");
+        }
+        if (lenvalParser.Next()) {
+            THROW_ERROR_EXCEPTION("Unexpected entry in lenval parser");
+        }
+        return message;
+    };
+
+    auto aValue = MakeUnversionedInt64Value(42, aId);
+    auto bFirstValue = MakeUnversionedCompositeValue("[foo]", bId);
+    auto bSecondValue = MakeUnversionedCompositeValue("[foo; bar]", bId);
+    auto bThirdValue = MakeUnversionedCompositeValue("[foo; bar; spam]", bId);
+    auto cValue = MakeUnversionedCompositeValue("[%false; %true; %false]", cId);
+
+    TUnversionedOwningRowBuilder builder;
+    builder.AddValue(aValue);
+    auto earlyRow = builder.FinishRow();
+    builder.AddValue(aValue);
+    builder.AddValue(bFirstValue);
+    auto firstMiddleRow = builder.FinishRow();
+    builder.AddValue(aValue);
+    builder.AddValue(bSecondValue);
+    auto secondMiddleRow = builder.FinishRow();
+    builder.AddValue(aValue);
+    builder.AddValue(bThirdValue);
+    auto thirdMiddleRow = builder.FinishRow();
+    builder.AddValue(aValue);
+    builder.AddValue(cValue);
+    builder.AddValue(bThirdValue);
+    auto lateRow = builder.FinishRow();
+
+    {
+        SCOPED_TRACE("early");
+        auto message = writeRow(earlyRow, GetEarlySchema());
+        EXPECT_EQ(message.a(), 42);
+        EXPECT_EQ(message.has_b(), false);
+    }
+    {
+        SCOPED_TRACE("firstMiddle");
+        auto message = writeRow(firstMiddleRow, GetFirstMiddleSchema());
+        EXPECT_EQ(message.a(), 42);
+        EXPECT_EQ(message.b().x(), "foo");
+        EXPECT_EQ(message.b().has_y(), false);
+    }
+    {
+        SCOPED_TRACE("secondMiddle");
+        auto message = writeRow(secondMiddleRow, GetSecondMiddleSchema());
+        EXPECT_EQ(message.a(), 42);
+        EXPECT_EQ(message.b().x(), "foo");
+        EXPECT_EQ(message.b().y(), "bar");
+    }
+    {
+        SCOPED_TRACE("thirdMiddle");
+        auto message = writeRow(thirdMiddleRow, GetThirdMiddleSchema());
+        EXPECT_EQ(message.a(), 42);
+        EXPECT_EQ(message.b().x(), "foo");
+        EXPECT_EQ(message.b().y(), "bar");
+    }
+    {
+        SCOPED_TRACE("late");
+        auto message = writeRow(lateRow, GetLateSchema());
+        EXPECT_EQ(message.a(), 42);
+        EXPECT_EQ(message.b().x(), "foo");
+        EXPECT_EQ(message.b().y(), "bar");
+    }
+}
+
+TEST_F(TProtobufFormatCompat, Parse)
+{
+    auto config = GetSecondMiddleConfig();
+
+    NYT::TCompatMessage message;
+    message.set_a(42);
+    message.mutable_b()->set_x("foo");
+    message.mutable_b()->set_y("bar");
+
+    {
+        SCOPED_TRACE("early");
+        auto collector = ParseRows(message, config, GetEarlySchema());
+        EXPECT_EQ(GetInt64(collector.GetRowValue(0, "a")), 42);
+        EXPECT_FALSE(collector.GetNameTable()->FindId("b"));
+        EXPECT_FALSE(collector.GetNameTable()->FindId("c"));
+    }
+    {
+        SCOPED_TRACE("firstMiddle");
+        auto collector = ParseRows(message, config, GetFirstMiddleSchema());
+        EXPECT_EQ(GetInt64(collector.GetRowValue(0, "a")), 42);
+        EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString("[foo]")));
+        EXPECT_FALSE(collector.GetNameTable()->FindId("c"));
+    }
+    {
+        SCOPED_TRACE("secondMiddle");
+        auto collector = ParseRows(message, config, GetSecondMiddleSchema());
+        EXPECT_EQ(GetInt64(collector.GetRowValue(0, "a")), 42);
+        EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString("[foo;bar]")));
+        EXPECT_FALSE(collector.GetNameTable()->FindId("c"));
+    }
+    {
+        SCOPED_TRACE("thirdMiddle");
+        auto collector = ParseRows(message, config, GetThirdMiddleSchema());
+        EXPECT_EQ(GetInt64(collector.GetRowValue(0, "a")), 42);
+        EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString("[foo;bar;#]")));
+        EXPECT_FALSE(collector.GetNameTable()->FindId("c"));
+    }
+    {
+        SCOPED_TRACE("late");
+        auto collector = ParseRows(message, config, GetLateSchema());
+        EXPECT_EQ(GetInt64(collector.GetRowValue(0, "a")), 42);
+        EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString("[foo;bar;#]")));
+        EXPECT_TRUE(collector.GetNameTable()->FindId("c"));
+    }
+}
+
+TEST_F(TProtobufFormatCompat, ParseWrong)
+{
+    NYT::TCompatMessage message;
+    message.set_a(42);
+    message.mutable_b()->set_x("foo");
+    message.mutable_b()->set_y("bar");
+
+    auto config = GetFirstMiddleConfig();
+    EXPECT_THROW_WITH_SUBSTRING(
+        ParseRows(message, config, GetFirstMiddleSchema()),
+        "Unexpected field number 2");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

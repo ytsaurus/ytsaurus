@@ -58,9 +58,18 @@ public:
                 FieldNumberToChildIndexMap_.emplace(fieldNumber, childIndex);
             }
         }
+        for (auto fieldNumber : IgnoredChildFieldNumbers) {
+            if (fieldNumber < vectorSize) {
+                FieldNumberToChildIndexVector_[fieldNumber] = IgnoredChildIndex;
+            } else {
+                FieldNumberToChildIndexMap_.emplace(fieldNumber, IgnoredChildIndex);
+            }
+        }
     }
 
-    int FieldNumberToChildIndex(int fieldNumber) const
+    // Returns std::nullopt iff the field is ignored (missing from table schema).
+    // Throws an exception iff the field number is unknown.
+    std::optional<int> FieldNumberToChildIndex(int fieldNumber) const
     {
         int index;
         if (fieldNumber < FieldNumberToChildIndexVector_.size()) {
@@ -75,6 +84,9 @@ public:
             }
             index = it->second;
         }
+        if (index == IgnoredChildIndex) {
+            return {};
+        }
         return index;
     }
 
@@ -85,6 +97,7 @@ public:
 
 private:
     static constexpr int InvalidChildIndex = -1;
+    static constexpr int IgnoredChildIndex = -2;
     static constexpr int MaxFieldNumberVectorSize = 256;
 
     std::vector<TProtobufParserFieldDescription> Children_;
@@ -152,6 +165,28 @@ public:
         auto result = TStringBuf(Current_, length);
         Current_ += length;
         return result;
+    }
+
+    void Skip(WireFormatLite::WireType wireType)
+    {
+        switch (wireType) {
+            case WireFormatLite::WIRETYPE_VARINT:
+                ReadVarUint64();
+                return;
+            case WireFormatLite::WIRETYPE_FIXED64:
+                ReadFixed<ui64>();
+                return;
+            case WireFormatLite::WIRETYPE_LENGTH_DELIMITED:
+                ReadLengthDelimited();
+                return;
+            case WireFormatLite::WIRETYPE_START_GROUP:
+            case WireFormatLite::WIRETYPE_END_GROUP:
+                THROW_ERROR_EXCEPTION("Unexpected wire type %v", static_cast<int>(wireType));
+            case WireFormatLite::WIRETYPE_FIXED32:
+                ReadFixed<ui32>();
+                return;
+        }
+        YT_ABORT();
     }
 
     bool IsExhausted() const
@@ -275,24 +310,29 @@ public:
         int tableIndex,
         EComplexTypeMode complexTypeMode)
         : ValueConsumer_(valueConsumer)
-          , Description_(std::move(description))
-          , TableIndex_(tableIndex)
+        , Description_(std::move(description))
+        , TableIndex_(tableIndex)
         // NB. We use ColumnConsumer_ to generate yson representation of complex types we don't want additional
         // conversions so we use Positional mode.
         // At the same time we use OtherColumnsConsumer_ to feed yson passed by users.
         // This YSON should be in format specified on the format config.
-          , ColumnConsumer_(EComplexTypeMode::Positional, valueConsumer)
-          , OtherColumnsConsumer_(complexTypeMode, valueConsumer)
+        , ColumnConsumer_(EComplexTypeMode::Positional, valueConsumer)
+        , OtherColumnsConsumer_(complexTypeMode, valueConsumer)
     {
         YT_VERIFY(Description_->GetTableCount() == 1);
-        const auto& columns = Description_->GetTableDescription(0).Columns;
+        const auto& tableDescription = Description_->GetTableDescription(0);
+        const auto& columns = tableDescription.Columns;
 
         auto nameTable = ValueConsumer_->GetNameTable();
 
         TProtobufFieldDescription rootDescription;
-        for (const auto&[name, columnDescription] : columns) {
+        for (const auto& [name, columnDescription] : columns) {
             rootDescription.Children.push_back(columnDescription);
             ChildColumnIds_.push_back(static_cast<ui16>(nameTable->GetIdOrRegisterName(columnDescription.Name)));
+        }
+
+        for (auto fieldNumber : tableDescription.IgnoredColumnFieldNumbers) {
+            rootDescription.IgnoredChildFieldNumbers.push_back(fieldNumber);
         }
 
         rootDescription.Type = EProtobufType::StructuredMessage;
@@ -390,7 +430,12 @@ private:
             while (!rowParser.IsExhausted()) {
                 ui32 wireTag = rowParser.ReadVarUint32();
                 auto fieldNumber = WireFormatLite::GetTagFieldNumber(wireTag);
-                int childIndex = description.FieldNumberToChildIndex(fieldNumber);
+                auto maybeChildIndex = description.FieldNumberToChildIndex(fieldNumber);
+                if (!maybeChildIndex) {
+                    rowParser.Skip(WireFormatLite::GetTagWireType(wireTag));
+                    continue;
+                }
+                auto childIndex = *maybeChildIndex;
                 const auto& childDescription = description.GetChildren()[childIndex];
 
                 if (Y_UNLIKELY(wireTag != childDescription.WireTag)) {
@@ -416,12 +461,43 @@ private:
         }
 
         CountingSorter_.Sort(&fields, static_cast<int>(description.GetChildren().size()));
+        OutputChildren(fields, description, depth);
+    }
 
+    Y_FORCE_INLINE void OutputChild(
+        std::vector<TField>::const_iterator begin,
+        std::vector<TField>::const_iterator end,
+        const TProtobufParserFieldDescription& childDescription,
+        int depth)
+    {
+        if (childDescription.Repeated) {
+            ColumnConsumer_.OnBeginList();
+            for (auto it = begin; it != end; ++it) {
+                ColumnConsumer_.OnListItem();
+                OutputValue(it->Value, childDescription, depth);
+            }
+            ColumnConsumer_.OnEndList();
+        } else {
+            if (Y_UNLIKELY(std::distance(begin, end) > 1)) {
+                THROW_ERROR_EXCEPTION("Error parsing protobuf: found %v entries for non-repeated field %Qv",
+                    std::distance(begin, end),
+                    childDescription.Name);
+            }
+            OutputValue(begin->Value, childDescription, depth);
+        }
+    }
+
+    void OutputChildren(
+        const std::vector<TField>& fields,
+        const TProtobufParserFieldDescription& description,
+        int depth)
+    {
         const auto inRoot = (depth == 0);
 
         int structElementIndex = 0;
         auto skipElements = [&](int targetIndex) {
             if (inRoot) {
+                // structElementIndex is irrelevant for root level, so do nothing.
                 return;
             }
             YT_VERIFY(structElementIndex <= targetIndex);
@@ -431,30 +507,27 @@ private:
             }
         };
 
-        auto fieldIt = fields.begin();
-        auto childrenCount = static_cast<int>(description.GetChildren().size());
+        auto fieldIt = fields.cbegin();
+        auto childrenCount = description.GetChildren().size();
         for (int childIndex = 0; childIndex < childrenCount; ++childIndex) {
-            const auto& childDescription = description.GetChildren()[childIndex];
-            skipElements(childDescription.StructElementIndex);
             if (inRoot) {
                 ColumnConsumer_.SetColumnIndex(ChildColumnIds_[childIndex]);
             }
-            if (childDescription.Repeated) {
-                ColumnConsumer_.OnBeginList();
-                while (fieldIt != fields.end() && fieldIt->ChildIndex == childIndex) {
-                    ColumnConsumer_.OnListItem();
-                    OutputValue(fieldIt->Value, childDescription, depth);
-                    ++fieldIt;
+
+            const auto& childDescription = description.GetChildren()[childIndex];
+            skipElements(childDescription.StructElementIndex);
+            auto fieldRangeBegin = fieldIt;
+            while (fieldIt != fields.cend() && fieldIt->ChildIndex == childIndex) {
+                ++fieldIt;
+            }
+            if (fieldRangeBegin != fieldIt || (childDescription.Repeated && !childDescription.Optional)) {
+                OutputChild(fieldRangeBegin, fieldIt, childDescription, depth);
+            } else if (!inRoot) {
+                if (Y_UNLIKELY(!childDescription.Optional)) {
+                    THROW_ERROR_EXCEPTION("Error parsing protobuf: missing non-optional field %Qv",
+                        childDescription.Name);
                 }
-                ColumnConsumer_.OnEndList();
-            } else {
-                bool haveFields = (fieldIt != fields.end() && fieldIt->ChildIndex == childIndex);
-                if (haveFields) {
-                    OutputValue(fieldIt->Value, childDescription, depth);
-                    ++fieldIt;
-                } else if (!inRoot) {
-                    ColumnConsumer_.OnEntity();
-                }
+                ColumnConsumer_.OnEntity();
             }
             ++structElementIndex;
         }

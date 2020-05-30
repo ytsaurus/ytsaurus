@@ -324,7 +324,11 @@ void ValidateSimpleType(
         case EProtobufType::Sfixed32:
         case EProtobufType::Sint32:
         case EProtobufType::Int32: {
-            if (getLogicalTypeKind(logicalType) != getProtobufTypeKind(protobufType)) {
+            auto logicalTypeKind = getLogicalTypeKind(logicalType);
+            if (logicalTypeKind == EIntegerSignednessKind::Other) {
+                throwMismatchError("integer protobuf type can match only integer type in schema");
+            }
+            if (logicalTypeKind != getProtobufTypeKind(protobufType)) {
                 throwMismatchError("signedness of both types must be the same");
             }
             return;
@@ -505,6 +509,18 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
     }
 }
 
+[[noreturn]] void ThrowSchemaMismatch(
+    TStringBuf message,
+    const TComplexTypeFieldDescriptor& descriptor,
+    const TProtobufColumnConfigPtr& protoConfig)
+{
+    THROW_ERROR_EXCEPTION("Table schema and protobuf format config mismatch at %v: %v",
+        descriptor.GetDescription(),
+        message)
+        << TErrorAttribute("type_in_schema", ToString(*descriptor.GetType()))
+        << TErrorAttribute("protobuf_config", protoConfig);
+}
+
 void TProtobufFormatDescription::InitFromProtobufSchema(
     const TProtobufFormatConfigPtr& config,
     const std::vector<NTableClient::TTableSchema>& schemas,
@@ -532,16 +548,10 @@ void TProtobufFormatDescription::InitFromProtobufSchema(
     for (size_t tableIndex = 0; tableIndex != schemas.size(); ++tableIndex) {
         const auto& tableConfig = tableConfigs[tableIndex];
         const auto& tableSchema = schemas[tableIndex];
-        auto& columns = Tables_.emplace_back().Columns;
+        auto& tableDescription = Tables_.emplace_back();
         for (const auto& columnConfig : tableConfig->Columns) {
-            auto [fieldIt, inserted] = columns.emplace(columnConfig->Name, TProtobufFieldDescription{});
-            if (!inserted) {
-                THROW_ERROR_EXCEPTION("Multiple fields with same column name %Qv are forbidden in protobuf format",
-                    columnConfig->Name);
-            }
             auto columnSchema = tableSchema.FindColumn(columnConfig->Name);
             TLogicalTypePtr logicalType = columnSchema ? columnSchema->LogicalType() : nullptr;
-
             if (columnConfig->ProtoType == EProtobufType::OtherColumns) {
                 if (columnConfig->Repeated) {
                     THROW_ERROR_EXCEPTION("Protobuf field %Qv of type %Qlv can not be repeated",
@@ -557,6 +567,11 @@ void TProtobufFormatDescription::InitFromProtobufSchema(
 
             bool needSchema = columnConfig->Repeated || columnConfig->ProtoType == EProtobufType::StructuredMessage;
             if (!logicalType && needSchema) {
+                if (tableSchema.GetColumnCount() > 0) {
+                    // Ignore missing column to facilitate schema evolution.
+                    tableDescription.IgnoredColumnFieldNumbers.push_back(columnConfig->FieldNumber);
+                    continue;
+                }
                 THROW_ERROR_EXCEPTION("Schema is required for repeated and %Qlv protobuf fields",
                     EProtobufType::StructuredMessage);
             }
@@ -566,11 +581,17 @@ void TProtobufFormatDescription::InitFromProtobufSchema(
                     columnConfig->Name);
             }
 
+            auto [fieldIt, inserted] = tableDescription.Columns.emplace(columnConfig->Name, TProtobufFieldDescription{});
+            if (!inserted) {
+                THROW_ERROR_EXCEPTION("Multiple fields with same column name %Qv are forbidden in protobuf format",
+                    columnConfig->Name);
+            }
             if (logicalType) {
+                YT_VERIFY(columnSchema);
                 InitField(
                     &fieldIt->second,
                     columnConfig,
-                    logicalType,
+                    TComplexTypeFieldDescriptor(*columnSchema),
                     /* elementIndex */ 0,
                     validateMissingFieldsOptionality);
             } else {
@@ -620,21 +641,15 @@ void TProtobufFormatDescription::InitSchemalessField(
 void TProtobufFormatDescription::InitField(
     TProtobufFieldDescription* field,
     const TProtobufColumnConfigPtr& columnConfig,
-    TLogicalTypePtr logicalType,
+    TComplexTypeFieldDescriptor descriptor,
     int elementIndex,
     bool validateMissingFieldsOptionality)
 {
-    YT_VERIFY(logicalType);
-
-    std::vector<TErrorAttribute> errorAttributes = {
-        {"config", columnConfig},
-        {"logical_type", logicalType},
-    };
-
     if (columnConfig->ProtoType == EProtobufType::OtherColumns) {
-        THROW_ERROR_EXCEPTION("Protobuf field of type %Qlv is not allowed inside complex types",
-            EProtobufType::OtherColumns)
-            << errorAttributes;
+        ThrowSchemaMismatch(
+            "protobuf field of type \"other_columns\" is not allowed inside complex types",
+            descriptor,
+            columnConfig);
     }
 
     InitSchemalessField(field, columnConfig);
@@ -642,32 +657,31 @@ void TProtobufFormatDescription::InitField(
     field->StructElementIndex = elementIndex;
 
     if (field->Packed && !CanBePacked(field->Type)) {
-        THROW_ERROR_EXCEPTION("Packed protobuf field %Qv must have primitive numeric type, got %Qlv",
-            field->Name,
-            field->Type)
-            << errorAttributes;
+        ThrowSchemaMismatch(
+            Format("packed protobuf field must have primitive numeric type, got %Qlv", field->Type),
+            descriptor,
+            columnConfig);
     }
 
-    if (logicalType->GetMetatype() == ELogicalMetatype::Optional) {
-        logicalType = logicalType->AsOptionalTypeRef().GetElement();
+    if (descriptor.GetType()->GetMetatype() == ELogicalMetatype::Optional) {
+        descriptor = descriptor.OptionalElement();
         field->Optional = true;
     } else {
         field->Optional = false;
     }
 
     if (field->Repeated) {
-        if (field->Optional) {
-            THROW_ERROR_EXCEPTION("Optional list is not supported in protobuf")
-                << errorAttributes;
+        if (descriptor.GetType()->GetMetatype() != ELogicalMetatype::List) {
+            ThrowSchemaMismatch(
+                Format("repeated field must correspond to list, got %Qlv", descriptor.GetType()->GetMetatype()),
+                descriptor,
+                columnConfig);
         }
-        if (logicalType->GetMetatype() != ELogicalMetatype::List) {
-            THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",
-                ELogicalMetatype::List,
-                logicalType->GetMetatype())
-                << errorAttributes;
-        }
-        logicalType = logicalType->AsListTypeRef().GetElement();
+        descriptor = descriptor.ListElement();
     }
+
+    const auto& logicalType = descriptor.GetType();
+    YT_VERIFY(logicalType);
 
     // list<optional<any>> is allowed.
     if (field->Repeated &&
@@ -681,20 +695,20 @@ void TProtobufFormatDescription::InitField(
 
     if (field->Type != EProtobufType::StructuredMessage) {
         if (logicalType->GetMetatype() != ELogicalMetatype::Simple) {
-            THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",
-                ELogicalMetatype::Simple,
-                logicalType->GetMetatype())
-                << errorAttributes;
+            ThrowSchemaMismatch(
+                Format("expected simple type, got %Qlv", logicalType->GetMetatype()),
+                descriptor,
+                columnConfig);
         }
         ValidateSimpleType(field->Type, logicalType->AsSimpleTypeRef().GetElement());
         return;
     }
 
     if (logicalType->GetMetatype() != ELogicalMetatype::Struct) {
-        THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: expected metatype %Qlv, got %Qlv",
-            ELogicalMetatype::Struct,
-            logicalType->GetMetatype())
-            << errorAttributes;
+        ThrowSchemaMismatch(
+            Format("expected struct type, got %Qlv", logicalType->GetMetatype()),
+            descriptor,
+            columnConfig);
     }
 
     const auto& structElements = logicalType->AsStructTypeRef().GetFields();
@@ -703,9 +717,10 @@ void TProtobufFormatDescription::InitField(
     for (const auto& config : columnConfig->Fields) {
         auto inserted = nameToConfig.emplace(config->Name, config).second;
         if (!inserted) {
-            THROW_ERROR_EXCEPTION("Multiple fields with same column name %Qv are forbidden in protobuf format",
-                config->Name)
-                << errorAttributes;
+            ThrowSchemaMismatch(
+                Format("multiple fields with same name (%Qv) are forbidden", config->Name),
+                descriptor,
+                columnConfig);
         }
     }
 
@@ -716,10 +731,10 @@ void TProtobufFormatDescription::InitField(
         auto configIt = nameToConfig.find(element.Name);
         if (configIt == nameToConfig.end()) {
             if (validateMissingFieldsOptionality && element.Type->GetMetatype() != ELogicalMetatype::Optional) {
-                THROW_ERROR_EXCEPTION("Schema and protobuf config mismatch: "
-                    "non-optional field %Qv in schema is missing from protobuf config",
-                    element.Name)
-                    << errorAttributes;
+                ThrowSchemaMismatch(
+                    Format("non-optional field %Qv in schema is missing from protobuf config", element.Name),
+                    descriptor,
+                    columnConfig);
             }
             continue;
         }
@@ -727,20 +742,15 @@ void TProtobufFormatDescription::InitField(
         InitField(
             &field->Children.back(),
             configIt->second,
-            element.Type,
+            descriptor.StructField(childElementIndex),
             childElementIndex,
             validateMissingFieldsOptionality);
         nameToConfig.erase(configIt);
     }
 
-    if (!nameToConfig.empty()) {
-        std::vector<TString> notFoundKeys;
-        for (const auto& [name, config] : nameToConfig) {
-            notFoundKeys.push_back(Format("%Qv", name));
-        }
-        THROW_ERROR_EXCEPTION("Fields %v from protobuf config not found in schema",
-            notFoundKeys)
-            << errorAttributes;
+    field->IgnoredChildFieldNumbers.reserve(nameToConfig.size());
+    for (const auto& [name, childConfig] : nameToConfig) {
+        field->IgnoredChildFieldNumbers.push_back(childConfig->FieldNumber);
     }
 }
 

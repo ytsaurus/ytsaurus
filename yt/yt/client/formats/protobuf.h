@@ -52,6 +52,8 @@ struct TProtobufFieldDescriptionBase
     // Is the corresponding type in schema optional?
     bool Optional;
 
+    std::vector<int> IgnoredChildFieldNumbers;
+
     // Extracts field number from |WireTag|.
     ui32 GetFieldNumber() const;
 };
@@ -68,6 +70,7 @@ struct TProtobufFieldDescription
 struct TProtobufTableDescription
 {
     THashMap<TString, TProtobufFieldDescription> Columns;
+    std::vector<int> IgnoredColumnFieldNumbers;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -96,6 +99,7 @@ private:
     // Matching of the config and type is performed by the following rules:
     //  * Field of simple type matches simple type T "naturally"
     //  * Repeated field matches List<T> iff corresponding non-repeated field matches T and T is not Optional<...>
+    //    (List<Optional<Any>> is allowed as an exception)
     //  * Non-repeated field matches Optional<T> iff it matches T and T is not Optional<...>
     //  * StructuredMessage field matches Struct<Name1: Type1, ..., NameN: TypeN> iff
     //      - the field has subfields whose names are in set {Name1, ..., NameN}
@@ -105,7 +109,7 @@ private:
     void InitField(
         TProtobufFieldDescription* field,
         const TProtobufColumnConfigPtr& columnConfig,
-        NTableClient::TLogicalTypePtr logicalType,
+        NTableClient::TComplexTypeFieldDescriptor descriptor,
         int elementIndex,
         bool validateMissingFieldsOptionality);
 
