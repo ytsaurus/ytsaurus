@@ -8,8 +8,6 @@
 #include <yt/server/lib/containers/public.h>
 #include <yt/server/lib/job_proxy/config.h>
 
-#include <yt/ytlib/cgroup/cgroup.h>
-
 #include <yt/ytlib/job_prober_client/job_prober_service_proxy.h>
 
 #include <yt/client/formats/format.h>

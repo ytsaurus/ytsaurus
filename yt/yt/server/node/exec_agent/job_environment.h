@@ -7,8 +7,6 @@
 #include <yt/server/node/data_node/artifact.h>
 #include <yt/server/node/data_node/public.h>
 
-#include <yt/ytlib/cgroup/public.h>
-
 #include <yt/core/actions/signal.h>
 
 #include <yt/server/lib/containers/public.h>

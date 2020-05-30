@@ -7,8 +7,6 @@
 
 #include <yt/server/node/data_node/volume_manager.h>
 
-#include <yt/ytlib/cgroup/cgroup.h>
-
 #include <yt/ytlib/tools/tools.h>
 
 #include <yt/core/bus/tcp/client.h>

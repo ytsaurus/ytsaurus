@@ -9,8 +9,6 @@
 
 #endif
 
-#include <yt/ytlib/cgroup/cgroup.h>
-
 #include <yt/library/process/process.h>
 #include <yt/library/process/pty.h>
 
@@ -32,7 +30,6 @@ namespace NYT::NShell {
 
 using namespace NConcurrency;
 using namespace NContainers;
-using namespace NCGroup;
 using namespace NPipes;
 using namespace NNet;
 

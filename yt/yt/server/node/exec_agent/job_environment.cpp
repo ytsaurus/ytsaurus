@@ -21,8 +21,6 @@
 
 #include <yt/ytlib/job_proxy/private.h>
 
-#include <yt/ytlib/cgroup/cgroup.h>
-
 #include <yt/ytlib/tools/tools.h>
 #include <yt/ytlib/tools/proc.h>
 
@@ -37,7 +35,6 @@
 
 namespace NYT::NExecAgent {
 
-using namespace NCGroup;
 using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NJobProxy;
@@ -228,105 +225,6 @@ private:
     virtual TProcessBasePtr CreateJobProxyProcess(int /*slotIndex*/, TJobId /* jobId */)
     {
         return New<TSimpleProcess>(JobProxyProgramName);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TCGroupJobEnvironment
-    : public TProcessJobEnvironmentBase
-{
-public:
-    TCGroupJobEnvironment(TCGroupJobEnvironmentConfigPtr config, TBootstrap* bootstrap)
-        : TProcessJobEnvironmentBase(config, bootstrap)
-        , Config_(std::move(config))
-    {
-        // Freezer is always implicitly supported.
-        TNonOwningCGroup freezer("freezer", "slots");
-        CGroups_.push_back(freezer.GetFullPath());
-
-        for (const auto& type : Config_->SupportedCGroups) {
-            TNonOwningCGroup group(type, "slots");
-            CGroups_.push_back(group.GetFullPath());
-        }
-    }
-
-    virtual void CleanProcesses(int slotIndex) override
-    {
-        ValidateEnabled();
-
-        // Kill all processes via freezer.
-        auto error = WaitFor(BIND([=] () {
-                TNonOwningCGroup freezer("freezer", GetSlotProcessGroup(slotIndex));
-                freezer.EnsureExistance();
-                RunKiller(freezer.GetFullPath());
-                freezer.Unlock();
-            })
-            .AsyncVia(ActionQueue_->GetInvoker())
-            .Run());
-
-        if (!error.IsOK()) {
-            auto wrapperError = TError("Failed to kill processes in freezer process group (SlotIndex: %v)",
-                slotIndex) << error;
-
-            Disable(wrapperError);
-            THROW_ERROR wrapperError;
-        }
-
-        // No need to kill, job proxy was already killed inside cgroup.
-        EnsureJobProxyFinished(slotIndex, false);
-
-        // Remove all supported cgroups.
-        error = WaitFor(BIND([=] () {
-                for (const auto& path : GetCGroupPaths(slotIndex)) {
-                    TNonOwningCGroup group(path);
-                    group.RemoveRecursive();
-                }
-            })
-            .AsyncVia(ActionQueue_->GetInvoker())
-            .Run());
-
-        if (!error.IsOK()) {
-            auto wrapperError = TError("Failed to clean up cgroups (SlotIndex: %v)",
-                slotIndex) << error;
-            Disable(wrapperError);
-            THROW_ERROR wrapperError;
-        }
-    }
-
-    virtual int GetUserId(int slotIndex) const override
-    {
-        return Config_->StartUid + slotIndex;
-    }
-
-    virtual IJobDirectoryManagerPtr CreateJobDirectoryManager(const TString& path, int /*locationIndex*/)
-    {
-        return CreateSimpleJobDirectoryManager(
-            MounterThread_->GetInvoker(),
-            path,
-            Bootstrap_->GetConfig()->ExecAgent->SlotManager->DetachedTmpfsUmount);
-    }
-
-private:
-    const TCGroupJobEnvironmentConfigPtr Config_;
-    const TActionQueuePtr MounterThread_ = New<TActionQueue>("Mounter");
-
-    std::vector<TString> CGroups_;
-
-    virtual void AddArguments(TProcessBasePtr process, int slotIndex) override
-    {
-        for (const auto& path : GetCGroupPaths(slotIndex)) {
-            process->AddArguments({"--cgroup", path});
-        }
-    }
-
-    std::vector<TString> GetCGroupPaths(int slotIndex) const
-    {
-        std::vector<TString> result;
-        for (const auto& cgroup : CGroups_) {
-            result.push_back(Format("%v/%v", cgroup, slotIndex));
-        }
-        return result;
     }
 };
 
@@ -644,13 +542,6 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, TBootstrap* bootstr
             auto simpleConfig = ConvertTo<TSimpleJobEnvironmentConfigPtr>(configNode);
             return New<TSimpleJobEnvironment>(
                 simpleConfig,
-                bootstrap);
-        }
-
-        case EJobEnvironmentType::Cgroups: {
-            auto cgroupConfig = ConvertTo<TCGroupJobEnvironmentConfigPtr>(configNode);
-            return New<TCGroupJobEnvironment>(
-                cgroupConfig,
                 bootstrap);
         }
 
