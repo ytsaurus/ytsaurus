@@ -540,7 +540,7 @@ private:
 
         context->Initialize(rootElement->GetTreeSize(), /*registeredSchedulingTagFilters*/ {});
         rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
-        context->PrescheduleCalled = true;
+        context->SetPrescheduleCalled(true);
     }
 };
 

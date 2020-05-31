@@ -151,38 +151,7 @@ struct TFairShareSchedulingStage
 
 class TFairShareContext
 {
-public:
-    TFairShareContext(
-        ISchedulingContextPtr schedulingContext,
-        bool enableSchedulingInfoLogging,
-        const NLogging::TLogger& logger);
-
-    void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
-
-    TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
-    const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
-
-    void StartStage(TFairShareSchedulingStage* schedulingStage);
-
-    void ProfileStageTimingsAndLogStatistics();
-
-    void FinishStage();
-
-    bool Initialized = false;
-
-    std::vector<bool> CanSchedule;
-    TDynamicAttributesList DynamicAttributesList;
-
-    const ISchedulingContextPtr SchedulingContext;
-    const bool EnableSchedulingInfoLogging;
-
-    // Used to avoid unnecessary calculation of HasAggressivelyStarvingElements.
-    bool PrescheduleCalled = false;
-
-    TFairShareSchedulingStatistics SchedulingStatistics;
-
-    std::vector<TOperationElementPtr> BadPackingOperations;
-
+private:
     struct TStageState
     {
         explicit TStageState(TFairShareSchedulingStage* schedulingStage);
@@ -204,9 +173,43 @@ public:
         TEnumIndexedVector<EDeactivationReason, int> DeactivationReasons;
     };
 
-    std::optional<TStageState> StageState;
+    DEFINE_BYVAL_RW_PROPERTY(bool, Initialized, false);
+
+    DEFINE_BYREF_RW_PROPERTY(std::vector<bool>, CanSchedule);
+
+    DEFINE_BYREF_RW_PROPERTY(TDynamicAttributesList, DynamicAttributesList);
+
+    DEFINE_BYREF_RO_PROPERTY(ISchedulingContextPtr, SchedulingContext);
+
+    // Used to avoid unnecessary calculation of HasAggressivelyStarvingElements.
+    DEFINE_BYVAL_RW_PROPERTY(bool, PrescheduleCalled);
+
+    DEFINE_BYREF_RW_PROPERTY(TFairShareSchedulingStatistics, SchedulingStatistics);
+
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TOperationElementPtr>, BadPackingOperations);
+
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TStageState>, StageState);
+
+public:
+    TFairShareContext(
+        ISchedulingContextPtr schedulingContext,
+        bool enableSchedulingInfoLogging,
+        const NLogging::TLogger& logger);
+
+    void Initialize(int treeSize, const std::vector<TSchedulingTagFilter>& registeredSchedulingTagFilters);
+
+    TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element);
+    const TDynamicAttributes& DynamicAttributesFor(const TSchedulerElement* element) const;
+
+    void StartStage(TFairShareSchedulingStage* schedulingStage);
+
+    void ProfileStageTimingsAndLogStatistics();
+
+    void FinishStage();
 
 private:
+    const bool EnableSchedulingInfoLogging_;
+
     const NLogging::TLogger Logger;
 
     void ProfileStageTimings();
