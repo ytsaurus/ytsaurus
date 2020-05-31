@@ -292,6 +292,8 @@ def main():
                                      description=DESCRIPTION)
 
     subparsers = parser.add_subparsers(metavar="command")
+    subparsers.required = True
+
     patch_add_parser(subparsers)
 
     add_start_subparser(subparsers)
