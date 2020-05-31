@@ -19,10 +19,9 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EMultiReaderManagerType,
-    ((Parallel)   (0))
-    ((Sequential) (1))
+    (Parallel)
+    (Sequential)
 );
-
 
 TMultiChunkReaderMockPtr CreateMultiReader(
     std::vector<IReaderBasePtr> readers,
@@ -32,13 +31,11 @@ TMultiChunkReaderMockPtr CreateMultiReader(
     auto options = New<TMultiChunkReaderOptions>();
 
     std::vector<IReaderFactoryPtr> factories;
-
     for (auto& reader : readers) {
         factories.push_back(New<TReaderFactoryMock>(std::move(reader)));
     }
 
     auto memoryManager = New<TMultiReaderMemoryManagerMock>();
-
     switch (multiReaderManagerType) {
         case EMultiReaderManagerType::Parallel:
             return New<TMultiChunkReaderMock>(
@@ -54,7 +51,9 @@ TMultiChunkReaderMockPtr CreateMultiReader(
                     std::move(options),
                     std::move(factories),
                     std::move(memoryManager)));
-    };
+        default:
+            YT_ABORT();
+    }
 }
 
 std::vector<IReaderBasePtr> CreateMockReaders(int readerCount, int filledRowCount, TDuration delayStep, int emptyRowCount = 0)
@@ -71,7 +70,7 @@ std::vector<IReaderBasePtr> CreateMockReaders(int readerCount, int filledRowCoun
             readerData.push_back({});
         }
         Shuffle(readerData.begin(), readerData.end());
-        readers.emplace_back(New<TChunkReaderMock>(std::move(readerData), delayStep * readerIndex));
+        readers.push_back(New<TChunkReaderMock>(std::move(readerData), delayStep * readerIndex));
     }
     return readers;
 }
@@ -92,40 +91,36 @@ IReaderBasePtr CreateReaderWithError(int filledRowCount)
 class TMultiReaderManagerTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<EMultiReaderManagerType>
-{
-protected:
-    virtual void SetUp() override
-    { }
-};
+{ };
 
 TEST_P(TMultiReaderManagerTest, DataWithEmptyRows)
 {
     auto multiReader = CreateMultiReader(
         CreateMockReaders(
-            /*readerCount =*/ 10,
-            /*filledRowCount =*/ 10,
-            /*delayStep =*/ TDuration::MilliSeconds(1),
-            /*emptyRowCount =*/ 10),
+            /*readerCount*/ 10,
+            /*filledRowCount*/ 10,
+            /*delayStep*/ TDuration::MilliSeconds(1),
+            /*emptyRowCount*/ 10),
         GetParam());
-
-    multiReader->Open();
 
     std::unordered_set<i64> values;
     for (int i = 0; i < 100; ++i) {
         values.insert(i);
     }
 
-    std::vector<TUnversionedRow> readRows;
-    while (multiReader->Read(&readRows)) {
-        if (readRows.empty()) {
+    multiReader->Open();
+    while (auto batch = multiReader->Read({})) {
+        if (batch->IsEmpty()) {
             WaitFor(multiReader->GetReadyEvent())
                 .ThrowOnError();
-                continue;
+            continue;
         }
-        EXPECT_EQ(1, readRows.size());
-        auto value = readRows.front()[0].Data.Int64;
-        EXPECT_NE(values.end(), values.find(value));
-        values.erase(value);
+
+        auto rows = batch->MaterializeRows();
+        EXPECT_EQ(1, rows.size());
+        
+        auto [value] = FromUnversionedRow<i64>(rows[0]);
+        EXPECT_TRUE(values.erase(value) == 1);
     }
 
     EXPECT_EQ(0, values.size());
@@ -133,26 +128,25 @@ TEST_P(TMultiReaderManagerTest, DataWithEmptyRows)
 
 TEST_P(TMultiReaderManagerTest, ReaderWithError)
 {
-    auto readers = CreateMockReaders(/*readerCount =*/ 2, /*filledRowCount =*/ 5, /*delayStep =*/ TDuration::MilliSeconds(1));
-    readers.emplace_back(CreateReaderWithError(/*filledRowCount =*/ 5));
+    auto readers = CreateMockReaders(/*readerCount*/ 2, /*filledRowCount*/ 5, /*delayStep*/ TDuration::MilliSeconds(1));
+    readers.push_back(CreateReaderWithError(/*filledRowCount*/ 5));
 
     auto multiReader = CreateMultiReader(std::move(readers), GetParam());
 
     multiReader->Open();
 
-    std::vector<TUnversionedRow> readRows;
     for (int i = 0; i < 20; ++i) {
-        readRows.clear();
-        while (readRows.empty()) {
-            multiReader->Read(&readRows);
-            if (readRows.empty()) {
-                auto error = WaitFor(multiReader->GetReadyEvent());
-                if (error.IsOK()) {
-                    EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 0);
-                } else {
-                    EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 1);
-                    break;
-                }
+        while (true) {
+            auto batch = multiReader->Read({});
+            if (batch && !batch->IsEmpty()) {
+                break;
+            }
+            auto error = WaitFor(multiReader->GetReadyEvent());
+            if (error.IsOK()) {
+                EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 0);
+            } else {
+                EXPECT_EQ(multiReader->GetFailedChunkIds().size(), 1);
+                break;
             }
         }
     }
@@ -163,37 +157,34 @@ TEST_P(TMultiReaderManagerTest, ReaderWithError)
 
 TEST_P(TMultiReaderManagerTest, Interrupt)
 {
-    auto readers = CreateMockReaders(/*readerCount =*/ 5, /*filledRowCount =*/ 10, /*delayStep =*/ TDuration::MilliSeconds(1));
+    auto readers = CreateMockReaders(/*readerCount*/ 5, /*filledRowCount*/ 10, /*delayStep*/ TDuration::MilliSeconds(1));
 
     auto multiReader = CreateMultiReader(std::move(readers), GetParam());
 
     multiReader->Open();
 
-    std::vector<TUnversionedRow> readRows;
     for (int i = 0; i < 15; ++i) {
-        readRows.clear();
-        while (multiReader->Read(&readRows)) {
-            if (readRows.empty()) {
+        while (auto batch = multiReader->Read({})) {
+            if (batch->IsEmpty()) {
                 WaitFor(multiReader->GetReadyEvent())
                     .ThrowOnError();
-                    continue;
-            } else {
-                break;
+                continue;
             }
+            break;
         }
     }
 
     multiReader->Interrupt();
 
-    WaitFor(multiReader->GetReadyEvent())
-        .ThrowOnError();
     int remainingRowCount = 0;
-    while (multiReader->Read(&readRows)) {
-        if (readRows.empty()) {
+    while (auto batch = multiReader->Read({})) {
+        if (batch->IsEmpty()) {
             WaitFor(multiReader->GetReadyEvent())
                 .ThrowOnError();
-                continue;
+            continue;
         }
+        
+        EXPECT_EQ(1, batch->GetRowCount());
         ++remainingRowCount;
     }
     EXPECT_EQ(5, remainingRowCount);

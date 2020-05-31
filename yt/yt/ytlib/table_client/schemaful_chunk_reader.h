@@ -3,11 +3,6 @@
 #include "public.h"
 
 #include <yt/ytlib/chunk_client/public.h>
-#include <yt/client/chunk_client/read_limit.h>
-
-#include <yt/ytlib/node_tracker_client/public.h>
-
-#include <yt/core/rpc/public.h>
 
 namespace NYT::NTableClient {
 
@@ -15,7 +10,7 @@ namespace NYT::NTableClient {
 
 //! Factory method, that creates a schemaful reader on top of any
 //! NChunkClient::IReader, e.g. TMemoryReader, TReplicationReader etc.
-ISchemafulReaderPtr CreateSchemafulChunkReader(
+ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
     const TChunkStatePtr& chunkState,
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,

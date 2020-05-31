@@ -170,12 +170,12 @@ public:
 
     virtual bool IsFetchingCompleted() const override
     {
-        YT_ABORT();
+        return false;
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        YT_ABORT();
+        return {};
     }
 
 protected:

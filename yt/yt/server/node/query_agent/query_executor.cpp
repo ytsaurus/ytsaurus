@@ -58,7 +58,7 @@
 #include <yt/ytlib/table_client/config.h>
 #include <yt/client/table_client/pipe.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/unordered_schemaful_reader.h>
 
@@ -174,21 +174,23 @@ struct TSelectReadCounters
 using TSelectReadProfilerTrait = TTagListProfilerTrait<TSelectReadCounters>;
 
 class TProfilingReaderWrapper
-    : public ISchemafulReader
+    : public ISchemafulUnversionedReader
 {
 private:
-    ISchemafulReaderPtr Underlying_;
-    NProfiling::TTagIdList Tags_;
+    const ISchemafulUnversionedReaderPtr Underlying_;
+    const NProfiling::TTagIdList Tags_;
 
 public:
-    TProfilingReaderWrapper(ISchemafulReaderPtr underlying, const NProfiling::TTagIdList& tags)
+    TProfilingReaderWrapper(
+        ISchemafulUnversionedReaderPtr underlying,
+        const NProfiling::TTagIdList& tags)
         : Underlying_(std::move(underlying))
         , Tags_(tags)
     { }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        return Underlying_->Read(rows);
+        return Underlying_->Read(options);
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -204,6 +206,16 @@ public:
     virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
         return Underlying_->GetDecompressionStatistics();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return false;
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return {};
     }
 
     ~TProfilingReaderWrapper()
@@ -369,7 +381,7 @@ private:
     TTabletSnapshotCache TabletSnapshots_;
     const IInvokerPtr Invoker_;
 
-    typedef std::function<ISchemafulReaderPtr()> TSubreaderCreator;
+    typedef std::function<ISchemafulUnversionedReaderPtr()> TSubreaderCreator;
 
     void LogSplits(const std::vector<TDataRanges>& splits)
     {
@@ -631,7 +643,7 @@ private:
 
                 return std::make_pair(pipe->GetReader(), asyncStatistics);
             },
-            [&] (const TConstFrontQueryPtr& topQuery, const ISchemafulReaderPtr& reader, const IUnversionedRowsetWriterPtr& writer) {
+            [&] (const TConstFrontQueryPtr& topQuery, const ISchemafulUnversionedReaderPtr& reader, const IUnversionedRowsetWriterPtr& writer) {
                 YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 auto result = Evaluator_->Run(
                     topQuery,
@@ -781,7 +793,7 @@ private:
                 keyRanges.insert(keyRanges.end(), dataRange.Ranges.Begin(), dataRange.Ranges.End());
             }
 
-            refiners.push_back([MOVE(keyRanges), inferRanges = Query_->InferRanges] (
+            refiners.push_back([keyRanges = std::move(keyRanges), inferRanges = Query_->InferRanges] (
                 const TConstExpressionPtr& expr,
                 const TKeyColumns& keyColumns)
             {
@@ -792,7 +804,7 @@ private:
                 }
             });
 
-            subreaderCreators.push_back([this, MOVE(groupedSplit)] () {
+            subreaderCreators.push_back([=, groupedSplit = std::move(groupedSplit)] () {
                 size_t rangesCount = std::accumulate(
                     groupedSplit.begin(),
                     groupedSplit.end(),
@@ -807,11 +819,11 @@ private:
                 LogSplits(groupedSplit);
 
                 auto bottomSplitReaderGenerator = [
-                    MOVE(groupedSplit),
-                    index = 0,
-                    this,
-                    this_ = MakeStrong(this)
-                ] () mutable -> ISchemafulReaderPtr {
+                    =,
+                    this_ = MakeStrong(this),
+                    groupedSplit = std::move(groupedSplit),
+                    index = 0
+                ] () mutable -> ISchemafulUnversionedReaderPtr {
                     if (index == groupedSplit.size()) {
                         return nullptr;
                     }
@@ -857,7 +869,7 @@ private:
                     return expr;
                 }
             });
-            subreaderCreators.push_back([this, tabletId, MOVE(keys)] () {
+            subreaderCreators.push_back([=, keys = std::move(keys)] {
                 return GetTabletReader(tabletId, keys);
             });
         };
@@ -961,7 +973,7 @@ private:
         return groupedSplits;
     }
 
-    ISchemafulReaderPtr GetMultipleRangesReader(
+    ISchemafulUnversionedReaderPtr GetMultipleRangesReader(
         TObjectId tabletId,
         const TSharedRange<TRowRange>& bounds)
     {
@@ -969,17 +981,16 @@ private:
         auto columnFilter = GetColumnFilter(Query_->GetReadSchema(), tabletSnapshot->QuerySchema);
         auto profilerTags = tabletSnapshot->ProfilerTags;
 
-        ISchemafulReaderPtr reader;
+        ISchemafulUnversionedReaderPtr reader;
 
         if (!tabletSnapshot->TableSchema.IsSorted()) {
             auto bottomSplitReaderGenerator = [
-                MOVE(tabletSnapshot),
-                columnFilter,
-                MOVE(bounds),
-                index = 0,
-                this,
-                this_ = MakeStrong(this)
-            ] () mutable -> ISchemafulReaderPtr {
+                =,
+                this_ = MakeStrong(this),
+                tabletSnapshot = std::move(tabletSnapshot),
+                bounds = std::move(bounds),
+                index = 0
+            ] () mutable -> ISchemafulUnversionedReaderPtr {
                 if (index == bounds.Size()) {
                     return nullptr;
                 }
@@ -1011,7 +1022,7 @@ private:
         return New<TProfilingReaderWrapper>(reader, AddCurrentUserTag(profilerTags));
     }
 
-    ISchemafulReaderPtr GetTabletReader(
+    ISchemafulUnversionedReaderPtr GetTabletReader(
         TTabletId tabletId,
         const TSharedRange<TRow>& keys)
     {

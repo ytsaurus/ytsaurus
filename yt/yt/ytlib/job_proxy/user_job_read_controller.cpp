@@ -213,7 +213,7 @@ private:
             THROW_ERROR_EXCEPTION("enable_key_switch is not supported when query is set");
         }
 
-        auto readerFactory = [&] (TNameTablePtr nameTable, TColumnFilter columnFilter) -> ISchemalessReaderPtr {
+        auto readerFactory = [&] (TNameTablePtr nameTable, TColumnFilter columnFilter) -> ISchemalessUnversionedReaderPtr {
             InitializeReader(std::move(nameTable), std::move(columnFilter));
             return Reader_;
         };

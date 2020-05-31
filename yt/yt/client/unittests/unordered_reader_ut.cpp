@@ -1,8 +1,9 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/client/table_client/unordered_schemaful_reader.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 
 #include <yt/core/actions/cancelable_context.h>
 
@@ -12,52 +13,66 @@
 namespace NYT {
 namespace {
 
-using namespace NTableClient;
 using namespace NConcurrency;
+using namespace NTableClient;
+using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnorderedReaderTest
     : public ::testing::Test
+{ };
+
+class TSchemafulReaderMock
+    : public ISchemafulUnversionedReader
 {
 public:
-
-};
-
-struct SchemafulReaderMock
-    : public ISchemafulReader
-{
-    TPromise<void> ReadyEvent = NewPromise<void>();
-
-    virtual bool Read(std::vector<TUnversionedRow>* rows)
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& /*options*/ = {})
     {
-        rows->clear();
-        return !ReadyEvent.IsSet();
+        return ReadyEvent_.IsSet() ? nullptr : CreateEmptyUnversionedRowBatch();
     }
 
     virtual TFuture<void> GetReadyEvent()
     {
-        return ReadyEvent;
+        return ReadyEvent_;
+    }
+
+    void SetReadyEvent(const TError& error)
+    {
+        ReadyEvent_.Set(error);
     }
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        return TDataStatistics();
+        return {};
     }
 
     virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
-        return NChunkClient::TCodecStatistics();
+        return {};
     }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return false;
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return {};
+    }
+
+private:
+    const TPromise<void> ReadyEvent_ = NewPromise<void>();
 };
 
 TEST_F(TUnorderedReaderTest, Simple)
 {
-    auto reader1 = New<SchemafulReaderMock>();
-    auto reader2 = New<SchemafulReaderMock>();
+    auto reader1 = New<TSchemafulReaderMock>();
+    auto reader2 = New<TSchemafulReaderMock>();
 
-    auto subqueryReaderCreator = [&, index = 0] () mutable -> ISchemafulReaderPtr {
+    auto subqueryReaderCreator = [&, index = 0] () mutable -> ISchemafulUnversionedReaderPtr {
         if (index == 0) {
             ++index;
             return reader1;
@@ -71,19 +86,17 @@ TEST_F(TUnorderedReaderTest, Simple)
 
     auto mergingReader = CreateUnorderedSchemafulReader(subqueryReaderCreator, 2);
 
-    std::vector<TUnversionedRow> rows;
+    EXPECT_TRUE(mergingReader->Read().operator bool());
 
-    YT_VERIFY(mergingReader->Read(&rows));
+    reader1->SetReadyEvent(TError());
+    reader2->SetReadyEvent(TError("Error"));
 
-    reader1->ReadyEvent.Set(TError());
-    reader2->ReadyEvent.Set(TError("Error"));
+    EXPECT_TRUE(mergingReader->GetReadyEvent().IsSet());
+    EXPECT_TRUE(mergingReader->GetReadyEvent().Get().IsOK());
 
-    YT_VERIFY(mergingReader->GetReadyEvent().IsSet());
-    YT_VERIFY(mergingReader->GetReadyEvent().Get().IsOK());
-
-    YT_VERIFY(mergingReader->Read(&rows));
-    YT_VERIFY(mergingReader->GetReadyEvent().IsSet());
-    YT_VERIFY(mergingReader->GetReadyEvent().Get().GetMessage() == "Error");
+    EXPECT_TRUE(mergingReader->Read().operator bool());
+    EXPECT_TRUE(mergingReader->GetReadyEvent().IsSet());
+    EXPECT_EQ("Error", mergingReader->GetReadyEvent().Get().GetMessage());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

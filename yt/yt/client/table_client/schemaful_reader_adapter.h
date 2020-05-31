@@ -1,21 +1,19 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/client/table_client/unversioned_row.h>
-
-#include <yt/core/actions/future.h>
+#include "row_base.h"
 
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<ISchemalessReaderPtr(TNameTablePtr, const TColumnFilter&)> TSchemalessReaderFactory;
+using TSchemalessReaderFactory = std::function<ISchemalessUnversionedReaderPtr(
+    TNameTablePtr,
+    const TColumnFilter&)> ;
 
-ISchemafulReaderPtr CreateSchemafulReaderAdapter(
+ISchemafulUnversionedReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,
     const TTableSchema& schema,
-    const TColumnFilter& columnFilter = TColumnFilter());
+    const TColumnFilter& columnFilter = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

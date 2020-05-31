@@ -466,9 +466,9 @@ private:
                 storeId,
                 readSessionId,
                 context->GetRequestId());
-            HandleInputStreamingRequest(context, BIND([] {
-                return MakeFuture(TSharedRef{});
-            }));
+            HandleInputStreamingRequest(
+                context,
+                [] { return TSharedRef(); });
             return;
         }
 
@@ -524,28 +524,26 @@ private:
                 columnFilter,
                 context->GetRequestId());
 
-            return HandleInputStreamingRequest(context, BIND([&] {
+            return HandleInputStreamingRequest(context, [&] {
                 // NB: Dynamic store reader is non-blocking in the sense of ready event.
                 // However, waiting on blocked row may occur. See YT-12492.
                 reader->Read(&rows);
                 if (rows.empty()) {
-                    return MakeFuture(TSharedRef{});
+                    return TSharedRef();
                 }
 
                 TWireProtocolWriter writer;
                 writer.WriteVersionedRowset(rows);
                 auto data = writer.Finish();
-                auto mergedRef = MergeRefsToRef<int>(data);
+
+                struct TReadDynamicStoreTag { };
+                auto mergedRef = MergeRefsToRef<TReadDynamicStoreTag>(data);
 
                 auto throttleResult = WaitFor(bandwidthThrottler->Throttle(mergedRef.size()));
-                if (!throttleResult.IsOK()) {
-                    auto error = TError("Failed to throttle out bandwidth in dynamic store reader")
-                        << throttleResult;
-                    error.ThrowOnError();
-                }
+                THROW_ERROR_EXCEPTION_IF_FAILED(throttleResult, "Failed to throttle out bandwidth in dynamic store reader");
 
-                return MakeFuture(mergedRef);
-            }));
+                return mergedRef;
+            });
         } else {
             THROW_ERROR_EXCEPTION("Remote reader for ordered dynamic stores is not implemented");
         }

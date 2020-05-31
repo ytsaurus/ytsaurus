@@ -5,7 +5,11 @@
 #include <yt/client/api/table_reader.h>
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
+
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/unversioned_reader.h>
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 
 #include <yt/core/rpc/stream.h>
 
@@ -67,22 +71,28 @@ public:
         return ReadyEvent_;
     }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        YT_VERIFY(rows->capacity() > 0);
-        rows->clear();
         StoredRows_.clear();
 
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-            return true;
+            return CreateEmptyUnversionedRowBatch();
         }
 
         if (!Finished_) {
             ReadyEvent_ = NewPromise<void>();
         }
+        
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
+        i64 dataWeight = 0;
 
-        while (AsyncRowsWithPayload_ && AsyncRowsWithPayload_.IsSet() && AsyncRowsWithPayload_.Get().IsOK() &&
-            !Finished_ && rows->size() < rows->capacity())
+        while (AsyncRowsWithPayload_ &&
+               AsyncRowsWithPayload_.IsSet() &&
+               AsyncRowsWithPayload_.Get().IsOK() &&
+               !Finished_ &&
+               rows.size() < options.MaxRowsPerRead &&
+               dataWeight < options.MaxDataWeightPerRead)
         {
             const auto& currentRows = AsyncRowsWithPayload_.Get().Value().Rows;
             const auto& currentPayload = AsyncRowsWithPayload_.Get().Value().Payload;
@@ -93,16 +103,15 @@ public:
                 ApplyReaderPayload(currentPayload);
                 continue;
             }
-            i64 readRowsCount = std::min(
-                rows->capacity() - rows->size(),
-                currentRows.Size() - CurrentRowsOffset_);
-            RowCount_ += readRowsCount;
-            i64 newOffset = CurrentRowsOffset_ + readRowsCount;
-            for (i64 rowIndex = CurrentRowsOffset_; rowIndex < newOffset; ++rowIndex) {
-                rows->push_back(currentRows[rowIndex]);
-                DataWeight_ += GetDataWeight(currentRows[rowIndex]);
+
+            while (CurrentRowsOffset_ < currentRows.Size() &&
+                   rows.size() < options.MaxRowsPerRead &&
+                   dataWeight < options.MaxDataWeightPerRead)
+            {
+                auto row = currentRows[CurrentRowsOffset_++];
+                rows.push_back(row);
+                dataWeight += GetDataWeight(row);
             }
-            CurrentRowsOffset_ = newOffset;
 
             StoredRows_.push_back(currentRows);
             ApplyReaderPayload(currentPayload);
@@ -113,8 +122,11 @@ public:
             }
         }
 
-        ReadyEvent_ .TrySetFrom(AsyncRowsWithPayload_);
-        return !rows->empty();
+        RowCount_ += rows.size();
+        DataWeight_ += dataWeight;
+
+        ReadyEvent_.TrySetFrom(AsyncRowsWithPayload_);
+        return rows.empty() ? nullptr : CreateBatchFromUnversionedRows(std::move(rows), this);
     }
 
     virtual const TNameTablePtr& GetNameTable() const override
@@ -157,7 +169,7 @@ private:
     i64 TotalRowCount_;
 
     i64 RowCount_ = 0;
-    size_t DataWeight_ = 0;
+    i64 DataWeight_ = 0;
 
     TNameTableToSchemaIdMapping IdMapping_;
     NApi::NRpcProxy::NProto::TRowsetDescriptor RowsetDescriptor_;

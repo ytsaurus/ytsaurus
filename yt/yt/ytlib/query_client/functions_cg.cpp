@@ -615,12 +615,10 @@ TCodegenExpression TExternalFunctionCodegen::Profile(
     }
 
     return [
+        =,
         this_ = MakeStrong(this),
-        type,
-        name,
-        functionContextIndex,
-        MOVE(argIds),
-        MOVE(argumentTypes)
+        argIds = std::move(argIds),
+        argumentTypes = std::move(argumentTypes)
     ] (TCGExprContext& builder) {
         std::vector<TCodegenValue> codegenArguments;
         for (size_t id : argIds) {

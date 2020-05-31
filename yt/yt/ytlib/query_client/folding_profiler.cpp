@@ -1555,8 +1555,9 @@ TCGExpressionCallbackGenerator Profile(
     auto exprId = profiler.Profile(expr, schema, &fragments);
 
     return [
+            =,
             fragmentInfos = fragments.ToFragmentInfos("fragment"),
-            MOVE(exprId)
+            exprId = std::move(exprId)
         ] () {
             return CodegenStandaloneExpression(fragmentInfos, exprId);
         };
@@ -1585,9 +1586,9 @@ TCGQueryCallbackGenerator Profile(
     }
 
     return [
-            MOVE(codegenSource),
-            slotCount
-        ] () {
+            =,
+            codegenSource = std::move(codegenSource)
+        ] {
             return CodegenEvaluate(&codegenSource, slotCount);
         };
 }

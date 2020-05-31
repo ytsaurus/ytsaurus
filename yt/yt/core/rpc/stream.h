@@ -270,7 +270,7 @@ TFuture<NConcurrency::IAsyncZeroCopyOutputStreamPtr> CreateRpcClientOutputStream
 //! function.
 void HandleInputStreamingRequest(
     const IServiceContextPtr& context,
-    const TCallback<TFuture<TSharedRef>()>& blockGenerator);
+    const std::function<TSharedRef()>& blockGenerator);
 
 void HandleInputStreamingRequest(
     const IServiceContextPtr& context,
@@ -280,8 +280,8 @@ void HandleInputStreamingRequest(
 //! function with the same #feedbackEnabled value.
 void HandleOutputStreamingRequest(
     const IServiceContextPtr& context,
-    const TCallback<TFuture<void>(TSharedRef)>& blockHandler,
-    const TCallback<TFuture<void>()>& finalizer,
+    const std::function<void(TSharedRef)>& blockHandler,
+    const std::function<void()>& finalizer,
     bool feedbackEnabled = false);
 
 void HandleOutputStreamingRequest(

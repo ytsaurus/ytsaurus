@@ -6,6 +6,7 @@ namespace {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NTransactionClient;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,9 +45,11 @@ protected:
             BlockReadOptions_);
 
         std::vector<TUnversionedOwningRow> allRows;
-        std::vector<TUnversionedRow> someRows;
-        someRows.reserve(100);
-        while (reader->Read(&someRows)) {
+        TRowBatchReadOptions options{
+            .MaxRowsPerRead = 100
+        };
+        while (auto batch = reader->Read(options)) {
+            auto someRows = batch->MaterializeRows();
             YT_VERIFY(!someRows.empty());
             for (auto row : someRows) {
                 allRows.push_back(TUnversionedOwningRow(row));

@@ -27,7 +27,7 @@
 
 #include <yt/client/ypath/rich.h>
 
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/name_table.h>
@@ -95,9 +95,9 @@ public:
         return UnderlyingReader_->GetReadyEvent();
     }
 
-    virtual bool Read(std::vector<NTableClient::TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        return UnderlyingReader_->Read(rows);
+        return UnderlyingReader_->Read(options);
     }
 
     virtual const TNameTablePtr& GetNameTable() const override

@@ -790,8 +790,8 @@ TRangeInferrer CreateHeavyRangeInferrer(
         enrichedRanges.end());
 
     return [
-        MOVE(enrichedRanges),
-        MOVE(buffer)
+        enrichedRanges = std::move(enrichedRanges),
+        buffer = std::move(buffer)
     ] (const TRowRange& keyRange, const TRowBufferPtr& rowBuffer) mutable {
         auto subrange = CropItems(
             MakeRange(enrichedRanges),
@@ -837,8 +837,8 @@ TRangeInferrer CreateLightRangeInferrer(
         keyTrie);
 
     return [
-        MOVE(keyTrieBuffer),
-        MOVE(keyTrie)
+        keyTrieBuffer = std::move(keyTrieBuffer),
+        keyTrie = std::move(keyTrie)
     ] (const TRowRange& keyRange, const TRowBufferPtr& rowBuffer) {
         return GetRangesFromTrieWithinRange(keyRange, keyTrie, rowBuffer);
     };

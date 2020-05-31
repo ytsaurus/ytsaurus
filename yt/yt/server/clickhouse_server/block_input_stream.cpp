@@ -12,7 +12,9 @@
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
-#include <yt/client/table_client/schemaless_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/helpers.h>
 
@@ -67,11 +69,11 @@ TTableReaderConfigPtr CreateTableReaderConfig()
     return config;
 }
 
-DB::Block ConvertRowsToBlock(
-    const std::vector<TUnversionedRow>& rows,
+DB::Block ConvertRowBatchToBlock(
+    const IUnversionedRowBatchPtr& batch,
     const TTableSchema& readSchema,
     const std::vector<int>& idToColumnIndex,
-    TRowBufferPtr rowBuffer,
+    const TRowBufferPtr& rowBuffer,
     DB::Block block)
 {
     // NB(max42): CHYT-256.
@@ -82,7 +84,7 @@ DB::Block ConvertRowsToBlock(
     // row we get and add nulls for all unpresent columns.
     std::vector<bool> presentValueMask;
 
-    for (const auto& row : rows) {
+    for (auto row : batch->MaterializeRows()) {
         presentValueMask.assign(readSchema.GetColumnCount(), false);
         for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
             auto value = row[index];
@@ -142,28 +144,33 @@ void ExecutePrewhereActions(DB::Block& block, const DB::PrewhereInfoPtr& prewher
 
 DB::Block FilterRowsByPrewhereInfo(
     DB::Block&& blockToFilter,
-    std::vector<TUnversionedRow>&& rowsToFilter,
+    const IUnversionedRowBatchPtr& batch,
     const DB::PrewhereInfoPtr& prewhereInfo,
     const TTableSchema& schema,
     const std::vector<int>& idToColumnIndex,
     const TRowBufferPtr& rowBuffer,
     const DB::Block& headerBlock,
-    IInvokerPtr invoker)
+    const IInvokerPtr& invoker)
 {
     // Create prewhere column for filtering.
     ExecutePrewhereActions(blockToFilter, prewhereInfo);
     const auto& prewhereColumn = blockToFilter.getByName(prewhereInfo->prewhere_column_name).column;
 
+    auto rowsToFilter = batch->MaterializeRows();
     std::vector<TUnversionedRow> filteredRows;
+    filteredRows.reserve(prewhereColumn->size());
     for (size_t index = 0; index < prewhereColumn->size(); ++index) {
         if (prewhereColumn->getBool(index)) {
-            filteredRows.emplace_back(rowsToFilter[index]);
+            filteredRows.push_back(rowsToFilter[index]);
         }
     }
 
+    auto filteredBatch = CreateBatchFromUnversionedRows(
+        std::move(filteredRows),
+        std::move(batch));
     auto filteredBlock = WaitFor(BIND(
-        &NDetail::ConvertRowsToBlock,
-        filteredRows,
+        &NDetail::ConvertRowBatchToBlock,
+        filteredBatch,
         schema,
         idToColumnIndex,
         rowBuffer,
@@ -238,30 +245,28 @@ DB::Block TBlockInputStream::readImpl()
 
     DB::Block block;
     while (block.rows() == 0) {
-        // TODO(max42): consult with psushin@ about contract here.
-        std::vector<TUnversionedRow> rows;
-        // TODO(max42): make customizable.
-        constexpr int rowsPerRead = 10 * 1024;
-        rows.reserve(rowsPerRead);
+        // TODO(max42): consult with babenko@ about contract here.
+        IUnversionedRowBatchPtr batch;
         while (true) {
-            if (!Reader_->Read(&rows)) {
+            batch = Reader_->Read();
+            if (!batch) {
                 return {};
-            } else if (rows.empty()) {
-                NProfiling::TWallTimer wallTimer;
-                WaitFor(Reader_->GetReadyEvent())
-                    .ThrowOnError();
-                auto elapsed = wallTimer.GetElapsedTime();
-                if (elapsed > TDuration::Seconds(1)) {
-                    YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
-                }
-            } else {
+            }
+            if (!batch->IsEmpty()) {
                 break;
+            }
+            NProfiling::TWallTimer wallTimer;
+            WaitFor(Reader_->GetReadyEvent())
+                .ThrowOnError();
+            auto elapsed = wallTimer.GetElapsedTime();
+            if (elapsed > TDuration::Seconds(1)) {
+                YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
             }
         }
 
         block = WaitFor(BIND(
-            &NDetail::ConvertRowsToBlock,
-            rows,
+            &NDetail::ConvertRowBatchToBlock,
+            batch,
             ReadSchema_,
             IdToColumnIndex_,
             RowBuffer_,
@@ -273,7 +278,7 @@ DB::Block TBlockInputStream::readImpl()
         if (PrewhereInfo_) {
             block = NDetail::FilterRowsByPrewhereInfo(
                 std::move(block),
-                std::move(rows),
+                batch,
                 PrewhereInfo_,
                 ReadSchema_,
                 IdToColumnIndex_,

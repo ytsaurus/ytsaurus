@@ -9,7 +9,9 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-typedef std::function<ISchemafulReaderPtr(const TTableSchema&, const TColumnFilter&)> TSchemafulReaderFactory;
+using TSchemafulReaderFactory = std::function<ISchemafulUnversionedReaderPtr(
+    const TTableSchema&,
+    const TColumnFilter&)>;
 
 IVersionedReaderPtr CreateVersionedReaderAdapter(
     TSchemafulReaderFactory createReader,

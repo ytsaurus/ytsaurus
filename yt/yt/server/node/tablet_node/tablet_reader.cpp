@@ -13,7 +13,7 @@
 #include <yt/ytlib/table_client/row_merger.h>
 #include <yt/ytlib/table_client/schemaful_concatencaing_reader.h>
 
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/row_buffer.h>
@@ -52,7 +52,7 @@ struct TStoreRangeFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
+ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TRowRange>& bounds,
@@ -163,7 +163,7 @@ ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
         });
 }
 
-ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
+ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     TOwningKey lowerBound,
@@ -263,7 +263,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
         blockReadOptions.ReadSessionId,
         MakeFormattableView(stores, TStoreIdFormatter()));
 
-    std::vector<std::function<ISchemafulReaderPtr()>> readers;
+    std::vector<std::function<ISchemafulUnversionedReaderPtr()>> readers;
     for (const auto& store : stores) {
         readers.emplace_back([=] () {
             return store->CreateReader(
@@ -280,7 +280,7 @@ ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
     return CreateSchemafulConcatenatingReader(readers);
 }
 
-ISchemafulReaderPtr CreateSchemafulTabletReader(
+ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     TOwningKey lowerBound,
@@ -313,7 +313,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
 
 namespace {
 
-ISchemafulReaderPtr CreateSchemafulPartitionReader(
+ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     TPartitionSnapshotPtr partitionSnapshot,
@@ -376,7 +376,7 @@ ISchemafulReaderPtr CreateSchemafulPartitionReader(
 
 } // namespace
 
-ISchemafulReaderPtr CreateSchemafulTabletReader(
+ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,
@@ -423,7 +423,7 @@ ISchemafulReaderPtr CreateSchemafulTabletReader(
         partitionedKeys = std::move(partitionedKeys),
         rowBuffer = std::move(rowBuffer),
         index = 0
-    ] () mutable -> ISchemafulReaderPtr {
+    ] () mutable -> ISchemafulUnversionedReaderPtr {
         if (index < partitionedKeys.size()) {
             auto reader = CreateSchemafulPartitionReader(
                 tabletSnapshot,

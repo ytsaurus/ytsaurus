@@ -15,9 +15,11 @@
 
 #include <yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/ytlib/table_client/schemaful_chunk_reader.h>
-#include <yt/client/table_client/schemaful_reader.h>
-#include <yt/client/table_client/row_buffer.h>
 #include <yt/ytlib/table_client/chunk_state.h>
+
+#include <yt/client/table_client/unversioned_reader.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 
@@ -44,11 +46,11 @@ struct TOrderedChunkStoreReaderTag
 using TIdMapping = SmallVector<int, TypicalColumnCount>;
 
 class TOrderedChunkStore::TReader
-    : public ISchemafulReader
+    : public ISchemafulUnversionedReader
 {
 public:
     TReader(
-        ISchemafulReaderPtr underlyingReader,
+        ISchemafulUnversionedReaderPtr underlyingReader,
         bool enableTabletIndex,
         bool enableRowIndex,
         const TIdMapping& idMapping,
@@ -63,14 +65,19 @@ public:
         , Pool_(TOrderedChunkStoreReaderTag())
     { }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        if (!UnderlyingReader_->Read(rows)) {
-            return false;
+        auto batch = UnderlyingReader_->Read(options);
+        if (!batch) {
+            return nullptr;
         }
 
+        auto rows = batch->MaterializeRows();
+        std::vector<TUnversionedRow> updatedRows;
+        updatedRows.reserve(rows.size());
+        
         Pool_.Clear();
-        for (auto& row : *rows) {
+        for (auto row : rows) {
             int updatedColumnCount =
                 row.GetCount() +
                 (EnableTabletIndex_ ? 1 : 0) +
@@ -93,11 +100,11 @@ public:
                 ++updatedValue;
             }
 
-            row = updatedRow;
+            updatedRows.push_back(updatedRow);
             ++CurrentRowIndex_;
         }
 
-        return true;
+        return CreateBatchFromUnversionedRows(std::move(updatedRows), this);
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -115,8 +122,18 @@ public:
         return UnderlyingReader_->GetDecompressionStatistics();
     }
 
+    virtual bool IsFetchingCompleted() const override
+    {
+        return false;
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return {};
+    }
+
 private:
-    const ISchemafulReaderPtr UnderlyingReader_;
+    const ISchemafulUnversionedReaderPtr UnderlyingReader_;
     const int TabletIndex_;
     const bool EnableTabletIndex_;
     const bool EnableRowIndex_;
@@ -173,7 +190,7 @@ EStoreType TOrderedChunkStore::GetType() const
     return EStoreType::OrderedChunk;
 }
 
-ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
+ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     const TTabletSnapshotPtr& tabletSnapshot,
     int tabletIndex,
     i64 lowerRowIndex,
@@ -249,6 +266,19 @@ ISchemafulReaderPtr TOrderedChunkStore::CreateReader(
         idMapping,
         tabletIndex,
         lowerRowIndex);
+}
+
+
+void TOrderedChunkStore::Save(TSaveContext& context) const
+{
+    TStoreBase::Save(context);
+    TOrderedStoreBase::Save(context);
+}
+
+void TOrderedChunkStore::Load(TLoadContext& context)
+{
+    TStoreBase::Load(context);
+    TOrderedStoreBase::Load(context);
 }
 
 TKeyComparer TOrderedChunkStore::GetKeyComparer()

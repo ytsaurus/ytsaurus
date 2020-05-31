@@ -214,7 +214,7 @@ public:
 
     TQueryStatistics Run(
         const TConstBaseQueryPtr& query,
-        const ISchemafulReaderPtr& reader,
+        const ISchemafulUnversionedReaderPtr& reader,
         const IUnversionedRowsetWriterPtr& writer,
         const TJoinSubqueryProfiler& joinProfiler,
         const TConstFunctionProfilerMapPtr& functionProfilers,
@@ -409,7 +409,7 @@ TEvaluator::~TEvaluator()
 
 TQueryStatistics TEvaluator::Run(
     TConstBaseQueryPtr query,
-    ISchemafulReaderPtr reader,
+    ISchemafulUnversionedReaderPtr reader,
     IUnversionedRowsetWriterPtr writer,
     TJoinSubqueryProfiler joinProfiler,
     TConstFunctionProfilerMapPtr functionProfilers,

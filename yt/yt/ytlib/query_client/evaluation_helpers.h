@@ -22,10 +22,10 @@
 
 namespace NYT::NQueryClient {
 
-constexpr size_t RowsetProcessingSize = 1024;
-constexpr size_t WriteRowsetSize = 64 * RowsetProcessingSize;
-
 ////////////////////////////////////////////////////////////////////////////////
+
+constexpr i64 RowsetProcessingSize = 1024;
+constexpr i64 WriteRowsetSize = 64 * RowsetProcessingSize;
 
 class TInterruptedIncompleteException
 { };
@@ -247,7 +247,7 @@ typedef TRowBuffer TExpressionContext;
 
 struct TExecutionContext
 {
-    ISchemafulReaderPtr Reader;
+    ISchemafulUnversionedReaderPtr Reader;
     IUnversionedRowsetWriterPtr Writer;
 
     TQueryStatistics* Statistics = nullptr;

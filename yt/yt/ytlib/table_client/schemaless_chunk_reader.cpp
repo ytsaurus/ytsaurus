@@ -40,8 +40,9 @@
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/row_base.h>
 #include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/versioned_reader.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
@@ -462,7 +463,8 @@ public:
         std::optional<int> partitionTag,
         const TChunkReaderMemoryManagerPtr& memoryManager);
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
+
     virtual TInterruptDescriptor GetInterruptDescriptor(TRange<TUnversionedRow> unreadRows) const override;
 
 private:
@@ -643,35 +645,38 @@ void THorizontalSchemalessRangeChunkReader::InitNextBlock()
     InitFirstBlock();
 }
 
-bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* rows)
+IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBatchReadOptions& options)
 {
-    YT_VERIFY(rows->capacity() > 0);
-
     MemoryPool_.Clear();
-    rows->clear();
 
     if (!BeginRead()) {
         // Not ready yet.
-        return true;
+        return CreateEmptyUnversionedRowBatch();
     }
 
     if (!BlockReader_) {
         // Nothing to read from chunk.
-        return false;
+        return nullptr;
     }
 
     if (BlockEnded_) {
         BlockReader_.reset();
-        return OnBlockEnded();
+        return OnBlockEnded() ? CreateEmptyUnversionedRowBatch() : nullptr;
     }
 
+    std::vector<TUnversionedRow> rows;
+    rows.reserve(options.MaxRowsPerRead);
     i64 dataWeight = 0;
-    while (rows->size() < rows->capacity() && dataWeight < Config_->MaxDataSizePerRead && !BlockEnded_) {
+
+    while (!BlockEnded_ &&
+           rows.size() < options.MaxRowsPerRead &&
+           dataWeight < options.MaxDataWeightPerRead)
+    {
         if ((CheckRowLimit_ && RowIndex_ >= ReadRange_.UpperLimit().GetRowIndex()) ||
             (CheckKeyLimit_ && CompareRows(BlockReader_->GetKey(), ReadRange_.UpperLimit().GetKey()) >= 0))
         {
             BlockEnded_ = true;
-            return true;
+            break;
         }
 
         if (Sampler_.Sample(GetTableRowIndex())) {
@@ -693,9 +698,9 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
                 row.SetCount(row.GetCount() + 1);
             }
 
-            rows->push_back(row);
+            rows.push_back(row);
 
-            auto rowWeight = GetDataWeight(rows->back());
+            auto rowWeight = GetDataWeight(row);
             dataWeight += rowWeight;
             DataWeight_ += rowWeight;
             ++RowCount_;
@@ -707,7 +712,7 @@ bool THorizontalSchemalessRangeChunkReader::Read(std::vector<TUnversionedRow>* r
         }
     }
 
-    return true;
+    return CreateBatchFromUnversionedRows(std::move(rows), this);
 }
 
 TInterruptDescriptor THorizontalSchemalessRangeChunkReader::GetInterruptDescriptor(
@@ -749,7 +754,7 @@ public:
         std::optional<int> partitionTag = std::nullopt,
         const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override;
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
 private:
     const TSharedRange<TKey> Keys_;
@@ -848,16 +853,15 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
     }
 }
 
-bool THorizontalSchemalessLookupChunkReader::Read(std::vector<TUnversionedRow>* rows)
+IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowBatchReadOptions& options)
 {
-    YT_VERIFY(rows->capacity() > 0);
-
     MemoryPool_.Clear();
-    rows->clear();
 
+    std::vector<TUnversionedRow> rows;
+    rows.reserve(options.MaxRowsPerRead);
     i64 dataWeight = 0;
 
-    auto doRead = [&] {
+    auto success = [&] () {
         if (!BeginRead()) {
             // Not ready yet.
             return true;
@@ -869,10 +873,11 @@ bool THorizontalSchemalessLookupChunkReader::Read(std::vector<TUnversionedRow>* 
                 return false;
             }
 
-            while (rows->size() < rows->capacity() && RowCount_ < Keys_.Size()) {
-                rows->push_back(TUnversionedRow());
+            while (rows.size() < options.MaxRowsPerRead && RowCount_ < Keys_.Size()) {
+                rows.push_back(TUnversionedRow());
                 ++RowCount_;
             }
+
             return true;
         }
 
@@ -882,16 +887,18 @@ bool THorizontalSchemalessLookupChunkReader::Read(std::vector<TUnversionedRow>* 
             return true;
         }
 
-        while (rows->size() < rows->capacity()) {
+        while (rows.size() < options.MaxRowsPerRead &&
+               dataWeight < options.MaxDataWeightPerRead)
+        {
             if (RowCount_ == Keys_.Size()) {
                 BlockEnded_ = true;
                 return true;
             }
 
             if (!KeyFilterTest_[RowCount_]) {
-                rows->push_back(TUnversionedRow());
+                rows.push_back(TUnversionedRow());
             } else {
-                const auto& key = Keys_[RowCount_];
+                auto key = Keys_[RowCount_];
                 if (!BlockReader_->SkipToKey(key)) {
                     BlockEnded_ = true;
                     return true;
@@ -899,14 +906,14 @@ bool THorizontalSchemalessLookupChunkReader::Read(std::vector<TUnversionedRow>* 
 
                 if (key == BlockReader_->GetKey()) {
                     auto row = BlockReader_->GetRow(&MemoryPool_);
-                    rows->push_back(row);
+                    rows.push_back(row);
                     dataWeight += GetDataWeight(row);
 
                     int blockIndex = BlockIndexes_[CurrentBlockIndex_];
                     const auto& blockMeta = BlockMetaExt_->blocks(blockIndex);
                     RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count() + BlockReader_->GetRowIndex();
                 } else {
-                    rows->push_back(TUnversionedRow());
+                    rows.push_back(TUnversionedRow());
                 }
             }
 
@@ -914,16 +921,14 @@ bool THorizontalSchemalessLookupChunkReader::Read(std::vector<TUnversionedRow>* 
         }
 
         return true;
-    };
-
-    bool result = doRead();
+    }();
 
     if (PerformanceCounters_) {
-        PerformanceCounters_->StaticChunkRowLookupCount += rows->size();
+        PerformanceCounters_->StaticChunkRowLookupCount += rows.size();
         PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
     }
 
-    return result;
+    return success ? CreateBatchFromUnversionedRows(std::move(rows), this) : nullptr;
 }
 
 void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
@@ -997,26 +1002,29 @@ public:
             .Run();
     }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        YT_VERIFY(rows->capacity() > 0);
-        rows->clear();
         Pool_.Clear();
 
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-            return true;
+            return CreateEmptyUnversionedRowBatch();
         }
 
         if (Completed_) {
-            return false;
+            return nullptr;
         }
 
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
         i64 dataWeight = 0;
-        while (rows->size() < rows->capacity()) {
+        
+        while (rows.size() < options.MaxRowsPerRead &&
+               dataWeight < options.MaxDataWeightPerRead)
+        {
             ResetExhaustedColumns();
 
             // Define how many to read.
-            i64 rowLimit = static_cast<i64>(rows->capacity() - rows->size());
+            i64 rowLimit = static_cast<i64>(rows.capacity() - rows.size());
 
             // Each read must be fully below or fully above SafeUpperRowLimit,
             // to determine if we should read and validate keys.
@@ -1076,7 +1084,7 @@ public:
                 }
             }
 
-            dataWeight += ReadRows(rowLimit, rows);
+            dataWeight += ReadRows(rowLimit, &rows);
 
             RowIndex_ += rowLimit;
 
@@ -1084,32 +1092,28 @@ public:
                 Completed_ = true;
             }
 
-            if (Completed_ || !TryFetchNextRow() ||
-                dataWeight > TSchemalessChunkReaderBase::Config_->MaxDataSizePerRead)
-            {
+            if (Completed_ || !TryFetchNextRow()) {
                 break;
             }
         }
 
         if (TSchemalessChunkReaderBase::Config_->SamplingRate) {
             i64 insertIndex = 0;
-            // ToDo(psushin): fix data weight statistics row sampler is used.
-
-            std::vector<TUnversionedRow>& rowsRef = *rows;
-            for (i64 rowIndex = 0; rowIndex < rows->size(); ++rowIndex) {
-                i64 tableRowIndex = ChunkSpec_.table_row_index() + RowIndex_ - rows->size() + rowIndex;
+            // TODO(psushin): fix data weight statistics when row sampler is used.
+            for (i64 rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
+                i64 tableRowIndex = ChunkSpec_.table_row_index() + RowIndex_ - rows.size() + rowIndex;
                 if (Sampler_.Sample(tableRowIndex)) {
-                    rowsRef[insertIndex] = rowsRef[rowIndex];
+                    rows[insertIndex] = rows[rowIndex];
                     ++insertIndex;
                 }
             }
-            rows->resize(insertIndex);
+            rows.resize(insertIndex);
         }
 
-        RowCount_ += rows->size();
+        RowCount_ += rows.size();
         DataWeight_ += dataWeight;
 
-        return true;
+        return CreateBatchFromUnversionedRows(std::move(rows), this);
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
@@ -1438,26 +1442,29 @@ public:
             .Run();
     }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        rows->clear();
         Pool_.Clear();
 
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-            return true;
+            return CreateEmptyUnversionedRowBatch();
         }
 
         if (NextKeyIndex_ == Keys_.Size()) {
-            return false;
+            return nullptr;
         }
 
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
         i64 dataWeight = 0;
-        while (rows->size() < rows->capacity()) {
+
+        while (rows.size() < options.MaxRowsPerRead &&
+               dataWeight < options.MaxDataWeightPerRead)
+        {
             ResetExhaustedColumns();
 
             if (RowIndexes_[NextKeyIndex_] < ChunkMeta_->Misc().row_count()) {
-                const auto& key = Keys_[NextKeyIndex_];
-
+                auto key = Keys_[NextKeyIndex_];
                 YT_VERIFY(key.GetCount() == KeyColumnReaders_.size());
 
                 // Reading row.
@@ -1472,27 +1479,26 @@ public:
 
                 if (upperRowIndex == lowerRowIndex) {
                     // Key does not exist.
-                    rows->push_back(TMutableUnversionedRow());
+                    rows.push_back(TUnversionedRow());
                 } else {
                     // Key can be present in exactly one row.
                     YT_VERIFY(upperRowIndex == lowerRowIndex + 1);
                     i64 rowIndex = lowerRowIndex;
-
-                    rows->push_back(ReadRow(rowIndex));
+                    rows.push_back(ReadRow(rowIndex));
                 }
             } else {
                 // Key oversteps chunk boundaries.
-                rows->push_back(TMutableUnversionedRow());
+                rows.push_back(TUnversionedRow());
             }
 
-            dataWeight += GetDataWeight(rows->back());
+            dataWeight += GetDataWeight(rows.back());
 
-            if (++NextKeyIndex_ == Keys_.Size() || !TryFetchNextRow() || dataWeight > TSchemalessChunkReaderBase::Config_->MaxDataSizePerRead) {
+            if (++NextKeyIndex_ == Keys_.Size() || !TryFetchNextRow()) {
                 break;
             }
         }
 
-        i64 rowCount = rows->size();
+        i64 rowCount = rows.size();
 
         if (PerformanceCounters_) {
             PerformanceCounters_->StaticChunkRowLookupCount += rowCount;
@@ -1502,7 +1508,7 @@ public:
         RowCount_ += rowCount;
         DataWeight_ += dataWeight;
 
-        return true;
+        return CreateBatchFromUnversionedRows(std::move(rows), nullptr);
     }
 
     virtual TDataStatistics GetDataStatistics() const override

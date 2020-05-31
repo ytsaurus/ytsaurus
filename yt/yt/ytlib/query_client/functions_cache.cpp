@@ -592,7 +592,7 @@ public:
             return cookie.GetValue();
         }
 
-        return BIND([MOVE(cookie), this, this_ = MakeStrong(this)] (
+        return BIND([=, this_ = MakeStrong(this), cookie = std::move(cookie)] (
                 const TFunctionImplKey& key,
                 TNodeDirectoryPtr nodeDirectory,
                 const TClientBlockReadOptions& blockReadOptions) mutable

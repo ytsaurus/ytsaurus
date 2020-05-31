@@ -5,6 +5,8 @@
 #include <yt/ytlib/chunk_client/multi_reader_manager.h>
 #include <yt/ytlib/chunk_client/config.h>
 
+#include <yt/client/table_client/unversioned_row_batch.h>
+
 namespace NYT::NChunkClient {
 
 // TODO(max42): move to .cpp
@@ -21,28 +23,26 @@ public:
         MultiReaderManager_->SubscribeReaderSwitched(BIND(&TMultiChunkReaderMock::OnReaderSwitched, MakeWeak(this)));
     }
 
-    virtual bool Read(std::vector<NTableClient::TUnversionedRow>* rows) override
+    virtual NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& options) override
     {
-        rows->clear();
-
         if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
-            return true;
+            return NTableClient::CreateEmptyUnversionedRowBatch();
         }
 
         if (Finished_) {
-            return false;
+            return nullptr;
         }
 
-        bool readerFinished = !CurrentReader_->Read(rows);
-        if (!rows->empty()) {
-            return true;
+        auto batch = CurrentReader_->Read(options);
+        if (batch && !batch->IsEmpty()) {
+            return batch;
         }
 
-        if (!MultiReaderManager_->OnEmptyRead(readerFinished)) {
+        if (!MultiReaderManager_->OnEmptyRead(!batch)) {
             Finished_ = true;
         }
 
-        return true;
+        return NTableClient::CreateEmptyUnversionedRowBatch();
     }
 
     virtual i64 GetSessionRowIndex() const override

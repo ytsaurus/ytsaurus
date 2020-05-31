@@ -21,8 +21,9 @@
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/pipe.h>
 
 #include <yt/core/concurrency/action_queue.h>
@@ -923,21 +924,15 @@ TEST_F(TQueryCoordinateTest, SimpleIn)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReaderMock
-    : public ISchemafulReader
+    : public ISchemafulUnversionedReader
 {
 public:
-    MOCK_METHOD1(Read, bool(std::vector<TUnversionedRow>*));
+    MOCK_METHOD1(Read, IUnversionedRowBatchPtr(const TRowBatchReadOptions& options));
     MOCK_METHOD0(GetReadyEvent, TFuture<void>());
-
-    virtual TDataStatistics GetDataStatistics() const override
-    {
-        return TDataStatistics();
-    }
-
-    virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
+    MOCK_CONST_METHOD0(IsFetchingCompleted, bool());
+    MOCK_CONST_METHOD0(GetFailedChunkIds, std::vector<NChunkClient::TChunkId>());
+    MOCK_CONST_METHOD0(GetDataStatistics, TDataStatistics());
+    MOCK_CONST_METHOD0(GetDecompressionStatistics, NChunkClient::TCodecStatistics());
 };
 
 class TWriterMock
@@ -969,27 +964,24 @@ TQueryStatistics DoExecuteQuery(
     const TQueryBaseOptions& options,
     TJoinSubqueryProfiler joinProfiler = nullptr)
 {
-    std::vector<TOwningRow> owningSource;
-    std::vector<TRow> sourceRows;
-
-    auto readerMock = New<StrictMock<TReaderMock>>();
-
+    std::vector<TOwningRow> owningSourceRows;
     for (const auto& row : source) {
-        owningSource.push_back(NTableClient::YsonToSchemafulRow(row, query->GetReadSchema(), true));
+        owningSourceRows.push_back(NTableClient::YsonToSchemafulRow(row, query->GetReadSchema(), true));
     }
 
-    sourceRows.resize(owningSource.size());
-    typedef const TRow(TOwningRow::*TGetFunction)() const;
+    std::vector<TRow> sourceRows;
+    for (const auto& row : owningSourceRows) {
+        sourceRows.push_back(row.Get());
+    }
 
-    std::transform(
-        owningSource.begin(),
-        owningSource.end(),
-        sourceRows.begin(),
-        std::mem_fn(TGetFunction(&TOwningRow::Get)));
+    auto sourceBatch = CreateBatchFromUnversionedRows(std::move(sourceRows), nullptr);
 
-    ON_CALL(*readerMock, Read(_))
-        .WillByDefault(testing::DoAll(SetArgPointee<0>(sourceRows), Return(false)));
-    EXPECT_CALL(*readerMock, Read(_));
+    auto readerMock = New<NiceMock<TReaderMock>>();
+    EXPECT_CALL(*readerMock, Read(_))
+        .WillOnce(Return(sourceBatch))
+        .WillRepeatedly(Return(nullptr));
+    ON_CALL(*readerMock, GetReadyEvent())
+        .WillByDefault(Return(VoidFuture));
 
     return evaluator->Run(
         query,
@@ -1026,55 +1018,60 @@ typedef std::function<void(TRange<TRow>, const TTableSchema&)> TResultMatcher;
 
 TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult)
 {
-    return [MOVE(expectedResult)] (TRange<TRow> result, const TTableSchema& tableSchema) {
-        EXPECT_EQ(expectedResult.size(), result.Size());
-        if (expectedResult.size() != result.Size()) {
-            return;
-        }
-
-        for (int i = 0; i < expectedResult.size(); ++i) {
-            auto expectedRow = expectedResult[i];
-            auto row = result[i];
-            EXPECT_EQ(expectedRow.GetCount(), row.GetCount());
-            if (expectedRow.GetCount() != row.GetCount()) {
-                continue;
+    return [
+            expectedResult = std::move(expectedResult)
+        ] (TRange<TRow> result, const TTableSchema& tableSchema) {
+            EXPECT_EQ(expectedResult.size(), result.Size());
+            if (expectedResult.size() != result.Size()) {
+                return;
             }
-            for (int j = 0; j < expectedRow.GetCount(); ++j) {
-                const auto& expectedValue = expectedRow[j];
-                const auto& value = row[j];
-                EXPECT_EQ(expectedValue.Type, value.Type);
-                if (expectedValue.Type != value.Type) {
+
+            for (int i = 0; i < expectedResult.size(); ++i) {
+                auto expectedRow = expectedResult[i];
+                auto row = result[i];
+                EXPECT_EQ(expectedRow.GetCount(), row.GetCount());
+                if (expectedRow.GetCount() != row.GetCount()) {
                     continue;
                 }
-                if (expectedValue.Type == EValueType::Any) {
-                    // Slow path.
-                    auto expectedYson = TYsonString(TString(expectedValue.Data.String, expectedValue.Length));
-                    auto expectedStableYson = ConvertToYsonStringStable(ConvertToNode(expectedYson));
-                    auto yson = TYsonString(TString(value.Data.String, value.Length));
-                    auto stableYson = ConvertToYsonStringStable(ConvertToNode(yson));
-                    EXPECT_EQ(expectedStableYson, stableYson);
-                } else {
-                    // Fast path.
-                    EXPECT_EQ(expectedValue, value);
+                for (int j = 0; j < expectedRow.GetCount(); ++j) {
+                    const auto& expectedValue = expectedRow[j];
+                    const auto& value = row[j];
+                    EXPECT_EQ(expectedValue.Type, value.Type);
+                    if (expectedValue.Type != value.Type) {
+                        continue;
+                    }
+                    if (expectedValue.Type == EValueType::Any) {
+                        // Slow path.
+                        auto expectedYson = TYsonString(TString(expectedValue.Data.String, expectedValue.Length));
+                        auto expectedStableYson = ConvertToYsonStringStable(ConvertToNode(expectedYson));
+                        auto yson = TYsonString(TString(value.Data.String, value.Length));
+                        auto stableYson = ConvertToYsonStringStable(ConvertToNode(yson));
+                        EXPECT_EQ(expectedStableYson, stableYson);
+                    } else {
+                        // Fast path.
+                        EXPECT_EQ(expectedValue, value);
+                    }
                 }
             }
-        }
-    };
+        };
 }
 
 TResultMatcher OrderedResultMatcher(
     std::vector<TOwningRow> expectedResult,
     std::vector<TString> columns)
 {
-    return [MOVE(expectedResult), MOVE(columns)] (TRange<TRow> result, const TTableSchema& tableSchema) {
-        EXPECT_EQ(expectedResult.size(), result.Size());
+    return [
+            expectedResult = std::move(expectedResult),
+            columns = std::move(columns)
+        ] (TRange<TRow> result, const TTableSchema& tableSchema) {
+            EXPECT_EQ(expectedResult.size(), result.Size());
 
-        auto sortedResult = OrderRowsBy(result, columns, tableSchema);
+            auto sortedResult = OrderRowsBy(result, columns, tableSchema);
 
-        for (int i = 0; i < expectedResult.size(); ++i) {
-            EXPECT_EQ(sortedResult[i], expectedResult[i]);
-        }
-    };
+            for (int i = 0; i < expectedResult.size(); ++i) {
+                EXPECT_EQ(sortedResult[i], expectedResult[i]);
+            }
+        };
 }
 
 class TQueryEvaluateTest
@@ -1139,9 +1136,6 @@ protected:
             EValueType::Uint64,
             bcImplementations,
             ECallingConvention::Simple);
-
-        ///
-
         builder.RegisterFunction(
             "throw_if_negative_udf",
             std::vector<TType>{EValueType::Int64},
@@ -1180,30 +1174,36 @@ protected:
     TQueryPtr Evaluate(
         const TString& query,
         const TDataSplit& dataSplit,
-        const std::vector<TString>& owningSource,
+        const std::vector<TString>& owningSourceRows,
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
         std::vector<std::vector<TString>> owningSources = {
-            owningSource
+            owningSourceRows
         };
         std::map<TString, TDataSplit> dataSplits = {
             {"//t", dataSplit}
         };
 
-        return Evaluate(query, dataSplits, owningSources, resultMatcher, inputRowLimit, outputRowLimit);
+        return Evaluate(
+            query,
+            dataSplits,
+            owningSources,
+            resultMatcher,
+            inputRowLimit,
+            outputRowLimit);
     }
 
     TQueryPtr EvaluateExpectingError(
         const TString& query,
         const TDataSplit& dataSplit,
-        const std::vector<TString>& owningSource,
+        const std::vector<TString>& owningSourceRows,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max())
     {
         std::vector<std::vector<TString>> owningSources = {
-            owningSource
+            owningSourceRows
         };
         std::map<TString, TDataSplit> dataSplits = {
             {"//t", dataSplit}
@@ -5948,7 +5948,6 @@ void TQueryEvaluateComplexTest::DoTest(
         }
 
         YT_ABORT();
-        Y_UNREACHABLE();
     };
 
     std::map<TGroupKey, TAggregates> lookup;

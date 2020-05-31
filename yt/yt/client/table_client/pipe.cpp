@@ -1,8 +1,9 @@
 #include "pipe.h"
 
 #include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 
 #include <yt/core/misc/ring_queue.h>
 
@@ -65,46 +66,51 @@ struct TSchemafulPipe::TData
         readerReadyEvent.TrySet(error);
         writerReadyEvent.TrySet(error);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulPipe::TReader
-    : public ISchemafulReader
+    : public ISchemafulUnversionedReader
 {
 public:
     explicit TReader(TDataPtr data)
         : Data_(std::move(data))
     { }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        YT_ASSERT(rows->capacity() > 0);
-        rows->clear();
-
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
+        i64 dataWeight = 0;
+        
         {
             TGuard<TSpinLock> guard(Data_->SpinLock);
 
             if (Data_->WriterClosed && Data_->RowsWritten == Data_->RowsRead) {
-                return false;
+                return nullptr;
             }
 
             if (!Data_->Failed) {
                 auto& rowQueue = Data_->RowQueue;
-                while (!rowQueue.empty() && rows->size() < rows->capacity()) {
-                    rows->push_back(rowQueue.front());
+                while (!rowQueue.empty() &&
+                       rows.size() < options.MaxRowsPerRead &&
+                       dataWeight < options.MaxDataWeightPerRead)
+                {
+                    auto row = rowQueue.front();
                     rowQueue.pop();
+                    dataWeight += GetDataWeight(row);
+                    rows.push_back(row);
                     ++Data_->RowsRead;
                 }
             }
 
-            if (rows->empty()) {
+            if (rows.empty()) {
                 ReadyEvent_ = Data_->ReaderReadyEvent.ToFuture();
             }
         }
 
-        return true;
+        return CreateBatchFromUnversionedRows(std::move(rows), this);
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -120,6 +126,16 @@ public:
     virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
         return NChunkClient::TCodecStatistics();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return false;
+    }
+
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    {
+        return {};
     }
 
 private:
@@ -225,7 +241,7 @@ public:
         , Writer_(New<TWriter>(Data_))
     { }
 
-    ISchemafulReaderPtr GetReader() const
+    ISchemafulUnversionedReaderPtr GetReader() const
     {
         return Reader_;
     }
@@ -253,10 +269,9 @@ TSchemafulPipe::TSchemafulPipe()
     : Impl_(New<TImpl>())
 { }
 
-TSchemafulPipe::~TSchemafulPipe()
-{ }
+TSchemafulPipe::~TSchemafulPipe() = default;
 
-ISchemafulReaderPtr TSchemafulPipe::GetReader() const
+ISchemafulUnversionedReaderPtr TSchemafulPipe::GetReader() const
 {
     return Impl_->GetReader();
 }

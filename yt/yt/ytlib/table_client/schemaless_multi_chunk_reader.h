@@ -12,7 +12,7 @@
 #include <yt/client/chunk_client/read_limit.h>
 #include <yt/client/chunk_client/reader_base.h>
 
-#include <yt/client/table_client/schemaless_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
 

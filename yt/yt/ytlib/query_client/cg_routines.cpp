@@ -9,9 +9,10 @@
 #include <yt/client/query_client/query_statistics.h>
 
 #include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/helpers.h>
 
 #include <yt/core/yson/lexer.h>
@@ -83,7 +84,7 @@ public:
             [this] () noexcept { Restart(); })
     { }
 
-    void Checkpoint(size_t processedRows)
+    void Checkpoint(i64 processedRows)
     {
         if (GetElapsedTime() > YieldThreshold) {
             YT_LOG_DEBUG("Yielding fiber (ProcessedRows: %v, SyncTime: %v)",
@@ -158,56 +159,58 @@ void ScanOpHelper(
     auto finalLogger = Finally([&] () {
         YT_LOG_DEBUG("Finalizing scan helper");
     });
-
-    auto& reader = context->Reader;
-
-    std::vector<TRow> rows;
-    rows.reserve(context->Ordered && context->Limit < RowsetProcessingSize
-        ? context->Limit
-        : RowsetProcessingSize);
-
-    if (rows.capacity() == 0) {
+    if (context->Limit == 0) {
         return;
     }
 
-    std::vector<const TValue*> values;
-    values.reserve(rows.capacity());
+    TRowBatchReadOptions readOptions{
+        .MaxRowsPerRead = context->Ordered ? std::min(RowsetProcessingSize, context->Limit) : RowsetProcessingSize
+    };
 
+    std::vector<const TValue*> values;
+    values.reserve(readOptions.MaxRowsPerRead);
+
+    auto& reader = context->Reader;
     auto* statistics = context->Statistics;
 
     TYielder yielder;
 
     auto rowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
-    bool hasMoreData;
-    bool finished = false;
-    do {
+    std::vector<TUnversionedRow> rows;
+
+    bool interrupt = false;
+    while (!interrupt) {
+        IUnversionedRowBatchPtr batch;
         {
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->ReadTime);
-            hasMoreData = reader->Read(&rows);
-        }
-
-        if (rows.empty()) {
-            if (!hasMoreData) {
+            batch = reader->Read();
+            if (!batch) {
                 break;
             }
+            // Materialize rows here.
+            // Drop null rows.
+            auto batchRows = batch->MaterializeRows();
+            rows.reserve(batchRows.size());
+            rows.clear();
+            for (auto row : batchRows) {
+                if (row) {
+                    rows.push_back(row);
+                }
+            }
+        }
+
+        if (batch->IsEmpty()) {
             TValueIncrementingTimingGuard<TWallTimer> timingGuard(&statistics->WaitOnReadyEventTime);
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
             continue;
         }
 
-        // Remove null rows.
-        rows.erase(
-            std::remove_if(rows.begin(), rows.end(), [] (TRow row) {
-                return !row;
-            }),
-            rows.end());
-
         if (statistics->RowsRead + rows.size() >= context->InputRowLimit) {
             YT_VERIFY(statistics->RowsRead <= context->InputRowLimit);
             rows.resize(context->InputRowLimit - statistics->RowsRead);
             statistics->IncompleteInput = true;
-            hasMoreData = false;
+            interrupt = true;
         }
 
         statistics->RowsRead += rows.size();
@@ -216,18 +219,17 @@ void ScanOpHelper(
             values.push_back(row.Begin());
         }
 
-        finished = consumeRows(consumeRowsClosure, rowBuffer.Get(), values.data(), values.size());
+        interrupt |= consumeRows(consumeRowsClosure, rowBuffer.Get(), values.data(), values.size());
 
         yielder.Checkpoint(statistics->RowsRead);
 
-        rows.clear();
         values.clear();
         rowBuffer->Clear();
 
-        if (!context->IsMerge && rows.capacity() < RowsetProcessingSize) {
-            rows.reserve(std::min(2 * rows.capacity(), RowsetProcessingSize));
+        if (!context->IsMerge) {
+            readOptions.MaxRowsPerRead = std::min(2 * readOptions.MaxRowsPerRead, RowsetProcessingSize);
         }
-    } while (hasMoreData && !finished);
+    }
 }
 
 void InsertJoinRow(
@@ -474,7 +476,7 @@ public:
         TComparerFunction* foreignPrefixEqComparer,
         TComparerFunction* foreignSuffixLessComparer,
         bool isPartiallySorted,
-        const ISchemafulReaderPtr& reader,
+        const ISchemafulUnversionedReaderPtr& reader,
         bool isLeft)
     {
         auto foreignRowBuffer = New<TRowBuffer>(TIntermediateBufferTag());
@@ -482,9 +484,9 @@ public:
         size_t unsortedOffset = 0;
         TRow lastForeignKey;
 
-
-        std::vector<TRow> foreignRows;
-        foreignRows.reserve(RowsetProcessingSize);
+        TRowBatchReadOptions readOptions{
+            .MaxRowsPerRead = RowsetProcessingSize
+        };
 
         // Sort-merge join
         auto currentKey = keysToRows.begin();
@@ -539,27 +541,25 @@ public:
             }
         };
 
-        bool hasMoreData = true;
-        while (hasMoreData && currentKey != keysToRows.end()) {
-            hasMoreData = reader->Read(&foreignRows);
+        while (currentKey != keysToRows.end()) {
+            auto foreignBatch = reader->Read(readOptions);
+            if (!foreignBatch) {
+                break;
+            }
 
-            if (foreignRows.empty()) {
-                if (!hasMoreData) {
-                    break;
-                }
+            if (foreignBatch->IsEmpty()) {
                 TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
             }
 
+            auto foreignRows = foreignBatch->MaterializeRows();
             if (isPartiallySorted) {
                 processForeignSequence(foreignRows.begin(), foreignRows.end());
             } else {
                 processSortedForeignSequence(foreignRows.begin(), foreignRows.end());
             }
-
-            foreignRows.clear();
         }
 
         if (isPartiallySorted) {
@@ -594,26 +594,22 @@ public:
         TExecutionContext* context,
         TJoinLookup* joinLookup,
         const std::vector<TChainedRow>& chainedRows,
-        const ISchemafulReaderPtr& reader,
+        const ISchemafulUnversionedReaderPtr& reader,
         bool isLeft)
     {
-        std::vector<TRow> foreignRows;
-        foreignRows.reserve(RowsetProcessingSize);
+        TRowBatchReadOptions readOptions{
+            .MaxRowsPerRead = RowsetProcessingSize
+        };
 
-        bool hasMoreData;
-        do {
-            hasMoreData = reader->Read(&foreignRows);
-
-            if (foreignRows.empty()) {
-                if (!hasMoreData) {
-                    break;
-                }
+        while (auto foreignBatch = reader->Read(readOptions)) {
+            if (foreignBatch->IsEmpty()) {
                 TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
             }
 
+            auto foreignRows = foreignBatch->MaterializeRows();
             for (auto foreignRow : foreignRows) {
                 auto it = joinLookup->find(foreignRow.Begin());
 
@@ -628,9 +624,7 @@ public:
             }
 
             ConsumeJoinedRows();
-
-            foreignRows.clear();
-        } while (hasMoreData);
+        }
 
         if (isLeft) {
             for (auto lookup : *joinLookup) {
@@ -703,7 +697,7 @@ void JoinOpHelper(
             });
     };
 
-    closure.ProcessJoinBatch = [&] () {
+    closure.ProcessJoinBatch = [&] {
         closure.ProcessSegment();
 
         auto keysToRows = std::move(closure.KeysToRows);
@@ -756,9 +750,6 @@ void JoinOpHelper(
         } else {
             auto foreignRowsBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
-            std::vector<TRow> foreignRows;
-            foreignRows.reserve(RowsetProcessingSize);
-
             TJoinLookupRows foreignLookup(
                 InitialGroupOpHashtableCapacity,
                 fullHasher,
@@ -767,31 +758,34 @@ void JoinOpHelper(
             {
                 auto reader = parameters->ExecuteForeign(std::move(keys), closure.Buffer);
 
-                std::vector<TRow> rows;
-                rows.reserve(RowsetProcessingSize);
-
-                bool hasMoreData;
-                do {
+                TRowBatchReadOptions readOptions{
+                    .MaxRowsPerRead = RowsetProcessingSize
+                };
+                
+                while (true) {
+                    IUnversionedRowBatchPtr foreignBatch;
+                    TRange<TUnversionedRow> foreignRows;
                     {
                         TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
-                        hasMoreData = reader->Read(&rows);
-                    }
-
-                    if (foreignRows.empty()) {
-                        if (!hasMoreData) {
+                        foreignBatch = reader->Read(readOptions);
+                        if (!foreignBatch) {
                             break;
                         }
+                        // Materialize rows here.
+                        foreignRows = foreignBatch->MaterializeRows();
+                    }
+
+                    if (foreignBatch->IsEmpty()) {
                         TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
                         WaitFor(reader->GetReadyEvent())
                             .ThrowOnError();
                         continue;
                     }
 
-                    for (auto row : rows) {
+                    for (auto row : foreignRows) {
                         foreignLookup.insert(foreignRowsBuffer->Capture(row).Begin());
                     }
-                    rows.clear();
-                } while (hasMoreData);
+                }
             }
 
             YT_LOG_DEBUG("Got %v foreign rows", foreignLookup.size());
@@ -874,7 +868,7 @@ void MultiJoinOpHelper(
     closure.ProcessJoinBatch = [&] () {
         YT_LOG_DEBUG("Joining started");
 
-        std::vector<ISchemafulReaderPtr> readers;
+        std::vector<ISchemafulUnversionedReaderPtr> readers;
         for (size_t joinId = 0; joinId < closure.Items.size(); ++joinId) {
             closure.ProcessSegment(joinId);
 
@@ -924,9 +918,12 @@ void MultiJoinOpHelper(
             size_t unsortedOffset = 0;
             TValue* lastForeignKey = nullptr;
 
-            std::vector<TRow> foreignRows;
-            foreignRows.reserve(RowsetProcessingSize);
+            TRowBatchReadOptions readOptions{
+                .MaxRowsPerRead = RowsetProcessingSize
+            };
+
             std::vector<TValue*> foreignValues;
+            foreignValues.reserve(readOptions.MaxRowsPerRead);
 
             // Sort-merge join
             auto currentKey = orderedKeys.begin();
@@ -968,25 +965,28 @@ void MultiJoinOpHelper(
 
             TDuration sortingForeignTime;
 
-            bool hasMoreData = true;
-            while (hasMoreData && currentKey != orderedKeys.end()) {
+            while (currentKey != orderedKeys.end()) {
+                IUnversionedRowBatchPtr foreignBatch;
+                TRange<TUnversionedRow> foreignRows;
                 {
                     TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&context->Statistics->ReadTime);
-                    hasMoreData = reader->Read(&foreignRows);
-                }
-
-                if (foreignRows.empty()) {
-                    if (!hasMoreData) {
+                    foreignBatch = reader->Read(readOptions);
+                    if (!foreignBatch) {
                         break;
                     }
+                    // Materialize rows here.
+                    foreignRows = foreignBatch->MaterializeRows();
+                }
+
+                if (foreignBatch->IsEmpty()) {
                     TValueIncrementingTimingGuard<TWallTimer> timingGuard(&context->Statistics->WaitOnReadyEventTime);
                     WaitFor(reader->GetReadyEvent())
                         .ThrowOnError();
                     continue;
                 }
 
-                for (size_t rowIndex = 0; rowIndex < foreignRows.size(); ++rowIndex) {
-                    foreignValues.push_back(closure.Buffer->Capture(foreignRows[rowIndex]).Begin());
+                for (auto row : foreignRows) {
+                    foreignValues.push_back(closure.Buffer->Capture(row).Begin());
                 }
 
                 {
@@ -1003,7 +1003,6 @@ void MultiJoinOpHelper(
 
                 yielder.Checkpoint(sortedForeignSequence.size());
 
-                foreignRows.clear();
                 foreignValues.clear();
             }
 
@@ -1028,7 +1027,7 @@ void MultiJoinOpHelper(
         auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
         std::vector<const TValue*> joinedRows;
 
-        size_t processedRows = 0;
+        i64 processedRows = 0;
 
         auto consumeJoinedRows = [&] () -> bool {
             // Consume joined rows.
@@ -1237,7 +1236,7 @@ void GroupOpHelper(
         checkNulls);
 
     TYielder yielder;
-    size_t processedRows = 0;
+    i64 processedRows = 0;
 
     auto intermediateBuffer = New<TRowBuffer>(TIntermediateBufferTag());
 
@@ -1246,8 +1245,7 @@ void GroupOpHelper(
 
         // FIXME: Do not consider offset in totals
         if (context->Ordered && processedRows < context->Offset) {
-            size_t skip = std::min<size_t>(context->Offset - processedRows, end - begin);
-
+            i64 skip = std::min(context->Offset - processedRows, end - begin);
             processedRows += skip;
             begin += skip;
         }
@@ -1364,11 +1362,14 @@ void OrderOpHelper(
     TYielder yielder;
     size_t processedRows = 0;
 
-    for (size_t index = context->Offset; index < rows.size(); index += RowsetProcessingSize) {
-        auto size = std::min(RowsetProcessingSize, rows.size() - index);
+    auto rowCount = static_cast<i64>(rows.size());
+    for (i64 index = context->Offset; index < rowCount; index += RowsetProcessingSize) {
+        auto size = std::min(RowsetProcessingSize, rowCount - index);
         processedRows += size;
+        
         bool finished = consumeRows(consumeRowsClosure, rowBuffer.Get(), rows.data() + index, size);
         YT_VERIFY(!finished);
+        
         rowBuffer->Clear();
 
         yielder.Checkpoint(processedRows);

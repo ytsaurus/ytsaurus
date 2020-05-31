@@ -5,7 +5,7 @@
 #include "range_inferrer.h"
 
 #include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/writer.h>
 #include <yt/client/table_client/unordered_schemaful_reader.h>
 
@@ -172,7 +172,7 @@ TQueryStatistics CoordinateAndExecute(
     const IUnversionedRowsetWriterPtr& writer,
     const std::vector<TRefiner>& refiners,
     std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
-    std::function<TQueryStatistics(const TConstFrontQueryPtr&, const ISchemafulReaderPtr&, const IUnversionedRowsetWriterPtr&)> evaluateTop)
+    std::function<TQueryStatistics(const TConstFrontQueryPtr&, const ISchemafulUnversionedReaderPtr&, const IUnversionedRowsetWriterPtr&)> evaluateTop)
 {
     auto Logger = MakeQueryLogger(query);
 
@@ -184,19 +184,19 @@ TQueryStatistics CoordinateAndExecute(
 
     YT_LOG_DEBUG("Finished coordinating query");
 
-    std::vector<ISchemafulReaderPtr> splitReaders;
+    std::vector<ISchemafulUnversionedReaderPtr> splitReaders;
 
     // Use TFutureHolder to prevent leaking subqueries.
     std::vector<TFutureHolder<TQueryStatistics>> subqueryHolders;
 
-    auto subqueryReaderCreator = [&, index = 0] () mutable -> ISchemafulReaderPtr {
+    auto subqueryReaderCreator = [&, index = 0] () mutable -> ISchemafulUnversionedReaderPtr {
         if (index >= subqueries.size()) {
             return nullptr;
         }
 
         const auto& subquery = subqueries[index];
 
-        ISchemafulReaderPtr reader;
+        ISchemafulUnversionedReaderPtr reader;
         TFuture<TQueryStatistics> statistics;
         std::tie(reader, statistics) = evaluateSubquery(subquery, index);
 

@@ -154,7 +154,6 @@ public:
         }
     }
 
-
 private:
     const TBlockFetcherConfigPtr Config_;
     const IChunkReaderPtr ChunkReader_;

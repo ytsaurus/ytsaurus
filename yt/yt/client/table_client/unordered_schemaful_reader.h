@@ -6,20 +6,20 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemafulReaderPtr CreateUnorderedSchemafulReader(
-    std::function<ISchemafulReaderPtr()> getNextReader,
+ISchemafulUnversionedReaderPtr CreateUnorderedSchemafulReader(
+    std::function<ISchemafulUnversionedReaderPtr()> getNextReader,
     int concurrency);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemafulReaderPtr CreateOrderedSchemafulReader(
-    std::function<ISchemafulReaderPtr()> getNextReader);
+ISchemafulUnversionedReaderPtr CreateOrderedSchemafulReader(
+    std::function<ISchemafulUnversionedReaderPtr()> getNextReader);
 
-ISchemafulReaderPtr CreatePrefetchingOrderedSchemafulReader(
-    std::function<ISchemafulReaderPtr()> getNextReader);
+ISchemafulUnversionedReaderPtr CreatePrefetchingOrderedSchemafulReader(
+    std::function<ISchemafulUnversionedReaderPtr()> getNextReader);
 
-ISchemafulReaderPtr CreateFullPrefetchingOrderedSchemafulReader(
-    std::function<ISchemafulReaderPtr()> getNextReader);
+ISchemafulUnversionedReaderPtr CreateFullPrefetchingOrderedSchemafulReader(
+    std::function<ISchemafulUnversionedReaderPtr()> getNextReader);
 
 ////////////////////////////////////////////////////////////////////////////////
 

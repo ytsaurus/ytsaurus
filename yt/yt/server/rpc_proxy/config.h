@@ -69,6 +69,7 @@ public:
     TSlruCacheConfigPtr ClientCache;
 
     i64 ReadBufferRowCount;
+    i64 ReadBufferDataSize;
 
     TSecurityManagerConfigPtr SecurityManager;
 
@@ -83,7 +84,9 @@ public:
         RegisterParameter("client_cache", ClientCache)
             .Default(New<TSlruCacheConfig>(1000));
         RegisterParameter("read_buffer_row_count", ReadBufferRowCount)
-            .Default((i64) 10000);
+            .Default(10000);
+        RegisterParameter("read_buffer_data_size", ReadBufferDataSize)
+            .Default(16_MB);
         RegisterParameter("security_manager", SecurityManager)
             .DefaultNew();
     }

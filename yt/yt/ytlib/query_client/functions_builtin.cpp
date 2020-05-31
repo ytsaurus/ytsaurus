@@ -73,9 +73,8 @@ public:
         llvm::FoldingSetNodeID* id) const override
     {
         return [
-            MOVE(argIds),
-            type,
-            name
+            =,
+            argIds = std::move(argIds)
         ] (TCGExprContext& builder) {
             return CodegenValue(
                 builder,
@@ -153,9 +152,8 @@ public:
         YT_VERIFY(argIds.size() == 1);
 
         return [
-            MOVE(argIds),
-            type,
-            name
+            =,
+            argIds = std::move(argIds)
         ] (TCGExprContext& builder) {
             if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
                 auto argValue = CodegenFragment(builder, argIds[0]);
@@ -199,9 +197,8 @@ public:
         YT_VERIFY(argIds.size() == 2);
 
         return [
-            MOVE(argIds),
-            type,
-            name
+            =,
+            argIds = std::move(argIds)
         ] (TCGExprContext& builder) {
             if (builder.ExpressionFragments.Items[argIds[0]].Nullable) {
                 auto argValue = CodegenFragment(builder, argIds[0]);
@@ -257,9 +254,8 @@ public:
         YT_VERIFY(argIds.size() == 1);
 
         return [
-            MOVE(argIds),
-            type,
-            name
+            =,
+            argIds = std::move(argIds)
         ] (TCGExprContext& builder) {
             auto argValue = CodegenFragment(builder, argIds[0]);
             Value* data = CodegenFragment(builder, argIds[0]).GetTypedData(builder);
@@ -311,9 +307,8 @@ public:
 
         if (argumentTypes[0] == EValueType::Any) {
             return [
-                MOVE(argIds),
-                type,
-                name
+                =,
+                argIds = std::move(argIds)
             ] (TCGExprContext& builder) {
                 auto unversionedValueType = TTypeBuilder<TValue>::Get(builder->getContext());
 
@@ -365,9 +360,8 @@ public:
                 type == EValueType::Double);
 
             return [
-                MOVE(argIds),
-                type,
-                name
+                =,
+                argIds = std::move(argIds)
             ] (TCGExprContext& builder) {
                 return CodegenFragment(builder, argIds[0]).Cast(builder, type);
             };

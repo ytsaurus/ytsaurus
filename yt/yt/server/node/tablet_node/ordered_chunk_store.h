@@ -32,7 +32,7 @@ public:
     virtual EStoreType GetType() const override;
 
     // IOrderedStore implementation.
-    virtual NTableClient::ISchemafulReaderPtr CreateReader(
+    virtual NTableClient::ISchemafulUnversionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
         int tabletIndex,
         i64 lowerRowIndex,
@@ -41,18 +41,8 @@ public:
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
         NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler()) override;
 
-    virtual void Save(TSaveContext& context) const override
-    {
-        TStoreBase::Save(context);
-        TOrderedStoreBase::Save(context);
-    }
-
-    virtual void Load(TLoadContext& context) override
-    {
-        TStoreBase::Load(context);
-        TOrderedStoreBase::Load(context);
-    }
-
+    virtual void Save(TSaveContext& context) const override;
+    virtual void Load(TLoadContext& context) override;
 
 private:
     class TReader;

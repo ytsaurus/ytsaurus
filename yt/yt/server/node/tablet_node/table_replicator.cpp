@@ -25,7 +25,8 @@
 #include <yt/ytlib/security_client/public.h>
 
 #include <yt/client/table_client/unversioned_row.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/helpers.h>
@@ -360,18 +361,21 @@ private:
             blockReadOptions,
             NodeInThrottler_);
 
-        std::vector<TUnversionedRow> readerRows;
-        readerRows.reserve(1);
+        TRowBatchReadOptions readOptions{
+            .MaxRowsPerRead = 1
+        };
 
+        IUnversionedRowBatchPtr batch;
         while (true) {
-            if (!reader->Read(&readerRows)) {
+            batch = reader->Read(readOptions);
+            if (!batch) {
                 THROW_ERROR_EXCEPTION("Missing row %v in replication log of tablet %v",
                     rowIndex,
                     tabletSnapshot->TabletId)
                     << HardErrorAttribute;
             }
 
-            if (readerRows.empty()) {
+            if (batch->IsEmpty()) {
                 YT_LOG_DEBUG(
                     "Waiting for log row from tablet reader (RowIndex: %v)",
                     rowIndex);
@@ -384,6 +388,7 @@ private:
             break;
         }
 
+        auto readerRows = batch->MaterializeRows();
         YT_VERIFY(readerRows.size() == 1);
 
         i64 actualRowIndex = GetRowIndex(readerRows[0]);
@@ -503,17 +508,20 @@ private:
         bool tooMuch = false;
 
         while (!tooMuch) {
-            if (!reader->Read(&readerRows)) {
+            auto batch = reader->Read();
+            if (!batch) {
                 break;
             }
 
-            if (readerRows.empty()) {
+            if (batch->IsEmpty()) {
                 YT_LOG_DEBUG("Waiting for replicated rows from tablet reader (StartRowIndex: %v)",
                     currentRowIndex);
                 WaitFor(reader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
             }
+
+            auto readerRows = batch->MaterializeRows();
 
             YT_LOG_DEBUG("Got replicated rows from tablet reader (StartRowIndex: %v, RowCount: %v)",
                 currentRowIndex,

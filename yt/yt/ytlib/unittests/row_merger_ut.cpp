@@ -15,11 +15,12 @@
 #include <yt/ytlib/table_client/row_merger.h>
 
 #include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/schema.h>
 
@@ -1549,22 +1550,21 @@ class TSchemafulMergingReaderTest
     : public TSchemafulRowMergerTest
 {
 public:
-    void ReadAll(ISchemafulReaderPtr reader, std::vector<TUnversionedRow>* result)
+    void ReadAll(ISchemafulUnversionedReaderPtr reader, std::vector<TUnversionedRow>* result)
     {
         std::vector<TUnversionedRow> partial;
         partial.reserve(1024);
-
-        bool wait;
-        do {
-            WaitFor(reader->GetReadyEvent())
-                .ThrowOnError();
-            wait = reader->Read(&partial);
-
-            for (const auto& row : partial) {
-                result->push_back(Buffer_->Capture(row));
+        while (auto batch = reader->Read()) {
+            if (batch->IsEmpty()) {
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
             }
 
-        } while (wait || partial.size() > 0);
+            for (auto row : batch->MaterializeRows()) {
+                result->push_back(Buffer_->Capture(row));
+            }
+        }
     }
 };
 

@@ -36,6 +36,7 @@
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 
 #include <yt/client/ypath/rich.h>
 
@@ -107,24 +108,18 @@ public:
             .Run();
     }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         if (NProfiling::GetCpuInstant() > ReadDeadline_) {
             THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::ReaderDeadlineExpired, "Reader deadline expired");
         }
 
-        rows->clear();
-
-        if (IsAborted()) {
-            return true;
-        }
-
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-            return true;
+        if (IsAborted() || !ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+            return CreateEmptyUnversionedRowBatch();
         }
 
         YT_VERIFY(OpenResult_);
-        return OpenResult_->Reader->Read(rows);
+        return OpenResult_->Reader->Read(options);
     }
 
     virtual TFuture<void> GetReadyEvent() override
