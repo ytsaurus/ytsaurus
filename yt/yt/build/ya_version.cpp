@@ -26,27 +26,35 @@ TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch)
     out << "-asan";
 #endif
 
-    TString commit = GetProgramHash();
-    if (commit.empty()) {
-        commit = GetProgramCommitId();
-    }
-    TString buildUser = GetProgramBuildUser();
+    TString commit;
+    int svnRevision = GetProgramSvnRevision();
+    if (svnRevision <= 0) {
+        commit = GetProgramHash();
+        if (commit.empty()) {
+            commit = GetProgramCommitId();
+        }
 
-    // When we use `ya make --dist` distbuild makes mess instead of svn revision:
-    //   BUILD_USER == "Unknown user"
-    //   ARCADIA_SOURCE_REVISION = "-1"
-    // When Hermes looks at such horrors it goes crazy.
-    // Here are some hacks to help Hermes keep its saninty.
-    if (commit == "-1") {
-        commit = TString(40, '0');
+        // When we use `ya make --dist` distbuild makes mess instead of svn revision:
+        //   BUILD_USER == "Unknown user"
+        //   ARCADIA_SOURCE_REVISION = "-1"
+        // When Hermes looks at such horrors it goes crazy.
+        // Here are some hacks to help Hermes keep its saninty.
+        if (commit == "-1") {
+            commit = TString(40, '0');
+        }
+
+        // TODO(max42): YT-12891.
+        // Uncomment this when Arc is able to work with commits by their hash prefixes.
+        // commit = commit.substr(0, 10);
+    } else {
+        commit = "r" + ToString(svnRevision);
     }
+
+    TString buildUser = GetProgramBuildUser();
     if (buildUser == "Unknown user") {
         buildUser = "distbuild";
     }
 
-    // TODO(max42): YT-12891.
-    // Uncomment this when Arc is able to work with commits by their hash prefixes.
-    // out << "~" << commit.substr(0, 10);
     out << "~" << commit;
     if (buildUser != "teamcity") {
         out << "+" << buildUser;
