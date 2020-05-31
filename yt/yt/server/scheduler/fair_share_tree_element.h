@@ -46,10 +46,10 @@ struct TSchedulableAttributes
     TResourceVector FairShare = {};
     TResourceVector UsageShare = {};
     TResourceVector DemandShare = {};
-    TResourceVector RecursiveMinShare = {};
+    TResourceVector MinShare = {};
     TResourceVector AdjustedMinShare = {};
-    TResourceVector GuaranteedResourcesShare = {};
-    TResourceVector MaxPossibleUsageShare = TResourceVector::Ones();
+    TResourceVector UnlimitedDemandFairShare = {};
+    TResourceVector PossibleUsageShare = TResourceVector::Ones();
 
     int FifoIndex = -1;
 
@@ -64,34 +64,35 @@ struct TSchedulableAttributes
         return MaxComponent(FairShare);
     }
 
+    // TODO(renadeen): fix when integral share come to vector scheduler.
+    TDetailedFairShare GetDetailedFairShare() const
+    {
+        return TDetailedFairShare();
+    }
+
     double GetDemandRatio() const
     {
         return MaxComponent(DemandShare);
     }
 
-    double GetGuaranteedResourcesRatio() const
+    double GetUnlimitedDemandFairShareRatio() const
     {
-        return MaxComponent(GuaranteedResourcesShare);
-    }
-
-    double GetAdjustedMinShareRatio() const
-    {
-        return MaxComponent(AdjustedMinShare);
+        return MaxComponent(UnlimitedDemandFairShare);
     }
 
     double GetMinShareRatio() const
     {
-        return MaxComponent(RecursiveMinShare);
+        return MaxComponent(MinShare);
     }
 
-    double GetMaxPossibleUsageRatio() const
+    double GetPossibleUsageRatio() const
     {
-        return MaxComponent(MaxPossibleUsageShare);
+        return MaxComponent(PossibleUsageShare);
     }
 
-    TResourceVector GetGuaranteedResourcesShare() const
+    TResourceVector GetUnlimitedDemandFairShare() const
     {
-        return GuaranteedResourcesShare;
+        return UnlimitedDemandFairShare;
     }
 };
 
@@ -136,6 +137,11 @@ struct TUpdateFairShareContext
 
     TJobResources TotalResourceLimits;
     TEnumIndexedVector<EUnschedulableReason, int> UnschedulableReasons;
+
+    std::vector<TPoolPtr> RelaxedPools;
+    std::vector<TPoolPtr> BurstPools;
+
+    std::optional<TInstant> PreviousUpdateTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -224,7 +230,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsageAtUpdate);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits, TJobResources::Infinite());
     DEFINE_BYREF_RO_PROPERTY(TResourceVector, LimitsShare, TResourceVector::Ones());
-    DEFINE_BYREF_RO_PROPERTY(TJobResources, MaxPossibleResourceUsage);
+    DEFINE_BYREF_RO_PROPERTY(TJobResources, LimitedResourceDemand);
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYREF_RW_PROPERTY(TPersistentAttributes, PersistentAttributes);
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulingTagFilterIndex, EmptySchedulingTagFilterIndex);
@@ -301,7 +307,7 @@ public:
         TDynamicAttributesList* dynamicAttributesList,
         TUpdateFairShareContext* context);
 
-    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const = 0;
+    virtual TJobResources ComputeGreedyAllocationResources(TJobResources limit) const = 0;
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList);
 
@@ -340,6 +346,10 @@ public:
 
     // For compatibility with the classic scheduler.
     virtual double GetMaxShareRatio() const;
+
+    virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const;
+    double GetIntegralResourceVolume() const;
+    void InitIntegralResourceVolume(double resourceVolume);
 
     virtual double GetFairShareStarvationTolerance() const = 0;
     virtual TDuration GetMinSharePreemptionTimeout() const = 0;
@@ -512,7 +522,7 @@ public:
         TDynamicAttributesList* dynamicAttributesList,
         TUpdateFairShareContext* context) override;
 
-    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
+    virtual TJobResources ComputeGreedyAllocationResources(TJobResources limit) const override;
 
     virtual double GetFairShareStarvationToleranceLimit() const;
     virtual TDuration GetMinSharePreemptionTimeoutLimit() const;
@@ -924,7 +934,7 @@ public:
 
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
 
-    virtual TJobResources ComputePossibleResourceUsage(TJobResources limit) const override;
+    virtual TJobResources ComputeGreedyAllocationResources(TJobResources limit) const override;
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
 

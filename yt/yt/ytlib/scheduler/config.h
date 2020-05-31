@@ -107,6 +107,15 @@ public:
         processResource(&TResourceLimitsConfig::Gpu, "gpu");
     }
 
+    bool IsNonTrivial()
+    {
+        bool isNonTrivial = false;
+        ForEachResource([&, this] (auto TResourceLimitsConfig::* resourceDataMember, const TString& name) {
+            isNonTrivial |= (this->*resourceDataMember).has_value();
+        });
+        return isNonTrivial;
+    }
+
     TResourceLimitsConfig();
 };
 
@@ -190,6 +199,31 @@ DEFINE_REFCOUNTED_TYPE(TAbcConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EIntegralGuaranteeType,
+    (None)
+    (Burst)
+    (Relaxed)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TPoolIntegralGuaranteesConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    EIntegralGuaranteeType GuaranteeType;
+
+    TResourceLimitsConfigPtr ResourceFlow;
+
+    TResourceLimitsConfigPtr BurstGuaranteeResources;
+
+    TPoolIntegralGuaranteesConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TPoolIntegralGuaranteesConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPoolConfig
     : public TSchedulableConfig
 {
@@ -217,6 +251,8 @@ public:
     std::optional<bool> EnableByUserProfiling;
 
     TAbcConfigPtr Abc;
+
+    TPoolIntegralGuaranteesConfigPtr IntegralGuarantees;
 
     TPoolConfig();
 

@@ -154,6 +154,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("enable_by_user_profiling", EnableByUserProfiling)
         .Default(true);
 
+    RegisterParameter("integral_guarantees", IntegralGuarantees)
+        .DefaultNew();
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
@@ -283,6 +286,20 @@ TOperationsCleanerConfig::TOperationsCleanerConfig()
                 << TErrorAttribute("max_archivation_retry_sleep_delay", MaxArchivationRetrySleepDelay);
         }
     });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSchedulerIntegralGuaranteesConfig::TSchedulerIntegralGuaranteesConfig()
+{
+    RegisterParameter("smooth_period", SmoothPeriod)
+        .Default(TDuration::Minutes(1));
+
+    RegisterParameter("pool_capacity_saturation_period", PoolCapacitySaturationPeriod)
+        .Default(TDuration::Days(1));
+
+    RegisterParameter("relaxed_share_multiplier_limit", RelaxedShareMultiplierLimit)
+        .Default(3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

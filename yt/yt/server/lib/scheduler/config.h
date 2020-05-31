@@ -93,6 +93,23 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSchedulerIntegralGuaranteesConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration SmoothPeriod;
+
+    TDuration PoolCapacitySaturationPeriod;
+
+    double RelaxedShareMultiplierLimit;
+
+    TSchedulerIntegralGuaranteesConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerIntegralGuaranteesConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareStrategyTreeConfig
     : virtual public NYTree::TYsonSerializable
 {
@@ -184,6 +201,8 @@ public:
     TDuration BestAllocationRatioUpdatePeriod;
 
     bool EnableByUserProfiling;
+
+    TSchedulerIntegralGuaranteesConfigPtr IntegralGuarantees;
 
     TFairShareStrategyTreeConfig();
 };

@@ -41,7 +41,7 @@ struct ISchedulerStrategyHost
     virtual std::vector<NNodeTrackerClient::TNodeId> GetExecNodeIds(const TSchedulingTagFilter& filter) const = 0;
     virtual TString GetExecNodeAddress(NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter) const = 0;
-    
+
     virtual void UpdateNodesOnChangedTrees(const THashMap<TString, TSchedulingTagFilter>& treeIdToFilter) = 0;
 
     virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
@@ -75,6 +75,8 @@ struct ISchedulerStrategyHost
 
     virtual void LogResourceMetering(const TMeteringKey& key, const TMeteringStatistics& statistics, TInstant now) = 0;
     virtual int GetDefaultAbcId() const = 0;
+
+    virtual void StoreStrategyStateAsync(TPersistentStrategyStatePtr strategyState) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,7 +181,9 @@ struct ISchedulerStrategy
 
     virtual void ApplyJobMetricsDelta(const TOperationIdToOperationJobMetrics& operationIdToOperationJobMetrics) = 0;
 
-    virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode) = 0;
+    virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode, const TPersistentStrategyStatePtr& persistentStrategyState) = 0;
+
+    virtual bool IsInitialized() = 0;
 
     virtual std::vector<TString> GetNodeTreeIds(const THashSet<TString>& tags) = 0;
 

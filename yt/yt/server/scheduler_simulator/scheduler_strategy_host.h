@@ -7,6 +7,7 @@
 #include <yt/server/scheduler/job.h>
 #include <yt/server/scheduler/exec_node.h>
 #include <yt/server/scheduler/operation.h>
+#include <yt/server/scheduler/persistent_pool_state.h>
 #include <yt/server/scheduler/scheduler_strategy.h>
 
 #include <yt/server/lib/scheduler/event_log.h>
@@ -53,7 +54,7 @@ public:
 
     virtual NScheduler::TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const NScheduler::TSchedulingTagFilter& filter) const override;
-    
+
     virtual void UpdateNodesOnChangedTrees(
         const THashMap<TString, NScheduler::TSchedulingTagFilter>& treeIdToFilter) override;
 
@@ -93,6 +94,8 @@ public:
         TInstant now) override;
 
     virtual int GetDefaultAbcId() const override;
+
+    virtual void StoreStrategyStateAsync(NScheduler::TPersistentStrategyStatePtr persistentStrategyState) override;
 
     void CloseEventLogger();
 

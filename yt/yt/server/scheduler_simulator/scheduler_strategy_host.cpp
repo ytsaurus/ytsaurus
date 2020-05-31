@@ -237,6 +237,9 @@ int TSchedulerStrategyHost::GetDefaultAbcId() const
     return -1;
 }
 
+void TSchedulerStrategyHost::StoreStrategyStateAsync(TPersistentStrategyStatePtr /* persistentStrategyState */)
+{ }
+
 void TSchedulerStrategyHost::CloseEventLogger() {
     if (RemoteEventLogWriter_) {
         WaitFor(RemoteEventLogWriter_->Close())

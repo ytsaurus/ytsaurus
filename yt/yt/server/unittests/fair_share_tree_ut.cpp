@@ -192,6 +192,9 @@ struct TSchedulerStrategyHostMock
         return MediumDirectory_;
     }
 
+    virtual void StoreStrategyStateAsync(TPersistentStrategyStatePtr /* persistentStrategyState */) override
+    { }
+
     TJobResourcesWithQuotaList NodeResourceLimitsList;
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 };
@@ -710,7 +713,7 @@ TEST_F(TFairShareTreeTest, TestOperationCountLimits)
     EXPECT_EQ(0, rootElement->RunningOperationCount());
 }
 
-TEST_F(TFairShareTreeTest, TestMaxPossibleUsageShareWithoutLimit)
+TEST_F(TFairShareTreeTest, TestPossibleUsageShareWithoutLimit)
 {
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
@@ -747,7 +750,7 @@ TEST_F(TFairShareTreeTest, TestMaxPossibleUsageShareWithoutLimit)
     firstOperationElement->AttachParent(pool.Get(), true);
     secondOperationElement->AttachParent(pool.Get(), true);
 
-    // Сheck MaxPossibleUsageShare computation.
+    // Check PossibleUsage computation.
     TDynamicAttributesList dynamicAttributes = {};
 
     TUpdateFairShareContext updateContext;
@@ -755,7 +758,7 @@ TEST_F(TFairShareTreeTest, TestMaxPossibleUsageShareWithoutLimit)
     rootElement->Update(&dynamicAttributes, &updateContext);
     EXPECT_EQ(
         TResourceVector::FromJobResources(firstOperationJobResources + secondOperationJobResources, nodeResources, 0, 1),
-        pool->Attributes().MaxPossibleUsageShare);
+        pool->Attributes().PossibleUsageShare);
 }
 
 TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)

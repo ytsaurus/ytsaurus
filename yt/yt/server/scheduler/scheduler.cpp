@@ -1546,6 +1546,11 @@ public:
         return NScheduler::FormatResourceUsage(usage, limits, diskResources, mediumDirectory);
     }
 
+    virtual void StoreStrategyStateAsync(TPersistentStrategyStatePtr strategyState) override
+    {
+        MasterConnector_->StoreStrategyStateAsync(std::move(strategyState));
+    }
+
 private:
     TSchedulerConfigPtr Config_;
     const TSchedulerConfigPtr InitialConfig_;
@@ -2111,6 +2116,11 @@ private:
         auto req = TYPathProxy::Get(Config_->PoolTreesRoot);
         ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
         batchReq->AddRequest(req, "get_pool_trees");
+
+        if (!Strategy_->IsInitialized()) {
+            YT_LOG_INFO("Requesting strategy state");
+            batchReq->AddRequest(TYPathProxy::Get(StrategyStatePath), "get_strategy_state");
+        }
     }
 
     void HandlePoolTrees(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
@@ -2132,7 +2142,30 @@ private:
             return;
         }
 
-        Strategy_->UpdatePoolTrees(poolTreesNode);
+        TPersistentStrategyStatePtr strategyState;
+        if (!Strategy_->IsInitialized()) {
+            rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_strategy_state");
+            if (!rspOrError.IsOK() && !rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                YT_LOG_WARNING(rspOrError, "Error fetching strategy state");
+                return;
+            }
+
+            strategyState = New<TPersistentStrategyState>();
+            if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                auto value = rspOrError.ValueOrThrow()->value();
+                try {
+                    strategyState = ConvertTo<TPersistentStrategyStatePtr>(TYsonString(value));
+                    YT_LOG_INFO("Successfully fetched strategy state");
+                } catch (const std::exception& ex) {
+                    YT_LOG_WARNING(
+                        ex,
+                        "Failed to deserialize strategy state; will drop it (Value: %Qv)",
+                        ConvertToYsonString(value, EYsonFormat::Text));
+                }
+            }
+        }
+
+        Strategy_->UpdatePoolTrees(poolTreesNode, strategyState);
     }
 
 

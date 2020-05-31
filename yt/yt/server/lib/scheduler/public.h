@@ -136,6 +136,7 @@ DECLARE_REFCOUNTED_CLASS(TOperationsCleanerConfig)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TSchedulerIntegralGuaranteesConfig)
 
 struct TExecNodeDescriptor;
 using TExecNodeDescriptorMap = THashMap<NNodeTrackerClient::TNodeId, TExecNodeDescriptor>;
@@ -156,6 +157,7 @@ using TAgentId = TString;
 extern const TString RootPoolName;
 extern const TString DefaultTreeAttributeName;
 extern const TString PoolTreesRootCypressPath;
+extern const TString StrategyStatePath;
 
 ////////////////////////////////////////////////////////////////////////////////
 

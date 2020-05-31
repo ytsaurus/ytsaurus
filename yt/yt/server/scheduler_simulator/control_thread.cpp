@@ -124,7 +124,7 @@ void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode)
 {
     YT_VERIFY(!Initialized_.load());
     WaitFor(
-        BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesNode)
+        BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesNode, New<TPersistentStrategyState>())
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run())
         .ThrowOnError();

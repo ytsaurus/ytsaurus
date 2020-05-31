@@ -189,6 +189,9 @@ struct TSchedulerStrategyHostMock
         return MediumDirectory_;
     }
 
+    virtual void StoreStrategyStateAsync(TPersistentStrategyStatePtr /* persistentStrategyState */) override
+    { }
+
     TJobResourcesWithQuotaList NodeResourceLimitsList;
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 };
@@ -410,13 +413,13 @@ protected:
             SchedulerLogger);
     }
 
-    TPoolPtr CreateTestPool(ISchedulerStrategyHost* host, const TString& name)
+    TPoolPtr CreateTestPool(ISchedulerStrategyHost* host, const TString& name, TPoolConfigPtr config = New<TPoolConfig>())
     {
         return New<TPool>(
             host,
             FairShareTreeHostMock_.Get(),
             name,
-            New<TPoolConfig>(),
+            config,
             /* defaultConfigured */ true,
             TreeConfig_,
             // TODO(ignat): eliminate profiling from test.
@@ -425,12 +428,41 @@ protected:
             SchedulerLogger);
     }
 
+    TPoolConfigPtr CreateSimplePoolConfig(double minShareCpu, double weight = 1.0)
+    {
+        auto relaxedPoolConfig = New<TPoolConfig>();
+        relaxedPoolConfig->MinShareResources->Cpu = minShareCpu;
+        relaxedPoolConfig->Weight = weight;
+        return relaxedPoolConfig;
+    }
+
+    TPoolConfigPtr CreateBurstPoolConfig(double flowCpu, double burstCpu, double minShareCpu = 0, double weight = 1.0)
+    {
+        auto burstPoolConfig = CreateSimplePoolConfig(minShareCpu, weight);
+        burstPoolConfig->IntegralGuarantees->GuaranteeType = EIntegralGuaranteeType::Burst;
+        burstPoolConfig->IntegralGuarantees->ResourceFlow->Cpu = flowCpu;
+        burstPoolConfig->IntegralGuarantees->BurstGuaranteeResources->Cpu = burstCpu;
+        return burstPoolConfig;
+    }
+
+    TPoolConfigPtr CreateRelaxedPoolConfig(double flowCpu, double minShareCpu = 0, double weight = 1.0)
+    {
+        auto relaxedPoolConfig = CreateSimplePoolConfig(minShareCpu, weight);
+        relaxedPoolConfig->IntegralGuarantees->GuaranteeType = EIntegralGuaranteeType::Relaxed;
+        relaxedPoolConfig->IntegralGuarantees->ResourceFlow->Cpu = flowCpu;
+        return relaxedPoolConfig;
+    }
+
     TOperationElementPtr CreateTestOperationElement(
         ISchedulerStrategyHost* host,
-        const TOperationFairShareTreeRuntimeParametersPtr& operationOptions,
-        IOperationStrategyHost* operation)
+        IOperationStrategyHost* operation,
+        TOperationFairShareTreeRuntimeParametersPtr operationOptions = nullptr)
     {
         auto operationController = New<TFairShareStrategyOperationController>(operation);
+        if (!operationOptions) {
+            operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
+            operationOptions->Weight = 1.0;
+        }
         return New<TOperationElement>(
             TreeConfig_,
             New<TStrategyOperationSpec>(),
@@ -442,6 +474,24 @@ protected:
             operation,
             "default",
             SchedulerLogger);
+    }
+
+
+    std::pair<TOperationElementPtr, TIntrusivePtr<TOperationStrategyHostMock>> CreateOperationWithJobs(
+        int jobCount,
+        ISchedulerStrategyHost* host,
+        TCompositeSchedulerElement* parent)
+    {
+        TJobResourcesWithQuota jobResources;
+        jobResources.SetUserSlots(1);
+        jobResources.SetCpu(1);
+        jobResources.SetMemory(10);
+
+        auto operationHost = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount, jobResources));
+        auto operationElement = CreateTestOperationElement(host, operationHost.Get());
+        operationElement->Enable();
+        operationElement->AttachParent(parent, true);
+        return {operationElement, operationHost};
     }
 
     TExecNodePtr CreateTestExecNode(NNodeTrackerClient::TNodeId id, const TJobResourcesWithQuota& nodeResources)
@@ -494,6 +544,16 @@ private:
     }
 };
 
+TIntrusivePtr<TSchedulerStrategyHostMock> Create10NodesWith10Cpu()
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(10);
+    nodeResources.SetCpu(10);
+    nodeResources.SetMemory(100);
+
+    return New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(10, nodeResources));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TClassicFairShareTreeTest, TestAttributes)
@@ -522,7 +582,7 @@ TEST_F(TClassicFairShareTreeTest, TestAttributes)
     poolB->AttachParent(rootElement.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), operationOptions);
 
     operationElementX->AttachParent(poolA.Get(), true);
     operationElementX->Enable();
@@ -539,10 +599,13 @@ TEST_F(TClassicFairShareTreeTest, TestAttributes)
         EXPECT_EQ(0.0, poolB->Attributes().DemandRatio);
         EXPECT_EQ(0.1, operationElementX->Attributes().DemandRatio);
 
-        EXPECT_EQ(0.1, rootElement->Attributes().FairShareRatio);
-        EXPECT_EQ(0.1, rootElement->Attributes().DemandRatio);
-        EXPECT_EQ(0.0, poolB->Attributes().FairShareRatio);
-        EXPECT_EQ(0.1, operationElementX->Attributes().FairShareRatio);
+        EXPECT_EQ(0.1, rootElement->Attributes().FairShare.Total());
+        EXPECT_EQ(0.1, rootElement->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.0, poolB->Attributes().FairShare.Total());
+        EXPECT_EQ(0.1, poolA->Attributes().FairShare.WeightProportionalRatio);
+        EXPECT_EQ(0.1, poolA->Attributes().FairShare.Total());
+        EXPECT_EQ(0.1, operationElementX->Attributes().FairShare.WeightProportionalRatio);
+        EXPECT_EQ(0.1, operationElementX->Attributes().FairShare.Total());
     }
 
     std::vector<TJobId> jobIds;
@@ -588,7 +651,7 @@ TEST_F(TClassicFairShareTreeTest, TestUpdatePreemptableJobsList)
     auto rootElement = CreateTestRootElement(host.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(10, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), operationOptions);
 
     operationElementX->AttachParent(rootElement.Get(), true);
     operationElementX->Enable();
@@ -610,7 +673,7 @@ TEST_F(TClassicFairShareTreeTest, TestUpdatePreemptableJobsList)
     rootElement->Update(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(1.6, operationElementX->Attributes().DemandRatio);
-    EXPECT_EQ(1.0, operationElementX->Attributes().FairShareRatio);
+    EXPECT_EQ(1.0, operationElementX->Attributes().FairShare.Total());
 
     for (int i = 0; i < 50; ++i) {
         EXPECT_FALSE(operationElementX->IsJobPreemptable(jobIds[i], true));
@@ -649,7 +712,7 @@ TEST_F(TClassicFairShareTreeTest, TestBestAllocationRatio)
     auto rootElement = CreateTestRootElement(host.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(3, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), operationOptions);
 
     operationElementX->AttachParent(rootElement.Get(), true);
     operationElementX->Enable();
@@ -662,7 +725,7 @@ TEST_F(TClassicFairShareTreeTest, TestBestAllocationRatio)
 
     EXPECT_EQ(1.125, operationElementX->Attributes().DemandRatio);
     EXPECT_EQ(0.375, operationElementX->GetBestAllocationRatio());
-    EXPECT_EQ(0.375, operationElementX->Attributes().FairShareRatio);
+    EXPECT_EQ(0.375, operationElementX->Attributes().FairShare.Total());
 }
 
 TEST_F(TClassicFairShareTreeTest, TestOperationCountLimits)
@@ -720,7 +783,7 @@ TEST_F(TClassicFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
     firstOperationJobResources.SetMemory(5);
 
     auto firstOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, firstOperationJobResources));
-    auto firstOperationElement = CreateTestOperationElement(host.Get(), operationOptions, firstOperation.Get());
+    auto firstOperationElement = CreateTestOperationElement(host.Get(), firstOperation.Get(), operationOptions);
 
     // Second operation with demand <5, 10>.
     TJobResourcesWithQuota secondOperationJobResources;
@@ -728,7 +791,7 @@ TEST_F(TClassicFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
     secondOperationJobResources.SetMemory(10);
 
     auto secondOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, secondOperationJobResources));
-    auto secondOperationElement = CreateTestOperationElement(host.Get(), operationOptions, secondOperation.Get());
+    auto secondOperationElement = CreateTestOperationElement(host.Get(), secondOperation.Get(), operationOptions);
 
     // Pool with total demand <10, 15>.
     auto pool = CreateTestPool(host.Get(), "A");
@@ -746,7 +809,7 @@ TEST_F(TClassicFairShareTreeTest, TestMaxPossibleUsageRatioWithoutLimit)
     TUpdateFairShareContext updateContext;
     rootElement->PreUpdate(&dynamicAttributes, &updateContext);
     rootElement->Update(&dynamicAttributes, &updateContext);
-    EXPECT_EQ(0.15, pool->Attributes().MaxPossibleUsageRatio);
+    EXPECT_EQ(0.15, pool->Attributes().PossibleUsageRatio);
 }
 
 TEST_F(TClassicFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
@@ -774,7 +837,7 @@ TEST_F(TClassicFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     operationOptions->Weight = 1.0;
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationJobResources));
 
-    auto operationElement = CreateTestOperationElement(host.Get(), operationOptions, operation.Get());
+    auto operationElement = CreateTestOperationElement(host.Get(), operation.Get(), operationOptions);
 
     // Root element.
     auto rootElement = CreateTestRootElement(host.Get());
@@ -842,7 +905,7 @@ TEST_F(TClassicFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandR
     operationOptions->Weight = 1.0;
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList({}));
 
-    auto operationElement = CreateTestOperationElement(host.Get(), operationOptions, operation.Get());
+    auto operationElement = CreateTestOperationElement(host.Get(), operation.Get(), operationOptions);
 
     // Root element.
     auto rootElement = CreateTestRootElement(host.Get());
@@ -866,7 +929,7 @@ TEST_F(TClassicFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandR
     rootElement->Update(&dynamicAttributes, &updateContext);
 
     EXPECT_EQ(0.4, operationElement->Attributes().DemandRatio);
-    EXPECT_EQ(0.4, operationElement->Attributes().FairShareRatio);
+    EXPECT_EQ(0.4, operationElement->Attributes().FairShare.Total());
 
     for (int i = 0; i < 2; ++i) {
         EXPECT_FALSE(operationElement->IsJobPreemptable(jobIds[i], true));
@@ -909,10 +972,10 @@ TEST_F(TClassicFairShareTreeTest, MaxPossibleResourceUsage)
     auto rootElement = CreateTestRootElement(host.Get());
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), operationOptions);
 
     auto operationY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
-    auto operationElementY = CreateTestOperationElement(host.Get(), operationOptions, operationY.Get());
+    auto operationElementY = CreateTestOperationElement(host.Get(), operationY.Get(), operationOptions);
 
     operationElementX->AttachParent(rootElement.Get(), true);
     operationElementX->Enable();
@@ -943,15 +1006,15 @@ TEST_F(TClassicFairShareTreeTest, MaxPossibleResourceUsage)
 
         EXPECT_NEAR(0.3, operationElementX->Attributes().DemandRatio, 1e-7);
         EXPECT_NEAR(1.0, operationElementX->GetBestAllocationRatio(), 1e-7);
-        EXPECT_NEAR(0.3, operationElementX->Attributes().MaxPossibleUsageRatio, 1e-7);
-        EXPECT_NEAR(0.3, operationElementX->Attributes().FairShareRatio, 1e-7);
+        EXPECT_NEAR(0.3, operationElementX->Attributes().PossibleUsageRatio, 1e-7);
+        EXPECT_NEAR(0.3, operationElementX->Attributes().FairShare.Total(), 1e-7);
 
         EXPECT_NEAR(1.0, operationElementY->Attributes().DemandRatio, 1e-7);
         EXPECT_NEAR(1.0, operationElementY->GetBestAllocationRatio(), 1e-7);
-        EXPECT_NEAR(1.0, operationElementY->Attributes().MaxPossibleUsageRatio, 1e-7);
-        EXPECT_NEAR(0.7, operationElementY->Attributes().FairShareRatio, 1e-7);
+        EXPECT_NEAR(1.0, operationElementY->Attributes().PossibleUsageRatio, 1e-7);
+        EXPECT_NEAR(0.7, operationElementY->Attributes().FairShare.Total(), 1e-7);
 
-        EXPECT_NEAR(1.0, rootElement->Attributes().MaxPossibleUsageRatio, 1e-7);
+        EXPECT_NEAR(1.0, rootElement->Attributes().PossibleUsageRatio, 1e-7);
     }
 
     {
@@ -966,7 +1029,7 @@ TEST_F(TClassicFairShareTreeTest, MaxPossibleResourceUsage)
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
         rootElement->Update(&dynamicAttributes, &updateContext);
 
-        EXPECT_NEAR(1.0, rootElement->Attributes().MaxPossibleUsageRatio, 1e-7);
+        EXPECT_NEAR(1.0, rootElement->Attributes().PossibleUsageRatio, 1e-7);
     }
 }
 
@@ -994,7 +1057,7 @@ TEST_F(TClassicFairShareTreeTest, TestFifo)
     jobResourcesX.SetCpu(1);
     jobResourcesX.SetMemory(30);
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, jobResourcesX));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptionsX, operationX.Get());
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), operationOptionsX);
 
     auto operationOptionsY = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptionsY->Weight = 2.0;
@@ -1003,7 +1066,7 @@ TEST_F(TClassicFairShareTreeTest, TestFifo)
     jobResourcesY.SetCpu(3);
     jobResourcesY.SetMemory(10);
     auto operationY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, jobResourcesY));
-    auto operationElementY = CreateTestOperationElement(host.Get(), operationOptionsY, operationY.Get());
+    auto operationElementY = CreateTestOperationElement(host.Get(), operationY.Get(), operationOptionsY);
 
     auto operationOptionsZ = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptionsZ->Weight = 1.0;
@@ -1012,7 +1075,7 @@ TEST_F(TClassicFairShareTreeTest, TestFifo)
     jobResourcesZ.SetCpu(1);
     jobResourcesZ.SetMemory(10);
     auto operationZ = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, jobResourcesZ));
-    auto operationElementZ = CreateTestOperationElement(host.Get(), operationOptionsZ, operationZ.Get());
+    auto operationElementZ = CreateTestOperationElement(host.Get(), operationZ.Get(), operationOptionsZ);
 
     operationElementX->AttachParent(pool.Get(), true);
     operationElementX->Enable();
@@ -1028,24 +1091,22 @@ TEST_F(TClassicFairShareTreeTest, TestFifo)
 
         TUpdateFairShareContext updateContext;
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-        // We call UpdateBottomUp() and UpdateTopDown() directly here, because Update() verifies current invoker.
-        rootElement->UpdateBottomUp(&dynamicAttributes, &updateContext);
-        rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
 
         EXPECT_EQ(1.25, rootElement->Attributes().DemandRatio);
-        EXPECT_EQ(1.0, rootElement->Attributes().FairShareRatio);
+        EXPECT_EQ(1.0, rootElement->Attributes().FairShare.Total());
 
         EXPECT_EQ(1.25, pool->Attributes().DemandRatio);
-        EXPECT_EQ(1.0, pool->Attributes().FairShareRatio);
+        EXPECT_EQ(1.0, pool->Attributes().FairShare.Total());
 
         EXPECT_EQ(0.75, operationElementX->Attributes().DemandRatio);
-        EXPECT_EQ(0.75, operationElementX->Attributes().FairShareRatio);
+        EXPECT_EQ(0.75, operationElementX->Attributes().FairShare.Total());
 
         EXPECT_EQ(0.75, operationElementY->Attributes().DemandRatio);
-        EXPECT_EQ(0.75, operationElementY->Attributes().FairShareRatio);
+        EXPECT_EQ(0.75, operationElementY->Attributes().FairShare.Total());
 
         EXPECT_EQ(0.25, operationElementZ->Attributes().DemandRatio);
-        EXPECT_EQ(0.0, operationElementZ->Attributes().FairShareRatio);
+        EXPECT_EQ(0.0, operationElementZ->Attributes().FairShare.Total());
     }
 }
 
@@ -1071,7 +1132,7 @@ TEST_F(TClassicFairShareTreeTest, TestFifo2)
     jobResourcesX.SetCpu(0);
     jobResourcesX.SetMemory(50);
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, jobResourcesX));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptionsX, operationX.Get());
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), operationOptionsX);
 
     auto operationOptionsY = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptionsY->Weight = 2.0;
@@ -1080,7 +1141,7 @@ TEST_F(TClassicFairShareTreeTest, TestFifo2)
     jobResourcesY.SetCpu(5);
     jobResourcesY.SetMemory(0);
     auto operationY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, jobResourcesY));
-    auto operationElementY = CreateTestOperationElement(host.Get(), operationOptionsY, operationY.Get());
+    auto operationElementY = CreateTestOperationElement(host.Get(), operationY.Get(), operationOptionsY);
 
     auto operationOptionsZ = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptionsZ->Weight = 1.0;
@@ -1089,7 +1150,7 @@ TEST_F(TClassicFairShareTreeTest, TestFifo2)
     jobResourcesZ.SetCpu(1);
     jobResourcesZ.SetMemory(10);
     auto operationZ = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(5, jobResourcesZ));
-    auto operationElementZ = CreateTestOperationElement(host.Get(), operationOptionsZ, operationZ.Get());
+    auto operationElementZ = CreateTestOperationElement(host.Get(), operationZ.Get(), operationOptionsZ);
 
     operationElementX->AttachParent(pool.Get(), true);
     operationElementX->Enable();
@@ -1105,24 +1166,22 @@ TEST_F(TClassicFairShareTreeTest, TestFifo2)
 
         TUpdateFairShareContext updateContext;
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-        // We call UpdateBottomUp() and UpdateTopDown() directly here, because Update() verifies current invoker.
-        rootElement->UpdateBottomUp(&dynamicAttributes, &updateContext);
-        rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
 
         EXPECT_EQ(1.5, rootElement->Attributes().DemandRatio);
-        EXPECT_EQ(1.0, rootElement->Attributes().FairShareRatio);
+        EXPECT_EQ(1.0, rootElement->Attributes().FairShare.Total());
 
         EXPECT_EQ(1.5, pool->Attributes().DemandRatio);
-        EXPECT_EQ(1.0, pool->Attributes().FairShareRatio);
+        EXPECT_EQ(1.0, pool->Attributes().FairShare.Total());
 
         EXPECT_EQ(1.25, operationElementX->Attributes().DemandRatio);
-        EXPECT_EQ(1.0, operationElementX->Attributes().FairShareRatio);
+        EXPECT_EQ(1.0, operationElementX->Attributes().FairShare.Total());
 
         EXPECT_EQ(1.25, operationElementY->Attributes().DemandRatio);
-        EXPECT_EQ(0.0, operationElementY->Attributes().FairShareRatio);
+        EXPECT_EQ(0.0, operationElementY->Attributes().FairShare.Total());
 
         EXPECT_EQ(0.25, operationElementZ->Attributes().DemandRatio);
-        EXPECT_EQ(0.0, operationElementZ->Attributes().FairShareRatio);
+        EXPECT_EQ(0.0, operationElementZ->Attributes().FairShare.Total());
     }
 }
 
@@ -1164,13 +1223,13 @@ TEST_F(TClassicFairShareTreeTest, TestResourceMetering)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
 
     auto operationX = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
-    auto operationElementX = CreateTestOperationElement(host.Get(), operationOptions, operationX.Get());
+    auto operationElementX = CreateTestOperationElement(host.Get(), operationX.Get(), operationOptions);
 
     operationElementX->AttachParent(poolA.Get(), true);
     operationElementX->Enable();
 
     auto operationY = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
-    auto operationElementY = CreateTestOperationElement(host.Get(), operationOptions, operationY.Get());
+    auto operationElementY = CreateTestOperationElement(host.Get(), operationY.Get(), operationOptions);
 
     operationElementY->AttachParent(poolB.Get(), true);
     operationElementY->Enable();
@@ -1186,8 +1245,7 @@ TEST_F(TClassicFairShareTreeTest, TestResourceMetering)
         TUpdateFairShareContext updateContext;
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
 
-        rootElement->UpdateBottomUp(&dynamicAttributes, &updateContext);
-        rootElement->UpdateTopDown(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
 
         TMeteringMap meteringStatistics;
         rootElement->BuildResourceMetering(std::nullopt, &meteringStatistics);
@@ -1214,6 +1272,426 @@ TEST_F(TClassicFairShareTreeTest, TestResourceMetering)
         EXPECT_EQ(rootStatistics.MinShareResources().GetMemory(), 80);
 
         EXPECT_EQ(rootStatistics.JobMetrics().Values()[EJobMetricName::TotalTime], 10);
+    }
+}
+
+TEST_F(TClassicFairShareTreeTest, TestRelaxedPoolFairShareSimple)
+{
+    auto host = Create10NodesWith10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(
+        /* flowCpu */ 10,
+        /* minShareCpu */ 10));
+    relaxedPool->AttachParent(rootElement.Get());
+
+    auto [operationElement, operationHost] = CreateOperationWithJobs(30, host.Get(), relaxedPool.Get());
+
+    {
+        auto dynamicAttributes = TDynamicAttributesList(3);
+
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(0.3, operationElement->Attributes().FairShare.WeightProportionalRatio);
+        EXPECT_EQ(0.3, operationElement->Attributes().FairShare.Total());
+
+        EXPECT_EQ(0.1, relaxedPool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.1, relaxedPool->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.1, relaxedPool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_NEAR(0.2, rootElement->Attributes().FairShare.MinShareGuaranteeRatio, 1e-6);
+        EXPECT_EQ(0.1, rootElement->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_EQ(0.3, rootElement->Attributes().FairShare.Total());
+    }
+}
+
+TEST_F(TClassicFairShareTreeTest, TestBurstPoolFairShareSimple)
+{
+    auto host = Create10NodesWith10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+        /* flowCpu */ 10,
+        /* burstCpu */ 10,
+        /* minShareCpu */ 10));
+    burstPool->AttachParent(rootElement.Get());
+
+    auto [operationElement, operationHost] = CreateOperationWithJobs(30, host.Get(), burstPool.Get());
+
+    {
+        auto dynamicAttributes = TDynamicAttributesList(3);
+
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(0.3, operationElement->Attributes().FairShare.WeightProportionalRatio);
+        EXPECT_EQ(0.3, operationElement->Attributes().FairShare.Total());
+
+        EXPECT_EQ(0.1, burstPool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.1, burstPool->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.1, burstPool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_NEAR(0.2, rootElement->Attributes().FairShare.MinShareGuaranteeRatio, 1e-6);
+        EXPECT_EQ(0.1, rootElement->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_EQ(0.3, rootElement->Attributes().FairShare.Total());
+    }
+}
+
+TEST_F(TClassicFairShareTreeTest, TestAccumulatedVolumeProvidesMore)
+{
+    auto host = Create10NodesWith10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 10));
+    relaxedPool->AttachParent(rootElement.Get());
+
+    auto firstUpdateTime = TInstant::Now();
+    {
+        // Make first update to accumulate volume
+        auto dynamicAttributes = TDynamicAttributesList(3);
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = firstUpdateTime;
+        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+    }
+
+    auto [operationElement, operationHost] = CreateOperationWithJobs(30, host.Get(), relaxedPool.Get());
+    auto secondUpdateTime = TInstant::Now() + TDuration::Minutes(1);
+    {
+        auto dynamicAttributes = TDynamicAttributesList(3);
+
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = secondUpdateTime;
+        updateContext.PreviousUpdateTime = firstUpdateTime;
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(0.3, operationElement->Attributes().FairShare.WeightProportionalRatio);
+        EXPECT_EQ(0.3, operationElement->Attributes().FairShare.Total());
+
+        EXPECT_EQ(0.0, relaxedPool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_NEAR(0.2, relaxedPool->Attributes().FairShare.IntegralGuaranteeRatio, 1e-6);  // Here we get two times more share ratio than guaranteed by flow.
+        EXPECT_NEAR(0.1, relaxedPool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+    }
+}
+
+TEST_F(TClassicFairShareTreeTest, TestMinSharePoolAndBurstPool)
+{
+    auto host = Create10NodesWith10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+        /* flowCpu */ 100,
+        /* burstCpu */ 50));
+    burstPool->AttachParent(rootElement.Get());
+
+    auto minSharePool = CreateTestPool(host.Get(), "minShare", CreateSimplePoolConfig(/* minShareCpu */ 50));
+    minSharePool->AttachParent(rootElement.Get());
+
+    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
+    auto [minShareOperationElement, minShareOperationHost] = CreateOperationWithJobs(100, host.Get(), minSharePool.Get());
+
+    {
+        auto dynamicAttributes = TDynamicAttributesList(3);
+
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(0.5, minSharePool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.0, minSharePool->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.0, minSharePool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_EQ(0.0, burstPool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.5, burstPool->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.0, burstPool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_NEAR(0.5, rootElement->Attributes().FairShare.MinShareGuaranteeRatio, 1e-6);
+        EXPECT_EQ(0.5, rootElement->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_EQ(0.0, rootElement->Attributes().FairShare.WeightProportionalRatio);
+    }
+}
+
+TEST_F(TClassicFairShareTreeTest, TestMinSharePoolAndRelaxedPool)
+{
+    auto host = Create10NodesWith10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto minSharePool = CreateTestPool(host.Get(), "minShare", CreateSimplePoolConfig(/* minShareCpu */ 50));
+    minSharePool->AttachParent(rootElement.Get());
+
+    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100, /* minShareCpu */ 0));
+    relaxedPool->AttachParent(rootElement.Get());
+
+    auto [minShareOperationElement, minShareOperationHost] = CreateOperationWithJobs(100, host.Get(), minSharePool.Get());
+    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
+
+    {
+        auto dynamicAttributes = TDynamicAttributesList(3);
+
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(0.5, minSharePool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.0, minSharePool->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.0, minSharePool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_EQ(0.0, relaxedPool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_NEAR(0.5, relaxedPool->Attributes().FairShare.IntegralGuaranteeRatio, 10-7);
+        EXPECT_NEAR(0.0, relaxedPool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_NEAR(0.5, rootElement->Attributes().FairShare.MinShareGuaranteeRatio, 1e-6);
+        EXPECT_NEAR(0.5, relaxedPool->Attributes().FairShare.IntegralGuaranteeRatio, 10-7);
+        EXPECT_EQ(0.0, rootElement->Attributes().FairShare.WeightProportionalRatio);
+    }
+}
+
+TEST_F(TClassicFairShareTreeTest, TestBurstGetsAll_RelaxedNone)
+{
+    auto host = Create10NodesWith10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+        /* flowCpu */ 100,
+        /* burstCpu */ 100));
+    burstPool->AttachParent(rootElement.Get());
+
+    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    relaxedPool->AttachParent(rootElement.Get());
+
+    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
+    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
+
+    {
+        auto dynamicAttributes = TDynamicAttributesList(3);
+
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(0.0, burstPool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(1.0, burstPool->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.0, burstPool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_NEAR(0.0, relaxedPool->Attributes().FairShare.Total(), 1e-6);
+
+        EXPECT_NEAR(0.0, rootElement->Attributes().FairShare.MinShareGuaranteeRatio, 1e-6);
+        EXPECT_EQ(1.0, rootElement->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_EQ(0.0, rootElement->Attributes().FairShare.WeightProportionalRatio);
+    }
+}
+
+TEST_F(TClassicFairShareTreeTest, TestBurstGetsBurstGuaranteeOnly_RelaxedGetsRemaining)
+{
+    auto host = Create10NodesWith10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+        /* flowCpu */ 100,
+        /* burstCpu */ 50));
+    burstPool->AttachParent(rootElement.Get());
+
+    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    relaxedPool->AttachParent(rootElement.Get());
+
+    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
+    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
+
+    {
+        auto dynamicAttributes = TDynamicAttributesList(3);
+
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(0.0, burstPool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.5, burstPool->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.0, burstPool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_EQ(0.0, relaxedPool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_NEAR(0.5, relaxedPool->Attributes().FairShare.IntegralGuaranteeRatio, 1e-6);
+        EXPECT_NEAR(0.0, relaxedPool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_NEAR(0.0, rootElement->Attributes().FairShare.MinShareGuaranteeRatio, 1e-6);
+        EXPECT_NEAR(1.0, rootElement->Attributes().FairShare.IntegralGuaranteeRatio, 1e-6);
+        EXPECT_EQ(0.0, rootElement->Attributes().FairShare.WeightProportionalRatio);
+    }
+}
+
+TEST_F(TClassicFairShareTreeTest, TestMinShareAndBurstAndRelaxedPoolsShareWeightProportionalComponent)
+{
+    auto host = Create10NodesWith10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto minSharePool = CreateTestPool(host.Get(), "minShare", CreateSimplePoolConfig(/* minShareCpu */ 10, /* weight */ 1));
+    minSharePool->AttachParent(rootElement.Get());
+
+    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+        /* flowCpu */ 100,
+        /* burstCpu */ 10,
+        /* minShareCpu */ 0,
+        /* weight */ 2));
+    burstPool->AttachParent(rootElement.Get());
+
+    auto relaxedPool = CreateTestPool(host.Get(), "relaxed", CreateRelaxedPoolConfig(
+        /* flowCpu */ 10,
+        /* minShareCpu */ 0,
+        /* weight */ 4));
+    relaxedPool->AttachParent(rootElement.Get());
+
+    auto [minShareOperationElement, minShareOperationHost] = CreateOperationWithJobs(100, host.Get(), minSharePool.Get());
+    auto [burstOperationElement, burstOperationHost] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
+    auto [relaxedOperationElement, relaxedOperationHost] = CreateOperationWithJobs(100, host.Get(), relaxedPool.Get());
+
+    {
+        auto dynamicAttributes = TDynamicAttributesList(10);
+
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(0.1, minSharePool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.0, minSharePool->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.1, minSharePool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_EQ(0.0, burstPool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.1, burstPool->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.2, burstPool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_EQ(0.0, relaxedPool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.1, relaxedPool->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.4, relaxedPool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_NEAR(0.8, rootElement->Attributes().FairShare.MinShareGuaranteeRatio, 1e-6);
+        EXPECT_EQ(0.2, rootElement->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_EQ(0.0, rootElement->Attributes().FairShare.WeightProportionalRatio);
+    }
+}
+
+TEST_F(TClassicFairShareTreeTest, TestTwoRelaxedPoolsGetShareRatioProportionalToVolume)
+{
+    auto host = Create10NodesWith10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto relaxedPool1 = CreateTestPool(host.Get(), "relaxed1", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    relaxedPool1->AttachParent(rootElement.Get());
+
+    auto relaxedPool2 = CreateTestPool(host.Get(), "relaxed2", CreateRelaxedPoolConfig(/* flowCpu */ 100));
+    relaxedPool2->AttachParent(rootElement.Get());
+
+    auto [relaxedOperationElement1, relaxedOperationHost1] = CreateOperationWithJobs(100, host.Get(), relaxedPool1.Get());
+    auto [relaxedOperationElement2, relaxedOperationHost2] = CreateOperationWithJobs(100, host.Get(), relaxedPool2.Get());
+
+    auto volume1 = TDuration::Minutes(1).SecondsFloat() * 0.1;  // 10% of cluster for 1 minute
+    auto volume2 = TDuration::Minutes(1).SecondsFloat() * 0.3;  // 30% of cluster for 1 minute
+    relaxedPool1->InitIntegralResourceVolume(volume1);
+    relaxedPool2->InitIntegralResourceVolume(volume2);
+    {
+        auto dynamicAttributes = TDynamicAttributesList(3);
+
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        updateContext.PreviousUpdateTime = std::nullopt;  // It disables refill stage.
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(0.0, relaxedPool1->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_NEAR(0.1, relaxedPool1->Attributes().FairShare.IntegralGuaranteeRatio, 1e-6);
+        EXPECT_NEAR(0.3, relaxedPool1->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_EQ(0.0, relaxedPool2->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.3, relaxedPool2->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.3, relaxedPool2->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_NEAR(0.6, rootElement->Attributes().FairShare.MinShareGuaranteeRatio, 1e-6);
+        EXPECT_NEAR(0.4, rootElement->Attributes().FairShare.IntegralGuaranteeRatio, 1e-6);
+        EXPECT_EQ(0.0, rootElement->Attributes().FairShare.WeightProportionalRatio);
+    }
+}
+
+TEST_F(TClassicFairShareTreeTest, TestMinShareAdjustmentToTotalResources)
+{
+    auto host = Create10NodesWith10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto minSharePool1 = CreateTestPool(host.Get(), "minShare1", CreateSimplePoolConfig(/* minShareCpu */ 1000));
+    minSharePool1->AttachParent(rootElement.Get());
+
+    auto minSharePool2 = CreateTestPool(host.Get(), "minShare2", CreateSimplePoolConfig(/* minShareCpu */ 3000));
+    minSharePool2->AttachParent(rootElement.Get());
+
+    auto [operationElement1, operationHost1] = CreateOperationWithJobs(100, host.Get(), minSharePool1.Get());
+    auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, host.Get(), minSharePool2.Get());
+
+    {
+        auto dynamicAttributes = TDynamicAttributesList(3);
+
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(0.25, minSharePool1->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_NEAR(0.0, minSharePool1->Attributes().FairShare.IntegralGuaranteeRatio, 1e-6);
+        EXPECT_NEAR(0.0, minSharePool1->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_EQ(0.75, minSharePool2->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.0, minSharePool2->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.0, minSharePool2->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+    }
+}
+
+TEST_F(TClassicFairShareTreeTest, TestMinSharePlusBurstGuaranteeAdjustmentToTotalResources)
+{
+    auto host = Create10NodesWith10Cpu();
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto minSharePool = CreateTestPool(host.Get(), "minShare", CreateSimplePoolConfig(/* minShareCpu */ 800));
+    minSharePool->AttachParent(rootElement.Get());
+
+    auto burstPool = CreateTestPool(host.Get(), "burst", CreateBurstPoolConfig(
+        /* flowCpu */ 200,
+        /* burstCpu */ 200));
+    burstPool->AttachParent(rootElement.Get());
+
+    auto [operationElement1, operationHost1] = CreateOperationWithJobs(100, host.Get(), minSharePool.Get());
+    auto [operationElement2, operationHost2] = CreateOperationWithJobs(100, host.Get(), burstPool.Get());
+
+    {
+        auto dynamicAttributes = TDynamicAttributesList(3);
+
+        TUpdateFairShareContext updateContext;
+        updateContext.Now = TInstant::Now();
+        updateContext.PreviousUpdateTime = updateContext.Now - TDuration::Minutes(1);
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(0.8, minSharePool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_NEAR(0.0, minSharePool->Attributes().FairShare.IntegralGuaranteeRatio, 1e-6);
+        EXPECT_NEAR(0.0, minSharePool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
+
+        EXPECT_EQ(0.0, burstPool->Attributes().FairShare.MinShareGuaranteeRatio);
+        EXPECT_EQ(0.2, burstPool->Attributes().FairShare.IntegralGuaranteeRatio);
+        EXPECT_NEAR(0.0, burstPool->Attributes().FairShare.WeightProportionalRatio, 1e-6);
     }
 }
 

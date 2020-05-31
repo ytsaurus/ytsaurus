@@ -1,8 +1,10 @@
 #pragma once
 
 #include "private.h"
+
 #include "fair_share_tree_element.h"
 #include "fair_share_tree_snapshot.h"
+#include "persistent_pool_state.h"
 
 #include <yt/server/lib/scheduler/job_metrics.h>
 #include <yt/server/lib/scheduler/resource_metering.h>
@@ -139,6 +141,7 @@ public:
     void EnableOperation(const TFairShareStrategyOperationStatePtr& state);
 
     TPoolsUpdateResult UpdatePools(const NYTree::INodePtr& poolsNode);
+    void BuildIntegralPoolLists();
 
     void ChangeOperationPool(
         TOperationId operationId,
@@ -200,6 +203,9 @@ public:
 
     int GetOperationCount() const;
 
+    TPersistentTreeStatePtr BuildPersistentTreeState() const;
+    void InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState);
+
 private:
     TFairShareStrategyTreeConfigPtr Config_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
@@ -221,6 +227,8 @@ private:
     const NLogging::TLogger Logger;
 
     TPoolMap Pools_;
+
+    std::optional<TInstant> LastFairShareUpdateTime_;
 
     THashMap<TString, NProfiling::TTagId> PoolIdToProfilingTagId_;
 
