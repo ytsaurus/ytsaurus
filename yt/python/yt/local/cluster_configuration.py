@@ -108,10 +108,6 @@ NODE_CONFIG_PATCHES = [
     {
         "cluster_connection": {
             "transaction_manager": None,
-            "master_cache": {
-                "soft_backoff_time": None,
-                "hard_backoff_time": None
-            },
             "scheduler": None
         },
         "data_node": {
@@ -190,8 +186,6 @@ def _remove_none_fields(node):
             keys_to_remove.append(key)
         else:
             traverse(value)
-            if isinstance(value, (list, dict)) and not value:
-                keys_to_remove.append(key)
 
     def traverse(node):
         keys_to_remove = []
