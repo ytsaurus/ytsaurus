@@ -203,13 +203,12 @@ class TNameTableWriter;
 
 DECLARE_REFCOUNTED_CLASS(TRowBuffer)
 
-DECLARE_REFCOUNTED_STRUCT(ISchemalessReader)
+DECLARE_REFCOUNTED_STRUCT(ISchemalessUnversionedReader)
+DECLARE_REFCOUNTED_STRUCT(ISchemafulUnversionedReader)
 DECLARE_REFCOUNTED_STRUCT(IUnversionedWriter)
 DECLARE_REFCOUNTED_STRUCT(IUnversionedRowsetWriter)
 
 using TSchemalessWriterFactory = std::function<IUnversionedRowsetWriterPtr(TNameTablePtr, const TTableSchema&)>;
-
-DECLARE_REFCOUNTED_STRUCT(ISchemafulReader)
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
@@ -238,6 +237,8 @@ using TSchemaData = std::vector<ui32>;
 
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetReader)
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetWriter)
+
+DECLARE_REFCOUNTED_STRUCT(IUnversionedRowBatch)
 
 struct IValueConsumer;
 

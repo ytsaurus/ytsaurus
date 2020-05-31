@@ -1,4 +1,5 @@
 #include "adapters.h"
+#include "unversioned_row_batch.h"
 
 #include <yt/client/api/table_writer.h>
 
@@ -110,20 +111,23 @@ void PipeReaderToWriter(
 {
     TPeriodicYielder yielder(TDuration::Seconds(1));
 
-    std::vector<TUnversionedRow> rows;
-    rows.reserve(options.BufferRowCount);
-
-    while (reader->Read(&rows)) {
+    TRowBatchReadOptions readOptions{
+        .MaxRowsPerRead = options.BufferRowCount,
+        .MaxDataWeightPerRead = options.BufferDataWeight
+    };
+    while (auto batch = reader->Read(readOptions)) {
         yielder.TryYield();
 
-        if (rows.empty()) {
+        if (batch->IsEmpty()) {
             WaitFor(reader->GetReadyEvent())
                 .ThrowOnError();
             continue;
         }
 
+        auto rows = batch->MaterializeRows();
+
         if (options.ValidateValues) {
-            for (const auto row : rows) {
+            for (auto row : rows) {
                 for (const auto& value : row) {
                     ValidateStaticValue(value);
                 }
@@ -132,7 +136,7 @@ void PipeReaderToWriter(
 
         if (options.Throttler) {
             i64 dataWeight = 0;
-            for (const auto row : rows) {
+            for (auto row : rows) {
                 dataWeight += GetDataWeight(row);
             }
             WaitFor(options.Throttler->Throttle(dataWeight))
@@ -151,8 +155,6 @@ void PipeReaderToWriter(
 
     WaitFor(writer->Close())
         .ThrowOnError();
-
-    YT_VERIFY(rows.empty());
 }
 
 void PipeInputToOutput(

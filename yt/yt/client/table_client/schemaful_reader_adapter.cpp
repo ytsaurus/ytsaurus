@@ -1,12 +1,13 @@
 #include "schemaful_reader_adapter.h"
 #include "schemaless_row_reorderer.h"
 
-#include <yt/client/table_client/schemaful_reader.h>
-#include <yt/client/table_client/schemaless_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
 
-#include <yt/core/misc/chunked_memory_pool.h>
 #include <yt/core/misc/blob_output.h>
 
 #include <yt/core/yson/writer.h>
@@ -23,45 +24,44 @@ DECLARE_REFCOUNTED_CLASS(TSchemafulReaderAdapter)
 struct TSchemafulReaderAdapterPoolTag { };
 
 class TSchemafulReaderAdapter
-    : public ISchemafulReader
+    : public ISchemafulUnversionedReader
 {
 public:
     TSchemafulReaderAdapter(
-        ISchemalessReaderPtr underlyingReader,
+        ISchemalessUnversionedReaderPtr underlyingReader,
         const TTableSchema& schema,
         const TKeyColumns& keyColumns)
         : UnderlyingReader_(std::move(underlyingReader))
         , ReaderSchema_(schema)
-        , RowReorderer_(TNameTable::FromSchema(schema), keyColumns)
-        , MemoryPool_(TSchemafulReaderAdapterPoolTag())
+        , RowBuffer_(New<TRowBuffer>(TSchemafulReaderAdapterPoolTag()))
+        , RowReorderer_(TNameTable::FromSchema(schema), RowBuffer_, /*deepCapture*/ false, keyColumns)
     { }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        rows->clear();
-        MemoryPool_.Clear();
-
         if (ErrorPromise_.IsSet()) {
-            return true;
+            return CreateEmptyUnversionedRowBatch();
         }
 
-        auto hasMore = UnderlyingReader_->Read(rows);
-        if (rows->empty()) {
-            return hasMore;
-        }
+        std::vector<TUnversionedRow> schemafulRows;
+        schemafulRows.reserve(options.MaxRowsPerRead);
+        RowBuffer_->Clear();
 
-        YT_VERIFY(hasMore);
-        auto& rows_ = *rows;
+        CurrentBatch_ = UnderlyingReader_->Read(options);
+        if (!CurrentBatch_) {
+            return nullptr;
+        }
 
         try {
-            for (int i = 0; i < rows->size(); ++i) {
-                if (!rows_[i]) {
+            for (auto schemalessRow : CurrentBatch_->MaterializeRows()) {
+                if (!schemalessRow) {
+                    schemafulRows.push_back(TUnversionedRow());
                     continue;
                 }
 
-                auto row = RowReorderer_.ReorderKey(rows_[i], &MemoryPool_);
+                auto schemafulRow = RowReorderer_.ReorderKey(schemalessRow);
                 for (int valueIndex = 0; valueIndex < ReaderSchema_.Columns().size(); ++valueIndex) {
-                    const auto& value = row[valueIndex];
+                    const auto& value = schemafulRow[valueIndex];
                     ValidateDataValue(value);
                     // XXX(babenko)
                     // The underlying schemaless reader may unpack typed scalar values even
@@ -72,19 +72,19 @@ public:
                         value.Type != EValueType::Any &&
                         value.Type != EValueType::Null)
                     {
-                        row[valueIndex] = MakeAnyFromScalar(value);
+                        schemafulRow[valueIndex] = MakeAnyFromScalar(value);
                     } else {
                         ValidateValueType(value, ReaderSchema_, valueIndex, /*typeAnyAcceptsAllValues*/ false);
                     }
                 }
-                rows_[i] = row;
+                schemafulRows.push_back(schemafulRow);
             }
         } catch (const std::exception& ex) {
-            rows_.clear();
             ErrorPromise_.Set(ex);
+            return CreateEmptyUnversionedRowBatch();
         }
 
-        return true;
+        return CreateBatchFromUnversionedRows(std::move(schemafulRows), this);
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -106,15 +106,27 @@ public:
         return UnderlyingReader_->GetDecompressionStatistics();
     }
 
+    virtual bool IsFetchingCompleted() const override
+    {
+        return UnderlyingReader_->IsFetchingCompleted();
+    }
+
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    {
+        return UnderlyingReader_->GetFailedChunkIds();
+    }
+
 private:
-    const ISchemalessReaderPtr UnderlyingReader_;
+    const ISchemalessUnversionedReaderPtr UnderlyingReader_;
     const TTableSchema ReaderSchema_;
 
+    const TRowBufferPtr RowBuffer_;
     TSchemalessRowReorderer RowReorderer_;
-    TChunkedMemoryPool MemoryPool_;
+
+    IUnversionedRowBatchPtr CurrentBatch_;
     TBlobOutput ValueBuffer_;
 
-    TPromise<void> ErrorPromise_ = NewPromise<void>();
+    const TPromise<void> ErrorPromise_ = NewPromise<void>();
 
 
     TUnversionedValue MakeAnyFromScalar(const TUnversionedValue& value)
@@ -152,7 +164,7 @@ private:
         }
         writer.Flush();
         auto ysonSize = ValueBuffer_.Size();
-        auto* ysonBuffer = MemoryPool_.AllocateUnaligned(ysonSize);
+        auto* ysonBuffer = RowBuffer_->GetPool()->AllocateUnaligned(ysonSize);
         ::memcpy(ysonBuffer, ValueBuffer_.Begin(), ysonSize);
         return MakeUnversionedAnyValue(TStringBuf(ysonBuffer, ysonSize), value.Id);
     }
@@ -160,7 +172,7 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TSchemafulReaderAdapter)
 
-ISchemafulReaderPtr CreateSchemafulReaderAdapter(
+ISchemafulUnversionedReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,
     const TTableSchema& schema,
     const TColumnFilter& columnFilter)

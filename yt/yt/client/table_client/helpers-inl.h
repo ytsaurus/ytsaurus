@@ -6,6 +6,7 @@
 #endif
 
 #include "row_buffer.h"
+#include "unversioned_row_batch.h"
 
 #include <yt/core/yson/protobuf_interop.h>
 
@@ -413,20 +414,17 @@ void TUnversionedRowsBuilder::AddRow(Ts&&... values)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TReader, class TRow>
-TFuture<void> AsyncReadRows(const TIntrusivePtr<TReader>& reader, std::vector<TRow>* rows)
+template <class TReader, class... TArgs>
+auto WaitForRowBatch(const TIntrusivePtr<TReader>& reader, TArgs&&... args)
 {
-    YT_VERIFY(reader);
-    YT_VERIFY(rows);
-
-    rows->clear();
-    if (!reader->Read(rows) || !rows->empty()) {
-        return VoidFuture;
+    while (true) {
+        auto batch = reader->Read(std::forward<TArgs>(args)...);
+        if (!batch || !batch->IsEmpty()) {
+            return batch;
+        }
+        NConcurrency::WaitFor(reader->GetReadyEvent())
+            .ThrowOnError();
     }
-
-    return reader->GetReadyEvent().Apply(BIND ([=] () {
-        return AsyncReadRows(reader, rows);
-    }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,9 +3,10 @@
 #include <yt/client/table_client/proto/chunk_meta.pb.h>
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 
 #include <yt/core/actions/future.h>
 
@@ -1078,12 +1079,12 @@ public:
         const std::vector<TSharedRef>& compressedBlocks,
         NCompression::ECodec codecId,
         const TTableSchema& schema,
-        bool isSchemaful,
+        bool schemaful,
         const NLogging::TLogger& logger)
         : CompressedBlocks_(compressedBlocks)
         , Codec_(NCompression::GetCodec(codecId))
         , Schema_(schema)
-        , IsSchemaful(isSchemaful)
+        , Schemaful_(schemaful)
         , Logger(
             NLogging::TLogger(logger)
                 .AddTag("ReaderId: %v", TGuid::Create()))
@@ -1093,16 +1094,16 @@ public:
             GetByteSize(CompressedBlocks_));
     }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& /*options*/) override
     {
         if (Finished_) {
-            return false;
+            return nullptr;
         }
 
         if (BlockIndex_ >= CompressedBlocks_.size()) {
             Finished_ = true;
             YT_LOG_DEBUG("Wire protocol rowset reader finished");
-            return false;
+            return nullptr;
         }
 
         const auto& compressedBlock = CompressedBlocks_[BlockIndex_];
@@ -1134,16 +1135,16 @@ public:
 
         auto schemaData = WireReader_->GetSchemaData(Schema_, TColumnFilter());
 
-        rows->clear();
+        std::vector<TUnversionedRow> rows;
         while (!WireReader_->IsFinished()) {
-            auto row = IsSchemaful
+            auto row = Schemaful_
                 ? WireReader_->ReadSchemafulRow(schemaData, false)
                 : WireReader_->ReadUnversionedRow(false);
-            rows->push_back(row);
+            rows.push_back(row);
         }
         ++BlockIndex_;
 
-        return true;
+        return CreateBatchFromUnversionedRows(std::move(rows), this);
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -1158,14 +1159,24 @@ public:
 
     virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
-        YT_UNIMPLEMENTED();
+        YT_ABORT();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return false;
+    }
+
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    {
+        return {};
     }
 
 private:
     const std::vector<TSharedRef> CompressedBlocks_;
     NCompression::ICodec* const Codec_;
     const TTableSchema Schema_;
-    bool IsSchemaful;
+    bool Schemaful_;
     const NLogging::TLogger Logger;
 
     int BlockIndex_ = 0;
@@ -1179,14 +1190,14 @@ IWireProtocolRowsetReaderPtr CreateWireProtocolRowsetReader(
     const std::vector<TSharedRef>& compressedBlocks,
     NCompression::ECodec codecId,
     const TTableSchema& schema,
-    bool isSchemaful,
+    bool schemaful,
     const NLogging::TLogger& logger)
 {
     return New<TWireProtocolRowsetReader>(
         compressedBlocks,
         codecId,
         schema,
-        isSchemaful,
+        schemaful,
         logger);
 }
 
@@ -1200,12 +1211,12 @@ public:
         NCompression::ECodec codecId,
         size_t desiredUncompressedBlockSize,
         const TTableSchema& schema,
-        bool isSchemaful,
+        bool schemaful,
         const NLogging::TLogger& logger)
         : Codec_(NCompression::GetCodec(codecId))
         , DesiredUncompressedBlockSize_(desiredUncompressedBlockSize)
         , Schema_(schema)
-        , IsSchemaful(isSchemaful)
+        , Schemaful_(schemaful)
         , Logger(NLogging::TLogger(logger)
             .AddTag("WriterId: %v", TGuid::Create()))
     {
@@ -1235,7 +1246,7 @@ public:
                     SchemaWritten_ = true;
                 }
             }
-            if (IsSchemaful) {
+            if (Schemaful_) {
                 WireWriter_->WriteSchemafulRow(row);
             } else {
                 WireWriter_->WriteUnversionedRow(row);
@@ -1262,7 +1273,7 @@ private:
     NCompression::ICodec* const Codec_;
     const size_t DesiredUncompressedBlockSize_;
     const TTableSchema Schema_;
-    bool IsSchemaful;
+    const bool Schemaful_;
     const NLogging::TLogger Logger;
 
     std::vector<TSharedRef> CompressedBlocks_;
@@ -1296,14 +1307,14 @@ IWireProtocolRowsetWriterPtr CreateWireProtocolRowsetWriter(
     NCompression::ECodec codecId,
     size_t desiredUncompressedBlockSize,
     const NTableClient::TTableSchema& schema,
-    bool isSchemaful,
+    bool schemaful,
     const NLogging::TLogger& logger)
 {
     return New<TWireProtocolRowsetWriter>(
         codecId,
         desiredUncompressedBlockSize,
         schema,
-        isSchemaful,
+        schemaful,
         logger);
 }
 

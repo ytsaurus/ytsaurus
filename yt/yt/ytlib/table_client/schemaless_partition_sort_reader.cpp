@@ -1,4 +1,3 @@
-#include <util/random/shuffle.h>
 #include "schemaless_partition_sort_reader.h"
 #include "private.h"
 #include "config.h"
@@ -6,6 +5,8 @@
 #include "schemaless_block_reader.h"
 
 #include <yt/client/api/client.h>
+
+#include <yt/client/table_client/unversioned_row_batch.h>
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
@@ -18,6 +19,8 @@
 #include <yt/core/profiling/profiler.h>
 
 #include <util/system/yield.h>
+
+#include <util/random/shuffle.h>
 
 namespace NYT::NTableClient {
 
@@ -41,10 +44,10 @@ static const int RowsBetweenAtomicUpdate = 10000;
 static const i32 BucketEndSentinel = -1;
 static const double ReallocationFactor = 1.1;
 
-// Reasonable default for max data size per one read call.
-const i64 MaxDataSizePerRead = 16 * 1024 * 1024;
-
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TSchemalessPartitionSortReaderTag
+{ };
 
 class TSchemalessPartitionSortReader
     : public ISchemalessMultiChunkReader
@@ -55,24 +58,24 @@ public:
         NApi::NNative::IClientPtr client,
         IBlockCachePtr blockCache,
         TNodeDirectoryPtr nodeDirectory,
-        const TKeyColumns& keyColumns,
+        TKeyColumns keyColumns,
         TNameTablePtr nameTable,
         TClosure onNetworkReleased,
         const TDataSourceDirectoryPtr& dataSourceDirectory,
         std::vector<TDataSliceDescriptor> dataSliceDescriptors,
         int estimatedRowCount,
-        bool isApproximate,
+        bool approximate,
         int partitionTag,
         const TClientBlockReadOptions& blockReadOptions,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
-        : KeyColumns_(keyColumns)
+        : KeyColumns_(std::move(keyColumns))
         , KeyColumnCount_(static_cast<int>(KeyColumns_.size()))
-        , OnNetworkReleased_(onNetworkReleased)
-        , NameTable_(nameTable)
-        , IsApproximate_(isApproximate)
+        , OnNetworkReleased_(std::move(onNetworkReleased))
+        , NameTable_(std::move(nameTable))
+        , Approximate_(approximate)
         , EstimatedRowCount_(estimatedRowCount)
         , KeyBuffer_(this)
         , RowDescriptorBuffer_(this)
@@ -80,6 +83,7 @@ public:
         , BucketStart_(this)
         , SortComparer_(this)
         , MergeComparer_(this)
+        , MemoryPool_(TSchemalessPartitionSortReaderTag())
     {
         YT_VERIFY(EstimatedRowCount_ <= std::numeric_limits<i32>::max());
 
@@ -89,50 +93,38 @@ public:
         options->KeepInMemory = true;
 
         UnderlyingReader_ = CreatePartitionMultiChunkReader(
-            config,
-            options,
-            client,
-            blockCache,
-            nodeDirectory,
-            dataSourceDirectory,
+            std::move(config),
+            std::move(options),
+            std::move(client),
+            std::move(blockCache),
+            std::move(nodeDirectory),
+            std::move(dataSourceDirectory),
             std::move(dataSliceDescriptors),
-            nameTable,
+            NameTable_,
             KeyColumns_,
             partitionTag,
             blockReadOptions,
-            trafficMeter,
-            bandwidthThrottler,
-            rpsThrottler,
+            std::move(trafficMeter),
+            std::move(bandwidthThrottler),
+            std::move(rpsThrottler),
             std::move(multiReaderMemoryManager));
 
-        SortQueue_ = New<TActionQueue>("Sort");
-        ReadyEvent_ = BIND(
-                &TSchemalessPartitionSortReader::DoOpen,
-                MakeWeak(this))
+        ReadyEvent_ = BIND(&TSchemalessPartitionSortReader::DoOpen, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run();
     }
 
-    void DoOpen()
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        InitInput();
-        ReadInput();
-        StartMerge();
-    }
-
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
-    {
-        YT_VERIFY(rows->capacity() > 0);
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-            return true;
-        }
-
         MemoryPool_.Clear();
-        rows->clear();
+
+        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+            return CreateEmptyUnversionedRowBatch();
+        }
 
         if (ReadRowCount_ == TotalRowCount_) {
             SortQueue_->Shutdown();
-            return false;
+            return nullptr;
         }
 
         bool mergeFinished = MergeFinished_.load();
@@ -141,6 +133,7 @@ public:
             if (sortedRowCount > ReadRowCount_ || mergeFinished) {
                 break;
             }
+            
             if (spinCounter % SpinsBetweenYield == 0) {
                 ThreadYield();
             } else {
@@ -153,23 +146,30 @@ public:
 
         if (mergeFinished && !MergeError_.IsOK()) {
             ReadyEvent_ = MakeFuture(MergeError_);
-            return true;
+            return CreateEmptyUnversionedRowBatch();
         }
 
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
         i64 dataWeight = 0;
-        while (ReadRowCount_ < sortedRowCount && rows->size() < rows->capacity() && dataWeight < MaxDataSizePerRead) {
+
+        while (ReadRowCount_ < sortedRowCount &&
+               rows.size() < options.MaxRowsPerRead &&
+               dataWeight < options.MaxDataWeightPerRead)
+        {
             auto sortedIndex = SortedIndexes_[ReadRowCount_];
             auto& rowDescriptor = RowDescriptorBuffer_[sortedIndex];
             YT_VERIFY(rowDescriptor.BlockReader->JumpToRowIndex(rowDescriptor.RowIndex));
-            rows->push_back(rowDescriptor.BlockReader->GetRow(&MemoryPool_));
-            dataWeight += GetDataWeight(rows->back());
+            auto row = rowDescriptor.BlockReader->GetRow(&MemoryPool_);
+            rows.push_back(row);
+            dataWeight += GetDataWeight(row);
             ++ReadRowCount_;
         }
 
         ReadDataWeight_ += dataWeight;
 
-        YT_VERIFY(!rows->empty());
-        return true;
+        YT_VERIFY(!rows.empty());
+        return CreateBatchFromUnversionedRows(std::move(rows), this);
     }
 
     virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
@@ -356,20 +356,14 @@ private:
 
     };
 
-    TKeyColumns KeyColumns_;
-    int KeyColumnCount_;
-    TClosure OnNetworkReleased_;
+    const TKeyColumns KeyColumns_;
+    const int KeyColumnCount_;
+    const TClosure OnNetworkReleased_;
+    const TNameTablePtr NameTable_;
 
-    TNameTablePtr NameTable_;
+    const bool Approximate_;
 
-    TPartitionMultiChunkReaderPtr UnderlyingReader_;
-    TActionQueuePtr SortQueue_;
-
-    TChunkedMemoryPool MemoryPool_;
-
-    bool IsApproximate_;
-
-    i64 EstimatedRowCount_;
+    const i64 EstimatedRowCount_;
     int EstimatedBucketCount_;
 
     i64 TotalRowCount_ = 0;
@@ -388,12 +382,25 @@ private:
     TSortComparer SortComparer_;
     TMergeComparer MergeComparer_;
 
+    TChunkedMemoryPool MemoryPool_;
+
+    const TActionQueuePtr SortQueue_ = New<TActionQueue>("Sort");
+
+    TPartitionMultiChunkReaderPtr UnderlyingReader_;
+
     // Sort error may occur due to CompositeValues in keys.
     std::vector<TFuture<void>> SortErrors_;
     TFuture<void> ReadyEvent_;
 
     TError MergeError_;
     std::atomic_bool MergeFinished_ = { false };
+
+    void DoOpen()
+    {
+        InitInput();
+        ReadInput();
+        StartMerge();
+    }
 
     void InitInput()
     {
@@ -476,7 +483,7 @@ private:
             TotalRowCount_ = rowIndex;
             int bucketCount = static_cast<int>(BucketStart_.size()) - 1;
 
-            if (!IsApproximate_) {
+            if (!Approximate_) {
                 YT_VERIFY(TotalRowCount_ <= EstimatedRowCount_);
                 YT_VERIFY(bucketCount <= EstimatedBucketCount_);
             }
@@ -597,7 +604,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     i64 estimatedRowCount,
-    bool isApproximate,
+    bool approximate,
     int partitionTag,
     const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter,
@@ -616,7 +623,7 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessPartitionSortReader(
         dataSourceDirectory,
         dataSliceDescriptors,
         estimatedRowCount,
-        isApproximate,
+        approximate,
         partitionTag,
         blockReadOptions,
         trafficMeter,

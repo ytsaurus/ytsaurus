@@ -1,6 +1,7 @@
 #include "schemaless_row_reorderer.h"
 
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/row_buffer.h>
 
 namespace NYT::NTableClient {
 
@@ -8,8 +9,12 @@ namespace NYT::NTableClient {
 
 TSchemalessRowReorderer::TSchemalessRowReorderer(
     TNameTablePtr nameTable,
+    TRowBufferPtr rowBuffer,
+    bool deepCapture,
     const TKeyColumns& keyColumns)
     : KeyColumns_(keyColumns)
+    , RowBuffer_(std::move(rowBuffer))
+    , DeepCapture_(deepCapture)
     , NameTable_(nameTable)
 {
     EmptyKey_.resize(KeyColumns_.size(), MakeUnversionedSentinelValue(EValueType::Null));
@@ -23,18 +28,21 @@ TSchemalessRowReorderer::TSchemalessRowReorderer(
     }
 }
 
-TMutableUnversionedRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row, TChunkedMemoryPool* memoryPool)
+TMutableUnversionedRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row)
 {
     int valueCount = KeyColumns_.size() + row.GetCount();
-    auto result = TMutableUnversionedRow::Allocate(memoryPool, valueCount);
+    auto result = RowBuffer_->AllocateUnversioned(valueCount);
 
     // Initialize with empty key.
     ::memcpy(result.Begin(), EmptyKey_.data(), KeyColumns_.size() * sizeof(TUnversionedValue));
 
     int nextValueIndex = KeyColumns_.size();
-    for (auto it = row.Begin(); it != row.End(); ++it) {
-        const auto& value = *it;
-        if (value.Id < IdMapping_.size()) {
+    int idMappingSize = static_cast<int>(IdMapping_.size());
+    for (auto value : row) {
+        if (DeepCapture_) {
+            RowBuffer_->Capture(&value);
+        }
+        if (value.Id < idMappingSize) {
             int keyIndex = IdMapping_[value.Id];
             if (keyIndex >= 0) {
                 result.Begin()[keyIndex] = value;
@@ -50,41 +58,27 @@ TMutableUnversionedRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row, 
     return result;
 }
 
-TMutableUnversionedRow TSchemalessRowReorderer::ReorderKey(TUnversionedRow row, TChunkedMemoryPool* memoryPool)
+TMutableUnversionedRow TSchemalessRowReorderer::ReorderKey(TUnversionedRow row)
 {
-    auto result = TMutableUnversionedRow::Allocate(memoryPool, KeyColumns_.size());
+    auto result = RowBuffer_->AllocateUnversioned(KeyColumns_.size());
+
     // Initialize with empty key.
     ::memcpy(result.Begin(), EmptyKey_.data(), KeyColumns_.size() * sizeof(TUnversionedValue));
 
-    for (auto it = row.Begin(); it != row.End(); ++it) {
-        const auto& value = *it;
-        if (value.Id < IdMapping_.size()) {
+    int idMappingSize = static_cast<int>(IdMapping_.size());
+    for (auto value : row) {
+        if (DeepCapture_) {
+            RowBuffer_->Capture(&value);
+        }
+        if (value.Id < idMappingSize) {
             int keyIndex = IdMapping_[value.Id];
             if (keyIndex >= 0) {
                 result.Begin()[keyIndex] = value;
             }
         }
     }
+    
     return result;
-}
-
-TUnversionedOwningRow TSchemalessRowReorderer::ReorderRow(TUnversionedRow row)
-{
-    auto result = EmptyKey_;
-
-    for (auto it = row.Begin(); it != row.End(); ++it) {
-        const auto& value = *it;
-        if (value.Id < IdMapping_.size()) {
-            int keyIndex = IdMapping_[value.Id];
-            if (keyIndex >= 0) {
-                result[keyIndex] = value;
-                continue;
-            }
-        }
-        result.push_back(value);
-    }
-
-    return TUnversionedOwningRow(result.data(), result.data() + result.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

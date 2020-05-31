@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_reader.h>
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
 
@@ -12,6 +12,7 @@ namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): consider joining with NTableClient::IRowBatchReader
 struct ITableReader
     : public virtual TRefCounted
 {
@@ -30,7 +31,7 @@ struct ITableReader
     //! Attempts to read a bunch of #rows. If true is returned but #rows is empty
     //! the rows are not immediately available and the client must invoke
     //! #GetReadyEvent and wait. False is returned if the end of table was reached.
-    virtual bool Read(std::vector<NTableClient::TUnversionedRow>* rows) = 0;
+    virtual NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& options = {}) = 0;
 
     //! Returns the name table used for constructing rows.
     virtual const NTableClient::TNameTablePtr& GetNameTable() const = 0;

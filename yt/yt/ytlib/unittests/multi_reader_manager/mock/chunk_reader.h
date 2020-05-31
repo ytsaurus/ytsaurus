@@ -3,6 +3,8 @@
 #include <yt/ytlib/table_client/schemaless_chunk_reader.h>
 #include <yt/ytlib/table_client/chunk_reader_base.h>
 
+#include <yt/client/table_client/unversioned_row_batch.h>
+
 #include <yt/core/concurrency/delayed_executor.h>
 
 namespace NYT::NChunkClient {
@@ -20,15 +22,15 @@ public:
         , Delay_(delay)
     { }
 
-    bool Read(std::vector<NTableClient::TUnversionedRow>* rows) override
+    virtual NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& /*options*/) override
     {
-        rows->clear();
         if (CurrentDataIndex_ >= Data_.size()) {
-            return false;
+            return nullptr;
         }
-        rows->insert(rows->end(), Data_[CurrentDataIndex_].begin(), Data_[CurrentDataIndex_].end());
+        std::vector<NTableClient::TUnversionedRow> rows;
+        rows.insert(rows.end(), Data_[CurrentDataIndex_].begin(), Data_[CurrentDataIndex_].end());
         ++CurrentDataIndex_;
-        return true;
+        return NTableClient::CreateBatchFromUnversionedRows(std::move(rows), this);
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -93,9 +95,10 @@ public:
 
 protected:
     const std::vector<std::vector<NTableClient::TUnversionedOwningRow>> Data_;
-    TDuration Delay_;
+    const TDuration Delay_;
+    
     int CurrentDataIndex_ = 0;
-    std::atomic_bool Error_{false};
+    std::atomic<bool> Error_ = false;
 };
 
 class TChunkReaderWithErrorMock
@@ -104,18 +107,18 @@ class TChunkReaderWithErrorMock
 public:
     using TChunkReaderMock::TChunkReaderMock;
 
-    bool Read(std::vector<NTableClient::TUnversionedRow>* rows) override
+    virtual NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& options) override
     {
         if (Error_.load()) {
-            return true;
+            return NTableClient::CreateEmptyUnversionedRowBatch();
         }
 
-        auto readerNotFinished = TChunkReaderMock::Read(rows);
-        if (!readerNotFinished) {
+        auto batch = TChunkReaderMock::Read(options);
+        if (batch) {
             Error_ = true;
         }
 
-        return true;
+        return batch;
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override

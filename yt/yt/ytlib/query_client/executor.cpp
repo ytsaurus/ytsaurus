@@ -25,7 +25,8 @@
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/wire_protocol.h>
 
 #include <yt/core/profiling/timing.h>
@@ -37,6 +38,7 @@
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/algorithm_helpers.h>
+#include <yt/core/misc/atomic_object.h>
 
 #include <yt/core/rpc/helpers.h>
 
@@ -50,6 +52,7 @@ using namespace NApi;
 using namespace NApi::NNative;
 using namespace NProfiling;
 
+using NYT::FromProto;
 using NYT::ToProto;
 
 using NChunkClient::NProto::TDataStatistics;
@@ -75,7 +78,7 @@ TRow GetPivotKey(const TTabletInfoPtr& shard)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryResponseReader
-    : public ISchemafulReader
+    : public ISchemafulUnversionedReader
 {
 public:
     TQueryResponseReader(
@@ -94,15 +97,17 @@ public:
             MakeStrong(this)));
     }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        auto reader = GetRowsetReader();
-        return !reader || reader->Read(rows);
+        auto reader = RowsetReader_.Load();
+        return reader
+            ? reader->Read(options)
+            : CreateEmptyUnversionedRowBatch();
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        auto reader = GetRowsetReader();
+        auto reader = RowsetReader_.Load();
         return reader
             ? reader->GetReadyEvent()
             : QueryResult_.As<void>();
@@ -115,12 +120,22 @@ public:
 
     virtual TDataStatistics GetDataStatistics() const override
     {
-        return TDataStatistics();
+        return {};
     }
 
     virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override
     {
-        return NChunkClient::TCodecStatistics();
+        return {};
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return false;
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return {};
     }
 
 private:
@@ -129,28 +144,17 @@ private:
     const NLogging::TLogger Logger;
 
     TFuture<TQueryStatistics> QueryResult_;
-    ISchemafulReaderPtr RowsetReader_;
-    TSpinLock SpinLock_;
-
-    ISchemafulReaderPtr GetRowsetReader()
-    {
-        TGuard<TSpinLock> guard(SpinLock_);
-        return RowsetReader_;
-    }
+    TAtomicObject<ISchemafulUnversionedReaderPtr> RowsetReader_;
 
     TQueryStatistics OnResponse(const TQueryServiceProxy::TRspExecutePtr& response)
     {
-        TGuard<TSpinLock> guard(SpinLock_);
-        YT_VERIFY(!RowsetReader_);
-        RowsetReader_ = CreateWireProtocolRowsetReader(
+        RowsetReader_.Store(CreateWireProtocolRowsetReader(
             response->Attachments(),
             CodecId_,
             Schema_,
             false,
-            Logger);
-        TQueryStatistics statistics;
-        FromProto(&statistics, response->query_statistics());
-        return statistics;
+            Logger));
+        return FromProto<TQueryStatistics>(response->query_statistics());
     }
 };
 
@@ -424,7 +428,7 @@ private:
                     std::move(dataSources),
                     address);
             },
-            [&] (const TConstFrontQueryPtr& topQuery, const ISchemafulReaderPtr& reader, const IUnversionedRowsetWriterPtr& writer) {
+            [&] (const TConstFrontQueryPtr& topQuery, const ISchemafulUnversionedReaderPtr& reader, const IUnversionedRowsetWriterPtr& writer) {
                 YT_LOG_DEBUG("Evaluating top query (TopQueryId: %v)", topQuery->Id);
                 return Evaluator_->Run(
                     std::move(topQuery),
@@ -535,7 +539,7 @@ private:
             });
     }
 
-    std::pair<ISchemafulReaderPtr, TFuture<TQueryStatistics>> Delegate(
+    std::pair<ISchemafulUnversionedReaderPtr, TFuture<TQueryStatistics>> Delegate(
         TConstQueryPtr query,
         const TConstExternalCGInfoPtr& externalCGInfo,
         const TQueryOptions& options,

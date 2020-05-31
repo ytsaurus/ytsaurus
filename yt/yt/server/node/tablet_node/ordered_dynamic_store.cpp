@@ -26,8 +26,9 @@
 #include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/client/table_client/row_buffer.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/name_table.h>
 
 namespace NYT::NTabletNode {
@@ -45,8 +46,7 @@ using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const size_t ReaderPoolSize = (size_t) 16_KB;
-static const int SnapshotRowsPerRead = 1024;
+static const size_t ReaderPoolSize = 16_KB;
 
 struct TOrderedDynamicStoreReaderPoolTag
 { };
@@ -54,7 +54,7 @@ struct TOrderedDynamicStoreReaderPoolTag
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOrderedDynamicStore::TReader
-    : public ISchemafulReader
+    : public ISchemafulUnversionedReader
 {
 public:
     TReader(
@@ -68,9 +68,6 @@ public:
         , UpperRowIndex_(std::min(upperRowIndex, Store_->GetStartingRowIndex() + Store_->GetRowCount()))
         , MaybeColumnFilter_(optionalColumnFilter)
         , CurrentRowIndex_(std::max(lowerRowIndex, Store_->GetStartingRowIndex()))
-    { }
-
-    void Initialize()
     {
         if (!MaybeColumnFilter_) {
             // For flushes and snapshots only.
@@ -89,16 +86,26 @@ public:
         Pool_ = std::make_unique<TChunkedMemoryPool>(TOrderedDynamicStoreReaderPoolTag(), ReaderPoolSize);
     }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        rows->clear();
-        while (rows->size() < rows->capacity() && CurrentRowIndex_ < UpperRowIndex_) {
-            rows->push_back(CaptureRow(Store_->GetRow(CurrentRowIndex_)));
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
+        i64 dataWeight = 0;
+        while (CurrentRowIndex_ < UpperRowIndex_ &&
+               rows.size() < options.MaxRowsPerRead &&
+               dataWeight < options.MaxDataWeightPerRead)
+        {
+            auto row = CaptureRow(Store_->GetRow(CurrentRowIndex_));
+            rows.push_back(row);
+            dataWeight += GetDataWeight(row);
             ++CurrentRowIndex_;
-            ++RowCount_;
-            DataWeight_ += GetDataWeight(rows->back());
         }
-        return !rows->empty();
+        if (rows.empty()) {
+            return nullptr;
+        }
+        RowCount_ += rows.size();
+        DataWeight_ += dataWeight;
+        return CreateBatchFromUnversionedRows(std::move(rows), this);
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -117,6 +124,16 @@ public:
     TCodecStatistics GetDecompressionStatistics() const override
     {
         return TCodecStatistics();
+    }
+
+    virtual bool IsFetchingCompleted() const override
+    {
+        return false;
+    }
+
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override
+    {
+        return {};
     }
 
 private:
@@ -184,7 +201,7 @@ TOrderedDynamicStore::TOrderedDynamicStore(
     YT_LOG_DEBUG("Ordered dynamic store created");
 }
 
-ISchemafulReaderPtr TOrderedDynamicStore::CreateFlushReader()
+ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateFlushReader()
 {
     YT_VERIFY(FlushRowCount_ != -1);
     return DoCreateReader(
@@ -194,7 +211,7 @@ ISchemafulReaderPtr TOrderedDynamicStore::CreateFlushReader()
         std::nullopt);
 }
 
-ISchemafulReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
+ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateSnapshotReader()
 {
     return DoCreateReader(
         -1,
@@ -296,20 +313,18 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
             Schema_,
             chunkWriter);
 
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(SnapshotRowsPerRead);
-
         YT_LOG_DEBUG("Serializing store snapshot");
 
         i64 rowCount = 0;
-        while (tableReader->Read(&rows)) {
-            if (rows.empty()) {
+        while (auto batch = tableReader->Read()) {
+            if (batch->IsEmpty()) {
                 YT_LOG_DEBUG("Waiting for table reader");
                 WaitFor(tableReader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
             }
 
+            auto rows = batch->MaterializeRows();
             rowCount += rows.size();
             if (!tableWriter->Write(rows)) {
                 YT_LOG_DEBUG("Waiting for table writer");
@@ -374,17 +389,14 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
             TKeyColumns(),
             TReadRange());
 
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(SnapshotRowsPerRead);
-
-        while (tableReader->Read(&rows)) {
-            if (rows.empty()) {
+        while (auto batch = tableReader->Read()) {
+            if (batch->IsEmpty()) {
                 WaitFor(tableReader->GetReadyEvent())
                     .ThrowOnError();
                 continue;
             }
 
-            for (auto row : rows) {
+            for (auto row : batch->MaterializeRows()) {
                 LoadRow(row);
             }
         }
@@ -412,7 +424,7 @@ i64 TOrderedDynamicStore::GetTimestampCount() const
     return GetRowCount();
 }
 
-ISchemafulReaderPtr TOrderedDynamicStore::CreateReader(
+ISchemafulUnversionedReaderPtr TOrderedDynamicStore::CreateReader(
     const TTabletSnapshotPtr& /*tabletSnapshot*/,
     int tabletIndex,
     i64 lowerRowIndex,
@@ -463,20 +475,18 @@ void TOrderedDynamicStore::LoadRow(TUnversionedRow row)
     CommitRow(RowBuffer_->Capture(row, true));
 }
 
-ISchemafulReaderPtr TOrderedDynamicStore::DoCreateReader(
+ISchemafulUnversionedReaderPtr TOrderedDynamicStore::DoCreateReader(
     int tabletIndex,
     i64 lowerRowIndex,
     i64 upperRowIndex,
     const std::optional<TColumnFilter>& optionalColumnFilter)
 {
-    auto reader = New<TReader>(
+    return New<TReader>(
         this,
         tabletIndex,
         lowerRowIndex,
         upperRowIndex,
         optionalColumnFilter);
-    reader->Initialize();
-    return reader;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

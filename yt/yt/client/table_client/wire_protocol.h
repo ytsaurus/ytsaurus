@@ -4,7 +4,7 @@
 
 #include <yt/client/api/public.h>
 
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_writer.h>
 #include <yt/client/table_client/versioned_row.h>
 #include <yt/client/table_client/unversioned_row.h>
@@ -222,7 +222,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IWireProtocolRowsetReader
-    : public NTableClient::ISchemafulReader
+    : public NTableClient::ISchemafulUnversionedReader
 { };
 
 DEFINE_REFCOUNTED_TYPE(IWireProtocolRowsetReader)
@@ -231,7 +231,7 @@ IWireProtocolRowsetReaderPtr CreateWireProtocolRowsetReader(
     const std::vector<TSharedRef>& compressedBlocks,
     NCompression::ECodec codecId,
     const NTableClient::TTableSchema& schema,
-    bool isSchemaful,
+    bool schemaful,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

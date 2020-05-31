@@ -15,16 +15,19 @@ class TSchemalessRowReorderer
 public:
     TSchemalessRowReorderer(
         TNameTablePtr nameTable,
+        TRowBufferPtr rowBuffer,
+        bool deepCapture,
         const TKeyColumns& keyColumns);
 
-    TMutableUnversionedRow ReorderRow(TUnversionedRow row, TChunkedMemoryPool* memoryPool);
-    TUnversionedOwningRow ReorderRow(TUnversionedRow row);
+    TMutableUnversionedRow ReorderRow(TUnversionedRow row);
 
     //! Preserves only key columns, non-key column are ignored.
-    TMutableUnversionedRow ReorderKey(TUnversionedRow row, TChunkedMemoryPool* memoryPool);
+    TMutableUnversionedRow ReorderKey(TUnversionedRow row);
 
 private:
     const TKeyColumns KeyColumns_;
+    const TRowBufferPtr RowBuffer_;
+    const bool DeepCapture_;
     const TNameTablePtr NameTable_;
 
     std::vector<int> IdMapping_;

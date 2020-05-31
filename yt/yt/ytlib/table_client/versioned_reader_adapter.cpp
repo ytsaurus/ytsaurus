@@ -6,7 +6,8 @@
 
 #include <yt/client/table_client/versioned_reader.h>
 #include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -23,7 +24,7 @@ class TVersionedReaderAdapter
 {
 public:
     TVersionedReaderAdapter(
-        ISchemafulReaderPtr underlyingReader,
+        ISchemafulUnversionedReaderPtr underlyingReader,
         const TTableSchema& schema,
         TTimestamp timestamp)
         : UnderlyingReader_(std::move(underlyingReader))
@@ -44,17 +45,14 @@ public:
         Rows_.resize(rows->capacity());
         Rows_.shrink_to_fit();
 
-        auto hasMore = UnderlyingReader_->Read(&Rows_);
-        if (Rows_.empty()) {
-            return hasMore;
+        auto batch = UnderlyingReader_->Read();
+        if (!batch) {
+            return false;
         }
 
-        YT_VERIFY(hasMore);
-
-        for (auto row : Rows_) {
+        for (auto row : batch->MaterializeRows()) {
             rows->push_back(MakeVersionedRow(row));
         }
-
         return true;
     }
 
@@ -84,13 +82,13 @@ public:
     }
 
 private:
-    const ISchemafulReaderPtr UnderlyingReader_;
+    const ISchemafulUnversionedReaderPtr UnderlyingReader_;
     const int KeyColumnCount_;
     const TTimestamp Timestamp_;
     TChunkedMemoryPool MemoryPool_;
     std::vector<TUnversionedRow> Rows_;
 
-    TVersionedRow MakeVersionedRow(const TUnversionedRow row)
+    TVersionedRow MakeVersionedRow(TUnversionedRow row)
     {
         if (!row) {
             return TVersionedRow();

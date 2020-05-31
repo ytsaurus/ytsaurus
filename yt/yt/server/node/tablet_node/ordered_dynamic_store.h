@@ -24,10 +24,10 @@ public:
         TTablet* tablet);
 
     //! Returns the reader to be used during flush.
-    NTableClient::ISchemafulReaderPtr CreateFlushReader();
+    NTableClient::ISchemafulUnversionedReaderPtr CreateFlushReader();
 
     //! Returns the reader to be used during store serialization.
-    NTableClient::ISchemafulReaderPtr CreateSnapshotReader();
+    NTableClient::ISchemafulUnversionedReaderPtr CreateSnapshotReader();
 
     TOrderedDynamicRow WriteRow(
         NTableClient::TUnversionedRow row,
@@ -61,7 +61,7 @@ public:
     virtual i64 GetTimestampCount() const override;
 
     // IOrderedStore implementation.
-    virtual NTableClient::ISchemafulReaderPtr CreateReader(
+    virtual NTableClient::ISchemafulUnversionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
         int tabletIndex,
         i64 lowerRowIndex,
@@ -93,7 +93,7 @@ private:
     void CommitRow(TOrderedDynamicRow row);
     void LoadRow(NTableClient::TUnversionedRow row);
 
-    NTableClient::ISchemafulReaderPtr DoCreateReader(
+    NTableClient::ISchemafulUnversionedReaderPtr DoCreateReader(
         int tabletIndex,
         i64 lowerRowIndex,
         i64 upperRowIndex,

@@ -21,6 +21,7 @@ namespace NYT::NQueryClient {
 
 using ::testing::_;
 using ::testing::StrictMock;
+using ::testing::NiceMock;
 using ::testing::HasSubstr;
 using ::testing::ContainsRegex;
 using ::testing::Invoke;

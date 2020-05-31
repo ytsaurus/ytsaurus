@@ -25,25 +25,25 @@ public:
         const std::vector<IReaderFactoryPtr>& readerFactories,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
-    void Open() override;
+    virtual void Open() override;
 
-    TFuture<void> GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() override;
 
-    NProto::TDataStatistics GetDataStatistics() const override;
+    virtual NProto::TDataStatistics GetDataStatistics() const override;
 
-    TCodecStatistics GetDecompressionStatistics() const override;
+    virtual TCodecStatistics GetDecompressionStatistics() const override;
 
-    std::vector<TChunkId> GetFailedChunkIds() const override;
+    virtual std::vector<TChunkId> GetFailedChunkIds() const override;
 
-    bool IsFetchingCompleted() const override;
+    virtual bool IsFetchingCompleted() const override;
 
-    const NLogging::TLogger& GetLogger() const override;
+    virtual const NLogging::TLogger& GetLogger() const override;
 
-    TMultiReaderManagerSession& GetCurrentSession() override;
+    virtual TMultiReaderManagerSession& GetCurrentSession() override;
 
-    bool OnEmptyRead(bool readerFinished) override;
+    virtual bool OnEmptyRead(bool readerFinished) override;
 
-    void RegisterFailedReader(IReaderBasePtr reader) override;
+    virtual void RegisterFailedReader(IReaderBasePtr reader) override;
 
     virtual void Interrupt() override;
 

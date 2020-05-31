@@ -114,8 +114,10 @@ DECLARE_REFCOUNTED_CLASS(TFunctionImplCache)
 typedef NChunkClient::NProto::TChunkSpec TDataSplit;
 typedef std::vector<TDataSplit> TDataSplits;
 
-using NTableClient::ISchemafulReader;
-using NTableClient::ISchemafulReaderPtr;
+using NTableClient::ISchemafulUnversionedReader;
+using NTableClient::ISchemafulUnversionedReaderPtr;
+using NTableClient::ISchemalessUnversionedReader;
+using NTableClient::ISchemalessUnversionedReaderPtr;
 using NTableClient::IUnversionedRowsetWriter;
 using NTableClient::IUnversionedRowsetWriterPtr;
 using NTableClient::EValueType;

@@ -21,7 +21,8 @@ NApi::ITableWriterPtr CreateApiFromSchemalessWriterAdapter(
 
 struct TPipeReaderToWriterOptions
 {
-    i64 BufferRowCount = 0;
+    i64 BufferRowCount = 10000;
+    i64 BufferDataWeight = 16_MB;
     bool ValidateValues = false;
     NConcurrency::IThroughputThrottlerPtr Throttler;
     // Used only for testing.

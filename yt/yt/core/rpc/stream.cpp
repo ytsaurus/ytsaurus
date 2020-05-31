@@ -737,7 +737,11 @@ TFuture<IAsyncZeroCopyOutputStreamPtr> CreateRpcClientOutputStreamFromInvokedReq
         request->GetResponseAttachmentsStream(),
         feedbackEnabled);
 
-    return handshakeResult.Apply(BIND([=] () {
+    return handshakeResult.Apply(BIND([
+        =,
+        request = std::move(request),
+        invokeResult = std::move(invokeResult)
+    ] {
         return New<NDetail::TRpcClientOutputStream>(
             std::move(request),
             std::move(invokeResult),
@@ -753,7 +757,7 @@ TFuture<IAsyncZeroCopyOutputStreamPtr> CreateRpcClientOutputStreamFromInvokedReq
 
 void HandleInputStreamingRequest(
     const IServiceContextPtr& context,
-    const TCallback<TFuture<TSharedRef>()>& blockGenerator)
+    const std::function<TSharedRef()>& blockGenerator)
 {
     auto inputStream = context->GetRequestAttachmentsStream();
     YT_VERIFY(inputStream);
@@ -762,17 +766,15 @@ void HandleInputStreamingRequest(
 
     auto outputStream = context->GetResponseAttachmentsStream();
     YT_VERIFY(outputStream);
-    auto getNextBlock = [&] () {
-        return WaitFor(blockGenerator())
-            .ValueOrThrow();
-    };
-    while (auto block = getNextBlock()) {
+    
+    while (auto block = blockGenerator()) {
         WaitFor(outputStream->Write(block))
             .ThrowOnError();
     }
 
     WaitFor(outputStream->Close())
         .ThrowOnError();
+    
     context->Reply(TError());
 };
 
@@ -782,13 +784,16 @@ void HandleInputStreamingRequest(
 {
     HandleInputStreamingRequest(
         context,
-        BIND(&IAsyncZeroCopyInputStream::Read, input));
+        [&] {
+            return WaitFor(input->Read())
+                .ValueOrThrow();
+        });
 }
 
 void HandleOutputStreamingRequest(
     const IServiceContextPtr& context,
-    const TCallback<TFuture<void>(TSharedRef)>& blockHandler,
-    const TCallback<TFuture<void>()>& finalizer,
+    const std::function<void(TSharedRef)>& blockHandler,
+    const std::function<void()>& finalizer,
     bool feedbackEnabled)
 {
     auto inputStream = context->GetRequestAttachmentsStream();
@@ -796,7 +801,7 @@ void HandleOutputStreamingRequest(
     auto outputStream = context->GetResponseAttachmentsStream();
     YT_VERIFY(outputStream);
 
-    auto getNextBlock = [&] () {
+    auto blockGenerator = [&] {
         return WaitFor(inputStream->Read())
             .ValueOrThrow();
     };
@@ -807,12 +812,10 @@ void HandleOutputStreamingRequest(
         WaitFor(outputStream->Write(handshakeRef))
             .ThrowOnError();
 
-        while (auto block = getNextBlock()) {
-            WaitFor(blockHandler(block))
-                .ThrowOnError();
+        while (auto block = blockGenerator()) {
+            blockHandler(std::move(block));
 
-            auto ackRef = GenerateWriterFeedbackMessage(
-                NDetail::EWriterFeedback::Success);
+            auto ackRef = GenerateWriterFeedbackMessage(NDetail::EWriterFeedback::Success);
             WaitFor(outputStream->Write(ackRef))
                 .ThrowOnError();
         }
@@ -822,14 +825,14 @@ void HandleOutputStreamingRequest(
     } else {
         WaitFor(outputStream->Close())
             .ThrowOnError();
-        while (auto block = getNextBlock()) {
-            WaitFor(blockHandler(block))
-                .ThrowOnError();
+        
+        while (auto block = blockGenerator()) {
+            blockHandler(std::move(block));
         }
     }
 
-    WaitFor(finalizer())
-        .ThrowOnError();
+    finalizer();
+
     context->Reply(TError());
 }
 
@@ -840,8 +843,14 @@ void HandleOutputStreamingRequest(
 {
     HandleOutputStreamingRequest(
         context,
-        BIND(&IAsyncZeroCopyOutputStream::Write, output),
-        BIND(&IAsyncZeroCopyOutputStream::Close, output),
+        [&] (TSharedRef block) {
+            WaitFor(output->Write(std::move(block)))
+                .ThrowOnError();
+        },
+        [&] {
+            WaitFor(output->Close())
+                .ThrowOnError();
+        },
         feedbackEnabled);
 }
 

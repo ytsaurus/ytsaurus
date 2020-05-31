@@ -519,7 +519,6 @@ private:
         future.Subscribe(
             BIND([client = std::move(client), context = std::move(context)] (const TErrorOr<T>& valueOrError) {
                 if (valueOrError.IsOK()) {
-                    // XXX(sandello): This relies on the typed service context implementation.
                     context->Reply(TError());
                 } else {
                     context->Reply(TError(valueOrError.GetCode(), "Internal RPC call failed")
@@ -3045,8 +3044,14 @@ private:
 
         HandleOutputStreamingRequest(
             context,
-            BIND(&IFileWriter::Write, fileWriter),
-            BIND(&IFileWriter::Close, fileWriter),
+            [&] (TSharedRef block) {
+                WaitFor(fileWriter->Write(std::move(block)))
+                    .ThrowOnError();
+            },
+            [&] {
+                WaitFor(fileWriter->Close())
+                    .ThrowOnError();
+            },
             false /* feedbackEnabled */);
     }
 
@@ -3087,15 +3092,18 @@ private:
         WaitFor(journalReader->Open())
             .ThrowOnError();
 
-        HandleInputStreamingRequest(context, BIND([=] () {
-            return journalReader->Read().Apply(BIND([] (const std::vector<TSharedRef>& rows) {
+        HandleInputStreamingRequest(
+            context,
+            [&] {
+                auto rows = WaitFor(journalReader->Read())
+                    .ValueOrThrow();
+
                 if (rows.empty()) {
                     return TSharedRef();
                 }
 
                 return PackRefs(rows);
-            }));
-        }));
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteJournal)
@@ -3128,12 +3136,16 @@ private:
 
         HandleOutputStreamingRequest(
             context,
-            BIND([=] (const TSharedRef& packedRows) {
+            [&] (const TSharedRef& packedRows) {
                 std::vector<TSharedRef> rows;
                 UnpackRefsOrThrow(packedRows, &rows);
-                return journalWriter->Write(rows);
-            }),
-            BIND(&IJournalWriter::Close, journalWriter),
+                WaitFor(journalWriter->Write(rows))
+                    .ThrowOnError();
+            },
+            [&] {
+                WaitFor(journalWriter->Close())
+                    .ThrowOnError();
+            },
             true /* feedbackEnabled */);
     }
 
@@ -3217,16 +3229,19 @@ private:
         rows.reserve(Config_->ReadBufferRowCount);
         bool finished = false;
 
-        auto blockGenerator = BIND([&] {
-            if (finished) {
-                return MakeFuture(TSharedRef());
-            }
+        HandleInputStreamingRequest(
+            context,
+            [&] {
+                if (finished) {
+                    return TSharedRef();
+                }
 
-            return AsyncReadRows(tableReader, &rows).Apply(BIND([&] {
-                if (rows.empty()) {
+                auto batch = WaitForRowBatch(tableReader);
+                if (!batch) {
                     finished = true;
                 }
 
+                auto rows = batch ? batch->MaterializeRows() : TRange<TUnversionedRow>();
                 auto rowsetData = NApi::NRpcProxy::SerializeRowsetWithNameTableDelta(
                     tableReader->GetNameTable(),
                     rows,
@@ -3236,14 +3251,9 @@ private:
                 payload.set_total_row_count(tableReader->GetTotalRowCount());
                 ToProto(payload.mutable_data_statistics(), tableReader->GetDataStatistics());
                 auto payloadRef = SerializeProtoToRef(payload);
-
+                
                 return PackRefs(std::vector{rowsetData, payloadRef});
-            }));
-        });
-
-        HandleInputStreamingRequest(
-            context,
-            blockGenerator);
+            });
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable)
@@ -3280,22 +3290,25 @@ private:
         descriptor.set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
         descriptor.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
 
-        auto blockHandler = BIND([&] (const TSharedRef& block) {
-            // Here we assume our local tableWriter wouldn't modify its own name table,
-            // so we don't have to use an id mapping.
-            auto rows = NApi::NRpcProxy::DeserializeRowsetWithNameTableDelta(
-                block,
-                tableWriter->GetNameTable(),
-                &descriptor);
-
-            tableWriter->Write(rows);
-            return tableWriter->GetReadyEvent();
-        });
-
         HandleOutputStreamingRequest(
             context,
-            blockHandler,
-            BIND(&ITableWriter::Close, tableWriter),
+            [&] (const TSharedRef& block) {
+                // Here we assume our local tableWriter wouldn't modify its own name table,
+                // so we don't have to use an id mapping.
+                auto rows = NApi::NRpcProxy::DeserializeRowsetWithNameTableDelta(
+                    block,
+                    tableWriter->GetNameTable(),
+                    &descriptor);
+
+                tableWriter->Write(rows);
+                
+                WaitFor(tableWriter->GetReadyEvent())
+                    .ThrowOnError();
+            },
+            [&] {
+                WaitFor(tableWriter->Close())
+                    .ThrowOnError();
+            },
             false /* feedbackEnabled */);
     }
 

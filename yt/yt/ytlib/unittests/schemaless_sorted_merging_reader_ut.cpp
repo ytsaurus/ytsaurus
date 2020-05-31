@@ -5,6 +5,7 @@
 #include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 
 #include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_sorted_merging_reader.h>
@@ -61,8 +62,7 @@ struct TTableData
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessMultiChunkFakeReader
-    : public virtual IReaderBase
-    , public ISchemalessMultiChunkReader
+    : public ISchemalessMultiChunkReader
 {
 public:
     TSchemalessMultiChunkFakeReader(
@@ -106,20 +106,21 @@ public:
         YT_ABORT();
     }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         Rows_.clear();
-        rows->clear();
         if (Interrupted_ || RowIndex_ >= TableData_.Rows.size()) {
-            return false;
+            return nullptr;
         }
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(options.MaxRowsPerRead);
         TString tableIndexYson = Format("; \"@table_index\"=%d", InputTableIndex_);
-        while (rows->size() < rows->capacity() && RowIndex_ < TableData_.Rows.size()) {
-            Rows_.emplace_back(YsonToSchemafulRow(TableData_.Rows[RowIndex_] + tableIndexYson, TableSchema_, false));
-            rows->emplace_back(Rows_.back());
+        while (rows.size() < options.MaxRowsPerRead && RowIndex_ < TableData_.Rows.size()) {
+            Rows_.push_back(YsonToSchemafulRow(TableData_.Rows[RowIndex_] + tableIndexYson, TableSchema_, false));
+            rows.push_back(Rows_.back());
             ++RowIndex_;
         }
-        return true;
+        return CreateBatchFromUnversionedRows(std::move(rows), this);
     }
 
     virtual const TNameTablePtr& GetNameTable() const override
@@ -200,29 +201,37 @@ protected:
         std::vector<std::pair<int, TString>> expectedResult)
     {
         auto reader = createReader(resultStorage);
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(rowsPerRead);
+
+        TRowBatchReadOptions options{
+            .MaxRowsPerRead = rowsPerRead
+        };
+        
         int readRowCount = 0;
         TString lastReadRow;
+
         bool interrupted = false;
-        if (readRowCount >= interruptRowCount && !interrupted) {
-            reader->Interrupt();
-            interrupted = true;
-        }
-        WaitFor(reader->GetReadyEvent())
-            .ThrowOnError();
-        while (reader->Read(&rows)) {
-            if (!rows.empty()) {
-                lastReadRow = ToString(rows.back());
-                readRowCount += rows.size();
-            }
+        auto maybeInterrupt = [&] {
             if (readRowCount >= interruptRowCount && !interrupted) {
                 reader->Interrupt();
                 interrupted = true;
             }
-            WaitFor(reader->GetReadyEvent())
-                .ThrowOnError();
+        };
+
+        maybeInterrupt();
+
+        while (auto batch = reader->Read(options)) {
+            if (batch->IsEmpty()) {
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
+
+            auto rows = batch->MaterializeRows();
+            lastReadRow = ToString(rows.Back());
+            readRowCount += rows.size();
+            maybeInterrupt();
         }
+        
         reader->GetInterruptDescriptor(NYT::TRange<TUnversionedRow>());
         EXPECT_EQ(readRowCount, expectedReadRowCount);
         EXPECT_EQ(lastReadRow, expectedLastReadRow);
@@ -236,20 +245,19 @@ protected:
 
     std::vector<TString> ReadAll(
         TReaderFactory createReader,
-        std::vector<TResultStorage> *resultStorage)
+        std::vector<TResultStorage>* resultStorage)
     {
         std::vector<TString> result;
         auto reader = createReader(resultStorage);
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(1);
-        WaitFor(reader->GetReadyEvent())
-            .ThrowOnError();
-        while (reader->Read(&rows)) {
-            for (const auto& row : rows) {
-                result.emplace_back(ToString(row));
+        while (auto batch = reader->Read()) {
+            if (batch->IsEmpty()) {
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
             }
-            WaitFor(reader->GetReadyEvent())
-                .ThrowOnError();
+            for (auto row : batch->MaterializeRows()) {
+                result.push_back(ToString(row));
+            }
         }
         return result;
     }
@@ -365,10 +373,11 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedMergingReaderMultipleTables)
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
         resultStorage->resize(2);
-        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
-        // NB: Table indexes are not passed to readers.
-        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0, &(*resultStorage)[0]));
-        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 0, &(*resultStorage)[1]));
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders{
+            // NB: Table indexes are not passed to readers.
+            New<TSchemalessMultiChunkFakeReader>(tableData1, 0, &(*resultStorage)[0]),
+            New<TSchemalessMultiChunkFakeReader>(tableData2, 0, &(*resultStorage)[1])
+        };
 
         return CreateSchemalessSortedMergingReader(primaryReaders, 3, 2);
     };
@@ -411,12 +420,14 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderForeignBeforeMulti
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
         resultStorage->resize(2);
-        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
-        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData0, 1, &(*resultStorage)[0]));
-        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 2, &(*resultStorage)[1]));
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders{
+            New<TSchemalessMultiChunkFakeReader>(tableData0, 1, &(*resultStorage)[0]),
+            New<TSchemalessMultiChunkFakeReader>(tableData1, 2, &(*resultStorage)[1])
+        };
 
-        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
-        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData2, 0));
+        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders{
+            New<TSchemalessMultiChunkFakeReader>(tableData2, 0)
+        };
 
         return CreateSchemalessSortedJoiningReader(primaryReaders, 3, 2, foreignReaders, 1);
     };
@@ -1013,12 +1024,14 @@ TEST_F(TSchemalessSortedMergingReaderTest, JoinReduceEqualKeys)
     auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
         resultStorage->clear();
         resultStorage->resize(2);
-        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
-        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData3, 0, &(*resultStorage)[0]));
-        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData4, 1, &(*resultStorage)[1]));
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders{
+            New<TSchemalessMultiChunkFakeReader>(tableData3, 0, &(*resultStorage)[0]),
+            New<TSchemalessMultiChunkFakeReader>(tableData4, 1, &(*resultStorage)[1])
+        };
 
-        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
-        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData1, 0));
+        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders{
+            New<TSchemalessMultiChunkFakeReader>(tableData1, 0)
+        };
 
         return CreateSchemalessJoinReduceJoiningReader(primaryReaders, 1, 1, foreignReaders, 1);
     };

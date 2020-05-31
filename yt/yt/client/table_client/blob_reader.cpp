@@ -3,6 +3,10 @@
 #include "name_table.h"
 #include "schema.h"
 
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_reader.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
+
 #include <yt/core/concurrency/async_stream.h>
 
 namespace NYT::NTableClient {
@@ -56,21 +60,27 @@ public:
         , PreviousPartSize_(partSize)
         , NextPartIndex_(startPartIndex)
     {
-        Rows_.reserve(1);
         ColumnIndex_[EColumnType::PartIndex] = Reader_->GetNameTable()->GetIdOrRegisterName(PartIndexColumnName_);
         ColumnIndex_[EColumnType::Data] = Reader_->GetNameTable()->GetIdOrRegisterName(DataColumnName_);
     }
 
     virtual TFuture<TSharedRef> Read() override
     {
-        if (Index_ == Rows_.size()) {
+        if (!Batch_ || Index_ >= Batch_->GetRowCount()) {
             Index_ = 0;
-            bool result = Reader_->Read(&Rows_);
-            if (result && Rows_.empty()) {
-                return Reader_->GetReadyEvent().Apply(BIND([this, this_ = MakeStrong(this)] () {
-                    Reader_->Read(&Rows_);
-                    return ProcessRow();
-                }));
+            
+            NTableClient::TRowBatchReadOptions options{
+                .MaxRowsPerRead = 1
+            };
+            Batch_ = Reader_->Read(options);
+            
+            if (!Batch_) {
+                return MakeFuture<TSharedRef>(TSharedRef());
+            }
+
+            if (Batch_->IsEmpty()) {
+                return Reader_->GetReadyEvent().Apply(
+                    BIND(&TBlobTableReader::Read, MakeStrong(this)));
             }
         }
         return MakeFuture(ProcessRow());
@@ -85,7 +95,7 @@ private:
     std::optional<i64> PartSize_;
     std::optional<i64> PreviousPartSize_;
 
-    std::vector<TUnversionedRow> Rows_;
+    IUnversionedRowBatchPtr Batch_;
     i64 Index_ = 0;
     i64 NextPartIndex_;
 
@@ -93,11 +103,7 @@ private:
 
     TSharedRef ProcessRow()
     {
-        if (Rows_.empty()) {
-            return TSharedRef();
-        }
-
-        auto row = Rows_[Index_++];
+        auto row = Batch_->MaterializeRows()[Index_++];
         auto value = GetDataAndValidateRow(row);
 
         auto holder = MakeIntrinsicHolder(Reader_);

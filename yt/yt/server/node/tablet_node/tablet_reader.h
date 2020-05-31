@@ -18,7 +18,7 @@ namespace NYT::NTabletNode {
 //! Creates a range reader that merges data from the relevant stores and
 //! returns a single version of each value.
 
-NTableClient::ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
+NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<NTableClient::TRowRange>& bounds,
@@ -26,7 +26,7 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulSortedTabletReader(
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler());
 
-NTableClient::ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
+NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulOrderedTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     TOwningKey lowerBound,
@@ -38,8 +38,7 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulOrderedTabletReader(
 /*!
  *  Can handle both sorted and ordered tables.
  */
-
-NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
+NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     TOwningKey lowerBound,
@@ -53,7 +52,7 @@ NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
 /*!
  *  Can only handle sorted tables.
  */
-NTableClient::ISchemafulReaderPtr CreateSchemafulTabletReader(
+NTableClient::ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
     TTabletSnapshotPtr tabletSnapshot,
     const TColumnFilter& columnFilter,
     const TSharedRange<TKey>& keys,

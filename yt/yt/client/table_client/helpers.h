@@ -223,14 +223,22 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::IYsonConsumer* consumer);
-void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::TCheckedInDebugYsonTokenWriter* tokenWriter);
-NYson::TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enableRaw = false);
+//! A helper encapsulating Read/GetReadyEvent calls for a typical row batch reader.
+/*!
+ *  Invokes Read method and checks the result for emptiness.
+ *  If empty, waits for the ready event and loops.
+ *  Returns either a non-empty batch or null (indicating end-of-stream).
+ * 
+ *  All additional parameters are forwarded to Read call.
+ */
+template <class TReader, class... TArgs>
+auto WaitForRowBatch(const TIntrusivePtr<TReader>& reader, TArgs&&... args);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TReader, class TRow>
-TFuture<void> AsyncReadRows(const TIntrusivePtr<TReader>& reader, std::vector<TRow>* rows);
+void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::IYsonConsumer* consumer);
+void UnversionedValueToYson(TUnversionedValue unversionedValue, NYson::TCheckedInDebugYsonTokenWriter* tokenWriter);
+NYson::TYsonString UnversionedValueToYson(TUnversionedValue unversionedValue, bool enableRaw = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

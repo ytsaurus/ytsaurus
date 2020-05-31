@@ -18,11 +18,11 @@ using TOverlappingReaderKeyComparer = std::function<int(
     const TUnversionedValue*,
     const TUnversionedValue*)>;
 
-ISchemafulReaderPtr CreateSchemafulOverlappingLookupReader(
+ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingLookupReader(
     std::unique_ptr<TSchemafulRowMerger> rowMerger,
     std::function<IVersionedReaderPtr()> readerFactory);
 
-ISchemafulReaderPtr CreateSchemafulOverlappingRangeReader(
+ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingRangeReader(
     const std::vector<TOwningKey>& boundaries,
     std::unique_ptr<TSchemafulRowMerger> rowMerger,
     std::function<IVersionedReaderPtr(int index)> readerFactory,

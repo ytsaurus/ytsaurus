@@ -250,7 +250,7 @@ struct IOrderedStore
      *
      *  Thread affinity: any
      */
-    virtual NTableClient::ISchemafulReaderPtr CreateReader(
+    virtual NTableClient::ISchemafulUnversionedReaderPtr CreateReader(
         const TTabletSnapshotPtr& tabletSnapshot,
         int tabletIndex,
         i64 lowerRowIndex,

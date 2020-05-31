@@ -49,17 +49,11 @@ class TChunkReaderConfig
     : public virtual NChunkClient::TBlockFetcherConfig
 {
 public:
-    i64 MaxDataSizePerRead;
-
     std::optional<double> SamplingRate;
     std::optional<ui64> SamplingSeed;
 
     TChunkReaderConfig()
     {
-        RegisterParameter("max_data_size_per_read", MaxDataSizePerRead)
-            .GreaterThanOrEqual((i64) 1024 * 1024)
-            .Default((i64) 16 * 1024 * 1024);
-
         RegisterParameter("sampling_rate", SamplingRate)
             .Default()
             .InRange(0, 1);

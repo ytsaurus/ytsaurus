@@ -6,6 +6,8 @@
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schemaless_row_reorderer.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/row_buffer.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -20,12 +22,11 @@ using namespace NConcurrency;
 using NChunkClient::TDataSliceDescriptor;
 using NYT::TRange;
 
-// Reasonable default for max data size per one read call.
-static const i64 MaxDataSizePerRead = 16 * 1024 * 1024;
-static const int RowsPerRead = 10000;
-
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSchemalessSortingReaderTag
+{ };
+ 
 class TSchemalessSortingReader
     : public ISchemalessMultiChunkReader
 {
@@ -34,64 +35,38 @@ public:
         ISchemalessMultiChunkReaderPtr underlyingReader,
         TNameTablePtr nameTable,
         TKeyColumns keyColumns)
-        : RowReorderer_(nameTable, keyColumns)
-        , UnderlyingReader_(underlyingReader)
-        , KeyColumns_(keyColumns)
-    {
-        ReadyEvent_ = BIND(&TSchemalessSortingReader::DoOpen,
-            MakeWeak(this))
+        : UnderlyingReader_(std::move(underlyingReader))
+        , KeyColumns_(std::move(keyColumns))
+        , RowBuffer_(New<TRowBuffer>(TSchemalessSortingReaderTag()))
+        , RowReorderer_(std::move(nameTable), RowBuffer_, /*deepCapture*/ true, KeyColumns_)
+        , ReadyEvent_(BIND(&TSchemalessSortingReader::DoOpen, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-            .Run();
-    }
+            .Run())
+    { }
 
-    void DoOpen()
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(RowsPerRead);
-
-        while (UnderlyingReader_->Read(&rows)) {
-            if (rows.empty()) {
-                WaitFor(UnderlyingReader_->GetReadyEvent())
-                    .ThrowOnError();
-                continue;
-            }
-
-            for (auto& row : rows) {
-                Rows_.push_back(RowReorderer_.ReorderRow(row));
-            }
-        }
-
-        std::sort(
-            Rows_.begin(),
-            Rows_.end(),
-            [&] (const TUnversionedOwningRow& lhs, const TUnversionedOwningRow& rhs) {
-                return CompareRows(lhs, rhs, KeyColumns_.size()) < 0;
-            });
-    }
-
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
-    {
-        YT_VERIFY(rows->capacity() > 0);
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-            return true;
+            return CreateEmptyUnversionedRowBatch();
         }
 
-        rows->clear();
-
-        if (ReadRowCount_ == Rows_.size()) {
-            return false;
-        }
-
+        i64 startRowCount = ReadRowCount_;
+        i64 endRowCount = startRowCount;
         i64 dataWeight = 0;
-        while (ReadRowCount_ < Rows_.size() && rows->size() < rows->capacity() && dataWeight < MaxDataSizePerRead) {
-            rows->push_back(Rows_[ReadRowCount_]);
-            dataWeight += GetDataWeight(rows->back());
-            ++ReadRowCount_;
+        while (endRowCount < Rows_.size() && endRowCount - startRowCount < options.MaxRowsPerRead && dataWeight < options.MaxDataWeightPerRead) {
+            dataWeight += GetDataWeight(Rows_[endRowCount++]);
         }
-        ReadDataWeight_ += dataWeight;
 
-        YT_VERIFY(!rows->empty());
-        return true;
+        if (endRowCount == startRowCount) {
+            return nullptr;
+        }
+
+        ReadDataWeight_ += dataWeight;
+        ReadRowCount_ = endRowCount;
+
+        return CreateBatchFromUnversionedRows(
+            TRange<TUnversionedRow>(Rows_.data() + startRowCount, Rows_.data() + endRowCount),
+            this);
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -127,7 +102,7 @@ public:
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor(
-        TRange<TUnversionedRow> unreadRows) const override
+        TRange<TUnversionedRow> /*unreadRows*/) const override
     {
         YT_ABORT();
     }
@@ -164,8 +139,7 @@ public:
 
     virtual i64 GetTableRowIndex() const override
     {
-        // Not supported.
-        return -1;
+        return 0;
     }
 
     virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const
@@ -174,17 +148,39 @@ public:
     }
 
 private:
+    const ISchemalessMultiChunkReaderPtr UnderlyingReader_;
+    const TKeyColumns KeyColumns_;
+
+    const TRowBufferPtr RowBuffer_;
     TSchemalessRowReorderer RowReorderer_;
+    
+    const TFuture<void> ReadyEvent_;
 
-    ISchemalessMultiChunkReaderPtr UnderlyingReader_;
-    TKeyColumns KeyColumns_;
-
-    std::vector<TUnversionedOwningRow> Rows_;
+    std::vector<TUnversionedRow> Rows_;
     i64 ReadRowCount_ = 0;
     i64 ReadDataWeight_ = 0;
+    
+    void DoOpen()
+    {
+        while (auto batch = UnderlyingReader_->Read()) {
+            if (batch->IsEmpty()) {
+                WaitFor(UnderlyingReader_->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
 
-    TFuture<void> ReadyEvent_;
+            for (auto row : batch->MaterializeRows()) {
+                Rows_.push_back(RowReorderer_.ReorderRow(row));
+            }
+        }
 
+        std::sort(
+            Rows_.begin(),
+            Rows_.end(),
+            [&] (auto lhs, auto rhs) {
+                return CompareRows(lhs, rhs, KeyColumns_.size()) < 0;
+            });
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,7 +190,10 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessSortingReader(
     TNameTablePtr nameTable,
     TKeyColumns keyColumns)
 {
-    return New<TSchemalessSortingReader>(underlyingReader, nameTable, keyColumns);
+    return New<TSchemalessSortingReader>(
+        std::move(underlyingReader),
+        std::move(nameTable),
+        std::move(keyColumns));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

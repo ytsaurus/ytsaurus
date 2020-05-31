@@ -18,7 +18,7 @@
 #include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/ytlib/table_client/versioned_chunk_writer.h>
 #include <yt/client/table_client/versioned_reader.h>

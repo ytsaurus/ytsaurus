@@ -17,7 +17,7 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/schema.h>
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schemaful_reader_adapter.h>
 
@@ -44,7 +44,7 @@ using NChunkClient::NProto::TChunkSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ISchemafulReaderPtr CreateSchemafulChunkReader(
+ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
     const TChunkStatePtr& chunkState,
     const TColumnarChunkMetaPtr& chunkMeta,
     TChunkReaderConfigPtr config,

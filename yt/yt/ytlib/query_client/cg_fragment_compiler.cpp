@@ -1056,9 +1056,8 @@ TCodegenExpression MakeCodegenReferenceExpr(
     TString name)
 {
     return [
-            index,
-            type,
-            MOVE(name)
+            =,
+            name = std::move(name)
         ] (TCGExprContext& builder) {
             return TCGValue::CreateFromRowValues(
                 builder,
@@ -1170,8 +1169,8 @@ void MakeCodegenFragmentBodies(
     TCodegenFragmentInfosPtr fragmentInfos)
 {
     *codegenSource = [
-        MOVE(fragmentInfos),
-        codegenSource = std::move(*codegenSource)
+        codegenSource = std::move(*codegenSource),
+        fragmentInfos = std::move(fragmentInfos)
     ] (TCGOperatorContext& builder) {
         CodegenFragmentBodies(builder.Module, *fragmentInfos);
         codegenSource(builder);
@@ -1185,10 +1184,8 @@ TCodegenExpression MakeCodegenUnaryOpExpr(
     TString name)
 {
     return [
-        MOVE(opcode),
-        MOVE(operandId),
-        MOVE(type),
-        MOVE(name)
+        =,
+        name = std::move(name)
     ] (TCGExprContext& builder) {
         auto operandValue = CodegenFragment(builder, operandId);
 
@@ -1259,11 +1256,8 @@ TCodegenExpression MakeCodegenLogicalBinaryOpExpr(
     TString name)
 {
     return [
-        MOVE(opcode),
-        MOVE(lhsId),
-        MOVE(rhsId),
-        MOVE(type),
-        MOVE(name)
+        =,
+        name = std::move(name)
     ] (TCGExprContext& builder) {
         auto lhsValue = CodegenFragment(builder, lhsId);
         auto rhsValue = CodegenFragment(builder, rhsId);
@@ -1316,11 +1310,8 @@ TCodegenExpression MakeCodegenRelationalBinaryOpExpr(
     TString name)
 {
     return [
-        MOVE(opcode),
-        MOVE(lhsId),
-        MOVE(rhsId),
-        MOVE(type),
-        MOVE(name)
+        =,
+        name = std::move(name)
     ] (TCGExprContext& builder) {
         auto nameTwine = Twine(name.c_str());
         auto lhsValue = CodegenFragment(builder, lhsId);
@@ -1650,11 +1641,8 @@ TCodegenExpression MakeCodegenArithmeticBinaryOpExpr(
     TString name)
 {
     return [
-        MOVE(opcode),
-        MOVE(lhsId),
-        MOVE(rhsId),
-        MOVE(type),
-        MOVE(name)
+        =,
+        name = std::move(name)
     ] (TCGExprContext& builder) {
         auto nameTwine = Twine(name.c_str());
 
@@ -1840,10 +1828,9 @@ TCodegenExpression MakeCodegenInExpr(
     TComparerManagerPtr comparerManager)
 {
     return [
-        MOVE(argIds),
-        MOVE(arrayIndex),
-        MOVE(hashtableIndex),
-        MOVE(comparerManager)
+        =,
+        argIds = std::move(argIds),
+        comparerManager = std::move(comparerManager)
     ] (TCGExprContext& builder) {
         size_t keySize = argIds.size();
 
@@ -1882,12 +1869,12 @@ TCodegenExpression MakeCodegenBetweenExpr(
     TComparerManagerPtr comparerManager)
 {
     return [
-        MOVE(argIds),
-        MOVE(arrayIndex),
-        MOVE(comparerManager)
+        =,
+        argIds = std::move(argIds),
+        comparerManager = std::move(comparerManager)
     ] (TCGExprContext& builder) {
         size_t keySize = argIds.size();
-
+    
         Value* newValues = CodegenAllocateValues(builder, keySize);
 
         std::vector<EValueType> keyTypes;
@@ -1923,12 +1910,9 @@ TCodegenExpression MakeCodegenTransformExpr(
     TComparerManagerPtr comparerManager)
 {
     return [
-        MOVE(argIds),
-        MOVE(defaultExprId),
-        MOVE(arrayIndex),
-        MOVE(hashtableIndex),
-        resultType,
-        MOVE(comparerManager)
+        =,
+        argIds = std::move(argIds),
+        comparerManager = std::move(comparerManager)
     ] (TCGExprContext& builder) {
         size_t keySize = argIds.size();
 
@@ -2041,11 +2025,7 @@ std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
     size_t totalsConsumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        finalConsumerSlot,
-        intermediateConsumerSlot,
-        totalsConsumerSlot,
-        producerSlot,
-        streamIndex,
+        =,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
 
@@ -2127,15 +2107,11 @@ size_t MakeCodegenJoinOp(
 {
     size_t consumerSlot = (*slotCount)++;
     *codegenSource = [
-        consumerSlot,
-        producerSlot,
-        index,
-        MOVE(fragmentInfos),
-        MOVE(equations),
-        commonKeyPrefix,
-        foreignKeyPrefix,
-        MOVE(comparerManager),
-        codegenSource = std::move(*codegenSource)
+        =,
+        codegenSource = std::move(*codegenSource),
+        fragmentInfos = std::move(fragmentInfos),
+        equations = std::move(equations),
+        comparerManager = std::move(comparerManager)
     ] (TCGOperatorContext& builder) {
         int lookupKeySize = equations.size();
         // TODO(lukyan): Do not fill in consumer
@@ -2264,14 +2240,12 @@ size_t MakeCodegenMultiJoinOp(
 {
     size_t consumerSlot = (*slotCount)++;
     *codegenSource = [
-        consumerSlot,
-        producerSlot,
-        index,
-        MOVE(fragmentInfos),
-        MOVE(parameters),
-        MOVE(comparerManager),
-        MOVE(primaryColumns),
-        codegenSource = std::move(*codegenSource)
+        =,
+        codegenSource = std::move(*codegenSource),
+        fragmentInfos = std::move(fragmentInfos),
+        parameters = std::move(parameters),
+        primaryColumns = std::move(primaryColumns),
+        comparerManager = std::move(comparerManager)
     ] (TCGOperatorContext& builder) {
         auto collectRows = MakeClosure<void(TJoinClosure*, TExpressionContext*)>(builder, "CollectRows", [&] (
             TCGOperatorContext& builder,
@@ -2437,11 +2411,9 @@ size_t MakeCodegenFilterOp(
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        consumerSlot,
-        producerSlot,
-        MOVE(fragmentInfos),
-        predicateId,
-        codegenSource = std::move(*codegenSource)
+        =,
+        codegenSource = std::move(*codegenSource),
+        fragmentInfos = std::move(fragmentInfos)
     ] (TCGOperatorContext& builder) {
         Value* expressionClosurePtr = builder->CreateAlloca(
             TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
@@ -2501,14 +2473,11 @@ size_t MakeCodegenFilterFinalizedOp(
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        consumerSlot,
-        producerSlot,
-        MOVE(fragmentInfos),
-        predicateId,
-        keySize,
-        MOVE(codegenAggregates),
-        MOVE(stateTypes),
-        codegenSource = std::move(*codegenSource)
+        =,
+        codegenSource = std::move(*codegenSource),
+        fragmentInfos = std::move(fragmentInfos),
+        codegenAggregates = std::move(codegenAggregates),
+        stateTypes = std::move(stateTypes)
     ] (TCGOperatorContext& builder) {
         Value* expressionClosurePtr = builder->CreateAlloca(
             TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
@@ -2586,10 +2555,7 @@ size_t MakeCodegenAddStreamOp(
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        consumerSlot,
-        producerSlot,
-        rowSize,
-        value,
+        =,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
         Value* newValues = CodegenAllocateValues(builder, rowSize + 1);
@@ -2632,11 +2598,10 @@ size_t MakeCodegenProjectOp(
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        consumerSlot,
-        producerSlot,
-        MOVE(fragmentInfos),
-        MOVE(argIds),
-        codegenSource = std::move(*codegenSource)
+        =,
+        codegenSource = std::move(*codegenSource),
+        fragmentInfos = std::move(fragmentInfos),
+        argIds = std::move(argIds)
     ] (TCGOperatorContext& builder) {
         int projectionCount = argIds.size();
 
@@ -2679,9 +2644,7 @@ std::tuple<size_t, size_t> MakeCodegenDuplicateOp(
     size_t secondSlot = (*slotCount)++;
 
     *codegenSource = [
-        firstSlot,
-        secondSlot,
-        producerSlot,
+        =,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
         builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
@@ -2705,9 +2668,7 @@ size_t MakeCodegenMergeOp(
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        consumerSlot,
-        firstSlot,
-        secondSlot,
+        =,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
         builder[firstSlot] = builder[consumerSlot];
@@ -2727,8 +2688,7 @@ size_t MakeCodegenOnceOp(
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        consumerSlot,
-        producerSlot,
+        =,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
 
@@ -2782,20 +2742,15 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
     size_t innerConsumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        boundaryConsumerSlot,
-        innerConsumerSlot,
-        producerSlot,
-        MOVE(fragmentInfos),
-        MOVE(groupExprsIds),
-        MOVE(aggregateExprIds),
-        MOVE(codegenAggregates),
+        =,
         codegenSource = std::move(*codegenSource),
-        MOVE(keyTypes),
-        MOVE(stateTypes),
-        isMerge,
-        checkNulls,
-        commonPrefixWithPrimaryKey,
-        MOVE(comparerManager)
+        fragmentInfos = std::move(fragmentInfos),
+        groupExprsIds = std::move(groupExprsIds),
+        aggregateExprIds = std::move(aggregateExprIds),
+        codegenAggregates = std::move(codegenAggregates),
+        keyTypes = std::move(keyTypes),
+        stateTypes = std::move(stateTypes),
+        comparerManager = std::move(comparerManager)
     ] (TCGOperatorContext& builder) {
         auto collect = MakeClosure<void(TGroupByClosure*, TExpressionContext*)>(builder, "GroupCollect", [&] (
             TCGOperatorContext& builder,
@@ -2959,12 +2914,11 @@ size_t MakeCodegenGroupTotalsOp(
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        consumerSlot,
-        producerSlot,
-        MOVE(codegenAggregates),
+        =,
         codegenSource = std::move(*codegenSource),
-        MOVE(keyTypes),
-        MOVE(stateTypes)
+        codegenAggregates = std::move(codegenAggregates),
+        keyTypes = std::move(keyTypes),
+        stateTypes = std::move(stateTypes)
     ] (TCGOperatorContext& builder) {
         auto collect = MakeClosure<void(TExpressionContext*)>(builder, "GroupTotalsCollect", [&] (
             TCGOperatorContext& builder,
@@ -3065,12 +3019,10 @@ size_t MakeCodegenFinalizeOp(
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        consumerSlot,
-        producerSlot,
-        keySize,
-        MOVE(codegenAggregates),
-        MOVE(stateTypes),
-        codegenSource = std::move(*codegenSource)
+        =,
+        codegenSource = std::move(*codegenSource),
+        codegenAggregates = std::move(codegenAggregates),
+        stateTypes = std::move(stateTypes)
     ] (TCGOperatorContext& builder) {
         builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
             for (int index = 0; index < codegenAggregates.size(); index++) {
@@ -3104,19 +3056,16 @@ size_t MakeCodegenOrderOp(
     const std::vector<bool>& isDesc,
     TComparerManagerPtr comparerManager)
 {
-
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        consumerSlot,
-        producerSlot,
-        isDesc,
-        MOVE(fragmentInfos),
-        MOVE(exprIds),
-        MOVE(orderColumnTypes),
-        MOVE(sourceSchema),
-        MOVE(comparerManager),
-        codegenSource = std::move(*codegenSource)
+        =,
+        codegenSource = std::move(*codegenSource),
+        fragmentInfos = std::move(fragmentInfos),
+        exprIds = std::move(exprIds),
+        orderColumnTypes = std::move(orderColumnTypes),
+        sourceSchema = std::move(sourceSchema),
+        comparerManager = std::move(comparerManager)
     ] (TCGOperatorContext& builder) {
         auto schemaSize = sourceSchema.size();
 
@@ -3207,10 +3156,7 @@ size_t MakeCodegenOffsetLimiterOp(
     size_t consumerSlot = (*slotCount)++;
 
     *codegenSource = [
-        consumerSlot,
-        producerSlot,
-        offsetId,
-        limitId,
+        =,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
 
@@ -3276,8 +3222,7 @@ void MakeCodegenWriteOp(
     size_t rowSize)
 {
     *codegenSource = [
-        producerSlot,
-        rowSize,
+        =,
         codegenSource = std::move(*codegenSource)
     ] (TCGOperatorContext& builder) {
         auto collect = MakeClosure<void(TWriteOpClosure*)>(builder, "WriteOpInner", [&] (

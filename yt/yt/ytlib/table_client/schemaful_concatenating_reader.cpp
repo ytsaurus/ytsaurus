@@ -1,6 +1,6 @@
 #include "schemaful_concatencaing_reader.h"
 
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
 
 namespace NYT::NTableClient {
 
@@ -9,38 +9,27 @@ using namespace NChunkClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulConcatenatingReader
-    : public ISchemafulReader
+    : public ISchemafulUnversionedReader
 {
 public:
     explicit TSchemafulConcatenatingReader(
-        std::vector<std::function<ISchemafulReaderPtr()>> underlyingReaderFactories)
+        std::vector<std::function<ISchemafulUnversionedReaderPtr()>> underlyingReaderFactories)
         : UnderlyingReaderFactories_(std::move(underlyingReaderFactories))
     { }
 
-    virtual bool Read(std::vector<TUnversionedRow>* rows) override
+    virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        auto resetCurrentReader = [&] () {
-            ++CurrentReaderIndex_;
-            if (CurrentReaderIndex_ < UnderlyingReaderFactories_.size()) {
-                CurrentReader_ = UnderlyingReaderFactories_[CurrentReaderIndex_]();
-                Readers_.push_back(CurrentReader_);
-            } else {
-                CurrentReader_.Reset();
-            }
-        };
-
         if (!CurrentReader_) {
-            resetCurrentReader();
+            SwitchCurrentReader();
         }
 
         while (CurrentReader_) {
-            if (CurrentReader_->Read(rows)) {
-                return true;
+            if (auto batch = CurrentReader_->Read(options)) {
+                return batch;
             }
-
-            resetCurrentReader();
+            SwitchCurrentReader();
         }
-        return false;
+        return nullptr;
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -68,17 +57,47 @@ public:
         return result;
     }
 
+    virtual bool IsFetchingCompleted() const
+    {
+        for (const auto& reader : Readers_) {
+            if (!reader->IsFetchingCompleted()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override
+    {
+        std::vector<NChunkClient::TChunkId> result;
+        for (const auto& reader : Readers_) {
+            auto failedChunkIds = reader->GetFailedChunkIds();
+            result.insert(result.end(), failedChunkIds.begin(), failedChunkIds.end());
+        }
+        return result;
+    }
+
 private:
-    const std::vector<std::function<ISchemafulReaderPtr()>> UnderlyingReaderFactories_;
+    const std::vector<std::function<ISchemafulUnversionedReaderPtr()>> UnderlyingReaderFactories_;
 
     int CurrentReaderIndex_ = -1;
-    ISchemafulReaderPtr CurrentReader_;
-    std::vector<ISchemafulReaderPtr> Readers_;
+    ISchemafulUnversionedReaderPtr CurrentReader_;
+    std::vector<ISchemafulUnversionedReaderPtr> Readers_;
 
+    void SwitchCurrentReader()
+    {
+        ++CurrentReaderIndex_;
+        if (CurrentReaderIndex_ < UnderlyingReaderFactories_.size()) {
+            CurrentReader_ = UnderlyingReaderFactories_[CurrentReaderIndex_]();
+            Readers_.push_back(CurrentReader_);
+        } else {
+            CurrentReader_.Reset();
+        }
+    }
 };
 
-ISchemafulReaderPtr CreateSchemafulConcatenatingReader(
-    std::vector<std::function<ISchemafulReaderPtr()>> underlyingReaderFactories)
+ISchemafulUnversionedReaderPtr CreateSchemafulConcatenatingReader(
+    std::vector<std::function<ISchemafulUnversionedReaderPtr()>> underlyingReaderFactories)
 {
     return New<TSchemafulConcatenatingReader>(std::move(underlyingReaderFactories));
 }

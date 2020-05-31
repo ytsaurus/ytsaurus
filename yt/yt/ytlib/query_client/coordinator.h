@@ -44,7 +44,7 @@ TRowRanges GetPrunedRanges(
     const TQueryOptions& options);
 
 using TEvaluateResult = std::pair<
-    ISchemafulReaderPtr,
+    ISchemafulUnversionedReaderPtr,
     TFuture<TQueryStatistics>>;
 
 TQueryStatistics CoordinateAndExecute(
@@ -52,7 +52,7 @@ TQueryStatistics CoordinateAndExecute(
     const IUnversionedRowsetWriterPtr& writer,
     const std::vector<TRefiner>& ranges,
     std::function<TEvaluateResult(const TConstQueryPtr&, int)> evaluateSubquery,
-    std::function<TQueryStatistics(const TConstFrontQueryPtr&, const ISchemafulReaderPtr&, const IUnversionedRowsetWriterPtr&)> evaluateTop);
+    std::function<TQueryStatistics(const TConstFrontQueryPtr&, const ISchemafulUnversionedReaderPtr&, const IUnversionedRowsetWriterPtr&)> evaluateTop);
 
 ////////////////////////////////////////////////////////////////////////////////
 

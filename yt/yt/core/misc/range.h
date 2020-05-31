@@ -151,6 +151,11 @@ public:
         return Length_ == 0;
     }
 
+    bool empty() const
+    {
+        return Empty();
+    }
+
     explicit operator bool() const
     {
         return Data_ != nullptr;

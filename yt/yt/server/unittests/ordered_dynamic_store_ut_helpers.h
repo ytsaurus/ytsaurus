@@ -2,7 +2,8 @@
 
 #include "dynamic_store_ut_helpers.h"
 
-#include <yt/client/table_client/schemaful_reader.h>
+#include <yt/client/table_client/unversioned_reader.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 
 namespace NYT::NTabletNode {
 namespace {
@@ -43,10 +44,13 @@ protected:
             columnFilter,
             BlockReadOptions_);
 
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(1);
+        NTableClient::TRowBatchReadOptions options{
+            .MaxRowsPerRead = 1
+        };
+        auto batch = NTableClient::WaitForRowBatch(reader, options);
+        EXPECT_TRUE(batch.operator bool());
 
-        EXPECT_TRUE(reader->Read(&rows));
+        auto rows = batch->MaterializeRows();
         EXPECT_EQ(1, rows.size());
         auto row = rows[0];
 

@@ -22,7 +22,7 @@ public:
 
     TQueryStatistics Run(
         TConstBaseQueryPtr fragment,
-        ISchemafulReaderPtr reader,
+        ISchemafulUnversionedReaderPtr reader,
         IUnversionedRowsetWriterPtr writer,
         TJoinSubqueryProfiler joinProfiler,
         TConstFunctionProfilerMapPtr functionProfilers,

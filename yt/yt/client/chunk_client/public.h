@@ -114,6 +114,8 @@ extern const TString DefaultStoreMediumName;
 extern const TString DefaultCacheMediumName;
 extern const TString DefaultSlotsMediumName;
 
+DECLARE_REFCOUNTED_STRUCT(IReaderBase)
+
 DECLARE_REFCOUNTED_CLASS(TFetchChunkSpecConfig)
 DECLARE_REFCOUNTED_CLASS(TFetcherConfig)
 DECLARE_REFCOUNTED_CLASS(TEncodingWriterConfig)

@@ -17,7 +17,7 @@ public:
     ~TSchemafulPipe();
 
     //! Returns the reader side of the pipe.
-    ISchemafulReaderPtr GetReader() const;
+    ISchemafulUnversionedReaderPtr GetReader() const;
 
     //! Returns the writer side of the pipe.
     IUnversionedRowsetWriterPtr GetWriter() const;
