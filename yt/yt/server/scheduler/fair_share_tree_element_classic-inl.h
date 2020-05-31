@@ -29,12 +29,13 @@ inline void TSchedulerElement::SetAlive(bool alive)
     ResourceTreeElement_->SetAlive(alive);
 }
 
-inline void TSchedulerElement::SetFairShareRatio(double fairShareRatio)
+inline void TSchedulerElement::PublishFairShareRatio()
 {
-    // This version is global and used to balance preemption lists.
-    ResourceTreeElement_->SetFairShareRatio(fairShareRatio);
-    // This version is local for tree and used to compute satisfaction ratios.
-    Attributes_.FairShareRatio = fairShareRatio;
+    // ResourceTreeElement_.FairShareRatio is global and used to balance preemption lists.
+    ResourceTreeElement_->SetFairShareRatio(Attributes_.FairShare.Total());
+    // Attributes_.FairShare is local for tree and used to compute satisfaction ratios.
+    // PersistentAttributes_.LastIntegralShareRatio is used to calculate consumed resources.
+    PersistentAttributes_.LastIntegralShareRatio = Attributes_.FairShare.IntegralGuaranteeRatio;
 }
 
 inline double TSchedulerElement::GetFairShareRatio() const

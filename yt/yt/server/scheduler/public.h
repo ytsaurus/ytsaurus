@@ -43,6 +43,10 @@ struct TOperationRevivalDescriptor;
 class TMasterConnector;
 class TBootstrap;
 
+DECLARE_REFCOUNTED_CLASS(TPersistentStrategyState)
+DECLARE_REFCOUNTED_CLASS(TPersistentTreeState)
+DECLARE_REFCOUNTED_CLASS(TPersistentPoolState)
+
 namespace NClassicScheduler {
 
 // TODO(mrkastep) Move to private.h

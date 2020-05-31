@@ -607,8 +607,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             metric_prefix + "demand_ratio_x100000",
             with_tags={"pool": "unique_pool"},
             aggr_method="max")
-        guaranteed_resource_ratio_max = Metric.at_scheduler(
-            metric_prefix + "guaranteed_resource_ratio_x100000",
+        unlimited_demand_fair_share_max = Metric.at_scheduler(
+            metric_prefix + "unlimited_demand_fair_share_x100000",
             with_tags={"pool": "unique_pool"},
             aggr_method="max")
         cpu_usage_max = Metric.at_scheduler(
@@ -661,7 +661,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: fair_share_ratio_max.update().get(verbose=True) == 100000)
         wait(lambda: usage_ratio_max.update().get(verbose=True) == 100000)
         wait(lambda: demand_ratio_max.update().get(verbose=True) == 100000)
-        wait(lambda: guaranteed_resource_ratio_max.update().get(verbose=True) == 100000)
+        wait(lambda: unlimited_demand_fair_share_max.update().get(verbose=True) == 100000)
         wait(lambda: cpu_usage_max.update().get(verbose=True) == 1)
         wait(lambda: user_slots_usage_max.update().get(verbose=True) == 1)
         wait(lambda: cpu_demand_max.update().get(verbose=True) == 1)
@@ -701,8 +701,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             with_tags={"pool": "some_pool"},
             grouped_by_tags=["slot_index"],
             aggr_method="last")
-        guaranteed_resource_ratio_last = Metric.at_scheduler(
-            metric_prefix + "guaranteed_resource_ratio_x100000",
+        unlimited_demand_fair_share_last = Metric.at_scheduler(
+            metric_prefix + "unlimited_demand_fair_share_x100000",
             with_tags={"pool": "some_pool"},
             grouped_by_tags=["slot_index"],
             aggr_method="last")
@@ -743,7 +743,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: fair_share_ratio_last.update().get("0", verbose=True) in range_)
         wait(lambda: usage_ratio_last.update().get("0", verbose=True) == 100000)
         wait(lambda: demand_ratio_last.update().get("0", verbose=True) == 100000)
-        wait(lambda: guaranteed_resource_ratio_last.update().get("0", verbose=True) in range_)
+        wait(lambda: unlimited_demand_fair_share_last.update().get("0", verbose=True) in range_)
         wait(lambda: cpu_usage_last.update().get("0", verbose=True) == 1)
         wait(lambda: user_slots_usage_last.update().get("0", verbose=True) == 1)
         wait(lambda: cpu_demand_last.update().get("0", verbose=True) == 1)
@@ -752,7 +752,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: fair_share_ratio_last.update().get("1", verbose=True) in range_)
         wait(lambda: usage_ratio_last.update().get("1", verbose=True) == 0)
         wait(lambda: demand_ratio_last.update().get("1", verbose=True) == 100000)
-        wait(lambda: guaranteed_resource_ratio_last.update().get("1", verbose=True) in range_)
+        wait(lambda: unlimited_demand_fair_share_last.update().get("1", verbose=True) in range_)
         wait(lambda: cpu_usage_last.update().get("1", verbose=True) == 0)
         wait(lambda: user_slots_usage_last.update().get("1", verbose=True) == 0)
         wait(lambda: cpu_demand_last.update().get("1", verbose=True) == 1)
@@ -763,7 +763,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
         wait(lambda: fair_share_ratio_last.update().get("1", verbose=True) == 100000)
         wait(lambda: usage_ratio_last.update().get("1", verbose=True) == 100000)
         wait(lambda: demand_ratio_last.update().get("1", verbose=True) == 100000)
-        wait(lambda: guaranteed_resource_ratio_last.update().get("1", verbose=True) == 100000)
+        wait(lambda: unlimited_demand_fair_share_last.update().get("1", verbose=True) == 100000)
 
     @authors("ignat", "eshcherbin")
     def test_operations_by_user_profiling(self):
@@ -791,8 +791,8 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             metric_prefix + "demand_ratio_x100000",
             grouped_by_tags=["pool", "user_name", "custom"],
             aggr_method="last")
-        guaranteed_resource_ratio_last = Metric.at_scheduler(
-            metric_prefix + "guaranteed_resource_ratio_x100000",
+        unlimited_demand_fair_share_last = Metric.at_scheduler(
+            metric_prefix + "unlimited_demand_fair_share_x100000",
             grouped_by_tags=["pool", "user_name", "custom"],
             aggr_method="last")
         cpu_usage_last = Metric.at_scheduler(
@@ -845,7 +845,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             wait(lambda: func(fair_share_ratio_last.update(), "some_pool", value) in range_1)
             wait(lambda: func(usage_ratio_last.update(), "some_pool", value) == 100000)
             wait(lambda: func(demand_ratio_last.update(), "some_pool", value) == 100000)
-            wait(lambda: func(guaranteed_resource_ratio_last.update(), "some_pool", value) in range_1)
+            wait(lambda: func(unlimited_demand_fair_share_last.update(), "some_pool", value) in range_1)
             wait(lambda: func(cpu_usage_last.update(), "some_pool", value) == 1)
             wait(lambda: func(user_slots_usage_last.update(), "some_pool", value) == 1)
             wait(lambda: func(cpu_demand_last.update(), "some_pool", value) == 1)
@@ -855,7 +855,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) in range_3)
             wait(lambda: func(usage_ratio_last.update(), "other_pool", value) == 0)
             wait(lambda: func(demand_ratio_last.update(), "other_pool", value) == 200000)
-            wait(lambda: func(guaranteed_resource_ratio_last.update(), "other_pool", value) in range_3)
+            wait(lambda: func(unlimited_demand_fair_share_last.update(), "other_pool", value) in range_3)
             wait(lambda: func(cpu_usage_last.update(), "other_pool", value) == 0)
             wait(lambda: func(user_slots_usage_last.update(), "other_pool", value) == 0)
             wait(lambda: func(cpu_demand_last.update(), "other_pool", value) == 2)
@@ -865,7 +865,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) in range_2)
             wait(lambda: func(usage_ratio_last.update(), "other_pool", value) == 0)
             wait(lambda: func(demand_ratio_last.update(), "other_pool", value) == 100000)
-            wait(lambda: func(guaranteed_resource_ratio_last.update(), "other_pool", value) in range_2)
+            wait(lambda: func(unlimited_demand_fair_share_last.update(), "other_pool", value) in range_2)
             wait(lambda: func(cpu_usage_last.update(), "other_pool", value) == 0)
             wait(lambda: func(user_slots_usage_last.update(), "other_pool", value) == 0)
             wait(lambda: func(cpu_demand_last.update(), "other_pool", value) == 1)
@@ -875,7 +875,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) in range_1)
             wait(lambda: func(usage_ratio_last.update(), "other_pool", value) == 0)
             wait(lambda: func(demand_ratio_last.update(), "other_pool", value) == 300000)
-            wait(lambda: func(guaranteed_resource_ratio_last.update(), "other_pool", value) in range_1)
+            wait(lambda: func(unlimited_demand_fair_share_last.update(), "other_pool", value) in range_1)
             wait(lambda: func(cpu_usage_last.update(), "other_pool", value) == 0)
             wait(lambda: func(user_slots_usage_last.update(), "other_pool", value) == 0)
             wait(lambda: func(cpu_demand_last.update(), "other_pool", value) == 3)
@@ -889,7 +889,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
             wait(lambda: func(fair_share_ratio_last.update(), "other_pool", value) == 100000)
             wait(lambda: func(usage_ratio_last.update(), "other_pool", value) == 100000)
             wait(lambda: func(demand_ratio_last.update(), "other_pool", value) == 100000)
-            wait(lambda: func(guaranteed_resource_ratio_last.update(), "other_pool", value) in range_1)
+            wait(lambda: func(unlimited_demand_fair_share_last.update(), "other_pool", value) in range_1)
 
     @authors("ignat", "eshcherbin")
     def test_job_count_profiling(self):

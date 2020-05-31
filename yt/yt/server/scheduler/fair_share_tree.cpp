@@ -263,7 +263,7 @@ auto TFairShareTree<TFairShareImpl>::TFairShareTreeSnapshot::GetMaybeStateSnapsh
     if (auto* element = RootElementSnapshot_->FindPool(poolId)) {
         return TSchedulerElementStateSnapshot{
             element->ResourceDemand(),
-            element->Attributes().GetGuaranteedResourcesRatio()};
+            element->Attributes().GetUnlimitedDemandFairShareRatio()};
     }
 
     return std::nullopt;
@@ -1018,6 +1018,7 @@ auto TFairShareTree<TFairShareImpl>::DoFairShareUpdateAt(TInstant now) -> std::p
     TDynamicAttributesList dynamicAttributes;
 
     updateContext.Now = now;
+    updateContext.PreviousUpdateTime = LastFairShareUpdateTime_;
 
     auto rootElement = RootElement_->Clone();
     PROFILE_AGGREGATED_TIMING(FairSharePreUpdateTimeCounter_) {
@@ -1085,6 +1086,7 @@ auto TFairShareTree<TFairShareImpl>::DoFairShareUpdateAt(TInstant now) -> std::p
     rootElementSnapshot->Config = Config_;
 
     RootElementSnapshotPrecommit_ = rootElementSnapshot;
+    LastFairShareUpdateTime_ = now;
 
     auto treeSnapshot = New<TFairShareTreeSnapshot>(
         this,
@@ -1681,7 +1683,7 @@ auto TFairShareTree<TFairShareImpl>::DoBuildElementYson(
     const auto& attributes = element->Attributes();
     const auto& dynamicAttributes = GetDynamicAttributes(rootElementSnapshot, element);
 
-    auto guaranteedResources = element->GetTotalResourceLimits() * attributes.GetGuaranteedResourcesShare();
+    auto unlimitedDemandFairShareResources = element->GetTotalResourceLimits() * attributes.GetUnlimitedDemandFairShare();
 
     fluent
         .Item("scheduling_status").Value(element->GetStatus())
@@ -1699,16 +1701,17 @@ auto TFairShareTree<TFairShareImpl>::DoBuildElementYson(
         .Item("weight").Value(element->GetWeight())
         .Item("max_share_ratio").Value(element->GetMaxShareRatio())
         .Item("min_share_resources").Value(element->GetMinShareResources())
-        .Item("adjusted_min_share_ratio").Value(attributes.GetAdjustedMinShareRatio())
         .Item("min_share_ratio").Value(attributes.GetMinShareRatio())
-        .Item("guaranteed_resources_ratio").Value(attributes.GetGuaranteedResourcesRatio())
-        .Item("guaranteed_resources").Value(guaranteedResources)
-        .Item("max_possible_usage_ratio").Value(attributes.GetMaxPossibleUsageRatio())
+        .Item("unlimited_demand_fair_share_ratio").Value(attributes.GetUnlimitedDemandFairShareRatio())
+        .Item("unlimited_demand_fair_share_resources").Value(unlimitedDemandFairShareResources)
+        .Item("possible_usage_ratio").Value(attributes.GetPossibleUsageRatio())
         .Item("usage_ratio").Value(element->GetResourceUsageRatio())
         .Item("demand_ratio").Value(attributes.GetDemandRatio())
         .Item("fair_share_ratio").Value(attributes.GetFairShareRatio())
+        .Item("detailed_fair_share").Value(attributes.GetDetailedFairShare())
         .Item("best_allocation_ratio").Value(element->GetBestAllocationRatio())
-        .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio);
+        .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
+        .Item("integral_resource_volume").Value(element->GetIntegralResourceVolume());
 }
 
 template <class TFairShareImpl>
@@ -2355,6 +2358,22 @@ auto TFairShareTree<TFairShareImpl>::ProfileSchedulerElement(
     const TString& profilingPrefix,
     const TTagIdList& tags) const -> void
 {
+    auto detailedFairShare = element->Attributes().GetDetailedFairShare();
+    accumulator.Add(
+        profilingPrefix + "/min_share_guarantee_ratio_x100000",
+        static_cast<i64>(detailedFairShare.MinShareGuaranteeRatio * 1e5),
+        EMetricType::Gauge,
+        tags);
+    accumulator.Add(
+        profilingPrefix + "/integral_guarantee_ratio_x100000",
+        static_cast<i64>(detailedFairShare.IntegralGuaranteeRatio * 1e5),
+        EMetricType::Gauge,
+        tags);
+    accumulator.Add(
+        profilingPrefix + "/weight_proportional_ratio_x100000",
+        static_cast<i64>(detailedFairShare.WeightProportionalRatio * 1e5),
+        EMetricType::Gauge,
+        tags);
     accumulator.Add(
         profilingPrefix + "/fair_share_ratio_x100000",
         static_cast<i64>(element->Attributes().GetFairShareRatio() * 1e5),
@@ -2371,8 +2390,13 @@ auto TFairShareTree<TFairShareImpl>::ProfileSchedulerElement(
         EMetricType::Gauge,
         tags);
     accumulator.Add(
-        profilingPrefix + "/guaranteed_resource_ratio_x100000",
-        static_cast<i64>(element->Attributes().GetGuaranteedResourcesRatio() * 1e5),
+        profilingPrefix + "/unlimited_demand_fair_share_x100000",
+        static_cast<i64>(element->Attributes().GetUnlimitedDemandFairShareRatio() * 1e5),
+        EMetricType::Gauge,
+        tags);
+    accumulator.Add(
+        profilingPrefix + "/integral_resource_volume_x100000",
+        static_cast<i64>(element->GetIntegralResourceVolume() * 1e5),
         EMetricType::Gauge,
         tags);
 
@@ -2400,6 +2424,43 @@ template <class TFairShareImpl>
 auto TFairShareTree<TFairShareImpl>::GetOperationCount() const -> int
 {
     return OperationIdToElement_.size();
+}
+
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::BuildPersistentTreeState() const -> TPersistentTreeStatePtr
+{
+    auto result = New<TPersistentTreeState>();
+    for (const auto& [poolId, pool] : Pools_) {
+        if (pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
+            auto state = New<TPersistentPoolState>();
+            state->IntegralResourceVolume = pool->GetIntegralResourceVolume();
+            result->PoolStates.emplace(poolId, std::move(state));
+        }
+    }
+    return result;
+}
+
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState) -> void
+{
+    for (const auto& [poolName, volume] : persistentTreeState->PoolStates) {
+        auto poolIt = Pools_.find(poolName);
+        if (poolIt != Pools_.end()) {
+            if (poolIt->second->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
+                poolIt->second->InitIntegralResourceVolume(volume->IntegralResourceVolume);
+            } else {
+                YT_LOG_INFO("Pool is not integral and cannot accept integral resource volume (Pool: %v, PoolTree: %v, Volume: %v)",
+                    poolName,
+                    TreeId_,
+                    volume);
+            }
+        } else {
+            YT_LOG_INFO("Unknown pool in tree; dropping its integral resource volume (Pool: %v, PoolTree: %v, Volume: %v)",
+                poolName,
+                TreeId_,
+                volume);
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

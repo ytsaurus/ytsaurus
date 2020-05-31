@@ -77,6 +77,8 @@ public:
     TFuture<void> FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations);
     TFuture<NYson::TYsonString> GetOperationNodeProgressAttributes(const TOperationPtr& operation);
 
+    void StoreStrategyStateAsync(TPersistentStrategyStatePtr strategyState);
+
     void AttachJobContext(
         const NYPath::TYPath& path,
         NChunkClient::TChunkId chunkId,

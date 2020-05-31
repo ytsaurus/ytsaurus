@@ -157,6 +157,7 @@
     XX(InferChildrenWeightsFromHistoricUsage, infer_children_weights_from_historic_usage) \
     XX(InferWeightFromMinShareRatioMultiplier, infer_weight_from_min_share_ratio_multiplier) \
     XX(InheritAcl, inherit_acl) \
+    XX(IntegralGuarantees, integral_guarantees) \
     XX(IOWeights, io_weights) \
     XX(Job, job)                \
     XX(JobCountPreemptionTimeoutCoefficient, job_count_preemption_timeout_coefficient)                \

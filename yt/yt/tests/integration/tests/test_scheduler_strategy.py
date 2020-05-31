@@ -87,7 +87,7 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
         wait(lambda: are_almost_equal(get(scheduler_orchid_default_pool_tree_path() + "/pools/<Root>/fair_share_ratio"), 0.0))
 
     @authors("ignat")
-    def test_scheduler_guaranteed_resources_ratio(self):
+    def test_scheduler_unlimited_demand_fair_share_ratio(self):
         total_resource_limits = get("//sys/scheduler/orchid/scheduler/cell/resource_limits")
 
         create_pool("big_pool", attributes={"min_share_resources": {"cpu": total_resource_limits["cpu"]}})
@@ -101,26 +101,26 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
         # Wait for fair share update.
         time.sleep(1)
 
-        get_pool_guaranteed_resources = lambda pool: \
-            get(scheduler_orchid_pool_path(pool) + "/guaranteed_resources")
+        get_pool_unlimited_demand_fair_share_resources = lambda pool: \
+            get(scheduler_orchid_pool_path(pool) + "/unlimited_demand_fair_share_resources")
 
-        get_pool_guaranteed_resources_ratio = lambda pool: \
-            get(scheduler_orchid_pool_path(pool) + "/guaranteed_resources_ratio")
+        get_pool_unlimited_demand_fair_share_ratio = lambda pool: \
+            get(scheduler_orchid_pool_path(pool) + "/unlimited_demand_fair_share_ratio")
 
-        assert are_almost_equal(get_pool_guaranteed_resources_ratio("big_pool"), 1.0)
-        assert get_pool_guaranteed_resources("big_pool") == total_resource_limits
+        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("big_pool"), 1.0)
+        assert get_pool_unlimited_demand_fair_share_resources("big_pool") == total_resource_limits
 
-        assert are_almost_equal(get_pool_guaranteed_resources_ratio("small_pool"), 0)
-        assert are_almost_equal(get_pool_guaranteed_resources_ratio("subpool_3"), 0)
-        assert are_almost_equal(get_pool_guaranteed_resources_ratio("subpool_4"), 0)
+        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("small_pool"), 0)
+        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("subpool_3"), 0)
+        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("subpool_4"), 0)
 
-        assert are_almost_equal(get_pool_guaranteed_resources_ratio("subpool_1"), 1.0 / 4.0)
-        assert are_almost_equal(get_pool_guaranteed_resources_ratio("subpool_2"), 3.0 / 4.0)
+        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("subpool_1"), 1.0 / 4.0)
+        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("subpool_2"), 3.0 / 4.0)
 
         self._prepare_tables()
 
-        get_operation_guaranteed_resources_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/guaranteed_resources_ratio".format(op_id))
+        get_operation_unlimited_demand_fair_share_ratio = lambda op_id: \
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/unlimited_demand_fair_share_ratio".format(op_id))
 
         op = map(
             track=False,
@@ -133,9 +133,9 @@ class BaseTestResourceUsage(YTEnvSetup, PrepareTables):
         # Wait for fair share update.
         time.sleep(1)
 
-        assert are_almost_equal(get_operation_guaranteed_resources_ratio(op.id), 1.0 / 5.0)
-        assert are_almost_equal(get_pool_guaranteed_resources_ratio("subpool_1"), 1.0 / 5.0)
-        assert are_almost_equal(get_pool_guaranteed_resources_ratio("subpool_2"), 3.0 / 5.0)
+        assert are_almost_equal(get_operation_unlimited_demand_fair_share_ratio(op.id), 1.0 / 5.0)
+        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("subpool_1"), 1.0 / 5.0)
+        assert are_almost_equal(get_pool_unlimited_demand_fair_share_ratio("subpool_2"), 3.0 / 5.0)
 
         release_breakpoint()
         op.track()
@@ -1047,7 +1047,7 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         create_pool("test_min_share_ratio_pool", attributes={"min_share_resources": {"cpu": 3}})
 
         get_operation_min_share_ratio = lambda op_id: \
-            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/adjusted_min_share_ratio".format(op_id))
+            get("//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/min_share_ratio".format(op_id))
 
         min_share_settings = [
             {"cpu": 3},
@@ -2770,3 +2770,317 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
             }
         })
 
+@authors("renadeen")
+class TestIntegralGuarantees(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,  # Update pools configuration period
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 10,
+                    "user_slots": 10
+                }
+            }
+        }
+    }
+
+    def wait_pool_fair_share(self, pool, min_share, integral, weight_proportional):
+        path = scheduler_orchid_default_pool_tree_path() + "/pools/" + pool + "/detailed_fair_share"
+        wait(lambda: exists(path))
+
+        def check_pool_fair_share():
+            fair_share = get(path, default=-1)
+            return \
+                are_almost_equal(fair_share["min_share_guarantee_ratio"], min_share) and \
+                are_almost_equal(fair_share["integral_guarantee_ratio"], integral) and \
+                are_almost_equal(fair_share["weight_proportional_ratio"], weight_proportional)
+
+        wait(check_pool_fair_share)
+
+    def setup_method(self, method):
+        super(TestIntegralGuarantees, self).setup_method(method)
+        set("//sys/pool_trees/default/@integral_guarantees", {"smooth_period": 500})
+
+    def test_simple_burst_integral_guarantee(self):
+        create_pool("burst_pool", attributes={
+            "min_share_resources": {"cpu": 2},
+            "integral_guarantees": {
+                "guarantee_type": "burst",
+                "resource_flow": {"cpu": 3},
+                "burst_guarantee_resources": {"cpu": 8}
+            }
+        })
+
+        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
+        self.wait_pool_fair_share("burst_pool",
+            min_share=0.2,
+            integral=0.3,
+            weight_proportional=0.5)
+
+    def test_simple_relaxed_integral_guarantee(self):
+        create_pool("relaxed_pool", attributes={
+            "min_share_resources": {"cpu": 2},
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 3}
+            }
+        })
+
+        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
+        self.wait_pool_fair_share("relaxed_pool",
+            min_share=0.2,
+            integral=0.3,
+            weight_proportional=0.5)
+
+
+    def test_min_share_vs_burst(self):
+        create_pool("min_share_pool", attributes={
+            "min_share_resources": {"cpu": 5},
+        })
+
+        create_pool("burst_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "burst",
+                "resource_flow": {"cpu": 5},
+                "burst_guarantee_resources": {"cpu": 5}
+            }
+        })
+
+        run_sleeping_vanilla(job_count=10, spec={"pool": "min_share_pool"})
+        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
+
+        self.wait_pool_fair_share("min_share_pool",
+            min_share=0.5,
+            integral=0.0,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("burst_pool",
+            min_share=0.0,
+            integral=0.5,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("<Root>",
+            min_share=0.5,
+            integral=0.5,
+            weight_proportional=0.0)
+
+    def test_min_share_vs_relaxed(self):
+        create_pool("min_share_pool", attributes={
+            "min_share_resources": {"cpu": 5},
+        })
+
+        create_pool("relaxed_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 5},
+            }
+        })
+
+        run_sleeping_vanilla(job_count=10, spec={"pool": "min_share_pool"})
+        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
+
+        self.wait_pool_fair_share("min_share_pool",
+            min_share=0.5,
+            integral=0.0,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("relaxed_pool",
+            min_share=0.0,
+            integral=0.5,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("<Root>",
+            min_share=0.5,
+            integral=0.5,
+            weight_proportional=0.0)
+
+    def test_burst_gets_all_relaxed_none(self):
+        create_pool("burst_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "burst",
+                "resource_flow": {"cpu": 10},
+                "burst_guarantee_resources": {"cpu": 10}
+            }
+        })
+
+        create_pool("relaxed_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 5},
+            }
+        })
+
+        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
+        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
+
+        self.wait_pool_fair_share("burst_pool",
+            min_share=0.0,
+            integral=1.0,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("relaxed_pool",
+            min_share=0.0,
+            integral=0.0,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("<Root>",
+            min_share=0.0,
+            integral=1.0,
+            weight_proportional=0.0)
+
+    def test_burst_gets_its_guarantee_relaxed_gets_remaining(self):
+        create_pool("burst_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "burst",
+                "resource_flow": {"cpu": 6},
+                "burst_guarantee_resources": {"cpu": 6}
+            }
+        })
+
+        create_pool("relaxed_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 10},
+            }
+        })
+
+        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
+        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
+
+        self.wait_pool_fair_share("burst_pool",
+            min_share=0.0,
+            integral=0.6,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("relaxed_pool",
+            min_share=0.0,
+            integral=0.4,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("<Root>",
+            min_share=0.0,
+            integral=1.0,
+            weight_proportional=0.0)
+
+    def test_weight_proportional_distribution_among_min_share_and_burst_and_relaxed_pools(self):
+        create_pool("min_share_pool", attributes={
+            "min_share_resources": {"cpu": 1},
+            "weight": 4
+        })
+
+        create_pool("burst_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "burst",
+                "resource_flow": {"cpu": 1},
+                "burst_guarantee_resources": {"cpu": 1}
+            },
+            "weight": 1
+        })
+
+        create_pool("relaxed_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 1},
+            },
+            "weight": 2
+        })
+
+        run_sleeping_vanilla(job_count=10, spec={"pool": "min_share_pool"})
+        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
+        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
+
+        self.wait_pool_fair_share("min_share_pool",
+            min_share=0.1,
+            integral=0.0,
+            weight_proportional=0.4)
+
+        self.wait_pool_fair_share("burst_pool",
+            min_share=0.0,
+            integral=0.1,
+            weight_proportional=0.1)
+
+        self.wait_pool_fair_share("relaxed_pool",
+            min_share=0.0,
+            integral=0.1,
+            weight_proportional=0.2)
+
+        self.wait_pool_fair_share("<Root>",
+            min_share=0.8,
+            integral=0.2,
+            weight_proportional=0.0)
+
+    def test_min_share_and_burst_guarantees_adjustment(self):
+        create_pool("min_share_pool", attributes={
+            "min_share_resources": {"cpu": 30},
+        })
+
+        create_pool("burst_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "burst",
+                "resource_flow": {"cpu": 10},
+                "burst_guarantee_resources": {"cpu": 70}
+            }
+        })
+
+        run_sleeping_vanilla(job_count=10, spec={"pool": "min_share_pool"})
+        run_sleeping_vanilla(job_count=10, spec={"pool": "burst_pool"})
+
+        self.wait_pool_fair_share("min_share_pool",
+            min_share=0.3,
+            integral=0.0,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("burst_pool",
+            min_share=0.0,
+            integral=0.7,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("<Root>",
+            min_share=0.3,
+            integral=0.7,
+            weight_proportional=0.0)
+
+    def test_integral_resource_volume_consumption(self):
+        create_pool("test_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 5}
+            }
+        })
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool"))
+
+        # No operations -> volume is accumulating
+        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/integral_resource_volume") > 1)
+        run_sleeping_vanilla(job_count=10, spec={"pool": "test_pool"})
+
+        # Minimum volume is 0.25 = 0.5 (period) * 0.5 (flow_ratio)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/integral_resource_volume") < 0.3)
+
+    def test_integral_resource_volume_survives_restart(self):
+        create_pool("test_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 2}
+            }
+        })
+
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool"))
+        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/integral_resource_volume") < 0.5
+
+        time.sleep(3)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/integral_resource_volume") > 1)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool"))
+        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/integral_resource_volume") > 1

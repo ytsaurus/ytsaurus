@@ -281,6 +281,40 @@ public:
         }));
     }
 
+    void StoreStrategyStateAsync(TPersistentStrategyStatePtr strategyState)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
+
+        GetCancelableControlInvoker(EControlQueue::MasterConnector)
+            ->Invoke(BIND(&TImpl::StorePersistentStrategyState, MakeStrong(this), Passed(std::move(strategyState))));
+    }
+
+    void StorePersistentStrategyState(const TPersistentStrategyStatePtr& persistentStrategyState)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
+
+        YT_LOG_INFO("Storing persistent strategy state");
+
+        auto batchReq = StartObjectBatchRequest();
+
+        auto req = TYPathProxy::Set(StrategyStatePath);
+        req->set_value(ConvertToYsonString(persistentStrategyState, EYsonFormat::Binary).GetData());
+        GenerateMutationId(req);
+        batchReq->AddRequest(req);
+
+        TObjectServiceProxy proxy(Bootstrap_
+            ->GetMasterClient()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        if (!rspOrError.IsOK()) {
+            YT_LOG_ERROR(rspOrError, "Error storing persistent strategy state");
+        }
+        YT_LOG_INFO("Persistent strategy state successfully stored");
+    }
+
     void AttachJobContext(
         const TYPath& path,
         TChunkId chunkId,
@@ -1613,6 +1647,11 @@ TFuture<void> TMasterConnector::FetchOperationRevivalDescriptors(const std::vect
 TFuture<TYsonString> TMasterConnector::GetOperationNodeProgressAttributes(const TOperationPtr& operation)
 {
     return Impl_->GetOperationNodeProgressAttributes(operation);
+}
+
+void TMasterConnector::StoreStrategyStateAsync(TPersistentStrategyStatePtr strategyState)
+{
+    Impl_->StoreStrategyStateAsync(std::move(strategyState));
 }
 
 void TMasterConnector::AttachJobContext(

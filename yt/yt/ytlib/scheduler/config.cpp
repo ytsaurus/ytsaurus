@@ -1454,6 +1454,20 @@ TAbcConfig::TAbcConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPoolIntegralGuaranteesConfig::TPoolIntegralGuaranteesConfig()
+{
+    RegisterParameter("guarantee_type", GuaranteeType)
+        .Default();
+
+    RegisterParameter("burst_guarantee_resources", BurstGuaranteeResources)
+        .DefaultNew();
+
+    RegisterParameter("resource_flow", ResourceFlow)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPoolConfig::TPoolConfig()
 {
     RegisterParameter("mode", Mode)
@@ -1497,6 +1511,9 @@ TPoolConfig::TPoolConfig()
 
     RegisterParameter("abc", Abc)
         .Default();
+
+    RegisterParameter("integral_guarantees", IntegralGuarantees)
+        .DefaultNew();
 }
 
 void TPoolConfig::Validate()
@@ -1512,6 +1529,15 @@ void TPoolConfig::Validate()
         THROW_ERROR_EXCEPTION("Limit for the number of allowed profiling tags exceeded")
             << TErrorAttribute("allowed_profiling_tag_count", AllowedProfilingTags.size())
             << TErrorAttribute("max_allowed_profiling_tag_count", MaxAllowedProfilingTagCount);
+    }
+    if (IntegralGuarantees->BurstGuaranteeResources->IsNonTrivial() && IntegralGuarantees->GuaranteeType != EIntegralGuaranteeType::Burst) {
+        THROW_ERROR_EXCEPTION("Burst guarantees can be specified only when integral guarantee type is \"burst\"")
+            << TErrorAttribute("integral_guarantee_type", IntegralGuarantees->GuaranteeType)
+            << TErrorAttribute("burst_guarantee_resources", IntegralGuarantees->BurstGuaranteeResources);
+    }
+    if (IntegralGuarantees->ResourceFlow->IsNonTrivial() && IntegralGuarantees->GuaranteeType == EIntegralGuaranteeType::None) {
+        THROW_ERROR_EXCEPTION("Resource flow can be specified only if integral guarantee type is not \"none\"")
+            << TErrorAttribute("resource_flow", IntegralGuarantees->ResourceFlow);
     }
 }
 

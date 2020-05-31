@@ -110,6 +110,7 @@ public:
 
         OperationIdToOperationState_.clear();
         IdToTree_.clear();
+        Initialized_ = false;
         DefaultTreeId_.reset();
         TreeIdToSnapshot_.Store(THashMap<TString, IFairShareTreeSnapshotPtr>());
     }
@@ -251,7 +252,7 @@ public:
         state->SetEnabled(false);
     }
 
-    virtual void UpdatePoolTrees(const INodePtr& poolTreesNode) override
+    virtual void UpdatePoolTrees(const INodePtr& poolTreesNode, const TPersistentStrategyStatePtr& persistentStrategyState) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
@@ -327,6 +328,11 @@ public:
             // Updating default fair-share tree and global tree map.
             DefaultTreeId_ = defaultTreeId;
             std::swap(IdToTree_, idToTree);
+            if (!Initialized_) {
+                YT_VERIFY(persistentStrategyState);
+                InitPersistentStrategyState(persistentStrategyState);
+                Initialized_ = true;
+            }
 
             // Setting alerts.
             if (!errors.empty()) {
@@ -353,6 +359,11 @@ public:
 
         // Perform abort of orphaned operations one by one.
         AbortOrphanedOperations(orphanedOperationIds);
+    }
+
+    virtual bool IsInitialized() override
+    {
+        return Initialized_;
     }
 
     virtual void BuildOperationAttributes(TOperationId operationId, TFluentMap fluent) override
@@ -739,6 +750,8 @@ public:
             Host->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, TError());
         }
 
+        Host->StoreStrategyStateAsync(BuildStrategyState());
+
         YT_LOG_INFO("Fair share successfully updated");
     }
 
@@ -967,6 +980,15 @@ public:
         DoBuildResourceMeteringAt(TInstant::Now());
     }
 
+    TPersistentStrategyStatePtr BuildStrategyState()
+    {
+        auto result = New<TPersistentStrategyState>();
+        for (const auto& [treeId, tree] : IdToTree_) {
+            result->TreeStates[treeId] = tree->BuildPersistentTreeState();
+        }
+        return result;
+    }
+
 private:
     TFairShareStrategyConfigPtr Config;
     ISchedulerStrategyHost* const Host;
@@ -985,6 +1007,7 @@ private:
 
     using TFairShareTreeMap = THashMap<TString, TTreePtr>;
     TFairShareTreeMap IdToTree_;
+    bool Initialized_ = false;
 
     std::optional<TString> DefaultTreeId_;
 
@@ -1477,6 +1500,21 @@ private:
         }
 
         MeteringStatistics_.swap(newStatistics);
+    }
+
+    void InitPersistentStrategyState(const TPersistentStrategyStatePtr& persistentStrategyState)
+    {
+        YT_LOG_INFO("Initializing persistent strategy state");
+        for (auto& [treeId, treeState] : persistentStrategyState->TreeStates) {
+            auto treeIt = IdToTree_.find(treeId);
+            if (treeIt != IdToTree_.end()) {
+                treeIt->second->InitPersistentTreeState(treeState);
+            } else {
+                YT_LOG_INFO("Unknown tree %Qv; dropping its persistent state %Qv",
+                    treeId,
+                    ConvertToYsonString(treeState));
+            }
+        }
     }
 };
 
