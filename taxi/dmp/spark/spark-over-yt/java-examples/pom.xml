@@ -6,7 +6,7 @@
 
     <groupId>ru.yandex</groupId>
     <artifactId>spark-over-yt-examples</artifactId>
-    <version>0.0.3-SNAPSHOT</version>
+    <version>0.0.3</version>
 
     <properties>
         <maven.compiler.target>1.8</maven.compiler.target>
