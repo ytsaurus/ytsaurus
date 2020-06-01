@@ -516,6 +516,19 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
       Row(null, "C", Row(null, "C"))
     )
   }
+
+  it should "set custom cypress attributes" in {
+    val expirationTime = "2020-06-30T20:44:09.000000Z"
+    val myCustomAttribute = "elephant"
+    Seq(1, 2, 3).toDF
+      .coalesce(1)
+      .write
+      .option("expiration_time", expirationTime)
+      .option("_my_custom_attribute", myCustomAttribute)
+      .yt(tmpPath)
+    YtWrapper.attribute(tmpPath, "expiration_time").stringValue() shouldEqual expirationTime
+    YtWrapper.attribute(tmpPath, "_my_custom_attribute").stringValue() shouldEqual myCustomAttribute
+  }
 }
 
 object Counter {
