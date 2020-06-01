@@ -163,8 +163,10 @@ void ScanOpHelper(
         return;
     }
 
+    auto startBatchSize = context->Offset + context->Limit;
+
     TRowBatchReadOptions readOptions{
-        .MaxRowsPerRead = context->Ordered ? std::min(RowsetProcessingSize, context->Limit) : RowsetProcessingSize
+        .MaxRowsPerRead = context->Ordered ? std::min(startBatchSize, RowsetProcessingSize) : RowsetProcessingSize
     };
 
     std::vector<const TValue*> values;
@@ -183,7 +185,7 @@ void ScanOpHelper(
         IUnversionedRowBatchPtr batch;
         {
             TValueIncrementingTimingGuard<TFiberWallTimer> timingGuard(&statistics->ReadTime);
-            batch = reader->Read();
+            batch = reader->Read(readOptions);
             if (!batch) {
                 break;
             }
@@ -363,6 +365,8 @@ bool StorePrimaryRow(
     }
 
     if (closure->PrimaryRows.size() >= closure->BatchSize) {
+        closure->BatchSize = std::min<size_t>(2 * closure->BatchSize, MaxJoinBatchSize);
+
         if (closure->ProcessJoinBatch()) {
             return true;
         }
@@ -761,7 +765,7 @@ void JoinOpHelper(
                 TRowBatchReadOptions readOptions{
                     .MaxRowsPerRead = RowsetProcessingSize
                 };
-                
+
                 while (true) {
                     IUnversionedRowBatchPtr foreignBatch;
                     TRange<TUnversionedRow> foreignRows;
@@ -1365,10 +1369,10 @@ void OrderOpHelper(
     for (i64 index = context->Offset; index < rowCount; index += RowsetProcessingSize) {
         auto size = std::min(RowsetProcessingSize, rowCount - index);
         processedRows += size;
-        
+
         bool finished = consumeRows(consumeRowsClosure, rowBuffer.Get(), rows.data() + index, size);
         YT_VERIFY(!finished);
-        
+
         rowBuffer->Clear();
 
         yielder.Checkpoint(processedRows);

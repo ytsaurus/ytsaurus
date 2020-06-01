@@ -1174,9 +1174,9 @@ void TQueryProfiler::Profile(
 
             std::vector<TSingleJoinCGParameters> parameters;
 
-            size_t joinBatchSize = std::numeric_limits<size_t>::max();
+            size_t joinBatchSize = MaxJoinBatchSize;
 
-            if (query->IsOrdered()) {
+            if (query->IsOrdered() && query->Offset + query->Limit < joinBatchSize) {
                 joinBatchSize = query->Offset + query->Limit;
             }
 

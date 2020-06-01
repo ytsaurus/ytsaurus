@@ -974,12 +974,27 @@ TQueryStatistics DoExecuteQuery(
         sourceRows.push_back(row.Get());
     }
 
-    auto sourceBatch = CreateBatchFromUnversionedRows(std::move(sourceRows), nullptr);
+    auto rowsBegin = sourceRows.begin();
+    auto rowsEnd = sourceRows.end();
+
+    size_t batchSize = RowsetProcessingSize;
+
+    if (query->IsOrdered() && query->Offset + query->Limit < batchSize) {
+        batchSize = query->Offset + query->Limit;
+    }
+
+    auto readRows = [&] (const TRowBatchReadOptions& options) {
+        EXPECT_EQ(options.MaxRowsPerRead, batchSize);
+        auto size = std::min<size_t>(options.MaxRowsPerRead, std::distance(rowsBegin, rowsEnd));
+        std::vector<TRow> rows(rowsBegin, rowsBegin + size);
+        rowsBegin += size;
+        batchSize = std::min<size_t>(batchSize * 2, RowsetProcessingSize);
+        return rows.empty() ? nullptr : CreateBatchFromUnversionedRows(std::move(rows), nullptr);
+    };
 
     auto readerMock = New<NiceMock<TReaderMock>>();
     EXPECT_CALL(*readerMock, Read(_))
-        .WillOnce(Return(sourceBatch))
-        .WillRepeatedly(Return(nullptr));
+        .WillRepeatedly(Invoke(readRows));
     ON_CALL(*readerMock, GetReadyEvent())
         .WillByDefault(Return(VoidFuture));
 
