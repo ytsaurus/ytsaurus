@@ -6,6 +6,7 @@ import TarArchiverPlugin.autoImport._
 import ru.yandex.sbt.DebianPackagePlugin
 import ru.yandex.sbt.DebianPackagePlugin.autoImport._
 import ZipPlugin.autoImport._
+import PythonPlugin.autoImport._
 
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .settings(
@@ -31,6 +32,7 @@ lazy val `spark-launcher` = (project in file("spark-launcher"))
 lazy val commonDependencies = yandexIceberg ++ spark ++ circe ++ logging.map(_ % Provided)
 
 lazy val `data-source` = (project in file("data-source"))
+  .enablePlugins(PythonPlugin)
   .configs(IntegrationTest)
   .dependsOn(`yt-wrapper`, `file-system`, `yt-wrapper` % "test->test", `file-system` % "test->test")
   .settings(
@@ -80,7 +82,7 @@ lazy val `file-system` = (project in file("file-system"))
   )
 
 lazy val `client` = (project in file("client"))
-  .enablePlugins(SparkPackagePlugin, DebianPackagePlugin)
+  .enablePlugins(SparkPackagePlugin, DebianPackagePlugin, PythonPlugin)
   .settings(
     sparkAdditionalJars := Seq(
       (assembly in `file-system`).value
@@ -132,6 +134,10 @@ lazy val `client` = (project in file("client"))
     publishYtArtifacts += YtPublishFile(tarArchiveBuild.value, sparkYtBinBasePath.value, None),
     publishYtArtifacts += YtPublishFile((assembly in `spark-launcher`).value, sparkYtBinBasePath.value, None),
     publishYtArtifacts ++= sparkYtConfigs.value
+  )
+  .settings(
+    pythonSetupName := "setup-yandex.py",
+    pythonBuildDir := sparkHome.value / "python"
   )
 
 

@@ -20,6 +20,8 @@ object SparkPackagePlugin extends AutoPlugin {
   object autoImport {
     val sparkPackage = taskKey[File]("Build spark and add custom files")
 
+    val sparkHome = settingKey[File]("")
+
     val sparkAdditionalJars = taskKey[Seq[File]]("Jars to copy in SPARK_HOME/jars")
     val sparkAdditionalBin = settingKey[Seq[File]]("Scripts to copy in SPARK_HOME/bin")
     val sparkAdditionalPython = settingKey[Seq[File]]("Files to copy in SPARK_HOME/python")
@@ -63,29 +65,8 @@ object SparkPackagePlugin extends AutoPlugin {
     }.toMap
   }
 
-  private def copyDirectory(src: File, dst: File, ignore: Set[String]): Unit = {
-    @tailrec
-    def inner(copy: Seq[(File, File)]): Unit = {
-      copy match {
-        case (innerSrc, innerDst) :: tail =>
-          innerSrc match {
-            case ignored if ignore.exists(ignored.getName.contains) => inner(tail)
-            case d if d.isDirectory =>
-              IO.createDirectory(innerDst)
-              val newFiles = IO.listFiles(d).map(f => f -> new File(innerDst, f.getName))
-              inner(tail ++ newFiles)
-            case f if f.isFile =>
-              IO.copyFile(f, innerDst)
-              inner(tail)
-          }
-        case Nil =>
-      }
-    }
-
-    inner(Seq(src -> dst))
-  }
-
   override def projectSettings: Seq[Def.Setting[_]] = super.projectSettings ++ Seq(
+    sparkHome := baseDirectory.value.getParentFile.getParentFile / "spark",
     sparkIsSnapshot := isSnapshot.value || version.value.contains("beta"),
     sparkLocalConfigs := {
       Seq(
@@ -129,8 +110,7 @@ object SparkPackagePlugin extends AutoPlugin {
       launchConfigPublish +: globalConfigPublish
     },
     sparkPackage := {
-      val sparkHome = baseDirectory.value.getParentFile.getParentFile / "spark"
-      val sparkDist = sparkHome / "dist"
+      val sparkDist = sparkHome.value / "dist"
       val rebuildSpark = Option(System.getProperty("rebuildSpark")).forall(_.toBoolean)
 
       if (rebuildSpark) {
@@ -150,7 +130,7 @@ object SparkPackagePlugin extends AutoPlugin {
       val pythonDir = sparkDist / "bin" / "python"
       if (!pythonDir.exists()) IO.createDirectory(pythonDir)
       val ignorePython = Set("build", "dist", ".egg-info", "setup.py", ".pyc", "__pycache__")
-      sparkAdditionalPython.value.foreach(copyDirectory(_, pythonDir, ignorePython))
+      sparkAdditionalPython.value.foreach(FileUtils.copyDirectory(_, pythonDir, ignorePython))
 
       sparkDist
     }
