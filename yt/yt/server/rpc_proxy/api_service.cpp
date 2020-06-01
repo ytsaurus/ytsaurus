@@ -87,6 +87,11 @@ namespace {
 using NYT::FromProto;
 using NYT::ToProto;
 
+TError MakeCanceledError()
+{
+    return TError("RPC request canceled");
+}
+
 void SetTimeoutOptions(
     TTimeoutOptions* options,
     const IServiceContext* context)
@@ -328,7 +333,8 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(VersionedLookupRows));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(SelectRows)
+            .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ExplainQuery));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetInSyncReplicas));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTabletInfos));
@@ -517,7 +523,7 @@ private:
         TFuture<T>&& future)
     {
         future.Subscribe(
-            BIND([client = std::move(client), context = std::move(context)] (const TErrorOr<T>& valueOrError) {
+            BIND([client = std::move(client), context] (const TErrorOr<T>& valueOrError) {
                 if (valueOrError.IsOK()) {
                     context->Reply(TError());
                 } else {
@@ -525,6 +531,10 @@ private:
                         << TError(valueOrError));
                 }
             }));
+
+        context->SubscribeCanceled(BIND([future = std::move(future)] {
+            future.Cancel(MakeCanceledError());
+        }));
     }
 
     template <class TContext, class TResult, class F>
@@ -549,6 +559,10 @@ private:
                         << TError(valueOrError));
                 }
             }));
+
+        context->SubscribeCanceled(BIND([future = std::move(future)] {
+            future.Cancel(MakeCanceledError());
+        }));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GenerateTimestamps)

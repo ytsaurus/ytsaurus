@@ -1243,7 +1243,6 @@ void GroupOpHelper(
     auto flushGroupedRows = [&] (bool isBoundary, const TValue** begin, const TValue** end) {
         auto finished = false;
 
-        // FIXME: Do not consider offset in totals
         if (context->Ordered && processedRows < context->Offset) {
             i64 skip = std::min(context->Offset - processedRows, end - begin);
             processedRows += skip;
