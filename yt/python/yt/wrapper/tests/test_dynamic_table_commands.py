@@ -349,3 +349,12 @@ class TestDynamicTableCommands(object):
         )
 
         check(yt.read_table(dump_table), [{"tablet_index": 0}, {"tablet_index": 1}], ordered=False)
+
+    def test_explain_query(self):
+        self._sync_create_tablet_cell()
+
+        table = TEST_DIR + "/dyntable"
+        schema = [{"name": "key", "type": "string"}]
+        self._create_dynamic_table(table, schema=schema)
+
+        list(yt.explain_query("* from [{}]".format(table)))
