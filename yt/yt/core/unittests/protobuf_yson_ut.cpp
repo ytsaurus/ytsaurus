@@ -65,6 +65,38 @@ REGISTER_INTERMEDIATE_PROTO_INTEROP_REPRESENTATION(NYT::NProto::TNestedMessageWi
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TBytesIntermediateRepresentation
+{
+    int X;
+};
+
+void FromBytes(TBytesIntermediateRepresentation* value, TStringBuf bytes)
+{
+    value->X = FromString<int>(bytes);
+}
+
+void ToBytes(TString* bytes, const TBytesIntermediateRepresentation& value)
+{
+    *bytes = ToString(value.X);
+}
+
+void Serialize(const TBytesIntermediateRepresentation& value, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).BeginMap()
+        .Item("x").Value(value.X + 1)
+    .EndMap();
+}
+
+void Deserialize(TBytesIntermediateRepresentation& value, NYTree::INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    value.X = mapNode->GetChild("x")->AsInt64()->GetValue() - 1;
+}
+
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NYT::NProto::TMessage, 29, TBytesIntermediateRepresentation)
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString ToHex(const TString& data)
 {
     TStringBuilder builder;
@@ -204,6 +236,9 @@ TEST(TYsonToProtobufYsonTest, Success)
                 .EndMap()
             .EndMap()
             .Item("guid").Value("0-deadbeef-0-abacaba")
+            .Item("bytes_with_custom_converter").BeginMap()
+                .Item("x").Value(43)
+            .EndMap()
         .EndMap();
 
 
@@ -296,6 +331,8 @@ TEST(TYsonToProtobufYsonTest, Success)
 
     EXPECT_EQ(0xabacaba, message.guid().first());
     EXPECT_EQ(0xdeadbeef, message.guid().second());
+
+    EXPECT_EQ("42", message.bytes_with_custom_converter());
 }
 
 TEST(TYsonToProtobufYsonTest, ParseMapFromList)
@@ -1058,6 +1095,8 @@ TEST(TProtobufToYsonTest, Success)
         guid->set_second(0xdeadbeef);
     }
 
+    message.set_bytes_with_custom_converter("42");
+
     TEST_PROLOGUE()
     message.SerializeToCodedStream(&codedStream);
     TEST_EPILOGUE(TMessage)
@@ -1164,6 +1203,9 @@ TEST(TProtobufToYsonTest, Success)
                 .EndMap()
             .EndMap()
             .Item("guid").Value("0-deadbeef-0-abacaba")
+            .Item("bytes_with_custom_converter").BeginMap()
+                .Item("x").Value(43)
+            .EndMap()
         .EndMap();
 
     EXPECT_TRUE(AreNodesEqual(writtenNode, expectedNode));
