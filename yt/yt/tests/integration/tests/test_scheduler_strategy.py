@@ -876,7 +876,7 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
     BASE_DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
-            "graceful_preemption_job_interrupt_timeout": 2000,
+            "graceful_preemption_job_interrupt_timeout": 10000,
             "event_log": {
                 "flush_period": 300,
                 "retry_backoff_time": 300
@@ -1038,7 +1038,7 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         jobs = wait_breakpoint()
         release_breakpoint()
         update_op_parameters(op.id, parameters=get_scheduling_options(user_slots=0))
-        wait(lambda: op.get_job_count("aborted") == 1, iter=20)
+        wait(lambda: op.get_job_count("aborted") == 1)
         assert op.get_job_count("total") == 1
         assert op.get_job_count("aborted") == 1
 
@@ -1273,7 +1273,7 @@ class BaseTestResourceLimitsOverdraftPreemption(YTEnvSetup):
     BASE_DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
-            "graceful_preemption_job_interrupt_timeout": 2000,
+            "graceful_preemption_job_interrupt_timeout": 10000,
             "job_interrupt_timeout": 600000,
             "allowed_node_resources_overcommit_duration": 1000,
         }
