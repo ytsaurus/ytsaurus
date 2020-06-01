@@ -26,6 +26,7 @@ namespace NYT::NQueryClient {
 
 constexpr i64 RowsetProcessingSize = 1024;
 constexpr i64 WriteRowsetSize = 64 * RowsetProcessingSize;
+constexpr i64 MaxJoinBatchSize = 1024 * RowsetProcessingSize;
 
 class TInterruptedIncompleteException
 { };
