@@ -179,7 +179,7 @@ public:
         return Singleton<TProtobufTypeRegistry>();
     }
 
-    // This method is called during static initialization and is not expected to be called during runtime.
+    //! This method is called during static initialization and is not expected to be called during runtime.
     void RegisterMessageTypeConverter(
         const Descriptor* descriptor,
         const TProtobufMessageConverter& converter)
@@ -187,11 +187,33 @@ public:
         YT_VERIFY(MessageTypeConverterMap_.emplace(descriptor, converter).second);
     }
 
+    //! This method is called during static initialization and is not expected to be called during runtime.
+    void RegisterMessageBytesFieldConverter(
+        const Descriptor* descriptor,
+        int fieldNumber,
+        const TProtobufMessageBytesFieldConverter& converter)
+    {
+        YT_VERIFY(MessageFieldConverterMap_.emplace(std::make_pair(descriptor, fieldNumber), converter).second);
+    }
+
     std::optional<TProtobufMessageConverter> GetMessageTypeConverter(
-        const Descriptor* descriptor)
+        const Descriptor* descriptor) const
     {
         auto it = MessageTypeConverterMap_.find(descriptor);
         if (it == MessageTypeConverterMap_.end()) {
+            return std::nullopt;
+        } else {
+            return it->second;
+        }
+    }
+
+    std::optional<TProtobufMessageBytesFieldConverter> GetMessageBytesFieldConverter(
+        const Descriptor* descriptor,
+        int fieldIndex) const
+    {
+        auto fieldNumber = descriptor->field(fieldIndex)->number();
+        auto it = MessageFieldConverterMap_.find(std::make_pair(descriptor, fieldNumber));
+        if (it == MessageFieldConverterMap_.end()) {
             return std::nullopt;
         } else {
             return it->second;
@@ -227,6 +249,7 @@ private:
     THashMap<const EnumDescriptor*, std::unique_ptr<TProtobufEnumType>> EnumTypeMap_;
 
     THashMap<const Descriptor*, TProtobufMessageConverter> MessageTypeConverterMap_;
+    THashMap<std::pair<const Descriptor*, int>, TProtobufMessageBytesFieldConverter> MessageFieldConverterMap_;
 
     NConcurrency::TForkAwareSpinLock InternedStringsLock_;
     std::vector<TString> InternedStrings_;
@@ -248,6 +271,7 @@ public:
         , YsonString_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_string))
         , YsonMap_(descriptor->options().GetExtension(NYT::NYson::NProto::yson_map))
         , Required_(descriptor->options().GetExtension(NYT::NYson::NProto::required))
+        , Converter_(registry->GetMessageBytesFieldConverter(descriptor->containing_type(), descriptor->index()))
     {
         if (YsonMap_ && !descriptor->is_map()) {
             THROW_ERROR_EXCEPTION("Field %v is not a map and cannot be annotated with \"yson_map\" option",
@@ -260,6 +284,11 @@ public:
                 THROW_ERROR_EXCEPTION("Map field %v has invalid key type",
                     GetFullName());
             }
+        }
+
+        if (Converter_ && GetType() != FieldDescriptor::Type::TYPE_BYTES) {
+            THROW_ERROR_EXCEPTION("Field %v with custom converter has invalid type, only bytes fields are allowed",
+                GetFullName());
         }
     }
 
@@ -338,6 +367,11 @@ public:
 
     TProtobufElement GetElement(bool insideRepeated) const;
 
+    const std::optional<TProtobufMessageBytesFieldConverter>& GetConverter() const
+    {
+        return Converter_;
+    }
+
 private:
     const FieldDescriptor* const Underlying_;
     const TStringBuf YsonName_;
@@ -347,6 +381,7 @@ private:
     const bool YsonString_;
     const bool YsonMap_;
     const bool Required_;
+    const std::optional<TProtobufMessageBytesFieldConverter> Converter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -839,6 +874,7 @@ private:
     TBufferedBinaryYsonWriter YsonStringWriter_;
 
     TString SerializedMessage_;
+    TString BytesString_;
 
     TString UnknownYsonFieldKey_;
     TString UnknownYsonFieldValueString_;
@@ -1497,7 +1533,19 @@ private:
         }
 
         const auto* field = FieldStack_.back().Field;
-        if (field->GetType() == FieldDescriptor::TYPE_MESSAGE && field->GetMessageType()->GetConverter()) {
+        if (field->GetConverter()) {
+            if (field->IsRepeated() && !FieldStack_.back().ParsingList) {
+                return;
+            }
+            const auto& converter = *field->GetConverter();
+            TreeBuilder_->BeginTree();
+            Forward(TreeBuilder_.get(), [this, converter] {
+                auto node = TreeBuilder_->EndTree();
+                BytesString_.clear();
+                converter.Deserializer(&BytesString_, node);
+                OnMyStringScalar(BytesString_);
+            });
+        } else if (field->GetType() == FieldDescriptor::TYPE_MESSAGE && field->GetMessageType()->GetConverter()) {
             if (field->IsRepeated() && !FieldStack_.back().ParsingList) {
                 return;
             }
@@ -2162,11 +2210,15 @@ private:
                                 YPathStack_.GetHumanReadablePath())
                                 << TErrorAttribute("ypath", YPathStack_.GetPath());
                         }
+                        TStringBuf data(PooledString_.data(), length);
                         ParseScalar([&] {
-                            if (field->IsYsonString()) {
-                                Consumer_->OnRaw(TStringBuf(PooledString_.data(), length), NYson::EYsonType::Node);
+                            if (field->GetConverter()) {
+                                const auto& converter = *field->GetConverter();
+                                converter.Serializer(Consumer_, data);
+                            } else if (field->IsYsonString()) {
+                                Consumer_->OnRaw(data, NYson::EYsonType::Node);
                             } else {
-                                Consumer_->OnStringScalar(TStringBuf(PooledString_.data(), length));
+                                Consumer_->OnStringScalar(data);
                             }
                         });
                         break;
@@ -2530,6 +2582,17 @@ void RegisterCustomProtobufConverter(
     const TProtobufMessageConverter& converter)
 {
     TProtobufTypeRegistry::Get()->RegisterMessageTypeConverter(descriptor, converter);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void RegisterCustomProtobufBytesFieldConverter(
+    const Descriptor* descriptor,
+    int fieldNumber,
+    const TProtobufMessageBytesFieldConverter& converter)
+{
+    // NB: Protobuf internal singletons might not be ready, so we can't get field descriptor here.
+    TProtobufTypeRegistry::Get()->RegisterMessageBytesFieldConverter(descriptor, fieldNumber, converter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

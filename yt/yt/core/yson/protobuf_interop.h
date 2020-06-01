@@ -214,7 +214,7 @@ struct TProtobufMessageConverter
     std::function<void(google::protobuf::Message* message, const NYTree::INodePtr& node)> Deserializer;
 };
 
-// This method is called during static initialization and not assumed to be called during runtime.
+//! This method is called during static initialization and not assumed to be called during runtime.
 void RegisterCustomProtobufConverter(
     const google::protobuf::Descriptor* descriptor,
     const TProtobufMessageConverter& converter);
@@ -239,6 +239,38 @@ void RegisterCustomProtobufConverter(
         };                                                                                                           \
         RegisterCustomProtobufConverter(descriptor, converter);                                                      \
         return false;                                                                                                \
+    } ();
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProtobufMessageBytesFieldConverter
+{
+    std::function<void(IYsonConsumer* consumer, TStringBuf bytes)> Serializer;
+    std::function<void(TString* bytes, const NYTree::INodePtr& node)> Deserializer;
+};
+
+//! This method is called during static initialization and not assumed to be called during runtime.
+void RegisterCustomProtobufBytesFieldConverter(
+    const google::protobuf::Descriptor* descriptor,
+    int fieldIndex,
+    const TProtobufMessageBytesFieldConverter& converter);
+
+#define REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(ProtoType, FieldNumber, Type)             \
+    const bool Tmp##__COUNTER__ = [] {                                                                           \
+        const auto* descriptor = ProtoType::default_instance().GetDescriptor();                                  \
+        NYson::TProtobufMessageBytesFieldConverter converter;                                                    \
+        converter.Serializer = [] (IYsonConsumer* consumer, TStringBuf bytes) {                                  \
+            Type value;                                                                                          \
+            FromBytes(&value, bytes);                                                                            \
+            Serialize(value, consumer);                                                                          \
+        };                                                                                                       \
+        converter.Deserializer = [] (TString* bytes, const NYTree::INodePtr& node) {                             \
+            Type value;                                                                                          \
+            Deserialize(value, node);                                                                            \
+            ToBytes(bytes, value);                                                                               \
+        };                                                                                                       \
+        RegisterCustomProtobufBytesFieldConverter(descriptor, FieldNumber, converter);                           \
+        return false;                                                                                            \
     } ();
 
 ////////////////////////////////////////////////////////////////////////////////
