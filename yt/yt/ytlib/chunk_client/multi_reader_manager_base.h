@@ -22,7 +22,7 @@ public:
     TMultiReaderManagerBase(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        const std::vector<IReaderFactoryPtr>& readerFactories,
+        std::vector<IReaderFactoryPtr> readerFactories,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
     virtual void Open() override;
@@ -59,14 +59,13 @@ protected:
     const IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
 
     const NLogging::TLogger Logger;
+    const TPromise<void> CompletionError_ = NewPromise<void>();
+    const TFuture<void> UncancelableCompletionError_;
+    const IInvokerPtr ReaderInvoker_;
 
     TMultiReaderManagerSession CurrentSession_;
 
     TFuture<void> ReadyEvent_;
-    TPromise<void> CompletionError_ = NewPromise<void>();
-    TFuture<void> UncancelableCompletionError_;
-
-    IInvokerPtr ReaderInvoker_;
 
     TSpinLock PrefetchLock_;
     int PrefetchIndex_ = 0;
@@ -74,12 +73,12 @@ protected:
     TSpinLock FailedChunksLock_;
     THashSet<TChunkId> FailedChunks_;
 
-    std::atomic<int> OpenedReaderCount_ = { 0 };
+    std::atomic<int> OpenedReaderCount_ = 0;
 
     TSpinLock ActiveReadersLock_;
     NProto::TDataStatistics DataStatistics_;
     TCodecStatistics DecompressionStatistics_;
-    std::atomic<int> ActiveReaderCount_ = { 0 };
+    std::atomic<int> ActiveReaderCount_ = 0;
     THashSet<IReaderBasePtr> ActiveReaders_;
     THashSet<int> NonOpenedReaderIndexes_;
 
@@ -93,12 +92,10 @@ protected:
     void DoOpenReader(int index);
 
     virtual void OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex) = 0;
-
     virtual void OnReaderBlocked() = 0;
-
     virtual void OnReaderFinished();
 
-    virtual void DoOpen() = 0;
+    virtual TFuture<void> DoOpen() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

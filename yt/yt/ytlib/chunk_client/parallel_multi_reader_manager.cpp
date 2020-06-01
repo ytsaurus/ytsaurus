@@ -17,7 +17,7 @@ public:
     TParallelMultiReaderManager(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        const std::vector<IReaderFactoryPtr>& readerFactories,
+        std::vector<IReaderFactoryPtr> readerFactories,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
     virtual TMultiReaderManagerUnreadState GetUnreadState() const override;
@@ -28,17 +28,17 @@ private:
     TMultiReaderManagerSessionQueue ReadySessions_;
     int FinishedReaderCount_ = 0;
 
-    virtual void DoOpen() override;
+    virtual TFuture<void> DoOpen() override;
 
     virtual void OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex) override;
-
     virtual void OnReaderBlocked() override;
-
     virtual void OnReaderFinished() override;
 
-    void WaitForReadyReader();
+    TFuture<void> WaitForReadySession();
+    void OnSessionReady(const TErrorOr<TMultiReaderManagerSession>& errorOrSession);
 
-    void WaitForReader(TMultiReaderManagerSession session);
+    void WaitForReader(const TMultiReaderManagerSession& session);
+    void OnReaderReady(const TMultiReaderManagerSession& session, const TError& error);
 
     void PropagateError(const TError& error);
 };
@@ -48,12 +48,12 @@ private:
 TParallelMultiReaderManager::TParallelMultiReaderManager(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    const std::vector<IReaderFactoryPtr>& readerFactories,
+    std::vector<IReaderFactoryPtr> readerFactories,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
     : TMultiReaderManagerBase(
         std::move(config),
         std::move(options),
-        readerFactories,
+        std::move(readerFactories),
         std::move(multiReaderMemoryManager))
 {
     YT_LOG_DEBUG("Multi chunk reader is parallel");
@@ -61,37 +61,28 @@ TParallelMultiReaderManager::TParallelMultiReaderManager(
         BIND(&TParallelMultiReaderManager::PropagateError, MakeWeak(this)));
 }
 
-void TParallelMultiReaderManager::DoOpen()
+TFuture<void> TParallelMultiReaderManager::DoOpen()
 {
     OpenNextChunks();
-    WaitForReadyReader();
+    return WaitForReadySession();
 }
 
 void TParallelMultiReaderManager::OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex)
 {
     TMultiReaderManagerSession session;
-    session.Reader = chunkReader;
+    session.Reader = std::move(chunkReader);
     session.Index = chunkIndex;
-
     ReadySessions_.Enqueue(session);
 }
 
 void TParallelMultiReaderManager::OnReaderBlocked()
 {
-    BIND(
-        &TParallelMultiReaderManager::WaitForReader,
-        MakeStrong(this),
-        CurrentSession_)
-    .AsyncVia(ReaderInvoker_)
-    .Run();
-
+    WaitForReader(CurrentSession_);
     CurrentSession_.Reset();
 
-    ReadyEvent_ = CombineCompletionError(BIND(
-        &TParallelMultiReaderManager::WaitForReadyReader,
-        MakeStrong(this))
-    .AsyncVia(ReaderInvoker_)
-    .Run());
+    ReadyEvent_ = CombineCompletionError(BIND(&TParallelMultiReaderManager::WaitForReadySession, MakeStrong(this))
+        .AsyncVia(ReaderInvoker_)
+        .Run());
 }
 
 void TParallelMultiReaderManager::OnReaderFinished()
@@ -101,13 +92,11 @@ void TParallelMultiReaderManager::OnReaderFinished()
     ++FinishedReaderCount_;
     if (FinishedReaderCount_ == ReaderFactories_.size()) {
         ReadySessions_.Enqueue(TError(NYT::EErrorCode::Canceled, "Multi reader finished"));
-        CompletionError_.TrySet(TError());
+        CompletionError_.TrySet();
     } else {
-        ReadyEvent_ = CombineCompletionError(BIND(
-            &TParallelMultiReaderManager::WaitForReadyReader,
-            MakeStrong(this))
-        .AsyncVia(ReaderInvoker_)
-        .Run());
+        ReadyEvent_ = CombineCompletionError(BIND(&TParallelMultiReaderManager::WaitForReadySession, MakeStrong(this))
+            .AsyncVia(ReaderInvoker_)
+            .Run());
     }
 }
 
@@ -121,11 +110,16 @@ void TParallelMultiReaderManager::PropagateError(const TError& error)
     }
 }
 
-void TParallelMultiReaderManager::WaitForReadyReader()
+TFuture<void> TParallelMultiReaderManager::WaitForReadySession()
 {
-    auto asyncReadySession = ReadySessions_.Dequeue();
-    auto errorOrSession = WaitFor(asyncReadySession);
+    return ReadySessions_.Dequeue().Apply(
+        BIND(&TParallelMultiReaderManager::OnSessionReady, MakeWeak(this))
+            .AsyncVia(ReaderInvoker_));
+}
 
+
+void TParallelMultiReaderManager::OnSessionReady(const TErrorOr<TMultiReaderManagerSession>& errorOrSession)
+{
     if (errorOrSession.IsOK()) {
         CurrentSession_ = errorOrSession.Value();
         ReaderSwitched_.Fire();
@@ -136,9 +130,15 @@ void TParallelMultiReaderManager::WaitForReadyReader()
     }
 }
 
-void TParallelMultiReaderManager::WaitForReader(TMultiReaderManagerSession session)
+void TParallelMultiReaderManager::WaitForReader(const TMultiReaderManagerSession& session)
 {
-    auto error = WaitFor(session.Reader->GetReadyEvent());
+    session.Reader->GetReadyEvent().Subscribe(
+        BIND(&TParallelMultiReaderManager::OnReaderReady, MakeWeak(this), session)
+            .Via(ReaderInvoker_));
+}
+
+void TParallelMultiReaderManager::OnReaderReady(const TMultiReaderManagerSession& session, const TError& error)
+{
     if (error.IsOK()) {
         ReadySessions_.Enqueue(session);
         return;
@@ -171,13 +171,13 @@ TMultiReaderManagerUnreadState TParallelMultiReaderManager::GetUnreadState() con
 IMultiReaderManagerPtr CreateParallelMultiReaderManager(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    const std::vector<IReaderFactoryPtr>& readerFactories,
+    std::vector<IReaderFactoryPtr> readerFactories,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     return New<TParallelMultiReaderManager>(
         std::move(config),
         std::move(options),
-        readerFactories,
+        std::move(readerFactories),
         std::move(multiReaderMemoryManager));
 }
 
