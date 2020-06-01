@@ -79,13 +79,13 @@ DEFINE_REFCOUNTED_TYPE(IMultiReaderManager);
 IMultiReaderManagerPtr CreateSequentialMultiReaderManager(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    const std::vector<IReaderFactoryPtr>& readerFactories,
+    std::vector<IReaderFactoryPtr> readerFactories,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
 IMultiReaderManagerPtr CreateParallelMultiReaderManager(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    const std::vector<IReaderFactoryPtr>& readerFactories,
+    std::vector<IReaderFactoryPtr> readerFactories,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -13,22 +13,20 @@ using NProto::TDataStatistics;
 TMultiReaderManagerBase::TMultiReaderManagerBase(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    const std::vector<IReaderFactoryPtr>& readerFactories,
+    std::vector<IReaderFactoryPtr> readerFactories,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
     : Id_(TGuid::Create())
     , Config_(config)
     , Options_(options)
-    , ReaderFactories_(readerFactories)
+    , ReaderFactories_(std::move(readerFactories))
     , MultiReaderMemoryManager_(std::move(multiReaderMemoryManager))
     , Logger(NLogging::TLogger(ChunkClientLogger)
         .AddTag("MultiReaderId: %v", Id_))
     , UncancelableCompletionError_(CompletionError_.ToFuture().ToUncancelable())
     , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
 {
-    CurrentSession_.Reset();
-
     YT_LOG_DEBUG("Creating multi reader (ReaderCount: %v)",
-        readerFactories.size());
+        ReaderFactories_.size());
 
     MultiReaderMemoryManager_->AddChunkReaderInfo(Id_);
 
@@ -42,23 +40,21 @@ TMultiReaderManagerBase::TMultiReaderManagerBase(
         multiReaderMemoryManager->Finalize();
     }));
 
-    if (readerFactories.empty()) {
+    if (ReaderFactories_.empty()) {
         CompletionError_.Set(TError());
         ReadyEvent_ = UncancelableCompletionError_;
         return;
     }
 
-    NonOpenedReaderIndexes_.reserve(readerFactories.size());
-    for (int i = 0; i < static_cast<int>(readerFactories.size()); ++i) {
+    NonOpenedReaderIndexes_.reserve(ReaderFactories_.size());
+    for (int i = 0; i < static_cast<int>(ReaderFactories_.size()); ++i) {
         NonOpenedReaderIndexes_.insert(i);
     }
 }
 
 void TMultiReaderManagerBase::Open()
 {
-    ReadyEvent_ = CombineCompletionError(BIND(
-            &TMultiReaderManagerBase::DoOpen,
-            MakeStrong(this))
+    ReadyEvent_ = CombineCompletionError(BIND(&TMultiReaderManagerBase::DoOpen, MakeStrong(this))
         .AsyncVia(ReaderInvoker_)
         .Run());
 }
@@ -166,12 +162,15 @@ void TMultiReaderManagerBase::DoOpenReader(int index)
         if (reader) {
             RegisterFailedReader(reader);
         } else {
-            const auto& descriptor = ReaderFactories_[index]->GetDataSliceDescriptor();
             std::vector<TChunkId> chunkIds;
+            const auto& descriptor = ReaderFactories_[index]->GetDataSliceDescriptor();
             for (const auto& chunkSpec : descriptor.ChunkSpecs) {
                 chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
             }
-            YT_LOG_WARNING("Failed to open reader (Index: %v, ChunkIds: %v)", index, chunkIds);
+            
+            YT_LOG_WARNING(error, "Failed to open reader (Index: %v, ChunkIds: %v)",
+                index,
+                chunkIds);
 
             TGuard<TSpinLock> guard(FailedChunksLock_);
             FailedChunks_.insert(chunkIds.begin(), chunkIds.end());
@@ -186,9 +185,11 @@ void TMultiReaderManagerBase::DoOpenReader(int index)
 
     OnReaderOpened(reader, index);
 
-    TGuard<TSpinLock> guard(ActiveReadersLock_);
-    YT_VERIFY(NonOpenedReaderIndexes_.erase(index));
-    YT_VERIFY(ActiveReaders_.insert(reader).second);
+    {
+        TGuard<TSpinLock> guard(ActiveReadersLock_);
+        YT_VERIFY(NonOpenedReaderIndexes_.erase(index) == 1);
+        YT_VERIFY(ActiveReaders_.insert(reader).second);
+    }
 }
 
 void TMultiReaderManagerBase::OnReaderFinished()
@@ -201,14 +202,14 @@ void TMultiReaderManagerBase::OnReaderFinished()
         TGuard<TSpinLock> guard(ActiveReadersLock_);
         DataStatistics_ += CurrentSession_.Reader->GetDataStatistics();
         DecompressionStatistics_ += CurrentSession_.Reader->GetDecompressionStatistics();
-        YT_VERIFY(ActiveReaders_.erase(CurrentSession_.Reader));
+        YT_VERIFY(ActiveReaders_.erase(CurrentSession_.Reader) == 1);
     }
 
     --ActiveReaderCount_;
 
     YT_LOG_DEBUG("Reader finished (Index: %v, ActiveReaderCount: %v)",
         CurrentSession_.Index,
-        static_cast<int>(ActiveReaderCount_));
+        ActiveReaderCount_.load());
 
     CurrentSession_.Reset();
     OpenNextChunks();
@@ -227,10 +228,9 @@ bool TMultiReaderManagerBase::OnEmptyRead(bool readerFinished)
 
 TFuture<void> TMultiReaderManagerBase::CombineCompletionError(TFuture<void> future)
 {
-    auto promise = NewPromise<void>();
-    promise.TrySetFrom(UncancelableCompletionError_);
-    promise.TrySetFrom(future);
-    return promise.ToFuture();
+    return AnySet(
+        std::vector{std::move(future), UncancelableCompletionError_},
+        TFutureCombinerOptions{.CancelInputOnShortcut = false});
 }
 
 void TMultiReaderManagerBase::RegisterFailedReader(IReaderBasePtr reader)

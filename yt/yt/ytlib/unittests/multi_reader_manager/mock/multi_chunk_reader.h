@@ -13,14 +13,17 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderMock)
+
 class TMultiChunkReaderMock
     : public NTableClient::ISchemalessMultiChunkReader
 {
 public:
-    TMultiChunkReaderMock(IMultiReaderManagerPtr multiReaderManager):
-        MultiReaderManager_(std::move(multiReaderManager))
+    explicit TMultiChunkReaderMock(IMultiReaderManagerPtr multiReaderManager)
+        : MultiReaderManager_(std::move(multiReaderManager))
     {
         MultiReaderManager_->SubscribeReaderSwitched(BIND(&TMultiChunkReaderMock::OnReaderSwitched, MakeWeak(this)));
+        MultiReaderManager_->Open();
     }
 
     virtual NTableClient::IUnversionedRowBatchPtr Read(const NTableClient::TRowBatchReadOptions& options) override
@@ -90,11 +93,6 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void Open()
-    {
-        MultiReaderManager_->Open();
-    }
-
     virtual TFuture<void> GetReadyEvent() override
     {
         return MultiReaderManager_->GetReadyEvent();
@@ -121,10 +119,10 @@ public:
     }
 
 private:
-    IMultiReaderManagerPtr MultiReaderManager_;
+    const IMultiReaderManagerPtr MultiReaderManager_;
+    
     NTableClient::ISchemalessChunkReaderPtr CurrentReader_;
-
-    std::atomic<bool> Finished_ = {false};
+    std::atomic<bool> Finished_ = false;
 
     void OnReaderSwitched()
     {
@@ -133,8 +131,7 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderMock);
-DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderMock);
+DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderMock)
 
 ////////////////////////////////////////////////////////////////////////////////
 

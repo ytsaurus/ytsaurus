@@ -17,7 +17,7 @@ public:
     TSequentialMultiReaderManager(
         TMultiChunkReaderConfigPtr config,
         TMultiChunkReaderOptionsPtr options,
-        const std::vector<IReaderFactoryPtr>& readerFactories,
+        std::vector<IReaderFactoryPtr> readerFactories,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
     virtual TMultiReaderManagerUnreadState GetUnreadState() const override;
@@ -27,17 +27,17 @@ private:
     int FinishedReaderCount_ = 0;
     std::vector<TPromise<IReaderBasePtr>> NextReaders_;
 
-    virtual void DoOpen() override;
+    virtual TFuture<void> DoOpen() override;
 
     virtual void OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex) override;
-
     virtual void OnReaderBlocked() override;
-
     virtual void OnReaderFinished() override;
 
-    void WaitForNextReader();
-
-    void WaitForCurrentReader();
+    TFuture<void> WaitForNextReader();
+    void OnGotNextReader(const IReaderBasePtr& reader);
+    
+    TFuture<void> WaitForCurrentReader();
+    void OnCurrentReaderReady(const TError& error);
 
     void PropagateError(const TError& error);
 };
@@ -47,12 +47,12 @@ private:
 TSequentialMultiReaderManager::TSequentialMultiReaderManager(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    const std::vector<IReaderFactoryPtr>& readerFactories,
+    std::vector<IReaderFactoryPtr> readerFactories,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
     : TMultiReaderManagerBase(
         std::move(config),
         std::move(options),
-        readerFactories,
+        std::move(readerFactories),
         std::move(multiReaderMemoryManager))
 {
     YT_LOG_DEBUG("Multi chunk reader is sequential");
@@ -66,16 +66,16 @@ TSequentialMultiReaderManager::TSequentialMultiReaderManager(
             .Via(ReaderInvoker_));
 }
 
-void TSequentialMultiReaderManager::DoOpen()
+TFuture<void> TSequentialMultiReaderManager::DoOpen()
 {
     OpenNextChunks();
-    WaitForNextReader();
+    return WaitForNextReader();
 }
 
 void TSequentialMultiReaderManager::OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex)
 {
     // May have already been set in case of error.
-    NextReaders_[chunkIndex].TrySet(chunkReader);
+    NextReaders_[chunkIndex].TrySet(std::move(chunkReader));
 }
 
 void TSequentialMultiReaderManager::PropagateError(const TError& error)
@@ -84,7 +84,7 @@ void TSequentialMultiReaderManager::PropagateError(const TError& error)
         return;
     }
 
-    for (auto nextReader : NextReaders_) {
+    for (const auto& nextReader : NextReaders_) {
         if (nextReader) {
             nextReader.TrySet(error);
         }
@@ -93,11 +93,9 @@ void TSequentialMultiReaderManager::PropagateError(const TError& error)
 
 void TSequentialMultiReaderManager::OnReaderBlocked()
 {
-    ReadyEvent_ = CombineCompletionError(BIND(
-        &TSequentialMultiReaderManager::WaitForCurrentReader,
-        MakeStrong(this))
-    .AsyncVia(ReaderInvoker_)
-    .Run());
+    ReadyEvent_ = CombineCompletionError(BIND(&TSequentialMultiReaderManager::WaitForCurrentReader, MakeStrong(this))
+        .AsyncVia(ReaderInvoker_)
+        .Run());
 }
 
 void TSequentialMultiReaderManager::OnReaderFinished()
@@ -110,27 +108,28 @@ void TSequentialMultiReaderManager::OnReaderFinished()
         return;
     }
 
-    ReadyEvent_ = CombineCompletionError(BIND(
-        &TSequentialMultiReaderManager::WaitForNextReader,
-        MakeStrong(this))
-    .AsyncVia(ReaderInvoker_)
-    .Run());
+    ReadyEvent_ = CombineCompletionError(BIND(&TSequentialMultiReaderManager::WaitForNextReader, MakeStrong(this))
+        .AsyncVia(ReaderInvoker_)
+        .Run());
 }
 
-void TSequentialMultiReaderManager::WaitForNextReader()
+TFuture<void> TSequentialMultiReaderManager::WaitForNextReader()
 {
     if (NextReaderIndex_ == ReaderFactories_.size()) {
-        return;
+        return VoidFuture;
     }
 
-    auto currentReader = WaitFor(NextReaders_[NextReaderIndex_].ToFuture())
-        .ValueOrThrow();
+    return NextReaders_[NextReaderIndex_].ToFuture().Apply(
+        BIND(&TSequentialMultiReaderManager::OnGotNextReader, MakeWeak(this))
+            .AsyncVia(ReaderInvoker_));
+}
 
+void TSequentialMultiReaderManager::OnGotNextReader(const IReaderBasePtr& reader)
+{
     {
         TGuard<TSpinLock> guard(ActiveReadersLock_);
         CurrentSession_.Index = NextReaderIndex_;
-        CurrentSession_.Reader = currentReader;
-
+        CurrentSession_.Reader = reader;
         ++NextReaderIndex_;
     }
 
@@ -140,9 +139,15 @@ void TSequentialMultiReaderManager::WaitForNextReader()
     ReaderSwitched_.Fire();
 }
 
-void TSequentialMultiReaderManager::WaitForCurrentReader()
+TFuture<void> TSequentialMultiReaderManager::WaitForCurrentReader()
 {
-    auto error = WaitFor(CurrentSession_.Reader->GetReadyEvent());
+    return CurrentSession_.Reader->GetReadyEvent().Apply(
+        BIND(&TSequentialMultiReaderManager::OnCurrentReaderReady, MakeWeak(this))
+            .AsyncVia(ReaderInvoker_));
+}
+
+void TSequentialMultiReaderManager::OnCurrentReaderReady(const TError& error)
+{
     if (!error.IsOK()) {
         RegisterFailedReader(CurrentSession_.Reader);
         CompletionError_.TrySet(error);
@@ -151,9 +156,8 @@ void TSequentialMultiReaderManager::WaitForCurrentReader()
 
 TMultiReaderManagerUnreadState TSequentialMultiReaderManager::GetUnreadState() const
 {
-    TMultiReaderManagerUnreadState state;
     TGuard<TSpinLock> guard(ActiveReadersLock_);
-
+    TMultiReaderManagerUnreadState state;
     state.CurrentReader = CurrentSession_.Reader;
     for (int index = NextReaderIndex_; index < static_cast<int>(ReaderFactories_.size()); ++index) {
         state.ReaderFactories.push_back(ReaderFactories_[index]);
@@ -166,13 +170,13 @@ TMultiReaderManagerUnreadState TSequentialMultiReaderManager::GetUnreadState() c
 IMultiReaderManagerPtr CreateSequentialMultiReaderManager(
     TMultiChunkReaderConfigPtr config,
     TMultiChunkReaderOptionsPtr options,
-    const std::vector<IReaderFactoryPtr>& readerFactories,
+    std::vector<IReaderFactoryPtr> readerFactories,
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     return New<TSequentialMultiReaderManager>(
         std::move(config),
         std::move(options),
-        readerFactories,
+        std::move(readerFactories),
         std::move(multiReaderMemoryManager));
 }
 
