@@ -99,6 +99,9 @@ TClickHouseConfig::TClickHouseConfig()
     RegisterParameter("path_to_regions_name_files", PathToRegionsNameFiles)
         .Default();
 
+    RegisterParameter("timezone", Timezone)
+        .Default("Europe/Moscow");
+
     RegisterParameter("query_log", QueryLog)
         .DefaultNew();
 

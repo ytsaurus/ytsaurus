@@ -122,6 +122,8 @@ public:
     std::optional<TString> PathToRegionsHierarchyFile;
     std::optional<TString> PathToRegionsNameFiles;
 
+    std::optional<TString> Timezone;
+
     TSystemLogConfigPtr QueryLog;
     TSystemLogConfigPtr QueryThreadLog;
     TSystemLogConfigPtr TraceLog;

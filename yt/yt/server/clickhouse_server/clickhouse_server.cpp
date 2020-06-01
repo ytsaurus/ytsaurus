@@ -189,6 +189,7 @@ private:
 
         // Initialize DateLUT early, to not interfere with running time of first query.
         YT_LOG_DEBUG("Initializing DateLUT");
+        DateLUT::setDefaultTimezone(Config_->Timezone.value());
         DateLUT::instance();
         YT_LOG_DEBUG("DateLUT initialized (TimeZone: %v)", DateLUT::instance().getTimeZone());
 

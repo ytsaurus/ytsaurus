@@ -461,6 +461,19 @@ class TestClickHouseCommon(ClickHouseTestBase):
     }
 
     @authors("evgenstf")
+    def test_timezone(self):
+        create("table", "//tmp/test_table", attributes={"schema": [{"name": "date_time", "type": "datetime"}]})
+        write_table("//tmp/test_table", [{"date_time": 100}])
+
+        with Clique(1) as clique:
+            assert clique.make_query('select timezone()') == [{"timezone()": "Europe/Moscow"}]
+            assert clique.make_query('select date_time from "//tmp/test_table"') == [{"date_time": '1970-01-01 03:01:40'}]
+
+        with Clique(1, config_patch={"clickhouse": {"timezone": "America/Los_Angeles"}}) as clique:
+            assert clique.make_query('select timezone()') == [{"timezone()": "America/Los_Angeles"}]
+            assert clique.make_query('select date_time from "//tmp/test_table"') == [{"date_time": '1970-01-01 09:01:40'}]
+
+    @authors("evgenstf")
     def test_not_table_in_query(self):
         with Clique(1) as clique:
             table_schema = [{"name": "value", "type": "int64"}]
