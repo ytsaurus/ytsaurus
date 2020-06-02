@@ -63,8 +63,6 @@ class Metric(object):
         self.with_tags = with_tags
         self.grouped_by_tags = grouped_by_tags
         self.last_update_samples = []
-        # TODO(eshcherbin): This is used for flap diagnostics. Remove when TestSchedulerProfilingOnOperationFinished is fixed.
-        self.custom_diagnostics_enabled = path.split("/")[-1] in ["metric_completed", "metric_failed"]
 
         # Need time in mcs.
         self.start_time = int(time.time() * 1e6)
@@ -216,24 +214,10 @@ class Metric(object):
 
     # NB(eshcherbin): **kwargs is used only for `from_time` argument.
     def _read_from_orchid(self, **kwargs):
-        # TODO(eshcherbin): This is used for flap diagnostics. Remove when TestSchedulerProfilingOnOperationFinished is fixed.
-        if self.custom_diagnostics_enabled and "from_time" in kwargs:
-            original_from_time = kwargs["from_time"]
-            kwargs["from_time"] = self.start_time - Metric.FROM_TIME_GAP
-
         try:
             data = get(self.path, verbose=False, **kwargs)
         except YtError:
             data = []
-
-        # TODO(eshcherbin): This is used for flap diagnostics. Remove when TestSchedulerProfilingOnOperationFinished is fixed.
-        if self.custom_diagnostics_enabled and "from_time" in kwargs:
-            for sample in data:
-                if sample["time"] < self.start_time and sample["value"] > 0:
-                    print_debug("Metric \"{}\", non-negative sample before start retrieved (time={}, value={})"
-                                .format(self.path, sample["time"], sample["value"]))
-            data = [sample for sample in data if sample["time"] > original_from_time]
-            kwargs["from_time"] = original_from_time
 
         # Keep last_update_samples up to date.
         from_time = kwargs["from_time"] if "from_time" in kwargs else 0

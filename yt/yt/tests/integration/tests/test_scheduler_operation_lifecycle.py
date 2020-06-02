@@ -983,11 +983,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
             "scheduler/pools/metrics/metric_completed",
             with_tags={"pool": "unique_pool"})
 
-        # TODO(eshcherbin): This is used for flap diagnostics. Remove when the test is fixed.
-        print_debug("metric_completed_delta.start_time:", metric_completed_delta.start_time)
-
-        testing_options = {"log_residual_custom_job_metrics_on_termination": True}
-        map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool", "testing": testing_options})
+        map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out", spec={"pool": "unique_pool"})
 
         wait(lambda: metric_completed_delta.update().get(verbose=True) == 117)
 
@@ -1004,38 +1000,11 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
             "scheduler/pools/metrics/metric_failed",
             with_tags={"pool": "unique_pool"})
 
-        # TODO(eshcherbin): This is used for flap diagnostics. Remove when the test is fixed.
-        print_debug("metric_failed_delta.start_time:", metric_failed_delta.start_time)
-
-        testing_options = {"log_residual_custom_job_metrics_on_termination": True}
         op = map(command=map_cmd, in_="//tmp/t_in", out="//tmp/t_out",
-                 spec={"max_failed_job_count": 1, "pool": "unique_pool", "testing": testing_options}, track=False)
+                 spec={"max_failed_job_count": 1, "pool": "unique_pool"}, track=False)
         op.track(raise_on_failed=False)
 
         wait(lambda: metric_failed_delta.update().get(verbose=True) == 225)
-
-
-class TestSchedulerProfilingOnOperationFinishedWrongOption(TestSchedulerProfilingOnOperationFinished):
-    DELTA_CONTROLLER_AGENT_CONFIG = {
-        "controller_agent": {
-            "operation_time_limit_check_period": 100,
-            "operation_controller_fail_timeout": 3000,
-            "operations_job_metrics_push_period": 1000000000,
-            "job_metrics_report_period": 100,
-            "custom_job_metrics": [
-                {
-                    "statistics_path": "/custom/value_completed",
-                    "profiling_name": "metric_completed",
-                    "aggregate_type": "sum",
-                },
-                {
-                    "statistics_path": "/custom/value_failed",
-                    "profiling_name": "metric_failed",
-                    "aggregate_type": "sum",
-                },
-            ]
-        }
-    }
 
 ##################################################################
 
