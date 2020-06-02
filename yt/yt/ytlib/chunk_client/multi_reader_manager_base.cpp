@@ -36,8 +36,6 @@ TMultiReaderManagerBase::TMultiReaderManagerBase(
         } else {
             YT_LOG_INFO(error, "Reading completed with error");
         }
-
-        multiReaderMemoryManager->Finalize();
     }));
 
     if (ReaderFactories_.empty()) {
@@ -50,6 +48,11 @@ TMultiReaderManagerBase::TMultiReaderManagerBase(
     for (int i = 0; i < static_cast<int>(ReaderFactories_.size()); ++i) {
         NonOpenedReaderIndexes_.insert(i);
     }
+}
+
+TMultiReaderManagerBase::~TMultiReaderManagerBase()
+{
+    MultiReaderMemoryManager_->Finalize();
 }
 
 void TMultiReaderManagerBase::Open()
@@ -185,10 +188,17 @@ void TMultiReaderManagerBase::DoOpenReader(int index)
 
     OnReaderOpened(reader, index);
 
+    int nonOpenedReaderCount;
     {
         TGuard<TSpinLock> guard(ActiveReadersLock_);
         YT_VERIFY(NonOpenedReaderIndexes_.erase(index) == 1);
         YT_VERIFY(ActiveReaders_.insert(reader).second);
+        nonOpenedReaderCount = NonOpenedReaderIndexes_.size();
+    }
+
+    if (nonOpenedReaderCount == 0) {
+        // All readers have been opened.
+        MultiReaderMemoryManager_->Finalize();
     }
 }
 
