@@ -668,6 +668,7 @@ TFuture<IUnversionedRowsetPtr> TClientBase::LookupRows(
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.LookupRows();
+    req->SetHeavy(true);
     req->SetTimeout(options.Timeout);
 
     req->set_path(path);

@@ -1058,7 +1058,7 @@ TFuture<T> TFutureBase<T>::ToImmediatelyCancelable() const
 }
 
 template <class T>
-TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout) const
+TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout, IInvokerPtr invoker) const
 {
     YT_ASSERT(Impl_);
 
@@ -1080,7 +1080,8 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout) const
             promise.TrySet(error);
             cancelable.Cancel(error);
         }),
-        timeout);
+        timeout,
+        std::move(invoker));
 
     Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
         NConcurrency::TDelayedExecutor::CancelAndClear(cookie);
@@ -1096,9 +1097,11 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout) const
 }
 
 template <class T>
-TFuture<T> TFutureBase<T>::WithTimeout(std::optional<TDuration> timeout) const
+TFuture<T> TFutureBase<T>::WithTimeout(
+    std::optional<TDuration> timeout,
+    IInvokerPtr invoker) const
 {
-    return timeout ? WithTimeout(*timeout) : TFuture<T>(Impl_);
+    return timeout ? WithTimeout(*timeout, std::move(invoker)) : TFuture<T>(Impl_);
 }
 
 template <class T>

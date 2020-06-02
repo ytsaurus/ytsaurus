@@ -16,9 +16,13 @@ public:
 
     //! Constructs a future that gets set when a given #delay elapses.
     /*!
+     *  \param delay Delay after which the returned future is set.
+     *  \param invoker Invoker where the future becomes set (DelayedExecutor if null).
      *  Note that during shutdown this future will be resolved prematurely with an error.
      */
-    static TFuture<void> MakeDelayed(TDuration delay);
+    static TFuture<void> MakeDelayed(
+        TDuration delay,
+        IInvokerPtr invoker = nullptr);
 
     //! Constructs a future that gets set when a given #duration elapses and
     //! immediately waits for it.
@@ -42,33 +46,49 @@ public:
      *
      *  \param callback A callback to execute.
      *  \param delay Execution delay.
+     *  \param invoker Invoker that will be handling #callback (DelayedExecutor if null).
      *  \return An opaque cancelation cookie.
      */
-    static TDelayedExecutorCookie Submit(TDelayedCallback callback, TDuration delay);
+    static TDelayedExecutorCookie Submit(
+        TDelayedCallback callback,
+        TDuration delay,
+        IInvokerPtr invoker = nullptr);
 
     //! Submits #closure for execution after a given #delay.
     /*!
      *  \param closure A closure to execute.
      *  \param delay Execution delay.
+     *  \param invoker Invoker that will be handling #callback (DelayedExecutor if null).
      *  \return An opaque cancelation cookie.
      */
-    static TDelayedExecutorCookie Submit(TClosure closure, TDuration delay);
+    static TDelayedExecutorCookie Submit(
+        TClosure closure,
+        TDuration delay,
+        IInvokerPtr invoker = nullptr);
 
     //! Submits #callback for execution at a given #deadline.
     /*!
      * \param callback A callback to execute.
      * \param deadline Execution deadline.
+     * \param invoker Invoker that will be handling #callback (DelayedExecutor if null).
      * \return An opaque cancelation cookie.
      */
-    static TDelayedExecutorCookie Submit(TDelayedCallback callback, TInstant deadline);
+    static TDelayedExecutorCookie Submit(
+        TDelayedCallback callback,
+        TInstant deadline,
+        IInvokerPtr invoker = nullptr);
 
     //! Submits #closure for execution at a given #deadline.
     /*!
      * \param closure A closure to execute.
      * \param delay Execution deadline.
+     * \param invoker Invoker that will be handling #callback (DelayedExecutor if null).
      * \return An opaque cancelation cookie.
      */
-    static TDelayedExecutorCookie Submit(TClosure closure, TInstant deadline);
+    static TDelayedExecutorCookie Submit(
+        TClosure closure,
+        TInstant deadline,
+        IInvokerPtr invoker = nullptr);
 
     //! Cancels an earlier scheduled execution.
     /*!

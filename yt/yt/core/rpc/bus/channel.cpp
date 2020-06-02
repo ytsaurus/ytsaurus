@@ -19,6 +19,7 @@
 
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/tls_cache.h>
+#include <yt/core/misc/finally.h>
 
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
@@ -322,7 +323,8 @@ private:
                 auto effectiveTimeout = options.Timeout.value_or(TDuration::Hours(24));
                 auto timeoutCookie = TDelayedExecutor::Submit(
                     BIND(&TSession::HandleTimeout, MakeWeak(this), requestControl),
-                    effectiveTimeout);
+                    effectiveTimeout,
+                    TDispatcher::Get()->GetHeavyInvoker());
                 requestControl->SetTimeoutCookie(Guard(SpinLock_), std::move(timeoutCookie));
             }
 
@@ -387,15 +389,26 @@ private:
                 ActiveRequestMap_.erase(it);
             }
 
-            // YT-1639: Avoid notifying the client directly as this may lead
-            // to an extremely long chain of recursive calls.
-            TDispatcher::Get()->GetLightInvoker()->Invoke(BIND(
-                &TSession::NotifyError,
-                MakeStrong(this),
-                requestControl,
-                responseHandler,
-                AsStringBuf("Request canceled"),
-                TError(NYT::EErrorCode::Canceled, "Request canceled")));
+            // YT-1639: Avoid long chain of recursive calls.
+            thread_local int Depth = 0;
+            constexpr int MaxDepth = 10;
+            if (Depth < MaxDepth) {
+                ++Depth;
+                NotifyError(
+                    requestControl,
+                    responseHandler,
+                    AsStringBuf("Request canceled"),
+                    TError(NYT::EErrorCode::Canceled, "Request canceled"));
+                --Depth;
+            } else {
+                TDispatcher::Get()->GetHeavyInvoker()->Invoke(BIND(
+                    &TSession::NotifyError,
+                    MakeStrong(this),
+                    requestControl,
+                    responseHandler,
+                    AsStringBuf("Request canceled"),
+                    TError(NYT::EErrorCode::Canceled, "Request canceled")));
+            }
 
             auto bus = FindBus();
             if (!bus) {
@@ -740,7 +753,8 @@ private:
                 if (options.AcknowledgementTimeout) {
                     auto timeoutCookie = TDelayedExecutor::Submit(
                         BIND(&TSession::HandleAcknowledgementTimeout, MakeWeak(this), requestControl),
-                        *options.AcknowledgementTimeout);
+                        *options.AcknowledgementTimeout,
+                        TDispatcher::Get()->GetHeavyInvoker());
                     requestControl->SetAcknowledgementTimeoutCookie(guard, std::move(timeoutCookie));
                 }
 
@@ -993,7 +1007,7 @@ private:
             const TClientRequestControlPtr& requestControl,
             const IClientResponseHandlerPtr& responseHandler,
             TStringBuf reason,
-            const TError& error)
+            const TError& error) noexcept
         {
             YT_VERIFY(responseHandler);
 
@@ -1018,7 +1032,7 @@ private:
 
         void NotifyAcknowledgement(
             TRequestId requestId,
-            const IClientResponseHandlerPtr& responseHandler)
+            const IClientResponseHandlerPtr& responseHandler) noexcept
         {
             YT_LOG_DEBUG("Request acknowledged (RequestId: %v)", requestId);
 
@@ -1029,7 +1043,7 @@ private:
             TRequestId requestId,
             const TClientRequestControlPtr& requestControl,
             const IClientResponseHandlerPtr& responseHandler,
-            TSharedRefArray message)
+            TSharedRefArray message) noexcept
         {
             YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v.%v, TotalTime: %v)",
                 requestId,

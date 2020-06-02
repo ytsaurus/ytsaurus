@@ -46,13 +46,18 @@ struct TDelayedExecutorEntry
         }
     };
 
-    TDelayedExecutorEntry(TDelayedExecutor::TDelayedCallback callback, TInstant deadline)
+    TDelayedExecutorEntry(
+        TDelayedExecutor::TDelayedCallback callback,
+        TInstant deadline,
+        IInvokerPtr invoker)
         : Callback(std::move(callback))
         , Deadline(deadline)
+        , Invoker(std::move(invoker))
     { }
 
     TDelayedExecutor::TDelayedCallback Callback;
     TInstant Deadline;
+    IInvokerPtr Invoker;
 
     bool Canceled = false;
     std::optional<std::set<TDelayedExecutorCookie, TComparer>::iterator> Iterator;
@@ -83,7 +88,7 @@ public:
     }
 #endif
 
-    TFuture<void> MakeDelayed(TDuration delay)
+    TFuture<void> MakeDelayed(TDuration delay, IInvokerPtr invoker)
     {
         auto promise = NewPromise<void>();
 
@@ -95,9 +100,10 @@ public:
                     promise.TrySet();
                 }
             }),
-            delay);
+            delay,
+            std::move(invoker));
 
-        promise.OnCanceled(BIND([=] (const TError& error) {
+        promise.OnCanceled(BIND([=, cookie = std::move(cookie)] (const TError& error) {
             TDelayedExecutor::Cancel(cookie);
             promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed callback canceled")
                 << error);
@@ -112,7 +118,7 @@ public:
             return;
         }
 
-        auto error = WaitFor(MakeDelayed(duration));
+        auto error = WaitFor(MakeDelayed(duration, nullptr));
         if (error.GetCode() == NYT::EErrorCode::Canceled) {
             throw TFiberCanceledException();
         }
@@ -120,32 +126,37 @@ public:
         error.ThrowOnError();
     }
 
-    TDelayedExecutorCookie Submit(TClosure closure, TDuration delay)
+    TDelayedExecutorCookie Submit(TClosure closure, TDuration delay, IInvokerPtr invoker)
     {
         YT_VERIFY(closure);
         return Submit(
             BIND(&ClosureToDelayedCallbackAdapter, std::move(closure)),
-            delay.ToDeadLine());
+            delay.ToDeadLine(),
+            std::move(invoker));
     }
 
-    TDelayedExecutorCookie Submit(TClosure closure, TInstant deadline)
+    TDelayedExecutorCookie Submit(TClosure closure, TInstant deadline, IInvokerPtr invoker)
     {
         YT_VERIFY(closure);
         return Submit(
             BIND(&ClosureToDelayedCallbackAdapter, std::move(closure)),
-            deadline);
+            deadline,
+            std::move(invoker));
     }
 
-    TDelayedExecutorCookie Submit(TDelayedCallback callback, TDuration delay)
+    TDelayedExecutorCookie Submit(TDelayedCallback callback, TDuration delay, IInvokerPtr invoker)
     {
         YT_VERIFY(callback);
-        return Submit(std::move(callback), delay.ToDeadLine());
+        return Submit(
+            std::move(callback),
+            delay.ToDeadLine(),
+            std::move(invoker));
     }
 
-    TDelayedExecutorCookie Submit(TDelayedCallback callback, TInstant deadline)
+    TDelayedExecutorCookie Submit(TDelayedCallback callback, TInstant deadline, IInvokerPtr invoker)
     {
         YT_VERIFY(callback);
-        auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline);
+        auto entry = New<TDelayedExecutorEntry>(std::move(callback), deadline, std::move(invoker));
         SubmitQueue_.Enqueue(entry);
 
 #if defined(HAVE_TIMERFD)
@@ -210,9 +221,9 @@ private:
     TActionQueuePtr DelayedQueue_;
     IInvokerPtr DelayedInvoker_;
 
-    std::atomic<bool> Started_ = {false};
-    std::atomic<bool> Stopping_ = {false};
-    TPromise<void> Stopped_ = NewPromise<void>();
+    std::atomic<bool> Started_ = false;
+    std::atomic<bool> Stopping_ = false;
+    const TPromise<void> Stopped_ = NewPromise<void>();
 
     static thread_local bool InDelayedPollerThread_;
 
@@ -299,7 +310,7 @@ private:
         // from leaking to the Delayed Poller thread, which is, e.g., fiber-unfriendly.
         auto runAbort = [&] (const TDelayedExecutorEntryPtr& entry) {
             if (entry->Callback) {
-                DelayedInvoker_->Invoke(BIND(std::move(entry->Callback), true));
+                RunCallback(entry, true);
             }
         };
         for (const auto& entry : ScheduledEntries_) {
@@ -425,10 +436,15 @@ private:
                     now);
             }
             YT_VERIFY(entry->Callback);
-            DelayedInvoker_->Invoke(BIND(std::move(entry->Callback), false));
+            RunCallback(entry, false);
             entry->Iterator.reset();
             ScheduledEntries_.erase(it);
         }
+    }
+
+    void RunCallback(const TDelayedExecutorEntryPtr& entry, bool abort)
+    {
+        (entry->Invoker ? entry->Invoker : DelayedInvoker_)->Invoke(BIND(std::move(entry->Callback), abort));
     }
 
     static void ClosureToDelayedCallbackAdapter(const TClosure& closure, bool aborted)
@@ -452,9 +468,11 @@ TDelayedExecutor::TImpl* TDelayedExecutor::GetImpl()
     return LeakySingleton<TDelayedExecutor::TImpl>();
 }
 
-TFuture<void> TDelayedExecutor::MakeDelayed(TDuration delay)
+TFuture<void> TDelayedExecutor::MakeDelayed(
+    TDuration delay,
+    IInvokerPtr invoker)
 {
-    return GetImpl()->MakeDelayed(delay);
+    return GetImpl()->MakeDelayed(delay, std::move(invoker));
 }
 
 void TDelayedExecutor::WaitForDuration(TDuration duration)
@@ -462,24 +480,36 @@ void TDelayedExecutor::WaitForDuration(TDuration duration)
     GetImpl()->WaitForDuration(duration);
 }
 
-TDelayedExecutorCookie TDelayedExecutor::Submit(TDelayedCallback callback, TDuration delay)
+TDelayedExecutorCookie TDelayedExecutor::Submit(
+    TDelayedCallback callback,
+    TDuration delay,
+    IInvokerPtr invoker)
 {
-    return GetImpl()->Submit(std::move(callback), delay);
+    return GetImpl()->Submit(std::move(callback), delay, std::move(invoker));
 }
 
-TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure closure, TDuration delay)
+TDelayedExecutorCookie TDelayedExecutor::Submit(
+    TClosure closure,
+    TDuration delay,
+    IInvokerPtr invoker)
 {
-    return GetImpl()->Submit(std::move(closure), delay);
+    return GetImpl()->Submit(std::move(closure), delay, std::move(invoker));
 }
 
-TDelayedExecutorCookie TDelayedExecutor::Submit(TDelayedCallback callback, TInstant deadline)
+TDelayedExecutorCookie TDelayedExecutor::Submit(
+    TDelayedCallback callback,
+    TInstant deadline,
+    IInvokerPtr invoker)
 {
-    return GetImpl()->Submit(std::move(callback), deadline);
+    return GetImpl()->Submit(std::move(callback), deadline, std::move(invoker));
 }
 
-TDelayedExecutorCookie TDelayedExecutor::Submit(TClosure closure, TInstant deadline)
+TDelayedExecutorCookie TDelayedExecutor::Submit(
+    TClosure closure,
+    TInstant deadline,
+    IInvokerPtr invoker)
 {
-    return GetImpl()->Submit(std::move(closure), deadline);
+    return GetImpl()->Submit(std::move(closure), deadline, std::move(invoker));
 }
 
 void TDelayedExecutor::Cancel(const TDelayedExecutorCookie& cookie)
