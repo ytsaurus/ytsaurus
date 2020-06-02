@@ -3,6 +3,7 @@ package ru.yandex.spark.yt.format
 import io.circe._
 import io.circe.generic.semiauto._
 import io.circe.syntax._
+import org.apache.spark.SparkException
 import org.apache.spark.sql.Encoders
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt._
@@ -15,32 +16,43 @@ import scala.language.postfixOps
 
 
 class DynamicTableLocalTest extends FlatSpec with Matchers with LocalSpark with TmpDir {
+  import spark.implicits._
+  private val testData = (1 to 10).map(i => TestRow(i, i * 2, ('a'.toInt + i).toChar.toString))
+
   "YtFileFormat" should "read dynamic table" in {
-    import spark.implicits._
-    val testData = (1 to 10).map(i => TestRow(i, i * 2, ('a'.toInt + i).toChar.toString))
     prepareTestTable(tmpPath, testData, Nil)
     val df = spark.read.yt(tmpPath)
     df.selectAs[TestRow].collect() should contain theSameElementsAs testData
   }
 
   it should "read dynamic table with long pivot keys" in {
-    import spark.implicits._
-    val testData = (1 to 10).map(i => TestRow(i, i * 2, ('a'.toInt + i).toChar.toString))
     prepareTestTable(tmpPath, testData, Seq("[]", "[3]", "[6;12]"))
     val df = spark.read.yt(tmpPath)
     df.selectAs[TestRow].collect() should contain theSameElementsAs testData
   }
 
+  it should "read many dynamic tables" in {
+    val tablesCount = 35
+    (1 to tablesCount).par.foreach { i =>
+      prepareTestTable(s"$tmpPath/$i", testData, Nil)
+    }
+
+    a [SparkException] should be thrownBy {
+      spark.read.yt((1 to tablesCount).map(i => s"$tmpPath/$i"):_*).show()
+    }
+  }
+
   def prepareTestTable(path: String, data: Seq[TestRow], pivotKeys: Seq[String]): Unit = {
     val schema = Encoders.product[TestRow].schema
-    YtWrapper.createTable(tmpPath, TestTableSettings(schema, isDynamic = true, sortColumns = Seq("a", "b")))
-    YtWrapper.mountTable(tmpPath)
-    insertRows(tmpPath, data)
-    YtWrapper.unmountTable(tmpPath)
-    YtWrapper.waitState(tmpPath, YtWrapper.TabletState.Unmounted, 10 seconds)
+    YtWrapper.createTable(path, TestTableSettings(schema, isDynamic = true, sortColumns = Seq("a", "b")))
+    YtWrapper.mountTable(path)
+    YtWrapper.waitState(path, YtWrapper.TabletState.Mounted, 10 seconds)
+    insertRows(path, data)
+    YtWrapper.unmountTable(path)
+    YtWrapper.waitState(path, YtWrapper.TabletState.Unmounted, 10 seconds)
     if (pivotKeys.nonEmpty) reshardTable(path, pivotKeys)
-    YtWrapper.mountTable(tmpPath)
-    YtWrapper.waitState(tmpPath, YtWrapper.TabletState.Mounted, 10 seconds)
+    YtWrapper.mountTable(path)
+    YtWrapper.waitState(path, YtWrapper.TabletState.Mounted, 10 seconds)
   }
 
   def insertRows(path: String, rows: Seq[TestRow]): Unit = {

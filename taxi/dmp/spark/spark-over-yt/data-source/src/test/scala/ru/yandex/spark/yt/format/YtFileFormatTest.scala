@@ -1,5 +1,6 @@
 package ru.yandex.spark.yt.format
 
+import java.nio.charset.StandardCharsets
 import java.nio.file.{Files, Paths}
 
 import org.apache.log4j.{Level, Logger}
@@ -13,6 +14,9 @@ import ru.yandex.spark.yt.fs.conf.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+
+import scala.concurrent.duration._
+import scala.language.postfixOps
 
 class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
 
@@ -529,6 +533,44 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
     YtWrapper.attribute(tmpPath, "expiration_time").stringValue() shouldEqual expirationTime
     YtWrapper.attribute(tmpPath, "_my_custom_attribute").stringValue() shouldEqual myCustomAttribute
   }
+
+  it should "read many tables" in {
+    YtWrapper.createDir(tmpPath)
+    val tableCount = 35
+    (1 to tableCount).par.foreach(i =>
+      writeTableFromYson(Seq(
+        """{a = 1; b = "a"; c = 0.3}""",
+        """{a = 2; b = "b"; c = 0.5}"""
+      ), s"$tmpPath/$i", atomicSchema)
+    )
+
+    val res = spark.read.yt((1 to tableCount).map(i => s"$tmpPath/$i"):_*)
+
+    res.columns should contain theSameElementsAs Seq("a", "b", "c")
+    res.select("a", "b", "c").collect() should contain theSameElementsAs (1 to tableCount).flatMap(_ => Seq(
+      Row(1, "a", 0.3),
+      Row(2, "b", 0.5)
+    ))
+  }
+
+  it should "read csv" in {
+    YtWrapper.createFile(tmpPath)
+    val os = YtWrapper.writeFile(tmpPath, 1 minute, None)
+    try {
+      os.write(
+        """a,b,c
+          |1,2,3
+          |4,5,6""".stripMargin.getBytes(StandardCharsets.UTF_8))
+    } finally os.close()
+
+    val res = spark.read.option("header", "true").csv(tmpPath.drop(1))
+
+    res.columns should contain theSameElementsAs Seq("a", "b", "c")
+    res.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
+      Row("1", "2", "3"),
+      Row("4", "5", "6")
+    )
+  }
 }
 
 object Counter {
@@ -559,4 +601,3 @@ object YtFileFormatTest {
     testRow.f7
   )
 }
-

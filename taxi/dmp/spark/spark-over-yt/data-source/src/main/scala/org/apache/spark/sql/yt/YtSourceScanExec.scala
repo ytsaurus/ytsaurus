@@ -32,7 +32,10 @@ case class YtSourceScanExec(
   lazy val isDynamicTable: Boolean = relation.fileFormat match {
     case yf: YtFileFormat =>
       relation.location.asInstanceOf[InMemoryFileIndex]
-        .allFiles().exists(_.asInstanceOf[YtFileStatus].isDynamic)
+        .allFiles().exists{
+        case status: YtFileStatus => status.isDynamic
+        case _: FileStatus => false
+      }
     case _ => false
   }
 
@@ -327,6 +330,14 @@ case class YtSourceScanExec(
               case yp: YtStaticPath =>
                 new YtPartitionedFile(yp.stringPath, Array.empty, Array.empty, yp.beginRow + offset,
                   yp.beginRow + offset + size, isDynamic = false, Nil)
+              case p =>
+                YtStaticPath.fromPath(p) match {
+                  case Some(yp) =>
+                    new YtPartitionedFile(yp.stringPath, Array.empty, Array.empty, yp.beginRow + offset,
+                      yp.beginRow + offset + size, isDynamic = false, Nil)
+                  case None =>
+                    PartitionedFile(partition.values, p.toUri.toString, 0, file.getLen, hosts)
+                }
             }
           }
         } else {
