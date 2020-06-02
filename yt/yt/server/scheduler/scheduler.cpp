@@ -3000,22 +3000,6 @@ private:
         const TOperationPtr& operation,
         const TOperationControllerUnregisterResult& result) const
     {
-        if (operation->Spec()->TestingOperationOptions->LogResidualCustomJobMetricsOnTermination) {
-            THashMap<TString, THashMap<TString, i64>> residualCustomJobMetricsPerTree;
-            for (const auto& [treeId, jobMetrics] : result.ResidualJobMetrics) {
-                THashMap<TString, i64> profilingNameToValue;
-                for (const auto& [customMetricDescription, value] : jobMetrics.CustomValues()) {
-                    profilingNameToValue.emplace(customMetricDescription.ProfilingName, value);
-                }
-                residualCustomJobMetricsPerTree.emplace(treeId, profilingNameToValue);
-            }
-
-            YT_LOG_DEBUG("Processing result of unregistering operation in controller "
-                "(OperationId: %v, ResidualCustomJobMetrics: %v)",
-                operation->GetId(),
-                residualCustomJobMetricsPerTree);
-        }
-
         if (!result.ResidualJobMetrics.empty()) {
             GetStrategy()->ApplyJobMetricsDelta({{operation->GetId(), result.ResidualJobMetrics}});
         }
