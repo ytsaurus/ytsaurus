@@ -27,7 +27,7 @@ TIter BinarySearch(TIter begin, TIter end, TPredicate pred)
 template <class TPredicate>
 size_t BinarySearch(size_t begin, size_t end, TPredicate pred)
 {
-    return BinarySearch<size_t, TPredicate>(begin, end, pred);
+    return NYT::BinarySearch<size_t, TPredicate>(begin, end, pred);
 }
 
 template <class TIter, class TPredicate>
@@ -58,7 +58,7 @@ TIter ExponentialSearch(TIter begin, TIter end, TPredicate pred)
 template <class TIter, class T>
 TIter LowerBound(TIter begin, TIter end, const T& value)
 {
-    return BinarySearch(begin, end, [&] (TIter it) {
+    return NYT::BinarySearch(begin, end, [&] (TIter it) {
         return *it < value;
     });
 }
