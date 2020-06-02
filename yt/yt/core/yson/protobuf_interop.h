@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/core/misc/defines.h>
+
 #include <yt/core/ypath/public.h>
 
 #include <yt/core/ytree/public.h>
@@ -220,7 +222,7 @@ void RegisterCustomProtobufConverter(
     const TProtobufMessageConverter& converter);
 
 #define REGISTER_INTERMEDIATE_PROTO_INTEROP_REPRESENTATION(ProtoType, Type)                                          \
-    const bool TmpBool##__COUNTER__ = [] {                                                                           \
+    const bool UNIQUE_NAME(TmpBool) = [] {                                                                           \
         auto* descriptor = ProtoType::default_instance().GetDescriptor();                                            \
         NYson::TProtobufMessageConverter converter;                                                                  \
         converter.Serializer = [] (NYson::IYsonConsumer* consumer, const google::protobuf::Message* message) {       \

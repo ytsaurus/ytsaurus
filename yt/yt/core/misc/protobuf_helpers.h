@@ -11,6 +11,8 @@
 
 #include <yt/core/compression/public.h>
 
+#include <yt/core/misc/defines.h>
+
 #include <yt/core/misc/proto/guid.pb.h>
 #include <yt/core/misc/proto/protobuf_helpers.pb.h>
 
@@ -271,6 +273,20 @@ struct TProtoExtensionTag;
     struct TProtoExtensionTag<type> \
         : NMpl::TIntegralConstant<i32, tag> \
     { };
+
+//! Registers protobuf extension for further conversions. This method
+//! is assumed to be called during static initialization only.
+void RegisterProtobufExtension(
+    const google::protobuf::Descriptor* descriptor,
+    int tag,
+    const TString& name);
+
+#define REGISTER_PROTO_EXTENSION(type, tag, name) \
+    const bool UNIQUE_NAME(TmpBool) = [] { \
+        const auto* descriptor = type::default_instance().GetDescriptor(); \
+        RegisterProtobufExtension(descriptor, tag, #name); \
+        return false; \
+    } ();
 
 //! Finds and deserializes an extension of the given type. Fails if no matching
 //! extension is found.
