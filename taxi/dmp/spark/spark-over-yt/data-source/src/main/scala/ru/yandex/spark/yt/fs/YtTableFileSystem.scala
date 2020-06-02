@@ -6,6 +6,7 @@ import org.apache.hadoop.fs._
 import org.apache.hadoop.fs.permission.FsPermission
 import org.apache.hadoop.util.Progressable
 import org.apache.log4j.Logger
+import org.apache.spark.sql.SparkSession
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.cypress.{PathType, TableType}
 import ru.yandex.yt.ytclient.proxy.YtClient
@@ -29,11 +30,17 @@ class YtTableFileSystem extends YtFileSystemBase {
       case PathType.Table =>
         YtWrapper.tableType(path, transaction) match {
           case TableType.Static => listStaticTableAsFiles(f, path, transaction)
-          case TableType.Dynamic => listDynamicTableAsFiles(f, path, transaction)
+          case TableType.Dynamic =>
+            if (!isDriver) throw new IllegalStateException("Listing dynamic tables on executors is not supported")
+            listDynamicTableAsFiles(f, path, transaction)
         }
       case PathType.Directory => listYtDirectory(f, path, transaction)
       case _ => throw new IllegalArgumentException(s"Can't list $pathType")
     }
+  }
+
+  private lazy val isDriver: Boolean = {
+    SparkSession.getDefaultSession.nonEmpty
   }
 
   private def listStaticTableAsFiles(f: Path, path: String, transaction: Option[String])
