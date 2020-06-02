@@ -25,6 +25,8 @@ public:
         std::vector<IReaderFactoryPtr> readerFactories,
         IMultiReaderMemoryManagerPtr multiReaderMemoryManager);
 
+    ~TMultiReaderManagerBase();
+
     virtual void Open() override;
 
     virtual TFuture<void> GetReadyEvent() override;
