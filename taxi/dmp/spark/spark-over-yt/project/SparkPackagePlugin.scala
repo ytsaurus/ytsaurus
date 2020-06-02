@@ -114,7 +114,7 @@ object SparkPackagePlugin extends AutoPlugin {
       val rebuildSpark = Option(System.getProperty("rebuildSpark")).forall(_.toBoolean)
 
       if (rebuildSpark) {
-        buildSpark(sparkHome.toString)
+        buildSpark(sparkHome.value.toString)
       }
 
       sparkAdditionalJars.value.foreach { file =>
