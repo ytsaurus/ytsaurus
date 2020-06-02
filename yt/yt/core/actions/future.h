@@ -267,8 +267,9 @@ public:
 
     //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
     //! or to |EErrorCode::Timeout| (in case of timeout).
-    TFuture<T> WithTimeout(TDuration timeout) const;
-    TFuture<T> WithTimeout(std::optional<TDuration> timeout) const;
+    //! The timeout event is handled in #invoker (DelayedExecutor is null).
+    TFuture<T> WithTimeout(TDuration timeout, IInvokerPtr invoker = nullptr) const;
+    TFuture<T> WithTimeout(std::optional<TDuration> timeout, IInvokerPtr invoker = nullptr) const;
 
     //! Chains the asynchronous computation with another synchronous function.
     template <class R>
