@@ -36,17 +36,17 @@ TEST(TAlgorithmHelpersTest, BinarySearch)
 {
     {
         std::vector<TString> v;
-        auto it = LowerBound(v.begin(), v.end(), "test");
+        auto it = NYT::LowerBound(v.begin(), v.end(), "test");
         EXPECT_EQ(it, v.end());
     }
 
     {
         int data[] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
 
-        auto it = LowerBound(data, data + Y_ARRAY_SIZE(data), 2);
+        auto it = NYT::LowerBound(data, data + Y_ARRAY_SIZE(data), 2);
         EXPECT_EQ(it - data, 1);
 
-        it = LowerBound(data, data + Y_ARRAY_SIZE(data), 10);
+        it = NYT::LowerBound(data, data + Y_ARRAY_SIZE(data), 10);
         EXPECT_EQ(it, data + Y_ARRAY_SIZE(data));
     }
 
@@ -66,7 +66,7 @@ TEST(TAlgorithmHelpersTest, BinarySearch)
             EXPECT_EQ(it, data.begin());
         }
         {
-            auto it = LowerBound(data.rbegin(), data.rend(), 1);
+            auto it = NYT::LowerBound(data.rbegin(), data.rend(), 1);
             EXPECT_EQ(it, data.rbegin() + 1);
         }
     }
