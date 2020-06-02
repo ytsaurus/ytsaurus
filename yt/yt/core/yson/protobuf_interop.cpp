@@ -1552,7 +1552,7 @@ private:
             const auto* messageType = field->GetMessageType();
             const auto& converter = *messageType->GetConverter();
             TreeBuilder_->BeginTree();
-            Forward(TreeBuilder_.get(), [&, messageType] {
+            Forward(TreeBuilder_.get(), [this, converter, messageType] {
                 auto node = TreeBuilder_->EndTree();
                 std::unique_ptr<Message> message(MessageFactory::generated_factory()->GetPrototype(messageType->GetUnderlying())->New());
                 converter.Deserializer(message.get(), node);

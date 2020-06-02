@@ -1,6 +1,7 @@
 package NYT.NProto;
 
 import "yt/core/misc/proto/guid.proto";
+import "yt/core/misc/proto/protobuf_helpers.proto";
 import "yt/core/yson/proto/protobuf_interop.proto";
 import "yt/core/ytree/proto/attributes.proto";
 
@@ -56,7 +57,8 @@ message TMessage
     map<int32, TNestedMessageWithCustomConverter> int32_to_nested_message_with_custom_converter_map = 27 [(NYT.NYson.NProto.yson_map) = true];
     optional NYT.NProto.TGuid guid = 28;
     optional bytes bytes_with_custom_converter = 29;
- 
+    optional NYT.NProto.TExtensionSet extensions = 30;
+
     extensions 100 to 199;
 }
 
@@ -80,6 +82,11 @@ message TMessageExtensionExtension
     }
 
     optional uint32 extension_extension_field = 1;
+}
+
+message TMessageExt
+{
+    optional int32 x = 1;
 }
 
 message TNestedMessageWithRequriedFields

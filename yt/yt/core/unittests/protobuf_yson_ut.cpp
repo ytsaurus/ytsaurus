@@ -18,6 +18,17 @@
 
 #include <contrib/libs/protobuf/wire_format.h>
 
+namespace NYT {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_PROTO_EXTENSION(NYT::NProto::TMessageExt, 123)
+REGISTER_PROTO_EXTENSION(NYT::NProto::TNestedMessageWithCustomConverter, 123, ext)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT
+
 namespace NYT::NYson {
 namespace {
 
@@ -239,6 +250,14 @@ TEST(TYsonToProtobufYsonTest, Success)
             .Item("bytes_with_custom_converter").BeginMap()
                 .Item("x").Value(43)
             .EndMap()
+            .Item("extensions").BeginMap()
+                .Item("ext").BeginMap()
+                    .Item("x").Value(42)
+                .EndMap()
+                .Item("smth").BeginMap()
+                    .Item("foo").Value("bar")
+                .EndMap()
+            .EndMap()
         .EndMap();
 
 
@@ -333,6 +352,8 @@ TEST(TYsonToProtobufYsonTest, Success)
     EXPECT_EQ(0xdeadbeef, message.guid().second());
 
     EXPECT_EQ("42", message.bytes_with_custom_converter());
+
+    EXPECT_EQ(GetProtoExtension<NYT::NProto::TMessageExt>(message.extensions()).x(), 42);
 }
 
 TEST(TYsonToProtobufYsonTest, ParseMapFromList)
@@ -1097,6 +1118,12 @@ TEST(TProtobufToYsonTest, Success)
 
     message.set_bytes_with_custom_converter("42");
 
+    {
+        NYT::NProto::TMessageExt messageExt;
+        messageExt.set_x(42);
+        SetProtoExtension(message.mutable_extensions(), messageExt);
+    }
+
     TEST_PROLOGUE()
     message.SerializeToCodedStream(&codedStream);
     TEST_EPILOGUE(TMessage)
@@ -1205,6 +1232,11 @@ TEST(TProtobufToYsonTest, Success)
             .Item("guid").Value("0-deadbeef-0-abacaba")
             .Item("bytes_with_custom_converter").BeginMap()
                 .Item("x").Value(43)
+            .EndMap()
+            .Item("extensions").BeginMap()
+                .Item("ext").BeginMap()
+                    .Item("x").Value(42)
+                .EndMap()
             .EndMap()
         .EndMap();
 

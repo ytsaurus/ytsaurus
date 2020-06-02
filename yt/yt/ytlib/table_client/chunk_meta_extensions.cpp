@@ -17,6 +17,19 @@ using NYson::IYsonConsumer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+REGISTER_PROTO_EXTENSION(TTableSchemaExt, 50, table_schema)
+REGISTER_PROTO_EXTENSION(TBlockMetaExt, 51, block_meta)
+REGISTER_PROTO_EXTENSION(TNameTableExt, 53, name_table)
+REGISTER_PROTO_EXTENSION(TBoundaryKeysExt, 55, boundary_keys)
+REGISTER_PROTO_EXTENSION(TSamplesExt, 56, samples)
+REGISTER_PROTO_EXTENSION(TPartitionsExt, 59, partitions)
+REGISTER_PROTO_EXTENSION(TColumnMetaExt, 58, column_meta)
+REGISTER_PROTO_EXTENSION(TColumnarStatisticsExt, 60, columnar_statistics)
+REGISTER_PROTO_EXTENSION(THeavyColumnStatisticsExt, 61, heavy_column_statistics)
+REGISTER_PROTO_EXTENSION(TKeyColumnsExt, 14, key_columns)
+
+////////////////////////////////////////////////////////////////////////////////
+
 size_t TOwningBoundaryKeys::SpaceUsed() const
 {
     return

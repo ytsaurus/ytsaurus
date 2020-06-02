@@ -7,6 +7,10 @@
 
 #include <yt/core/misc/cast.h>
 
+#include <yt/core/yson/protobuf_interop.h>
+
+#include <yt/core/ytree/fluent.h>
+
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -16,6 +20,8 @@
 namespace NYT {
 
 using namespace google::protobuf::io;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,7 +98,7 @@ TSharedRef SerializeProtoToRefWithEnvelope(
     NCompression::ECodec codecId,
     bool partial)
 {
-    NProto::TSerializedMessageEnvelope envelope;
+    NYT::NProto::TSerializedMessageEnvelope envelope;
     if (codecId != NCompression::ECodec::None) {
         envelope.set_codec(static_cast<int>(codecId));
     }
@@ -134,7 +140,7 @@ TString SerializeProtoToStringWithEnvelope(
         return ToString(SerializeProtoToRefWithEnvelope(message, codecId, partial));
     }
 
-    NProto::TSerializedMessageEnvelope envelope;
+    NYT::NProto::TSerializedMessageEnvelope envelope;
 
     TEnvelopeFixedHeader fixedHeader;
     fixedHeader.EnvelopeSize = static_cast<ui32>(envelope.ByteSize());
@@ -172,7 +178,7 @@ bool TryDeserializeProtoWithEnvelope(
 
     const char* sourceMessage = sourceHeader + fixedHeader->EnvelopeSize;
 
-    NProto::TSerializedMessageEnvelope envelope;
+    NYT::NProto::TSerializedMessageEnvelope envelope;
     if (!envelope.ParseFromArray(sourceHeader, fixedHeader->EnvelopeSize)) {
         return false;
     }
@@ -267,6 +273,163 @@ TSharedRef PushEnvelope(const TSharedRef& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TProtobufExtensionDescriptor
+{
+    const google::protobuf::Descriptor* MessageDescriptor;
+    const int Tag;
+    const TString Name;
+};
+
+class TProtobufExtensionRegistry
+{
+public:
+    void RegisterProtobufExtension(
+        const google::protobuf::Descriptor* descriptor,
+        int tag,
+        const TString& name)
+    {
+        TProtobufExtensionDescriptor extensionDescriptor{
+            .MessageDescriptor = descriptor,
+            .Tag = tag,
+            .Name = name
+        };
+
+        YT_VERIFY(ExtensionTagToExtensionDescriptor_.emplace(tag, extensionDescriptor).second);
+        YT_VERIFY(ExtensionNameToExtensionDescriptor_.emplace(name, extensionDescriptor).second);
+    }
+
+    std::optional<TProtobufExtensionDescriptor> FindProtobufExtension(int tag) const
+    {
+        auto it = ExtensionTagToExtensionDescriptor_.find(tag);
+        if (it == ExtensionTagToExtensionDescriptor_.end()) {
+            return std::nullopt;
+        } else {
+            return it->second;
+        }
+    }
+
+    std::optional<TProtobufExtensionDescriptor> FindProtobufExtension(const TString& name) const
+    {
+        auto it = ExtensionNameToExtensionDescriptor_.find(name);
+        if (it == ExtensionNameToExtensionDescriptor_.end()) {
+            return std::nullopt;
+        } else {
+            return it->second;
+        }
+    }
+
+    static TProtobufExtensionRegistry* Get()
+    {
+        return Singleton<TProtobufExtensionRegistry>();
+    }
+
+private:
+    Y_DECLARE_SINGLETON_FRIEND();
+    TProtobufExtensionRegistry() = default;
+
+    THashMap<int, TProtobufExtensionDescriptor> ExtensionTagToExtensionDescriptor_;
+    THashMap<TString, TProtobufExtensionDescriptor> ExtensionNameToExtensionDescriptor_;
+};
+
+void RegisterProtobufExtension(
+    const google::protobuf::Descriptor* descriptor,
+    int tag,
+    const TString& name)
+{
+    TProtobufExtensionRegistry::Get()->RegisterProtobufExtension(descriptor, tag, name);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Intermediate extension representation for proto<->yson converter.
+struct TExtension
+{
+    //! Extension tag.
+    int Tag;
+
+    //! Serialized extension message.
+    TString Data;
+};
+
+//! Intermediate extension set representation for proto<->yson converter.
+struct TExtensionSet
+{
+    std::vector<TExtension> Extensions;
+};
+
+void FromProto(TExtensionSet* extensionSet, const NYT::NProto::TExtensionSet& protoExtensionSet)
+{
+    const auto* extensionRegistry = TProtobufExtensionRegistry::Get();
+
+    for (const auto& protoExtension : protoExtensionSet.extensions()) {
+        // Do not parse unknown extensions.
+        if (extensionRegistry->FindProtobufExtension(protoExtension.tag())) {
+            TExtension extension{
+                .Tag = protoExtension.tag(),
+                .Data = protoExtension.data()
+            };
+            extensionSet->Extensions.push_back(std::move(extension));
+        }
+    }
+}
+
+void ToProto(NYT::NProto::TExtensionSet* protoExtensionSet, const TExtensionSet& extensionSet)
+{
+    for (const auto& extension : extensionSet.Extensions) {
+        auto* protoExtension = protoExtensionSet->add_extensions();
+        protoExtension->set_tag(extension.Tag);
+        protoExtension->set_data(extension.Data);
+    }
+}
+
+void Serialize(const TExtensionSet& extensionSet, NYson::IYsonConsumer* consumer)
+{
+    const auto* extensionRegistry = TProtobufExtensionRegistry::Get();
+
+    BuildYsonFluently(consumer)
+        .DoMapFor(extensionSet.Extensions, [&] (TFluentMap fluent, const TExtension& extension) {
+            auto extensionDescriptor = extensionRegistry->FindProtobufExtension(extension.Tag);
+            YT_VERIFY(extensionDescriptor);
+
+            fluent
+                .Item(extensionDescriptor->Name)
+                .Do([&] (TFluentAny fluent) {
+                    const auto& data = extension.Data;
+                    ArrayInputStream inputStream(data.data(), data.size());
+                    ParseProtobuf(
+                        fluent.GetConsumer(),
+                        &inputStream,
+                        ReflectProtobufMessageType(extensionDescriptor->MessageDescriptor));
+                });
+        });
+}
+
+void Deserialize(TExtensionSet& extensionSet, NYTree::INodePtr node)
+{
+    const auto* extensionRegistry = TProtobufExtensionRegistry::Get();
+
+    auto mapNode = node->AsMap();
+    for (const auto& [name, value] : mapNode->GetChildren()) {
+        auto extensionDescriptor = extensionRegistry->FindProtobufExtension(name);
+        // Do not parse unknown extensions.
+        if (!extensionDescriptor) {
+            continue;
+        }
+        auto& extension = extensionSet.Extensions.emplace_back();
+        extension.Tag = extensionDescriptor->Tag;
+
+        StringOutputStream stream(&extension.Data);
+        auto writer = CreateProtobufWriter(
+            &stream,
+            ReflectProtobufMessageType(extensionDescriptor->MessageDescriptor));
+        VisitTree(value, writer.get(), /*stable=*/false);
+    }
+}
+
+REGISTER_INTERMEDIATE_PROTO_INTEROP_REPRESENTATION(NYT::NProto::TExtensionSet, TExtensionSet)
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TBinaryProtoSerializer::Save(TStreamSaveContext& context, const ::google::protobuf::Message& message)
 {
     auto data = SerializeProtoToRefWithEnvelope(message);
@@ -304,8 +467,8 @@ void TBinaryProtoSerializer::Load(TStreamLoadContext& context, ::google::protobu
 ////////////////////////////////////////////////////////////////////////////////
 
 void FilterProtoExtensions(
-    NProto::TExtensionSet* target,
-    const NProto::TExtensionSet& source,
+    NYT::NProto::TExtensionSet* target,
+    const NYT::NProto::TExtensionSet& source,
     const THashSet<int>& tags)
 {
     target->Clear();

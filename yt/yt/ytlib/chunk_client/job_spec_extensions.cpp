@@ -1,14 +1,12 @@
-#pragma once
-
-#include <yt/core/misc/protobuf_helpers.h>
-
-#include <yt/ytlib/chunk_client/proto/data_source.pb.h>
+#include "job_spec_extensions.h"
 
 namespace NYT {
 
+using namespace NChunkClient::NProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_PROTO_EXTENSION(NChunkClient::NProto::TDataSourceDirectoryExt, 420)
+REGISTER_PROTO_EXTENSION(TDataSourceDirectoryExt, 420, data_source_directory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
