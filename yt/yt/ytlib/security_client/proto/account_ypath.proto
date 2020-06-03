@@ -2,13 +2,13 @@ package NYT.NSecurityClient.NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqTransferQuota
+message TReqTransferAccountResources
 {
     required string src_account = 1;
     required bytes resource_delta = 2;
 }
 
-message TRspTransferQuota
+message TRspTransferAccountResources
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

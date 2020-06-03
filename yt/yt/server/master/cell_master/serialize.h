@@ -107,6 +107,7 @@ DEFINE_ENUM(EMasterReign,
     ((ApproximateColumnarStatistics)                                (1317))  // gritukan
     ((BetterClusterResourcesDeserialization)                        (1318))  // kiselyovp
     ((TransferQuota)                                                (1319))  // kiselyovp
+    ((RenameTransferQuota)                                          (1320))  // kiselyovp
 );
 
 ////////////////////////////////////////////////////////////////////////////////

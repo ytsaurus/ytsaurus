@@ -598,7 +598,7 @@ public:
         account->ClusterResourceLimits() = resourceLimits;
     }
 
-    void TransferQuota(TAccount* srcAccount, TAccount* dstAccount, const TClusterResources& resourceDelta)
+    void TransferAccountResources(TAccount* srcAccount, TAccount* dstAccount, const TClusterResources& resourceDelta)
     {
         YT_VERIFY(srcAccount);
         YT_VERIFY(dstAccount);
@@ -3611,9 +3611,12 @@ void TSecurityManager::TrySetResourceLimits(TAccount* account, const TClusterRes
     Impl_->TrySetResourceLimits(account, resourceLimits);
 }
 
-void TSecurityManager::TransferQuota(TAccount* srcAccount, TAccount* dstAccount, const TClusterResources& resourceDelta)
+void TSecurityManager::TransferAccountResources(
+    TAccount* srcAccount,
+    TAccount* dstAccount,
+    const TClusterResources& resourceDelta)
 {
-    Impl_->TransferQuota(srcAccount, dstAccount, resourceDelta);
+    Impl_->TransferAccountResources(srcAccount, dstAccount, resourceDelta);
 }
 
 void TSecurityManager::UpdateResourceUsage(const TChunk* chunk, const TChunkRequisition& requisition, i64 delta)

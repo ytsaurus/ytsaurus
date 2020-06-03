@@ -212,16 +212,16 @@ void TClient::ValidateOperationAccess(
         Logger);
 }
 
-void TClient::DoTransferQuota(
+void TClient::DoTransferAccountResources(
     const TString& srcAccount,
     const TString& dstAccount,
     NYTree::INodePtr resourceDelta,
-    const TTransferQuotaOptions& options)
+    const TTransferAccountResourcesOptions& options)
 {
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
 
-    auto req = TAccountYPathProxy::TransferQuota(GetAccountPath(dstAccount));
+    auto req = TAccountYPathProxy::TransferAccountResources(GetAccountPath(dstAccount));
     req->set_src_account(srcAccount);
     req->set_resource_delta(ConvertToYsonString(resourceDelta).GetData());
     SetMutationId(req, options);
@@ -230,7 +230,7 @@ void TClient::DoTransferQuota(
 
     auto batchRsp = WaitFor(batchReq->Invoke())
         .ValueOrThrow();
-    batchRsp->GetResponse<TAccountYPathProxy::TRspTransferQuota>(0)
+    batchRsp->GetResponse<TAccountYPathProxy::TRspTransferAccountResources>(0)
         .ThrowOnError();
 }
 

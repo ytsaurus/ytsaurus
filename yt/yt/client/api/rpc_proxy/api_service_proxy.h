@@ -132,7 +132,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, RemoveMember);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CheckPermission);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CheckPermissionByAcl);
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, TransferQuota);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, TransferAccountResources);
 
     // Metadata
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetColumnarStatistics);

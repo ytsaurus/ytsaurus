@@ -250,7 +250,7 @@ public:
         REGISTER_ALL(TCheckPermissionCommand,             "check_permission",              Null,       Structured, false, false);
         REGISTER_ALL(TCheckPermissionByAclCommand,        "check_permission_by_acl",       Null,       Structured, false, false);
 
-        REGISTER    (TTransferQuotaCommand,               "transfer_quota",                Null,       Structured, true,  false, ApiVersion4);
+        REGISTER    (TTransferAccountResourcesCommand,    "transfer_account_resources",    Null,       Structured, true,  false, ApiVersion4);
 
         REGISTER    (TWriteJournalCommand,                "write_journal",                 Tabular,    Null,       true,  true , ApiVersion3);
         REGISTER    (TWriteJournalCommand,                "write_journal",                 Tabular,    Structured, true,  true , ApiVersion4);
