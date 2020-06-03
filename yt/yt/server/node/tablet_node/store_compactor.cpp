@@ -162,7 +162,12 @@ private:
     template <typename T>
     static auto GetOrderingTuple(const T& task)
     {
-        return std::make_tuple(task->Slack + task->FutureEffect, -task->Effect, -task->GetStoreCount(), task->Random);
+        return std::make_tuple(
+            !task->DiscardStores,
+            task->Slack + task->FutureEffect,
+            -task->Effect,
+            -task->GetStoreCount(),
+            task->Random);
     }
 
     struct TTask
@@ -175,6 +180,9 @@ private:
         TPartitionId PartitionId;
         std::vector<TStoreId> StoreIds;
 
+        // True if the all chunks should be discarded. The task does not
+        // require reading and writing chunks.
+        bool DiscardStores = false;
         // Overlapping stores slack for the task.
         // That is, the remaining number of stores in the partition till
         // the tablet hits MOSC limit.
@@ -317,6 +325,7 @@ private:
             TPartitionId PartitionId;
             int StoreCount;
 
+            bool DiscardStores;
             int Slack;
             int Effect;
             int FutureEffect;
@@ -336,6 +345,7 @@ private:
                     .Item("store_count").Value(StoreCount)
                     .Item("task_priority")
                         .BeginMap()
+                            .Item("discard_stores").Value(DiscardStores)
                             .Item("slack").Value(Slack)
                             .Item("future_effect").Value(FutureEffect)
                             .Item("effect").Value(Effect)
@@ -486,16 +496,92 @@ private:
         return true;
     }
 
+    bool TryDiscardExpiredPartition(TTabletSlot* slot, TPartition* partition)
+    {
+        if (partition->IsEden()) {
+            return false;
+        }
+
+        const auto* tablet = partition->GetTablet();
+
+        const auto& config = tablet->GetConfig();
+        if (!config->EnableDiscardingExpiredPartitions || config->MinDataVersions != 0) {
+            return false;
+        }
+
+        for (const auto& store : partition->Stores()) {
+            if (store->AsSortedChunk()->GetCompactionState() != EStoreCompactionState::None) {
+                return false;
+            }
+        }
+
+        auto timestampProvider = Bootstrap_
+            ->GetMasterClient()
+            ->GetNativeConnection()
+            ->GetTimestampProvider();
+        auto currentTimestamp = timestampProvider->GetLatestTimestamp();
+
+        auto partitionMaxTimestamp = NullTimestamp;
+        for (const auto& store : partition->Stores()) {
+            partitionMaxTimestamp = std::max(partitionMaxTimestamp, store->GetMaxTimestamp());
+        }
+
+        if (partitionMaxTimestamp >= currentTimestamp ||
+            TimestampDiffToDuration(partitionMaxTimestamp, currentTimestamp).first <= config->MaxDataTtl)
+        {
+            return false;
+        }
+
+        auto majorTimestamp = currentTimestamp;
+        for (const auto& store : tablet->GetEden()->Stores()) {
+            majorTimestamp = std::min(majorTimestamp, store->GetMinTimestamp());
+        }
+
+        if (partitionMaxTimestamp >= majorTimestamp) {
+            return false;
+        }
+
+        std::vector<TStoreId> stores;
+        for (const auto& store : partition->Stores()) {
+            stores.push_back(store->GetId());
+        }
+        auto candidate = std::make_unique<TTask>(slot, tablet, partition, std::move(stores));
+        candidate->DiscardStores = true;
+
+        const auto& Logger = TabletNodeLogger;
+        YT_LOG_DEBUG("Found partition with expired stores (%v, PartitionId: %v, PartitionIndex: %v, "
+            "PartitionMaxTimestamp: %v, MajorTimestamp: %v, StoreCount: %v)",
+            tablet->GetLoggingId(),
+            partition->GetId(),
+            partition->GetIndex(),
+            partitionMaxTimestamp,
+            majorTimestamp,
+            partition->Stores().size());
+
+        {
+            auto guard = Guard(ScanSpinLock_);
+            CompactionCandidates_.push_back(std::move(candidate));
+        }
+
+        return true;
+    }
+
     bool ScanPartitionForCompaction(TTabletSlot* slot, TPartition* partition)
     {
         if (!ScanForCompactions_ ||
             partition->GetState() != EPartitionState::Normal ||
-            partition->IsImmediateSplitRequested())
+            partition->IsImmediateSplitRequested() ||
+            partition->Stores().empty())
         {
             return false;
         }
 
         const auto* tablet = partition->GetTablet();
+
+        if (TryDiscardExpiredPartition(slot, partition)) {
+            return true;
+        }
+
 
         auto stores = PickStoresForCompaction(partition);
         if (stores.empty()) {
@@ -916,6 +1002,74 @@ private:
         }
     }
 
+    NNative::ITransactionPtr StartMasterTransaction(const TTabletSnapshotPtr& tabletSnapshot, const TString& title)
+    {
+        auto transactionAttributes = CreateEphemeralAttributes();
+        transactionAttributes->Set("title", title);
+        auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
+            NTransactionClient::ETransactionType::Master,
+            TTransactionStartOptions{
+                .AutoAbort = false,
+                .Attributes = std::move(transactionAttributes),
+                .CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId),
+                .ReplicateToMasterCellTags = TCellTagList()
+            });
+        return WaitFor(asyncTransaction)
+            .ValueOrThrow();
+    }
+
+    NNative::ITransactionPtr StartCompactionTransaction(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const NLogging::TLogger& Logger)
+    {
+        YT_LOG_INFO("Creating partition compaction transaction");
+
+        auto transaction = StartMasterTransaction(tabletSnapshot, Format("Partition compaction: table %v, tablet %v",
+            tabletSnapshot->TablePath,
+            tabletSnapshot->TabletId));
+
+        YT_LOG_INFO("Partition compaction transaction created (TransactionId: %v)",
+            transaction->GetId());
+
+        return transaction;
+    }
+
+    NNative::ITransactionPtr StartPartitioningTransaction(
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const NLogging::TLogger& Logger)
+    {
+        YT_LOG_INFO("Creating Eden partitioning transaction");
+
+        auto transaction = StartMasterTransaction(tabletSnapshot, Format("Eden partitioning: table %v, tablet %v",
+            tabletSnapshot->TablePath,
+            tabletSnapshot->TabletId));
+
+        YT_LOG_INFO("Eden partitioning transaction created (TransactionId: %v)",
+            transaction->GetId());
+
+        return transaction;
+    }
+
+    void FinishTabletStoresUpdateTransaction(
+        TTablet* tablet,
+        const TTabletSlotPtr& slot,
+        NTabletServer::NProto::TReqUpdateTabletStores actionRequest,
+        NNative::ITransactionPtr transaction)
+    {
+        ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
+        actionRequest.set_mount_revision(tablet->GetMountRevision());
+
+        auto actionData = MakeTransactionActionData(actionRequest);
+        auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tablet->GetId()));
+
+        transaction->AddAction(masterCellId, actionData);
+        transaction->AddAction(slot->GetCellId(), actionData);
+
+        const auto& tabletManager = slot->GetTabletManager();
+        WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
+            .ThrowOnError();
+    }
+
     void PartitionEden(TTask* task)
     {
         TClientBlockReadOptions blockReadOptions;
@@ -1045,31 +1199,8 @@ private:
                 stores.size(),
                 throttler);
 
-            NNative::ITransactionPtr transaction;
-            {
-                YT_LOG_INFO("Creating Eden partitioning transaction");
-
-
-                auto transactionAttributes = CreateEphemeralAttributes();
-                transactionAttributes->Set("title", Format("Eden partitioning: table %v, tablet %v",
-                    tabletSnapshot->TablePath,
-                    tabletSnapshot->TabletId));
-                auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
-                    NTransactionClient::ETransactionType::Master,
-                    TTransactionStartOptions{
-                        .AutoAbort = false,
-                        .Attributes =  std::move(transactionAttributes),
-                        .CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId),
-                        .ReplicateToMasterCellTags = TCellTagList()
-                    });
-                transaction = WaitFor(asyncTransaction)
-                    .ValueOrThrow();
-
-                YT_LOG_INFO("Eden partitioning transaction created (TransactionId: %v)",
-                    transaction->GetId());
-
-                Logger.AddTag("TransactionId: %v", transaction->GetId());
-            }
+            auto transaction = StartPartitioningTransaction(tabletSnapshot, Logger);
+            Logger.AddTag("TransactionId: %v", transaction->GetId());
 
             auto asyncResult =
                 BIND(
@@ -1095,8 +1226,6 @@ private:
             doneGuard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
-            ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
-            actionRequest.set_mount_revision(tablet->GetMountRevision());
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Partitioning));
 
             TStoreIdList storeIdsToRemove;
@@ -1127,13 +1256,7 @@ private:
                 storeIdsToRemove,
                 endInstant - beginInstant);
 
-            auto actionData = MakeTransactionActionData(actionRequest);
-            auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletSnapshot->TabletId));
-            transaction->AddAction(masterCellId, actionData);
-            transaction->AddAction(slot->GetCellId(), actionData);
-
-            WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
-                .ThrowOnError();
+            FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction));
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);
@@ -1212,7 +1335,7 @@ private:
 
         auto throttler = CreateCombinedThrottler(std::vector<IThroughputThrottlerPtr>{
             Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletPartitioning),
-            tabletSnapshot->CompactionThrottler});
+            tabletSnapshot->PartitioningThrottler});
 
         auto ensurePartitionStarted = [&] () {
             if (currentWriter)
@@ -1353,6 +1476,60 @@ private:
         return std::make_tuple(releasedWriters, readRowCount);
     }
 
+    void DiscardPartitionStores(
+        TPartition* partition,
+        const TTabletSnapshotPtr& tabletSnapshot,
+        const TTabletSlotPtr& slot,
+        const std::vector<TSortedChunkStorePtr>& stores,
+        NLogging::TLogger Logger)
+    {
+        YT_LOG_DEBUG("Discarding expired partition stores (PartitionId: %v)",
+            partition->GetId());
+
+        partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
+
+        auto* tablet = partition->GetTablet();
+
+        const auto& storeManager = tablet->GetStoreManager();
+        for (const auto& store : stores) {
+            storeManager->BeginStoreCompaction(store);
+        }
+
+        auto transaction = StartCompactionTransaction(tabletSnapshot, Logger);
+        Logger.AddTag("TransactionId: %v", transaction->GetId());
+
+        auto retainedTimestamp = NullTimestamp;
+        for (const auto& store : stores) {
+            retainedTimestamp = std::max(retainedTimestamp, store->GetMaxTimestamp());
+        }
+        ++retainedTimestamp;
+
+        NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
+        actionRequest.set_retained_timestamp(retainedTimestamp);
+        actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
+
+        TStoreIdList storeIdsToRemove;
+        for (const auto& store : stores) {
+            auto* descriptor = actionRequest.add_stores_to_remove();
+            auto storeId = store->GetId();
+            ToProto(descriptor->mutable_store_id(), storeId);
+            storeIdsToRemove.push_back(storeId);
+        }
+
+        YT_LOG_INFO("Partition stores discarded by TTL (UnmergedRowCount: %v, CompressedDataSize: %v, StoreIdsToRemove: %v)",
+            partition->GetUnmergedRowCount(),
+            partition->GetCompressedDataSize(),
+            storeIdsToRemove);
+
+        FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction));
+
+        for (const auto& store : stores) {
+            storeManager->EndStoreCompaction(store);
+        }
+
+        partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
+    }
+
     void CompactPartition(TTask* task)
     {
         TClientBlockReadOptions blockReadOptions;
@@ -1416,6 +1593,11 @@ private:
                 return;
             }
             stores.push_back(std::move(typedStore));
+        }
+
+        if (task->DiscardStores) {
+            DiscardPartitionStores(partition, tabletSnapshot, slot, stores, Logger);
+            return;
         }
 
         Logger.AddTag("Eden: %v, PartitionRange: %v .. %v, PartitionId: %v",
@@ -1488,30 +1670,8 @@ private:
                 stores.size(),
                 throttler);
 
-            NNative::ITransactionPtr transaction;
-            {
-                YT_LOG_INFO("Creating partition compaction transaction");
-
-                auto transactionAttributes = CreateEphemeralAttributes();
-                transactionAttributes->Set("title", Format("Partition compaction: table %v, tablet %v",
-                    tabletSnapshot->TablePath,
-                    tabletSnapshot->TabletId));
-                auto asyncTransaction = Bootstrap_->GetMasterClient()->StartNativeTransaction(
-                    NTransactionClient::ETransactionType::Master,
-                    TTransactionStartOptions{
-                        .AutoAbort = false,
-                        .Attributes = std::move(transactionAttributes),
-                        .CoordinatorMasterCellTag = CellTagFromId(tabletSnapshot->TabletId),
-                        .ReplicateToMasterCellTags = TCellTagList()
-                    });
-                transaction = WaitFor(asyncTransaction)
-                    .ValueOrThrow();
-
-                YT_LOG_INFO("Partition compaction transaction created (TransactionId: %v)",
-                    transaction->GetId());
-
-                Logger.AddTag("TransactionId: %v", transaction->GetId());
-            }
+            auto transaction = StartCompactionTransaction(tabletSnapshot, Logger);
+            Logger.AddTag("TransactionId: %v", transaction->GetId());
 
             auto asyncResult =
                 BIND(
@@ -1537,8 +1697,6 @@ private:
             doneGuard.Release();
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
-            ToProto(actionRequest.mutable_tablet_id(), tablet->GetId());
-            actionRequest.set_mount_revision(tablet->GetMountRevision());
             actionRequest.set_retained_timestamp(retainedTimestamp);
             actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
 
@@ -1570,13 +1728,7 @@ private:
                 storeIdsToRemove,
                 endInstant - beginInstant);
 
-            auto actionData = MakeTransactionActionData(actionRequest);
-            auto masterCellId = Bootstrap_->GetCellId(CellTagFromId(tabletSnapshot->TabletId));
-            transaction->AddAction(masterCellId, actionData);
-            transaction->AddAction(slot->GetCellId(), actionData);
-
-            WaitFor(tabletManager->CommitTabletStoresUpdateTransaction(tablet, transaction))
-                .ThrowOnError();
+            FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction));
 
             for (const auto& store : stores) {
                 storeManager->EndStoreCompaction(store);

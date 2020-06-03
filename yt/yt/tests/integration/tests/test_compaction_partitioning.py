@@ -7,6 +7,9 @@ from yt_env_setup import wait
 from yt_commands import *
 
 import random
+from time import sleep, time
+
+from yt.environment.helpers import assert_items_equal
 
 ################################################################################
 
@@ -268,6 +271,74 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         assert partitions[0]["pivot_key"] == [1]
         assert partitions[1]["pivot_key"] == [3]
         assert partitions[2]["pivot_key"] == [6]
+
+    @authors("ifsmirnov")
+    def test_expired_partition(self):
+        cell_id = sync_create_cells(1)[0]
+
+        schema = make_schema([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}],
+            unique_keys=True)
+        self._create_simple_table(
+            "//tmp/t",
+            schema=schema,
+            dynamic=False,
+            min_data_ttl=15000,
+            max_data_ttl=15000,
+            min_data_versions=0,
+            max_data_versions=1,
+            # NB: compressed size of each chunk is 38.
+            min_partition_data_size=60,
+            desired_partition_data_size=75,
+            max_partition_data_size=90,
+            min_compaction_store_count=10,
+            max_compaction_store_count=10)
+
+        start_time = time()
+        def _sleep_until(instant):
+            now = time()
+            if now - start_time < instant:
+                sleep(instant - (now - start_time))
+
+        rows = [{"key": i, "value": str(i)} for i in range(6)]
+
+        # Expire at 15.
+        write_table("<append=%true>//tmp/t", [rows[0]])
+        write_table("<append=%true>//tmp/t", [rows[1]])
+        _sleep_until(5)
+        # Expire at 20.
+        write_table("<append=%true>//tmp/t", [rows[2]])
+        write_table("<append=%true>//tmp/t", [rows[3]])
+        _sleep_until(10)
+        # Expire at 25.
+        write_table("<append=%true>//tmp/t", [rows[4]])
+        write_table("<append=%true>//tmp/t", [rows[5]])
+
+        alter_table("//tmp/t", dynamic=True)
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+        address = get_tablet_leader_address(tablet_id)
+
+        def _get_partitions():
+            return get("//sys/cluster_nodes/{}/orchid/tablet_cells/{}/tablets/{}/partitions".format(
+                address,
+                cell_id,
+                tablet_id))
+
+        expected_partitions = [[2, 2, 2], [2, 2], [2], []]
+        expected_values = [rows, rows[2:], rows[4:], []]
+
+        def _check(expected, actual):
+            while expected and expected[0] != actual:
+                expected.pop(0)
+            if not expected:
+                assert False
+
+        for deadline in (0, 18, 23):
+            _sleep_until(deadline)
+            _check(expected_partitions, [len(x["stores"]) for x in _get_partitions()])
+            _check(expected_values, sorted(list(select_rows("* from [//tmp/t]"))))
 
 ################################################################################
 
