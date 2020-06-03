@@ -357,11 +357,15 @@ public:
             foreignReaders.emplace_back(reader);
         }
 
-        auto readerFactory = InterruptAtKeyEdge_ ? CreateSchemalessSortedJoiningReader : CreateSchemalessJoinReduceJoiningReader;
-
         const auto primaryKeyColumnCount = reduceJobSpecExt.key_columns_size();
         const auto reduceKeyColumnCount = reduceJobSpecExt.reduce_key_column_count();
-        return readerFactory(primaryReaders, primaryKeyColumnCount, reduceKeyColumnCount, foreignReaders, foreignKeyColumnCount);
+        return CreateSchemalessSortedJoiningReader(
+            primaryReaders,
+            primaryKeyColumnCount,
+            reduceKeyColumnCount,
+            foreignReaders,
+            foreignKeyColumnCount,
+            InterruptAtKeyEdge_);
     }
 
 private:

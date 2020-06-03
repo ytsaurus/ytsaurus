@@ -79,7 +79,11 @@ public:
             readers.push_back(reader);
         }
 
-        Reader_ = CreateSchemalessSortedMergingReader(readers, keyColumns.size(), keyColumns.size());
+        Reader_ = CreateSchemalessSortedMergingReader(
+            readers,
+            keyColumns.size(),
+            keyColumns.size(),
+            /*interruptAtKeyEdge=*/false);
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
