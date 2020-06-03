@@ -127,7 +127,7 @@ def _get_driver(driver):
         return driver
 
 def init_drivers(clusters):
-    def create_drivers(config):
+    def create_driver_per_api(config):
         drivers = {}
         for api_version in (3, 4):
             config = pycopy.deepcopy(config)
@@ -137,25 +137,22 @@ def init_drivers(clusters):
 
     for instance in clusters:
         if instance.master_count > 0:
-            prefix = "" if instance.driver_backend == "native" else "rpc_"
-            secondary_driver_configs = [instance.configs[prefix + "driver_secondary_" + str(i)]
-                                        for i in xrange(instance.secondary_master_cell_count)]
-            drivers = create_drivers(instance.configs[prefix + "driver"])
+            if instance._default_driver_backend == "native":
+                default_driver = create_driver_per_api(instance.configs["driver"])
+            else:
+                default_driver = create_driver_per_api(instance.configs["rpc_driver"])
 
             # Setup driver logging for all instances in the environment as in the primary cluster.
             if instance._cluster_name == "primary":
-                # XXX(max42): remove this when Python sync is over.
-                try:
-                    set_environment_driver_logging_config(instance.driver_logging_config, instance.driver_backend)
-                except TypeError:
-                    set_environment_driver_logging_config(instance.driver_logging_config)
+                set_environment_driver_logging_config(
+                    instance.configs["driver_logging"],
+                    instance._default_driver_backend)
+            secondary_drivers = [
+                create_driver_per_api(instance.configs["driver_secondary_" + str(i)])
+                for i in xrange(instance.secondary_master_cell_count)
+            ]
 
-            secondary_drivers = []
-            for secondary_driver_config in secondary_driver_configs:
-
-                secondary_drivers.append(create_drivers(secondary_driver_config))
-
-            clusters_drivers[instance._cluster_name] = [drivers] + secondary_drivers
+            clusters_drivers[instance._cluster_name] = [default_driver] + secondary_drivers
 
 def wait_assert(check_fn, *args, **kwargs):
     last_exception = []

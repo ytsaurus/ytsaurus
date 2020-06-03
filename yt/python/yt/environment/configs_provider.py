@@ -113,8 +113,10 @@ _default_provision = {
         "count": 0,
         "rpc_ports": None,
     },
+    "rpc_driver": {
+        "enable_proxy_discovery": None,
+    },
     "driver": {
-        "backend": "native",
     },
     "enable_debug_logging": True,
     "enable_structured_master_logging": False,
@@ -165,8 +167,12 @@ class ConfigsProvider(object):
             ports_generator,
             logs_dir)
 
-        http_proxy_configs = self._build_proxy_config(provision, dirs["http_proxy"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
-                                                      ports_generator, logs_dir, master_cache_nodes=node_addresses)
+        http_proxy_configs = []
+        http_proxy_url = None
+        if provision["http_proxy"]["count"] > 0:
+            http_proxy_configs = self._build_proxy_config(provision, dirs["http_proxy"], deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
+                                                          ports_generator, logs_dir, master_cache_nodes=node_addresses)
+            http_proxy_url = "{0}:{1}".format(provision["fqdn"], http_proxy_configs[0]["port"])
 
         rpc_proxy_configs = []
         rpc_client_config = None
@@ -174,25 +180,30 @@ class ConfigsProvider(object):
         if provision["rpc_proxy"]["count"] > 0:
             rpc_proxy_configs = self._build_rpc_proxy_configs(provision, logs_dir, deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
                                                               node_addresses, ports_generator)
-            rpc_proxy_addresses = ["{0}:{1}".format(provision["fqdn"], rpc_proxy_config["rpc_port"])
-                for rpc_proxy_config in rpc_proxy_configs]
+            rpc_proxy_addresses = [
+                "{0}:{1}".format(provision["fqdn"], rpc_proxy_config["rpc_port"])
+                for rpc_proxy_config in rpc_proxy_configs
+            ]
             rpc_client_config = {
                 "connection_type": "rpc",
                 "addresses": rpc_proxy_addresses
             }
 
-        driver_configs, rpc_driver_configs = \
-            self._build_driver_configs(provision, deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
-                                       master_cache_nodes=node_addresses, rpc_proxy_addresses=rpc_proxy_addresses)
+        driver_configs = self._build_native_driver_configs(
+            provision, deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
+            master_cache_nodes=node_addresses,
+        )
 
-        if provision["driver"]["backend"] == "rpc":
-            driver_configs = rpc_driver_configs
+        rpc_driver_config = self._build_rpc_driver_config(
+            provision, deepcopy(master_connection_configs), deepcopy(clock_connection_configs),
+            master_cache_nodes=node_addresses, rpc_proxy_addresses=rpc_proxy_addresses, http_proxy_url=http_proxy_url,
+        )
 
         cluster_configuration = {
             "master": master_configs,
             "clock": clock_configs,
             "driver": driver_configs,
-            "rpc_driver": rpc_driver_configs,
+            "rpc_driver": rpc_driver_config,
             "scheduler": scheduler_configs,
             "controller_agent": controller_agent_configs,
             "node": node_configs,
@@ -232,7 +243,12 @@ class ConfigsProvider(object):
         pass
 
     @abc.abstractmethod
-    def _build_driver_configs(self, provision, master_connection_configs, clock_connection_configs, master_cache_nodes, rpc_proxy_addresses):
+    def _build_native_driver_configs(self, provision, master_connection_configs, clock_connection_configs, master_cache_nodes):
+        pass
+
+    @abc.abstractmethod
+    def _build_rpc_driver_config(self, provision, master_connection_configs, clock_connection_configs, master_cache_nodes,
+                                 rpc_proxy_addresses, http_proxy_url):
         pass
 
     @abc.abstractmethod
@@ -754,62 +770,82 @@ class ConfigsProvider_19(ConfigsProvider):
 
         return configs, addresses
 
-    def _build_driver_configs(self, provision, master_connection_configs, clock_connection_configs, master_cache_nodes, rpc_proxy_addresses):
+    def _build_native_driver_configs(self, provision, master_connection_configs, clock_connection_configs, master_cache_nodes):
         secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
         primary_cell_tag = master_connection_configs["primary_cell_tag"]
 
         configs = {}
-        rpc_configs = {}
-        for driver_type in ("native", "rpc"):
+        for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
+            config = default_configs.get_driver_config()
 
-            def _set_config(tag, config):
-                if driver_type == "rpc":
-                    rpc_configs[tag] = config
-                else:
-                    configs[tag] = config
-
-            for cell_index in xrange(provision["master"]["secondary_cell_count"] + 1):
-                config = default_configs.get_driver_config()
-
-                if driver_type == "rpc":
-                    config["connection_type"] = "rpc"
-                    config["addresses"] = rpc_proxy_addresses
-
-                if cell_index == 0:
-                    tag = primary_cell_tag
-                    update_inplace(config, self._build_cluster_connection_config(
-                        provision,
-                        master_connection_configs,
-                        clock_connection_configs,
-                        master_cache_nodes=master_cache_nodes,
-                        enable_master_cache=provision["enable_master_cache"],
-                        enable_permission_cache=provision["enable_permission_cache"]))
-                else:
-                    tag = secondary_cell_tags[cell_index - 1]
-                    cell_connection_config = {
-                        "primary_master": master_connection_configs[secondary_cell_tags[cell_index - 1]],
-                        "master_cell_directory_synchronizer": {"sync_period": None},
-                        "timestamp_provider": {
-                            "addresses": self._get_timestamp_provider_addresses(provision, master_connection_configs, clock_connection_configs),
-                        },
-                        "transaction_manager": {
-                            "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
-                        }
+            if cell_index == 0:
+                tag = primary_cell_tag
+                update_inplace(config, self._build_cluster_connection_config(
+                    provision,
+                    master_connection_configs,
+                    clock_connection_configs,
+                    master_cache_nodes=master_cache_nodes,
+                    enable_master_cache=provision["enable_master_cache"],
+                    enable_permission_cache=provision["enable_permission_cache"]))
+            else:
+                tag = secondary_cell_tags[cell_index - 1]
+                cell_connection_config = {
+                    "primary_master": master_connection_configs[secondary_cell_tags[cell_index - 1]],
+                    "master_cell_directory_synchronizer": {"sync_period": None},
+                    "timestamp_provider": {
+                        "addresses": self._get_timestamp_provider_addresses(
+                            provision,
+                            master_connection_configs,
+                            clock_connection_configs
+                        ),
+                    },
+                    "transaction_manager": {
+                        "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
                     }
-                    update_inplace(cell_connection_config["primary_master"], _get_retrying_channel_config())
-                    update_inplace(cell_connection_config["primary_master"], _get_rpc_config())
+                }
+                update_inplace(cell_connection_config["primary_master"], _get_retrying_channel_config())
+                update_inplace(cell_connection_config["primary_master"], _get_rpc_config())
 
-                    update_inplace(config, cell_connection_config)
+                update_inplace(config, cell_connection_config)
 
-                _set_config(tag, config)
+            configs[tag] = config
 
-            if provision["clock"]["cell_size"] > 0:
-                tag = clock_connection_configs["cell_tag"]
-                config = deepcopy(configs[primary_cell_tag])
-                update_inplace(config["timestamp_provider"], clock_connection_configs[tag])
-                _set_config(tag, config)
+        if provision["clock"]["cell_size"] > 0:
+            tag = clock_connection_configs["cell_tag"]
+            config = deepcopy(configs[primary_cell_tag])
+            update_inplace(config["timestamp_provider"], clock_connection_configs[tag])
+            configs[tag] = config
 
-        return configs, rpc_configs
+        return configs
+
+    def _build_rpc_driver_config(self, provision, master_connection_configs, clock_connection_configs, master_cache_nodes,
+                                 rpc_proxy_addresses, http_proxy_url):
+        config = default_configs.get_driver_config()
+        config["connection_type"] = "rpc"
+
+        if provision["rpc_driver"]["enable_proxy_discovery"] is None:
+            enable_proxy_discovery = http_proxy_url is not None
+        else:
+            enable_proxy_discovery = provision["rpc_driver"]["enable_proxy_discovery"]
+            if enable_proxy_discovery and http_proxy_url is None:
+                raise YtError("Rpc proxy discovery enabled, but no http proxies configured")
+
+        if enable_proxy_discovery:
+            config["enable_proxy_discovery"] = True
+            config["discover_proxies_from_cypress"] = False
+            config["cluster_url"] = http_proxy_url
+        else:
+            config["enable_proxy_discovery"] = False
+            config["addresses"] = rpc_proxy_addresses
+        update_inplace(config, self._build_cluster_connection_config(
+            provision,
+            master_connection_configs,
+            clock_connection_configs,
+            master_cache_nodes=master_cache_nodes,
+            enable_master_cache=provision["enable_master_cache"],
+            enable_permission_cache=provision["enable_permission_cache"]))
+
+        return config
 
     def _build_rpc_proxy_configs(self, provision, proxy_logs_dir, master_connection_configs, clock_connection_configs, master_cache_nodes, ports_generator):
         configs = []

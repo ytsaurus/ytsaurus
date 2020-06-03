@@ -27,16 +27,22 @@ using namespace NYson;
 
 void TApiTestBase::SetUpTestCase()
 {
-    auto configPath = TString(std::getenv("YT_CONSOLE_DRIVER_CONFIG_PATH"));
-    YT_VERIFY(configPath);
-    TIFStream configStream(configPath);
-    auto config = ConvertToNode(&configStream)->AsMap();
-
-    if (auto logging = config->FindChild("logging")) {
-        NLogging::TLogManager::Get()->Configure(ConvertTo<NLogging::TLogManagerConfigPtr>(logging));
+    {
+        auto configPath = TString(std::getenv("YT_DRIVER_CONFIG_PATH"));
+        YT_VERIFY(configPath);
+        TIFStream configStream(configPath);
+        auto config = ConvertToNode(&configStream)->AsMap();
+        Connection_ = NApi::CreateConnection(config);
     }
 
-    Connection_ = NApi::CreateConnection(config->GetChild("driver"));
+    {
+        auto configPath = TString(std::getenv("YT_DRIVER_LOGGING_CONFIG_PATH"));
+        YT_VERIFY(configPath);
+        TIFStream configStream(configPath);
+        auto config = ConvertToNode(&configStream)->AsMap();
+        NLogging::TLogManager::Get()->Configure(ConvertTo<NLogging::TLogManagerConfigPtr>(config));
+    }
+
     Client_ = CreateClient(NRpc::RootUserName);
 }
 

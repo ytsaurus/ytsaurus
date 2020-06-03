@@ -278,6 +278,7 @@ class YTEnvSetup(object):
     ENABLE_RPC_PROXY = None
     NUM_RPC_PROXIES = 2
     DRIVER_BACKEND = "native"
+    ENABLE_RPC_DRIVER_PROXY_DISCOVERY = None
     NODE_PORT_SET_SIZE = None
 
     DELTA_DRIVER_CONFIG = {}
@@ -383,12 +384,13 @@ class YTEnvSetup(object):
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
             modify_configs_func=modify_configs_func,
             cell_tag=index * 10,
-            driver_backend=cls.get_param("DRIVER_BACKEND", index),
+            enable_rpc_driver_proxy_discovery=cls.get_param("ENABLE_RPC_DRIVER_PROXY_DISCOVERY", index),
             enable_structured_master_logging=True,
             enable_structured_scheduler_logging=True,
             capture_stderr_to_file=capture_stderr_to_file)
 
         instance._cluster_name = cls.get_cluster_name(index)
+        setattr(instance, "_default_driver_backend", cls.get_param("DRIVER_BACKEND", index))
 
         return instance
 
@@ -408,7 +410,7 @@ class YTEnvSetup(object):
         if cls.USE_PORTO:
             if arcadia_interop.is_inside_distbuild():
                 pytest.skip("porto is not available inside distbuild")
-            
+
             need_suid = True
             cls.cleanup_root_files = True
 
@@ -416,7 +418,7 @@ class YTEnvSetup(object):
         # Those binaries have suid bit set. That messes up tests, what should not use root.
         if arcadia_interop.yatest_common.get_param("teamcity"):
             cls.cleanup_root_files = True
-            
+
         # Initialize `cls` fields before actual setup to make teardown correct.
 
         # TODO(ignat): Rename Env to env
@@ -454,7 +456,7 @@ class YTEnvSetup(object):
                 disk_path = SANDBOX_ROOTDIR
         else:
             disk_path = arcadia_interop.yatest_common.work_path("ytrecipe_hdd")
-        
+
         cls.default_disk_path = os.path.join(disk_path, cls.run_name, "disk_default")
         cls.ssd_disk_path = os.path.join(disk_path, cls.run_name, "disk_ssd")
 
@@ -482,6 +484,7 @@ class YTEnvSetup(object):
 
         yt_commands.is_multicell = cls.NUM_SECONDARY_MASTER_CELLS > 0
         yt_commands.path_to_run_tests = cls.path_to_run
+
         yt_commands.init_drivers([cls.Env] + cls.remote_envs)
 
         cls.Env.start(start_secondary_master_cells=cls.START_SECONDARY_MASTER_CELLS, on_masters_started_func=cls.on_masters_started)
@@ -570,8 +573,7 @@ class YTEnvSetup(object):
         for key, config in configs["driver"].iteritems():
             configs["driver"][key] = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
 
-        for key, config in configs["rpc_driver"].iteritems():
-            configs["rpc_driver"][key] = update_inplace(config, cls.get_param("DELTA_RPC_DRIVER_CONFIG", cluster_index))
+        configs["rpc_driver"] = update_inplace(configs["rpc_driver"], cls.get_param("DELTA_RPC_DRIVER_CONFIG", cluster_index))
 
     @classmethod
     def teardown_class(cls):
@@ -857,11 +859,11 @@ class YTEnvSetup(object):
 
         def do():
             yt_commands.gc_collect(driver=driver)
-            
+
             yt_commands.execute_batch([
                 yt_commands.make_batch_request("remove", path="#" + id, force=True) for id in object_ids_to_remove
             ], driver=driver)
-                
+
             results = yt_commands.execute_batch([
                 yt_commands.make_batch_request("exists", path="#" + id, return_only_value=True) for id in object_ids_to_check
             ], driver=driver)
@@ -883,7 +885,7 @@ class YTEnvSetup(object):
                    yt_commands.get_batch_output(responses[1]) == "default" and \
                    yt_commands.get_batch_output(responses[2]) == ["<Root>"] and \
                    yt_commands.get_batch_output(responses[3]) == node_count
-        
+
         wait(check)
 
     def _restore_globals(self, scheduler_count, scheduler_pool_trees_root, driver=None):
@@ -917,7 +919,7 @@ class YTEnvSetup(object):
                     yt_commands.make_batch_request("remove", path=scheduler_pool_trees_root + "/" + pool_tree))
         for response in yt_commands.execute_batch(restore_pool_trees_requests, driver=driver):
             assert not yt_commands.get_batch_error(response)
-        
+
         # Could not add this to the batch request because of possible races at scheduler.
         yt_commands.set(scheduler_pool_trees_root + "/@default_tree", "default", driver=driver)
 

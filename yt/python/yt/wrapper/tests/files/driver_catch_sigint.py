@@ -29,23 +29,28 @@ def main():
     signal.signal(signal.SIGINT, signal.default_int_handler)
 
     with open(sys.argv[1], "rb") as f:
-        console_driver_config = load(f)
+        driver_config = load(f)
 
-    yt_driver_bindings.configure_logging(console_driver_config["logging"])
+    with open(sys.argv[2], "rb") as f:
+        logging_config = load(f)
 
-    normal_client = yt.YtClient(config=
-        {
-            "driver_config": console_driver_config["driver"],
+    yt_driver_bindings.configure_logging(logging_config)
+
+    normal_client = yt.YtClient(
+        config={
+            "driver_config": driver_config,
             "backend": "native"
         }
     )
 
-    hanging_client = yt.YtClient(config=update(
-        {
-            "driver_config": console_driver_config["driver"],
-            "backend": "native"
-        },
-        hanging_client_config)
+    hanging_client = yt.YtClient(
+        config=update(
+            {
+                "driver_config": driver_config,
+                "backend": "native"
+            },
+            hanging_client_config
+        )
     )
 
     # Hanged stream read.

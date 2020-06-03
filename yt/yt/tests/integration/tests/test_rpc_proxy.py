@@ -101,19 +101,21 @@ class TestRpcProxyBase(YTEnvSetup):
 
 class TestRpcProxyClientRetries(TestRpcProxyBase):
     NUM_NODES = 2
-    DELTA_DRIVER_CONFIG = {
-        "enable_retries" : True,
-        "retry_backoff_time" : 100,
-        "retry_attempts" : 15,
-        "retry_timeout" : 2000,
-        "default_total_streaming_timeout" : 1000,
-        "proxy_list_update_period" : 1000,
-        "proxy_list_retry_period" : 100}
+    DELTA_RPC_DRIVER_CONFIG = {
+        "enable_retries": True,
+        "retry_backoff_time": 100,
+        "retry_attempts": 15,
+        "retry_timeout": 2000,
+        "default_total_streaming_timeout": 1000,
+        "proxy_list_update_period": 1000,
+        "proxy_list_retry_period": 100
+    }
     DELTA_RPC_PROXY_CONFIG = {
-        "retry_request_queue_size_limit_exceeded" : False,
+        "retry_request_queue_size_limit_exceeded": False,
         "discovery_service": {
             "proxy_update_period": 100
-        }}
+        }
+    }
     DELTA_MASTER_CONFIG = {
         "object_service": {
             "sticky_user_error_expire_time": 0
@@ -462,7 +464,7 @@ class TestPessimisticQuotaCheckMulticellRpcProxy(TestPessimisticQuotaCheckRpcPro
 
 class TestModifyRowsRpcProxy(TestRpcProxyBase):
     BATCH_CAPACITY = 10
-    DELTA_DRIVER_CONFIG = {"modify_rows_batch_capacity": BATCH_CAPACITY}
+    DELTA_RPC_DRIVER_CONFIG = {"modify_rows_batch_capacity": BATCH_CAPACITY}
 
     def _test_modify_rows_batching(self, request_count, key_count, tx_type="tablet"):
         self._create_simple_table("//tmp/table")
@@ -497,7 +499,7 @@ class TestModifyRowsRpcProxy(TestRpcProxyBase):
 class TestRpcProxyWithoutDiscovery(TestRpcProxyBase):
     NUM_RPC_PROXIES = 1
     DELTA_RPC_PROXY_CONFIG = {"discovery_service": {"enable": False}}
-    DELTA_RPC_DRIVER_CONFIG = {"enable_proxy_discovery": False}
+    ENABLE_RPC_DRIVER_PROXY_DISCOVERY = False
 
     @authors("sashbel")
     def test_proxy_without_discovery(self):

@@ -63,10 +63,13 @@ def test_catching_sigint(yt_env):
     if yt.config["backend"] != "native":
         pytest.skip()
 
-    driver_config_path = yt_env.env.config_paths["console_driver"][0]
+    driver_config_path = yt_env.env.config_paths["driver"]
+    driver_logging_config_path = yt_env.env.config_paths["driver_logging"]
     binary = get_test_file_path("driver_catch_sigint.py")
 
-    process = subprocess.Popen([get_python(), binary, driver_config_path], stderr=sys.stderr)
+    process = subprocess.Popen(
+        [get_python(), binary, driver_config_path, driver_logging_config_path],
+        stderr=sys.stderr)
 
     wait(lambda: yt.exists("//tmp/test_file"))
     wait(lambda: yt.get("//tmp/test_file/@uncompressed_data_size") == 50 * 1000 * 1000)

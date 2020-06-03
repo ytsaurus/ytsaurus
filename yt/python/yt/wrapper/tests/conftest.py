@@ -272,7 +272,7 @@ def init_environment_for_test_session(mode, **kwargs):
 
     if mode.startswith("native"):
         import yt_driver_bindings
-        yt_driver_bindings.configure_logging(environment.env.driver_logging_config)
+        yt_driver_bindings.configure_logging(environment.env.configs["driver_logging"])
     else:
         yt.config.COMMANDS = None
 
