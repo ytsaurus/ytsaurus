@@ -275,10 +275,11 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
             with pytest.raises(YtError):
                 map(in_="<timestamp={}>//tmp/t".format(ts), out="//tmp/p", command="cat")
 
-    def test_bulk_insert_overwrite(self):
+    @pytest.mark.parametrize("freeze", [True, False])
+    def test_bulk_insert_overwrite(self, freeze):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
-        sync_mount_table("//tmp/t")
+        sync_mount_table("//tmp/t", dynamic_store_auto_flush_period=YsonEntity())
         insert_rows("//tmp/t", [{"key": 1, "value": "a"}])
         create("table", "//tmp/p")
         write_table("//tmp/p", [{"key": 2, "value": "b"}])
@@ -286,16 +287,33 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         tx = start_transaction(timeout=60000)
         lock("//tmp/t", mode="snapshot", tx=tx)
 
+        if freeze:
+            sync_freeze_table("//tmp/t")
+
         assert read_table("//tmp/t", tx=tx) == [{"key": 1, "value": "a"}]
 
         merge(in_="//tmp/p", out="//tmp/t", mode="ordered")
         assert read_table("//tmp/t") == [{"key": 2, "value": "b"}]
 
-        with pytest.raises(YtError):
-            # We've lost the data, but at least master didn't crash.
-            read_table("//tmp/t", tx=tx, table_reader={"dynamic_store_reader": {"retry_count": 1}})
+        if freeze:
+            expected = read_table("//tmp/t", tx=tx, table_reader={"dynamic_store_reader": {"retry_count": 1}})
+            actual = [{"key": 1, "value": "a"}]
+            assert_items_equal(expected, actual)
+        else:
+            with pytest.raises(YtError):
+                # We've lost the data, but at least master didn't crash.
+                read_table("//tmp/t", tx=tx, table_reader={"dynamic_store_reader": {"retry_count": 1}})
 
         self._validate_tablet_statistics("//tmp/t")
+
+        if freeze:
+            sync_unfreeze_table("//tmp/t")
+
+        sync_freeze_table("//tmp/t")
+        copy("//tmp/t", "//tmp/copy")
+        assert get("//tmp/copy/@enable_dynamic_store_read")
+        sync_mount_table("//tmp/copy")
+        assert_items_equal(read_table("//tmp/copy"), [{"key": 2, "value": "b"}])
 
     def test_accounting(self):
         cell_id = sync_create_cells(1)[0]

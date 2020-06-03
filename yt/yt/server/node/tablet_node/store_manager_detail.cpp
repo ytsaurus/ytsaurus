@@ -171,10 +171,9 @@ void TStoreManagerBase::BulkAddStores(TRange<IStorePtr> stores, bool onMount)
 
 void TStoreManagerBase::DiscardAllStores()
 {
-    // TODO(ifsmirnov): do not create active store if tablet is frozen
     // TODO(ifsmirnov): should flush because someone might want to read from this
     // dynamic store having taken snapshot lock for the table.
-    Rotate(true);
+    Rotate(/*createNewStore*/ static_cast<bool>(GetActiveStore()));
 
     std::vector<IStorePtr> storesToRemove;
 
