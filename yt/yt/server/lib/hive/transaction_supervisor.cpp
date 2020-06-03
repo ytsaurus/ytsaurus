@@ -1931,7 +1931,7 @@ private:
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 8;
+        return 9;
     }
 
 
