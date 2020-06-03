@@ -137,6 +137,7 @@ public:
     bool PreserveTabletIndex;
 
     bool EnablePartitionSplitWhileEdenPartitioning;
+    bool EnableDiscardingExpiredPartitions;
 
     bool EnableDataNodeLookup;
 
@@ -316,6 +317,9 @@ public:
 
         RegisterParameter("enable_partition_split_while_eden_partitioning", EnablePartitionSplitWhileEdenPartitioning)
             .Default(false);
+
+        RegisterParameter("enable_discarding_expired_partitions", EnableDiscardingExpiredPartitions)
+            .Default(true);
 
         RegisterParameter("enable_data_node_lookup", EnableDataNodeLookup)
             .Default(false);
