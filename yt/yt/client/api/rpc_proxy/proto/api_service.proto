@@ -59,7 +59,7 @@ enum EMasterReadKind
     MRK_LEADER = 0;
     MRK_FOLLOWER = 1;
     MRK_CACHE = 2;
-    MRK_SECOND_LEVEL_CACHE = 3;
+    MRK_MASTER_CACHE = 3;
 }
 
 enum ERowsetKind

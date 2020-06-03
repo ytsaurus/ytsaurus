@@ -11,11 +11,17 @@ namespace NYT::NApi {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Keep in sync with NRpcProxy::NProto::EMasterReadKind.
+// On cache miss request is redirected to next level cache:
+// Local cache -> (node) cache -> master cache
 DEFINE_ENUM(EMasterChannelKind,
     ((Leader)                (0))
     ((Follower)              (1))
+    // Use local (per-connection) cache.
+    ((LocalCache)            (4))
+    // Use cache located on nodes.
     ((Cache)                 (2))
-    ((SecondLevelCache)      (3))
+    // Use cache located on masters (if caching on masters is enabled).
+    ((MasterCache)           (3))
 );
 
 DEFINE_ENUM(EUserWorkloadCategory,

@@ -8,7 +8,7 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
-#include <yt/server/lib/object_server/config.h>
+#include <yt/ytlib/object_client/config.h>
 
 namespace NYT::NObjectServer {
 
@@ -77,7 +77,7 @@ public:
     //! Amount of time to reserve when computing the timeout for a forwarded request.
     TDuration ForwardedRequestTimeoutReserve;
 
-    TObjectServiceCacheConfigPtr MasterCache;
+    NObjectClient::TObjectServiceCacheConfigPtr MasterCache;
 
     TObjectServiceConfig()
     {

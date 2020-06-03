@@ -1,10 +1,9 @@
 #include "config.h"
 
 #include "object_service_cache.h"
+#include "object_service_proxy.h"
 
 #include <yt/core/profiling/profile_manager.h>
-
-#include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -17,7 +16,7 @@
 
 #include <yt/core/ytree/proto/ypath.pb.h>
 
-namespace NYT::NObjectServer {
+namespace NYT::NObjectClient {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -25,7 +24,6 @@ using namespace NRpc::NProto;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYTree::NProto;
-using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -110,7 +108,7 @@ TObjectServiceCache::TObjectServiceCache(
     TObjectServiceCacheConfigPtr config,
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
-    : TAsyncSlruCacheBase(config)
+    : TAsyncSlruCacheBase(std::move(config))
     , Logger(logger)
     , Profiler_(profiler)
 { }
@@ -133,7 +131,6 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
                 entry->GetSuccess());
 
             TryRemove(entry);
-
         } else if (IsExpired(entry, successExpirationTime, failureExpirationTime)) {
             YT_LOG_DEBUG("Cache entry expired (RequestId: %v, Key: %v, Revision: %llx, Success: %v)",
                 requestId,
@@ -142,7 +139,6 @@ TObjectServiceCache::TCookie TObjectServiceCache::BeginLookup(
                 entry->GetSuccess());
 
             TryRemove(entry);
-
         } else {
             cacheHit = true;
             YT_LOG_DEBUG("Cache hit (RequestId: %v, Key: %v, Revision: %llx, Success: %v)",
@@ -265,4 +261,4 @@ bool TObjectServiceCache::IsExpired(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NObjectServer
+} // namespace NYT::NObjectClient

@@ -1,8 +1,8 @@
-#include "config.h"
-#include "master_cache_service.h"
-#include "object_service_cache.h"
+#include "caching_object_service.h"
 #include "private.h"
 
+#include <yt/ytlib/object_client/config.h>
+#include <yt/ytlib/object_client/object_service_cache.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/security_client/public.h>
@@ -24,7 +24,7 @@
 
 #include <yt/core/ytree/proto/ypath.pb.h>
 
-namespace NYT::NObjectServer {
+namespace NYT::NObjectClient {
 
 using namespace NConcurrency;
 using namespace NRpc;
@@ -32,7 +32,6 @@ using namespace NRpc::NProto;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYTree::NProto;
-using namespace NObjectClient;
 using namespace NSecurityClient;
 using namespace NProfiling;
 
@@ -44,20 +43,21 @@ struct TSubrequestResponse
     NHydra::TRevision Revision;
 };
 
-class TMasterCacheService
+class TCachingObjectService
     : public TServiceBase
 {
 public:
-    TMasterCacheService(
-        TMasterCacheServiceConfigPtr config,
+    TCachingObjectService(
+        TCachingObjectServiceConfigPtr config,
         IInvokerPtr invoker,
         IChannelPtr masterChannel,
         TObjectServiceCachePtr cache,
-        TRealmId masterCellId)
+        TRealmId masterCellId,
+        const NLogging::TLogger& logger)
         : TServiceBase(
             std::move(invoker),
             TObjectServiceProxy::GetDescriptor(),
-            ObjectServerLogger,
+            logger,
             masterCellId)
         , Config_(config)
         , Cache_(std::move(cache))
@@ -65,7 +65,7 @@ public:
         , MasterChannel_(CreateThrottlingChannel(
             config,
             masterChannel))
-        , Logger(NLogging::TLogger(ObjectServerLogger)
+        , Logger(NLogging::TLogger(logger)
             .AddTag("RealmId: %v", masterCellId))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
@@ -154,16 +154,16 @@ private:
         }
     };
 
-    const TMasterCacheServiceConfigPtr Config_;
+    const TCachingObjectServiceConfigPtr Config_;
     const TObjectServiceCachePtr Cache_;
     const TCellId CellId_;
     const IChannelPtr MasterChannel_;
     const NLogging::TLogger Logger;
 
-    std::atomic<bool> EnableTwoLevelObjectServiceCache_ = {false};
+    std::atomic<bool> CachingEnabled_ = false;
 };
 
-DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
+DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 {
     auto requestId = context->GetRequestId();
 
@@ -223,15 +223,15 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
             auto successExpirationTime = FromProto<TDuration>(cachingRequestHeaderExt.success_expiration_time());
             auto failureExpirationTime = FromProto<TDuration>(cachingRequestHeaderExt.failure_expiration_time());
 
-            auto nodeSuccessExpirationTime = successExpirationTime * Config_->NodeCacheTtlRatio;
-            auto nodeFailureExpirationTime = failureExpirationTime * Config_->NodeCacheTtlRatio;
+            auto nodeSuccessExpirationTime = successExpirationTime * Config_->CacheTtlRatio;
+            auto nodeFailureExpirationTime = failureExpirationTime * Config_->CacheTtlRatio;
 
-            bool enableTwoLevelObjectServiceCache = EnableTwoLevelObjectServiceCache_.load(std::memory_order_relaxed);
+            bool cachingEnabled = CachingEnabled_.load(std::memory_order_relaxed);
             auto cookie = Cache_->BeginLookup(
                 requestId,
                 key,
-                enableTwoLevelObjectServiceCache ? nodeSuccessExpirationTime : successExpirationTime,
-                enableTwoLevelObjectServiceCache ? nodeFailureExpirationTime : failureExpirationTime,
+                cachingEnabled ? nodeSuccessExpirationTime : successExpirationTime,
+                cachingEnabled ? nodeFailureExpirationTime : failureExpirationTime,
                 refreshRevision);
 
             asyncMasterResponseMessages.push_back(
@@ -249,7 +249,7 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                     subrequestMessage.End());
                 SetCurrentAuthenticationIdentity(req);
 
-                if (enableTwoLevelObjectServiceCache) {
+                if (cachingEnabled) {
                     auto* balancingHeaderExt = req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
                     balancingHeaderExt->set_enable_stickiness(true);
                     balancingHeaderExt->set_sticky_group_size(1);
@@ -281,9 +281,9 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
                         auto responseError = FromProto<TError>(responseHeader.error());
                         auto revision = rsp->revisions_size() > 0 ? rsp->revisions(0) : NHydra::NullRevision;
 
-                        bool enableTwoLevelCache = rsp->two_level_cache_enabled();
-                        if (EnableTwoLevelObjectServiceCache_.exchange(enableTwoLevelCache) != enableTwoLevelCache) {
-                            YT_LOG_INFO("Changing two-level object service cache mode (Enable: %v)", enableTwoLevelCache);
+                        bool cachingEnabled = rsp->caching_enabled();
+                        if (CachingEnabled_.exchange(cachingEnabled) != cachingEnabled) {
+                            YT_LOG_INFO("Changing next level object service cache mode (Enable: %v)", cachingEnabled);
                         }
 
                         Cache_->EndLookup(requestId, std::move(cookie), responseMessage, revision, responseError.IsOK());
@@ -328,24 +328,28 @@ DEFINE_RPC_SERVICE_METHOD(TMasterCacheService, Execute)
         response->add_revisions(revision);
     }
 
+    response->set_caching_enabled(true);
+
     context->Reply();
 }
 
-IServicePtr CreateMasterCacheService(
-    TMasterCacheServiceConfigPtr config,
+IServicePtr CreateCachingObjectService(
+    TCachingObjectServiceConfigPtr config,
     IInvokerPtr invoker,
     IChannelPtr masterChannel,
     TObjectServiceCachePtr cache,
-    TRealmId masterCellId)
+    TRealmId masterCellId,
+    const NLogging::TLogger& logger)
 {
-    return New<TMasterCacheService>(
+    return New<TCachingObjectService>(
         std::move(config),
         std::move(invoker),
         std::move(masterChannel),
         std::move(cache),
-        masterCellId);
+        masterCellId,
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NObjectServer
+} // namespace NYT::NObjectClient

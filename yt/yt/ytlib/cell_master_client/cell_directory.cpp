@@ -12,8 +12,13 @@
 
 #include <yt/ytlib/node_tracker_client/node_addresses_provider.h>
 
+#include <yt/ytlib/object_client/config.h>
+#include <yt/ytlib/object_client/caching_object_service.h>
+#include <yt/ytlib/object_client/object_service_cache.h>
+
 #include <yt/client/cell_master_client/proto/cell_directory.pb.h>
 
+#include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/rw_spinlock.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -21,6 +26,11 @@
 
 #include <yt/core/rpc/caching_channel_factory.h>
 #include <yt/core/rpc/retrying_channel.h>
+#include <yt/core/rpc/local_server.h>
+#include <yt/core/rpc/server.h>
+#include <yt/core/rpc/local_channel.h>
+
+#include <yt/core/profiling/profiler.h>
 
 namespace NYT::NCellMasterClient {
 
@@ -31,6 +41,8 @@ using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NProfiling;
+using namespace NYTree;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +61,12 @@ public:
         , PrimaryMasterCellTag_(CellTagFromId(PrimaryMasterCellId_))
         , ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
         , Logger(std::move(logger))
+        , Cache_(New<TObjectServiceCache>(
+            Config_->CachingObjectService,
+            Logger,
+            TProfiler("/local_cache")))
+        , RpcServer_(CreateLocalServer())
+        , MasterCacheQueue_(New<TActionQueue>("MasterCache"))
         , RandomGenerator_(TInstant::Now().GetValue())
     {
         for (const auto& masterConfig : Config_->SecondaryMasters) {
@@ -63,6 +81,7 @@ public:
         for (const auto& masterConfig : Config_->SecondaryMasters) {
             InitMasterChannels(masterConfig, owner, options);
         }
+        RpcServer_->Start();
     }
 
     TCellId GetPrimaryMasterCellId() const
@@ -240,6 +259,9 @@ private:
     const TCellTag PrimaryMasterCellTag_;
     const IChannelFactoryPtr ChannelFactory_;
     const NLogging::TLogger Logger;
+    const TObjectServiceCachePtr Cache_;
+    const IServerPtr RpcServer_;
+    const TActionQueuePtr MasterCacheQueue_;
 
     /*const*/ TCellTagList SecondaryMasterCellTags_;
 
@@ -299,9 +321,11 @@ private:
         const TWeakPtr<TCellDirectory>& owner,
         const TConnectionOptions& options)
     {
+        auto cellTag = CellTagFromId(config->CellId);
+
         InitMasterChannel(EMasterChannelKind::Leader, config, EPeerKind::Leader, options);
         InitMasterChannel(EMasterChannelKind::Follower, config, EPeerKind::Follower, options);
-        InitMasterChannel(EMasterChannelKind::SecondLevelCache, config, EPeerKind::Follower, options);
+        InitMasterChannel(EMasterChannelKind::MasterCache, config, EPeerKind::Follower, options);
 
         auto masterCacheConfig = BuildMasterCacheConfig(config);
         if (masterCacheConfig->EnableMasterCacheDiscovery) {
@@ -310,10 +334,20 @@ private:
                 owner,
                 ENodeRole::MasterCache,
                 BIND(&TImpl::CreatePeerChannelFromAddresses, ChannelFactory_, masterCacheConfig, EPeerKind::Follower, options));
-            CellChannelMap_[CellTagFromId(masterCacheConfig->CellId)][EMasterChannelKind::Cache] = channel;
+            CellChannelMap_[cellTag][EMasterChannelKind::Cache] = channel;
         } else {
             InitMasterChannel(EMasterChannelKind::Cache, masterCacheConfig, EPeerKind::Follower, options);
         }
+
+        auto cachingObjectService = CreateCachingObjectService(
+            Config_->CachingObjectService,
+            MasterCacheQueue_->GetInvoker(),
+            CellChannelMap_[cellTag][EMasterChannelKind::Cache],
+            Cache_,
+            config->CellId,
+            ObjectClientLogger);
+        RpcServer_->RegisterService(cachingObjectService);
+        CellChannelMap_[cellTag][EMasterChannelKind::LocalCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
     }
 
     void InitMasterChannel(

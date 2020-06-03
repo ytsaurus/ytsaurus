@@ -6,6 +6,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/ytlib/object_client/config.h>
+
 namespace NYT::NCellMasterClient {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -17,6 +19,8 @@ public:
     NApi::NNative::TMasterConnectionConfigPtr PrimaryMaster;
     std::vector<NApi::NNative::TMasterConnectionConfigPtr> SecondaryMasters;
     NApi::NNative::TMasterConnectionConfigPtr MasterCache;
+
+    NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 
     TCellDirectoryConfig();
 };

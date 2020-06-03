@@ -6,6 +6,8 @@
 
 #include <yt/core/misc/config.h>
 
+#include <yt/core/rpc/config.h>
+
 namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,6 +36,41 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectAttributeCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TObjectServiceCacheConfig
+    : public NRpc::TThrottlingChannelConfig
+    , public TSlruCacheConfig
+{
+public:
+    TObjectServiceCacheConfig()
+    {
+        RegisterPreprocessor([&] {
+            Capacity = 1_GB;
+        });
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCachingObjectServiceConfig
+    : public TObjectServiceCacheConfig
+{
+public:
+    double CacheTtlRatio;
+
+    TCachingObjectServiceConfig()
+    {
+        RegisterParameter("cache_ttl_ratio", CacheTtlRatio)
+            .InRange(0, 1)
+            .Default(0.5);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TCachingObjectServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

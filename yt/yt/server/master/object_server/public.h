@@ -1,8 +1,27 @@
 #pragma once
 
-#include <yt/server/lib/object_server/public.h>
+#include <yt/server/lib/hydra/public.h>
+
+#include <yt/ytlib/object_client/public.h>
+
+#include <yt/core/misc/small_vector.h>
 
 namespace NYT::NObjectServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NObjectClient::TObjectId;
+using NObjectClient::TTransactionId;
+using NObjectClient::TVersionedObjectId;
+using NObjectClient::EObjectType;
+using NObjectClient::TCellTag;
+using NObjectClient::TCellTagList;
+using NObjectClient::NullObjectId;
+using NObjectClient::NullTransactionId;
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TEpoch = ui32;
 
 ////////////////////////////////////////////////////////////////////////////////
 
