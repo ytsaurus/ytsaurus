@@ -1,4 +1,4 @@
-#include "table_client_helpers.h"
+#include "helpers.h"
 
 #include <yt/client/table_client/versioned_reader.h>
 
@@ -153,6 +153,39 @@ void CheckResult(std::vector<TVersionedRow>* expected, IVersionedReaderPtr reade
     }
 
     EXPECT_TRUE(it == expected->end());
+}
+
+std::vector<std::pair<ui32, ui32>> GetTimestampIndexRanges(
+    TRange<TVersionedRow> rows,
+    TTimestamp timestamp)
+{
+    std::vector<std::pair<ui32, ui32>> indexRanges;
+    for (auto row : rows) {
+        // Find delete timestamp.
+        NTableClient::TTimestamp deleteTimestamp = NTableClient::NullTimestamp;
+        for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
+            if (*deleteIt <= timestamp) {
+                deleteTimestamp = std::max(*deleteIt, deleteTimestamp);
+            }
+        }
+
+        ui32 lowerTimestampIndex = 0;
+        while (lowerTimestampIndex < row.GetWriteTimestampCount() &&
+               row.BeginWriteTimestamps()[lowerTimestampIndex] > timestamp)
+        {
+            ++lowerTimestampIndex;
+        }
+
+        ui32 upperTimestampIndex = lowerTimestampIndex;
+        while (upperTimestampIndex < row.GetWriteTimestampCount() &&
+               row.BeginWriteTimestamps()[upperTimestampIndex] > deleteTimestamp)
+        {
+            ++upperTimestampIndex;
+        }
+
+        indexRanges.push_back(std::make_pair(lowerTimestampIndex, upperTimestampIndex));
+    }
+    return indexRanges;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,12 +1,10 @@
+#include "helpers.h"
+
 #include <yt/core/test_framework/framework.h>
 
-// #include "table_client_helpers.h"
-
-#include <yt/ytlib/table_chunk_format/public.h>
 #include <yt/ytlib/table_chunk_format/string_column_writer.h>
 #include <yt/ytlib/table_chunk_format/string_column_reader.h>
-
-#include <yt/ytlib/unittests/column_format_helpers/column_format_helpers.h>
+#include <yt/ytlib/table_chunk_format/data_block_writer.h>
 
 #include <yt/ytlib/table_client/public.h>
 
@@ -14,9 +12,10 @@
 
 #include <yt/core/compression/codec.h>
 
-namespace NYT::NTableChunkFormat {
+namespace NYT::NTableClient {
+namespace {
 
-using namespace NTableClient;
+using namespace NTableChunkFormat;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -139,4 +138,5 @@ TEST(TComplexColumnTest, AnyWriter_ComplexReader_Compatibility)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableChunkFormat
+} // namespace
+} // namespace NYT::NTableClient

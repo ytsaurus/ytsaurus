@@ -181,6 +181,24 @@ auto ToUnversionedValues(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+void ToVersionedValue(
+    TVersionedValue* versionedValue,
+    T&& value,
+    const TRowBufferPtr& rowBuffer,
+    NTransactionClient::TTimestamp timestamp,
+    int id,
+    bool aggregate = false);
+template <class T>
+TVersionedValue ToVersionedValue(
+    T&& value,
+    const TRowBufferPtr& rowBuffer,
+    NTransactionClient::TTimestamp timestamp,
+    int id,
+    bool aggregate = false);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Unpacks invidual values in #row to respective #values.
 //! The number of values in #row must be greater than or equal to the number of #values.
 template <class... Ts>

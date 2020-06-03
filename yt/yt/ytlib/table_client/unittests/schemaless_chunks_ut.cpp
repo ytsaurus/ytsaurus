@@ -1,3 +1,5 @@
+#include "helpers.h"
+
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
@@ -12,8 +14,6 @@
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
-
-#include <yt/ytlib/unittests/table_client_helpers/table_client_helpers.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/helpers.h>

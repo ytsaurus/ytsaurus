@@ -7,9 +7,10 @@
 
 #include <yt/ytlib/table_chunk_format/helpers.h>
 
-namespace NYT::NTableChunkFormat {
+namespace NYT::NTableClient {
+namespace {
 
-using namespace NTableClient;
+using namespace NTableChunkFormat;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -221,4 +222,5 @@ TEST_F(TUnversionedDoubleColumnTest, ReadNull)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableChunkFormat
+} // namespace
+} // namespace NYT::NTableClient

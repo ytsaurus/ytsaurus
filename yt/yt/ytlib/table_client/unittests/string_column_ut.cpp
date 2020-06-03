@@ -1,19 +1,19 @@
-#include <yt/core/test_framework/framework.h>
-
 #include "column_format_ut.h"
+#include "helpers.h"
+
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/table_chunk_format/string_column_writer.h>
 #include <yt/ytlib/table_chunk_format/string_column_reader.h>
 #include <yt/ytlib/table_chunk_format/private.h>
 
-#include <yt/ytlib/unittests/column_format_helpers/column_format_helpers.h>
-
 #include <yt/core/misc/protobuf_helpers.h>
 
-namespace NYT::NTableChunkFormat {
+namespace NYT::NTableClient {
+namespace {
 
-using namespace NTableClient;
 using namespace NCompression;
+using namespace NTableChunkFormat;
 
 using NYT::FromProto;
 
@@ -165,4 +165,5 @@ TEST_F(TUnversionedStringColumnTest, ReadLast)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableChunkFormat
+} // namespace
+} // namespace NYT::NTableClient

@@ -191,6 +191,46 @@ void FromUnversionedValue(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+void ToVersionedValue(
+    TVersionedValue* versionedValue,
+    T&& value,
+    const TRowBufferPtr& rowBuffer,
+    NTransactionClient::TTimestamp timestamp,
+    int id,
+    bool aggregate)
+{
+    ToUnversionedValue(
+        static_cast<TUnversionedValue*>(versionedValue),
+        std::forward<T>(value),
+        rowBuffer,
+        id);
+    versionedValue->Timestamp = timestamp;
+    // TODO(babenko): support aggregates for unversioned values
+    versionedValue->Aggregate = aggregate;
+}
+
+template <class T>
+TVersionedValue ToVersionedValue(
+    T&& value,
+    const TRowBufferPtr& rowBuffer,
+    NTransactionClient::TTimestamp timestamp,
+    int id,
+    bool aggregate)
+{
+    TVersionedValue versionedValue;
+    ToVersionedValue(
+        &versionedValue,
+        std::forward<T>(value),
+        rowBuffer,
+        timestamp,
+        id,
+        aggregate);
+    return versionedValue;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ListToUnversionedValueImpl(
     TUnversionedValue* unversionedValue,
     const std::function<bool(TUnversionedValue*)> producer,
