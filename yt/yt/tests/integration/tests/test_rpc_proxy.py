@@ -509,3 +509,46 @@ class TestRpcProxyWithoutDiscovery(TestRpcProxyBase):
         self._create_simple_table("//tmp/t_in", data=[self._sample_line])
         sync_mount_table("//tmp/t_in")
         assert select_rows("* from [//tmp/t_in]") == [self._sample_line]
+
+##################################################################
+
+class TestCompressionRpcProxy(YTEnvSetup):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DRIVER_CONFIG = {
+        "request_codec": "lz4",
+        "response_codec": "quick_lz",
+    }
+
+    @authors("babenko")
+    def test_simple_rpc_calls(self):
+        set("//tmp/@foo", 1)
+        get("//tmp/@foo")
+
+    @authors("babenko")
+    def test_rpc_streaming(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a" : "b"})
+        read_table("//tmp/t")
+
+    @authors("babenko")
+    def test_rpc_attachments(self):
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/d", schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}
+        ])
+        sync_mount_table("//tmp/d")
+        insert_rows("//tmp/d", [{"key": 0, "value": "foo"}])
+        lookup_rows("//tmp/d", [{"key": 0}])
+    
+
+class TestModernCompressionRpcProxy(TestCompressionRpcProxy):
+    DELTA_DRIVER_CONFIG = {
+        "request_codec": "lz4",
+        "response_codec": "quick_lz",
+        "enable_legacy_rpc_codecs": False
+    }
