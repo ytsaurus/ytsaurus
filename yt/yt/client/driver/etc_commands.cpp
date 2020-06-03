@@ -335,7 +335,7 @@ void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
     }
 
     TGetNodeOptions options;
-    options.ReadFrom = EMasterChannelKind::Cache;
+    options.ReadFrom = EMasterChannelKind::LocalCache;
     options.Attributes = {BannedAttributeName, RoleAttributeName};
 
     TString path = (Type == EProxyType::Rpc) ? RpcProxiesPath : GrpcProxiesPath;

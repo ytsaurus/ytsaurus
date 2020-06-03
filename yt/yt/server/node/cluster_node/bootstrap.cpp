@@ -44,8 +44,6 @@
 
 #include <yt/server/lib/misc/address_helpers.h>
 
-#include <yt/server/lib/object_server/master_cache_service.h>
-
 #include <yt/server/node/query_agent/query_executor.h>
 #include <yt/server/node/query_agent/query_service.h>
 
@@ -74,8 +72,6 @@
 #include <yt/server/lib/hydra/snapshot.h>
 #include <yt/server/lib/hydra/file_snapshot_store.h>
 
-#include <yt/server/lib/object_server/object_service_cache.h>
-
 #include <yt/ytlib/program/build_attributes.h>
 
 #include <yt/ytlib/api/native/client.h>
@@ -93,6 +89,8 @@
 #include <yt/ytlib/monitoring/http_integration.h>
 #include <yt/ytlib/monitoring/monitoring_manager.h>
 
+#include <yt/ytlib/object_client/caching_object_service.h>
+#include <yt/ytlib/object_client/object_service_cache.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/orchid/orchid_service.h>
@@ -177,7 +175,6 @@ using namespace NTransactionServer;
 using namespace NHiveClient;
 using namespace NHiveServer;
 using namespace NObjectClient;
-using namespace NObjectServer;
 using namespace NTableClient;
 using namespace NNet;
 
@@ -620,18 +617,18 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider));
 
     auto cache = New<TObjectServiceCache>(
-        Config_->MasterCacheService,
+        Config_->CachingObjectService,
         Logger,
         TProfiler("/cluster_node/master_cache"));
 
     {
-        auto result = GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::MasterCache, Config_->MasterCacheService->Capacity);
+        auto result = GetMemoryUsageTracker()->TryAcquire(EMemoryCategory::MasterCache, Config_->CachingObjectService->Capacity);
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reserving memory for master cache");
     }
 
-    auto initMasterCacheService = [&] (const auto& masterConfig) {
-        return CreateMasterCacheService(
-            Config_->MasterCacheService,
+    auto initCachingObjectService = [&] (const auto& masterConfig) {
+        return CreateCachingObjectService(
+            Config_->CachingObjectService,
             MasterCacheQueue_->GetInvoker(),
             CreateDefaultTimeoutChannel(
                 CreatePeerChannel(
@@ -640,14 +637,15 @@ void TBootstrap::DoInitialize()
                     EPeerKind::Follower),
                 masterConfig->RpcTimeout),
             cache,
-            masterConfig->CellId);
+            masterConfig->CellId,
+            Logger);
     };
 
-    MasterCacheServices_.push_back(initMasterCacheService(
+    CachingObjectServices_.push_back(initCachingObjectService(
         Config_->ClusterConnection->PrimaryMaster));
 
     for (const auto& masterConfig : Config_->ClusterConnection->SecondaryMasters) {
-        MasterCacheServices_.push_back(initMasterCacheService(masterConfig));
+        CachingObjectServices_.push_back(initCachingObjectService(masterConfig));
     }
 
     RpcServer_->RegisterService(CreateTabletCellService(this));
@@ -1261,15 +1259,15 @@ void TBootstrap::PopulateAlerts(std::vector<TError>* alerts)
 
 void TBootstrap::OnMasterConnected()
 {
-    for (const auto& masterCacheService : MasterCacheServices_) {
-        RpcServer_->RegisterService(masterCacheService);
+    for (const auto& cachingObjectService : CachingObjectServices_) {
+        RpcServer_->RegisterService(cachingObjectService);
     }
 }
 
 void TBootstrap::OnMasterDisconnected()
 {
-    for (const auto& masterCacheService : MasterCacheServices_) {
-        RpcServer_->UnregisterService(masterCacheService);
+    for (const auto& cachingObjectService : CachingObjectServices_) {
+        RpcServer_->UnregisterService(cachingObjectService);
     }
 }
 

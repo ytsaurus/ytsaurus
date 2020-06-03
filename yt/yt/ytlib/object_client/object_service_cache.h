@@ -2,7 +2,9 @@
 
 #include <yt/core/misc/async_cache.h>
 
-namespace NYT::NObjectServer {
+#include <yt/client/hydra/public.h>
+
+namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -119,4 +121,4 @@ DEFINE_REFCOUNTED_TYPE(TObjectServiceCache)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NObjectServer
+} // namespace NYT::NObjectClient

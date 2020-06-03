@@ -32,7 +32,7 @@ TFuture<std::vector<TErrorOr<TAttributeMap>>> FetchAttributes(
     for (const auto& path : paths) {
         auto req = TYPathProxy::Get(path + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
-        if (options.ReadFrom == EMasterChannelKind::Cache || options.ReadFrom == EMasterChannelKind::SecondLevelCache) {
+        if (options.ReadFrom == EMasterChannelKind::Cache || options.ReadFrom == EMasterChannelKind::MasterCache) {
             auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
             cachingHeaderExt->set_success_expiration_time(ToProto<i64>(options.ExpireAfterSuccessfulUpdateTime));
             cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));

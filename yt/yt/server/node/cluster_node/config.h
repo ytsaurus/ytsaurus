@@ -6,8 +6,6 @@
 
 #include <yt/server/lib/misc/config.h>
 
-#include <yt/server/lib/object_server/config.h>
-
 #include <yt/server/node/query_agent/config.h>
 
 #include <yt/server/lib/tablet_node/config.h>
@@ -20,6 +18,8 @@
 
 #include <yt/ytlib/node_tracker_client/config.h>
 #include <yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/ytlib/object_client/config.h>
 
 #include <yt/core/concurrency/config.h>
 
@@ -216,7 +216,7 @@ public:
     NQueryAgent::TQueryAgentConfigPtr QueryAgent;
 
     //! Metadata cache service configuration.
-    NObjectServer::TMasterCacheServiceConfigPtr MasterCacheService;
+    NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 
     //! Chunk Service batcher and redirector.
     TBatchingChunkServiceConfigPtr BatchingChunkService;
@@ -264,7 +264,8 @@ public:
             .DefaultNew();
         RegisterParameter("query_agent", QueryAgent)
             .DefaultNew();
-        RegisterParameter("master_cache_service", MasterCacheService)
+        RegisterParameter("caching_object_service", CachingObjectService)
+            .Alias("master_cache_service")
             .DefaultNew();
         RegisterParameter("batching_chunk_service", BatchingChunkService)
             .DefaultNew();

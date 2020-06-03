@@ -162,7 +162,7 @@ private:
     NApi::NNative::IConnectionPtr MasterConnection_;
     NApi::NNative::IClientPtr MasterClient_;
     NRpc::IServerPtr RpcServer_;
-    std::vector<NRpc::IServicePtr> MasterCacheServices_;
+    std::vector<NRpc::IServicePtr> CachingObjectServices_;
     NHttp::IServerPtr HttpServer_;
     NHttp::IServerPtr SkynetHttpServer_;
     NYTree::IMapNodePtr OrchidRoot_;

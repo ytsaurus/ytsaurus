@@ -7,7 +7,7 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsMasterCacheEnabled(
+bool IsCachingEnabled(
     const TConnectionConfigPtr& config,
     const TMasterReadOptions& options)
 {
@@ -19,7 +19,10 @@ bool IsMasterCacheEnabled(
     if (!cache->EnableMasterCacheDiscovery && cache->Addresses.empty()) {
         return false;
     }
-    return options.ReadFrom == EMasterChannelKind::Cache || options.ReadFrom == EMasterChannelKind::SecondLevelCache;
+
+    return options.ReadFrom == EMasterChannelKind::Cache ||
+        options.ReadFrom == EMasterChannelKind::MasterCache ||
+        options.ReadFrom == EMasterChannelKind::LocalCache;
 }
 
 void SetCachingHeader(
@@ -28,7 +31,7 @@ void SetCachingHeader(
     const TMasterReadOptions& options,
     NHydra::TRevision refreshRevision)
 {
-    if (!IsMasterCacheEnabled(config, options)) {
+    if (!IsCachingEnabled(config, options)) {
         return;
     }
     auto* cachingHeaderExt = request->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
@@ -44,7 +47,7 @@ void SetBalancingHeader(
     const TConnectionConfigPtr& config,
     const TMasterReadOptions& options)
 {
-    if (!IsMasterCacheEnabled(config, options)) {
+    if (!IsCachingEnabled(config, options)) {
         return;
     }
     auto* balancingHeaderExt = request->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);

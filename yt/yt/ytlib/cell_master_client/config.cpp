@@ -20,6 +20,9 @@ TCellDirectoryConfig::TCellDirectoryConfig()
     RegisterParameter("master_cache", MasterCache)
         .Default();
 
+    RegisterParameter("caching_object_service", CachingObjectService)
+        .DefaultNew();
+
     if (PrimaryMaster) {
         auto cellId = PrimaryMaster->CellId;
         auto primaryCellTag = CellTagFromId(cellId);

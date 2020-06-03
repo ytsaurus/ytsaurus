@@ -271,7 +271,7 @@ private:
     void UpdateProxies()
     {
         TMasterReadOptions options{
-            EMasterChannelKind::Cache,
+            EMasterChannelKind::LocalCache,
             Config_->ProxyUpdatePeriod,
             Config_->ProxyUpdatePeriod,
             1

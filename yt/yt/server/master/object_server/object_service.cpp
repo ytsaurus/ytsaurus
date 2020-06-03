@@ -21,10 +21,9 @@
 
 #include <yt/server/lib/hive/hive_manager.h>
 
-#include <yt/server/lib/object_server/object_service_cache.h>
-
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/ytlib/object_client/object_service_cache.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/transaction_client/helpers.h>
@@ -1545,7 +1544,7 @@ private:
         }
 
         if (Owner_->EnableTwoLevelCache_) {
-            response.set_two_level_cache_enabled(true);
+            response.set_caching_enabled(true);
         }
 
         ToProto(response.mutable_uncertain_subrequest_indexes(), uncertainIndexes);
