@@ -1,17 +1,19 @@
-#include <yt/core/test_framework/framework.h>
-
 #include "column_format_ut.h"
+#include "helpers.h"
+
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/table_chunk_format/integer_column_writer.h>
 #include <yt/ytlib/table_chunk_format/integer_column_reader.h>
 #include <yt/ytlib/table_chunk_format/helpers.h>
 #include <yt/ytlib/table_chunk_format/private.h>
 
-#include <yt/ytlib/unittests/column_format_helpers/column_format_helpers.h>
+#include <yt/client/table_client/helpers.h>
 
-namespace NYT::NTableChunkFormat {
+namespace NYT::NTableClient {
+namespace {
 
-using namespace NTableClient;
+using namespace NTableChunkFormat;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,19 +39,12 @@ protected:
 
     TVersionedValue MakeValue(const TValue& value) const
     {
-        if (value.Data) {
-            return DoMakeVersionedValue(
-                *value.Data,
-                value.Timestamp,
-                ColumnId,
-                Aggregate_ ? value.Aggregate : false);
-        } else {
-            return MakeVersionedSentinelValue(
-                EValueType::Null,
-                value.Timestamp,
-                ColumnId,
-                false);
-        }
+        return ToVersionedValue(
+            value.Data,
+            nullptr,
+            value.Timestamp,
+            ColumnId,
+            Aggregate_ ? value.Aggregate : false);
     }
 
     TVersionedRow CreateRow(const std::vector<TValue>& values) const
@@ -488,4 +483,5 @@ TEST_F(TUnversionedUint64ColumnTest, ReadValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableChunkFormat
+} // namespace
+} // namespace NYT::NTableClient

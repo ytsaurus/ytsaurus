@@ -15,8 +15,7 @@ namespace NYT::NTableChunkFormat {
 struct IColumnWriterBase
     : public TNonCopyable
 {
-    virtual ~IColumnWriterBase()
-    { }
+    virtual ~IColumnWriterBase() = default;
 
     virtual void FinishBlock(int blockIndex) = 0;
 

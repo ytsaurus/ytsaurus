@@ -8,6 +8,7 @@
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT::NTableClient {
+namespace {
 
 using ::testing::StrictMock;
 
@@ -144,5 +145,6 @@ INSTANTIATE_TEST_SUITE_P(AllCombinations,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT::NVersionedTableClient
 

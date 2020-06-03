@@ -1,9 +1,9 @@
+#include "helpers.h"
+
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/table_client/schemaless_block_reader.h>
 #include <yt/ytlib/table_client/schemaless_block_writer.h>
-
-#include <yt/ytlib/unittests/table_client_helpers/table_client_helpers.h>
 
 #include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/logical_type.h>
@@ -11,6 +11,7 @@
 #include <yt/core/compression/codec.h>
 
 namespace NYT::NTableClient {
+namespace {
 
 using namespace NCompression;
 
@@ -262,4 +263,5 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToWiderKey)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT::NTableClient

@@ -7,9 +7,10 @@
 #include <yt/ytlib/table_chunk_format/null_column_reader.h>
 #include <yt/ytlib/table_chunk_format/null_column_writer.h>
 
-namespace NYT::NTableChunkFormat {
+namespace NYT::NTableClient {
+namespace {
 
-using namespace NTableClient;
+using namespace NTableChunkFormat;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,4 +51,5 @@ TEST(TUnversionedNullColumnTest, ReadValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableChunkFormat
+} // namespace
+} // namespace NYT::NTableClient

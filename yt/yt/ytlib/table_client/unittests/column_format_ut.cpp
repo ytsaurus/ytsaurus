@@ -1,8 +1,9 @@
 #include "column_format_ut.h"
 
-namespace NYT::NTableChunkFormat {
+namespace NYT::NTableClient {
 
-using namespace NTableClient;
+using namespace NTableChunkFormat;
+using namespace NTableChunkFormat::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,7 +11,7 @@ TSingleColumnWriter::TSingleColumnWriter(TWriterCreatorFunc writerCreator)
     : ValueColumnWriter_(writerCreator(&BlockWriter_))
 { }
 
-std::pair<TSharedRef, NProto::TColumnMeta> TSingleColumnWriter::WriteSingleSegmentBlock(
+std::pair<TSharedRef, TColumnMeta> TSingleColumnWriter::WriteSingleSegmentBlock(
     const std::vector<TUnversionedOwningRow>& rows)
 {
     std::vector<TUnversionedRow> nonOwningRows;
@@ -32,11 +33,13 @@ std::pair<TSharedRef, NProto::TColumnMeta> TSingleColumnWriter::WriteSingleSegme
     return std::pair(data, columnMeta);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TSingleColumnReader::TSingleColumnReader(TReaderCreatorFunc readerCreator)
      : ReaderCreatorFunc_(readerCreator)
 { }
 
-std::vector<TUnversionedOwningRow> TSingleColumnReader::ReadBlock(const TSharedRef& data, const NProto::TColumnMeta& meta, ui16 columnId)
+std::vector<TUnversionedOwningRow> TSingleColumnReader::ReadBlock(const TSharedRef& data, const TColumnMeta& meta, ui16 columnId)
 {
     auto reader = ReaderCreatorFunc_(meta, 0, columnId);
     reader->ResetBlock(data, 0);
@@ -63,6 +66,10 @@ std::vector<TUnversionedOwningRow> TSingleColumnReader::ReadBlock(const TSharedR
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TVersionedColumnTestBase::TVersionedColumnTestBase(bool aggregate)
+    : Aggregate_(aggregate)
+{ }
 
 void TVersionedColumnTestBase::SetUp()
 {
@@ -209,4 +216,4 @@ std::vector<TVersionedRow> TVersionedColumnTestBase::GetExpectedRows(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableChunkFormat
+} // namespace NYT::NTableClient

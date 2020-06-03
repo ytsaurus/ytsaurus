@@ -1,6 +1,7 @@
-#include <yt/core/test_framework/framework.h>
-
 #include "column_format_ut.h"
+#include "helpers.h"
+
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/table_chunk_format/public.h>
 #include <yt/ytlib/table_chunk_format/string_column_writer.h>
@@ -8,13 +9,12 @@
 
 #include <yt/ytlib/table_client/public.h>
 
-#include <yt/ytlib/unittests/column_format_helpers/column_format_helpers.h>
-
 #include <yt/client/table_client/unversioned_row.h>
 
-namespace NYT::NTableChunkFormat {
+namespace NYT::NTableClient {
+namespace {
 
-using namespace NTableClient;
+using namespace NTableChunkFormat;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,9 +83,11 @@ TEST(TAnyColumnTest, Simple)
     }
 
     reader->ReadValues(TMutableRange<TMutableUnversionedRow>(actual.data(), actual.size()));
-    // CheckSchemafulResult(expected, actual);
+    // XXX
+    CheckSchemafulResult(expected, actual);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableChunkFormat
+} // namespace
+} // namespace NYT::NTableCLient

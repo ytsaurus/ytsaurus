@@ -5,9 +5,11 @@
 #include <yt/ytlib/table_chunk_format/timestamp_writer.h>
 #include <yt/ytlib/table_chunk_format/timestamp_reader.h>
 
-namespace NYT::NTableChunkFormat {
+namespace NYT::NTableClient {
+namespace {
 
-using namespace NTableClient;
+using namespace NTableChunkFormat;
+using namespace NTableChunkFormat::NProto;
 using namespace NCompression;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,7 +32,7 @@ class TTimestampColumnTest
 protected:
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
     TSharedRef Data_;
-    NProto::TColumnMeta ColumnMeta_;
+    TColumnMeta ColumnMeta_;
 
     std::vector<TVersionedRow> CreateSegment1()
     {
@@ -233,4 +235,5 @@ TEST_F(TTimestampColumnTest, ScanAllRows)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableChunkFormat
+} // namespace
+} // namespace NYT::NTableClient

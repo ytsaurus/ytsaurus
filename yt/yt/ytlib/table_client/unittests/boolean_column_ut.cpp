@@ -1,15 +1,15 @@
-#include <yt/core/test_framework/framework.h>
-
 #include "column_format_ut.h"
+#include "helpers.h"
+
+#include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/table_chunk_format/boolean_column_writer.h>
 #include <yt/ytlib/table_chunk_format/boolean_column_reader.h>
 
-#include <yt/ytlib/unittests/column_format_helpers/column_format_helpers.h>
+namespace NYT::NTableClient {
+namespace {
 
-namespace NYT::NTableChunkFormat {
-
-using namespace NTableClient;
+using namespace NTableChunkFormat;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,4 +84,5 @@ TEST_F(TUnversionedBooleanColumnTest, ReadValues)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableChunkFormat
+} // namespace
+} // namespace NYT::NTableClient
