@@ -1926,27 +1926,6 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
 
-class TestDynamicTablesWithCompressionRpcProxy(DynamicTablesSingleCellBase):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-    ENABLE_HTTP_PROXY = True
-
-    DELTA_RPC_DRIVER_CONFIG = {
-        "request_codec": "lz4",
-        "response_codec": "quick_lz",
-    }
-
-class TestDynamicTablesWithModernCompressionRpcProxy(DynamicTablesSingleCellBase):
-    DRIVER_BACKEND = "rpc"
-    ENABLE_RPC_PROXY = True
-    ENABLE_HTTP_PROXY = True
-
-    DELTA_RPC_DRIVER_CONFIG = {
-        "request_codec": "lz4",
-        "response_codec": "quick_lz",
-        "enable_legacy_rpc_codecs": False
-    }
-
 class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSingleCellBase):
     def setup_method(self, method):
         super(DynamicTablesSingleCellBase, self).setup_method(method)
