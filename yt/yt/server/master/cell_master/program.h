@@ -102,7 +102,6 @@ protected:
         }
 
         auto config = GetConfig();
-        auto configNode = GetConfigNode();
 
         if (dumpSnapshot) {
             config->Logging = NLogging::TLogManagerConfig::CreateSilent();
@@ -116,7 +115,7 @@ protected:
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
         // may be holding a reference to it and continue running some actions in background threads.
-        auto* bootstrap = new NCellMaster::TBootstrap(std::move(config), std::move(configNode));
+        auto* bootstrap = new NCellMaster::TBootstrap(std::move(config));
         bootstrap->Initialize();
 
         if (dumpSnapshot) {

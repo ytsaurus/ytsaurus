@@ -180,9 +180,8 @@ static constexpr auto ProfilingPeriod = TDuration::Seconds(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(TCellMasterConfigPtr config, INodePtr configNode)
+TBootstrap::TBootstrap(TCellMasterConfigPtr config)
     : Config_(std::move(config))
-    , ConfigNode_(std::move(configNode))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
         AbortOnUnrecognizedOptions(Logger, Config_);
@@ -819,7 +818,7 @@ void TBootstrap::DoRun()
     SetNodeByYPath(
         orchidRoot,
         "/config",
-        ConfigNode_);
+        ConvertTo<INodePtr>(Config_));
     SetNodeByYPath(
         orchidRoot,
         "/chunk_manager",

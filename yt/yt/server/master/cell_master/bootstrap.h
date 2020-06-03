@@ -59,7 +59,7 @@ namespace NYT::NCellMaster {
 class TBootstrap
 {
 public:
-    TBootstrap(TCellMasterConfigPtr config, NYTree::INodePtr configNode);
+    TBootstrap(TCellMasterConfigPtr config);
     ~TBootstrap();
 
     const TCellMasterConfigPtr& GetConfig() const;
@@ -117,7 +117,6 @@ public:
 
 private:
     const TCellMasterConfigPtr Config_;
-    const NYTree::INodePtr ConfigNode_;
 
     bool PrimaryMaster_ = false;
     bool SecondaryMaster_ = false;
