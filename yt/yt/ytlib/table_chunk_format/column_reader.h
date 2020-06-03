@@ -6,7 +6,11 @@
 
 #include <yt/client/table_chunk_format/proto/column_meta.pb.h>
 
+#include <yt/client/table_client/unversioned_row.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/versioned_row.h>
+
+#include <yt/core/misc/range.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -52,15 +56,30 @@ struct IUnversionedColumnReader
         i64 lowerRowIndex,
         i64 upperRowIndex) = 0;
 
-    /*!
-     *  Read values into proper position inside rows.
-     */
+    //! Reads values into proper position inside rows.
     virtual void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) = 0;
 
-    /*!
-     *  Read values into proper position inside rows.
-     */
+    //! Read values into proper position inside rows.
     virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) = 0;
+
+    //! Returns the number of IUnversionedRowBatch::TColumn instances needed to represent
+    //! the current segement.
+    virtual int GetBatchColumnCount() = 0;
+
+    //! Reads values into #columns (of size #GetBatchColumnCount).
+    virtual void ReadColumnarBatch(
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
+        i64 rowCount) = 0;
+
+    //! Gives an estimate for data weight in [lowerRowIndex, upperRowIndex) row range.
+    //! The range must be within the current segment.
+    /*!
+     *  This is an estimate for at least two reasons:
+     *  1) all values are assumed to be non-null
+     *  2) for strings, the average (over the segment) length is used
+     */
+    // TODO(babenko): add density parameter to segment meta to solve 1), as least partially.  
+    virtual i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,10 +96,11 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
 struct ISchemalessColumnReader
     : public virtual IColumnReaderBase
 {
+    //! Writes schemaless values into rows.
     virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) = 0;
 
-    //! For rows from #CurrentRowIndex to (#CurrentRowIndex + valueCounts.Size())
-    //! return number of schemaless values per row.
+    //! For rows in range [CurrentRowIndex, CurrentRowIndex + valueCounts.Size())
+    //! writes the number of schemaless values per row.
     virtual void GetValueCounts(TMutableRange<ui32> valueCounts) = 0;
 };
 

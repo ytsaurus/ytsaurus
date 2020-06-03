@@ -3,6 +3,9 @@
 #include "column_reader_detail.h"
 #include "helpers.h"
 
+#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/logical_type.h>
+
 #include <yt/core/misc/bitmap.h>
 
 namespace NYT::NTableChunkFormat {
@@ -25,25 +28,21 @@ public:
     }
 
 protected:
-    const double* Values_;
+    TRange<double> Values_;
     TReadOnlyBitmap<ui64> NullBitmap_;
 
-    size_t InitValueReader(const char* ptr)
+    const char* InitValueReader(const char* ptr)
     {
-        const char* begin = ptr;
-
         ui64 valueCount = *reinterpret_cast<const ui64*>(ptr);
         ptr += sizeof(ui64);
 
-        Values_ = reinterpret_cast<const double*>(ptr);
+        Values_ = MakeRange(reinterpret_cast<const double*>(ptr), valueCount);
         ptr += sizeof(double) * valueCount;
 
-        NullBitmap_ = TReadOnlyBitmap<ui64>(
-            reinterpret_cast<const ui64*>(Values_ + valueCount),
-            valueCount);
+        NullBitmap_ = TReadOnlyBitmap<ui64>(reinterpret_cast<const ui64*>(Values_.end()), valueCount);
         ptr += NullBitmap_.GetByteSize();
 
-        return ptr - begin;
+        return ptr;
     }
 };
 
@@ -58,8 +57,8 @@ public:
         : TDenseVersionedValueExtractorBase(meta, aggregate)
     {
         const char* ptr = data.Begin();
-        ptr += InitDenseReader(ptr);
-        ptr += InitValueReader(ptr);
+        ptr = InitDenseReader(ptr);
+        ptr = InitValueReader(ptr);
         YT_VERIFY(ptr == data.End());
     }
 };
@@ -75,8 +74,8 @@ public:
         : TSparseVersionedValueExtractorBase(meta, aggregate)
     {
         const char* ptr = data.Begin();
-        ptr += InitSparseReader(ptr);
-        ptr += InitValueReader(ptr);
+        ptr = InitSparseReader(ptr);
+        ptr = InitValueReader(ptr);
         YT_VERIFY(ptr == data.End());
     }
 };
@@ -130,8 +129,34 @@ public:
     TUnversionedDoubleValueExtractor(TRef data, const TSegmentMeta& meta)
     {
         const char* ptr = data.Begin();
-        ptr += InitValueReader(data.Begin());
+        ptr = InitValueReader(ptr);
         YT_VERIFY(ptr == data.End());
+    }
+
+    int GetBatchColumnCount()
+    {
+        return 1;
+    }
+
+    void ReadColumnarBatch(
+        i64 startRowIndex,
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+    {
+        YT_VERIFY(columns.size() == 1);
+        auto& column = columns[0];
+        ReadColumnarDoubleValues(
+            &column,
+            startRowIndex,
+            Values_);
+        ReadColumnarNullBitmap(
+            &column,
+            startRowIndex,
+            NullBitmap_.GetData());
+    }
+
+    i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex)
+    {
+        return (upperRowIndex - lowerRowIndex) * 8;
     }
 };
 

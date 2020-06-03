@@ -1,7 +1,7 @@
 #include "schemaless_column_writer.h"
 
 #include "column_writer_detail.h"
-#include "compressed_integer_vector.h"
+#include "bit_packed_unsigned_vector.h"
 #include "helpers.h"
 
 #include <yt/client/table_client/unversioned_row.h>
@@ -88,8 +88,8 @@ private:
         ui32 maxOffsetDelta;
         PrepareDiffFromExpected(&Offsets_, &expectedBytesPerRow, &maxOffsetDelta);
 
-        segmentInfo.Data.push_back(CompressUnsignedVector(MakeRange(Offsets_), maxOffsetDelta));
-        segmentInfo.Data.push_back(CompressUnsignedVector(MakeRange(ValueCounts_), MaxValueCount_));
+        segmentInfo.Data.push_back(BitPackUnsignedVector(MakeRange(Offsets_), maxOffsetDelta));
+        segmentInfo.Data.push_back(BitPackUnsignedVector(MakeRange(ValueCounts_), MaxValueCount_));
 
         auto data = DataBuffer_->Flush();
         segmentInfo.Data.insert(segmentInfo.Data.end(), data.begin(), data.end());

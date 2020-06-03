@@ -2,7 +2,7 @@
 #include "column_writer_detail.h"
 #include "helpers.h"
 
-#include "compressed_integer_vector.h"
+#include "bit_packed_unsigned_vector.h"
 
 #include <yt/client/table_client/versioned_row.h>
 

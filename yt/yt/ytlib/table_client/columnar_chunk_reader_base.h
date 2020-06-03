@@ -46,15 +46,17 @@ protected:
 
     struct TColumn
     {
-        TColumn(std::unique_ptr<NTableChunkFormat::IColumnReaderBase> reader, int columnMetaIndex = -1)
+        TColumn(std::unique_ptr<NTableChunkFormat::IColumnReaderBase> reader, int columnMetaIndex = -1, int columnId = -1)
             : ColumnReader(std::move(reader))
             , ColumnMetaIndex(columnMetaIndex)
+            , ColumnId(columnId)
         { }
 
         std::unique_ptr<NTableChunkFormat::IColumnReaderBase> ColumnReader;
         int ColumnMetaIndex;
+        int ColumnId;
         std::vector<int> BlockIndexSequence;
-        int PendingBlockIndex_ = 0;
+        int PendingBlockIndex = 0;
     };
 
     std::vector<TColumn> Columns_;

@@ -1,4 +1,4 @@
-#include "compressed_integer_vector.h"
+#include "bit_packed_unsigned_vector.h"
 
 #include <yt/core/misc/zigzag.h>
 

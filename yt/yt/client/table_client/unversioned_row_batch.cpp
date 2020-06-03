@@ -32,14 +32,19 @@ IUnversionedRowBatchPtr CreateBatchFromUnversionedRows(
             return static_cast<int>(Rows_.size());
         }
 
+        virtual bool IsColumnar() const override
+        {
+            return false;
+        }
+
         virtual TRange<TUnversionedRow> MaterializeRows() override
         {
             return Rows_;
         }
 
-        virtual bool IsColumnar() const override
+        virtual TRange<TColumn*> MaterializeColumns() override
         {
-            return false;
+            YT_ABORT();
         }
 
     private:
@@ -70,14 +75,19 @@ IUnversionedRowBatchPtr CreateBatchFromUnversionedRows(
             return static_cast<int>(Rows_.size());
         }
 
+        virtual bool IsColumnar() const override
+        {
+            return false;
+        }
+
         virtual TRange<TUnversionedRow> MaterializeRows() override
         {
             return MakeRange(Rows_);
         }
 
-        virtual bool IsColumnar() const override
+        virtual TRange<TColumn*> MaterializeColumns() override
         {
-            return false;
+            YT_ABORT();
         }
 
     private:
@@ -99,14 +109,19 @@ IUnversionedRowBatchPtr CreateEmptyUnversionedRowBatch()
             return 0;
         }
 
+        virtual bool IsColumnar() const override
+        {
+            return false;
+        }
+
         virtual TRange<TUnversionedRow> MaterializeRows() override
         {
             return {};
         }
 
-        virtual bool IsColumnar() const override
+        virtual TRange<TColumn*> MaterializeColumns() override
         {
-            return false;
+            YT_ABORT();
         }
     };
 

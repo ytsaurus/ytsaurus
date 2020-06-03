@@ -5,7 +5,7 @@
 #include <yt/ytlib/table_chunk_format/boolean_column_writer.h>
 #include <yt/ytlib/table_chunk_format/boolean_column_reader.h>
 
-#include <yt/ytlib/table_chunk_format/public.h>
+#include <yt/ytlib/unittests/column_format_helpers/column_format_helpers.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -17,7 +17,6 @@ class TUnversionedBooleanColumnTest
     : public TUnversionedColumnTestBase<bool>
 {
 protected:
-
     std::vector<std::optional<bool>> CreateDirectDense()
     {
         std::vector<std::optional<bool>> data;
@@ -44,7 +43,23 @@ protected:
         WriteSegment(columnWriter, CreateDirectRle());
     }
 
-    virtual std::unique_ptr<IUnversionedColumnReader> CreateColumnReader() override
+    virtual std::optional<bool> DecodeValueFromColumn(
+        const IUnversionedRowBatch::TColumn* column,
+        i64 index) override
+    {
+        YT_VERIFY(column->StartIndex >= 0);
+        index -= column->StartIndex;
+        
+        ResolveRleEncoding(column, index);
+        
+        if (column->NullBitmap && GetBit(*column->NullBitmap, index)) {
+            return std::nullopt;
+        }
+        
+        return DecodeBoolFromColumn(*column, index);
+    }
+
+    virtual std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
         return CreateUnversionedBooleanColumnReader(ColumnMeta_, ColumnIndex, ColumnId);
     }
@@ -63,7 +78,8 @@ TEST_F(TUnversionedBooleanColumnTest, ReadValues)
     AppendVector(&expected, CreateDirectDense());
     AppendVector(&expected, CreateDirectRle());
 
-    Validate(CreateRows(expected), 1111, 15555);
+    ValidateRows(CreateRows(expected), 1111, 15555);
+    ValidateColumn(expected, 1111, 15555);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,6 +1,6 @@
 #include "integer_column_reader.h"
 
-#include "compressed_integer_vector.h"
+#include "bit_packed_unsigned_vector.h"
 #include "column_reader_detail.h"
 #include "private.h"
 
@@ -32,12 +32,12 @@ template <EValueType ValueType, bool Scan>
 class TIntegerValueExtractorBase
 {
 protected:
-    using TValueReader = TCompressedUnsignedVectorReader<ui64, Scan>;
-    TValueReader ValueReader_;
-
     const TIntegerSegmentMeta& Meta_;
 
-    TIntegerValueExtractorBase(const TSegmentMeta& meta)
+    using TValueReader = TBitPackedUnsignedVectorReader<ui64, Scan>;
+    TValueReader ValueReader_;
+
+    explicit TIntegerValueExtractorBase(const TSegmentMeta& meta)
         : Meta_(meta.GetExtension(TIntegerSegmentMeta::integer_segment_meta))
     { }
 
@@ -71,10 +71,8 @@ protected:
     using TIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
     using typename TIntegerValueExtractorBase<ValueType, Scan>::TValueReader;
 
-    size_t InitDirectReader(const char* ptr)
+    const char* InitDirectReader(const char* ptr)
     {
-        const char* begin = ptr;
-
         ValueReader_ = TValueReader(reinterpret_cast<const ui64*>(ptr));
         ptr += ValueReader_.GetByteSize();
 
@@ -83,7 +81,7 @@ protected:
             ValueReader_.GetSize());
         ptr += NullBitmap_.GetByteSize();
 
-        return ptr - begin;
+        return ptr;
     }
 };
 
@@ -98,7 +96,7 @@ public:
 
     void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
     {
-        auto dictionaryId = IdsReader_[valueIndex];
+        auto dictionaryId = IdReader_[valueIndex];
         if (dictionaryId == 0) {
             *value = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
         } else {
@@ -107,23 +105,21 @@ public:
     }
 
 protected:
-    using TIdsReader = TCompressedUnsignedVectorReader<ui32, Scan>;
-    TIdsReader IdsReader_;
+    using TIdsReader = TBitPackedUnsignedVectorReader<ui32, Scan>;
+    TIdsReader IdReader_;
 
     using TIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
     using typename TIntegerValueExtractorBase<ValueType, Scan>::TValueReader;
 
-    size_t InitDictionaryReader(const char* ptr)
+    const char* InitDictionaryReader(const char* ptr)
     {
-        const char* begin = ptr;
-
         ValueReader_ = TValueReader(reinterpret_cast<const ui64*>(ptr));
         ptr += ValueReader_.GetByteSize();
 
-        IdsReader_ = TIdsReader(reinterpret_cast<const ui64*>(ptr));
-        ptr += IdsReader_.GetByteSize();
+        IdReader_ = TIdsReader(reinterpret_cast<const ui64*>(ptr));
+        ptr += IdReader_.GetByteSize();
 
-        return ptr - begin;
+        return ptr;
     }
 };
 
@@ -143,8 +139,8 @@ public:
         , TDirectIntegerValueExtractorBase<ValueType, true>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += TDenseVersionedValueExtractorBase::InitDenseReader(ptr);
-        ptr += TDirectIntegerValueExtractorBase<ValueType, true>::InitDirectReader(ptr);
+        ptr = TDenseVersionedValueExtractorBase::InitDenseReader(ptr);
+        ptr = TDirectIntegerValueExtractorBase<ValueType, true>::InitDirectReader(ptr);
         YT_VERIFY(ptr == data.End());
     }
 };
@@ -165,8 +161,8 @@ public:
         , TDictionaryIntegerValueExtractorBase<ValueType, true>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += TDenseVersionedValueExtractorBase::InitDenseReader(ptr);
-        ptr += TDictionaryIntegerValueExtractorBase<ValueType, true>::InitDictionaryReader(ptr);
+        ptr = TDenseVersionedValueExtractorBase::InitDenseReader(ptr);
+        ptr = TDictionaryIntegerValueExtractorBase<ValueType, true>::InitDictionaryReader(ptr);
         YT_VERIFY(ptr == data.End());
     }
 };
@@ -187,8 +183,8 @@ public:
         , TDirectIntegerValueExtractorBase<ValueType, true>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += TSparseVersionedValueExtractorBase::InitSparseReader(ptr);
-        ptr += TDirectIntegerValueExtractorBase<ValueType, true>::InitDirectReader(ptr);
+        ptr = TSparseVersionedValueExtractorBase::InitSparseReader(ptr);
+        ptr = TDirectIntegerValueExtractorBase<ValueType, true>::InitDirectReader(ptr);
         YT_VERIFY(ptr == data.End());
     }
 };
@@ -209,8 +205,8 @@ public:
         , TDictionaryIntegerValueExtractorBase<ValueType, true>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += TSparseVersionedValueExtractorBase::InitSparseReader(ptr);
-        ptr += TDictionaryIntegerValueExtractorBase<ValueType, true>::InitDictionaryReader(ptr);
+        ptr = TSparseVersionedValueExtractorBase::InitSparseReader(ptr);
+        ptr = TDictionaryIntegerValueExtractorBase<ValueType, true>::InitDictionaryReader(ptr);
         YT_VERIFY(ptr == data.End());
     }
 };
@@ -294,12 +290,39 @@ public:
     TDirectDenseUnversionedIntegerValueExtractor(TRef data, const TSegmentMeta& meta)
         : TDirectIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
-        InitDirectReader(data.Begin());
+        const char* ptr = data.Begin();
+        ptr = InitDirectReader(ptr);
+        YT_VERIFY(ptr == data.End());
         YT_VERIFY(ValueReader_.GetSize() == meta.row_count());
+    }
+
+    int GetBatchColumnCount() const
+    {
+        return 1;
+    }
+
+    void ReadColumnarBatch(
+        i64 startRowIndex,
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+    {
+        YT_VERIFY(columns.size() == 1);
+        auto& column = columns[0];
+        ReadColumnarIntegerValues(
+            &column,
+            startRowIndex,
+            ValueType,
+            Meta_.min_value(),
+            ValueReader_.GetData());
+        ReadColumnarNullBitmap(
+            &column,
+            startRowIndex,
+            NullBitmap_.GetData());
     }
 
 private:
     using TDirectIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
+    using TDirectIntegerValueExtractorBase<ValueType, Scan>::NullBitmap_;
+    using TDirectIntegerValueExtractorBase<ValueType, Scan>::Meta_;
     using TDirectIntegerValueExtractorBase<ValueType, Scan>::InitDirectReader;
 };
 
@@ -314,9 +337,39 @@ public:
         : TDictionaryIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += TDictionaryIntegerValueExtractorBase<ValueType, Scan>::InitDictionaryReader(ptr);
+        ptr = TDictionaryIntegerValueExtractorBase<ValueType, Scan>::InitDictionaryReader(ptr);
         YT_VERIFY(ptr == data.End());
     }
+
+    int GetBatchColumnCount()
+    {
+        return 2;
+    }
+
+    void ReadColumnarBatch(
+        i64 startRowIndex,
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+    {
+        YT_VERIFY(columns.size() == 2);
+        auto& primaryColumn = columns[0];
+        auto& dictionaryColumn = columns[1];
+        ReadColumnarIntegerValues(
+            &dictionaryColumn,
+            -1,
+            ValueType,
+            Meta_.min_value(),
+            ValueReader_.GetData());
+        ReadColumnarDictionary(
+            &primaryColumn,
+            &dictionaryColumn,
+            startRowIndex,
+            IdReader_.GetData());
+    }
+
+private:
+    using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::IdReader_;
+    using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
+    using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::Meta_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -331,16 +384,46 @@ public:
         : TDirectIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += TDirectIntegerValueExtractorBase<ValueType, Scan>::InitDirectReader(ptr);
-
+        ptr = TDirectIntegerValueExtractorBase<ValueType, Scan>::InitDirectReader(ptr);
         RowIndexReader_ = TRowIndexReader(reinterpret_cast<const ui64*>(ptr));
         ptr += RowIndexReader_.GetByteSize();
-
         YT_VERIFY(ptr == data.End());
+    }
+
+    int GetBatchColumnCount()
+    {
+        return 2;
+    }
+
+    void ReadColumnarBatch(
+        i64 startRowIndex,
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+    {
+        YT_VERIFY(columns.size() == 2);
+        auto& primaryColumn = columns[0];
+        auto& rleColumn = columns[1];
+        ReadColumnarIntegerValues(
+            &rleColumn,
+            -1,
+            ValueType,
+            Meta_.min_value(),
+            ValueReader_.GetData());
+        ReadColumnarNullBitmap(
+            &rleColumn,
+            -1,
+            NullBitmap_.GetData());
+        ReadColumnarRle(
+            &primaryColumn,
+            &rleColumn,
+            startRowIndex,
+            RowIndexReader_.GetData());
     }
 
 private:
     using typename TRleValueExtractorBase<Scan>::TRowIndexReader;
+    using TDirectIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
+    using TDirectIntegerValueExtractorBase<ValueType, Scan>::NullBitmap_;
+    using TDirectIntegerValueExtractorBase<ValueType, Scan>::Meta_;
     using TRleValueExtractorBase<Scan>::RowIndexReader_;
 };
 
@@ -356,16 +439,48 @@ public:
         : TDictionaryIntegerValueExtractorBase<ValueType, Scan>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += TDictionaryIntegerValueExtractorBase<ValueType, Scan>::InitDictionaryReader(ptr);
-
+        ptr = TDictionaryIntegerValueExtractorBase<ValueType, Scan>::InitDictionaryReader(ptr);
         RowIndexReader_ = TRowIndexReader(reinterpret_cast<const ui64*>(ptr));
         ptr += RowIndexReader_.GetByteSize();
-
         YT_VERIFY(ptr == data.End());
+    }
+
+    int GetBatchColumnCount()
+    {
+        return 3;
+    }
+
+    void ReadColumnarBatch(
+        i64 startRowIndex,
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+    {
+        YT_VERIFY(columns.size() == 3);
+        auto& primaryColumn = columns[0];
+        auto& dictionaryColumn = columns[1];
+        auto& rleColumn = columns[2];
+        ReadColumnarIntegerValues(
+            &dictionaryColumn,
+            -1,
+            ValueType,
+            Meta_.min_value(),
+            ValueReader_.GetData());
+        ReadColumnarDictionary(
+            &rleColumn,
+            &dictionaryColumn,
+            -1,
+            IdReader_.GetData());
+        ReadColumnarRle(
+            &primaryColumn,
+            &rleColumn,
+            startRowIndex,
+            RowIndexReader_.GetData());
     }
 
 private:
     using typename TRleValueExtractorBase<Scan>::TRowIndexReader;
+    using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
+    using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::IdReader_;
+    using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::Meta_;
     using TRleValueExtractorBase<Scan>::RowIndexReader_;
 };
 
@@ -427,8 +542,7 @@ private:
             TDictionaryRleUnversionedIntegerValueExtractor<ValueType, false>> TDictionaryRleLookupReader;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
-        auto segmentType = EUnversionedIntegerSegmentType(meta.type());
-
+        auto segmentType = FromProto<EUnversionedIntegerSegmentType>(meta.type());
         switch (segmentType) {
             case EUnversionedIntegerSegmentType::DirectDense:
                 if (scan) {

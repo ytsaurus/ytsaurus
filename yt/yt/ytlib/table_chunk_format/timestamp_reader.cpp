@@ -19,23 +19,23 @@ TTimestampSegmentReader::TTimestampSegmentReader(
 {
     SegmentStartRowIndex_ = Meta_.chunk_row_count() - Meta_.row_count();
 
-    DictionaryReader_ = TCompressedUnsignedVectorReader<ui64>(
+    DictionaryReader_ = TBitPackedUnsignedVectorReader<ui64>(
         reinterpret_cast<const ui64*>(data));
     data += DictionaryReader_.GetByteSize();
 
-    WriteIdReader_ = TCompressedUnsignedVectorReader<ui32>(
+    WriteIdReader_ = TBitPackedUnsignedVectorReader<ui32>(
         reinterpret_cast<const ui64*>(data));
     data += WriteIdReader_.GetByteSize();
 
-    DeleteIdReader_ = TCompressedUnsignedVectorReader<ui32>(
+    DeleteIdReader_ = TBitPackedUnsignedVectorReader<ui32>(
         reinterpret_cast<const ui64*>(data));
     data += DeleteIdReader_.GetByteSize();
 
-    WriteIndexReader_ = TCompressedUnsignedVectorReader<ui32>(
+    WriteIndexReader_ = TBitPackedUnsignedVectorReader<ui32>(
         reinterpret_cast<const ui64*>(data));
     data += WriteIndexReader_.GetByteSize();
 
-    DeleteIndexReader_ = TCompressedUnsignedVectorReader<ui32>(
+    DeleteIndexReader_ = TBitPackedUnsignedVectorReader<ui32>(
         reinterpret_cast<const ui64*>(data));
     data += DeleteIndexReader_.GetByteSize();
 }

@@ -146,7 +146,7 @@ inline TRange<NTableClient::TVersionedValue> FindValues(const NTableClient::TVer
         row.BeginValues(),
         row.EndValues(),
         columnId,
-        [](const NTableClient::TVersionedValue& value, int columnId) {
+        [] (const NTableClient::TVersionedValue& value, int columnId) {
             return value.Id < columnId;
         });
 
@@ -154,7 +154,7 @@ inline TRange<NTableClient::TVersionedValue> FindValues(const NTableClient::TVer
         row.BeginValues(),
         row.EndValues(),
         columnId,
-        [](int columnId, const NTableClient::TVersionedValue& value) {
+        [] (int columnId, const NTableClient::TVersionedValue& value) {
             return columnId < value.Id;
         });
 

@@ -52,11 +52,9 @@ class TVersionedColumnTestBase
     : public ::testing::Test
 {
 protected:
-    NTableClient::TRowBufferPtr RowBuffer_ = New<NTableClient::TRowBuffer>();
+    const NTableClient::TRowBufferPtr RowBuffer_ = New<NTableClient::TRowBuffer>();
     TSharedRef Data_;
     NProto::TColumnMeta ColumnMeta_;
-
-    std::unique_ptr<IVersionedColumnReader> Reader_;
 
     TChunkedMemoryPool Pool_;
     bool Aggregate_;
@@ -64,11 +62,13 @@ protected:
     const int ColumnId = 0;
     const int MaxValueCount = 10;
 
-    TVersionedColumnTestBase(bool aggregate)
+    explicit TVersionedColumnTestBase(bool aggregate)
         : Aggregate_(aggregate)
     { }
 
     virtual void SetUp() override;
+
+    std::unique_ptr<IVersionedColumnReader> CreateColumnReader();
 
     NTableClient::TVersionedRow CreateRowWithValues(const std::vector<NTableClient::TVersionedValue>& values) const;
 
@@ -89,7 +89,7 @@ protected:
         NTableClient::TTimestamp timestamp) const;
 
     virtual void Write(IValueColumnWriter* columnWriter) = 0;
-    virtual std::unique_ptr<IVersionedColumnReader> CreateColumnReader() = 0;
+    virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() = 0;
     virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) = 0;
 };
 
@@ -100,11 +100,9 @@ class TUnversionedColumnTestBase
     : public ::testing::Test
 {
 protected:
-    NTableClient::TRowBufferPtr RowBuffer_ = New<NTableClient::TRowBuffer>();
+    const NTableClient::TRowBufferPtr RowBuffer_ = New<NTableClient::TRowBuffer>();
     TSharedRef Data_;
     NProto::TColumnMeta ColumnMeta_;
-
-    std::unique_ptr<IUnversionedColumnReader> Reader_;
 
     TChunkedMemoryPool Pool_;
 
@@ -123,9 +121,13 @@ protected:
         Data_ = codec->Compress(block.Data);
 
         ColumnMeta_ = columnWriter->ColumnMeta();
+    }
 
-        Reader_ = CreateColumnReader();
-        Reader_->ResetBlock(Data_, 0);
+    std::unique_ptr<IUnversionedColumnReader> CreateColumnReader()
+    {
+        auto reader = DoCreateColumnReader();
+        reader->ResetBlock(Data_, 0);
+        return reader;
     }
 
     NTableClient::TUnversionedValue MakeValue(const std::optional<TValue>& value)
@@ -180,15 +182,16 @@ protected:
         }
     }
 
-    void Validate(
+    void ValidateRows(
         const std::vector<NTableClient::TVersionedRow>& expected,
         int startRowIndex,
         int rowCount)
     {
-        auto actual = AllocateRows(rowCount);
+        auto reader = CreateColumnReader();
+        reader->SkipToRowIndex(startRowIndex);
 
-        Reader_->SkipToRowIndex(startRowIndex);
-        Reader_->ReadValues(TMutableRange<NTableClient::TMutableVersionedRow>(actual.data(), actual.size()));
+        auto actual = AllocateRows(rowCount);
+        reader->ReadValues(TMutableRange<NTableClient::TMutableVersionedRow>(actual.data(), actual.size()));
 
         const auto* expectedBegin = expected.data() + startRowIndex;
         ValidateEqual(MakeRange(expectedBegin, expectedBegin + rowCount), actual);
@@ -199,9 +202,51 @@ protected:
         return std::vector<std::optional<TValue>>(count, value);
     }
 
+    void ValidateSegmentPart(
+        const std::vector<NTableClient::IUnversionedRowBatch::TColumn>& columns,
+        const std::vector<std::optional<TValue>>& expected,
+        int startIndex,
+        int count)
+    {
+        const auto& primaryColumn = columns[0];
+        for (int index = startIndex; index < startIndex + count; ++index) {
+            auto a = expected[index];
+            auto b = DecodeValueFromColumn(&primaryColumn, index);
+            YT_VERIFY(a == b);
+            // EXPECT_EQ(expected[startIndex + i], DecodeValueFromColumn(&primaryColumn, primaryColumn.StartIndex + i))
+            //     << "Row index " << primaryColumn.StartIndex + i;
+            // EXPECT_EQ(expected[startIndex + i], DecodeValueFromColumn(&primaryColumn, primaryColumn.StartIndex + i))
+            //     << "Row index " << primaryColumn.StartIndex + i;
+        }
+    }
+
+    void ValidateColumn(
+        const std::vector<std::optional<TValue>>& expected,
+        int startRowIndex,
+        int rowCount)
+    {
+        int currentRowIndex = startRowIndex;
+        int endRowIndex = startRowIndex + rowCount;
+        auto reader = CreateColumnReader();
+        while (currentRowIndex < endRowIndex) {
+            reader->SkipToRowIndex(currentRowIndex);
+            i64 batchEndRowIndex = std::min(static_cast<int>(reader->GetReadyUpperRowIndex()), endRowIndex);
+            std::vector<NTableClient::IUnversionedRowBatch::TColumn> columns;
+            columns.resize(reader->GetBatchColumnCount());
+            reader->ReadColumnarBatch(
+                TMutableRange<NTableClient::IUnversionedRowBatch::TColumn>(columns.data(), columns.size()),
+                batchEndRowIndex - currentRowIndex);
+            ValidateSegmentPart(columns, expected, currentRowIndex, batchEndRowIndex - currentRowIndex);
+            currentRowIndex = batchEndRowIndex;
+        }
+    }
+
     virtual void Write(IValueColumnWriter* columnWriter) = 0;
-    virtual std::unique_ptr<IUnversionedColumnReader> CreateColumnReader() = 0;
+    virtual std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() = 0;
     virtual std::unique_ptr<IValueColumnWriter> CreateColumnWriter(TDataBlockWriter* blockWriter) = 0;
+    virtual std::optional<TValue> DecodeValueFromColumn(
+        const NTableClient::IUnversionedRowBatch::TColumn* column,
+        i64 index) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

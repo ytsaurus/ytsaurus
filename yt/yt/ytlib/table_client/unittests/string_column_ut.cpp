@@ -6,10 +6,16 @@
 #include <yt/ytlib/table_chunk_format/string_column_reader.h>
 #include <yt/ytlib/table_chunk_format/private.h>
 
+#include <yt/ytlib/unittests/column_format_helpers/column_format_helpers.h>
+
+#include <yt/core/misc/protobuf_helpers.h>
+
 namespace NYT::NTableChunkFormat {
 
 using namespace NTableClient;
 using namespace NCompression;
+
+using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,13 +26,14 @@ const TString Bara("barakobama");
 const TString Empty("");
 const TString FewSymbol("abcde");
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TUnversionedStringColumnTest
     : public TUnversionedColumnTestBase<TString>
 {
 protected:
+    using TUnversionedColumnTestBase<TString>::CreateColumnReader;
+
     std::vector<std::optional<TString>> CreateDirectDense()
     {
         return  {std::nullopt, A, B};
@@ -59,6 +66,23 @@ protected:
         return values;
     }
 
+    virtual std::optional<TString> DecodeValueFromColumn(
+        const IUnversionedRowBatch::TColumn* column,
+        i64 index) override
+    {
+        YT_VERIFY(column->StartIndex >= 0);
+        index -= column->StartIndex;
+
+        ResolveRleEncoding(column, index);
+        ResolveDictionaryEncoding(column, index);
+
+        if (index < 0 || column->NullBitmap && GetBit(*column->NullBitmap, index)) {
+            return std::nullopt;
+        }
+
+        return TString(DecodeStringFromColumn(*column, index));
+    }
+
     virtual void Write(IValueColumnWriter* columnWriter) override
     {
         // Rows 0 - 2.
@@ -79,7 +103,7 @@ protected:
         columnWriter->FinishCurrentSegment();
     }
 
-    virtual std::unique_ptr<IUnversionedColumnReader> CreateColumnReader() override
+    virtual std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
         return CreateUnversionedStringColumnReader(ColumnMeta_, ColumnIndex, ColumnId);
     }
@@ -97,7 +121,7 @@ TEST_F(TUnversionedStringColumnTest, CheckSegmentTypes)
     EXPECT_EQ(5, ColumnMeta_.segments_size());
 
     auto checkSegment = [&] (EUnversionedStringSegmentType segmentType, int segmentIndex) {
-        EXPECT_EQ(segmentType, EUnversionedStringSegmentType(ColumnMeta_.segments(segmentIndex).type()));
+        EXPECT_EQ(segmentType, FromProto<EUnversionedStringSegmentType>(ColumnMeta_.segments(segmentIndex).type()));
     };
 
     checkSegment(EUnversionedStringSegmentType::DirectDense, 0);
@@ -109,12 +133,12 @@ TEST_F(TUnversionedStringColumnTest, CheckSegmentTypes)
 
 TEST_F(TUnversionedStringColumnTest, GetEqualRange)
 {
-    EXPECT_EQ(std::make_pair(4L, 5L), Reader_->GetEqualRange(MakeValue(Bara), 3, 5));
-    EXPECT_EQ(std::make_pair(7L, 8L), Reader_->GetEqualRange(MakeValue(Abra), 7, 50));
-    EXPECT_EQ(std::make_pair(8L, 50L), Reader_->GetEqualRange(MakeValue(B), 7, 50));
-
-    EXPECT_EQ(std::make_pair(1118L, 1119L), Reader_->GetEqualRange(MakeValue(std::nullopt), 1118, 1119));
-    EXPECT_EQ(std::make_pair(1119L, 1119L), Reader_->GetEqualRange(MakeValue(A), 1118, 1119));
+    auto reader = CreateColumnReader();
+    EXPECT_EQ(std::make_pair(4L, 5L), reader->GetEqualRange(MakeValue(Bara), 3, 5));
+    EXPECT_EQ(std::make_pair(7L, 8L), reader->GetEqualRange(MakeValue(Abra), 7, 50));
+    EXPECT_EQ(std::make_pair(8L, 50L), reader->GetEqualRange(MakeValue(B), 7, 50));
+    EXPECT_EQ(std::make_pair(1118L, 1119L), reader->GetEqualRange(MakeValue(std::nullopt), 1118, 1119));
+    EXPECT_EQ(std::make_pair(1119L, 1119L), reader->GetEqualRange(MakeValue(A), 1118, 1119));
 }
 
 TEST_F(TUnversionedStringColumnTest, ReadValues)
@@ -125,15 +149,17 @@ TEST_F(TUnversionedStringColumnTest, ReadValues)
     AppendVector(&expectedValues, CreateDirectRle());
     AppendVector(&expectedValues, CreateDictionaryRle());
 
-    Validate(CreateRows(expectedValues), 5, 205);
+    ValidateRows(CreateRows(expectedValues), 5, 205);
+    ValidateColumn(expectedValues, 5, 205);
 }
 
 TEST_F(TUnversionedStringColumnTest, ReadLast)
 {
-    Reader_->SkipToRowIndex(1118);
+    auto reader = CreateColumnReader();
+    reader->SkipToRowIndex(1118);
 
     auto actual = AllocateRows(1);
-    Reader_->ReadValues(TMutableRange<TMutableVersionedRow>(actual.data(), actual.size()));
+    reader->ReadValues(TMutableRange<TMutableVersionedRow>(actual.data(), actual.size()));
     EXPECT_EQ(MakeValue(std::nullopt), *actual.front().BeginKeys());
 }
 

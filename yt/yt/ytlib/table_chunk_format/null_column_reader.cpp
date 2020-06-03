@@ -5,6 +5,9 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/logical_type.h>
+
 namespace NYT::NTableChunkFormat {
 
 using namespace NProto;
@@ -22,6 +25,16 @@ public:
     {
         *value = MakeUnversionedNullValue(id, aggregate);
     }
+
+    int GetBatchColumnCount()
+    {
+        return 1;
+    }
+
+    void ReadColumnarBatch(
+        i64 /*startRowIndex*/,
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> /*columns*/)
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -45,12 +58,17 @@ public:
             upperRowIndex);
     }
 
+    virtual i64 EstimateDataWeight(i64 /*lowerRowIndex*/, i64 /*upperRowIndex*/) override
+    {
+        return 0;
+    }
+
 private:
     virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool /* scan */) override
     {
         using TSegmentReader = TDenseUnversionedSegmentReader<
             EValueType::Null,
-            TNullValueExtractor> ;
+            TNullValueExtractor>;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
         return DoCreateSegmentReader<TSegmentReader>(meta);
@@ -124,6 +142,25 @@ public:
         DoReadValues(rows);
     }
 
+    virtual int GetBatchColumnCount() override
+    {
+        return 1;
+    }
+
+    virtual void ReadColumnarBatch(
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
+        i64 /*rowCount*/) override
+    {
+        YT_VERIFY(columns.size() == 1);
+        auto& column = columns[0];
+        column.Type = SimpleLogicalType(ESimpleLogicalValueType::Null);
+    }
+
+    virtual i64 EstimateDataWeight(i64 /*lowerRowIndex*/, i64 /*upperRowIndex*/) override
+    {
+        return 0;
+    }
+
 private:
     const int ColumnIndex_;
     const int ColumnId_;
@@ -139,7 +176,6 @@ private:
             }
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,7 +190,9 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedNullColumnReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IUnversionedColumnReader> CreateBlocklessUnversionedNullColumnReader(int columnIndex, int columnId)
+std::unique_ptr<IUnversionedColumnReader> CreateBlocklessUnversionedNullColumnReader(
+    int columnIndex,
+    int columnId)
 {
     return std::make_unique<TBlocklessUnversionedNullColumnReader>(columnIndex, columnId);
 }

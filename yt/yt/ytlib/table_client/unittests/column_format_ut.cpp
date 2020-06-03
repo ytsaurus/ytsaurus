@@ -76,9 +76,13 @@ void TVersionedColumnTestBase::SetUp()
     Data_ = codec->Compress(block.Data);
 
     ColumnMeta_ = columnWriter->ColumnMeta();
+}
 
-    Reader_ = CreateColumnReader();
-    Reader_->ResetBlock(Data_, 0);
+std::unique_ptr<IVersionedColumnReader> TVersionedColumnTestBase::CreateColumnReader()
+{
+    auto reader = DoCreateColumnReader();
+    reader->ResetBlock(Data_, 0);
+    return reader;
 }
 
 TVersionedRow TVersionedColumnTestBase::CreateRowWithValues(const std::vector<TVersionedValue>& values) const
@@ -114,8 +118,9 @@ void TVersionedColumnTestBase::Validate(
 
     auto timestampIndexRanges = GetTimestampIndexRanges(originalRange, timestamp);
 
-    Reader_->SkipToRowIndex(beginRowIndex);
-    Reader_->ReadValues(
+    auto reader = CreateColumnReader();
+    reader->SkipToRowIndex(beginRowIndex);
+    reader->ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow>(actual.data(), actual.size()),
         MakeRange(timestampIndexRanges),
         false);
@@ -123,8 +128,8 @@ void TVersionedColumnTestBase::Validate(
 
     ASSERT_EQ(expected.size(), actual.size());
     for (int rowIndex = 0; rowIndex < expected.size(); ++rowIndex) {
-        NTableClient::TVersionedRow expectedRow = expected[rowIndex];
-        NTableClient::TVersionedRow actualRow = actual[rowIndex];
+        auto expectedRow = expected[rowIndex];
+        auto actualRow = actual[rowIndex];
 
         ASSERT_EQ(expectedRow.GetValueCount(), actualRow.GetValueCount()) << Format("Row index - %v", rowIndex);
         for (int valueIndex = 0; valueIndex < expectedRow.GetValueCount(); ++valueIndex) {

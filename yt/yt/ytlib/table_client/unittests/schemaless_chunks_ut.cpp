@@ -38,32 +38,24 @@ using NChunkClient::NProto::TChunkSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int RowCount = 50000;
-auto StringValue = AsStringBuf("She sells sea shells on a sea shore");
-auto AnyValueList = AsStringBuf("[one; two; three]");
-auto AnyValueMap = AsStringBuf("{a=b; c=d}");
+const int RowCount = 50000;
+const auto StringValue = AsStringBuf("She sells sea shells on a sea shore");
+const auto AnyValueList = AsStringBuf("[one; two; three]");
+const auto AnyValueMap = AsStringBuf("{a=b; c=d}");
+const std::vector<TString> ColumnNames = {"c0", "c1", "c2", "c3", "c4", "c5", "c6"};
 
-std::vector<TString> ColumnNames = {"c0", "c1", "c2", "c3", "c4", "c5", "c6"};
+////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessChunksTest
     : public ::testing::TestWithParam<std::tuple<EOptimizeFor, TTableSchema, TColumnFilter, TReadRange>>
 {
-public:
-    static void SetUpTestCase()
-    {
-        auto nameTable = New<TNameTable>();
-        InitNameTable(nameTable);
-        Rows_ = CreateRows(nameTable);
-    }
-
 protected:
     IChunkReaderPtr MemoryReader_;
     TNameTablePtr WriteNameTable_;
     TChunkSpec ChunkSpec_;
     TColumnarChunkMetaPtr ChunkMeta_;
-
-    static TChunkedMemoryPool Pool_;
-    static std::vector<TUnversionedRow> Rows_;
+    TChunkedMemoryPool Pool_;
+    std::vector<TUnversionedRow> Rows_;
 
     static TUnversionedValue CreateC0(int rowIndex, TNameTablePtr nameTable)
     {
@@ -178,7 +170,7 @@ protected:
         }
     }
 
-    static std::vector<TUnversionedRow> CreateRows(TNameTablePtr nameTable)
+    std::vector<TUnversionedRow> CreateRows(TNameTablePtr nameTable)
     {
         std::vector<TUnversionedRow> rows;
         for (int rowIndex = 0; rowIndex < RowCount; ++rowIndex) {
@@ -197,6 +189,10 @@ protected:
 
     virtual void SetUp() override
     {
+        auto nameTable = New<TNameTable>();
+        InitNameTable(nameTable);
+        Rows_ = CreateRows(nameTable);
+
         auto memoryWriter = New<TMemoryWriter>();
 
         auto config = New<TChunkWriterConfig>();
@@ -222,6 +218,7 @@ protected:
 
         ToProto(ChunkSpec_.mutable_chunk_id(), NullChunkId);
         ChunkSpec_.set_table_row_index(42);
+        
         ChunkMeta_ = New<TColumnarChunkMeta>(*memoryWriter->GetChunkMeta());
     }
 
@@ -293,9 +290,6 @@ protected:
         return rows;
     }
 };
-
-TChunkedMemoryPool TSchemalessChunksTest::Pool_;
-std::vector<TUnversionedRow> TSchemalessChunksTest::Rows_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -391,6 +385,152 @@ INSTANTIATE_TEST_SUITE_P(Sorted,
 // ToDo(psushin):
 //  1. Test sampling.
 //  2. Test system columns.
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TColumnarReadTest
+    : public ::testing::Test
+{
+protected:
+    IChunkReaderPtr MemoryReader_;
+    TChunkSpec ChunkSpec_;
+    TColumnarChunkMetaPtr ChunkMeta_;
+    TChunkStatePtr ChunkState_;
+    TSharedRange<TUnversionedRow> Rows_;
+
+    static constexpr int N = 100003;
+
+    const TTableSchema Schema_ = ConvertTo<TTableSchema>(TYsonString(
+        "<strict=%true>["
+            "{name = c1; type = int64; sort_order = ascending};"
+            "{name = c2; type = uint64};"
+            "{name = c3; type = string};"
+            "{name = c4; type = boolean};"
+            "{name = c5; type = double};"
+            "{name = c6; type = any};"
+        "]"));
+
+    virtual void SetUp() override
+    {
+        auto memoryWriter = New<TMemoryWriter>();
+
+        auto config = New<TChunkWriterConfig>();
+        config->BlockSize = 256;
+
+        auto options = New<TChunkWriterOptions>();
+        options->OptimizeFor = EOptimizeFor::Scan;
+        auto chunkWriter = CreateSchemalessChunkWriter(
+            config,
+            options,
+            Schema_,
+            memoryWriter);
+
+        TUnversionedRowsBuilder builder;
+
+        for (int i = 0; i < N; ++i) {
+            builder.AddRow(
+                i % 10,
+                i / 10,
+                Format("c3_%v", i),
+                i % 7 == 0,
+                i * i / 2.0,
+                TYsonString(Format("{key=%v;value=%v}", i, i + 10)));
+        }
+
+        Rows_ = builder.Build();
+       
+        chunkWriter->Write(Rows_);
+        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+
+        MemoryReader_ = CreateMemoryReader(
+            memoryWriter->GetChunkMeta(),
+            memoryWriter->GetBlocks());
+
+        ToProto(ChunkSpec_.mutable_chunk_id(), NullChunkId);
+        ChunkSpec_.set_table_row_index(42);
+        
+        ChunkMeta_ = New<TColumnarChunkMeta>(*memoryWriter->GetChunkMeta());
+
+        ChunkState_ = New<TChunkState>(
+            GetNullBlockCache(),
+            ChunkSpec_,
+            nullptr,
+            NullTimestamp,
+            nullptr,
+            nullptr,
+            nullptr);
+    }
+
+    virtual ISchemalessUnversionedReaderPtr CreateReader(const TColumnFilter& columnFilter)
+    {
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        return CreateSchemalessChunkReader(
+            ChunkState_,
+            ChunkMeta_,
+            New<TChunkReaderConfig>(),
+            New<TChunkReaderOptions>(),
+            MemoryReader_,
+            TNameTable::FromSchema(Schema_),
+            blockReadOptions,
+            /* keyColumns */ {},
+            /* omittedInaccessibleColumns */ {},
+            columnFilter,
+            TReadRange());
+    }
+};
+
+TEST_F(TColumnarReadTest, UnreadBatch)
+{
+    auto reader = CreateReader(TColumnFilter{0});
+    TRowBatchReadOptions options{
+        .MaxRowsPerRead = 10,
+        .Columnar = true
+    };
+    while (auto batch = WaitForRowBatch(reader, options)) {
+    }
+    auto statistics = reader->GetDataStatistics();
+    EXPECT_EQ(N, statistics.row_count());
+    EXPECT_EQ(N * 9, statistics.data_weight());
+}
+
+TEST_F(TColumnarReadTest, ReadJustC1)
+{
+    auto reader = CreateReader(TColumnFilter{0});
+    TRowBatchReadOptions options{
+        .MaxRowsPerRead = 10,
+        .Columnar = true
+    };
+    while (auto batch = WaitForRowBatch(reader, options)) {
+        EXPECT_TRUE(batch->IsColumnar());
+        auto columns = batch->MaterializeColumns();
+        EXPECT_EQ(1, columns.size());
+        EXPECT_EQ(0, columns[0]->Id);
+    }
+    auto statistics = reader->GetDataStatistics();
+    EXPECT_EQ(N, statistics.row_count());
+    EXPECT_EQ(N * 9, statistics.data_weight());
+}
+
+TEST_F(TColumnarReadTest, ReadAll)
+{
+    auto reader = CreateReader(TColumnFilter());
+    TRowBatchReadOptions options{
+        .MaxRowsPerRead = 10,
+        .Columnar = true
+    };
+    while (auto batch = WaitForRowBatch(reader, options)) {
+        EXPECT_TRUE(batch->IsColumnar());
+        auto columns = batch->MaterializeColumns();
+        EXPECT_EQ(Schema_.Columns().size(), columns.size());
+        for (int index = 0; index < columns.size(); ++index) {
+            EXPECT_EQ(index, columns[index]->Id);
+        }
+    }
+    auto statistics = reader->GetDataStatistics();
+    EXPECT_EQ(N, statistics.row_count());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

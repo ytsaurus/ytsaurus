@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/table_chunk_format/compressed_integer_vector.h>
+#include <yt/ytlib/table_chunk_format/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -19,11 +19,11 @@ size_t Compress(const std::vector<T> &data, std::vector<ui64> *buffer)
     // NB: initialize with zeros!
     buffer->resize(size, 0);
 
-    return CompressUnsignedVector(MakeRange(data), maxValue, buffer->data());
+    return BitPackUnsignedVector(MakeRange(data), maxValue, buffer->data());
 }
 
 template <class T>
-void Validate(const std::vector<T>& data, const TCompressedUnsignedVectorReader<T>& reader)
+void Validate(const std::vector<T>& data, const TBitPackedUnsignedVectorReader<T>& reader)
 {
     EXPECT_EQ(data.size(), reader.GetSize());
 
@@ -41,7 +41,7 @@ void DoTest(T value, size_t count)
     size_t size = Compress(data, &buffer);
     EXPECT_EQ(CompressedUnsignedVectorSizeInWords(value, count), size);
 
-    auto reader = TCompressedUnsignedVectorReader<T>(buffer.data());
+    auto reader = TBitPackedUnsignedVectorReader<T>(buffer.data());
 
     Validate(data, reader);
 }

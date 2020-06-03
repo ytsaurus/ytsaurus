@@ -3,6 +3,9 @@
 #include "column_reader_detail.h"
 #include "helpers.h"
 
+#include <yt/client/table_client/unversioned_row_batch.h>
+#include <yt/client/table_client/logical_type.h>
+
 #include <yt/core/misc/bitmap.h>
 
 namespace NYT::NTableChunkFormat {
@@ -28,10 +31,8 @@ protected:
     TReadOnlyBitmap<ui64> Values_;
     TReadOnlyBitmap<ui64> NullBitmap_;
 
-    size_t InitValueReader(const char* ptr)
+    const char* InitValueReader(const char* ptr)
     {
-        const char* begin = ptr;
-
         ui64 valueCount = *reinterpret_cast<const ui64*>(ptr);
         ptr += sizeof(ui64);
 
@@ -45,7 +46,7 @@ protected:
             valueCount);
         ptr += NullBitmap_.GetByteSize();
 
-        return ptr - begin;
+        return ptr;
     }
 };
 
@@ -63,8 +64,8 @@ public:
         : TDenseVersionedValueExtractorBase(meta, aggregate)
     {
         const char* ptr = data.Begin();
-        ptr += InitDenseReader(ptr);
-        ptr += InitValueReader(ptr);
+        ptr = InitDenseReader(ptr);
+        ptr = InitValueReader(ptr);
         YT_VERIFY(ptr == data.End());
     }
 };
@@ -83,8 +84,8 @@ public:
         : TSparseVersionedValueExtractorBase(meta, aggregate)
     {
         const char* ptr = data.Begin();
-        ptr += InitSparseReader(ptr);
-        ptr += InitValueReader(ptr);
+        ptr = InitSparseReader(ptr);
+        ptr = InitValueReader(ptr);
         YT_VERIFY(ptr == data.End());
     }
 };
@@ -138,8 +139,29 @@ public:
     TUnversionedBooleanValueExtractor(TRef data, const TSegmentMeta& meta)
     {
         const char* ptr = data.Begin();
-        ptr += InitValueReader(data.Begin());
+        ptr = InitValueReader(ptr);
         YT_VERIFY(ptr == data.End());
+    }
+
+    int GetBatchColumnCount()
+    {
+        return 1;
+    }
+
+    void ReadColumnarBatch(
+        i64 startRowIndex,
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+    {
+        YT_VERIFY(columns.size() == 1);
+        auto& column = columns[0];
+        ReadColumnarBooleanValues(
+            &column,
+            startRowIndex,
+            Values_.GetData());
+        ReadColumnarNullBitmap(
+            &column,
+            startRowIndex,
+            NullBitmap_.GetData());
     }
 };
 
@@ -169,7 +191,7 @@ private:
     {
         using TSegmentReader = TDenseUnversionedSegmentReader<
             EValueType::Boolean,
-            TUnversionedBooleanValueExtractor> ;
+            TUnversionedBooleanValueExtractor>;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
         return DoCreateSegmentReader<TSegmentReader>(meta);

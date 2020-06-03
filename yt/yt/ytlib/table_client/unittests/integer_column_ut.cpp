@@ -4,8 +4,8 @@
 
 #include <yt/ytlib/table_chunk_format/integer_column_writer.h>
 #include <yt/ytlib/table_chunk_format/integer_column_reader.h>
+#include <yt/ytlib/table_chunk_format/helpers.h>
 #include <yt/ytlib/table_chunk_format/private.h>
-#include <yt/ytlib/table_chunk_format/public.h>
 
 #include <yt/ytlib/unittests/column_format_helpers/column_format_helpers.h>
 
@@ -211,7 +211,7 @@ public:
         : TVersionedIntegerColumnTest<i64>(-1234, true)
     { }
 
-    virtual std::unique_ptr<IVersionedColumnReader> CreateColumnReader() override
+    virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
         return CreateVersionedInt64ColumnReader(ColumnMeta_, ColumnId, Aggregate_);
     }
@@ -234,7 +234,7 @@ public:
         : TVersionedIntegerColumnTest<i64>(-1234, false)
     { }
 
-    virtual std::unique_ptr<IVersionedColumnReader> CreateColumnReader() override
+    virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
         return CreateVersionedInt64ColumnReader(ColumnMeta_, ColumnId, Aggregate_);
     }
@@ -257,7 +257,7 @@ public:
         : TVersionedIntegerColumnTest<ui64>(1234, true)
     { }
 
-    virtual std::unique_ptr<IVersionedColumnReader> CreateColumnReader() override
+    virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
         return CreateVersionedUint64ColumnReader(ColumnMeta_, ColumnId, Aggregate_);
     }
@@ -280,7 +280,7 @@ public:
         : TVersionedIntegerColumnTest<ui64>(1234, false)
     { }
 
-    virtual std::unique_ptr<IVersionedColumnReader> CreateColumnReader() override
+    virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
         return CreateVersionedUint64ColumnReader(ColumnMeta_, ColumnId, Aggregate_);
     }
@@ -302,14 +302,16 @@ class TUnversionedIntegerColumnTestBase
 protected:
     const TValue Base_;
 
-    TUnversionedIntegerColumnTestBase(TValue base)
+    explicit TUnversionedIntegerColumnTestBase(TValue base)
         : Base_(base)
     { }
 
     using TUnversionedColumnTestBase<TValue>::ColumnMeta_;
     using TUnversionedColumnTestBase<TValue>::CreateRows;
     using TUnversionedColumnTestBase<TValue>::WriteSegment;
-    using TUnversionedColumnTestBase<TValue>::Validate;
+    using TUnversionedColumnTestBase<TValue>::ValidateRows;
+    using TUnversionedColumnTestBase<TValue>::ValidateColumn;
+    using TUnversionedColumnTestBase<TValue>::CreateColumnReader;
 
     std::vector<std::optional<TValue>> CreateDirectDense()
     {
@@ -360,7 +362,24 @@ protected:
         return data;
     }
 
-    void Write(IValueColumnWriter* columnWriter)
+    virtual std::optional<TValue> DecodeValueFromColumn(
+        const IUnversionedRowBatch::TColumn* column,
+        i64 index) override
+    {
+        YT_VERIFY(column->StartIndex >= 0);
+        index -= column->StartIndex;
+
+        ResolveRleEncoding(column, index);
+        ResolveDictionaryEncoding(column, index);
+
+        if (index < 0 || column->NullBitmap && GetBit(*column->NullBitmap, index)) {
+            return std::nullopt;
+        }
+
+        return DecodeIntegerFromColumn<TValue>(*column, index);
+    }
+
+    virtual void Write(IValueColumnWriter* columnWriter) override
     {
         WriteSegment(columnWriter, CreateDirectDense());
         WriteSegment(columnWriter, CreateDirectRle());
@@ -389,7 +408,8 @@ protected:
         AppendVector(&expected, CreateDictionaryDense());
         AppendVector(&expected, CreateDictionaryRle());
 
-        Validate(CreateRows(expected), startRowIndex, rowCount);
+        ValidateRows(CreateRows(expected), startRowIndex, rowCount);
+        ValidateColumn(expected, startRowIndex, rowCount);
     }
 
     void AppendExtremeValues(std::vector<std::optional<TValue>>* values)
@@ -410,7 +430,7 @@ protected:
         : TUnversionedIntegerColumnTestBase<i64>(-12340000)
     { }
 
-    virtual std::unique_ptr<IUnversionedColumnReader> CreateColumnReader() override
+    virtual std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
         return CreateUnversionedInt64ColumnReader(ColumnMeta_, ColumnIndex, ColumnId);
     }
@@ -443,7 +463,7 @@ protected:
         : TUnversionedIntegerColumnTestBase<ui64>(1234)
     { }
 
-    virtual std::unique_ptr<IUnversionedColumnReader> CreateColumnReader() override
+    virtual std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
         return CreateUnversionedUint64ColumnReader(ColumnMeta_, ColumnIndex, ColumnId);
     }

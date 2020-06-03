@@ -48,13 +48,9 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
         case EValueType::Null:
             return CreateUnversionedNullColumnReader(meta, columnIndex, columnId);
 
-        case EValueType::Composite:
-        case EValueType::Min:
-        case EValueType::Max:
-        case EValueType::TheBottom:
-            break;
+        default:
+            ThrowUnexpectedValueType(schema.GetPhysicalType());
     }
-    ThrowUnexpectedValueType(schema.GetPhysicalType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -101,14 +97,9 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
                 columnId,
                 static_cast<bool>(schema.Aggregate()));
 
-        case EValueType::Null:
-        case EValueType::Composite:
-        case EValueType::Min:
-        case EValueType::Max:
-        case EValueType::TheBottom:
-            break;
+        default:
+            ThrowUnexpectedValueType(schema.GetPhysicalType());
     }
-    ThrowUnexpectedValueType(schema.GetPhysicalType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

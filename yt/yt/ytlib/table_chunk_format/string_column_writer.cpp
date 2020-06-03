@@ -1,7 +1,7 @@
 #include "string_column_writer.h"
 #include "column_writer_detail.h"
 #include "helpers.h"
-#include "compressed_integer_vector.h"
+#include "bit_packed_unsigned_vector.h"
 
 #include <yt/client/table_client/versioned_row.h>
 
@@ -171,14 +171,14 @@ protected:
         YT_VERIFY(dictionaryOffset == DictionarySize_);
 
         // 1. Value ids.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(ids), dictionarySize + 1));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(ids), dictionarySize + 1));
 
         ui32 expectedLength;
         ui32 maxDiff;
         PrepareDiffFromExpected(&dictionaryOffsets, &expectedLength, &maxDiff);
 
         // 2. Dictionary offsets.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(dictionaryOffsets), maxDiff));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(dictionaryOffsets), maxDiff));
 
         // 3. Dictionary data.
         segmentInfo->Data.push_back(dictionaryData);
@@ -197,7 +197,7 @@ protected:
         PrepareDiffFromExpected(&offsets, &expectedLength, &maxDiff);
 
         // 1. Direct offsets.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(offsets), maxDiff));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(offsets), maxDiff));
 
         // 2. Null bitmap.
         segmentInfo->Data.push_back(std::move(nullBitmap));
@@ -427,13 +427,13 @@ private:
         YT_VERIFY(stringOffset == DirectRleSize_);
 
         // 1. Row indexes.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back()));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back()));
 
         // 2. Value offsets.
         ui32 expectedLength;
         ui32 maxDiff;
         PrepareDiffFromExpected(&offsets, &expectedLength, &maxDiff);
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(offsets), maxDiff));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(offsets), maxDiff));
 
         // 3. Null bitmap.
         segmentInfo->Data.push_back(nullBitmap.Flush<TSegmentWriterTag>());
@@ -478,16 +478,16 @@ private:
         }
 
         // 1. Row indexes.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back()));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(RleRowIndexes_), RleRowIndexes_.back()));
 
         // 2. Value ids.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(ids), Dictionary_.size()));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(ids), Dictionary_.size()));
 
         // 3. Dictionary offsets.
         ui32 expectedLength;
         ui32 maxDiff;
         PrepareDiffFromExpected(&offsets, &expectedLength, &maxDiff);
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(offsets), maxDiff));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(offsets), maxDiff));
 
         // 4. Dictionary data.
         segmentInfo->Data.push_back(dictionaryData);
