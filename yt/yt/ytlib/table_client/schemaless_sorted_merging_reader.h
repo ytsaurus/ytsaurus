@@ -9,21 +9,16 @@ namespace NYT::NTableClient {
 ISchemalessMultiChunkReaderPtr CreateSchemalessSortedMergingReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& readers,
     int sortKeyColumnCount,
-    int reduceKeyColumnCount);
+    int reduceKeyColumnCount,
+    bool interruptAtKeyEdge);
 
 ISchemalessMultiChunkReaderPtr CreateSchemalessSortedJoiningReader(
     const std::vector<ISchemalessMultiChunkReaderPtr>& primaryReaders,
     int primaryKeyColumnCount,
     int reduceKeyColumnCount,
     const std::vector<ISchemalessMultiChunkReaderPtr>& foreignReaders,
-    int foreignKeyColumnCount);
-
-ISchemalessMultiChunkReaderPtr CreateSchemalessJoinReduceJoiningReader(
-    const std::vector<ISchemalessMultiChunkReaderPtr>& primaryReaders,
-    int primaryKeyColumnCount,
-    int reduceKeyColumnCount,
-    const std::vector<ISchemalessMultiChunkReaderPtr>& foreignReaders,
-    int foreignKeyColumnCount);
+    int foreignKeyColumnCount,
+    bool interruptAtKeyEdge);
 
 ////////////////////////////////////////////////////////////////////////////////
 

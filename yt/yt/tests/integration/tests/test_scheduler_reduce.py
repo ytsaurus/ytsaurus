@@ -1679,8 +1679,8 @@ done
             dct[key] = sum(int(x["count"]) for x in group)
 
         assert len(dct) == 2
-        assert dct["a"] == 1000
-        assert dct["b"] == 1
+        assert dct["a"] == 2000
+        assert dct["b"] == 2
 
     @authors("dakovalkov")
     def test_reduce_different_types(self):
@@ -1858,6 +1858,34 @@ done
                reduce_by=["key"],
                spec={"job_count": 1})
         assert get("//tmp/t_out/@row_count") == 0
+
+    @authors("gritukan")
+    def test_reduce_without_foreign_tables_and_key_guarantee(self):
+        create("table", "//tmp/in1", attributes={
+            "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
+        })
+        create("table", "//tmp/in2", attributes={
+            "schema": [{"name": "key", "type": "string", "sort_order": "ascending"}]
+        })
+        create("table", "//tmp/out1")
+        create("table", "//tmp/out2")
+
+        write_table("//tmp/in1", [{"key": "1"}, {"key": "3"}])
+        write_table("//tmp/in2", [{"key": "2"}, {"key": "4"}])
+
+        reduce(in_=["//tmp/in1", "//tmp/in2"],
+               out=["//tmp/out1"],
+               command="cat",
+               reduce_by=["key"],
+               spec={"reducer": {"format": "dsv"}, "enable_key_guarantee": False})
+        assert read_table("//tmp/out1") == [{"key": str(i)} for i in range(1, 5)]
+
+        reduce(in_=["<primary=%true>//tmp/in1", "<primary=%true>//tmp/in2"],
+               out=["//tmp/out2"],
+               command="cat",
+               reduce_by=["key"],
+               spec={"reducer": {"format": "dsv"}, "enable_key_guarantee": False})
+        assert read_table("//tmp/out2") == [{"key": str(i)} for i in range(1, 5)]
 
 ##################################################################
 
