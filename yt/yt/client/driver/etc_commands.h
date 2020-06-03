@@ -102,11 +102,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransferQuotaCommand
-    : public TTypedCommand<NApi::TTransferQuotaOptions>
+class TTransferAccountResourcesCommand
+    : public TTypedCommand<NApi::TTransferAccountResourcesOptions>
 {
 public:
-    TTransferQuotaCommand();
+    TTransferAccountResourcesCommand();
 
 private:
     TString SourceAccount;

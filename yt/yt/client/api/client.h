@@ -324,7 +324,7 @@ struct TCheckPermissionByAclResult
     std::vector<TString> MissingSubjects;
 };
 
-struct TTransferQuotaOptions
+struct TTransferAccountResourcesOptions
     : public TTimeoutOptions
     , public TMutatingOptions
 { };
@@ -1364,11 +1364,11 @@ struct IClient
         NYTree::INodePtr acl,
         const TCheckPermissionByAclOptions& options = {}) = 0;
 
-    virtual TFuture<void> TransferQuota(
+    virtual TFuture<void> TransferAccountResources(
         const TString& srcAccount,
         const TString& dstAccount,
         NYTree::INodePtr resourceDelta,
-        const TTransferQuotaOptions& options = {}) = 0;
+        const TTransferAccountResourcesOptions& options = {}) = 0;
 
     // Scheduler
     virtual TFuture<NScheduler::TOperationId> StartOperation(

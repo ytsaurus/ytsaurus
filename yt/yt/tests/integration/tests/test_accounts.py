@@ -3034,7 +3034,7 @@ class TestAccountTree(AccountsTestSuiteBase):
             set_account_disk_space_limit("yt-prod", 1024, "hdd8")
 
     @authors("kiselyovp")
-    def test_transfer_quota1(self):
+    def test_transfer_account_resources1(self):
         limits1 = self._build_resource_limits(
             node_count=10,
             chunk_count=40,
@@ -3053,19 +3053,19 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-dev", attributes={"resource_limits": limits})
         create_account("yt-prod", attributes={"resource_limits": limits2})
 
-        transfer_quota("yt-dev", "yt-prod", limits1)
+        transfer_account_resources("yt-dev", "yt-prod", limits1)
         assert get("//sys/accounts/yt-dev/@resource_limits") == limits2
         assert get("//sys/accounts/yt-prod/@resource_limits") == limits
 
-        transfer_quota("yt-prod", "yt-prod", {"node_count": 5, "chunk_count": 10})
+        transfer_account_resources("yt-prod", "yt-prod", {"node_count": 5, "chunk_count": 10})
         assert get("//sys/accounts/yt-prod/@resource_limits") == limits
 
-        transfer_quota("yt-prod", "yt-dev", limits1)
+        transfer_account_resources("yt-prod", "yt-dev", limits1)
         assert get("//sys/accounts/yt-dev/@resource_limits") == limits
         assert get("//sys/accounts/yt-prod/@resource_limits") == limits2
 
     @authors("kiselyovp")
-    def test_transfer_quota2(self):
+    def test_transfer_account_resources2(self):
         limits = self._build_resource_limits(
             node_count=10,
             chunk_count=40,
@@ -3077,14 +3077,14 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-prod", empty=True)
 
         with pytest.raises(YtError):
-            transfer_quota("yt-dev", "yt-prod", "entire_hahn")
+            transfer_account_resources("yt-dev", "yt-prod", "entire_hahn")
         for resource in ("node_count", "chunk_count", "tablet_count", "tablet_static_memory", "disk_space", "master_memory"):
             with pytest.raises(YtError):
-                transfer_quota("yt-dev", "yt-prod", self._build_resource_limits(**{resource: -1}))
+                transfer_account_resources("yt-dev", "yt-prod", self._build_resource_limits(**{resource: -1}))
             limit = get("//sys/accounts/yt-dev/@resource_limits/{0}".format(resource))
             with pytest.raises(YtError):
-                transfer_quota("yt-dev", "yt-prod", self._build_resource_limits(**{resource: limit + 1}))
-            transfer_quota("yt-dev", "yt-prod", self._build_resource_limits(**{resource: limit}))
+                transfer_account_resources("yt-dev", "yt-prod", self._build_resource_limits(**{resource: limit + 1}))
+            transfer_account_resources("yt-dev", "yt-prod", self._build_resource_limits(**{resource: limit}))
 
         with pytest.raises(YtError):
             create("map_node", "//tmp/test", attributes={"account": "yt-dev"})
@@ -3092,20 +3092,20 @@ class TestAccountTree(AccountsTestSuiteBase):
         assert resources_equal(get("//sys/accounts/yt-prod/@resource_limits"), limits)
 
     @authors("kiselyovp")
-    def test_transfer_quota3(self):
+    def test_transfer_account_resources3(self):
         create_account("yt")
         create_account("parent")
         create_account("child", "parent")
 
         with pytest.raises(YtError):
-            transfer_quota("fake", "parent", {})
+            transfer_account_resources("fake", "parent", {})
         with pytest.raises(YtError):
-            transfer_quota("child", "fake", {})
+            transfer_account_resources("child", "fake", {})
         with pytest.raises(YtError):
-            transfer_quota("parent/child", "yt", {})
+            transfer_account_resources("parent/child", "yt", {})
 
     @authors("kiselyovp")
-    def test_transfer_quota4(self):
+    def test_transfer_account_resources4(self):
         create_account("parent", attributes={"resource_limits": {"node_count": 15}})
         create_account("child", "parent", attributes={"resource_limits": {"node_count": 10}})
         create_account("grandchild", "child", attributes={"resource_limits": {"node_count": 5}})
@@ -3115,49 +3115,49 @@ class TestAccountTree(AccountsTestSuiteBase):
                 assert resources_equal(get("//sys/accounts/{0}/@resource_limits".format(account)),
                                        self._build_resource_limits(node_count=node_count, include_disk_space=True))
         with pytest.raises(YtError):
-            transfer_quota("grandchild", "parent", {"node_count": 6})
+            transfer_account_resources("grandchild", "parent", {"node_count": 6})
         with pytest.raises(YtError):
-            transfer_quota("child", "parent", {"node_count": 6})
+            transfer_account_resources("child", "parent", {"node_count": 6})
         with pytest.raises(YtError):
-            transfer_quota("parent", "child", {"node_count": 6})
+            transfer_account_resources("parent", "child", {"node_count": 6})
         with pytest.raises(YtError):
-            transfer_quota("parent", "grandchild", {"node_count": 6})
+            transfer_account_resources("parent", "grandchild", {"node_count": 6})
         validate_node_counts(15, 10, 5)
 
-        transfer_quota("parent", "child", {"node_count": 2})
+        transfer_account_resources("parent", "child", {"node_count": 2})
         validate_node_counts(15, 12, 5)
-        transfer_quota("parent", "grandchild", {"node_count": 3})
+        transfer_account_resources("parent", "grandchild", {"node_count": 3})
         validate_node_counts(15, 15, 8)
-        transfer_quota("grandchild", "child", {"node_count": 2})
+        transfer_account_resources("grandchild", "child", {"node_count": 2})
         validate_node_counts(15, 15, 6)
-        transfer_quota("grandchild", "parent", {"node_count": 5})
+        transfer_account_resources("grandchild", "parent", {"node_count": 5})
         validate_node_counts(15, 10, 1)
 
     @authors("kiselyovp")
-    def test_transfer_quota5(self):
+    def test_transfer_account_resources5(self):
         create_account("yt-dev", attributes={"resource_limits": {"node_count": 5}})
         create_account("yt-prod", attributes={"resource_limits": {"node_count": 5}})
 
         create("map_node", "//tmp/test", attributes={"account": "yt-dev"})
         remove_account("yt-dev", sync_deletion=False)
 
-        transfer_quota("yt-dev", "yt-prod", {"node_count": 4})
+        transfer_account_resources("yt-dev", "yt-prod", {"node_count": 4})
         assert self._get_account_node_count_limit("yt-dev") == 1
         assert self._get_account_node_count_limit("yt-prod") == 9
 
-        transfer_quota("yt-prod", "yt-dev", {"node_count": 6})
+        transfer_account_resources("yt-prod", "yt-dev", {"node_count": 6})
         assert self._get_account_node_count_limit("yt-dev") == 7
         assert self._get_account_node_count_limit("yt-prod") == 3
 
         remove("//tmp/test")
         wait(lambda: not exists("//sys/accounts/yt-dev"))
         with pytest.raises(YtError):
-            transfer_quota("yt-dev", "yt-prod", {})
+            transfer_account_resources("yt-dev", "yt-prod", {})
         with pytest.raises(YtError):
-            transfer_quota("yt-prod", "yt-dev", {})
+            transfer_account_resources("yt-prod", "yt-dev", {})
 
     @authors("kiselyovp")
-    def test_transfer_quota6(self):
+    def test_transfer_account_resources6(self):
         create_account("yt", attributes={
             "resource_limits": {"node_count": 16},
             "allow_children_limit_overcommit": True})
@@ -3178,34 +3178,34 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-morda", "yt-front", attributes={"resource_limits": {"node_count": 8}})
 
         with pytest.raises(YtError):
-            transfer_quota("yt-master", "yt-morda", {"node_count": 3})
+            transfer_account_resources("yt-master", "yt-morda", {"node_count": 3})
 
         self._set_account_node_count_limit("yt-cypress-server", 4)
         self._set_account_node_count_limit("yt-security-server", 4)
         set("//sys/accounts/yt-master/@allow_children_limit_overcommit", False)
         with pytest.raises(YtError):
-            transfer_quota("yt-master", "yt-morda", {"node_count": 1})
+            transfer_account_resources("yt-master", "yt-morda", {"node_count": 1})
 
         limits_backup = get("//sys/account_tree", attributes=["name", "resource_limits"])
         with pytest.raises(YtError):
-            transfer_quota("yt-security-server", "yt-front", {"node_count": 3})
+            transfer_account_resources("yt-security-server", "yt-front", {"node_count": 3})
         assert get("//sys/account_tree", attributes=["name", "resource_limits"]) == limits_backup
 
         self._set_account_node_count_limit("yt-front", 15)
         limits_backup = get("//sys/account_tree", attributes=["name", "resource_limits"])
         with pytest.raises(YtError):
-            transfer_quota("yt-security-server", "yt-morda", {"node_count": 2})
+            transfer_account_resources("yt-security-server", "yt-morda", {"node_count": 2})
         assert get("//sys/account_tree", attributes=["name", "resource_limits"]) == limits_backup
 
         self._set_account_node_count_limit("yt-security-server", 3)
-        transfer_quota("yt-master", "yt-morda", {"node_count": 1})
+        transfer_account_resources("yt-master", "yt-morda", {"node_count": 1})
         for account, node_count in [("yt", 16), ("yt-dev", 11), ("yt-master", 7), ("yt-cypress-server", 4),
                                     ("yt-security-server", 3), ("yt-scheduler", 10), ("yt-front", 16), ("yt-morda", 9)]:
             assert resources_equal(get("//sys/accounts/{0}/@resource_limits".format(account)),
                                    self._build_resource_limits(node_count=node_count, include_disk_space=True))
 
     @authors("kiselyovp")
-    def test_transfer_quota7(self):
+    def test_transfer_account_resources7(self):
         create_user("babenko")
         create_user("andozer")
         create_user("shakurov")
@@ -3240,16 +3240,16 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-morda", "yt-front",
             attributes={"resource_limits": limits, "acl": create_write_acl(["tsufiev", "shakurov"])})
 
-        transfer_quota("yt-morda", "yt-master", limits_delta, authenticated_user="babenko")
+        transfer_account_resources("yt-morda", "yt-master", limits_delta, authenticated_user="babenko")
 
         with pytest.raises(YtError):
-            transfer_quota("yt-master", "yt-morda", limits_delta, authenticated_user="tsufiev")
+            transfer_account_resources("yt-master", "yt-morda", limits_delta, authenticated_user="tsufiev")
         with pytest.raises(YtError):
-            transfer_quota("yt-master", "yt-morda", limits_delta, authenticated_user="kiselyovp")
+            transfer_account_resources("yt-master", "yt-morda", limits_delta, authenticated_user="kiselyovp")
         with pytest.raises(YtError):
-            transfer_quota("yt-master", "yt-morda", limits_delta, authenticated_user="andozer")
+            transfer_account_resources("yt-master", "yt-morda", limits_delta, authenticated_user="andozer")
         with pytest.raises(YtError):
-            transfer_quota("yt-master", "yt-morda", limits_delta, authenticated_user="shakurov")
+            transfer_account_resources("yt-master", "yt-morda", limits_delta, authenticated_user="shakurov")
 
         assert get("//sys/accounts/yt-morda/@resource_limits") == subtract_recursive(limits, limits_delta)
         assert get("//sys/accounts/yt-front/@resource_limits") == subtract_recursive(limits_x2, limits_delta)
@@ -3257,7 +3257,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         assert get("//sys/accounts/yt-dev/@resource_limits") == add_recursive(limits_x2, limits_delta)
         assert get("//sys/accounts/yt-master/@resource_limits") == add_recursive(limits, limits_delta)
 
-        transfer_quota("yt-master", "yt-front", limits_delta, authenticated_user="babenko")
+        transfer_account_resources("yt-master", "yt-front", limits_delta, authenticated_user="babenko")
         assert get("//sys/accounts/yt-master/@resource_limits") == limits
         assert get("//sys/accounts/yt-dev/@resource_limits") == limits_x2
         assert get("//sys/accounts/yt/@resource_limits") == limits_x5

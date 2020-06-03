@@ -845,11 +845,11 @@ def check_permission_by_acl(user, permission, acl, **kwargs):
     kwargs["acl"] = acl
     return execute_command("check_permission_by_acl", kwargs, parse_yson=True, unwrap_v4_result=False)
 
-def transfer_quota(source_account, destination_account, resource_delta, **kwargs):
+def transfer_account_resources(source_account, destination_account, resource_delta, **kwargs):
     kwargs["source_account"] = source_account
     kwargs["destination_account"] = destination_account
     kwargs["resource_delta"] = resource_delta
-    execute_command("transfer_quota", kwargs)
+    execute_command("transfer_account_resources", kwargs)
 
 def get_file_from_cache(md5, cache_path, **kwargs):
     kwargs["md5"] = md5

@@ -316,11 +316,11 @@ private:
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override
     {
-        DISPATCH_YPATH_SERVICE_METHOD(TransferQuota);
+        DISPATCH_YPATH_SERVICE_METHOD(TransferAccountResources);
         return TBase::DoInvoke(context);
     }
 
-    DECLARE_YPATH_SERVICE_METHOD(NSecurityClient::NProto, TransferQuota)
+    DECLARE_YPATH_SERVICE_METHOD(NSecurityClient::NProto, TransferAccountResources)
     {
         Y_UNUSED(response);
 
@@ -339,7 +339,7 @@ private:
             srcAccount->GetName(),
             impl->GetName());
 
-        securityManager->TransferQuota(srcAccount, impl, resourceDelta);
+        securityManager->TransferAccountResources(srcAccount, impl, resourceDelta);
 
         context->Reply();
 

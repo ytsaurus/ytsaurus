@@ -171,7 +171,10 @@ public:
      * Throws if transferring quota would violate the invariants or if authenticated user lacks
      * the write permission for any of the modified accounts.
      */
-    void TransferQuota(TAccount* srcAccount, TAccount* dstAccount, const TClusterResources& resourceDelta);
+    void TransferAccountResources(
+        TAccount* srcAccount,
+        TAccount* dstAccount,
+        const TClusterResources& resourceDelta);
 
     //! Adds the #chunk to the resource usage of accounts mentioned in #requisition.
     void UpdateResourceUsage(

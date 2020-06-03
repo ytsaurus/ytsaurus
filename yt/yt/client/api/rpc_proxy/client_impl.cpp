@@ -633,15 +633,15 @@ TFuture<TCheckPermissionByAclResult> TClient::CheckPermissionByAcl(
     }));
 }
 
-TFuture<void> TClient::TransferQuota(
+TFuture<void> TClient::TransferAccountResources(
     const TString& srcAccount,
     const TString& dstAccount,
     NYTree::INodePtr resourceDelta,
-    const TTransferQuotaOptions& options)
+    const TTransferAccountResourcesOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
-    auto req = proxy.TransferQuota();
+    auto req = proxy.TransferAccountResources();
     SetTimeoutOptions(*req, options);
 
     req->set_src_account(srcAccount);

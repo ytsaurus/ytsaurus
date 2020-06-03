@@ -353,7 +353,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMember));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermission));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CheckPermissionByAcl));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(TransferQuota));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(TransferAccountResources));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ReadFile)
             .SetStreamingEnabled(true)
@@ -2955,7 +2955,7 @@ private:
             });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TransferQuota)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, TransferAccountResources)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -2963,12 +2963,9 @@ private:
         auto dstAccount = request->dst_account();
         auto resourceDelta = ConvertToNode(TYsonString(request->resource_delta()));
 
-        TTransferQuotaOptions options;
+        TTransferAccountResourcesOptions options;
         SetTimeoutOptions(&options, context.Get());
-        // XXX(kiselyovp) replace with SetMutatingOptions in arcadia
-        if (request->has_mutating_options()) {
-            FromProto(&options, request->mutating_options());
-        }
+        SetMutatingOptions(&options, request, context.Get());
 
         context->SetRequestInfo("SrcAccount: %v, DstAccount: %v",
             srcAccount,
@@ -2977,7 +2974,7 @@ private:
         CompleteCallWith(
             client,
             context,
-            client->TransferQuota(srcAccount, dstAccount, resourceDelta, options));
+            client->TransferAccountResources(srcAccount, dstAccount, resourceDelta, options));
     }
 
     ////////////////////////////////////////////////////////////////////////////////

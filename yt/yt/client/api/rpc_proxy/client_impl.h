@@ -133,11 +133,11 @@ public:
         NYTree::INodePtr acl,
         const NApi::TCheckPermissionByAclOptions& options) override;
 
-    virtual TFuture<void> TransferQuota(
+    virtual TFuture<void> TransferAccountResources(
         const TString& srcAccount,
         const TString& dstAccount,
         NYTree::INodePtr resourceDelta,
-        const TTransferQuotaOptions& options) override;
+        const TTransferAccountResourcesOptions& options) override;
 
     // Scheduler
     virtual TFuture<NScheduler::TOperationId> StartOperation(

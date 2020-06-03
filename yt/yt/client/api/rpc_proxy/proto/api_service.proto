@@ -1862,7 +1862,7 @@ message TRspCheckPermissionByAcl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqTransferQuota
+message TReqTransferAccountResources
 {
     required string src_account = 1;
     required string dst_account = 2;
@@ -1871,7 +1871,7 @@ message TReqTransferQuota
     optional TMutatingOptions mutating_options = 103;
 }
 
-message TRspTransferQuota
+message TRspTransferAccountResources
 {
 }
 
