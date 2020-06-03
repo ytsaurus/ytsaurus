@@ -35,7 +35,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ApproximateColumnarStatistics)        (300304))
     ((AutoMergeEnabled)                     (300305))
     // 20.3 start here
-    ((BernoulliSampler)                     (300306))
+    ((BernoulliSampler)                     (300400))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
