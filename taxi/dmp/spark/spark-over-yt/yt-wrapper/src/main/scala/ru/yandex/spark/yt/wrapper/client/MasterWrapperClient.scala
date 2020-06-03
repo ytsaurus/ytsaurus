@@ -10,28 +10,29 @@ import scala.util.{Failure, Try}
 class MasterWrapperClient(val endpoint: HostAndPort) {
 
   import MasterWrapperClient._
+
   implicit private val backend = HttpURLConnectionBackend()
 
   def byopEnabled: Try[Boolean] = {
-    basicRequest
-      .get(uri"http://$endpoint")
-      .send()
-      .body
-      .fold[Try[Boolean]](
-        error => Failure(HttpError(error)),
-        body => parseByopEnabled(body).toTry
-      )
+    Try {
+      basicRequest
+        .get(uri"http://$endpoint")
+        .send()
+    }.flatMap(_.body.fold[Try[Boolean]](
+      error => Failure(HttpError(error)),
+      body => parseByopEnabled(body).toTry
+    ))
   }
 
   def discoverProxies: Try[Seq[String]] = {
-    basicRequest
-      .get(uri"http://$endpoint/api/v4/discover_proxies")
-      .send()
-      .body
-      .fold[Try[Seq[String]]](
-        error => Failure(HttpError(error)),
-        body => parseProxiesList(body).toTry
-      )
+    Try {
+      basicRequest
+        .get(uri"http://$endpoint/api/v4/discover_proxies")
+        .send()
+    }.flatMap(_.body.fold[Try[Seq[String]]](
+      error => Failure(HttpError(error)),
+      body => parseProxiesList(body).toTry
+    ))
   }
 }
 

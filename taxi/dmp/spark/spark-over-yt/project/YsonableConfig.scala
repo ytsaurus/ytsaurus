@@ -1,27 +1,39 @@
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import ru.yandex.yt.ytclient.proxy.YtClient
 
-sealed trait SparkConfig {
+import scala.annotation.tailrec
+
+sealed trait YsonableConfig {
   def toYson: String = {
-    val node = toYson(new YTreeBuilder()).build()
-    YTreeTextSerializer.serialize(node)
+    YTreeTextSerializer.serialize(toYTree)
+  }
+
+  def toYTree: YTreeNode = {
+    toYson(new YTreeBuilder()).build()
   }
 
   def toYson(builder: YTreeBuilder): YTreeBuilder = {
     this.getClass.getDeclaredFields.foldLeft(builder.beginMap()) {
       case (res, nextField) =>
         nextField.setAccessible(true)
-        SparkConfig.toYson(nextField.get(this), res.key(nextField.getName))
+        YsonableConfig.toYson(nextField.get(this), res.key(nextField.getName))
     }.endMap()
   }
+
+  def resolveSymlinks(implicit yt: YtClient): YsonableConfig = this
 }
 
-object SparkConfig {
-  def toYson(value: Any, builder: YTreeBuilder): YTreeBuilder = {
+object YsonableConfig {
+  @tailrec
+  private def toYson(value: Any, builder: YTreeBuilder): YTreeBuilder = {
     value match {
+      case Some(value) => toYson(value, builder)
+      case None => builder
       case m: Map[String, _] => m.foldLeft(builder.beginMap()) { case (res, (k, v)) => res.key(k).value(v) }.endMap()
-      case ss: Seq[String] => ss.foldLeft(builder.beginList()) { case (res, next) => res.value(next) }.endList()
-      case c: SparkConfig => c.toYson(builder)
+      case ss: Seq[_] => ss.foldLeft(builder.beginList()) { case (res, next) => res.value(next) }.endList()
+      case c: YsonableConfig => c.toYson(builder)
       case any => builder.value(any)
     }
   }
@@ -52,28 +64,45 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
                                "IS_SPARK_CLUSTER" -> "true",
                                "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB" -> "1"
                              ),
-                             operation_spec: Map[String, String] = Map()) extends SparkConfig
+                             operation_spec: Map[String, String] = Map(),
+                             ytserver_proxy_path: String = SparkLaunchConfig.defaultYtServerProxyPath) extends YsonableConfig
 
 case class SparkLaunchConfig(spark_yt_base_path: String,
                              file_paths: Seq[String],
                              spark_conf: Map[String, String],
-                             enablers: SpytEnablers) extends SparkConfig
+                             enablers: SpytEnablers,
+                             ytserver_proxy_path: Option[String]) extends YsonableConfig {
+  override def resolveSymlinks(implicit yt: YtClient): YsonableConfig = {
+    import SparkLaunchConfig._
+    if (ytserver_proxy_path.isEmpty) {
+      copy(ytserver_proxy_path = Some(resolveSymlink(defaultYtServerProxyPath)))
+    } else this
+  }
+}
 
-case class SpytEnablers(enable_byop: Boolean = false) extends SparkConfig
+case class SpytEnablers(enable_byop: Boolean = true) extends YsonableConfig
 
 object SparkLaunchConfig {
+  val defaultYtServerProxyPath = "//sys/bin/ytserver-proxy/ytserver-proxy"
+
   def apply(spark_yt_base_path: String,
+            spark_conf_yt_base_path: String,
             spark_conf: Map[String, String] = Map.empty,
-            enablers: SpytEnablers = SpytEnablers()): SparkLaunchConfig = {
+            enablers: SpytEnablers = SpytEnablers(),
+            ytserver_proxy_path: Option[String] = None): SparkLaunchConfig = {
     new SparkLaunchConfig(
       spark_yt_base_path = spark_yt_base_path,
       file_paths = Seq(
         s"$spark_yt_base_path/spark.tgz",
         s"$spark_yt_base_path/spark-yt-launcher.jar",
-        "//home/sashbel/byop/ytserver-proxy",
-        "//home/sashbel/byop/ytserver-proxy.template.yson"
+        s"$spark_conf_yt_base_path/ytserver-proxy.template.yson"
       ),
       spark_conf = spark_conf,
-      enablers = enablers)
+      enablers = enablers,
+      ytserver_proxy_path = ytserver_proxy_path)
+  }
+
+  def resolveSymlink(symlink: String)(implicit yt: YtClient): String = {
+    yt.getNode(s"$symlink&/@target_path").join().stringValue()
   }
 }

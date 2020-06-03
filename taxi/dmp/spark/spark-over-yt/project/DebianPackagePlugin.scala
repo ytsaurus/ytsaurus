@@ -1,5 +1,3 @@
-package ru.yandex.sbt
-
 import com.typesafe.sbt.SbtNativePackager.autoImport.maintainer
 import com.typesafe.sbt.packager.Keys.debianPackageMetadata
 import com.typesafe.sbt.packager.debian.DebianPlugin.autoImport.{Debian, debianChangelog, debianSection}

@@ -27,6 +27,9 @@ def validate_cluster_version(spark_cluster_version, client=None):
         raise RuntimeError("Unknown SPYT cluster version: {}. Available release versions are: {}".format(
             spark_cluster_version, get_available_cluster_versions(client=client)
         ))
+    if SELF_VERSION < spark_cluster_version:
+        logger.warning("Cluster version {} is older than spark-launch-yt version {}."
+                       "Please update your local yandex-spyt".format(spark_cluster_version, SELF_VERSION))
 
 
 def validate_spyt_version(spyt_version, client=None):
@@ -69,8 +72,12 @@ def check_cluster_version_exists(cluster_version, client=None):
     return exists(_get_version_conf_path(cluster_version), client=client)
 
 
+def read_global_conf(client=None):
+    return get(GLOBAL_CONF_PATH, client=client)
+
+
 def read_remote_conf(cluster_version=None, client=None):
-    global_conf = get(GLOBAL_CONF_PATH, client=client)
+    global_conf = read_global_conf(client=client)
     cluster_version = cluster_version or global_conf["latest_spark_cluster_version"]
     version_conf_path = _get_version_conf_path(cluster_version)
     version_conf = get(version_conf_path, client=client)
@@ -115,8 +122,21 @@ def get_available_spyt_versions(client=None):
     return yt_list(SPYT_BASE_PATH.join(RELEASES_SUBDIR), client=client)
 
 
+def latest_ytserver_proxy_path(cluster_version, client=None):
+    if cluster_version:
+        return None
+    global_conf = read_global_conf(client=client)
+    symlink_path = global_conf["ytserver_proxy_path"]
+    return get("{}&/@target_path".format(symlink_path), client=client)
+
+
+def ytserver_proxy_attributes(path, client=None):
+    return get("{}/@user_attributes".format(path), client=client)
+
+
 def _get_or_else(d, key, default):
     return d.get(key) or default
+
 
 def _version_subdir(version):
     return SNAPSHOTS_SUBDIR if "SNAPSHOT" in version or "beta" in version else RELEASES_SUBDIR

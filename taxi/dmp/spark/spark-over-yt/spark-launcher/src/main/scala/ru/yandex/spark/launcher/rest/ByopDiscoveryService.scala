@@ -27,7 +27,7 @@ class ByopDiscoveryService(masterEndpoint: String, byopPort: Int) {
       .body
       .fold[Try[Seq[String]]](
         error => Failure(HttpError(error)),
-        body => parseWorkersList(body).toTry.map(appendPort(_, byopPort))
+        body => parseWorkersList(body).toTry.map(workersToProxies(_, byopPort))
       )
   }
 }
@@ -39,26 +39,34 @@ object DiscoveryInfo {
   implicit val ysonWriter: YsonWriter[DiscoveryInfo] = YsonableProduct.ysonWriter[DiscoveryInfo]
 }
 
-object ByopDiscoveryService {
-  def appendPort(hosts: Seq[String], port: Int): Seq[String] = {
-    hosts.map(appendPort(_, port))
-  }
+case class WorkerInfo(host: String, alive: Boolean)
 
+object ByopDiscoveryService {
   def appendPort(host: String, port: Int): String = {
     HostAndPort.fromParts(host, port).toString
   }
 
-  def parseWorkerHost(worker: Json): Either[Error, String] = {
+  def parseWorkerInfo(worker: Json): Either[Error, WorkerInfo] = {
     val workerCursor = worker.hcursor
-    workerCursor.downField("host").as[String]
+    for {
+      host <- workerCursor.downField("host").as[String]
+      alive <- workerCursor.downField("alive").as[Boolean]
+    } yield WorkerInfo(host, alive)
   }
 
-  def parseWorkersList(body: String): Either[Error, Seq[String]] = {
+  def parseWorkersList(body: String): Either[Error, Seq[WorkerInfo]] = {
     for {
       cursor <- parse(body).map(_.hcursor)
       workers <- cursor.downField("workers").as[Array[Json]]
-      workersHosts <- flatten(workers.map(parseWorkerHost))
+      workersHosts <- flatten(workers.map(parseWorkerInfo))
     } yield workersHosts
+  }
+
+  def workersToProxies(workers: Seq[WorkerInfo], byopPort: Int): Seq[String] = {
+    workers.flatMap {
+      case WorkerInfo(host, true) => Some(appendPort(host, byopPort))
+      case _ => None
+    }
   }
 
   def flatten[A, B](seq: Seq[Either[A, B]]): Either[A, Seq[B]] = {
