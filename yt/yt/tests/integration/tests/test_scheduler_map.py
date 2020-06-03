@@ -1116,7 +1116,7 @@ print('{{interrupt=41}};')
 try:
     with open('{tmpfile}', "w"):
         pass
-    time.sleep(10)
+    time.sleep(30)
 except KeyboardInterrupt:
     print('{{interrupt=42}};')
 print('{{interrupt=43}};')
