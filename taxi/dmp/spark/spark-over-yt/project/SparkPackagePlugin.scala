@@ -2,7 +2,6 @@ import java.io.{File, FileInputStream, InputStreamReader}
 import java.util.Properties
 
 import com.typesafe.sbt.packager.linux.LinuxPackageMapping
-import ru.yandex.sbt.YtPublishPlugin
 import sbt.Keys._
 import sbt.PluginTrigger.NoTrigger
 import sbt._
@@ -33,6 +32,7 @@ object SparkPackagePlugin extends AutoPlugin {
     val sparkYtBinBasePath = taskKey[String]("YT base path for spark binaries")
     val sparkYtSubdir = taskKey[String]("Snapshots or releases")
     val sparkIsSnapshot = settingKey[Boolean]("Flag of spark snapshot version")
+    val sparkYtServerProxyPath = settingKey[Option[String]]("YT path of ytserver-proxy binary")
 
     def createPackageMapping(src: File, dst: String): LinuxPackageMapping = {
 
@@ -83,17 +83,29 @@ object SparkPackagePlugin extends AutoPlugin {
       if (sparkIsSnapshot.value) "snapshots" else "releases"
     },
     sparkYtBinBasePath := s"${sparkYtBasePath.value}/bin/${sparkYtSubdir.value}/${version.value}",
+    sparkYtServerProxyPath := {
+      Option(System.getProperty("proxyVersion")).map(version =>
+        s"${SparkLaunchConfig.defaultYtServerProxyPath}-$version"
+      )
+    },
     sparkYtConfigs := {
       val binBasePath = sparkYtBinBasePath.value
       val confBasePath = s"${sparkYtBasePath.value}/conf"
       val sparkVersion = version.value
+      val versionConfPath = s"$confBasePath/${sparkYtSubdir.value}/$sparkVersion"
 
-      val launchConfig = SparkLaunchConfig(binBasePath)
+      val launchConfig = SparkLaunchConfig(binBasePath, versionConfPath,
+        ytserver_proxy_path = sparkYtServerProxyPath.value)
       val launchConfigPublish = YtPublishDocument(
-        launchConfig.toYson,
-        s"$confBasePath/${sparkYtSubdir.value}/$sparkVersion",
+        launchConfig,
+        versionConfPath,
         None,
         "spark-launch-conf"
+      )
+      val ytServerProxyConfigPublish = YtPublishFile(
+        (resourceDirectory in Compile).value / "ytserver-proxy.template.yson",
+        versionConfPath,
+        None
       )
 
       val globalConfigPublish = if (!sparkIsSnapshot.value) {
@@ -103,11 +115,11 @@ object SparkPackagePlugin extends AutoPlugin {
           val proxyDefaults = readSparkDefaults(proxyDefaultsFile)
           val globalConfig = SparkGlobalConfig(proxyDefaults, sparkVersion)
 
-          YtPublishDocument(globalConfig.toYson, confBasePath, Some(proxy), "global")
+          YtPublishDocument(globalConfig, confBasePath, Some(proxy), "global")
         }
       } else Nil
 
-      launchConfigPublish +: globalConfigPublish
+      ytServerProxyConfigPublish +: (launchConfigPublish +: globalConfigPublish)
     },
     sparkPackage := {
       val sparkDist = sparkHome.value / "dist"

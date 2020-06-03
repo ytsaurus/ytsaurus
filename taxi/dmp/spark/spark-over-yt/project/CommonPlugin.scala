@@ -2,7 +2,6 @@ import sbt.Keys._
 import sbt._
 import sbt.plugins.JvmPlugin
 import sbtassembly.AssemblyPlugin.autoImport._
-import ru.yandex.sbt.YtPublishPlugin
 import Dependencies._
 
 object CommonPlugin extends AutoPlugin {

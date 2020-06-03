@@ -13,7 +13,8 @@ from yt.wrapper.spec_builders import VanillaSpecBuilder
 
 from .conf import read_remote_conf, validate_cluster_version, spyt_jar_path, spyt_python_path, \
     validate_spyt_version, validate_versions_compatibility, latest_compatible_spyt_version, \
-    latest_cluster_version, update_config_inplace, validate_custom_params
+    latest_cluster_version, update_config_inplace, validate_custom_params, \
+    latest_ytserver_proxy_path, ytserver_proxy_attributes
 from .utils import get_spark_master, base_spark_conf, SparkDiscovery, SparkCluster
 from .enabler import SpytEnablers
 
@@ -205,7 +206,7 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
 
     master_command = _launcher_command("Master")
     worker_command = _launcher_command("Worker") + \
-                     "--cores {0} --memory {1} --wait-master-timeout {2}".format(worker_cores, worker_memory, worker_timeout)
+        "--cores {0} --memory {1} --wait-master-timeout {2}".format(worker_cores, worker_memory, worker_timeout)
     history_command = _launcher_command("HistoryServer") + "--log-path yt:/{}".format(spark_discovery.event_log())
 
     user = get_user_name(client=client)
@@ -215,6 +216,13 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     operation_spec["pool"] = pool
     if "title" not in operation_spec:
         operation_spec["title"] = operation_alias or "spark_{}".format(user)
+    operation_spec["description"] = {
+        "Spark over YT": {
+            "discovery_path": spark_discovery.base_discovery_path,
+            "version": config["cluster_version"],
+            "byop_enabled": enablers.enable_byop
+        }
+    }
 
     environment = config["environment"]
     environment["YT_PROXY"] = get_proxy_url(required=True, client=client)
@@ -225,9 +233,11 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     environment["SPARK_CLUSTER_VERSION"] = config["cluster_version"]
     environment["SPARK_YT_BYOP_PORT"] = "27002"
 
+    ytserver_proxy_path = config.get("ytserver_proxy_path")
+    ytserver_binary_name = ytserver_proxy_path.split("/")[-1] if ytserver_proxy_path else "ytserver-proxy"
     worker_environment = {
         "SPARK_YT_BYOP_ENABLED": str(enablers.enable_byop),
-        "SPARK_YT_BYOP_BINARY_PATH": "$HOME/ytserver-proxy",
+        "SPARK_YT_BYOP_BINARY_PATH": "$HOME/{}".format(ytserver_binary_name),
         "SPARK_YT_BYOP_CONFIG_PATH": "$HOME/ytserver-proxy.template.yson",
         "SPARK_YT_BYOP_HOST": "localhost"
     }
@@ -246,30 +256,36 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         "tmpfs_path": "tmpfs"
     }
 
+    worker_file_paths = copy.copy(common_task_spec["file_paths"])
+    if ytserver_proxy_path and enablers.enable_byop:
+        worker_file_paths.append(ytserver_proxy_path)
+        operation_spec["description"]["BYOP"] = ytserver_proxy_attributes(ytserver_proxy_path, client=client)
+
     secure_vault = {"YT_USER": user, "YT_TOKEN": get_token(client=client)}
 
     return VanillaSpecBuilder() \
         .begin_task("master") \
-        .job_count(1) \
-        .command(master_command) \
-        .memory_limit(_parse_memory(master_memory_limit)) \
-        .cpu_limit(2) \
-        .spec(common_task_spec) \
+            .job_count(1) \
+            .command(master_command) \
+            .memory_limit(_parse_memory(master_memory_limit)) \
+            .cpu_limit(2) \
+            .spec(common_task_spec) \
         .end_task() \
         .begin_task("history") \
-        .job_count(1) \
-        .command(history_command) \
-        .memory_limit(_parse_memory(history_server_memory_limit)) \
-        .cpu_limit(1) \
-        .spec(common_task_spec) \
+            .job_count(1) \
+            .command(history_command) \
+            .memory_limit(_parse_memory(history_server_memory_limit)) \
+            .cpu_limit(1) \
+            .spec(common_task_spec) \
         .end_task() \
         .begin_task("workers") \
-        .job_count(worker_num) \
-        .command(worker_command) \
-        .memory_limit(_parse_memory(worker_memory) + _parse_memory(tmpfs_limit)) \
-        .cpu_limit(worker_cores + worker_cores_overhead) \
-        .spec(common_task_spec) \
-        .environment(update(environment, worker_environment)) \
+            .job_count(worker_num) \
+            .command(worker_command) \
+            .memory_limit(_parse_memory(worker_memory) + _parse_memory(tmpfs_limit)) \
+            .cpu_limit(worker_cores + worker_cores_overhead) \
+            .spec(common_task_spec) \
+            .environment(update(environment, worker_environment)) \
+            .file_paths(worker_file_paths) \
         .end_task() \
         .secure_vault(secure_vault) \
         .spec(operation_spec)
@@ -305,6 +321,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     """
     spark_discovery = SparkDiscovery(discovery_path=discovery_path)
 
+    ytserver_proxy_path = latest_ytserver_proxy_path(spark_cluster_version, client=client)
     spark_cluster_version = spark_cluster_version or latest_cluster_version(client=client)
     validate_cluster_version(spark_cluster_version, client=client)
 
@@ -312,6 +329,8 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     dynamic_config = SparkDefaultArguments.get_params()
     update_config_inplace(dynamic_config, read_remote_conf(cluster_version=spark_cluster_version, client=client))
     update_config_inplace(dynamic_config, params)
+    if ytserver_proxy_path:
+        dynamic_config["ytserver_proxy_path"] = ytserver_proxy_path
 
     enablers = enablers or SpytEnablers()
     enablers.apply_config(dynamic_config)

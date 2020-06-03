@@ -22,7 +22,7 @@ class ByopDiscoveryServiceTest extends FlatSpec with Matchers with TableDrivenPr
     "man2-4214-59f.hume.yt.gencfg-c.yandex.net"
   )
 
-  private def worker(host: String): String =
+  private def worker(host: String, alive: Boolean): String =
     s"""
       |{
       |    "id" : "worker-20200525130510-2a02:6b8:c0a:990:10e:ad5b:0:2334-27003",
@@ -34,11 +34,11 @@ class ByopDiscoveryServiceTest extends FlatSpec with Matchers with TableDrivenPr
       |      "traceEnabled" : false
       |    },
       |    "webUiAddress" : "http://[$host]:27004",
-      |    "alive" : true
+      |    "alive" : $alive
       |}
       |""".stripMargin
 
-  private val badWorker =
+  private val workerWithoutHost =
     s"""
        |{
        |    "id" : "worker-20200525130510-2a02:6b8:c0a:990:10e:ad5b:0:2334-27003",
@@ -49,6 +49,20 @@ class ByopDiscoveryServiceTest extends FlatSpec with Matchers with TableDrivenPr
        |      "traceEnabled" : false
        |    },
        |    "alive" : true
+       |}
+       |""".stripMargin
+
+  private val workerWithoutAlive =
+    s"""
+       |{
+       |    "id" : "worker-20200525130510-2a02:6b8:c0a:990:10e:ad5b:0:2334-27003",
+       |    "host" : "man2-4214-59f.hume.yt.gencfg-c.yandex.net",
+       |    "port" : 27003,
+       |    "cores" : 20,
+       |    "memory" : 81920,
+       |    "endpoint" : {
+       |      "traceEnabled" : false
+       |    }
        |}
        |""".stripMargin
 
@@ -75,20 +89,37 @@ class ByopDiscoveryServiceTest extends FlatSpec with Matchers with TableDrivenPr
     }
   }
 
-  it should "parseWorkerHost" in {
+  it should "parseWorkerInfo" in {
     def json(text: String): Json = parse(text).right.get
 
-    hosts.foreach { host =>
-      ByopDiscoveryService.parseWorkerHost(json(worker(host))) shouldEqual Right(host)
+    for {
+      host <- hosts
+      alive <- Seq(true, false)
+    } {
+      ByopDiscoveryService.parseWorkerInfo(json(worker(host, alive))) shouldEqual Right(WorkerInfo(host, alive))
     }
-    ByopDiscoveryService.parseWorkerHost(json(badWorker)).isLeft shouldEqual true
+
+    ByopDiscoveryService.parseWorkerInfo(json(workerWithoutAlive)).isLeft shouldEqual true
+    ByopDiscoveryService.parseWorkerInfo(json(workerWithoutHost)).isLeft shouldEqual true
   }
 
   it should "parseWorkersList" in {
-    val text = masterState(hosts.map(worker))
-    ByopDiscoveryService.parseWorkersList(text).right.get should contain theSameElementsAs hosts
+    val alive = Seq(false, true)
+    val workerInfos = hosts.zip(alive).map{case (h, a) => WorkerInfo(h, a)}
+    val text = masterState(workerInfos.map(i => worker(i.host, i.alive)))
+
+    ByopDiscoveryService.parseWorkersList(text).right.get should contain theSameElementsAs workerInfos
     ByopDiscoveryService.parseWorkersList(text.drop(10)).isLeft shouldEqual true
-    ByopDiscoveryService.parseWorkersList(masterState(Seq(badWorker))).isLeft shouldEqual true
+    ByopDiscoveryService.parseWorkersList(masterState(Seq(workerWithoutHost))).isLeft shouldEqual true
+    ByopDiscoveryService.parseWorkersList(masterState(Seq(workerWithoutAlive))).isLeft shouldEqual true
+  }
+
+  it should "convert workers infos to proxies list" in {
+    val alive = Seq(false, true)
+    val workerInfos = hosts.zip(alive).map{case (h, a) => WorkerInfo(h, a)}
+
+    val proxies = ByopDiscoveryService.workersToProxies(workerInfos, 27002)
+    proxies should contain theSameElementsAs Seq(s"${hosts(1)}:27002")
   }
 
 }

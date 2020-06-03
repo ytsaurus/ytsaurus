@@ -1,10 +1,9 @@
 import Dependencies._
 import SparkPackagePlugin.autoImport._
-import ru.yandex.sbt.YtPublishPlugin.autoImport._
+import YtPublishPlugin.autoImport._
 import com.typesafe.sbt.packager.linux.{LinuxPackageMapping, LinuxSymlink}
 import TarArchiverPlugin.autoImport._
-import ru.yandex.sbt.DebianPackagePlugin
-import ru.yandex.sbt.DebianPackagePlugin.autoImport._
+import DebianPackagePlugin.autoImport._
 import ZipPlugin.autoImport._
 import PythonPlugin.autoImport._
 
