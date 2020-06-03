@@ -380,15 +380,19 @@ public:
                 hydraRequest.set_data_weight(writeRecord.DataWeight);
                 ToProto(hydraRequest.mutable_sync_replica_ids(), syncReplicaIds);
 
+                const auto& identity = NRpc::GetCurrentAuthenticationIdentity();
+                NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, identity);
+
                 auto mutation = CreateMutation(Slot_->GetHydraManager(), hydraRequest);
                 mutation->SetHandler(BIND(
-                    &TImpl::HydraLeaderExecuteWrite,
+                    &TImpl::HydraLeaderWriteRows,
                     MakeStrong(this),
                     transactionId,
                     tablet->GetMountRevision(),
                     adjustedSignature,
                     lockless,
-                    writeRecord));
+                    writeRecord,
+                    identity));
                 *commitResult = mutation->Commit().As<void>();
 
                 if (tablet->IsProfilingEnabled()) {
@@ -1378,14 +1382,17 @@ private:
     }
 
 
-    void HydraLeaderExecuteWrite(
+    void HydraLeaderWriteRows(
         TTransactionId transactionId,
         NHydra::TRevision mountRevision,
         TTransactionSignature signature,
         bool lockless,
         const TTransactionWriteRecord& writeRecord,
+        const NRpc::TAuthenticationIdentity& identity,
         TMutationContext* /*context*/) noexcept
     {
+        NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
+
         auto atomicity = AtomicityFromTransactionId(transactionId);
 
         auto* tablet = PrelockedTablets_.front();
