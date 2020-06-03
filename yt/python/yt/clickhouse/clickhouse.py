@@ -2,6 +2,7 @@ from .defaults import patch_defaults
 from .spec_builder import get_clique_spec_builder
 from .log_tailer import prepare_log_tailer_tables
 from .compatibility import validate_ytserver_clickhouse_version, LAUNCHER_VERSION
+from .helpers import get_alias_from_env_or_raise
 
 from yt.wrapper.operation_commands import TimeWatcher, process_operation_unsuccesful_finish_state
 from yt.wrapper.common import YtError, require, update, update_inplace
@@ -280,7 +281,7 @@ def do_wait_for_instances(op, instance_count, operation_alias, client=None):
 
 
 def start_clique(instance_count,
-                 operation_alias,
+                 alias=None,
                  cypress_base_config_path=None,
                  cypress_ytserver_clickhouse_path=None,
                  cypress_clickhouse_trampoline_path=None,
@@ -306,10 +307,10 @@ def start_clique(instance_count,
                  wait_for_instances=None,
                  skip_version_compatibility_validation=None,
                  **kwargs):
-    """Starts a clickhouse clique consisting of a given number of instances.
+    """Starts a CHYT clique consisting of a given number of instances.
 
-    :param operation_alias alias for the underlying YT operation
-    :type operation_alias: str
+    :param alias alias for the underlying YT operation
+    :type alias: str
     :param cypress_base_config_path: path for the base clickhouse config in Cypress
     :type cypress_base_config_path: str or None
     :param cypress_ytserver_clickhouse_path path to the ytserver-clickhouse binary in Cypress
@@ -362,14 +363,16 @@ def start_clique(instance_count,
     .. seealso::  :ref:`operation_parameters`.
     """
 
+    alias = alias or get_alias_from_env_or_raise()
+
     if exists("//sys/clickhouse/defaults", client=client):
         defaults = get("//sys/clickhouse/defaults", client=client)
     else:
         raise YtError("CHYT is not set up on cluster: //sys/clickhouse/defaults not found")
 
-    require(operation_alias.startswith("*"), lambda: YtError("Operation alias should start with '*' character"))
+    require(alias.startswith("*"), lambda: YtError("Operation alias should start with '*' character"))
 
-    artifact_path = artifact_path or "//home/clickhouse-kolkhoz/" + operation_alias[1:]
+    artifact_path = artifact_path or "//home/clickhouse-kolkhoz/" + alias[1:]
 
     if abort_existing is None:
         abort_existing = False
@@ -377,21 +380,21 @@ def start_clique(instance_count,
     if skip_version_compatibility_validation is None:
         skip_version_compatibility_validation = defaults.get("skip_version_compatibility_validation", False)
 
-    prev_operation = _resolve_alias(operation_alias, client=client)
-    if operation_alias is not None:
+    prev_operation = _resolve_alias(alias, client=client)
+    if alias is not None:
         if prev_operation is not None:
-            logger.info("Previous operation with alias %s is %s with state %s", operation_alias, prev_operation["id"], prev_operation["state"])
+            logger.info("Previous operation with alias %s is %s with state %s", alias, prev_operation["id"], prev_operation["state"])
             if not abort_existing:
-                raise YtError("There is already an operation with alias {}; abort it or specify --abort-existing command-line flag".format(operation_alias))
+                raise YtError("There is already an operation with alias {}; abort it or specify --abort-existing command-line flag".format(alias))
         else:
-            logger.info("There was no operation with alias %s before", operation_alias)
+            logger.info("There was no operation with alias %s before", alias)
 
     if abort_existing:
         if prev_operation is not None and not prev_operation["state"].endswith("ed"):
-            logger.info("Aborting previous operation with alias %s", operation_alias)
+            logger.info("Aborting previous operation with alias %s", alias)
             abort_operation(prev_operation["id"], client=client)
         else:
-            logger.info("There is no running operation with alias %s; not aborting anything", operation_alias)
+            logger.info("There is no running operation with alias %s; not aborting anything", alias)
 
     prev_operation_id = prev_operation["id"] if prev_operation is not None else None
 
@@ -416,7 +419,7 @@ def start_clique(instance_count,
     description = update(description, _build_description(cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
                                                          cypress_ytserver_log_tailer_path=cypress_ytserver_log_tailer_path,
                                                          cypress_clickhouse_trampoline_path=cypress_clickhouse_trampoline_path,
-                                                         operation_alias=operation_alias,
+                                                         operation_alias=alias,
                                                          prev_operation_id=prev_operation_id,
                                                          enable_monitoring=enable_monitoring,
                                                          defaults=defaults,
@@ -437,7 +440,7 @@ def start_clique(instance_count,
                               cpu_limit=cpu_limit,
                               memory_limit=memory_limit,
                               defaults=defaults,
-                              operation_alias=operation_alias,
+                              operation_alias=alias,
                               uncompressed_block_cache_size=uncompressed_block_cache_size,
                               client=client)
 
@@ -467,7 +470,7 @@ def start_clique(instance_count,
                                                host_clickhouse_trampoline_path=host_clickhouse_trampoline_path,
                                                host_ytserver_log_tailer_path=host_ytserver_log_tailer_path,
                                                cypress_geodata_path=cypress_geodata_path,
-                                               operation_alias=operation_alias,
+                                               operation_alias=alias,
                                                description=description,
                                                uncompressed_block_cache_size=uncompressed_block_cache_size,
                                                spec=spec,
@@ -479,6 +482,6 @@ def start_clique(instance_count,
                        sync=False)
 
     if wait_for_instances:
-        do_wait_for_instances(op, instance_count, operation_alias, client=client)
+        do_wait_for_instances(op, instance_count, alias, client=client)
 
     return op

@@ -1,6 +1,9 @@
 import yt.wrapper as yt
 import yt.clickhouse as chyt
-import yt.wrapper.yson as yson
+from yt.packages.six import PY3
+from yt.packages.six.moves import map as imap
+
+from .helpers import check
 from yt.test_helpers import wait
 
 from yt.clickhouse.test_helpers import get_clickhouse_server_config, get_host_paths
@@ -33,6 +36,9 @@ DEFAULTS = {
 
 class ClickhouseTestBase(object):
     def _setup(self):
+        if yt.config["backend"] in ("native", "rpc"):
+            pytest.skip()
+
         yt.create("document", "//sys/clickhouse/defaults", recursive=True, attributes={"value": DEFAULTS})
         yt.create("map_node", "//home/clickhouse-kolkhoz", recursive=True)
         yt.link("//home/clickhouse-kolkhoz", "//sys/clickhouse/kolkhoz", recursive=True)
@@ -49,10 +55,45 @@ class TestClickhouseFromHost(ClickhouseTestBase):
     def setup(self):
         self._setup()
 
-    def test_simple(self):
-        chyt.start_clique(1, operation_alias="*c")
+    def test_execute(self):
+        content = [{"a": i} for i in range(4)]
+        yt.create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        yt.write_table("//tmp/t", content)
+        chyt.start_clique(1, alias="*c")
+        check(chyt.execute("select 1", "*c"),
+              [{"1": 1}])
+        check(chyt.execute("select * from `//tmp/t`", "*c"),
+              content,
+              ordered=False)
+        check(chyt.execute("select avg(a) from `//tmp/t`", "*c"),
+              [{"avg(a)": 1.5}])
 
-# Waiting for real ytserver-clickhouse upload is too long, so we
+        def check_lines(lhs, rhs):
+            def decode_as_utf8(smth):
+                if PY3 and isinstance(smth, bytes):
+                    return smth.decode("utf-8")
+                return smth
+
+            lhs = list(imap(decode_as_utf8, lhs))
+            rhs = list(imap(decode_as_utf8, rhs))
+            assert lhs == rhs
+
+        check_lines(chyt.execute("select * from `//tmp/t`", "*c", format="TabSeparated"),
+                    ["0", "1", "2", "3"])
+        # By default, ClickHouse quotes all int64 and uint64 to prevent precision loss.
+        check_lines(chyt.execute("select a, a * a from `//tmp/t`", "*c", format="JSONEachRow"),
+                    ['{"a":"0","multiply(a, a)":"0"}',
+                     '{"a":"1","multiply(a, a)":"1"}',
+                     '{"a":"2","multiply(a, a)":"4"}',
+                     '{"a":"3","multiply(a, a)":"9"}'])
+        check_lines(chyt.execute("select a, a * a from `//tmp/t`", "*c", format="JSONEachRow",
+                                 settings={"output_format_json_quote_64bit_integers": False}),
+                    ['{"a":0,"multiply(a, a)":0}',
+                     '{"a":1,"multiply(a, a)":1}',
+                     '{"a":2,"multiply(a, a)":4}',
+                     '{"a":3,"multiply(a, a)":9}'])
+
+# Waiting for real ytserver-clickhouse upload is too long, so we upload fake binary instead.
 @pytest.mark.usefixtures("yt_env")
 class TestClickhouseFromCypress(ClickhouseTestBase):
     def _turbo_write_file(self, destination, path):
@@ -84,5 +125,5 @@ class TestClickhouseFromCypress(ClickhouseTestBase):
             yt.remove("//sys/clickhouse/defaults/host_" + destination_bin.replace("-", "_") + "_path")
         yt.set("//sys/bin/ytserver-log-tailer/ytserver-log-tailer/@yt_version", "")
 
-    def test_simple(self):
-        chyt.start_clique(1, operation_alias="*c", wait_for_instances=False)
+    def test_fake_chyt(self):
+        chyt.start_clique(1, alias="*c", wait_for_instances=False)

@@ -37,7 +37,7 @@ RECEIVE_TOKEN_FROM_SSH_SESSION = \
     int(os.environ.get("RECEIVE_TOKEN_FROM_SSH_SESSION", True)) and \
     "TEST_TOOL" not in os.environ
 
-def _format_logging_params(params):
+def format_logging_params(params):
     return ", ".join(["{}: {}".format(key, value) for key, value in iteritems(params)])
 
 def _hexify(message):
@@ -195,17 +195,20 @@ def _process_request_backoff(current_time, client):
             time.sleep(float(backoff) / 1000.0 - diff)
         _get_session(client=client).last_request_time = now_seconds
 
+def raise_for_token(request_id=None):
+    request_id = request_id or "missing"
+    raise YtTokenError(
+        "Your authentication token was rejected by the server (X-YT-Request-ID: {0})\n"
+        "Please refer to oauth.yt.yandex.net for obtaining a valid token\n"
+        "if it will not fix error please kindly submit a request to "
+        "https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"
+        .format(request_id))
+
 def _raise_for_status(response, request_info):
     if response.status_code in (500, 503):
         raise YtProxyUnavailable(response)
     if response.status_code == 401:
-        raise YtTokenError(
-            "Your authentication token was rejected by the server (X-YT-Request-ID: {0})\n"
-            "Please refer to oauth.yt.yandex.net for obtaining a valid token\n"
-            "if it will not fix error please kindly submit a request to "
-            "https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"
-            .format(response.headers.get("X-YT-Request-ID", "missing")))
-
+        raise_for_token(response.headers.get("X-YT-Request-ID"))
     if not response.is_ok():
         raise YtHttpResponseError(error=response.error(), **request_info)
 
@@ -274,7 +277,7 @@ class RequestRetrier(Retrier):
         logger.debug("Perform HTTP %s request %s (%s)",
                      self.method,
                      url,
-                     _format_logging_params(logging_params))
+                     format_logging_params(logging_params))
 
         request_start_time = datetime.now()
         _process_request_backoff(request_start_time, client=self.client)
@@ -319,7 +322,7 @@ class RequestRetrier(Retrier):
             "request_id": self.request_id,
             "status_code": response.status_code,
         }
-        logger.debug("Response recieved (%s)", _format_logging_params(logging_params))
+        logger.debug("Response received (%s)", format_logging_params(logging_params))
 
         _raise_for_status(response, request_info)
         return response
@@ -338,7 +341,7 @@ class RequestRetrier(Retrier):
                        self.method,
                        self.request_url,
                        repr(error),
-                       _format_logging_params(logging_params))
+                       format_logging_params(logging_params))
         self.is_connection_timeout_error = isinstance(error, requests.exceptions.ConnectTimeout)
         if self.proxy_provider is not None:
             self.proxy_provider.on_error_occured(error)
@@ -355,7 +358,7 @@ class RequestRetrier(Retrier):
         skip_backoff = get_config(self.client)["proxy"]["skip_backoff_if_connect_timed_out"] \
             and self.is_connection_timeout_error
         if not skip_backoff:
-            logger.warning("Sleep for %.2lf seconds before next retry (%s)", backoff, _format_logging_params(logging_params))
+            logger.warning("Sleep for %.2lf seconds before next retry (%s)", backoff, format_logging_params(logging_params))
             time.sleep(backoff)
         logger.warning("New retry (%d) for request id %s...", attempt + 1, self.request_id)
 
