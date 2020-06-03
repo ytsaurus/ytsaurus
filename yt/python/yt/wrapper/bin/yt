@@ -1455,14 +1455,15 @@ def add_spark_parser(root_subparsers):
     add_find_spark_cluster_parser(add_spark_subparser)
 
 @copy_docstring_from(chyt.start_clique)
-def start_clique_handler(*args, **kwargs):
+def clickhouse_start_clique_handler(*args, **kwargs):
     op = chyt.start_clique(*args, **kwargs)
     print(op.id)
 
-def add_start_clique_parser(add_parser):
-    parser = add_parser("start-clique", start_clique_handler)
+def add_clickhouse_start_clique_parser(add_parser):
+    parser = add_parser("start-clique", clickhouse_start_clique_handler)
     parser.add_argument("--instance-count", required=True, type=int)
-    parser.add_argument("--operation-alias", required=True, help="Alias for clique")
+    parser.add_argument("--alias", "--operation-alias", help="Alias for clique; may be also specified "
+                                                             "via CHYT_PROXY env variable")
     parser.add_argument("--cypress-ytserver-clickhouse-path")
     parser.add_argument("--cypress-clickhouse-trampoline-path")
     parser.add_argument("--cypress-ytserver-log-tailer-path")
@@ -1477,13 +1478,33 @@ def add_start_clique_parser(add_parser):
     add_structured_argument(parser, "--spec")
     add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
 
+@copy_docstring_from(chyt.execute)
+def clickhouse_execute_handler(**kwargs):
+    class FakeStream:
+        def __init__(self, stream):
+            self.stream = stream
+        def read_rows(self):
+            return (row + b"\n" for row in self.stream)
+
+    iterator = chunk_iter_rows(FakeStream(chyt.execute(**kwargs)), yt.config["read_buffer_size"])
+    write_silently(iterator)
+
+def add_clickhouse_execute_parser(add_parser):
+    parser = add_parser("execute", clickhouse_execute_handler)
+    parser.add_argument("--alias", "--operation-alias", help="Alias for clique; may be also specified "
+                                                             "via CHYT_PROXY env variable")
+    add_hybrid_argument(parser, "query", help="Query to execute; do not specify FORMAT in query, use --format instead")
+    parser.add_argument("--format",
+                        help="ClickHouse data format; refer to https://clickhouse.tech/docs/ru/interfaces/formats/; "
+                             "default is TabSeparated",
+                        default="TabSeparated")
 
 def add_clickhouse_parser(root_subparsers):
     parser = populate_argument_help(root_subparsers.add_parser("clickhouse", description="ClickHouse over YT commands"))
     clickhouse_subparsers = parser.add_subparsers(metavar="clickhouse_command")
     add_clickhouse_subparser = add_subparser(clickhouse_subparsers, params_argument=False)
-    add_start_clique_parser(add_clickhouse_subparser)
-
+    add_clickhouse_start_clique_parser(add_clickhouse_subparser)
+    add_clickhouse_execute_parser(add_clickhouse_subparser)
 
 @copy_docstring_from(yt.start_spark_cluster)
 def start_spark_cluster_handler(*args, **kwargs):

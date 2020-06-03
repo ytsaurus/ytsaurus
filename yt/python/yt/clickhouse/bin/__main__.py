@@ -5,8 +5,10 @@ from __future__ import print_function
 from yt.common import copy_docstring_from
 
 import yt.wrapper.yson as yson
-from yt.wrapper.cli_helpers import run_main, ParseStructuredArgument, populate_argument_help
+from yt.wrapper.cli_helpers import run_main, ParseStructuredArgument, populate_argument_help, write_silently
+from yt.wrapper.common import DoNotReplaceAction
 import yt.wrapper.completers as completers
+
 
 import yt.wrapper as yt
 
@@ -14,6 +16,8 @@ import yt.clickhouse as chyt
 
 import os
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
+
+from yt.wrapper.common import chunk_iter_rows
 
 DESCRIPTION = '''A lightweight part of YT CLI which contains only CHYT subcommands. 
 "chyt ..." is equivalent to "yt clickhouse ..."'''
@@ -29,6 +33,29 @@ def add_argument(parser, name, help, description, **kwargs):
 def add_structured_argument(parser, name, help="", **kwargs):
     description = "structured %s in %s format" % (name.strip("-"), "yson")
     add_argument(parser, name, help, description=description, action=ParseStructuredArgument, action_load_method=yson._loads_from_native_str, **kwargs)
+
+def add_hybrid_argument(parser, name, help=None, description=None, group_required=True, **kwargs):
+    group = parser.add_mutually_exclusive_group(required=group_required)
+    dest = None
+    positional_name = name
+    if "dest" in kwargs:
+        dest = kwargs.pop("dest")
+        positional_name = dest
+    # Positional argument
+    positional = add_argument(parser=group,
+                              name=positional_name,
+                              help=help,
+                              description=description,
+                              nargs="?",
+                              action=DoNotReplaceAction, **kwargs)
+    # Optional argument
+    if dest is not None:
+        kwargs["dest"] = dest
+    optional = add_argument(parser=group,
+                            name="--" + name.replace("_", "-"),
+                            help=help,
+                            description=description, **kwargs)
+    return positional, optional
 
 def add_subparser(subparsers, params_argument=True):
     def extract_help(help, function):
@@ -51,15 +78,15 @@ def add_subparser(subparsers, params_argument=True):
     return add_parser
 
 @copy_docstring_from(chyt.start_clique)
-def start_clique_handler(*args, **kwargs):
+def clickhouse_start_clique_handler(*args, **kwargs):
     op = chyt.start_clique(*args, **kwargs)
     print(op.id)
 
-# TODO(max42): move to common part.
-def add_start_clique_parser(add_parser):
-    parser = add_parser("start-clique", start_clique_handler)
+def add_clickhouse_start_clique_parser(add_parser):
+    parser = add_parser("start-clique", clickhouse_start_clique_handler)
     parser.add_argument("--instance-count", required=True, type=int)
-    parser.add_argument("--operation-alias", required=True, help="Alias for clique")
+    parser.add_argument("--alias", "--operation-alias", help="Alias for clique; may be also specified "
+                                                             "via CHYT_PROXY env variable")
     parser.add_argument("--cypress-ytserver-clickhouse-path")
     parser.add_argument("--cypress-clickhouse-trampoline-path")
     parser.add_argument("--cypress-ytserver-log-tailer-path")
@@ -73,6 +100,27 @@ def add_start_clique_parser(add_parser):
                                                 "//sys/clickhouse/kolkhoz/<operation_alias>")
     add_structured_argument(parser, "--spec")
     add_structured_argument(parser, "--clickhouse-config", "ClickHouse configuration patch")
+
+@copy_docstring_from(chyt.execute)
+def clickhouse_execute_handler(**kwargs):
+    class FakeStream:
+        def __init__(self, stream):
+            self.stream = stream
+        def read_rows(self):
+            return (row + b"\n" for row in self.stream)
+
+    iterator = chunk_iter_rows(FakeStream(chyt.execute(**kwargs)), yt.config["read_buffer_size"])
+    write_silently(iterator)
+
+def add_clickhouse_execute_parser(add_parser):
+    parser = add_parser("execute", clickhouse_execute_handler)
+    parser.add_argument("--alias", "--operation-alias", help="Alias for clique; may be also specified "
+                                                             "via CHYT_PROXY env variable")
+    add_hybrid_argument(parser, "query", help="Query to execute; do not specify FORMAT in query, use --format instead")
+    parser.add_argument("--format",
+                        help="ClickHouse data format; refer to https://clickhouse.tech/docs/ru/interfaces/formats/; "
+                             "default is TabSeparated",
+                        default="TabSeparated")
 
 def main():
     config_parser = ArgumentParser(add_help=False)
@@ -96,7 +144,8 @@ def main():
 
     add_parser = add_subparser(subparsers)
 
-    add_start_clique_parser(add_parser)
+    add_clickhouse_start_clique_parser(add_parser)
+    add_clickhouse_execute_parser(add_parser)
 
     if "_ARGCOMPLETE" in os.environ:
         completers.autocomplete(parser, enable_bash_fallback=False,
@@ -124,7 +173,7 @@ def main():
         for key in params:
             yt.config.COMMAND_PARAMS[key] = params[key]
 
-    for key in ("func", "trace", "prefix", "proxy", "config"):
+    for key in ("func", "trace", "prefix", "proxy", "config", "params"):
         if key in func_args:
             func_args.pop(key)
 
