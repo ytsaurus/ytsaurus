@@ -167,7 +167,7 @@ def get_environment_for_binary_test(yt_env, enable_request_logging=True):
     if config["backend"] == "native":
         _, filename = tempfile.mkstemp(dir=get_tests_sandbox(), prefix="binary_test_driver_config")
         with open(filename, "wb") as f:
-            yson.dump({"driver": config["driver_config"], "logging": yt_env.env.driver_logging_config}, f)
+            yson.dump({"driver": config["driver_config"], "logging": yt_env.env.configs["driver_logging"]}, f)
 
         config["driver_config"] = None
         config["driver_config_path"] = filename

@@ -36,6 +36,8 @@ class TestQuery(YTEnvSetup):
         }
     }
 
+    DELTA_RPC_DRIVER_CONFIG = DELTA_DRIVER_CONFIG
+
     def _sample_data(self, path="//tmp/t", chunks=3, stripe=3):
         create("table", path, attributes={
                    "dynamic": True,

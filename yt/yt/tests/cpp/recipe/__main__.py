@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from yt.environment import arcadia_interop
 
 import yt.local
@@ -12,6 +14,7 @@ import argparse
 import glob
 import os
 import shutil
+import sys
 
 
 RECIPE_INFO_FILE = "recipe_info.yson"
@@ -38,7 +41,6 @@ OPTION_NAME_MAPPING = {
     "NUM_SCHEDULERS": "scheduler_count",
     "DELTA_MASTER_CONFIG": "master_config",
     "RPC_PROXY_COUNT": "rpc_proxy_count",
-    "DRIVER_BACKEND": "driver_backend",
 }
 
 
@@ -57,6 +59,11 @@ def start(args):
     else:
         options = {}
 
+    driver_backend = "native"
+    if "DRIVER_BACKEND" in options:
+        driver_backend = options["DRIVER_BACKEND"]
+        del options["DRIVER_BACKEND"]
+
     yt_local_args = {
         "path": path,
         "enable_debug_logging": True,
@@ -73,7 +80,15 @@ def start(args):
     with open(RECIPE_INFO_FILE, "w") as fout:
         yson.dump(recipe_info, fout)
 
-    set_env("YT_CONSOLE_DRIVER_CONFIG_PATH", yt_instance.config_paths["console_driver"][0])
+    if driver_backend == "native":
+        set_env("YT_DRIVER_CONFIG_PATH", yt_instance.config_paths["driver"])
+        set_env("YT_DRIVER_LOGGING_CONFIG_PATH", yt_instance.config_paths["driver_logging"])
+    elif driver_backend == "rpc":
+        set_env("YT_DRIVER_CONFIG_PATH", yt_instance.config_paths["rpc_driver"])
+        set_env("YT_DRIVER_LOGGING_CONFIG_PATH", yt_instance.config_paths["rpc_driver_logging"])
+    else:
+        print("Incorrect driver backend '%s'", driver_backend, file=sys.stderr)
+        sys.exit(1)
 
 
 def clear_runtime_data(path):

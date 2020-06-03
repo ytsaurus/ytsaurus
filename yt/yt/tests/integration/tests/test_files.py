@@ -276,7 +276,7 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
-    DELTA_DRIVER_CONFIG = {"default_streaming_stall_timeout": 1500}
+    DELTA_RPC_DRIVER_CONFIG = {"default_streaming_stall_timeout": 1500}
 
     class FaultyStringStream(TextIOBase):
         def __init__(self, data):
@@ -356,7 +356,7 @@ class TestBigFilesRpcProxy(YTEnvSetup):
         assert contents == data
 
 class TestBigFilesWithCompressionRpcProxy(TestBigFilesRpcProxy):
-    DELTA_DRIVER_CONFIG = {
+    DELTA_RPC_DRIVER_CONFIG = {
         "request_codec": "lz4",
         "response_codec": "quick_lz",
         "enable_legacy_rpc_codecs": False

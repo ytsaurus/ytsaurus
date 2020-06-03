@@ -1931,7 +1931,7 @@ class TestDynamicTablesWithCompressionRpcProxy(DynamicTablesSingleCellBase):
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
 
-    DELTA_DRIVER_CONFIG = {
+    DELTA_RPC_DRIVER_CONFIG = {
         "request_codec": "lz4",
         "response_codec": "quick_lz",
     }
@@ -1941,7 +1941,7 @@ class TestDynamicTablesWithModernCompressionRpcProxy(DynamicTablesSingleCellBase
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
 
-    DELTA_DRIVER_CONFIG = {
+    DELTA_RPC_DRIVER_CONFIG = {
         "request_codec": "lz4",
         "response_codec": "quick_lz",
         "enable_legacy_rpc_codecs": False
