@@ -462,6 +462,20 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
         assert Counter(row["data"] for row in read_table("//tmp/stderr")) == {"0\n": 2, "1\n": 1, "2\n": 1}
 
+    @authors("gritukan")
+    def test_empty_task_name(self):
+        with pytest.raises(YtError):
+            op = vanilla(
+                spec={
+                    "tasks": {
+                        "": {
+                            "job_count": 1,
+                            "command": "echo A",
+                        },
+                    },
+                })
+            op.track()
+
 ##################################################################
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):

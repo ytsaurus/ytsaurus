@@ -194,7 +194,14 @@ std::vector<TString> TOperation::GetTaskNames() const
         return {};
     }
 
-    auto vanillaOperationSpec = ConvertTo<TVanillaOperationSpecPtr>(SpecString_);
+    TVanillaOperationSpecPtr vanillaOperationSpec;
+    try {
+        vanillaOperationSpec = ConvertTo<TVanillaOperationSpecPtr>(SpecString_);
+    } catch (const std::exception& ex) {
+        // We can try to archive operation with invalid spec (for example with empty task name).
+        // Scheduler should not crash in this case.
+        return {};
+    }
 
     std::vector<TString> taskNames;
     taskNames.reserve(vanillaOperationSpec->Tasks.size());
