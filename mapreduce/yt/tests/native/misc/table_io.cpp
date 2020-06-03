@@ -2105,12 +2105,19 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
         UNIT_ASSERT_EXCEPTION(readFile(100500), yexception);
     }
 
-    Y_UNIT_TEST(TableReaderReadError) {
-        TTestFixture fixture;
+    Y_UNIT_TEST(TableReaderReadError_YT_12822) {
+        class TRetryConfigProvider : public IRetryConfigProvider {
+            public:
+                TRetryConfig CreateRetryConfig() override {
+                    return {TDuration::MilliSeconds(1)};
+                }
+        };
+        TTestFixture fixture(TCreateClientOptions().RetryConfigProvider(MakeIntrusive<TRetryConfigProvider>()));
 
         TConfig::Get()->UseAbortableResponse = true;
-        TConfig::Get()->RetryInterval = TDuration::MilliSeconds(1);
-        TConfig::Get()->ReadRetryCount = 5;
+        TConfig::Get()->RetryInterval = TDuration::MilliSeconds(100);
+        TConfig::Get()->RetryCount = Max<int>();
+        TConfig::Get()->ReadRetryCount = Max<int>();
 
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
@@ -2118,16 +2125,18 @@ Y_UNIT_TEST_SUITE(BlobTableIo) {
 
         {
             auto writer = client->CreateTableWriter<TNode>(testTable);
-            writer->AddRow(TNode()("foo", "bar"));
+            for (int i = 0; i != 1000; ++i) {
+                writer->AddRow(TNode()("foo", "bar"));
+            }
             writer->Finish();
         }
 
-        auto outage = TAbortableHttpResponse::StartOutage("/read_table",
-                TOutageOptions().ResponseCount(10).LengthLimit(3));
-
+        auto outage = TAbortableHttpResponse::StartOutage("/read_table", TOutageOptions().LengthLimit(3));
         try {
             auto reader = client->CreateTableReader<TNode>(testTable);
-            UNIT_FAIL("expected exception");
+            for (const auto cursor : *reader) {
+            }
+            UNIT_FAIL("Expected exception!!!!");
         } catch (yexception& ex) {
             // it's ok
         }

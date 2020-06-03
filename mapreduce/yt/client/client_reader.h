@@ -48,8 +48,7 @@ private:
     THolder<THttpRequest> Request_;
     THttpResponse* Input_;
 
-    int InitialRetryCount_;
-    int RetriesLeft_;
+    IRequestRetryPolicyPtr CurrentRequestRetryPolicy_;
 
 private:
     void TransformYPath();

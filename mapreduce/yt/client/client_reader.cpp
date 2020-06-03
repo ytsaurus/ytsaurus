@@ -49,8 +49,6 @@ TClientReader::TClientReader(
     , Format_(format)
     , Options_(options)
     , ReadTransaction_(nullptr)
-    , InitialRetryCount_(TConfig::Get()->RetryCount)
-    , RetriesLeft_(InitialRetryCount_)
 {
     if (options.CreateTransaction_) {
         ReadTransaction_ = MakeHolder<TPingableTransaction>(ClientRetryPolicy_, Auth_, transactionId, TStartTransactionOptions());
@@ -73,17 +71,27 @@ bool TClientReader::Retry(
     const TMaybe<ui32>& rangeIndex,
     const TMaybe<ui64>& rowIndex)
 {
-    if (--RetriesLeft_ == 0) {
-        return false;
+    if (CurrentRequestRetryPolicy_) {
+        // TODO we should pass actual exception in Retry function
+        yexception genericError;
+        auto backoff = CurrentRequestRetryPolicy_->OnGenericError(genericError);
+        if (!backoff) {
+            return false;
+        }
     }
 
-    CreateRequest(rangeIndex, rowIndex);
-    return true;
+    try {
+        CreateRequest(rangeIndex, rowIndex);
+        return true;
+    } catch (const std::exception& ex) {
+        LOG_ERROR("Client reader retry failed: %s", ex.what());
+        return false;
+    }
 }
 
 void TClientReader::ResetRetries()
 {
-    RetriesLeft_ = InitialRetryCount_;
+    CurrentRequestRetryPolicy_ = nullptr;
 }
 
 size_t TClientReader::DoRead(void* buf, size_t len)
@@ -119,10 +127,11 @@ void TClientReader::TransformYPath()
 
 void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<ui64>& rowIndex)
 {
-    auto retryPolicy = ClientRetryPolicy_->CreatePolicyForGenericRequest();
-
+    if (!CurrentRequestRetryPolicy_) {
+        CurrentRequestRetryPolicy_ = ClientRetryPolicy_->CreatePolicyForGenericRequest();
+    }
     while (true) {
-        retryPolicy->NotifyNewAttempt();
+        CurrentRequestRetryPolicy_->NotifyNewAttempt();
 
         THttpHeader header("GET", GetReadTableCommand());
         header.SetToken(Auth_.Token);
@@ -170,12 +179,12 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
                 *Request_,
                 header,
                 e.what(),
-                retryPolicy->GetAttemptDescription());
+                CurrentRequestRetryPolicy_->GetAttemptDescription());
 
             if (!IsRetriable(e)) {
                 throw;
             }
-            auto backoff = retryPolicy->OnRetriableError(e);
+            auto backoff = CurrentRequestRetryPolicy_->OnRetriableError(e);
             if (!backoff) {
                 throw;
             }
@@ -185,12 +194,12 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
                 *Request_,
                 header,
                 e.what(),
-                retryPolicy->GetAttemptDescription());
+                CurrentRequestRetryPolicy_->GetAttemptDescription());
 
             if (Request_) {
                 Request_->InvalidateConnection();
             }
-            auto backoff = retryPolicy->OnGenericError(e);
+            auto backoff = CurrentRequestRetryPolicy_->OnGenericError(e);
             if (!backoff) {
                 throw;
             }
