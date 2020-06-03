@@ -175,3 +175,8 @@ class YtIdmClient(object):
         """Updates legacy YT group."""
         params = dict(group_name=name, version=version, comment=comment)
         return self._make_request("put", "group", params, group)
+
+    @_with_object_id
+    def remove_all_roles(self, object_id, recursive=False):
+        """Removes all roles from object and from it's descendants if recursive is set to True"""
+        return self._make_request("delete", "roles", dict(id=object_id, recursive=recursive))
