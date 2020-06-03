@@ -1,9 +1,9 @@
 #pragma once
-#pragma once
-
-#if !defined(INCLUDE_COMPRESSED_INTEGER_VECTOR_INL_H)
-#error "you should never include compressed_integer_vector-inl.h directly"
-#endif  // INCLUDE_COMPRESSED_INTEGER_VECTOR_INL_H
+#ifndef BIT_PACKED_UNSIGNED_VECTOR_INL_H_
+#error "Direct inclusion of this file is not allowed, include bit_packed_unsigned_vector.h"
+// For the sake of sane code completion.
+#include "bit_packed_unsigned_vector.h"
+#endif
 
 #include <util/generic/bitops.h>
 
@@ -30,7 +30,7 @@ inline size_t CompressedUnsignedVectorSizeInBytes(ui64 maxValue, size_t count)
 
 template <class T>
 typename std::enable_if<std::is_unsigned<T>::value, size_t>::type
-CompressUnsignedVector(TRange<T> values, ui64 maxValue, ui64* dst)
+BitPackUnsignedVector(TRange<T> values, ui64 maxValue, ui64* dst)
 {
     ui64 width = GetWidth(maxValue);
     ui64 header = values.Size();
@@ -83,13 +83,13 @@ CompressUnsignedVector(TRange<T> values, ui64 maxValue, ui64* dst)
 
 template <class T>
 typename std::enable_if<std::is_unsigned<T>::value, TSharedRef>::type
-CompressUnsignedVector(TRange<T> values, ui64 maxValue)
+BitPackUnsignedVector(TRange<T> values, ui64 maxValue)
 {
     struct TCompressedUnsignedVectorTag {};
 
     size_t size = CompressedUnsignedVectorSizeInBytes(maxValue, values.Size());
     auto data = TSharedMutableRef::Allocate<TCompressedUnsignedVectorTag>(size);
-    auto actualSize = CompressUnsignedVector(values, maxValue, reinterpret_cast<ui64*>(data.Begin()));
+    auto actualSize = BitPackUnsignedVector(values, maxValue, reinterpret_cast<ui64*>(data.Begin()));
     YT_VERIFY(size == actualSize * sizeof(ui64));
 
     return data;
@@ -98,7 +98,7 @@ CompressUnsignedVector(TRange<T> values, ui64 maxValue)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, bool Scan>
-TCompressedUnsignedVectorReader<T, Scan>::TCompressedUnsignedVectorReader(const ui64* data)
+TBitPackedUnsignedVectorReader<T, Scan>::TBitPackedUnsignedVectorReader(const ui64* data)
     : Data_(data + 1)
     , Size_(*data & MaskLowerBits(56))
     , Width_(*data >> 56)
@@ -109,14 +109,14 @@ TCompressedUnsignedVectorReader<T, Scan>::TCompressedUnsignedVectorReader(const 
 }
 
 template <class T, bool Scan>
-TCompressedUnsignedVectorReader<T, Scan>::TCompressedUnsignedVectorReader()
+TBitPackedUnsignedVectorReader<T, Scan>::TBitPackedUnsignedVectorReader()
     : Data_(nullptr)
     , Size_(0)
     , Width_(0)
 { }
 
 template <class T, bool Scan>
-inline T TCompressedUnsignedVectorReader<T, Scan>::operator[] (size_t index) const
+inline T TBitPackedUnsignedVectorReader<T, Scan>::operator[] (size_t index) const
 {
     YT_ASSERT(index < Size_);
     if (Scan) {
@@ -127,13 +127,13 @@ inline T TCompressedUnsignedVectorReader<T, Scan>::operator[] (size_t index) con
 }
 
 template <class T, bool Scan>
-inline size_t TCompressedUnsignedVectorReader<T, Scan>::GetSize() const
+inline size_t TBitPackedUnsignedVectorReader<T, Scan>::GetSize() const
 {
     return Size_;
 }
 
 template <class T, bool Scan>
-inline size_t TCompressedUnsignedVectorReader<T, Scan>::GetByteSize() const
+inline size_t TBitPackedUnsignedVectorReader<T, Scan>::GetByteSize() const
 {
     if (Data_) {
         return (1 + ((Width_ * Size_ + 63ULL) >> 6ULL)) * sizeof(ui64);
@@ -143,7 +143,13 @@ inline size_t TCompressedUnsignedVectorReader<T, Scan>::GetByteSize() const
 }
 
 template <class T, bool Scan>
-T TCompressedUnsignedVectorReader<T, Scan>::GetValue(size_t index) const
+TRange<T> TBitPackedUnsignedVectorReader<T, Scan>::GetData() const
+{
+    return MakeRange(Values_, Values_ + Size_);
+}
+
+template <class T, bool Scan>
+T TBitPackedUnsignedVectorReader<T, Scan>::GetValue(size_t index) const
 {
     if (Width_ == 0) {
         return 0;
@@ -187,7 +193,7 @@ struct TCompressedUnsignedVectorUnrolledReader<T, Width, 0>
 
 template <class T, bool Scan>
 template <int Width>
-void TCompressedUnsignedVectorReader<T, Scan>::UnpackValuesUnrolled()
+void TBitPackedUnsignedVectorReader<T, Scan>::UnpackValuesUnrolled()
 {
     constexpr bool Aligned = (Width % 64 == 0);
     constexpr int UnrollFactor = (64 / Width) - (Aligned ? 0 : 1);
@@ -224,7 +230,7 @@ void TCompressedUnsignedVectorReader<T, Scan>::UnpackValuesUnrolled()
 }
 
 template <class T, bool Scan>
-void TCompressedUnsignedVectorReader<T, Scan>::UnpackValuesFallback()
+void TBitPackedUnsignedVectorReader<T, Scan>::UnpackValuesFallback()
 {
     const ui64* input = Data_;
     auto* output = ValuesHolder_.get();
@@ -252,7 +258,7 @@ void TCompressedUnsignedVectorReader<T, Scan>::UnpackValuesFallback()
 
 template <class T, bool Scan>
 template <class S>
-void TCompressedUnsignedVectorReader<T, Scan>::UnpackValuesAligned()
+void TBitPackedUnsignedVectorReader<T, Scan>::UnpackValuesAligned()
 {
     const auto* input = reinterpret_cast<const S*>(Data_);
     auto* output = ValuesHolder_.get();
@@ -263,7 +269,7 @@ void TCompressedUnsignedVectorReader<T, Scan>::UnpackValuesAligned()
 }
 
 template <class T, bool Scan>
-void TCompressedUnsignedVectorReader<T, Scan>::UnpackValues()
+void TBitPackedUnsignedVectorReader<T, Scan>::UnpackValues()
 {
     if (Size_ == 0) {
         return;

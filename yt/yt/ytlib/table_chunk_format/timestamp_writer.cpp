@@ -1,6 +1,6 @@
 #include "timestamp_writer.h"
 #include "data_block_writer.h"
-#include "compressed_integer_vector.h"
+#include "bit_packed_unsigned_vector.h"
 
 #include <yt/client/table_client/versioned_row.h>
 
@@ -194,19 +194,19 @@ private:
         i64 size = 0;
 
         std::vector<TSharedRef> data;
-        data.push_back(CompressUnsignedVector(MakeRange(Dictionary_), MaxSegmentTimestamp_ - MinSegmentTimestamp_));
+        data.push_back(BitPackUnsignedVector(MakeRange(Dictionary_), MaxSegmentTimestamp_ - MinSegmentTimestamp_));
         size += data.back().Size();
 
-        data.push_back(CompressUnsignedVector(MakeRange(WriteTimestampIds_), Dictionary_.size()));
+        data.push_back(BitPackUnsignedVector(MakeRange(WriteTimestampIds_), Dictionary_.size()));
         size += data.back().Size();
 
-        data.push_back(CompressUnsignedVector(MakeRange(DeleteTimestampIds_), Dictionary_.size()));
+        data.push_back(BitPackUnsignedVector(MakeRange(DeleteTimestampIds_), Dictionary_.size()));
         size += data.back().Size();
 
-        data.push_back(CompressUnsignedVector(MakeRange(WriteTimestampCounts_), maxWriteIndex));
+        data.push_back(BitPackUnsignedVector(MakeRange(WriteTimestampCounts_), maxWriteIndex));
         size += data.back().Size();
 
-        data.push_back(CompressUnsignedVector(MakeRange(DeleteTimestampCounts_), maxDeleteIndex));
+        data.push_back(BitPackUnsignedVector(MakeRange(DeleteTimestampCounts_), maxDeleteIndex));
         size += data.back().Size();
 
         TSegmentMeta segmentMeta;

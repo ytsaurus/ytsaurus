@@ -2,7 +2,7 @@
 
 #include "data_block_writer.h"
 #include "helpers.h"
-#include "compressed_integer_vector.h"
+#include "bit_packed_unsigned_vector.h"
 
 #include <yt/client/table_client/versioned_row.h>
 
@@ -152,7 +152,7 @@ void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo)
         auto* denseMeta = segmentInfo->SegmentMeta.MutableExtension(TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
         denseMeta->set_expected_values_per_row(expectedValuesPerRow);
 
-        segmentInfo->Data.push_back(CompressUnsignedVector(
+        segmentInfo->Data.push_back(BitPackUnsignedVector(
             MakeRange(ValuesPerRow_),
             maxDiffFromExpected));
     } else {
@@ -167,12 +167,12 @@ void TVersionedColumnWriterBase::DumpVersionedData(TSegmentInfo* segmentInfo)
         }
         YT_VERIFY(rowIndexes.size() == NullBitmap_.GetBitSize());
 
-        segmentInfo->Data.push_back(CompressUnsignedVector(
+        segmentInfo->Data.push_back(BitPackUnsignedVector(
             MakeRange(rowIndexes),
             rowIndexes.back()));
     }
 
-    segmentInfo->Data.push_back(CompressUnsignedVector(
+    segmentInfo->Data.push_back(BitPackUnsignedVector(
         MakeRange(TimestampIndexes_),
         MaxTimestampIndex_));
 

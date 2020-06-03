@@ -101,7 +101,7 @@ void TColumnarChunkReaderBase::ResetExhaustedColumns()
 
             columnReader->ResetBlock(
                 PendingBlocks_[i].Get().Value().Data,
-                Columns_[i].PendingBlockIndex_);
+                Columns_[i].PendingBlockIndex);
         }
     }
 
@@ -292,10 +292,10 @@ TFuture<void> TColumnarRangeChunkReaderBase::RequestFirstBlocks()
             // E.g. NullColumnReader.
             PendingBlocks_.emplace_back();
         } else {
-            column.PendingBlockIndex_ = column.BlockIndexSequence.front();
-            RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex_);
+            column.PendingBlockIndex = column.BlockIndexSequence.front();
+            RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex);
             MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
-            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
+            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex));
             blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
         }
     }
@@ -320,10 +320,10 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
 
             auto nextBlockIndex = column.ColumnReader->GetNextBlockIndex();
             YT_VERIFY(nextBlockIndex);
-            column.PendingBlockIndex_ = *nextBlockIndex;
-            RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex_);
+            column.PendingBlockIndex = *nextBlockIndex;
+            RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex);
             MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
-            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
+            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex));
             blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
         }
     }
@@ -422,10 +422,10 @@ TFuture<void> TColumnarLookupChunkReaderBase::RequestFirstBlocks()
                 PendingBlocks_.emplace_back();
             }
 
-            column.PendingBlockIndex_ = column.BlockIndexSequence[NextKeyIndex_];
-            RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex_);
+            column.PendingBlockIndex = column.BlockIndexSequence[NextKeyIndex_];
+            RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex);
             MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
-            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex_));
+            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex));
             blockFetchResult.push_back(PendingBlocks_.back().As<void>());
         }
     }

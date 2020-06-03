@@ -45,7 +45,7 @@ public:
         SegmentRowIndex_ = GetSegmentRowIndex(rowIndex);
     }
 
-    virtual bool EndOfSegment() const override
+    virtual bool IsEndOfSegment() const override
     {
         return SegmentRowIndex_ == Meta_.row_count();
     }
@@ -94,8 +94,8 @@ private:
 
     const i64 SegmentStartRowIndex_;
 
-    using TOffsetDiffReader = TCompressedUnsignedVectorReader<ui32, true>;
-    using TValueCountReader = TCompressedUnsignedVectorReader<ui32, true>;
+    using TOffsetDiffReader = TBitPackedUnsignedVectorReader<ui32, true>;
+    using TValueCountReader = TBitPackedUnsignedVectorReader<ui32, true>;
 
     i64 ExpectedBytesPerRow_;
 
@@ -138,11 +138,6 @@ public:
     {
         EnsureSegmentReader();
         CurrentRowIndex_ += SegmentReader_->ReadValues(rows);
-
-        if (SegmentReader_->EndOfSegment()) {
-            SegmentReader_.reset();
-            ++CurrentSegmentIndex_;
-        }
     }
 
     virtual void GetValueCounts(TMutableRange<ui32> valueCounts) override
@@ -163,6 +158,11 @@ private:
 
     void EnsureSegmentReader()
     {
+        if (SegmentReader_ && SegmentReader_->IsEndOfSegment()) {
+            SegmentReader_.reset();
+            ++CurrentSegmentIndex_;
+        }
+        YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
         if (!SegmentReader_) {
             const auto& meta = ColumnMeta_.segments(CurrentSegmentIndex_);
             SegmentReader_ = std::make_unique<TSchemalessSegmentReader>(

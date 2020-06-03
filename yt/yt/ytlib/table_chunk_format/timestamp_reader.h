@@ -1,7 +1,7 @@
 #pragma once
 
 #include "column_reader.h"
-#include "compressed_integer_vector.h"
+#include "bit_packed_unsigned_vector.h"
 
 #include "column_reader_detail.h"
 
@@ -65,19 +65,19 @@ private:
     i64 SegmentStartRowIndex_;
 
     // Dictionary id -> timestamp.
-    TCompressedUnsignedVectorReader<ui64> DictionaryReader_;
+    TBitPackedUnsignedVectorReader<ui64> DictionaryReader_;
 
     // Sequence of write timestamp ids.
-    TCompressedUnsignedVectorReader<ui32> WriteIdReader_;
+    TBitPackedUnsignedVectorReader<ui32> WriteIdReader_;
 
     // Sequence of delete timestamp ids.
-    TCompressedUnsignedVectorReader<ui32> DeleteIdReader_;
+    TBitPackedUnsignedVectorReader<ui32> DeleteIdReader_;
 
     // End of row write id indexes. One value per row.
-    TCompressedUnsignedVectorReader<ui32> WriteIndexReader_;
+    TBitPackedUnsignedVectorReader<ui32> WriteIndexReader_;
 
     // One value per row. Each value is the index of last delete timestamp id for current row.
-    TCompressedUnsignedVectorReader<ui32> DeleteIndexReader_;
+    TBitPackedUnsignedVectorReader<ui32> DeleteIndexReader_;
 
     NTableClient::TTimestamp DeleteTimestamp_;
     NTableClient::TTimestamp WriteTimestamp_;

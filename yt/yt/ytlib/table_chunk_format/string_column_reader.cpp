@@ -3,7 +3,7 @@
 #include "column_reader_detail.h"
 #include "private.h"
 #include "helpers.h"
-#include "compressed_integer_vector.h"
+#include "bit_packed_unsigned_vector.h"
 
 #include <yt/ytlib/table_client/helpers.h>
 
@@ -23,29 +23,35 @@ using namespace NYson;
 template <EValueType ValueType, bool Scan, bool UnpackValue>
 class TStringValueExtractorBase
 {
+public:
+    i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex)
+    {
+        // XXX
+        return (upperRowIndex - lowerRowIndex) * sizeof(double);
+    }
+
 protected:
-    TStringValueExtractorBase(const TSegmentMeta& segmentMeta)
+    const NProto::TStringSegmentMeta& StringMeta_;
+    
+    mutable TStatelessLexer Lexer_;
+    using TOffsetsReader = TBitPackedUnsignedVectorReader<ui32, Scan>;
+    TOffsetsReader OffsetReader_;
+    TRef StringData_;
+
+    explicit TStringValueExtractorBase(const TSegmentMeta& segmentMeta)
         : StringMeta_(segmentMeta.GetExtension(TStringSegmentMeta::string_segment_meta))
     { }
-
-    const NProto::TStringSegmentMeta& StringMeta_;
-    mutable TStatelessLexer Lexer_;
-
-    using TOffsetsReader = TCompressedUnsignedVectorReader<ui32, Scan>;
-
-    TOffsetsReader OffsetsReader_;
-    const char* StringData_;
 
     ui32 GetOffset(i64 offsetIndex) const
     {
         return StringMeta_.expected_length() * (offsetIndex + 1) +
-            ZigZagDecode32(OffsetsReader_[offsetIndex]);
+            ZigZagDecode32(OffsetReader_[offsetIndex]);
     }
 
     void SetStringValue(TUnversionedValue* value, i64 offsetIndex, int id, bool aggregate) const
     {
         ui32 padding = offsetIndex == 0 ? 0 : GetOffset(offsetIndex - 1);
-        const char* begin = StringData_ + padding;
+        const char* begin = StringData_.Begin() + padding;
         ui32 length = GetOffset(offsetIndex) - padding;
         auto string = TStringBuf(begin, length);
 
@@ -78,7 +84,7 @@ public:
 
     void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
     {
-        auto dictionaryId = IdsReader_[valueIndex];
+        auto dictionaryId = IdReader_[valueIndex];
         if (dictionaryId == 0) {
             *value = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
         } else {
@@ -88,23 +94,27 @@ public:
 
 protected:
     using TBase = TStringValueExtractorBase<ValueType, Scan, UnpackValue>;
-    using TIdsReader = TCompressedUnsignedVectorReader<ui32, Scan>;
-    TIdsReader IdsReader_;
+    using TIdsReader = TBitPackedUnsignedVectorReader<ui32, Scan>;
+    TIdsReader IdReader_;
 
     using TBase::SetStringValue;
-    using TBase::OffsetsReader_;
+    using TBase::OffsetReader_;
     using TBase::StringData_;
     using typename TBase::TOffsetsReader;
 
-    void InitDictionaryReader(const char* ptr)
+    const char* InitDictionaryReader(const char* begin, const char* end)
     {
-        IdsReader_ = TIdsReader(reinterpret_cast<const ui64*>(ptr));
-        ptr += IdsReader_.GetByteSize();
+        const char* ptr = begin;
 
-        OffsetsReader_ = TOffsetsReader(reinterpret_cast<const ui64*>(ptr));
-        ptr += OffsetsReader_.GetByteSize();
+        IdReader_ = TIdsReader(reinterpret_cast<const ui64*>(ptr));
+        ptr += IdReader_.GetByteSize();
 
-        StringData_ = ptr;
+        OffsetReader_ = TOffsetsReader(reinterpret_cast<const ui64*>(ptr));
+        ptr += OffsetReader_.GetByteSize();
+
+        StringData_ = TRef(ptr, end);
+        
+        return end;
     }
 };
 
@@ -130,23 +140,27 @@ protected:
     TReadOnlyBitmap<ui64> NullBitmap_;
 
     using TBase = TStringValueExtractorBase<ValueType, Scan, UnpackValue>;
-
     using TBase::SetStringValue;
-    using TBase::OffsetsReader_;
+    using TBase::OffsetReader_;
     using TBase::StringData_;
     using typename TBase::TOffsetsReader;
 
-    void InitDirectReader(const char* ptr)
+    const char* InitDirectReader(const char* begin, const char* end)
     {
-        OffsetsReader_ = TOffsetsReader(reinterpret_cast<const ui64*>(ptr));
-        ptr += OffsetsReader_.GetByteSize();
+        const char* ptr = begin;
+
+        OffsetReader_ = TOffsetsReader(reinterpret_cast<const ui64*>(ptr));
+        ptr += OffsetReader_.GetByteSize();
 
         NullBitmap_ = TReadOnlyBitmap<ui64>(
             reinterpret_cast<const ui64*>(ptr),
-            OffsetsReader_.GetSize());
+            OffsetReader_.GetSize());
         ptr += NullBitmap_.GetByteSize();
 
-        StringData_ = ptr;
+        StringData_ = TRef(ptr, end);
+        ptr += StringData_.Size();
+
+        return ptr;
     }
 };
 
@@ -163,9 +177,13 @@ public:
         , TDirectStringValueExtractorBase<ValueType, true, false>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += InitDenseReader(ptr);
-        TDirectStringValueExtractorBase<ValueType, true, false>::InitDirectReader(ptr);
+        ptr = InitDenseReader(ptr);
+        ptr = InitDirectReader(ptr, data.End());
+        YT_VERIFY(ptr == data.End());
     }
+
+private:
+    using TDirectStringValueExtractorBase<ValueType, true, false>::InitDirectReader;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,8 +199,9 @@ public:
         , TDictionaryStringValueExtractorBase<ValueType, true, false>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += InitDenseReader(ptr);
-        TDictionaryStringValueExtractorBase<ValueType, true, false>::InitDictionaryReader(ptr);
+        ptr = InitDenseReader(ptr);
+        ptr = TDictionaryStringValueExtractorBase<ValueType, true, false>::InitDictionaryReader(ptr, data.End());
+        YT_VERIFY(ptr == data.End());
     }
 };
 
@@ -199,8 +218,9 @@ public:
         , TDirectStringValueExtractorBase<ValueType, true, false>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += InitSparseReader(ptr);
-        TDirectStringValueExtractorBase<ValueType, true, false>::InitDirectReader(ptr);
+        ptr = InitSparseReader(ptr);
+        ptr = TDirectStringValueExtractorBase<ValueType, true, false>::InitDirectReader(ptr, data.End());
+        YT_VERIFY(ptr == data.End());
     }
 };
 
@@ -217,8 +237,9 @@ public:
         , TDictionaryStringValueExtractorBase<ValueType, true, false>(meta)
     {
         const char* ptr = data.Begin();
-        ptr += InitSparseReader(ptr);
-        TDictionaryStringValueExtractorBase<ValueType, true, false>::InitDictionaryReader(ptr);
+        ptr = InitSparseReader(ptr);
+        ptr = TDictionaryStringValueExtractorBase<ValueType, true, false>::InitDictionaryReader(ptr, data.End());
+        YT_VERIFY(ptr == data.End());
     }
 };
 
@@ -231,20 +252,54 @@ class TDirectRleStringUnversionedValueExtractor
 {
 public:
     TDirectRleStringUnversionedValueExtractor(TRef data, const TSegmentMeta& meta)
-        : TBase(meta)
+        : TDirectStringValueExtractorBase<ValueType, Scan, true>(meta)
     {
         const char* ptr = data.Begin();
+        
         RowIndexReader_ = TRowIndexReader(reinterpret_cast<const ui64*>(ptr));
         ptr += RowIndexReader_.GetByteSize();
+        
+        ptr = TDirectStringValueExtractorBase<ValueType, Scan, true>::InitDirectReader(ptr, data.End());
+        
+        YT_VERIFY(ptr == data.End());
+    }
 
-        TBase::InitDirectReader(ptr);
+    int GetBatchColumnCount()
+    {
+        return 2;
+    }
+
+    void ReadColumnarBatch(
+        i64 startRowIndex,
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+    {
+        YT_VERIFY(columns.size() == 2);
+        auto& primaryColumn = columns[0];
+        auto& rleColumn = columns[1];
+        ReadColumnarStringValues(
+            &rleColumn,
+            -1,
+            StringMeta_.expected_length(),
+            OffsetReader_.GetData(),
+            StringData_);
+        ReadColumnarNullBitmap(
+            &rleColumn,
+            -1,
+            NullBitmap_.GetData());
+        ReadColumnarRle(
+            &primaryColumn,
+            &rleColumn,
+            startRowIndex,
+            RowIndexReader_.GetData());
     }
 
 private:
-    using TBase = TDirectStringValueExtractorBase<ValueType, Scan, true>;
-
     using TRleValueExtractorBase<Scan>::RowIndexReader_;
     using typename TRleValueExtractorBase<Scan>::TRowIndexReader;
+    using TDirectStringValueExtractorBase<ValueType, Scan, true>::OffsetReader_;
+    using TDirectStringValueExtractorBase<ValueType, Scan, true>::NullBitmap_;
+    using TDirectStringValueExtractorBase<ValueType, Scan, true>::StringMeta_;
+    using TDirectStringValueExtractorBase<ValueType, Scan, true>::StringData_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -256,20 +311,53 @@ class TDictionaryRleStringUnversionedValueExtractor
 {
 public:
     TDictionaryRleStringUnversionedValueExtractor(TRef data, const TSegmentMeta& meta)
-        : TBase(meta)
+        : TDictionaryStringValueExtractorBase<ValueType, Scan, true>(meta)
     {
         const char* ptr = data.Begin();
         RowIndexReader_ = TRowIndexReader(reinterpret_cast<const ui64*>(ptr));
         ptr += RowIndexReader_.GetByteSize();
+        ptr = TDictionaryStringValueExtractorBase<ValueType, Scan, true>::InitDictionaryReader(ptr, data.End());
+        YT_VERIFY(ptr == data.End());
+    }
 
-        TBase::InitDictionaryReader(ptr);
+    int GetBatchColumnCount()
+    {
+        return 3;
+    }
+
+    void ReadColumnarBatch(
+        i64 startRowIndex,
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+    {
+        YT_VERIFY(columns.size() == 3);
+        auto& primaryColumn = columns[0];
+        auto& dictionaryColumn = columns[1];
+        auto& rleColumn = columns[2];
+        ReadColumnarStringValues(
+            &dictionaryColumn,
+            -1,
+            StringMeta_.expected_length(),
+            OffsetReader_.GetData(),
+            StringData_);
+        ReadColumnarDictionary(
+            &rleColumn,
+            &dictionaryColumn,
+            -1,
+            IdReader_.GetData());
+        ReadColumnarRle(
+            &primaryColumn,
+            &rleColumn,
+            startRowIndex,
+            RowIndexReader_.GetData());
     }
 
 private:
-    using TBase = TDictionaryStringValueExtractorBase<ValueType, Scan, true>;
-
     using TRleValueExtractorBase<Scan>::RowIndexReader_;
     using typename TRleValueExtractorBase<Scan>::TRowIndexReader;
+    using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::IdReader_;
+    using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::OffsetReader_;
+    using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::StringMeta_;
+    using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::StringData_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -283,11 +371,41 @@ public:
         : TBase(meta)
     {
         const char* ptr = data.Begin();
-        TBase::InitDictionaryReader(ptr);
+        ptr = TBase::InitDictionaryReader(data.Begin(), data.End());
+        YT_VERIFY(ptr == data.End());
+    }
+
+    int GetBatchColumnCount()
+    {
+        return 2;
+    }
+
+    void ReadColumnarBatch(
+        i64 startRowIndex,
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+    {
+        YT_VERIFY(columns.size() == 2);
+        auto& primaryColumn = columns[0];
+        auto& dictionaryColumn = columns[1];
+        ReadColumnarStringValues(
+            &dictionaryColumn,
+            -1,
+            StringMeta_.expected_length(),
+            OffsetReader_.GetData(),
+            StringData_);
+        ReadColumnarDictionary(
+            &primaryColumn,
+            &dictionaryColumn,
+            startRowIndex,
+            IdReader_.GetData());
     }
 
 private:
     using TBase = TDictionaryStringValueExtractorBase<ValueType, Scan, true>;
+    using TBase::IdReader_;
+    using TBase::OffsetReader_;
+    using TBase::StringMeta_;
+    using TBase::StringData_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -300,13 +418,41 @@ public:
     TDirectDenseStringUnversionedValueExtractor(TRef data, const TSegmentMeta& meta)
         : TBase(meta)
     {
-        TBase::InitDirectReader(data.Begin());
-        YT_VERIFY(meta.row_count() == OffsetsReader_.GetSize());
+        const char* ptr = data.Begin();
+        ptr = TBase::InitDirectReader(ptr, data.End());
+        YT_VERIFY(ptr == data.End());
+        YT_VERIFY(meta.row_count() == OffsetReader_.GetSize());
+    }
+
+    int GetBatchColumnCount()
+    {
+        return 1;
+    }
+
+    void ReadColumnarBatch(
+        i64 startRowIndex,
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+    {
+        YT_VERIFY(columns.size() == 1);
+        auto& column = columns[0];
+        ReadColumnarStringValues(
+            &column,
+            startRowIndex,
+            StringMeta_.expected_length(),
+            OffsetReader_.GetData(),
+            StringData_);
+        ReadColumnarNullBitmap(
+            &column,
+            startRowIndex,
+            NullBitmap_.GetData());
     }
 
 private:
     using TBase = TDirectStringValueExtractorBase<ValueType, Scan, true>;
-    using TBase::OffsetsReader_;
+    using TBase::OffsetReader_;
+    using TBase::NullBitmap_;
+    using TBase::StringMeta_;
+    using TBase::StringData_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -333,8 +479,7 @@ private:
             TDictionarySparseVersionedStringValueExtractor<ValueType>>;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
-        auto segmentType = EVersionedStringSegmentType(meta.type());
-
+        auto segmentType = FromProto<EVersionedStringSegmentType>(meta.type());
         switch (segmentType) {
             case EVersionedStringSegmentType::DirectDense:
                 return DoCreateSegmentReader<TDirectDenseReader>(meta);
@@ -403,6 +548,14 @@ public:
             upperRowIndex);
     }
 
+    virtual i64 EstimateDataWeight(
+        i64 lowerRowIndex,
+        i64 upperRowIndex) override
+    {
+        const auto& stringMeta = CurrentSegmentMeta().GetExtension(TStringSegmentMeta::string_segment_meta);
+        return std::max<i64>(1, stringMeta.expected_length()) * (upperRowIndex - lowerRowIndex);
+    }
+        
 private:
     virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool scan) override
     {
@@ -439,8 +592,7 @@ private:
             TDictionaryRleStringUnversionedValueExtractor<ValueType, false>> TDictionaryRleLookupReader;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
-        auto segmentType = EUnversionedStringSegmentType(meta.type());
-
+        auto segmentType = FromProto<EUnversionedStringSegmentType>(meta.type());
         switch (segmentType) {
             case EUnversionedStringSegmentType::DirectDense:
                 if (scan) {

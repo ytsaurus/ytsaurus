@@ -11,17 +11,32 @@ TUnversionedSegmentReaderBase::TUnversionedSegmentReaderBase(
     TRef data,
     const TSegmentMeta& meta,
     int columnIndex,
-    int columnId)
+    int columnId,
+    EValueType valueType)
     : Data_(data)
     , Meta_(meta)
     , ColumnIndex_(columnIndex)
     , ColumnId_(columnId)
+    , ValueType_(valueType)
     , SegmentStartRowIndex_(meta.chunk_row_count() - meta.row_count())
 { }
 
-bool TUnversionedSegmentReaderBase::EndOfSegment() const
+bool TUnversionedSegmentReaderBase::IsEndOfSegment() const
 {
     return SegmentRowIndex_ == Meta_.row_count();
+}
+
+i64 TUnversionedSegmentReaderBase::EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex)
+{
+    return (upperRowIndex - lowerRowIndex) * GetDataWeight(ValueType_);
+}
+
+void TUnversionedSegmentReaderBase::ReadColumnarBatch(
+    TMutableRange<IUnversionedRowBatch::TColumn> /*columns*/,
+    i64 rowCount)
+{
+    SegmentRowIndex_ += rowCount;
+    YT_VERIFY(SegmentRowIndex_ <= Meta_.row_count());
 }
 
 i64 TUnversionedSegmentReaderBase::GetSegmentRowIndex(i64 rowIndex) const
@@ -45,11 +60,9 @@ bool TVersionedValueExtractorBase::GetAggregate(i64 valueIndex) const
     return Aggregate_ ? AggregateBitmap_[valueIndex] : false;
 }
 
-size_t TVersionedValueExtractorBase::InitTimestampIndexReader(const char* ptr)
+const char* TVersionedValueExtractorBase::InitTimestampIndexReader(const char* ptr)
 {
-    const char* begin = ptr;
-
-    TimestampIndexReader_ = TCompressedUnsignedVectorReader<ui32>(reinterpret_cast<const ui64*>(ptr));
+    TimestampIndexReader_ = TBitPackedUnsignedVectorReader<ui32>(reinterpret_cast<const ui64*>(ptr));
     ptr += TimestampIndexReader_.GetByteSize();
 
     if (Aggregate_) {
@@ -59,7 +72,7 @@ size_t TVersionedValueExtractorBase::InitTimestampIndexReader(const char* ptr)
         ptr += AggregateBitmap_.GetByteSize();
     }
 
-    return ptr - begin;
+    return ptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +108,7 @@ i64 TDenseVersionedValueExtractorBase::GetLowerValueIndex(i64 segmentRowIndex) c
         return 0;
     } else {
         return DenseVersionedMeta_.expected_values_per_row() * segmentRowIndex +
-           ZigZagDecode32(ValuesPerRowDiffReader_[segmentRowIndex - 1]);
+            ZigZagDecode32(ValuesPerRowDiffReader_[segmentRowIndex - 1]);
     }
 }
 
@@ -104,15 +117,14 @@ ui32 TDenseVersionedValueExtractorBase::GetValueCount(i64 segmentRowIndex) const
     return GetLowerValueIndex(segmentRowIndex + 1) - GetLowerValueIndex(segmentRowIndex);
 }
 
-size_t TDenseVersionedValueExtractorBase::InitDenseReader(const char* ptr)
+const char* TDenseVersionedValueExtractorBase::InitDenseReader(const char* ptr)
 {
-    const char* begin = ptr;
-    ValuesPerRowDiffReader_ = TCompressedUnsignedVectorReader<ui32>(reinterpret_cast<const ui64*>(ptr));
+    ValuesPerRowDiffReader_ = TBitPackedUnsignedVectorReader<ui32>(reinterpret_cast<const ui64*>(ptr));
     ptr += ValuesPerRowDiffReader_.GetByteSize();
 
-    ptr += InitTimestampIndexReader(ptr);
+    ptr = InitTimestampIndexReader(ptr);
 
-    return ptr - begin;
+    return ptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,15 +172,194 @@ std::pair<ui32, ui32> TSparseVersionedValueExtractorBase::GetValueIndexRange(i64
     return std::make_pair(valueIndex, upperValueIndex);
 }
 
-size_t TSparseVersionedValueExtractorBase::InitSparseReader(const char* ptr)
+const char* TSparseVersionedValueExtractorBase::InitSparseReader(const char* ptr)
 {
-    const char* begin = ptr;
-    RowIndexReader_ = TCompressedUnsignedVectorReader<ui64>(reinterpret_cast<const ui64*>(ptr));
+    RowIndexReader_ = TBitPackedUnsignedVectorReader<ui64>(reinterpret_cast<const ui64*>(ptr));
     ptr += RowIndexReader_.GetByteSize();
+    
+    ptr = InitTimestampIndexReader(ptr);
+    
+    return ptr;
+}
 
-    ptr += InitTimestampIndexReader(ptr);
+////////////////////////////////////////////////////////////////////////////////
 
-    return ptr - begin;
+TColumnReaderBase::TColumnReaderBase(const NProto::TColumnMeta& columnMeta)
+    : ColumnMeta_(columnMeta)
+{ }
+
+void TColumnReaderBase::ResetBlock(TSharedRef block, int blockIndex)
+{
+    ResetSegmentReader();
+    Block_ = std::move(block);
+    CurrentBlockIndex_ = blockIndex;
+
+    if (CurrentSegmentMeta().block_index() != CurrentBlockIndex_) {
+        CurrentSegmentIndex_ = FindFirstBlockSegment();
+    }
+
+    LastBlockSegmentIndex_ = FindLastBlockSegment();
+    YT_VERIFY(LastBlockSegmentIndex_ >= CurrentSegmentIndex_);
+}
+
+void TColumnReaderBase::SkipToRowIndex(i64 rowIndex)
+{
+    YT_VERIFY(rowIndex >= CurrentRowIndex_);
+
+    CurrentRowIndex_ = rowIndex;
+    int segmentIndex = FindSegmentByRowIndex(rowIndex);
+
+    YT_VERIFY(segmentIndex >= CurrentSegmentIndex_);
+    if (segmentIndex != CurrentSegmentIndex_) {
+        CurrentSegmentIndex_ = segmentIndex;
+        ResetSegmentReader();
+    }
+}
+
+i64 TColumnReaderBase::GetCurrentRowIndex() const
+{
+    return CurrentRowIndex_;
+}
+
+i64 TColumnReaderBase::GetBlockUpperRowIndex() const
+{
+    if (LastBlockSegmentIndex_ < 0) {
+        return 0;
+    } else {
+        return ColumnMeta_.segments(LastBlockSegmentIndex_).chunk_row_count();
+    }
+}
+
+i64 TColumnReaderBase::GetReadyUpperRowIndex() const
+{
+    if (CurrentSegmentIndex_ == ColumnMeta_.segments_size()) {
+        return CurrentRowIndex_;
+    } else {
+        return CurrentSegmentMeta().chunk_row_count();
+    }
+}
+
+int TColumnReaderBase::GetCurrentBlockIndex() const
+{
+    return CurrentBlockIndex_;
+}
+
+std::optional<int> TColumnReaderBase::GetNextBlockIndex() const
+{
+    return (LastBlockSegmentIndex_ + 1) == ColumnMeta_.segments_size()
+        ? std::nullopt
+        : std::make_optional(static_cast<int>(ColumnMeta_.segments(LastBlockSegmentIndex_ + 1).block_index()));
+}
+
+const NProto::TSegmentMeta& TColumnReaderBase::CurrentSegmentMeta() const
+{
+    return ColumnMeta_.segments(CurrentSegmentIndex_);
+}
+
+int TColumnReaderBase::FindSegmentByRowIndex(i64 rowIndex) const
+{
+    auto it = std::upper_bound(
+        ColumnMeta_.segments().begin() + CurrentSegmentIndex_,
+        ColumnMeta_.segments().end(),
+        rowIndex,
+        [] (i64 index, const NProto::TSegmentMeta& segmentMeta) {
+            return index < segmentMeta.chunk_row_count();
+        }
+    );
+
+    return std::distance(ColumnMeta_.segments().begin(), it);
+}
+
+i64 TColumnReaderBase::GetSegmentStartRowIndex(int segmentIndex) const
+{
+    auto meta = ColumnMeta_.segments(segmentIndex);
+    return meta.chunk_row_count() - meta.row_count();
+}
+
+int TColumnReaderBase::FindFirstBlockSegment() const
+{
+    auto it = std::lower_bound(
+        ColumnMeta_.segments().begin() + CurrentSegmentIndex_,
+        ColumnMeta_.segments().end(),
+        CurrentBlockIndex_,
+        [] (const NProto::TSegmentMeta& segmentMeta, int blockIndex) {
+            return segmentMeta.block_index() < blockIndex;
+        }
+    );
+    YT_VERIFY(it != ColumnMeta_.segments().end());
+    return std::distance(ColumnMeta_.segments().begin(), it);
+}
+
+int TColumnReaderBase::FindLastBlockSegment() const
+{
+    auto it = std::upper_bound(
+        ColumnMeta_.segments().begin() + CurrentSegmentIndex_,
+        ColumnMeta_.segments().end(),
+        CurrentBlockIndex_,
+        [] (int blockIndex, const NProto::TSegmentMeta& segmentMeta) {
+            return blockIndex < segmentMeta.block_index();
+        }
+    );
+
+    YT_VERIFY(it != ColumnMeta_.segments().begin());
+    return std::distance(ColumnMeta_.segments().begin(), it - 1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TUnversionedColumnReaderBase::TUnversionedColumnReaderBase(const NProto::TColumnMeta& columnMeta, int columnIndex, int columnId)
+    : TColumnReaderBase(columnMeta)
+    , ColumnIndex_(columnIndex)
+    , ColumnId_(columnId)
+{ }
+
+void TUnversionedColumnReaderBase::ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows)
+{
+    DoReadValues(rows);
+}
+
+void TUnversionedColumnReaderBase::ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows)
+{
+    DoReadValues(rows);
+}
+
+int TUnversionedColumnReaderBase::GetBatchColumnCount()
+{
+    EnsureSegmentReader();
+    return SegmentReader_->GetBatchColumnCount();
+}
+
+void TUnversionedColumnReaderBase::ReadColumnarBatch(
+    TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
+    i64 rowCount)
+{
+    EnsureSegmentReader();
+    SegmentReader_->ReadColumnarBatch(columns, rowCount);
+    CurrentRowIndex_ += rowCount;
+}
+
+i64 TUnversionedColumnReaderBase::EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex)
+{
+    EnsureSegmentReader();
+    return SegmentReader_->EstimateDataWeight(lowerRowIndex, upperRowIndex);
+}
+
+void TUnversionedColumnReaderBase::ResetSegmentReader()
+{
+    SegmentReader_.reset();
+}
+
+void TUnversionedColumnReaderBase::EnsureSegmentReader()
+{
+    if (SegmentReader_ && SegmentReader_->IsEndOfSegment()) {
+        SegmentReader_.reset();
+        ++CurrentSegmentIndex_;
+    }
+    YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
+    if (!SegmentReader_) {
+        SegmentReader_ = CreateSegmentReader(CurrentSegmentIndex_);
+    }
+    SegmentReader_->SkipToRowIndex(CurrentRowIndex_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -192,7 +383,6 @@ void TVersionedColumnReaderBase::ReadValues(
 {
     i64 readRowCount = 0;
     while (readRowCount < rows.Size()) {
-        YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
         EnsureSegmentReader();
 
         i64 count = SegmentReader_->ReadValues(
@@ -202,11 +392,6 @@ void TVersionedColumnReaderBase::ReadValues(
 
         readRowCount += count;
         CurrentRowIndex_ += count;
-
-        if (SegmentReader_->EndOfSegment()) {
-            SegmentReader_.reset();
-            ++CurrentSegmentIndex_;
-        }
     }
 }
 
@@ -214,7 +399,6 @@ void TVersionedColumnReaderBase::ReadAllValues(TMutableRange<TMutableVersionedRo
 {
     i64 readRowCount = 0;
     while (readRowCount < rows.Size()) {
-        YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
         EnsureSegmentReader();
 
         i64 count = SegmentReader_->ReadAllValues(
@@ -222,11 +406,6 @@ void TVersionedColumnReaderBase::ReadAllValues(TMutableRange<TMutableVersionedRo
 
         readRowCount += count;
         CurrentRowIndex_ += count;
-
-        if (SegmentReader_->EndOfSegment()) {
-            SegmentReader_.reset();
-            ++CurrentSegmentIndex_;
-        }
     }
 }
 
@@ -237,10 +416,120 @@ void TVersionedColumnReaderBase::ResetSegmentReader()
 
 void TVersionedColumnReaderBase::EnsureSegmentReader()
 {
+    if (SegmentReader_ && SegmentReader_->IsEndOfSegment()) {
+        SegmentReader_.reset();
+        ++CurrentSegmentIndex_;
+    }
+    YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
     if (!SegmentReader_) {
         SegmentReader_ = CreateSegmentReader(CurrentSegmentIndex_);
     }
     SegmentReader_->SkipToRowIndex(CurrentRowIndex_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ReadColumnarNullBitmap(
+    NTableClient::IUnversionedRowBatch::TColumn* column,
+    i64 startIndex,
+    TRange<ui64> bitmap)
+{
+    column->StartIndex = startIndex;
+    
+    auto& nullBitmap = column->NullBitmap.emplace();
+    nullBitmap.Data = TRef(bitmap.Begin(), bitmap.End());
+}
+
+void ReadColumnarIntegerValues(
+    NTableClient::IUnversionedRowBatch::TColumn* column,
+    i64 startIndex,
+    NTableClient::EValueType valueType,
+    ui64 baseValue,
+    TRange<ui64> data)
+{
+    column->StartIndex = startIndex;
+    
+    auto& values = column->Values.emplace();
+    values.BaseValue = baseValue;
+    values.BitWidth = 64;
+    values.ZigZagEncoded = (valueType == EValueType::Int64);
+    values.Data = TRef(data.Begin(), data.End());
+}
+
+void ReadColumnarBooleanValues(
+    NTableClient::IUnversionedRowBatch::TColumn* column,
+    i64 startIndex,
+    TRange<ui64> bitmap)
+{
+    column->StartIndex = startIndex;
+    
+    auto& values = column->Values.emplace();
+    values.BitWidth = 1;
+    values.Data = TRef(bitmap.Begin(), bitmap.End());
+}
+
+void ReadColumnarDoubleValues(
+    NTableClient::IUnversionedRowBatch::TColumn* column,
+    i64 startIndex,
+    TRange<double> data)
+{
+    column->StartIndex = startIndex;
+    
+    auto& values = column->Values.emplace();
+    values.BitWidth = 64;
+    values.Data = TRef(data.Begin(), data.End());
+}
+
+void ReadColumnarStringValues(
+    NTableClient::IUnversionedRowBatch::TColumn* column,
+    i64 startIndex,
+    ui32 avgLength,
+    TRange<ui32> offsets,
+    TRef stringData)
+{
+    column->StartIndex = startIndex;
+    
+    auto& values = column->Values.emplace();
+    values.BitWidth = 32;
+    values.ZigZagEncoded = true;
+    values.Data = TRef(offsets.Begin(), offsets.End());
+
+    auto& strings = column->Strings.emplace();
+    strings.AvgLength = avgLength;
+    strings.Data = stringData;
+}
+
+void ReadColumnarDictionary(
+    NTableClient::IUnversionedRowBatch::TColumn* primaryColumn,
+    NTableClient::IUnversionedRowBatch::TColumn* dictionaryColumn,
+    i64 startIndex,
+    TRange<ui32> ids)
+{
+    primaryColumn->StartIndex = startIndex;
+   
+    auto& primaryValues = primaryColumn->Values.emplace();
+    primaryValues.BitWidth = 32;
+    primaryValues.Data = TRef(ids.Begin(), ids.End());
+
+    auto& dictionary = primaryColumn->Dictionary.emplace();
+    dictionary.ZeroMeansNull = true;
+    dictionary.ValueColumn = dictionaryColumn;
+}
+
+void ReadColumnarRle(
+    NTableClient::IUnversionedRowBatch::TColumn* primaryColumn,
+    NTableClient::IUnversionedRowBatch::TColumn* rleColumn,
+    i64 startIndex,
+    TRange<ui64> indexes)
+{
+    primaryColumn->StartIndex = startIndex;
+
+    auto& primaryValues = primaryColumn->Values.emplace();
+    primaryValues.BitWidth = 64;
+    primaryValues.Data = TRef(indexes.Begin(), indexes.End());
+
+    auto& rle = primaryColumn->Rle.emplace();
+    rle.ValueColumn = rleColumn;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

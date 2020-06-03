@@ -1,7 +1,7 @@
 #include "integer_column_writer.h"
 #include "helpers.h"
 #include "column_writer_detail.h"
-#include "compressed_integer_vector.h"
+#include "bit_packed_unsigned_vector.h"
 
 #include <yt/client/table_chunk_format/proto/column_meta.pb.h>
 
@@ -64,7 +64,7 @@ protected:
         }
 
         // 1. Direct values.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(Values_), MaxValue_ - MinValue_));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(Values_), MaxValue_ - MinValue_));
 
         // 2. Null bitmap.
         segmentInfo->Data.push_back(nullBitmap.Flush<TSegmentWriterTag>());
@@ -91,10 +91,10 @@ protected:
         }
 
         // 1. Dictionary - compressed vector of values.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(dictionary), MaxValue_ - MinValue_));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(dictionary), MaxValue_ - MinValue_));
 
         // 2. Compressed vector of value ids.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(Values_), dictionary.size() + 1));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(Values_), dictionary.size() + 1));
     }
 };
 
@@ -355,13 +355,13 @@ private:
         Values_.resize(RunCount_);
 
         // 1. Compressed vector of values.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(Values_), MaxValue_ - MinValue_));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(Values_), MaxValue_ - MinValue_));
 
         // 2. Null bitmap of values.
         segmentInfo->Data.push_back(rleNullBitmap.Flush<TSegmentWriterTag>());
 
         // 3. Compressed vector of row indexes.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(rowIndexes), rowIndexes.back()));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(rowIndexes), rowIndexes.back()));
     }
 
     void DumpDictionaryRleValues(TSegmentInfo* segmentInfo)
@@ -406,13 +406,13 @@ private:
         Values_.resize(RunCount_);
 
         // 1. Dictionary - compressed vector of values.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(dictionary), MaxValue_ - MinValue_));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(dictionary), MaxValue_ - MinValue_));
 
         // 2. Compressed vector of value ids.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(Values_), dictionary.size() + 1));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(Values_), dictionary.size() + 1));
 
         // 3. Compressed vector of row indexes.
-        segmentInfo->Data.push_back(CompressUnsignedVector(MakeRange(rowIndexes), rowIndexes.back()));
+        segmentInfo->Data.push_back(BitPackUnsignedVector(MakeRange(rowIndexes), rowIndexes.back()));
     }
 
     void DumpSegment()

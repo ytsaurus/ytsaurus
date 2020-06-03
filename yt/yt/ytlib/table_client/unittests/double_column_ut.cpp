@@ -5,6 +5,7 @@
 #include <yt/ytlib/table_chunk_format/double_column_writer.h>
 #include <yt/ytlib/table_chunk_format/double_column_reader.h>
 
+#include <yt/ytlib/table_chunk_format/helpers.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -112,7 +113,7 @@ protected:
         Validate(originalRows, padding, originalRows.size() - padding, timestamp);
     }
 
-    virtual std::unique_ptr<IVersionedColumnReader> CreateColumnReader() override
+    virtual std::unique_ptr<IVersionedColumnReader> DoCreateColumnReader() override
     {
         return CreateVersionedDoubleColumnReader(ColumnMeta_, ColumnId, Aggregate_);
     }
@@ -140,10 +141,27 @@ TEST_F(TVersionedDoubleColumnTest, ReadValuesMaxTimestamp)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUnversionedDoubleSegmentTest
+class TUnversionedDoubleColumnTest
     : public TUnversionedColumnTestBase<double>
 {
 protected:
+    using TUnversionedColumnTestBase<double>::CreateColumnReader;
+
+    virtual std::optional<double> DecodeValueFromColumn(
+        const IUnversionedRowBatch::TColumn* column,
+        i64 index) override
+    {
+        index -= column->StartIndex;
+        
+        ResolveRleEncoding(column, index);
+        
+        if (column->NullBitmap && GetBit(*column->NullBitmap, index)) {
+            return std::nullopt;
+        }
+        
+        return DecodeDoubleFromColumn(*column, index);
+    }
+
     virtual void Write(IValueColumnWriter* columnWriter) override
     {
         // Segment 1 - 5 values.
@@ -154,7 +172,7 @@ protected:
         WriteSegment(columnWriter, {6.0, 7.0, 8.0, 9.0});
     }
 
-    virtual std::unique_ptr<IUnversionedColumnReader> CreateColumnReader() override
+    virtual std::unique_ptr<IUnversionedColumnReader> DoCreateColumnReader() override
     {
         return CreateUnversionedDoubleColumnReader(ColumnMeta_, ColumnIndex, ColumnId);
     }
@@ -169,33 +187,35 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TUnversionedDoubleSegmentTest, GetEqualRange)
+TEST_F(TUnversionedDoubleColumnTest, GetEqualRange)
 {
-    EXPECT_EQ(std::make_pair(8L, 8L), Reader_->GetEqualRange(MakeValue(7.5), 7, 8));
-    EXPECT_EQ(std::make_pair(0L, 0L), Reader_->GetEqualRange(MakeValue(std::nullopt), 0, 0));
-    EXPECT_EQ(std::make_pair(8L, 8L), Reader_->GetEqualRange(MakeValue(7.5), 2, 9));
+    auto reader = CreateColumnReader();
+    EXPECT_EQ(std::make_pair(8L, 8L), reader->GetEqualRange(MakeValue(7.5), 7, 8));
+    EXPECT_EQ(std::make_pair(0L, 0L), reader->GetEqualRange(MakeValue(std::nullopt), 0, 0));
+    EXPECT_EQ(std::make_pair(8L, 8L), reader->GetEqualRange(MakeValue(7.5), 2, 9));
 }
 
-TEST_F(TUnversionedDoubleSegmentTest, ReadValues)
+TEST_F(TUnversionedDoubleColumnTest, ReadValues)
 {
     auto actual = AllocateRows(3);
 
     // Test null rows.
     actual.push_back(TMutableVersionedRow());
 
-    Reader_->SkipToRowIndex(3);
-    Reader_->ReadValues(TMutableRange<TMutableVersionedRow>(actual.data(), actual.size()));
+    auto reader = CreateColumnReader();
+    reader->SkipToRowIndex(3);
+    reader->ReadValues(TMutableRange<TMutableVersionedRow>(actual.data(), actual.size()));
 
     for (int i = 0; i < 3; ++i) {
         EXPECT_EQ(0, CompareRowValues(MakeValue(3.0 + i), *actual[i].BeginKeys()));
     }
 }
 
-TEST_F(TUnversionedDoubleSegmentTest, ReadNull)
+TEST_F(TUnversionedDoubleColumnTest, ReadNull)
 {
+    auto reader = CreateColumnReader();
     auto rows = AllocateRows(3);
-
-    Reader_->ReadValues(TMutableRange<TMutableVersionedRow>(rows.data(), rows.size()));
+    reader->ReadValues(TMutableRange<TMutableVersionedRow>(rows.data(), rows.size()));
     EXPECT_EQ(MakeValue(std::nullopt), *rows.front().BeginKeys());
 }
 

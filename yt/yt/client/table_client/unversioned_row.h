@@ -167,7 +167,7 @@ static_assert(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline size_t GetDataWeight(const EValueType type)
+inline size_t GetDataWeight(EValueType type)
 {
     switch (type) {
         case EValueType::Null:
@@ -188,12 +188,9 @@ inline size_t GetDataWeight(const EValueType type)
         case EValueType::Boolean:
             return 1;
 
-        case EValueType::Any:
-        case EValueType::Composite:
-        case EValueType::String:
-            break;
+        default:
+            YT_ABORT();
     }
-    YT_ABORT();
 }
 
 inline size_t GetDataWeight(const TUnversionedValue& value)

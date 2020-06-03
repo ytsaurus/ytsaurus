@@ -3,12 +3,13 @@
 #include "public.h"
 
 #include "column_reader.h"
-#include "compressed_integer_vector.h"
+#include "bit_packed_unsigned_vector.h"
 #include "helpers.h"
 
 #include <yt/client/table_chunk_format/proto/column_meta.pb.h>
 
 #include <yt/client/table_client/versioned_row.h>
+#include <yt/client/table_client/logical_type.h>
 
 #include <yt/core/misc/bitmap.h>
 #include <yt/core/misc/zigzag.h>
@@ -25,7 +26,7 @@ struct ISegmentReaderBase
 
     virtual void SkipToRowIndex(i64 rowIndex) = 0;
 
-    virtual bool EndOfSegment() const = 0;
+    virtual bool IsEndOfSegment() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -34,8 +35,12 @@ struct IUnversionedSegmentReader
     : public ISegmentReaderBase
 {
     virtual i64 ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) = 0;
-
     virtual i64 ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) = 0;
+
+    virtual int GetBatchColumnCount() = 0;
+    virtual void ReadColumnarBatch(
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
+        i64 rowCount) = 0;
 
     //! Last value of the segment.
     virtual NTableClient::TUnversionedValue GetLastValue() const = 0;
@@ -43,10 +48,13 @@ struct IUnversionedSegmentReader
     virtual i64 GetLowerRowIndex(
         const NTableClient::TUnversionedValue& value,
         i64 rowIndexLimit) const = 0;
-
     virtual i64 GetUpperRowIndex(
         const NTableClient::TUnversionedValue& value,
         i64 rowIndexLimit) const = 0;
+
+    virtual i64 EstimateDataWeight(
+        i64 lowerRowIndex,
+        i64 upperRowIndex) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -76,20 +84,29 @@ public:
         TRef data,
         const NProto::TSegmentMeta& meta,
         int columnIndex,
-        int columnId);
+        int columnId,
+        NTableClient::EValueType valueType);
 
-    virtual bool EndOfSegment() const;
+    virtual bool IsEndOfSegment() const override;
+
+    virtual i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex) override;
+
+    virtual void ReadColumnarBatch(
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
+        i64 rowCount) override;
 
 protected:
     const TRef Data_;
     const NProto::TSegmentMeta& Meta_;
     const int ColumnIndex_;
     const int ColumnId_;
+    const NTableClient::EValueType ValueType_;
 
     const i64 SegmentStartRowIndex_;
 
     i64 SegmentRowIndex_ = 0;
 
+    
     i64 GetSegmentRowIndex(i64 rowIndex) const;
 };
 
@@ -105,7 +122,7 @@ public:
         const NProto::TSegmentMeta& meta,
         int columnIndex,
         int columnId)
-        : TUnversionedSegmentReaderBase(data, meta, columnIndex, columnId)
+        : TUnversionedSegmentReaderBase(data, meta, columnIndex, columnId, ValueType)
         , ValueExtractor_(data, meta)
     { }
 
@@ -158,9 +175,23 @@ public:
         return DoReadValues(rows);
     }
 
+    virtual int GetBatchColumnCount() override
+    {
+        return ValueExtractor_.GetBatchColumnCount();
+    }
+
+    virtual void ReadColumnarBatch(
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
+        i64 rowCount) override
+    {
+        ValueExtractor_.ReadColumnarBatch(SegmentStartRowIndex_, columns);
+        TUnversionedSegmentReaderBase::ReadColumnarBatch(columns, rowCount);
+    }
+
 private:
     TValueExtractor ValueExtractor_;
 
+    
     void SetValue(NTableClient::TUnversionedValue* value, i64 rowIndex) const
     {
         ValueExtractor_.ExtractValue(value, rowIndex, ColumnId_, false);
@@ -205,7 +236,7 @@ public:
     }
 
 protected:
-    using TRowIndexReader = TCompressedUnsignedVectorReader<ui64, Scan>;
+    using TRowIndexReader = TBitPackedUnsignedVectorReader<ui64, Scan>;
     TRowIndexReader RowIndexReader_;
 };
 
@@ -221,7 +252,7 @@ public:
         const NProto::TSegmentMeta& meta,
         int columnIndex,
         int columnId)
-        : TUnversionedSegmentReaderBase(data, meta, columnIndex, columnId)
+        : TUnversionedSegmentReaderBase(data, meta, columnIndex, columnId, ValueType)
         , ValueExtractor_(data, meta)
     { }
 
@@ -288,10 +319,24 @@ public:
         return DoReadValues(rows);
     }
 
+    virtual int GetBatchColumnCount() override
+    {
+        return ValueExtractor_.GetBatchColumnCount();
+    }
+
+    virtual void ReadColumnarBatch(
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
+        i64 rowCount) override
+    {
+        ValueExtractor_.ReadColumnarBatch(SegmentStartRowIndex_, columns);
+        TUnversionedSegmentReaderBase::ReadColumnarBatch(columns, rowCount);
+    }
+
 private:
     TRleValueExtractor ValueExtractor_;
     i64 ValueIndex_ = 0;
 
+    
     i64 GetUpperValueIndex(i64 rowIndex) const
     {
         i64 upperValueIndex;
@@ -364,141 +409,39 @@ class TColumnReaderBase
     : public virtual IColumnReaderBase
 {
 public:
-    explicit TColumnReaderBase(const NProto::TColumnMeta& columnMeta)
-        : ColumnMeta_(columnMeta)
-    { }
+    explicit TColumnReaderBase(const NProto::TColumnMeta& columnMeta);
 
-    virtual void ResetBlock(TSharedRef block, int blockIndex) override
-    {
-        ResetSegmentReader();
-        Block_ = std::move(block);
-        CurrentBlockIndex_ = blockIndex;
+    virtual void ResetBlock(TSharedRef block, int blockIndex) override;
 
-        if (CurrentSegmentMeta().block_index() != CurrentBlockIndex_) {
-            CurrentSegmentIndex_ = FindFirstBlockSegment();
-        }
-
-        LastBlockSegmentIndex_ = FindLastBlockSegment();
-        YT_VERIFY(LastBlockSegmentIndex_ >= CurrentSegmentIndex_);
-    }
-
-    virtual void SkipToRowIndex(i64 rowIndex) override
-    {
-        YT_VERIFY(rowIndex >= CurrentRowIndex_);
-
-        CurrentRowIndex_ = rowIndex;
-        int segmentIndex = FindSegmentByRow(rowIndex);
-
-        YT_VERIFY(segmentIndex >= CurrentSegmentIndex_);
-        if (segmentIndex != CurrentSegmentIndex_) {
-            CurrentSegmentIndex_ = segmentIndex;
-            ResetSegmentReader();
-        }
-    }
-
-    virtual i64 GetCurrentRowIndex() const override
-    {
-        return CurrentRowIndex_;
-    }
-
-    virtual i64 GetBlockUpperRowIndex() const override
-    {
-        if (LastBlockSegmentIndex_ < 0) {
-            return 0;
-        } else {
-            return ColumnMeta_.segments(LastBlockSegmentIndex_).chunk_row_count();
-        }
-    }
-
-    virtual i64 GetReadyUpperRowIndex() const override
-    {
-        if (CurrentSegmentIndex_ == ColumnMeta_.segments_size()) {
-            return CurrentRowIndex_;
-        } else {
-            return CurrentSegmentMeta().chunk_row_count();
-        }
-    }
-
-    virtual int GetCurrentBlockIndex() const override
-    {
-        return CurrentBlockIndex_;
-    }
-
-    virtual std::optional<int> GetNextBlockIndex() const override
-    {
-        return (LastBlockSegmentIndex_ + 1) == ColumnMeta_.segments_size()
-           ? std::nullopt
-           : std::make_optional(static_cast<int>(ColumnMeta_.segments(LastBlockSegmentIndex_ + 1).block_index()));
-    }
+    virtual void SkipToRowIndex(i64 rowIndex) override;
+    virtual i64 GetCurrentRowIndex() const override;
+    virtual i64 GetBlockUpperRowIndex() const override;
+    virtual i64 GetReadyUpperRowIndex() const override;
+    
+    virtual int GetCurrentBlockIndex() const override;
+    virtual std::optional<int> GetNextBlockIndex() const override;
 
 protected:
-    TSharedRef Block_;
-
     const NProto::TColumnMeta& ColumnMeta_;
 
+    TSharedRef Block_;
     int CurrentBlockIndex_ = -1;
     int CurrentSegmentIndex_ = 0;
     i64 CurrentRowIndex_ = 0;
 
-    //! Index of the last segment in current block.
+    //! Index of the last segment in the current block.
     int LastBlockSegmentIndex_ = -1;
 
-
+    
     virtual void ResetSegmentReader() = 0;
 
-    const NProto::TSegmentMeta& CurrentSegmentMeta() const
-    {
-        return ColumnMeta_.segments(CurrentSegmentIndex_);
-    }
+    const NProto::TSegmentMeta& CurrentSegmentMeta() const;
 
-    i64 GetSegmentStartRowIndex(int segmentIndex) const
-    {
-        auto meta = ColumnMeta_.segments(segmentIndex);
-        return meta.chunk_row_count() - meta.row_count();
-    }
+    int FindSegmentByRowIndex(i64 rowIndex) const;
+    i64 GetSegmentStartRowIndex(int segmentIndex) const;
 
-    int FindFirstBlockSegment() const
-    {
-        auto it = std::lower_bound(
-            ColumnMeta_.segments().begin() + CurrentSegmentIndex_,
-            ColumnMeta_.segments().end(),
-            CurrentBlockIndex_,
-            [] (const NProto::TSegmentMeta& segmentMeta, int blockIndex) {
-                return segmentMeta.block_index() < blockIndex;
-            }
-        );
-        YT_VERIFY(it != ColumnMeta_.segments().end());
-        return std::distance(ColumnMeta_.segments().begin(), it);
-    }
-
-    int FindLastBlockSegment() const
-    {
-        auto it = std::upper_bound(
-            ColumnMeta_.segments().begin() + CurrentSegmentIndex_,
-            ColumnMeta_.segments().end(),
-            CurrentBlockIndex_,
-            [] (int blockIndex, const NProto::TSegmentMeta& segmentMeta) {
-                return blockIndex < segmentMeta.block_index();
-            }
-        );
-
-        YT_VERIFY(it != ColumnMeta_.segments().begin());
-        return std::distance(ColumnMeta_.segments().begin(), it - 1);
-    }
-
-    int FindSegmentByRow(i64 rowIndex) const
-    {
-        auto it = std::upper_bound(
-            ColumnMeta_.segments().begin() + CurrentSegmentIndex_,
-            ColumnMeta_.segments().end(),
-            rowIndex,
-            [] (i64 index, const NProto::TSegmentMeta& segmentMeta) {
-                return index < segmentMeta.chunk_row_count();
-            }
-        );
-
-        return std::distance(ColumnMeta_.segments().begin(), it);
-    }
+    int FindFirstBlockSegment() const;
+    int FindLastBlockSegment() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -508,21 +451,19 @@ class TUnversionedColumnReaderBase
     , public IUnversionedColumnReader
 {
 public:
-    TUnversionedColumnReaderBase(const NProto::TColumnMeta& columnMeta, int columnIndex, int columnId)
-        : TColumnReaderBase(columnMeta)
-        , ColumnIndex_(columnIndex)
-        , ColumnId_(columnId)
-    { }
+    TUnversionedColumnReaderBase(
+        const NProto::TColumnMeta& columnMeta,
+        int columnIndex,
+        int columnId);
 
-    virtual void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override
-    {
-        DoReadValues(rows);
-    }
+    virtual void ReadValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) override;
+    virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override;
 
-    virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) override
-    {
-        DoReadValues(rows);
-    }
+    virtual int GetBatchColumnCount() override;
+    virtual void ReadColumnarBatch(
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
+        i64 rowCount) override;
+    virtual i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex) override;
 
 protected:
     const int ColumnIndex_;
@@ -530,7 +471,10 @@ protected:
 
     std::unique_ptr<IUnversionedSegmentReader> SegmentReader_;
 
-    virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(int segmentIndex, bool scan = true) = 0;
+    
+    virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(
+        int segmentIndex,
+        bool scan = true) = 0;
 
     template <class TSegmentReader>
     std::unique_ptr<IUnversionedSegmentReader> DoCreateSegmentReader(const NProto::TSegmentMeta& meta)
@@ -540,36 +484,22 @@ protected:
             meta,
             ColumnIndex_,
             ColumnId_);
-
         return std::unique_ptr<IUnversionedSegmentReader>(reader);
     }
 
-    virtual void ResetSegmentReader() override
-    {
-        SegmentReader_.reset();
-    }
+    virtual void ResetSegmentReader() override;
+    void EnsureSegmentReader();
 
     template <class TRow>
     void DoReadValues(TMutableRange<TRow> rows)
     {
         i64 readRowCount = 0;
         while (readRowCount < rows.Size()) {
-            YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
-            if (!SegmentReader_) {
-                SegmentReader_ = CreateSegmentReader(CurrentSegmentIndex_);
-            }
-
-            SegmentReader_->SkipToRowIndex(CurrentRowIndex_);
+            EnsureSegmentReader();
 
             i64 count = SegmentReader_->ReadValues(rows.Slice(rows.Begin() + readRowCount, rows.End()));
-
             readRowCount += count;
             CurrentRowIndex_ += count;
-
-            if (SegmentReader_->EndOfSegment()) {
-                SegmentReader_.reset();
-                ++CurrentSegmentIndex_;
-            }
         }
     }
 
@@ -586,11 +516,11 @@ protected:
             return std::make_pair(lowerRowIndex, upperRowIndex);
         }
 
-        int segmentLimit = FindSegmentByRow(upperRowIndex - 1);
+        int segmentLimit = FindSegmentByRowIndex(upperRowIndex - 1);
         segmentLimit = std::min(segmentLimit, LastBlockSegmentIndex_);
 
         // Get lower limit for range.
-        int lowerSegmentIndex = FindSegmentByRow(lowerRowIndex);
+        int lowerSegmentIndex = FindSegmentByRowIndex(lowerRowIndex);
         auto lowerSegmentReader = CreateSegmentReader(lowerSegmentIndex, false);
 
         while (lowerSegmentIndex < segmentLimit &&
@@ -630,7 +560,7 @@ protected:
 class TVersionedValueExtractorBase
 {
 public:
-    TVersionedValueExtractorBase(bool aggregate);
+    explicit TVersionedValueExtractorBase(bool aggregate);
 
     ui32 GetTimestampIndex(i64 valueIndex) const;
 
@@ -639,10 +569,11 @@ public:
 protected:
     const bool Aggregate_;
 
-    TCompressedUnsignedVectorReader<ui32> TimestampIndexReader_;
+    TBitPackedUnsignedVectorReader<ui32> TimestampIndexReader_;
     TReadOnlyBitmap<ui64> AggregateBitmap_;
 
-    size_t InitTimestampIndexReader(const char* ptr);
+    
+    const char* InitTimestampIndexReader(const char* ptr);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -658,15 +589,16 @@ public:
     // For compaction read.
     std::pair<ui32, ui32> GetValueIndexRange(i64 segmentRowIndex);
 
-
     i64 GetLowerValueIndex(i64 segmentRowIndex) const;
 
     ui32 GetValueCount(i64 segmentRowIndex) const;
 
-    size_t InitDenseReader(const char* ptr);
+protected:
+    const char* InitDenseReader(const char* ptr);
+
 private:
     const NProto::TDenseVersionedSegmentMeta& DenseVersionedMeta_;
-    TCompressedUnsignedVectorReader<ui32> ValuesPerRowDiffReader_;
+    TBitPackedUnsignedVectorReader<ui32> ValuesPerRowDiffReader_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -675,7 +607,9 @@ class TSparseVersionedValueExtractorBase
     : public TVersionedValueExtractorBase
 {
 public:
-    TSparseVersionedValueExtractorBase(const NProto::TSegmentMeta& meta, bool aggregate);
+    TSparseVersionedValueExtractorBase(
+        const NProto::TSegmentMeta& meta,
+        bool aggregate);
 
     i64 GetLowerValueIndex(i64 segmentRowIndex, int valueIndex) const;
 
@@ -687,10 +621,10 @@ public:
     std::pair<ui32, ui32> GetValueIndexRange(i64 segmentRowIndex, i64 valueIndex);
 
 protected:
-    size_t InitSparseReader(const char* ptr);
+    const char* InitSparseReader(const char* ptr);
 
 private:
-    TCompressedUnsignedVectorReader<ui64> RowIndexReader_;
+    TBitPackedUnsignedVectorReader<ui64> RowIndexReader_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -713,7 +647,7 @@ public:
         , ValueExtractor_(data, meta, aggregate)
     { }
 
-    virtual bool EndOfSegment() const
+    virtual bool IsEndOfSegment() const
     {
         return SegmentRowIndex_ == Meta_.row_count();
     }
@@ -852,6 +786,7 @@ private:
     using TVersionedSegmentReaderBase<TValueExtractor>::DoSetValues;
     using TVersionedSegmentReaderBase<TValueExtractor>::DoSetAllValues;
 
+    
     void SetValues(
         NTableClient::TMutableVersionedRow row,
         const std::pair<ui32, ui32>& timestampIndexRange,
@@ -1035,9 +970,10 @@ private:
     using TVersionedSegmentReaderBase<TValueExtractor>::DoSetValues;
     using TVersionedSegmentReaderBase<TValueExtractor>::DoSetAllValues;
 
+    
     void SetValues(
         NTableClient::TMutableVersionedRow row,
-        const std::pair<ui32, ui32>& timestampIndexRange,
+        std::pair<ui32, ui32> timestampIndexRange,
         bool produceAllVersions)
     {
         auto valueIndexRange = ValueExtractor_.GetValueIndexRange(
@@ -1065,7 +1001,10 @@ class TVersionedColumnReaderBase
     , public TColumnReaderBase
 {
 public:
-    TVersionedColumnReaderBase(const NProto::TColumnMeta& columnMeta, int columnId, bool aggregate);
+    TVersionedColumnReaderBase(
+        const NProto::TColumnMeta& columnMeta,
+        int columnId,
+        bool aggregate);
 
     virtual void GetValueCounts(TMutableRange<ui32> valueCounts) override;
 
@@ -1082,11 +1021,9 @@ protected:
 
     std::unique_ptr<IVersionedSegmentReader> SegmentReader_;
 
-
+    
     virtual std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) = 0;
-
     virtual void ResetSegmentReader() override;
-
     void EnsureSegmentReader();
 
     template <class TSegmentReader>
@@ -1100,6 +1037,49 @@ protected:
             Aggregate_);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+void ReadColumnarNullBitmap(
+    NTableClient::IUnversionedRowBatch::TColumn* column,
+    i64 startIndex,
+    TRange<ui64> bitmap);
+
+void ReadColumnarIntegerValues(
+    NTableClient::IUnversionedRowBatch::TColumn* column,
+    i64 startIndex,
+    NTableClient::EValueType valueType,
+    ui64 baseValue,
+    TRange<ui64> data);
+
+void ReadColumnarBooleanValues(
+    NTableClient::IUnversionedRowBatch::TColumn* column,
+    i64 startIndex,
+    TRange<ui64> bitmap);
+
+void ReadColumnarDoubleValues(
+    NTableClient::IUnversionedRowBatch::TColumn* column,
+    i64 startIndex,
+    TRange<double> data);
+
+void ReadColumnarStringValues(
+    NTableClient::IUnversionedRowBatch::TColumn* column,
+    i64 startIndex,
+    ui32 avgLength,
+    TRange<ui32> offsets,
+    TRef stringData);
+
+void ReadColumnarDictionary(
+    NTableClient::IUnversionedRowBatch::TColumn* primaryColumn,
+    NTableClient::IUnversionedRowBatch::TColumn* dictionaryColumn,
+    i64 startIndex,
+    TRange<ui32> ids);
+
+void ReadColumnarRle(
+    NTableClient::IUnversionedRowBatch::TColumn* primaryColumn,
+    NTableClient::IUnversionedRowBatch::TColumn* rleColumn,
+    i64 startIndex,
+    TRange<ui64> indexes);
 
 ////////////////////////////////////////////////////////////////////////////////
 

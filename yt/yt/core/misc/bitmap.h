@@ -8,14 +8,14 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunkType>
+template <class TChunk>
 struct TBitmapTraits
 {
     // In this case compiler can replace divisions and modulos with shifts.
     static_assert(
-        !(sizeof(TChunkType) & (sizeof(TChunkType) - 1)),
-        "sizeof(TChunkType) must be a power of 2.");
-    static constexpr size_t Bytes = sizeof(TChunkType);
+        !(sizeof(TChunk) & (sizeof(TChunk) - 1)),
+        "sizeof(TChunk) must be a power of 2.");
+    static constexpr size_t Bytes = sizeof(TChunk);
     static constexpr size_t Bits = Bytes * 8;
 
     static constexpr size_t GetChunkIndex(size_t bitIndex)
@@ -23,9 +23,9 @@ struct TBitmapTraits
         return bitIndex / Bits;
     }
 
-    static constexpr TChunkType GetChunkMask(size_t bitIndex, bool value)
+    static constexpr TChunk GetChunkMask(size_t bitIndex, bool value)
     {
-        return (value ? TChunkType(1) : TChunkType(0)) << (bitIndex % Bits);
+        return (value ? TChunk(1) : TChunk(0)) << (bitIndex % Bits);
     }
 
     static constexpr size_t GetChunkCapacity(size_t bitCapacity)
@@ -41,10 +41,10 @@ struct TBitmapTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunkType, int DefaultChunkCount = 1>
+template <class TChunk, int DefaultChunkCount = 1>
 class TAppendOnlyBitmap
 {
-    using TTraits = TBitmapTraits<TChunkType>;
+    using TTraits = TBitmapTraits<TChunk>;
 
 public:
     explicit TAppendOnlyBitmap(size_t bitCapacity = 0)
@@ -56,8 +56,8 @@ public:
 
     void Append(bool value)
     {
-        if (Chunks_.size() * sizeof(TChunkType) * 8 == BitSize_) {
-            Chunks_.push_back(TChunkType());
+        if (Chunks_.size() * sizeof(TChunk) * 8 == BitSize_) {
+            Chunks_.push_back(TChunk());
         }
         Chunks_.back() |= TTraits::GetChunkMask(BitSize_, value);
         ++BitSize_;
@@ -83,37 +83,38 @@ public:
         return TSharedRef::FromBlob(std::move(blob));
     }
 
-    const TChunkType* Data() const
+    const TChunk* Data() const
     {
         return Chunks_.data();
     }
 
     size_t Size() const
     {
-        return Chunks_.size() * sizeof(TChunkType);
+        return Chunks_.size() * sizeof(TChunk);
     }
 
 private:
-    SmallVector<TChunkType, DefaultChunkCount> Chunks_;
+    SmallVector<TChunk, DefaultChunkCount> Chunks_;
     size_t BitSize_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TChunkType>
+template <class TChunk>
 class TReadOnlyBitmap
 {
-    using TTraits = TBitmapTraits<TChunkType>;
+private:
+    using TTraits = TBitmapTraits<TChunk>;
 
 public:
     TReadOnlyBitmap() = default;
 
-    TReadOnlyBitmap(const TChunkType* chunks, size_t bitSize)
+    TReadOnlyBitmap(const TChunk* chunks, size_t bitSize)
         : Chunks_(chunks)
         , BitSize_(bitSize)
     { }
 
-    void Reset(const TChunkType* chunks, size_t bitSize)
+    void Reset(const TChunk* chunks, size_t bitSize)
     {
         YT_VERIFY(chunks);
         Chunks_ = chunks;
@@ -133,6 +134,11 @@ public:
         return TTraits::GetByteCapacity(BitSize_);
     }
 
+    TRange<TChunk> GetData() const
+    {
+        return MakeRange(Chunks_, TTraits::GetChunkCapacity(BitSize_));
+    }
+
     void Prefetch(size_t bitIndex)
     {
         YT_ASSERT(bitIndex < BitSize_);
@@ -141,7 +147,7 @@ public:
     }
 
 private:
-    const TChunkType* Chunks_ = nullptr;
+    const TChunk* Chunks_ = nullptr;
     size_t BitSize_ = 0;
 };
 

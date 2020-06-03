@@ -10,24 +10,23 @@ namespace NYT::NTableChunkFormat {
 
 template <class T>
 typename std::enable_if<std::is_unsigned<T>::value, TSharedRef>::type
-CompressUnsignedVector(TRange<T> values, ui64 maxValue);
+BitPackUnsignedVector(TRange<T> values, ui64 maxValue);
 
 /*!
  *  \note Memory allocated under #dst must be initialized with zeroes.
  */
 template <class T>
 typename std::enable_if<std::is_unsigned<T>::value, size_t>::type
-CompressUnsignedVector(TRange<T> values, ui64 maxValue, ui64* dst);
+BitPackUnsignedVector(TRange<T> values, ui64 maxValue, ui64* dst);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, bool Scan = true>
-class TCompressedUnsignedVectorReader
+class TBitPackedUnsignedVectorReader
 {
 public:
-    explicit TCompressedUnsignedVectorReader(const ui64* data);
-
-    TCompressedUnsignedVectorReader();
+    TBitPackedUnsignedVectorReader();
+    explicit TBitPackedUnsignedVectorReader(const ui64* data);
 
     T operator[] (size_t index) const;
 
@@ -36,6 +35,9 @@ public:
 
     //! Number of bytes occupied by the vector.
     size_t GetByteSize() const;
+
+    //! Returns the raw values.
+    TRange<T> GetData() const;
 
 private:
     const ui64* Data_;
@@ -63,6 +65,6 @@ void PrepareDiffFromExpected(std::vector<ui32>* values, ui32* expected, ui32* ma
 
 } // namespace NYT::NTableChunkFormat
 
-#define INCLUDE_COMPRESSED_INTEGER_VECTOR_INL_H
-#include "compressed_integer_vector-inl.h"
-#undef INCLUDE_COMPRESSED_INTEGER_VECTOR_INL_H
+#define BIT_PACKED_UNSIGNED_VECTOR_INL_H_
+#include "bit_packed_unsigned_vector-inl.h"
+#undef BIT_PACKED_UNSIGNED_VECTOR_INL_H_
