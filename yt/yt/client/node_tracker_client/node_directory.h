@@ -23,6 +23,8 @@ class TNodeDescriptor
 {
 public:
     TNodeDescriptor();
+    TNodeDescriptor(const TNodeDescriptor& other) = default;
+    TNodeDescriptor(TNodeDescriptor&& other) = default;
     explicit TNodeDescriptor(const TString& defaultAddress);
     explicit TNodeDescriptor(const std::optional<TString>& defaultAddress);
     explicit TNodeDescriptor(
@@ -30,6 +32,9 @@ public:
         std::optional<TString> rack = std::nullopt,
         std::optional<TString> dc = std::nullopt,
         const std::vector<TString>& tags = {});
+
+    TNodeDescriptor& operator=(const TNodeDescriptor& other) = default;
+    TNodeDescriptor& operator=(TNodeDescriptor&& other) = default;
 
     bool IsNull() const;
 
@@ -106,6 +111,18 @@ void FromProto(NNodeTrackerClient::TNodeDescriptor* descriptor, const NNodeTrack
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace NYT::NNodeTrackerClient
+
+template <>
+struct THash<NYT::NNodeTrackerClient::TNodeDescriptor>
+{
+    size_t operator()(const NYT::NNodeTrackerClient::TNodeDescriptor& value) const;
+};
+
+namespace NYT::NNodeTrackerClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Caches node descriptors obtained by fetch requests.
 /*!
  *  \note
@@ -138,13 +155,13 @@ private:
     mutable NConcurrency::TReaderWriterSpinLock SpinLock_;
     THashMap<TNodeId, const TNodeDescriptor*> IdToDescriptor_;
     THashMap<TString, const TNodeDescriptor*> AddressToDescriptor_;
-    std::vector<std::unique_ptr<TNodeDescriptor>> Descriptors_;
+    THashSet<TNodeDescriptor> Descriptors_;
 
     bool NeedToAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
     void DoAddDescriptor(TNodeId id, const TNodeDescriptor& descriptor);
     bool NeedToAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& descriptor);
     void DoAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& protoDescriptor);
-    void DoAddCapturedDescriptor(TNodeId id, std::unique_ptr<TNodeDescriptor> descriptorHolder);
+    void DoCaptureAndAddDescriptor(TNodeId id, TNodeDescriptor&& descriptorHolder);
 
 };
 
@@ -155,13 +172,3 @@ DEFINE_REFCOUNTED_TYPE(TNodeDirectory)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNodeTrackerClient
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <>
-struct THash<NYT::NNodeTrackerClient::TNodeDescriptor>
-{
-    size_t operator()(const NYT::NNodeTrackerClient::TNodeDescriptor& value) const;
-};
-
-////////////////////////////////////////////////////////////////////////////////
