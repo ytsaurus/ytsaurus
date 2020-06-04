@@ -62,7 +62,11 @@ trait RpcProxyLauncher {
       }
 
       val thread = new Thread(() => {
-        val exitCode = s"$binaryAbsolutePath --config ${configFile.getAbsolutePath}" !
+        val exitCode = Process(
+          s"$binaryAbsolutePath --config ${configFile.getAbsolutePath}",
+          cwd = None,
+          "YT_ALLOC_CONFIG" -> "{profiling_backtrace_depth=10;enable_eager_memory_release=%true;bugs=%false}"
+        ).run().exitValue()
 
         log.info(s"Rpc proxy exit code is $exitCode")
       })
