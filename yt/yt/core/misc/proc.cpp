@@ -72,6 +72,32 @@ std::optional<int> GetParentPid(int pid)
     return {};
 }
 
+std::vector<int> ListPids()
+{
+#ifdef _linux_
+    std::vector<int> pids;
+
+    DIR* dirStream = ::opendir("/proc");
+    YT_VERIFY(dirStream != nullptr);
+
+    struct dirent* ep;
+    while ((ep = ::readdir(dirStream)) != nullptr) {
+        const char* begin = ep->d_name;
+        char* end = nullptr;
+        int pid = static_cast<int>(strtol(begin, &end, 10));
+        if (begin == end) {
+            // Not a pid.
+            continue;
+        }
+        pids.push_back(pid);
+    }
+
+    return pids;
+#else
+    return {};
+#endif
+}
+
 std::vector<int> GetPidsUnderParent(int targetPid)
 {
 #ifdef _linux_

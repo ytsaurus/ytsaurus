@@ -810,8 +810,10 @@ private:
             try {
                 auto signalerConfig = New<TSignalerConfig>();
                 signalerConfig->SignalName = UserJobSpec_.interruption_signal();
-                if (UserId_) {
-                    signalerConfig->Pids = GetPidsByUid(*UserId_);
+                if (UserJobEnvironment_) {
+#ifdef _linux_
+                    signalerConfig->Pids = UserJobEnvironment_->GetUserJobInstance()->GetPids();
+#endif
                 } else {
                     // Fallback for non-sudo tests run.
                     auto pid = Process_->GetProcessId();

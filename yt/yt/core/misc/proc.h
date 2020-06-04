@@ -23,6 +23,7 @@ DEFINE_ENUM(ELinuxErrorCode,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<int> ListPids();
 std::vector<int> GetPidsByUid(int uid = -1);
 std::vector<int> GetPidsUnderParent(int targetPid);
 
