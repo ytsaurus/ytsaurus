@@ -103,7 +103,7 @@ def update_config_inplace(base, patch):
 
 
 def validate_custom_params(params):
-    if "enablers" in params:
+    if params and "enablers" in params:
         raise RuntimeError("Argument 'params' contains 'enablers' field, which is prohibited. "
                            "Use argument 'enablers' instead")
 
