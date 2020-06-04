@@ -27,8 +27,10 @@ def validate_cluster_version(spark_cluster_version, client=None):
         raise RuntimeError("Unknown SPYT cluster version: {}. Available release versions are: {}".format(
             spark_cluster_version, get_available_cluster_versions(client=client)
         ))
-    if SELF_VERSION < spark_cluster_version:
-        logger.warning("Cluster version {} is older than spark-launch-yt version {}."
+    spyt_minor_version = _get_spyt_minor_version(SELF_VERSION)
+    spark_cluster_minor_version = _get_spark_cluster_minor_version(spark_cluster_version)
+    if spyt_minor_version < spark_cluster_minor_version:
+        logger.warning("You required Spark Cluster version {} which is older than spark-launch-yt version {}."
                        "Please update your local yandex-spyt".format(spark_cluster_version, SELF_VERSION))
 
 
