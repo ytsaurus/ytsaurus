@@ -19,7 +19,7 @@ from argparse import ArgumentParser, RawDescriptionHelpFormatter
 
 from yt.wrapper.common import chunk_iter_rows
 
-DESCRIPTION = '''A lightweight part of YT CLI which contains only CHYT subcommands. 
+DESCRIPTION = '''A lightweight part of YT CLI which contains only CHYT subcommands.
 "chyt ..." is equivalent to "yt clickhouse ..."'''
 
 def add_argument(parser, name, help, description, **kwargs):
@@ -137,7 +137,7 @@ def main():
                             formatter_class=RawDescriptionHelpFormatter,
                             description=DESCRIPTION)
 
-    parser.add_argument("--version", action="version", version="Version: YT wrapper " + yt.get_version())
+    parser.add_argument("--version", action="version", version="Version: CHYT " + yt.get_version())
 
     subparsers = parser.add_subparsers(metavar="command")
     subparsers.required = True
