@@ -1,6 +1,6 @@
 #include <yt/core/test_framework/framework.h>
 
-#include "yt/client/unittests/table_value_consumer_mock.h"
+#include "yt/client/unittests/mock/table_value_consumer.h"
 
 #include <yt/ytlib/table_client/helpers.h>
 #include <yt/client/table_client/value_consumer.h>

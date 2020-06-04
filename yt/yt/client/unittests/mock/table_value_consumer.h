@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/core/test_framework/framework.h>
+#include <library/cpp/testing/gtest_extensions/gtest_extensions.h>
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/value_consumer.h>
