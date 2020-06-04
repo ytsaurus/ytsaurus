@@ -132,7 +132,7 @@ public:
 
     }
 
-    virtual void Persist(const NPhoenix::TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
 
@@ -348,7 +348,7 @@ public:
         return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
     }
 
-    virtual void Persist(const NPhoenix::TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TJobSizeConstraintsBase::Persist(context);
 
@@ -496,7 +496,7 @@ public:
         return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
     }
 
-    virtual void Persist(const NPhoenix::TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TJobSizeConstraintsBase::Persist(context);
 
@@ -570,7 +570,7 @@ public:
         return std::numeric_limits<i64>::max();
     }
 
-    virtual void Persist(const NPhoenix::TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TJobSizeConstraintsBase::Persist(context);
 
@@ -682,7 +682,7 @@ public:
         return Options_->MaxDataSlicesPerJob;
     }
 
-    virtual void Persist(const NPhoenix::TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         TJobSizeConstraintsBase::Persist(context);
 

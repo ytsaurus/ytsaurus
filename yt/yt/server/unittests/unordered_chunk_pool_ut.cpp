@@ -17,6 +17,8 @@
 #include <yt/core/misc/blob_output.h>
 #include <yt/core/misc/phoenix.h>
 
+#include <util/generic/cast.h>
+
 #include <util/stream/null.h>
 
 #include <random>
@@ -178,7 +180,7 @@ protected:
     {
         TBlobOutput output;
         TSaveContext saveContext;
-        saveContext.SetVersion(GetCurrentSnapshotVersion());
+        saveContext.SetVersion(ToUnderlying(GetCurrentSnapshotVersion()));
         saveContext.SetOutput(&output);
         Save(saveContext, ChunkPool_);
         auto blob = output.Flush();
@@ -186,7 +188,7 @@ protected:
 
         TMemoryInput input(blob.Begin(), blob.Size());
         TLoadContext loadContext;
-        loadContext.SetVersion(GetCurrentSnapshotVersion());
+        loadContext.SetVersion(ToUnderlying(GetCurrentSnapshotVersion()));
         loadContext.SetRowBuffer(RowBuffer_);
         loadContext.SetInput(&input);
         Load(loadContext, ChunkPool_);

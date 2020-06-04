@@ -4,7 +4,7 @@
 
 #include <yt/server/lib/chunk_pools/public.h>
 
-#include <yt/server/lib/controller_agent/serialize.h>
+#include <yt/server/lib/controller_agent/persistence.h>
 
 #include <yt/server/lib/scheduler/public.h>
 
@@ -31,7 +31,7 @@ struct TBriefJobStatistics
     std::optional<i64> OutputPipeIdleTime = std::nullopt;
     std::optional<i64> JobProxyCpuUsage = std::nullopt;
 
-    void Persist(const NPhoenix::TPersistenceContext& context);
+    void Persist(const TPersistenceContext& context);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBriefJobStatistics)

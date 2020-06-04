@@ -98,7 +98,7 @@ TDataBalancer::TNode& TDataBalancer::GetOrRegisterNode(const TJobNodeDescriptor&
     return node;
 }
 
-void TDataBalancer::TNode::Persist(const NYT::NTableClient::TPersistenceContext& context)
+void TDataBalancer::TNode::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 

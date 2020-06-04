@@ -4,7 +4,7 @@
 
 #include <yt/server/lib/chunk_pools/public.h>
 
-#include <yt/server/lib/controller_agent/serialize.h>
+#include <yt/server/lib/controller_agent/persistence.h>
 
 #include <yt/core/ytree/fluent.h>
 

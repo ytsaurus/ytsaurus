@@ -136,7 +136,7 @@ std::vector<TOperationDescription> LoadOperations(bool shiftOperationsToStart)
 {
     std::vector<TOperationDescription> operations;
     {
-        TLoadContext context;
+        NControllerAgent::TLoadContext context;
         context.SetInput(&Cin);
         Load(context, operations);
     }

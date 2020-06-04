@@ -30,7 +30,7 @@ static const TString JobProxyCpuUsagePath = "/job_proxy/cpu/user";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBriefJobStatistics::Persist(const NPhoenix::TPersistenceContext& context)
+void TBriefJobStatistics::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Timestamp);

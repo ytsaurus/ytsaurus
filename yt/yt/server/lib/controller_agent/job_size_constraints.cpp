@@ -133,7 +133,7 @@ public:
         // Do nothing. Explicit job size constraints do not care about input data weight.
     }
 
-    virtual void Persist(const NPhoenix::TPersistenceContext& context) override
+    virtual void Persist(const TPersistenceContext& context) override
     {
         using NYT::Persist;
         Persist(context, CanAdjustDataWeightPerJob_);

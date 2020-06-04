@@ -61,7 +61,7 @@ TJobSummary::TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event)
     }
 }
 
-void TJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
+void TJobSummary::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Result);
@@ -94,7 +94,7 @@ TCompletedJobSummary::TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgent
             (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() != 0));
 }
 
-void TCompletedJobSummary::Persist(const NPhoenix::TPersistenceContext& context)
+void TCompletedJobSummary::Persist(const TPersistenceContext& context)
 {
     TJobSummary::Persist(context);
 
