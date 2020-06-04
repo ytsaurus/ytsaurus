@@ -920,7 +920,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             TStringStream stringStream;
             SaveSnapshot(&stringStream);
             TOperationSnapshot snapshot;
-            snapshot.Version = GetCurrentSnapshotVersion();
+            snapshot.Version = ToUnderlying(GetCurrentSnapshotVersion());
             snapshot.Blocks = {TSharedRef::FromString(stringStream.Str())};
             DoLoadSnapshot(snapshot);
         }
@@ -980,7 +980,7 @@ void TOperationControllerBase::SaveSnapshot(IOutputStream* output)
     VERIFY_THREAD_AFFINITY_ANY();
 
     TSaveContext context;
-    context.SetVersion(GetCurrentSnapshotVersion());
+    context.SetVersion(ToUnderlying(GetCurrentSnapshotVersion()));
     context.SetOutput(output);
 
     Save(context, this);
@@ -8397,7 +8397,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, TotalTimePerTree_);
     Persist(context, CompletedRowCount_);
     // COMPAT(gritukan)
-    if (context.GetVersion() >= static_cast<int>(ESnapshotVersion::AutoMergeEnabled)) {
+    if (context.GetVersion() >= ESnapshotVersion::AutoMergeEnabled) {
         Persist(context, AutoMergeEnabled_);
     }
 

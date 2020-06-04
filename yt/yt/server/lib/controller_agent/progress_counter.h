@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "persistence.h"
 
 #include <yt/core/yson/public.h>
 

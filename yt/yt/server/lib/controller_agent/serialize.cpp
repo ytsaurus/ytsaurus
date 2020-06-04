@@ -6,15 +6,16 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetCurrentSnapshotVersion()
+ESnapshotVersion GetCurrentSnapshotVersion()
 {
-    return ToUnderlying(TEnumTraits<ESnapshotVersion>::GetDomainValues().back());
+    return TEnumTraits<ESnapshotVersion>::GetDomainValues().back();
 }
 
 bool ValidateSnapshotVersion(int version)
 {
+    // NB: Version can be not valid enum value, so we do not cast version to enum here.
     return version >= ToUnderlying(ESnapshotVersion::BernoulliSampler) &&
-        version <= GetCurrentSnapshotVersion();
+        version <= ToUnderlying(GetCurrentSnapshotVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

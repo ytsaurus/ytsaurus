@@ -1,7 +1,6 @@
 #pragma once
 
-#include "public.h"
-
+#include "persistence.h"
 #include "helpers.h"
 
 #include <yt/server/lib/scheduler/public.h>
@@ -34,7 +33,7 @@ struct TJobSummary
     explicit TJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
     virtual ~TJobSummary() = default;
 
-    void Persist(const NPhoenix::TPersistenceContext& context);
+    void Persist(const TPersistenceContext& context);
 
     NJobTrackerClient::NProto::TJobResult Result;
     TJobId Id;
@@ -62,7 +61,7 @@ struct TCompletedJobSummary
     TCompletedJobSummary() = default;
     explicit TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
 
-    void Persist(const NPhoenix::TPersistenceContext& context);
+    void Persist(const TPersistenceContext& context);
 
     bool Abandoned = false;
     EInterruptReason InterruptReason = EInterruptReason::None;

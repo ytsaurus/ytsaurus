@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "persistence.h"
 
 namespace NYT::NControllerAgent {
 
@@ -8,7 +8,7 @@ namespace NYT::NControllerAgent {
 
 struct IJobSizeConstraints
     : public virtual TRefCounted
-    , public virtual NPhoenix::IPersistent
+    , public virtual IPersistent
 {
     //! True if neither job count nor data weight per job were explicitly specified by user in spec.
     virtual bool CanAdjustDataWeightPerJob() const = 0;
@@ -59,7 +59,7 @@ struct IJobSizeConstraints
     //! knows only the expected input data weight after the sampling, and actual data weight may be different.
     virtual void UpdateInputDataWeight(i64 inputDataWeight) = 0;
 
-    virtual void Persist(const NPhoenix::TPersistenceContext& context) = 0;
+    virtual void Persist(const TPersistenceContext& context) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobSizeConstraints)

@@ -54,7 +54,7 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, CellTag);
     Persist(context, ImmediatelyUnstageChunkLists);
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ToUnderlying(ESnapshotVersion::DynamicTableWriterConfig)) {
+    if (context.GetVersion() >= ESnapshotVersion::DynamicTableWriterConfig) {
         Persist(context, IsOutputTableDynamic);
     }
     Persist(context, IsFinalOutput);

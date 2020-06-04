@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/server/lib/controller_agent/private.h>
+#include <yt/server/lib/controller_agent/persistence.h>
 
 #include <yt/core/logging/log.h>
 

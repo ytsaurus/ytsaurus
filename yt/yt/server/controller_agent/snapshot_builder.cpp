@@ -27,6 +27,8 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
+#include <util/generic/cast.h>
+
 #include <thread>
 
 namespace NYT::NControllerAgent {
@@ -361,7 +363,7 @@ void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)
         {
             TCreateNodeOptions options;
             auto attributes = CreateEphemeralAttributes();
-            attributes->Set("version", GetCurrentSnapshotVersion());
+            attributes->Set("version", ToUnderlying(GetCurrentSnapshotVersion()));
             options.Attributes = std::move(attributes);
             options.Force = true;
             options.Recursive = true;
