@@ -1,5 +1,5 @@
-#include "client_mock.h"
-#include "transaction_mock.h"
+#include <yt/client/unittests/mock/client.h>
+#include <yt/client/unittests/mock/transaction.h>
 
 #include <yt/client/misc/discovery.h>
 

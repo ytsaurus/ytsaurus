@@ -5,7 +5,7 @@
 #include <yt/client/api/journal_writer.h>
 #include <yt/client/api/transaction.h>
 
-#include <yt/core/test_framework/framework.h>
+#include <library/cpp/testing/gtest_extensions/gtest_extensions.h>
 
 namespace NYT::NApi {
 

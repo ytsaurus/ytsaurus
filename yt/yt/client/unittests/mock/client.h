@@ -2,6 +2,10 @@
 
 #include <yt/client/api/connection.h>
 #include <yt/client/api/client.h>
+#include <yt/client/api/file_writer.h>
+#include <yt/client/api/journal_reader.h>
+#include <yt/client/api/journal_writer.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/client/table_client/name_table.h>
 
@@ -11,7 +15,7 @@
 
 #include <yt/client/ypath/rich.h>
 
-#include <yt/core/test_framework/framework.h>
+#include <library/cpp/testing/gtest_extensions/gtest_extensions.h>
 
 namespace NYT::NApi {
 
