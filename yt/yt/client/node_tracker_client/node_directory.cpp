@@ -450,8 +450,7 @@ void TNodeDirectory::DoAddDescriptor(TNodeId id, const TNodeDescriptor& descript
     if (!NeedToAddDescriptor(id, descriptor)) {
         return;
     }
-    auto descriptorHolder = std::make_unique<TNodeDescriptor>(descriptor);
-    DoAddCapturedDescriptor(id, std::move(descriptorHolder));
+    DoCaptureAndAddDescriptor(id, TNodeDescriptor(descriptor));
 }
 
 bool TNodeDirectory::NeedToAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& descriptor)
@@ -465,15 +464,16 @@ void TNodeDirectory::DoAddDescriptor(TNodeId id, const NProto::TNodeDescriptor& 
     if (!NeedToAddDescriptor(id, protoDescriptor)) {
         return;
     }
-    auto descriptorHolder = std::make_unique<TNodeDescriptor>();
-    FromProto(descriptorHolder.get(), protoDescriptor);
-    DoAddCapturedDescriptor(id, std::move(descriptorHolder));
+    DoCaptureAndAddDescriptor(id, FromProto<TNodeDescriptor>(protoDescriptor));
 }
 
-void TNodeDirectory::DoAddCapturedDescriptor(TNodeId id, std::unique_ptr<TNodeDescriptor> descriptorHolder)
+void TNodeDirectory::DoCaptureAndAddDescriptor(TNodeId id, TNodeDescriptor&& descriptor)
 {
-    auto* capturedDescriptor = descriptorHolder.get();
-    Descriptors_.emplace_back(std::move(descriptorHolder));
+    auto it = Descriptors_.find(descriptor);
+    if (it == Descriptors_.end()) {
+        it = Descriptors_.insert(std::move(descriptor)).first;
+    }
+    const auto* capturedDescriptor = &*it;
     IdToDescriptor_[id] = capturedDescriptor;
     AddressToDescriptor_[capturedDescriptor->GetDefaultAddress()] = capturedDescriptor;
 }
@@ -551,8 +551,8 @@ void TNodeDirectory::Load(TStreamLoadContext& context)
     using NYT::Load;
     auto idToDescriptor = Load<THashMap<TNodeId, TNodeDescriptor>>(context);
     NConcurrency::TWriterGuard guard(SpinLock_);
-    for (const auto& pair : idToDescriptor) {
-        DoAddDescriptor(pair.first, pair.second);
+    for (const auto& [id, descriptor] : idToDescriptor) {
+        DoAddDescriptor(id, descriptor);
     }
 }
 
