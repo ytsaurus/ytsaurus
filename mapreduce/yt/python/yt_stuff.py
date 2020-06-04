@@ -20,6 +20,7 @@ import contextlib
 import copy
 
 import yatest.common
+import yatest.common.network
 
 import devtools.swag.daemon
 import devtools.swag.ports
@@ -32,6 +33,7 @@ _ADMISSIBLE_ENV_VARS = [
 
 _YT_PREFIX = "//"
 _YT_MAX_START_RETRIES = 3
+_YT_LISTEN_PORT_POOL_SIZE = 50
 
 MB = 1024 * 1024
 GB = MB * 1024
@@ -182,6 +184,7 @@ class YtStuff(object):
         self._prepare_files()
         self._prepare_env()
         self._import_wrapper()
+        self._port_manager = yatest.common.network.PortManager()
 
     def _prepare_logger(self):
         self.logger = logging.getLogger()
@@ -381,6 +384,11 @@ class YtStuff(object):
             if local_cypress_dir:
                 args += ["--local-cypress-dir", local_cypress_dir]
 
+            # TODO: uncomment once `--listen-port-pool` option is available in local_yt from sandbox resource
+            # args += ["--listen-port-pool"]
+            # for _ in range(_YT_LISTEN_PORT_POOL_SIZE):
+            #     args += [str(self._port_manager.get_port())]
+
             cmd = [str(s) for s in self.yt_local_exec + list(args)]
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
 
@@ -512,6 +520,7 @@ class YtStuff(object):
                 stderr=self.yt_local_err,
             )
             self.is_running = False
+            self._port_manager.release()
         except Exception as e:
             self._log("Errors while stopping local YT:\n%s", str(e))
             self._save_logs(save_yt_all=True)

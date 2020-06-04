@@ -210,6 +210,8 @@ def add_start_subparser(subparsers):
                                              "Will be used to store performance critical parts.")
     parser.add_argument("--port-range-start", type=int,
                         help="assign ports from continuous range starting from this port number.")
+    parser.add_argument("--listen-port-pool", nargs="+", type=int,
+                        help="assign ports from the list of ports specified by this argument")
     parser.add_argument("--fqdn", help="FQDN to use in all addresses. Detected automatically if not specified.")
     parser.add_argument("--prepare-only", action="store_true", default=False,
                         help="Only prepare environment, but don't start.")
