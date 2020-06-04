@@ -799,6 +799,13 @@ std::map<TString, TString> ParseProcessCGroups(const TString& str)
     return result;
 }
 
+std::map<TString, TString> GetProcessCGroups(pid_t pid)
+{
+    auto cgroupsPath = Format("/proc/%v/cgroup", pid);
+    auto rawCgroups = TFileInput{cgroupsPath}.ReadAll();
+    return ParseProcessCGroups(rawCgroups);
+}
+
 bool IsValidCGroupType(const TString& type)
 {
     return

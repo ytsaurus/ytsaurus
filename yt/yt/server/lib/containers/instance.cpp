@@ -5,6 +5,8 @@
 #include "porto_executor.h"
 #include "private.h"
 
+#include <yt/ytlib/cgroup/cgroup.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/logging/log.h>
@@ -12,16 +14,21 @@
 #include <yt/core/misc/error.h>
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/fs.h>
+#include <yt/core/misc/proc.h>
 
 #include <infra/porto/api/libporto.hpp>
 
+#include <util/stream/file.h>
+
 #include <util/string/cast.h>
+#include <util/string/subst.h>
 
 #include <initializer_list>
 #include <string>
 
 namespace NYT::NContainers {
 
+using namespace NCGroup;
 using namespace NConcurrency;
 using namespace NNet;
 
@@ -514,6 +521,29 @@ public:
             .ValueOrThrow();
         return std::stoi(pid.at("root_pid")
             .ValueOrThrow());
+    }
+
+    virtual std::vector<pid_t> GetPids() const override
+    {
+        std::vector<pid_t> pids;
+        for (auto pid : ListPids()) {
+            auto cgroups = GetProcessCGroups(pid);
+            auto instanceCgroup = GetAbsoluteName();
+            auto processPidCgroup = cgroups["pids"];
+
+            // NB(gritukan): Separator can be either "/" or "%" depending on isolation policy.
+            SubstGlobal(instanceCgroup, "/", "%", 0);
+            if (instanceCgroup[0] == '%') {
+                instanceCgroup = instanceCgroup.substr(1);
+            }
+            SubstGlobal(processPidCgroup, "/", "%", 0);
+
+            if (instanceCgroup == processPidCgroup) {
+                pids.push_back(pid);
+            }
+        }
+
+        return pids;
     }
 
     virtual TFuture<int> Exec(

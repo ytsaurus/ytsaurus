@@ -58,6 +58,8 @@ struct IInstance
     //! Returns externally visible pid of the root proccess inside container.
     //! Throws if container is not running.
     virtual pid_t GetPid() const = 0;
+    //! Returns the list of externally visible pids of processes running inside container.
+    virtual std::vector<pid_t> GetPids() const = 0;
     virtual TFuture<int> Exec(
         const std::vector<const char*>& argv,
         const std::vector<const char*>& env) = 0;
