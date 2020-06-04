@@ -253,6 +253,13 @@ public:
         YT_LOG_DEBUG("Default master cell roles set");
     }
 
+    ~TImpl()
+    {
+        for (const auto& cachingObjectService : CachingObjectServices_) {
+            RpcServer_->UnregisterService(cachingObjectService);
+        }
+    }
+
 private:
     const TCellDirectoryConfigPtr Config_;
     const TCellId PrimaryMasterCellId_;
@@ -272,6 +279,8 @@ private:
     // The keys are always single roles (i.e. each key is a role set consisting of exactly on member).
     THashMultiMap<EMasterCellRoles, TCellTag> RoleCellsMap_;
     TRandomGenerator RandomGenerator_;
+
+    std::vector<IServicePtr> CachingObjectServices_;
 
     TCellTagList GetMasterCellTagsWithRole(EMasterCellRoles role) const
     {
@@ -346,6 +355,7 @@ private:
             Cache_,
             config->CellId,
             ObjectClientLogger);
+        CachingObjectServices_.push_back(cachingObjectService);
         RpcServer_->RegisterService(cachingObjectService);
         CellChannelMap_[cellTag][EMasterChannelKind::LocalCache] = CreateRealmChannel(CreateLocalChannel(RpcServer_), config->CellId);
     }
