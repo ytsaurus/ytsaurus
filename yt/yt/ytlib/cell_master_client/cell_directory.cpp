@@ -66,7 +66,6 @@ public:
             Logger,
             TProfiler("/local_cache")))
         , RpcServer_(CreateLocalServer())
-        , MasterCacheQueue_(New<TActionQueue>("MasterCache"))
         , RandomGenerator_(TInstant::Now().GetValue())
     {
         for (const auto& masterConfig : Config_->SecondaryMasters) {
@@ -253,13 +252,6 @@ public:
         YT_LOG_DEBUG("Default master cell roles set");
     }
 
-    ~TImpl()
-    {
-        for (const auto& cachingObjectService : CachingObjectServices_) {
-            RpcServer_->UnregisterService(cachingObjectService);
-        }
-    }
-
 private:
     const TCellDirectoryConfigPtr Config_;
     const TCellId PrimaryMasterCellId_;
@@ -268,7 +260,6 @@ private:
     const NLogging::TLogger Logger;
     const TObjectServiceCachePtr Cache_;
     const IServerPtr RpcServer_;
-    const TActionQueuePtr MasterCacheQueue_;
 
     /*const*/ TCellTagList SecondaryMasterCellTags_;
 
@@ -350,7 +341,7 @@ private:
 
         auto cachingObjectService = CreateCachingObjectService(
             Config_->CachingObjectService,
-            MasterCacheQueue_->GetInvoker(),
+            GetSyncInvoker(),
             CellChannelMap_[cellTag][EMasterChannelKind::Cache],
             Cache_,
             config->CellId,
