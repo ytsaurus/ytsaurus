@@ -145,7 +145,7 @@ class YTInstance(object):
                  http_proxy_count=0, http_proxy_ports=None, rpc_proxy_count=None, rpc_proxy_ports=None, cell_tag=0,
                  enable_debug_logging=True, enable_logging_compression=True, preserve_working_dir=False, tmpfs_path=None,
                  port_locks_path=None, local_port_range=None, port_range_start=None, node_port_set_size=None,
-                 fqdn=None, jobs_resource_limits=None, jobs_memory_limit=None,
+                 listen_port_pool=None, fqdn=None, jobs_resource_limits=None, jobs_memory_limit=None,
                  jobs_cpu_limit=None, jobs_user_slot_count=None, node_memory_limit_addition=None,
                  node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=False, modify_configs_func=None,
                  kill_child_processes=False, use_porto_for_servers=False, watcher_config=None,
@@ -242,6 +242,7 @@ class YTInstance(object):
         if self.port_locks_path is not None:
             makedirp(self.port_locks_path)
         self.local_port_range = local_port_range
+        self._listen_port_pool = listen_port_pool
         self._open_port_iterator = None
 
         if fqdn is None:
@@ -307,6 +308,8 @@ class YTInstance(object):
     def _get_ports_generator(self, port_range_start):
         if port_range_start and isinstance(port_range_start, int):
             return count(port_range_start)
+        elif self._listen_port_pool is not None:
+            return iter(self._listen_port_pool)
         else:
             self._open_port_iterator = OpenPortIterator(
                 port_locks_path=self.port_locks_path,
