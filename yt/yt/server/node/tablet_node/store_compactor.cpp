@@ -315,6 +315,7 @@ private:
                 : TabletId(task.TabletId)
                 , PartitionId(task.PartitionId)
                 , StoreCount(task.StoreIds.size())
+                , DiscardStores(task.DiscardStores)
                 , Slack(task.Slack)
                 , Effect(task.Effect)
                 , FutureEffect(task.FutureEffect)
