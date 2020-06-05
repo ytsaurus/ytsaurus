@@ -16,6 +16,7 @@ import scala.concurrent.duration._
 import scala.io.Source
 import scala.language.postfixOps
 import scala.sys.process._
+import scala.util.{Failure, Success, Try}
 
 trait SparkLauncher {
   self: VanillaLauncher =>
@@ -28,7 +29,7 @@ trait SparkLauncher {
   def startMaster: MasterService = {
     val host = InetAddress.getLocalHost.getHostName
     val thread = runSparkThread(masterClass, namedArgs = Map("host" -> host))
-    val address = readAddress("master", 5 minutes)
+    val address = readAddressOrDie("master", 5 minutes, thread)
     MasterService("Master", address, thread)
   }
 
@@ -53,9 +54,17 @@ trait SparkLauncher {
         "spark.history.fs.logDirectory" -> path
       )
     )
-    val address = readAddress("history", 5 minutes)
-
+    val address = readAddressOrDie("history", 5 minutes, thread)
     BasicService("Spark History Server", address.hostAndPort, thread)
+  }
+
+  def readAddressOrDie(name: String, timeout: Duration, thread: Thread): Address = {
+    Try(readAddress(name, timeout)) match {
+      case Success(address) => address
+      case Failure(exception) =>
+        thread.interrupt()
+        throw exception
+    }
   }
 
   private def readAddress(name: String, timeout: Duration): Address = {
