@@ -109,7 +109,8 @@ public:
     //! Mark that node has large job archivation queues.
     DEFINE_BYVAL_RW_PROPERTY(bool, JobReporterQueueIsTooLarge);
 
-    DEFINE_BYVAL_RW_PROPERTY(TFairShareSchedulingStatistics, LastHeartbeatStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(TFairShareSchedulingStatistics, LastPreemptiveHeartbeatStatistics);
+    DEFINE_BYVAL_RW_PROPERTY(TFairShareSchedulingStatistics, LastNonPreemptiveHeartbeatStatistics);
 
 public:
     TExecNode(

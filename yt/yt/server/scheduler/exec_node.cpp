@@ -107,13 +107,8 @@ void TExecNode::BuildAttributes(TFluentMap fluent)
         .Item("resource_usage").Value(ResourceUsage_)
         .Item("resource_limits").Value(ResourceLimits_)
         .Item("tags").Value(Tags_)
-        .Item("last_heartbeat_statistics").BeginMap()
-            .Item("preemptable_job_count").Value(LastHeartbeatStatistics_.PreemptableJobCount)
-            .Item("controller_scheduler_job_count").Value(LastHeartbeatStatistics_.ControllerScheduleJobCount)
-            .Item("non_preemptive_scheduler_job_attempts").Value(LastHeartbeatStatistics_.NonPreemptiveScheduleJobAttempts)
-            .Item("preemptive_scheduler_job_attempts").Value(LastHeartbeatStatistics_.PreemptiveScheduleJobAttempts)
-            .Item("has_aggressively_starving_elements").Value(LastHeartbeatStatistics_.HasAggressivelyStarvingElements)
-        .EndMap();
+        .Item("last_non_preemptive_heartbeat_statistics").Value(LastNonPreemptiveHeartbeatStatistics_)
+        .Item("last_preemptive_heartbeat_statistics").Value(LastPreemptiveHeartbeatStatistics_);
 }
 
 

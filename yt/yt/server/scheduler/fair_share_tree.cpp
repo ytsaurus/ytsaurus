@@ -1232,6 +1232,7 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemption(
         }
     }
 
+    context->SchedulingStatistics().PreemptableJobCount = preemptableJobs.size();
     context->SchedulingStatistics().ResourceUsageDiscount = context->SchedulingContext()->ResourceUsageDiscount();
 
     int startedBeforePreemption = context->SchedulingContext()->StartedJobs().size();
@@ -1319,8 +1320,6 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemption(
         return operationElement;
     };
 
-    context->SchedulingStatistics().PreemptableJobCount = preemptableJobs.size();
-
     int currentJobIndex = 0;
     for (; currentJobIndex < preemptableJobs.size(); ++currentJobIndex) {
         if (Dominates(context->SchedulingContext()->ResourceLimits(), context->SchedulingContext()->ResourceUsage())) {
@@ -1391,6 +1390,9 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobs(
 
     TFairShareContext context(schedulingContext, enableSchedulingInfoLogging, Logger);
 
+    context.SchedulingStatistics().ResourceUsage = schedulingContext->ResourceUsage();
+    context.SchedulingStatistics().ResourceLimits = schedulingContext->ResourceLimits();
+
     bool needPackingFallback;
     {
         context.StartStage(&NonPreemptiveSchedulingStage_);
@@ -1423,6 +1425,7 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobs(
         }
     }
 
+    context.SchedulingStatistics().ScheduleWithPreemption = scheduleJobsWithPreemption;
     if (scheduleJobsWithPreemption) {
         context.StartStage(&PreemptiveSchedulingStage_);
         DoScheduleJobsWithPreemption(rootElementSnapshot, &context, now);
