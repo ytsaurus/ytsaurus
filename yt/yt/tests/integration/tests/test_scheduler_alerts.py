@@ -94,6 +94,52 @@ class TestSchedulerAlerts(YTEnvSetup):
 
 ##################################################################
 
+class TestLowCpuAlert(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "heartbeat_period": 200
+            }
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operations_update_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 100,
+            "operation_alerts": {
+                "low_cpu_usage_alert_min_execution_time": 1,
+                "low_cpu_usage_alert_min_average_job_time": 1,
+                "low_cpu_usage_alert_cpu_usage_threshold": 0.5,
+            },
+        }
+    }
+
+    @authors("renadeen")
+    def test_low_cpu_alert_presence(self):
+        op = run_test_vanilla("sleep 3")
+        op.track()
+
+        assert "low_cpu_usage" in op.get_alerts()
+
+    @authors("renadeen")
+    def test_low_cpu_alert_absence(self):
+        op = run_test_vanilla(command='pids=""; for i in 1 2; do while : ; do : ; done & pids="$pids $!"; done; sleep 2; for p in $pids; do kill $p; done')
+        op.track()
+
+        assert "low_cpu_usage" not in op.get_alerts()
+
+
 class TestSchedulerOperationAlerts(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
@@ -140,9 +186,6 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "intermediate_data_skew_alert_min_partition_size": 50,
                 "short_jobs_alert_min_job_count": 3,
                 "short_jobs_alert_min_job_duration": 5000,
-                "low_cpu_usage_alert_min_execution_time": 1,
-                "low_cpu_usage_alert_min_average_job_time": 1,
-                "low_cpu_usage_alert_cpu_usage_threshold": 0.5,
                 "operation_too_long_alert_min_wall_time": 0,
                 "operation_too_long_alert_estimate_duration_threshold": 5000,
                 "queue_average_wait_time_threshold": 1500,
@@ -278,21 +321,6 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             assert "long_aborted_jobs" in op.get_alerts()
         else:
             assert "long_aborted_jobs" not in op.get_alerts()
-
-    # if these three tests flap - call renadeen@
-    @authors("renadeen")
-    def test_low_cpu_alert_presence(self):
-        op = run_test_vanilla("sleep 3")
-        op.track()
-
-        assert "low_cpu_usage" in op.get_alerts()
-
-    @authors("renadeen")
-    def test_low_cpu_alert_absence(self):
-        op = run_test_vanilla(command='pids=""; for i in 1 2; do while : ; do : ; done & pids="$pids $!"; done; sleep 1; for p in $pids; do kill $p; done')
-        op.track()
-
-        assert "low_cpu_usage" not in op.get_alerts()
 
     @authors("renadeen")
     def test_operation_too_long_alert(self):
