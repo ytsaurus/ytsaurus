@@ -77,6 +77,7 @@ DEFINE_ENUM(EMasterReign,
     ((TuneTabletStatisticsUpdate_19_8)                              (1117))  // savrus
     ((InternalizeAbcSchedulerPoolAttribute_19_8)                    (1118))  // mrkastep
     ((FixTabletStatisticsUpdate_19_8)                               (1119))  // savrus
+    ((YT_13015_CorrectSrcTxForCrossShardCopy_19_8)                  (1120))  // shakurov
     ((TruncateJournals)                                             (1200))  // aleksandra-zh
     ((PrevRandomSeed)                                               (1201))  // aleksandra-zh
     ((FixDenseMapSerialization)                                     (1202))  // aleksandra-zh
