@@ -1243,11 +1243,10 @@ void TServiceBase::ReleaseRequestSemaphore(const TRuntimeMethodInfoPtr& runtimeI
     --runtimeInfo->ConcurrencySemaphore;
 }
 
-static thread_local bool ScheduleRequestsLatch;
-
 void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
 {
     // Prevent reentrant invocations.
+    static thread_local bool ScheduleRequestsLatch;
     if (ScheduleRequestsLatch) {
         return;
     }
@@ -1255,6 +1254,12 @@ void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
     auto latchGuard = Finally([&] {
         ScheduleRequestsLatch = false;
     });
+
+#ifndef NDEBUG
+    // Method handlers are allowed to run via sync invoker;
+    // however these handlers must not yield.
+    TForbidContextSwitchGuard contextSwitchGuard;
+#endif
 
     while (TryAcquireRequestSemaphore(runtimeInfo)) {
         TServiceContextPtr context;

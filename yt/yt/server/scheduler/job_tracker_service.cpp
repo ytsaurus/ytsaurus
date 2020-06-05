@@ -17,7 +17,7 @@ class TJobTrackerService
     : public TServiceBase
 {
 public:
-    TJobTrackerService(TBootstrap* bootstrap)
+    explicit TJobTrackerService(TBootstrap* bootstrap)
         : NRpc::TServiceBase(
             GetSyncInvoker(),
             TJobTrackerServiceProxy::GetDescriptor(),

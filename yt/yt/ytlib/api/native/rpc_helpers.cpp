@@ -11,6 +11,10 @@ bool IsCachingEnabled(
     const TConnectionConfigPtr& config,
     const TMasterReadOptions& options)
 {
+    if (options.ReadFrom == EMasterChannelKind::LocalCache) {
+        return true;
+    }
+    
     const auto& cache = config->MasterCache;
     if (!cache) {
         return false;
@@ -20,9 +24,9 @@ bool IsCachingEnabled(
         return false;
     }
 
-    return options.ReadFrom == EMasterChannelKind::Cache ||
-        options.ReadFrom == EMasterChannelKind::MasterCache ||
-        options.ReadFrom == EMasterChannelKind::LocalCache;
+    return
+        options.ReadFrom == EMasterChannelKind::Cache ||
+        options.ReadFrom == EMasterChannelKind::MasterCache;
 }
 
 void SetCachingHeader(
