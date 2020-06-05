@@ -237,6 +237,7 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
           case LongType => longValue
           case IntegerType => longValue.toInt
           case DoubleType => UnsignedLong.valueOf(longValue).doubleValue()
+          case NullType => null
         }
       case YsonTags.BINARY_DOUBLE => readDouble
       case YsonTags.BINARY_FALSE => false
@@ -289,7 +290,7 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
 
   def parseNode(first: Byte, allowEof: Boolean, dataType: IndexedDataType): Any = {
     val newFirst = if (first == YsonTags.BEGIN_ATTRIBUTES) {
-      skip(readToken(allowEof), allowEof, YsonTags.END_ATTRIBUTES)
+      parseNoneMap(YsonTags.END_ATTRIBUTES, allowEof)
       readToken(allowEof)
     } else first
     parseWithoutAttributes(newFirst, allowEof, dataType)
