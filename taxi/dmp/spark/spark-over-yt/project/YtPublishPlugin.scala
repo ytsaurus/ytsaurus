@@ -121,8 +121,10 @@ object YtPublishPlugin extends AutoPlugin {
         implicit val yt: YtClient = ytClient
         try {
           publishYtArtifacts.value.par.foreach { artifact =>
-            createDir(artifact.remoteDir, proxy, log)
-            artifact.publish(proxy, log)
+            if (artifact.proxy.forall(_ == proxy)) {
+              createDir(artifact.remoteDir, proxy, log)
+              artifact.publish(proxy, log)
+            }
           }
         } finally {
           yt.close()
