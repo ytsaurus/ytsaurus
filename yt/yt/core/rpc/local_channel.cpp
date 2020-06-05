@@ -5,6 +5,7 @@
 #include "server.h"
 #include "service.h"
 #include "dispatcher.h"
+#include "private.h"
 
 #include <yt/core/bus/bus.h>
 
@@ -26,6 +27,10 @@ using namespace NBus;
 
 using NYT::FromProto;
 using NYT::ToProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = RpcClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,6 +107,12 @@ public:
             std::make_unique<NProto::TRequestHeader>(request->Header()),
             std::move(serializedRequest),
             std::move(session));
+
+        YT_LOG_DEBUG("Local request sent (RequestId: %v, Method: %v.%v, Timeout: %v)",
+            request->GetRequestId(),
+            request->GetService(),
+            request->GetMethod(),
+            options.Timeout);
 
         return New<TClientRequestControl>(std::move(service), request->GetRequestId());
     }

@@ -319,6 +319,23 @@ void TExecuteBatchCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+TYPath GetProxyRegistryPath(EProxyType type)
+{
+    switch (type) {
+        case EProxyType::Rpc:
+            return RpcProxiesPath;
+        case EProxyType::Grpc:
+            return GrpcProxiesPath;
+        default:
+            THROW_ERROR_EXCEPTION("Proxy type %Qlv is not supported",
+                type);
+    }
+}
+
+} // namespace
+
 TDiscoverProxiesCommand::TDiscoverProxiesCommand()
 {
     RegisterParameter("type", Type)
@@ -329,17 +346,12 @@ TDiscoverProxiesCommand::TDiscoverProxiesCommand()
 
 void TDiscoverProxiesCommand::DoExecute(ICommandContextPtr context)
 {
-    if (Type != EProxyType::Rpc && Type != EProxyType::Grpc) {
-        THROW_ERROR_EXCEPTION("Proxy type is not supported")
-            << TErrorAttribute("proxy_type", Type);
-    }
-
     TGetNodeOptions options;
     options.ReadFrom = EMasterChannelKind::LocalCache;
     options.Attributes = {BannedAttributeName, RoleAttributeName};
+    options.Timeout = Options.Timeout;
 
-    TString path = (Type == EProxyType::Rpc) ? RpcProxiesPath : GrpcProxiesPath;
-
+    auto path = GetProxyRegistryPath(Type);
     auto nodesYson = WaitFor(context->GetClient()->GetNode(path, options))
         .ValueOrThrow();
 

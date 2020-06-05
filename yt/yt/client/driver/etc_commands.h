@@ -160,6 +160,7 @@ DEFINE_ENUM(EProxyType,
 );
 
 struct TDiscoverProxiesOptions
+    : public NApi::TTimeoutOptions
 { };
 
 class TDiscoverProxiesCommand

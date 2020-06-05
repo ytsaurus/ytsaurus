@@ -23,6 +23,10 @@ TCellDirectoryConfig::TCellDirectoryConfig()
     RegisterParameter("caching_object_service", CachingObjectService)
         .DefaultNew();
 
+    RegisterPreprocessor([&] {
+        CachingObjectService->RateLimit = 1000000; // effective infinity
+    });
+
     if (PrimaryMaster) {
         auto cellId = PrimaryMaster->CellId;
         auto primaryCellTag = CellTagFromId(cellId);

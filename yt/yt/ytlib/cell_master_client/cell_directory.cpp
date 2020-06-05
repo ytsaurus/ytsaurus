@@ -29,6 +29,7 @@
 #include <yt/core/rpc/local_server.h>
 #include <yt/core/rpc/server.h>
 #include <yt/core/rpc/local_channel.h>
+#include <yt/core/rpc/dispatcher.h>
 
 #include <yt/core/profiling/profiler.h>
 
@@ -341,7 +342,7 @@ private:
 
         auto cachingObjectService = CreateCachingObjectService(
             Config_->CachingObjectService,
-            GetSyncInvoker(),
+            NRpc::TDispatcher::Get()->GetHeavyInvoker(),
             CellChannelMap_[cellTag][EMasterChannelKind::Cache],
             Cache_,
             config->CellId,
