@@ -302,6 +302,6 @@ def make_request(command_name,
         return ResponseStream(
             lambda: response,
             response.iter_content(get_config(client)["read_buffer_size"]),
-            lambda: response.close(),
+            lambda from_delete: response.close(),
             process_error,
             lambda: response.headers.get("X-YT-Response-Parameters", None))

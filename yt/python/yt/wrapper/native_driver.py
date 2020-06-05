@@ -307,6 +307,6 @@ def make_request(command_name, params,
         return ResponseStream(
             lambda: response,
             chunk_iter(output_stream, response, get_config(client)["read_buffer_size"]),
-            lambda: None,
+            lambda from_delete: None,
             process_error,
             lambda: response.response_parameters())

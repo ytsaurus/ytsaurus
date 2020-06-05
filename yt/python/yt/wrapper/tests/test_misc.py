@@ -739,7 +739,8 @@ class TestResponseStream(object):
                 assert self.stop_iteration_raised
 
         close_list = []
-        def close():
+
+        def close(from_delete):
             close_list.append(True)
 
         string_iterator = StringIterator(s, 10)

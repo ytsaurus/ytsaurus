@@ -7,7 +7,7 @@ from .errors import YtMasterCommunicationError, YtChunkUnavailable, YtAllTargetN
 from .ypath import YPathSupportingAppend
 from .progress_bar import SimpleProgressBar, FakeProgressReporter
 from .stream import RawStream, ItemStream
-from .transaction import Transaction
+from .transaction import Transaction, add_transaction_to_abort
 from .transaction_commands import _make_transactional_request
 from .http_helpers import get_retriable_errors
 from .response_stream import ResponseStreamWithReadRow
@@ -280,10 +280,16 @@ class ReadIterator(IteratorRetrier):
     def __iter__(self):
         return self
 
-    def close(self):
+    def close(self, from_delete=False):
         if self.last_response is not None:
             self.last_response.close()
-        self.transaction.abort()
+
+        if from_delete:
+            add_transaction_to_abort(self.transaction)
+            self.transaction = None
+        else:
+            self.transaction.abort()
+
         self.iterator.close()
 
     def except_action(self, exception, attempt):
@@ -349,7 +355,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
             return ResponseStreamWithReadRow(
                 get_response=lambda: iterator.last_response,
                 iter_content=reporter.wrap_stream(iterator),
-                close=lambda: iterator.close(),
+                close=lambda from_delete: iterator.close(),
                 process_error=lambda response: iterator.last_response._process_error(
                     iterator.last_response._get_response()),
                 get_response_parameters=lambda: iterator.start_response.response_parameters)

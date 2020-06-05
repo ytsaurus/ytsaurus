@@ -12,9 +12,10 @@ from yt.packages.six.moves._thread import interrupt_main
 
 from copy import deepcopy
 from time import sleep
-from threading import Thread
+from threading import Thread, RLock
 from datetime import datetime, timedelta
 import signal
+import time
 import os
 
 _sigusr_received = False
@@ -326,3 +327,35 @@ def get_current_transaction_id(client=None):
         return null_transaction_id
     else:
         return transaction_stack.get()[0]
+
+class _TransactionAborter(Thread):
+    def __init__(self):
+        super(_TransactionAborter, self).__init__()
+        self._lock = RLock()
+        self._transactions_to_abort = []
+
+    def add(self, transaction):
+        with self._lock:
+            self._transactions_to_abort.append(transaction)
+
+    def run(self):
+        while True:
+            transaction = None
+            with self._lock:
+                if self._transactions_to_abort:
+                    transaction = self._transactions_to_abort[-1]
+                    self._transactions_to_abort.pop()
+            if transaction is not None:
+                transaction.abort()
+            else:
+                time.sleep(10)
+
+_transaction_aborter = None
+
+def add_transaction_to_abort(transaction):
+    global _transaction_aborter
+    if _transaction_aborter is None:
+        _transaction_aborter = _TransactionAborter()
+        _transaction_aborter.daemon = True
+        _transaction_aborter.start()
+    _transaction_aborter.add(transaction)

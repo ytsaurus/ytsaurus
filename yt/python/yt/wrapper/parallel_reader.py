@@ -7,7 +7,7 @@ from .http_helpers import get_retriable_errors
 from .lock_commands import lock
 from .response_stream import ResponseStreamWithReadRow, EmptyResponseStream
 from .retries import Retrier, default_chaos_monkey
-from .transaction import Transaction, null_transaction_id
+from .transaction import Transaction, null_transaction_id, add_transaction_to_abort
 from .thread_pool import ThreadPool
 from .ypath import TablePath
 
@@ -83,11 +83,15 @@ class ParallelReader(object):
         for data in self._read_iterator(ranges):
             yield data
 
-    def close(self):
+    def close(self, from_delete=False):
         self._pool.close()
         self._pool = None
         if self._transaction:
-            self._transaction.abort()
+            if from_delete:
+                add_transaction_to_abort(self._transaction)
+                self._transaction = None
+            else:
+                self._transaction.abort()
 
 def make_read_parallel_request(command_name, path, ranges, params,
                                prepare_params_func, unordered, response_parameters, client):
@@ -95,7 +99,7 @@ def make_read_parallel_request(command_name, path, ranges, params,
         return ResponseStreamWithReadRow(
             get_response=lambda: None,
             iter_content=iter(EmptyResponseStream()),
-            close=lambda: None,
+            close=lambda from_delete: None,
             process_error=lambda response: None,
             get_response_parameters=lambda: None)
 
@@ -117,7 +121,7 @@ def make_read_parallel_request(command_name, path, ranges, params,
         return ResponseStreamWithReadRow(
             get_response=lambda: None,
             iter_content=iterator,
-            close=lambda: reader.close(),
+            close=lambda from_delete: reader.close(from_delete),
             process_error=lambda response: None,
             get_response_parameters=lambda: response_parameters)
 
