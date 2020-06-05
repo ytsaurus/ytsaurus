@@ -3,7 +3,7 @@ package ru.yandex.spark.launcher
 import com.twitter.scalding.Args
 import org.apache.log4j.Logger
 import ru.yandex.spark.discovery.DiscoveryService
-import ru.yandex.spark.launcher.RpcProxyLauncher.RpcProxyConfig
+import ru.yandex.spark.launcher.ByopLauncher.ByopConfig
 import ru.yandex.spark.yt.wrapper.Utils
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 
@@ -11,30 +11,25 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.Try
 
-object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with RpcProxyLauncher {
+object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with ByopLauncher {
   private val log = Logger.getLogger(getClass)
   private val workerArgs = WorkerLauncherArgs(args)
-  private val rpcProxyConfig = RpcProxyConfig.create(sparkSystemProperties, args)
+  private val byopConfig = ByopConfig.create(sparkSystemProperties, args)
 
-  run(workerArgs.ytConfig, workerArgs.discoveryPath) { discoveryService =>
+  import workerArgs._
+
+  withDiscovery(ytConfig, discoveryPath) { discoveryService =>
     log.info("Waiting for master http address")
-    val masterAddress = discoveryService.waitAddress(workerArgs.waitMasterTimeout)
-      .getOrElse(throw new IllegalStateException(s"Empty discovery path ${workerArgs.discoveryPath}, master is not started"))
+    val masterAddress = discoveryService.waitAddress(waitMasterTimeout)
+      .getOrElse(throw new IllegalStateException(s"Empty discovery path $discoveryPath, master is not started"))
 
-    val rpcProxyThread = rpcProxyConfig.map(startRpcProxy(workerArgs.ytConfig, _))
-
-    Try {
-      val rpcProxyAddress = rpcProxyConfig.map(waitRpcProxyStart(_, workerArgs.waitMasterTimeout))
-
+    withOptionService(byopConfig.map(startByop(_, ytConfig, waitMasterTimeout))) { byop =>
       log.info(s"Starting worker for master $masterAddress")
-      val workerThread = startWorker(masterAddress, workerArgs.cores, workerArgs.memory)
-
-      Try {
+      withService(startWorker(masterAddress, cores, memory)) {worker =>
         def isAlive: Boolean = {
-          val isMasterAlive = DiscoveryService.isAlive(masterAddress.webUiHostAndPort, 3)
-          val isWorkerAlive = workerThread.isAlive
-          val isRpcProxyAlive = rpcProxyThread.forall(_.isAlive) &&
-            rpcProxyAddress.forall(DiscoveryService.isAlive(_, 3))
+          val isMasterAlive = DiscoveryService.isAlive(masterAddress.hostAndPort, 3)
+          val isWorkerAlive = worker.isAlive(3)
+          val isRpcProxyAlive = byop.forall(_.isAlive(3))
 
           if (!isMasterAlive) log.error("Master is not alive")
           if (!isWorkerAlive) log.error("Worker is not alive")
@@ -45,13 +40,7 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with R
 
         checkPeriodically(isAlive)
       }
-
-      log.info("Interrupt worker thread")
-      workerThread.interrupt()
     }
-
-    log.info("Interrupt rpc proxy thread")
-    rpcProxyThread.foreach(_.interrupt())
   }
 }
 

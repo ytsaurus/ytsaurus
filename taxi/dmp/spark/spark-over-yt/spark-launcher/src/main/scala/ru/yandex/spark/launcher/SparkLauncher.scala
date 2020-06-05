@@ -7,9 +7,9 @@ import io.circe.generic.auto._
 import io.circe.parser._
 import org.apache.log4j.Logger
 import ru.yandex.spark.discovery.{Address, CypressDiscoveryService, DiscoveryService}
+import ru.yandex.spark.launcher.Service.{BasicService, MasterService, WorkerService}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
-import ru.yandex.yt.ytclient.proxy.YtClient
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -25,15 +25,15 @@ trait SparkLauncher {
   private val workerClass = "org.apache.spark.deploy.worker.Worker"
   private val historyServerClass = "org.apache.spark.deploy.history.HistoryServer"
 
-  def startMaster(): (Address, Thread) = {
+  def startMaster: MasterService = {
     val host = InetAddress.getLocalHost.getHostName
     val thread = runSparkThread(masterClass, namedArgs = Map("host" -> host))
-
-    readAddress("master", 5 minutes) -> thread
+    val address = readAddress("master", 5 minutes)
+    MasterService("Master", address, thread)
   }
 
-  def startWorker(master: Address, cores: Int, memory: String): Thread = {
-    runSparkThread(
+  def startWorker(master: Address, cores: Int, memory: String): WorkerService = {
+    val thread = runSparkThread(
       workerClass,
       namedArgs = Map(
         "cores" -> cores.toString,
@@ -42,17 +42,20 @@ trait SparkLauncher {
       ),
       positionalArgs = Seq(s"spark://${master.hostAndPort}")
     )
+
+    WorkerService("Worker", thread)
   }
 
-  def startHistoryServer(path: String): (Address, Thread) = {
+  def startHistoryServer(path: String): BasicService = {
     val thread = runSparkThread(
       historyServerClass,
       systemProperties = Map(
         "spark.history.fs.logDirectory" -> path
       )
     )
+    val address = readAddress("history", 5 minutes)
 
-    readAddress("history", 5 minutes) -> thread
+    BasicService("Spark History Server", address.hostAndPort, thread)
   }
 
   private def readAddress(name: String, timeout: Duration): Address = {
@@ -129,21 +132,22 @@ trait SparkLauncher {
     }
   }
 
-  def run(ytConfig: YtClientConfiguration, discoveryPath: String)(f: DiscoveryService => Unit): Unit = {
+  def withDiscovery(ytConfig: YtClientConfiguration, discoveryPath: String)(f: DiscoveryService => Unit): Unit = {
     val client = YtWrapper.createRpcClient(ytConfig)
     try {
       val discoveryService = new CypressDiscoveryService(discoveryPath)(client.yt)
       f(discoveryService)
     } finally {
+      log.info("Close yt client")
       client.close()
     }
   }
 
-  def withThread[T](thread: Thread)(f: (Thread) => T): T = {
-    try f(thread) finally thread.interrupt()
+  def withService[T, S <: Service](service: S)(f: S => T): T = {
+    try f(service) finally service.stop()
   }
 
-  def withOptionThread[T](thread: Option[Thread])(f: Option[Thread] => T): T = {
-    try f(thread) finally thread.foreach(_.interrupt())
+  def withOptionService[T, S <: Service](service: Option[S])(f: Option[S] => T): T = {
+    try f(service) finally service.foreach(_.stop())
   }
 }

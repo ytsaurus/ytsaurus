@@ -1,21 +1,27 @@
 package ru.yandex.spark.launcher.rest
 
 import com.google.common.net.HostAndPort
+import org.apache.log4j.Logger
 import org.eclipse.jetty.server.Server
 import org.eclipse.jetty.servlet.DefaultServlet
 import org.eclipse.jetty.webapp.WebAppContext
 import org.scalatra.servlet.ScalatraListener
 
 class MasterWrapperServer(server: Server) {
-  def joinThread(): Thread = new Thread(() => {
-    try {
-      server.join()
-    } catch {
-      case e: Throwable =>
-        server.stop()
-        throw e
-    }
-  })
+  def joinThread(): Thread = {
+    val thread = new Thread(() => {
+      try {
+        server.join()
+      } catch {
+        case e: Throwable =>
+          server.stop()
+          throw e
+      }
+    })
+    thread.setDaemon(false)
+    thread.start()
+    thread
+  }
 }
 
 object MasterWrapperServer {

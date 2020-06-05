@@ -17,7 +17,7 @@ trait DiscoveryService {
                masterWrapperEndpoint: HostAndPort,
                clusterConf: SparkConfYsonable): Unit
 
-  def registerSHS(address: Address): Unit
+  def registerSHS(address: HostAndPort): Unit
 
   def discoverAddress(): Option[Address]
 

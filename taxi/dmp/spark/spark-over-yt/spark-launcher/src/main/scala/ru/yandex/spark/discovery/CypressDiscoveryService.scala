@@ -67,11 +67,11 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: YtClient) exte
     transaction.commit().join()
   }
 
-  override def registerSHS(address: Address): Unit = {
+  override def registerSHS(address: HostAndPort): Unit = {
     val transaction = YtWrapper.createTransaction(None, 1 minute)
     val tr = Some(transaction.getId.toString)
     YtWrapper.removeDirIfExists(shsPath, recursive = true, tr)
-    YtWrapper.createDir(s"$shsPath/${address.hostAndPort}", tr)
+    YtWrapper.createDir(s"$shsPath/$address", tr)
     transaction.commit().join()
   }
 

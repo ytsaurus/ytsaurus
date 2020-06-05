@@ -3,7 +3,7 @@ package ru.yandex.spark.launcher
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 
-class RpcProxyLauncherTest extends FlatSpec with Matchers {
+class ByopLauncherTest extends FlatSpec with Matchers {
 
   behavior of "RpcProxyLauncherTest"
 
@@ -32,7 +32,7 @@ class RpcProxyLauncherTest extends FlatSpec with Matchers {
       .endMap()
       .build()
 
-    val res = RpcProxyLauncher.update(node, patch).asMap.asScala
+    val res = ByopLauncher.update(node, patch).asMap.asScala
     res.keys should contain theSameElementsAs Seq("key1", "key2", "key3", "key4", "key5")
     res("key1").stringValue() shouldEqual "after"
     res("key2").asMap().asScala.mapValues(_.longValue()) shouldEqual Map("a" -> 1, "b" -> 33, "c" -> 22)
