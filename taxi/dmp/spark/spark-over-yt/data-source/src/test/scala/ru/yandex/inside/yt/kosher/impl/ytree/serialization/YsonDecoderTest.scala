@@ -154,6 +154,21 @@ class YsonDecoderTest extends FlatSpec with Matchers with ScalaCheckPropertyChec
     result should contain theSameElementsInOrderAs expected
   }
 
+  it should "read object with attributes" in {
+    val bytes = readBytes("bytes-uint")
+    val expected = YTreeBinarySerializer.deserialize(new ByteArrayInputStream(bytes)).asMap()
+
+    val result = YsonDecoder.decode(bytes, SchemaConverter.indexedDataType(
+      StructType(Seq(
+        StructField("cluster_name", StringType),
+        StructField("time_limit", LongType)
+      ))
+    )).asInstanceOf[InternalRow]
+
+    result.isNullAt(0) shouldEqual true
+    result.isNullAt(1) shouldEqual true
+  }
+
   private def readBytes(fileName: String): Array[Byte] = {
     Source
       .fromInputStream(getClass.getResourceAsStream(fileName))
