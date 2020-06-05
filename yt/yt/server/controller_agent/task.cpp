@@ -462,6 +462,10 @@ void TTask::ScheduleJob(
     if (TaskHost_->GetJobSplitter()) {
         TaskHost_->GetJobSplitter()->OnJobStarted(joblet->JobId, joblet->InputStripeList, IsJobInterruptible());
     }
+
+    if (!StartTime_) {
+        StartTime_ = TInstant::Now();
+    }
 }
 
 bool TTask::TryRegisterSpeculativeJob(const TJobletPtr& joblet)
@@ -487,6 +491,12 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         .Item("job_proxy_memory_reserve_factor").Value(GetJobProxyMemoryReserveFactor())
         .DoIf(HasUserJob(), [&] (TFluentMap fluent) {
             fluent.Item("user_job_memory_reserve_factor").Value(GetUserJobMemoryReserveFactor());
+        })
+        .DoIf(static_cast<bool>(StartTime_), [&] (TFluentMap fluent) {
+            fluent.Item("start_time").Value(*StartTime_);
+        })
+        .DoIf(static_cast<bool>(CompletionTime_), [&] (TFluentMap fluent) {
+            fluent.Item("completion_time").Value(*CompletionTime_);
         });
 }
 
@@ -559,6 +569,9 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, TaskJobIndexGenerator_);
 
     Persist(context, CompetitiveJobManager_);
+
+    Persist(context, StartTime_);
+    Persist(context, CompletionTime_);
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
@@ -728,6 +741,7 @@ void TTask::OnStripeRegistrationFailed(
 void TTask::OnTaskCompleted()
 {
     YT_VERIFY(CompetitiveJobManager_.GetProgressCounter()->GetTotal() == 0);
+    CompletionTime_ = TInstant::Now();
     YT_LOG_DEBUG("Task completed");
 }
 
