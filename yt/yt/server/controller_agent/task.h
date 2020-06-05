@@ -281,6 +281,12 @@ private:
 
     TCompetitiveJobManager CompetitiveJobManager_;
 
+    //! Time of first job scheduling.
+    std::optional<TInstant> StartTime_;
+
+    //! Time of task completion.
+    std::optional<TInstant> CompletionTime_;
+
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
     void UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics);
