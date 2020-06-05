@@ -411,7 +411,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
     if get_config(client)["yamr_mode"]["treat_unexisting_as_empty"] and not exists(table, client=client):
         return ResponseStreamWithReadRow(get_response=lambda: None,
                                          iter_content=iter(EmptyResponseStream()),
-                                         close=lambda: None,
+                                         close=lambda from_delete: None,
                                          process_error=lambda response: None,
                                          get_response_parameters=lambda: None)
     attributes = get(

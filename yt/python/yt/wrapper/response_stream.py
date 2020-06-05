@@ -119,9 +119,9 @@ class ResponseStream(Iterator):
             raise StopIteration()
         return line
 
-    def close(self):
+    def close(self, from_delete=False):
         if not self._is_closed:
-            self._close()
+            self._close(from_delete)
             self._is_closed = True
 
 class EmptyResponseStream(Iterator):
@@ -148,7 +148,7 @@ class ResponseStreamWithDel(ResponseStream):
         super(ResponseStreamWithDel, self).__init__(*args, **kwargs)
 
     def __del__(self):
-        self.close()
+        self.close(from_delete=True)
 
 class ResponseStreamWithReadRow(ResponseStreamWithDel):
     def __init__(self, *args, **kwargs):
