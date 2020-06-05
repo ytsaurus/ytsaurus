@@ -31,6 +31,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((AutoMergeEnabled)                     (300305))
     // 20.3 start here
     ((BernoulliSampler)                     (300400))
+    ((RefactorReduce)                       (300401))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

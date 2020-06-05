@@ -948,7 +948,7 @@ TEraseOperationSpec::TEraseOperationSpec()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReduceOperationSpecBase::TReduceOperationSpecBase()
+TReduceOperationSpec::TReduceOperationSpec()
 {
     RegisterParameter("reducer", Reducer)
         .DefaultNew();
@@ -956,6 +956,23 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
         .NonEmpty();
     RegisterParameter("output_table_paths", OutputTablePaths)
         .Default();
+
+    RegisterParameter("reduce_by", ReduceBy)
+        .Default();
+    RegisterParameter("sort_by", SortBy)
+        .Default();
+    RegisterParameter("join_by", JoinBy)
+        .Default();
+
+    RegisterParameter("enable_key_guarantee", EnableKeyGuarantee)
+        .Default();
+
+    RegisterParameter("pivot_keys", PivotKeys)
+        .Default();
+
+    RegisterParameter("validate_key_column_types", ValidateKeyColumnTypes)
+        .Default(true);
+
     RegisterParameter("consider_only_primary_size", ConsiderOnlyPrimarySize)
         .Default(false);
 
@@ -963,35 +980,11 @@ TReduceOperationSpecBase::TReduceOperationSpecBase()
         if (!JoinBy.empty()) {
             NTableClient::ValidateKeyColumns(JoinBy);
         }
+        NTableClient::ValidateKeyColumns(ReduceBy);
+        NTableClient::ValidateKeyColumns(SortBy);
 
         InputTablePaths = NYT::NYPath::Normalize(InputTablePaths);
         OutputTablePaths = NYT::NYPath::Normalize(OutputTablePaths);
-
-        Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
-        Reducer->TaskTitle = "Reducer";
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TNewReduceOperationSpec::TNewReduceOperationSpec()
-{
-    RegisterParameter("join_by", JoinBy)
-        .Default();
-    RegisterParameter("reduce_by", ReduceBy)
-        .Default();
-    RegisterParameter("sort_by", SortBy)
-        .Default();
-    RegisterParameter("pivot_keys", PivotKeys)
-        .Default();
-    RegisterParameter("enable_key_guarantee", EnableKeyGuarantee)
-        .Default();
-    RegisterParameter("validate_key_column_types", ValidateKeyColumnTypes)
-        .Default(true);
-
-    RegisterPostprocessor([&] () {
-        NTableClient::ValidateKeyColumns(ReduceBy);
-        NTableClient::ValidateKeyColumns(SortBy);
 
         bool hasPrimary = false;
         for (const auto& path : InputTablePaths) {
@@ -1003,6 +996,9 @@ TNewReduceOperationSpec::TNewReduceOperationSpec()
                 path.Attributes().Remove("primary");
             }
         }
+
+        Reducer->InitEnableInputTableIndex(InputTablePaths.size(), JobIO);
+        Reducer->TaskTitle = "Reducer";
     });
 }
 
@@ -1824,10 +1820,9 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TNewReduceOperationSpec);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationSpecBase);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationSpec);
