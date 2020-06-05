@@ -38,7 +38,7 @@ class YsonByteReader(bytes: Array[Byte]) {
     (n >>> 1) ^ -(n & 1)
   }
 
-  private def readRawVarint64: Long = {
+  def readRawVarint64: Long = {
     if (isAtEnd) throw new IllegalArgumentException("")
     var pos = _position
 
