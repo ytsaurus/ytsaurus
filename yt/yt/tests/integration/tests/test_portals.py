@@ -995,6 +995,22 @@ class TestPortals(YTEnvSetup):
 
         with pytest.raises(YtError):
             remove("//tmp/p", authenticated_user="u")
+
+    @authors("shakurov")
+    def test_cross_shard_copy_src_tx_yt_13015(self):
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+
+        create("table", "//tmp/t", attributes={"external_cell_tag": 2})
+        write_table("//tmp/t", {"a": "b"})
+
+        tx = start_transaction()
+        write_table("//tmp/t", {"c": "d"}, tx=tx)
+
+        copy("//tmp/t", "//tmp/p1/t", tx=tx)
+        commit_transaction(tx)
+
+        assert read_table("//tmp/p1/t") == [{"c": "d"}]
+
 ##################################################################
 
 class TestResolveCache(YTEnvSetup):

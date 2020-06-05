@@ -40,6 +40,8 @@
 #include <yt/client/object_client/helpers.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
+#include <yt/ytlib/transaction_client/helpers.h>
+
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/small_set.h>
 
@@ -481,13 +483,24 @@ public:
         // which calls RegisterCreatedNode.
 
         if (clonedNode->IsExternal()) {
+            auto transactionId = Transaction_->GetId();
+
+            // NB: source node has been locked during BeginCopy, from source node's native cell.
+            // Make sure to use correct transaction for copying.
+            auto sourceNodeNativeCellTag = CellTagFromId(sourceNodeId);
+            auto sourceNodeExternalizedTransactionId = transactionId;
+            if (CellTagFromId(transactionId) != sourceNodeNativeCellTag) {
+                sourceNodeExternalizedTransactionId =
+                    NTransactionClient::MakeExternalizedTransactionId(transactionId, sourceNodeNativeCellTag);
+            }
+
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
             auto externalCellTag = clonedNode->GetExternalCellTag();
-            auto externalizedTransactionId = transactionManager->ExternalizeTransaction(Transaction_, externalCellTag);
+            auto clonedNodeExternalizedTransactionId = transactionManager->ExternalizeTransaction(Transaction_, externalCellTag);
             ClonedExternalNodes_.push_back(TClonedExternalNode{
                 .Mode = context->GetMode(),
-                .SourceNodeId = TVersionedObjectId(sourceNodeId, externalizedTransactionId),
-                .ClonedNodeId = TVersionedObjectId(clonedNode->GetId(), externalizedTransactionId),
+                .SourceNodeId = TVersionedObjectId(sourceNodeId, sourceNodeExternalizedTransactionId),
+                .ClonedNodeId = TVersionedObjectId(clonedNode->GetId(), clonedNodeExternalizedTransactionId),
                 .CloneAccountId = clonedNode->GetAccount()->GetId(),
                 .ExternalCellTag = externalCellTag
             });
@@ -3221,10 +3234,10 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* sourceTransaction = sourceTransactionId
-            ? transactionManager->GetTransactionOrThrow(sourceTransactionId)
+            ? transactionManager->GetTransaction(sourceTransactionId)
             : nullptr;
         auto* clonedTransaction = clonedTransactionId
-            ? transactionManager->GetTransactionOrThrow(clonedTransactionId)
+            ? transactionManager->GetTransaction(clonedTransactionId)
             : nullptr;
 
         auto* sourceTrunkNode = FindNode(TVersionedObjectId(sourceNodeId));

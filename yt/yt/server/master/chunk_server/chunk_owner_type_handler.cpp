@@ -441,8 +441,8 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogMerge(
         "OriginatingReplication: %v, BranchedNodeId: %v, BranchedChunkListId: %v, "
         "BranchedUpdateMode: %v, BranchedPrimaryMedium: %v, BranchedReplication: %v, "
         "NewOriginatingChunkListId: %v, NewOriginatingUpdateMode: %v, "
-        "BranchedSnashotStatistics: %v, BranchedDeltaStatistics: %v, "
-        "NewOriginatingSnashotStatistics: %v, NewOriginatingDeltaStatistics: %v)",
+        "BranchedSnapshotStatistics: %v, BranchedDeltaStatistics: %v, "
+        "NewOriginatingSnapshotStatistics: %v, NewOriginatingDeltaStatistics: %v)",
         originatingNode->GetVersionedId(),
         originatingPrimaryMedium->GetName(),
         originatingNode->Replication(),
