@@ -459,7 +459,7 @@ private:
         if (RequestHeader_->has_user()) {
             delimitedBuilder->AppendFormat("User: %v", RequestHeader_->user());
         }
-        
+
         if (RequestHeader_->has_user_tag() && RequestHeader_->user_tag() != RequestHeader_->user()) {
             delimitedBuilder->AppendFormat("UserTag: %v", RequestHeader_->user_tag());
         }
@@ -1481,10 +1481,11 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
     }
 }
 
-void TServiceBase::Configure(INodePtr configNode)
+void TServiceBase::Configure(TServiceConfigPtr config)
 {
     try {
-        auto config = ConvertTo<TServiceConfigPtr>(configNode);
+        YT_LOG_DEBUG("Configuring RPC service %v",
+            ServiceId_.ServiceName);
 
         AuthenticationQueueSizeLimit_ = config->AuthenticationQueueSizeLimit;
         PendingPayloadsTimeout_ = config->PendingPayloadsTimeout;
@@ -1512,6 +1513,19 @@ void TServiceBase::Configure(INodePtr configNode)
             ServiceId_.ServiceName)
             << ex;
     }
+}
+
+void TServiceBase::Configure(INodePtr configNode)
+{
+    TServiceConfigPtr config;
+    try {
+        config = ConvertTo<TServiceConfigPtr>(configNode);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error parsing RPC service %v config",
+            ServiceId_.ServiceName)
+            << ex;
+    }
+    Configure(std::move(config));
 }
 
 TFuture<void> TServiceBase::Stop()
