@@ -108,6 +108,7 @@ DEFINE_ENUM(EMasterReign,
     ((BetterClusterResourcesDeserialization)                        (1318))  // kiselyovp
     ((TransferQuota)                                                (1319))  // kiselyovp
     ((RenameTransferQuota)                                          (1320))  // kiselyovp
+    ((YT_13015_CorrectSrcTxForCrossShardCopy)                       (1321))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

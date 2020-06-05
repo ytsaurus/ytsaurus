@@ -312,15 +312,29 @@ protected:
             DstNodeId_);
     }
 
+    void SyncExternalCellsWithSourceNodeCell()
+    {
+        SyncExternalCellsWithNodeCell(SrcNodeId_);
+    }
+
     void SyncExternalCellsWithClonedNodeCell()
+    {
+        SyncExternalCellsWithNodeCell(DstNodeId_);
+    }
+
+    void SyncExternalCellsWithNodeCell(TNodeId nodeId)
     {
         if (ExternalCellTags_.empty()) {
             return;
         }
 
-        YT_LOG_DEBUG("Synchronizing external cells with the cloned node cell");
+        YT_VERIFY(nodeId == SrcNodeId_ || nodeId == DstNodeId_);
+        auto nodeKind = nodeId == SrcNodeId_ ? "source" : "cloned";
 
-        auto nodeCellTag = CellTagFromId(DstNodeId_);
+        YT_LOG_DEBUG("Synchronizing external cells with the %v node cell",
+            nodeKind);
+
+        auto nodeCellTag = CellTagFromId(nodeId);
         const auto& connection = Client_->GetNativeConnection();
         std::vector<TFuture<void>> futures;
         for (auto externalCellTag : ExternalCellTags_) {
@@ -330,9 +344,11 @@ protected:
         }
 
         auto error = WaitFor(Combine(futures));
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error synchronizing external cells with the cloned node cell");
+        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error synchronizing external cells with the %v node cell",
+            nodeKind);
 
-        YT_LOG_DEBUG("External cells synchronized with the cloned node cell");
+        YT_LOG_DEBUG("External cells synchronized with the %v node cell",
+            nodeKind);
     }
 
     void CommitTransaction()
@@ -374,6 +390,7 @@ public:
             Format("Clone %v to %v", SrcPath_, DstPath_),
             Options_);
         BeginCopy(SrcPath_, Options_);
+        SyncExternalCellsWithSourceNodeCell();
         EndCopy(DstPath_, Options_, false);
         if constexpr(std::is_assignable_v<TOptions, TMoveNodeOptions>) {
             RemoveSource();
@@ -429,6 +446,7 @@ public:
             Options_);
         RequestRootEffectiveAcl();
         BeginCopy(Path_, GetOptions());
+        SyncExternalCellsWithSourceNodeCell();
         if (TypeFromId(SrcNodeId_) != EObjectType::MapNode) {
             THROW_ERROR_EXCEPTION("%v is not a map node", Path_);
         }
@@ -533,6 +551,7 @@ public:
             Format("Internalize %v", Path_),
             Options_);
         BeginCopy(Path_, GetOptions());
+        SyncExternalCellsWithSourceNodeCell();
         if (TypeFromId(SrcNodeId_) != EObjectType::PortalExit) {
             THROW_ERROR_EXCEPTION("%v is not a portal", Path_);
         }
