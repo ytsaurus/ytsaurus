@@ -466,11 +466,11 @@ IOperationControllerPtr CreateControllerForOperation(
             break;
         }
         case EOperationType::Reduce: {
-            controller = CreateAppropriateReduceController(config, host, operation, /* isJoinReduce */ false);
+            controller = CreateReduceController(config, host, operation, /* isJoinReduce */ false);
             break;
         }
         case EOperationType::JoinReduce: {
-            controller = CreateAppropriateReduceController(config, host, operation, /* isJoinReduce */ true);
+            controller = CreateReduceController(config, host, operation, /* isJoinReduce */ true);
             break;
         }
         case EOperationType::MapReduce: {

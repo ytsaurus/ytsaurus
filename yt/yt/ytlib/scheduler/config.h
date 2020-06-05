@@ -1070,7 +1070,7 @@ DEFINE_REFCOUNTED_TYPE(TEraseOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReduceOperationSpecBase
+class TReduceOperationSpec
     : public TSimpleOperationSpecBase
     , public TOperationWithUserJobSpec
 {
@@ -1078,27 +1078,10 @@ public:
     TMandatoryUserJobSpecPtr Reducer;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     std::vector<NYPath::TRichYPath> OutputTablePaths;
-    NTableClient::TKeyColumns JoinBy;
 
-    bool ConsiderOnlyPrimarySize;
-
-    TReduceOperationSpecBase();
-
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpecBase, 0x7353c0af);
-};
-
-
-DEFINE_REFCOUNTED_TYPE(TReduceOperationSpecBase)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TNewReduceOperationSpec
-    : public TReduceOperationSpecBase
-{
-public:
     NTableClient::TKeyColumns ReduceBy;
     NTableClient::TKeyColumns SortBy;
+    NTableClient::TKeyColumns JoinBy;
 
     std::optional<bool> EnableKeyGuarantee;
 
@@ -1106,14 +1089,16 @@ public:
 
     bool ValidateKeyColumnTypes;
 
-    TNewReduceOperationSpec();
+    bool ConsiderOnlyPrimarySize;
+
+    TReduceOperationSpec();
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TNewReduceOperationSpec, 0xbbc5bdcd);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec, 0x7353c0af);
 };
 
 
-DEFINE_REFCOUNTED_TYPE(TNewReduceOperationSpec)
+DEFINE_REFCOUNTED_TYPE(TReduceOperationSpec)
 
 ////////////////////////////////////////////////////////////////////////////////
 
