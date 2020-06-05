@@ -4,6 +4,8 @@
 namespace NYT::NScheduler {
 
 using namespace NObjectClient;
+using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,6 +32,20 @@ public:
         return NProfiling::GetCpuInstant();
     }
 };
+
+void Serialize(const TFairShareSchedulingStatistics& statistics, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer).BeginMap()
+        .Item("preemptable_job_count").Value(statistics.PreemptableJobCount)
+        .Item("controller_schedule_job_count").Value(statistics.ControllerScheduleJobCount)
+        .Item("non_preemptive_schedule_job_attempts").Value(statistics.NonPreemptiveScheduleJobAttempts)
+        .Item("preemptive_schedule_job_attempts").Value(statistics.PreemptiveScheduleJobAttempts)
+        .Item("has_aggressively_starving_elements").Value(statistics.HasAggressivelyStarvingElements)
+        .Item("resource_usage_discount").Value(statistics.ResourceUsageDiscount)
+        .Item("resource_usage").Value(statistics.ResourceUsage)
+        .Item("resource_limits").Value(statistics.ResourceLimits)
+    .EndMap();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

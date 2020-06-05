@@ -604,7 +604,12 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         const auto& statistics = schedulingContext->GetSchedulingStatistics();
 
         node->SetResourceUsage(schedulingContext->ResourceUsage());
-        node->SetLastHeartbeatStatistics(statistics);
+
+        if (statistics.ScheduleWithPreemption) {
+            node->SetLastPreemptiveHeartbeatStatistics(statistics);
+        } else {
+            node->SetLastNonPreemptiveHeartbeatStatistics(statistics);
+        }
 
         ProcessScheduledJobs(
             schedulingContext,

@@ -28,9 +28,16 @@ struct TFairShareSchedulingStatistics
     int PackingFallbackScheduleJobAttempts = 0;
     int ScheduledDuringPreemption = 0;
     int PreemptableJobCount = 0;
+    bool ScheduleWithPreemption = false;
     bool HasAggressivelyStarvingElements = false;
+    TJobResources ResourceLimits;
+    TJobResources ResourceUsage;
     TJobResources ResourceUsageDiscount;
 };
+
+void Serialize(const TFairShareSchedulingStatistics& event, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct ISchedulingContext
     : public virtual TRefCounted
@@ -79,6 +86,8 @@ struct ISchedulingContext
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulingContext)
+
+////////////////////////////////////////////////////////////////////////////////
 
 ISchedulingContextPtr CreateSchedulingContext(
     int nodeShardId,
