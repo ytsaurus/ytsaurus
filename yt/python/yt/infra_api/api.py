@@ -86,7 +86,7 @@ class InfraClient(object):
         affected_dcs=None,  # type: typing.List[str]
     ):
         if start_time is None:
-            start = int(time.time())
+            start_time = int(time.time())
         event_spec = {
             'title': title,
             'description': description,
