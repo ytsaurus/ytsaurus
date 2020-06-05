@@ -6250,8 +6250,9 @@ void TOperationControllerBase::ParseInputQuery(
     auto getColumns = [] (const TTableSchema& desiredSchema, const TTableSchema& tableSchema) {
         std::vector<TString> columns;
         for (const auto& column : desiredSchema.Columns()) {
-            if (tableSchema.FindColumn(column.Name())) {
-                columns.push_back(column.Name());
+            auto columnName = column.Name();
+            if (tableSchema.FindColumn(columnName)) {
+                columns.push_back(columnName);
             }
         }
 
@@ -6271,6 +6272,8 @@ void TOperationControllerBase::ParseInputQuery(
     InputQuery.emplace();
     InputQuery->Query = std::move(query);
     InputQuery->ExternalCGInfo = std::move(externalCGInfo);
+
+    ValidateTableSchema(InputQuery->Query->GetTableSchema());
 }
 
 void TOperationControllerBase::WriteInputQueryToJobSpec(TSchedulerJobSpecExt* schedulerJobSpecExt)

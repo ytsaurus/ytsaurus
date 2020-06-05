@@ -39,6 +39,7 @@ _events_on_fs = None
 default_api_version = 4
 
 # TODO(levysotsky): Move error codes to separate file in python repo.
+OperationFailedToPrepare = 216
 SortOrderViolation = 301
 UniqueKeyViolation = 306
 SchemaViolation = 307
