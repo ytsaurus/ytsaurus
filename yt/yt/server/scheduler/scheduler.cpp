@@ -2673,7 +2673,7 @@ private:
                 MaterializeOperation(operation);
             }
         } catch (const std::exception& ex) {
-            auto wrappedError = TError("Operation has failed to prepare")
+            auto wrappedError = TError(EErrorCode::OperationFailedToPrepare, "Operation has failed to prepare")
                 << ex;
             OnOperationFailed(operation, wrappedError);
             return;

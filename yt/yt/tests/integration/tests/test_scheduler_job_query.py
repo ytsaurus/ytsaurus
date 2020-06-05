@@ -53,6 +53,22 @@ class TestJobQuery(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
+    @authors("gritukan")
+    def test_query_invalid(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [{"name": "a", "type": "string"}]
+        })
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+
+        with raises_yt_error(OperationFailedToPrepare):
+            map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+                spec={"input_query": "a,a"})
+
+        with raises_yt_error(OperationFailedToPrepare):
+            map(in_="//tmp/t1", out="//tmp/t2", command="cat",
+                spec={"input_query": "b"})
+
     @authors("lukyan")
     def test_query_two_input_tables(self):
         create("table", "//tmp/t1", attributes={
