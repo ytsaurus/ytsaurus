@@ -4,9 +4,10 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData}
 import org.apache.spark.sql.types
-import org.apache.spark.sql.types.{DataType, NullType, StringType}
+import org.apache.spark.sql.types.{DataType, DoubleType, IntegerType, LongType, NullType, StringType}
 import org.apache.spark.unsafe.types.UTF8String
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType.StructFieldMeta
+import ru.yandex.misc.lang.number.UnsignedLong
 
 import scala.annotation.tailrec
 
@@ -79,6 +80,10 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
 
   def readVarInt64: Long = {
     input.readSInt64
+  }
+
+  def readUInt64: Long = {
+    input.readRawVarint64
   }
 
   def parseStruct(endToken: Byte, allowEof: Boolean, schema: IndexedDataType.StructType): InternalRow = {
@@ -226,8 +231,13 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) {
           case _ => readBinaryString
         }
       case YsonTags.BINARY_INT => readVarInt64
-      //      case YsonTags.BINARY_UINT =>
-      //        consumer.onUnsignedInteger(UnsignedLong.valueOf(readVarUint64))
+      case YsonTags.BINARY_UINT =>
+        val longValue = readUInt64
+        dataType.sparkDataType match {
+          case LongType => longValue
+          case IntegerType => longValue.toInt
+          case DoubleType => UnsignedLong.valueOf(longValue).doubleValue()
+        }
       case YsonTags.BINARY_DOUBLE => readDouble
       case YsonTags.BINARY_FALSE => false
       case YsonTags.BINARY_TRUE => true

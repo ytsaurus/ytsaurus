@@ -3,6 +3,7 @@ package ru.yandex.inside.yt.kosher.impl.ytree.serialization
 import java.io.ByteArrayInputStream
 
 import org.apache.spark.sql.catalyst.InternalRow
+import org.apache.spark.sql.catalyst.util.GenericArrayData
 import org.apache.spark.sql.types.{StringType, _}
 import org.apache.spark.unsafe.types.UTF8String
 import org.scalatest.{FlatSpec, Matchers}
@@ -139,6 +140,18 @@ class YsonDecoderTest extends FlatSpec with Matchers with ScalaCheckPropertyChec
     ).asInstanceOf[InternalRow]
 
     result.getLong(0) shouldEqual expected
+  }
+
+  it should "decode uint64" in {
+    import scala.collection.JavaConverters._
+    val bytes = Array[Byte](91, 6, 3, 59, 93)
+    val expected = YTreeBinarySerializer.deserialize(new ByteArrayInputStream(bytes))
+      .asList().asScala.toList.map(_.longValue())
+
+    val result = YsonDecoder.decode(bytes, SchemaConverter.indexedDataType(ArrayType(LongType)))
+      .asInstanceOf[GenericArrayData].toSeq[Long](LongType)
+
+    result should contain theSameElementsInOrderAs expected
   }
 
   private def readBytes(fileName: String): Array[Byte] = {
