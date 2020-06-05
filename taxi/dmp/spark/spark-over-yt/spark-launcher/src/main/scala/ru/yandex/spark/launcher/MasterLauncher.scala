@@ -12,30 +12,27 @@ import scala.language.postfixOps
 object MasterLauncher extends App with VanillaLauncher with SparkLauncher with MasterWrapperLauncher {
   private val log = Logger.getLogger(getClass)
   val masterArgs = MasterLauncherArgs(args)
+  import masterArgs._
 
-  run(masterArgs.ytConfig, masterArgs.discoveryPath) { discoveryService =>
+  withDiscovery(ytConfig, discoveryPath) { discoveryService =>
     log.info("Start master")
-    val (address, thread) = startMaster()
-    withThread(thread) { _ =>
+    withService(startMaster) { master =>
       log.info("Start byop discovery service")
-      val (masterWrapperEndpoint, masterWrapperThread) = startMasterWrapper(args, address)
-      withThread(masterWrapperThread) { _ =>
-        if (!discoveryService.waitAlive(address.hostAndPort, 5 minutes)) {
-          throw new RuntimeException("Master is not started")
-        }
-        log.info(s"Master started at port ${address.port}")
+      withService(startMasterWrapper(args, master)) { masterWrapper =>
+        master.waitAndThrowIfNotAlive(5 minutes)
+        masterWrapper.waitAndThrowIfNotAlive(5 minutes)
 
         log.info("Register master")
         discoveryService.register(
-          masterArgs.operationId,
-          address,
-          masterArgs.clusterVersion,
-          masterWrapperEndpoint,
+          operationId,
+          master.masterAddress,
+          clusterVersion,
+          masterWrapper.address,
           SparkConfYsonable(sparkSystemProperties)
         )
         log.info("Master registered")
 
-        checkPeriodically(thread.isAlive)
+        checkPeriodically(master.isAlive(3))
         log.error("Master is not alive")
       }
     }

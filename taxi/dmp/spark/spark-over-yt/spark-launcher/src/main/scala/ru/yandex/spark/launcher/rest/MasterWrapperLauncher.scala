@@ -1,10 +1,8 @@
 package ru.yandex.spark.launcher.rest
 
-import java.net.InetAddress
-
 import com.google.common.net.HostAndPort
-import ru.yandex.spark.discovery.Address
-import ru.yandex.spark.launcher.RpcProxyLauncher.RpcProxyConfig
+import ru.yandex.spark.launcher.ByopLauncher.ByopConfig
+import ru.yandex.spark.launcher.Service.{BasicService, MasterService}
 import ru.yandex.spark.launcher.VanillaLauncher
 
 trait MasterWrapperLauncher {
@@ -16,18 +14,17 @@ trait MasterWrapperLauncher {
     (thread, port)
   }
 
-  def startMasterWrapper(args: Array[String], masterAddress: Address): (HostAndPort, Thread) = {
+  def startMasterWrapper(args: Array[String], master: MasterService): BasicService = {
     val startPort = sparkSystemProperties.get("spark.master.port").map(_.toInt).getOrElse(27001)
     val maxRetries = sparkSystemProperties.get("spark.port.maxRetries").map(_.toInt).getOrElse(200)
 
-    val byopPort = RpcProxyConfig.byopPort(sparkSystemProperties, args)
+    val byopPort = ByopConfig.byopPort(sparkSystemProperties, args)
 
     val (thread, port) = Utils.startServiceOnPort(
-      startPort, startMasterWrapper(masterAddress.restHostAndPort, byopPort), maxRetries
+      startPort, startMasterWrapper(master.masterAddress.restHostAndPort, byopPort), maxRetries
     )
-    val hostAndPort = HostAndPort.fromParts(InetAddress.getLocalHost.getHostName, port)
 
-    (hostAndPort, thread)
+    BasicService("MasterWrapper", port, thread)
   }
 
 }

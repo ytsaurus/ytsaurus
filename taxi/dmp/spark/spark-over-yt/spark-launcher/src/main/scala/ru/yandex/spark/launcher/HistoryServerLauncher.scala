@@ -4,21 +4,18 @@ import com.twitter.scalding.Args
 import org.apache.log4j.Logger
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 
-import scala.util.Try
-
 object HistoryServerLauncher extends App with VanillaLauncher with SparkLauncher {
   val log = Logger.getLogger(getClass)
 
   val launcherArgs = HistoryServerLauncherArgs(args)
+  import launcherArgs._
 
-  run(launcherArgs.ytConfig, launcherArgs.discoveryPath) { discoveryService =>
-    val (address, thread) = startHistoryServer(launcherArgs.logPath)
-    Try {
-      discoveryService.registerSHS(address)
-      checkPeriodically(thread.isAlive)
+  withDiscovery(ytConfig, discoveryPath) { discoveryService =>
+    withService(startHistoryServer(logPath)) { historyServer =>
+      discoveryService.registerSHS(historyServer.address)
+      checkPeriodically(historyServer.isAlive(3))
       log.error("Spark History Server is not alive")
     }
-    thread.interrupt()
   }
 }
 

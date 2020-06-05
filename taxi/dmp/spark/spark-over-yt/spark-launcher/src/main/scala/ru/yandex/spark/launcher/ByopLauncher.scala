@@ -10,32 +10,32 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode}
 import ru.yandex.spark.discovery.DiscoveryService
-import ru.yandex.spark.launcher.RpcProxyLauncher.RpcProxyConfig
+import ru.yandex.spark.launcher.ByopLauncher.ByopConfig
+import ru.yandex.spark.launcher.Service.BasicService
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 
 import scala.annotation.tailrec
-import scala.concurrent.duration.Duration
+import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.sys.process._
 
-trait RpcProxyLauncher {
+
+trait ByopLauncher {
   self: VanillaLauncher =>
 
   private val log = Logger.getLogger(getClass)
 
-  def waitRpcProxyStart(config: RpcProxyConfig, timeout: Duration): HostAndPort = {
+  private def waitByopStart(config: ByopConfig, process: Process, timeout: Duration): Unit = {
     val address = HostAndPort.fromParts("localhost", config.rpcPort)
     val monitoringAddress = HostAndPort.fromParts("localhost", config.monitoringPort)
-    DiscoveryService.waitFor(DiscoveryService.isAlive(address, 0), timeout)
-    DiscoveryService.waitFor(DiscoveryService.isAlive(monitoringAddress, 0), timeout)
-    log.info(s"Rpc proxy started on port ${config.rpcPort}, monitoring port ${config.monitoringPort}")
-    address
+    DiscoveryService.waitFor(DiscoveryService.isAlive(address, 0) || !process.isAlive, timeout)
+    DiscoveryService.waitFor(DiscoveryService.isAlive(monitoringAddress, 0) || !process.isAlive, timeout)
   }
 
-  def startRpcProxy(ytConf: YtClientConfiguration,
-                    config: RpcProxyConfig): Thread = {
-    import scala.sys.process._
-
+  def startByop(config: ByopConfig,
+                ytConf: YtClientConfiguration,
+                timeout: Duration): BasicService = {
     log.info(s"Start RPC proxy with config: $config")
 
     val ytRpc = YtWrapper.createRpcClient(ytConf)
@@ -54,7 +54,7 @@ trait RpcProxyLauncher {
         try {
           val ysonConfig = YTreeTextSerializer.deserialize(is).asInstanceOf[YTreeMapNode]
           val remoteClusterConnection = YtWrapper.attribute("//sys", "cluster_connection")(ytRpc.yt)
-          RpcProxyLauncher.update(ysonConfig, remoteClusterConnection, "cluster_connection")
+          ByopLauncher.update(ysonConfig, remoteClusterConnection, "cluster_connection")
           YTreeTextSerializer.serialize(ysonConfig)
         } finally {
           is.close()
@@ -62,24 +62,32 @@ trait RpcProxyLauncher {
       }
 
       val thread = new Thread(() => {
-        val exitCode = Process(
+        val process = Process(
           s"$binaryAbsolutePath --config ${configFile.getAbsolutePath}",
           cwd = None,
           "YT_ALLOC_CONFIG" -> "{profiling_backtrace_depth=10;enable_eager_memory_release=%true;bugs=%false}"
-        ).run().exitValue()
+        ).run()
+
+        waitByopStart(config, process, timeout)
+        if (process.isAlive()) {
+          log.info(s"Rpc proxy started on port ${config.rpcPort}, monitoring port ${config.monitoringPort}")
+        }
+
+        val exitCode = process.exitValue()
 
         log.info(s"Rpc proxy exit code is $exitCode")
       })
       thread.setDaemon(true)
       thread.start()
-      thread
+      BasicService("RPC Proxy", config.rpcPort, thread)
     } finally {
+      log.info("Close yt rpc")
       ytRpc.close()
     }
   }
 }
 
-object RpcProxyLauncher {
+object ByopLauncher {
   private[launcher] def update(node: YTreeMapNode, patch: YTreeNode, key: String): Unit = {
     val emptyMapNode = new YTreeBuilder().beginMap().endMap().build()
     val updateNode = node.get(key).getOrElse(emptyMapNode)
@@ -108,14 +116,14 @@ object RpcProxyLauncher {
     node
   }
 
-  case class RpcProxyConfig(binaryPath: String,
-                            configPath: String,
-                            rpcPort: Int,
-                            monitoringPort: Int,
-                            operationAlias: String,
-                            ytJobCookie: String)
+  case class ByopConfig(binaryPath: String,
+                        configPath: String,
+                        rpcPort: Int,
+                        monitoringPort: Int,
+                        operationAlias: String,
+                        ytJobCookie: String)
 
-  object RpcProxyConfig {
+  object ByopConfig {
     private val baseName = "byop"
     private val envBaseName = "SPARK_YT_BYOP"
 
@@ -129,7 +137,7 @@ object RpcProxyLauncher {
       args.optional(s"$baseName-$name").orElse(sys.env.get(envName(name)))
     }
 
-    def create(sparkConf: Map[String, String], args: Array[String]): Option[RpcProxyConfig] = {
+    def create(sparkConf: Map[String, String], args: Array[String]): Option[ByopConfig] = {
       create(sparkConf, Args(args))
     }
 
@@ -145,10 +153,10 @@ object RpcProxyLauncher {
       if (byopEnabled(sparkConf)) Some(arg("port")(args).toInt) else None
     }
 
-    def create(sparkConf: Map[String, String], args: Args): Option[RpcProxyConfig] = {
+    def create(sparkConf: Map[String, String], args: Args): Option[ByopConfig] = {
       if (byopEnabled(sparkConf)) {
         implicit val a = args
-        Some(RpcProxyConfig(
+        Some(ByopConfig(
           binaryPath = arg("binary-path"),
           configPath = arg("config-path"),
           rpcPort = arg("port").toInt,
@@ -159,4 +167,5 @@ object RpcProxyLauncher {
       } else None
     }
   }
+
 }
