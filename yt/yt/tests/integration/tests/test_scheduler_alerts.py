@@ -94,7 +94,7 @@ class TestSchedulerAlerts(YTEnvSetup):
 
 ##################################################################
 
-class TestLowCpuAlert(YTEnvSetup):
+class TestLowCpuUsageSchedulerAlert(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
