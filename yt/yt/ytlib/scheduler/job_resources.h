@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/ytlib/node_tracker_client/helpers.h>
-
 #include <yt/ytlib/chunk_client/medium_directory.h>
 
 #include <yt/client/node_tracker_client/proto/node.pb.h>
@@ -147,7 +145,7 @@ void ProfileResources(
     const TString& prefix = TString(),
     const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
 
-NNodeTrackerClient::EResourceType GetDominantResource(
+EJobResourceType GetDominantResource(
     const TJobResources& demand,
     const TJobResources& limits);
 
@@ -157,7 +155,7 @@ double GetDominantResourceUsage(
 
 double GetResource(
     const TJobResources& resources,
-    NNodeTrackerClient::EResourceType type);
+    EJobResourceType type);
 
 double GetMinResourceRatio(
     const TJobResources& nominator,

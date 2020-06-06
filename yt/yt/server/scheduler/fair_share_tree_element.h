@@ -41,7 +41,7 @@ using TPoolMap = THashMap<TString, TPoolPtr>;
 
 struct TSchedulableAttributes
 {
-    NNodeTrackerClient::EResourceType DominantResource = NNodeTrackerClient::EResourceType::Cpu;
+    EJobResourceType DominantResource = EJobResourceType::Cpu;
 
     TResourceVector FairShare = {};
     TResourceVector UsageShare = {};
