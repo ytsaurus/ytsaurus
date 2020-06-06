@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/interface/client.h>
 
-#include <library/testing/gmock/gmock.h>
+#include <library/cpp/testing/gmock_in_unittest/gmock.h>
 
 namespace NYT {
 namespace NTesting {
