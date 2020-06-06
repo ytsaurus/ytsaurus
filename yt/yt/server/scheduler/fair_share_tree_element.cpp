@@ -3444,8 +3444,7 @@ TString TOperationElement::GetUserName() const
 
 double TOperationElement::GetBestAllocationRatio() const
 {
-    // TODO(eshcherbin): Return |PersistentAttributes_.BestAllocationShare[Attributes_.DominantResource]|.
-    return 1.0;
+    return PersistentAttributes_.BestAllocationShare[Attributes_.DominantResource];
 }
 
 bool TOperationElement::OnJobStarted(

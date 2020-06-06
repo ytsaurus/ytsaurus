@@ -1,9 +1,9 @@
 #include "job_resources.h"
 #include "config.h"
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
-
 #include <yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/core/ytree/fluent.h>
 
@@ -262,13 +262,13 @@ void ProfileResources(
     #undef XX
 }
 
-EResourceType GetDominantResource(
+EJobResourceType GetDominantResource(
     const TJobResources& demand,
     const TJobResources& limits)
 {
-    auto maxType = EResourceType::Cpu;
+    auto maxType = EJobResourceType::Cpu;
     double maxRatio = 0.0;
-    auto update = [&] (auto a, auto b, EResourceType type) {
+    auto update = [&] (auto a, auto b, EJobResourceType type) {
         if (b > 0) {
             double ratio = static_cast<double>(a) / static_cast<double>(b);
             if (ratio > maxRatio) {
@@ -277,7 +277,7 @@ EResourceType GetDominantResource(
             }
         }
     };
-    #define XX(name, Name) update(demand.Get##Name(), limits.Get##Name(), EResourceType::Name);
+    #define XX(name, Name) update(demand.Get##Name(), limits.Get##Name(), EJobResourceType::Name);
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return maxType;
@@ -288,7 +288,7 @@ double GetDominantResourceUsage(
     const TJobResources& limits)
 {
     double maxRatio = 0.0;
-    auto update = [&] (auto a, auto b, EResourceType type) {
+    auto update = [&] (auto a, auto b, EJobResourceType type) {
         if (b > 0) {
             double ratio = static_cast<double>(a) / static_cast<double>(b);
             if (ratio > maxRatio) {
@@ -296,17 +296,17 @@ double GetDominantResourceUsage(
             }
         }
     };
-    #define XX(name, Name) update(usage.Get##Name(), limits.Get##Name(), EResourceType::Name);
+    #define XX(name, Name) update(usage.Get##Name(), limits.Get##Name(), EJobResourceType::Name);
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return maxRatio;
 }
 
-double GetResource(const TJobResources& resources, EResourceType type)
+double GetResource(const TJobResources& resources, EJobResourceType type)
 {
     switch (type) {
         #define XX(name, Name) \
-            case EResourceType::Name: \
+            case EJobResourceType::Name: \
                 return static_cast<double>(resources.Get##Name());
         ITERATE_JOB_RESOURCES(XX)
         #undef XX

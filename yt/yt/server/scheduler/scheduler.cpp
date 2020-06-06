@@ -49,6 +49,8 @@
 
 #include <yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
+#include <yt/ytlib/node_tracker_client/helpers.h>
+
 #include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
