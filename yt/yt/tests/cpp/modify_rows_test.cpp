@@ -108,7 +108,7 @@ void TModifyRowsTest::CheckTableContents(
         "<unique_keys=%false;strict=%true>[{name=key;type=int64};{name=value;type=int64};]"));
 
     auto expectedSchema = ConvertToYsonString(schema, EYsonFormat::Text).GetData();
-    auto actualSchema = ConvertToYsonString(res.Rowset->Schema(), EYsonFormat::Text).GetData();
+    auto actualSchema = ConvertToYsonString(res.Rowset->GetSchema(), EYsonFormat::Text).GetData();
     EXPECT_EQ(expectedSchema, actualSchema);
 }
 

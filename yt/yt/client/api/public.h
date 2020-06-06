@@ -56,6 +56,8 @@ DEFINE_ENUM(ETransactionCoordinatorCommitMode,
 
 template <class TRow>
 struct IRowset;
+template <class TRow>
+using IRowsetPtr = TIntrusivePtr<IRowset<TRow>>;
 
 using IUnversionedRowset = IRowset<NTableClient::TUnversionedRow>;
 using IVersionedRowset = IRowset<NTableClient::TVersionedRow>;

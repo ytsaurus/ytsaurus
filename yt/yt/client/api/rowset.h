@@ -18,7 +18,8 @@ template <class TRow>
 struct IRowset
     : public virtual TRefCounted
 {
-    virtual const NTableClient::TTableSchema& Schema() const = 0;
+    virtual const NTableClient::TTableSchema& GetSchema() const = 0;
+    virtual const NTableClient::TNameTablePtr& GetNameTable() const = 0;
 
     virtual TRange<TRow> GetRows() const = 0;
 };
@@ -28,13 +29,15 @@ DEFINE_REFCOUNTED_TYPE(IVersionedRowset)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IUnversionedRowsetPtr CreateRowset(
-    const NTableClient::TTableSchema& schema,
-    TSharedRange<NTableClient::TUnversionedRow> rows);
+template <class TRow>
+IRowsetPtr<TRow> CreateRowset(
+    NTableClient::TTableSchema schema,
+    TSharedRange<TRow> rows);
 
-IVersionedRowsetPtr CreateRowset(
-    const NTableClient::TTableSchema& schema,
-    TSharedRange<NTableClient::TVersionedRow> rows);
+template <class TRow>
+IRowsetPtr<TRow> CreateRowset(
+    NTableClient::TNameTablePtr nameTable,
+    TSharedRange<TRow> rows);
 
 std::tuple<NTableClient::IUnversionedRowsetWriterPtr, TFuture<IUnversionedRowsetPtr>>
     CreateSchemafulRowsetWriter(const NTableClient::TTableSchema& schema);

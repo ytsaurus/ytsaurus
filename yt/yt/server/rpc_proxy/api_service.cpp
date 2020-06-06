@@ -26,6 +26,8 @@
 #include <yt/client/api/rpc_proxy/api_service_proxy.h>
 #include <yt/client/api/rpc_proxy/helpers.h>
 #include <yt/client/api/rpc_proxy/protocol_version.h>
+#include <yt/client/api/rpc_proxy/wire_row_stream.h>
+#include <yt/client/api/rpc_proxy/row_stream.h>
 
 #include <yt/client/chunk_client/config.h>
 
@@ -47,6 +49,8 @@
 
 #include <yt/client/ypath/rich.h>
 
+#include <yt/client/arrow/arrow_row_stream.h>
+
 #include <yt/core/concurrency/scheduler.h>
 
 #include <yt/core/misc/cast.h>
@@ -61,6 +65,8 @@
 namespace NYT::NRpcProxy {
 
 using namespace NApi;
+using namespace NApi::NRpcProxy;
+using namespace NArrow;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
@@ -239,14 +245,66 @@ void SetMutatingOptions(
     }
 }
 
-const TServiceDescriptor& GetDescriptor()
+TString ExtractIP(TString address)
 {
-    static const auto descriptor = TServiceDescriptor(NApi::NRpcProxy::ApiServiceName)
+    YT_VERIFY(address.StartsWith("tcp://"));
+
+    address = address.substr(6);
+    {
+        auto index = address.rfind(':');
+        if (index != TString::npos) {
+            address = address.substr(0, index);
+        }
+    }
+
+    if (address.StartsWith("[") && address.EndsWith("]")) {
+        address = address.substr(1, address.length() - 2);
+    }
+
+    return address;
+}
+
+TServiceDescriptor GetServiceDescriptor()
+{
+    return TServiceDescriptor(NApi::NRpcProxy::ApiServiceName)
         .SetProtocolVersion({
             YTRpcProxyProtocolVersionMajor,
             YTRpcProxyServerProtocolVersionMinor
         });
-    return descriptor;
+}
+
+IRowStreamFormatterPtr CreateRowStreamFormatter(
+    NApi::NRpcProxy::NProto::ERowsetFormat format,
+    TNameTablePtr nameTable)
+{
+    switch (format) {
+        case NApi::NRpcProxy::NProto::RF_YT_WIRE:
+            return CreateWireRowStreamFormatter(std::move(nameTable));
+
+        case NApi::NRpcProxy::NProto::RF_ARROW:
+            return CreateArrowRowStreamFormatter(std::move(nameTable));
+
+        default:
+            THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
+                NApi::NRpcProxy::NProto::ERowsetFormat_Name(format));
+    }
+}
+
+IRowStreamParserPtr CreateRowStreamParser(
+    NApi::NRpcProxy::NProto::ERowsetFormat format,
+    TNameTablePtr nameTable)
+{
+    switch (format) {
+        case NApi::NRpcProxy::NProto::RF_YT_WIRE:
+            return CreateWireRowStreamParser(std::move(nameTable));
+
+        case NApi::NRpcProxy::NProto::RF_ARROW:
+            return CreateArrowRowStreamParser(std::move(nameTable));
+
+        default:
+            THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
+                NApi::NRpcProxy::NProto::ERowsetFormat_Name(format));
+    }
 }
 
 } // namespace
@@ -260,7 +318,7 @@ public:
     explicit TApiService(TBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetWorkerInvoker(),
-            GetDescriptor(),
+            GetServiceDescriptor(),
             RpcProxyLogger,
             NullRealmId,
             bootstrap->GetRpcAuthenticator())
@@ -402,25 +460,6 @@ private:
         auto identity = NRpc::TAuthenticationIdentity(user);
         auto options = TClientOptions::FromAuthenticationIdentity(identity);
         return AuthenticatedClientCache_->Get(identity, options);
-    }
-
-    TString ExtractIP(TString address)
-    {
-        YT_VERIFY(address.StartsWith("tcp://"));
-
-        address = address.substr(6);
-        {
-            auto index = address.rfind(':');
-            if (index != TString::npos) {
-                address = address.substr(0, index);
-            }
-        }
-
-        if (address.StartsWith("[") && address.EndsWith("]")) {
-            address = address.substr(1, address.length() - 2);
-        }
-
-        return address;
     }
 
     void SetupTracing(const IServiceContextPtr& context)
@@ -2322,7 +2361,7 @@ private:
         auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
             request->rowset_descriptor(),
             MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
-        *nameTable = TNameTable::FromSchema(rowset->Schema());
+        *nameTable = rowset->GetNameTable();
         *keys = MakeSharedRange(rowset->GetRows(), rowset);
 
         if (request->has_tablet_read_options()) {
@@ -2358,7 +2397,7 @@ private:
         const TIntrusivePtr<IRowset<TRow>>& rowset)
     {
         response->Attachments() = NApi::NRpcProxy::SerializeRowset(
-            rowset->Schema(),
+            rowset->GetSchema(),
             rowset->GetRows(),
             response->mutable_rowset_descriptor());
     };
@@ -2554,8 +2593,6 @@ private:
             request->rowset_descriptor(),
             MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
 
-        auto nameTable = TNameTable::FromSchema(rowset->Schema());
-
         context->SetRequestInfo("Path: %v, Timestamp: %llx, RowCount: %v",
             path,
             options.Timestamp,
@@ -2566,7 +2603,7 @@ private:
             context,
             client->GetInSyncReplicas(
                 path,
-                std::move(nameTable),
+                rowset->GetNameTable(),
                 MakeSharedRange(rowset->GetRows(), rowset),
                 options),
             [] (const auto& context, const std::vector<TTableReplicaId>& replicaIds) {
@@ -2632,9 +2669,7 @@ private:
             request.rowset_descriptor(),
             MergeRefsToRef<TApiServiceBufferTag>(attachments));
 
-        auto nameTable = TNameTable::FromSchema(rowset->Schema());
-
-        const auto& rowsetRows = rowset->GetRows();
+        auto rowsetRows = rowset->GetRows();
         auto rowsetSize = rowset->GetRows().Size();
 
         if (rowsetSize != request.row_modification_types_size()) {
@@ -2681,7 +2716,7 @@ private:
 
         transaction->ModifyRows(
             path,
-            std::move(nameTable),
+            rowset->GetNameTable(),
             MakeSharedRange(std::move(modifications), rowset),
             options);
     }
@@ -3148,8 +3183,7 @@ private:
         HandleOutputStreamingRequest(
             context,
             [&] (const TSharedRef& packedRows) {
-                std::vector<TSharedRef> rows;
-                UnpackRefsOrThrow(packedRows, &rows);
+                auto rows = UnpackRefsOrThrow(packedRows);
                 WaitFor(journalWriter->Write(rows))
                     .ThrowOnError();
             },
@@ -3220,26 +3254,25 @@ private:
         auto tableReader = WaitFor(client->CreateTableReader(path, options))
             .ValueOrThrow();
 
+        auto formatter = CreateRowStreamFormatter(
+            request->desired_rowset_format(),
+            tableReader->GetNameTable());
+
         auto outputStream = context->GetResponseAttachmentsStream();
-        NApi::NRpcProxy::NProto::TReadTableMeta meta;
+        NApi::NRpcProxy::NProto::TRspReadTableMeta meta;
         meta.set_start_row_index(tableReader->GetStartRowIndex());
         ToProto(meta.mutable_key_columns(), tableReader->GetKeyColumns());
-        ToProto(meta.mutable_omitted_inaccessible_columns(),
-            tableReader->GetOmittedInaccessibleColumns());
+        ToProto(meta.mutable_omitted_inaccessible_columns(), tableReader->GetOmittedInaccessibleColumns());
         ToProto(meta.mutable_schema(), tableReader->GetTableSchema());
-        meta.mutable_payload()->set_total_row_count(tableReader->GetTotalRowCount());
-        ToProto(meta.mutable_payload()->mutable_data_statistics(),
-            tableReader->GetDataStatistics());
+        meta.mutable_statistics()->set_total_row_count(tableReader->GetTotalRowCount());
+        ToProto(meta.mutable_statistics()->mutable_data_statistics(), tableReader->GetDataStatistics());
 
         auto metaRef = SerializeProtoToRef(meta);
         WaitFor(outputStream->Write(metaRef))
             .ThrowOnError();
 
-        int nameTableSize = 0;
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(Config_->ReadBufferRowCount);
         bool finished = false;
-
+        
         HandleInputStreamingRequest(
             context,
             [&] {
@@ -3247,23 +3280,22 @@ private:
                     return TSharedRef();
                 }
 
-                auto batch = WaitForRowBatch(tableReader);
+                TRowBatchReadOptions options{
+                    .MaxRowsPerRead = Config_->ReadBufferRowCount,
+                    .MaxDataWeightPerRead = Config_->ReadBufferDataWeight
+                };
+                auto batch = WaitForRowBatch(tableReader, options);
                 if (!batch) {
                     finished = true;
                 }
 
-                auto rows = batch ? batch->MaterializeRows() : TRange<TUnversionedRow>();
-                auto rowsetData = NApi::NRpcProxy::SerializeRowsetWithNameTableDelta(
-                    tableReader->GetNameTable(),
-                    rows,
-                    &nameTableSize);
+                NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
+                statistics.set_total_row_count(tableReader->GetTotalRowCount());
+                ToProto(statistics.mutable_data_statistics(), tableReader->GetDataStatistics());
 
-                NApi::NRpcProxy::NProto::TTableReaderPayload payload;
-                payload.set_total_row_count(tableReader->GetTotalRowCount());
-                ToProto(payload.mutable_data_statistics(), tableReader->GetDataStatistics());
-                auto payloadRef = SerializeProtoToRef(payload);
-                
-                return PackRefs(std::vector{rowsetData, payloadRef});
+                return formatter->Format(
+                    batch ? batch : CreateEmptyUnversionedRowBatch(),
+                    &statistics);
             });
     }
 
@@ -3289,6 +3321,10 @@ private:
         auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
             .ValueOrThrow();
 
+        auto parser = CreateRowStreamParser(
+            NApi::NRpcProxy::NProto::RF_YT_WIRE,
+            tableWriter->GetNameTable());
+
         auto outputStream = context->GetResponseAttachmentsStream();
         const auto& schema = tableWriter->GetSchema();
         NApi::NRpcProxy::NProto::TWriteTableMeta meta;
@@ -3297,19 +3333,10 @@ private:
         WaitFor(outputStream->Write(metaRef))
             .ThrowOnError();
 
-        NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
-        descriptor.set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
-        descriptor.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
-
         HandleOutputStreamingRequest(
             context,
             [&] (const TSharedRef& block) {
-                // Here we assume our local tableWriter wouldn't modify its own name table,
-                // so we don't have to use an id mapping.
-                auto rows = NApi::NRpcProxy::DeserializeRowsetWithNameTableDelta(
-                    block,
-                    tableWriter->GetNameTable(),
-                    &descriptor);
+                auto rows = parser->Parse(block, nullptr);
 
                 tableWriter->Write(rows);
                 

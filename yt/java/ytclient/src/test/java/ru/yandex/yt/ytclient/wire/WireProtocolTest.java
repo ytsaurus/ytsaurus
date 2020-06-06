@@ -118,49 +118,49 @@ public class WireProtocolTest {
 
     public static TRowsetDescriptor makeDescriptor_For_RowSampleAllObject() {
         final TRowsetDescriptor.Builder rowset = TRowsetDescriptor.newBuilder();
-        rowset.addColumnsBuilder().setName("int64_as_int").setType(ColumnValueType.INT64.getValue());
-        rowset.addColumnsBuilder().setName("int64_as_Integer").setType(ColumnValueType.INT64.getValue());
-        rowset.addColumnsBuilder().setName("int64_as_long").setType(ColumnValueType.INT64.getValue());
-        rowset.addColumnsBuilder().setName("int64_as_Long").setType(ColumnValueType.INT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("int64_as_int").setType(ColumnValueType.INT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("int64_as_Integer").setType(ColumnValueType.INT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("int64_as_long").setType(ColumnValueType.INT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("int64_as_Long").setType(ColumnValueType.INT64.getValue());
 
-        rowset.addColumnsBuilder().setName("uint64_as_int").setType(ColumnValueType.UINT64.getValue());
-        rowset.addColumnsBuilder().setName("uint64_as_Integer").setType(ColumnValueType.UINT64.getValue());
-        rowset.addColumnsBuilder().setName("uint64_as_long").setType(ColumnValueType.UINT64.getValue());
-        rowset.addColumnsBuilder().setName("uint64_as_Long").setType(ColumnValueType.UINT64.getValue());
-        rowset.addColumnsBuilder().setName("uint64_as_UnsignedLong").setType(ColumnValueType.UINT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("uint64_as_int").setType(ColumnValueType.UINT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("uint64_as_Integer").setType(ColumnValueType.UINT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("uint64_as_long").setType(ColumnValueType.UINT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("uint64_as_Long").setType(ColumnValueType.UINT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("uint64_as_UnsignedLong").setType(ColumnValueType.UINT64.getValue());
 
-        rowset.addColumnsBuilder().setName("double_as_double").setType(ColumnValueType.DOUBLE.getValue());
-        rowset.addColumnsBuilder().setName("double_as_Double").setType(ColumnValueType.DOUBLE.getValue());
+        rowset.addNameTableEntriesBuilder().setName("double_as_double").setType(ColumnValueType.DOUBLE.getValue());
+        rowset.addNameTableEntriesBuilder().setName("double_as_Double").setType(ColumnValueType.DOUBLE.getValue());
 
-        rowset.addColumnsBuilder().setName("boolean_as_boolean").setType(ColumnValueType.BOOLEAN.getValue());
-        rowset.addColumnsBuilder().setName("boolean_as_Boolean").setType(ColumnValueType.BOOLEAN.getValue());
+        rowset.addNameTableEntriesBuilder().setName("boolean_as_boolean").setType(ColumnValueType.BOOLEAN.getValue());
+        rowset.addNameTableEntriesBuilder().setName("boolean_as_Boolean").setType(ColumnValueType.BOOLEAN.getValue());
 
-        rowset.addColumnsBuilder().setName("string_as_string").setType(ColumnValueType.STRING.getValue());
-        rowset.addColumnsBuilder().setName("string_as_bytes").setType(ColumnValueType.STRING.getValue());
+        rowset.addNameTableEntriesBuilder().setName("string_as_string").setType(ColumnValueType.STRING.getValue());
+        rowset.addNameTableEntriesBuilder().setName("string_as_bytes").setType(ColumnValueType.STRING.getValue());
 
-        rowset.addColumnsBuilder().setName("any_as_string").setType(ColumnValueType.ANY.getValue());
-        rowset.addColumnsBuilder().setName("any_as_bytes").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("any_as_string").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("any_as_bytes").setType(ColumnValueType.ANY.getValue());
 
-        rowset.addColumnsBuilder().setName("sampleObject").setType(ColumnValueType.ANY.getValue());
-        rowset.addColumnsBuilder().setName("internalObject").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("sampleObject").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("internalObject").setType(ColumnValueType.ANY.getValue());
 
-        rowset.addColumnsBuilder().setName("f1").setType(ColumnValueType.STRING.getValue());
-        rowset.addColumnsBuilder().setName("f21").setType(ColumnValueType.STRING.getValue());
-        rowset.addColumnsBuilder().setName("f22").setType(ColumnValueType.STRING.getValue());
-        rowset.addColumnsBuilder().setName("internalObject3").setType(ColumnValueType.ANY.getValue());
-        rowset.addColumnsBuilder().setName("f31").setType(ColumnValueType.STRING.getValue());
-        rowset.addColumnsBuilder().setName("f32").setType(ColumnValueType.STRING.getValue());
-        rowset.addColumnsBuilder().setName("f2").setType(ColumnValueType.STRING.getValue());
+        rowset.addNameTableEntriesBuilder().setName("f1").setType(ColumnValueType.STRING.getValue());
+        rowset.addNameTableEntriesBuilder().setName("f21").setType(ColumnValueType.STRING.getValue());
+        rowset.addNameTableEntriesBuilder().setName("f22").setType(ColumnValueType.STRING.getValue());
+        rowset.addNameTableEntriesBuilder().setName("internalObject3").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("f31").setType(ColumnValueType.STRING.getValue());
+        rowset.addNameTableEntriesBuilder().setName("f32").setType(ColumnValueType.STRING.getValue());
+        rowset.addNameTableEntriesBuilder().setName("f2").setType(ColumnValueType.STRING.getValue());
 
-        rowset.addColumnsBuilder().setName("simpleMapObject").setType(ColumnValueType.ANY.getValue());
-        rowset.addColumnsBuilder().setName("complexMapObject").setType(ColumnValueType.ANY.getValue());
-        rowset.addColumnsBuilder().setName("simpleListObject").setType(ColumnValueType.ANY.getValue());
-        rowset.addColumnsBuilder().setName("complexListObject").setType(ColumnValueType.ANY.getValue());
-        rowset.addColumnsBuilder().setName("simpleArrayObject").setType(ColumnValueType.ANY.getValue());
-        rowset.addColumnsBuilder().setName("complexArrayObject").setType(ColumnValueType.ANY.getValue());
-        rowset.addColumnsBuilder().setName("primitiveArrayObject").setType(ColumnValueType.ANY.getValue());
-        rowset.addColumnsBuilder().setName("simpleSetObjects").setType(ColumnValueType.ANY.getValue());
-        rowset.addColumnsBuilder().setName("complexSetObjects").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("simpleMapObject").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("complexMapObject").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("simpleListObject").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("complexListObject").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("simpleArrayObject").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("complexArrayObject").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("primitiveArrayObject").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("simpleSetObjects").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("complexSetObjects").setType(ColumnValueType.ANY.getValue());
 
         return rowset.build();
     }
@@ -419,20 +419,20 @@ public class WireProtocolTest {
 
     public static TRowsetDescriptor makeDescriptor_For_RowSample() {
         final TRowsetDescriptor.Builder rowset = TRowsetDescriptor.newBuilder();
-        rowset.addColumnsBuilder().setName("vNull").setType(ColumnValueType.NULL.getValue());
-        rowset.addColumnsBuilder().setName("vNullAggr").setType(ColumnValueType.NULL.getValue());
-        rowset.addColumnsBuilder().setName("vInt64").setType(ColumnValueType.INT64.getValue());
-        rowset.addColumnsBuilder().setName("vInt64Aggr").setType(ColumnValueType.INT64.getValue());
-        rowset.addColumnsBuilder().setName("vUint64").setType(ColumnValueType.UINT64.getValue());
-        rowset.addColumnsBuilder().setName("vUint64Aggr").setType(ColumnValueType.UINT64.getValue());
-        rowset.addColumnsBuilder().setName("vDouble").setType(ColumnValueType.DOUBLE.getValue());
-        rowset.addColumnsBuilder().setName("vDoubleAggr").setType(ColumnValueType.DOUBLE.getValue());
-        rowset.addColumnsBuilder().setName("vBoolean").setType(ColumnValueType.BOOLEAN.getValue());
-        rowset.addColumnsBuilder().setName("vBooleanAggr").setType(ColumnValueType.BOOLEAN.getValue());
-        rowset.addColumnsBuilder().setName("vString").setType(ColumnValueType.STRING.getValue());
-        rowset.addColumnsBuilder().setName("vStringAggr").setType(ColumnValueType.STRING.getValue());
-        rowset.addColumnsBuilder().setName("vAny").setType(ColumnValueType.ANY.getValue());
-        rowset.addColumnsBuilder().setName("vAnyAggr").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vNull").setType(ColumnValueType.NULL.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vNullAggr").setType(ColumnValueType.NULL.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vInt64").setType(ColumnValueType.INT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vInt64Aggr").setType(ColumnValueType.INT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vUint64").setType(ColumnValueType.UINT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vUint64Aggr").setType(ColumnValueType.UINT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vDouble").setType(ColumnValueType.DOUBLE.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vDoubleAggr").setType(ColumnValueType.DOUBLE.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vBoolean").setType(ColumnValueType.BOOLEAN.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vBooleanAggr").setType(ColumnValueType.BOOLEAN.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vString").setType(ColumnValueType.STRING.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vStringAggr").setType(ColumnValueType.STRING.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vAny").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vAnyAggr").setType(ColumnValueType.ANY.getValue());
         return rowset.build();
     }
 
@@ -471,13 +471,13 @@ public class WireProtocolTest {
 
     public static TRowsetDescriptor makeSchemafulRowCanonicalDescriptor_For_RowSample() {
         final TRowsetDescriptor.Builder rowset = TRowsetDescriptor.newBuilder();
-        rowset.addColumnsBuilder().setName("vNull").setType(ColumnValueType.NULL.getValue());
-        rowset.addColumnsBuilder().setName("vInt64").setType(ColumnValueType.INT64.getValue());
-        rowset.addColumnsBuilder().setName("vUint64").setType(ColumnValueType.UINT64.getValue());
-        rowset.addColumnsBuilder().setName("vDouble").setType(ColumnValueType.DOUBLE.getValue());
-        rowset.addColumnsBuilder().setName("vBoolean").setType(ColumnValueType.BOOLEAN.getValue());
-        rowset.addColumnsBuilder().setName("vString").setType(ColumnValueType.STRING.getValue());
-        rowset.addColumnsBuilder().setName("vAny").setType(ColumnValueType.ANY.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vNull").setType(ColumnValueType.NULL.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vInt64").setType(ColumnValueType.INT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vUint64").setType(ColumnValueType.UINT64.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vDouble").setType(ColumnValueType.DOUBLE.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vBoolean").setType(ColumnValueType.BOOLEAN.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vString").setType(ColumnValueType.STRING.getValue());
+        rowset.addNameTableEntriesBuilder().setName("vAny").setType(ColumnValueType.ANY.getValue());
         return rowset.build();
     }
 

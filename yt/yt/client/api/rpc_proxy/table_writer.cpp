@@ -1,10 +1,13 @@
 #include "table_writer.h"
 #include "helpers.h"
+#include "row_stream.h"
+#include "wire_row_stream.h"
 
 #include <yt/client/api/table_writer.h>
 
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/schema.h>
+#include <yt/client/table_client/unversioned_row_batch.h>
 
 #include <yt/core/rpc/stream.h>
 
@@ -21,9 +24,10 @@ class TTableWriter
 public:
     TTableWriter(
         IAsyncZeroCopyOutputStreamPtr underlying,
-        const TTableSchema& schema)
+        TTableSchema schema)
         : Underlying_(std::move(underlying))
-        , Schema_(schema)
+        , Schema_(std::move(schema))
+        , Formatter_(CreateWireRowStreamFormatter(NameTable_))
     {
         YT_VERIFY(Underlying_);
         NameTable_->SetEnableColumnNameValidation();
@@ -31,32 +35,27 @@ public:
 
     virtual bool Write(TRange<TUnversionedRow> rows) override
     {
-        ValidateNotClosed();
+        YT_VERIFY(!Closed_);
+        YT_VERIFY(ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK());
 
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
-            THROW_ERROR_EXCEPTION("Write() was called before waiting for GetReadyEvent()");
-        }
+        auto batch = CreateBatchFromUnversionedRows(rows, nullptr);
+        
+        auto block = Formatter_->Format(batch, nullptr);
 
         ReadyEvent_ = NewPromise<void>();
-
-        auto rowData = SerializeRowsetWithNameTableDelta(
-            NameTable_,
-            rows,
-            &NameTableSize_);
-        ReadyEvent_.TrySetFrom(Underlying_->Write(rowData));
+        ReadyEvent_.TrySetFrom(Underlying_->Write(std::move(block)));
 
         return ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK();
     }
 
     virtual TFuture<void> GetReadyEvent() override
     {
-        ValidateNotClosed();
         return ReadyEvent_;
     }
 
     virtual TFuture<void> Close() override
     {
-        ValidateNotClosed();
+        YT_VERIFY(!Closed_);
         Closed_ = true;
 
         return Underlying_->Close();
@@ -75,40 +74,30 @@ public:
 private:
     const IAsyncZeroCopyOutputStreamPtr Underlying_;
     const TTableSchema Schema_;
-    const TNameTablePtr NameTable_ = New<TNameTable>();
 
-    int NameTableSize_ = 0;
+    const TNameTablePtr NameTable_ = New<TNameTable>();
+    const IRowStreamFormatterPtr Formatter_;
 
     TPromise<void> ReadyEvent_ = MakePromise<void>(TError());
-
     bool Closed_ = false;
-
-    void ValidateNotClosed()
-    {
-        if (Closed_) {
-            THROW_ERROR_EXCEPTION("Table writer is closed");
-        }
-    }
 };
 
 TFuture<ITableWriterPtr> CreateTableWriter(
     TApiServiceProxy::TReqWriteTablePtr request)
 {
-    auto schemaHolder = std::make_unique<TTableSchema>();
-    auto futureStream = NRpc::CreateRpcClientOutputStream(
+    auto schema = std::make_shared<TTableSchema>();
+    return NRpc::CreateRpcClientOutputStream(
         std::move(request),
-        BIND ([schema = schemaHolder.get()] (const TSharedRef& metaRef) {
+        BIND ([=] (const TSharedRef& metaRef) {
             NApi::NRpcProxy::NProto::TWriteTableMeta meta;
             if (!TryDeserializeProto(&meta, metaRef)) {
                 THROW_ERROR_EXCEPTION("Failed to deserialize schema for table writer");
             }
 
-            FromProto(schema, meta.schema());
-        }));
-
-    return futureStream.Apply(
-        BIND([schemaHolder = std::move(schemaHolder)] (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
-            return New<TTableWriter>(outputStream, *schemaHolder);
+            FromProto(schema.get(), meta.schema());
+        }))
+        .Apply(BIND([=] (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
+            return New<TTableWriter>(outputStream, std::move(*schema));
         })).As<ITableWriterPtr>();
 }
 

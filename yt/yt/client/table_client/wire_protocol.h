@@ -202,11 +202,9 @@ public:
     TSharedRange<NTableClient::TUnversionedRow> ReadUnversionedRowset(bool deep);
     TSharedRange<NTableClient::TUnversionedRow> ReadSchemafulRowset(const TSchemaData& schemaData, bool deep);
     TSharedRange<NTableClient::TVersionedRow> ReadVersionedRowset(
-        const TSchemaData& schemaData, bool deep,
+        const TSchemaData& schemaData,
+        bool deep,
         const TIdMapping* valueIdMapping = nullptr);
-
-    template <class TRow>
-    TSharedRange<TRow> ReadRowset(const TSchemaData& schemaData, bool deep);
 
     static TSchemaData GetSchemaData(
         const NTableClient::TTableSchema& schema,

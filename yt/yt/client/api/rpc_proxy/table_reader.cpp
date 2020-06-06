@@ -1,5 +1,7 @@
 #include "table_reader.h"
 #include "helpers.h"
+#include "row_stream.h"
+#include "wire_row_stream.h"
 
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/table_reader.h>
@@ -30,21 +32,20 @@ public:
         const TKeyColumns& keyColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
         const TTableSchema& schema,
-        const NApi::NRpcProxy::NProto::TTableReaderPayload& payload)
+        const NApi::NRpcProxy::NProto::TRowsetStatistics& statistics)
         : Underlying_ (std::move(underlying))
         , StartRowIndex_(startRowIndex)
         , KeyColumns_(keyColumns)
         , TableSchema_(schema)
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
+        , Parser_(CreateWireRowStreamParser(NameTable_))
     {
         YT_VERIFY(Underlying_);
-        RowsetDescriptor_.set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
-        RowsetDescriptor_.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
 
-        ApplyReaderPayload(payload);
+        ApplyReaderStatistics(statistics);
 
-        AsyncRowsWithPayload_ = GetRowsWithPayload();
-        ReadyEvent_.TrySetFrom(AsyncRowsWithPayload_);
+        RowsWithStatisticsFuture_ = GetRowsWithStatistics();
+        ReadyEvent_.TrySetFrom(RowsWithStatisticsFuture_);
     }
 
     virtual i64 GetStartRowIndex() const override
@@ -87,20 +88,20 @@ public:
         rows.reserve(options.MaxRowsPerRead);
         i64 dataWeight = 0;
 
-        while (AsyncRowsWithPayload_ &&
-               AsyncRowsWithPayload_.IsSet() &&
-               AsyncRowsWithPayload_.Get().IsOK() &&
+        while (RowsWithStatisticsFuture_ &&
+               RowsWithStatisticsFuture_.IsSet() &&
+               RowsWithStatisticsFuture_.Get().IsOK() &&
                !Finished_ &&
                rows.size() < options.MaxRowsPerRead &&
                dataWeight < options.MaxDataWeightPerRead)
         {
-            const auto& currentRows = AsyncRowsWithPayload_.Get().Value().Rows;
-            const auto& currentPayload = AsyncRowsWithPayload_.Get().Value().Payload;
+            const auto& currentRows = RowsWithStatisticsFuture_.Get().Value().Rows;
+            const auto& currentStatistics = RowsWithStatisticsFuture_.Get().Value().Statistics;
 
             if (currentRows.Empty()) {
                 ReadyEvent_.Set();
                 Finished_ = true;
-                ApplyReaderPayload(currentPayload);
+                ApplyReaderStatistics(currentStatistics);
                 continue;
             }
 
@@ -114,10 +115,10 @@ public:
             }
 
             StoredRows_.push_back(currentRows);
-            ApplyReaderPayload(currentPayload);
+            ApplyReaderStatistics(currentStatistics);
 
             if (CurrentRowsOffset_ == currentRows.size()) {
-                AsyncRowsWithPayload_ = GetRowsWithPayload();
+                RowsWithStatisticsFuture_ = GetRowsWithStatistics();
                 CurrentRowsOffset_ = 0;
             }
         }
@@ -125,7 +126,7 @@ public:
         RowCount_ += rows.size();
         DataWeight_ += dataWeight;
 
-        ReadyEvent_.TrySetFrom(AsyncRowsWithPayload_);
+        ReadyEvent_.TrySetFrom(RowsWithStatisticsFuture_);
         return rows.empty() ? nullptr : CreateBatchFromUnversionedRows(std::move(rows), this);
     }
 
@@ -151,11 +152,11 @@ public:
 
 private:
     using TRows = TSharedRange<TUnversionedRow>;
-    using TPayload = NApi::NRpcProxy::NProto::TTableReaderPayload;
-    struct TRowsWithPayload
+    using TStatistics = NApi::NRpcProxy::NProto::TRowsetStatistics;
+    struct TRowsWithStatistics
     {
         TRows Rows;
-        TPayload Payload;
+        TStatistics Statistics;
     };
 
     const IAsyncZeroCopyInputStreamPtr Underlying_;
@@ -163,7 +164,9 @@ private:
     const TKeyColumns KeyColumns_;
     const TTableSchema TableSchema_;
     const std::vector<TString> OmittedInaccessibleColumns_;
+
     const TNameTablePtr NameTable_ = New<TNameTable>();
+    const IRowStreamParserPtr Parser_;
 
     NChunkClient::NProto::TDataStatistics DataStatistics_;
     i64 TotalRowCount_;
@@ -172,77 +175,54 @@ private:
     i64 DataWeight_ = 0;
 
     TNameTableToSchemaIdMapping IdMapping_;
-    NApi::NRpcProxy::NProto::TRowsetDescriptor RowsetDescriptor_;
 
     TPromise<void> ReadyEvent_ = NewPromise<void>();
 
     std::vector<TRows> StoredRows_;
-    TFuture<TRowsWithPayload> AsyncRowsWithPayload_;
+    TFuture<TRowsWithStatistics> RowsWithStatisticsFuture_;
     i64 CurrentRowsOffset_ = 0;
 
     bool Finished_ = false;
 
-    void ApplyReaderPayload(const TPayload& payload)
+    void ApplyReaderStatistics(const TStatistics& statistics)
     {
-        TotalRowCount_ = payload.total_row_count();
-        DataStatistics_ = payload.data_statistics();
+        TotalRowCount_ = statistics.total_row_count();
+        DataStatistics_ = statistics.data_statistics();
     }
 
-    TFuture<TRowsWithPayload> GetRowsWithPayload()
+    TFuture<TRowsWithStatistics> GetRowsWithStatistics()
     {
         return Underlying_->Read()
-            .Apply(BIND([this, weakThis = MakeWeak(this)] (const TSharedRef& rowData) {
+            .Apply(BIND([this, weakThis = MakeWeak(this)] (const TSharedRef& block) {
                 auto this_ = weakThis.Lock();
                 if (!this_) {
-                    THROW_ERROR_EXCEPTION("Reader abandoned");
+                    THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "Reader destroyed");
                 }
 
-                auto rowsWithPayload = DeserializeRows(rowData);
-                if (rowsWithPayload.Rows.Empty()) {
+                auto rowsWithStatistics = DeserializeRows(block);
+                if (rowsWithStatistics.Rows.Empty()) {
                     return ExpectEndOfStream(Underlying_).Apply(BIND([=] () {
-                        return std::move(rowsWithPayload);
+                        return std::move(rowsWithStatistics);
                     }));
                 }
-                return MakeFuture(std::move(rowsWithPayload));
+                return MakeFuture(std::move(rowsWithStatistics));
             }));
     }
 
-    TRowsWithPayload DeserializeRows(const TSharedRef& rowData)
+    TRowsWithStatistics DeserializeRows(const TSharedRef& block)
     {
-        std::vector<TSharedRef> parts;
-        UnpackRefsOrThrow(rowData, &parts);
-        if (parts.size() != 2) {
-            THROW_ERROR_EXCEPTION(
-                "Error deserializing rows in table reader: expected %v packed refs, got %v",
-                2,
-                parts.size());
-        }
-
-        const auto& rowsetData = parts[0];
-        const auto& payloadRef = parts[1];
-
-        auto rows = DeserializeRowsetWithNameTableDelta(
-            rowsetData,
-            NameTable_,
-            &RowsetDescriptor_,
-            &IdMapping_);
-
-        TPayload payload;
-        if (!TryDeserializeProto(&payload, payloadRef)) {
-            THROW_ERROR_EXCEPTION("Error deserializing table reader payload");
-        }
-
-        return {std::move(rows), std::move(payload)};
+        TStatistics statistics;
+        auto rows = Parser_->Parse(block, &statistics);
+        return {std::move(rows), std::move(statistics)};
     }
 };
 
-TFuture<ITableReaderPtr> CreateTableReader(
-    TApiServiceProxy::TReqReadTablePtr request)
+TFuture<ITableReaderPtr> CreateTableReader(TApiServiceProxy::TReqReadTablePtr request)
 {
     return NRpc::CreateRpcClientInputStream(std::move(request))
         .Apply(BIND([=] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
             return inputStream->Read().Apply(BIND([=] (const TSharedRef& metaRef) {
-                NApi::NRpcProxy::NProto::TReadTableMeta meta;
+                NApi::NRpcProxy::NProto::TRspReadTableMeta meta;
                 if (!TryDeserializeProto(&meta, metaRef)) {
                     THROW_ERROR_EXCEPTION("Failed to deserialize table reader meta information");
                 }
@@ -259,7 +239,7 @@ TFuture<ITableReaderPtr> CreateTableReader(
                     std::move(keyColumns),
                     std::move(omittedInaccessibleColumns),
                     std::move(schema),
-                    meta.payload());
+                    meta.statistics());
             })).As<ITableReaderPtr>();
         }));
 }

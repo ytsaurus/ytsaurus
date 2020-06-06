@@ -134,7 +134,7 @@ public class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> impleme
 
         for (ColumnSchema descriptor : schema.getColumns()) {
             if (!column2id.containsKey(descriptor.getName())) {
-                builder.addColumns(TRowsetDescriptor.TColumnDescriptor.newBuilder()
+                builder.addNameTableEntries(TRowsetDescriptor.TNameTableEntry.newBuilder()
                         .setName(descriptor.getName())
                         .setType(descriptor.getType().getValue())
                         .build());
@@ -172,10 +172,10 @@ public class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> impleme
             throw new IllegalStateException();
         }
 
-        if (currentDescriptor.getColumnsCount() > 0) {
+        if (currentDescriptor.getNameTableEntriesCount() > 0) {
             TRowsetDescriptor.Builder merged = TRowsetDescriptor.newBuilder();
             merged.mergeFrom(rowsetDescriptor);
-            merged.addAllColumns(currentDescriptor.getColumnsList());
+            merged.addAllNameTableEntries(currentDescriptor.getNameTableEntriesList());
             rowsetDescriptor = merged.build();
         }
 

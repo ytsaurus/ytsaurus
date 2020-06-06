@@ -79,14 +79,14 @@ public class ApiServiceUtil {
 
     public static TableSchema deserializeRowsetSchema(TRowsetDescriptor descriptor) {
         TableSchema.Builder builder = new TableSchema.Builder().setUniqueKeys(false);
-        for (TRowsetDescriptor.TColumnDescriptor columnDescriptor : descriptor.getColumnsList()) {
+        for (TRowsetDescriptor.TNameTableEntry entry : descriptor.getNameTableEntriesList()) {
             String name = "";
-            if (columnDescriptor.hasName()) {
-                name = columnDescriptor.getName();
+            if (entry.hasName()) {
+                name = entry.getName();
             }
             ColumnValueType type = ColumnValueType.NULL;
-            if (columnDescriptor.hasType()) {
-                type = ColumnValueType.fromValue(columnDescriptor.getType());
+            if (entry.hasType()) {
+                type = ColumnValueType.fromValue(entry.getType());
             }
             builder.addValue(name, type);
         }
@@ -161,7 +161,7 @@ public class ApiServiceUtil {
         builder.setWireFormatVersion(WireProtocol.WIRE_FORMAT_VERSION);
         builder.setRowsetKind(ERowsetKind.RK_UNVERSIONED);
         for (ColumnSchema column : schema.getColumns()) {
-            builder.addColumnsBuilder()
+            builder.addNameTableEntriesBuilder()
                     .setName(column.getName())
                     .setType(column.getType().getValue());
         }

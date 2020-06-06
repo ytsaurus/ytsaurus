@@ -13,7 +13,7 @@ import NYT.NChunkClient.NProto.DataStatistics.TDataStatistics;
 
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
-import ru.yandex.yt.rpcproxy.TTableReaderPayload;
+import ru.yandex.yt.rpcproxy.TRowsetStatistics;
 import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -40,10 +40,10 @@ public class TableAttachmentReaderImpl<T> implements TableAttachmentReader<T> {
         if (currentReadSchema == null) {
             currentRowsetDescriptor = rowsetDescriptor;
             currentReadSchema = ApiServiceUtil.deserializeRowsetSchema(rowsetDescriptor);
-        } else if (rowsetDescriptor.getColumnsCount() > 0) {
+        } else if (rowsetDescriptor.getNameTableEntriesCount() > 0) {
             TRowsetDescriptor.Builder builder = TRowsetDescriptor.newBuilder();
             builder.mergeFrom(currentRowsetDescriptor);
-            builder.addAllColumns(rowsetDescriptor.getColumnsList());
+            builder.addAllNameTableEntries(rowsetDescriptor.getNameTableEntriesList());
             currentRowsetDescriptor = builder.build();
             currentReadSchema = ApiServiceUtil.deserializeRowsetSchema(currentRowsetDescriptor);
         }
@@ -92,16 +92,16 @@ public class TableAttachmentReaderImpl<T> implements TableAttachmentReader<T> {
         return rowset;
     }
 
-    private void parsePayload(ByteBuffer bb, int size) throws Exception {
+    private void parseStatistics(ByteBuffer bb, int size) throws Exception {
         int endPosition = bb.position() + size;
-        TTableReaderPayload payload = TTableReaderPayload.parseFrom((ByteBuffer) bb.slice().limit(size)); //
+        TRowsetStatistics statistics = TRowsetStatistics.parseFrom((ByteBuffer) bb.slice().limit(size)); //
         // (ByteBuffer) for java8 compatibility
-        currentDataStatistics = payload.getDataStatistics();
-        totalRowCount.set(payload.getTotalRowCount());
+        currentDataStatistics = statistics.getDataStatistics();
+        totalRowCount.set(statistics.getTotalRowCount());
         bb.position(endPosition);
     }
 
-    private List<T> parseRowsWithPayload(byte[] attachment) throws Exception {
+    private List<T> parseRowsWithStatistics(byte[] attachment) throws Exception {
         if (attachment == null) {
             return null;
         }
@@ -113,12 +113,10 @@ public class TableAttachmentReaderImpl<T> implements TableAttachmentReader<T> {
         }
 
         int rowDataSize = (int) bb.getLong();
-
         List<T> rowset = parseRowData(bb, rowDataSize);
 
-        int payloadSize = (int) bb.getLong();
-
-        parsePayload(bb, payloadSize);
+        int statisticsSize = (int) bb.getLong();
+        parseStatistics(bb, statisticsSize);
 
         if (bb.hasRemaining()) {
             throw new IllegalArgumentException();
@@ -129,7 +127,7 @@ public class TableAttachmentReaderImpl<T> implements TableAttachmentReader<T> {
 
     @Override
     public List<T> parse(byte[] attachments) throws Exception {
-        return parseRowsWithPayload(attachments);
+        return parseRowsWithStatistics(attachments);
     }
 
     @Override

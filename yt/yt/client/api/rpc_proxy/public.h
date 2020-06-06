@@ -6,6 +6,9 @@ namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(IRowStreamFormatter)
+DECLARE_REFCOUNTED_STRUCT(IRowStreamParser)
+
 DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
 
 extern const TString RpcProxiesPath;

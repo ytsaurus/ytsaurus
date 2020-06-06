@@ -5,9 +5,9 @@ import java.util.concurrent.CompletableFuture;
 
 import NYT.NChunkClient.NProto.DataStatistics;
 
-import ru.yandex.yt.rpcproxy.TReadTableMeta;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
+import ru.yandex.yt.rpcproxy.TRspReadTableMeta;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.proxy.TableReader;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
@@ -18,11 +18,11 @@ import ru.yandex.yt.ytclient.rpc.internal.RpcServiceMethodDescriptor;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class TableReaderImpl<T> extends StreamReaderImpl<TRspReadTable> implements TableReader<T> {
-    private static final RpcMessageParser<TReadTableMeta> metaParser =
-            RpcServiceMethodDescriptor.makeMessageParser(TReadTableMeta.class);
+    private static final RpcMessageParser<TRspReadTableMeta> metaParser =
+            RpcServiceMethodDescriptor.makeMessageParser(TRspReadTableMeta.class);
 
     private final TableAttachmentReader<T> reader;
-    private TReadTableMeta metadata = null;
+    private TRspReadTableMeta metadata = null;
 
     public TableReaderImpl(RpcClientStreamControl control, TableAttachmentReader<T> reader) {
         super(control);

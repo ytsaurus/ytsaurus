@@ -11,7 +11,7 @@ TNameTablePtr TNameTable::FromSchema(const TTableSchema& schema)
 {
     auto nameTable = New<TNameTable>();
     for (const auto& column : schema.Columns()) {
-        nameTable->RegisterName(column.Name());
+        nameTable->DoRegisterName(column.Name());
     }
     return nameTable;
 }
@@ -22,7 +22,7 @@ TNameTablePtr TNameTable::SafeFromSchema(const TTableSchema& schema)
 
     auto nameTable = New<TNameTable>();
     for (const auto& column : schema.Columns()) {
-        nameTable->RegisterName(column.Name());
+        nameTable->DoRegisterName(column.Name());
     }
     return nameTable;
 }
@@ -31,7 +31,7 @@ TNameTablePtr TNameTable::FromKeyColumns(const TKeyColumns& keyColumns)
 {
     auto nameTable = New<TNameTable>();
     for (const auto& name : keyColumns) {
-        nameTable->RegisterName(name);
+        nameTable->DoRegisterName(name);
     }
     return nameTable;
 }
@@ -155,7 +155,7 @@ int TNameTable::DoRegisterName(TStringBuf name)
 
     IdToName_.emplace_back(name);
     const auto& savedName = IdToName_.back();
-    YT_VERIFY(NameToId_.insert(std::make_pair(savedName, id)).second);
+    YT_VERIFY(NameToId_.emplace(savedName, id).second);
     ByteSize_ += savedName.length();
     return id;
 }

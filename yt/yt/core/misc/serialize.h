@@ -67,6 +67,8 @@ template <class T>
 void UnpackRefs(const TSharedRef& packedRef, T* parts);
 template <class T>
 void UnpackRefsOrThrow(const TSharedRef& packedRef, T* parts);
+std::vector<TSharedRef> UnpackRefs(const TSharedRef& packedRef);
+std::vector<TSharedRef> UnpackRefsOrThrow(const TSharedRef& packedRef);
 
 template <class TTag, class TParts>
 TSharedRef MergeRefsToRef(const TParts& parts);
