@@ -88,9 +88,17 @@ public:
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert);
 
-    void AddGlobalWatcherRequester(TWatcherRequester requester);
-    void AddGlobalWatcherHandler(TWatcherHandler handler);
-    void SetCustomGlobalWatcher(EWatcherType type, TWatcherRequester requester, TWatcherHandler handler, TDuration period);
+    void AddCommonWatcher(
+        TWatcherRequester requester,
+        TWatcherHandler handler,
+        std::optional<ESchedulerAlertType> alertType = std::nullopt);
+
+    void SetCustomWatcher(
+        EWatcherType type,
+        TWatcherRequester requester,
+        TWatcherHandler handler,
+        TDuration period,
+        std::optional<ESchedulerAlertType> alertType = std::nullopt);
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 

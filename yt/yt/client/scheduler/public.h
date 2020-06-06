@@ -56,6 +56,7 @@ DEFINE_ENUM(EErrorCode,
     ((PoolTreesAreUnspecified)                (214))
     ((MaxFailedJobsLimitExceeded)             (215))
     ((OperationFailedToPrepare)               (216))
+    ((WatcherHandlerFailed)                   (217))
 );
 
 DEFINE_ENUM(EUnavailableChunkAction,

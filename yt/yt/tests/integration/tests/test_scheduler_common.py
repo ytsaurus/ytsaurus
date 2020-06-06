@@ -1753,6 +1753,26 @@ class TestConnectToMaster(YTEnvSetup):
                 return True
         return False
 
+    @authors("renadeen")
+    def test_scheduler_doesnt_start_with_invalid_pools(self):
+        assert get("//sys/scheduler/@alerts") == []
+        with Restarter(self.Env, SCHEDULERS_SERVICE, sync=False):
+            move("//sys/pool_trees", "//sys/pool_trees_bak")
+            set("//sys/pool_trees", {"default": {"invalid_pool": 1}})
+
+        wait(lambda: get("//sys/scheduler/@alerts"))
+        alerts = get("//sys/scheduler/@alerts")
+        assert len(alerts) == 1
+        assert alerts[0]["attributes"]["alert_type"] == "scheduler_cannot_connect"
+
+        scheduler = ls("//sys/scheduler/instances")[0]
+        assert not get("//sys/scheduler/instances/" + scheduler + "/orchid/scheduler/connected")
+
+        remove("//sys/pool_trees")
+        move("//sys/pool_trees_bak", "//sys/pool_trees")
+        wait(lambda: get("//sys/scheduler/instances/" + scheduler + "/orchid/scheduler/connected"))
+
+
 ##################################################################
 
 class TestEventLog(YTEnvSetup):
@@ -2015,5 +2035,3 @@ class TestResourceMetering(YTEnvSetup):
             return True
 
         wait(check_structured)
-
-
