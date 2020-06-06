@@ -1,7 +1,7 @@
 from yt_commands import *
 from yt_helpers import *
 
-from yt_env_setup import wait, YTEnvSetup, is_asan_build, is_gcc_build
+from yt_env_setup import wait, YTEnvSetup, is_asan_build
 from yt.clickhouse import get_clique_spec_builder
 from yt.wrapper.common import simplify_structure
 import yt.packages.requests as requests
@@ -2306,7 +2306,6 @@ class TestJoinAndIn(ClickHouseTestBase):
         self._setup()
 
     @authors("max42")
-    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_global_join(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]})
         create("table", "//tmp/t2", attributes={"schema": [{"name": "c", "type": "int64"}, {"name": "d", "type": "string"}]})
@@ -2336,7 +2335,6 @@ class TestJoinAndIn(ClickHouseTestBase):
                 assert clique.make_query("select * from \"//tmp/t1\" global join \"//tmp/t3\" using a order by a") == expected_using
 
     @authors("max42")
-    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_global_in(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
         create("table", "//tmp/t2", attributes={"schema": [{"name": "a", "type": "int64", "required": True}]})
@@ -2354,7 +2352,6 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select toInt64(43) global in (select * from \"//tmp/t2\") from \"//tmp/t1\" limit 1")[0].values() == [0]
 
     @authors("max42")
-    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_sorted_join_simple(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
                                                            {"name": "lhs", "type": "string", "required": True}]})
@@ -2384,7 +2381,6 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" t1 join \"//tmp/t2\" t2 on t1.key = t2.key order by key") == expected
 
     @authors("max42")
-    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_right_or_full_join_simple(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
                                                            {"name": "lhs", "type": "string", "required": True}]})
@@ -2429,7 +2425,6 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select key, lhs, rhs from \"//tmp/t1\" t1 global full join \"//tmp/t2\" t2 using key order by key") == expected_full
 
     @authors("max42")
-    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_sorted_join_stress(self):
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "required": True, "sort_order": "ascending"},
                                                            {"name": "lhs", "type": "string", "required": True}]})
@@ -2541,7 +2536,6 @@ class TestJoinAndIn(ClickHouseTestBase):
                                     assert False
 
     @authors("max42")
-    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_tricky_join(self):
         # CHYT-240.
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
@@ -2556,7 +2550,6 @@ class TestJoinAndIn(ClickHouseTestBase):
             assert clique.make_query("select * from \"//tmp/t1\" t1 join \"//tmp/t2\" t2 using key") == [{"key": 0}, {"key": 1}]
 
     @authors("max42")
-    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_join_under_different_names(self):
         # CHYT-270.
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key1", "type": "int64", "sort_order": "ascending"}]})
@@ -2570,7 +2563,6 @@ class TestJoinAndIn(ClickHouseTestBase):
 
 
     @authors("max42")
-    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_tricky_join2(self):
         # CHYT-273.
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})
@@ -2583,7 +2575,6 @@ class TestJoinAndIn(ClickHouseTestBase):
 
 
     @authors("max42")
-    @pytest.mark.skipif(is_gcc_build(), reason="https://github.com/yandex/ClickHouse/issues/6187")
     def test_forbidden_non_primitive_join(self):
         # CHYT-323.
         create("table", "//tmp/t1", attributes={"schema": [{"name": "key", "type": "int64", "sort_order": "ascending"}]})

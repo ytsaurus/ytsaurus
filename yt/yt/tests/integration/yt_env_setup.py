@@ -201,15 +201,6 @@ def is_asan_build():
     version = subprocess.check_output([binary, "--version"])
     return "asan" in version
 
-def is_gcc_build():
-    if arcadia_interop.yatest_common is not None:
-        c_compiler_path = arcadia_interop.yatest_common.c_compiler_path() or "<unknown>"
-        return c_compiler_path.endswith("gcc")
-
-    binary = find_executable("ytserver-clickhouse")
-    svnrevision = subprocess.check_output([binary, "--svnrevision"])
-    return "GCC" in svnrevision
-
 def skip_if_rpc_driver_backend(func):
     def wrapper(func, self, *args, **kwargs):
         if self.DRIVER_BACKEND == "rpc":
