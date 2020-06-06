@@ -39,6 +39,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((JobsArchivation)                              (7))
     ((UpdateNodesFailed)                            (8))
     ((NodesWithoutPoolTree)                         (9))
+    ((SchedulerCannotConnect)                       (10))
 );
 
 DEFINE_ENUM(EOperationAlertType,

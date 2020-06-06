@@ -200,38 +200,29 @@ public:
 
     void Initialize()
     {
-        MasterConnector_->AddGlobalWatcherRequester(BIND(
-            &TImpl::RequestPoolTrees,
-            Unretained(this)));
-        MasterConnector_->AddGlobalWatcherHandler(BIND(
-            &TImpl::HandlePoolTrees,
-            Unretained(this)));
+        MasterConnector_->AddCommonWatcher(
+            BIND(&TImpl::RequestPoolTrees, Unretained(this)),
+            BIND(&TImpl::HandlePoolTrees, Unretained(this)),
+            ESchedulerAlertType::UpdatePools);
 
-        MasterConnector_->SetCustomGlobalWatcher(
+        MasterConnector_->SetCustomWatcher(
             EWatcherType::NodeAttributes,
             BIND(&TImpl::RequestNodesAttributes, Unretained(this)),
             BIND(&TImpl::HandleNodesAttributes, Unretained(this)),
             Config_->NodesAttributesUpdatePeriod);
 
-        MasterConnector_->AddGlobalWatcherRequester(BIND(
-            &TImpl::RequestConfig,
-            Unretained(this)));
-        MasterConnector_->AddGlobalWatcherHandler(BIND(
-            &TImpl::HandleConfig,
-            Unretained(this)));
-        MasterConnector_->AddGlobalWatcherRequester(BIND(
-            &TImpl::RequestOperationsEffectiveAcl,
-            Unretained(this)));
-        MasterConnector_->AddGlobalWatcherHandler(BIND(
-            &TImpl::HandleOperationsEffectiveAcl,
-            Unretained(this)));
+        MasterConnector_->AddCommonWatcher(
+            BIND(&TImpl::RequestConfig, Unretained(this)),
+            BIND(&TImpl::HandleConfig, Unretained(this)),
+            ESchedulerAlertType::UpdateConfig);
 
-        MasterConnector_->AddGlobalWatcherRequester(BIND(
-            &TImpl::RequestOperationArchiveVersion,
-            Unretained(this)));
-        MasterConnector_->AddGlobalWatcherHandler(BIND(
-            &TImpl::HandleOperationArchiveVersion,
-            Unretained(this)));
+        MasterConnector_->AddCommonWatcher(
+            BIND(&TImpl::RequestOperationsEffectiveAcl, Unretained(this)),
+            BIND(&TImpl::HandleOperationsEffectiveAcl, Unretained(this)));
+
+        MasterConnector_->AddCommonWatcher(
+            BIND(&TImpl::RequestOperationArchiveVersion, Unretained(this)),
+            BIND(&TImpl::HandleOperationArchiveVersion, Unretained(this)));
 
         MasterConnector_->SubscribeMasterConnecting(BIND(
             &TImpl::OnMasterConnecting,
@@ -2127,8 +2118,7 @@ private:
     {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_pool_trees");
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error getting pool trees");
-            return;
+            THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error getting pool trees"));
         }
 
         const auto& rsp = rspOrError.Value();
@@ -2136,18 +2126,16 @@ private:
         try {
             poolTreesNode = ConvertToNode(TYsonString(rsp->value()));
         } catch (const std::exception& ex) {
-            auto error = TError("Error parsing pool trees")
+            auto error = TError(EErrorCode::WatcherHandlerFailed, "Error parsing pool trees")
                 << ex;
-            SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
-            return;
+            THROW_ERROR(error);
         }
 
         TPersistentStrategyStatePtr strategyState;
         if (!Strategy_->IsInitialized()) {
             rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_strategy_state");
             if (!rspOrError.IsOK() && !rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_WARNING(rspOrError, "Error fetching strategy state");
-                return;
+                THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error fetching strategy state"));
             }
 
             strategyState = New<TPersistentStrategyState>();
@@ -2298,12 +2286,10 @@ private:
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_config");
         if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             // No config in Cypress, just ignore.
-            SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, TError());
             return;
         }
         if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error getting scheduler configuration");
-            return;
+            THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error getting scheduler configuration"));
         }
 
         auto newConfig = CloneYsonSerializable(InitialConfig_);
@@ -2313,19 +2299,15 @@ private:
             try {
                 newConfig->Load(configFromCypress, /* validate */ true, /* setDefaults */ false);
             } catch (const std::exception& ex) {
-                auto error = TError("Error updating scheduler configuration")
+                auto error = TError(EErrorCode::WatcherHandlerFailed, "Error updating scheduler configuration")
                     << ex;
-                SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, error);
-                return;
+                THROW_ERROR(error);
             }
         } catch (const std::exception& ex) {
-            auto error = TError("Error parsing updated scheduler configuration")
+            auto error = TError(EErrorCode::WatcherHandlerFailed, "Error parsing updated scheduler configuration")
                 << ex;
-            SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, error);
-            return;
+            THROW_ERROR(error);
         }
-
-        SetSchedulerAlert(ESchedulerAlertType::UpdateConfig, TError());
 
         auto oldConfigNode = ConvertToNode(Config_);
         auto newConfigNode = ConvertToNode(newConfig);

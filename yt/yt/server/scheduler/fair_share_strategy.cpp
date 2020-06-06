@@ -258,6 +258,7 @@ public:
 
         std::vector<TOperationId> orphanedOperationIds;
         std::vector<TOperationId> changedOperationIds;
+        TError error;
         {
             // No context switches allowed while fair share trees update.
             TForbidContextSwitchGuard contextSwitchGuard;
@@ -265,12 +266,10 @@ public:
             YT_LOG_INFO("Updating pool trees");
 
             if (poolTreesNode->GetType() != NYTree::ENodeType::Map) {
-                auto error = TError("Pool trees node has invalid type")
+                error = TError(EErrorCode::WatcherHandlerFailed, "Pool trees node has invalid type")
                     << TErrorAttribute("expected_type", NYTree::ENodeType::Map)
                     << TErrorAttribute("actual_type", poolTreesNode->GetType());
-                YT_LOG_WARNING(error);
-                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
-                return;
+                THROW_ERROR(error);
             }
 
             auto poolsMap = poolTreesNode->AsMap();
@@ -297,10 +296,9 @@ public:
 
             if (defaultTreeId && idToTree.find(*defaultTreeId) == idToTree.end()) {
                 errors.emplace_back("Default tree is missing");
-                auto error = TError("Error updating pool trees")
+                error = TError(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
                     << std::move(errors);
-                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
-                return;
+                THROW_ERROR(error);
             }
 
             // Check that after adding or removing trees each node will belong exactly to one tree.
@@ -308,10 +306,9 @@ public:
             bool shouldCheckConfiguration = !treeIdsToAdd.empty() || !treeIdsToRemove.empty() || !treesWithChangedFilter.empty();
 
             if (shouldCheckConfiguration && !CheckTreesConfiguration(treeIdToFilter, &errors)) {
-                auto error = TError("Error updating pool trees")
+                error = TError(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
                     << std::move(errors);
-                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
-                return;
+                THROW_ERROR(error);
             }
 
             // Update configs and pools structure of all trees.
@@ -336,11 +333,9 @@ public:
 
             // Setting alerts.
             if (!errors.empty()) {
-                auto error = TError("Error updating pool trees")
+                error = TError(EErrorCode::WatcherHandlerFailed, "Error updating pool trees")
                     << std::move(errors);
-                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, error);
             } else {
-                Host->SetSchedulerAlert(ESchedulerAlertType::UpdatePools, TError());
                 if (!updatedTreeIds.empty() || !treeIdsToRemove.empty() || !treeIdsToAdd.empty()) {
                     Host->LogEventFluently(ELogEventType::PoolsInfo)
                         .Item("pools").DoMapFor(IdToTree_, [&] (TFluentMap fluent, const auto& value) {
@@ -359,6 +354,8 @@ public:
 
         // Perform abort of orphaned operations one by one.
         AbortOrphanedOperations(orphanedOperationIds);
+
+        THROW_ERROR_EXCEPTION_IF_FAILED(error);
     }
 
     virtual bool IsInitialized() override

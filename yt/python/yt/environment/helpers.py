@@ -350,12 +350,12 @@ MASTER_CELL_SERVICE = "masters"
 MASTERS_SERVICE = "masters"
 
 class Restarter(object):
-    def __init__(self, yt_instance, components, sync_start=True, *args, **kwargs):
+    def __init__(self, yt_instance, components, sync=True, *args, **kwargs):
         self.yt_instance = yt_instance
         self.components = components
         if type(self.components) == str:
             self.components = [self.components]
-        self.sync_start = sync_start
+        self.sync = sync
         self.kill_args = args
         self.kill_kwargs = kwargs
 
@@ -386,8 +386,8 @@ class Restarter(object):
     def __exit__(self, exc_type, exc_val, exc_tb):
         for comp_name in self.components:
             try:
-                self.start_dict[comp_name](sync=self.sync_start)
-                if not self.sync_start:
+                self.start_dict[comp_name](sync=False)
+                if self.sync:
                     self.yt_instance.synchronize()
             except KeyError:
                 logger.error("Failed to start {}. No such component.".format(comp_name))

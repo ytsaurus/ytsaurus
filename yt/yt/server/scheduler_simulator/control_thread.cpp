@@ -123,10 +123,10 @@ TSimulatorControlThread::TSimulatorControlThread(
 void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode)
 {
     YT_VERIFY(!Initialized_.load());
-    WaitFor(
-        BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesNode, New<TPersistentStrategyState>())
-            .AsyncVia(ActionQueue_->GetInvoker())
-            .Run())
+
+    WaitFor(BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesNode, New<TPersistentStrategyState>())
+        .AsyncVia(ActionQueue_->GetInvoker())
+        .Run())
         .ThrowOnError();
 
     for (const auto& execNode : *ExecNodes_) {

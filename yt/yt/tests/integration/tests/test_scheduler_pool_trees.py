@@ -508,15 +508,18 @@ class TestConfigurablePoolTreeRoot(YTEnvSetup):
 
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "pool_trees_root": "//sys/test_root"
+            "watchers_update_period": 100,  # Update pools configuration period
         }
     }
 
     def test_scheduler_reads_pool_config_from_different_path(self):
-        set("//sys/test_root/tree", {
-            "parent": {"pool": {}}
+        set("//sys/test_root", {
+            "tree": {"parent": {"pool": {}}}
         })
         set("//sys/test_root/tree/parent/pool/@max_operation_count", 10)
+
+        set("//sys/scheduler/config/pool_trees_root", "//sys/test_root")
+        remove("//sys/pool_trees")
 
         pools_path = "//sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/tree/fair_share_info/pools"
         wait(lambda: exists(pools_path + "/pool"))
