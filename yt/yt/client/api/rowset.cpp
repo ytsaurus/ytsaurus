@@ -18,21 +18,69 @@ using namespace NTableClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TRow>
-class TRowset
+class TRowsetBase
     : public IRowset<TRow>
 {
 public:
-    TRowset(
-        const TTableSchema& schema,
-        TSharedRange<TRow> rows)
-        : Schema_(schema)
-        , Rows_(std::move(rows))
+    explicit TRowsetBase(TTableSchema schema)
+        : Schema_(std::move(schema))
+        , NameTableInitialized_(false)
     { }
 
-    virtual const TTableSchema& Schema() const override
+    explicit TRowsetBase(TNameTablePtr nameTable)
+        : NameTableInitialized_(true)
+        , NameTable_(std::move(nameTable))
+    { }
+
+    virtual const TTableSchema& GetSchema() const override
     {
         return Schema_;
     }
+
+    virtual const TNameTablePtr& GetNameTable() const override
+    {
+        // Fast path.
+        if (NameTableInitialized_.load()) {
+            return NameTable_;
+        }
+
+        // Slow path.
+        auto guard = Guard(NameTableLock_);
+        if (!NameTable_) {
+            NameTable_ = TNameTable::FromSchema(Schema_);
+        }
+        NameTableInitialized_ = true;
+        return NameTable_;
+    }
+
+private:
+    const TTableSchema Schema_;
+    
+    mutable std::atomic<bool> NameTableInitialized_;
+    mutable TSpinLock NameTableLock_;
+    mutable TNameTablePtr NameTable_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TRow>
+class TRowset
+    : public TRowsetBase<TRow>
+{
+public:
+    TRowset(
+        TTableSchema schema,
+        TSharedRange<TRow> rows)
+        : TRowsetBase<TRow>(std::move(schema))
+        , Rows_(std::move(rows))
+    { }
+
+    TRowset(
+        TNameTablePtr nameTable,
+        TSharedRange<TRow> rows)
+        : TRowsetBase<TRow>(std::move(nameTable))
+        , Rows_(std::move(rows))
+    { }
 
     virtual TRange<TRow> GetRows() const override
     {
@@ -40,39 +88,54 @@ public:
     }
 
 private:
-    const TTableSchema Schema_;
     const TSharedRange<TRow> Rows_;
 };
 
-IUnversionedRowsetPtr CreateRowset(
-    const TTableSchema& schema,
-    TSharedRange<TUnversionedRow> rows)
+DEFINE_REFCOUNTED_TYPE(TRowset<TUnversionedRow>)
+DEFINE_REFCOUNTED_TYPE(TRowset<TVersionedRow>)
+
+template <class TRow>
+IRowsetPtr<TRow> CreateRowset(
+    NTableClient::TTableSchema schema,
+    TSharedRange<TRow> rows)
 {
-    return New<TRowset<TUnversionedRow>>(schema, std::move(rows));
+    return New<TRowset<TRow>>(std::move(schema), std::move(rows));
 }
 
-IVersionedRowsetPtr CreateRowset(
-    const TTableSchema& schema,
-    TSharedRange<TVersionedRow> rows)
+template
+IUnversionedRowsetPtr CreateRowset<TUnversionedRow>(
+    NTableClient::TTableSchema schema,
+    TSharedRange<TUnversionedRow> rows);
+template
+IVersionedRowsetPtr CreateRowset<TVersionedRow>(
+    NTableClient::TTableSchema schema,
+    TSharedRange<TVersionedRow> rows);
+
+template <class TRow>
+IRowsetPtr<TRow> CreateRowset(
+    TNameTablePtr nameTable,
+    TSharedRange<TRow> rows)
 {
-    return New<TRowset<TVersionedRow>>(schema, std::move(rows));
+    return New<TRowset<TRow>>(std::move(nameTable), std::move(rows));
 }
+
+template
+IUnversionedRowsetPtr CreateRowset<TUnversionedRow>(
+    TNameTablePtr nameTable,
+    TSharedRange<TUnversionedRow> rows);
+template
+IVersionedRowsetPtr CreateRowset<TVersionedRow>(
+    TNameTablePtr nameTable,
+    TSharedRange<TVersionedRow> rows);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulRowsetWriter
-    : public IUnversionedRowset
+    : public TRowsetBase<TUnversionedRow>
     , public IUnversionedRowsetWriter
 {
 public:
-    explicit TSchemafulRowsetWriter(const TTableSchema& schema)
-        : Schema_(schema)
-    { }
-
-    virtual const TTableSchema& Schema() const override
-    {
-        return Schema_;
-    }
+    using TRowsetBase::TRowsetBase;
 
     virtual TRange<TUnversionedRow> GetRows() const override
     {
@@ -106,6 +169,7 @@ public:
 
 private:
     const TTableSchema Schema_;
+    const TNameTablePtr NameTable_;
 
     TPromise<IUnversionedRowsetPtr> Result_ = NewPromise<IUnversionedRowsetPtr>();
 

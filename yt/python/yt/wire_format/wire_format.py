@@ -97,7 +97,7 @@ class AttachmentStream(object):
             raise YtError("Unexpected end of stream")
         return read
 
-def build_columns_from_schema(schema):
+def build_name_table_from_schema(schema):
     type_to_value_type = SCHEMA_TYPE_TO_VALUE_TYPE
     return [{"name": entry["name"], "type": type_to_value_type[entry["type"]]} for entry in schema]
 

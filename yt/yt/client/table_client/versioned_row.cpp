@@ -283,7 +283,7 @@ void ValidateClientDataRow(
         }
 
         const auto& value = *current;
-        int mappedId = ApplyIdMapping(value, schema, &idMapping);
+        int mappedId = ApplyIdMapping(value, &idMapping);
 
         if (mappedId < 0 || mappedId >= schema.Columns().size()) {
             int size = nameTable->GetSize();
@@ -350,7 +350,7 @@ void ValidateDuplicateAndRequiredValueColumns(
             ++valueGroupEndIt;
         }
 
-        int mappedId = ApplyIdMapping(*valueGroupBeginIt, schema, &idMapping);
+        int mappedId = ApplyIdMapping(*valueGroupBeginIt, &idMapping);
         if (mappedId < 0) {
             continue;
         }

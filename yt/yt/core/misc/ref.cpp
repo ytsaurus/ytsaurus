@@ -229,8 +229,7 @@ TSharedRefArray TSharedRefArray::Unpack(const TSharedRef& packedRef)
         return {};
     }
 
-    std::vector<TSharedRef> parts;
-    UnpackRefs(packedRef, &parts);
+    auto parts = UnpackRefs(packedRef);
     return TSharedRefArray(NewImpl(
         static_cast<int>(parts.size()),
         0,

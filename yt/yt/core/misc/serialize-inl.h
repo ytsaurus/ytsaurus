@@ -238,10 +238,24 @@ void UnpackRefs(const TSharedRef& packedRef, T* parts)
     UnpackRefsImpl(packedRef, parts, false);
 }
 
+inline std::vector<TSharedRef> UnpackRefs(const TSharedRef& packedRef)
+{
+    std::vector<TSharedRef> parts;
+    UnpackRefsImpl(packedRef, &parts, false);
+    return parts;
+}
+
 template <class T>
 void UnpackRefsOrThrow(const TSharedRef& packedRef, T* parts)
 {
     UnpackRefsImpl(packedRef, parts, true);
+}
+
+inline std::vector<TSharedRef> UnpackRefsOrThrow(const TSharedRef& packedRef)
+{
+    std::vector<TSharedRef> parts;
+    UnpackRefsImpl(packedRef, &parts, true);
+    return parts;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

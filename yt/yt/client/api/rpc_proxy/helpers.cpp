@@ -396,7 +396,7 @@ void FromProto(
 void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSchema& schema)
 {
     protoSchema->set_name(schema.Name());
-    protoSchema->set_type(static_cast<int>(schema.GetPhysicalType()));
+    protoSchema->set_type(NYT::ToProto<int>(schema.GetPhysicalType()));
     if (!schema.SimplifiedLogicalType()) {
         THROW_ERROR_EXCEPTION("Complex logical types are not supported in rpc yet")
             << TErrorAttribute("name", schema.Name())
@@ -412,7 +412,7 @@ void ToProto(NProto::TColumnSchema* protoSchema, const NTableClient::TColumnSche
         protoSchema->set_aggregate(*schema.Aggregate());
     }
     if (schema.SortOrder()) {
-        protoSchema->set_sort_order(static_cast<int>(*schema.SortOrder()));
+        protoSchema->set_sort_order(NYT::ToProto<int>(*schema.SortOrder()));
     }
     if (schema.Group()) {
         protoSchema->set_group(*schema.Group());
@@ -1324,9 +1324,6 @@ struct TRowsetTraits<TVersionedRow>
     static constexpr NProto::ERowsetKind Kind = NProto::RK_VERSIONED;
 };
 
-struct TRpcProxyRowsetBufferTag
-{ };
-
 void ValidateRowsetDescriptor(
     const NProto::TRowsetDescriptor& descriptor,
     int expectedVersion,
@@ -1340,33 +1337,10 @@ void ValidateRowsetDescriptor(
     }
     if (descriptor.rowset_kind() != expectedKind) {
         THROW_ERROR_EXCEPTION(
-            "Incompatible rowset kind: expected %v, got %v",
+            "Incompatible rowset kind: expected %Qv, got %Qv",
             NProto::ERowsetKind_Name(expectedKind),
             NProto::ERowsetKind_Name(descriptor.rowset_kind()));
     }
-}
-
-std::vector<TSharedRef> SerializeRowsetWithPartialNameTable(
-    const NTableClient::TNameTablePtr& nameTable,
-    int startingId,
-    TRange<NTableClient::TUnversionedRow> rows,
-    NProto::TRowsetDescriptor* descriptor)
-{
-    descriptor->Clear();
-    descriptor->set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
-    descriptor->set_rowset_kind(NProto::RK_UNVERSIONED);
-    if (startingId < 0 || startingId > nameTable->GetSize()) {
-        THROW_ERROR_EXCEPTION("Invalid starting id: expected in range [0, %v], got %v",
-            nameTable->GetSize(),
-            startingId);
-    }
-    for (int id = startingId; id < nameTable->GetSize(); ++id) {
-        auto* columnDescriptor = descriptor->add_columns();
-        columnDescriptor->set_name(TString(nameTable->GetName(id)));
-    }
-    TWireProtocolWriter writer;
-    writer.WriteUnversionedRowset(rows);
-    return writer.Finish();
 }
 
 std::vector<TSharedRef> SerializeRowset(
@@ -1374,7 +1348,17 @@ std::vector<TSharedRef> SerializeRowset(
     TRange<NTableClient::TUnversionedRow> rows,
     NProto::TRowsetDescriptor* descriptor)
 {
-    return SerializeRowsetWithPartialNameTable(nameTable, 0, rows, descriptor);
+    descriptor->Clear();
+    descriptor->set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
+    descriptor->set_rowset_kind(NProto::RK_UNVERSIONED);
+    for (int id = 0; id < nameTable->GetSize(); ++id) {
+        auto* entry = descriptor->add_name_table_entries();
+        entry->set_name(TString(nameTable->GetName(id)));
+    }
+    
+    TWireProtocolWriter writer;
+    writer.WriteUnversionedRowset(rows);
+    return writer.Finish();
 }
 
 template <class TRow>
@@ -1386,19 +1370,25 @@ std::vector<TSharedRef> SerializeRowset(
     descriptor->Clear();
     descriptor->set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
     descriptor->set_rowset_kind(TRowsetTraits<TRow>::Kind);
+    ToProto(descriptor->mutable_schema(), schema);
+    
+    // COMPAT(babenko)
     for (const auto& column : schema.Columns()) {
-        auto* columnDescriptor = descriptor->add_columns();
-        columnDescriptor->set_name(column.Name());
+        auto* entry = descriptor->add_name_table_entries();
+        entry->set_name(column.Name());
         // we save physical type for backward compatibility
-        columnDescriptor->set_type(static_cast<int>(column.GetPhysicalType()));
+        // COMPAT(babenko)
+        entry->set_type(ToProto<int>(column.GetPhysicalType()));
         // TODO (ermolovd) YT-7178, support complex schemas.
         if (!column.SimplifiedLogicalType()) {
             THROW_ERROR_EXCEPTION("Serialization of complex types is not supported yet")
                 << TErrorAttribute("column_name", column.Name())
                 << TErrorAttribute("type", ToString(*column.LogicalType()));
         }
-        columnDescriptor->set_logical_type(static_cast<int>(*column.SimplifiedLogicalType()));
+        // COMPAT(babenko)
+        entry->set_logical_type(ToProto<int>(*column.SimplifiedLogicalType()));
     }
+    
     TWireProtocolWriter writer;
     writer.WriteRowset(rows);
     return writer.Finish();
@@ -1417,23 +1407,49 @@ template std::vector<TSharedRef> SerializeRowset(
 TTableSchema DeserializeRowsetSchema(
     const NProto::TRowsetDescriptor& descriptor)
 {
+    if (descriptor.has_schema()) {
+        return FromProto<TTableSchema>(descriptor.schema());
+    }
+
+    // COMPAT(babenko)
     std::vector<TColumnSchema> columns;
-    columns.resize(descriptor.columns_size());
-    for (int i = 0; i < descriptor.columns_size(); ++i) {
-        if (descriptor.columns(i).has_name()) {
-            columns[i].SetName(descriptor.columns(i).name());
+    columns.resize(descriptor.name_table_entries_size());
+    for (int i = 0; i < descriptor.name_table_entries_size(); ++i) {
+        const auto& entry = descriptor.name_table_entries(i);
+        if (entry.has_name()) {
+            columns[i].SetName(entry.name());
         }
         // TODO (ermolovd) YT-7178, support complex schemas.
-        if (descriptor.columns(i).has_logical_type()) {
-            auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).logical_type());
+        if (entry.has_logical_type()) {
+            auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(entry.logical_type());
             columns[i].SetLogicalType(OptionalLogicalType(SimpleLogicalType(simpleLogicalType)));
-        } else if (descriptor.columns(i).has_type()) {
-            auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(descriptor.columns(i).type());
+        } else if (entry.has_type()) {
+            auto simpleLogicalType = CheckedEnumCast<NTableClient::ESimpleLogicalValueType>(entry.type());
             columns[i].SetLogicalType(OptionalLogicalType(SimpleLogicalType(simpleLogicalType)));
         }
     }
     return TTableSchema(std::move(columns));
 }
+
+namespace {
+
+template <class TRow>
+auto ReadRows(TWireProtocolReader* reader, const TTableSchema& schema);
+
+template <>
+auto ReadRows<TUnversionedRow>(TWireProtocolReader* reader, const TTableSchema& /*schema*/)
+{
+    return reader->ReadUnversionedRowset(true);
+}
+
+template <>
+auto ReadRows<TVersionedRow>(TWireProtocolReader* reader, const TTableSchema& schema)
+{
+    auto schemaData = TWireProtocolReader::GetSchemaData(schema, TColumnFilter());
+    return reader->ReadVersionedRowset(schemaData, true);
+}
+
+} // namespace
 
 template <class TRow>
 TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
@@ -1444,10 +1460,12 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
         descriptor,
         NApi::NRpcProxy::CurrentWireFormatVersion,
         TRowsetTraits<TRow>::Kind);
-    TWireProtocolReader reader(data, New<TRowBuffer>(TRpcProxyRowsetBufferTag()));
+    
+    struct TDeserializedRowsetTag { };
+    TWireProtocolReader reader(data, New<TRowBuffer>(TDeserializedRowsetTag()));
+    
     auto schema = DeserializeRowsetSchema(descriptor);
-    auto schemaData = TWireProtocolReader::GetSchemaData(schema, TColumnFilter());
-    auto rows = reader.ReadRowset<TRow>(schemaData, true);
+    auto rows = ReadRows<TRow>(&reader, schema);
     return NApi::CreateRowset(std::move(schema), std::move(rows));
 }
 
@@ -1458,96 +1476,6 @@ template NApi::IUnversionedRowsetPtr DeserializeRowset(
 template NApi::IVersionedRowsetPtr DeserializeRowset(
     const NProto::TRowsetDescriptor& descriptor,
     const TSharedRef& data);
-
-TSharedRef SerializeRowsetWithNameTableDelta(
-    const TNameTablePtr& nameTable,
-    TRange<TUnversionedRow> rows,
-    int* nameTableSize)
-{
-    NProto::TRowsetDescriptor descriptor;
-    const auto& rowRefs = NApi::NRpcProxy::SerializeRowsetWithPartialNameTable(
-        nameTable,
-        *nameTableSize,
-        rows,
-        &descriptor);
-    *nameTableSize += descriptor.columns_size();
-
-    auto descriptorRef = SerializeProtoToRef(descriptor);
-    auto mergedRowRefs = MergeRefsToRef<TRpcProxyRowsetBufferTag>(rowRefs);
-
-    // TODO(kiselyovp) refs are being copied here, we could optimize this
-    return PackRefs(std::vector{descriptorRef, mergedRowRefs});
-}
-
-TSharedRange<NTableClient::TUnversionedRow> DeserializeRowsetWithNameTableDelta(
-    const TSharedRef& data,
-    const TNameTablePtr& nameTable,
-    NProto::TRowsetDescriptor* descriptor,
-    TNameTableToSchemaIdMapping* idMapping)
-{
-    std::vector<TSharedRef> parts;
-    UnpackRefsOrThrow(data, &parts);
-    if (parts.size() != 2) {
-        THROW_ERROR_EXCEPTION(
-            "Error deserializing rowset with name table delta: expected %v packed refs, got %v",
-            2,
-            parts.size());
-    }
-
-    const auto& descriptorDeltaRef = parts[0];
-    const auto& mergedRowRefs = parts[1];
-
-    NApi::NRpcProxy::NProto::TRowsetDescriptor descriptorDelta;
-    if (!TryDeserializeProto(&descriptorDelta, descriptorDeltaRef)) {
-        THROW_ERROR_EXCEPTION("Error deserializing rowset descriptor delta");
-    }
-    NApi::NRpcProxy::ValidateRowsetDescriptor(
-        descriptorDelta,
-        NApi::NRpcProxy::CurrentWireFormatVersion,
-        NApi::NRpcProxy::NProto::RK_UNVERSIONED);
-
-    auto oldRemoteNameTableSize = descriptor->columns_size();
-    descriptor->MergeFrom(descriptorDelta);
-    auto newRemoteNameTableSize = descriptor->columns_size();
-    auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
-        *descriptor, mergedRowRefs);
-
-    if (idMapping) {
-        idMapping->resize(newRemoteNameTableSize);
-        for (int id = oldRemoteNameTableSize; id < newRemoteNameTableSize; ++id) {
-            const auto& name = descriptor->columns(id).name();
-            (*idMapping)[id] = nameTable->GetIdOrRegisterName(name);
-        }
-
-        for (auto row : rowset->GetRows()) {
-            auto mutableRow = TMutableUnversionedRow(row.ToTypeErasedRow());
-            for (auto& value : mutableRow) {
-                auto newId = ApplyIdMapping(value, rowset->Schema(), idMapping);
-                if (newId < 0 || newId >= nameTable->GetSize()) {
-                    THROW_ERROR_EXCEPTION("Id mapping returned an invalid value %v for id %v: "
-                        "expected a value in [0, %v) range",
-                        newId,
-                        value.Id,
-                        nameTable->GetSize());
-                }
-                value.Id = newId;
-            }
-        }
-    } else {
-        for (int id = oldRemoteNameTableSize; id < newRemoteNameTableSize; ++id) {
-            const auto& name = descriptor->columns(id).name();
-            auto newId = nameTable->RegisterNameOrThrow(name);
-            if (newId != id) {
-                THROW_ERROR_EXCEPTION("Name table id for name %Qv mismatch: expected %v, got %v",
-                    name,
-                    id,
-                    newId);
-            }
-        }
-    }
-
-    return MakeSharedRange(rowset->GetRows(), rowset);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

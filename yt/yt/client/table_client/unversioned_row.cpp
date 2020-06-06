@@ -821,8 +821,7 @@ void ValidateClientRow(
     bool haveDataColumns = false;
 
     for (const auto& value : row) {
-        int mappedId = ApplyIdMapping(value, schema, &idMapping);
-
+        int mappedId = ApplyIdMapping(value, &idMapping);
         if (mappedId < 0 || mappedId >= schema.Columns().size()) {
             int size = nameTable->GetSize();
             if (value.Id < 0 || value.Id >= size) {
@@ -1192,7 +1191,7 @@ void ValidateDuplicateAndRequiredValueColumns(
     std::fill(columnSeen.begin(), columnSeen.end(), 0);
 
     for (const auto& value : row) {
-        int mappedId = ApplyIdMapping(value, schema, &idMapping);
+        int mappedId = ApplyIdMapping(value, &idMapping);
         if (mappedId < 0) {
             continue;
         }
@@ -1255,7 +1254,6 @@ void ValidateWriteTimestamp(TTimestamp timestamp)
 
 int ApplyIdMapping(
     const TUnversionedValue& value,
-    const TTableSchema& schema,
     const TNameTableToSchemaIdMapping* idMapping)
 {
     auto valueId = value.Id;

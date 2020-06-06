@@ -79,8 +79,7 @@ void DoDownloadChangelog(
             const auto& attachments = rsp->Attachments();
             YT_VERIFY(attachments.size() == 1);
 
-            std::vector<TSharedRef> records;
-            UnpackRefs(rsp->Attachments()[0], &records);
+            auto records = UnpackRefs(rsp->Attachments()[0]);
 
             if (records.empty()) {
                 THROW_ERROR_EXCEPTION("Peer %v does not have %v records of changelog %v anymore",

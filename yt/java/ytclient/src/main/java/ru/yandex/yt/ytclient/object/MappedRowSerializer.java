@@ -299,10 +299,10 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         void updateSchema(TRowsetDescriptor schemaDelta) {
-            for (TRowsetDescriptor.TColumnDescriptor col : schemaDelta.getColumnsList()) {
-                if (!schema.containsKey(col.getName())) {
+            for (TRowsetDescriptor.TNameTableEntry entry : schemaDelta.getNameTableEntriesList()) {
+                if (!schema.containsKey(entry.getName())) {
                     int index = schema.size();
-                    schema.put(col.getName(), new ColumnWithIndex(index, ColumnValueType.fromValue(col.getType())));
+                    schema.put(entry.getName(), new ColumnWithIndex(index, ColumnValueType.fromValue(entry.getType())));
                 }
             }
         }

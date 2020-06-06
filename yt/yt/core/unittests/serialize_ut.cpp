@@ -182,9 +182,8 @@ TEST(TSerializationTest, PackRefs)
     refs.push_back(TSharedRef::FromString("abc"));
     refs.push_back(TSharedRef::FromString("12"));
 
-    TSharedRef packed = PackRefs(refs);
-    std::vector<TSharedRef> unpacked;
-    UnpackRefs(packed, &unpacked);
+    auto packed = PackRefs(refs);
+    auto unpacked = UnpackRefs(packed);
 
     EXPECT_EQ(unpacked.size(), 2);
     EXPECT_EQ(ToString(unpacked[0]), "abc");

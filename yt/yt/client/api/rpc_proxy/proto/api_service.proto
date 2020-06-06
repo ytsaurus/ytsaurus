@@ -64,9 +64,14 @@ enum EMasterReadKind
 
 enum ERowsetKind
 {
-    RK_SCHEMAFUL = 0;
     RK_UNVERSIONED = 1;
     RK_VERSIONED = 2;
+}
+
+enum ERowsetFormat
+{
+    RF_YT_WIRE = 0;
+    RF_ARROW = 1;
 }
 
 enum ETabletReadKind
@@ -223,32 +228,44 @@ message TAttributeKeys
 // Rowsets.
 ////////////////////////////////////////////////////////////////////////////////
 
-/*
-Each rowset is decodeable solely with the descriptor, which encodes rowset kind,
-column names and column types. Actual data is passed via attachments in the wire
-protocol.
-*/
-
+// Each rowset is decodeable solely with the descriptor, which encodes rowset kind,
+// column names and column types. Actual data is passed via attachments in the wire
+// protocol.
 message TRowsetDescriptor
 {
     // Currently, there is only one version. This field is reserved for future changes.
     optional int32 wire_format_version = 1 [default = 1];
 
-    // Specifies, what kind of rows are encoded.
+    // Specifies the kind of rows comprising the rowset.
     optional ERowsetKind rowset_kind = 2 [default = RK_UNVERSIONED];
 
-    message TColumnDescriptor
+    // Specifies the format of data representation.
+    optional ERowsetFormat rowset_format = 4 [default = RF_YT_WIRE];
+
+    message TNameTableEntry
     {
         optional string name = 1;
+        // COMPAT(babenko)
         optional int32 type = 2;
+        // COMPAT(babenko)
         optional int32 logical_type = 3;
     }
 
-    // Specifies column names and types.
-    // May be omitted for unversioned rowset.
-    // Must be present for schemaful rowset.
-    // Must be present for versioned rowset.
-    repeated TColumnDescriptor columns = 3;
+    // Specifies column names.
+    // COMPAT(babenko): also types.
+    repeated TNameTableEntry name_table_entries = 3;
+
+    // Specifies rowset schema.
+    // Could be missing (in this case name table is always present).
+    optional TTableSchema schema = 5;
+}
+
+// Could be embedded into response attachement block sequence along with the actual data
+// to indidate the progress of table reader/writer.
+message TRowsetStatistics
+{
+    required int64 total_row_count = 1;
+    required NYT.NChunkClient.NProto.TDataStatistics data_statistics = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1723,25 +1740,18 @@ message TReqReadTable
     optional bool enable_row_index = 6 [default = false];
     optional bool enable_range_index = 7 [default = false];
     optional bytes config = 4; // YSON-serialized TTableReaderConfig
+    optional ERowsetFormat desired_rowset_format = 8 [default = RF_YT_WIRE];
 
     optional TTransactionalOptions transactional_options = 100;
 }
 
-message TReadTableMeta
+message TRspReadTableMeta
 {
     required int64 start_row_index = 1;
     repeated string key_columns = 2;
     repeated string omitted_inaccessible_columns = 3;
     required TTableSchema schema = 5;
-
-    required TTableReaderPayload payload = 4;
-}
-
-message TTableReaderPayload
-{
-    required int64 total_row_count = 1;
-
-    required NYT.NChunkClient.NProto.TDataStatistics data_statistics = 2;
+    required TRowsetStatistics statistics = 4;
 }
 
 message TRspReadTable

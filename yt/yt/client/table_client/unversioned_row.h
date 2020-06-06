@@ -461,7 +461,6 @@ void ValidateWriteTimestamp(TTimestamp timestamp);
 //! An internal helper used by validators.
 int ApplyIdMapping(
     const TUnversionedValue& value,
-    const TTableSchema& schema,
     const TNameTableToSchemaIdMapping* idMapping);
 
 //! Returns the successor of |key|, i.e. the key obtained from |key|

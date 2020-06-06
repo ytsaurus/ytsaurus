@@ -3,13 +3,12 @@
 #include "public.h"
 
 #include <yt/client/table_client/public.h>
+
 #include <yt/core/yson/pull_parser.h>
 
 namespace NYT::NComplexTypes {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-
 //
 // There are two modes of representing complex types in yson: named and positional.
 // They are similar for all types but Struct and VariantStruct.

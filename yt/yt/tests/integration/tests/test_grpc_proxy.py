@@ -20,7 +20,7 @@ except ImportError:
     from yt.common import guid_to_parts as uuid_to_parts, parts_to_guid as parts_to_uuid
 
 from yt.wire_format import (AttachmentStream, serialize_rows_to_unversioned_wire_format,
-                            deserialize_rows_from_unversioned_wire_format, build_columns_from_schema)
+                            deserialize_rows_from_unversioned_wire_format, build_name_table_from_schema)
 
 import pytest
 import grpc
@@ -225,7 +225,7 @@ class TestGrpcProxy(YTEnvSetup):
                 "path": table_path,
                 # 0 = "write", see ERowModificationType in proto
                 "row_modification_types": [0] * len(rows),
-                "rowset_descriptor": {"columns": build_columns_from_schema(schema)},
+                "rowset_descriptor": {"name_table_entries": build_name_table_from_schema(schema)},
             },
             data=rows,
             data_serializer=partial(serialize_rows_to_unversioned_wire_format, schema=schema))
@@ -235,7 +235,7 @@ class TestGrpcProxy(YTEnvSetup):
         msg, stream = self._make_heavy_api_request("select_rows", {"query": "* FROM [{}]".format(table_path)})
         selected_rows = deserialize_rows_from_unversioned_wire_format(
             stream,
-            [col["name"] for col in msg["rowset_descriptor"]["columns"]])
+            [entry["name"] for entry in msg["rowset_descriptor"]["name_table_entries"]])
 
         assert_items_equal(selected_rows, rows)
 

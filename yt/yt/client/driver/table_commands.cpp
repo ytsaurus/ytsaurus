@@ -577,7 +577,7 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
 
     auto format = context->GetOutputFormat();
     auto output = context->Request().OutputStream;
-    auto writer = CreateSchemafulWriterForFormat(format, rowset->Schema(), output);
+    auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
 
     writer->Write(rowset->GetRows());
 
@@ -779,7 +779,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         auto asyncRowset = clientBase->VersionedLookupRows(Path.GetPath(), std::move(nameTable), std::move(keyRange), versionedOptions);
         auto rowset = WaitFor(asyncRowset)
             .ValueOrThrow();
-        auto writer = CreateVersionedWriterForFormat(format, rowset->Schema(), output);
+        auto writer = CreateVersionedWriterForFormat(format, rowset->GetSchema(), output);
         writer->Write(rowset->GetRows());
         WaitFor(writer->Close())
             .ThrowOnError();
@@ -788,7 +788,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         auto rowset = WaitFor(asyncRowset)
             .ValueOrThrow();
 
-        auto writer = CreateSchemafulWriterForFormat(format, rowset->Schema(), output);
+        auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
         writer->Write(rowset->GetRows());
         WaitFor(writer->Close())
             .ThrowOnError();

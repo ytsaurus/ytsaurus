@@ -182,9 +182,14 @@ private:
             }
         }
 
-        virtual const TTableSchema& Schema() const override
+        virtual const TTableSchema& GetSchema() const override
         {
-            return Batch_.Rowset->Schema();
+            return Batch_.Rowset->GetSchema();
+        }
+
+        virtual const TNameTablePtr& GetNameTable() const override
+        {
+            return Batch_.Rowset->GetNameTable();
         }
 
         virtual TRange<TUnversionedRow> GetRows() const override
@@ -253,7 +258,7 @@ private:
         auto result = WaitFor(client->SelectRows(query))
             .ValueOrThrow();
         const auto& rowset = result.Rowset;
-        const auto& schema = rowset->Schema();
+        const auto& schema = rowset->GetSchema();
         auto tabletIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
         auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
         auto stateColumnId = schema.GetColumnIndexOrThrow(TStateTable::StateColumnName);
@@ -404,7 +409,7 @@ private:
         auto result = WaitFor(Client_->SelectRows(query))
             .ValueOrThrow();
         const auto& rowset = result.Rowset;
-        const auto& schema = rowset->Schema();
+        const auto& schema = rowset->GetSchema();
         auto rows = rowset->GetRows();
 
         YT_LOG_DEBUG("Finished fetching data (TabletIndex: %v, RowCount: %v)",
@@ -626,7 +631,7 @@ private:
                 auto result = WaitFor(transaction->SelectRows(query))
                     .ValueOrThrow();
                 const auto& rowset = result.Rowset;
-                const auto& schema = rowset->Schema();
+                const auto& schema = rowset->GetSchema();
                 auto rows = rowset->GetRows();
                 if (!rows.Empty()) {
                     YT_VERIFY(rows.Size() == 1);
@@ -933,7 +938,7 @@ TFuture<THashMap<int, TPersistentQueueTabletState>> ReadPersistentQueueTabletsSt
             auto result = WaitFor(client->SelectRows(query))
                 .ValueOrThrow();
             const auto& rowset = result.Rowset;
-            const auto& schema = rowset->Schema();
+            const auto& schema = rowset->GetSchema();
             auto tabletIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
             auto rowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
             auto stateColumnId = schema.GetColumnIndexOrThrow(TStateTable::StateColumnName);
@@ -1002,7 +1007,7 @@ TFuture<void> UpdatePersistentQueueTabletsState(
             auto result = WaitFor(client->SelectRows(query))
                 .ValueOrThrow();
             const auto& rowset = result.Rowset;
-            const auto& schema = rowset->Schema();
+            const auto& schema = rowset->GetSchema();
             auto rowsetTabletIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::TabletIndexColumnName);
             auto rowsetRowIndexColumnId = schema.GetColumnIndexOrThrow(TStateTable::RowIndexColumnName);
 
