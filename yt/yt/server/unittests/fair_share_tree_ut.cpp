@@ -576,6 +576,64 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     }
 }
 
+TEST_F(TFairShareTreeTest, TestFractionalResourceLimits)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(10);
+    nodeResources.SetCpu(11.17);
+    nodeResources.SetMemory(100);
+
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto poolA = CreateTestPool(host.Get(), "PoolA");
+    poolA->AttachParent(rootElement.Get());
+
+    {
+        TDynamicAttributesList dynamicAttributes = {};
+        TUpdateFairShareContext updateContext;
+
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(TResourceVector::Ones(), rootElement->LimitsShare());
+        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
+
+        EXPECT_EQ(TResourceVector::Ones(), poolA->LimitsShare());
+        EXPECT_EQ(nodeResources.ToJobResources(), poolA->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
+    }
+
+    const double maxShareRatio = 0.99;
+
+    auto poolConfig = poolA->GetConfig();
+    poolConfig->MaxShareRatio = maxShareRatio;
+    poolA->SetConfig(poolConfig);
+
+    TJobResourcesWithQuota poolResourceLimits;
+    poolResourceLimits.SetUserSlots(10);
+    poolResourceLimits.SetCpu(11.06);
+    poolResourceLimits.SetMemory(99);
+
+    {
+        TDynamicAttributesList dynamicAttributes = {};
+        TUpdateFairShareContext updateContext;
+
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(TResourceVector::Ones(), rootElement->LimitsShare());
+        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
+
+        EXPECT_EQ(TResourceVector::FromDouble(maxShareRatio), poolA->LimitsShare());
+        EXPECT_EQ(poolResourceLimits.ToJobResources(), poolA->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
+    }
+}
+
 TEST_F(TFairShareTreeTest, TestUpdatePreemptableJobsList)
 {
     TJobResourcesWithQuota nodeResources;
