@@ -105,10 +105,12 @@ public:
 
 inline TJobResources operator*(const TJobResources& lhs, const TResourceVector& rhs)
 {
+    using std::round;
+
     TJobResources result;
     int resourceId = 0;
     #define XX(name, Name) do { \
-        double newValue = std::round(static_cast<double>(lhs.Get##Name() * rhs[resourceId])); \
+        auto newValue = round(lhs.Get##Name() * rhs[resourceId]); \
         result.Set##Name(static_cast<decltype(lhs.Get##Name())>(newValue)); \
         ++resourceId; \
     } while (false);
