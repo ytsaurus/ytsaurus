@@ -55,6 +55,9 @@ struct IInstance
     virtual void SetIPAddresses(const std::vector<NNet::TIP6Address>& addresses) = 0;
     virtual void SetHostName(const TString& hostName) = 0;
 
+    //! Adds a record into /etc/hosts file of instance.
+    virtual void AddHostsRecord(const TString& host, const NNet::TIP6Address& address) = 0;
+
     //! Returns externally visible pid of the root proccess inside container.
     //! Throws if container is not running.
     virtual pid_t GetPid() const = 0;

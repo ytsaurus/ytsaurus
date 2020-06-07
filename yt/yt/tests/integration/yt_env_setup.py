@@ -821,6 +821,7 @@ class YTEnvSetup(object):
             "data_centers",
             "tablet_cells",
             "tablet_cell_bundles",
+            "network_projects",
         ]
 
         if enable_secondary_cells_cleanup:

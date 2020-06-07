@@ -77,6 +77,8 @@ public:
 
     bool UseShortContainerNames;
 
+    bool TestNetwork;
+
     TPortoJobEnvironmentConfig()
     {
         RegisterParameter("porto_executor", PortoExecutor)
@@ -95,6 +97,9 @@ public:
             .Default(2);
 
         RegisterParameter("use_short_container_names", UseShortContainerNames)
+            .Default(false);
+
+        RegisterParameter("test_network", TestNetwork)
             .Default(false);
     }
 };
@@ -285,10 +290,6 @@ public:
     TDuration JobAbortionTimeout;
 
     //! This option is used for testing purposes only.
-    //! Do not create L3 virtual interface in porto container.
-    bool TestNetwork;
-
-    //! This option is used for testing purposes only.
     //! Adds inner errors for failed jobs.
     bool TestJobErrorTruncation;
 
@@ -341,9 +342,6 @@ public:
             .Default(100_MB);
         RegisterParameter("job_abortion_timeout", JobAbortionTimeout)
             .Default(TDuration::Minutes(15));
-
-        RegisterParameter("test_network", TestNetwork)
-            .Default(false);
 
         RegisterParameter("test_job_error_truncation", TestJobErrorTruncation)
             .Default(false);
