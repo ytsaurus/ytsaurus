@@ -22,6 +22,7 @@ SET(YT_TEST_SRCS
     test_formats.py
     test_fuse.py
     test_ipython.py
+    test_job_commands.py
     test_job_tool.py
     test_misc.py
     test_module.py
@@ -64,13 +65,13 @@ DEPENDS(
     ${YT_ROOT}/yt/server/clickhouse_trampoline
     ${YT_ROOT}/yt/server/log_tailer/bin
     ${YT_ROOT}/yt/experiments/ytserver_dummy
+    yt/python/yt/wrapper/tests/files/cpp_bin
     yt/python/yt/wrapper/tests/files/cpp_bin_core_crash
 )
 
 RESOURCE_FILES(
     PREFIX yt_python_test/
     ../files/accumulate_c.py
-    ../files/bin.cpp
     ../files/capitalize_b.py
     ../files/collect.py
     ../files/driver_catch_sigint.py

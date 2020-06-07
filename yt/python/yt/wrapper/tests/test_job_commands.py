@@ -36,8 +36,6 @@ class TestJobCommands(object):
             raise
 
     def test_job_shell(self, job_events):
-        if arcadia_interop.yatest_common is not None:
-            pytest.skip()
         if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
 

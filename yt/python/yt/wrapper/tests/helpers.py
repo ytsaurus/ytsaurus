@@ -64,12 +64,12 @@ def get_test_file_path(name, use_files=True):
         if use_files:
             return os.path.join(get_tests_location(), "files", name)
         else:
-            return os.path.join(get_tests_location(),  name)
+            return os.path.join(get_tests_location(), name)
 
 def get_port_locks_path():
     path = get_tmpfs_path()
     if path is None:
-         path = get_tests_sandbox()
+        path = get_tests_sandbox()
     return os.path.join(path, "ports")
 
 def get_python():

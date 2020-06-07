@@ -57,7 +57,6 @@ def test_sanitize_structure():
     yt.create("table", table, attributes={"schema": schema})
     assert yt.get(table + "/@schema/@unique_keys")
 
-@pytest.mark.skipif("yatest_common is not None")
 @pytest.mark.usefixtures("yt_env")
 def test_catching_sigint(yt_env):
     if yt.config["backend"] != "native":

@@ -8,6 +8,7 @@ from yt.wrapper import Record, dumps_row, TablePath
 from yt.common import flatten, makedirp, which
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
+import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.packages.six import b
 from yt.packages.six.moves import xrange, map as imap, zip as izip
@@ -208,9 +209,9 @@ class TestYamrMode(object):
         yt.run_reduce("cat", source_table=input_table, destination_table=output_table)
         assert list(yt.read_table(output_table)) == data[::-1]
 
-    @pytest.mark.skipif("yatest_common is not None")
     def test_run_operations(self):
-        assert which("g++")
+        if yatest_common is None:
+            pytest.skip("test is not supported in pytest environment")
 
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -223,9 +224,7 @@ class TestYamrMode(object):
         test_run_operations_dir = os.path.join(get_tests_sandbox(), "test_run_operations")
         makedirp(test_run_operations_dir)
 
-        cpp_file = get_test_file_path("bin.cpp")
-        cpp_bin = os.path.join(test_run_operations_dir, "cpp_bin")
-        subprocess.check_call(["g++", cpp_file, "-O2", "-static-libgcc", "-L.", "-o", cpp_bin])
+        cpp_bin = arcadia_interop.search_binary_path("cpp_bin")
 
         yt.run_sort(table)
         yt.run_reduce("./cpp_bin", table, other_table, local_files=cpp_bin)

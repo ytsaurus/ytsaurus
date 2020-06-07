@@ -7,7 +7,6 @@ import yt.wrapper as yt
 import pytest
 
 
-@pytest.mark.skipif(yatest_common is not None, reason="It is not supported inside arcadia")
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestUserStatistics(object):
     @add_failed_operation_stderrs_to_error_message
