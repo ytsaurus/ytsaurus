@@ -355,7 +355,7 @@ def make_read_request(command_name, path, params, process_response_action, retri
             return ResponseStreamWithReadRow(
                 get_response=lambda: iterator.last_response,
                 iter_content=reporter.wrap_stream(iterator),
-                close=lambda from_delete: iterator.close(),
+                close=lambda from_delete: iterator.close(from_delete),
                 process_error=lambda response: iterator.last_response._process_error(
                     iterator.last_response._get_response()),
                 get_response_parameters=lambda: iterator.start_response.response_parameters)
