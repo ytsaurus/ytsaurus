@@ -189,6 +189,15 @@ public:
         SetProperty("hostname", hostName);
     }
 
+    virtual void AddHostsRecord(const TString& host, const NNet::TIP6Address& address) override
+    {
+        THostsRecord record{
+            .Host = host,
+            .Address = address
+        };
+        HostsRecords_.push_back(record);
+    }
+
     virtual void Kill(int signal) override
     {
         auto error = WaitFor(Executor_->KillContainer(Name_, signal));
@@ -596,6 +605,16 @@ public:
         }
         SetProperty("env", envBuilder.Flush());
 
+        if (!HostsRecords_.empty()) {
+            TString etcHosts;
+            for (const auto& record : HostsRecords_) {
+                etcHosts += Format("%v %v", record.Address, record.Host);
+                etcHosts += "\n";
+            }
+
+            SetProperty("etc_hosts", etcHosts);
+        }
+
         // Wait for all pending actions - do not start real execution if
         // preparation has failed
         WaitForActions()
@@ -632,6 +651,13 @@ private:
     mutable TSpinLock ContextSwitchMapLock_;
     mutable i64 TotalContextSwitches_ = 0;
     mutable THashMap<TString, i64> ContextSwitchMap_;
+
+    struct THostsRecord
+    {
+        const TString Host;
+        const TIP6Address Address;
+    };
+    std::vector<THostsRecord> HostsRecords_;
 
     TPortoInstance(
         const TString& name,

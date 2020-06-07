@@ -1378,22 +1378,20 @@ private:
         }
 
         if (NetworkProjectId_) {
-            if (!Config_->TestNetwork) {
-                const auto& nodeAddresses = Bootstrap_->GetResolvedNodeAddresses();
-                if (nodeAddresses.empty()) {
-                    THROW_ERROR_EXCEPTION("No resolved IPv6 node addresses found");
-                }
-                proxyConfig->NetworkAddresses.reserve(nodeAddresses.size());
-                for (const auto& [addressName, address] : nodeAddresses) {
-                    auto networkAddress = New<TUserJobNetworkAddress>();
-                    networkAddress->Address = TMtnAddress{address}
-                        .SetProjectId(*NetworkProjectId_)
-                        .SetHost(Slot_->GetSlotIndex())
-                        .ToIP6Address();
-                    networkAddress->Name = addressName;
+            const auto& nodeAddresses = Bootstrap_->GetResolvedNodeAddresses();
+            if (nodeAddresses.empty()) {
+                THROW_ERROR_EXCEPTION("No resolved IPv6 node addresses found");
+            }
+            proxyConfig->NetworkAddresses.reserve(nodeAddresses.size());
+            for (const auto& [addressName, address] : nodeAddresses) {
+                auto networkAddress = New<TUserJobNetworkAddress>();
+                networkAddress->Address = TMtnAddress{address}
+                    .SetProjectId(*NetworkProjectId_)
+                    .SetHost(Slot_->GetSlotIndex())
+                    .ToIP6Address();
+                networkAddress->Name = addressName;
 
-                    proxyConfig->NetworkAddresses.push_back(networkAddress);
-                }
+                proxyConfig->NetworkAddresses.push_back(networkAddress);
             }
 
             proxyConfig->HostName = Format("slot_%v.%v",

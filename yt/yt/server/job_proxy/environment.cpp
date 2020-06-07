@@ -261,13 +261,13 @@ class TPortoUserJobEnvironment
 {
 public:
     TPortoUserJobEnvironment(
+        TPortoJobEnvironmentConfigPtr config,
         const TString& slotAbsoluteName,
         IPortoExecutorPtr portoExecutor,
         IInstancePtr instance,
-        TDuration blockIOWatchdogPeriod,
         bool usePortoMemoryTracking)
-        : SlotAbsoluteName_(slotAbsoluteName)
-        , BlockIOWatchdogPeriod_(blockIOWatchdogPeriod)
+        : Config_(std::move(config))
+        , SlotAbsoluteName_(slotAbsoluteName)
         , UsePortoMemoryTracking_(usePortoMemoryTracking)
         , PortoExecutor_(std::move(portoExecutor))
         , Instance_(std::move(instance))
@@ -286,7 +286,7 @@ public:
 
     virtual TDuration GetBlockIOWatchdogPeriod() const override
     {
-        return BlockIOWatchdogPeriod_;
+        return Config_->BlockIOWatchdogPeriod;
     }
 
     virtual void CleanProcesses() override
@@ -361,10 +361,17 @@ public:
         }
 
         if (options.HostName) {
-            Instance_->SetHostName(*options.HostName);
+            const auto& hostName = *options.HostName;
+            Instance_->SetHostName(hostName);
+            if (!options.NetworkAddresses.empty()) {
+                const auto& address = options.NetworkAddresses[0]->Address;
+                Instance_->AddHostsRecord(hostName, address);
+            }
         }
 
-        if (!options.NetworkAddresses.empty()) {
+        //! There is no HBF in test environment, so setting IP addresses to
+        //! user job will cause multiple problems during container startup.
+        if (!options.NetworkAddresses.empty() && !Config_->TestNetwork) {
             std::vector<TIP6Address> addresses;
             addresses.reserve(options.NetworkAddresses.size());
             for (const auto& address : options.NetworkAddresses) {
@@ -413,8 +420,8 @@ public:
     }
 
 private:
+    const TPortoJobEnvironmentConfigPtr Config_;
     const TString SlotAbsoluteName_;
-    const TDuration BlockIOWatchdogPeriod_;
     const bool UsePortoMemoryTracking_;
     const IPortoExecutorPtr PortoExecutor_;
     const IInstancePtr Instance_;
@@ -434,11 +441,10 @@ public:
         TPortoJobEnvironmentConfigPtr config,
         const std::optional<TRootFS>& rootFS,
         std::vector<TString> gpuDevices)
-        : Config_(config)
+        : Config_(std::move(config))
         , RootFS_(rootFS)
         , GpuDevices_(std::move(gpuDevices))
-        , BlockIOWatchdogPeriod_(config->BlockIOWatchdogPeriod)
-        , PortoExecutor_(CreatePortoExecutor(config->PortoExecutor, "environ"))
+        , PortoExecutor_(CreatePortoExecutor(Config_->PortoExecutor, "environ"))
         , Self_(GetSelfPortoInstance(PortoExecutor_))
         , ResourceTracker_(New<TPortoResourceTracker>(Self_, ResourceUsageUpdatePeriod))
         , SlotAbsoluteName_(GetAbsoluteName(Self_))
@@ -510,10 +516,10 @@ public:
         instance->SetDevices(std::move(devices));
 
         return New<TPortoUserJobEnvironment>(
+            Config_,
             SlotAbsoluteName_,
             PortoExecutor_,
             std::move(instance),
-            BlockIOWatchdogPeriod_,
             UsePortoMemoryTracking_);
     }
 
@@ -521,7 +527,6 @@ private:
     const TPortoJobEnvironmentConfigPtr Config_;
     std::optional<TRootFS> RootFS_;
     const std::vector<TString> GpuDevices_;
-    const TDuration BlockIOWatchdogPeriod_;
     const IPortoExecutorPtr PortoExecutor_;
     const IInstancePtr Self_;
     const TPortoResourceTrackerPtr ResourceTracker_;
