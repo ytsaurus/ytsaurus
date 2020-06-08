@@ -128,6 +128,8 @@ DEFINE_ENUM(EAutoMergeMode,
     (Manual)
 )
 
+DECLARE_REFCOUNTED_CLASS(TOperationCache)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

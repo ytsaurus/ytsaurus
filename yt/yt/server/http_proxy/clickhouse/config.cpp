@@ -1,12 +1,14 @@
 #include "config.h"
 
+#include <yt/ytlib/security_client/config.h>
+
 #include <yt/core/misc/config.h>
 
 namespace NYT::NHttpProxy::NClickHouse {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCliqueCacheConfig::TCliqueCacheConfig()
+TDiscoveryCacheConfig::TDiscoveryCacheConfig()
 {
     RegisterParameter("cache_base", CacheBase)
         .DefaultNew(/* capacity */ 1000);
@@ -26,10 +28,25 @@ TStaticClickHouseConfig::TStaticClickHouseConfig()
 {
     RegisterParameter("profiling_period", ProfilingPeriod)
         .Default(TDuration::Seconds(1));
-    RegisterParameter("clique_cache", CliqueCache)
+    RegisterParameter("operation_cache", OperationCache)
+        .DefaultNew();
+    RegisterParameter("permission_cache", PermissionCache)
+        .DefaultNew();
+    RegisterParameter("discovery_cache", DiscoveryCache)
         .DefaultNew();
     RegisterParameter("force_enqueue_profiling", ForceEnqueueProfiling)
         .Default(false);
+
+    RegisterPreprocessor([&] {
+        OperationCache->RefreshTime = TDuration::Minutes(1);
+        OperationCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(2);
+        OperationCache->ExpireAfterFailedUpdateTime = TDuration::Seconds(30);
+
+        PermissionCache->RefreshUser = ClickHouseUserName;
+        PermissionCache->RefreshTime = TDuration::Minutes(1);
+        PermissionCache->ExpireAfterFailedUpdateTime = TDuration::Minutes(2);
+        PermissionCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(2);
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

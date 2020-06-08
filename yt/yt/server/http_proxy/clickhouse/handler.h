@@ -2,7 +2,11 @@
 
 #include <yt/server/http_proxy/public.h>
 
+#include <yt/ytlib/security_client/public.h>
+
 #include <yt/client/api/public.h>
+
+#include <yt/client/scheduler/public.h>
 
 #include <yt/core/http/server.h>
 
@@ -55,7 +59,12 @@ private:
 
     THashMap<TString, int> UserToRunningQueryCount_;
 
-    TCliqueCachePtr CliqueCache_;
+    //! Used for alias resolving and ACL fetching.
+    NScheduler::TOperationCachePtr OperationCache_;
+    //! Used for validating user access against operation ACL.
+    NSecurityClient::TPermissionCachePtr PermissionCache_;
+    //! Used for instance discovery.
+    TDiscoveryCachePtr DiscoveryCache_;
 
     TClickHouseProxyMetrics Metrics_;
 

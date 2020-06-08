@@ -119,6 +119,41 @@ TError TCheckPermissionResult::ToError(
     }
 }
 
+TError TCheckPermissionByAclResult::ToError(const TString &user, EPermission permission) const
+{
+    switch (Action) {
+        case NSecurityClient::ESecurityAction::Allow:
+            return TError();
+
+        case NSecurityClient::ESecurityAction::Deny: {
+            TError error;
+            if (SubjectName) {
+                error = TError(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied for user %Qv: %Qlv permission is denied for %Qv by ACL",
+                    user,
+                    permission,
+                    *SubjectName);
+            } else {
+                error = TError(
+                    NSecurityClient::EErrorCode::AuthorizationError,
+                    "Access denied for user %Qv: %Qlv permission is not allowed by any matching ACE",
+                    user,
+                    permission);
+            }
+            error.Attributes().Set("user", user);
+            error.Attributes().Set("permission", permission);
+            if (SubjectId) {
+                error.Attributes().Set("denied_for", SubjectId);
+            }
+            return error;
+        }
+
+        default:
+            YT_ABORT();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Tries to find "abort_reason" attribute in the error and parse it as |EAbortReason|.
@@ -192,7 +227,7 @@ TFuture<ITransactionPtr> StartAlienTransaction(
     if (localTransaction->GetConnection()->GetClusterId() ==
         alienClient->GetConnection()->GetClusterId())
     {
-        return MakeFuture(localTransaction);        
+        return MakeFuture(localTransaction);
     }
 
     return alienClient->StartTransaction(

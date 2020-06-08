@@ -17,7 +17,13 @@ struct TOperationIdOrAlias
     TOperationIdOrAlias(TOperationId id);
     TOperationIdOrAlias(TString alias);
 
+    static TOperationIdOrAlias FromString(TString operationIdOrAlias);
+
     std::variant<TOperationId, TString> Payload;
+
+    bool operator ==(const TOperationIdOrAlias& other) const;
+
+    operator size_t() const;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TOperationIdOrAlias& operationIdOrAlias, TStringBuf format);

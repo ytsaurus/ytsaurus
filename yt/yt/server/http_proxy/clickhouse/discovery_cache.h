@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/client/scheduler/public.h>
+
 #include <yt/client/misc/discovery.h>
 
 #include <yt/core/misc/async_cache.h>
@@ -12,15 +14,11 @@ namespace NYT::NHttpProxy::NClickHouse {
 
 class TCachedDiscovery
     : public TDiscovery
-    , public TAsyncCacheValueBase<TString, TCachedDiscovery>
+    , public TAsyncCacheValueBase<NScheduler::TOperationId, TCachedDiscovery>
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TString, CliqueId);
-
-public:
     TCachedDiscovery(
-        TString key,
-        TString cliqueId,
+        NScheduler::TOperationId operationId,
         TDiscoveryConfigPtr config,
         NApi::IClientPtr client,
         IInvokerPtr invoker,
@@ -32,14 +30,14 @@ DEFINE_REFCOUNTED_TYPE(TCachedDiscovery)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCliqueCache
-    : public TAsyncSlruCacheBase<TString, TCachedDiscovery>
+class TDiscoveryCache
+    : public TAsyncSlruCacheBase<NScheduler::TOperationId, TCachedDiscovery>
 {
 public:
-    TCliqueCache(TCliqueCacheConfigPtr config, const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
+    TDiscoveryCache(TDiscoveryCacheConfigPtr config, const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
 };
 
-DEFINE_REFCOUNTED_TYPE(TCliqueCache);
+DEFINE_REFCOUNTED_TYPE(TDiscoveryCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/ytlib/security_client/public.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 #include <yt/core/http/config.h>
@@ -10,7 +12,7 @@ namespace NYT::NHttpProxy::NClickHouse {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCliqueCacheConfig
+class TDiscoveryCacheConfig
     : public NYTree::TYsonSerializable
 {
 public:
@@ -30,10 +32,10 @@ public:
     //! How long the proxy will not send new requests to the instance after connection error to it.
     TDuration UnavailableInstanceBanTimeout;
 
-    TCliqueCacheConfig();
+    TDiscoveryCacheConfig();
 };
 
-DEFINE_REFCOUNTED_TYPE(TCliqueCacheConfig)
+DEFINE_REFCOUNTED_TYPE(TDiscoveryCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,8 +45,14 @@ class TStaticClickHouseConfig
 public:
     TDuration ProfilingPeriod;
 
-    //! Cache for cliques's discovery.
-    TCliqueCacheConfigPtr CliqueCache;
+    //! Operation cache (for alias resolution and operation ACL fetching).
+    TAsyncExpiringCacheConfigPtr OperationCache;
+
+    //! Permission cache (for authorizing against operation ACL).
+    NSecurityClient::TPermissionCacheConfigPtr PermissionCache;
+
+    //! Clique discovery cache.
+    TDiscoveryCacheConfigPtr DiscoveryCache;
 
     //! If set to true, profiler won't wait a second to update a counter.
     //! It is useful for testing.

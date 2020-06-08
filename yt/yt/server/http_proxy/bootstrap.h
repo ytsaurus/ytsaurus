@@ -48,13 +48,13 @@ public:
 
     const TProxyConfigPtr& GetConfig() const;
     const NApi::IClientPtr& GetRootClient() const;
+    const NApi::NNative::IConnectionPtr& GetNativeConnection() const;
     const NDriver::IDriverPtr& GetDriverV3() const;
     const NDriver::IDriverPtr& GetDriverV4() const;
     const TCoordinatorPtr& GetCoordinator() const;
     const THttpAuthenticatorPtr& GetHttpAuthenticator() const;
     const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
     const NConcurrency::IPollerPtr& GetPoller() const;
-    const NApi::IClientPtr& GetClickHouseClient() const;
     const TApiPtr& GetApi() const;
 
     virtual void HandleRequest(
