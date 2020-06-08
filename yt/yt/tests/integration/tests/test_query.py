@@ -84,6 +84,17 @@ class TestQuery(YTEnvSetup):
         self._sample_data(path="//tmp/t")
         with pytest.raises(YtError): select_rows("* from [//tmp/t]", allow_full_scan=False)
 
+    @authors("lukyan")
+    def test_execution_pool(self):
+        create_user("u")
+        sync_create_cells(1)
+        self._sample_data(path="//tmp/t")
+
+        select_rows("* from [//tmp/t]", allow_full_scan=True, execution_pool="p", authenticated_user="u")
+        create("map_node", "//sys/ql_pools")
+        create("document", "//sys/ql_pools/s")
+        with pytest.raises(YtError): select_rows("* from [//tmp/t]", allow_full_scan=True, execution_pool="s", authenticated_user="u")
+
     @authors("sandello")
     def test_project1(self):
         sync_create_cells(1)

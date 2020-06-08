@@ -54,6 +54,8 @@
 #include <yt/ytlib/query_client/executor.h>
 #include <yt/ytlib/query_client/coordination_helpers.h>
 
+#include <yt/ytlib/security_client/permission_cache.h>
+
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/config.h>
 #include <yt/client/table_client/pipe.h>
@@ -1138,10 +1140,18 @@ public:
     {
         ValidateReadTimestamp(options.Timestamp);
 
-        double weight = options.ExecutionPool
-            ? WaitFor(PoolWeightCache_->Get(*options.ExecutionPool))
-                .ValueOrThrow()
-            : 1.0;
+        double weight = 1.0;
+
+        if (options.ExecutionPool) {
+            auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool);
+
+            auto weightOrError = WaitFor(PoolWeightCache_->Get(path));
+            if (weightOrError.IsOK()) {
+                weight = weightOrError.Value();
+            } else if (!weightOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR weightOrError;
+            }
+        }
 
         auto queryInvoker = Bootstrap_->GetQueryPoolInvoker(
             options.ExecutionPool.value_or(""),
