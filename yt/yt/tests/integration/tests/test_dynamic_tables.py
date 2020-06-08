@@ -1104,8 +1104,10 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         build_snapshot(cell_id=cell_id)
         wait(lambda: _check_snapshot_and_changelog(expected_account="sys"))
 
+        config_version = get("//sys/tablet_cells/{}/@config_version".format(cell_id))
         set("//sys/tablet_cell_bundles/custom/@options/changelog_account", "tmp")
         set("//sys/tablet_cell_bundles/custom/@options/snapshot_account", "tmp")
+        wait(lambda: config_version < get("//sys/tablet_cells/{}/@config_version".format(cell_id)))
 
         self._wait_cell_good(cell_id)
 
