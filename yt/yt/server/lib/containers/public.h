@@ -8,7 +8,7 @@ namespace NYT::NContainers {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
-    ((FailedToStartContainer)  (13000))
+    ((FailedToStartContainer)  (14000))
 );
 
 DEFINE_ENUM(EStatField,
