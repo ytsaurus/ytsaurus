@@ -7,6 +7,8 @@ from yt.wrapper.common import simplify_structure
 import yt.packages.requests as requests
 from yt.packages.six.moves import map as imap
 
+import yt.environment.init_operation_archive as init_operation_archive
+
 import yt.yson as yson
 
 from yt.wrapper.ypath import FilePath
@@ -212,7 +214,9 @@ class Clique(object):
                 in_error = True
             if in_error:
                 result.append(line)
-        return "\n".join(result)
+        if len(result) == 0:
+            return None
+        return YtError("ClickHouse request failed:\n" + "\n".join(result))
 
     def make_request(self, url, query, headers, format="JSON", params=None, verbose=False, only_rows=True, full_response=False):
         if params is None:
@@ -231,12 +235,19 @@ class Clique(object):
 
         result = requests.post(url, data=query, headers=headers, params=params)
 
+        inner_errors = []
+
         output = ""
         if result.status_code != 200:
             output += "Query failed, HTTP code: {}\n".format(result.status_code)
-            error = self._parse_error(result.content).strip()
+            if "X-Yt-Error" in result.headers:
+                error = YtError(**json.loads(result.headers["X-Yt-Error"]))
+            else:
+                error = self._parse_error(result.content)
+
             if error:
                 output += "Error: {}\n".format(error)
+                inner_errors.append(error)
             else:
                 output += "Cannot parse error from response data; full response is listed below.\n"
                 verbose = True
@@ -253,9 +264,10 @@ class Clique(object):
             return result
 
         if result.status_code != 200:
-            raise YtError("ClickHouse query failed. Output:\n" + output,
+            raise YtError(message="ClickHouse query failed. Output:\n" + output,
                           attributes={"query": query, "query_id": result.headers.get("query_id", "(n/a)")},
-                          code=QueryFailedError)
+                          code=QueryFailedError,
+                          inner_errors=inner_errors)
         else:
             if output_present:
                 if format == "JSON":
@@ -302,12 +314,16 @@ class Clique(object):
             raise YtError("Instance unavailable, stderr:\n" + stderr, inner_errors=errors,
                           code=InstanceUnavailableCode)
 
-    def make_query_via_proxy(self, query, format="JSON", verbose=True, only_rows=True, full_response=False, headers=None, alias_and_instance_cookie=None):
+    def make_query_via_proxy(self, query, format="JSON", verbose=True, only_rows=True, full_response=False,
+                             headers=None, database=None, user="root"):
         if headers is None:
             headers = {}
+        headers["X-Yt-User"] = user
         assert self.proxy_address is not None
         url = self.proxy_address + "/query"
-        params = {"database": alias_and_instance_cookie or self.op.id}
+        if database is None:
+            database = self.op.id
+        params = {"database": database}
         print_debug()
         print_debug("Querying proxy {0} with the following data:\n> {1}".format(url, query))
         return self.make_request(url, query, headers, params=params, format=format, verbose=verbose, only_rows=only_rows, full_response=full_response)
@@ -350,16 +366,14 @@ class ClickHouseTestBase(YTEnvSetup):
 
 
     DELTA_PROXY_CONFIG = {
-        "proxy": {
-            "clickhouse": {
-                "clique_cache": {
-                    "soft_age_threshold": 500,
-                    "hard_age_threshold": 1500,
-                    "master_cache_expire_time": 500,
-                },
-                "force_enqueue_profiling": True,
+        "clickhouse": {
+            "discovery_cache": {
+                "soft_age_threshold": 500,
+                "hard_age_threshold": 1500,
+                "master_cache_expire_time": 500,
             },
-        }
+            "force_enqueue_profiling": True,
+        },
     }
 
     DELTA_NODE_CONFIG = {
@@ -394,7 +408,7 @@ class ClickHouseTestBase(YTEnvSetup):
         Clique.core_dump_path = os.path.join(self.path_to_run, "core_dumps")
         if not os.path.exists(Clique.core_dump_path):
             os.mkdir(Clique.core_dump_path)
-            os.chmod(Clique.core_dump_path, 0777)
+            os.chmod(Clique.core_dump_path, 0o777)
 
         create_user("yt-clickhouse-cache")
         create_user("yt-clickhouse")
@@ -2176,56 +2190,6 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 assert clique.make_query("select * from {} where isNotNull(a)".format(source)) == [{"a": -1}, {"a": 42}]
 
 
-class TestClickHouseAccess(ClickHouseTestBase):
-    def setup(self):
-        self._setup()
-
-    @authors("max42")
-    @pytest.mark.xfail(True, reason="CHYT-387")
-    def test_clique_access(self):
-        create_group("g")
-        create_user("u1")
-        create_user("u2")
-        add_member("u1", "g")
-        add_member("u2", "g")
-        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
-        write_table("//tmp/t", [{"a": 1}])
-
-        with Clique(1, config_patch={"yt": {"security_manager": {"enable": False}}}) as clique:
-            assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
-
-        with Clique(1, config_patch={"yt": {"security_manager": {"enable": True}}}) as clique:
-            with raises_yt_error(QueryFailedError):
-                clique.make_query("select * from \"//tmp/t\"", user="u1")
-
-        allow_g = {"subjects": ["g"], "action": "allow", "permissions": ["read"]}
-        deny_u2 = {"subjects": ["u2"], "action": "deny", "permissions": ["read"]}
-
-        with Clique(1, config_patch={"yt": {"security_manager": {
-                    "enable": True,
-                    "operation_acl_update_period": 100,
-                }}},
-                spec={
-                    "acl": [allow_g]
-                }) as clique:
-            assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
-            assert len(clique.make_query("select * from \"//tmp/t\"", user="u2")) == 1
-
-            update_op_parameters(clique.op.id, parameters={"acl": [allow_g, deny_u2]})
-            time.sleep(1)
-            assert len(clique.make_query("select * from \"//tmp/t\"", user="u1")) == 1
-            with raises_yt_error(QueryFailedError):
-                clique.make_query("select * from \"//tmp/t\"", user="u2")
-
-            update_op_parameters(clique.op.id, parameters={"acl": []})
-            time.sleep(1)
-            with raises_yt_error(QueryFailedError):
-                clique.make_query("select * from \"//tmp/t\"", user="u1")
-            with raises_yt_error(QueryFailedError):
-                clique.make_query("select * from \"//tmp/t\"", user="u2")
-
-
-
 class TestQueryLog(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -2587,6 +2551,19 @@ class TestJoinAndIn(ClickHouseTestBase):
 
 
 class TestClickHouseHttpProxy(ClickHouseTestBase):
+    DELTA_PROXY_CONFIG = {
+        "clickhouse": {
+            "operation_cache": {
+                "refresh_time": 100,
+            },
+            "permission_cache": {
+                "refresh_time": 100,
+                "failure_expiration_time": 100,
+            },
+            "force_enqueue_profiling": True,
+        },
+    }
+
     def setup(self):
         self._setup()
 
@@ -2599,18 +2576,18 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             for job_cookie in range(5):
                 proxy_response = clique.make_query_via_proxy(
                         "select * from system.clique",
-                        alias_and_instance_cookie="*test_alias@" + str(job_cookie))
+                        database="*test_alias@" + str(job_cookie))
                 for instanse_response in proxy_response:
                     assert instanse_response['self'] == 1 if instanse_response['job_cookie'] == job_cookie else instanse_response['self'] == 0
 
                 proxy_response = clique.make_query_via_proxy(
                         "select * from system.clique",
-                        alias_and_instance_cookie=clique.op.id + '@' + str(job_cookie))
+                        database=clique.op.id + '@' + str(job_cookie))
                 for instanse_response in proxy_response:
                     assert instanse_response['self'] == 1 if instanse_response['job_cookie'] == job_cookie else instanse_response['self'] == 0
 
             with raises_yt_error(QueryFailedError):
-                clique.make_query_via_proxy("select * from system.clique", alias_and_instance_cookie="*test_alias@aaa")
+                clique.make_query_via_proxy("select * from system.clique", database="*test_alias@aaa")
 
     @authors("dakovalkov")
     def test_http_proxy(self):
@@ -2642,7 +2619,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             }
         }
 
-        cache_missed_count = self._get_proxy_metric("clickhouse_proxy/clique_cache/missed")
+        cache_missed_count = self._get_proxy_metric("clickhouse_proxy/discovery_cache/missed")
         force_update_count = self._get_proxy_metric("clickhouse_proxy/force_update_count")
         banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
 
@@ -2685,7 +2662,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             "interruption_graceful_timeout": 100000,
         }
 
-        cache_missed_count = self._get_proxy_metric("clickhouse_proxy/clique_cache/missed")
+        cache_missed_count = self._get_proxy_metric("clickhouse_proxy/discovery_cache/missed")
         force_update_count = self._get_proxy_metric("clickhouse_proxy/force_update_count")
         banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
 
@@ -2729,7 +2706,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             "interruption_graceful_timeout": 600,
         }
 
-        cache_missed_counter = self._get_proxy_metric("clickhouse_proxy/clique_cache/missed")
+        cache_missed_counter = self._get_proxy_metric("clickhouse_proxy/discovery_cache/missed")
         force_update_counter = self._get_proxy_metric("clickhouse_proxy/force_update_count")
         banned_count = self._get_proxy_metric("clickhouse_proxy/banned_count")
 
@@ -2770,6 +2747,99 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         assert cache_missed_counter.update().get(verbose=True) == 1
         assert force_update_counter.update().get(verbose=True) == 1
         assert banned_count.update().get(verbose=True) == 1
+
+    @authors("max42")
+    def test_database_specification(self):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+
+        with Clique(1, spec={"alias": "*alias"}) as clique:
+            assert clique.make_query_via_proxy("select 1 as a", database="*alias")[0] == {"a": 1}
+            assert clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0] == {"a": 1}
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("select 1 as a", database="*alia")
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("select 1 as a", database="*")
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("select 1 as a", database="**")
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("select 1 as a", database="")
+
+            with raises_yt_error(1915): # NoSuchOperation
+                clique.make_query_via_proxy("select 1 as a", database="1-2-3-4")
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("select 1 as a", database="1-2-3-x")
+
+            clique.op.suspend()
+
+            wait(lambda: get(clique.op.get_path() + "/@suspended"))
+            time.sleep(1)
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query_via_proxy("select 1 as a", database="*alias")
+
+            clique.op.resume()
+
+            wait(lambda: not get(clique.op.get_path() + "/@suspended"))
+            time.sleep(1)
+
+            assert clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0] == {"a": 1}
+
+        wait(lambda: clique.get_active_instance_count() == 0)
+
+        time.sleep(1)
+
+        with raises_yt_error(QueryFailedError):
+            assert clique.make_query_via_proxy("select 1 as a", database="*alias")[0] == {"a": 1}
+
+        with raises_yt_error(QueryFailedError):
+            assert clique.make_query_via_proxy("select 1 as a", database=clique.op.id)[0] == {"a": 1}
+
+    @authors("max42")
+    def test_operation_acl_validation(self):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+
+        create_user("u1")
+        create_user("u2")
+        create_user("u3")
+        create_group("g")
+        add_member("u1", "g")
+        add_member("u2", "g")
+
+        allow_g = {"subjects": ["g"], "action": "allow", "permissions": ["read"]}
+        deny_u2 = {"subjects": ["u2"], "action": "deny", "permissions": ["read"]}
+
+        with Clique(1, spec={"alias": "*alias", "acl": [allow_g, deny_u2]}) as clique:
+            for user in ("u1", "root"):
+                assert clique.make_query_via_proxy("select 1 as a", user=user)[0] == {"a": 1}
+            for user in ("u2", "u3"):
+                with raises_yt_error(901): # AuthorizationError
+                    assert clique.make_query_via_proxy("select 1 as a", user=user)
+
+            update_op_parameters(clique.op.id, parameters={"acl": [allow_g]})
+            time.sleep(1)
+
+            for user in ("u1", "u2", "root"):
+                assert clique.make_query_via_proxy("select 1 as a", user=user)[0] == {"a": 1}
+            for user in ("u3",):
+                with raises_yt_error(901): # AuthorizationError
+                    assert clique.make_query_via_proxy("select 1 as a", user=user)
+
+            update_op_parameters(clique.op.id, parameters={"acl": []})
+            time.sleep(1)
+
+            for user in ("root",):
+                assert clique.make_query_via_proxy("select 1 as a", user=user)[0] == {"a": 1}
+            for user in ("u1", "u2", "u3"):
+                with raises_yt_error(901): # AuthorizationError
+                    assert clique.make_query_via_proxy("select 1 as a", user=user)
+
 
 def is_tracing_enabled():
     return "YT_TRACE_DUMP_DIR" in os.environ

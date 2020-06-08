@@ -14,11 +14,25 @@ TOperationIdOrAlias::TOperationIdOrAlias(TString alias)
     : Payload(std::move(alias))
 { }
 
+bool TOperationIdOrAlias::operator ==(const TOperationIdOrAlias& other) const
+{
+    return Payload == other.Payload;
+}
+
+TOperationIdOrAlias TOperationIdOrAlias::FromString(TString operationIdOrAlias)
+{
+    if (!operationIdOrAlias.empty() && operationIdOrAlias[0] == '*') {
+        return TOperationIdOrAlias(operationIdOrAlias);
+    } else {
+        return TOperationIdOrAlias(TOperationId::FromString(operationIdOrAlias));
+    }
+}
+
 void FormatValue(TStringBuilderBase* builder, const TOperationIdOrAlias& operationIdOrAlias, TStringBuf /*format*/)
 {
     Visit(operationIdOrAlias.Payload,
         [&] (const TString& alias) {
-            builder->AppendFormat("%v%v", OperationAliasPrefix, alias);
+            builder->AppendFormat("%v", alias);
         },
         [&] (const TOperationId& operationId) {
             builder->AppendFormat("%v", operationId);
@@ -28,6 +42,19 @@ void FormatValue(TStringBuilderBase* builder, const TOperationIdOrAlias& operati
 TString ToString(const TOperationIdOrAlias& operationIdOrAlias)
 {
     return ToStringViaBuilder(operationIdOrAlias);
+}
+
+TOperationIdOrAlias::operator size_t() const
+{
+    size_t result = 0;
+    Visit(Payload,
+        [&] (const TString& alias) {
+            HashCombine(result, alias);
+        },
+        [&] (const TOperationId& operationId) {
+            HashCombine(result, operationId);
+        });
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

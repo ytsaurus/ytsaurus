@@ -1,15 +1,19 @@
 #include "handler.h"
 
-#include "clique_cache.h"
+#include "discovery_cache.h"
 #include "config.h"
 
 #include <yt/server/http_proxy/bootstrap.h>
 #include <yt/server/http_proxy/coordinator.h>
 
+#include <yt/ytlib/security_client/permission_cache.h>
+
 #include <yt/ytlib/auth/token_authenticator.h>
 #include <yt/ytlib/auth/config.h>
 
 #include <yt/client/api/client.h>
+
+#include <yt/client/scheduler/operation_cache.h>
 
 #include <yt/core/http/client.h>
 #include <yt/core/http/helpers.h>
@@ -34,10 +38,13 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NHttp;
 using namespace NYTree;
+using namespace NYson;
 using namespace NProfiling;
 using namespace NLogging;
 using namespace NYPath;
 using namespace NTracing;
+using namespace NScheduler;
+using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +66,9 @@ public:
         const TDynamicClickHouseConfigPtr& config,
         TBootstrap* bootstrap,
         const NApi::IClientPtr& client,
-        const TCliqueCachePtr cliqueCache,
+        const TOperationCachePtr& operationCache,
+        const TPermissionCachePtr& permissionCache,
+        const TDiscoveryCachePtr discoveryCache,
         IInvokerPtr controlInvoker,
         TClickHouseHandler::TClickHouseProxyMetrics& metrics,
         NLogging::TLogger logger)
@@ -70,7 +79,9 @@ public:
         , Bootstrap_(bootstrap)
         , Client_(client)
         , HttpClient_(CreateClient(Config_->HttpClient, Bootstrap_->GetPoller()))
-        , CliqueCache_(cliqueCache)
+        , OperationCache_(operationCache)
+        , PermissionCache_(permissionCache)
+        , DiscoveryCache_(discoveryCache)
         , ControlInvoker_(controlInvoker)
         , Metrics_(metrics)
     {
@@ -96,35 +107,17 @@ public:
                 return false;
             }
 
-            auto cliqueAndInstanceCookie = CgiParameters_.Get("database");
-
-            if (cliqueAndInstanceCookie.Contains("@")) {
-                auto separatorIndex = cliqueAndInstanceCookie.find_last_of("@");
-                CliqueIdOrAlias_ = cliqueAndInstanceCookie.substr(0, separatorIndex);
-
-                auto jobCookieString = cliqueAndInstanceCookie.substr(
-                    separatorIndex + 1,
-                    cliqueAndInstanceCookie.size() - separatorIndex - 1);
-                size_t jobCookie = 0;
-                if (!TryIntFromString<10>(jobCookieString, jobCookie)) {
-                    ReplyWithError(
-                        EStatusCode::BadRequest,
-                        TError("Error while parsing job cookie %v", jobCookieString));
-                    return false;
-                }
-                JobCookie_ = jobCookie;
-                YT_LOG_DEBUG("Found instance job cookie (JobCookie: %v)", *JobCookie_);
-            } else {
-                CliqueIdOrAlias_ = cliqueAndInstanceCookie;
+            if (!TryParseDatabase()) {
+                return false;
             }
 
-            if (CliqueIdOrAlias_.empty()) {
-                ReplyWithError(
-                    EStatusCode::NotFound,
-                    TError("Clique id or alias should be specified using the `database` CGI parameter"));
+            if (!TryGetOperation()) {
+                return false;
             }
 
-            YT_LOG_DEBUG("Clique id parsed (CliqueId: %v)", CliqueIdOrAlias_);
+            if (!TryAuthorize()) {
+                return false;
+            }
 
             bool isDatalens = false;
             // TODO(max42): remove this when DataLens makes proper authorization. Duh.
@@ -273,9 +266,8 @@ public:
     void RemoveCliqueFromCache()
     {
         Discovery_.Reset();
-        CliqueId_.reset();
-        CliqueCache_->TryRemove(CliqueIdOrAlias_);
-        YT_LOG_DEBUG("Discovery was removed from cache (CliqueIdOrAlias: %v)", CliqueIdOrAlias_);
+        DiscoveryCache_->TryRemove(OperationId_);
+        YT_LOG_DEBUG("Discovery was removed from cache (OperationId: %v)", OperationId_);
     }
 
     const TString& GetUser() const
@@ -291,17 +283,20 @@ private:
     TBootstrap* const Bootstrap_;
     const NApi::IClientPtr& Client_;
     NHttp::IClientPtr HttpClient_;
-    const TCliqueCachePtr CliqueCache_;
+    const TOperationCachePtr OperationCache_;
+    const TPermissionCachePtr PermissionCache_;
+    const TDiscoveryCachePtr DiscoveryCache_;
     IInvokerPtr ControlInvoker_;
 
     // These fields contain the request details after parsing CGI params and headers.
     TCgiParameters CgiParameters_;
-    // CliqueId or alias.
 
-    TString CliqueIdOrAlias_;
-    // Do TryResolveAlias() to set up this values.
-    // Will be set automatically after finding Discovery in cache.
-    std::optional<TString> CliqueId_;
+    TOperationIdOrAlias OperationIdOrAlias_;
+    TOperationId OperationId_;
+    std::optional<TString> OperationAlias_;
+
+    TYsonString OperationAcl_;
+
     std::optional<size_t> JobCookie_;
 
     TString Token_;
@@ -325,12 +320,6 @@ private:
 
     THashMap<TString, NYTree::TAttributeMap> Instances_;
 
-    void SetCliqueId(TString cliqueId)
-    {
-        CliqueId_ = std::move(cliqueId);
-        ProxiedRequestHeaders_->Set("X-Clique-Id", CliqueId_.value());
-    }
-
     void ReplyWithError(EStatusCode statusCode, const TError& error) const
     {
         YT_LOG_DEBUG(error, "Request failed (StatusCode: %v)", statusCode);
@@ -343,41 +332,6 @@ private:
     {
         YT_LOG_INFO(error, "Error while handling query");
         RequestErrors_.emplace_back(error);
-    }
-
-    bool TryResolveAlias()
-    {
-        if (CliqueId_) {
-            return true;
-        }
-
-        if (!CliqueIdOrAlias_.StartsWith("*")) {
-            SetCliqueId(CliqueIdOrAlias_);
-            return true;
-        }
-
-        YT_LOG_DEBUG("Resolving alias (Alias: %v)", CliqueIdOrAlias_);
-
-        try {
-            TGetNodeOptions options;
-            options.Timeout = Config_->AliasResolutionTimeout;
-            TGuid operationId;
-            PROFILE_AGGREGATED_TIMING(Metrics_.ResolveAliasTime) {
-                operationId = ConvertTo<TGuid>(WaitFor(
-                    Client_->GetNode(
-                        Format("//sys/scheduler/orchid/scheduler/operations/%v/operation_id",
-                            ToYPathLiteral(CliqueIdOrAlias_)),
-                        options))
-                        .ValueOrThrow());
-            }
-            SetCliqueId(ToString(operationId));
-            YT_LOG_DEBUG("Alias resolved (Alias: %v, CliqueId: %v)", CliqueIdOrAlias_, CliqueId_);
-            return true;
-        } catch (const std::exception& ex) {
-            PushError(TError("Error while resolving alias %Qv", CliqueIdOrAlias_)
-                << ex);
-            return false;
-        }
     }
 
     void ParseTokenFromAuthorizationHeader(const TString& authorization)
@@ -413,25 +367,49 @@ private:
 
     bool TryProcessHeaders()
     {
-        const auto* authorization = Request_->GetHeaders()->Find("Authorization");
-        if (authorization && !authorization->empty()) {
-            ParseTokenFromAuthorizationHeader(*authorization);
-        } else if (CgiParameters_.Has("password")) {
-            Token_ = CgiParameters_.Get("password");
-            CgiParameters_.EraseAll("password");
-            CgiParameters_.EraseAll("user");
-        } else if (!Config_->IgnoreMissingCredentials) {
-            ReplyWithError(EStatusCode::Unauthorized,
-                TError("Authorization should be perfomed either by setting `Authorization` header (`Basic` or `OAuth` schemes) "
-                    "or `password` CGI parameter"));
+        try {
+            const auto* authorization = Request_->GetHeaders()->Find("Authorization");
+            if (authorization && !authorization->empty()) {
+                ParseTokenFromAuthorizationHeader(*authorization);
+            } else if (CgiParameters_.Has("password")) {
+                Token_ = CgiParameters_.Get("password");
+                CgiParameters_.EraseAll("password");
+                CgiParameters_.EraseAll("user");
+            } else if (const auto* user = Request_->GetHeaders()->Find("X-Yt-User")) {
+                if (Config_->IgnoreMissingCredentials) {
+                    User_ = *user;
+                }
+            }
+            return true;
+        } catch (const std::exception& ex) {
+            ReplyWithError(
+                EStatusCode::BadRequest,
+                TError("Error while parsing request headers")
+                    << ex);
             return false;
         }
-
-        return true;
     }
 
     bool TryAuthenticate()
     {
+        if (Config_->IgnoreMissingCredentials) {
+            if (User_.empty()) {
+                YT_LOG_DEBUG("Authentication is disabled and user was not specified; assuming root");
+                User_ = "root";
+            } else {
+                YT_LOG_DEBUG("Authentication is disabled and user is specified via X-Yt-User header (User: %v)", User_);
+            }
+            return true;
+        }
+
+        if (Token_.Empty()) {
+            ReplyWithError(EStatusCode::Unauthorized,
+                TError(
+                    "Authorization should be perfomed either by setting `Authorization` header (`Basic` or `OAuth` schemes) "
+                    "or `password` CGI parameter"));
+            return false;
+        }
+
         try {
             NAuth::TTokenCredentials credentials;
             credentials.Token = Token_;
@@ -447,7 +425,7 @@ private:
         } catch (const std::exception& ex) {
             ReplyWithError(
                 EStatusCode::Unauthorized,
-                TError("Authorization failed")
+                TError("Authentication failed")
                     << ex);
             return false;
         }
@@ -463,16 +441,11 @@ private:
         YT_LOG_DEBUG("Getting discovery");
 
         try {
-            auto cookie = CliqueCache_->BeginInsert(CliqueIdOrAlias_);
+            auto cookie = DiscoveryCache_->BeginInsert(OperationId_);
             if (cookie.IsActive()) {
-                YT_LOG_DEBUG("Clique cache missed (CliqueIdOrAlias: %v)", CliqueIdOrAlias_);
+                YT_LOG_DEBUG("Clique cache missed (CliqueIdOrAlias: %v)", OperationId_);
 
-                if (!TryResolveAlias()) {
-                    YT_LOG_DEBUG("Failed to get discovery due to alias resolution error");
-                    return false;
-                }
-
-                TString path = Config_->DiscoveryPath + "/" + CliqueId_.value();
+                TString path = Config_->DiscoveryPath + "/" + ToString(OperationId_);
                 NApi::TGetNodeOptions options;
                 options.ReadFrom = NApi::EMasterChannelKind::Cache;
 
@@ -488,23 +461,22 @@ private:
                 YT_LOG_DEBUG("Fetched discovery version (Version: %v)", version);
 
                 auto config = New<TDiscoveryConfig>(path);
-                config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->CliqueCache->UnavailableInstanceBanTimeout;
+                config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
                 config->ReadFrom = NApi::EMasterChannelKind::Cache;
-                config->MasterCacheExpireTime = Bootstrap_->GetConfig()->ClickHouse->CliqueCache->MasterCacheExpireTime;
+                config->MasterCacheExpireTime = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->MasterCacheExpireTime;
                 if (version == 0) {
                     config->SkipUnlockedParticipants = false;
                 }
 
                 cookie.EndInsert(New<TCachedDiscovery>(
-                    CliqueIdOrAlias_,
-                    CliqueId_.value(),
+                    OperationId_,
                     config,
                     Client_,
                     ControlInvoker_,
                     std::vector<TString>{"host", "http_port", "job_cookie"},
                     Logger));
 
-                YT_LOG_DEBUG("Insert new discovery to the cache (CliqueIdOrAlias: %v)", CliqueIdOrAlias_);
+                YT_LOG_DEBUG("New discovery inserted to the cache (OperationId: %v)", OperationId_);
             }
 
             PROFILE_AGGREGATED_TIMING(Metrics_.FindDiscoveryTime) {
@@ -513,13 +485,6 @@ private:
             }
 
             YT_LOG_DEBUG("Discovery is ready");
-
-            if (!CliqueId_) {
-                SetCliqueId(Discovery_->GetCliqueId());
-                YT_LOG_DEBUG(
-                    "Determined cached clique id (CliqueId: %v)",
-                    CliqueId_);
-            }
         } catch (const std::exception& ex) {
             PushError(TError("Failed to create discovery")
                 << ex);
@@ -541,10 +506,10 @@ private:
                 return false;
             }
 
-            YT_LOG_DEBUG("Updating discovery (AgeThreshold: %v)", Bootstrap_->GetConfig()->ClickHouse->CliqueCache->SoftAgeThreshold);
-            Discovery_->UpdateList(Bootstrap_->GetConfig()->ClickHouse->CliqueCache->SoftAgeThreshold);
+            YT_LOG_DEBUG("Updating discovery (AgeThreshold: %v)", Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold);
+            Discovery_->UpdateList(Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->SoftAgeThreshold);
             auto updatedFuture = Discovery_->UpdateList(
-                forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Bootstrap_->GetConfig()->ClickHouse->CliqueCache->HardAgeThreshold);
+                forceUpdate ? Config_->ForceDiscoveryUpdateAgeThreshold : Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->HardAgeThreshold);
             if (!updatedFuture.IsSet()) {
                 YT_LOG_DEBUG("Waiting for discovery");
                 ClickHouseProfiler.Increment(Metrics_.ForceUpdateCount);
@@ -558,7 +523,7 @@ private:
             auto instances = Discovery_->List();
             YT_LOG_DEBUG("Instances discovered (Count: %v)", instances.size());
             if (instances.empty()) {
-                PushError(TError("Clique %v has no running instances", CliqueIdOrAlias_));
+                PushError(TError("Clique %v has no running instances", OperationIdOrAlias_));
                 return false;
             }
 
@@ -569,6 +534,127 @@ private:
                 << ex);
             return false;
         }
+    }
+
+
+    bool TryParseDatabase()
+    {
+        try {
+            auto operationIdOrAliasAndInstanceCookie = CgiParameters_.Get("database");
+
+            TString operationIdOrAlias;
+
+            if (operationIdOrAliasAndInstanceCookie.Contains("@")) {
+                auto separatorIndex = operationIdOrAliasAndInstanceCookie.find_last_of("@");
+                operationIdOrAlias = operationIdOrAliasAndInstanceCookie.substr(0, separatorIndex);
+
+                auto jobCookieString = operationIdOrAliasAndInstanceCookie.substr(
+                    separatorIndex + 1,
+                    operationIdOrAliasAndInstanceCookie.size() - separatorIndex - 1);
+                size_t jobCookie = 0;
+                if (!TryIntFromString<10>(jobCookieString, jobCookie)) {
+                    ReplyWithError(
+                        EStatusCode::BadRequest,
+                        TError("Error while parsing instance cookie %v", jobCookieString));
+                    return false;
+                }
+                JobCookie_ = jobCookie;
+                YT_LOG_DEBUG("Found instance job cookie (JobCookie: %v)", *JobCookie_);
+            } else {
+                operationIdOrAlias = operationIdOrAliasAndInstanceCookie;
+            }
+
+            if (operationIdOrAlias.empty()) {
+                ReplyWithError(
+                    EStatusCode::NotFound,
+                    TError("Clique id or alias should be specified using the `database` CGI parameter"));
+            }
+
+            if (operationIdOrAlias[0] == '*') {
+                OperationAlias_ = operationIdOrAlias;
+                YT_LOG_DEBUG("Clique is defined by alias (OperationAlias: %v)", OperationAlias_);
+            } else {
+                OperationId_ = TOperationId::FromString(operationIdOrAlias);
+                YT_LOG_DEBUG("Clique is defined by operation id (OperationId: %v)", OperationId_);
+            }
+
+            OperationIdOrAlias_ = TOperationIdOrAlias::FromString(operationIdOrAlias);
+
+            return true;
+        } catch (const std::exception& ex) {
+            ReplyWithError(
+                EStatusCode::BadRequest,
+                TError("Error parsing database specification")
+                    << ex);
+            return false;
+        }
+    }
+
+    bool TryGetOperation()
+    {
+        try {
+            auto operationYson = WaitFor(OperationCache_->Get(OperationIdOrAlias_))
+                .ValueOrThrow();
+
+            auto operationNode = ConvertTo<IMapNodePtr>(operationYson);
+
+            if (OperationAlias_) {
+                OperationId_ = ConvertTo<TOperationId>(operationNode->GetChild("id")->GetValue<TString>());
+                YT_LOG_DEBUG("Operation id resolved (OperationAlias: %v, OperationId: %v)", OperationAlias_, OperationId_);
+            } else {
+                YT_ASSERT(OperationId_ == ConvertTo<TOperationId>(operationNode->GetChild("id")->GetValue<TString>()));
+            }
+
+            if (auto state = ConvertTo<EOperationState>(operationNode->GetChild("state")->GetValue<TString>()); state != EOperationState::Running) {
+                ReplyWithError(
+                    EStatusCode::BadRequest,
+                    TError("Clique %v is not running; actual state = %lv", OperationIdOrAlias_, state)
+                        << TErrorAttribute("operation_id", OperationId_));
+                return false;
+            }
+
+            if (operationNode->GetChild("suspended")->GetValue<bool>()) {
+                ReplyWithError(
+                    EStatusCode::BadRequest,
+                    TError("Clique %v is suspended; resume it to make queries", OperationIdOrAlias_));
+                return false;
+            }
+
+            OperationAcl_ = ConvertToYsonString(operationNode
+                ->GetChild("runtime_parameters")
+                ->AsMap()
+                ->GetChild("acl"));
+
+            return true;
+        } catch (const std::exception& ex) {
+            ReplyWithError(
+                EStatusCode::BadRequest,
+                TError("Invalid clique specification")
+                    << ex);
+            return false;
+        }
+    }
+
+    bool TryAuthorize()
+    {
+        auto error = WaitFor(PermissionCache_->Get(TPermissionKey{
+                .Acl = OperationAcl_,
+                .User = User_,
+                .Permission = EPermission::Read
+            }));
+
+        if (!error.IsOK()) {
+            ReplyWithError(
+                EStatusCode::Forbidden,
+                TError("User %Qv has no access to clique %v",
+                    User_,
+                    OperationIdOrAlias_)
+                    << TErrorAttribute("operation_acl", OperationAcl_)
+                    << error);
+            return false;
+        }
+
+        return true;
     }
 
     void InitializeInstance(const TString& id, const NYTree::TAttributeMap& attributes)
@@ -607,7 +693,16 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     if (Config_->ForceEnqueueProfiling) {
         ClickHouseProfiler.ForceEnqueue() = true;
     }
-    CliqueCache_ = New<TCliqueCache>(Config_->CliqueCache, ClickHouseProfiler.AppendPath("/clique_cache"));
+    OperationCache_ = New<TOperationCache>(
+        Config_->OperationCache,
+        THashSet<TString>{"id", "runtime_parameters", "state", "suspended"},
+        Client_,
+        ClickHouseProfiler.AppendPath("/operation_cache"));
+    PermissionCache_ = New<TPermissionCache>(
+        Config_->PermissionCache,
+        Bootstrap_->GetNativeConnection(),
+        ClickHouseProfiler.AppendPath("/permission_cache"));
+    DiscoveryCache_ = New<TDiscoveryCache>(Config_->DiscoveryCache, ClickHouseProfiler.AppendPath("/discovery_cache"));
 
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         ControlInvoker_,
@@ -653,7 +748,9 @@ void TClickHouseHandler::HandleRequest(
             config,
             Bootstrap_,
             Client_,
-            CliqueCache_,
+            OperationCache_,
+            PermissionCache_,
+            DiscoveryCache_,
             ControlInvoker_,
             Metrics_,
             Logger);

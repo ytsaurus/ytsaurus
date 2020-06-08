@@ -20,6 +20,7 @@ TPermissionKey::operator size_t() const
 {
     size_t result = 0;
     HashCombine(result, Object);
+    HashCombine(result, Acl);
     HashCombine(result, User);
     HashCombine(result, Permission);
     if (Columns) {
@@ -30,10 +31,19 @@ TPermissionKey::operator size_t() const
     return result;
 }
 
+void TPermissionKey::AssertValidity() const
+{
+    // Perform sanity check that key is correct only in Debug mode.
+    YT_ASSERT(Object.has_value() || Acl.has_value());
+    YT_ASSERT(!Object.has_value() || !Acl.has_value());
+    YT_ASSERT(Object.has_value() || !Columns.has_value());
+}
+
 bool TPermissionKey::operator == (const TPermissionKey& other) const
 {
     return
         Object == other.Object &&
+        Acl == other.Acl &&
         User == other.User &&
         Permission == other.Permission &&
         Columns == other.Columns;
@@ -42,7 +52,7 @@ bool TPermissionKey::operator == (const TPermissionKey& other) const
 TString ToString(const TPermissionKey& key)
 {
     return Format("%v:%v:%v:%v",
-        key.Object,
+        key.Object.has_value() ? TStringBuf(*key.Object) : TStringBuf(key.Acl->GetData()),
         key.User,
         key.Permission,
         key.Columns);
@@ -61,6 +71,8 @@ TPermissionCache::TPermissionCache(
 
 TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodicUpdate) noexcept
 {
+    key.AssertValidity();
+
     auto connection = Connection_.Lock();
     if (!connection) {
         return MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
@@ -70,7 +82,7 @@ TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodic
     auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, connection->GetConfig(), GetMasterReadOptions());
     batchReq->SetUser(isPeriodicUpdate || Config_->AlwaysUseRefreshUser ? Config_->RefreshUser : key.User);
-    batchReq->AddRequest(MakeCheckPermissionRequest(connection, key));
+    batchReq->AddRequest(MakeRequest(connection, key));
 
     return batchReq->Invoke()
         .Apply(BIND([=] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
@@ -101,18 +113,24 @@ TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetUser(Config_->RefreshUser);
     for (const auto& key : keys) {
-        batchReq->AddRequest(MakeCheckPermissionRequest(connection, key));
+        key.AssertValidity();
+        batchReq->AddRequest(MakeRequest(connection, key));
     }
 
     return batchReq->Invoke()
         .Apply(BIND([=] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
-            auto rspsOrError = batchRsp->GetResponses<TObjectYPathProxy::TRspCheckPermission>();
             std::vector<TError> results;
             results.reserve(keys.size());
-            for (int index = 0; index < rspsOrError.size(); ++index) {
-                const auto& rspOrError = rspsOrError[index];
+            YT_ASSERT(keys.size() == batchRsp->GetResponseCount());
+            for (int index = 0; index < keys.size(); ++index) {
                 const auto& key = keys[index];
-                results.push_back(ParseCheckPermissionResponse(key, rspOrError));
+                if (key.Object) {
+                    const auto& rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(index);
+                    results.push_back(ParseCheckPermissionResponse(key, rspOrError));
+                } else {
+                    const auto& rspOrError = batchRsp->GetResponse<TMasterYPathProxy::TRspCheckPermissionByAcl>(index);
+                    results.push_back(ParseCheckPermissionByAclResponse(key, rspOrError));
+                }
             }
             return results;
         }));
@@ -128,17 +146,28 @@ NApi::TMasterReadOptions TPermissionCache::GetMasterReadOptions()
     };
 }
 
-TObjectYPathProxy::TReqCheckPermissionPtr TPermissionCache::MakeCheckPermissionRequest(
+NYTree::TYPathRequestPtr TPermissionCache::MakeRequest(
     const IConnectionPtr& connection,
     const TPermissionKey& key)
 {
-    auto req = TObjectYPathProxy::CheckPermission(key.Object);
-    req->set_user(key.User);
-    req->set_permission(static_cast<int>(key.Permission));
-    if (key.Columns) {
-        ToProto(req->mutable_columns()->mutable_items(), *key.Columns);
+    TYPathRequestPtr req;
+    if (key.Object) {
+        auto typedReq = TObjectYPathProxy::CheckPermission(*key.Object);
+        typedReq->set_user(key.User);
+        typedReq->set_permission(static_cast<int>(key.Permission));
+        if (key.Columns) {
+            ToProto(typedReq->mutable_columns()->mutable_items(), *key.Columns);
+        }
+        typedReq->set_ignore_safe_mode(true);
+        req = std::move(typedReq);
+    } else {
+        auto typedReq = TMasterYPathProxy::CheckPermissionByAcl();
+        typedReq->set_user(key.User);
+        typedReq->set_permission(static_cast<int>(key.Permission));
+        typedReq->set_acl(key.Acl->GetData());
+        typedReq->set_ignore_missing_subjects(true);
+        req = std::move(typedReq);
     }
-    req->set_ignore_safe_mode(true);
     SetCachingHeader(req, connection->GetConfig(), GetMasterReadOptions());
     NCypressClient::SetSuppressAccessTracking(req, true);
     return req;
@@ -185,6 +214,23 @@ TError TPermissionCache::ParseCheckPermissionResponse(
     }
 
     return error;
+}
+
+TError TPermissionCache::ParseCheckPermissionByAclResponse(
+    const TPermissionKey& key,
+    const TMasterYPathProxy::TErrorOrRspCheckPermissionByAclPtr& rspOrError)
+{
+    if (!rspOrError.IsOK()) {
+        return rspOrError;
+    }
+    const auto& rsp = rspOrError.Value();
+
+    NApi::TCheckPermissionByAclResult result;
+    result.Action = CheckedEnumCast<ESecurityAction>(rsp->action());
+    result.SubjectId = FromProto<TSubjectId>(rsp->subject_id());
+    result.SubjectName = rsp->has_subject_name() ? std::make_optional(rsp->subject_name()) : std::nullopt;
+    result.MissingSubjects = FromProto<std::vector<TString>>(rsp->missing_subjects());
+    return result.ToError(key.User, key.Permission);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

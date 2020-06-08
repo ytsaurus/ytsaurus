@@ -1,14 +1,15 @@
-#include "clique_cache.h"
+#include "discovery_cache.h"
 
 #include "config.h"
 
 namespace NYT::NHttpProxy::NClickHouse {
 
+using namespace NScheduler;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedDiscovery::TCachedDiscovery(
-    TString key,
-    TString cliqueId,
+    TOperationId operationId,
     TDiscoveryConfigPtr config,
     NApi::IClientPtr client,
     IInvokerPtr invoker,
@@ -20,13 +21,12 @@ TCachedDiscovery::TCachedDiscovery(
         invoker,
         extraAttributes,
         logger)
-    , TAsyncCacheValueBase(key)
-    , CliqueId_(std::move(cliqueId))
+    , TAsyncCacheValueBase(operationId)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCliqueCache::TCliqueCache(TCliqueCacheConfigPtr config, const NProfiling::TProfiler& profiler)
+TDiscoveryCache::TDiscoveryCache(TDiscoveryCacheConfigPtr config, const NProfiling::TProfiler& profiler)
     : TAsyncSlruCacheBase(config->CacheBase, profiler)
 { }
 

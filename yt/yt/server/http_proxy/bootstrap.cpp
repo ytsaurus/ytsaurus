@@ -231,6 +231,11 @@ const NApi::IClientPtr& TBootstrap::GetRootClient() const
     return RootClient_;
 }
 
+const NApi::NNative::IConnectionPtr& TBootstrap::GetNativeConnection() const
+{
+    return Connection_;
+}
+
 const NDriver::IDriverPtr& TBootstrap::GetDriverV3() const
 {
     return DriverV3_;

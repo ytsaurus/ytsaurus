@@ -45,6 +45,7 @@ public:
         const TClientOptions& options);
 
 private:
+    // TODO(max42): shouldn't this be TWeakPtr?
     const IConnectionPtr Connection_;
 };
 
