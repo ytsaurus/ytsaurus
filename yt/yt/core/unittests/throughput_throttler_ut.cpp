@@ -172,6 +172,20 @@ TEST(TReconfigurableThroughputThrottlerTest, StressTest)
     EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 3000);
 }
 
+TEST(TReconfigurableThroughputThrottlerTest, TestFractionalLimit)
+{
+    auto throttler = CreateReconfigurableThroughputThrottler(
+        New<TThroughputThrottlerConfig>(0.5));
+
+    NProfiling::TWallTimer timer;
+    for (int i = 0; i < 2; ++i) {
+        throttler->Throttle(1).Get().ThrowOnError();
+    }
+    auto duration = timer.GetElapsedTime().MilliSeconds();
+    EXPECT_GE(duration, 2000);
+    EXPECT_LE(duration, 4000);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

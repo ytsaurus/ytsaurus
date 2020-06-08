@@ -7,11 +7,13 @@
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/periodic_executor.h>
 
+#include <yt/core/misc/algorithm_helpers.h>
+#include <yt/core/misc/historic_usage_aggregator.h>
+
 #include <yt/ytlib/discovery_client/discovery_client.h>
 #include <yt/ytlib/discovery_client/member_client.h>
 
-#include <yt/core/misc/algorithm_helpers.h>
-#include <yt/core/misc/historic_usage_aggregator.h>
+#include <yt/library/numeric/binary_search.h>
 
 namespace NYT::NDistributedThrottler {
 
@@ -241,7 +243,7 @@ public:
         RpcServer_->UnregisterService(this);
     }
 
-    void SetTotalLimit(const TString& throttlerId, std::optional<i64> limit)
+    void SetTotalLimit(const TString& throttlerId, std::optional<double> limit)
     {
         auto* shard = GetThrottlerShard(throttlerId);
 
@@ -249,7 +251,7 @@ public:
         shard->ThrottlerIdToTotalLimit[throttlerId] = limit;
     }
 
-    void UpdateUsageRate(const TMemberId& memberId, THashMap<TString, i64> throttlerIdToUsageRate)
+    void UpdateUsageRate(const TMemberId& memberId, THashMap<TString, double> throttlerIdToUsageRate)
     {
         std::vector<std::vector<TString>> throttlerIdsByShard(Config_->ShardCount);
         for (const auto& [throttlerId, usageRate] : throttlerIdToUsageRate) {
@@ -277,14 +279,14 @@ public:
         }
     }
 
-    THashMap<TString, std::optional<i64>> GetMemberLimits(const TMemberId& memberId, const std::vector<TString>& throttlerIds)
+    THashMap<TString, std::optional<double>> GetMemberLimits(const TMemberId& memberId, const std::vector<TString>& throttlerIds)
     {
         std::vector<std::vector<TString>> throttlerIdsByShard(Config_->ShardCount);
         for (const auto& throttlerId : throttlerIds) {
             throttlerIdsByShard[GetShardIndex(throttlerId)].push_back(throttlerId);
         }
 
-        THashMap<TString, std::optional<i64>> result;
+        THashMap<TString, std::optional<double>> result;
         for (int i = 0; i < Config_->ShardCount; ++i) {
             if (throttlerIdsByShard[i].empty()) {
                 continue;
@@ -305,7 +307,7 @@ public:
                 }
             }
 
-            auto fillLimits = [&] (const THashMap<TString, i64>& throttlerIdToLimits) {
+            auto fillLimits = [&] (const THashMap<TString, double>& throttlerIdToLimits) {
                 for (const auto& throttlerId : throttlerIdsByShard[i]) {
                     if (result.contains(throttlerId)) {
                         continue;
@@ -348,20 +350,20 @@ private:
     struct TMemberShard
     {
         TReaderWriterSpinLock LimitsLock;
-        THashMap<TMemberId, THashMap<TString, i64>> MemberIdToLimit;
+        THashMap<TMemberId, THashMap<TString, double>> MemberIdToLimit;
 
         TReaderWriterSpinLock UsageRatesLock;
-        THashMap<TMemberId, THashMap<TString, i64>> MemberIdToUsageRate;
+        THashMap<TMemberId, THashMap<TString, double>> MemberIdToUsageRate;
     };
     std::vector<TMemberShard> MemberShards_;
 
     struct TThrottlerShard
     {
         TReaderWriterSpinLock TotalLimitsLock;
-        THashMap<TString, std::optional<i64>> ThrottlerIdToTotalLimit;
+        THashMap<TString, std::optional<double>> ThrottlerIdToTotalLimit;
 
         TReaderWriterSpinLock UniformLimitLock;
-        THashMap<TString, i64> ThrottlerIdToUniformLimit;
+        THashMap<TString, double> ThrottlerIdToUniformLimit;
 
         TReaderWriterSpinLock LastUpdateTimeLock;
         THashMap<TString, TInstant> ThrottlerIdToLastUpdateTime;
@@ -378,7 +380,7 @@ private:
             memberId,
             request->throttlers().size());
 
-        THashMap<TString, i64> throttlerIdToUsageRate;
+        THashMap<TString, double> throttlerIdToUsageRate;
         for (const auto& throttler : request->throttlers()) {
             const auto& throttlerId = throttler.id();
             auto usageRate = throttler.usage_rate();
@@ -465,7 +467,7 @@ private:
         }
 
         for (auto& shard : ThrottlerShards_) {
-            THashMap<TString, i64> throttlerIdToUniformLimit;
+            THashMap<TString, double> throttlerIdToUniformLimit;
             {
                 TReaderGuard guard(shard.TotalLimitsLock);
                 for (const auto& [throttlerId, optionalTotalLimit] : shard.ThrottlerIdToTotalLimit) {
@@ -473,7 +475,7 @@ private:
                         continue;
                     }
 
-                    auto uniformLimit = std::max<i64>(1, *optionalTotalLimit / totalCount);
+                    auto uniformLimit = std::max<double>(1, *optionalTotalLimit / totalCount);
                     YT_VERIFY(throttlerIdToUniformLimit.emplace(throttlerId, uniformLimit).second);
                     YT_LOG_TRACE("Uniform distribution limit updated (ThrottlerId: %v, UniformLimit: %v)",
                         throttlerId,
@@ -501,16 +503,16 @@ private:
             return;
         }
 
-        std::vector<THashMap<TMemberId, THashMap<TString, i64>>> memberIdToLimit(Config_->ShardCount);
+        std::vector<THashMap<TMemberId, THashMap<TString, double>>> memberIdToLimit(Config_->ShardCount);
         for (auto& throttlerShard : ThrottlerShards_) {
-            THashMap<TString, std::optional<i64>> throttlerIdToTotalLimit;
+            THashMap<TString, std::optional<double>> throttlerIdToTotalLimit;
             {
                 TReaderGuard guard(throttlerShard.TotalLimitsLock);
                 throttlerIdToTotalLimit = throttlerShard.ThrottlerIdToTotalLimit;
             }
 
-            THashMap<TString, i64> throttlerIdToTotalUsage;
-            THashMap<TString, THashMap<TString, i64>> throttlerIdToUsageRates;
+            THashMap<TString, double> throttlerIdToTotalUsage;
+            THashMap<TString, THashMap<TString, double>> throttlerIdToUsageRates;
             int memberCount = 0;
 
             for (const auto& shard : MemberShards_) {
@@ -539,15 +541,15 @@ private:
                 }
                 auto totalLimit = *optionalTotalLimit;
 
-                auto defaultLimit = BinarySearch<i64>(0, totalLimit, [&, &throttlerId = throttlerId](i64 value) {
-                    i64 total = 0;
+                auto defaultLimit = FloatingPointLowerBound(0, totalLimit, [&, &throttlerId = throttlerId](double value) {
+                    double total = 0;
                     for (const auto& [memberId, usageRate] : throttlerIdToUsageRates[throttlerId]) {
                         total += Min(value, usageRate);
                     }
                     return total < totalLimit;
                 });
 
-                auto extraLimit = (Config_->ExtraLimitRatio * totalLimit + Max<i64>(0, totalLimit - totalUsageRate)) / memberCount + 1;
+                auto extraLimit = (Config_->ExtraLimitRatio * totalLimit + Max<double>(0, totalLimit - totalUsageRate)) / memberCount;
 
                 for (const auto& [memberId, usageRate] : GetOrCrash(throttlerIdToUsageRates, throttlerId)) {
                     auto newLimit = Min(usageRate, defaultLimit) + extraLimit;
@@ -770,7 +772,7 @@ private:
 
     TDistributedThrottlerServicePtr DistributedThrottlerService_;
 
-    void UpdateThroughputThrottlerLimit(const TWrappedThrottlerPtr& throttler, std::optional<i64> limit)
+    void UpdateThroughputThrottlerLimit(const TWrappedThrottlerPtr& throttler, std::optional<double> limit)
     {
         auto config = CloneYsonSerializable(throttler->GetConfig());
         config->Limit = limit;
@@ -815,7 +817,7 @@ private:
         }
 
         if (optionalCurrentLeaderId == MemberId_) {
-            THashMap<TString, i64> throttlerIdToUsageRate;
+            THashMap<TString, double> throttlerIdToUsageRate;
             for (const auto& [throttlerId, throttler] : throttlers) {
                 const auto& config = throttler->GetConfig();
                 DistributedThrottlerService_->SetTotalLimit(throttlerId, config->Limit);

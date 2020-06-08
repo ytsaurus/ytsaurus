@@ -65,7 +65,7 @@ public:
         while (true) {
             TryUpdateAvailable();
             auto available = Available_.load();
-            if (available <= 0) {
+            if (available < 0) {
                 break;
             }
             if (Available_.compare_exchange_strong(available, available - count)) {
@@ -118,7 +118,7 @@ public:
             while (true) {
                 TryUpdateAvailable();
                 auto available = Available_.load();
-                if (available <= 0) {
+                if (available < 0) {
                     return false;
                 }
                 if (Available_.compare_exchange_weak(available, available - count)) {
@@ -145,7 +145,7 @@ public:
             while (true) {
                 TryUpdateAvailable();
                 auto available = Available_.load();
-                if (available <= 0) {
+                if (available < 0) {
                     return 0;
                 }
                 i64 acquire = std::min(count, available);
@@ -235,13 +235,13 @@ private:
     NProfiling::TSimpleGauge QueueSizeCounter_;
 
     std::atomic<TInstant> LastUpdated_ = TInstant::Zero();
-    std::atomic<i64> Available_ = {0};
-    std::atomic<i64> QueueTotalCount_ = {0};
+    std::atomic<i64> Available_ = 0;
+    std::atomic<i64> QueueTotalCount_ = 0;
 
     //! Protects the section immediately following it.
     TSpinLock SpinLock_;
     // -1 indicates no limit
-    std::atomic<i64> Limit_;
+    std::atomic<double> Limit_;
     std::atomic<TDuration> Period_;
     TDelayedExecutorCookie UpdateCookie_;
 
@@ -320,7 +320,7 @@ private:
         std::vector<TThrottlerRequestPtr> readyList;
 
         auto limit = Limit_.load();
-        while (!Requests_.empty() && (limit < 0 || Available_ > 0)) {
+        while (!Requests_.empty() && (limit < 0 || Available_ >= 0)) {
             const auto& request = Requests_.front();
             if (!request->Set.test_and_set()) {
                 YT_LOG_DEBUG("Finished waiting for throttler (Count: %v)", request->Count);
