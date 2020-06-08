@@ -48,15 +48,15 @@ InvalidSchemaValue = 314
 ResolveErrorCode = 500
 AuthorizationErrorCode = 901
 UserJobProducedCoreFiles = 1206
-UnrecognizedConfigOption = 1400
-FailedToFetchDynamicConfig = 1401
-DuplicateMatchingDynamicConfigs = 1402
-UnrecognizedDynamicConfigOption = 1403
-InvalidDynamicConfig = 1405
+TabletNotMounted = 1702
 NoSuchOperation = 1915
 NoSuchJob = 1916
 NoSuchAttribute = 1920
-TabletNotMounted = 1702
+UnrecognizedConfigOption = 2500
+FailedToFetchDynamicConfig = 2501
+DuplicateMatchingDynamicConfigs = 2502
+UnrecognizedDynamicConfigOption = 2503
+InvalidDynamicConfig = 2505
 
 # See transaction_client/public.h
 SyncLastCommittedTimestamp   = 0x3fffffffffffff01
