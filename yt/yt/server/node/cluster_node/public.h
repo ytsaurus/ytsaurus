@@ -29,12 +29,12 @@ using NNodeTrackerClient::TNodeMemoryTrackerGuard;
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EErrorCode,
-    ((UnrecognizedConfigOption)              (1400))
-    ((FailedToFetchDynamicConfig)            (1401))
-    ((DuplicateMatchingDynamicConfigs)       (1402))
-    ((UnrecognizedDynamicConfigOption)       (1403))
-    ((FailedToApplyDynamicConfig)            (1404))
-    ((InvalidDynamicConfig)                  (1405))
+    ((UnrecognizedConfigOption)              (2500))
+    ((FailedToFetchDynamicConfig)            (2501))
+    ((DuplicateMatchingDynamicConfigs)       (2502))
+    ((UnrecognizedDynamicConfigOption)       (2503))
+    ((FailedToApplyDynamicConfig)            (2504))
+    ((InvalidDynamicConfig)                  (2505))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
