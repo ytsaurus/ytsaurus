@@ -13,7 +13,7 @@ class TThroughputThrottlerConfig
 {
 public:
     explicit TThroughputThrottlerConfig(
-        std::optional<i64> limit = std::nullopt,
+        std::optional<double> limit = std::nullopt,
         TDuration period = TDuration::MilliSeconds(1000))
     {
         RegisterParameter("limit", Limit)
@@ -24,7 +24,7 @@ public:
     }
 
     //! Limit on average throughput (per sec). Null means unlimited.
-    std::optional<i64> Limit;
+    std::optional<double> Limit;
 
     //! Period for which the bandwidth limit applies.
     TDuration Period;

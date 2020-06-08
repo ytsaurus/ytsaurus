@@ -5,13 +5,13 @@ package NYT.NDistributedThrottler.NProto;
 message TThrottlerUsageRate
 {
     required string id = 1;
-    required int64 usage_rate = 2;
+    required double usage_rate = 2;
 }
 
 message TThrottlerLimit
 {
     required string id = 1;
-    optional int64 limit = 2;
+    optional double limit = 2;
 }
 
 message TReqHeartbeat
