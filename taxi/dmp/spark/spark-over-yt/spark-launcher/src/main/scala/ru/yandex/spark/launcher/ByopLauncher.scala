@@ -26,7 +26,7 @@ trait ByopLauncher {
 
   private val log = Logger.getLogger(getClass)
 
-  private def waitByopStart(config: ByopConfig, process: Process, timeout: Duration): Unit = {
+  private def waitByopStart(config: ByopConfig, process: Thread, timeout: Duration): Unit = {
     val address = HostAndPort.fromParts("localhost", config.rpcPort)
     val monitoringAddress = HostAndPort.fromParts("localhost", config.monitoringPort)
     DiscoveryService.waitFor(DiscoveryService.isAlive(address, 0) || !process.isAlive, timeout)
@@ -67,18 +67,22 @@ trait ByopLauncher {
           cwd = None,
           "YT_ALLOC_CONFIG" -> "{profiling_backtrace_depth=10;enable_eager_memory_release=%true;bugs=%false}"
         ).run()
+        try {
+          val exitCode = process.exitValue()
 
-        waitByopStart(config, process, timeout)
-        if (process.isAlive()) {
-          log.info(s"Rpc proxy started on port ${config.rpcPort}, monitoring port ${config.monitoringPort}")
+          log.info(s"Rpc proxy exit code is $exitCode")
+        } catch {
+          case e: Throwable =>
+            process.destroy()
+            throw e
         }
-
-        val exitCode = process.exitValue()
-
-        log.info(s"Rpc proxy exit code is $exitCode")
       })
       thread.setDaemon(true)
       thread.start()
+      waitByopStart(config, thread, timeout)
+      if (thread.isAlive) {
+        log.info(s"Rpc proxy started on port ${config.rpcPort}, monitoring port ${config.monitoringPort}")
+      }
       BasicService("RPC Proxy", config.rpcPort, thread)
     } finally {
       log.info("Close yt rpc")
