@@ -14,7 +14,7 @@
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
-#include <library/sighandler/async_signals_handler.h>
+#include <library/cpp/sighandler/async_signals_handler.h>
 
 #include <util/folder/dirut.h>
 
