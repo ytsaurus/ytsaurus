@@ -97,9 +97,6 @@ trait SparkLauncher {
       } catch {
         case e: Throwable =>
           log.error(s"Spark failed with error: ${e.getMessage}")
-          val sw = new StringWriter
-          e.printStackTrace(new PrintWriter(sw))
-          log.error(sw.toString)
           process.destroy()
       }
     }, "Spark Thread")
