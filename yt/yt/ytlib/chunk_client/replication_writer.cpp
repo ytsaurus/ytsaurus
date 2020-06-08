@@ -995,7 +995,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
             selectedIndex = index;
         }
 
-        if (node->Descriptor.GetDefaultAddress() == GetLocalHostName()) {
+        if (IsAddressLocal(node->Descriptor.GetDefaultAddress())) {
             // If we are on the same host - this is always the best candidate.
             selectedIndex = index;
             break;
@@ -1021,7 +1021,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
         node->Descriptor.GetDefaultAddress(),
         Size_);
 
-    if (node->Descriptor.GetDefaultAddress() != GetLocalHostName()) {
+    if (!IsAddressLocal(node->Descriptor.GetDefaultAddress())) {
         auto throttleResult = WaitFor(writer->Throttler_->Throttle(Size_));
         if (!throttleResult.IsOK() && !writer->StateError_.IsSet()) {
             auto error = TError(

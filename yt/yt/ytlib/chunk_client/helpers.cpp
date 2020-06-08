@@ -38,6 +38,7 @@
 
 #include <yt/library/erasure/codec.h>
 
+#include <yt/core/net/address.h>
 #include <yt/core/net/local_address.h>
 
 #include <yt/core/misc/statistics.h>
@@ -718,6 +719,13 @@ void DumpCodecStatistics(
     for (const auto& pair : codecStatistics.CodecToDuration()) {
         statistics->AddSample(path + '/' + FormatEnum(pair.first), pair.second);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsAddressLocal(const TString& address)
+{
+    return GetServiceHostName(address) == GetLocalHostName();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
