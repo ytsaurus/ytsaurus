@@ -735,7 +735,7 @@ TEST_F(TChunkTreeTraversingTest, TestIvan)
         TReadLimit upperLimit;
         upperLimit.SetKey(BuildKey("5"));
 
-        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit, 1);
         EXPECT_EQ(
             TraverseNaively(root, false, false, lowerLimit, upperLimit),
             visitor->GetChunkInfos());
@@ -848,7 +848,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
         TReadLimit upperLimit;
         upperLimit.SetKey(BuildKey("5"));
 
-        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit, 1);
         EXPECT_EQ(TraverseNaively(root, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
 
         std::set<TChunkInfo> correctResult;
@@ -985,7 +985,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
         TReadLimit upperLimit;
         upperLimit.SetKey(BuildKey("5"));
 
-        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit, 1);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
@@ -1011,7 +1011,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
         TReadLimit upperLimit;
         upperLimit.SetKey(BuildKey("8"));
 
-        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit, 1);
 
         std::set<TChunkInfo> correctResult;
         correctResult.insert(TChunkInfo(
@@ -1099,7 +1099,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
         TReadLimit upperLimit;
         upperLimit.SetKey(BuildKey("4"));
 
-        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit, 1);
         EXPECT_EQ(TraverseNaively(root, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
 
         std::set<TChunkInfo> correctResult;
@@ -1121,7 +1121,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
         TReadLimit upperLimit;
         upperLimit.SetKey(BuildKey("5"));
 
-        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+        TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit, 1);
         EXPECT_EQ(TraverseNaively(root, false, false, lowerLimit, upperLimit), visitor->GetChunkInfos());
 
         std::set<TChunkInfo> correctResult;
@@ -1654,7 +1654,7 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamic)
             auto expected = TraverseNaively(root, false, false, lowerLimit, upperLimit);
 
             auto visitor = New<TTestChunkVisitor>();
-            TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+            TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit, 1);
 
             EXPECT_EQ(expected, visitor->GetChunkInfos());
         }
@@ -1714,7 +1714,7 @@ TEST_F(TChunkTreeTraversingStressTest, SortedDynamicThreeLevel)
             auto expected = TraverseNaively(root, false, false, lowerLimit, upperLimit);
 
             auto visitor = New<TTestChunkVisitor>();
-            TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit);
+            TraverseChunkTree(callbacks, visitor, root, lowerLimit, upperLimit, 1);
 
             EXPECT_EQ(expected, visitor->GetChunkInfos());
         }
