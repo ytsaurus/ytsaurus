@@ -13,9 +13,15 @@ public abstract class MutateNode<T extends MutateNode> extends RequestBase<T> {
     }
 
     protected MutateNode(MutateNode<?> mutateNode) {
-        transactionalOptions = new TransactionalOptions(mutateNode.transactionalOptions);
-        prerequisiteOptions = new PrerequisiteOptions(mutateNode.prerequisiteOptions);
-        mutatingOptions = new MutatingOptions(mutateNode.mutatingOptions);
+        if (mutateNode.transactionalOptions != null) {
+            transactionalOptions = new TransactionalOptions(mutateNode.transactionalOptions);
+        }
+        if (mutateNode.prerequisiteOptions != null) {
+            prerequisiteOptions = new PrerequisiteOptions(mutateNode.prerequisiteOptions);
+        }
+        if (mutateNode.mutatingOptions != null) {
+            mutatingOptions = new MutatingOptions(mutateNode.mutatingOptions);
+        }
     }
 
     public T setTransactionalOptions(TransactionalOptions to) {
