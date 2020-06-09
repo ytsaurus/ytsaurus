@@ -1062,6 +1062,27 @@ class TestSchedulerSortCommands(YTEnvSetup):
         ], unique_keys=False, strict=False)
         assert normalize_schema(get("//tmp/out2/@schema")) == schema
 
+    @authors("gritukan")
+    def test_data_flow_graph(self):
+        create("table", "//tmp/in", attributes={
+            "schema": [{"name": "x", "type": "int64"}]
+        })
+        create("table", "//tmp/out")
+
+        n = 1003
+        write_table("//tmp/in", [{"x": (42 * x) % n} for x in range(n)])
+
+        op = sort(in_="//tmp/in", out="//tmp/out", sort_by="x", spec={"partition_count" : 10})
+        op.track()
+
+        directions = {}
+        data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
+
+        data_weight = data_flow_graph["edges"]["source"]["partition"]["statistics"]["data_weight"]
+        assert data_weight > 0
+        assert data_flow_graph["edges"]["partition"]["final_sort"]["statistics"]["data_weight"] == data_weight
+        assert data_flow_graph["edges"]["final_sort"]["sink"]["statistics"]["data_weight"] == data_weight
+
 ##################################################################
 
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):

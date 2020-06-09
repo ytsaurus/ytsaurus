@@ -7,6 +7,7 @@
 #include "task_host.h"
 #include "scheduling_context.h"
 
+#include <yt/server/controller_agent/data_flow_graph.h>
 #include <yt/server/controller_agent/job_memory.h>
 
 #include <yt/server/lib/chunk_pools/helpers.h>
@@ -18,6 +19,8 @@
 #include <yt/ytlib/node_tracker_client/node_directory_builder.h>
 
 #include <yt/ytlib/job_tracker_client/statistics.h>
+
+#include <yt/ytlib/scheduler/public.h>
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
@@ -630,11 +633,17 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         YT_VERIFY(InputVertex_ != "");
 
         auto vertex = GetVertexDescriptor();
-        TaskHost_->GetDataFlowGraph()->UpdateEdgeStatistics(InputVertex_, vertex, inputStatistics);
-        // TODO(max42): rewrite this properly one day.
+
+        // TODO(gritukan): Create a virtual source task and get rid of this hack.
+        if (InputVertex_ == TDataFlowGraph::SourceDescriptor) {
+            TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(InputVertex_, vertex, inputStatistics);
+        }
+
         for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
-            if (EdgeDescriptors_[index].IsFinalOutput) {
-                TaskHost_->GetDataFlowGraph()->UpdateEdgeStatistics(
+            const auto& targetVertex = EdgeDescriptors_[index].TargetDescriptor;
+            // If target vertex is unknown it is derived class' responsibility to update statistics.
+            if (!targetVertex.empty()) {
+                TaskHost_->GetDataFlowGraph()->UpdateEdgeJobDataStatistics(
                     vertex,
                     TDataFlowGraph::SinkDescriptor,
                     outputStatisticsMap[index]);
@@ -726,6 +735,26 @@ void TTask::OnJobLost(TCompletedJobPtr completedJob)
     YT_VERIFY(LostJobCookieMap.insert(std::make_pair(
         TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool),
         completedJob->InputCookie)).second);
+}
+
+void TTask::OnChunkTeleported(const TInputChunkPtr& chunk)
+{
+    NChunkClient::NProto::TDataStatistics dataStatistics;
+
+    dataStatistics.set_uncompressed_data_size(chunk->GetUncompressedDataSize());
+    dataStatistics.set_compressed_data_size(chunk->GetCompressedDataSize());
+    dataStatistics.set_row_count(chunk->GetRowCount());
+    dataStatistics.set_chunk_count(1);
+    dataStatistics.set_data_weight(chunk->GetDataWeight());
+
+    auto vertexDescriptor = GetVertexDescriptor();
+
+    // TODO(gritukan): Create a virtual source task and get rid of this hack.
+    if (InputVertex_ == TDataFlowGraph::SourceDescriptor) {
+        TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(InputVertex_, vertexDescriptor, dataStatistics);
+    }
+
+    TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(vertexDescriptor, TDataFlowGraph::SinkDescriptor, dataStatistics);
 }
 
 void TTask::OnStripeRegistrationFailed(
@@ -1073,7 +1102,10 @@ void TTask::RegisterOutput(
 TJobResourcesWithQuota TTask::GetMinNeededResources() const
 {
     if (!CachedMinNeededResources_) {
-        YT_VERIFY(GetPendingJobCount() > 0);
+        // NB: Don't call GetMinNeededResourcesHeavy if there are no pending jobs.
+        if (GetPendingJobCount() == 0) {
+            return TJobResourcesWithQuota{};
+        }
         CachedMinNeededResources_ = GetMinNeededResourcesHeavy();
     }
     auto result = ApplyMemoryReserve(*CachedMinNeededResources_);

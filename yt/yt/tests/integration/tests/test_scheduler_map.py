@@ -1336,6 +1336,28 @@ done
                 out="<partially_sorted=%true>//tmp/t",
                 command="cat")
 
+    @authors("gritukan")
+    def test_data_flow(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat")
+        op.track()
+
+        directions = {}
+        data_flow = get(op.get_path() + "/@progress/data_flow")
+        for direction in data_flow:
+            directions[(direction["source_name"], direction["target_name"])] = direction
+
+        assert directions[("map", "output")]["job_data_statistics"]["data_weight"] == 2
+        assert directions[("map", "output")]["teleport_data_statistics"]["data_weight"] == 0
+        assert directions[("input", "map")]["job_data_statistics"]["data_weight"] == 0
+        assert directions[("input", "map")]["teleport_data_statistics"]["data_weight"] == 2
+
 ##################################################################
 
 @patch_porto_env_only(TestSchedulerMapCommands)
@@ -1764,7 +1786,6 @@ print '{hello=world}'
                 actual_content.append(new_row)
 
         assert actual_content == expected_content
-
 
 ##################################################################
 

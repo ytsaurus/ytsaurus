@@ -226,6 +226,7 @@ public:
             int taskIndex = Tasks.size();
             for (int index = 0; index < TaskOutputTables_[taskIndex].size(); ++index) {
                 edgeDescriptors.emplace_back(TaskOutputTables_[taskIndex][index]->GetEdgeDescriptorTemplate(index));
+                edgeDescriptors.back().TargetDescriptor = TDataFlowGraph::SinkDescriptor;
             }
             auto task = New<TVanillaTask>(this, taskSpec, taskName, TaskGroup_, std::move(edgeDescriptors));
             RegisterTask(task);

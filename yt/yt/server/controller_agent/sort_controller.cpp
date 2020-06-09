@@ -654,6 +654,24 @@ protected:
             return IsActive() ? TTask::GetTotalJobCount() : 0;
         }
 
+        virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
+        {
+            auto result = TTask::OnJobCompleted(joblet, jobSummary);
+
+            // There are no edge descriptors from partition task to tasks in partitions, so TTask::OnJobCompleted
+            // will not update edge statistics on these edges, so we update these edges here.
+            // TODO(gritukan): Remove it when tasks will be merged.
+            if (Controller->PartitionTask) {
+                auto partitionTaskVertex = Controller->PartitionTask->GetVertexDescriptor();
+                auto vertex = GetVertexDescriptor();
+                auto inputStatistics = GetTotalInputDataStatistics(*jobSummary.Statistics);
+
+                TaskHost_->GetDataFlowGraph()->UpdateEdgeJobDataStatistics(partitionTaskVertex, vertex, inputStatistics);
+            }
+
+            return result;
+        }
+
     protected:
         TSortControllerBase* Controller;
         TPartition* Partition;
@@ -1649,7 +1667,7 @@ protected:
         return CompletedPartitionCount == Partitions.size();
     }
 
-    virtual bool ShouldShowTasksSectionInProgress() const override
+    virtual bool ShouldShowDataFlowSectionsInProgress() const override
     {
         return false;
     }

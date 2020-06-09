@@ -240,7 +240,7 @@ void TAutoMergeTask::RegisterNewTeleportChunks()
 {
     const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
     while (RegisteredTeleportChunkCount_ < teleportChunks.size()) {
-        TaskHost_->RegisterTeleportChunk(teleportChunks[RegisteredTeleportChunkCount_++], 0 /* key */, TableIndex_);
+        TaskHost_->RegisterTeleportChunk(teleportChunks[RegisteredTeleportChunkCount_++], MakeStrong(this), 0 /* key */, TableIndex_);
         --CurrentChunkCount_;
     }
 }
