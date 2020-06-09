@@ -274,12 +274,7 @@ public:
     virtual TString GetRoot() override
     {
         auto getRoot = [&] (TString name) {
-            auto properties = WaitFor(Executor_->GetContainerProperties(
-                name,
-                std::vector<TString>{"root"}))
-                .ValueOrThrow();
-
-            return properties.at("root")
+            return *WaitFor(Executor_->GetContainerProperty(name, "root"))
                 .ValueOrThrow();
         };
 
@@ -453,23 +448,13 @@ public:
 
     virtual TString GetAbsoluteName() const override
     {
-        auto properties = WaitFor(Executor_->GetContainerProperties(
-            Name_,
-            std::vector<TString>{"absolute_name"}))
+        return *WaitFor(Executor_->GetContainerProperty(Name_, "absolute_name"))
             .ValueOrThrow();
-
-        return properties.at("absolute_name")
-             .ValueOrThrow();
     }
 
     virtual TString GetStderr() const override
     {
-        auto properties = WaitFor(Executor_->GetContainerProperties(
-            Name_,
-            std::vector<TString>{"stderr"}))
-            .ValueOrThrow();
-
-        return properties.at("stderr")
+        return *WaitFor(Executor_->GetContainerProperty(Name_, "stderr"))
             .ValueOrThrow();
     }
 
@@ -526,10 +511,9 @@ public:
 
     virtual pid_t GetPid() const override
     {
-        auto pid = WaitFor(Executor_->GetContainerProperties(Name_, std::vector<TString>{"root_pid"}))
+        auto pid = *WaitFor(Executor_->GetContainerProperty(Name_, "root_pid"))
             .ValueOrThrow();
-        return std::stoi(pid.at("root_pid")
-            .ValueOrThrow());
+        return std::stoi(pid);
     }
 
     virtual std::vector<pid_t> GetPids() const override

@@ -97,9 +97,7 @@ public:
         Instance_->SetStdOut(tty);
         Instance_->SetStdErr(tty);
 
-        // NB(gritukan, psushin): Porto is unable to resolve username inside subcontainer
-        // so we pass uid instead.
-        Instance_->SetUser(ToString(uid));
+        Instance_->SetUser(Options_->ContainerUser);
 
         Instance_->SetEnablePorto(Options_->EnablePorto ? EEnablePorto::Full : EEnablePorto::None);
         Instance_->SetIsolate(false);

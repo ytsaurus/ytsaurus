@@ -101,9 +101,11 @@ protected:
             return;
         }
 
-        TError executorError;
+        if (Uid_ > 0) {
+            SetUid(Uid_);
+        }
 
-        static const int PipePermissions = S_IRUSR | S_IRGRP | S_IROTH | S_IWUSR | S_IWGRP | S_IWOTH;
+        TError executorError;
 
         try {
             struct rlimit rlimit = {
@@ -137,8 +139,6 @@ protected:
                         SafeDup2(fd, streamFd);
                         SafeClose(fd, false);
                     }
-
-                    NFS::SetPermissions(streamFd, PipePermissions);
                 } catch (const std::exception& ex) {
                     THROW_ERROR_EXCEPTION("Failed to prepare named pipe")
                         << TErrorAttribute("path", path)
@@ -181,10 +181,6 @@ protected:
         } catch (const std::exception& ex) {
             LogToStderr(Format("Unable to notify job proxy\n%v", ex.what()));
             Exit(5);
-        }
-
-        if (Uid_ > 0) {
-            SetUid(Uid_);
         }
 
         TryExecve(

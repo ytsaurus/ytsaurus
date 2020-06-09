@@ -76,6 +76,9 @@ struct IPortoExecutor
         const TString& container,
         const TString& property,
         const TString& value) = 0;
+    virtual TFuture<std::optional<TString>> GetContainerProperty(
+        const TString& container,
+        const TString& property) = 0;
     virtual TFuture<THashMap<TString, TErrorOr<TString>>> GetContainerProperties(
         const TString& container,
         const std::vector<TString>& properties) = 0;

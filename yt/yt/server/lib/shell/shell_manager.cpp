@@ -135,19 +135,17 @@ public:
                 }
                 options->Id = TGuid::Create();
                 options->ContainerName = Format("%v/js-%v", RootInstance_->GetAbsoluteName(), options->Id.Parts32[3]);
-
 #ifdef _linux_
+                options->ContainerUser = *WaitFor(PortoExecutor_->GetContainerProperty(RootInstance_->GetAbsoluteName(), "user"))
+                    .ValueOrThrow();
                 {
-                    auto properties = WaitFor(
-                        PortoExecutor_->GetContainerProperties(
+                    auto enablePorto = WaitFor(
+                        PortoExecutor_->GetContainerProperty(
                             RootInstance_->GetAbsoluteName(),
-                            {"enable_porto"}))
+                            "enable_porto"))
                         .ValueOrThrow();
-                    if (properties.contains("enable_porto")) {
-                        auto enablePortoProperty = properties["enable_porto"];
-                        if (enablePortoProperty.IsOK() && enablePortoProperty.Value() != "none" && enablePortoProperty.Value() != "false") {
-                            options->EnablePorto = true;
-                        }
+                    if (enablePorto && enablePorto != "none" && enablePorto != "false") {
+                        options->EnablePorto = true;
                     }
                 }
 #endif

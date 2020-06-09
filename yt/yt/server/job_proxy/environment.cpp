@@ -58,7 +58,7 @@ protected:
 
     virtual ~TMemoryTrackerBase() = default;
 
-    TMemoryStatistics GetMemoryStatistics() const
+    TMemoryStatistics GetMemoryStatistics(std::vector<int> pids) const
     {
         TMemoryStatistics memoryStatistics;
         memoryStatistics.Rss = 0;
@@ -69,7 +69,7 @@ protected:
             return memoryStatistics;
         }
 
-        for (auto pid : GetPidsByUid(UserId_)) {
+        for (auto pid : pids) {
             try {
                 auto memoryUsage = GetProcessMemoryUsage(pid);
                 // RSS from /proc/pid/statm includes all pages resident to current process,
@@ -312,7 +312,7 @@ public:
             }
             return memoryStatistics;
         } else {
-            return TMemoryTrackerBase::GetMemoryStatistics();
+            return TMemoryTrackerBase::GetMemoryStatistics(Instance_->GetPids());
         }
     }
 
@@ -486,6 +486,11 @@ public:
             : Format("%v/uj_%v", SlotAbsoluteName_, jobId);
 
         auto instance = CreatePortoInstance(containerName, PortoExecutor_);
+
+        auto portoUser = *WaitFor(PortoExecutor_->GetContainerProperty(SlotAbsoluteName_, "user"))
+            .ValueOrThrow();
+        instance->SetUser(portoUser);
+
         if (RootFS_) {
             auto newPath = NFS::CombinePaths(RootFS_->RootPath, "slot");
             YT_LOG_INFO("Mount slot directory into container (Path: %v)", newPath);
