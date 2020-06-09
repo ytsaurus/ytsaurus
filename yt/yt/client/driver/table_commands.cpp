@@ -130,6 +130,11 @@ void TReadTableCommand::DoExecute(ICommandContextPtr context)
         options);
 }
 
+bool TReadTableCommand::HasResponseParameters() const
+{
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TReadBlobTableCommand::TReadBlobTableCommand()

@@ -173,16 +173,28 @@ TCoordinatorConfig::TCoordinatorConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TApiTestingOptions::TDelayInsideGet::TDelayInsideGet()
+TApiTestingOptions::TDelayBeforeCommand::TDelayBeforeCommand()
 {
     RegisterParameter("delay", Delay);
-    RegisterParameter("path", Path);
+    RegisterParameter("parameter_path", ParameterPath);
+    RegisterParameter("substring", Substring);
 }
 
 TApiTestingOptions::TApiTestingOptions()
 {
-    RegisterParameter("delay_inside_get", DelayInsideGet)
-        .Optional();
+    RegisterParameter("delay_before_command", DelayBeforeCommand)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFramingConfig::TFramingConfig()
+{
+    RegisterParameter("keep_alive_period", KeepAlivePeriod)
+        .Default(TDuration::Seconds(5));
+
+    RegisterParameter("enable", Enable)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -200,9 +212,6 @@ TApiConfig::TApiConfig()
 
     RegisterParameter("force_tracing", ForceTracing)
         .Default(false);
-
-    RegisterParameter("framing_keep_alive_period", FramingKeepAlivePeriod)
-        .Default();
 
     RegisterParameter("testing", TestingOptions)
         .Default();
@@ -276,6 +285,10 @@ TDynamicConfig::TDynamicConfig()
 
     RegisterParameter("clickhouse", ClickHouse)
         .DefaultNew();
+
+    RegisterParameter("framing", Framing)
+        .DefaultNew();
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////

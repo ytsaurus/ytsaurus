@@ -69,15 +69,15 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCreateCommand
-    : public TCommandBase
+     : public NYTree::TYsonSerializableLite
 {
 public:
     TCreateCommand();
 
+    void Execute(ICommandContextPtr context);
+
 private:
     NObjectClient::EObjectType Type;
-
-    virtual void DoExecute(ICommandContextPtr context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -6,6 +6,7 @@ import yt.packages.requests as requests
 
 import json
 import struct
+from datetime import datetime, timedelta
 
 ##################################################################
 
@@ -197,71 +198,127 @@ class TestHttpProxy(HttpProxyTestBase):
 
 
 class TestHttpProxyFraming(HttpProxyTestBase):
-    SUSPENDING_ATTRIBUTE = "magic_suspending_attribute"
+    SUSPENDING_TABLE = "//tmp/suspending_table"
+    DELAY_BEFORE_COMMAND = 10 * 1000
+    KEEP_ALIVE_PERIOD = 1 * 1000
     DELTA_PROXY_CONFIG = {
         "api": {
             "testing": {
-                "delay_inside_get": {
-                    "delay": 10 * 1000,
-                    "path": "//tmp/t1/@" + SUSPENDING_ATTRIBUTE,
+                "delay_before_command": {
+                    "get": {
+                        "delay": DELAY_BEFORE_COMMAND,
+                        "parameter_path": "/path",
+                        "substring": SUSPENDING_TABLE,
+                    },
+                    "get_table_columnar_statistics": {
+                        "delay": DELAY_BEFORE_COMMAND,
+                        "parameter_path": "/paths/0",
+                        "substring": SUSPENDING_TABLE,
+                    },
+                    "read_table": {
+                        "delay": DELAY_BEFORE_COMMAND,
+                        "parameter_path": "/path",
+                        "substring": SUSPENDING_TABLE,
+                    },
                 }
             },
-            "framing_keep_alive_period": 1 * 1000,
+            "framing_keep_alive_period": KEEP_ALIVE_PERIOD,
         },
     }
 
     FRAME_TAG_TO_NAME = {
-        0x01 : "data",
-        0x02 : "keep_alive",
+        0x01: "data",
+        0x02: "keep_alive",
     }
 
     @classmethod
     def _unframe_content(cls, content):
         result = []
         i = 0
-        while i  < len(content):
+        while i < len(content):
             tag = ord(content[i])
             i += 1
             assert tag in cls.FRAME_TAG_TO_NAME
             name = cls.FRAME_TAG_TO_NAME[tag]
             if name == "data":
-                (length,) = struct.unpack("<i", content[i : i + 4])
+                (length,) = struct.unpack("<i", content[i: i + 4])
                 i += 4
                 assert i + length <= len(content)
-                frame = content[i : i + length]
+                frame = content[i: i + length]
                 i += length
             else:
                 frame = None
             result.append((name, frame))
         return result
 
-    @authors("levysotsky")
-    def test_framing(self):
-        create("table", "//tmp/t1")
-        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
-        attribute_value = {"x": 1, "y": "qux"}
-        set("//tmp/t1/@" + self.SUSPENDING_ATTRIBUTE, attribute_value)
-        params = {
-            "path": "//tmp/t1/@" + self.SUSPENDING_ATTRIBUTE,
-        }
+    def setup(self):
+        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
+        config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
+        set("//sys/proxies/@config", {"framing": {"keep_alive_period": self.KEEP_ALIVE_PERIOD}})
+        wait(lambda: requests.get(config_url).json()["framing"]["keep_alive_period"] == self.KEEP_ALIVE_PERIOD)
+
+    def _execute_command(self, http_method, command_name, params):
         headers = {
             "X-YT-Accept-Framing": "1",
             'X-YT-Parameters': yson.dumps(params),
             'X-YT-Header-Format': "<format=text>yson",
             'X-YT-Output-Format': "<format=text>yson"
         }
-        rsp = requests.get(self._get_proxy_address() + "/api/v4/get", headers=headers)
+        start = datetime.now()
+        rsp = requests.request(
+            http_method,
+            "{}/api/v4/{}".format(self._get_proxy_address(), command_name),
+            headers=headers,
+        )
         rsp.raise_for_status()
         assert "X-YT-Framing" in rsp.headers
         unframed_content = self._unframe_content(rsp.content)
         keep_alive_frame_count = sum(name == "keep_alive" for name, frame in unframed_content)
-        assert keep_alive_frame_count >= 5
+        assert keep_alive_frame_count >= self.DELAY_BEFORE_COMMAND / self.KEEP_ALIVE_PERIOD - 3
+        assert datetime.now() - start > timedelta(milliseconds=self.DELAY_BEFORE_COMMAND)
         actual_response = b""
         for name, frame in unframed_content:
             if name == "data":
                 actual_response += frame
-        response_yson = yson.loads(actual_response)
+        return actual_response
+
+    @authors("levysotsky")
+    def test_get(self):
+        create("table", self.SUSPENDING_TABLE)
+        write_table(self.SUSPENDING_TABLE, [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+        attribute_value = {"x": 1, "y": "qux"}
+        set(self.SUSPENDING_TABLE + "/@foobar", attribute_value)
+        params = {
+            "path": self.SUSPENDING_TABLE + "/@foobar",
+        }
+        response = self._execute_command("GET", "get", params)
+        response_yson = yson.loads(response)
         assert {"value": attribute_value} == response_yson
+
+    @authors("levysotsky")
+    def test_read_table(self):
+        create("table", self.SUSPENDING_TABLE)
+        rows = [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}]
+        write_table(self.SUSPENDING_TABLE, rows)
+        params = {
+            "path": self.SUSPENDING_TABLE,
+            "output_format": "yson",
+        }
+        response = self._execute_command("GET", "read_table", params)
+        response_yson = list(yson.loads(response, yson_type="list_fragment"))
+        assert rows == response_yson
+
+    @authors("levysotsky")
+    def test_get_table_columnar_statistics(self):
+        create("table", self.SUSPENDING_TABLE)
+        write_table(self.SUSPENDING_TABLE, [{"column_1": 1, "column_2": "foo"}])
+        params = {
+            "paths": [self.SUSPENDING_TABLE + "{column_1}"],
+        }
+        response = self._execute_command("GET", "get_table_columnar_statistics", params)
+        statistics = yson.loads(response)
+        assert len(statistics) == 1
+        assert "column_data_weights" in statistics[0]
 
 
 class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):

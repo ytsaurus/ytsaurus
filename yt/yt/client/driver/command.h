@@ -76,6 +76,7 @@ protected:
     NLogging::TLogger Logger = DriverLogger;
 
     virtual void DoExecute(ICommandContextPtr context) = 0;
+    virtual bool HasResponseParameters() const;
 
     TCommandBase();
 

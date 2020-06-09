@@ -51,25 +51,39 @@ class TApiTestingOptions
     : public NYTree::TYsonSerializable
 {
 public:
-    class TDelayInsideGet
+    class TDelayBeforeCommand
         : public NYTree::TYsonSerializable
     {
     public:
         TDuration Delay;
-        TString Path;
+        TString ParameterPath;
+        TString Substring;
 
-        TDelayInsideGet();
+        TDelayBeforeCommand();
     };
-    using TDelayInsideGetPtr = TIntrusivePtr<TDelayInsideGet>;
 
 public:
-    TDelayInsideGetPtr DelayInsideGet;
+    THashMap<TString, TIntrusivePtr<TDelayBeforeCommand>> DelayBeforeCommand;
 
     TApiTestingOptions();
 };
 
 DEFINE_REFCOUNTED_TYPE(TApiTestingOptions);
-DEFINE_REFCOUNTED_TYPE(TApiTestingOptions::TDelayInsideGet);
+DEFINE_REFCOUNTED_TYPE(TApiTestingOptions::TDelayBeforeCommand);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFramingConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool Enable;
+    std::optional<TDuration> KeepAlivePeriod;
+
+    TFramingConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TFramingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,8 +97,6 @@ public:
     bool DisableCorsCheck;
 
     bool ForceTracing;
-
-    TDuration FramingKeepAlivePeriod;
 
     TApiTestingOptionsPtr TestingOptions;
 
@@ -150,6 +162,8 @@ public:
     bool RelaxCsrfCheck;
 
     NClickHouse::TDynamicClickHouseConfigPtr ClickHouse;
+
+    TFramingConfigPtr Framing;
 
     TDynamicConfig();
 };

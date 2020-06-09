@@ -87,14 +87,26 @@ void TCommandBase::Execute(ICommandContextPtr context)
         ? *RewriteOperationPathOption
         : true;
 
+    if (!HasResponseParameters()) {
+        ProduceResponseParameters(context, /* producer */ {});
+    }
+
     DoExecute(context);
+}
+
+bool TCommandBase::HasResponseParameters() const
+{
+    return false;
 }
 
 void TCommandBase::ProduceResponseParameters(
     ICommandContextPtr context,
     const std::function<void(IYsonConsumer*)>& producer)
 {
-    producer(context->Request().ResponseParametersConsumer);
+    if (producer) {
+        YT_VERIFY(HasResponseParameters());
+        producer(context->Request().ResponseParametersConsumer);
+    }
     if (context->Request().ResponseParametersFinishedCallback) {
         context->Request().ResponseParametersFinishedCallback();
     }
