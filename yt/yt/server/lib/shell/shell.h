@@ -28,6 +28,7 @@ struct TShellOptions
     std::optional<TString> Command;
     TString ContainerName;
     TGuid Id;
+    TString ContainerUser;
     bool EnablePorto = false;
 };
 

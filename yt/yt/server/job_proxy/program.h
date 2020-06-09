@@ -1,6 +1,8 @@
 #include "job_proxy.h"
 #include "private.h"
 
+#include <yt/server/lib/exec_agent/config.h>
+
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/program_cgroup_mixin.h>
 #include <yt/ytlib/program/program_config_mixin.h>
@@ -78,6 +80,13 @@ protected:
         }
 
         auto config = GetConfig();
+
+        // TODO(gritukan): Remove it after TC death.
+        if (NYTree::ConvertTo<NExecAgent::TJobEnvironmentConfigPtr>(config->JobEnvironment)->Type == NExecAgent::EJobEnvironmentType::Porto) {
+            if (!TrySetUid(0)) {
+                YT_LOG_WARNING("Failed to become root. Multiple problems with Porto environment might occur");
+            }
+        }
 
         ConfigureSingletons(config);
         StartDiagnosticDump(config);

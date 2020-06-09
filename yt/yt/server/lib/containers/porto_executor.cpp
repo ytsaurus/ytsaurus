@@ -113,6 +113,24 @@ public:
             .Run();
     }
 
+    virtual TFuture<std::optional<TString>> GetContainerProperty(
+        const TString& container,
+        const TString& property) override
+    {
+        return BIND([=, this_ = MakeStrong(this)] () -> std::optional<TString> {
+            auto response = DoGetContainerProperties({container}, {property});
+            auto parsedResponse = ParseSinglePortoGetResponse(container, response);
+            auto it = parsedResponse.find(property);
+            if (it == parsedResponse.end()) {
+                return std::nullopt;
+            } else {
+                return it->second.ValueOrThrow();
+            }
+        })
+        .AsyncVia(Queue_->GetInvoker())
+        .Run();
+    }
+
     virtual TFuture<THashMap<TString, TErrorOr<TString>>> GetContainerProperties(
         const TString& container,
         const std::vector<TString>& properties) override

@@ -36,11 +36,11 @@ TNamedPipe::~TNamedPipe()
     }
 }
 
-TNamedPipePtr TNamedPipe::Create(const TString& path)
+TNamedPipePtr TNamedPipe::Create(const TString& path, int permissions)
 {
     auto pipe = New<TNamedPipe>(path, /* owning */ true);
-    pipe->Open();
-    YT_LOG_DEBUG("Named pipe created (Path: %v)", path);
+    pipe->Open(permissions);
+    YT_LOG_DEBUG("Named pipe created (Path: %v, Permissions: %v)", path, permissions);
     return pipe;
 }
 
@@ -49,9 +49,9 @@ TNamedPipePtr TNamedPipe::FromPath(const TString& path)
     return New<TNamedPipe>(path, /* owning */ false);
 }
 
-void TNamedPipe::Open()
+void TNamedPipe::Open(int permissions)
 {
-    if (mkfifo(Path_.c_str(), 0660) == -1) {
+    if (mkfifo(Path_.c_str(), permissions) == -1) {
         THROW_ERROR_EXCEPTION("Failed to create named pipe %v", Path_)
             << TError::FromSystem();
     }

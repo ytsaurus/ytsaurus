@@ -113,7 +113,7 @@ def rndstr(n):
     return s * (n // 100)
 
 a = list()
-while len(a) * 100000 < 7e7:
+while len(a) * 100000 < 14e7:
     a.append(rndstr(100000))
 
 time.sleep(5.0)
@@ -130,7 +130,7 @@ time.sleep(5.0)
             file="//tmp/mapper.py",
             spec={ "resource_limits" : {"cpu" : 1},
                    "job_count" : job_count,
-                   "mapper" : {"memory_limit": 10**8}})
+                   "mapper" : {"memory_limit": 2 * 10**8}})
 
         time.sleep(1)
         event_log = read_table("//sys/scheduler/event_log")
@@ -143,7 +143,7 @@ time.sleep(5.0)
                     event["statistics"]["user_job"]["max_memory"]["sum"])
                 last_memory_reserve = int(event["statistics"]["user_job"]["memory_reserve"]["sum"])
         assert not last_memory_reserve is None
-        assert 5e7 <= last_memory_reserve <= 10e7
+        assert 1e8 <= last_memory_reserve <= 2e8
 
 ###############################################################################################
 

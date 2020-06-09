@@ -805,38 +805,25 @@ private:
         ValidatePrepared();
 
         if (!InterruptionSignalSent_.exchange(true) && UserJobSpec_.has_interruption_signal()) {
-            YT_LOG_DEBUG("Sending interruption signal to user job (SignalName: %v)",
-                UserJobSpec_.interruption_signal());
             try {
-                auto signalerConfig = New<TSignalerConfig>();
-                signalerConfig->SignalName = UserJobSpec_.interruption_signal();
+                std::vector<int> pids;
                 if (UserJobEnvironment_) {
 #ifdef _linux_
-                    signalerConfig->Pids = UserJobEnvironment_->GetUserJobInstance()->GetPids();
+                    pids = UserJobEnvironment_->GetUserJobInstance()->GetPids();
 #endif
                 } else {
                     // Fallback for non-sudo tests run.
                     auto pid = Process_->GetProcessId();
-                    signalerConfig->Pids = GetPidsUnderParent(pid);
+                    pids = GetPidsUnderParent(pid);
                 }
 
-                // TODO(gritukan): Remove it.
-                YT_LOG_DEBUG("Sending signal to used job (SignalName: %v, Pids: %v)",
-                    signalerConfig->SignalName,
-                    signalerConfig->Pids);
-                {
-                    TShellCommand listProcessesCommand(Format("bash -c \"ps aux\""));
-                    listProcessesCommand.Run();
-                    listProcessesCommand.Wait();
-                    YT_LOG_DEBUG("ps aux output (Output: %v)", listProcessesCommand.GetOutput());
-                }                
+                auto signal = UserJobSpec_.interruption_signal();
 
-                WaitFor(BIND([=] () {
-                    return RunTool<TSignalerTool>(signalerConfig);
-                })
-                    .AsyncVia(AuxQueue_->GetInvoker())
-                    .Run())
-                    .ThrowOnError();
+                YT_LOG_DEBUG("Sending interruption signal to user job (SignalName: %v, UserJobPids: %v)",
+                    signal,
+                    pids);
+
+                SendSignal(pids, signal);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to send interruption signal to user job");
             }
@@ -932,7 +919,7 @@ private:
         std::vector<TCallback<void()>>* actions,
         const TError& wrappingError)
     {
-        auto pipe = TNamedPipe::Create(CreateNamedPipePath());
+        auto pipe = TNamedPipe::Create(CreateNamedPipePath(), 0666);
 
         for (auto jobDescriptor : jobDescriptors) {
             // Since inside job container we see another rootfs, we must adjust pipe path.
@@ -971,7 +958,7 @@ private:
     {
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
-        auto pipe = TNamedPipe::Create(InputPipePath_);
+        auto pipe = TNamedPipe::Create(InputPipePath_, 0666);
         TNamedPipeConfig pipeId(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
         Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).GetData()});
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
@@ -1432,7 +1419,6 @@ private:
 
         auto getMemoryUsage = [&] () {
             try {
-
                 if (UserJobEnvironment_) {
                     auto memoryStatistics = UserJobEnvironment_->GetMemoryStatistics();
 
@@ -1440,6 +1426,7 @@ private:
                     rss += memoryStatistics.Rss;
                     return rss;
                 } else {
+                    // Fallback for non-Porto environment.
                     return GetMemoryUsageByUid(*UserId_, Process_->GetProcessId());
                 }
             } catch (const std::exception& ex) {

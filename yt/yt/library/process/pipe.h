@@ -15,7 +15,7 @@ class TNamedPipe
 {
 public:
     ~TNamedPipe();
-    static TNamedPipePtr Create(const TString& path);
+    static TNamedPipePtr Create(const TString& path, int permissions = 0660);
     static TNamedPipePtr FromPath(const TString& path);
 
     NNet::IConnectionReaderPtr CreateAsyncReader();
@@ -31,7 +31,7 @@ private:
     const bool Owning_;
 
     explicit TNamedPipe(const TString& path, bool owning);
-    void Open();
+    void Open(int permissions);
     DECLARE_NEW_FRIEND();
 };
 
