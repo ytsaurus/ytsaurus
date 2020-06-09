@@ -1874,7 +1874,7 @@ TCodegenExpression MakeCodegenBetweenExpr(
         comparerManager = std::move(comparerManager)
     ] (TCGExprContext& builder) {
         size_t keySize = argIds.size();
-    
+
         Value* newValues = CodegenAllocateValues(builder, keySize);
 
         std::vector<EValueType> keyTypes;
@@ -2094,140 +2094,6 @@ std::tuple<size_t, size_t, size_t> MakeCodegenSplitterOp(
     return std::make_tuple(finalConsumerSlot, intermediateConsumerSlot, totalsConsumerSlot);
 }
 
-size_t MakeCodegenJoinOp(
-    TCodegenSource* codegenSource,
-    size_t* slotCount,
-    size_t producerSlot,
-    int index,
-    TCodegenFragmentInfosPtr fragmentInfos,
-    std::vector<std::pair<size_t, bool>> equations,
-    size_t commonKeyPrefix,
-    size_t foreignKeyPrefix,
-    TComparerManagerPtr comparerManager)
-{
-    size_t consumerSlot = (*slotCount)++;
-    *codegenSource = [
-        =,
-        codegenSource = std::move(*codegenSource),
-        fragmentInfos = std::move(fragmentInfos),
-        equations = std::move(equations),
-        comparerManager = std::move(comparerManager)
-    ] (TCGOperatorContext& builder) {
-        int lookupKeySize = equations.size();
-        // TODO(lukyan): Do not fill in consumer
-        std::vector<EValueType> lookupKeyTypes(lookupKeySize);
-
-        auto collectRows = MakeClosure<void(TJoinClosure*, TExpressionContext*)>(builder, "CollectRows", [&] (
-            TCGOperatorContext& builder,
-            Value* joinClosure,
-            Value* buffer
-        ) {
-            Value* keyPtr = builder->CreateAlloca(TTypeBuilder<TValue*>::Get(builder->getContext()));
-            builder->CreateCall(
-                builder.Module->GetRoutine("AllocatePermanentRow"),
-                {
-                    builder.GetExecutionContext(),
-                    buffer,
-                    builder->getInt32(lookupKeySize),
-                    keyPtr
-                });
-
-            Value* expressionClosurePtr = builder->CreateAlloca(
-                TClosureTypeBuilder::Get(builder->getContext(), fragmentInfos->Functions.size()),
-                nullptr,
-                "expressionClosurePtr");
-
-            builder[producerSlot] = [&] (TCGContext& builder, Value* values) {
-                Value* keyPtrRef = builder->ViaClosure(keyPtr);
-                Value* keyRef = builder->CreateLoad(keyPtrRef);
-
-                auto rowBuilder = TCGExprContext::Make(
-                    builder,
-                    *fragmentInfos,
-                    values,
-                    builder.Buffer,
-                    builder->ViaClosure(expressionClosurePtr));
-
-                for (int column = 0; column < lookupKeySize; ++column) {
-                    if (!equations[column].second) {
-                        auto joinKeyValue = CodegenFragment(rowBuilder, equations[column].first);
-                        lookupKeyTypes[column] = joinKeyValue.GetStaticType();
-                        joinKeyValue.StoreToValues(rowBuilder, keyRef, column);
-                    }
-                }
-
-                TCGExprContext evaluatedColumnsBuilder(builder, TCGExprData{
-                    *fragmentInfos,
-                    rowBuilder.Buffer,
-                    keyRef,
-                    rowBuilder.ExpressionClosurePtr});
-
-                for (int column = 0; column < lookupKeySize; ++column) {
-                    if (equations[column].second) {
-                        auto evaluatedColumn = CodegenFragment(
-                            evaluatedColumnsBuilder,
-                            equations[column].first);
-                        lookupKeyTypes[column] = evaluatedColumn.GetStaticType();
-                        evaluatedColumn.StoreToValues(evaluatedColumnsBuilder, keyRef, column);
-                    }
-                }
-
-                Value* joinClosureRef = builder->ViaClosure(joinClosure);
-
-                builder->CreateCall(
-                    builder.Module->GetRoutine("InsertJoinRow"),
-                    {
-                        builder.GetExecutionContext(),
-                        joinClosureRef,
-                        keyPtrRef,
-                        values
-                    });
-
-                return builder->getFalse();
-            };
-
-            codegenSource(builder);
-
-            builder->CreateRetVoid();
-        });
-
-        auto consumeJoinedRows = MakeConsumer(builder, "ConsumeJoinedRows", consumerSlot);
-
-        const auto& module = builder.Module;
-
-        builder->CreateCall(
-            module->GetRoutine("JoinOpHelper"),
-            {
-                builder.GetExecutionContext(),
-                builder.GetOpaqueValue(index),
-
-                comparerManager->GetHasher(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
-
-                comparerManager->GetEqComparer(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
-                comparerManager->GetLessComparer(lookupKeyTypes, module, commonKeyPrefix, lookupKeyTypes.size()),
-                comparerManager->GetEqComparer(lookupKeyTypes, module, 0, commonKeyPrefix),
-
-                comparerManager->GetEqComparer(lookupKeyTypes, module, 0, foreignKeyPrefix),
-                comparerManager->GetLessComparer(lookupKeyTypes, module, foreignKeyPrefix, lookupKeyTypes.size()),
-
-                comparerManager->GetTernaryComparer(lookupKeyTypes, module),
-
-                comparerManager->GetHasher(lookupKeyTypes, module),
-                comparerManager->GetEqComparer(lookupKeyTypes, module),
-
-                builder->getInt32(lookupKeySize),
-
-                collectRows.ClosurePtr,
-                collectRows.Function,
-
-                consumeJoinedRows.ClosurePtr,
-                consumeJoinedRows.Function
-            });
-    };
-
-    return consumerSlot;
-}
-
 size_t MakeCodegenMultiJoinOp(
     TCodegenSource* codegenSource,
     size_t* slotCount,
@@ -2247,7 +2113,7 @@ size_t MakeCodegenMultiJoinOp(
         primaryColumns = std::move(primaryColumns),
         comparerManager = std::move(comparerManager)
     ] (TCGOperatorContext& builder) {
-        auto collectRows = MakeClosure<void(TJoinClosure*, TExpressionContext*)>(builder, "CollectRows", [&] (
+        auto collectRows = MakeClosure<void(TMultiJoinClosure*, TExpressionContext*)>(builder, "CollectRows", [&] (
             TCGOperatorContext& builder,
             Value* joinClosure,
             Value* buffer

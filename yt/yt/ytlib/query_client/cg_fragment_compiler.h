@@ -177,17 +177,6 @@ size_t MakeCodegenFilterFinalizedOp(
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<EValueType> stateTypes);
 
-size_t MakeCodegenJoinOp(
-    TCodegenSource* codegenSource,
-    size_t* slotCount,
-    size_t slot,
-    int index,
-    TCodegenFragmentInfosPtr fragmentInfos,
-    std::vector<std::pair<size_t, bool>> equations,
-    size_t commonKeyPrefix,
-    size_t foreignKeyPrefix,
-    TComparerManagerPtr comparerManager);
-
 struct TSingleJoinCGParameters
 {
     std::vector<std::pair<size_t, bool>> Equations;

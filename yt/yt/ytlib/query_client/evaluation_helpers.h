@@ -104,20 +104,6 @@ using TJoinLookupRows = std::unordered_multiset<
 
 struct TExecutionContext;
 
-struct TJoinParameters
-{
-    bool IsOrdered;
-    bool IsLeft;
-    bool IsSortMergeJoin;
-    bool IsPartiallySorted;
-    std::vector<size_t> SelfColumns;
-    std::vector<size_t> ForeignColumns;
-    TJoinSubqueryEvaluator ExecuteForeign;
-    size_t BatchSize;
-    size_t CommonKeyPrefixDebug;
-    size_t PrimaryRowSize;
-};
-
 struct TSingleJoinParameters
 {
     size_t KeySize;
@@ -132,40 +118,6 @@ struct TMultiJoinParameters
     SmallVector<TSingleJoinParameters, 10> Items;
     size_t PrimaryRowSize;
     size_t BatchSize;
-};
-
-struct TChainedRow
-{
-    const TValue* Row;
-    const TValue* Key;
-    int NextRowIndex;
-};
-
-struct TJoinClosure
-{
-    TRowBufferPtr Buffer;
-    TJoinLookup Lookup;
-    std::vector<TChainedRow> ChainedRows;
-
-    TComparerFunction* PrefixEqComparer;
-    int KeySize;
-
-    const TValue* LastKey = nullptr;
-    std::vector<std::pair<const TValue*, int>> KeysToRows;
-    size_t CommonKeyPrefixDebug;
-    size_t PrimaryRowSize;
-
-    size_t BatchSize;
-    std::function<void()> ProcessJoinBatch;
-    std::function<void()> ProcessSegment;
-
-    TJoinClosure(
-        THasherFunction* lookupHasher,
-        TComparerFunction* lookupEqComparer,
-        TComparerFunction* prefixEqComparer,
-        int keySize,
-        int primaryRowSize,
-        size_t batchSize);
 };
 
 struct TMultiJoinClosure

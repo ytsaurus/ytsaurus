@@ -142,26 +142,6 @@ std::vector<const TValue*> TTopCollector::GetRows() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJoinClosure::TJoinClosure(
-    THasherFunction* lookupHasher,
-    TComparerFunction* lookupEqComparer,
-    TComparerFunction* prefixEqComparer,
-    int keySize,
-    int primaryRowSize,
-    size_t batchSize)
-    : Buffer(New<TRowBuffer>(TPermanentBufferTag()))
-    , Lookup(
-        InitialGroupOpHashtableCapacity,
-        lookupHasher,
-        lookupEqComparer)
-    , PrefixEqComparer(prefixEqComparer)
-    , KeySize(keySize)
-    , PrimaryRowSize(primaryRowSize)
-    , BatchSize(batchSize)
-{
-    Lookup.set_empty_key(nullptr);
-}
-
 TMultiJoinClosure::TItem::TItem(
     IMemoryChunkProviderPtr chunkProvider,
     size_t keySize,

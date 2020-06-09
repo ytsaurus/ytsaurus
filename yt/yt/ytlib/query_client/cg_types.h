@@ -23,8 +23,6 @@ using NYT::NQueryClient::TLookupRows;
 using NYT::NQueryClient::TJoinLookup;
 using NYT::NQueryClient::TJoinLookupRows;
 using NYT::NQueryClient::TTopCollector;
-using NYT::NQueryClient::TJoinParameters;
-using NYT::NQueryClient::TJoinClosure;
 using NYT::NQueryClient::TGroupByClosure;
 using NYT::NQueryClient::TWriteOpClosure;
 using NYT::NQueryClient::TExpressionClosure;
@@ -45,11 +43,6 @@ struct TTypeBuilder<bool>
 // Opaque types
 template <>
 struct TTypeBuilder<TWriteOpClosure*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TJoinClosure*>
     : public TTypeBuilder<void*>
 { };
 
@@ -125,11 +118,6 @@ struct TTypeBuilder<TSharedRange<TRow>*>
 
 template <>
 struct TTypeBuilder<TSharedRange<TRowRange>*>
-    : public TTypeBuilder<void*>
-{ };
-
-template <>
-struct TTypeBuilder<TJoinParameters*>
     : public TTypeBuilder<void*>
 { };
 
