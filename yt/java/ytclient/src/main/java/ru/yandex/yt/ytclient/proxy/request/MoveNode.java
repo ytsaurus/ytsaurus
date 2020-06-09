@@ -12,7 +12,7 @@ public class MoveNode extends CopyLikeReq<MoveNode> {
     }
 
     public MoveNode(YPath src, YPath dst) {
-        this(src.toString(), dst.toString());
+        this(src.justPath().toString(), dst.justPath().toString());
     }
 
     public MoveNode(MoveNode moveNode) {
