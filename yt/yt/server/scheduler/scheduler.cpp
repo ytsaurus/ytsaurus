@@ -3378,6 +3378,15 @@ private:
         if (operation->RevivalDescriptor()->ShouldCommitOutputTransaction) {
             WaitFor(operation->Transactions()->OutputTransaction->Commit())
                 .ThrowOnError();
+            // We don't know whether debug transaction is committed.
+            if (operation->Transactions()->DebugTransaction) {
+                Y_UNUSED(operation->Transactions()->DebugTransaction->Commit());
+            }
+            for (auto transaction : {operation->Transactions()->InputTransaction, operation->Transactions()->AsyncTransaction}) {
+                if (transaction) {
+                    Y_UNUSED(transaction->Abort());
+                }
+            }
         }
 
         SetOperationFinalState(operation, EOperationState::Completed, TError());
@@ -3425,12 +3434,13 @@ private:
         };
 
         const auto& transactions = *operation->Transactions();
-        abortTransaction(transactions.AsyncTransaction, "Async");
         abortTransaction(transactions.InputTransaction, "Input");
-        abortTransaction(transactions.OutputTransaction, "Output");
         for (const auto& transaction : transactions.NestedInputTransactions) {
             abortTransaction(transaction, "NestedInput");
         }
+        abortTransaction(transactions.OutputTransaction, "Output");
+        abortTransaction(transactions.AsyncTransaction, "Async");
+        abortTransaction(transactions.DebugTransaction, "Debug");
 
         SetOperationFinalState(operation, EOperationState::Aborted, error);
 
