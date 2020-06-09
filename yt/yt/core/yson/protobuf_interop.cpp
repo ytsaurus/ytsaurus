@@ -367,7 +367,7 @@ public:
 
     TProtobufElement GetElement(bool insideRepeated) const;
 
-    const std::optional<TProtobufMessageBytesFieldConverter>& GetConverter() const
+    const std::optional<TProtobufMessageBytesFieldConverter>& GetBytesFieldConverter() const
     {
         return Converter_;
     }
@@ -1533,11 +1533,11 @@ private:
         }
 
         const auto* field = FieldStack_.back().Field;
-        if (field->GetConverter()) {
+        if (field->GetBytesFieldConverter()) {
             if (field->IsRepeated() && !FieldStack_.back().ParsingList) {
                 return;
             }
-            const auto& converter = *field->GetConverter();
+            const auto& converter = *field->GetBytesFieldConverter();
             TreeBuilder_->BeginTree();
             Forward(TreeBuilder_.get(), [this, converter] {
                 auto node = TreeBuilder_->EndTree();
@@ -2212,8 +2212,8 @@ private:
                         }
                         TStringBuf data(PooledString_.data(), length);
                         ParseScalar([&] {
-                            if (field->GetConverter()) {
-                                const auto& converter = *field->GetConverter();
+                            if (field->GetBytesFieldConverter()) {
+                                const auto& converter = *field->GetBytesFieldConverter();
                                 converter.Serializer(Consumer_, data);
                             } else if (field->IsYsonString()) {
                                 Consumer_->OnRaw(data, NYson::EYsonType::Node);
