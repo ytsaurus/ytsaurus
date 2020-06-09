@@ -26,19 +26,6 @@ namespace {
 
 using NDetail::EProtobufType;
 
-TString GetColumnName(const FieldDescriptor& field) {
-    const auto& options = field.options();
-    const auto columnName = options.GetExtension(column_name);
-    if (!columnName.empty()) {
-        return columnName;
-    }
-    const auto keyColumnName = options.GetExtension(key_column_name);
-    if (!keyColumnName.empty()) {
-        return keyColumnName;
-    }
-    return field.name();
-}
-
 enum class EProtobufSerializationMode
 {
     Protobuf,
@@ -243,6 +230,20 @@ TString DeduceProtobufType(
             return fieldDescriptor->type_name();
     }
     Y_FAIL();
+}
+
+TString GetColumnName(const ::google::protobuf::FieldDescriptor& field)
+{
+    const auto& options = field.options();
+    const auto columnName = options.GetExtension(column_name);
+    if (!columnName.empty()) {
+        return columnName;
+    }
+    const auto keyColumnName = options.GetExtension(key_column_name);
+    if (!keyColumnName.empty()) {
+        return keyColumnName;
+    }
+    return field.name();
 }
 
 TNode MakeProtoFormatMessageFieldsConfig(
@@ -453,6 +454,38 @@ TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMaybe<TVector<TString>> InferColumnFilter(const ::google::protobuf::Descriptor& descriptor)
+{
+    auto isOtherColumns = [] (const ::google::protobuf::FieldDescriptor& field) {
+        TProtobufFieldOptions options;
+        ParseProtobufFieldOptions(
+            field.options().GetRepeatedExtension(flags),
+            &options);
+        return options.Type == EProtobufType::OtherColumns;
+    };
+
+    TVector<TString> result;
+    result.reserve(descriptor.field_count());
+    for (int i = 0; i < descriptor.field_count(); ++i) {
+        const auto& field = *descriptor.field(i);
+        if (isOtherColumns(field)) {
+            return {};
+        }
+        result.push_back(GetColumnName(field));
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

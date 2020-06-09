@@ -1010,6 +1010,20 @@ REGISTER_REDUCER(TReducerCount);
 
 /////////////////////////////////////////////////////////////////////////////
 
+class TIdTRowVer2Mapper : public IMapper<TTableReader<NProtoBuf::Message>, TTableWriter<TRowVer2>>
+{
+    virtual void Do(TReader* reader, TWriter* writer) override
+    {
+        for (auto& cursor : *reader) {
+            writer->AddRow(cursor.GetRow<TRowVer2>());
+        }
+    }
+};
+
+REGISTER_MAPPER(TIdTRowVer2Mapper)
+
+////////////////////////////////////////////////////////////////////////////////
+
 Y_UNIT_TEST_SUITE(Operations)
 {
     void TestRenameColumns(ENodeReaderFormat nodeReaderFormat)
@@ -2280,7 +2294,7 @@ Y_UNIT_TEST_SUITE(Operations)
     template<typename TUrlRow, typename TGoodUrl, typename THostRow, class TMapper, class TReducer>
     void TestMapReduceMapOutput()
     {
-       TTestFixture fixture;
+        TTestFixture fixture;
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
         {
@@ -4622,6 +4636,121 @@ Y_UNIT_TEST_SUITE(Operations)
         }
 
         UNIT_ASSERT_VALUES_EQUAL(expected, result);
+    }
+
+    Y_UNIT_TEST(ProtobufColumnFilter)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        const auto inputTable = TRichYPath(workingDir + "/input");
+        const auto outputTable = TRichYPath(workingDir + "/output");
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable);
+            writer->AddRow(TNode()("bar", 1)("foo", 1)("Host", "ya.ru")("Path", "/")("HttpCode", 404)("spam", 1));
+            writer->Finish();
+        }
+
+        client->Sort(inputTable, inputTable, {"HttpCode", "foo"});
+
+        auto check = [&](IOperationPtr op, const THashSet<TString>& expectedColumns, const TVector<TNode>& expectedRows) {
+            auto rows = ReadTable(client, outputTable.Path_);
+            UNIT_ASSERT_VALUES_EQUAL(rows, expectedRows);
+
+            TVector<TRichYPath> paths;
+            Deserialize(paths, op->GetAttributes().Spec->At("input_table_paths"));
+            for (const auto& path : paths) {
+                THashSet<TString> columns;
+                if (path.Columns_) {
+                    columns.insert(path.Columns_->Parts_.begin(), path.Columns_->Parts_.end());
+                }
+                UNIT_ASSERT_VALUES_EQUAL(columns, expectedColumns);
+            }
+        };
+
+        check(
+            client->MapReduce(
+                TMapReduceOperationSpec()
+                    .AddInput<TUrlRow>(inputTable)
+                    .AddOutput<TUrlRow>(outputTable)
+                    .ReduceBy({"HttpCode", "foo"})
+                    .SortBy({"HttpCode", "foo", "bar"}),
+                new TUrlRowIdMapper,
+                new TUrlRowIdReducer),
+            {"HttpCode", "Host", "Path", "foo", "bar"},
+            {TNode()("Host", "ya.ru")("Path", "/")("HttpCode", 404)});
+
+        auto inputTableFiltered = TRichYPath(inputTable).Columns({"HttpCode", "Path"});
+        check(
+            client->MapReduce(
+                TMapReduceOperationSpec()
+                    .AddInput<TUrlRow>(inputTableFiltered)
+                    .AddOutput<TUrlRow>(outputTable)
+                    .ReduceBy({"HttpCode", "foo"}),
+                nullptr,
+                new TUrlRowIdReducer),
+            {"HttpCode", "Path"},
+            {TNode()("HttpCode", 404)("Path", "/")});
+
+        check(
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TUrlRow>(inputTable)
+                    .AddOutput<TUrlRow>(outputTable),
+                new TUrlRowIdMapper),
+            {"HttpCode", "Path", "Host"},
+            {TNode()("HttpCode", 404)("Path", "/")("Host", "ya.ru")});
+
+        check(
+            client->Reduce(
+                TReduceOperationSpec()
+                    .AddInput<TUrlRow>(inputTable)
+                    .AddOutput<TUrlRow>(outputTable)
+                    .ReduceBy({"HttpCode", "foo"}),
+                new TUrlRowIdReducer),
+            {"HttpCode", "Path", "Host", "foo"},
+            {TNode()("HttpCode", 404)("Path", "/")("Host", "ya.ru")});
+
+        check(
+            client->JoinReduce(
+                TJoinReduceOperationSpec()
+                    .AddInput<TUrlRow>(TRichYPath(inputTable).Foreign(true))
+                    .AddInput<TUrlRow>(inputTable)
+                    .AddOutput<TUrlRow>(outputTable)
+                    .JoinBy({"HttpCode", "foo"}),
+                new TUrlRowIdReducer),
+            {"HttpCode", "Path", "Host", "foo"},
+            {
+                TNode()("HttpCode", 404)("Path", "/")("Host", "ya.ru"),
+                TNode()("HttpCode", 404)("Path", "/")("Host", "ya.ru"),
+            });
+
+        const auto dynamicTable = workingDir + "/dynamic_input";
+        const auto schema = TTableSchema()
+            .AddColumn(TColumnSchema().Name("String_1").Type(VT_STRING).SortOrder(SO_ASCENDING))
+            .AddColumn(TColumnSchema().Name("Uint32_2").Type(VT_UINT32))
+            .AddColumn(TColumnSchema().Name("Extra").Type(VT_STRING));
+        client->Create(
+            dynamicTable,
+            NT_TABLE,
+            TCreateOptions().Attributes(TNode()("dynamic", true)("schema", schema.ToNode())));
+
+        client->MountTable(dynamicTable);
+        WaitForTabletsState(client, dynamicTable, TS_MOUNTED);
+        client->InsertRows(dynamicTable, {TNode()("String_1", "str")("Uint32_2", 1U)("Extra", "extra")});
+        client->UnmountTable(dynamicTable);
+        WaitForTabletsState(client, dynamicTable, TS_UNMOUNTED);
+
+        // Note that column filter is empty for a dynamic table.
+        check(
+            client->Map(
+                TMapOperationSpec()
+                    .AddInput<TRowVer2>(dynamicTable)
+                    .AddOutput<TRowVer2>(outputTable),
+                new TIdTRowVer2Mapper),
+            {},
+            {TNode()("String_1", "str")("Uint32_2", 1U)});
     }
 
 } // Y_UNIT_TEST_SUITE(Operations)

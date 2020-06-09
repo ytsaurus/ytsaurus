@@ -51,6 +51,8 @@
 
 #include <util/folder/path.h>
 
+#include <util/generic/hash_set.h>
+
 #include <util/stream/buffer.h>
 #include <util/stream/file.h>
 
@@ -240,6 +242,89 @@ ENodeReaderFormat GetNodeReaderFormat(const TSpec& spec, bool allowSkiff)
     }
 }
 
+THashSet<TString> GetColumnsUsedInOperation(const TJoinReduceOperationSpec& spec)
+{
+    return THashSet<TString>(spec.JoinBy_.Parts_.begin(), spec.JoinBy_.Parts_.end());
+}
+
+THashSet<TString> GetColumnsUsedInOperation(const TReduceOperationSpec& spec) {
+    THashSet<TString> result(spec.SortBy_.Parts_.begin(), spec.SortBy_.Parts_.end());
+    result.insert(spec.ReduceBy_.Parts_.begin(), spec.ReduceBy_.Parts_.end());
+    if (spec.JoinBy_) {
+        result.insert(spec.JoinBy_->Parts_.begin(), spec.JoinBy_->Parts_.end());
+    }
+    return result;
+}
+
+THashSet<TString> GetColumnsUsedInOperation(const TMapReduceOperationSpec& spec)
+{
+    THashSet<TString> result(spec.SortBy_.Parts_.begin(), spec.SortBy_.Parts_.end());
+    result.insert(spec.ReduceBy_.Parts_.begin(), spec.ReduceBy_.Parts_.end());
+    return result;
+}
+
+THashSet<TString> GetColumnsUsedInOperation(const TMapOperationSpec&)
+{
+    return THashSet<TString>();
+}
+
+THashSet<TString> GetColumnsUsedInOperation(const TVanillaTask&)
+{
+    return THashSet<TString>();
+}
+
+template <class TSpec>
+TStructuredJobTableList ApplyProtobufColumnFilters(
+    const TStructuredJobTableList& tableList,
+    const TOperationPreparer& preparer,
+    const TSpec& spec,
+    const TOperationOptions& options)
+{
+    bool hasInputQuery = options.Spec_.Defined() && options.Spec_->IsMap() && options.Spec_->HasKey("input_query");
+    if (hasInputQuery) {
+        return tableList;
+    }
+
+    TVector<bool> isDynamic(tableList.size());
+    TRawBatchRequest batchRequest;
+    for (size_t tableIndex = 0; tableIndex < tableList.size(); ++tableIndex) {
+        const auto& table = tableList[tableIndex];
+        batchRequest.Get(preparer.GetTransactionId(), table.RichYPath->Path_ + "/@dynamic", TGetOptions())
+            .Subscribe([&, tableIndex] (const NThreading::TFuture<TNode>& node) {
+                isDynamic[tableIndex] = node.GetValueSync().AsBool();
+            });
+    }
+    ExecuteBatch(CreateDefaultRequestRetryPolicy(), preparer.GetAuth(), batchRequest);
+
+    auto newTableList = tableList;
+    auto columnsUsedInOperations = GetColumnsUsedInOperation(spec);
+    for (size_t tableIndex = 0; tableIndex < tableList.size(); ++tableIndex) {
+        if (isDynamic[tableIndex]) {
+            continue;
+        }
+        auto& table = newTableList[tableIndex];
+        Y_VERIFY(table.RichYPath);
+        if (table.RichYPath->Columns_) {
+            continue;
+        }
+        if (!HoldsAlternative<TProtobufTableStructure>(table.Description)) {
+            continue;
+        }
+        const auto& descriptor = ::Get<TProtobufTableStructure>(table.Description).Descriptor;
+        if (!descriptor) {
+            continue;
+        }
+        auto fromDescriptor = NDetail::InferColumnFilter(*descriptor);
+        if (!fromDescriptor) {
+            continue;
+        }
+        THashSet<TString> columns(fromDescriptor->begin(), fromDescriptor->end());
+        columns.insert(columnsUsedInOperations.begin(), columnsUsedInOperations.end());
+        table.RichYPath->Columns(TVector<TString>(columns.begin(), columns.end()));
+    }
+    return newTableList;
+}
+
 template <class TSpec>
 TSimpleOperationIo CreateSimpleOperationIo(
     const IStructuredJob& structuredJob,
@@ -298,10 +383,22 @@ TSimpleOperationIo CreateSimpleOperationIo(
 
     const bool inferOutputSchema = options.InferOutputSchema_.GetOrElse(TConfig::Get()->InferTableSchema);
 
-    auto outputPaths = GetPathList(structuredOutputs, jobSchemaInferenceResult, inferOutputSchema);
+    auto outputPaths = GetPathList(
+        structuredOutputs,
+        jobSchemaInferenceResult,
+        inferOutputSchema);
+
+    auto inputPaths = GetPathList(
+        ApplyProtobufColumnFilters(
+            structuredInputs,
+            preparer,
+            spec,
+            options),
+        /*schemaInferenceResult*/ Nothing(),
+        /*inferSchema*/ false);
 
     return TSimpleOperationIo {
-        GetPathList(structuredInputs, /*schemaInferenceResult*/ Nothing(), /*inferSchema*/ false),
+        inputPaths,
         outputPaths,
 
         inputFormat,
@@ -1986,9 +2083,20 @@ TOperationId ExecuteMapReduce(
         fixSpec(operationIo.ReducerInputFormat);
     }
 
-    operationIo.Inputs = GetPathList(structuredInputs, /*jobSchemaInferenceResult*/ Nothing(), /*inferSchema*/ false);
+    operationIo.Inputs = GetPathList(
+        ApplyProtobufColumnFilters(
+            structuredInputs,
+            preparer,
+            spec,
+            options),
+        /* jobSchemaInferenceResult */ Nothing(),
+        /* inferSchema */ false);
 
-    operationIo.Outputs = GetPathList(structuredOutputs, reducerInferenceResult, inferOutputSchema);
+    operationIo.Outputs = GetPathList(
+        structuredOutputs,
+        reducerInferenceResult,
+        inferOutputSchema);
+
     VerifyHasElements(operationIo.Outputs, "outputs");
 
     return DoExecuteMapReduce(
