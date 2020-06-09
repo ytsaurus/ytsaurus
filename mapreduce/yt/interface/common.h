@@ -467,6 +467,13 @@ struct TReadRange
             .LowerLimit(TReadLimit().RowIndex(lowerLimit))
             .UpperLimit(TReadLimit().RowIndex(upperLimit));
     }
+
+    static TReadRange FromKeys(const TKey& lowerKeyInclusive, const TKey& upperKeyExclusive)
+    {
+        return TReadRange()
+            .LowerLimit(TReadLimit().Key(lowerKeyInclusive))
+            .UpperLimit(TReadLimit().Key(upperKeyExclusive));
+    }
 };
 
 struct TRichYPath
