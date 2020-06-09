@@ -119,6 +119,10 @@ private:
     void ReplyFakeError(const TString& message);
 
     void OnOutputParameters();
+
+    TFramingConfigPtr GetFramingConfig() const;
+
+    void ProcessDelayBeforeCommandTestingOption();
 };
 
 DEFINE_REFCOUNTED_TYPE(TContext)

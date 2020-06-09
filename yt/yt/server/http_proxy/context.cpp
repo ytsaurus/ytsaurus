@@ -95,7 +95,7 @@ bool TContext::TryParseRequest()
         OmitTrailers_ = true;
     }
 
-    if (Request_->GetHeaders()->Find("X-YT-Accept-Framing")) {
+    if (Request_->GetHeaders()->Find("X-YT-Accept-Framing") && GetFramingConfig()->Enable) {
         Response_->GetHeaders()->Set("X-YT-Framing", "1");
         IsFramingEnabled_ = true;
     }
@@ -636,16 +636,15 @@ void TContext::SetupOutputStream()
             if (!error.IsOK()) {
                 return;
             }
-            error = WaitFor(stream->Flush());
+            Y_UNUSED(WaitFor(stream->Flush()));
         };
 
-        if (Api_->GetConfig()->FramingKeepAlivePeriod) {
+        if (auto keepAlivePeriod = GetFramingConfig()->KeepAlivePeriod; keepAlivePeriod) {
             auto connection = Api_->GetDriverV4()->GetConnection();
             SendKeepAliveExecutor_ = New<TPeriodicExecutor>(
                 connection->GetInvoker(),
                 BIND(sendKeepAliveFrame, framingStream),
-                Api_->GetConfig()->FramingKeepAlivePeriod);
-            SendKeepAliveExecutor_->Start();
+                *keepAlivePeriod);
         }
     }
 }
@@ -664,6 +663,12 @@ void TContext::SetupOutputParameters()
         OutputParametersConsumer_->OnEndMap();
         OutputParameters_ = OutputParametersConsumer_->Finish()->AsMap();
         OnOutputParameters();
+
+        if (SendKeepAliveExecutor_) {
+            SendKeepAliveExecutor_->Start();
+        }
+
+        ProcessDelayBeforeCommandTestingOption();
     };
 }
 
@@ -720,16 +725,8 @@ void TContext::FinishPrepare()
 
 void TContext::Run()
 {
-    if (const auto& testingOptions = Api_->GetConfig()->TestingOptions; testingOptions) {
-        if (testingOptions->DelayInsideGet && DriverRequest_.CommandName == "get") {
-            const auto& path = DriverRequest_.Parameters->FindChild("path");
-            if (path && path->GetValue<TString>() == testingOptions->DelayInsideGet->Path) {
-                TDelayedExecutor::WaitForDuration(testingOptions->DelayInsideGet->Delay);
-            }
-        }
-    }
-
     Response_->SetStatus(EStatusCode::OK);
+
     if (*ApiVersion_ == 4) {
         WaitFor(Api_->GetDriverV4()->Execute(DriverRequest_))
             .ThrowOnError();
@@ -908,6 +905,39 @@ void TContext::OnOutputParameters()
     consumer->Flush();
 
     Response_->GetHeaders()->Add("X-YT-Response-Parameters", headerValue);
+}
+
+TFramingConfigPtr TContext::GetFramingConfig() const
+{
+    return Api_->GetCoordinator()->GetDynamicConfig()->Framing;
+}
+
+void TContext::ProcessDelayBeforeCommandTestingOption()
+{
+    auto testingOptions = Api_->GetConfig()->TestingOptions;
+    if (!testingOptions) {
+        return;
+    }
+    const auto& delayOptions = testingOptions->DelayBeforeCommand;
+    if (delayOptions.empty()) {
+        return;
+    }
+    auto it = delayOptions.find(DriverRequest_.CommandName);
+    if (it == delayOptions.end()) {
+        return;
+    }
+    const auto& commandDelayOptions = *it->second;
+    auto node = FindNodeByYPath(DriverRequest_.Parameters, commandDelayOptions.ParameterPath);
+    if (!node) {
+        return;
+    }
+    auto nodeString = ConvertToYsonString(node, EYsonFormat::Text);
+    if (nodeString.GetData().find(commandDelayOptions.Substring) == std::string::npos) {
+        return;
+    }
+    YT_LOG_DEBUG("Waiting for %v seconds due to \"delay_before_command\" testing option",
+        commandDelayOptions.Delay.SecondsFloat());
+    TDelayedExecutor::WaitForDuration(commandDelayOptions.Delay);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

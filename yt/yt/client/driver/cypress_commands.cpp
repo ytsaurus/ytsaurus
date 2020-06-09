@@ -133,10 +133,11 @@ TCreateCommand::TCreateCommand()
     RegisterParameter("type", Type);
 }
 
-void TCreateCommand::DoExecute(ICommandContextPtr context)
+void TCreateCommand::Execute(ICommandContextPtr context)
 {
     // For historical reasons, we handle both CreateNode and CreateObject requests
     // in a single command. Here we route the request to an appropriate backend command.
+    Deserialize(*this, context->Request().Parameters);
     auto backend = IsVersionedType(Type)
         ? std::unique_ptr<ICommand>(new TCreateNodeCommand())
         : std::unique_ptr<ICommand>(new TCreateObjectCommand());

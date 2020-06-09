@@ -65,6 +65,11 @@ void TReadFileCommand::DoExecute(ICommandContextPtr context)
     }
 }
 
+bool TReadFileCommand::HasResponseParameters() const
+{
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TWriteFileCommand::TWriteFileCommand()
