@@ -65,7 +65,7 @@ public:
         while (true) {
             TryUpdateAvailable();
             auto available = Available_.load();
-            if (available < 0) {
+            if (available <= 0 || QueueTotalCount_ > 0) {
                 break;
             }
             if (Available_.compare_exchange_strong(available, available - count)) {
@@ -258,11 +258,7 @@ private:
         auto limit = Limit_.load();
         YT_VERIFY(limit >= 0);
 
-        auto delay = (-Available_ + limit) * 1000 / limit;
-        if (delay < 0) {
-            delay = 0;
-        }
-
+        auto delay = Max<i64>(0, -Available_ * 1000 / limit);
         UpdateCookie_ = TDelayedExecutor::Submit(
             BIND(&TReconfigurableThroughputThrottler::Update, MakeWeak(this)),
             TDuration::MilliSeconds(delay));
