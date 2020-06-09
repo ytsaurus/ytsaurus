@@ -6,10 +6,21 @@
 #include <yt/core/concurrency/delayed_executor.h>
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/misc/shutdown.h>
+
 #include <yt/core/logging/config.h>
 #include <yt/core/logging/log_manager.h>
 
 #include <yt/core/misc/format.h>
+
+#include <yt/core/ytalloc/bindings.h>
+
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
+#include <library/cpp/testing/gtest/gtest.h>
+
+#include <util/system/fs.h>
+#include <util/system/env.h>
 
 #include <util/random/random.h>
 
@@ -85,3 +96,45 @@ void RunAndTrackFiber(TClosure closure)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace testing
+
+class TYTEnvironment
+    : public ::testing::Environment
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_GTEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
+{
+#ifdef _unix_
+	::signal(SIGPIPE, SIG_IGN);
+#endif
+	NYT::NYTAlloc::EnableYTLogging();
+	NYT::NYTAlloc::EnableYTProfiling();
+	NYT::NYTAlloc::InitializeLibunwindInterop();
+	NYT::NYTAlloc::ConfigureFromEnv();
+	NYT::NYTAlloc::EnableStockpile();
+	NYT::NLogging::TLogManager::Get()->ConfigureFromEnv();
+	NYT::NLogging::TLogManager::Get()->EnableReopenOnSighup();
+
+	::testing::AddGlobalTestEnvironment(new TYTEnvironment());
+
+	// TODO(ignat): support ram_drive_path when this feature would be supported in gtest machinery.
+	auto testSandboxPath = GetEnv("TESTS_SANDBOX");
+	if (!testSandboxPath.empty()) {
+		NFs::SetCurrentWorkingDirectory(testSandboxPath);
+	}
+}
+
+Y_GTEST_HOOK_AFTER_RUN(GTEST_YT_TEARDOWN)
+{
+    NYT::Shutdown();
+#ifdef _asan_enabled_
+    // Wait for some time to ensure background cleanup is somewhat complete.
+    Sleep(TDuration::Seconds(1));
+    NYT::TRefCountedTrackerFacade::Dump();
+#endif
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+

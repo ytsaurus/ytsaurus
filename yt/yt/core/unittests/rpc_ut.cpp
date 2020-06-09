@@ -55,8 +55,6 @@ using namespace NConcurrency;
 using namespace NCrypto;
 using namespace NYTAlloc;
 
-// static const TString DefaultAddress = "localhost:2000";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMyProxy
