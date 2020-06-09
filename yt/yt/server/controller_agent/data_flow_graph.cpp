@@ -59,6 +59,7 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
     }
     Persist(context, IsFinalOutput);
     Persist(context, LivePreviewIndex);
+    Persist(context, TargetDescriptor);
 }
 
 TEdgeDescriptor& TEdgeDescriptor::operator =(const TEdgeDescriptor& other)
@@ -75,6 +76,7 @@ TEdgeDescriptor& TEdgeDescriptor::operator =(const TEdgeDescriptor& other)
     IsFinalOutput = other.IsFinalOutput;
     IsOutputTableDynamic = other.IsOutputTableDynamic;
     LivePreviewIndex = other.LivePreviewIndex;
+    TargetDescriptor = other.TargetDescriptor;
 
     return *this;
 }
@@ -127,10 +129,18 @@ class TEdge
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(IYPathServicePtr, Service);
-    DEFINE_BYREF_RW_PROPERTY(TDataStatistics, Statistics);
+    DEFINE_BYREF_RW_PROPERTY(TVertexDescriptor, SourceName);
+    DEFINE_BYREF_RW_PROPERTY(TVertexDescriptor, TargetName);
+    DEFINE_BYREF_RW_PROPERTY(TDataStatistics, JobDataStatistics);
+    DEFINE_BYREF_RW_PROPERTY(TDataStatistics, TeleportDataStatistics);
 
 public:
-    TEdge()
+    //! For persistence only.
+    TEdge() = default;
+
+    TEdge(TVertexDescriptor sourceName, TVertexDescriptor targetName)
+        : SourceName_(std::move(sourceName))
+        , TargetName_(std::move(targetName))
     {
         Initialize();
     }
@@ -139,23 +149,59 @@ public:
     {
         using NYT::Persist;
 
-        Persist(context, Statistics_);
+        Persist(context, SourceName_);
+        Persist(context, TargetName_);
+        Persist(context, JobDataStatistics_);
+        Persist(context, TeleportDataStatistics_);
 
         if (context.IsLoad()) {
             Initialize();
         }
     }
 
+    void BuildDirectionYson(TFluentMap fluent)
+    {
+        auto getVertexName = [] (const TVertexDescriptor& descriptor) -> TString {
+            if (descriptor == TDataFlowGraph::SourceDescriptor) {
+                return "input";
+            } else if (descriptor == TDataFlowGraph::SinkDescriptor) {
+                return "output";
+            } else {
+                return descriptor;
+            }
+        };
+
+        fluent
+            .Item("source_name").Value(getVertexName(SourceName_))
+            .Item("target_name").Value(getVertexName(TargetName_))
+            .Item("job_data_statistics").Value(JobDataStatistics_)
+            .Item("teleport_data_statistics").Value(TeleportDataStatistics_);
+    }
+
 private:
     void Initialize()
     {
         auto service = New<TCompositeMapService>()
+            // COMPAT(gritukan): Drop it in favour of job_data_statistics.
             ->AddChild("statistics", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
                 if (auto this_ = weakThis.Lock()) {
                     BuildYsonFluently(consumer)
-                        .Value(this_->Statistics_);
+                        .Value(this_->JobDataStatistics_ + this_->TeleportDataStatistics_);
+                }
+            })))
+            ->AddChild("job_data_statistics", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+                if (auto this_ = weakThis.Lock()) {
+                    BuildYsonFluently(consumer)
+                        .Value(this_->JobDataStatistics_);
+                }
+            })))
+            ->AddChild("teleport_data_statistics", IYPathService::FromProducer(BIND([weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
+                if (auto this_ = weakThis.Lock()) {
+                    BuildYsonFluently(consumer)
+                        .Value(this_->TeleportDataStatistics_);
                 }
             })));
+            
         service->SetOpaque(false);
         Service_ = std::move(service);
     }
@@ -169,6 +215,7 @@ class TVertex
     : public TRefCounted
 {
 public:
+    DEFINE_BYREF_RW_PROPERTY(TVertexDescriptor, VertexDescriptor);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, Service);
     DEFINE_BYREF_RW_PROPERTY(TProgressCounterPtr, JobCounter, New<TProgressCounter>(0));
     DEFINE_BYVAL_RW_PROPERTY(EJobType, JobType);
@@ -180,10 +227,14 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::shared_ptr<TEdgeMap>, Edges, std::make_shared<TEdgeMap>());
 
 public:
+    //! For persistence only.
     TVertex() = default;
 
-    explicit TVertex(TNodeDirectoryPtr nodeDirectory)
-        : NodeDirectory_(std::move(nodeDirectory))
+    TVertex(
+        TVertexDescriptor vertexDescriptor,
+        TNodeDirectoryPtr nodeDirectory)
+        : VertexDescriptor_(std::move(vertexDescriptor))
+        , NodeDirectory_(std::move(nodeDirectory))
     {
         Initialize();
     }
@@ -193,7 +244,7 @@ public:
         auto it = Edges_->find(to);
         if (it == Edges_->end()) {
             auto& edge = (*Edges_)[to];
-            edge = New<TEdge>();
+            edge = New<TEdge>(VertexDescriptor_, to);
             return edge;
         } else {
             return it->second;
@@ -204,6 +255,7 @@ public:
     {
         using NYT::Persist;
 
+        Persist(context, VertexDescriptor_);
         Persist(context, JobCounter_);
         Persist(context, JobType_);
         Persist(context, *LivePreviews_);
@@ -300,14 +352,24 @@ public:
         }
     }
 
-    void UpdateEdgeStatistics(
+    void UpdateEdgeJobDataStatistics(
         const TDataFlowGraph::TVertexDescriptor& from,
         const TDataFlowGraph::TVertexDescriptor& to,
-        const TDataStatistics& statistics)
+        const TDataStatistics& jobDataStatistics)
     {
         TopologicalOrdering_.AddEdge(from, to);
         const auto& edge = GetOrRegisterEdge(from, to);
-        edge->Statistics() += statistics;
+        edge->JobDataStatistics() += jobDataStatistics;
+    }
+
+    void UpdateEdgeTeleportDataStatistics(
+        const TDataFlowGraph::TVertexDescriptor& from,
+        const TDataFlowGraph::TVertexDescriptor& to,
+        const TDataStatistics& teleportDataStatistics)
+    {
+        TopologicalOrdering_.AddEdge(from, to);
+        const auto& edge = GetOrRegisterEdge(from, to);
+        edge->TeleportDataStatistics() += teleportDataStatistics;
     }
 
     void RegisterCounter(
@@ -330,6 +392,24 @@ public:
     {
         const auto& vertex = GetOrRegisterVertex(descriptor);
         vertex->UnregisterLivePreviewChunk(index, std::move(chunk));
+    }
+
+    void BuildDataFlowYson(TFluentList fluent) const
+    {
+        std::vector<TEdgePtr> edges;
+        for (const auto& [sourceDescriptor, vertex] : *Vertices_) {
+            for (const auto& [targetDescriptor, edge] : *vertex->Edges()) {
+                edges.push_back(edge);
+            }
+        }
+
+        fluent
+            .DoFor(edges, [&] (TFluentList fluent, const TEdgePtr& edge) {
+                fluent.Item()
+                    .BeginMap()
+                        .Do(BIND(&TEdge::BuildDirectionYson, edge))
+                    .EndMap();
+            });
     }
 
     void BuildLegacyYson(TFluentMap fluent) const
@@ -361,7 +441,7 @@ public:
                                 const auto& edge = pair.second;
                                 fluent
                                     .Item(to).BeginMap()
-                                        .Item("statistics").Value(edge->Statistics())
+                                        .Item("statistics").Value(edge->JobDataStatistics() + edge->TeleportDataStatistics())
                                     .EndMap();
                             });
                     }
@@ -404,7 +484,7 @@ private:
         auto it = Vertices_->find(descriptor);
         if (it == Vertices_->end()) {
             auto& vertex = (*Vertices_)[descriptor];
-            vertex = New<TVertex>(NodeDirectory_);
+            vertex = New<TVertex>(descriptor, NodeDirectory_);
             vertex->JobCounter()->SetParent(TotalJobCounter_);
             return vertex;
         } else {
@@ -441,12 +521,20 @@ void TDataFlowGraph::Persist(const TPersistenceContext& context)
     Impl_->Persist(context);
 }
 
-void TDataFlowGraph::UpdateEdgeStatistics(
+void TDataFlowGraph::UpdateEdgeJobDataStatistics(
     const TVertexDescriptor& from,
     const TVertexDescriptor& to,
-    const NChunkClient::NProto::TDataStatistics& statistics)
+    const NChunkClient::NProto::TDataStatistics& jobDataStatistics)
 {
-    Impl_->UpdateEdgeStatistics(from, to, statistics);
+    Impl_->UpdateEdgeJobDataStatistics(from, to, jobDataStatistics);
+}
+
+void TDataFlowGraph::UpdateEdgeTeleportDataStatistics(
+    const TVertexDescriptor& from,
+    const TVertexDescriptor& to,
+    const NChunkClient::NProto::TDataStatistics& teleportDataStatistics)
+{
+    Impl_->UpdateEdgeTeleportDataStatistics(from, to, teleportDataStatistics);
 }
 
 void TDataFlowGraph::RegisterCounter(
@@ -465,6 +553,11 @@ void TDataFlowGraph::RegisterLivePreviewChunk(const TVertexDescriptor& descripto
 void TDataFlowGraph::UnregisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
 {
     Impl_->UnregisterLivePreviewChunk(descriptor, index, std::move(chunk));
+}
+
+void TDataFlowGraph::BuildDataFlowYson(TFluentList fluent) const
+{
+    Impl_->BuildDataFlowYson(fluent);
 }
 
 void TDataFlowGraph::BuildLegacyYson(TFluentMap fluent) const

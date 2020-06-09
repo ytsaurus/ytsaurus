@@ -1479,11 +1479,13 @@ std::vector<TEdgeDescriptor> TOperationControllerBase::GetAutoMergeEdgeDescripto
     YT_VERIFY(AutoMergeTasks.size() == edgeDescriptors.size());
     for (int index = 0; index < edgeDescriptors.size(); ++index) {
         if (AutoMergeTasks[index]) {
-            edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
-            edgeDescriptors[index].ChunkMapping = AutoMergeTasks[index]->GetChunkMapping();
+            const auto& autoMergeTask = AutoMergeTasks[index];
+            edgeDescriptors[index].DestinationPool = autoMergeTask->GetChunkPoolInput();
+            edgeDescriptors[index].ChunkMapping = autoMergeTask->GetChunkMapping();
             edgeDescriptors[index].ImmediatelyUnstageChunkLists = true;
             edgeDescriptors[index].RequiresRecoveryInfo = true;
             edgeDescriptors[index].IsFinalOutput = false;
+            edgeDescriptors[index].TargetDescriptor = autoMergeTask->GetVertexDescriptor();
         }
     }
     return edgeDescriptors;
@@ -4635,6 +4637,7 @@ void TOperationControllerBase::InitializeStandardEdgeDescriptors()
         StandardEdgeDescriptors_[index].DestinationPool = Sinks_[index].get();
         StandardEdgeDescriptors_[index].IsFinalOutput = true;
         StandardEdgeDescriptors_[index].LivePreviewIndex = index;
+        StandardEdgeDescriptors_[index].TargetDescriptor = TDataFlowGraph::SinkDescriptor;
     }
 }
 
@@ -6889,6 +6892,7 @@ const ITransactionPtr& TOperationControllerBase::GetTransactionForOutputTable(co
 
 void TOperationControllerBase::RegisterTeleportChunk(
     TInputChunkPtr chunk,
+    const TTaskPtr& teleportingTask,
     TChunkStripeKey key,
     int tableIndex)
 {
@@ -6920,6 +6924,8 @@ void TOperationControllerBase::RegisterTeleportChunk(
     }
 
     RegisterOutputRows(chunk->GetRowCount(), tableIndex);
+
+    teleportingTask->OnChunkTeleported(chunk);
 
     YT_LOG_DEBUG("Teleport chunk registered (Table: %v, ChunkId: %v, Key: %v)",
         tableIndex,
@@ -7382,7 +7388,7 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Item("duration").Value(ScheduleJobStatistics_->Duration)
             .Item("failed").Value(ScheduleJobStatistics_->Failed)
         .EndMap()
-        .DoIf(DataFlowGraph_.operator bool(), [=] (TFluentMap fluent) {
+        .DoIf(static_cast<bool>(DataFlowGraph_), [=] (TFluentMap fluent) {
             fluent
                 // COMPAT(gritukan): Drop it in favour of "total_job_counter".
                 .Item("jobs").Value(DataFlowGraph_->GetTotalJobCounter())
@@ -7391,12 +7397,12 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
                     .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
                 .EndMap();
         })
-        .DoIf(EstimatedInputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
+        .DoIf(static_cast<bool>(EstimatedInputDataSizeHistogram_), [=] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
             fluent
                 .Item("estimated_input_data_size_histogram").Value(*EstimatedInputDataSizeHistogram_);
         })
-        .DoIf(InputDataSizeHistogram_.operator bool(), [=] (TFluentMap fluent) {
+        .DoIf(static_cast<bool>(InputDataSizeHistogram_), [=] (TFluentMap fluent) {
             InputDataSizeHistogram_->BuildHistogramView();
             fluent
                 .Item("input_data_size_histogram").Value(*InputDataSizeHistogram_);
@@ -7404,13 +7410,20 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         .Item("snapshot_index").Value(SnapshotIndex_)
         .Item("recent_snapshot_index").Value(RecentSnapshotIndex_)
         .Item("last_successful_snapshot_time").Value(LastSuccessfulSnapshotTime_)
-        .DoIf(ShouldShowTasksSectionInProgress(), [=] (TFluentMap fluent) {
-            fluent.Item("tasks").DoListFor(GetTopologicallyOrderedTasks(), [=] (TFluentList fluent, const TTaskPtr& task) {
-                fluent.Item()
-                    .BeginMap()
-                        .Do(BIND(&TTask::BuildTaskYson, task))
-                    .EndMap();
-            });
+        .DoIf(ShouldShowDataFlowSectionsInProgress(), [=] (TFluentMap fluent) {
+            fluent
+                .Item("tasks").DoListFor(GetTopologicallyOrderedTasks(), [=] (TFluentList fluent, const TTaskPtr& task) {
+                    fluent.Item()
+                        .BeginMap()
+                            .Do(BIND(&TTask::BuildTaskYson, task))
+                        .EndMap();
+                })
+                .DoIf(static_cast<bool>(DataFlowGraph_), [=] (TFluentMap fluent) {
+                    fluent.Item("data_flow")
+                        .BeginList()
+                            .Do(BIND(&TDataFlowGraph::BuildDataFlowYson, DataFlowGraph_))
+                        .EndList();
+                });
         });
 }
 
@@ -7558,7 +7571,7 @@ void TOperationControllerBase::BuildRetainedFinishedJobsYson(TFluentMap fluent) 
     }
 }
 
-bool TOperationControllerBase::ShouldShowTasksSectionInProgress() const
+bool TOperationControllerBase::ShouldShowDataFlowSectionsInProgress() const
 {
     return !AutoMergeEnabled_;
 }

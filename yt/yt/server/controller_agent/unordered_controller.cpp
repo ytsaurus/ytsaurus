@@ -369,7 +369,7 @@ protected:
         if (!teleportChunks.empty()) {
             YT_VERIFY(GetJobType() == EJobType::UnorderedMerge);
             for (const auto& chunk : teleportChunks) {
-                RegisterTeleportChunk(chunk, 0 /* key */, 0 /* tableIndex */);
+                RegisterTeleportChunk(chunk, UnorderedTask_, 0 /* key */, 0 /* tableIndex */);
             }
         }
 

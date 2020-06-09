@@ -33,6 +33,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((BernoulliSampler)                     (300400))
     ((RefactorReduce)                       (300401))
     ((StartAndCompletionTimeInTask)         (300402))
+    ((DataFlowInProgress)                   (300403))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

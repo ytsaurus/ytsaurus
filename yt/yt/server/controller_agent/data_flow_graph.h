@@ -20,6 +20,58 @@ namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDataFlowGraph
+    : public TRefCounted
+{
+public:
+    using TVertexDescriptor = TString;
+
+    static TVertexDescriptor SourceDescriptor;
+    static TVertexDescriptor SinkDescriptor;
+
+    TDataFlowGraph();
+    TDataFlowGraph(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
+    ~TDataFlowGraph();
+
+    NYTree::IYPathServicePtr GetService() const;
+
+    void Persist(const TPersistenceContext& context);
+
+    void UpdateEdgeJobDataStatistics(
+        const TVertexDescriptor& from,
+        const TVertexDescriptor& to,
+        const NChunkClient::NProto::TDataStatistics& jobDataStatistics);
+
+    void UpdateEdgeTeleportDataStatistics(
+        const TVertexDescriptor& from,
+        const TVertexDescriptor& to,
+        const NChunkClient::NProto::TDataStatistics& teleportDataStatistics);
+
+    void RegisterCounter(
+        const TVertexDescriptor& vertex,
+        const TProgressCounterPtr& counter,
+        EJobType jobType);
+
+    void RegisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, NChunkClient::TInputChunkPtr chunk);
+    void UnregisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, NChunkClient::TInputChunkPtr chunk);
+
+    void BuildDataFlowYson(NYTree::TFluentList fluent) const;
+
+    void BuildLegacyYson(NYTree::TFluentMap fluent) const;
+
+    const TProgressCounterPtr& GetTotalJobCounter() const;
+
+    const std::vector<TVertexDescriptor>& GetTopologicalOrdering() const;
+
+private:
+    class TImpl;
+    const TIntrusivePtr<TImpl> Impl_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TDataFlowGraph);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TEdgeDescriptor
 {
     TEdgeDescriptor() = default;
@@ -44,56 +96,12 @@ struct TEdgeDescriptor
     // its output chunks to the live preview with an index corresponding to the
     // output table index.
     int LivePreviewIndex = 0;
+    TDataFlowGraph::TVertexDescriptor TargetDescriptor;
 
     void Persist(const TPersistenceContext& context);
 
     TEdgeDescriptor& operator =(const TEdgeDescriptor& other);
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TDataFlowGraph
-    : public TRefCounted
-{
-public:
-    using TVertexDescriptor = TString;
-
-    static TVertexDescriptor SourceDescriptor;
-    static TVertexDescriptor SinkDescriptor;
-
-    TDataFlowGraph();
-    TDataFlowGraph(NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory);
-    ~TDataFlowGraph();
-
-    NYTree::IYPathServicePtr GetService() const;
-
-    void Persist(const TPersistenceContext& context);
-
-    void UpdateEdgeStatistics(
-        const TVertexDescriptor& from,
-        const TVertexDescriptor& to,
-        const NChunkClient::NProto::TDataStatistics& statistics);
-
-    void RegisterCounter(
-        const TVertexDescriptor& vertex,
-        const TProgressCounterPtr& counter,
-        EJobType jobType);
-
-    void RegisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, NChunkClient::TInputChunkPtr chunk);
-    void UnregisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, NChunkClient::TInputChunkPtr chunk);
-
-    void BuildLegacyYson(NYTree::TFluentMap fluent) const;
-
-    const TProgressCounterPtr& GetTotalJobCounter() const;
-
-    const std::vector<TVertexDescriptor>& GetTopologicalOrdering() const;
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TDataFlowGraph);
 
 ////////////////////////////////////////////////////////////////////////////////
 

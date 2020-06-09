@@ -426,11 +426,13 @@ protected:
             if (OrderedOutputRequired_) {
                 RegisterTeleportChunk(
                     teleportChunk,
+                    OrderedTask_,
                     TOutputOrder::TEntry(teleportChunk) /* key */,
                     0 /* tableIndex */);
             } else {
                 RegisterTeleportChunk(
                     teleportChunk,
+                    OrderedTask_,
                     0 /* key */,
                     0 /* tableIndex */);
             }

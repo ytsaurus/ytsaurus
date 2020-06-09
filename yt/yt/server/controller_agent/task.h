@@ -105,6 +105,8 @@ public:
 
     virtual void OnJobLost(TCompletedJobPtr completedJob);
 
+    virtual void OnChunkTeleported(const NChunkClient::TInputChunkPtr& chunk);
+
     virtual void OnStripeRegistrationFailed(
         TError error,
         NChunkPools::IChunkPoolInput::TCookie cookie,
