@@ -18,6 +18,7 @@
     XX(AggressiveStarvationEnabled, aggressive_starvation_enabled) \
     XX(AlertCount, alert_count) \
     XX(Alerts, alerts) \
+    XX(Aliases, aliases) \
     XX(AllowChildrenLimitOvercommit, allow_children_limit_overcommit) \
     XX(AllowedProfilingTags, allowed_profiling_tags) \
     XX(AllowAggressiveStarvationPreemption, allow_aggressive_starvation_preemption) \

@@ -148,7 +148,7 @@ void Deserialize(
 
         // Subject
         for (const auto& name : serializableAce.Subjects) {
-            auto* subject = securityManager->FindSubjectByName(name);
+            auto* subject = securityManager->FindSubjectByNameOrAlias(name);
             if (missingSubjects && !subject) {
                 missingSubjects->push_back(name);
                 continue;

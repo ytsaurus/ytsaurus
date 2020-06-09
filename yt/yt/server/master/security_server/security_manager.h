@@ -216,6 +216,9 @@ public:
     //! Returns user with a given name (|nullptr| if none).
     TUser* FindUserByName(const TString& name);
 
+    //! Returns user with a given name or alias (|nullptr| if none).
+    TUser* FindUserByNameOrAlias(const TString& name);
+
     //! Returns user with a given name (throws if none).
     TUser* GetUserByNameOrThrow(const TString& name);
 
@@ -232,8 +235,8 @@ public:
     TUser* GetOwnerUser();
 
 
-    //! Returns group with a given name (|nullptr| if none).
-    TGroup* FindGroupByName(const TString& name);
+    //! Returns group with a given name or alias (|nullptr| if none).
+    TGroup* FindGroupByNameOrAlias(const TString& name);
 
     //! Returns "everyone" built-in group.
     TGroup* GetEveryoneGroup();
@@ -251,11 +254,11 @@ public:
     //! Finds subject by id, throws if nothing is found.
     TSubject* GetSubjectOrThrow(TSubjectId id);
 
-    //! Returns subject (a user or a group) with a given name (|nullptr| if none).
-    TSubject* FindSubjectByName(const TString& name);
+    //! Returns subject (a user or a group) with a given name or alias (|nullptr| if none).
+    TSubject* FindSubjectByNameOrAlias(const TString& name);
 
-    //! Returns subject (a user or a group) with a given name (throws if none).
-    TSubject* GetSubjectByNameOrThrow(const TString& name);
+    //! Returns subject (a user or a group) with a given name or alias (throws if none).
+    TSubject* GetSubjectByNameOrAliasOrThrow(const TString& name);
 
     //! Adds a new member into the group. Throws on failure.
     void AddMember(TGroup* group, TSubject* member, bool ignoreExisting);
@@ -406,6 +409,9 @@ public:
 
     //! Raised each time #ChargeUser is called.
     DECLARE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
+
+    //! Set list of aliases for subject. Throws on failure.
+    void SetSubjectAliases(TSubject* subject, const std::vector<TString>& aliases);
 
 private:
     class TImpl;
