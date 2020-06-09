@@ -11,6 +11,50 @@ class CheckPermissionBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
 
+    @authors("s-v-m")
+    def test_subject_aliases_acls(self):
+        create_user("u1")
+        create_user("u2")
+        create_group("g1")
+        create_group("g2")
+        add_member("u1", "g1")
+        add_member("u2", "g2")
+        set("//sys/groups/g1/@aliases", ["ga1", "ga2"])
+        with raises_yt_error("Alias \"ga1\" already exists"): set("//sys/groups/g2/@aliases", ["ga1", "ga3"])
+        with raises_yt_error("Alias \"ga4\" listed more than once"): set("//sys/groups/g1/@aliases", ["ga4", "ga4"])
+        set("//sys/users/u1/@aliases", ["ua1", "ua2"])
+
+        create("table", "//tmp/t")
+        set("//tmp/t/@inherit_acl", False)
+        assert check_permission("u1", "write", "//tmp/t")["action"] == "deny"
+
+        set("//tmp/t/@acl", [make_ace("allow", "ga1", "write")])
+        assert check_permission("u1", "write", "//tmp/t")["action"] == "allow"
+        assert check_permission("u2", "write", "//tmp/t")["action"] == "deny"
+
+        set("//tmp/t/@acl", [make_ace("allow", "ua1", "write")])
+        assert check_permission("u1", "write", "//tmp/t")["action"] == "allow"
+        assert check_permission("u2", "write", "//tmp/t")["action"] == "deny"
+
+    @authors("s-v-m")
+    def test_subject_aliases_misc(self):
+        create_user("user")
+        set("//sys/users/user/@aliases", ["alias_to_user"])
+        assert "alias_to_user" not in ls("//sys/users")
+        assert get("//sys/users/alias_to_user/@name") == "user"
+
+        create_group("group")
+        set("//sys/groups/group/@aliases", ["alias_to_group"])
+        assert "alias_to_group" not in ls("//sys/groups")
+        assert get("//sys/groups/alias_to_group/@name") == "group"
+
+        add_member("alias_to_user", "alias_to_group")
+        assert "user" in get("//sys/groups/group/@members")
+
+        create("table", "//tmp/t")
+        set("//tmp/t/@owner", "alias_to_user")
+        assert get("//tmp/t/@owner") == "user"
+
     @authors("kiselyovp")
     def test_descendants_only_inheritance(self):
         create("map_node", "//tmp/m", attributes={"acl": [make_ace("allow", "guest", "remove", "descendants_only")]})

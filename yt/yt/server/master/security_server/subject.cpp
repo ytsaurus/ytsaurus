@@ -26,6 +26,7 @@ void TSubject::Save(NCellMaster::TSaveContext& context) const
     Save(context, RecursiveMemberOf_);
     Save(context, LinkedObjects_);
     Save(context, Acd_);
+    Save(context, Aliases_);
 }
 
 void TSubject::Load(NCellMaster::TLoadContext& context)
@@ -38,17 +39,31 @@ void TSubject::Load(NCellMaster::TLoadContext& context)
     Load(context, RecursiveMemberOf_);
     Load(context, LinkedObjects_);
     Load(context, Acd_);
+    // COMPAT(s-v-m)
+    if (context.GetVersion() >= EMasterReign::SubjectAliases) {
+        Load(context, Aliases_);
+    }
+}
+
+bool TSubject::IsUser() const
+{
+    return GetType() == EObjectType::User;
 }
 
 TUser* TSubject::AsUser()
 {
-    YT_VERIFY(GetType() == EObjectType::User);
+    YT_VERIFY(IsUser());
     return static_cast<TUser*>(this);
+}
+
+bool TSubject::IsGroup() const
+{
+    return GetType() == EObjectType::Group;
 }
 
 TGroup* TSubject::AsGroup()
 {
-    YT_VERIFY(GetType() == EObjectType::Group);
+    YT_VERIFY(IsGroup());
     return static_cast<TGroup*>(this);
 }
 

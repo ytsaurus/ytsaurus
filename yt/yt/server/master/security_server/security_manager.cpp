@@ -905,6 +905,10 @@ public:
         subject->MemberOf().clear();
         subject->RecursiveMemberOf().clear();
 
+        for (const auto& alias : subject->Aliases()) {
+            YT_VERIFY(SubjectAliasMap_.erase(alias) == 1);
+        }
+
         for (auto [object, counter] : subject->LinkedObjects()) {
             auto* acd = GetAcd(object);
             acd->OnSubjectDestroyed(subject, GuestUser_);
@@ -915,20 +919,6 @@ public:
     TUser* CreateUser(const TString& name, TObjectId hintId)
     {
         ValidateSubjectName(name);
-
-        if (FindUserByName(name)) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::AlreadyExists,
-                "User %Qv already exists",
-                name);
-        }
-
-        if (FindGroupByName(name)) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::AlreadyExists,
-                "Group %Qv already exists",
-                name);
-        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::User, hintId);
@@ -956,6 +946,15 @@ public:
     {
         auto it = UserNameMap_.find(name);
         return it == UserNameMap_.end() ? nullptr : it->second;
+    }
+
+    TUser* FindUserByNameOrAlias(const TString& name)
+    {
+        auto* subjectByAlias = FindSubjectByAlias(name);
+        if (subjectByAlias && subjectByAlias->IsUser()) {
+            return subjectByAlias->AsUser();
+        }
+        return FindUserByName(name);
     }
 
     TUser* GetUserByNameOrThrow(const TString& name)
@@ -1003,20 +1002,6 @@ public:
     {
         ValidateSubjectName(name);
 
-        if (FindGroupByName(name)) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::AlreadyExists,
-                "Group %Qv already exists",
-                name);
-        }
-
-        if (FindUserByName(name)) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::AlreadyExists,
-                "User %Qv already exists",
-                name);
-        }
-
         const auto& objectManager = Bootstrap_->GetObjectManager();
         auto id = objectManager->GenerateId(EObjectType::Group, hintId);
         auto* group = DoCreateGroup(id, name);
@@ -1057,6 +1042,14 @@ public:
         return it == GroupNameMap_.end() ? nullptr : it->second;
     }
 
+    TGroup* FindGroupByNameOrAlias(const TString& name)
+    {
+        auto* subjectByAlias = FindSubjectByAlias(name);
+        if (subjectByAlias && subjectByAlias->IsGroup()) {
+            return subjectByAlias->AsGroup();
+        }
+        return FindGroupByName(name);
+    }
 
     TGroup* GetEveryoneGroup()
     {
@@ -1129,22 +1122,32 @@ public:
             .Item("name").Value(networkProject->GetName());
     }
 
-    TSubject* FindSubjectByName(const TString& name)
+    TSubject* FindSubjectByAlias(const TString& alias)
+    {
+        auto it = SubjectAliasMap_.find(alias);
+        return it == SubjectAliasMap_.end() ? nullptr : it->second;
+    }
+
+    TSubject* FindSubjectByNameOrAlias(const TString& name)
     {
         auto* user = FindUserByName(name);
-        if (IsObjectAlive(user)) {
+        if (user) {
             return user;
         }
         auto* group = FindGroupByName(name);
-        if (IsObjectAlive(group)) {
+        if (group) {
             return group;
+        }
+        auto* subjectByAlias = FindSubjectByAlias(name);
+        if (subjectByAlias) {
+            return subjectByAlias;
         }
         return nullptr;
     }
 
-    TSubject* GetSubjectByNameOrThrow(const TString& name)
+    TSubject* GetSubjectByNameOrAliasOrThrow(const TString& name)
     {
-        auto* subject = FindSubjectByName(name);
+        auto* subject = FindSubjectByNameOrAlias(name);
         if (!IsObjectAlive(subject)) {
             THROW_ERROR_EXCEPTION("No such subject %Qv", name);
         }
@@ -1243,13 +1246,6 @@ public:
     void RenameSubject(TSubject* subject, const TString& newName)
     {
         ValidateSubjectName(newName);
-
-        if (FindSubjectByName(newName)) {
-            THROW_ERROR_EXCEPTION(
-                NYTree::EErrorCode::AlreadyExists,
-                "Subject %Qv already exists",
-                newName);
-        }
 
         switch (subject->GetType()) {
             case EObjectType::User:
@@ -1787,6 +1783,32 @@ public:
 
     DEFINE_SIGNAL(void(TUser*, const TUserWorkload&), UserCharged);
 
+    void SetSubjectAliases(TSubject* subject, const std::vector<TString>& newAliases)
+    {
+        THashSet<TString> uniqAliases;
+        for (const auto& newAlias : newAliases) {
+            if (!subject->Aliases().contains(newAlias)) {
+                // Check only if newAlias is not already used as subject alias
+                ValidateSubjectName(newAlias);
+            }
+            if (uniqAliases.contains(newAlias)) {
+                THROW_ERROR_EXCEPTION("Alias %Qv listed more than once for subject %Qv",
+                    newAlias, subject->GetName());
+            }
+            uniqAliases.insert(newAlias);
+        }
+        auto& aliases = subject->Aliases();
+        for (const auto& alias : aliases) {
+            YT_VERIFY(SubjectAliasMap_.erase(alias) == 1);
+        }
+        aliases.clear();
+
+        for (const auto& newAlias : newAliases) {
+            aliases.insert(newAlias);
+            YT_VERIFY(SubjectAliasMap_.emplace(newAlias, subject).second);
+        }
+    }
+
 private:
     friend class TAccountTypeHandler;
     friend class TUserTypeHandler;
@@ -1862,6 +1884,8 @@ private:
 
     NHydra::TEntityMap<TGroup> GroupMap_;
     THashMap<TString, TGroup*> GroupNameMap_;
+
+    THashMap<TString, TSubject*> SubjectAliasMap_;
 
     TGroupId EveryoneGroupId_;
     TGroup* EveryoneGroup_ = nullptr;
@@ -2232,6 +2256,10 @@ private:
 
             // Reconstruct user name map.
             YT_VERIFY(UserNameMap_.emplace(user->GetName(), user).second);
+            // Add group aliases to SubjectAliasMap
+            for (const auto& alias : user->Aliases()) {
+                YT_VERIFY(SubjectAliasMap_.emplace(alias, user).second);
+            }
         }
 
         GroupNameMap_.clear();
@@ -2241,6 +2269,10 @@ private:
             }
             // Reconstruct group name map.
             YT_VERIFY(GroupNameMap_.emplace(group->GetName(), group).second);
+            // Add group aliases to SubjectAliasMap
+            for (const auto& alias : group->Aliases()) {
+                YT_VERIFY(SubjectAliasMap_.emplace(alias, group).second);
+            }
         }
 
         NetworkProjectNameMap_.clear();
@@ -2489,6 +2521,7 @@ private:
 
         GroupMap_.Clear();
         GroupNameMap_.clear();
+        SubjectAliasMap_.clear();
 
         NetworkProjectMap_.Clear();
         NetworkProjectNameMap_.clear();
@@ -3032,10 +3065,30 @@ private:
         }
     }
 
-    static void ValidateSubjectName(const TString& name)
+    void ValidateSubjectName(const TString& name)
     {
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Subject name cannot be empty");
+        }
+        auto* subjectByAlias = FindSubjectByAlias(name);
+        if (subjectByAlias) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Alias %Qv already exists and points to %Qv",
+                name, subjectByAlias->GetName());
+        }
+        if (FindUserByName(name)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "User %Qv already exists",
+                name);
+        }
+
+        if (FindGroupByName(name)) {
+            THROW_ERROR_EXCEPTION(
+                NYTree::EErrorCode::AlreadyExists,
+                "Group %Qv already exists",
+                name);
         }
     }
 
@@ -3667,6 +3720,11 @@ TUser* TSecurityManager::FindUserByName(const TString& name)
     return Impl_->FindUserByName(name);
 }
 
+TUser* TSecurityManager::FindUserByNameOrAlias(const TString& name)
+{
+    return Impl_->FindUserByNameOrAlias(name);
+}
+
 TUser* TSecurityManager::GetUserByNameOrThrow(const TString& name)
 {
     return Impl_->GetUserByNameOrThrow(name);
@@ -3692,9 +3750,9 @@ TUser* TSecurityManager::GetOwnerUser()
     return Impl_->GetOwnerUser();
 }
 
-TGroup* TSecurityManager::FindGroupByName(const TString& name)
+TGroup* TSecurityManager::FindGroupByNameOrAlias(const TString& name)
 {
-    return Impl_->FindGroupByName(name);
+    return Impl_->FindGroupByNameOrAlias(name);
 }
 
 TGroup* TSecurityManager::GetEveryoneGroup()
@@ -3722,14 +3780,14 @@ TSubject* TSecurityManager::GetSubjectOrThrow(TSubjectId id)
     return Impl_->GetSubjectOrThrow(id);
 }
 
-TSubject* TSecurityManager::FindSubjectByName(const TString& name)
+TSubject* TSecurityManager::FindSubjectByNameOrAlias(const TString& name)
 {
-    return Impl_->FindSubjectByName(name);
+    return Impl_->FindSubjectByNameOrAlias(name);
 }
 
-TSubject* TSecurityManager::GetSubjectByNameOrThrow(const TString& name)
+TSubject* TSecurityManager::GetSubjectByNameOrAliasOrThrow(const TString& name)
 {
-    return Impl_->GetSubjectByNameOrThrow(name);
+    return Impl_->GetSubjectByNameOrAliasOrThrow(name);
 }
 
 TNetworkProject* TSecurityManager::FindNetworkProjectByName(const TString& name)
@@ -3939,6 +3997,12 @@ DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, Group, TGroup, *Impl_)
 DELEGATE_ENTITY_MAP_ACCESSORS(TSecurityManager, NetworkProject, TNetworkProject, *Impl_)
 
 DELEGATE_SIGNAL(TSecurityManager, void(TUser*, const TUserWorkload&), UserCharged, *Impl_);
+
+
+void TSecurityManager::SetSubjectAliases(TSubject* subject, const std::vector<TString>& aliases)
+{
+    Impl_->SetSubjectAliases(subject, aliases);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

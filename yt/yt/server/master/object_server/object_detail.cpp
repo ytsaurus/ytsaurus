@@ -680,7 +680,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             ValidateNoTransaction();
 
             auto name = ConvertTo<TString>(value);
-            auto* owner = securityManager->GetSubjectByNameOrThrow(name);
+            auto* owner = securityManager->GetSubjectByNameOrAliasOrThrow(name);
             auto* user = securityManager->GetAuthenticatedUser();
             auto* superusers = securityManager->GetSuperusersGroup();
             if (user != owner && user->RecursiveMemberOf().find(superusers) == user->RecursiveMemberOf().end()) {

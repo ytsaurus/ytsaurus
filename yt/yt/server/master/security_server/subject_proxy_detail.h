@@ -47,6 +47,9 @@ protected:
             .SetMandatory(true));
         descriptors->push_back(EInternedAttributeKey::MemberOf);
         descriptors->push_back(EInternedAttributeKey::MemberOfClosure);
+        descriptors->push_back(NYTree::ISystemAttributeProvider::TAttributeDescriptor(EInternedAttributeKey::Aliases)
+            .SetWritable(true)
+            .SetReplicated(true));
     }
 
     virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -74,6 +77,13 @@ protected:
                             .Item().Value(group->GetName());
                     });
                 return true;
+            case EInternedAttributeKey::Aliases:
+                NYTree::BuildYsonFluently(consumer)
+                    .DoListFor(subject->Aliases(), [] (NYTree::TFluentList fluent, const TString& alias) {
+                        fluent
+                            .Item().Value(alias);
+                    });
+                return true;
 
             default:
                 break;
@@ -91,6 +101,11 @@ protected:
             case EInternedAttributeKey::Name: {
                 auto newName = NYTree::ConvertTo<TString>(value);
                 securityManager->RenameSubject(subject, newName);
+                return true;
+            }
+            case EInternedAttributeKey::Aliases: {
+                auto newAliases = NYTree::ConvertTo<std::vector<TString>>(value);
+                securityManager->SetSubjectAliases(subject, newAliases);
                 return true;
             }
 

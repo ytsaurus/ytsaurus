@@ -25,6 +25,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TGroupSet, MemberOf);
     //! Transitive closure of the set of groups containing this given subject.
     DEFINE_BYREF_RW_PROPERTY(TGroupSet, RecursiveMemberOf);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TString>, Aliases);
+
 
     typedef THashMap<TObject*, int> TLinkedObjects;
     //! Objects whose ACLs reference this particular subject, with counters.
@@ -38,9 +40,11 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
+    bool IsUser() const;
     //! Casts the current instance to TUser.
     TUser* AsUser();
 
+    bool IsGroup() const;
     //! Casts the current instance to TGroup.
     TGroup* AsGroup();
 

@@ -179,7 +179,7 @@ private:
     virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->FindUserByName(TString(key));
+        auto* user = securityManager->FindUserByNameOrAlias(TString(key));
         if (!IsObjectAlive(user)) {
             return nullptr;
         }
@@ -231,7 +231,7 @@ private:
     virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* group = securityManager->FindGroupByName(TString(key));
+        auto* group = securityManager->FindGroupByNameOrAlias(TString(key));
         if (!IsObjectAlive(group)) {
             return nullptr;
         }
