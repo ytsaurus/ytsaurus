@@ -129,6 +129,8 @@ enum class EProtobufType
     OtherColumns  /* "other_columns" */,
 };
 
+TMaybe<TVector<TString>> InferColumnFilter(const ::google::protobuf::Descriptor& descriptor);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NDetail
