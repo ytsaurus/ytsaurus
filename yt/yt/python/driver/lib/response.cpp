@@ -1,5 +1,6 @@
 #include "response.h"
 
+#include <yt/python/common/error.h>
 #include <yt/python/common/helpers.h>
 
 #include <yt/core/rpc/dispatcher.h>
@@ -159,7 +160,7 @@ Py::Object TDriverResponse::IsSet(Py::Tuple& args, Py::Dict& kwargs)
 Py::Object TDriverResponse::IsOk(Py::Tuple& args, Py::Dict& kwargs)
 {
     if (!Response_.IsSet()) {
-        THROW_ERROR_EXCEPTION("Response is not set");
+        throw CreateYtError("Response is not set");
     }
     return Py::Boolean(Response_.Get().IsOK());
 }
@@ -167,7 +168,7 @@ Py::Object TDriverResponse::IsOk(Py::Tuple& args, Py::Dict& kwargs)
 Py::Object TDriverResponse::Error(Py::Tuple& args, Py::Dict& kwargs)
 {
     if (!Response_.IsSet()) {
-        THROW_ERROR_EXCEPTION("Response is not set");
+        throw CreateYtError("Response is not set");
     }
     Py::Object object;
 #if PY_MAJOR_VERSION < 3

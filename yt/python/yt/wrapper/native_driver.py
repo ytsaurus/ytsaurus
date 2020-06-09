@@ -298,7 +298,7 @@ def make_request(command_name, params,
             return value
     else:
         def process_error(request):
-            if not response.is_ok():
+            if response.is_set() and not response.is_ok():
                 raise YtResponseError(response.error())
 
         if response.is_set() and not response.is_ok():
