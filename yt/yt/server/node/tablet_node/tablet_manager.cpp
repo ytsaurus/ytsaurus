@@ -733,6 +733,19 @@ private:
 
         TTabletAutomatonPart::OnAfterSnapshotLoaded();
 
+        // NB: Dynamic stores should be removed before store managers are created.
+        // COMPAT(ifsmirnov)
+        if (RemoveDynamicStoresFromFrozenTablets_) {
+            for (const auto& [id, tablet] : TabletMap_) {
+                if (tablet->GetState() == ETabletState::Frozen) {
+                    if (auto activeStore = tablet->GetActiveStore()) {
+                        tablet->RemoveStore(activeStore);
+                        tablet->SetActiveStore(nullptr);
+                    }
+                }
+            }
+        }
+
         for (const auto& pair : TabletMap_) {
             auto* tablet = pair.second;
             auto storeManager = CreateStoreManager(tablet);
@@ -787,17 +800,6 @@ private:
 
             if (transaction->GetState() == ETransactionState::PersistentCommitPrepared) {
                 PrepareLockedRows(transaction);
-            }
-        }
-
-        // COMPAT(ifsmirnov)
-        if (RemoveDynamicStoresFromFrozenTablets_) {
-            for (const auto& [id, tablet] : TabletMap_) {
-                if (tablet->GetState() == ETabletState::Frozen) {
-                    if (auto activeStore = tablet->GetActiveStore()) {
-                        tablet->RemoveStore(activeStore);
-                    }
-                }
             }
         }
     }
