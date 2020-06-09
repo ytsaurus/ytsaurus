@@ -622,7 +622,11 @@ void TTablet::Load(TLoadContext& context)
 
     auto activeStoreId = Load<TStoreId>(context);
     if (activeStoreId) {
-        ActiveStore_ = GetStore(activeStoreId)->AsDynamic();
+        // COMPAT(ifsmirnov)
+        auto loadedStore = FindStore(activeStoreId);
+        if (loadedStore) {
+            ActiveStore_ = loadedStore->AsDynamic();
+        }
     }
 
     auto loadPartition = [&] (int index) -> std::unique_ptr<TPartition> {
