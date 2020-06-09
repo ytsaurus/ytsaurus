@@ -12,7 +12,7 @@ public class CopyNode extends CopyLikeReq<CopyNode> {
     }
 
     public CopyNode(YPath from, YPath to) {
-        this(from.toString(), to.toString());
+        this(from.justPath().toString(), to.justPath().toString());
     }
 
     public CopyNode(CopyNode copyNode) {
