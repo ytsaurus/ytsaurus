@@ -8,6 +8,8 @@
 #include <contrib/libs/protobuf/google/protobuf/descriptor.pb.h>
 #include <contrib/libs/protobuf/messagext.h>
 
+#include <util/generic/hash_set.h>
+
 #include <util/stream/output.h>
 
 namespace NYT {
@@ -43,13 +45,20 @@ enum class EProtobufSerializationMode
     Yt,
 };
 
+enum class EListMode
+{
+    Optional,
+    Required,
+};
+
 struct TProtobufFieldOptions
 {
     TMaybe<EProtobufType> Type;
     EProtobufSerializationMode SerializationMode = EProtobufSerializationMode::Protobuf;
+    EListMode ListMode = EListMode::Required;
 };
 
-using TOption = TVariant<EProtobufType, EProtobufSerializationMode>;
+using TOption = TVariant<EProtobufType, EProtobufSerializationMode, EListMode>;
 
 TOption FieldFlagToOption(EWrapperFieldFlag::Enum flag)
 {
@@ -67,6 +76,10 @@ TOption FieldFlagToOption(EWrapperFieldFlag::Enum flag)
             return EProtobufType::EnumInt;
         case EFlag::ENUM_STRING:
             return EProtobufType::EnumString;
+        case EFlag::OPTIONAL_LIST:
+            return EListMode::Optional;
+        case EFlag::REQUIRED_LIST:
+            return EListMode::Required;
     }
     Y_FAIL();
 }
@@ -100,6 +113,16 @@ EWrapperFieldFlag::Enum OptionToFieldFlag(TOption option)
             }
             Y_FAIL();
         }
+        EFlag::Enum operator() (EListMode listMode)
+        {
+            switch (listMode) {
+                case EListMode::Optional:
+                    return EFlag::OPTIONAL_LIST;
+                case EListMode::Required:
+                    return EFlag::REQUIRED_LIST;
+            }
+            Y_FAIL();
+        }
     };
 
     return Visit(TVisitor(), option);
@@ -118,6 +141,11 @@ public:
         SetOption(SerializationMode, serializationMode);
     }
 
+    void operator() (EListMode listMode)
+    {
+        SetOption(ListMode, listMode);
+    }
+
     template <typename T>
     void SetOption(TMaybe<T>& option, T newOption) {
         if (option) {
@@ -134,6 +162,7 @@ public:
 public:
     TMaybe<EProtobufType> Type;
     TMaybe<EProtobufSerializationMode> SerializationMode;
+    TMaybe<EListMode> ListMode;
 };
 
 void ParseProtobufFieldOptions(
@@ -149,6 +178,9 @@ void ParseProtobufFieldOptions(
     }
     if (visitor.SerializationMode) {
         fieldOptions->SerializationMode = *visitor.SerializationMode;
+    }
+    if (visitor.ListMode) {
+        fieldOptions->ListMode = *visitor.ListMode;
     }
 }
 
@@ -403,7 +435,13 @@ TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
         case FieldDescriptor::Label::LABEL_REPEATED:
             Y_ENSURE(options.SerializationMode == EProtobufSerializationMode::Yt,
                 "Repeated fields are supported only for YT serialization mode");
-            return NTi::TTypePtr(NTi::List(std::move(type)));
+            switch (options.ListMode) {
+                case EListMode::Required:
+                    return NTi::TTypePtr(NTi::List(std::move(type)));
+                case EListMode::Optional:
+                    return NTi::TTypePtr(NTi::Optional(NTi::List(std::move(type))));
+            }
+            Y_FAIL();
         case FieldDescriptor::Label::LABEL_OPTIONAL:
             return NTi::TTypePtr(NTi::Optional(std::move(type)));
         case FieldDescriptor::LABEL_REQUIRED:
@@ -437,7 +475,6 @@ TTableSchema CreateTableSchema(
         auto type = GetFieldType(fieldDescriptor, defaultOptions);
         if (HoldsAlternative<TOtherColumns>(type)) {
             result.Strict(false);
-            continue;
         } else if (HoldsAlternative<NTi::TTypePtr>(type)) {
             TColumnSchema column;
             column.Name(GetColumnName(fieldDescriptor));

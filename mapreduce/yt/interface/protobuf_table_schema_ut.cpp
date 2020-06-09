@@ -187,6 +187,14 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
             .AddColumn(TColumnSchema().Name("Int32Field").Type(NTi::List(ToTypeV3(EValueType::VT_INT32, true)))));
     }
 
+    Y_UNIT_TEST(TRepeatedOptionalList)
+    {
+        const auto schema = CreateTableSchema<NTesting::TOptionalList>();
+        auto type = NTi::Optional(NTi::List(NTi::Int64()));
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("OptionalListInt64").TypeV3(type)));
+    }
+
     NTi::TTypePtr GetUrlRowType(bool required)
     {
         static const NTi::TTypePtr structType = NTi::Struct({

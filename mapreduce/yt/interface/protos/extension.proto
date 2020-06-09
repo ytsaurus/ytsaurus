@@ -13,12 +13,11 @@ message EWrapperFieldFlag
         ENUM_INT = 2;
         ENUM_STRING = 3;
 
-        // WARNING! The underlying format of data stored in YT tables is
-        // currently subject to change.
-        // It is not advised to use this feature in production.
         SERIALIZATION_YT = 4;
-
         SERIALIZATION_PROTOBUF = 5;
+
+        REQUIRED_LIST = 6;
+        OPTIONAL_LIST = 7;
     }
 }
 

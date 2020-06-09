@@ -202,3 +202,8 @@ message TNoOptionInheritance
     optional TEmbedded Embedded_ProtobufOption = 8 [(NYT.flags) = SERIALIZATION_PROTOBUF];
     optional TEmbedded Embedded_NoOption = 9;
 }
+
+message TOptionalList
+{
+    repeated int64 OptionalListInt64 = 1 [(NYT.flags) = OPTIONAL_LIST, (NYT.flags) = SERIALIZATION_YT];
+}
