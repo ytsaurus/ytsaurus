@@ -529,7 +529,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
         # We have bug that get to document don't return attributes.
         return \
             content.attributes.get("opaque", False) and content.attributes["type"] != "document" or \
-            content.attributes["type"] in ("account_map", "tablet_cell")
+            content.attributes["type"] in ("account_map", "tablet_cell", "portal_entrance")
 
     def safe_batch_get(nodes, batch_client):
         get_result = []
