@@ -21,9 +21,17 @@ struct IColumnReaderBase
 {
     virtual ~IColumnReaderBase() = default;
 
-    virtual void ResetBlock(TSharedRef block, int blockIndex) = 0;
+    //! Feeds a new block into the reader.
+    virtual void SetCurrentBlock(TSharedRef block, int blockIndex) = 0;
 
+    //! Positions the reader at a given #rowIndex.
+    //! Reader can only be moved forward.
+    //! #rowIndex must remain within the current segment (possibly at the very end of it).
     virtual void SkipToRowIndex(i64 rowIndex) = 0;
+
+    //! If the current row index points to the end of the segment,
+    //! the segment is switched to the next one.
+    virtual void Rearm() = 0;
 
     //! First unread row index.
     virtual i64 GetCurrentRowIndex() const = 0;
@@ -31,13 +39,14 @@ struct IColumnReaderBase
     //! First row index outside the current block.
     virtual i64 GetBlockUpperRowIndex() const = 0;
 
-    //! First row index outside the range that is ready to be
-    //! read without block or segment change.
+    //! Index of the first row  outside the range that is ready to be
+    //! read without block or segment switch.
     virtual i64 GetReadyUpperRowIndex() const = 0;
 
     //! Returns current block index or `-1` if no block was set.
     virtual int GetCurrentBlockIndex() const = 0;
 
+    //! Returns the index of the next block needed by the reader.
     virtual std::optional<int> GetNextBlockIndex() const = 0;
 };
 
@@ -101,7 +110,7 @@ struct ISchemalessColumnReader
 
     //! For rows in range [CurrentRowIndex, CurrentRowIndex + valueCounts.Size())
     //! writes the number of schemaless values per row.
-    virtual void GetValueCounts(TMutableRange<ui32> valueCounts) = 0;
+    virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +142,7 @@ struct IVersionedColumnReader
 
     //! For rows from #CurrentRowIndex to (#CurrentRowIndex + valueCounts.Size())
     //! return number of values per row.
-    virtual void GetValueCounts(TMutableRange<ui32> valueCounts) = 0;
+    virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -67,7 +67,10 @@ protected:
     virtual bool IsFetchingCompleted() const override;
     virtual std::vector<NChunkClient::TChunkId> GetFailedChunkIds() const override;
 
-    void ResetExhaustedColumns();
+    void FeedBlocksToReaders();
+    void ArmColumnReaders();
+    i64 GetReadyRowCount() const;
+
     NChunkClient::TBlockFetcher::TBlockInfo CreateBlockInfo(int blockIndex) const;
     i64 GetSegmentIndex(const TColumn& column, i64 rowIndex) const;
     i64 GetLowerRowIndex(TKey key) const;

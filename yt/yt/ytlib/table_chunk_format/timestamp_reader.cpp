@@ -171,27 +171,21 @@ ui32 TTimestampSegmentReader::GetLowerWriteIndex(i64 rowIndex) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTimestampReaderBase::TTimestampReaderBase(const TColumnMeta& meta)
+TTimestampReaderBase::TTimestampReaderBase(
+    const TColumnMeta& meta,
+    TTimestamp timestamp)
     : TColumnReaderBase(meta)
+    , Timestamp_(timestamp)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TTransactionTimestampReaderBase::TTransactionTimestampReaderBase(
-    const NProto::TColumnMeta& meta,
-    NTableClient::TTimestamp timestamp)
-    : TTimestampReaderBase(meta)
-    , Timestamp_(timestamp)
-{ }
 
 void TTransactionTimestampReaderBase::DoPrepareRows(i64 rowCount)
 {
     PreparedRowCount_ = rowCount;
 
-    if (!SegmentReader_) {
-        InitSegmentReader();
-    }
-
+    EnsureCurrentSegmentReader();
+    
     TimestampIndexRanges_.reserve(rowCount);
     DeleteTimestamps_.reserve(rowCount);
     WriteTimestamps_.reserve(rowCount);
@@ -209,21 +203,11 @@ void TTransactionTimestampReaderBase::DoSkipPreparedRows()
     TimestampIndexRanges_.clear();
     DeleteTimestamps_.clear();
     WriteTimestamps_.clear();
+    
     CurrentRowIndex_ += PreparedRowCount_;
     PreparedRowCount_ = 0;
 
-    if (CurrentRowIndex_ == CurrentSegmentMeta().chunk_row_count()) {
-        SegmentReader_.reset();
-        ++CurrentSegmentIndex_;
-    }
-}
-
-void TTransactionTimestampReaderBase::InitSegmentReader()
-{
-    SegmentReader_.reset(new TTimestampSegmentReader(
-        CurrentSegmentMeta(),
-        Block_.Begin() + CurrentSegmentMeta().offset(),
-        Timestamp_));
+    ResetCurrentSegmentReaderOnEos();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -232,9 +216,7 @@ void TCompactionTimestampReader::PrepareRows(i64 rowCount)
 {
     PreparedRowCount_ = rowCount;
 
-    if (!SegmentReader_) {
-        InitSegmentReader();
-    }
+    EnsureCurrentSegmentReader();
 }
 
 void TCompactionTimestampReader::SkipPreparedRows()
@@ -242,17 +224,7 @@ void TCompactionTimestampReader::SkipPreparedRows()
     CurrentRowIndex_ += PreparedRowCount_;
     PreparedRowCount_ = 0;
 
-    if (CurrentRowIndex_ == CurrentSegmentMeta().chunk_row_count()) {
-        SegmentReader_.reset();
-        ++CurrentSegmentIndex_;
-    }
-}
-
-void TCompactionTimestampReader::InitSegmentReader()
-{
-    SegmentReader_.reset(new TTimestampSegmentReader(
-        CurrentSegmentMeta(),
-        Block_.Begin() + CurrentSegmentMeta().offset()));
+    ResetCurrentSegmentReaderOnEos();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

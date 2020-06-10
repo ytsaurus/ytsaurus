@@ -765,7 +765,7 @@ public:
             const auto& columnSchema = ChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
             if (columnSchema.Aggregate()) {
                 // Possibly multiple values per column for aggregate columns.
-                ValueColumnReaders_[valueColumnIndex]->GetValueCounts(TMutableRange<ui32>(columnValueCount));
+                ValueColumnReaders_[valueColumnIndex]->ReadValueCounts(TMutableRange<ui32>(columnValueCount));
             } else {
                 // No more than one value per column for aggregate columns.
                 columnValueCount.resize(0);
@@ -911,7 +911,7 @@ public:
         std::vector<ui32> valueCountPerRow(rowLimit, 0);
         std::vector<ui32> columnValueCount(rowLimit, 0);
         for (const auto& valueColumnReader : ValueColumnReaders_) {
-            valueColumnReader->GetValueCounts(TMutableRange<ui32>(columnValueCount));
+            valueColumnReader->ReadValueCounts(TMutableRange<ui32>(columnValueCount));
             for (int index = 0; index < rowLimit; ++index) {
                 valueCountPerRow[index] += columnValueCount[index];
             }
@@ -1054,7 +1054,7 @@ public:
         }
 
         if (!Initialized_) {
-            ResetExhaustedColumns();
+            FeedBlocksToReaders();
             Initialize(MakeRange(KeyColumnReaders_.data(), KeyColumnReaders_.size()));
             Initialized_ = true;
             RowIndex_ = LowerRowIndex_;
@@ -1065,20 +1065,20 @@ public:
         }
 
         while (rows->size() < rows->capacity()) {
-            ResetExhaustedColumns();
+            FeedBlocksToReaders();
+            ArmColumnReaders();
 
-            // Define how many to read.
-            i64 rowLimit = std::min(HardUpperRowIndex_ - RowIndex_, static_cast<i64>(rows->capacity() - rows->size()));
-            for (const auto& column : Columns_) {
-                rowLimit = std::min(column.ColumnReader->GetReadyUpperRowIndex() - RowIndex_, rowLimit);
-            }
+            // Compute the number rows to read.
+            i64 rowLimit = static_cast<i64>(rows->capacity() - rows->size());
+            rowLimit = std::min(rowLimit, HardUpperRowIndex_ - RowIndex_);
+            rowLimit = std::min(rowLimit, GetReadyRowCount());
             rowLimit = std::min(rowLimit, MaxRowsPerRead_);
             YT_VERIFY(rowLimit > 0);
 
             auto range = RowBuilder_.AllocateRows(rows, rowLimit, RowIndex_, SafeUpperRowIndex_);
 
             // Read key values.
-            for (auto& keyColumnReader : KeyColumnReaders_) {
+            for (const auto& keyColumnReader : KeyColumnReaders_) {
                 keyColumnReader->ReadValues(range);
             }
 
@@ -1178,16 +1178,15 @@ public:
             return TMutableVersionedRow();
         }
 
-        size_t valueCount = 0;
+        i64 valueCount = 0;
         for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
             const auto& idMapping = SchemaIdMapping_[valueColumnIndex];
             const auto& columnSchema = ChunkMeta_->ChunkSchema().Columns()[idMapping.ChunkSchemaIndex];
             ui32 columnValueCount = 1;
             if (columnSchema.Aggregate()) {
                 // Possibly multiple values per column for aggregate columns.
-                ValueColumnReaders_[valueColumnIndex]->GetValueCounts(TMutableRange<ui32>(&columnValueCount, 1));
+                ValueColumnReaders_[valueColumnIndex]->ReadValueCounts(TMutableRange<ui32>(&columnValueCount, 1));
             }
-
             valueCount += columnValueCount;
         }
 
@@ -1200,7 +1199,7 @@ public:
             hasDeleteTimestamp ? 1 : 0);
 
         // Read key values.
-        for (auto& keyColumnReader : KeyColumnReaders_) {
+        for (const auto& keyColumnReader : KeyColumnReaders_) {
             keyColumnReader->ReadValues(TMutableRange<TMutableVersionedRow>(&row, 1));
         }
 
@@ -1293,7 +1292,7 @@ public:
         size_t valueCount = 0;
         for (int valueColumnIndex = 0; valueColumnIndex < SchemaIdMapping_.size(); ++valueColumnIndex) {
             ui32 columnValueCount;
-            ValueColumnReaders_[valueColumnIndex]->GetValueCounts(TMutableRange<ui32>(&columnValueCount, 1));
+            ValueColumnReaders_[valueColumnIndex]->ReadValueCounts(TMutableRange<ui32>(&columnValueCount, 1));
             valueCount += columnValueCount;
         }
 
@@ -1306,14 +1305,13 @@ public:
             deleteTimestampCount);
 
         // Read key values.
-        for (auto& keyColumnReader : KeyColumnReaders_) {
+        for (const auto& keyColumnReader : KeyColumnReaders_) {
             keyColumnReader->ReadValues(TMutableRange<TMutableVersionedRow>(&row, 1));
         }
 
         // Read delete timestamps.
         for (ui32 timestampIndex = 0; timestampIndex < deleteTimestampCount; ++timestampIndex) {
             row.BeginDeleteTimestamps()[timestampIndex] = TimestampReader_->GetDeleteTimestamp(timestampIndex);
-
         }
 
         if (writeTimestampCount == 0) {
@@ -1371,7 +1369,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template<class TRowBuilder>
+template <class TRowBuilder>
 class TColumnarVersionedLookupChunkReader
     : public TColumnarVersionedChunkReaderBase<TColumnarLookupChunkReaderBase>
 {
@@ -1428,10 +1426,11 @@ public:
         }
 
         while (rows->size() < rows->capacity()) {
-            ResetExhaustedColumns();
+            FeedBlocksToReaders();
 
+            bool found = false;
             if (RowIndexes_[NextKeyIndex_] < VersionedChunkMeta_->Misc().row_count()) {
-                const auto& key = Keys_[NextKeyIndex_];
+                auto key = Keys_[NextKeyIndex_];
                 YT_VERIFY(key.GetCount() == VersionedChunkMeta_->GetKeyColumnCount());
 
                 // Reading row.
@@ -1444,19 +1443,17 @@ public:
                         upperRowIndex);
                 }
 
-                if (upperRowIndex == lowerRowIndex) {
-                    // Key does not exist.
-                    rows->push_back(TMutableVersionedRow());
-                } else {
-                    // Key can be present in exactly one row.
+                if (upperRowIndex != lowerRowIndex) {
+                    // Key must be present in exactly one row.
                     YT_VERIFY(upperRowIndex == lowerRowIndex + 1);
                     i64 rowIndex = lowerRowIndex;
-
                     rows->push_back(ReadRow(rowIndex));
+                    found = true;
                 }
-            } else {
-                // Key oversteps chunk boundaries.
-                rows->push_back(TMutableVersionedRow());
+            }
+
+            if (!found) {
+                rows->push_back({});
             }
 
             if (++NextKeyIndex_ == Keys_.Size() || !TryFetchNextRow()) {
@@ -1485,10 +1482,9 @@ private:
 
     TMutableVersionedRow ReadRow(i64 rowIndex)
     {
-        for (auto& column : Columns_) {
+        for (const auto& column : Columns_) {
             column.ColumnReader->SkipToRowIndex(rowIndex);
         }
-
         return RowBuilder_.ReadRow(rowIndex);
     }
 };

@@ -666,7 +666,7 @@ public:
             }
 
             auto range = MakeRange(rows.Begin() + startRowIndex, rows.Begin() + rowIndex);
-            for (auto& columnWriter : ValueColumnWriters_) {
+            for (const auto& columnWriter : ValueColumnWriters_) {
                 columnWriter->WriteUnversionedValues(range);
             }
 

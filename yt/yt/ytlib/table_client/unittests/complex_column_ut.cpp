@@ -48,7 +48,8 @@ TEST(TComplexColumnTest, Simple)
     auto columnMeta = columnWriter->ColumnMeta();
 
     auto reader = CreateUnversionedComplexColumnReader(columnMeta, 0, 0);
-    reader->ResetBlock(columnData, 0);
+    reader->SetCurrentBlock(columnData, 0);
+    reader->Rearm();
     EXPECT_EQ(rows.size(), reader->GetReadyUpperRowIndex());
 
     TChunkedMemoryPool pool;
@@ -58,7 +59,7 @@ TEST(TComplexColumnTest, Simple)
     }
 
     reader->ReadValues(TMutableRange<TMutableUnversionedRow>(actual.data(), actual.size()));
-    // CheckSchemafulResult(rows, actual);
+    CheckSchemafulResult(rows, actual);
 }
 
 template <EValueType WriterType, EValueType ReaderType>
@@ -103,7 +104,8 @@ void TestCompatibility()
         static_assert(ReaderType == EValueType::Any);
         reader = CreateUnversionedAnyColumnReader(columnMeta, 0, 0);
     }
-    reader->ResetBlock(columnData, 0);
+    reader->SetCurrentBlock(columnData, 0);
+    reader->Rearm();
     EXPECT_EQ(rows.size(), reader->GetReadyUpperRowIndex());
 
     TChunkedMemoryPool pool;

@@ -21,11 +21,6 @@ TUnversionedSegmentReaderBase::TUnversionedSegmentReaderBase(
     , SegmentStartRowIndex_(meta.chunk_row_count() - meta.row_count())
 { }
 
-bool TUnversionedSegmentReaderBase::IsEndOfSegment() const
-{
-    return SegmentRowIndex_ == Meta_.row_count();
-}
-
 i64 TUnversionedSegmentReaderBase::EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex)
 {
     return (upperRowIndex - lowerRowIndex) * GetDataWeight(ValueType_);
@@ -188,9 +183,14 @@ TColumnReaderBase::TColumnReaderBase(const NProto::TColumnMeta& columnMeta)
     : ColumnMeta_(columnMeta)
 { }
 
-void TColumnReaderBase::ResetBlock(TSharedRef block, int blockIndex)
+void TColumnReaderBase::Rearm()
 {
-    ResetSegmentReader();
+    RearmSegmentReader();
+}
+
+void TColumnReaderBase::SetCurrentBlock(TSharedRef block, int blockIndex)
+{
+    ResetCurrentSegmentReader();
     Block_ = std::move(block);
     CurrentBlockIndex_ = blockIndex;
 
@@ -212,7 +212,7 @@ void TColumnReaderBase::SkipToRowIndex(i64 rowIndex)
     YT_VERIFY(segmentIndex >= CurrentSegmentIndex_);
     if (segmentIndex != CurrentSegmentIndex_) {
         CurrentSegmentIndex_ = segmentIndex;
-        ResetSegmentReader();
+        ResetCurrentSegmentReader();
     }
 }
 
@@ -305,6 +305,29 @@ int TColumnReaderBase::FindLastBlockSegment() const
     return std::distance(ColumnMeta_.segments().begin(), it - 1);
 }
 
+void TColumnReaderBase::ResetCurrentSegmentReaderOnEos()
+{
+    if (CurrentRowIndex_ == CurrentSegmentMeta().chunk_row_count()) {
+        ResetCurrentSegmentReader();
+        ++CurrentSegmentIndex_;
+    }
+}
+
+void TColumnReaderBase::EnsureCurrentSegmentReader()
+{
+    if (!GetCurrentSegmentReader()) {
+        YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
+        CreateCurrentSegmentReader();
+    }
+}
+
+void TColumnReaderBase::RearmSegmentReader()
+{
+    ResetCurrentSegmentReaderOnEos();
+    EnsureCurrentSegmentReader();
+    GetCurrentSegmentReader()->SkipToRowIndex(CurrentRowIndex_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnversionedColumnReaderBase::TUnversionedColumnReaderBase(const NProto::TColumnMeta& columnMeta, int columnIndex, int columnId)
@@ -325,7 +348,7 @@ void TUnversionedColumnReaderBase::ReadValues(TMutableRange<NTableClient::TMutab
 
 int TUnversionedColumnReaderBase::GetBatchColumnCount()
 {
-    EnsureSegmentReader();
+    EnsureCurrentSegmentReader();
     return SegmentReader_->GetBatchColumnCount();
 }
 
@@ -333,33 +356,30 @@ void TUnversionedColumnReaderBase::ReadColumnarBatch(
     TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
     i64 rowCount)
 {
-    EnsureSegmentReader();
+    EnsureCurrentSegmentReader();
     SegmentReader_->ReadColumnarBatch(columns, rowCount);
     CurrentRowIndex_ += rowCount;
 }
 
 i64 TUnversionedColumnReaderBase::EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex)
 {
-    EnsureSegmentReader();
+    EnsureCurrentSegmentReader();
     return SegmentReader_->EstimateDataWeight(lowerRowIndex, upperRowIndex);
 }
 
-void TUnversionedColumnReaderBase::ResetSegmentReader()
+ISegmentReaderBase* TUnversionedColumnReaderBase::GetCurrentSegmentReader() const
+{
+    return SegmentReader_.get();
+}
+
+void TUnversionedColumnReaderBase::ResetCurrentSegmentReader()
 {
     SegmentReader_.reset();
 }
 
-void TUnversionedColumnReaderBase::EnsureSegmentReader()
+void TUnversionedColumnReaderBase::CreateCurrentSegmentReader()
 {
-    if (SegmentReader_ && SegmentReader_->IsEndOfSegment()) {
-        SegmentReader_.reset();
-        ++CurrentSegmentIndex_;
-    }
-    YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
-    if (!SegmentReader_) {
-        SegmentReader_ = CreateSegmentReader(CurrentSegmentIndex_);
-    }
-    SegmentReader_->SkipToRowIndex(CurrentRowIndex_);
+    SegmentReader_ = CreateSegmentReader(CurrentSegmentIndex_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -370,10 +390,10 @@ TVersionedColumnReaderBase::TVersionedColumnReaderBase(const TColumnMeta& column
     , Aggregate_(aggregate)
 { }
 
-void TVersionedColumnReaderBase::GetValueCounts(TMutableRange<ui32> valueCounts)
+void TVersionedColumnReaderBase::ReadValueCounts(TMutableRange<ui32> valueCounts)
 {
-    EnsureSegmentReader();
-    SegmentReader_->GetValueCounts(valueCounts);
+    RearmSegmentReader();
+    SegmentReader_->ReadValueCounts(valueCounts);
 }
 
 void TVersionedColumnReaderBase::ReadValues(
@@ -383,8 +403,7 @@ void TVersionedColumnReaderBase::ReadValues(
 {
     i64 readRowCount = 0;
     while (readRowCount < rows.Size()) {
-        EnsureSegmentReader();
-
+        RearmSegmentReader();
         i64 count = SegmentReader_->ReadValues(
             rows.Slice(rows.Begin() + readRowCount, rows.End()),
             timestampIndexRanges.Slice(readRowCount, timestampIndexRanges.Size()),
@@ -399,8 +418,7 @@ void TVersionedColumnReaderBase::ReadAllValues(TMutableRange<TMutableVersionedRo
 {
     i64 readRowCount = 0;
     while (readRowCount < rows.Size()) {
-        EnsureSegmentReader();
-
+        RearmSegmentReader();
         i64 count = SegmentReader_->ReadAllValues(
             rows.Slice(rows.Begin() + readRowCount, rows.End()));
 
@@ -409,22 +427,19 @@ void TVersionedColumnReaderBase::ReadAllValues(TMutableRange<TMutableVersionedRo
     }
 }
 
-void TVersionedColumnReaderBase::ResetSegmentReader()
+ISegmentReaderBase* TVersionedColumnReaderBase::GetCurrentSegmentReader() const
+{
+        return SegmentReader_.get();
+}
+
+void TVersionedColumnReaderBase::ResetCurrentSegmentReader()
 {
     SegmentReader_.reset();
 }
 
-void TVersionedColumnReaderBase::EnsureSegmentReader()
+void TVersionedColumnReaderBase::CreateCurrentSegmentReader()
 {
-    if (SegmentReader_ && SegmentReader_->IsEndOfSegment()) {
-        SegmentReader_.reset();
-        ++CurrentSegmentIndex_;
-    }
-    YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
-    if (!SegmentReader_) {
-        SegmentReader_ = CreateSegmentReader(CurrentSegmentIndex_);
-    }
-    SegmentReader_->SkipToRowIndex(CurrentRowIndex_);
+    SegmentReader_ = CreateSegmentReader(CurrentSegmentIndex_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -72,7 +72,8 @@ TEST(TAnyColumnTest, Simple)
     auto columnMeta = columnWriter->ColumnMeta();
 
     auto reader = CreateUnversionedAnyColumnReader(columnMeta, 0, 0);
-    reader->ResetBlock(columnData, 0);
+    reader->SetCurrentBlock(columnData, 0);
+    reader->Rearm();
 
     EXPECT_EQ(expected.size(), reader->GetReadyUpperRowIndex());
 
@@ -83,7 +84,6 @@ TEST(TAnyColumnTest, Simple)
     }
 
     reader->ReadValues(TMutableRange<TMutableUnversionedRow>(actual.data(), actual.size()));
-    // XXX
     CheckSchemafulResult(expected, actual);
 }
 
