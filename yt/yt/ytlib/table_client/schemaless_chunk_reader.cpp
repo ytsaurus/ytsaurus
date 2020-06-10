@@ -699,11 +699,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
             }
 
             rows.push_back(row);
-
-            auto rowWeight = GetDataWeight(row);
-            dataWeight += rowWeight;
-            DataWeight_ += rowWeight;
-            ++RowCount_;
+            dataWeight += GetDataWeight(row);
         }
         ++RowIndex_;
 
@@ -711,6 +707,9 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
             BlockEnded_ = true;
         }
     }
+
+    RowCount_ += rows.size();
+    DataWeight_ += dataWeight;
 
     return CreateBatchFromUnversionedRows(std::move(rows), this);
 }
@@ -1123,79 +1122,90 @@ private:
 
     i64 ReadPrologue(i64 maxRowsPerRead)
     {
-        ResetExhaustedColumns();
+        FeedBlocksToReaders();
+        ArmColumnReaders();
 
         // Compute the number rows to read.
-        i64 rowCount = maxRowsPerRead;
-
+        i64 rowLimit = maxRowsPerRead;
         // Each read must be fully below or fully above SafeUpperRowLimit,
         // to determine if we should read and validate keys.
-        if (RowIndex_ < SafeUpperRowIndex_) {
-            rowCount = std::min(SafeUpperRowIndex_ - RowIndex_, rowCount);
-        } else {
-            rowCount = std::min(HardUpperRowIndex_ - RowIndex_, rowCount);
-        }
-
-        for (const auto& column : Columns_) {
-            rowCount = std::min(column.ColumnReader->GetReadyUpperRowIndex() - RowIndex_, rowCount);
-        }
-
-        YT_VERIFY(rowCount > 0);
+        rowLimit = std::min(
+            rowLimit,
+            RowIndex_ < SafeUpperRowIndex_
+                ? SafeUpperRowIndex_ - RowIndex_
+                : HardUpperRowIndex_ - RowIndex_);
+        // Cap by ready row indexes.
+        rowLimit = std::min(rowLimit, GetReadyRowCount());
+        YT_VERIFY(rowLimit > 0);
 
         if (!LowerKeyLimitReached_) {
-            auto keys = ReadKeys(rowCount);
+            auto keys = ReadKeys(rowLimit);
 
             i64 deltaIndex = 0;
-            for (; deltaIndex < rowCount; ++deltaIndex) {
+            for (; deltaIndex < rowLimit; ++deltaIndex) {
                 if (keys[deltaIndex] >= LowerLimit_.GetKey()) {
                     break;
                 }
             }
 
-            rowCount -= deltaIndex;
+            rowLimit -= deltaIndex;
             RowIndex_ += deltaIndex;
 
-            // Rewind row column readers to proper row index.
+            // Rewind row column readers to the proper row index.
             for (const auto& reader : RowColumnReaders_) {
                 reader->SkipToRowIndex(RowIndex_);
             }
-            
             if (SchemalessReader_) {
                 SchemalessReader_->SkipToRowIndex(RowIndex_);
             }
 
-            LowerKeyLimitReached_ = (rowCount > 0);
+            LowerKeyLimitReached_ = (rowLimit > 0);
 
             // We could have overcome upper limit, we must check it.
             if (RowIndex_ >= SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
                 auto keyRange = MakeRange(keys.data() + deltaIndex, keys.data() + keys.size());
-                while (rowCount > 0 && keyRange[rowCount - 1] >= UpperLimit_.GetKey()) {
-                    --rowCount;
+                while (rowLimit > 0 && keyRange[rowLimit - 1] >= UpperLimit_.GetKey()) {
+                    --rowLimit;
                     Completed_ = true;
                 }
             }
         } else if (RowIndex_ >= SafeUpperRowIndex_ && UpperLimit_.HasKey()) {
-            auto keys = ReadKeys(rowCount);
-            while (rowCount > 0 && keys[rowCount - 1] >= UpperLimit_.GetKey()) {
-                --rowCount;
+            auto keys = ReadKeys(rowLimit);
+            while (rowLimit > 0 && keys[rowLimit - 1] >= UpperLimit_.GetKey()) {
+                --rowLimit;
                 Completed_ = true;
-            }
-        } else {
-            // We do not read keys, so we must skip rows for key readers.
-            for (const auto& reader : KeyColumnReaders_) {
-                reader->SkipToRowIndex(RowIndex_ + rowCount);
             }
         }
 
-        return rowCount;
+        return rowLimit;
     }
 
-    void ReadEpilogue(i64 rowCount, i64 dataWeight)
+    void ReadEpilogue(std::vector<TUnversionedRow>* rows)
     {
-        RowCount_ += rowCount;
-        RowIndex_ += rowCount;
-        DataWeight_ += dataWeight;
+        if (TSchemalessChunkReaderBase::Config_->SamplingRate) {
+            i64 insertIndex = 0;
+            for (i64 rowIndex = 0; rowIndex < rows->size(); ++rowIndex) {
+                i64 tableRowIndex = ChunkSpec_.table_row_index() + RowIndex_ - rows->size() + rowIndex;
+                if (Sampler_.Sample(tableRowIndex)) {
+                    rows[insertIndex] = rows[rowIndex];
+                    ++insertIndex;
+                }
+            }
+            rows->resize(insertIndex);
+        }
 
+        i64 dataWeight = 0;
+        for (auto row : *rows) {
+            dataWeight += GetDataWeight(row);
+        }
+
+        RowCount_ += rows->size();
+        DataWeight_ += dataWeight;
+    }
+
+    void AdvanceRowIndex(i64 rowCount)
+    {
+        RowIndex_ += rowCount;
         if (RowIndex_ == HardUpperRowIndex_) {
             Completed_ = true;
         }
@@ -1217,6 +1227,7 @@ private:
         std::vector<TUnversionedRow> rows;
         rows.reserve(rowCount);
         ReadRows(rowCount, &rows);
+        ReadEpilogue(&rows);
         return rows;
     }
 
@@ -1257,15 +1268,10 @@ private:
             currentBatchColumnIndex += columnCount;
         }
 
-        for (const auto& reader : KeyColumnReaders_) {
-            reader->SkipToRowIndex(RowIndex_ + rowCount);
-        }
+        AdvanceRowIndex(rowCount);
 
-        if (SchemalessReader_) {
-            SchemalessReader_->SkipToRowIndex(RowIndex_ + rowCount);
-        }
-
-        ReadEpilogue(rowCount, dataWeight);
+        RowCount_ += rowCount;
+        DataWeight_ += dataWeight;
 
         if (!Completed_) {
             TryFetchNextRow();
@@ -1288,18 +1294,7 @@ private:
             }
         }
 
-        if (TSchemalessChunkReaderBase::Config_->SamplingRate) {
-            i64 insertIndex = 0;
-            // TODO(psushin): fix data weight statistics when row sampler is used.
-            for (i64 rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
-                i64 tableRowIndex = ChunkSpec_.table_row_index() + RowIndex_ - rows.size() + rowIndex;
-                if (Sampler_.Sample(tableRowIndex)) {
-                    rows[insertIndex] = rows[rowIndex];
-                    ++insertIndex;
-                }
-            }
-            rows.resize(insertIndex);
-        }
+        ReadEpilogue(&rows);
 
         return CreateBatchFromUnversionedRows(std::move(rows), this);
     }
@@ -1442,7 +1437,7 @@ private:
             WaitFor(RequestFirstBlocks())
                 .ThrowOnError();
 
-            ResetExhaustedColumns();
+            FeedBlocksToReaders();
             Initialize(MakeRange(KeyColumnReaders_));
             RowIndex_ = LowerRowIndex_;
             LowerKeyLimitReached_ = !LowerLimit_.HasKey();
@@ -1487,7 +1482,7 @@ private:
         std::vector<ui32> schemalessColumnCounts;
         if (SchemalessReader_) {
             schemalessColumnCounts.resize(rowCount);
-            SchemalessReader_->GetValueCounts(TMutableRange<ui32>(
+            SchemalessReader_->ReadValueCounts(TMutableRange<ui32>(
                 schemalessColumnCounts.data(),
                 schemalessColumnCounts.size()));
         }
@@ -1516,7 +1511,6 @@ private:
         }
 
         // Fill system columns.
-        i64 dataWeight = 0;
         for (i64 index = 0; index < rowCount; ++index) {
             auto row = rowRange[index];
             if (Options_->EnableRangeIndex) {
@@ -1537,10 +1531,9 @@ private:
                 *row.End() = MakeUnversionedInt64Value(ChunkSpec_.tablet_index(), TabletIndexId_);
                 row.SetCount(row.GetCount() + 1);
             }
-            dataWeight += GetDataWeight(row);
         }
 
-        ReadEpilogue(rowCount, dataWeight);
+        AdvanceRowIndex(rowCount);
     }
 };
 
@@ -1612,7 +1605,7 @@ public:
         while (rows.size() < options.MaxRowsPerRead &&
                dataWeight < options.MaxDataWeightPerRead)
         {
-            ResetExhaustedColumns();
+            FeedBlocksToReaders();
 
             if (RowIndexes_[NextKeyIndex_] < ChunkMeta_->Misc().row_count()) {
                 auto key = Keys_[NextKeyIndex_];
@@ -1686,7 +1679,7 @@ private:
 
         if (SchemalessReader_) {
             SchemalessReader_->SkipToRowIndex(rowIndex);
-            SchemalessReader_->GetValueCounts(TMutableRange<ui32>(&schemalessColumnCount, 1));
+            SchemalessReader_->ReadValueCounts(TMutableRange<ui32>(&schemalessColumnCount, 1));
         }
 
         auto row = TMutableUnversionedRow::Allocate(&Pool_, RowColumnReaders_.size() + schemalessColumnCount + SystemColumnCount_);
@@ -1695,7 +1688,7 @@ private:
         // Read values.
         auto range = TMutableRange<TMutableUnversionedRow>(&row, 1);
 
-        for (auto& columnReader : RowColumnReaders_) {
+        for (const auto& columnReader : RowColumnReaders_) {
             columnReader->SkipToRowIndex(rowIndex);
             columnReader->ReadValues(range);
         }

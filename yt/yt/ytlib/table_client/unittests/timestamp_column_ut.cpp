@@ -97,7 +97,7 @@ protected:
         TTimestamp timestamp)
     {
         TScanTransactionTimestampReader reader(ColumnMeta_, timestamp);
-        reader.ResetBlock(Data_, 0);
+        reader.SetCurrentBlock(Data_, 0);
 
         reader.SkipToRowIndex(beginRowIndex);
 

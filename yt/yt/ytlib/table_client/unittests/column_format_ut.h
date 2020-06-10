@@ -136,7 +136,7 @@ protected:
     std::unique_ptr<NTableChunkFormat::IUnversionedColumnReader> CreateColumnReader()
     {
         auto reader = DoCreateColumnReader();
-        reader->ResetBlock(Data_, 0);
+        reader->SetCurrentBlock(Data_, 0);
         return reader;
     }
 
@@ -231,6 +231,7 @@ protected:
         auto reader = CreateColumnReader();
         while (currentRowIndex < endRowIndex) {
             reader->SkipToRowIndex(currentRowIndex);
+            reader->Rearm();
             i64 batchEndRowIndex = std::min(static_cast<int>(reader->GetReadyUpperRowIndex()), endRowIndex);
             std::vector<IUnversionedRowBatch::TColumn> columns;
             columns.resize(reader->GetBatchColumnCount());

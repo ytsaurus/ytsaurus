@@ -87,25 +87,45 @@ TFuture<void> TColumnarChunkReaderBase::GetReadyEvent()
     return ReadyEvent_;
 }
 
-void TColumnarChunkReaderBase::ResetExhaustedColumns()
+void TColumnarChunkReaderBase::FeedBlocksToReaders()
 {
     for (int i = 0; i < PendingBlocks_.size(); ++i) {
-        if (PendingBlocks_[i]) {
-            YT_VERIFY(PendingBlocks_[i].IsSet());
-            YT_VERIFY(PendingBlocks_[i].Get().IsOK());
-            auto& columnReader = Columns_[i].ColumnReader;
+        const auto& blockFuture = PendingBlocks_[i];
+        const auto& column = Columns_[i];
+        const auto& columnReader = column.ColumnReader;
+        if (blockFuture) {
+            YT_VERIFY(blockFuture.IsSet() && blockFuture.Get().IsOK());
+            
             if (columnReader->GetCurrentBlockIndex() != -1) {
                 RequiredMemorySize_ -= BlockFetcher_->GetBlockSize(columnReader->GetCurrentBlockIndex());
             }
             MemoryManager_->SetRequiredMemorySize(RequiredMemorySize_);
 
-            columnReader->ResetBlock(
-                PendingBlocks_[i].Get().Value().Data,
-                Columns_[i].PendingBlockIndex);
+            const auto& block = blockFuture.Get().Value();
+            columnReader->SetCurrentBlock(block.Data, column.PendingBlockIndex);
         }
     }
 
     PendingBlocks_.clear();
+}
+
+void TColumnarChunkReaderBase::ArmColumnReaders()
+{
+    for (const auto& column : Columns_) {
+        column.ColumnReader->Rearm();
+    }
+}
+
+i64 TColumnarChunkReaderBase::GetReadyRowCount() const
+{
+    i64 result = Max<i64>();
+    for (const auto& column : Columns_) {
+        const auto& reader = column.ColumnReader;
+        result = std::min(
+            result,
+            reader->GetReadyUpperRowIndex() - reader->GetCurrentRowIndex());
+    }
+    return result;
 }
 
 TBlockFetcher::TBlockInfo TColumnarChunkReaderBase::CreateBlockInfo(int blockIndex) const
@@ -210,7 +230,7 @@ void TColumnarRangeChunkReaderBase::InitUpperRowIndex()
 
 void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<IUnversionedColumnReader*> keyReaders)
 {
-    for (auto& column : Columns_) {
+    for (const auto& column : Columns_) {
         column.ColumnReader->SkipToRowIndex(LowerRowIndex_);
     }
 
@@ -234,7 +254,7 @@ void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<IUnversionedColumnRea
         ? lowerRowIndex
         : upperRowIndex;
     YT_VERIFY(LowerRowIndex_ < ChunkMeta_->Misc().row_count());
-    for (auto& column : Columns_) {
+    for (const auto& column : Columns_) {
         column.ColumnReader->SkipToRowIndex(LowerRowIndex_);
     }
 }

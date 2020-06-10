@@ -16,6 +16,7 @@ namespace NYT::NTableChunkFormat {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTimestampSegmentReader
+    : public ISegmentReaderBase
 {
 public:
     TTimestampSegmentReader(
@@ -23,7 +24,7 @@ public:
         const char* data,
         NTableClient::TTimestamp timestamp = NTableClient::AllCommittedTimestamp);
 
-    void SkipToRowIndex(i64 rowIndex);
+    virtual void SkipToRowIndex(i64 rowIndex) override;
 
     NTableClient::TTimestamp GetDeleteTimestamp() const
     {
@@ -102,7 +103,9 @@ class TTimestampReaderBase
     : public TColumnReaderBase
 {
 public:
-    explicit TTimestampReaderBase(const NProto::TColumnMeta& meta);
+    TTimestampReaderBase(
+        const NProto::TColumnMeta& meta,
+        NTableClient::TTimestamp timestamp);
 
     virtual i64 GetReadyUpperRowIndex() const override
     {
@@ -114,11 +117,27 @@ public:
     }
 
 protected:
+    const NTableClient::TTimestamp Timestamp_;
+
     std::unique_ptr<TTimestampSegmentReader> SegmentReader_;
 
-    virtual void ResetSegmentReader() override
+
+    virtual ISegmentReaderBase* GetCurrentSegmentReader() const override
+    {
+        return SegmentReader_.get();
+    }
+
+    virtual void ResetCurrentSegmentReader() override
     {
         SegmentReader_.reset();
+    }
+
+    virtual void CreateCurrentSegmentReader() override
+    {
+        SegmentReader_.reset(new TTimestampSegmentReader(
+            CurrentSegmentMeta(),
+            Block_.Begin() + CurrentSegmentMeta().offset(),
+            Timestamp_));
     }
 };
 
@@ -128,13 +147,9 @@ class TTransactionTimestampReaderBase
     : public TTimestampReaderBase
 {
 public:
-    TTransactionTimestampReaderBase(
-        const NProto::TColumnMeta& meta,
-        NTableClient::TTimestamp timestamp);
+    using TTimestampReaderBase::TTimestampReaderBase;
 
 protected:
-    NTableClient::TTimestamp Timestamp_;
-
     i64 PreparedRowCount_ = 0;
 
     std::vector<std::pair<ui32, ui32>> TimestampIndexRanges_;
@@ -142,10 +157,7 @@ protected:
     std::vector<NTableClient::TTimestamp> WriteTimestamps_;
 
     void DoPrepareRows(i64 rowCount);
-
     void DoSkipPreparedRows();
-
-    void InitSegmentReader();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -154,11 +166,7 @@ class TScanTransactionTimestampReader
     : public TTransactionTimestampReaderBase
 {
 public:
-    TScanTransactionTimestampReader(
-        const NProto::TColumnMeta& meta,
-        NTableClient::TTimestamp timestamp)
-        : TTransactionTimestampReaderBase(meta, timestamp)
-    { }
+    using TTransactionTimestampReaderBase::TTransactionTimestampReaderBase;
 
     void PrepareRows(i64 rowCount)
     {
@@ -202,11 +210,7 @@ class TLookupTransactionTimestampReader
     : public TTransactionTimestampReaderBase
 {
 public:
-    TLookupTransactionTimestampReader(
-        const NProto::TColumnMeta& meta,
-        NTableClient::TTimestamp timestamp)
-        : TTransactionTimestampReaderBase(meta, timestamp)
-    { }
+    using TTransactionTimestampReaderBase::TTransactionTimestampReaderBase;
 
     virtual void SkipToRowIndex(i64 rowIndex) override
     {
@@ -242,11 +246,7 @@ class TLookupTransactionAllVersionsTimestampReader
     : public TTransactionTimestampReaderBase
 {
 public:
-    TLookupTransactionAllVersionsTimestampReader(
-        const NProto::TColumnMeta& meta,
-        NTableClient::TTimestamp timestamp)
-        : TTransactionTimestampReaderBase(meta, timestamp)
-    { }
+    using TTransactionTimestampReaderBase::TTransactionTimestampReaderBase;
 
     virtual void SkipToRowIndex(i64 rowIndex) override
     {
@@ -292,7 +292,7 @@ class TCompactionTimestampReader
 {
 public:
     explicit TCompactionTimestampReader(const NProto::TColumnMeta& meta)
-        : TTimestampReaderBase(meta)
+        : TTimestampReaderBase(meta, NTransactionClient::AllCommittedTimestamp)
     { }
 
     void PrepareRows(i64 rowCount);
@@ -320,8 +320,6 @@ public:
     }
 private:
     i64 PreparedRowCount_ = 0;
-
-    void InitSegmentReader();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

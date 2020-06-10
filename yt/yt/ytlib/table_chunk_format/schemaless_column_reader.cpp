@@ -45,11 +45,6 @@ public:
         SegmentRowIndex_ = GetSegmentRowIndex(rowIndex);
     }
 
-    virtual bool IsEndOfSegment() const override
-    {
-        return SegmentRowIndex_ == Meta_.row_count();
-    }
-
     i64 ReadValues(TMutableRange<TMutableUnversionedRow> rows)
     {
         YT_VERIFY(SegmentRowIndex_ + rows.Size() <= Meta_.row_count());
@@ -80,7 +75,7 @@ public:
         return rows.Size();
     }
 
-    void GetValueCounts(TMutableRange<ui32> valueCounts)
+    void ReadValueCounts(TMutableRange<ui32> valueCounts)
     {
         YT_VERIFY(SegmentRowIndex_ + valueCounts.Size() <= Meta_.row_count());
         for (i64 rowIndex = 0; rowIndex < valueCounts.Size(); ++rowIndex) {
@@ -136,41 +131,37 @@ public:
 
     virtual void ReadValues(TMutableRange<TMutableUnversionedRow> rows) override
     {
-        EnsureSegmentReader();
+        EnsureCurrentSegmentReader();
         CurrentRowIndex_ += SegmentReader_->ReadValues(rows);
     }
 
-    virtual void GetValueCounts(TMutableRange<ui32> valueCounts) override
+    virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) override
     {
-        EnsureSegmentReader();
-        SegmentReader_->GetValueCounts(valueCounts);
+        EnsureCurrentSegmentReader();
+        SegmentReader_->ReadValueCounts(valueCounts);
     }
 
 private:
     std::unique_ptr<TSchemalessSegmentReader> SegmentReader_;
-
     std::vector<TColumnIdMapping> IdMapping_;
 
-    virtual void ResetSegmentReader() override
+
+    virtual ISegmentReaderBase* GetCurrentSegmentReader() const override
+    {
+        return SegmentReader_.get();
+    }
+
+    virtual void ResetCurrentSegmentReader() override
     {
         SegmentReader_.reset();
     }
 
-    void EnsureSegmentReader()
+    virtual void CreateCurrentSegmentReader() override
     {
-        if (SegmentReader_ && SegmentReader_->IsEndOfSegment()) {
-            SegmentReader_.reset();
-            ++CurrentSegmentIndex_;
-        }
-        YT_VERIFY(CurrentSegmentIndex_ <= LastBlockSegmentIndex_);
-        if (!SegmentReader_) {
-            const auto& meta = ColumnMeta_.segments(CurrentSegmentIndex_);
-            SegmentReader_ = std::make_unique<TSchemalessSegmentReader>(
-                TRef(Block_.Begin() + meta.offset(), meta.size()),
-                meta,
-                IdMapping_);
-        }
-        SegmentReader_->SkipToRowIndex(CurrentRowIndex_);
+        SegmentReader_ = std::make_unique<TSchemalessSegmentReader>(
+            TRef(Block_.Begin() + CurrentSegmentMeta().offset(), CurrentSegmentMeta().size()),
+            CurrentSegmentMeta(),
+            IdMapping_);
     }
 };
 

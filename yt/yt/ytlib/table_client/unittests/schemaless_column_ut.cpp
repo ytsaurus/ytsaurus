@@ -72,12 +72,12 @@ TEST(TSchemalessColumnTest, Simple)
     }
 
     auto reader = CreateSchemalessColumnReader(columnMeta, idMapping);
-    reader->ResetBlock(columnData, 0);
+    reader->SetCurrentBlock(columnData, 0);
 
     EXPECT_EQ(expected.size(), reader->GetReadyUpperRowIndex());
 
     std::vector<ui32> valueCounts(expected.size());
-    reader->GetValueCounts(TMutableRange<ui32>(valueCounts.data(), valueCounts.size()));
+    reader->ReadValueCounts(TMutableRange<ui32>(valueCounts.data(), valueCounts.size()));
 
     EXPECT_EQ(std::vector<ui32>({0, 1, 2, 3}), valueCounts);
 

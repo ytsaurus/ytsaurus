@@ -86,10 +86,13 @@ public:
         , ColumnId_(id)
     { }
 
-    virtual void ResetBlock(TSharedRef block, int blockIndex) override
+    virtual void SetCurrentBlock(TSharedRef block, int blockIndex) override
     {
         YT_ABORT();
     }
+
+    virtual void Rearm() override
+    { }
 
     virtual void SkipToRowIndex(i64 rowIndex) override
     {

@@ -23,10 +23,8 @@ struct ISegmentReaderBase
     : public TNonCopyable
 {
     virtual ~ISegmentReaderBase() = default;
-
+    
     virtual void SkipToRowIndex(i64 rowIndex) = 0;
-
-    virtual bool IsEndOfSegment() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,7 +69,7 @@ struct IVersionedSegmentReader
     //! Compaction read.
     virtual i64 ReadAllValues(TMutableRange<NTableClient::TMutableVersionedRow> rows) = 0;
 
-    virtual void GetValueCounts(TMutableRange<ui32> valueCounts) const = 0;
+    virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -86,8 +84,6 @@ public:
         int columnIndex,
         int columnId,
         NTableClient::EValueType valueType);
-
-    virtual bool IsEndOfSegment() const override;
 
     virtual i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex) override;
 
@@ -411,7 +407,8 @@ class TColumnReaderBase
 public:
     explicit TColumnReaderBase(const NProto::TColumnMeta& columnMeta);
 
-    virtual void ResetBlock(TSharedRef block, int blockIndex) override;
+    virtual void Rearm() override;
+    virtual void SetCurrentBlock(TSharedRef block, int blockIndex) override;
 
     virtual void SkipToRowIndex(i64 rowIndex) override;
     virtual i64 GetCurrentRowIndex() const override;
@@ -433,7 +430,9 @@ protected:
     int LastBlockSegmentIndex_ = -1;
 
     
-    virtual void ResetSegmentReader() = 0;
+    virtual ISegmentReaderBase* GetCurrentSegmentReader() const = 0;
+    virtual void ResetCurrentSegmentReader() = 0;
+    virtual void CreateCurrentSegmentReader() = 0;
 
     const NProto::TSegmentMeta& CurrentSegmentMeta() const;
 
@@ -442,6 +441,10 @@ protected:
 
     int FindFirstBlockSegment() const;
     int FindLastBlockSegment() const;
+
+    void ResetCurrentSegmentReaderOnEos();
+    void EnsureCurrentSegmentReader();
+    void RearmSegmentReader();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -472,6 +475,10 @@ protected:
     std::unique_ptr<IUnversionedSegmentReader> SegmentReader_;
 
     
+    virtual ISegmentReaderBase* GetCurrentSegmentReader() const override;
+    virtual void ResetCurrentSegmentReader() override;
+    virtual void CreateCurrentSegmentReader() override;
+
     virtual std::unique_ptr<IUnversionedSegmentReader> CreateSegmentReader(
         int segmentIndex,
         bool scan = true) = 0;
@@ -487,16 +494,12 @@ protected:
         return std::unique_ptr<IUnversionedSegmentReader>(reader);
     }
 
-    virtual void ResetSegmentReader() override;
-    void EnsureSegmentReader();
-
     template <class TRow>
     void DoReadValues(TMutableRange<TRow> rows)
     {
         i64 readRowCount = 0;
         while (readRowCount < rows.Size()) {
-            EnsureSegmentReader();
-
+            RearmSegmentReader();
             i64 count = SegmentReader_->ReadValues(rows.Slice(rows.Begin() + readRowCount, rows.End()));
             readRowCount += count;
             CurrentRowIndex_ += count;
@@ -647,11 +650,6 @@ public:
         , ValueExtractor_(data, meta, aggregate)
     { }
 
-    virtual bool IsEndOfSegment() const
-    {
-        return SegmentRowIndex_ == Meta_.row_count();
-    }
-
 protected:
     const TRef Data_;
     const NProto::TSegmentMeta& Meta_;
@@ -769,7 +767,7 @@ public:
         return rangeRowIndex;
     }
 
-    void GetValueCounts(TMutableRange<ui32> valueCounts) const
+    void ReadValueCounts(TMutableRange<ui32> valueCounts) const
     {
         YT_VERIFY(SegmentRowIndex_ + valueCounts.Size() <= Meta_.row_count());
 
@@ -917,7 +915,7 @@ public:
         return rangeRowIndex;
     }
 
-    virtual void GetValueCounts(TMutableRange<ui32> valueCounts) const override
+    virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) const override
     {
         YT_VERIFY(SegmentRowIndex_ + valueCounts.Size() <= Meta_.row_count());
 
@@ -1006,7 +1004,7 @@ public:
         int columnId,
         bool aggregate);
 
-    virtual void GetValueCounts(TMutableRange<ui32> valueCounts) override;
+    virtual void ReadValueCounts(TMutableRange<ui32> valueCounts) override;
 
     virtual void ReadValues(
         TMutableRange<NTableClient::TMutableVersionedRow> rows,
@@ -1022,9 +1020,11 @@ protected:
     std::unique_ptr<IVersionedSegmentReader> SegmentReader_;
 
     
+    virtual ISegmentReaderBase* GetCurrentSegmentReader() const override;
+    virtual void ResetCurrentSegmentReader() override;
+    virtual void CreateCurrentSegmentReader() override;
+
     virtual std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) = 0;
-    virtual void ResetSegmentReader() override;
-    void EnsureSegmentReader();
 
     template <class TSegmentReader>
     std::unique_ptr<IVersionedSegmentReader> DoCreateSegmentReader(const NProto::TSegmentMeta& meta)
