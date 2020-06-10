@@ -225,6 +225,7 @@ private:
     TString Query;
 
     virtual void DoExecute(ICommandContextPtr context) override;
+    virtual bool HasResponseParameters() const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
