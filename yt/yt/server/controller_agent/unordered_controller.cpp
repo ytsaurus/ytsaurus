@@ -334,22 +334,8 @@ protected:
 
         auto autoMergeEnabled = TryInitAutoMerge(JobSizeConstraints_->GetJobCount(), DataWeightRatio);
 
-        auto edgeDescriptors = GetStandardEdgeDescriptors();
-        if (GetAutoMergeDirector()) {
-            YT_VERIFY(AutoMergeTasks.size() == edgeDescriptors.size());
-            for (int index = 0; index < edgeDescriptors.size(); ++index) {
-                if (AutoMergeTasks[index]) {
-                    edgeDescriptors[index].DestinationPool = AutoMergeTasks[index]->GetChunkPoolInput();
-                    edgeDescriptors[index].ChunkMapping = AutoMergeTasks[index]->GetChunkMapping();
-                    edgeDescriptors[index].ImmediatelyUnstageChunkLists = true;
-                    edgeDescriptors[index].RequiresRecoveryInfo = true;
-                    edgeDescriptors[index].IsFinalOutput = false;
-                }
-            }
-        }
-
         if (autoMergeEnabled) {
-            UnorderedTask_ = New<TAutoMergeableUnorderedTask>(this, std::move(edgeDescriptors));
+            UnorderedTask_ = New<TAutoMergeableUnorderedTask>(this, GetAutoMergeEdgeDescriptors());
         } else {
             UnorderedTask_ = New<TUnorderedTask>(this, GetStandardEdgeDescriptors());
         }
