@@ -571,6 +571,11 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Optional();
 }
 
+bool TSelectRowsCommand::HasResponseParameters() const
+{
+    return true;
+}
+
 void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
 {
     auto clientBase = GetClientBase(context);
@@ -580,6 +585,12 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
     const auto& rowset = result.Rowset;
     const auto& statistics = result.Statistics;
 
+    YT_LOG_INFO("Query result statistics (%v)", statistics);
+
+    ProduceResponseParameters(context, [&] (NYson::IYsonConsumer* consumer) {
+        Serialize(statistics, consumer);
+    });
+
     auto format = context->GetOutputFormat();
     auto output = context->Request().OutputStream;
     auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
@@ -588,8 +599,6 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
 
     WaitFor(writer->Close())
         .ThrowOnError();
-
-    YT_LOG_INFO("Query result statistics (%v)", statistics);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

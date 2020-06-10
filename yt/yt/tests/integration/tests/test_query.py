@@ -79,6 +79,14 @@ class TestQuery(YTEnvSetup):
             assert len(result) == 10 * i
 
     @authors("lukyan")
+    def test_response_parameters(self):
+        sync_create_cells(1)
+        self._sample_data(path="//tmp/t")
+        response_parameters={}
+        select_rows("* from [//tmp/t]", response_parameters=response_parameters)
+        assert "read_time" in response_parameters
+
+    @authors("lukyan")
     def test_full_scan(self):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")

@@ -82,31 +82,31 @@ TString ToString(const TQueryStatistics& stats)
 
 void Serialize(const TQueryStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("rows_read").Value(statistics.RowsRead)
-            .Item("data_weight_read").Value(statistics.DataWeightRead)
-            .Item("rows_written").Value(statistics.RowsWritten)
-            .Item("sync_time").Value(statistics.SyncTime.MilliSeconds())
-            .Item("async_time").Value(statistics.AsyncTime.MilliSeconds())
-            .Item("execute_time").Value(statistics.ExecuteTime.MilliSeconds())
-            .Item("read_time").Value(statistics.ReadTime.MilliSeconds())
-            .Item("write_time").Value(statistics.WriteTime.MilliSeconds())
-            .Item("codegen_time").Value(statistics.CodegenTime.MilliSeconds())
-            .Item("incomplete_input").Value(statistics.IncompleteInput)
-            .Item("incomplete_output").Value(statistics.IncompleteOutput)
-            .Item("memory_usage").Value(statistics.MemoryUsage)
-            .DoIf(!statistics.InnerStatistics.empty(), [&] (NYTree::TFluentMap fluent) {
-                fluent
-                    .Item("inner_statistics").DoListFor(statistics.InnerStatistics, [=] (
-                        NYTree::TFluentList fluent,
-                        const TQueryStatistics& statistics)
-                    {
-                        fluent
-                            .Item().Value(statistics);
-                    });
-            })
-        .EndMap();
+    NYTree::BuildYsonMapFragmentFluently(consumer)
+        .Item("rows_read").Value(statistics.RowsRead)
+        .Item("data_weight_read").Value(statistics.DataWeightRead)
+        .Item("rows_written").Value(statistics.RowsWritten)
+        .Item("sync_time").Value(statistics.SyncTime.MilliSeconds())
+        .Item("async_time").Value(statistics.AsyncTime.MilliSeconds())
+        .Item("execute_time").Value(statistics.ExecuteTime.MilliSeconds())
+        .Item("read_time").Value(statistics.ReadTime.MilliSeconds())
+        .Item("write_time").Value(statistics.WriteTime.MilliSeconds())
+        .Item("codegen_time").Value(statistics.CodegenTime.MilliSeconds())
+        .Item("incomplete_input").Value(statistics.IncompleteInput)
+        .Item("incomplete_output").Value(statistics.IncompleteOutput)
+        .Item("memory_usage").Value(statistics.MemoryUsage)
+        .DoIf(!statistics.InnerStatistics.empty(), [&] (NYTree::TFluentMap fluent) {
+            fluent
+                .Item("inner_statistics").DoListFor(statistics.InnerStatistics, [=] (
+                    NYTree::TFluentList fluent,
+                    const TQueryStatistics& statistics)
+                {
+                    fluent
+                        .Item().DoMap([&] (NYTree::TFluentMap fluent) {
+                            Serialize(statistics, fluent.GetConsumer());
+                        });
+                });
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
