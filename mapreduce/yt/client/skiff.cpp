@@ -17,8 +17,8 @@
 
 #include <mapreduce/yt/skiff/skiff_schema.h>
 
-#include <library/yson/consumer.h>
-#include <library/yson/writer.h>
+#include <library/cpp/yson/consumer.h>
+#include <library/cpp/yson/writer.h>
 
 #include <util/string/cast.h>
 #include <util/stream/str.h>

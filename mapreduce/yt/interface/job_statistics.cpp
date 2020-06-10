@@ -5,7 +5,7 @@
 #include <library/cpp/yson/node/node.h>
 #include <library/cpp/yson/node/serialize.h>
 
-#include <library/yson/writer.h>
+#include <library/cpp/yson/writer.h>
 
 #include <util/datetime/base.h>
 #include <util/generic/hash_set.h>

@@ -4,7 +4,7 @@
 
 #include <mapreduce/yt/interface/node.h>
 #include <mapreduce/yt/interface/common.h>
-#include <library/yson/public.h>
+#include <library/cpp/yson/public.h>
 
 namespace NYT {
 

@@ -8,7 +8,7 @@
 
 #include <library/cpp/json/json_reader.h>
 #include <library/cpp/svnversion/svnversion.h>
-#include <library/yson/yson2json_adapter.h>
+#include <library/cpp/yson/yson2json_adapter.h>
 
 #include <util/string/strip.h>
 #include <util/folder/dirut.h>

@@ -113,8 +113,8 @@
 #include <library/cpp/yson/node/serialize.h>
 #include <library/cpp/yson/node/node_builder.h>
 
-#include <library/yson/consumer.h>
-#include <library/yson/writer.h>
+#include <library/cpp/yson/consumer.h>
+#include <library/cpp/yson/writer.h>
 
 #include <util/generic/noncopyable.h>
 #include <util/generic/ptr.h>

@@ -5,7 +5,7 @@
 
 #include <mapreduce/yt/interface/logging/log.h>
 
-#include <library/yson/parser.h>
+#include <library/cpp/yson/parser.h>
 
 namespace NYT {
 
