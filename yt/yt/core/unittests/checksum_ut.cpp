@@ -2,6 +2,8 @@
 
 #include <yt/core/misc/checksum.h>
 
+#include <util/random/random.h>
+
 namespace NYT {
 namespace {
 
@@ -58,8 +60,34 @@ static std::vector<TCrcTestCase> Cases = {
 TEST(TChecksumTest, Ours)
 {
     for (size_t i = 0; i < Cases.size(); ++i) {
-        auto crc = GetChecksum(TRef::FromString(Cases[i].Data));
-        EXPECT_EQ(crc, Cases[i].Ours);
+        auto data = TRef::FromString(Cases[i].Data);
+
+        auto isaCrc = GetChecksum(data);
+        auto oldCrc = GetChecksumOld(data);
+
+        EXPECT_EQ(oldCrc, Cases[i].Ours);
+        EXPECT_EQ(isaCrc, Cases[i].Ours);
+    }
+}
+
+
+static constexpr int IterCount = 1000;
+static constexpr int BufMaxSize = 100000;
+
+TEST(TChecksumTest, Reference)
+{
+    for (size_t iter = 0; iter < IterCount; ++iter) {
+        auto bufSize = RandomNumber<ui64>(BufMaxSize);
+        auto buffer = TSharedMutableRef::Allocate(bufSize);
+
+        for(size_t index = 0; index < bufSize; ++index) {
+            buffer.Begin()[index] = RandomNumber<unsigned char>();
+        }
+
+        auto isaCrc = GetChecksum(TRef(buffer));
+        auto oldCrc = GetChecksumOld(TRef(buffer));
+
+        EXPECT_EQ(isaCrc, oldCrc);
     }
 }
 
