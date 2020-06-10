@@ -2542,7 +2542,7 @@ void TClient::ValidateNotNull(
 
 NQueryClient::TQueryBuilder TClient::GetListJobsQueryBuilder(
     TOperationId operationId,
-    const std::vector<EJobState>& states,
+    const std::optional<std::vector<EJobState>>& states,
     const TListJobsOptions& options)
 {
     NQueryClient::TQueryBuilder builder;
@@ -2562,11 +2562,13 @@ NQueryClient::TQueryBuilder TClient::GetListJobsQueryBuilder(
         builder.AddWhereConjunct(Format("address = %Qv", *options.Address));
     }
 
-    std::vector<TString> stateStrings;
-    for (auto state : states) {
-        stateStrings.push_back(Format("%Qv", FormatEnum(state)));
+    if (states) {
+        std::vector<TString> stateStrings;
+        for (auto state : *states) {
+            stateStrings.push_back(Format("%Qv", FormatEnum(state)));
+        }
+        builder.AddWhereConjunct(Format("job_state IN (%v)", JoinToString(stateStrings, AsStringBuf(", "))));
     }
-    builder.AddWhereConjunct(Format("job_state IN (%v)", JoinToString(stateStrings, AsStringBuf(", "))));
 
     return builder;
 }
@@ -2713,7 +2715,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
             ValidateNotNull(row[jobIdHiIndex], "job_id_hi", operationId, TJobId());
             ValidateNotNull(row[jobIdLoIndex], "job_id_lo", operationId, TJobId());
 
-            TJobId jobId(row[jobIdHiIndex].Data.Uint64, row[jobIdLoIndex].Data.Uint64);
+            TJobId jobId(FromUnversionedValue<ui64>(row[jobIdHiIndex]), FromUnversionedValue<ui64>(row[jobIdLoIndex]));
 
             jobs.emplace_back();
             auto& job = jobs.back();
@@ -2721,65 +2723,64 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
             job.Id = jobId;
 
             ValidateNotNull(row[typeIndex], "type", operationId, jobId);
-            job.Type = ParseEnum<EJobType>(TString(row[typeIndex].Data.String, row[typeIndex].Length));
+            job.Type = ParseEnum<EJobType>(FromUnversionedValue<TStringBuf>(row[typeIndex]));
 
             ValidateNotNull(row[stateIndex], "state", operationId, jobId);
-            job.State = ParseEnum<EJobState>(TString(row[stateIndex].Data.String, row[stateIndex].Length));
-            job.ArchiveState = job.State;
+            job.ArchiveState = ParseEnum<EJobState>(FromUnversionedValue<TStringBuf>(row[stateIndex]));
 
             if (row[startTimeIndex].Type != EValueType::Null) {
-                job.StartTime = TInstant::MicroSeconds(row[startTimeIndex].Data.Int64);
+                job.StartTime = TInstant::MicroSeconds(FromUnversionedValue<i64>(row[startTimeIndex]));
             } else {
                 // This field previously was non-optional.
                 job.StartTime.emplace();
             }
 
             if (row[finishTimeIndex].Type != EValueType::Null) {
-                job.FinishTime = TInstant::MicroSeconds(row[finishTimeIndex].Data.Int64);
+                job.FinishTime = TInstant::MicroSeconds(FromUnversionedValue<i64>(row[finishTimeIndex]));
             }
 
             if (row[addressIndex].Type != EValueType::Null) {
-                job.Address = TString(row[addressIndex].Data.String, row[addressIndex].Length);
+                job.Address = FromUnversionedValue<TString>(row[addressIndex]);
             } else {
                 // This field previously was non-optional.
                 job.Address.emplace();
             }
 
             if (row[stderrSizeIndex].Type != EValueType::Null) {
-                job.StderrSize = row[stderrSizeIndex].Data.Uint64;
+                job.StderrSize = FromUnversionedValue<ui64>(row[stderrSizeIndex]);
             }
 
             if (row[failContextSizeIndex].Type != EValueType::Null) {
-                job.FailContextSize = row[failContextSizeIndex].Data.Uint64;
+                job.FailContextSize = FromUnversionedValue<ui64>(row[failContextSizeIndex]);
             }
 
             if (row[jobCompetitionIdIndex].Type != EValueType::Null) {
-                job.JobCompetitionId = TJobId::FromString(FromUnversionedValue<TStringBuf>(row[jobCompetitionIdIndex]));
+                job.JobCompetitionId = FromUnversionedValue<TGuid>(row[jobCompetitionIdIndex]);
             }
 
             if (row[hasCompetitorsIndex].Type != EValueType::Null) {
-                job.HasCompetitors = row[hasCompetitorsIndex].Data.Boolean;
+                job.HasCompetitors = FromUnversionedValue<bool>(row[hasCompetitorsIndex]);
             } else {
                 job.HasCompetitors = false;
             }
 
             if (row[hasSpecIndex].Type != EValueType::Null) {
-                job.HasSpec = row[hasSpecIndex].Data.Boolean;
+                job.HasSpec = FromUnversionedValue<bool>(row[hasSpecIndex]);
             } else {
                 // This field previously was non-optional.
                 job.HasSpec = false;
             }
 
             if (row[errorIndex].Type != EValueType::Null) {
-                job.Error = TYsonString(TString(row[errorIndex].Data.String, row[errorIndex].Length));
+                job.Error = FromUnversionedValue<TYsonString>(row[errorIndex]);
             }
 
             if (coreInfosIndex != -1 && row[coreInfosIndex].Type != EValueType::Null) {
-                job.CoreInfos = TYsonString(TString(row[coreInfosIndex].Data.String, row[coreInfosIndex].Length));
+                job.CoreInfos = FromUnversionedValue<TYsonString>(row[coreInfosIndex]);
             }
 
             if (row[statisticsIndex].Type != EValueType::Null) {
-                auto briefStatisticsYson = TYsonString(TString(row[statisticsIndex].Data.String, row[statisticsIndex].Length));
+                auto briefStatisticsYson = FromUnversionedValue<TYsonString>(row[statisticsIndex]);
                 auto briefStatistics = ConvertToNode(briefStatisticsYson);
 
                 // See BuildBriefStatistics.
@@ -2814,16 +2815,16 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
             }
 
             if (row[execAttributesIndex].Type != EValueType::Null) {
-                job.ExecAttributes = TYsonString(TString(row[execAttributesIndex].Data.String, row[execAttributesIndex].Length));
+                job.ExecAttributes = FromUnversionedValue<TYsonString>(row[execAttributesIndex]);
             }
 
             if (row[taskNameIndex].Type != EValueType::Null) {
-                job.TaskName = TString(row[taskNameIndex].Data.String, row[taskNameIndex].Length);
+                job.TaskName = FromUnversionedValue<TString>(row[taskNameIndex]);
             }
 
             // We intentionally mark stderr as missing if job has no spec since
             // it is impossible to check permissions without spec.
-            if (job.State && NJobTrackerClient::IsJobFinished(*job.State) && !job.HasSpec) {
+            if (job.GetState() && NJobTrackerClient::IsJobFinished(*job.GetState()) && !job.HasSpec) {
                 job.StderrSize = std::nullopt;
             }
         }
@@ -2832,14 +2833,12 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsyncImpl(
 }
 
 // Get statistics for jobs.
-// Jobs are additionally filtered by |states|.
 TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     TOperationId operationId,
-    const std::vector<EJobState>& states,
-    const TSelectRowsOptions& selectRowsOptions,
+    TInstant deadline,
     const TListJobsOptions& options)
 {
-    auto builder = GetListJobsQueryBuilder(operationId, states, options);
+    auto builder = GetListJobsQueryBuilder(operationId, /* states */ {}, options);
 
     auto jobTypeIndex = builder.AddSelectExpression("type", "job_type");
     auto jobStateIndex = builder.AddSelectExpression("if(is_null(state), transient_state, state)", "job_state");
@@ -2847,6 +2846,12 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
 
     builder.AddGroupByExpression("job_type");
     builder.AddGroupByExpression("job_state");
+
+    TSelectRowsOptions selectRowsOptions;
+    selectRowsOptions.Timestamp = AsyncLastCommittedTimestamp;
+    selectRowsOptions.Timeout = deadline - Now();
+    selectRowsOptions.InputRowLimit = std::numeric_limits<i64>::max();
+    selectRowsOptions.MemoryLimitPerNode = 100_MB;
 
     return SelectRows(builder.Build(), selectRowsOptions).Apply(BIND([=] (const TSelectRowsResult& result) {
         TListJobsStatistics statistics;
@@ -2874,7 +2879,6 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
 // Retrieves:
 // 1) Filtered finished jobs (with limit).
 // 2) All (non-filtered and without limit) in-progress jobs (if |includeInProgressJobs == true|).
-// 3) Statistics for finished jobs.
 TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync(
     TOperationId operationId,
     TInstant deadline,
@@ -2916,20 +2920,12 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
         selectRowsOptions,
         options);
 
-    auto finishedJobsStatisticsFuture = ListJobsStatisticsFromArchiveAsync(
-        operationId,
-        finishedJobStates,
-        selectRowsOptions,
-        options);
-
     return CombineAll(std::vector<TFuture<void>>{
             jobsInProgressFuture.As<void>(),
-            finishedJobsFuture.As<void>(),
-            finishedJobsStatisticsFuture.As<void>()})
-        .Apply(BIND([jobsInProgressFuture, finishedJobsFuture, finishedJobsStatisticsFuture, this, this_=MakeStrong(this)] (const std::vector<TError>&) {
+            finishedJobsFuture.As<void>()})
+        .Apply(BIND([jobsInProgressFuture, finishedJobsFuture, this, this_=MakeStrong(this)] (const std::vector<TError>&) {
             const auto& jobsInProgressOrError = jobsInProgressFuture.Get();
             const auto& finishedJobsOrError = finishedJobsFuture.Get();
-            const auto& statisticsOrError = finishedJobsStatisticsFuture.Get();
 
             if (!jobsInProgressOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to get jobs in progress from the operation archive")
@@ -2938,10 +2934,6 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
             if (!finishedJobsOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Failed to get finished jobs from the operation archive")
                     << finishedJobsOrError;
-            }
-            if (!statisticsOrError.IsOK()) {
-                THROW_ERROR_EXCEPTION("Failed to get finished job statistics from the operation archive")
-                    << statisticsOrError;
             }
 
             int filteredOutAsFinished = 0;
@@ -2973,7 +2965,6 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
             // If a job is present in both lists, we give priority
             // to |FinishedJobs| and remove it from |InProgressJobs|.
             result.InProgressJobs = difference(jobsInProgressOrError.Value(), result.FinishedJobs);
-            result.FinishedJobsStatistics = statisticsOrError.Value();
 
             YT_LOG_DEBUG("Received finished jobs from archive (Count: %v)", result.FinishedJobs.size());
             YT_LOG_DEBUG("Received in-progress jobs from archive (Count: %v, FilteredOutAsFinished: %v)", result.InProgressJobs.size(), filteredOutAsFinished);
@@ -3090,7 +3081,10 @@ TFuture<std::pair<std::vector<TJob>, int>> TClient::DoListJobsFromCypressAsync(
 
             job.Id = id;
             job.Type = type;
-            job.State = state;
+
+            // XXX(levysotsky): It's a hack, will be removed simultaneously with the whole function :).
+            job.ControllerAgentState = state;
+
             job.StartTime = ConvertTo<TInstant>(attributes.Get<TString>("start_time"));
             job.FinishTime = ConvertTo<TInstant>(attributes.Get<TString>("finish_time"));
             job.Address = address;
@@ -3153,8 +3147,7 @@ static void ParseJobsFromControllerAgentResponse(
             job.Type = ParseEnum<EJobType>(jobMapNode->GetChild("job_type")->GetValue<TString>());
         }
         if (needState) {
-            job.State = ParseEnum<EJobState>(jobMapNode->GetChild("state")->GetValue<TString>());
-            job.ControllerAgentState = job.State;
+            job.ControllerAgentState = ParseEnum<EJobState>(jobMapNode->GetChild("state")->GetValue<TString>());
         }
         if (needStartTime) {
             job.StartTime = ConvertTo<TInstant>(jobMapNode->GetChild("start_time")->GetValue<TString>());
@@ -3354,21 +3347,23 @@ static std::function<bool(const TJob&, const TJob&)> GetJobsComparator(
         });
     };
 
-    auto makeLessByFormattedEnumField = [&] (auto TJob::* field) {
-        return makeLessBy([field] (const TJob& job) -> std::optional<TString> {
-            if (auto value = job.*field) {
-                return FormatEnum(*value);
-            } else {
-                return std::nullopt;
-            }
-        });
-    };
-
     switch (sortField) {
         case EJobSortField::Type:
-            return makeLessByFormattedEnumField(&TJob::Type);
+            return makeLessBy([] (const TJob& job) -> std::optional<TString> {
+                if (auto type = job.Type) {
+                    return FormatEnum(*type);
+                } else {
+                    return std::nullopt;
+                }
+            });
         case EJobSortField::State:
-            return makeLessByFormattedEnumField(&TJob::State);
+            return makeLessBy([] (const TJob& job) -> std::optional<TString> {
+                if (auto state = job.GetState()) {
+                    return FormatEnum(*state);
+                } else {
+                    return std::nullopt;
+                }
+            });
         case EJobSortField::StartTime:
             return makeLessByField(&TJob::StartTime);
         case EJobSortField::FinishTime:
@@ -3404,9 +3399,9 @@ static void MergeJob(TSourceJob&& source, TJob* target)
         target->name = std::forward<decltype(std::forward<TSourceJob>(source).name)>(source.name); \
     }
     MERGE_NULLABLE_FIELD(Type);
-    MERGE_NULLABLE_FIELD(State);
     MERGE_NULLABLE_FIELD(ControllerAgentState);
     MERGE_NULLABLE_FIELD(ArchiveState);
+    MERGE_NULLABLE_FIELD(Progress);
     MERGE_NULLABLE_FIELD(StartTime);
     MERGE_NULLABLE_FIELD(FinishTime);
     MERGE_NULLABLE_FIELD(Address);
@@ -3497,11 +3492,6 @@ static void MergeThreeVectors(
         comparator);
 }
 
-void FillIsJobStale(TJob* job)
-{
-    job->IsStale = (!job->ControllerAgentState && job->ArchiveState == EJobState::Running);
-}
-
 TListJobsResult TClient::DoListJobs(
     TOperationId operationId,
     const TListJobsOptions& options)
@@ -3546,6 +3536,7 @@ TListJobsResult TClient::DoListJobs(
     TFuture<std::pair<std::vector<TJob>, int>> cypressResultFuture;
     TFuture<TListJobsFromControllerAgentResult> controllerAgentResultFuture;
     TFuture<TListJobsFromArchiveResult> archiveResultFuture;
+    TFuture<TListJobsStatistics> statisticsFuture;
 
     // Issue the requests in parallel.
 
@@ -3576,6 +3567,10 @@ TListJobsResult TClient::DoListJobs(
             options);
     }
 
+    if (DoesOperationsArchiveExist()) {
+        statisticsFuture = ListJobsStatisticsFromArchiveAsync(operationId, deadline, options);
+    }
+
     // Wait for results and combine them.
 
     TListJobsResult result;
@@ -3595,27 +3590,14 @@ TListJobsResult TClient::DoListJobs(
         }
     }
 
-    auto countAndFilterJobs = [&options] (std::vector<TJob>&& jobs, TListJobsStatistics* statistics) {
+    auto filterJobs = [&options] (std::vector<TJob>&& jobs, TListJobsStatistics* statistics) {
         std::vector<TJob> filteredJobs;
         for (auto& job : jobs) {
-            if (options.Address && job.Address != *options.Address) {
+            if (options.Address && job.Address != *options.Address ||
+                options.Type && job.Type != *options.Type ||
+                options.State && job.GetState() != *options.State) {
                 continue;
             }
-
-            if (job.Type) {
-                statistics->TypeCounts[*job.Type] += 1;
-            }
-            if (options.Type && job.Type != *options.Type) {
-                continue;
-            }
-
-            if (job.State) {
-                statistics->StateCounts[*job.State] += 1;
-            }
-            if (options.State && job.State != *options.State) {
-                continue;
-            }
-
             filteredJobs.push_back(std::move(job));
         }
         return filteredJobs;
@@ -3631,11 +3613,6 @@ TListJobsResult TClient::DoListJobs(
         auto archiveResultOrError = WaitFor(archiveResultFuture);
         if (archiveResultOrError.IsOK()) {
             archiveResult = std::move(archiveResultOrError.Value());
-            result.ArchiveJobCount = archiveResult.InProgressJobs.size();
-            for (auto count : archiveResult.FinishedJobsStatistics.TypeCounts) {
-                *result.ArchiveJobCount += count;
-            }
-            result.Statistics = archiveResult.FinishedJobsStatistics;
         } else {
             result.Errors.push_back(TError(
                 EErrorCode::JobArchiveUnavailable,
@@ -3682,13 +3659,13 @@ TListJobsResult TClient::DoListJobs(
             filteredOutAsReceivedFromArchive);
 
         auto jobComparator = GetJobsComparator(options.SortField, options.SortOrder);
-        auto countFilterSort = [&] (std::vector<TJob>& jobs) {
-            jobs = countAndFilterJobs(std::move(jobs), &result.Statistics);
+        auto filterAndSort = [&] (std::vector<TJob>& jobs) {
+            jobs = filterJobs(std::move(jobs), &result.Statistics);
             std::sort(jobs.begin(), jobs.end(), jobComparator);
         };
 
-        countFilterSort(controllerAgentResult.FinishedJobs);
-        countFilterSort(archiveResult.InProgressJobs);
+        filterAndSort(controllerAgentResult.FinishedJobs);
+        filterAndSort(archiveResult.InProgressJobs);
         std::sort(archiveResult.FinishedJobs.begin(), archiveResult.FinishedJobs.end(), jobComparator);
 
         MergeThreeVectors(
@@ -3728,7 +3705,7 @@ TListJobsResult TClient::DoListJobs(
             UpdateJobsAndAddMissing(std::move(controllerAgentResult.InProgressJobs), &jobs);
             UpdateJobsAndAddMissing(std::move(controllerAgentResult.FinishedJobs), &jobs);
 
-            jobs = countAndFilterJobs(std::move(jobs), &result.Statistics);
+            jobs = filterJobs(std::move(jobs), &result.Statistics);
             std::sort(jobs.begin(), jobs.end(), GetJobsComparator(options.SortField, options.SortOrder));
             result.Jobs = std::move(jobs);
 
@@ -3742,11 +3719,24 @@ TListJobsResult TClient::DoListJobs(
     auto endIt = std::min(result.Jobs.end(), beginIt + options.Limit);
     result.Jobs = std::vector<TJob>(std::make_move_iterator(beginIt), std::make_move_iterator(endIt));
 
-    // If controller agent was queried, we can fill |IsStale| field correctly.
-    if (includeControllerAgent) {
-        for (auto& job : result.Jobs) {
-            FillIsJobStale(&job);
+    if (statisticsFuture) {
+        auto statisticsOrError = WaitFor(statisticsFuture);
+        if (!statisticsOrError.IsOK()) {
+            result.Errors.push_back(TError(
+                EErrorCode::JobArchiveUnavailable,
+                "Failed to fetch statistics from job archive")
+                << statisticsOrError);
+        } else {
+            result.Statistics = std::move(statisticsOrError).Value();
+            result.ArchiveJobCount = 0;
+            for (auto count : result.Statistics.TypeCounts) {
+                *result.ArchiveJobCount += count;
+            }
         }
+    }
+
+    for (auto& job : result.Jobs) {
+        job.IsStale = !job.ControllerAgentState && job.ArchiveState && IsJobInProgress(*job.ArchiveState);
     }
 
     return result;
@@ -3860,8 +3850,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
         state = FindValue<TStringBuf>(row, columnFilter, table.Index.TransientState);
     }
     if (state) {
-        job.State = ParseEnum<EJobState>(*state);
-        job.ArchiveState = job.State;
+        job.ArchiveState = ParseEnum<EJobState>(*state);
     }
 
     // NB: We need a separate function for |TInstant| because it has type "int64" in table

@@ -319,18 +319,15 @@ class TestListJobs(YTEnvSetup):
                 assert res["cypress_job_count"] == 2
             else:
                 assert res["cypress_job_count"] == 0
-            assert res["archive_job_count"] == yson.YsonEntity()
         elif data_source == "auto":
             if enable_cypress_job_nodes:
                 assert res["cypress_job_count"] == 2
-                assert res["archive_job_count"] == yson.YsonEntity()
             else:
                 assert res["cypress_job_count"] == 0
-                assert res["archive_job_count"] == 5
         else:
             assert data_source == "archive"
             assert res["cypress_job_count"] == yson.YsonEntity()
-            assert res["archive_job_count"] == 5
+        assert res["archive_job_count"] == 5
 
         answers_for_filters = TestListJobs._get_answers_for_filters_during_map(job_ids)
         TestListJobs._validate_filters(op, answers_for_filters, data_source=data_source)
@@ -352,18 +349,15 @@ class TestListJobs(YTEnvSetup):
                 assert res["cypress_job_count"] == 5
             else:
                 assert res["cypress_job_count"] == 0
-            assert res["archive_job_count"] == yson.YsonEntity()
         elif data_source == "auto":
             if enable_cypress_job_nodes:
                 assert res["cypress_job_count"] == 5
-                assert res["archive_job_count"] == yson.YsonEntity()
             else:
                 assert res["cypress_job_count"] == 0
-                assert res["archive_job_count"] == 6
         else:
             assert data_source == "archive"
             assert res["cypress_job_count"] == yson.YsonEntity()
-            assert res["archive_job_count"] == 6
+        assert res["archive_job_count"] == 6
 
         answers_for_filters = TestListJobs._get_answers_for_filters_during_reduce(job_ids)
         TestListJobs._validate_filters(op, answers_for_filters, data_source=data_source)
@@ -389,17 +383,14 @@ class TestListJobs(YTEnvSetup):
                 assert res["cypress_job_count"] == 6
             else:
                 assert res["cypress_job_count"] == 0
-            assert res["archive_job_count"] == yson.YsonEntity()
         elif data_source == "auto" and not operation_cleaned:
             if enable_cypress_job_nodes:
                 assert res["cypress_job_count"] == 6
-                assert res["archive_job_count"] == yson.YsonEntity()
             else:
                 assert res["cypress_job_count"] == 0
-                assert res["archive_job_count"] == 6
         else:
             assert res["cypress_job_count"] == yson.YsonEntity()
-            assert res["archive_job_count"] == 6
+        assert res["archive_job_count"] == 6
 
         answers_for_filters = TestListJobs._get_answers_for_filters_after_finish(job_ids)
         TestListJobs._validate_filters(op, answers_for_filters, data_source=data_source)
@@ -720,7 +711,7 @@ class TestListJobs(YTEnvSetup):
         unmount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
         try:
-            wait(lambda: len(list_jobs(op.id, data_source="archive")["errors"]) == 1)
+            wait(lambda: len(list_jobs(op.id, data_source="archive")["errors"]) >= 1)
         finally:
             mount_table("//sys/operations_archive/jobs")
             wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")
