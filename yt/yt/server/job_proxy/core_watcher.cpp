@@ -148,6 +148,8 @@ TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
         YT_LOG_INFO("Cores processing did not finish within timeout");
     }
 
+    YT_LOG_FATAL_IF(CoreInfosLock_.IsLocked(), "Core infos are still locked, something went very wrong");
+
     auto& coreInfos = CoreResult_.CoreInfos;
     if (expectedCoreCount > coreInfos.size()) {
         coreInfos.resize(expectedCoreCount);
