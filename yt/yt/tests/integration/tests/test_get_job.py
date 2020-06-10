@@ -58,7 +58,7 @@ class TestGetJob(YTEnvSetup):
         job_info = retry(lambda: get_job(op_id, job_id, attributes=attributes))
         assert __builtin__.set(attributes).issubset(__builtin__.set(job_info.keys()))
         attribute_difference = __builtin__.set(job_info.keys()) - __builtin__.set(attributes)
-        assert attribute_difference.issubset(__builtin__.set(["archive_state", "controller_agent_state"]))
+        assert attribute_difference.issubset(__builtin__.set(["archive_state", "controller_agent_state", "is_stale"]))
 
         if not check_has_spec:
             return

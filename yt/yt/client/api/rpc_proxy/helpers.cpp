@@ -713,8 +713,8 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.Type) {
         protoJob->set_type(ConvertJobTypeToProto(*job.Type));
     }
-    if (job.State) {
-        protoJob->set_state(ConvertJobStateToProto(*job.State));
+    if (auto state = job.GetState()) {
+        protoJob->set_state(ConvertJobStateToProto(*state));
     }
     if (job.ControllerAgentState) {
         protoJob->set_controller_agent_state(ConvertJobStateToProto(*job.ControllerAgentState));
@@ -791,11 +791,6 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->Type = ConvertJobTypeFromProto(protoJob.type());
     } else {
         job->Type.reset();
-    }
-    if (protoJob.has_state()) {
-        job->State = ConvertJobStateFromProto(protoJob.state());
-    } else {
-        job->State.reset();
     }
     if (protoJob.has_controller_agent_state()) {
         job->ControllerAgentState = ConvertJobStateFromProto(protoJob.controller_agent_state());

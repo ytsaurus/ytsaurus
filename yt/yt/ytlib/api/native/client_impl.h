@@ -942,7 +942,7 @@ private:
 
     NQueryClient::TQueryBuilder GetListJobsQueryBuilder(
         NScheduler::TOperationId operationId,
-        const std::vector<NJobTrackerClient::EJobState>& states,
+        const std::optional<std::vector<NJobTrackerClient::EJobState>>& states,
         const TListJobsOptions& options);
 
     // Asynchronously perform "select_rows" from job archive and parse result.
@@ -956,24 +956,20 @@ private:
         const TListJobsOptions& options);
 
     // Get statistics for jobs.
-    // Jobs are additionally filtered by |states|.
     TFuture<TListJobsStatistics> ListJobsStatisticsFromArchiveAsync(
         NScheduler::TOperationId operationId,
-        const std::vector<NJobTrackerClient::EJobState>& states,
-        const TSelectRowsOptions& selectRowsOptions,
+        TInstant deadline,
         const TListJobsOptions& options);
 
     struct TListJobsFromArchiveResult
     {
         std::vector<TJob> FinishedJobs;
         std::vector<TJob> InProgressJobs;
-        TListJobsStatistics FinishedJobsStatistics;
     };
 
     // Retrieves:
     // 1) Filtered finished jobs (with limit).
     // 2) All (non-filtered and without limit) in-progress jobs (if |includeInProgressJobs == true|).
-    // 3) Statistics for finished jobs.
     TFuture<TListJobsFromArchiveResult> DoListJobsFromArchiveAsync(
         NScheduler::TOperationId operationId,
         TInstant deadline,

@@ -1,11 +1,14 @@
 #include "client.h"
 #include "transaction.h"
 
+#include <yt/client/job_tracker_client/helpers.h>
+
 #include <yt/core/ytree/fluent.h>
 
 namespace NYT::NApi {
 
 using namespace NYTree;
+using namespace NJobTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,6 +159,22 @@ TError TCheckPermissionByAclResult::ToError(const TString &user, EPermission per
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<EJobState> TJob::GetState() const
+{
+    if (ArchiveState && ControllerAgentState) {
+        if (IsJobInProgress(*ArchiveState)) {
+            return *ControllerAgentState;
+        } else {
+            return *ArchiveState;
+        }
+    } else if (ArchiveState) {
+        return *ArchiveState;
+    } else if (ControllerAgentState) {
+        return *ControllerAgentState;
+    }
+    return std::nullopt;
+}
+
 // Tries to find "abort_reason" attribute in the error and parse it as |EAbortReason|.
 // Returns |std::nullopt| if the attribute is not found or any of two parsings is unsuccessful.
 static std::optional<NScheduler::EAbortReason> TryGetJobAbortReasonFromError(const NYson::TYsonString& errorYson)
@@ -190,7 +209,7 @@ void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey
             .OptionalItem(idKey, job.Id)
             .OptionalItem("operation_id", job.OperationId)
             .OptionalItem("type", job.Type)
-            .OptionalItem("state", job.State)
+            .OptionalItem("state", job.GetState())
             .OptionalItem("controller_agent_state", job.ControllerAgentState)
             .OptionalItem("archive_state", job.ArchiveState)
             .OptionalItem("address", job.Address)
@@ -209,9 +228,9 @@ void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey
             .OptionalItem("core_infos", job.CoreInfos)
             .OptionalItem("events", job.Events)
             .OptionalItem("statistics", job.Statistics)
-            .OptionalItem("is_stale", job.IsStale)
             .OptionalItem("exec_attributes", job.ExecAttributes)
             .OptionalItem("task_name", job.TaskName)
+            .OptionalItem("is_stale", job.IsStale)
         .EndMap();
 }
 

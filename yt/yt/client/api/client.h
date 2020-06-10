@@ -1025,7 +1025,6 @@ struct TJob
     NJobTrackerClient::TJobId Id;
     NJobTrackerClient::TJobId OperationId;
     std::optional<NJobTrackerClient::EJobType> Type;
-    std::optional<NJobTrackerClient::EJobState> State;
     std::optional<NJobTrackerClient::EJobState> ControllerAgentState;
     std::optional<NJobTrackerClient::EJobState> ArchiveState;
     std::optional<TInstant> StartTime;
@@ -1043,9 +1042,11 @@ struct TJob
     NYson::TYsonString InputPaths;
     NYson::TYsonString CoreInfos;
     NYson::TYsonString Events;
-    std::optional<bool> IsStale;
     NYson::TYsonString ExecAttributes;
     std::optional<TString> TaskName;
+    std::optional<bool> IsStale;
+
+    std::optional<NJobTrackerClient::EJobState> GetState() const;
 };
 
 void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey);
