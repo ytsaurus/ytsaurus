@@ -645,7 +645,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
             if (!targetVertex.empty()) {
                 TaskHost_->GetDataFlowGraph()->UpdateEdgeJobDataStatistics(
                     vertex,
-                    TDataFlowGraph::SinkDescriptor,
+                    targetVertex,
                     outputStatisticsMap[index]);
             }
         }

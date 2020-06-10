@@ -1358,6 +1358,52 @@ done
         assert directions[("input", "map")]["job_data_statistics"]["data_weight"] == 0
         assert directions[("input", "map")]["teleport_data_statistics"]["data_weight"] == 2
 
+    @authors("gritukan")
+    def test_data_flow_graph(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+
+        def get_edges(graph):
+            result = {}
+            for from_ in graph["edges"].keys():
+                for to in graph["edges"][from_].keys():
+                    result[(from_, to)] = graph["edges"][from_][to]
+
+            return result
+
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat")
+        op.track()
+
+        data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
+        assert data_flow_graph["topological_ordering"] == ["source", "map", "sink"]
+
+        edges = get_edges(data_flow_graph)
+        assert len(edges) == 2
+        assert edges[("source", "map")]["statistics"]["row_count"] == 1
+        assert edges[("map", "sink")]["statistics"]["row_count"] == 1
+
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            spec={"auto_merge": {"mode": "relaxed"}})
+        op.track()
+
+        data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
+        assert data_flow_graph["topological_ordering"] == ["source", "map", "auto_merge", "sink"]
+
+        edges = get_edges(data_flow_graph)
+        assert len(edges) == 3
+        assert edges[("source", "map")]["statistics"]["row_count"] == 1
+        assert edges[("map", "auto_merge")]["statistics"]["row_count"] == 1
+        assert edges[("auto_merge", "sink")]["statistics"]["row_count"] == 1
+
 ##################################################################
 
 @patch_porto_env_only(TestSchedulerMapCommands)
