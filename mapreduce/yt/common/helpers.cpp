@@ -8,9 +8,9 @@
 #include <library/cpp/yson/node/node_builder.h>
 #include <library/cpp/yson/node/node_visitor.h>
 
-#include <library/yson/parser.h>
-#include <library/yson/writer.h>
-#include <library/yson/json_writer.h>
+#include <library/cpp/yson/parser.h>
+#include <library/cpp/yson/writer.h>
+#include <library/cpp/yson/json_writer.h>
 
 #include <library/cpp/json/json_reader.h>
 #include <library/cpp/json/json_value.h>

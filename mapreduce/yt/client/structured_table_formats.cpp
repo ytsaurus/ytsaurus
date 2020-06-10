@@ -10,7 +10,7 @@
 #include <mapreduce/yt/interface/common.h>
 
 #include <library/cpp/type_info/type_info.h>
-#include <library/yson/writer.h>
+#include <library/cpp/yson/writer.h>
 
 #include <memory>
 

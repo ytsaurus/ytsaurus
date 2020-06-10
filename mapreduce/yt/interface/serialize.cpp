@@ -2,7 +2,7 @@
 
 #include "fluent.h"
 
-#include <library/yson/parser.h>
+#include <library/cpp/yson/parser.h>
 #include <library/cpp/yson/node/node_io.h>
 #include <library/cpp/yson/node/serialize.h>
 

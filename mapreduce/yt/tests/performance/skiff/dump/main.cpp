@@ -3,7 +3,7 @@
 
 #include <library/cpp/yson/node/node_io.h>
 
-#include <library/yson/writer.h>
+#include <library/cpp/yson/writer.h>
 
 #include <util/system/env.h>
 #include <util/string/type.h>

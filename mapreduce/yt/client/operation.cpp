@@ -46,8 +46,8 @@
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
-#include <library/yson/writer.h>
-#include <library/yson/json_writer.h>
+#include <library/cpp/yson/writer.h>
+#include <library/cpp/yson/json_writer.h>
 
 #include <util/folder/path.h>
 
