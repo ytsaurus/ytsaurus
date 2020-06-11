@@ -395,7 +395,7 @@ protected:
         checkSegment(EUnversionedIntegerSegmentType::DictionaryRle, 3);
     }
 
-    void DoReadValues(int startRowIndex, int rowCount)
+    void DoReadValues(int startRowIndex, int rowCount, int step)
     {
         std::vector<std::optional<TValue>> expected;
         AppendVector(&expected, CreateDirectDense());
@@ -403,8 +403,15 @@ protected:
         AppendVector(&expected, CreateDictionaryDense());
         AppendVector(&expected, CreateDictionaryRle());
 
-        ValidateRows(CreateRows(expected), startRowIndex, rowCount);
-        ValidateColumn(expected, startRowIndex, rowCount);
+        auto rows = CreateRows(expected);
+
+        for (int rowIndex = startRowIndex; 
+            rowIndex < expected.size() && rowIndex + rowCount < expected.size(); 
+            rowIndex += step) 
+        { 
+            ValidateRows(rows, rowIndex, rowCount);
+            ValidateColumn(expected, rowIndex, rowCount);    
+        }
     }
 
     void AppendExtremeValues(std::vector<std::optional<TValue>>* values)
@@ -445,7 +452,8 @@ TEST_F(TUnversionedInt64ColumnTest, CheckSegmentTypes)
 
 TEST_F(TUnversionedInt64ColumnTest, ReadValues)
 {
-    DoReadValues(5000, 35000);
+    DoReadValues(0, 35000, 5000);
+    DoReadValues(0, 5, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -478,7 +486,8 @@ TEST_F(TUnversionedUint64ColumnTest, CheckSegmentTypes)
 
 TEST_F(TUnversionedUint64ColumnTest, ReadValues)
 {
-    DoReadValues(5000, 35000);
+    DoReadValues(0, 35000, 5000);
+    DoReadValues(0, 5, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
