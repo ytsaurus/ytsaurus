@@ -904,6 +904,12 @@ void TContext::OnOutputParameters()
     Serialize(OutputParameters_, consumer.get());
     consumer->Flush();
 
+    if (auto userAgent = Request_->GetHeaders()->Find("User-Agent"); userAgent && DetectGo(*userAgent) == 0) {
+        if (DriverRequest_.CommandName != "read_table") {
+            return;
+        }
+    }
+
     Response_->GetHeaders()->Add("X-YT-Response-Parameters", headerValue);
 }
 

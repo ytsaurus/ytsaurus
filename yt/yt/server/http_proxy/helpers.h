@@ -31,6 +31,8 @@ std::optional<TPythonWrapperVersion> DetectPythonWrapper(const TString& userAgen
 
 std::optional<i64> DetectJavaIceberg(const TString& userAgent);
 
+std::optional<i64> DetectGo(const TString& userAgent);
+
 bool IsClientBuggy(const NHttp::IRequestPtr& req);
 
 ////////////////////////////////////////////////////////////////////////////////
