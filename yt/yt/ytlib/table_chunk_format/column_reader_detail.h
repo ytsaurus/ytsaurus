@@ -263,7 +263,7 @@ public:
                 ValueIndex_,
                 ValueExtractor_.GetValueCount(),
                 [&] (i64 valueIndex) {
-                    return ValueExtractor_.GetRowIndex(valueIndex) < SegmentRowIndex_;
+                    return ValueExtractor_.GetRowIndex(valueIndex) <= SegmentRowIndex_;
                 }) - 1;
         }
     }
