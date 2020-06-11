@@ -830,6 +830,8 @@ class YTInstance(object):
             args += ["--setsid"]
 
             env = copy.copy(os.environ)
+            if "YT_LOG_LEVEL" in env:
+                del env["YT_LOG_LEVEL"]
             env = update(env, {"YT_ALLOC_CONFIG": "{enable_eager_memory_release=%true}"})
 
             p = self._subprocess_module.Popen(args, shell=False, close_fds=True, cwd=self.runtime_data_path,
