@@ -274,6 +274,26 @@ std::optional<i64> DetectJavaIceberg(const TString& userAgent)
     return {};
 }
 
+static const re2::RE2 GoPattern{"go-yt-client/(\\d+)"};
+
+std::optional<i64> DetectGo(const TString& userAgent)
+{
+    if (userAgent == "go-yt-client") {
+        return 0;
+    }
+
+    i64 version;
+    if (re2::RE2::PartialMatch(
+        userAgent.c_str(),
+        GoPattern,
+        &version))
+    {
+        return version;
+    }
+
+    return {};
+}
+
 bool IsClientBuggy(const NHttp::IRequestPtr& req)
 {
     auto userAgent = req->GetHeaders()->Find("User-Agent");
