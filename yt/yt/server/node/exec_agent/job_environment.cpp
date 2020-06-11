@@ -85,7 +85,8 @@ public:
         int slotIndex,
         const TString& workingDirectory,
         TJobId jobId,
-        TOperationId operationId) override
+        TOperationId operationId,
+        const std::optional<TString>& stderrPath) override
     {
         ValidateEnabled();
 
@@ -98,15 +99,22 @@ public:
                 "--job-id", ToString(jobId)
             });
 
+            if (stderrPath) {
+                process->AddArguments({
+                    "--stderr-path", *stderrPath
+                });
+            }
+
             process->SetWorkingDirectory(workingDirectory);
 
             AddArguments(process, slotIndex);
 
-            YT_LOG_INFO("Spawning a job proxy (SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v)",
+            YT_LOG_INFO("Spawning a job proxy (SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v, StderrPath: %v)",
                 slotIndex,
                 jobId,
                 operationId,
-                workingDirectory);
+                workingDirectory,
+                stderrPath);
 
             TJobProxyProcess jobProxyProcess;
             jobProxyProcess.Process = process;

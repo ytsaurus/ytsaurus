@@ -711,7 +711,8 @@ class ConfigsProvider_19(ConfigsProvider):
             start_uid = current_user + config["rpc_port"]
             set_at(config, "exec_agent/slot_manager/job_environment/start_uid", start_uid)
             set_at(config, "exec_agent/slot_manager/locations", [
-                {"path" : os.path.join(node_dirs[index], "slots"), "disk_usage_watermark": 0}])
+                {"path": os.path.join(node_dirs[index], "slots"), "disk_usage_watermark": 0}
+            ])
 
             store_location_config = {
                 "low_watermark": 0,
@@ -720,7 +721,7 @@ class ConfigsProvider_19(ConfigsProvider):
             }
 
             layer_location_config = {
-                "low_watermark" : 1,
+                "low_watermark": 1,
                 "location_is_absolute": False,
             }
 
@@ -755,6 +756,11 @@ class ConfigsProvider_19(ConfigsProvider):
                              log_errors_to_stderr=False,
                              enable_debug_logging=provision["enable_debug_logging"],
                              enable_compression=provision["enable_logging_compression"])
+            )
+            set_at(
+                config,
+                "exec_agent/job_proxy_stderr_path",
+                os.path.join(node_logs_dir, "job_proxy-{0}-stderr-slot-%slot_index%".format(index)),
             )
 
             set_at(config, "tablet_node/hydra_manager", _get_hydra_manager_config(), merge=True)

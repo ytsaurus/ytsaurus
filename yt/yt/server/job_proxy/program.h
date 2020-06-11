@@ -38,17 +38,17 @@ public:
         , TProgramPdeathsigMixin(Opts_)
         , TProgramSetsidMixin(Opts_)
     {
-        // TODO(sandello): IDs here are optional due to tool mixin.
-        // One should extract tools into a separate binary!
         Opts_
             .AddLongOption("operation-id", "operation id")
             .StoreMappedResultT<TString>(&OperationId_, &CheckGuidArgMapper)
-            .RequiredArgument("ID")
-            .Optional();
+            .RequiredArgument("ID");
         Opts_
             .AddLongOption("job-id", "job id")
             .StoreMappedResultT<TString>(&JobId_, &CheckGuidArgMapper)
-            .RequiredArgument("ID")
+            .RequiredArgument("ID");
+        Opts_
+            .AddLongOption("stderr-path", "stderr path")
+            .StoreResult(&StderrPath_)
             .Optional();
     }
 
@@ -69,7 +69,7 @@ protected:
         NYTAlloc::SetEnableEagerMemoryRelease(true);
 
         try {
-            SafeCreateStderrFile("stderr");
+            SafeCreateStderrFile(StderrPath_);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Job proxy preparation (startup) failed");
             Exit(static_cast<int>(NJobProxy::EJobProxyExitCode::JobProxyPrepareFailed));
@@ -106,6 +106,7 @@ protected:
 private:
     NJobTrackerClient::TOperationId OperationId_;
     NJobTrackerClient::TJobId JobId_;
+    TString StderrPath_ = "stderr";
 };
 
 ////////////////////////////////////////////////////////////////////////////////

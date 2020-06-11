@@ -28,7 +28,8 @@ struct IJobEnvironment
         int slotIndex,
         const TString& workingDirectory,
         TJobId jobId,
-        TOperationId operationId) = 0;
+        TOperationId operationId,
+        const std::optional<TString>& stderrPath) = 0;
 
     virtual void CleanProcesses(int slotIndex) = 0;
 

@@ -268,6 +268,7 @@ public:
 
     NLogging::TLogManagerConfigPtr JobProxyLogging;
     NTracing::TTraceManagerConfigPtr JobProxyTracing;
+    std::optional<TString> JobProxyStderrPath;
 
     TDuration SupervisorRpcTimeout;
     TDuration JobProberRpcTimeout;
@@ -315,6 +316,8 @@ public:
             .DefaultNew();
         RegisterParameter("job_proxy_tracing", JobProxyTracing)
             .DefaultNew();
+        RegisterParameter("job_proxy_stderr_path", JobProxyStderrPath)
+            .Default();
 
         RegisterParameter("supervisor_rpc_timeout", SupervisorRpcTimeout)
             .Default(TDuration::Seconds(30));
