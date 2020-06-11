@@ -1372,6 +1372,14 @@ private:
                 writerConfig->FileName.replace(index, SlotIndexPattern.size(), ToString(Slot_->GetSlotIndex()));
             }
         }
+        if (proxyConfig->StderrPath) {
+            TString slotStderrPath = *proxyConfig->StderrPath;
+            size_t index = slotStderrPath.find(SlotIndexPattern);
+            if (index != TString::npos) {
+                slotStderrPath.replace(index, SlotIndexPattern.size(), ToString(Slot_->GetSlotIndex()));
+            }
+            proxyConfig->StderrPath = slotStderrPath;
+        }
 
         for (const auto& slot : GpuSlots_) {
             proxyConfig->GpuDevices.push_back(slot->GetDeviceName());

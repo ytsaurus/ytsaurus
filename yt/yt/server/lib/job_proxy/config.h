@@ -128,6 +128,9 @@ public:
     //! Path for container root.
     std::optional<TString> RootPath;
 
+    //! Path to write stderr (for testing purposes).
+    std::optional<TString> StderrPath;
+
     // Job-independent parameters.
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
@@ -170,6 +173,9 @@ public:
             .Default();
 
         RegisterParameter("root_path", RootPath)
+            .Default();
+        
+        RegisterParameter("stderr_path", StderrPath)
             .Default();
 
         RegisterParameter("binds", Binds)

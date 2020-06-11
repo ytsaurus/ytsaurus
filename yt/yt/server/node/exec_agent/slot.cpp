@@ -89,7 +89,8 @@ public:
                     SlotIndex_,
                     Location_->GetSlotPath(SlotIndex_),
                     jobId,
-                    operationId);
+                    operationId,
+                    config->StderrPath);
             },
             // Job proxy preparation is uncancelable, otherwise we might try to kill
             // a never-started job proxy process.

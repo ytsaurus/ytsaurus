@@ -522,6 +522,7 @@ void TBootstrap::DoInitialize()
 
     JobProxyConfigTemplate_->Logging = Config_->ExecAgent->JobProxyLogging;
     JobProxyConfigTemplate_->Tracing = Config_->ExecAgent->JobProxyTracing;
+    JobProxyConfigTemplate_->StderrPath = Config_->ExecAgent->JobProxyStderrPath;
     JobProxyConfigTemplate_->TestRootFS = Config_->ExecAgent->TestRootFS;
 
     JobProxyConfigTemplate_->CoreWatcher = Config_->ExecAgent->CoreWatcher;

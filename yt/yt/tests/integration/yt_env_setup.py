@@ -28,12 +28,10 @@ import os
 import sys
 import glob
 import logging
-import resource
 import shutil
 import decorator
 import functools
 import inspect
-import stat
 import subprocess
 import uuid
 from distutils.spawn import find_executable
