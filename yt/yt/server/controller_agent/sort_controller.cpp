@@ -2338,7 +2338,9 @@ private:
         // Sort output MUST be sorted.
         table->TableWriterOptions->ExplodeOnValidationError = true;
 
-        if (table->TableUploadOptions.UpdateMode == EUpdateMode::Append &&
+        ValidateSchemaInferenceMode(Spec->SchemaInferenceMode);
+
+        if ((table->Dynamic || table->TableUploadOptions.UpdateMode == EUpdateMode::Append) &&
             table->TableUploadOptions.TableSchema.GetKeyColumns() != Spec->SortBy)
         {
             THROW_ERROR_EXCEPTION("sort_by is different from output table key columns")

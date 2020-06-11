@@ -728,6 +728,8 @@ private:
     {
         auto& table = OutputTables_[0];
 
+        ValidateSchemaInferenceMode(Spec->SchemaInferenceMode);
+
         auto validateOutputNotSorted = [&] () {
             if (table->TableUploadOptions.TableSchema.IsSorted()) {
                 THROW_ERROR_EXCEPTION("Cannot perform unordered merge into a sorted table in a \"strong\" schema mode")

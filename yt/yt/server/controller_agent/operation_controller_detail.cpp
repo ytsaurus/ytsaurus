@@ -853,7 +853,29 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
         }
 
         GetOutputTablesSchema();
+
+        std::vector<TTableSchema> outputTableSchemas;
+        outputTableSchemas.resize(OutputTables_.size());
+        for (int outputTableIndex = 0; outputTableIndex < OutputTables_.size(); ++outputTableIndex) {
+            const auto& table = OutputTables_[outputTableIndex];
+            if (table->Dynamic) {
+                outputTableSchemas[outputTableIndex] = table->TableUploadOptions.GetUploadSchema();
+            }
+        }
+
         PrepareOutputTables();
+
+        for (int outputTableIndex = 0; outputTableIndex < OutputTables_.size(); ++outputTableIndex) {
+            const auto& table = OutputTables_[outputTableIndex];
+            if (table->Dynamic && outputTableSchemas[outputTableIndex] != table->TableUploadOptions.GetUploadSchema()) {
+                THROW_ERROR_EXCEPTION(
+                    "Schema of output dynamic table %v unexpectedly changed during preparation phase. "
+                    "Please send the link to the operation to yt-admin@",
+                    table->Path)
+                    << TErrorAttribute("original_schema", outputTableSchemas[outputTableIndex])
+                    << TErrorAttribute("upload_schema", table->TableUploadOptions.GetUploadSchema());
+            }
+        }
 
         LockOutputTablesAndGetAttributes();
     }
@@ -5415,6 +5437,10 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     << TErrorAttribute("table_path", path);
             }
 
+            if (OperationType == EOperationType::RemoteCopy) {
+                THROW_ERROR_EXCEPTION("Remote copy operation is not supported for dynamic tables");
+            }
+
             // Check if bulk insert is enabled for a certain user.
             if (!Config->EnableBulkInsertForEveryone) {
                 auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
@@ -8346,6 +8372,15 @@ void TOperationControllerBase::ValidateOutputSchemaCompatibility(bool ignoreSort
             THROW_ERROR_EXCEPTION("Output table cannot have computed "
                 "columns, which are not present in all input tables");
         }
+    }
+}
+
+void TOperationControllerBase::ValidateSchemaInferenceMode(ESchemaInferenceMode schemaInferenceMode) const
+{
+    YT_VERIFY(OutputTables_.size() == 1);
+    if (OutputTables_[0]->Dynamic && schemaInferenceMode != ESchemaInferenceMode::Auto) {
+        THROW_ERROR_EXCEPTION("Only schema inference mode %Qv is allowed for dynamic table in output",
+            ESchemaInferenceMode::Auto);
     }
 }
 

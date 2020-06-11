@@ -750,6 +750,8 @@ public:
             table->TableUploadOptions.LockMode = ELockMode::Exclusive;
         }
 
+        ValidateSchemaInferenceMode(Spec_->SchemaInferenceMode);
+
         auto prepareOutputKeyColumns = [&] () {
             if (table->TableUploadOptions.TableSchema.IsSorted()) {
                 if (table->TableUploadOptions.TableSchema.GetKeyColumns() != PrimaryKeyColumns_) {
