@@ -582,6 +582,8 @@ private:
     {
         auto& table = OutputTables_[0];
 
+        ValidateSchemaInferenceMode(Spec_->SchemaInferenceMode);
+
         auto inferFromInput = [&] () {
             if (Spec_->InputQuery) {
                 table->TableUploadOptions.TableSchema = InputQuery->Query->GetTableSchema();
@@ -957,6 +959,8 @@ private:
         auto& table = OutputTables_[0];
         table->TableUploadOptions.UpdateMode = EUpdateMode::Overwrite;
         table->TableUploadOptions.LockMode = ELockMode::Exclusive;
+
+        ValidateSchemaInferenceMode(Spec_->SchemaInferenceMode);
 
         // Erase output MUST be sorted.
         if (Spec_->SchemaInferenceMode != ESchemaInferenceMode::FromOutput) {

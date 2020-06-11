@@ -99,12 +99,25 @@ TTableUploadOptions GetTableUploadOptions(
     // Some ypath attributes are not compatible with attribute "schema".
     if (path.GetAppend() && path.GetSchema()) {
         THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"schema\" are not compatible")
-                << TErrorAttribute("path", path);
+            << TErrorAttribute("path", path);
     }
 
     if (!path.GetSortedBy().empty() && path.GetSchema()) {
         THROW_ERROR_EXCEPTION("YPath attributes \"sorted_by\" and \"schema\" are not compatible")
+            << TErrorAttribute("path", path);
+    }
+
+    // Dynamic tables have their own requirements as well.
+    if (dynamic) {
+        if (path.GetSchema()) {
+            THROW_ERROR_EXCEPTION("YPath attribute \"schema\" cannot be set on a dynamic table")
                 << TErrorAttribute("path", path);
+        }
+
+        if (!path.GetSortedBy().empty()) {
+            THROW_ERROR_EXCEPTION("YPath attribute \"sorted_by\" cannot be set on a dynamic table")
+                << TErrorAttribute("path", path);
+        }
     }
 
     TTableUploadOptions result;

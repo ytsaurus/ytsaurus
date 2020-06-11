@@ -985,6 +985,56 @@ class TestBulkInsert(DynamicTablesBase):
         finally:
             _set_global_permit(True)
 
+    @pytest.mark.parametrize("schema_inference_mode", ["from_input", "from_output"])
+    def test_inference_mode(self, schema_inference_mode):
+        sync_create_cells(1)
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+        self._create_simple_dynamic_table("//tmp/t_input", dynamic=False)
+
+        with pytest.raises(YtError):
+            merge(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                mode="ordered",
+                spec={"schema_inference_mode": schema_inference_mode})
+
+
+    def test_sort_wrong_columns(self):
+        sync_create_cells(1)
+        schema = make_schema([
+            {"name": "k1", "type": "int64", "sort_order": "ascending"},
+            {"name": "k2", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ], unique_keys=True)
+        self._create_simple_dynamic_table("//tmp/t_output", schema=schema)
+        sync_mount_table("//tmp/t_output")
+        self._create_simple_dynamic_table("//tmp/t_input", schema=schema, dynamic=False)
+
+        with pytest.raises(YtError):
+            sort(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                sort_by=["k1"])
+        with pytest.raises(YtError):
+            sort(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                sort_by=["k1", "k2", "value"])
+
+        with pytest.raises(YtError):
+            merge(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                mode="sorted",
+                merge_by=["k1"])
+        with pytest.raises(YtError):
+            merge(
+                in_="//tmp/t_input",
+                out="<append=%true>//tmp/t_output",
+                mode="sorted",
+                merge_by=["k1", "k2", "value"])
+
 ##################################################################
 
 @authors("ifsmirnov")

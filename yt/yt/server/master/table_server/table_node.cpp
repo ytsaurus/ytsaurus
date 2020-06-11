@@ -27,6 +27,10 @@ using namespace NCrypto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = TableServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(ESchemaSerializationMethod,
     (Schema)
     (TableIdWithSameSchema)
@@ -135,6 +139,21 @@ const TTableNode* TTableNode::GetTrunkNode() const
 
 void TTableNode::EndUpload(const TEndUploadContext& context)
 {
+    if (IsDynamic()) {
+        if (SchemaMode_ != context.SchemaMode ||
+            SharedTableSchema()->GetTableSchema() != context.Schema->GetTableSchema())
+        {
+            YT_LOG_ALERT("Schema of a dynamic table changed during end upload (TableId: %v, TransactionId: %v, "
+                "OriginalSchemaMode: %v, NewSchemaMode: %v, OriginalSchema: %v, NewSchema: %v)",
+                GetId(),
+                GetTransaction()->GetId(),
+                SchemaMode_,
+                context.SchemaMode,
+                SharedTableSchema()->GetTableSchema(),
+                context.Schema->GetTableSchema());
+        }
+    }
+
     SchemaMode_ = context.SchemaMode;
     SharedTableSchema() = context.Schema;
     if (context.OptimizeFor) {
