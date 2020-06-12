@@ -1175,6 +1175,11 @@ private:
                 --rowLimit;
                 Completed_ = true;
             }
+        } else {
+            // We do not read keys, so we must skip rows for key readers.
+            for (const auto& reader : KeyColumnReaders_) {
+                reader->SkipToRowIndex(RowIndex_ + rowLimit);
+            }
         }
 
         return rowLimit;
