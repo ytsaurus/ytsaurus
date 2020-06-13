@@ -116,7 +116,7 @@ def _create_node_from_local_file(local_filename, dest_filename, meta_files_suffi
                 client.write_file(dest_filename, local_file)
 
         else:
-            logger.warning("Found file {0} with currently unsupported type {1}" \
+            logger.warning("Found file {0} with currently unsupported type {1}"
                            .format(local_filename, meta["type"]))
 
 def _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, client):
@@ -134,7 +134,7 @@ def _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, cl
         client.set_attribute("/", key, root_attributes[key])
 
     for root, dirs, files in os.walk(local_cypress_dir):
-        rel_path = os.path.abspath(root)[len(local_cypress_dir)+1:]  # +1 to skip last /
+        rel_path = os.path.abspath(root)[len(local_cypress_dir) + 1:]  # +1 to skip last /
         for dir in dirs:
             _create_map_node_from_local_dir(os.path.join(root, dir),
                                             os.path.join(cypress_path_prefix, rel_path, dir),
@@ -220,8 +220,11 @@ def _initialize_world(client, environment, wait_tablet_cell_initialization,
 
     # Used to automatically determine local mode from python wrapper.
     client.set("//sys/@local_mode_fqdn", socket.getfqdn())
-    # Cluster connection.
+
+    # Cluster connection and clusters.
     client.set("//sys/@cluster_connection", cluster_connection)
+    client.set("//sys/@cluster_name", environment.id)
+    client.set("//sys/clusters", {environment.id: cluster_connection})
 
     # Tablet limits for tmp account.
     client.set("//sys/accounts/tmp/@resource_limits/tablet_count", 1000)
