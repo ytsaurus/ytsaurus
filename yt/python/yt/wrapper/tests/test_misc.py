@@ -1,7 +1,8 @@
 from __future__ import print_function
 
 from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path, wait, get_default_resource_limits,
-                      get_environment_for_binary_test, check, set_config_options, set_config_option)
+                      get_environment_for_binary_test, check, set_config_options, set_config_option,
+                      get_python, get_environment_for_binary_test)
 
 from yt.subprocess_wrapper import Popen, PIPE
 from yt.wrapper.errors import YtRetriableError
@@ -26,6 +27,11 @@ from yt.packages.six.moves import xrange, filter as ifilter
 
 import yt.wrapper as yt
 
+try:
+    import yatest.common as yatest_common
+except ImportError:
+    yatest_common = None
+
 from flaky import flaky
 
 from copy import deepcopy
@@ -37,6 +43,7 @@ import os
 import pytest
 import random
 import string
+import subprocess
 import sys
 import tempfile
 import time
@@ -142,6 +149,48 @@ class TestYtBinary(object):
             sys.stderr.write(open(output_file).read())
 
         assert proc.returncode == 0
+
+    def test_secure_vault_in_logging(self, yt_env_job_archive):
+        if yatest_common is None:
+            pytest.skip()
+
+        env = get_environment_for_binary_test(yt_env_job_archive)
+        env.update({
+            "YT_LOG_LEVEL": "DEBUG",
+            "YT_SPEC": '{"secure_vault": {"ENV": "MY_TOKEN"}}',
+        })
+
+        yt.write_table(TEST_DIR + "/input", [{"x": 10}])
+        # TODO(ignat): use compiled yt
+        proc = subprocess.Popen(
+            [
+                get_python(), get_test_file_path("../bin/yt", use_files=False),
+                "map", "cat",
+                "--format", "yson",
+                "--src", TEST_DIR + "/input",
+                "--dst", TEST_DIR + "/output",
+            ],
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE)
+
+        stdout, stderr = proc.communicate()
+
+        if proc.returncode != 0:
+            print("Process stdout", stdout, file=sys.stderr)
+            print("Process stderr", stderr, file=sys.stderr)
+        assert proc.returncode == 0
+
+        start_op_line = None
+        for line in stderr.split(b"\n"):
+            if b"Executing " not in line:
+                assert b"MY_TOKEN" not in line
+            if b"start_op" in line:
+                start_op_line = line
+        assert start_op_line is not None
+        assert b"secure_vault" in start_op_line
+        assert b"hidden" in start_op_line
+
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestDriverLogging(object):

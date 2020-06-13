@@ -3,9 +3,10 @@ from .config import get_config, get_option, set_option
 from .compression import get_compressor
 from .common import require, generate_uuid, get_version, total_seconds, forbidden_inside_job, get_started_by_short
 from .errors import (YtError, YtHttpResponseError, YtProxyUnavailable,
-                     YtConcurrentOperationsLimitExceeded, YtRequestTimedOut)
-from .http_helpers import (make_request_with_retries, get_token, get_http_api_version, get_http_api_commands, get_proxy_url,
-                           get_error_from_headers, get_header_format, ProxyProvider)
+                     YtConcurrentOperationsLimitExceeded, YtRequestTimedOut,
+                     hide_secure_vault)
+from .http_helpers import (make_request_with_retries, get_token, get_http_api_version, get_http_api_commands,
+                           get_proxy_url, get_error_from_headers, get_header_format, ProxyProvider)
 from .response_stream import ResponseStream
 
 import yt.logger as logger
@@ -238,6 +239,7 @@ def make_request(command_name,
                "Accept-Encoding": get_config(client)["proxy"]["accept_encoding"],
                "X-Started-By": dump_params(get_started_by_short(), header_format)}
 
+    data_log = ""
     write_params_to_header = True
     headers["X-YT-Header-Format"] = header_format_header
     if command.input_type is None:
@@ -246,6 +248,7 @@ def make_request(command_name,
         if command.is_volatile:
             headers["Content-Type"] = "application/x-yt-yson-text" if header_format == "yson" else "application/json"
             data = dump_params(params, header_format)
+            data_log = dump_params(hide_secure_vault(params), header_format)
             write_params_to_header = False
 
     if write_params_to_header and params:
@@ -269,7 +272,7 @@ def make_request(command_name,
         url,
         make_retries=allow_retries,
         retry_action=retry_action,
-        log_body=(command.input_type is None),
+        data_log=data_log,
         headers=headers,
         data=data,
         params=params,

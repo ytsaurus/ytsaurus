@@ -9,7 +9,7 @@ from yt.wrapper.config import get_config, get_option, set_option
 from yt.wrapper.http_helpers import get_token, format_logging_params, raise_for_token
 from yt.wrapper.http_driver import HeavyProxyProvider, HeavyProxyProviderState, TokenAuth
 from yt.wrapper.common import get_version, get_started_by_short, generate_uuid, YtError
-from yt.wrapper.errors import hide_token, YtHttpResponseError
+from yt.wrapper.errors import hide_auth_headers, YtHttpResponseError
 import yt.packages.requests as requests
 import yt.logger as logger
 import yt.json_wrapper as json
@@ -93,7 +93,7 @@ def execute(query, alias=None, raw=None, format=None, settings=None, client=None
     random_generator = get_option("_random_generator", client)
     request_id = "%08x" % random_generator.randrange(16**8)
     logging_params = {
-        "headers": hide_token(headers),
+        "headers": hide_auth_headers(headers),
         "request_id": request_id,
         "query": query,
     }
@@ -118,7 +118,7 @@ def execute(query, alias=None, raw=None, format=None, settings=None, client=None
             stream=True) as response:
 
         logging_params = {
-            "headers": hide_token(dict(response.headers)),
+            "headers": hide_auth_headers(dict(response.headers)),
             "request_id": request_id,
             "status_code": response.status_code,
         }

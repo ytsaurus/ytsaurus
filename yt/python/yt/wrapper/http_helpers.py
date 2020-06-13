@@ -3,7 +3,7 @@ from .common import require, get_value, total_seconds, generate_uuid, forbidden_
 from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
-                     YtRequestTimedOut, YtRetriableError, YtNoSuchTransaction, hide_token)
+                     YtRequestTimedOut, YtRetriableError, YtNoSuchTransaction, hide_auth_headers)
 from .command import parse_commands
 
 import yt.logger as logger
@@ -215,7 +215,7 @@ def _raise_for_status(response, request_info):
 
 class RequestRetrier(Retrier):
     def __init__(self, method, url=None, make_retries=True, response_format=None, error_format=None,
-                 params=None, timeout=None, retry_action=None, log_body=True, is_ping=False,
+                 params=None, timeout=None, retry_action=None, data_log="", is_ping=False,
                  proxy_provider=None, client=None, **kwargs):
         self.method = method
         self.url = url
@@ -224,7 +224,7 @@ class RequestRetrier(Retrier):
         self.error_format = error_format
         self.params = params
         self.retry_action = retry_action
-        self.log_body = log_body
+        self.data_log = data_log
         self.proxy_provider = proxy_provider
         self.client = client
         self.kwargs = kwargs
@@ -268,11 +268,11 @@ class RequestRetrier(Retrier):
             self.request_url = url
 
         logging_params = {
-            "headers": hide_token(self.headers),
+            "headers": hide_auth_headers(self.headers),
             "request_id": self.request_id,
         }
-        if self.log_body and "data" in self.kwargs and self.kwargs["data"] is not None:
-            logging_params["data"] = self.kwargs["data"]
+        if self.data_log:
+            logging_params["data"] = self.data_log
 
         logger.debug("Perform HTTP %s request %s (%s)",
                      self.method,
@@ -318,7 +318,7 @@ class RequestRetrier(Retrier):
             check_response_is_decodable(response, response_format)
 
         logging_params = {
-            "headers": hide_token(dict(response.headers)),
+            "headers": hide_auth_headers(dict(response.headers)),
             "request_id": self.request_id,
             "status_code": response.status_code,
         }
