@@ -263,7 +263,6 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         produceAllVersions,
         columnFilter,
         blockReadOptions,
-        tabletSnapshot->TableSchema,
         ReadRange_);
     if (reader) {
         return reader;
@@ -306,7 +305,6 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
     const TClientBlockReadOptions& blockReadOptions,
-    const TTableSchema& schema,
     const TSharedRange<TRowRange>& singletonClippingRange)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -362,8 +360,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         timestamp,
         produceAllVersions,
         columnFilter,
-        blockReadOptions,
-        tabletSnapshot->TableSchema);
+        blockReadOptions);
     if (reader) {
         return createFilteringReader(reader);
     }
@@ -427,8 +424,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TColumnFilter& columnFilter,
-    const TClientBlockReadOptions& blockReadOptions,
-    const TTableSchema& schema)
+    const TClientBlockReadOptions& blockReadOptions)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -509,7 +505,7 @@ TChunkStatePtr TSortedChunkStore::PrepareChunkState(
     if (ChunkMetaManager_) {
         asyncChunkMeta = ChunkMetaManager_->GetMeta(
             chunkReader,
-            Schema_,
+            *Schema_,
             blockReadOptions);
     } else {
         asyncChunkMeta = TCachedVersionedChunkMeta::Load(

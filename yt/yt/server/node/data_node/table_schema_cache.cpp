@@ -22,7 +22,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 TCachedTableSchema::TCachedTableSchema(
-    NTableClient::TTableSchema tableSchema,
+    NTableClient::TTableSchemaPtr tableSchema,
     NTabletNode::TSortedDynamicRowKeyComparer rowKeyComparer)
     : TableSchema(std::move(tableSchema))
     , RowKeyComparer(std::move(rowKeyComparer))
@@ -35,7 +35,7 @@ using TSchemaCacheKey = std::pair<TObjectId, TRevision>;
 TCachedTableSchemaWrapper::TCachedTableSchemaWrapper(
     TSchemaCacheKey schemaCacheKey,
     TDuration requestTimeout)
-    : TSyncCacheValueBase(schemaCacheKey)
+    : TSyncCacheValueBase(std::move(schemaCacheKey))
     , RequestTimeout_(requestTimeout)
     , NextRequestTime_(NProfiling::GetInstant())
 { }
@@ -72,7 +72,7 @@ void TCachedTableSchemaWrapper::SetValue(TCachedTableSchemaPtr cachedTableSchema
 {
     TWriterGuard guard(SpinLock_);
     if (CheckSchemaSet()) {
-        YT_VERIFY(CachedTableSchema_->TableSchema == cachedTableSchema->TableSchema);
+        YT_VERIFY(*CachedTableSchema_->TableSchema == *cachedTableSchema->TableSchema);
         return;
     }
 

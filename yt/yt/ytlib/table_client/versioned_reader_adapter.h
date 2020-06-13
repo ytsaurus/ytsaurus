@@ -10,12 +10,12 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 using TSchemafulReaderFactory = std::function<ISchemafulUnversionedReaderPtr(
-    const TTableSchema&,
+    const TTableSchemaPtr&,
     const TColumnFilter&)>;
 
 IVersionedReaderPtr CreateVersionedReaderAdapter(
     TSchemafulReaderFactory createReader,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp);
 

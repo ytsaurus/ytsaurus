@@ -15,14 +15,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchema TTableUploadOptions::GetUploadSchema() const
+TTableSchemaPtr TTableUploadOptions::GetUploadSchema() const
 {
     switch (SchemaModification) {
         case ETableSchemaModification::None:
             return TableSchema;
 
         case ETableSchemaModification::UnversionedUpdate:
-            return TableSchema.ToUnversionedUpdate(/*sorted*/ true);
+            return TableSchema->ToUnversionedUpdate(/*sorted*/ true);
 
         default:
             YT_ABORT();
@@ -35,7 +35,7 @@ void TTableUploadOptions::Persist(NPhoenix::TPersistenceContext& context)
 
     Persist(context, UpdateMode);
     Persist(context, LockMode);
-    Persist(context, TableSchema);
+    Persist<TNonNullableIntrusivePtrSerializer<>>(context, TableSchema);
     Persist(context, SchemaModification);
     Persist(context, SchemaMode);
     Persist(context, OptimizeFor);
@@ -89,7 +89,7 @@ TTableUploadOptions GetTableUploadOptions(
     const IAttributeDictionary& cypressTableAttributes,
     i64 rowCount)
 {
-    auto schema = cypressTableAttributes.Get<TTableSchema>("schema");
+    auto schema = New<TTableSchema>(cypressTableAttributes.Get<TTableSchema>("schema"));
     auto schemaMode = cypressTableAttributes.Get<ETableSchemaMode>("schema_mode");
     auto optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
     auto compressionCodec = cypressTableAttributes.Get<NCompression::ECodec>("compression_codec");
@@ -121,8 +121,9 @@ TTableUploadOptions GetTableUploadOptions(
     }
 
     TTableUploadOptions result;
+    auto pathSchema = path.GetSchema();
     if (path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
-        ValidateKeyColumnsEqual(path.GetSortedBy(), schema);
+        ValidateKeyColumnsEqual(path.GetSortedBy(), *schema);
 
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Append;
@@ -130,14 +131,14 @@ TTableUploadOptions GetTableUploadOptions(
         result.TableSchema = schema;
     } else if (path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Weak)) {
         // Old behaviour.
-        ValidateAppendKeyColumns(path.GetSortedBy(), schema, rowCount);
+        ValidateAppendKeyColumns(path.GetSortedBy(), *schema, rowCount);
 
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Append;
         result.SchemaMode = ETableSchemaMode::Weak;
         result.TableSchema = TTableSchema::FromKeyColumns(path.GetSortedBy());
     } else if (path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
-        result.LockMode = (schema.IsSorted() && !dynamic) ? ELockMode::Exclusive : ELockMode::Shared;
+        result.LockMode = (schema->IsSorted() && !dynamic) ? ELockMode::Exclusive : ELockMode::Shared;
         result.UpdateMode = EUpdateMode::Append;
         result.SchemaMode = ETableSchemaMode::Strong;
         result.TableSchema = schema;
@@ -146,9 +147,9 @@ TTableUploadOptions GetTableUploadOptions(
         result.LockMode = ELockMode::Shared;
         result.UpdateMode = EUpdateMode::Append;
         result.SchemaMode = ETableSchemaMode::Weak;
-        result.TableSchema = TTableSchema();
+        result.TableSchema = New<TTableSchema>();
     } else if (!path.GetAppend() && !path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
-        ValidateKeyColumnsEqual(path.GetSortedBy(), schema);
+        ValidateKeyColumnsEqual(path.GetSortedBy(), *schema);
 
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
@@ -159,17 +160,17 @@ TTableUploadOptions GetTableUploadOptions(
         result.UpdateMode = EUpdateMode::Overwrite;
         result.SchemaMode = ETableSchemaMode::Weak;
         result.TableSchema = TTableSchema::FromKeyColumns(path.GetSortedBy());
-    } else if (!path.GetAppend() && path.GetSchema() && (schemaMode == ETableSchemaMode::Strong)) {
+    } else if (!path.GetAppend() && pathSchema && (schemaMode == ETableSchemaMode::Strong)) {
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
         result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = *path.GetSchema();
-    } else if (!path.GetAppend() && path.GetSchema() && (schemaMode == ETableSchemaMode::Weak)) {
+        result.TableSchema = pathSchema;
+    } else if (!path.GetAppend() && pathSchema && (schemaMode == ETableSchemaMode::Weak)) {
         // Change from Weak to Strong schema mode.
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
         result.SchemaMode = ETableSchemaMode::Strong;
-        result.TableSchema = *path.GetSchema();
+        result.TableSchema = pathSchema;
     } else if (!path.GetAppend() && path.GetSortedBy().empty() && (schemaMode == ETableSchemaMode::Strong)) {
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
@@ -179,13 +180,12 @@ TTableUploadOptions GetTableUploadOptions(
         result.LockMode = ELockMode::Exclusive;
         result.UpdateMode = EUpdateMode::Overwrite;
         result.SchemaMode = ETableSchemaMode::Weak;
-        result.TableSchema = TTableSchema();
     } else {
         // Do not use YT_ABORT here, since this code is executed inside scheduler.
         THROW_ERROR_EXCEPTION("Failed to define upload parameters")
             << TErrorAttribute("path", path)
             << TErrorAttribute("schema_mode", schemaMode)
-            << TErrorAttribute("schema", schema);
+            << TErrorAttribute("schema", *schema);
     }
 
     if (path.GetAppend() && path.GetOptimizeFor()) {

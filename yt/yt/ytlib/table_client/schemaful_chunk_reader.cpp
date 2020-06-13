@@ -50,7 +50,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
     TChunkReaderConfigPtr config,
     NChunkClient::IChunkReaderPtr chunkReader,
     const TClientBlockReadOptions& blockReadOptions,
-    const TTableSchema& resultSchema,
+    const TTableSchemaPtr& resultSchema,
     const TKeyColumns& keyColumns,
     const NChunkClient::TReadRange& readRange,
     TTimestamp timestamp)

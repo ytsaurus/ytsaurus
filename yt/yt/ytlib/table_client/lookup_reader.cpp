@@ -153,7 +153,7 @@ private:
             LookupKeys_,
             TabletSnapshot_->TableId,
             TabletSnapshot_->MountRevision,
-            TabletSnapshot_->TableSchema,
+            *TabletSnapshot_->TableSchema,
             ComputeEstimatedSize(),
             &UncompressedDataSize_,
             ColumnFilter_,
@@ -171,12 +171,12 @@ private:
     {
         i64 estimatedSize = 0;
 
-        int keyCount = TabletSnapshot_->TableSchema.GetKeyColumnCount();
-        int valueCount = TabletSnapshot_->TableSchema.GetValueColumnCount();
+        int keyCount = TabletSnapshot_->TableSchema->GetKeyColumnCount();
+        int valueCount = TabletSnapshot_->TableSchema->GetValueColumnCount();
         // Lower bound on row size is one write timestamp and zero delete timestamps.
         estimatedSize = GetVersionedRowByteSize(keyCount, valueCount, 1, 0);
 
-        for (const auto& column : TabletSnapshot_->TableSchema.Columns()) {
+        for (const auto& column : TabletSnapshot_->TableSchema->Columns()) {
             if (IsStringLikeType(column.GetPhysicalType())) {
                 estimatedSize += ExpectedStringSize - sizeof(TUnversionedValueData);
             }
@@ -192,7 +192,7 @@ private:
         auto uncompressedFetchedRowset = Codec_->Decompress(fetchedRowset);
         DecompressionTime_ += timer.GetElapsedValue();
 
-        auto schemaData = TWireProtocolReader::GetSchemaData(TabletSnapshot_->TableSchema, TColumnFilter());
+        auto schemaData = TWireProtocolReader::GetSchemaData(*TabletSnapshot_->TableSchema, TColumnFilter());
         TWireProtocolReader reader(uncompressedFetchedRowset, RowBuffer_);
 
         FetchedRows_.reserve(LookupKeys_.Size());

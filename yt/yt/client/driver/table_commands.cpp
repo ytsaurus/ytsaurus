@@ -593,7 +593,8 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
 
     auto format = context->GetOutputFormat();
     auto output = context->Request().OutputStream;
-    auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
+    // TODO(babenko): refcounted schema
+    auto writer = CreateSchemafulWriterForFormat(format, New<TTableSchema>(rowset->GetSchema()), output);
 
     writer->Write(rowset->GetRows());
 
@@ -766,7 +767,7 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         for (const auto& name : *ColumnNames) {
             auto optionalIndex = nameTable->FindId(name);
             if (!optionalIndex) {
-                if (!tableInfo->Schemas[ETableSchemaKind::Primary].FindColumn(name)) {
+                if (!tableInfo->Schemas[ETableSchemaKind::Primary]->FindColumn(name)) {
                     THROW_ERROR_EXCEPTION("No such column %Qv",
                         name);
                 }
@@ -793,7 +794,8 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         auto asyncRowset = clientBase->VersionedLookupRows(Path.GetPath(), std::move(nameTable), std::move(keyRange), versionedOptions);
         auto rowset = WaitFor(asyncRowset)
             .ValueOrThrow();
-        auto writer = CreateVersionedWriterForFormat(format, rowset->GetSchema(), output);
+        // TODO(babenko): refcounted schema
+        auto writer = CreateVersionedWriterForFormat(format, New<TTableSchema>(rowset->GetSchema()), output);
         writer->Write(rowset->GetRows());
         WaitFor(writer->Close())
             .ThrowOnError();
@@ -802,7 +804,8 @@ void TLookupRowsCommand::DoExecute(ICommandContextPtr context)
         auto rowset = WaitFor(asyncRowset)
             .ValueOrThrow();
 
-        auto writer = CreateSchemafulWriterForFormat(format, rowset->GetSchema(), output);
+        // TODO(babenko): refcounted schema
+        auto writer = CreateSchemafulWriterForFormat(format, New<TTableSchema>(rowset->GetSchema()), output);
         writer->Write(rowset->GetRows());
         WaitFor(writer->Close())
             .ThrowOnError();

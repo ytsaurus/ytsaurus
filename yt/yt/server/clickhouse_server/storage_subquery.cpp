@@ -43,7 +43,7 @@ public:
             SubquerySpec_.SubqueryIndex,
             SubquerySpec_.TableIndex);
 
-        setColumns(DB::ColumnsDescription(ToNamesAndTypesList(SubquerySpec_.ReadSchema)));
+        setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema)));
 
         queryContext->MoveToPhase(EQueryPhase::Preparation);
     }

@@ -23,7 +23,7 @@ struct IStorageDistributor
 public:
     virtual std::vector<TTablePtr> GetTables() const = 0;
 
-    virtual NTableClient::TTableSchema GetSchema() const = 0;
+    virtual NTableClient::TTableSchemaPtr GetSchema() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

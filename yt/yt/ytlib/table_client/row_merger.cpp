@@ -726,15 +726,15 @@ void TVersionedRowMerger::Cleanup()
 
 TSamplingRowMerger::TSamplingRowMerger(
     TRowBufferPtr rowBuffer,
-    const TTableSchema& schema)
+    TTableSchemaPtr schema)
     : RowBuffer_(std::move(rowBuffer))
-    , KeyColumnCount_(schema.GetKeyColumnCount())
-    , LatestTimestamps_(size_t(schema.GetColumnCount()), NullTimestamp)
-    , IdMapping_(size_t(schema.GetColumnCount()), -1)
+    , KeyColumnCount_(schema->GetKeyColumnCount())
+    , LatestTimestamps_(static_cast<size_t>(schema->GetColumnCount()), NullTimestamp)
+    , IdMapping_(static_cast<size_t>(schema->GetColumnCount()), -1)
 {
-    for (const auto& column : schema.Columns()) {
+    for (const auto& column : schema->Columns()) {
         if (!column.Aggregate()) {
-            IdMapping_[schema.GetColumnIndex(column)] = SampledColumnCount_;
+            IdMapping_[schema->GetColumnIndex(column)] = SampledColumnCount_;
             ++SampledColumnCount_;
         }
     }

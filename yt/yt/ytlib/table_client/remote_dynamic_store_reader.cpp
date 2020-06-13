@@ -45,26 +45,30 @@ using TIdMapping = SmallVector<int, TypicalColumnCount>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::tuple<TTableSchema, TColumnFilter, TIdMapping> CreateReadParameters(
-    const TTableSchema& schema,
+std::tuple<TTableSchemaPtr, TColumnFilter, TIdMapping> CreateReadParameters(
+    const TTableSchemaPtr& schema,
     const TColumnFilter& columnFilter)
 {
-    TIdMapping idMapping(static_cast<size_t>(schema.GetColumnCount()), -1);
+    TIdMapping idMapping(static_cast<size_t>(schema->GetColumnCount()), -1);
 
     if (columnFilter.IsUniversal()) {
         for (int index = 0; index < idMapping.size(); ++index) {
              idMapping[index] = index;
         }
-        return {schema, TColumnFilter{}, idMapping};
+        return {
+            schema,
+            TColumnFilter(),
+            idMapping
+        };
     } else {
         int nextId = 0;
         TColumnFilter::TIndexes columnFilterIndexes;
-        for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
+        for (int index = 0; index < schema->GetKeyColumnCount(); ++index) {
             idMapping[index] = nextId++;
             columnFilterIndexes.push_back(index);
         }
         for (int index : columnFilter.GetIndexes()) {
-            if (index >= schema.GetKeyColumnCount()) {
+            if (index >= schema->GetKeyColumnCount()) {
                 idMapping[index] = nextId++;
                 columnFilterIndexes.push_back(index);
             }
@@ -72,7 +76,11 @@ std::tuple<TTableSchema, TColumnFilter, TIdMapping> CreateReadParameters(
 
         TColumnFilter readColumnFilter(std::move(columnFilterIndexes));
 
-        return {schema.Filter(readColumnFilter), readColumnFilter, idMapping};
+        return {
+            schema->Filter(readColumnFilter),
+            readColumnFilter,
+            idMapping
+        };
     }
 }
 
@@ -84,7 +92,7 @@ class TRemoteDynamicStoreReader
 public:
     TRemoteDynamicStoreReader(
         TChunkSpec chunkSpec,
-        TTableSchema schema,
+        TTableSchemaPtr schema,
         TRemoteDynamicStoreReaderConfigPtr config,
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
@@ -213,7 +221,7 @@ private:
     const TTimestamp Timestamp_;
     const TNetworkPreferenceList Networks_;
 
-    TTableSchema Schema_;
+    TTableSchemaPtr Schema_;
     TColumnFilter ColumnFilter_;
     TIdMapping IdMapping_;
 
@@ -336,7 +344,7 @@ private:
         UncompressedDataSize_ += data.Size();
         // Default row buffer.
         TWireProtocolReader reader(data);
-        auto schemaData = TWireProtocolReader::GetSchemaData(Schema_);
+        auto schemaData = TWireProtocolReader::GetSchemaData(*Schema_);
         return reader.ReadVersionedRowset(schemaData, true /*deep*/, &IdMapping_);
     }
 };
@@ -345,7 +353,7 @@ private:
 
 IVersionedReaderPtr CreateRemoteDynamicStoreReader(
     TChunkSpec chunkSpec,
-    TTableSchema schema,
+    TTableSchemaPtr schema,
     TRemoteDynamicStoreReaderConfigPtr config,
     NNative::IClientPtr client,
     TNodeDirectoryPtr nodeDirectory,
@@ -375,7 +383,7 @@ class TRetryingRemoteDynamicStoreReader
 public:
     TRetryingRemoteDynamicStoreReader(
         TChunkSpec chunkSpec,
-        TTableSchema schema,
+        TTableSchemaPtr schema,
         TRetryingRemoteDynamicStoreReaderConfigPtr config,
         NNative::IClientPtr client,
         TNodeDirectoryPtr nodeDirectory,
@@ -491,7 +499,7 @@ public:
 
 private:
     TChunkSpec ChunkSpec_;
-    const TTableSchema Schema_;
+    const TTableSchemaPtr Schema_;
     const TRetryingRemoteDynamicStoreReaderConfigPtr Config_;
     const NNative::IClientPtr Client_;
     const TNodeDirectoryPtr NodeDirectory_;
@@ -739,7 +747,7 @@ private:
 
 IVersionedReaderPtr CreateRetryingRemoteDynamicStoreReader(
     NChunkClient::NProto::TChunkSpec chunkSpec,
-    TTableSchema schema,
+    TTableSchemaPtr schema,
     TRetryingRemoteDynamicStoreReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,

@@ -10,8 +10,12 @@ namespace NYT::NArrow {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NApi::NRpcProxy::IRowStreamFormatterPtr CreateArrowRowStreamFormatter(NTableClient::TNameTablePtr nameTable);
-NApi::NRpcProxy::IRowStreamParserPtr CreateArrowRowStreamParser(NTableClient::TNameTablePtr nameTable);
+NApi::NRpcProxy::IRowStreamFormatterPtr CreateArrowRowStreamFormatter(
+    NTableClient::TTableSchemaPtr schema,
+    NTableClient::TNameTablePtr nameTable);
+NApi::NRpcProxy::IRowStreamParserPtr CreateArrowRowStreamParser(
+    NTableClient::TTableSchemaPtr schema,
+    NTableClient::TNameTablePtr nameTable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

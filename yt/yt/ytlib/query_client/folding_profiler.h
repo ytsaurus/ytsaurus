@@ -30,12 +30,12 @@ struct TExtraColumnsChecker
 };
 
 void Profile(
-    const TTableSchema& tableSchema,
+    const TTableSchemaPtr& tableSchema,
     llvm::FoldingSetNodeID* id);
 
 TCGExpressionCallbackGenerator Profile(
     const TConstExpressionPtr& expr,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     const TConstFunctionProfilerMapPtr& functionProfilers = BuiltinFunctionProfilers.Get());

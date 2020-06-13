@@ -14,7 +14,7 @@ class TColumnEvaluator
 {
 public:
     static TColumnEvaluatorPtr Create(
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         const TConstTypeInferrerMapPtr& typeInferrers,
         const TConstFunctionProfilerMapPtr& profilers);
 
@@ -93,7 +93,7 @@ public:
         const TConstFunctionProfilerMapPtr& profilers = BuiltinFunctionProfilers);
     ~TColumnEvaluatorCache();
 
-    TColumnEvaluatorPtr Find(const TTableSchema& schema);
+    TColumnEvaluatorPtr Find(TTableSchemaPtr schema);
 
 private:
     class TImpl;

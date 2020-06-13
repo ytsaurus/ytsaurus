@@ -44,7 +44,7 @@ TEST_P(TValueConsumerTypeConversionTest, TestBehaviour)
         typeConversionConfig->EnableIntegralTypeConversion,
         typeConversionConfig->EnableIntegralToDoubleConversion) = GetParam();
 
-    TTableSchema schema({
+    auto schema = New<TTableSchema>(std::vector{
         TColumnSchema("any", EValueType::Any),
         TColumnSchema("int64", EValueType::Int64),
         TColumnSchema("uint64", EValueType::Uint64),

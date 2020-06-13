@@ -14,7 +14,7 @@ namespace NYT::NFormats {
 
 ISchemalessFormatWriterPtr CreateWriterForProtobuf(
     TProtobufFormatConfigPtr config,
-    const std::vector<NTableClient::TTableSchema>& schemas,
+    const std::vector<NTableClient::TTableSchemaPtr>& schemas,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
@@ -23,7 +23,7 @@ ISchemalessFormatWriterPtr CreateWriterForProtobuf(
 
 ISchemalessFormatWriterPtr CreateWriterForProtobuf(
     const NYTree::IAttributeDictionary& attributes,
-    const std::vector<NTableClient::TTableSchema>& schemas,
+    const std::vector<NTableClient::TTableSchemaPtr>& schemas,
     NTableClient::TNameTablePtr nameTable,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,

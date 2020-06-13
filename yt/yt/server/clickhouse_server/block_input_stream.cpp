@@ -36,7 +36,7 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NTableClient::TTableSchema FilterColumnsInSchema(
+NTableClient::TTableSchemaPtr FilterColumnsInSchema(
     const NTableClient::TTableSchema& schema,
     DB::Names columnNames)
 {
@@ -166,8 +166,7 @@ DB::Block FilterRowsByPrewhereInfo(
     }
 
     auto filteredBatch = CreateBatchFromUnversionedRows(
-        std::move(filteredRows),
-        std::move(batch));
+        MakeSharedRange(std::move(filteredRows), std::move(batch)));
     auto filteredBlock = WaitFor(BIND(
         &NDetail::ConvertRowBatchToBlock,
         filteredBatch,
@@ -191,7 +190,7 @@ DB::Block FilterRowsByPrewhereInfo(
 
 TBlockInputStream::TBlockInputStream(
     ISchemalessMultiChunkReaderPtr reader,
-    TTableSchema readSchema,
+    TTableSchemaPtr readSchema,
     TTraceContextPtr traceContext,
     THost* host,
     TLogger logger,
@@ -267,7 +266,7 @@ DB::Block TBlockInputStream::readImpl()
         block = WaitFor(BIND(
             &NDetail::ConvertRowBatchToBlock,
             batch,
-            ReadSchema_,
+            *ReadSchema_,
             IdToColumnIndex_,
             RowBuffer_,
             InputHeaderBlock_.cloneEmpty())
@@ -280,7 +279,7 @@ DB::Block TBlockInputStream::readImpl()
                 std::move(block),
                 batch,
                 PrewhereInfo_,
-                ReadSchema_,
+                *ReadSchema_,
                 IdToColumnIndex_,
                 RowBuffer_,
                 InputHeaderBlock_,
@@ -299,15 +298,15 @@ DB::Block TBlockInputStream::readImpl()
 
 void TBlockInputStream::Prepare()
 {
-    InputHeaderBlock_ = ToHeaderBlock(ReadSchema_);
-    OutputHeaderBlock_ = ToHeaderBlock(ReadSchema_);
+    InputHeaderBlock_ = ToHeaderBlock(*ReadSchema_);
+    OutputHeaderBlock_ = ToHeaderBlock(*ReadSchema_);
     if (PrewhereInfo_) {
         // Create header with executed prewhere actions.
         NDetail::ExecutePrewhereActions(OutputHeaderBlock_, PrewhereInfo_);
     }
 
-    for (int index = 0; index < static_cast<int>(ReadSchema_.Columns().size()); ++index) {
-        const auto& columnSchema = ReadSchema_.Columns()[index];
+    for (int index = 0; index < static_cast<int>(ReadSchema_->Columns().size()); ++index) {
+        const auto& columnSchema = ReadSchema_->Columns()[index];
         auto id = Reader_->GetNameTable()->GetIdOrRegisterName(columnSchema.Name());
         if (static_cast<int>(IdToColumnIndex_.size()) <= id) {
             IdToColumnIndex_.resize(id + 1, -1);
@@ -320,7 +319,7 @@ void TBlockInputStream::Prepare()
 
 std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     ISchemalessMultiChunkReaderPtr reader,
-    TTableSchema readSchema,
+    TTableSchemaPtr readSchema,
     TTraceContextPtr traceContext,
     THost* host,
     TLogger logger,
@@ -441,7 +440,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     DB::PrewhereInfoPtr prewhereInfo)
 {
-    auto schema = NDetail::FilterColumnsInSchema(subquerySpec.ReadSchema, columnNames);
+    auto schema = NDetail::FilterColumnsInSchema(*subquerySpec.ReadSchema, columnNames);
     auto blockReadOptions = NDetail::CreateBlockReadOptions(queryContext->User);
 
     auto blockInputStreamTraceContext = NTracing::CreateChildTraceContext(
@@ -462,9 +461,9 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         queryContext->Client()->GetNativeConnection()->GetNodeDirectory(),
         subquerySpec.DataSourceDirectory,
         dataSliceDescriptors,
-        TNameTable::FromSchema(schema),
+        TNameTable::FromSchema(*schema),
         blockReadOptions,
-        TColumnFilter(schema.Columns().size()),
+        TColumnFilter(schema->Columns().size()),
         /* keyColumns =*/{},
         /* partitionTag =*/std::nullopt,
         /* trafficMeter =*/nullptr,

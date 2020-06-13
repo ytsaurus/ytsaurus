@@ -153,7 +153,7 @@ protected:
 
         {
             TWireProtocolReader reader(response);
-            auto schemaData = TWireProtocolReader::GetSchemaData(Tablet_->PhysicalSchema(), TColumnFilter());
+            auto schemaData = TWireProtocolReader::GetSchemaData(*Tablet_->GetPhysicalSchema(), TColumnFilter());
             auto row = reader.ReadSchemafulRow(schemaData, false);
             return TUnversionedOwningRow(row);
         }
@@ -637,19 +637,17 @@ class TSingleLockStoreManagerTestWithStringKeys
     : public TSingleLockStoreManagerTest
 {
 protected:
-    virtual TTableSchema GetSchema() const
+    virtual TTableSchemaPtr GetSchema() const
     {
         // NB: Key columns must go first.
-        TTableSchema schema({
+        return New<TTableSchema>(std::vector{
             TColumnSchema("key", EValueType::String).SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("a", EValueType::Int64),
             TColumnSchema("b", EValueType::Double),
             TColumnSchema("c", EValueType::String),
             TColumnSchema("d", EValueType::Any)
         });
-        return schema;
     }
-
 };
 
 TEST_F(TSingleLockStoreManagerTestWithStringKeys, StringKey)
@@ -676,17 +674,14 @@ class TSingleLockStoreManagerTestWithCompositeKeys
     : public TSingleLockStoreManagerTest
 {
 protected:
-    virtual TTableSchema GetSchema() const
+    virtual TTableSchemaPtr GetSchema() const
     {
-        // NB: Key columns must go first.
-        TTableSchema schema({
+        return New<TTableSchema>(std::vector{
             TColumnSchema("k1", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("v", EValueType::Int64)
         });
-        return schema;
     }
-
 };
 
 TEST_F(TSingleLockStoreManagerTestWithCompositeKeys, Write)
@@ -716,18 +711,16 @@ class TMultiLockStoreManagerTest
     : public TSortedStoreManagerTestBase
 {
 protected:
-    virtual TTableSchema GetSchema() const
+    virtual TTableSchemaPtr GetSchema() const
     {
         // NB: Key columns must go first.
-        TTableSchema schema({
+        return New<TTableSchema>(std::vector{
             TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("a", EValueType::Int64).SetLock(TString("l1")),
             TColumnSchema("b", EValueType::Double).SetLock(TString("l2")),
             TColumnSchema("c", EValueType::String)
         });
-        return schema;
     }
-
 };
 
 TEST_F(TMultiLockStoreManagerTest, WriteTakesPrimaryLock)

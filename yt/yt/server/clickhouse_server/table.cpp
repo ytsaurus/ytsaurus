@@ -40,7 +40,7 @@ TTable::TTable(TRichYPath path, const TAttributeMap& attributes)
         ? attributes.at("external_cell_tag")->GetValue<ui64>()
         : CellTagFromId(ObjectId);
     ChunkCount = attributes.at("chunk_count")->GetValue<i64>();
-    Schema = ConvertTo<TTableSchema>(attributes.at("schema"));
+    Schema = New<TTableSchema>(ConvertTo<TTableSchema>(attributes.at("schema")));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -608,7 +608,7 @@ private:
             Config_->SamplesFetcher,
             ESamplingPolicy::Partitioning,
             maxSampleCount,
-            tablet->PhysicalSchema().GetKeyColumns(),
+            tablet->GetPhysicalSchema()->GetKeyColumns(),
             NTableClient::MaxSampleSize,
             nodeDirectory,
             GetCurrentInvoker(),

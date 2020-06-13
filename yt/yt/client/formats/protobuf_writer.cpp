@@ -42,7 +42,7 @@ class TOtherColumnsWriter
 {
 public:
     TOtherColumnsWriter(
-        const std::vector<TTableSchema>& schemas,
+        const std::vector<TTableSchemaPtr>& schemas,
         const TNameTablePtr& nameTable,
         const TProtobufFormatDescriptionPtr& description,
         EComplexTypeMode complexTypeMode)
@@ -529,7 +529,7 @@ private:
 
 public:
     TWriterImpl(
-        const std::vector<TTableSchema>& schemas,
+        const std::vector<TTableSchemaPtr>& schemas,
         const TNameTablePtr& nameTable,
         const TProtobufFormatDescriptionPtr& description,
         EComplexTypeMode complexTypeMode)
@@ -756,7 +756,7 @@ class TSchemalessWriterForProtobuf
 {
 public:
     TSchemalessWriterForProtobuf(
-        const std::vector<TTableSchema>& schemas,
+        const std::vector<TTableSchemaPtr>& schemas,
         TNameTablePtr nameTable,
         IAsyncOutputStreamPtr output,
         bool enableContextSaving,
@@ -901,7 +901,7 @@ private:
 
 ISchemalessFormatWriterPtr CreateWriterForProtobuf(
     TProtobufFormatConfigPtr config,
-    const std::vector<TTableSchema>& schemas,
+    const std::vector<TTableSchemaPtr>& schemas,
     TNameTablePtr nameTable,
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,
@@ -923,7 +923,7 @@ ISchemalessFormatWriterPtr CreateWriterForProtobuf(
 
 ISchemalessFormatWriterPtr CreateWriterForProtobuf(
     const IAttributeDictionary& attributes,
-    const std::vector<TTableSchema>& schemas,
+    const std::vector<TTableSchemaPtr>& schemas,
     TNameTablePtr nameTable,
     IAsyncOutputStreamPtr output,
     bool enableContextSaving,

@@ -21,7 +21,7 @@ struct IValueConsumer
     virtual ~IValueConsumer() = default;
 
     virtual const TNameTablePtr& GetNameTable() const = 0;
-    virtual const TTableSchema& GetSchema() const = 0;
+    virtual const TTableSchemaPtr& GetSchema() const = 0;
 
     virtual bool GetAllowUnknownColumns() const = 0;
 
@@ -36,13 +36,15 @@ class TValueConsumerBase
     : public IValueConsumer
 {
 public:
-    TValueConsumerBase(const TTableSchema& schema, const TTypeConversionConfigPtr& typeConversionConfig);
+    TValueConsumerBase(
+        TTableSchemaPtr schema,
+        TTypeConversionConfigPtr typeConversionConfig);
 
     virtual void OnValue(const TUnversionedValue& value) override;
-    virtual const TTableSchema& GetSchema() const override;
+    virtual const TTableSchemaPtr& GetSchema() const override;
 
 protected:
-    TTableSchema Schema_;
+    const TTableSchemaPtr Schema_;
 
     virtual void OnMyValue(const TUnversionedValue& value) = 0;
 
@@ -52,7 +54,8 @@ protected:
     void InitializeIdToTypeMapping();
 
 private:
-    TTypeConversionConfigPtr TypeConversionConfig_;
+    const TTypeConversionConfigPtr TypeConversionConfig_;
+    
     std::vector<EValueType> NameTableIdToType_;
 
     // This template method is private and only used in value_consumer.cpp with T = i64/ui64,
@@ -76,8 +79,8 @@ class TBuildingValueConsumer
 {
 public:
     explicit TBuildingValueConsumer(
-        const TTableSchema& schema,
-        const TTypeConversionConfigPtr& typeConversionConfig = New<TTypeConversionConfig>());
+        TTableSchemaPtr schema,
+        TTypeConversionConfigPtr typeConversionConfig = New<TTypeConversionConfig>());
 
     std::vector<TUnversionedRow> GetRows() const;
 
@@ -116,17 +119,16 @@ class TWritingValueConsumer
 public:
     explicit TWritingValueConsumer(
         IUnversionedWriterPtr writer,
-        const TTypeConversionConfigPtr& typeConversionConfig = New<TTypeConversionConfig>(),
+        TTypeConversionConfigPtr typeConversionConfig = New<TTypeConversionConfig>(),
         i64 maxRowBufferSize = 1_MB);
 
     TFuture<void> Flush();
 
 private:
     const IUnversionedWriterPtr Writer_;
+    const i64 MaxRowBufferSize_;
 
     const TRowBufferPtr RowBuffer_;
-
-    const i64 MaxRowBufferSize_;
 
     std::vector<TUnversionedRow> Rows_;
     SmallVector<TUnversionedValue, TypicalColumnCount> Values_;
@@ -138,7 +140,6 @@ private:
     virtual void OnBeginRow() override;
     virtual void OnMyValue(const TUnversionedValue& value) override;
     virtual void OnEndRow() override;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

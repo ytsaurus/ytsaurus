@@ -16,7 +16,7 @@ struct TTable
     : public TIntrinsicRefCounted
     , public NChunkClient::TUserObject
 {
-    NTableClient::TTableSchema Schema;
+    NTableClient::TTableSchemaPtr Schema;
     //! Table index according to JOIN clause (if any):
     //! - SELECT * FROM AAA: AAA.TableIndex = 0.
     //! - SELECT * FROM AAA JOIN BBB: AAA.TableIndex = 0, BBB.TableIndex = 1.

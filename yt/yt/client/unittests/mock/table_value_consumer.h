@@ -16,9 +16,9 @@ public:
     TMockValueConsumer(
         TNameTablePtr nameTable,
         bool allowUnknownColumns,
-        const TTableSchema& schema = TTableSchema(),
-        const TTypeConversionConfigPtr& typeConversionConfig = New<TTypeConversionConfig>())
-        : TValueConsumerBase(schema, typeConversionConfig)
+        TTableSchemaPtr schema = New<TTableSchema>(),
+        TTypeConversionConfigPtr typeConversionConfig = New<TTypeConversionConfig>())
+        : TValueConsumerBase(std::move(schema), std::move(typeConversionConfig))
         , NameTable_(nameTable)
         , AllowUnknowsColumns_(allowUnknownColumns)
     {

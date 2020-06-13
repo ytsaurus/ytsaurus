@@ -73,6 +73,8 @@ std::vector<TSharedRef> UnpackRefsOrThrow(const TSharedRef& packedRef);
 template <class TTag, class TParts>
 TSharedRef MergeRefsToRef(const TParts& parts);
 template <class TParts>
+void MergeRefsToRef(const TParts& parts, TMutableRef dst);
+template <class TParts>
 TString MergeRefsToString(const TParts& parts);
 
 ////////////////////////////////////////////////////////////////////////////////

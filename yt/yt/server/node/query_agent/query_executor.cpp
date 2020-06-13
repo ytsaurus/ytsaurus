@@ -682,11 +682,11 @@ private:
 
         auto rowBuffer = New<TRowBuffer>(TQuerySubexecutorBufferTag());
 
-        auto keySize = Query_->Schema.Original.GetKeyColumnCount();
+        auto keySize = Query_->Schema.Original->GetKeyColumnCount();
 
         std::vector<EValueType> keySchema;
         for (size_t index = 0; index < keySize; ++index) {
-            keySchema.push_back(Query_->Schema.Original.Columns()[index].GetPhysicalType());
+            keySchema.push_back(Query_->Schema.Original->Columns()[index].GetPhysicalType());
         }
 
         bool hasRanges = false;
@@ -920,7 +920,7 @@ private:
 
             YT_VERIFY(tablePartIdRange.Keys.Empty() != ranges.Empty());
 
-            if (!tabletSnapshot->TableSchema.IsSorted() || ranges.Empty()) {
+            if (!tabletSnapshot->TableSchema->IsSorted() || ranges.Empty()) {
                 groupedSplits.push_back(tablePartIdRange);
                 continue;
             }
@@ -980,12 +980,12 @@ private:
         const TSharedRange<TRowRange>& bounds)
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
-        auto columnFilter = GetColumnFilter(Query_->GetReadSchema(), tabletSnapshot->QuerySchema);
+        auto columnFilter = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
         auto profilerTags = tabletSnapshot->ProfilerTags;
 
         ISchemafulUnversionedReaderPtr reader;
 
-        if (!tabletSnapshot->TableSchema.IsSorted()) {
+        if (!tabletSnapshot->TableSchema->IsSorted()) {
             auto bottomSplitReaderGenerator = [
                 =,
                 this_ = MakeStrong(this),
@@ -1029,7 +1029,7 @@ private:
         const TSharedRange<TRow>& keys)
     {
         auto tabletSnapshot = TabletSnapshots_.GetCachedTabletSnapshot(tabletId);
-        auto columnFilter = GetColumnFilter(Query_->GetReadSchema(), tabletSnapshot->QuerySchema);
+        auto columnFilter = GetColumnFilter(*Query_->GetReadSchema(), *tabletSnapshot->QuerySchema);
         auto profilerTags = tabletSnapshot->ProfilerTags;
 
         auto reader = CreateSchemafulTabletReader(

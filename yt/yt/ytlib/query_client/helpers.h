@@ -12,7 +12,7 @@ namespace NYT::NQueryClient {
 
 NObjectClient::TObjectId GetObjectIdFromDataSplit(const TDataSplit& dataSplit);
 
-TTableSchema GetTableSchemaFromDataSplit(const TDataSplit& dataSplit);
+TTableSchemaPtr GetTableSchemaFromDataSplit(const TDataSplit& dataSplit);
 
 TOwningKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit);
 

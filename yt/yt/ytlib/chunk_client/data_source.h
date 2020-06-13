@@ -29,7 +29,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(EDataSourceType, Type, EDataSourceType::UnversionedTable);
     DEFINE_BYVAL_RW_PROPERTY(bool, Foreign, false);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NYPath::TYPath>, Path);
-    DEFINE_BYREF_RW_PROPERTY(std::optional<NTableClient::TTableSchema>, Schema);
+    DEFINE_BYREF_RW_PROPERTY(NTableClient::TTableSchemaPtr, Schema);
     DEFINE_BYREF_RW_PROPERTY(std::optional<std::vector<TString>>, Columns);
     DEFINE_BYREF_RW_PROPERTY(std::vector<TString>, OmittedInaccessibleColumns);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, Timestamp, NTransactionClient::NullTimestamp);
@@ -40,7 +40,7 @@ public:
     TDataSource(
         EDataSourceType type,
         const std::optional<NYPath::TYPath>& path,
-        const std::optional<NTableClient::TTableSchema>& schema,
+        NTableClient::TTableSchemaPtr schema,
         const std::optional<std::vector<TString>>& columns,
         const std::vector<TString>& omittedInaccessibleColumns,
         NTransactionClient::TTimestamp timestamp,
@@ -50,7 +50,7 @@ public:
 
 TDataSource MakeVersionedDataSource(
     const std::optional<NYPath::TYPath>& path,
-    const NTableClient::TTableSchema& schema,
+    NTableClient::TTableSchemaPtr schema,
     const std::optional<std::vector<TString>>& columns,
     const std::vector<TString>& omittedInaccessibleColumns,
     NTransactionClient::TTimestamp timestamp,
@@ -59,7 +59,7 @@ TDataSource MakeVersionedDataSource(
 
 TDataSource MakeUnversionedDataSource(
     const std::optional<NYPath::TYPath>& path,
-    const std::optional<NTableClient::TTableSchema>& schema,
+    NTableClient::TTableSchemaPtr schema,
     const std::optional<std::vector<TString>>& columns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const NTableClient::TColumnRenameDescriptors& columnRenameDescriptors = {});

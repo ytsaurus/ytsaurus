@@ -20,7 +20,7 @@ using namespace NProto;
 TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     const TSharedRef& block,
     const TBlockMeta& meta,
-    const TTableSchema& chunkSchema,
+    const TTableSchemaPtr& chunkSchema,
     int chunkKeyColumnCount,
     int keyColumnCount,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
@@ -61,7 +61,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
 
     KeyData_ = TRef(const_cast<char*>(Block_.Begin()), TSimpleVersionedBlockWriter::GetPaddedKeySize(
         ChunkKeyColumnCount_,
-        ChunkSchema_.Columns().size()) * Meta_.row_count());
+        ChunkSchema_->Columns().size()) * Meta_.row_count());
 
     ValueData_ = TRef(
         KeyData_.End(),
@@ -77,7 +77,7 @@ TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
     ValueNullFlags_.Reset(reinterpret_cast<const ui64*>(ptr), VersionedMeta_.value_count());
     ptr += ValueNullFlags_.GetByteSize();
 
-    for (const auto& column : ChunkSchema_.Columns()) {
+    for (const auto& column : ChunkSchema_->Columns()) {
         if (column.Aggregate()) {
             ValueAggregateFlags_ = TBitmap(reinterpret_cast<const ui64*>(ptr), VersionedMeta_.value_count());
             ptr += ValueAggregateFlags_->GetByteSize();
@@ -139,7 +139,7 @@ bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
     RowIndex_ = index;
     KeyDataPtr_ = KeyData_.Begin() + TSimpleVersionedBlockWriter::GetPaddedKeySize(
         ChunkKeyColumnCount_,
-        ChunkSchema_.Columns().size()) * RowIndex_;
+        ChunkSchema_->Columns().size()) * RowIndex_;
 
     for (int id = 0; id < ChunkKeyColumnCount_; ++id) {
         ReadKeyValue(&Key_[id], id);
@@ -198,7 +198,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadAllVersions(TChunkedMemoryPool* m
     auto row = TMutableVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
-        GetColumnValueCount(ChunkSchema_.Columns().size() - 1), // shrinkable
+        GetColumnValueCount(ChunkSchema_->Columns().size() - 1), // shrinkable
         WriteTimestampCount_ - writeTimestampIndex,
         DeleteTimestampCount_ - deleteTimestampIndex);
 
@@ -302,7 +302,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryPool* me
     auto row = TMutableVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
-        GetColumnValueCount(ChunkSchema_.Columns().size() - 1), // shrinkable
+        GetColumnValueCount(ChunkSchema_->Columns().size() - 1), // shrinkable
         1,
         hasDeleteTimestamp ? 1 : 0);
 
@@ -336,7 +336,7 @@ TVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryPool* me
             });
         int valueEndIndex = valueBeginIndex;
 
-        if (ChunkSchema_.Columns()[chunkSchemaId].Aggregate()) {
+        if (ChunkSchema_->Columns()[chunkSchemaId].Aggregate()) {
             valueEndIndex = BinarySearch(lowerValueIndex, upperValueIndex, isValueAlive);
         } else if (valueBeginIndex < upperValueIndex && isValueAlive(valueBeginIndex)) {
             valueEndIndex = valueBeginIndex + 1;
@@ -370,7 +370,7 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
         return;
     }
 
-    auto type = ChunkSchema_.Columns()[id].GetPhysicalType();
+    auto type = ChunkSchema_->Columns()[id].GetPhysicalType();
     value->Type = type;
 
     switch (type) {
@@ -411,7 +411,7 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
         return;
     }
 
-    auto type = ChunkSchema_.Columns()[chunkSchemaId].GetPhysicalType();
+    auto type = ChunkSchema_->Columns()[chunkSchemaId].GetPhysicalType();
     value->Type = type;
 
     switch (type) {
@@ -475,7 +475,7 @@ i64 TSimpleVersionedBlockReader::GetRowIndex() const
 THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockReader(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     const std::vector<TColumnIdMapping>& idMapping,
     int chunkKeyColumnCount,
     int keyColumnCount,

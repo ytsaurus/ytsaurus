@@ -87,10 +87,6 @@ public:
 
     virtual i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex) override;
 
-    virtual void ReadColumnarBatch(
-        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
-        i64 rowCount) override;
-
 protected:
     const TRef Data_;
     const NProto::TSegmentMeta& Meta_;
@@ -104,6 +100,17 @@ protected:
 
     
     i64 GetSegmentRowIndex(i64 rowIndex) const;
+    
+    template <class TValueExtractor>
+    void DoReadColumnarBatch(
+        TValueExtractor* valueExtractor,
+        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
+        i64 rowCount)
+    {
+        valueExtractor->ReadColumnarBatch(SegmentRowIndex_, rowCount, columns);
+        SegmentRowIndex_ += rowCount;
+        YT_VERIFY(SegmentRowIndex_ <= Meta_.row_count());
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -180,8 +187,7 @@ public:
         TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
         i64 rowCount) override
     {
-        ValueExtractor_.ReadColumnarBatch(SegmentStartRowIndex_, columns);
-        TUnversionedSegmentReaderBase::ReadColumnarBatch(columns, rowCount);
+        TUnversionedSegmentReaderBase::DoReadColumnarBatch(&ValueExtractor_, columns, rowCount);
     }
 
 private:
@@ -324,8 +330,7 @@ public:
         TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
         i64 rowCount) override
     {
-        ValueExtractor_.ReadColumnarBatch(SegmentStartRowIndex_, columns);
-        TUnversionedSegmentReaderBase::ReadColumnarBatch(columns, rowCount);
+        TUnversionedSegmentReaderBase::DoReadColumnarBatch(&ValueExtractor_, columns, rowCount);
     }
 
 private:
@@ -1043,11 +1048,13 @@ protected:
 void ReadColumnarNullBitmap(
     NTableClient::IUnversionedRowBatch::TColumn* column,
     i64 startIndex,
+    i64 valueCount,
     TRange<ui64> bitmap);
 
 void ReadColumnarIntegerValues(
     NTableClient::IUnversionedRowBatch::TColumn* column,
     i64 startIndex,
+    i64 valueCount,
     NTableClient::EValueType valueType,
     ui64 baseValue,
     TRange<ui64> data);
@@ -1055,16 +1062,19 @@ void ReadColumnarIntegerValues(
 void ReadColumnarBooleanValues(
     NTableClient::IUnversionedRowBatch::TColumn* column,
     i64 startIndex,
+    i64 valueCount,
     TRange<ui64> bitmap);
 
 void ReadColumnarDoubleValues(
     NTableClient::IUnversionedRowBatch::TColumn* column,
     i64 startIndex,
+    i64 valueCount,
     TRange<double> data);
 
 void ReadColumnarStringValues(
     NTableClient::IUnversionedRowBatch::TColumn* column,
     i64 startIndex,
+    i64 valueCount,
     ui32 avgLength,
     TRange<ui32> offsets,
     TRef stringData);
@@ -1072,13 +1082,17 @@ void ReadColumnarStringValues(
 void ReadColumnarDictionary(
     NTableClient::IUnversionedRowBatch::TColumn* primaryColumn,
     NTableClient::IUnversionedRowBatch::TColumn* dictionaryColumn,
+    NTableClient::TLogicalTypePtr type,
     i64 startIndex,
+    i64 valueCount,
     TRange<ui32> ids);
 
 void ReadColumnarRle(
     NTableClient::IUnversionedRowBatch::TColumn* primaryColumn,
     NTableClient::IUnversionedRowBatch::TColumn* rleColumn,
+    NTableClient::TLogicalTypePtr type,
     i64 startIndex,
+    i64 valueCount,
     TRange<ui64> indexes);
 
 ////////////////////////////////////////////////////////////////////////////////

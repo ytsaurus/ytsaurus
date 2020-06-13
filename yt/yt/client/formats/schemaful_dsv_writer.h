@@ -37,12 +37,12 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
 
 NTableClient::IUnversionedRowsetWriterPtr CreateSchemafulWriterForSchemafulDsv(
     TSchemafulDsvFormatConfigPtr config,
-    const NTableClient::TTableSchema& schema,
+    NTableClient::TTableSchemaPtr schema,
     NConcurrency::IAsyncOutputStreamPtr stream);
 
 NTableClient::IUnversionedRowsetWriterPtr CreateSchemafulWriterForSchemafulDsv(
     const NYTree::IAttributeDictionary& attributes,
-    const NTableClient::TTableSchema& schema,
+    NTableClient::TTableSchemaPtr schema,
     NConcurrency::IAsyncOutputStreamPtr stream);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -62,7 +62,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
     tableInfo->ValidateReplicated();
 
     const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-    auto idMapping = BuildColumnIdMapping(schema, nameTable);
+    auto idMapping = BuildColumnIdMapping(*schema, nameTable);
 
     struct TGetInSyncReplicasTag
     { };
@@ -81,8 +81,8 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
         THashMap<TCellId, std::vector<TTabletId>> cellToTabletIds;
         THashSet<TTabletId> tabletIds;
         for (auto key : keys) {
-            ValidateClientKey(key, schema, idMapping, nameTable);
-            auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, schema, idMapping, nullptr);
+            ValidateClientKey(key, *schema, idMapping, nameTable);
+            auto capturedKey = rowBuffer->CaptureAndPermuteRow(key, *schema, idMapping, nullptr);
 
             if (evaluator) {
                 evaluator->EvaluateKeys(capturedKey, rowBuffer);

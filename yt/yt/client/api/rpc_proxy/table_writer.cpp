@@ -24,7 +24,7 @@ class TTableWriter
 public:
     TTableWriter(
         IAsyncZeroCopyOutputStreamPtr underlying,
-        TTableSchema schema)
+        TTableSchemaPtr schema)
         : Underlying_(std::move(underlying))
         , Schema_(std::move(schema))
         , Formatter_(CreateWireRowStreamFormatter(NameTable_))
@@ -38,7 +38,7 @@ public:
         YT_VERIFY(!Closed_);
         YT_VERIFY(ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK());
 
-        auto batch = CreateBatchFromUnversionedRows(rows, nullptr);
+        auto batch = CreateBatchFromUnversionedRows(TSharedRange<TUnversionedRow>(rows, nullptr));
         
         auto block = Formatter_->Format(batch, nullptr);
 
@@ -66,14 +66,14 @@ public:
         return NameTable_;
     }
 
-    virtual const TTableSchema& GetSchema() const override
+    virtual const TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }
 
 private:
     const IAsyncZeroCopyOutputStreamPtr Underlying_;
-    const TTableSchema Schema_;
+    const TTableSchemaPtr Schema_;
 
     const TNameTablePtr NameTable_ = New<TNameTable>();
     const IRowStreamFormatterPtr Formatter_;
@@ -85,7 +85,7 @@ private:
 TFuture<ITableWriterPtr> CreateTableWriter(
     TApiServiceProxy::TReqWriteTablePtr request)
 {
-    auto schema = std::make_shared<TTableSchema>();
+    auto schema = New<TTableSchema>();
     return NRpc::CreateRpcClientOutputStream(
         std::move(request),
         BIND ([=] (const TSharedRef& metaRef) {
@@ -94,10 +94,10 @@ TFuture<ITableWriterPtr> CreateTableWriter(
                 THROW_ERROR_EXCEPTION("Failed to deserialize schema for table writer");
             }
 
-            FromProto(schema.get(), meta.schema());
+            FromProto(schema.Get(), meta.schema());
         }))
         .Apply(BIND([=] (const IAsyncZeroCopyOutputStreamPtr& outputStream) {
-            return New<TTableWriter>(outputStream, std::move(*schema));
+            return New<TTableWriter>(outputStream, std::move(schema));
         })).As<ITableWriterPtr>();
 }
 

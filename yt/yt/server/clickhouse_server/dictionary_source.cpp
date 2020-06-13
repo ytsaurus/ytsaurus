@@ -63,15 +63,15 @@ public:
             /* skipUnsuitableNodes */ false,
             Logger).front();
 
-        ValidateSchema(table->Schema);
+        ValidateSchema(*table->Schema);
 
         auto result = WaitFor(
             NApi::NNative::CreateSchemalessMultiChunkReader(
                 Host_->GetRootClient(),
                 Path_,
                 NApi::TTableReaderOptions(),
-                NTableClient::TNameTable::FromSchema(table->Schema),
-                NTableClient::TColumnFilter(table->Schema.GetColumnCount())))
+                NTableClient::TNameTable::FromSchema(*table->Schema),
+                NTableClient::TColumnFilter(table->Schema->GetColumnCount())))
             .ValueOrThrow();
 
         return CreateBlockInputStream(result.Reader, table->Schema, nullptr /* traceContext */, Host_, Logger, nullptr /* prewhereInfo */);

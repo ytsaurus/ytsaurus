@@ -357,34 +357,37 @@ ISchemalessFormatWriterPtr CreateSchemalessWriterForSchemafulDsv(
 
 IUnversionedRowsetWriterPtr CreateSchemafulWriterForSchemafulDsv(
     TSchemafulDsvFormatConfigPtr config,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     IAsyncOutputStreamPtr stream)
 {
-    std::vector<int> idToIndexInRow(schema.Columns().size(), -1);
+    std::vector<int> idToIndexInRow(schema->Columns().size(), -1);
     if (config->Columns) {
         ValidateDuplicateColumns(*config->Columns);
         for (int columnIndex = 0; columnIndex < static_cast<int>(config->Columns->size()); ++columnIndex) {
-            idToIndexInRow[schema.GetColumnIndexOrThrow((*config->Columns)[columnIndex])] = columnIndex;
+            idToIndexInRow[schema->GetColumnIndexOrThrow((*config->Columns)[columnIndex])] = columnIndex;
         }
     } else {
-        for (int id = 0; id < static_cast<int>(schema.Columns().size()); ++id) {
+        for (int id = 0; id < static_cast<int>(schema->Columns().size()); ++id) {
             idToIndexInRow[id] = id;
         }
     }
 
     return New<TSchemafulWriterForSchemafulDsv>(
-        stream,
-        config,
+        std::move(stream),
+        std::move(config),
         idToIndexInRow);
 }
 
 IUnversionedRowsetWriterPtr CreateSchemafulWriterForSchemafulDsv(
     const IAttributeDictionary& attributes,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     IAsyncOutputStreamPtr stream)
 {
     auto config = ConvertTo<TSchemafulDsvFormatConfigPtr>(&attributes);
-    return CreateSchemafulWriterForSchemafulDsv(config, schema, stream);
+    return CreateSchemafulWriterForSchemafulDsv(
+        std::move(config),
+        std::move(schema),
+        std::move(stream));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

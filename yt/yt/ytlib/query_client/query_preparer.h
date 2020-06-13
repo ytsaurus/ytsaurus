@@ -62,7 +62,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
 TQueryPtr PrepareJobQuery(
     const TString& source,
-    const TTableSchema& tableSchema,
+    const TTableSchemaPtr& tableSchema,
     const TFunctionsFetcher& functionsFetcher);
 
 TConstExpressionPtr PrepareExpression(

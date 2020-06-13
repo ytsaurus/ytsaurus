@@ -128,8 +128,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
 
     auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         New<TRowBuffer>(TTabletReaderPoolTag()),
-        tabletSnapshot->QuerySchema.Columns().size(),
-        tabletSnapshot->QuerySchema.GetKeyColumnCount(),
+        tabletSnapshot->QuerySchema->Columns().size(),
+        tabletSnapshot->QuerySchema->GetKeyColumnCount(),
         columnFilter,
         tabletSnapshot->ColumnEvaluator);
 
@@ -289,7 +289,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
     const NChunkClient::TClientBlockReadOptions& blockReadOptions,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
-    if (tabletSnapshot->PhysicalSchema.IsSorted()) {
+    if (tabletSnapshot->PhysicalSchema->IsSorted()) {
         return CreateSchemafulSortedTabletReader(
             std::move(tabletSnapshot),
             columnFilter,
@@ -351,8 +351,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
 
     auto rowMerger = std::make_unique<TSchemafulRowMerger>(
         rowBuffer,
-        tabletSnapshot->QuerySchema.Columns().size(),
-        tabletSnapshot->QuerySchema.GetKeyColumnCount(),
+        tabletSnapshot->QuerySchema->Columns().size(),
+        tabletSnapshot->QuerySchema->GetKeyColumnCount(),
         columnFilter,
         tabletSnapshot->ColumnEvaluator);
 
@@ -388,7 +388,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulTabletReader(
 
     tabletSnapshot->WaitOnLocks(timestamp);
 
-    if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
+    if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
         THROW_ERROR_EXCEPTION("Table %v is not sorted",
             tabletSnapshot->TableId);
     }
@@ -457,7 +457,7 @@ IVersionedReaderPtr CreateVersionedTabletReader(
     int minConcurrency,
     NConcurrency::IThroughputThrottlerPtr throttler)
 {
-    if (!tabletSnapshot->PhysicalSchema.IsSorted()) {
+    if (!tabletSnapshot->PhysicalSchema->IsSorted()) {
         THROW_ERROR_EXCEPTION("Table %v is not sorted",
             tabletSnapshot->TableId);
     }
@@ -481,8 +481,8 @@ IVersionedReaderPtr CreateVersionedTabletReader(
 
     auto rowMerger = std::make_unique<TVersionedRowMerger>(
         New<TRowBuffer>(TTabletReaderPoolTag()),
-        tabletSnapshot->QuerySchema.GetColumnCount(),
-        tabletSnapshot->QuerySchema.GetKeyColumnCount(),
+        tabletSnapshot->QuerySchema->GetColumnCount(),
+        tabletSnapshot->QuerySchema->GetKeyColumnCount(),
         TColumnFilter(),
         tabletSnapshot->Config,
         currentTimestamp,

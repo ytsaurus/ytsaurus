@@ -254,10 +254,12 @@ void ThrowTypeMismatchError(
             << TErrorAttribute("rhs_type", rhsType);
 }
 
-std::vector<size_t> GetJoinGroups(const std::vector<TConstJoinClausePtr>& joinClauses, TTableSchema schema)
+std::vector<size_t> GetJoinGroups(
+    const std::vector<TConstJoinClausePtr>& joinClauses,
+    TTableSchemaPtr schema)
 {
     THashSet<TString> names;
-    for (const auto& column : schema.Columns()) {
+    for (const auto& column : schema->Columns()) {
         names.insert(column.Name());
     }
 
@@ -278,13 +280,13 @@ std::vector<size_t> GetJoinGroups(const std::vector<TConstJoinClausePtr>& joinCl
             joinGroups.push_back(counter);
             counter = 0;
             names.clear();
-            for (const auto& column : schema.Columns()) {
+            for (const auto& column : schema->Columns()) {
                 names.insert(column.Name());
             }
         }
 
         ++counter;
-        schema = joinClause->GetTableSchema(schema);
+        schema = joinClause->GetTableSchema(*schema);
     }
 
     if (counter > 0) {

@@ -232,8 +232,8 @@ protected:
                     OutputTables_[0]->TableUploadOptions.SchemaModification == ETableSchemaModification::None)
                 {
                     InputTables_[index]->Teleportable = ValidateTableSchemaCompatibility(
-                        InputTables_[index]->Schema,
-                        OutputTables_[0]->TableUploadOptions.TableSchema,
+                        *InputTables_[index]->Schema,
+                        *OutputTables_[0]->TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
                 }
             }
@@ -731,9 +731,9 @@ private:
         ValidateSchemaInferenceMode(Spec->SchemaInferenceMode);
 
         auto validateOutputNotSorted = [&] () {
-            if (table->TableUploadOptions.TableSchema.IsSorted()) {
+            if (table->TableUploadOptions.TableSchema->IsSorted()) {
                 THROW_ERROR_EXCEPTION("Cannot perform unordered merge into a sorted table in a \"strong\" schema mode")
-                    << TErrorAttribute("schema", table->TableUploadOptions.TableSchema);
+                    << TErrorAttribute("schema", *table->TableUploadOptions.TableSchema);
             }
         };
 

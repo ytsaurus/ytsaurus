@@ -376,7 +376,7 @@ T GetAttribute(const TRichYPath& path, const TString& key, const T& defaultValue
 }
 
 template <class T>
-std::optional<T> FindAttribute(const TRichYPath& path, const TString& key)
+typename TOptionalTraits<T>::TOptional FindAttribute(const TRichYPath& path, const TString& key)
 {
     return RunAttributeAccessor(path, key, [&] () {
         return path.Attributes().Find<T>(key);
@@ -533,10 +533,10 @@ TYsonString TRichYPath::GetFormat() const
     return FindAttributeYson(*this, "format");
 }
 
-std::optional<TTableSchema> TRichYPath::GetSchema() const
+TTableSchemaPtr TRichYPath::GetSchema() const
 {
     return RunAttributeAccessor(*this, "schema", [&] () {
-        auto schema = FindAttribute<TTableSchema>(*this, "schema");
+        auto schema = FindAttribute<TTableSchemaPtr>(*this, "schema");
         if (schema) {
             ValidateTableSchema(*schema);
         }

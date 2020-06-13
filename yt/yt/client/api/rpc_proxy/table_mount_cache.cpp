@@ -17,6 +17,8 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NYPath;
 
+using NYT::FromProto;
+
 ///////////////////////////////////////////////////////////////////////////////
 
 class TTableMountCache
@@ -52,19 +54,18 @@ private:
                 auto tableId = FromProto<NObjectClient::TObjectId>(rsp->table_id());
                 tableInfo->TableId = tableId;
 
-                auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
-                primarySchema = FromProto<NTableClient::TTableSchema>(rsp->schema());
-
-                tableInfo->Schemas[ETableSchemaKind::Write] = primarySchema.ToWrite();
-                tableInfo->Schemas[ETableSchemaKind::VersionedWrite] = primarySchema.ToVersionedWrite();
-                tableInfo->Schemas[ETableSchemaKind::Delete] = primarySchema.ToDelete();
-                tableInfo->Schemas[ETableSchemaKind::Query] = primarySchema.ToQuery();
-                tableInfo->Schemas[ETableSchemaKind::Lookup] = primarySchema.ToLookup();
-                tableInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex] = primarySchema.WithTabletIndex();
+                auto primarySchema = NYT::FromProto<NTableClient::TTableSchemaPtr>(rsp->schema());;
+                tableInfo->Schemas[ETableSchemaKind::Primary] = primarySchema;
+                tableInfo->Schemas[ETableSchemaKind::Write] = primarySchema->ToWrite();
+                tableInfo->Schemas[ETableSchemaKind::VersionedWrite] = primarySchema->ToVersionedWrite();
+                tableInfo->Schemas[ETableSchemaKind::Delete] = primarySchema->ToDelete();
+                tableInfo->Schemas[ETableSchemaKind::Query] = primarySchema->ToQuery();
+                tableInfo->Schemas[ETableSchemaKind::Lookup] = primarySchema->ToLookup();
+                tableInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex] = primarySchema->WithTabletIndex();
 
                 tableInfo->UpstreamReplicaId = FromProto<TTableReplicaId>(rsp->upstream_replica_id());
                 tableInfo->Dynamic = rsp->dynamic();
-                tableInfo->NeedKeyEvaluation = primarySchema.HasComputedColumns();
+                tableInfo->NeedKeyEvaluation = primarySchema->HasComputedColumns();
 
                 for (const auto& protoTabletInfo : rsp->tablets()) {
                     auto tabletInfo = New<NTabletClient::TTabletInfo>();

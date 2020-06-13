@@ -71,7 +71,7 @@ void TQueryAnalyzer::ValidateKeyColumns()
     struct TJoinArgument
     {
         int Index;
-        TTableSchema TableSchema;
+        TTableSchemaPtr TableSchema;
         std::vector<TRichYPath> Paths;
         THashMap<TString, int> KeyColumnToIndex;
         std::vector<TString> JoinColumns;
@@ -86,10 +86,10 @@ void TQueryAnalyzer::ValidateKeyColumns()
             joinArgument.TableSchema = storage->GetSchema();
             for (
                 int columnIndex = 0;
-                columnIndex < static_cast<int>(joinArgument.TableSchema.GetKeyColumns().size());
+                columnIndex < static_cast<int>(joinArgument.TableSchema->GetKeyColumns().size());
                 ++columnIndex)
             {
-                auto column = joinArgument.TableSchema.GetKeyColumns()[columnIndex];
+                auto column = joinArgument.TableSchema->GetKeyColumns()[columnIndex];
                 joinArgument.KeyColumnToIndex[column] = columnIndex;
             }
 
@@ -138,7 +138,7 @@ void TQueryAnalyzer::ValidateKeyColumns()
                 THROW_ERROR_EXCEPTION("Invalid sorted JOIN: joined column %Qv is not a key column of table", joinColumn)
                     << TErrorAttribute("table_index", joinArgument.Index)
                     << TErrorAttribute("column", joinColumn)
-                    << TErrorAttribute("key_columns", joinArgument.TableSchema.GetKeyColumns());
+                    << TErrorAttribute("key_columns", joinArgument.TableSchema->GetKeyColumns());
             }
             maxKeyColumnIndex = std::max(maxKeyColumnIndex, it->second);
         }
@@ -146,7 +146,7 @@ void TQueryAnalyzer::ValidateKeyColumns()
             THROW_ERROR_EXCEPTION("Invalid sorted JOIN: joined columns should form prefix of joined table key columns")
                 << TErrorAttribute("table_index", joinArgument.Index)
                 << TErrorAttribute("join_columns", joinArgument.JoinColumns)
-                << TErrorAttribute("key_columns", joinArgument.TableSchema.GetKeyColumns());
+                << TErrorAttribute("key_columns", joinArgument.TableSchema->GetKeyColumns());
         }
     }
 
@@ -168,8 +168,8 @@ void TQueryAnalyzer::ValidateKeyColumns()
                     rhsColumn)
                     << TErrorAttribute("lhs_column", lhsColumn)
                     << TErrorAttribute("rhs_column", rhsColumn)
-                    << TErrorAttribute("lhs_key_columns", lhsSchema.GetKeyColumns())
-                    << TErrorAttribute("rhs_key_columns", rhsSchema.GetKeyColumns());
+                    << TErrorAttribute("lhs_key_columns", lhsSchema->GetKeyColumns())
+                    << TErrorAttribute("rhs_key_columns", rhsSchema->GetKeyColumns());
             }
         }
     }
@@ -307,12 +307,12 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
         result.Tables.emplace_back(storage->GetTables());
         auto schema = storage->GetSchema();
         std::optional<DB::KeyCondition> keyCondition;
-        if (schema.IsSorted()) {
+        if (schema->IsSorted()) {
             auto primaryKeyExpression = std::make_shared<DB::ExpressionActions>(
-                ToNamesAndTypesList(schema),
+                ToNamesAndTypesList(*schema),
                 Context_);
 
-            keyCondition = DB::KeyCondition(QueryInfo_, Context_, ToNames(schema.GetKeyColumns()), std::move(primaryKeyExpression));
+            keyCondition = DB::KeyCondition(QueryInfo_, Context_, ToNames(schema->GetKeyColumns()), std::move(primaryKeyExpression));
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
         result.TableSchemas.emplace_back(storage->GetSchema());

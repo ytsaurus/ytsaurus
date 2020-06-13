@@ -333,7 +333,7 @@ protected:
                 if (!inputTableFilter(table)) {
                     continue;
                 }
-                const auto& column = table->Schema.GetColumnOrThrow(columnName);
+                const auto& column = table->Schema->GetColumnOrThrow(columnName);
                 if (!column.SimplifiedLogicalType()) {
                     THROW_ERROR_EXCEPTION("Key column %Qv cannot have complex type %Qv",
                         columnName,
@@ -439,8 +439,8 @@ protected:
                     OutputTables_[*tableIndex]->TableUploadOptions.SchemaModification == ETableSchemaModification::None)
                 {
                     inputTable->Teleportable = ValidateTableSchemaCompatibility(
-                        inputTable->Schema,
-                        OutputTables_[*tableIndex]->TableUploadOptions.TableSchema,
+                        *inputTable->Schema,
+                        *OutputTables_[*tableIndex]->TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
                     if (GetJobType() == EJobType::SortedReduce) {
                         inputTable->Teleportable &= inputTable->Path.GetTeleport();
@@ -753,16 +753,16 @@ public:
         ValidateSchemaInferenceMode(Spec_->SchemaInferenceMode);
 
         auto prepareOutputKeyColumns = [&] () {
-            if (table->TableUploadOptions.TableSchema.IsSorted()) {
-                if (table->TableUploadOptions.TableSchema.GetKeyColumns() != PrimaryKeyColumns_) {
+            if (table->TableUploadOptions.TableSchema->IsSorted()) {
+                if (table->TableUploadOptions.TableSchema->GetKeyColumns() != PrimaryKeyColumns_) {
                     THROW_ERROR_EXCEPTION("Merge key columns do not match output table schema in \"strong\" schema mode")
-                        << TErrorAttribute("output_schema", table->TableUploadOptions.TableSchema)
+                        << TErrorAttribute("output_schema", *table->TableUploadOptions.TableSchema)
                         << TErrorAttribute("merge_by", PrimaryKeyColumns_)
                         << TErrorAttribute("schema_inference_mode", Spec_->SchemaInferenceMode);
                 }
             } else {
                 table->TableUploadOptions.TableSchema =
-                    table->TableUploadOptions.TableSchema.ToSorted(PrimaryKeyColumns_);
+                    table->TableUploadOptions.TableSchema->ToSorted(PrimaryKeyColumns_);
             }
         };
 

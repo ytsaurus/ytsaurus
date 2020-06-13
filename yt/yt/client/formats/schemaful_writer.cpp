@@ -13,10 +13,10 @@ using namespace NTableClient;
 
 TSchemafulWriter::TSchemafulWriter(
     NConcurrency::IAsyncOutputStreamPtr stream,
-    const NTableClient::TTableSchema& schema,
+    NTableClient::TTableSchemaPtr schema,
     const std::function<std::unique_ptr<IFlushableYsonConsumer>(IOutputStream*)>& consumerBuilder)
-    : Stream_(stream)
-    , Schema_(schema)
+    : Stream_(std::move(stream))
+    , Schema_(std::move(schema))
     , Consumer_(consumerBuilder(&Buffer_))
 { }
 
@@ -29,7 +29,7 @@ bool TSchemafulWriter::Write(TRange<TUnversionedRow> rows)
 {
     Buffer_.Clear();
 
-    int columnCount = static_cast<int>(Schema_.Columns().size());
+    int columnCount = static_cast<int>(Schema_->Columns().size());
     for (auto row : rows) {
         if (!row) {
             Consumer_->OnEntity();
@@ -41,7 +41,7 @@ bool TSchemafulWriter::Write(TRange<TUnversionedRow> rows)
         for (int index = 0; index < columnCount; ++index) {
             const auto& value = row[index];
 
-            const auto& column = Schema_.Columns()[index];
+            const auto& column = Schema_->Columns()[index];
             Consumer_->OnKeyedItem(column.Name());
 
             switch (value.Type) {

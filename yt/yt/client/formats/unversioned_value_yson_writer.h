@@ -14,7 +14,7 @@ class TUnversionedValueYsonWriter
 public:
     TUnversionedValueYsonWriter(
         const NTableClient::TNameTablePtr& nameTable,
-        const NTableClient::TTableSchema& tableSchema,
+        const NTableClient::TTableSchemaPtr& tableSchema,
         EComplexTypeMode complexTypeMode,
         bool skipNullValues);
 

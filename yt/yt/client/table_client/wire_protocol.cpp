@@ -1062,12 +1062,12 @@ public:
     TWireProtocolRowsetReader(
         const std::vector<TSharedRef>& compressedBlocks,
         NCompression::ECodec codecId,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         bool schemaful,
         const NLogging::TLogger& logger)
         : CompressedBlocks_(compressedBlocks)
         , Codec_(NCompression::GetCodec(codecId))
-        , Schema_(schema)
+        , Schema_(std::move(schema))
         , Schemaful_(schemaful)
         , Logger(
             NLogging::TLogger(logger)
@@ -1111,13 +1111,13 @@ public:
             // representation introduced in cec93e9435fc3bbecc02ee5b8fd9ffa0eafc1672
             //
             // Guess it will be surely the case after after 01.11.2019
-            if (!IsEqualIgnoringRequiredness(Schema_, actualSchema)) {
+            if (!IsEqualIgnoringRequiredness(*Schema_, actualSchema)) {
                 THROW_ERROR_EXCEPTION("Schema mismatch while parsing wire protocol");
             }
             SchemaChecked_ = true;
         }
 
-        auto schemaData = WireReader_->GetSchemaData(Schema_, TColumnFilter());
+        auto schemaData = WireReader_->GetSchemaData(*Schema_, TColumnFilter());
 
         std::vector<TUnversionedRow> rows;
         while (!WireReader_->IsFinished()) {
@@ -1128,7 +1128,7 @@ public:
         }
         ++BlockIndex_;
 
-        return CreateBatchFromUnversionedRows(std::move(rows), this);
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -1159,7 +1159,7 @@ public:
 private:
     const std::vector<TSharedRef> CompressedBlocks_;
     NCompression::ICodec* const Codec_;
-    const TTableSchema Schema_;
+    const TTableSchemaPtr Schema_;
     bool Schemaful_;
     const NLogging::TLogger Logger;
 
@@ -1173,14 +1173,14 @@ private:
 IWireProtocolRowsetReaderPtr CreateWireProtocolRowsetReader(
     const std::vector<TSharedRef>& compressedBlocks,
     NCompression::ECodec codecId,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     bool schemaful,
     const NLogging::TLogger& logger)
 {
     return New<TWireProtocolRowsetReader>(
         compressedBlocks,
         codecId,
-        schema,
+        std::move(schema),
         schemaful,
         logger);
 }
@@ -1194,12 +1194,12 @@ public:
     TWireProtocolRowsetWriter(
         NCompression::ECodec codecId,
         size_t desiredUncompressedBlockSize,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         bool schemaful,
         const NLogging::TLogger& logger)
         : Codec_(NCompression::GetCodec(codecId))
         , DesiredUncompressedBlockSize_(desiredUncompressedBlockSize)
-        , Schema_(schema)
+        , Schema_(std::move(schema))
         , Schemaful_(schemaful)
         , Logger(NLogging::TLogger(logger)
             .AddTag("WriterId: %v", TGuid::Create()))
@@ -1226,7 +1226,7 @@ public:
             if (!WireWriter_) {
                 WireWriter_ = std::make_unique<TWireProtocolWriter>();
                 if (!SchemaWritten_) {
-                    WireWriter_->WriteTableSchema(Schema_);
+                    WireWriter_->WriteTableSchema(*Schema_);
                     SchemaWritten_ = true;
                 }
             }
@@ -1256,7 +1256,7 @@ public:
 private:
     NCompression::ICodec* const Codec_;
     const size_t DesiredUncompressedBlockSize_;
-    const TTableSchema Schema_;
+    const TTableSchemaPtr Schema_;
     const bool Schemaful_;
     const NLogging::TLogger Logger;
 
@@ -1290,14 +1290,14 @@ private:
 IWireProtocolRowsetWriterPtr CreateWireProtocolRowsetWriter(
     NCompression::ECodec codecId,
     size_t desiredUncompressedBlockSize,
-    const NTableClient::TTableSchema& schema,
+    TTableSchemaPtr schema,
     bool schemaful,
     const NLogging::TLogger& logger)
 {
     return New<TWireProtocolRowsetWriter>(
         codecId,
         desiredUncompressedBlockSize,
-        schema,
+        std::move(schema),
         schemaful,
         logger);
 }

@@ -44,7 +44,7 @@ void RunQuery(
 {
     auto query = FromProto<TConstQueryPtr>(querySpec.query());
     auto resultSchema = query->GetTableSchema();
-    auto resultNameTable = TNameTable::FromSchema(resultSchema);
+    auto resultNameTable = TNameTable::FromSchema(*resultSchema);
     auto writer = writerFactory(resultNameTable, resultSchema);
 
     auto externalCGInfo = New<TExternalCGInfo>();

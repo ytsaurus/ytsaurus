@@ -461,6 +461,17 @@ void FromProto(NTableClient::TTableSchema* schema, const NProto::TTableSchema& p
         protoSchema.unique_keys());
 }
 
+void ToProto(NProto::TTableSchema* protoSchema, const NTableClient::TTableSchemaPtr& schema)
+{
+    ToProto(protoSchema, *schema);
+}
+
+void FromProto(NTableClient::TTableSchemaPtr* schema, const NProto::TTableSchema& protoSchema)
+{
+    *schema = New<NTableClient::TTableSchema>();
+    FromProto(schema->Get(), protoSchema);
+}
+
 void ToProto(NProto::TTabletInfo* protoTabletInfo, const NTabletClient::TTabletInfo& tabletInfo)
 {
     ToProto(protoTabletInfo->mutable_tablet_id(), tabletInfo.TabletId);
@@ -1336,6 +1347,12 @@ void ValidateRowsetDescriptor(
             NProto::ERowsetKind_Name(expectedKind),
             NProto::ERowsetKind_Name(descriptor.rowset_kind()));
     }
+    if (descriptor.rowset_format() != NProto::RF_YT_WIRE) {
+        THROW_ERROR_EXCEPTION(
+            "Incompatible rowset format: expected %Qv, got %Qv",
+            NProto::ERowsetFormat_Name(NProto::RF_YT_WIRE),
+            NProto::ERowsetFormat_Name(descriptor.rowset_format()));
+    }
 }
 
 std::vector<TSharedRef> SerializeRowset(
@@ -1399,11 +1416,11 @@ template std::vector<TSharedRef> SerializeRowset(
     TRange<TVersionedRow> rows,
     NProto::TRowsetDescriptor* descriptor);
 
-TTableSchema DeserializeRowsetSchema(
+TTableSchemaPtr DeserializeRowsetSchema(
     const NProto::TRowsetDescriptor& descriptor)
 {
     if (descriptor.has_schema()) {
-        return FromProto<TTableSchema>(descriptor.schema());
+        return NYT::FromProto<TTableSchemaPtr>(descriptor.schema());
     }
 
     // COMPAT(babenko)
@@ -1423,7 +1440,7 @@ TTableSchema DeserializeRowsetSchema(
             columns[i].SetLogicalType(OptionalLogicalType(SimpleLogicalType(simpleLogicalType)));
         }
     }
-    return TTableSchema(std::move(columns));
+    return New<TTableSchema>(std::move(columns));
 }
 
 namespace {
@@ -1451,6 +1468,11 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
     const NProto::TRowsetDescriptor& descriptor,
     const TSharedRef& data)
 {
+    if (descriptor.rowset_format() != NApi::NRpcProxy::NProto::RF_YT_WIRE) {
+        THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
+            NApi::NRpcProxy::NProto::ERowsetFormat_Name(descriptor.rowset_format()));
+    }
+   
     ValidateRowsetDescriptor(
         descriptor,
         NApi::NRpcProxy::CurrentWireFormatVersion,
@@ -1460,7 +1482,7 @@ TIntrusivePtr<NApi::IRowset<TRow>> DeserializeRowset(
     TWireProtocolReader reader(data, New<TRowBuffer>(TDeserializedRowsetTag()));
     
     auto schema = DeserializeRowsetSchema(descriptor);
-    auto rows = ReadRows<TRow>(&reader, schema);
+    auto rows = ReadRows<TRow>(&reader, *schema);
     return NApi::CreateRowset(std::move(schema), std::move(rows));
 }
 

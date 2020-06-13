@@ -56,7 +56,7 @@ public:
     TVersionedChunkWriterBase(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache)
         : Logger(NLogging::TLogger(TableClientLogger)
@@ -169,7 +169,7 @@ protected:
     const NLogging::TLogger Logger;
 
     const TChunkWriterConfigPtr Config_;
-    const TTableSchema Schema_;
+    const TTableSchemaPtr Schema_;
 
     TEncodingChunkWriterPtr EncodingChunkWriter_;
 
@@ -285,13 +285,13 @@ public:
     TSimpleVersionedChunkWriter(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache)
         : TVersionedChunkWriterBase(
             std::move(config),
             std::move(options),
-            schema,
+            std::move(schema),
             std::move(chunkWriter),
             std::move(blockCache))
         , BlockWriter_(new TSimpleVersionedBlockWriter(Schema_))
@@ -430,20 +430,20 @@ public:
     TColumnVersionedChunkWriter(
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache)
         : TVersionedChunkWriterBase(
             std::move(config),
             std::move(options),
-            schema,
+            std::move(schema),
             std::move(chunkWriter),
             std::move(blockCache))
         , DataToBlockFlush_(Config_->BlockSize)
     {
         // Only scan-optimized version for now.
         THashMap<TString, TDataBlockWriter*> groupBlockWriters;
-        for (const auto& column : Schema_.Columns()) {
+        for (const auto& column : Schema_->Columns()) {
             if (column.Group() && groupBlockWriters.find(*column.Group()) == groupBlockWriters.end()) {
                 auto blockWriter = std::make_unique<TDataBlockWriter>();
                 groupBlockWriters[*column.Group()] = blockWriter.get();
@@ -461,8 +461,8 @@ public:
         };
 
         // Key columns.
-        for (int keyColumnIndex = 0; keyColumnIndex < Schema_.GetKeyColumnCount(); ++keyColumnIndex) {
-            const auto& column = Schema_.Columns()[keyColumnIndex];
+        for (int keyColumnIndex = 0; keyColumnIndex < Schema_->GetKeyColumnCount(); ++keyColumnIndex) {
+            const auto& column = Schema_->Columns()[keyColumnIndex];
             ValueColumnWriters_.emplace_back(CreateUnversionedColumnWriter(
                 column,
                 keyColumnIndex,
@@ -471,11 +471,11 @@ public:
 
         // Non-key columns.
         for (
-            int valueColumnIndex = Schema_.GetKeyColumnCount();
-            valueColumnIndex < Schema_.Columns().size();
+            int valueColumnIndex = Schema_->GetKeyColumnCount();
+            valueColumnIndex < Schema_->Columns().size();
             ++valueColumnIndex)
         {
-            const auto& column = Schema_.Columns()[valueColumnIndex];
+            const auto& column = Schema_->Columns()[valueColumnIndex];
             ValueColumnWriters_.emplace_back(CreateVersionedColumnWriter(
                 column,
                 valueColumnIndex,
@@ -658,7 +658,7 @@ private:
 IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache)
 {
@@ -666,14 +666,14 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
         return New<TColumnVersionedChunkWriter>(
             std::move(config),
             std::move(options),
-            schema,
+            std::move(schema),
             std::move(chunkWriter),
             std::move(blockCache));
     } else {
         return New<TSimpleVersionedChunkWriter>(
             std::move(config),
             std::move(options),
-            schema,
+            std::move(schema),
             std::move(chunkWriter),
             std::move(blockCache));
     }
@@ -684,7 +684,7 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
 IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     NNative::IClientPtr client,
     TCellTag cellTag,
     TTransactionId transactionId,

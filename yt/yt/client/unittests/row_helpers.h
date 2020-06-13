@@ -2,6 +2,7 @@
 
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/name_table.h>
+#include <yt/client/table_client/schema.h>
 #include <yt/client/table_client/value_consumer.h>
 
 #include <vector>
@@ -14,8 +15,8 @@ class TCollectingValueConsumer
     : public NTableClient::IValueConsumer
 {
 public:
-    TCollectingValueConsumer(NTableClient::TTableSchema schema = NTableClient::TTableSchema())
-        : Schema_(std::move(schema))
+    explicit TCollectingValueConsumer(NTableClient::TTableSchemaPtr schema = New<NTableClient::TTableSchema>())
+        : Schema_(schema)
     { }
 
     virtual const NTableClient::TNameTablePtr& GetNameTable() const override
@@ -23,7 +24,7 @@ public:
         return NameTable_;
     }
 
-    virtual const NTableClient::TTableSchema& GetSchema() const override
+    virtual const NTableClient::TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }
@@ -79,7 +80,7 @@ public:
     }
 
 private:
-    const NTableClient::TTableSchema Schema_;
+    const NTableClient::TTableSchemaPtr Schema_;
     const NTableClient::TNameTablePtr NameTable_ = New<NTableClient::TNameTable>();
     NTableClient::TUnversionedOwningRowBuilder Builder_;
     std::vector<NTableClient::TUnversionedOwningRow> RowList_;

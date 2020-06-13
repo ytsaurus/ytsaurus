@@ -33,6 +33,7 @@ public:
 
     void ReadColumnarBatch(
         i64 /*startRowIndex*/,
+        i64 /*rowCount*/,
         TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> /*columns*/)
     { }
 };

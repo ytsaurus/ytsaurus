@@ -281,7 +281,7 @@ typedef std::vector<TAggregateItem> TAggregateItemList;
 
 struct TMappedSchema
 {
-    TTableSchema Original;
+    TTableSchemaPtr Original;
     std::vector<TColumnDescriptor> Mapping;
 
     std::vector<TColumnDescriptor> GetOrderedSchemaMapping() const
@@ -296,24 +296,23 @@ struct TMappedSchema
 
     TKeyColumns GetKeyColumns() const
     {
-        TKeyColumns result(Original.GetKeyColumnCount());
+        TKeyColumns result(Original->GetKeyColumnCount());
         for (const auto& item : Mapping) {
-            if (item.Index < Original.GetKeyColumnCount()) {
+            if (item.Index < Original->GetKeyColumnCount()) {
                 result[item.Index] = item.Name;
             }
         }
         return result;
     }
 
-    TTableSchema GetRenamedSchema() const
+    TTableSchemaPtr GetRenamedSchema() const
     {
         TSchemaColumns result;
         for (const auto& item : GetOrderedSchemaMapping()) {
-            result.emplace_back(item.Name, Original.Columns()[item.Index].LogicalType());
+            result.emplace_back(item.Name, Original->Columns()[item.Index].LogicalType());
         }
-        return TTableSchema(std::move(result));
+        return New<TTableSchema>(std::move(result));
     }
-
 };
 
 struct TJoinClause
@@ -335,7 +334,7 @@ struct TJoinClause
 
     TGuid ForeignDataId;
 
-    TTableSchema GetRenamedSchema() const
+    TTableSchemaPtr GetRenamedSchema() const
     {
         return Schema.GetRenamedSchema();
     }
@@ -345,7 +344,7 @@ struct TJoinClause
         return Schema.GetKeyColumns();
     }
 
-    TTableSchema GetTableSchema(const TTableSchema& source) const
+    TTableSchemaPtr GetTableSchema(const TTableSchema& source) const
     {
         TSchemaColumns result;
 
@@ -360,13 +359,13 @@ struct TJoinClause
         auto foreignColumnNames = ForeignJoinedColumns;
         std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
         auto renamedSchema = Schema.GetRenamedSchema();
-        for (const auto& column : renamedSchema.Columns()) {
+        for (const auto& column : renamedSchema->Columns()) {
             if (std::binary_search(foreignColumnNames.begin(), foreignColumnNames.end(), column.Name())) {
                 result.push_back(column);
             }
         }
 
-        return TTableSchema(std::move(result));
+        return New<TTableSchema>(std::move(result));
     }
 };
 
@@ -390,9 +389,10 @@ struct TGroupClause
         AddGroupItem(TNamedItem(expression, name));
     }
 
-    TTableSchema GetTableSchema(bool isFinal) const
+    TTableSchemaPtr GetTableSchema(bool isFinal) const
     {
         TSchemaColumns result;
+        
         for (const auto& item : GroupItems) {
             result.emplace_back(item.Name, item.Expression->Type);
         }
@@ -401,7 +401,7 @@ struct TGroupClause
             result.emplace_back(item.Name, isFinal ? item.ResultType : item.StateType);
         }
 
-        return TTableSchema(result);
+        return New<TTableSchema>(std::move(result));
     }
 };
 
@@ -432,14 +432,15 @@ struct TProjectClause
         AddProjection(TNamedItem(expression, name));
     }
 
-    TTableSchema GetTableSchema() const
+    TTableSchemaPtr GetTableSchema() const
     {
         TSchemaColumns result;
+        
         for (const auto& item : Projections) {
             result.emplace_back(item.Name, item.Expression->Type);
         }
 
-        return TTableSchema(result);
+        return New<TTableSchema>(std::move(result));
     }
 };
 
@@ -497,8 +498,8 @@ struct TBaseQuery
         }
     }
 
-    virtual TTableSchema GetReadSchema() const = 0;
-    virtual TTableSchema GetTableSchema() const = 0;
+    virtual TTableSchemaPtr GetReadSchema() const = 0;
+    virtual TTableSchemaPtr GetTableSchema() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBaseQuery)
@@ -528,23 +529,25 @@ struct TQuery
         return Schema.GetKeyColumns();
     }
 
-    virtual TTableSchema GetReadSchema() const override
+    virtual TTableSchemaPtr GetReadSchema() const override
     {
         TSchemaColumns result;
+        
         for (const auto& item : Schema.GetOrderedSchemaMapping()) {
             result.emplace_back(
-                Schema.Original.Columns()[item.Index].Name(),
-                Schema.Original.Columns()[item.Index].LogicalType());
+                Schema.Original->Columns()[item.Index].Name(),
+                Schema.Original->Columns()[item.Index].LogicalType());
         }
-        return TTableSchema(std::move(result));
+        
+        return New<TTableSchema>(std::move(result));
     }
 
-    TTableSchema GetRenamedSchema() const
+    TTableSchemaPtr GetRenamedSchema() const
     {
         return Schema.GetRenamedSchema();
     }
 
-    virtual TTableSchema GetTableSchema() const override
+    virtual TTableSchemaPtr GetTableSchema() const override
     {
         if (ProjectClause) {
             return ProjectClause->GetTableSchema();
@@ -557,7 +560,7 @@ struct TQuery
         auto result = GetRenamedSchema();
 
         for (const auto& joinClause : JoinClauses) {
-            result = joinClause->GetTableSchema(result);
+            result = joinClause->GetTableSchema(*result);
         }
 
         return result;
@@ -577,19 +580,19 @@ struct TFrontQuery
         : TBaseQuery(other)
     { }
 
-    TTableSchema Schema;
+    TTableSchemaPtr Schema;
 
-    TTableSchema GetReadSchema() const override
+    virtual TTableSchemaPtr GetReadSchema() const override
     {
         return Schema;
     }
 
-    TTableSchema GetRenamedSchema() const
+    TTableSchemaPtr GetRenamedSchema() const
     {
         return Schema;
     }
 
-    TTableSchema GetTableSchema() const override
+    virtual TTableSchemaPtr GetTableSchema() const override
     {
         if (ProjectClause) {
             return ProjectClause->GetTableSchema();
@@ -601,7 +604,6 @@ struct TFrontQuery
 
         return Schema;
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TFrontQuery)
@@ -1099,7 +1101,9 @@ bool Compare(
     const TTableSchema& rhsSchema,
     size_t maxIndex = std::numeric_limits<size_t>::max());
 
-std::vector<size_t> GetJoinGroups(const std::vector<TConstJoinClausePtr>& joinClauses, TTableSchema schema);
+std::vector<size_t> GetJoinGroups(
+    const std::vector<TConstJoinClausePtr>& joinClauses,
+    TTableSchemaPtr schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -84,14 +84,14 @@ public:
         , SlotManager_(std::move(slotManager))
         , WorkerInvoker_(std::move(workerInvoker))
         , TabletId_(tablet->GetId())
-        , TableSchema_(tablet->TableSchema())
-        , NameTable_(TNameTable::FromSchema(TableSchema_))
+        , TableSchema_(tablet->GetTableSchema())
+        , NameTable_(TNameTable::FromSchema(*TableSchema_))
         , ReplicaId_(replicaInfo->GetId())
         , ClusterName_(replicaInfo->GetClusterName())
         , ReplicaPath_(replicaInfo->GetReplicaPath())
         , MountConfig_(tablet->GetConfig())
         , PreserveTabletIndex_(MountConfig_->PreserveTabletIndex)
-        , TabletIndexColumnId_(TableSchema_.ToReplicationLog().GetColumnCount() + 1) /* maxColumnId - 1(timestamp) + 3(header size)*/
+        , TabletIndexColumnId_(TableSchema_->ToReplicationLog()->GetColumnCount() + 1) /* maxColumnId - 1(timestamp) + 3(header size)*/
         , Logger(NLogging::TLogger(TabletNodeLogger)
             .AddTag("%v, ReplicaId: %v",
                 tablet->GetLoggingId(),
@@ -134,7 +134,7 @@ private:
     const IInvokerPtr WorkerInvoker_;
 
     const TTabletId TabletId_;
-    const TTableSchema TableSchema_;
+    const TTableSchemaPtr TableSchema_;
     const TNameTablePtr NameTable_;
     const TTableReplicaId ReplicaId_;
     const TString ClusterName_;
@@ -207,7 +207,7 @@ private:
                 return;
             }
 
-            auto isVersioned = TableSchema_.IsSorted() && replicaRuntimeData->PreserveTimestamps;
+            auto isVersioned = TableSchema_->IsSorted() && replicaRuntimeData->PreserveTimestamps;
 
             auto updateCountersGuard = Finally([&] {
                 auto rowCount = std::max(
@@ -641,7 +641,7 @@ private:
     {
         *rowIndex = GetRowIndex(logRow);
         *timestamp = GetTimestamp(logRow);
-        if (TableSchema_.IsSorted()) {
+        if (TableSchema_->IsSorted()) {
             if (isVersioned) {
                 ParseSortedLogRowWithTimestamps(
                     tabletSnapshot,
@@ -716,8 +716,8 @@ private:
         YT_ASSERT(logRow[3].Type == EValueType::Int64);
         auto changeType = ERowModificationType(logRow[3].Data.Int64);
 
-        int keyColumnCount = tabletSnapshot->TableSchema.GetKeyColumnCount();
-        int valueColumnCount = tabletSnapshot->TableSchema.GetValueColumnCount();
+        int keyColumnCount = tabletSnapshot->TableSchema->GetKeyColumnCount();
+        int valueColumnCount = tabletSnapshot->TableSchema->GetValueColumnCount();
 
         YT_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount * 2 + 4);
 
@@ -798,8 +798,8 @@ private:
         YT_ASSERT(logRow[3].Type == EValueType::Int64);
         auto changeType = ERowModificationType(logRow[3].Data.Int64);
 
-        int keyColumnCount = tabletSnapshot->TableSchema.GetKeyColumnCount();
-        int valueColumnCount = tabletSnapshot->TableSchema.GetValueColumnCount();
+        int keyColumnCount = tabletSnapshot->TableSchema->GetKeyColumnCount();
+        int valueColumnCount = tabletSnapshot->TableSchema->GetValueColumnCount();
 
         YT_ASSERT(logRow.GetCount() == keyColumnCount + valueColumnCount * 2 + 4);
 

@@ -84,7 +84,7 @@ public:
     NYson::TYsonString GetFormat() const;
 
     // "schema"
-    std::optional<NTableClient::TTableSchema> GetSchema() const;
+    NTableClient::TTableSchemaPtr GetSchema() const;
 
     // "sorted_by"
     NTableClient::TKeyColumns GetSortedBy() const;

@@ -63,11 +63,11 @@ class TEventLogValueConsumer
     : public IValueConsumer
 {
 public:
-    explicit TEventLogValueConsumer(
-        const TNameTablePtr& nameTable,
+    TEventLogValueConsumer(
+        TNameTablePtr nameTable,
         TCallback<void(TUnversionedOwningRow)> addRow)
-        : NameTable_(nameTable)
-        , AddRow_(addRow)
+        : NameTable_(std::move(nameTable))
+        , AddRow_(std::move(addRow))
     { }
 
     virtual const TNameTablePtr& GetNameTable() const override
@@ -93,15 +93,16 @@ public:
         AddRow_(Builder_.FinishRow());
     }
 
-    virtual const TTableSchema& GetSchema() const override
+    virtual const TTableSchemaPtr& GetSchema() const override
     {
-        static TTableSchema schema;
-        return schema;
+        return Schema_;
     }
 
 private:
-    TNameTablePtr NameTable_;
-    TCallback<void(TUnversionedOwningRow)> AddRow_;
+    const TNameTablePtr NameTable_;
+    const TCallback<void(TUnversionedOwningRow)> AddRow_;
+
+    const TTableSchemaPtr Schema_ = New<TTableSchema>();
 
     TUnversionedOwningRowBuilder Builder_;
 };

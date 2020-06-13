@@ -95,15 +95,13 @@ private:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
-        const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        const TTableSchema& schema);
+        const NChunkClient::TClientBlockReadOptions& blockReadOptions);
     NTableClient::IVersionedReaderPtr CreateCacheBasedReader(
         TSharedRange<NTableClient::TRowRange> bounds,
         TTimestamp timestamp,
         bool produceAllVersions,
         const TColumnFilter& columnFilter,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        const TTableSchema& schema,
         const TSharedRange<NTableClient::TRowRange>& singletonClippingRange);
 
     NTableClient::TChunkStatePtr PrepareChunkState(

@@ -22,8 +22,8 @@ int TSchemaDictionary::GetIdOrRegisterTable(const TTableSchema& table)
     int newId = TableInternalToId_.size();
     auto result = TableInternalToId_.insert({tableInternal, newId});
     if (result.second) {
-        IdToTableInternal_.emplace_back(tableInternal);
-        IdToTable_.emplace_back(table);
+        IdToTableInternal_.push_back(tableInternal);
+        IdToTable_.push_back(New<TTableSchema>(table));
         return newId;
     } else {
         return result.first->second;
@@ -42,7 +42,7 @@ int TSchemaDictionary::GetIdOrRegisterColumn(const TColumnSchema& column)
     }
 }
 
-const TTableSchema& TSchemaDictionary::GetTable(int id) const
+const TTableSchemaPtr& TSchemaDictionary::GetTable(int id) const
 {
     YT_VERIFY(id >= 0 && id < IdToTable_.size());
     return IdToTable_[id];
@@ -104,7 +104,10 @@ void FromProto(TSchemaDictionary* dictionary, const NProto::TSchemaDictionary& p
         for (int id : protoTable.columns()) {
             columns.emplace_back(dictionary->IdToColumn_[id]);
         }
-        dictionary->IdToTable_.emplace_back(std::move(columns), protoTable.strict(), protoTable.unique_keys());
+        dictionary->IdToTable_.push_back(New<TTableSchema>(
+            std::move(columns),
+            protoTable.strict(),
+            protoTable.unique_keys()));
     }
 }
 

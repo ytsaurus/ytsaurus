@@ -61,9 +61,9 @@ TKeyColumns GetSampleKeyColumns2()
     return keyColumns;
 }
 
-TTableSchema GetSampleTableSchema()
+TTableSchemaPtr GetSampleTableSchema()
 {
-    TTableSchema tableSchema({
+    return New<TTableSchema>(std::vector{
         TColumnSchema("k", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
@@ -76,7 +76,6 @@ TTableSchema GetSampleTableSchema()
         TColumnSchema("ku", EValueType::Uint64),
         TColumnSchema("kd", EValueType::Double),
     });
-    return tableSchema;
 }
 
 TDataSplit MakeSimpleSplit(const TYPath& /*path*/, ui64 counter)
@@ -87,7 +86,7 @@ TDataSplit MakeSimpleSplit(const TYPath& /*path*/, ui64 counter)
         dataSplit.mutable_chunk_id(),
         MakeId(EObjectType::Table, 0x42, counter, 0xdeadbabe));
 
-    SetTableSchema(&dataSplit, GetSampleTableSchema());
+    SetTableSchema(&dataSplit, *GetSampleTableSchema());
 
     return dataSplit;
 }

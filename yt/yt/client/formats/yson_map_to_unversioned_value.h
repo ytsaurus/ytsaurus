@@ -43,12 +43,13 @@ private:
     virtual void OnBeginRow() override;
     virtual void OnValue(const NTableClient::TUnversionedValue& value) override;
     virtual void OnEndRow() override;
-    virtual const NTableClient::TTableSchema& GetSchema() const override;
+    virtual const NTableClient::TTableSchemaPtr& GetSchema() const override;
 
 private:
     NTableClient::IValueConsumer* const Consumer_;
     const bool AllowUnknownColumns_;
-    NTableClient::TNameTablePtr NameTable_;
+    const NTableClient::TNameTablePtr NameTable_;
+    
     NTableClient::TYsonToUnversionedValueConverter ColumnConsumer_;
     bool InsideValue_ = false;
 };

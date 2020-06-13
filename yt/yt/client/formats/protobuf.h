@@ -83,7 +83,7 @@ public:
 
     void Init(
         const TProtobufFormatConfigPtr& config,
-        const std::vector<NTableClient::TTableSchema>& schemas,
+        const std::vector<NTableClient::TTableSchemaPtr>& schemas,
         bool validateMissingFieldsOptionality);
     const TProtobufTableDescription& GetTableDescription(ui32 tableIndex) const;
     size_t GetTableCount() const;
@@ -92,7 +92,7 @@ private:
     void InitFromFileDescriptors(const TProtobufFormatConfigPtr& config);
     void InitFromProtobufSchema(
         const TProtobufFormatConfigPtr& config,
-        const std::vector<NTableClient::TTableSchema>& schemas,
+        const std::vector<NTableClient::TTableSchemaPtr>& schemas,
         bool validateMissingFieldsOptionality);
 
     // Initialize field description from column config and logical type from schema.

@@ -36,7 +36,7 @@ TYsonToUnversionedValueConverter::TYsonToUnversionedValueConverter(
         const auto& valueConsumer = ValueConsumers_[tableIndex];
         const auto& nameTable = valueConsumer->GetNameTable();
 
-        for (const auto& column : valueConsumer->GetSchema().Columns()) {
+        for (const auto& column : valueConsumer->GetSchema()->Columns()) {
             if (column.SimplifiedLogicalType()) {
                 continue;
             }

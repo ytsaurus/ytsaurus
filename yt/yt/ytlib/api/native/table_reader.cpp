@@ -166,7 +166,7 @@ public:
         return OpenResult_->Reader->GetKeyColumns();
     }
 
-    virtual const TTableSchema& GetTableSchema() const override
+    virtual const TTableSchemaPtr& GetTableSchema() const override
     {
         return OpenResult_->TableSchema;
     }
@@ -305,7 +305,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
 
     int chunkCount;
     bool dynamic;
-    TTableSchema schema;
+    TTableSchemaPtr schema;
     {
         YT_LOG_INFO("Requesting extended table attributes");
 
@@ -340,9 +340,9 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
 
         chunkCount = attributes->Get<int>("chunk_count");
         dynamic = attributes->Get<bool>("dynamic");
-        schema = attributes->Get<TTableSchema>("schema");
+        schema = New<TTableSchema>(attributes->Get<TTableSchema>("schema"));
 
-        ValidateDynamicTableTimestamp(richPath, dynamic, schema, *attributes);
+        ValidateDynamicTableTimestamp(richPath, dynamic, *schema, *attributes);
     }
 
     std::vector<TChunkSpec> chunkSpecs;
@@ -357,7 +357,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
             *userObject,
             richPath.GetRanges(),
             // XXX(babenko): YT-11825
-            dynamic && !schema.IsSorted() ? -1 : chunkCount,
+            dynamic && !schema->IsSorted() ? -1 : chunkCount,
             config->MaxChunksPerFetch,
             config->MaxChunksPerLocateRequest,
             [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
@@ -390,7 +390,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
     ISchemalessMultiChunkReaderPtr reader;
 
     auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
-    if (dynamic && schema.IsSorted()) {
+    if (dynamic && schema->IsSorted()) {
         dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
             path,
             schema,
@@ -451,7 +451,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
             nameTable,
             blockReadOptions,
             columnFilter,
-            schema.GetKeyColumns(),
+            schema->GetKeyColumns(),
             /* partitionTag */ std::nullopt,
             /* trafficMeter */ nullptr,
             bandwidthThrottler,

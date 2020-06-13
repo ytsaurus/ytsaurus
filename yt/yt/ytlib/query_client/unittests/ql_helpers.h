@@ -155,7 +155,7 @@ MATCHER_P(HasSchema, expectedSchema, "")
 
 TKeyColumns GetSampleKeyColumns();
 TKeyColumns GetSampleKeyColumns2();
-TTableSchema GetSampleTableSchema();
+TTableSchemaPtr GetSampleTableSchema();
 
 TDataSplit MakeSimpleSplit(const TYPath& path, ui64 counter = 0);
 TDataSplit MakeSplit(const std::vector<TColumnSchema>& columns, ui64 counter = 0);

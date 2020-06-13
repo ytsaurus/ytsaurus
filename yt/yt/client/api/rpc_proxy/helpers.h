@@ -113,6 +113,9 @@ void FromProto(NTableClient::TColumnSchema* schema, const NProto::TColumnSchema&
 void ToProto(NProto::TTableSchema* protoSchema, const NTableClient::TTableSchema& schema);
 void FromProto(NTableClient::TTableSchema* schema, const NProto::TTableSchema& protoSchema);
 
+void ToProto(NProto::TTableSchema* protoSchema, const NTableClient::TTableSchemaPtr& schema);
+void FromProto(NTableClient::TTableSchemaPtr* schema, const NProto::TTableSchema& protoSchema);
+
 // Doesn't fill cell_config_version.
 void ToProto(
     NProto::TTabletInfo* protoTabletInfo,

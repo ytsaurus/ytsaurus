@@ -362,15 +362,18 @@ protected:
         i64 index) override
     {
         YT_VERIFY(column->StartIndex >= 0);
-        index -= column->StartIndex;
+        index += column->StartIndex;
 
         ResolveRleEncoding(column, index);
-        ResolveDictionaryEncoding(column, index);
 
-        if (index < 0 || column->NullBitmap && GetBit(*column->NullBitmap, index)) {
+        if (!ResolveDictionaryEncoding(column, index)) {
             return std::nullopt;
         }
-
+        
+        if (IsColumnValueNull(column, index)) {
+            return std::nullopt;
+        }
+        
         return DecodeIntegerFromColumn<TValue>(*column, index);
     }
 

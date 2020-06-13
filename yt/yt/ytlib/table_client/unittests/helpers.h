@@ -2,13 +2,11 @@
 
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/ytlib/table_client/public.h>
+#include <yt/ytlib/table_client/columnar.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/versioned_row.h>
-
-#include <yt/core/misc/algorithm_helpers.h>
 
 #include <iostream>
 
@@ -87,9 +85,14 @@ inline bool GetBit(const NTableClient::IUnversionedRowBatch::TValueBuffer& buffe
     return (buffer.Data[index / 8] & (1 << (index % 8))) != 0;
 }
 
+inline bool GetBit(TRef data, int index)
+{
+    return (data[index / 8] & (1 << (index % 8))) != 0;
+}
+
 inline bool GetBit(const NTableClient::IUnversionedRowBatch::TBitmap& bitmap, int index)
 {
-    return (bitmap.Data[index / 8] & (1 << (index % 8))) != 0;
+    return GetBit(bitmap.Data, index);
 }
 
 inline void ResolveRleEncoding(
@@ -103,23 +106,23 @@ inline void ResolveRleEncoding(
     YT_ASSERT(column->Values->BitWidth == 64);
     YT_ASSERT(!column->Values->ZigZagEncoded);
     auto rleIndexes = GetTypedData<ui64>(*column->Values);
-    YT_ASSERT(rleIndexes[0] == 0);
-
-    index = BinarySearch(
-        static_cast<i64>(0),
-        static_cast<i64>(rleIndexes.size()),
-        [&] (i64 k) {
-            return rleIndexes[k] <= index;
-        }) - 1;
+    index = TranslateRleIndex(rleIndexes, index);
     column = column->Rle->ValueColumn;
 }
 
-inline void ResolveDictionaryEncoding(
+inline bool IsColumnValueNull(
+    const NTableClient::IUnversionedRowBatch::TColumn* column,
+    int index)
+{
+    return column->NullBitmap && GetBit(*column->NullBitmap, index);
+}
+
+inline bool ResolveDictionaryEncoding(
     const NTableClient::IUnversionedRowBatch::TColumn*& column,
     i64& index)
 {
     if (!column->Dictionary) {
-        return;
+        return true;
     }
 
     const auto& dictionary = *column->Dictionary;
@@ -127,7 +130,11 @@ inline void ResolveDictionaryEncoding(
     YT_ASSERT(column->Values->BitWidth == 32);
     YT_ASSERT(!column->Values->ZigZagEncoded);
     index = static_cast<i64>(GetTypedData<ui32>(*column->Values)[index]) - 1;
+    if (index < 0) {
+        return false;
+    }
     column = column->Dictionary->ValueColumn;
+    return true;
 }
 
 inline TStringBuf DecodeStringFromColumn(

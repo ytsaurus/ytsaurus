@@ -189,7 +189,7 @@ public:
     TStorageDistributor(
         TQueryContext* queryContext,
         std::vector<TTablePtr> tables,
-        TTableSchema schema)
+        TTableSchemaPtr schema)
         : DB::IStorage({"YT", "distributor"})
         , QueryContext_(queryContext)
         , Tables_(std::move(tables))
@@ -200,11 +200,11 @@ public:
     virtual void startup() override
     {
         YT_LOG_TRACE("StorageDistributor instantiated (Address: %v)", static_cast<void*>(this));
-        if (Schema_.GetColumnCount() == 0) {
+        if (Schema_->GetColumnCount() == 0) {
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
                 << TErrorAttribute("path", getTableName());
         }
-        setColumns(DB::ColumnsDescription(ToNamesAndTypesList(Schema_)));
+        setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*Schema_)));
     }
 
     std::string getName() const override
@@ -224,7 +224,7 @@ public:
 
     virtual bool supportsIndexForIn() const override
     {
-        return Schema_.IsSorted();
+        return Schema_->IsSorted();
     }
 
     virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* queryAst */, const DB::Context& /* context */) const override
@@ -435,7 +435,7 @@ public:
         return Tables_;
     }
 
-    virtual TTableSchema GetSchema() const override
+    virtual TTableSchemaPtr GetSchema() const override
     {
         return Schema_;
     }
@@ -443,7 +443,7 @@ public:
 private:
     TQueryContext* QueryContext_;
     std::vector<TTablePtr> Tables_;
-    TTableSchema Schema_;
+    TTableSchemaPtr Schema_;
     TSubquerySpec SpecTemplate_;
     std::vector<TSubquery> Subqueries_;
     std::optional<TQueryAnalyzer> QueryAnalyzer_;
@@ -579,7 +579,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
     YT_LOG_DEBUG("Creating table (Attributes: %v)", ConvertToYsonString(attributes->ToMap(), EYsonFormat::Text));
 
-    auto schema = attributes->Get<TTableSchema>("schema");
+    auto schema = New<TTableSchema>(attributes->Get<TTableSchema>("schema"));
 
     NApi::TCreateNodeOptions options;
     options.Attributes = std::move(attributes);
@@ -596,7 +596,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
     return std::make_shared<TStorageDistributor>(
         queryContext,
-        std::vector<TTablePtr>{table},
+        std::vector{table},
         schema);
 }
 

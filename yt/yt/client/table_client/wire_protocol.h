@@ -228,7 +228,7 @@ DEFINE_REFCOUNTED_TYPE(IWireProtocolRowsetReader)
 IWireProtocolRowsetReaderPtr CreateWireProtocolRowsetReader(
     const std::vector<TSharedRef>& compressedBlocks,
     NCompression::ECodec codecId,
-    const NTableClient::TTableSchema& schema,
+    NTableClient::TTableSchemaPtr schema,
     bool schemaful,
     const NLogging::TLogger& logger);
 
@@ -245,7 +245,7 @@ DEFINE_REFCOUNTED_TYPE(IWireProtocolRowsetWriter)
 IWireProtocolRowsetWriterPtr CreateWireProtocolRowsetWriter(
     NCompression::ECodec codecId,
     size_t desiredUncompressedBlockSize,
-    const NTableClient::TTableSchema& schema,
+    NTableClient::TTableSchemaPtr schema,
     bool isSchemaful,
     const NLogging::TLogger& logger);
 

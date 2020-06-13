@@ -113,7 +113,7 @@ public:
     //! Constructs a TRange from std::array.
     template <size_t N>
     TRange(const std::array<T, N>& elements)
-        : Data_(elements.begin())
+        : Data_(elements.data())
         , Length_(N)
     { }
 
@@ -344,6 +344,12 @@ public:
         : TRange<T>(elements)
     { }
 
+    //! Constructs a TMutableRange from std::array.
+    template <size_t N>
+    TMutableRange(std::array<T, N>& elements)
+        : TRange<T>(elements.data(), N)
+    { }
+
     //! Construct a TMutableRange from an std::optional
     //! Range will contain 0-1 elements.
     explicit TMutableRange(std::optional<T>& optional)
@@ -425,7 +431,79 @@ typename TMutableRange<T>::iterator end(TMutableRange<T> ref)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Mark TRange and TMutableRange as PODs.
+//! Constructs a TMutableRange from a pointer and length.
+template <class T>
+TMutableRange<T> MakeMutableRange(T* data, size_t length)
+{
+    return TMutableRange<T>(data, length);
+}
+
+//! Constructs a TMutableRange from a native range.
+template <class T>
+TMutableRange<T> MakeMutableRange(T* begin, T* end)
+{
+    return TMutableRange<T>(begin, end);
+}
+
+//! Constructs a TMutableRange from a SmallVector.
+template <class T>
+TMutableRange<T> MakeMutableRange(SmallVectorImpl<T>& elements)
+{
+    return elements;
+}
+
+//! "Copy-constructor".
+template <class T>
+TMutableRange<T> MakeMutableRange(TMutableRange<T> range)
+{
+    return range;
+}
+
+//! Constructs a TMutableRange from an std::vector.
+template <class T>
+TMutableRange<T> MakeMutableRange(std::vector<T>& elements)
+{
+    return elements;
+}
+
+//! Constructs a TMutableRange from an std::array.
+template <class T, size_t N>
+TMutableRange<T> MakeMutableRange(std::array<T, N>& elements)
+{
+    return elements;
+}
+
+//! Constructs a TMutableRange from a C array.
+template <class T, size_t N>
+TMutableRange<T> MakeMutableRange(T (& elements)[N])
+{
+    return TMutableRange<T>(elements);
+}
+
+//! Constructs a TMutableRange from RepeatedField.
+template <class T>
+TMutableRange<T> MakeMutableRange(google::protobuf::RepeatedField<T>& elements)
+{
+    return TMutableRange<T>(elements.data(), elements.size());
+}
+
+//! Constructs a TMutableRange from RepeatedPtrField.
+template <class T>
+TMutableRange<T*> MakeMutableRange(google::protobuf::RepeatedPtrField<T>& elements)
+{
+    return TMutableRange<const T*>(elements.data(), elements.size());
+}
+
+template <class U, class T>
+TMutableRange<U> ReinterpretCastMutableRange(TMutableRange<T> range)
+{
+    static_assert(sizeof(T) == sizeof(U), "T and U must have equal sizes.");
+    return TMutableRange<U>(reinterpret_cast<U*>(range.Begin()), range.Size());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Mark TMutableRange and TMutableRange as PODs.
 namespace NMpl {
 
 template <class T>
@@ -453,6 +531,19 @@ template <class T>
 struct hash<NYT::TRange<T>>
 {
     size_t operator()(const NYT::TRange<T>& range) const
+    {
+        size_t result = 0;
+        for (const auto& element : range) {
+            NYT::HashCombine(result, element);
+        }
+        return result;
+    }
+};
+
+template <class T>
+struct hash<NYT::TMutableRange<T>>
+{
+    size_t operator()(const NYT::TMutableRange<T>& range) const
     {
         size_t result = 0;
         for (const auto& element : range) {

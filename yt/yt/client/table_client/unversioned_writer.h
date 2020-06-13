@@ -40,8 +40,7 @@ struct IUnversionedWriter
     virtual bool Write(TRange<TUnversionedRow> rows) = 0;
 
     virtual const TNameTablePtr& GetNameTable() const = 0;
-
-    virtual const TTableSchema& GetSchema() const = 0;
+    virtual const TTableSchemaPtr& GetSchema() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUnversionedWriter)

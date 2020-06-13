@@ -126,11 +126,11 @@ protected:
     {
         auto schema = GetSchema();
 
-        NameTable_ = TNameTable::FromSchema(schema);
+        NameTable_ = TNameTable::FromSchema(*schema);
 
-        bool sorted = schema.IsSorted();
+        bool sorted = schema->IsSorted();
         if (!sorted) {
-            QueryNameTable_ = TNameTable::FromSchema(schema.ToQuery());
+            QueryNameTable_ = TNameTable::FromSchema(*schema->ToQuery());
         }
 
         BlockReadOptions_.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
@@ -161,7 +161,7 @@ protected:
 
     virtual void SetupTablet() = 0;
 
-    virtual TTableSchema GetSchema() const = 0;
+    virtual TTableSchemaPtr GetSchema() const = 0;
 
     virtual void CreateDynamicStore()
     { }
@@ -218,7 +218,7 @@ protected:
 
     TUnversionedOwningRow BuildRow(const TString& yson, bool treatMissingAsNull = true)
     {
-        return NTableClient::YsonToSchemafulRow(yson, Tablet_->PhysicalSchema(), treatMissingAsNull);
+        return NTableClient::YsonToSchemafulRow(yson, *Tablet_->GetPhysicalSchema(), treatMissingAsNull);
     }
 
     TUnversionedOwningRow BuildKey(const TString& yson)

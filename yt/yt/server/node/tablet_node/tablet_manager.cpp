@@ -904,7 +904,7 @@ private:
         auto mountRevision = request->mount_revision();
         auto tableId = FromProto<TObjectId>(request->table_id());
         const auto& path = request->path();
-        auto schema = FromProto<TTableSchema>(request->schema());
+        auto schema = FromProto<TTableSchemaPtr>(request->schema());
         auto pivotKey = request->has_pivot_key() ? FromProto<TOwningKey>(request->pivot_key()) : TOwningKey();
         auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TOwningKey>(request->next_pivot_key()) : TOwningKey();
         auto mountConfig = DeserializeTableMountConfig((TYsonString(request->mount_config())), tabletId);

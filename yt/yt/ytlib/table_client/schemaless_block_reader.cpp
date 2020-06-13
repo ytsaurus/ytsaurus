@@ -13,7 +13,7 @@ namespace NYT::NTableClient {
 THorizontalBlockReader::THorizontalBlockReader(
     const TSharedRef& block,
     const NProto::TBlockMeta& meta,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     const std::vector<TColumnIdMapping>& idMapping,
     int chunkKeyColumnCount,
     int keyColumnCount,
@@ -43,7 +43,7 @@ THorizontalBlockReader::THorizontalBlockReader(
 
     JumpToRowIndex(0);
 
-    const auto& schemaColumns = schema.Columns();
+    const auto& schemaColumns = schema->Columns();
     IsCompositeColumn_.assign(schemaColumns.size(), false);
     for (int i = 0; i < schemaColumns.size(); ++i) {
         auto isSimpleType = schemaColumns[i].SimplifiedLogicalType().has_value();

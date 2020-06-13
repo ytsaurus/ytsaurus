@@ -140,6 +140,7 @@ public:
 
     void ReadColumnarBatch(
         i64 startRowIndex,
+        i64 rowCount,
         TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 1);
@@ -147,10 +148,12 @@ public:
         ReadColumnarDoubleValues(
             &column,
             startRowIndex,
+            rowCount,
             Values_);
         ReadColumnarNullBitmap(
             &column,
             startRowIndex,
+            rowCount,
             NullBitmap_.GetData());
     }
 

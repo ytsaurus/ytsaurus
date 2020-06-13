@@ -13,10 +13,10 @@ using namespace NTableClient;
 
 TVersionedWriter::TVersionedWriter(
     NConcurrency::IAsyncOutputStreamPtr stream,
-    const NTableClient::TTableSchema& schema,
+    NTableClient::TTableSchemaPtr schema,
     const std::function<std::unique_ptr<IFlushableYsonConsumer>(IOutputStream*)>& consumerBuilder)
-    : Stream_(stream)
-    , Schema_(schema)
+    : Stream_(std::move(stream))
+    , Schema_(std::move(schema))
     , Consumer_(consumerBuilder(&Buffer_))
 { }
 
@@ -91,7 +91,7 @@ bool TVersionedWriter::Write(TRange<TVersionedRow> rows)
         Consumer_->OnBeginMap();
         for (auto keyBeginIt = row.BeginKeys(), keyEndIt = row.EndKeys(); keyBeginIt != keyEndIt; ++keyBeginIt) {
             const auto& value = *keyBeginIt;
-            const auto& column = Schema_.Columns()[value.Id];
+            const auto& column = Schema_->Columns()[value.Id];
             Consumer_->OnKeyedItem(column.Name());
             consumeUnversionedData(value);
         }
@@ -102,7 +102,7 @@ bool TVersionedWriter::Write(TRange<TVersionedRow> rows)
                 ++columnEndIt;
             }
 
-            const auto& column = Schema_.Columns()[columnBeginIt->Id];
+            const auto& column = Schema_->Columns()[columnBeginIt->Id];
             Consumer_->OnKeyedItem(column.Name());
             Consumer_->OnBeginList();
             while (columnBeginIt != columnEndIt) {

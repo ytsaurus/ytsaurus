@@ -33,7 +33,8 @@ public:
 
         NProto::TRowsetDescriptor descriptor;
         descriptor.set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
-        descriptor.set_rowset_kind(NProto::RK_UNVERSIONED);
+        descriptor.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+        descriptor.set_rowset_format(NApi::NRpcProxy::NProto::RF_YT_WIRE);
         for (int id = NameTableSize_; id < NameTable_->GetSize(); ++id) {
             auto* entry = descriptor.add_name_table_entries();
             entry->set_name(TString(NameTable_->GetName(id)));
@@ -45,19 +46,14 @@ public:
         writer.WriteUnversionedRowset(rows);
         auto rowRefs = writer.Finish();
 
-        auto descriptorRef = SerializeProtoToRef(descriptor);
-        
-        struct TWireRowStreamFormatterTag { };
-        auto mergedRowRefs = MergeRefsToRef<TWireRowStreamFormatterTag>(rowRefs);
-        
-        auto rowsetData = PackRefs(std::vector{descriptorRef, mergedRowRefs});;
+        auto [block, payloadRef] = SerializeRowStreamBlockEnvelope(
+            GetByteSize(rowRefs),
+            descriptor,
+            statistics);
 
-        if (statistics) {
-            auto statisticsRef = SerializeProtoToRef(*statistics);
-            return PackRefs(std::vector{rowsetData, statisticsRef});
-        } else {
-            return rowsetData;
-        }
+        MergeRefsToRef(rowRefs, payloadRef);
+
+        return block;
     }
 
 private:
@@ -85,51 +81,11 @@ public:
     }
 
     virtual TSharedRange<TUnversionedRow> Parse(
-        const TSharedRef& block,
-        NProto::TRowsetStatistics* statistics) override
+        const TSharedRef& payloadRef,
+        const NProto::TRowsetDescriptor& descriptorDelta) override
     {
-        TSharedRef rowsRef;
-        if (statistics) {
-            auto parts = UnpackRefsOrThrow(block);
-            if (parts.size() != 2) {
-                THROW_ERROR_EXCEPTION(
-                    "Error deserializing rows: expected %v packed refs, got %v",
-                    2,
-                    parts.size());
-            }
-
-            rowsRef = parts[0];
-
-            const auto& statisticsRef = parts[1];
-            if (!TryDeserializeProto(statistics, statisticsRef)) {
-                THROW_ERROR_EXCEPTION("Error deserializing rowset statistics");
-            }
-        } else {
-            rowsRef = block;
-        }
-
-        auto parts = UnpackRefsOrThrow(rowsRef);
-        if (parts.size() != 2) {
-            THROW_ERROR_EXCEPTION(
-                "Error deserializing rowset with name table delta: expected %v packed refs, got %v",
-                2,
-                parts.size());
-        }
-
-        const auto& descriptorDeltaRef = parts[0];
-        const auto& mergedRowRefs = parts[1];
-
-        NApi::NRpcProxy::NProto::TRowsetDescriptor descriptorDelta;
-        if (!TryDeserializeProto(&descriptorDelta, descriptorDeltaRef)) {
-            THROW_ERROR_EXCEPTION("Error deserializing rowset descriptor delta");
-        }
-        NApi::NRpcProxy::ValidateRowsetDescriptor(
-            descriptorDelta,
-            NApi::NRpcProxy::CurrentWireFormatVersion,
-            NApi::NRpcProxy::NProto::RK_UNVERSIONED);
-
         struct TWireRowStreamParserTag { };
-        TWireProtocolReader reader(mergedRowRefs, New<TRowBuffer>(TWireRowStreamParserTag()));
+        TWireProtocolReader reader(payloadRef, New<TRowBuffer>(TWireRowStreamParserTag()));
         auto rows = reader.ReadUnversionedRowset(true);
 
         auto oldNameTableSize = Descriptor_.name_table_entries_size();

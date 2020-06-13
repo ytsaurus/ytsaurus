@@ -1,5 +1,7 @@
 #include "column_reader_detail.h"
 
+#include <yt/ytlib/table_client/columnar.h>
+
 namespace NYT::NTableChunkFormat {
 
 using namespace NProto;
@@ -24,14 +26,6 @@ TUnversionedSegmentReaderBase::TUnversionedSegmentReaderBase(
 i64 TUnversionedSegmentReaderBase::EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex)
 {
     return (upperRowIndex - lowerRowIndex) * GetDataWeight(ValueType_);
-}
-
-void TUnversionedSegmentReaderBase::ReadColumnarBatch(
-    TMutableRange<IUnversionedRowBatch::TColumn> /*columns*/,
-    i64 rowCount)
-{
-    SegmentRowIndex_ += rowCount;
-    YT_VERIFY(SegmentRowIndex_ <= Meta_.row_count());
 }
 
 i64 TUnversionedSegmentReaderBase::GetSegmentRowIndex(i64 rowIndex) const
@@ -447,9 +441,11 @@ void TVersionedColumnReaderBase::CreateCurrentSegmentReader()
 void ReadColumnarNullBitmap(
     NTableClient::IUnversionedRowBatch::TColumn* column,
     i64 startIndex,
+    i64 valueCount,
     TRange<ui64> bitmap)
 {
     column->StartIndex = startIndex;
+    column->ValueCount = valueCount;
     
     auto& nullBitmap = column->NullBitmap.emplace();
     nullBitmap.Data = TRef(bitmap.Begin(), bitmap.End());
@@ -458,11 +454,13 @@ void ReadColumnarNullBitmap(
 void ReadColumnarIntegerValues(
     NTableClient::IUnversionedRowBatch::TColumn* column,
     i64 startIndex,
+    i64 valueCount,
     NTableClient::EValueType valueType,
     ui64 baseValue,
     TRange<ui64> data)
 {
     column->StartIndex = startIndex;
+    column->ValueCount = valueCount;
     
     auto& values = column->Values.emplace();
     values.BaseValue = baseValue;
@@ -474,9 +472,11 @@ void ReadColumnarIntegerValues(
 void ReadColumnarBooleanValues(
     NTableClient::IUnversionedRowBatch::TColumn* column,
     i64 startIndex,
+    i64 valueCount,
     TRange<ui64> bitmap)
 {
     column->StartIndex = startIndex;
+    column->ValueCount = valueCount;
     
     auto& values = column->Values.emplace();
     values.BitWidth = 1;
@@ -486,9 +486,11 @@ void ReadColumnarBooleanValues(
 void ReadColumnarDoubleValues(
     NTableClient::IUnversionedRowBatch::TColumn* column,
     i64 startIndex,
+    i64 valueCount,
     TRange<double> data)
 {
     column->StartIndex = startIndex;
+    column->ValueCount = valueCount;
     
     auto& values = column->Values.emplace();
     values.BitWidth = 64;
@@ -498,11 +500,13 @@ void ReadColumnarDoubleValues(
 void ReadColumnarStringValues(
     NTableClient::IUnversionedRowBatch::TColumn* column,
     i64 startIndex,
+    i64 valueCount,
     ui32 avgLength,
     TRange<ui32> offsets,
     TRef stringData)
 {
     column->StartIndex = startIndex;
+    column->ValueCount = valueCount;
     
     auto& values = column->Values.emplace();
     values.BitWidth = 32;
@@ -517,10 +521,15 @@ void ReadColumnarStringValues(
 void ReadColumnarDictionary(
     NTableClient::IUnversionedRowBatch::TColumn* primaryColumn,
     NTableClient::IUnversionedRowBatch::TColumn* dictionaryColumn,
+    NTableClient::TLogicalTypePtr type,
     i64 startIndex,
+    i64 valueCount,
     TRange<ui32> ids)
 {
     primaryColumn->StartIndex = startIndex;
+    primaryColumn->ValueCount = valueCount;
+
+    dictionaryColumn->Type = std::move(type);
    
     auto& primaryValues = primaryColumn->Values.emplace();
     primaryValues.BitWidth = 32;
@@ -534,10 +543,15 @@ void ReadColumnarDictionary(
 void ReadColumnarRle(
     NTableClient::IUnversionedRowBatch::TColumn* primaryColumn,
     NTableClient::IUnversionedRowBatch::TColumn* rleColumn,
+    NTableClient::TLogicalTypePtr type,
     i64 startIndex,
+    i64 valueCount,
     TRange<ui64> indexes)
 {
     primaryColumn->StartIndex = startIndex;
+    primaryColumn->ValueCount = valueCount;
+
+    rleColumn->Type = std::move(type);
 
     auto& primaryValues = primaryColumn->Values.emplace();
     primaryValues.BitWidth = 64;
@@ -545,6 +559,9 @@ void ReadColumnarRle(
 
     auto& rle = primaryColumn->Rle.emplace();
     rle.ValueColumn = rleColumn;
+
+    rleColumn->StartIndex = TranslateRleStartIndex(indexes, startIndex);
+    rleColumn->ValueCount = TranslateRleEndIndex(indexes, startIndex + valueCount) - rleColumn->StartIndex;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

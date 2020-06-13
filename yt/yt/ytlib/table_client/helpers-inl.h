@@ -36,4 +36,4 @@ inline void GetValue(TStringBuf* result, const TUnversionedValue& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient::NYT
+} // namespace NYT::NTableClient

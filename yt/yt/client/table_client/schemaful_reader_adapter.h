@@ -12,7 +12,7 @@ using TSchemalessReaderFactory = std::function<ISchemalessUnversionedReaderPtr(
 
 ISchemafulUnversionedReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     const TColumnFilter& columnFilter = {});
 
 ////////////////////////////////////////////////////////////////////////////////

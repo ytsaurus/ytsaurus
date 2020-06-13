@@ -16,7 +16,7 @@ class TSkynetColumnEvaluator
     : public TRefCounted
 {
 public:
-    TSkynetColumnEvaluator(const TTableSchema& schema);
+    explicit TSkynetColumnEvaluator(const TTableSchema& schema);
 
     ~TSkynetColumnEvaluator();
 

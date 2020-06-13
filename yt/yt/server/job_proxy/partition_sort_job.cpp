@@ -87,7 +87,7 @@ public:
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
-        auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
+        auto schema = FromProto<TTableSchemaPtr>(outputSpec.table_schema());
 
         Writer_ = CreateSchemalessMultiChunkWriter(
             writerConfig,

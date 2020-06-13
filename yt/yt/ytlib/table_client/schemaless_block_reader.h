@@ -25,7 +25,7 @@ public:
     THorizontalBlockReader(
         const TSharedRef& block,
         const NProto::TBlockMeta& meta,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         const std::vector<TColumnIdMapping>& idMapping,
         int chunkKeyColumnCount,
         int keyColumnCount,

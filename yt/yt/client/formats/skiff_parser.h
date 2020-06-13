@@ -15,7 +15,7 @@ std::unique_ptr<IParser> CreateParserForSkiff(
 
 std::unique_ptr<IParser> CreateParserForSkiff(
     NSkiff::TSkiffSchemaPtr skiffSchema,
-    const NTableClient::TTableSchema& tableSchema,
+    NTableClient::TTableSchemaPtr tableSchema,
     NTableClient::IValueConsumer* consumer);
 
 std::unique_ptr<IParser> CreateParserForSkiff(

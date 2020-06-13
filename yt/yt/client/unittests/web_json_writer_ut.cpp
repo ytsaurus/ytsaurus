@@ -75,7 +75,7 @@ protected:
         Config_ = New<TWebJsonFormatConfig>();
     }
 
-    void CreateStandardWriter(const std::vector<TTableSchema>& schemas = {TTableSchema()})
+    void CreateStandardWriter(const std::vector<TTableSchemaPtr>& schemas = {New<TTableSchema>()})
     {
         Writer_ = CreateWriterForWebJson(
             Config_,
@@ -584,7 +584,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
     Config_->ValueFormat = EWebJsonValueFormat::Yql;
 
     // We will emulate writing rows from two tables.
-    CreateStandardWriter({TTableSchema(), TTableSchema()});
+    CreateStandardWriter(std::vector{New<TTableSchema>(), New<TTableSchema>()});
 
     {
         TUnversionedOwningRowBuilder builder;
@@ -685,7 +685,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
 {
     Config_->ValueFormat = EWebJsonValueFormat::Yql;
 
-    auto firstSchema = TTableSchema({
+    auto firstSchema = New<TTableSchema>(std::vector<TColumnSchema>{
         {"column_a", OptionalLogicalType(
             ListLogicalType(MakeLogicalType(ESimpleLogicalValueType::Int64, true)))},
         {"column_b", StructLogicalType({
@@ -718,7 +718,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
         }))},
     });
 
-    auto secondSchema = TTableSchema({
+    auto secondSchema = New<TTableSchema>(std::vector<TColumnSchema>{
         {"column_a", VariantTupleLogicalType({
             SimpleLogicalType(ESimpleLogicalValueType::Null),
             SimpleLogicalType(ESimpleLogicalValueType::Any),
@@ -865,7 +865,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
         ["DataType"; "Int64"]
     ])"));
 
-    CreateStandardWriter({firstSchema, secondSchema});
+    CreateStandardWriter(std::vector{firstSchema, secondSchema});
 
     // "column_d" is registered but present only in second schema.
     KeyDId_ = NameTable_->RegisterName("column_d");
@@ -1172,7 +1172,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
     Config_->FieldWeightLimit = 215;
     Config_->StringWeightLimit = 10;
 
-    auto schema = TTableSchema({
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
         {"column_a", StructLogicalType({
             {"field1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
             {"list", ListLogicalType(
@@ -1359,7 +1359,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Any)
 {
     Config_->ValueFormat = EWebJsonValueFormat::Yql;
 
-    auto schema = TTableSchema({
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
         {"column_a", MakeLogicalType(ESimpleLogicalValueType::Any, false)},
     });
 

@@ -303,6 +303,7 @@ public:
 
     void ReadColumnarBatch(
         i64 startRowIndex,
+        i64 rowCount,
         TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 1);
@@ -310,12 +311,14 @@ public:
         ReadColumnarIntegerValues(
             &column,
             startRowIndex,
+            rowCount,
             ValueType,
             Meta_.min_value(),
             ValueReader_.GetData());
         ReadColumnarNullBitmap(
             &column,
             startRowIndex,
+            rowCount,
             NullBitmap_.GetData());
     }
 
@@ -348,6 +351,7 @@ public:
 
     void ReadColumnarBatch(
         i64 startRowIndex,
+        i64 rowCount,
         TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 2);
@@ -355,14 +359,17 @@ public:
         auto& dictionaryColumn = columns[1];
         ReadColumnarIntegerValues(
             &dictionaryColumn,
-            -1,
+            0,
+            ValueReader_.GetSize(),
             ValueType,
             Meta_.min_value(),
             ValueReader_.GetData());
         ReadColumnarDictionary(
             &primaryColumn,
             &dictionaryColumn,
+            primaryColumn.Type,
             startRowIndex,
+            rowCount,
             IdReader_.GetData());
     }
 
@@ -397,6 +404,7 @@ public:
 
     void ReadColumnarBatch(
         i64 startRowIndex,
+        i64 rowCount,
         TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 2);
@@ -405,17 +413,21 @@ public:
         ReadColumnarIntegerValues(
             &rleColumn,
             -1,
+            -1,
             ValueType,
             Meta_.min_value(),
             ValueReader_.GetData());
         ReadColumnarNullBitmap(
             &rleColumn,
             -1,
+            -1,
             NullBitmap_.GetData());
         ReadColumnarRle(
             &primaryColumn,
             &rleColumn,
+            primaryColumn.Type,
             startRowIndex,
+            rowCount,
             RowIndexReader_.GetData());
     }
 
@@ -452,6 +464,7 @@ public:
 
     void ReadColumnarBatch(
         i64 startRowIndex,
+        i64 rowCount,
         TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 3);
@@ -460,19 +473,24 @@ public:
         auto& rleColumn = columns[2];
         ReadColumnarIntegerValues(
             &dictionaryColumn,
-            -1,
+            0,
+            ValueReader_.GetSize(),
             ValueType,
             Meta_.min_value(),
             ValueReader_.GetData());
         ReadColumnarDictionary(
             &rleColumn,
             &dictionaryColumn,
+            primaryColumn.Type,
+            -1,
             -1,
             IdReader_.GetData());
         ReadColumnarRle(
             &primaryColumn,
             &rleColumn,
+            primaryColumn.Type,
             startRowIndex,
+            rowCount,
             RowIndexReader_.GetData());
     }
 

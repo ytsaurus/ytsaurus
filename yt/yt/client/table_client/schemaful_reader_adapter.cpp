@@ -29,12 +29,11 @@ class TSchemafulReaderAdapter
 public:
     TSchemafulReaderAdapter(
         ISchemalessUnversionedReaderPtr underlyingReader,
-        const TTableSchema& schema,
-        const TKeyColumns& keyColumns)
+        TTableSchemaPtr schema,
+        TKeyColumns keyColumns)
         : UnderlyingReader_(std::move(underlyingReader))
-        , ReaderSchema_(schema)
-        , RowBuffer_(New<TRowBuffer>(TSchemafulReaderAdapterPoolTag()))
-        , RowReorderer_(TNameTable::FromSchema(schema), RowBuffer_, /*deepCapture*/ false, keyColumns)
+        , ReaderSchema_(std::move(schema))
+        , RowReorderer_(TNameTable::FromSchema(*ReaderSchema_), RowBuffer_, /*deepCapture*/ false, std::move(keyColumns))
     { }
 
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -60,7 +59,7 @@ public:
                 }
 
                 auto schemafulRow = RowReorderer_.ReorderKey(schemalessRow);
-                for (int valueIndex = 0; valueIndex < ReaderSchema_.Columns().size(); ++valueIndex) {
+                for (int valueIndex = 0; valueIndex < ReaderSchema_->Columns().size(); ++valueIndex) {
                     const auto& value = schemafulRow[valueIndex];
                     ValidateDataValue(value);
                     // XXX(babenko)
@@ -68,13 +67,13 @@ public:
                     // if the schema has "any" type. For schemaful reader, this is not an expected behavior
                     // so we have to convert such values back into YSON.
                     // Cf. YT-5396
-                    if (ReaderSchema_.Columns()[valueIndex].GetPhysicalType() == EValueType::Any &&
+                    if (ReaderSchema_->Columns()[valueIndex].GetPhysicalType() == EValueType::Any &&
                         value.Type != EValueType::Any &&
                         value.Type != EValueType::Null)
                     {
                         schemafulRow[valueIndex] = MakeAnyFromScalar(value);
                     } else {
-                        ValidateValueType(value, ReaderSchema_, valueIndex, /*typeAnyAcceptsAllValues*/ false);
+                        ValidateValueType(value, *ReaderSchema_, valueIndex, /*typeAnyAcceptsAllValues*/ false);
                     }
                 }
                 schemafulRows.push_back(schemafulRow);
@@ -84,7 +83,7 @@ public:
             return CreateEmptyUnversionedRowBatch();
         }
 
-        return CreateBatchFromUnversionedRows(std::move(schemafulRows), this);
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(schemafulRows), this));
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -118,9 +117,9 @@ public:
 
 private:
     const ISchemalessUnversionedReaderPtr UnderlyingReader_;
-    const TTableSchema ReaderSchema_;
+    const TTableSchemaPtr ReaderSchema_;
 
-    const TRowBufferPtr RowBuffer_;
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemafulReaderAdapterPoolTag());
     TSchemalessRowReorderer RowReorderer_;
 
     IUnversionedRowBatchPtr CurrentBatch_;
@@ -174,23 +173,23 @@ DEFINE_REFCOUNTED_TYPE(TSchemafulReaderAdapter)
 
 ISchemafulUnversionedReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     const TColumnFilter& columnFilter)
 {
     TKeyColumns keyColumns;
-    for (const auto& columnSchema : schema.Columns()) {
+    for (const auto& columnSchema : schema->Columns()) {
         keyColumns.push_back(columnSchema.Name());
     }
 
-    auto nameTable = TNameTable::FromSchema(schema);
+    auto nameTable = TNameTable::FromSchema(*schema);
     auto underlyingReader = createReader(
         nameTable,
-        columnFilter.IsUniversal() ? TColumnFilter(schema.Columns().size()) : columnFilter);
+        columnFilter.IsUniversal() ? TColumnFilter(schema->Columns().size()) : columnFilter);
 
     auto result = New<TSchemafulReaderAdapter>(
-        underlyingReader,
-        schema,
-        keyColumns);
+        std::move(underlyingReader),
+        std::move(schema),
+        std::move(keyColumns));
 
     return result;
 }

@@ -649,7 +649,7 @@ private:
 
             auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
 
-            std::vector<bool> columnPresenceBuffer(modificationSchema.GetColumnCount());
+            std::vector<bool> columnPresenceBuffer(modificationSchema->GetColumnCount());
 
             // FLS slots are reused, so we need to manually reset the reporter.
             EntityInAnyReporter.Reset();
@@ -659,7 +659,7 @@ private:
                     case ERowModificationType::Write:
                         ValidateClientDataRow(
                             TUnversionedRow(modification.Row),
-                            writeSchema,
+                            *writeSchema,
                             writeIdMapping,
                             NameTable_,
                             tabletIndexColumnId);
@@ -680,7 +680,7 @@ private:
                         }
                         ValidateClientDataRow(
                             TVersionedRow(modification.Row),
-                            versionedWriteSchema,
+                            *versionedWriteSchema,
                             versionedWriteIdMapping,
                             NameTable_);
                         break;
@@ -694,7 +694,7 @@ private:
                         }
                         ValidateClientKey(
                             TUnversionedRow(modification.Row),
-                            deleteSchema,
+                            *deleteSchema,
                             deleteIdMapping,
                             NameTable_);
                         break;
@@ -708,7 +708,7 @@ private:
                         }
                         ValidateClientKey(
                             TUnversionedRow(modification.Row),
-                            deleteSchema,
+                            *deleteSchema,
                             deleteIdMapping,
                             NameTable_);
                         break;
@@ -723,7 +723,7 @@ private:
                     case ERowModificationType::ReadLockWrite: {
                         auto capturedRow = rowBuffer->CaptureAndPermuteRow(
                             TUnversionedRow(modification.Row),
-                            modificationSchema,
+                            *modificationSchema,
                             modificationIdMapping,
                             modification.Type == ERowModificationType::Write ? &columnPresenceBuffer : nullptr);
                         TTabletInfoPtr tabletInfo;
@@ -749,7 +749,7 @@ private:
                     case ERowModificationType::VersionedWrite: {
                         auto capturedRow = rowBuffer->CaptureAndPermuteRow(
                             TVersionedRow(modification.Row),
-                            primarySchema,
+                            *primarySchema,
                             primaryIdMapping,
                             &columnPresenceBuffer);
                         if (evaluator) {
@@ -892,8 +892,8 @@ private:
             , Config_(transaction->Client_->GetNativeConnection()->GetConfig())
             , ColumnEvaluator_(std::move(columnEvaluator))
             , TableMountCache_(transaction->Client_->GetNativeConnection()->GetTableMountCache())
-            , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].Columns().size())
-            , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary].GetKeyColumnCount())
+            , ColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary]->Columns().size())
+            , KeyColumnCount_(TableInfo_->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount())
             , EnforceRowCountLimit_(transaction->Client_->GetOptions().GetAuthenticatedUser() != NSecurityClient::ReplicatorUserName)
             , Logger(NLogging::TLogger(transaction->Logger)
                 .AddTag("TabletId: %v", TabletInfo_->TabletId))
@@ -1366,7 +1366,7 @@ private:
         auto key = std::make_tuple(tableInfo->TableId, nameTable, kind);
         auto it = IdMappingCache_.find(key);
         if (it == IdMappingCache_.end()) {
-            auto mapping = BuildColumnIdMapping(tableInfo->Schemas[kind], nameTable);
+            auto mapping = BuildColumnIdMapping(*tableInfo->Schemas[kind], nameTable);
             it = IdMappingCache_.emplace(key, std::move(mapping)).first;
         }
         return it->second;

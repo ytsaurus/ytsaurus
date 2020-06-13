@@ -30,16 +30,16 @@ bool ConvertToBooleanValue(TStringBuf stringValue)
 ////////////////////////////////////////////////////////////////////////////////
 
 TValueConsumerBase::TValueConsumerBase(
-    const TTableSchema& schema,
-    const TTypeConversionConfigPtr& typeConversionConfig)
-    : Schema_(schema)
-    , TypeConversionConfig_(typeConversionConfig)
+    TTableSchemaPtr schema,
+    TTypeConversionConfigPtr typeConversionConfig)
+    : Schema_(std::move(schema))
+    , TypeConversionConfig_(std::move(typeConversionConfig))
 { }
 
 void TValueConsumerBase::InitializeIdToTypeMapping()
 {
     const auto& nameTable = GetNameTable();
-    for (const auto& column : Schema_.Columns()) {
+    for (const auto& column : Schema_->Columns()) {
         int id = nameTable->GetIdOrRegisterName(column.Name());
         if (id >= static_cast<int>(NameTableIdToType_.size())) {
             NameTableIdToType_.resize(id + 1, EValueType::Any);
@@ -192,7 +192,7 @@ void TValueConsumerBase::OnValue(const TUnversionedValue& value)
     }
 }
 
-const TTableSchema& TValueConsumerBase::GetSchema() const
+const TTableSchemaPtr& TValueConsumerBase::GetSchema() const
 {
     return Schema_;
 }
@@ -209,10 +209,10 @@ void TValueConsumerBase::ThrowConversionException(const TUnversionedValue& value
 ////////////////////////////////////////////////////////////////////////////////
 
 TBuildingValueConsumer::TBuildingValueConsumer(
-    const TTableSchema& schema,
-    const TTypeConversionConfigPtr& typeConversionConfig)
-    : TValueConsumerBase(schema, typeConversionConfig)
-    , NameTable_(TNameTable::FromSchema(Schema_))
+    TTableSchemaPtr schema,
+    TTypeConversionConfigPtr typeConversionConfig)
+    : TValueConsumerBase(std::move(schema), std::move(typeConversionConfig))
+    , NameTable_(TNameTable::FromSchema(*Schema_))
     , WrittenFlags_(NameTable_->GetSize(), false)
 {
     InitializeIdToTypeMapping();
@@ -290,11 +290,11 @@ TUnversionedValue TBuildingValueConsumer::MakeAnyFromScalar(const TUnversionedVa
 
 void TBuildingValueConsumer::OnMyValue(const TUnversionedValue& value)
 {
-    if (value.Id >= Schema_.Columns().size()) {
+    if (value.Id >= Schema_->Columns().size()) {
         return;
     }
     auto valueCopy = value;
-    const auto& columnSchema = Schema_.Columns()[valueCopy.Id];
+    const auto& columnSchema = Schema_->Columns()[valueCopy.Id];
     if (columnSchema.Aggregate()) {
         valueCopy.Aggregate = Aggregate_;
     }
@@ -312,11 +312,11 @@ void TBuildingValueConsumer::OnEndRow()
     for (int id = 0; id < WrittenFlags_.size(); ++id) {
         if (WrittenFlags_[id]) {
             WrittenFlags_[id] = false;
-        } else if ((TreatMissingAsNull_ || id < Schema_.GetKeyColumnCount()) && !Schema_.Columns()[id].Expression()) {
+        } else if ((TreatMissingAsNull_ || id < Schema_->GetKeyColumnCount()) && !Schema_->Columns()[id].Expression()) {
             Builder_.AddValue(MakeUnversionedSentinelValue(
                 EValueType::Null,
                 id,
-                Schema_.Columns()[id].Aggregate() && Aggregate_));
+                Schema_->Columns()[id].Aggregate() && Aggregate_));
         }
     }
 
@@ -330,12 +330,12 @@ struct TWritingValueConsumerBufferTag
 
 TWritingValueConsumer::TWritingValueConsumer(
     IUnversionedWriterPtr writer,
-    const TTypeConversionConfigPtr& typeConversionConfig,
+    TTypeConversionConfigPtr typeConversionConfig,
     i64 maxRowBufferSize)
-    : TValueConsumerBase(writer->GetSchema(), typeConversionConfig)
-    , Writer_(writer)
-    , RowBuffer_(New<TRowBuffer>(TWritingValueConsumerBufferTag()))
+    : TValueConsumerBase(writer->GetSchema(), std::move(typeConversionConfig))
+    , Writer_(std::move(writer))
     , MaxRowBufferSize_(maxRowBufferSize)
+    , RowBuffer_(New<TRowBuffer>(TWritingValueConsumerBufferTag()))
 {
     YT_VERIFY(Writer_);
     InitializeIdToTypeMapping();

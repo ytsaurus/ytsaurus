@@ -337,13 +337,13 @@ void ValidatePivotKey(const TOwningKey& pivotKey, const TTableSchema& schema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool discardKeyColumns)
+TTableSchemaPtr InferInputSchema(const std::vector<TTableSchemaPtr>& schemas, bool discardKeyColumns)
 {
     YT_VERIFY(!schemas.empty());
 
     // NB: If one schema is not strict then the resulting schema should be an intersection, not union.
     for (const auto& schema : schemas) {
-        if (!schema.GetStrict()) {
+        if (!schema->GetStrict()) {
             THROW_ERROR_EXCEPTION("Input table schema is not strict");
         }
     }
@@ -351,14 +351,14 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
     int commonKeyColumnPrefix = 0;
     if (!discardKeyColumns) {
         while (true) {
-            if (commonKeyColumnPrefix >= schemas.front().GetKeyColumnCount()) {
+            if (commonKeyColumnPrefix >= schemas.front()->GetKeyColumnCount()) {
                 break;
             }
-            const auto& keyColumnName = schemas.front().Columns()[commonKeyColumnPrefix].Name();
+            const auto& keyColumnName = schemas.front()->Columns()[commonKeyColumnPrefix].Name();
             bool mismatch = false;
             for (const auto& schema : schemas) {
-                if (commonKeyColumnPrefix >= schema.GetKeyColumnCount() ||
-                    schema.Columns()[commonKeyColumnPrefix].Name() != keyColumnName)
+                if (commonKeyColumnPrefix >= schema->GetKeyColumnCount() ||
+                    schema->Columns()[commonKeyColumnPrefix].Name() != keyColumnName)
                 {
                     mismatch = true;
                     break;
@@ -375,8 +375,8 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
     std::vector<TString> columnNames;
 
     for (const auto& schema : schemas) {
-        for (int columnIndex = 0; columnIndex < schema.Columns().size(); ++columnIndex) {
-            auto column = schema.Columns()[columnIndex];
+        for (int columnIndex = 0; columnIndex < schema->Columns().size(); ++columnIndex) {
+            auto column = schema->Columns()[columnIndex];
             if (columnIndex >= commonKeyColumnPrefix) {
                 column = column.SetSortOrder(std::nullopt);
             }
@@ -406,7 +406,7 @@ TTableSchema InferInputSchema(const std::vector<TTableSchema>& schemas, bool dis
         columns.push_back(nameToColumnSchema[columnName]);
     }
 
-    return TTableSchema(std::move(columns), true);
+    return New<TTableSchema>(std::move(columns), true);
 }
 
 TError ValidateTableSchemaCompatibility(

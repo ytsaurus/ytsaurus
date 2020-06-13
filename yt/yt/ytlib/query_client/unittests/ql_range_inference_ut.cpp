@@ -599,7 +599,7 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_F(TRefineKeyRangeTest, Empty)
 {
-    auto expr = PrepareExpression("false", GetSampleTableSchema());
+    auto expr = PrepareExpression("false", *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -611,7 +611,7 @@ TEST_F(TRefineKeyRangeTest, Empty)
 
 TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 {
-    auto expr = PrepareExpression("k >= 90 and k < 10", GetSampleTableSchema());
+    auto expr = PrepareExpression("k >= 90 and k < 10", *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -623,7 +623,7 @@ TEST_F(TRefineKeyRangeTest, ContradictiveConjuncts)
 
 TEST_F(TRefineKeyRangeTest, Lookup1)
 {
-    auto expr = PrepareExpression("k = 50 and l = 50", GetSampleTableSchema());
+    auto expr = PrepareExpression("k = 50 and l = 50", *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -636,7 +636,7 @@ TEST_F(TRefineKeyRangeTest, Lookup1)
 
 TEST_F(TRefineKeyRangeTest, Lookup2)
 {
-    auto expr = PrepareExpression("k = 50 and l = 50 and m = 50", GetSampleTableSchema());
+    auto expr = PrepareExpression("k = 50 and l = 50 and m = 50", *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -649,7 +649,7 @@ TEST_F(TRefineKeyRangeTest, Lookup2)
 
 TEST_F(TRefineKeyRangeTest, Range1)
 {
-    auto expr = PrepareExpression("k > 0 and k < 100", GetSampleTableSchema());
+    auto expr = PrepareExpression("k > 0 and k < 100", *GetSampleTableSchema());
 
     TKeyColumns keyColumns;
     keyColumns.push_back("k");
@@ -664,7 +664,7 @@ TEST_F(TRefineKeyRangeTest, Range1)
 
 TEST_F(TRefineKeyRangeTest, NegativeRange1)
 {
-    auto expr = PrepareExpression("k > -100 and (k) <= -(-1)", GetSampleTableSchema());
+    auto expr = PrepareExpression("k > -100 and (k) <= -(-1)", *GetSampleTableSchema());
 
     TKeyColumns keyColumns;
     keyColumns.push_back("k");
@@ -679,7 +679,7 @@ TEST_F(TRefineKeyRangeTest, NegativeRange1)
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts1)
 {
-    auto expr = PrepareExpression("k >= 10 and k < 90", GetSampleTableSchema());
+    auto expr = PrepareExpression("k >= 10 and k < 90", *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -694,7 +694,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 {
     auto expr = PrepareExpression(
         "k = 50 and l >= 10 and l < 90 and m = 50",
-        GetSampleTableSchema());
+        *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -707,7 +707,7 @@ TEST_F(TRefineKeyRangeTest, MultipleConjuncts2)
 
 TEST_F(TRefineKeyRangeTest, MultipleConjuncts3)
 {
-    auto expr = PrepareExpression("k = 50 and m = 50", GetSampleTableSchema());
+    auto expr = PrepareExpression("k = 50 and m = 50", *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -745,7 +745,7 @@ TEST_F(TRefineKeyRangeTest, MultipleDisjuncts)
 {
     auto expr = PrepareExpression(
         "k = 50 and m = 50 or k = 75 and m = 50",
-        GetSampleTableSchema());
+        *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
     auto keyTrie = ExtractMultipleConstraints(
@@ -771,7 +771,7 @@ TEST_F(TRefineKeyRangeTest, NotEqualToMultipleRanges)
 {
     auto expr = PrepareExpression(
         "(k = 50 and l != 50) and (l > 40 and l < 60)",
-        GetSampleTableSchema());
+        *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
     auto keyTrie = ExtractMultipleConstraints(
@@ -797,7 +797,7 @@ TEST_F(TRefineKeyRangeTest, RangesProduct)
 {
     auto expr = PrepareExpression(
         "(k = 40 or k = 50 or k = 60) and (l = 40 or l = 50 or l = 60)",
-        GetSampleTableSchema());
+        *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
     auto keyTrie = ExtractMultipleConstraints(
@@ -844,7 +844,7 @@ TEST_F(TRefineKeyRangeTest, RangesProductWithOverlappingKeyPositions)
 {
     auto expr = PrepareExpression(
         "(k, m) in ((2, 3), (4, 6)) and l in (2, 3)",
-        GetSampleTableSchema());
+        *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
     auto keyTrie = ExtractMultipleConstraints(
@@ -883,7 +883,7 @@ TEST_F(TRefineKeyRangeTest, BetweenRanges)
                 4 and 5
             )
         )",
-        GetSampleTableSchema());
+        *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
     auto keyTrie = ExtractMultipleConstraints(
@@ -915,7 +915,7 @@ TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 {
     auto expr = PrepareExpression(
         "k = 1 and l = 2 and m = 3",
-        GetSampleTableSchema());
+        *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -928,7 +928,7 @@ TEST_F(TRefineKeyRangeTest, NormalizeShortKeys)
 
 TEST_F(TRefineKeyRangeTest, PrefixQuery)
 {
-    TTableSchema tableSchema({
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("k", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("l", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("m", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
@@ -938,7 +938,7 @@ TEST_F(TRefineKeyRangeTest, PrefixQuery)
 
     auto expr = PrepareExpression(
         "k = 50 and l = 50 and m = 50 and is_prefix(\"abc\", s)",
-        tableSchema);
+        *tableSchema);
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns2(),
@@ -953,7 +953,7 @@ TEST_F(TRefineKeyRangeTest, EmptyRange)
 {
     auto expr = PrepareExpression(
         "k between 1 and 1",
-        GetSampleTableSchema());
+        *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -968,7 +968,7 @@ TEST_F(TRefineKeyRangeTest, RangeToPointCollapsing)
 {
     auto expr = PrepareExpression(
         "k >= 1 and k <= 1 and l = 1",
-        GetSampleTableSchema());
+        *GetSampleTableSchema());
 
     auto result = RefineKeyRange(
         GetSampleKeyColumns(),
@@ -983,7 +983,7 @@ TEST_F(TRefineKeyRangeTest, MultipleRangeDisjuncts)
 {
     auto expr = PrepareExpression(
         "(k between 21 and 32) OR (k between 43 and 54)",
-        GetSampleTableSchema());
+        *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
     auto keyColumns = GetSampleKeyColumns();
@@ -1010,7 +1010,7 @@ TEST_F(TRefineKeyRangeTest, SecondDimensionRange)
 {
     auto expr = PrepareExpression(
         "(k, l) >= (1, 2) and (k, l) < (1, 4)",
-        GetSampleTableSchema());
+        *GetSampleTableSchema());
 
     auto rowBuffer = New<TRowBuffer>();
     auto keyColumns = GetSampleKeyColumns();

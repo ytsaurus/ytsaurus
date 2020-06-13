@@ -25,7 +25,7 @@ public:
     std::vector<std::vector<NChunkClient::TDataSliceDescriptor>> DataSliceDescriptors;
     TQueryId InitialQueryId;
     TString InitialQuery;
-    NTableClient::TTableSchema ReadSchema;
+    NTableClient::TTableSchemaPtr ReadSchema;
     int SubqueryIndex;
     int TableIndex;
 };

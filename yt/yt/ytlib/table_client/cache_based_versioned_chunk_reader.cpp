@@ -317,7 +317,7 @@ TCacheBasedVersionedChunkReaderBase<TSimpleVersionedBlockReader>::CreateBlockRea
     return TSimpleVersionedBlockReader(
         block,
         meta,
-        ChunkState_->ChunkMeta->ChunkSchema(),
+        ChunkState_->ChunkMeta->GetChunkSchema(),
         ChunkState_->ChunkMeta->GetChunkKeyColumnCount(),
         ChunkState_->ChunkMeta->GetKeyColumnCount(),
         SchemaIdMapping_,
@@ -336,7 +336,7 @@ TCacheBasedVersionedChunkReaderBase<THorizontalSchemalessVersionedBlockReader>::
     return THorizontalSchemalessVersionedBlockReader(
         block,
         meta,
-        ChunkState_->ChunkMeta->Schema(),
+        ChunkState_->ChunkMeta->GetSchema(),
         SchemaIdMapping_,
         ChunkState_->ChunkMeta->GetChunkKeyColumnCount(),
         ChunkState_->ChunkMeta->GetKeyColumnCount(),
@@ -353,7 +353,7 @@ TCacheBasedVersionedChunkReaderBase<TSimpleVersionedBlockReader>::CreateBlockRea
     return new TSimpleVersionedBlockReader(
         block,
         meta,
-        ChunkState_->ChunkMeta->ChunkSchema(),
+        ChunkState_->ChunkMeta->GetChunkSchema(),
         ChunkState_->ChunkMeta->GetChunkKeyColumnCount(),
         ChunkState_->ChunkMeta->GetKeyColumnCount(),
         SchemaIdMapping_,
@@ -373,7 +373,7 @@ TCacheBasedVersionedChunkReaderBase<THorizontalSchemalessVersionedBlockReader>::
     return new THorizontalSchemalessVersionedBlockReader(
         block,
         meta,
-        ChunkState_->ChunkMeta->Schema(),
+        ChunkState_->ChunkMeta->GetSchema(),
         SchemaIdMapping_,
         ChunkState_->ChunkMeta->GetChunkKeyColumnCount(),
         ChunkState_->ChunkMeta->GetKeyColumnCount(),
@@ -523,7 +523,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 return CreateEmptyVersionedReader(keys.Size());
             }
 
-            YT_VERIFY(chunkState->ChunkMeta->Schema().GetUniqueKeys());
+            YT_VERIFY(chunkState->ChunkMeta->GetSchema()->GetUniqueKeys());
             return New<TCacheBasedSimpleVersionedLookupChunkReader<THorizontalSchemalessVersionedBlockReader>>(
                 chunkState,
                 keys,

@@ -23,8 +23,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TTimestamp, MaxTimestamp);
 
 public:
-    TSimpleVersionedBlockWriter(
-        const TTableSchema& schema);
+    explicit TSimpleVersionedBlockWriter(TTableSchemaPtr schema);
 
     void WriteRow(
         TVersionedRow row,
@@ -46,7 +45,7 @@ public:
 private:
     typedef TAppendOnlyBitmap<ui64> TBitmap;
 
-    const TTableSchema& Schema_;
+    const TTableSchemaPtr Schema_;
 
     const int SchemaColumnCount_;
     const int KeyColumnCount_;

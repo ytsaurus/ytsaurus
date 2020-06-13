@@ -82,7 +82,7 @@ struct TTableMountInfo
 {
     NYPath::TYPath Path;
     NObjectClient::TObjectId TableId;
-    TEnumIndexedVector<ETableSchemaKind, NTableClient::TTableSchema> Schemas;
+    TEnumIndexedVector<ETableSchemaKind, NTableClient::TTableSchemaPtr> Schemas;
 
     bool Dynamic;
     TTableReplicaId UpstreamReplicaId;

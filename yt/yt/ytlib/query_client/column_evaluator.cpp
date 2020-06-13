@@ -29,21 +29,21 @@ TColumnEvaluator::TColumnEvaluator(
 { }
 
 TColumnEvaluatorPtr TColumnEvaluator::Create(
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     const TConstTypeInferrerMapPtr& typeInferrers,
     const TConstFunctionProfilerMapPtr& profilers)
 {
-    std::vector<TColumn> columns(schema.GetColumnCount());
-    std::vector<bool> isAggregate(schema.GetColumnCount());
+    std::vector<TColumn> columns(schema->GetColumnCount());
+    std::vector<bool> isAggregate(schema->GetColumnCount());
 
-    for (int index = 0; index < schema.GetColumnCount(); ++index) {
+    for (int index = 0; index < schema->GetColumnCount(); ++index) {
         auto& column = columns[index];
-        if (schema.Columns()[index].Expression()) {
+        if (schema->Columns()[index].Expression()) {
             THashSet<TString> references;
 
             column.Expression = PrepareExpression(
-                *schema.Columns()[index].Expression(),
-                schema,
+                *schema->Columns()[index].Expression(),
+                *schema,
                 typeInferrers,
                 &references);
 
@@ -55,14 +55,14 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
                 profilers)();
 
             for (const auto& reference : references) {
-                column.ReferenceIds.push_back(schema.GetColumnIndexOrThrow(reference));
+                column.ReferenceIds.push_back(schema->GetColumnIndexOrThrow(reference));
             }
             std::sort(column.ReferenceIds.begin(), column.ReferenceIds.end());
         }
 
-        if (schema.Columns()[index].Aggregate()) {
-            const auto& aggregateName = *schema.Columns()[index].Aggregate();
-            auto type = schema.Columns()[index].GetPhysicalType();
+        if (schema->Columns()[index].Aggregate()) {
+            const auto& aggregateName = *schema->Columns()[index].Aggregate();
+            auto type = schema->Columns()[index].GetPhysicalType();
             column.Aggregate = CodegenAggregate(
                 BuiltinAggregateProfilers->GetAggregate(aggregateName)->Profile(type, type, type, aggregateName),
                 type, type);
@@ -203,7 +203,7 @@ public:
         , Profilers_(profilers)
     { }
 
-    TColumnEvaluatorPtr Get(const TTableSchema& schema)
+    TColumnEvaluatorPtr Get(TTableSchemaPtr schema)
     {
         llvm::FoldingSetNodeID id;
         Profile(schema, &id);
@@ -211,10 +211,10 @@ public:
         auto cachedEvaluator = Find(id);
         if (!cachedEvaluator) {
             YT_LOG_DEBUG("Codegen cache miss: generating column evaluator (Schema: %v)",
-                schema);
+                *schema);
 
             auto evaluator = TColumnEvaluator::Create(
-                schema,
+                std::move(schema),
                 TypeInferers_,
                 Profilers_);
             cachedEvaluator = New<TCachedColumnEvaluator>(id, evaluator);
@@ -244,10 +244,9 @@ TColumnEvaluatorCache::TColumnEvaluatorCache(
 
 TColumnEvaluatorCache::~TColumnEvaluatorCache() = default;
 
-TColumnEvaluatorPtr TColumnEvaluatorCache::Find(
-    const TTableSchema& schema)
+TColumnEvaluatorPtr TColumnEvaluatorCache::Find(TTableSchemaPtr schema)
 {
-    return Impl_->Get(schema);
+    return Impl_->Get(std::move(schema));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

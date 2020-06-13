@@ -37,7 +37,7 @@ void ConvertToUnversionedValue(const DB::Field& field, NTableClient::TUnversione
 // If the column is missed in any tables or the type of the column mismatch in different schemas, the column will be ommited.
 // If at least in one schema the column doesn't have "required" flag, the column will be not required.
 // Key columns are maximum prefix of key collumns in all schemas.
-NTableClient::TTableSchema InferCommonSchema(const std::vector<TTablePtr>& tables, const NLogging::TLogger& logger);
+NTableClient::TTableSchemaPtr InferCommonSchema(const std::vector<TTablePtr>& tables, const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -60,6 +60,7 @@ public:
 
     TFuture<TCachedVersionedChunkMetaPtr> GetMeta(
         IChunkReaderPtr chunkReader,
+        // TODO(babenko): refcounted schema
         const TTableSchema& schema,
         const TClientBlockReadOptions& blockReadOptions)
     {
@@ -71,7 +72,7 @@ public:
             auto asyncMeta = TCachedVersionedChunkMeta::Load(
                 std::move(chunkReader),
                 blockReadOptions,
-                schema,
+                New<TTableSchema>(schema),
                 {} /* ColumnRenameDesctiptors */,
                 Bootstrap_->GetMemoryUsageTracker());
 
@@ -108,8 +109,7 @@ TVersionedChunkMetaManager::TVersionedChunkMetaManager(
     : Impl_(New<TImpl>(std::move(config), bootstrap))
 { }
 
-TVersionedChunkMetaManager::~TVersionedChunkMetaManager()
-{ }
+TVersionedChunkMetaManager::~TVersionedChunkMetaManager() = default;
 
 TFuture<TCachedVersionedChunkMetaPtr> TVersionedChunkMetaManager::GetMeta(
     IChunkReaderPtr chunkReader,

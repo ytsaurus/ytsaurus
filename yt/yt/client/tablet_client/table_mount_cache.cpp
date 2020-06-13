@@ -32,7 +32,7 @@ bool TTabletInfo::IsInMemory() const
 
 bool TTableMountInfo::IsSorted() const
 {
-    return Schemas[ETableSchemaKind::Primary].IsSorted();
+    return Schemas[ETableSchemaKind::Primary]->IsSorted();
 }
 
 bool TTableMountInfo::IsOrdered() const
@@ -57,7 +57,7 @@ TTabletInfoPtr TTableMountInfo::GetTabletByIndexOrThrow(int tabletIndex) const
 
 TTabletInfoPtr TTableMountInfo::GetTabletForRow(TRange<TUnversionedValue> row) const
 {
-    int keyColumnCount = Schemas[ETableSchemaKind::Primary].GetKeyColumnCount();
+    int keyColumnCount = Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
     YT_VERIFY(row.Size() >= keyColumnCount);
     ValidateDynamic();
     auto it = std::upper_bound(
@@ -77,14 +77,14 @@ TTabletInfoPtr TTableMountInfo::GetTabletForRow(TRange<TUnversionedValue> row) c
 
 TTabletInfoPtr TTableMountInfo::GetTabletForRow(TUnversionedRow row) const
 {
-    int keyColumnCount = Schemas[ETableSchemaKind::Primary].GetKeyColumnCount();
+    int keyColumnCount = Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
     YT_VERIFY(row.GetCount() >= keyColumnCount);
     return GetTabletForRow(MakeRange(row.Begin(), row.Begin() + keyColumnCount));
 }
 
 TTabletInfoPtr TTableMountInfo::GetTabletForRow(TVersionedRow row) const
 {
-    int keyColumnCount = Schemas[ETableSchemaKind::Primary].GetKeyColumnCount();
+    int keyColumnCount = Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
     YT_VERIFY(row.GetKeyCount() == keyColumnCount);
     return GetTabletForRow(MakeRange(row.BeginKeys(), row.EndKeys()));
 }

@@ -477,13 +477,13 @@ private:
         TColumnFilter columnFilter;
         if (request->has_column_filter()) {
             columnFilter = TColumnFilter(FromProto<TColumnFilter::TIndexes>(request->column_filter().indexes()));
-            ValidateColumnFilter(columnFilter, tabletSnapshot->PhysicalSchema.GetColumnCount());
-            ValidateColumnFilterContainsAllKeyColumns(columnFilter, tabletSnapshot->PhysicalSchema);
+            ValidateColumnFilter(columnFilter, tabletSnapshot->PhysicalSchema->GetColumnCount());
+            ValidateColumnFilterContainsAllKeyColumns(columnFilter, *tabletSnapshot->PhysicalSchema);
         }
 
         auto bandwidthThrottler = Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::UserDynamicStoreRead);
 
-        bool sorted = tabletSnapshot->PhysicalSchema.IsSorted();
+        bool sorted = tabletSnapshot->PhysicalSchema->IsSorted();
 
         if (sorted) {
             auto lowerBound = request->has_lower_bound()

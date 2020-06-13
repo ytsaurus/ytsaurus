@@ -132,29 +132,29 @@ TString MaybeTruncateSubquery(TString query)
     return query;
 }
 
-TTableSchema InferCommonSchema(const std::vector<TTablePtr>& tables, const TLogger& logger)
+TTableSchemaPtr InferCommonSchema(const std::vector<TTablePtr>& tables, const TLogger& logger)
 {
     THashSet<TTableSchema> schemas;
     for (const auto& table : tables) {
-        schemas.emplace(table->Schema);
+        schemas.emplace(*table->Schema);
     }
 
     if (schemas.empty()) {
-        return TTableSchema();
+        return New<TTableSchema>();
     }
 
     if (schemas.size() == 1) {
-        return *schemas.begin();
+        return New<TTableSchema>(*schemas.begin());
     }
 
     const auto& Logger = logger;
 
-    const auto& firstSchema = *schemas.begin();
+    const auto& firstSchema = schemas.begin();
 
     THashMap<TString, TColumnSchema> nameToColumn;
     THashMap<TString, size_t> nameCounter;
 
-    for (const auto& column : firstSchema.Columns()) {
+    for (const auto& column : firstSchema->Columns()) {
         auto [it, _] = nameToColumn.emplace(column.Name(), column);
         // We will set sorted order for key columns later.
         it->second.SetSortOrder(std::nullopt);
@@ -175,8 +175,8 @@ TTableSchema InferCommonSchema(const std::vector<TTablePtr>& tables, const TLogg
     }
 
     std::vector<TColumnSchema> resultColumns;
-    resultColumns.reserve(firstSchema.Columns().size());
-    for (const auto& column : firstSchema.Columns()) {
+    resultColumns.reserve(firstSchema->Columns().size());
+    for (const auto& column : firstSchema->Columns()) {
         if (nameCounter[column.Name()] == schemas.size()) {
             resultColumns.push_back(nameToColumn[column.Name()]);
         }
@@ -202,11 +202,11 @@ TTableSchema InferCommonSchema(const std::vector<TTablePtr>& tables, const TLogg
         resultColumns[index].SetSortOrder(ESortOrder::Ascending);
     }
 
-    TTableSchema commonSchema(resultColumns);
+    auto commonSchema = New<TTableSchema>(std::move(resultColumns));
 
     YT_LOG_INFO("Common schema inferred (Schemas: %v, CommonSchema: %v)",
         schemas,
-        commonSchema);
+        *commonSchema);
 
     return commonSchema;
 }

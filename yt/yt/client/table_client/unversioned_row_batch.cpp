@@ -13,18 +13,14 @@ bool IUnversionedRowBatch::IsEmpty() const
 ////////////////////////////////////////////////////////////////////////////////
 
 IUnversionedRowBatchPtr CreateBatchFromUnversionedRows(
-    TRange<TUnversionedRow> rows,
-    TIntrusivePtr<TRefCounted> holder)
+    TSharedRange<TUnversionedRow> rows)
 {
     class TUnversionedRowBatch
         : public IUnversionedRowBatch
     {
     public:
-        TUnversionedRowBatch(
-            TRange<TUnversionedRow> rows,
-            TIntrusivePtr<TRefCounted> holder)
-            : Rows_(rows)
-            , Holder_(std::move(holder))
+        explicit TUnversionedRowBatch(TSharedRange<TUnversionedRow> rows)
+            : Rows_(std::move(rows))
         { }
 
         virtual int GetRowCount() const override
@@ -42,61 +38,19 @@ IUnversionedRowBatchPtr CreateBatchFromUnversionedRows(
             return Rows_;
         }
 
-        virtual TRange<TColumn*> MaterializeColumns() override
+        virtual TRange<const TColumn*> MaterializeColumns() override
         {
             YT_ABORT();
         }
 
     private:
-        const TRange<TUnversionedRow> Rows_;
-        const TIntrusivePtr<TRefCounted> Holder_;
+        const TSharedRange<TUnversionedRow> Rows_;
     };
 
-    return New<TUnversionedRowBatch>(rows, std::move(holder));
+    return New<TUnversionedRowBatch>(rows);
 }
 
-IUnversionedRowBatchPtr CreateBatchFromUnversionedRows(
-    std::vector<TUnversionedRow>&& rows,
-    TIntrusivePtr<TRefCounted> holder)
-{
-    class TUnversionedRowBatch
-        : public IUnversionedRowBatch
-    {
-    public:
-        TUnversionedRowBatch(
-            std::vector<TUnversionedRow>&& rows,
-            TIntrusivePtr<TRefCounted> holder)
-            : Rows_(std::move(rows))
-            , Holder_(std::move(holder))
-        { }
-
-        virtual int GetRowCount() const override
-        {
-            return static_cast<int>(Rows_.size());
-        }
-
-        virtual bool IsColumnar() const override
-        {
-            return false;
-        }
-
-        virtual TRange<TUnversionedRow> MaterializeRows() override
-        {
-            return MakeRange(Rows_);
-        }
-
-        virtual TRange<TColumn*> MaterializeColumns() override
-        {
-            YT_ABORT();
-        }
-
-    private:
-        const std::vector<TUnversionedRow> Rows_;
-        const TIntrusivePtr<TRefCounted> Holder_;
-    };
-
-    return New<TUnversionedRowBatch>(std::move(rows), std::move(holder));
-}
+////////////////////////////////////////////////////////////////////////////////
 
 IUnversionedRowBatchPtr CreateEmptyUnversionedRowBatch()
 {
@@ -119,7 +73,7 @@ IUnversionedRowBatchPtr CreateEmptyUnversionedRowBatch()
             return {};
         }
 
-        virtual TRange<TColumn*> MaterializeColumns() override
+        virtual TRange<const TColumn*> MaterializeColumns() override
         {
             YT_ABORT();
         }

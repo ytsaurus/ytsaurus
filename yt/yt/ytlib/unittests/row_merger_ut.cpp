@@ -113,7 +113,7 @@ protected:
         return schema;
     }
 
-    static TTableSchema GetKeyedSchema(const TTableSchema& schema, int keyCount = 0)
+    static TTableSchemaPtr GetKeyedSchema(const TTableSchema& schema, int keyCount = 0)
     {
         std::vector<TColumnSchema> keyedSchemaColumns;
         for (int index = 0; index < schema.Columns().size(); ++index) {
@@ -124,7 +124,7 @@ protected:
             keyedSchemaColumns.push_back(std::move(column));
         }
 
-        return TTableSchema(keyedSchemaColumns);
+        return New<TTableSchema>(keyedSchemaColumns);
     }
 
     static TTableSchema GetAggregateSumSchema()

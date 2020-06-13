@@ -28,14 +28,13 @@ using NYT::ToProto;
 
 NObjectClient::TObjectId GetObjectIdFromDataSplit(const TDataSplit& dataSplit)
 {
-    return NYT::FromProto<NObjectClient::TObjectId>(dataSplit.chunk_id());
+    return FromProto<NObjectClient::TObjectId>(dataSplit.chunk_id());
 }
 
-TTableSchema GetTableSchemaFromDataSplit(const TDataSplit& dataSplit)
+TTableSchemaPtr GetTableSchemaFromDataSplit(const TDataSplit& dataSplit)
 {
-    auto tableSchemaProto = GetProtoExtension<TTableSchemaExt>(
-        dataSplit.chunk_meta().extensions());
-    return NYT::FromProto<TTableSchema>(tableSchemaProto);
+    return FromProto<TTableSchemaPtr>(GetProtoExtension<TTableSchemaExt>(
+        dataSplit.chunk_meta().extensions()));
 }
 
 TOwningKey GetLowerBoundFromDataSplit(const TDataSplit& dataSplit)

@@ -141,7 +141,7 @@ class TSamplingRowMerger
 public:
     TSamplingRowMerger(
         TRowBufferPtr rowBuffer,
-        const TTableSchema& schema);
+        TTableSchemaPtr schema);
 
     TUnversionedRow MergeRow(TVersionedRow row);
     void Reset();

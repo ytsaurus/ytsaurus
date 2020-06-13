@@ -19,9 +19,11 @@ using TSchemaCacheKey = std::pair<NObjectClient::TObjectId, NHydra::TRevision>;
 struct TCachedTableSchema
     : public TIntrinsicRefCounted
 {
-    TCachedTableSchema(NTableClient::TTableSchema tableSchema, NTabletNode::TSortedDynamicRowKeyComparer rowKeyComparer);
+    TCachedTableSchema(
+        NTableClient::TTableSchemaPtr tableSchema,
+        NTabletNode::TSortedDynamicRowKeyComparer rowKeyComparer);
 
-    NTableClient::TTableSchema TableSchema;
+    NTableClient::TTableSchemaPtr TableSchema;
     NTabletNode::TSortedDynamicRowKeyComparer RowKeyComparer;
 };
 

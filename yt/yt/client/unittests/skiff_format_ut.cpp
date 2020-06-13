@@ -318,10 +318,10 @@ ISchemalessFormatWriterPtr CreateSkiffWriter(
     NSkiff::TSkiffSchemaPtr skiffSchema,
     TNameTablePtr nameTable,
     IOutputStream* outputStream,
-    const std::vector<TTableSchema>& tableSchemaList,
+    const std::vector<TTableSchemaPtr>& tableSchemaList,
     int keyColumnCount = 0)
 {
-auto controlAttributesConfig = New<TControlAttributesConfig>();
+    auto controlAttributesConfig = New<TControlAttributesConfig>();
     controlAttributesConfig->EnableKeySwitch = (keyColumnCount > 0);
     return CreateWriterForSkiff(
         {skiffSchema},
@@ -366,9 +366,9 @@ void TestAllWireTypes(bool useSchema)
             CreateSimpleTypeSchema(EWireType::String32),
         })->SetName("opt_string32"),
     });
-    std::vector<TTableSchema> tableSchemas;
+    std::vector<TTableSchemaPtr> tableSchemas;
     if (useSchema) {
-        tableSchemas.emplace_back(TTableSchema({
+        tableSchemas.push_back(New<TTableSchema>(std::vector{
             TColumnSchema("int64", EValueType::Int64),
             TColumnSchema("uint64", EValueType::Uint64),
             TColumnSchema("double", EValueType::Double),
@@ -382,7 +382,7 @@ void TestAllWireTypes(bool useSchema)
             TColumnSchema("opt_string32", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
         }));
     } else {
-        tableSchemas.emplace_back();
+        tableSchemas.push_back(New<TTableSchema>());
     }
     auto nameTable = New<TNameTable>();
     TString result;
@@ -499,7 +499,7 @@ TEST(TSkiffWriter, TestYsonWireType)
     TString result;
     {
         TStringOutput resultStream(result);
-        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {TTableSchema()});
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
         // Row 0 (Null)
         writer->Write({
@@ -673,16 +673,12 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
     });
     auto nameTable = New<TNameTable>();
 
-    {
-        const std::vector<TTableSchema> tableSchemas = {
-            TTableSchema(),
-        };
-        EXPECT_THROW_WITH_SUBSTRING(
-            CreateSkiffWriter(skiffSchema, nameTable, &Cnull, tableSchemas),
-            "cannot be represented with skiff schema");
-    }
-    const std::vector<TTableSchema> tableSchemas = {
-        TTableSchema({
+    EXPECT_THROW_WITH_SUBSTRING(
+        CreateSkiffWriter(skiffSchema, nameTable, &Cnull, std::vector{New<TTableSchema>()}),
+        "cannot be represented with skiff schema");
+    
+    const std::vector<TTableSchemaPtr> tableSchemas = {
+        New<TTableSchema>(std::vector{
             TColumnSchema("opt_null", OptionalLogicalType(SimpleLogicalType(singularType))),
         }),
     };
@@ -744,7 +740,7 @@ TEST(TSkiffWriter, TestRearrange)
     TString result;
     {
         TStringOutput resultStream(result);
-        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {TTableSchema()});
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
         writer->Write({
             MakeRow({
@@ -818,7 +814,7 @@ TEST(TSkiffWriter, TestMissingRequiredField)
     TString result;
     try {
         TStringOutput resultStream(result);
-        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {TTableSchema()});
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
         writer->Write({
             MakeRow({
@@ -848,7 +844,7 @@ TEST(TSkiffWriter, TestSparse)
     auto nameTable = New<TNameTable>();
     TString result;
     TStringOutput resultStream(result);
-    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {TTableSchema()});
+    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
     writer->Write({
         MakeRow({
@@ -931,7 +927,7 @@ TEST(TSkiffWriter, TestMissingFields)
     try {
         TStringStream resultStream;
         auto nameTable = New<TNameTable>();
-        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {TTableSchema()});
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
         writer->Write({
             MakeRow({
@@ -951,7 +947,7 @@ TEST(TSkiffWriter, TestMissingFields)
         TStringStream resultStream;
         auto nameTable = New<TNameTable>();
         auto unknownColumnId = nameTable->RegisterName("unknown_column");
-        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {TTableSchema()});
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{New<TTableSchema>()});
 
         ASSERT_TRUE(unknownColumnId < nameTable->GetId("value"));
 
@@ -983,7 +979,7 @@ TEST(TSkiffWriter, TestOtherColumns)
     TStringStream resultStream;
     auto nameTable = New<TNameTable>();
     nameTable->RegisterName("string_column");
-    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {TTableSchema()});
+    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()});
 
     // Row 0.
     writer->Write({
@@ -1048,7 +1044,7 @@ TEST(TSkiffWriter, TestKeySwitch)
 
     TStringStream resultStream;
     auto nameTable = New<TNameTable>();
-    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {TTableSchema()}, 1);
+    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()}, 1);
 
     writer->Write({
         // Row 0.
@@ -1136,13 +1132,13 @@ TEST(TSkiffWriter, TestRowRangeIndex)
     };
 
     auto skiffWrite = [generateUnversionedRow] (const std::vector<TRow>& rows, const TSkiffSchemaPtr& skiffSchema) {
-        std::vector<TTableSchema> tableSchemas;
+        std::vector<TTableSchemaPtr> tableSchemas;
         {
             THashSet<int> tableIndices;
             for (const auto& row : rows) {
                 tableIndices.insert(row.TableIndex);
             }
-            tableSchemas.assign(tableIndices.size(), TTableSchema());
+            tableSchemas.assign(tableIndices.size(), New<TTableSchema>());
         }
 
 
@@ -1316,12 +1312,13 @@ TEST(TSkiffWriter, TestRowIndexOnlyOrRangeIndexOnly)
 
         TStringStream resultStream;
         auto nameTable = New<TNameTable>();
-        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {TTableSchema()}, 1);
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {New<TTableSchema>()}, 1);
 
         // Row 0.
         writer->Write({
-            MakeRow({
-                MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(columnName)),
+            MakeRow(
+                {
+                    MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(columnName)),
                 }).Get(),
             });
         writer->Close()
@@ -1358,7 +1355,7 @@ TEST(TSkiffWriter, TestComplexType)
     {
         TStringStream resultStream;
         auto nameTable = New<TNameTable>();
-        auto tableSchema = TTableSchema({
+        auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("value", StructLogicalType({
                 {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
                 {
@@ -1372,7 +1369,7 @@ TEST(TSkiffWriter, TestComplexType)
                 }
             })),
         });
-        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {tableSchema});
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
         // Row 0.
         writer->Write({
@@ -1419,7 +1416,7 @@ TEST(TSkiffWriter, TestEmptyComplexType)
     {
         TStringStream resultStream;
         auto nameTable = New<TNameTable>();
-        auto tableSchema = TTableSchema({
+        auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("value", OptionalLogicalType(
                 StructLogicalType({
                     {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
@@ -1427,7 +1424,7 @@ TEST(TSkiffWriter, TestEmptyComplexType)
                 }))
             ),
         });
-        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {tableSchema});
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
         // Row 0.
         writer->Write({
@@ -1466,7 +1463,7 @@ TEST(TSkiffWriter, TestSparseComplexType)
     {
         TStringStream resultStream;
         auto nameTable = New<TNameTable>();
-        auto tableSchema = TTableSchema({
+        auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("value", OptionalLogicalType(
                 StructLogicalType({
                     {"name",   SimpleLogicalType(ESimpleLogicalValueType::String)},
@@ -1474,7 +1471,7 @@ TEST(TSkiffWriter, TestSparseComplexType)
                 }))
             ),
         });
-        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {tableSchema});
+        auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
         // Row 0.
         writer->Write({
@@ -1518,7 +1515,7 @@ TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
 
     TStringStream resultStream;
     auto nameTable = New<TNameTable>();
-    auto tableSchema = TTableSchema({
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("value", OptionalLogicalType(
             StructLogicalType({
                 {"name", SimpleLogicalType(ESimpleLogicalValueType::String)},
@@ -1527,7 +1524,7 @@ TEST(TSkiffWriter, TestSparseComplexTypeWithExtraOptional)
         ),
     });
 
-    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {tableSchema});
+    auto writer = CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{tableSchema});
 
     // Row 0.
     writer->Write({
@@ -1568,7 +1565,7 @@ TEST(TSkiffWriter, TestBadWireTypeForSimpleColumn)
     auto nameTable = New<TNameTable>();
     TStringStream resultStream;
     EXPECT_THROW_WITH_SUBSTRING(
-        CreateSkiffWriter(skiffSchema, nameTable, &resultStream, {TTableSchema()}),
+        CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{New<TTableSchema>()}),
         "cannot be represented with skiff schema"
     );
 }
@@ -1664,7 +1661,7 @@ TEST(TSkiffParser, TestOptionalNull)
             "cannot be represented with skiff schema");
     }
 
-    const TTableSchema tableSchema( {
+    auto tableSchema = New<TTableSchema>(std::vector{
         TColumnSchema("opt_null", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))),
     });
 
@@ -1899,7 +1896,7 @@ TEST(TSkiffParser, TestComplexColumn)
     });
 
     TCollectingValueConsumer collectedRows(
-        TTableSchema({
+        New<TTableSchema>(std::vector{
             TColumnSchema("column", NTableClient::StructLogicalType({
                 {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},
                 {"value", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::Int64)}
@@ -1997,7 +1994,7 @@ TEST(TSkiffParser, TestSparseComplexType)
     });
 
     TCollectingValueConsumer collectedRows(
-        TTableSchema({
+        New<TTableSchema>(std::vector{
             TColumnSchema("value", OptionalLogicalType(
                 StructLogicalType({
                     {"name", SimpleLogicalType(ESimpleLogicalValueType::String)},
@@ -2046,7 +2043,7 @@ TEST(TSkiffParser, TestSparseComplexTypeWithExtraOptional)
     });
 
     TCollectingValueConsumer collectedRows(
-        TTableSchema({
+        New<TTableSchema>(std::vector{
             TColumnSchema("column", OptionalLogicalType(
                 StructLogicalType({
                     {"key", NTableClient::SimpleLogicalType(ESimpleLogicalValueType::String)},

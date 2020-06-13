@@ -92,12 +92,12 @@ protected:
         }
 
         THorizontalBlockReader blockReader(
-                Data,
-                Meta,
-                TTableSchema(columns),
-                idMapping,
-                0,
-                0);
+            Data,
+            Meta,
+            New<TTableSchema>(columns),
+            idMapping,
+            0,
+            0);
 
         CheckResult(blockReader, std::vector<TUnversionedRow>{expectedRow});
     }
@@ -136,7 +136,7 @@ TEST_F(TSchemalessBlocksTestOneRow, ReadColumnFilter)
     THorizontalBlockReader blockReader(
         Data,
         Meta,
-        TTableSchema{},
+        New<TTableSchema>(),
         idMapping,
         0,
         0);
@@ -160,7 +160,7 @@ TEST_F(TSchemalessBlocksTestOneRow, SkipToKey)
     THorizontalBlockReader blockReader(
         Data,
         Meta,
-        TTableSchema{},
+        New<TTableSchema>(),
         idMapping,
         2,
         2);
@@ -228,7 +228,7 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToKey)
     THorizontalBlockReader blockReader(
         Data,
         Meta,
-        TTableSchema{},
+        New<TTableSchema>(),
         idMapping,
         2,
         2);
@@ -248,7 +248,7 @@ TEST_F(TSchemalessBlocksTestManyRows, SkipToWiderKey)
     THorizontalBlockReader blockReader(
         Data,
         Meta,
-        TTableSchema{},
+        New<TTableSchema>(),
         idMapping,
         1,
         2);

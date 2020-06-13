@@ -20,7 +20,7 @@ namespace NYT::NTableClient {
 
 IVersionedReaderPtr CreateRemoteDynamicStoreReader(
     NChunkClient::NProto::TChunkSpec chunkSpec,
-    TTableSchema schema,
+    TTableSchemaPtr schema,
     NTabletClient::TRemoteDynamicStoreReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
@@ -35,7 +35,7 @@ IVersionedReaderPtr CreateRemoteDynamicStoreReader(
 
 IVersionedReaderPtr CreateRetryingRemoteDynamicStoreReader(
     NChunkClient::NProto::TChunkSpec chunkSpec,
-    TTableSchema schema,
+    TTableSchemaPtr schema,
     NTabletClient::TRetryingRemoteDynamicStoreReaderConfigPtr config,
     NApi::NNative::IClientPtr client,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
