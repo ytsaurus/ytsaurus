@@ -87,7 +87,10 @@ TEST_F(TDefaultSecretVaultTest, WarningResponseStatus)
     static const TString SecretValue = "secret-value";
 
     SetCallback([&] (TClientRequest* request) {
-        EXPECT_THAT(request->Input().FirstLine(), HasSubstr("/1/tokens/?consumer=yp.unittest"));
+        if (!request->Input().FirstLine().StartsWith("POST /1/tokens/?consumer=yp.unittest")) {
+            request->Output() << HttpResponse(404, "");
+            return;
+        }
 
         TStringStream outputStream;
         auto consumer = NJson::CreateJsonConsumer(&outputStream);
