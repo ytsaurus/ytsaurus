@@ -2,12 +2,14 @@ package secret
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 
+	"a.yandex-team.ru/library/go/yandex/oauth"
 	"a.yandex-team.ru/yt/go/yterrors"
 )
 
@@ -22,7 +24,7 @@ print("YT_TOKEN", secret.get_secret(mount_point, 'YA_COMMON_YT_TOKEN'))
 
 var tokenRe = regexp.MustCompile(` YT_TOKEN (\S*)`)
 
-func GetYTToken() (string, error) {
+func GetYTTokenFromDistbuild() (string, error) {
 	if os.Getenv("YA_TEST_TOOL_SECRET_POINT") == "" {
 		return "", fmt.Errorf("secret YT token is not available")
 	}
@@ -52,4 +54,17 @@ func GetYTToken() (string, error) {
 	}
 
 	return string(m[1]), nil
+}
+
+const (
+	ytCLIApplicationID = "322d0081ab604f2f89517dc87ee978f8"
+	ytCLISecret        = "d5089c88468c4bdfac52c7bda177d04f"
+)
+
+func GetYTToken() (string, error) {
+	if ytToken, err := GetYTTokenFromDistbuild(); err != nil {
+		return oauth.GetTokenBySSH(context.Background(), ytCLIApplicationID, ytCLISecret)
+	} else {
+		return ytToken, nil
+	}
 }

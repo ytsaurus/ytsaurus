@@ -5,8 +5,7 @@
         "yt/go/ytrecipe/test/datadir/datadir"
     ];
 
-    upload_workfile=[
-        "layers/static-bin.tar.gz";
-        "layers/static_cat";
+    upload_workdir=[
+        "layers";
     ]
 }

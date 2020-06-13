@@ -5,40 +5,17 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"time"
+	"os/signal"
 
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
-
-	"a.yandex-team.ru/library/go/core/log"
-	zaplog "a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/library/go/test/yatest"
-	"a.yandex-team.ru/library/go/yandex/oauth"
 	"a.yandex-team.ru/yt/go/mapreduce"
 	"a.yandex-team.ru/yt/go/yson"
-	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"a.yandex-team.ru/yt/go/yterrors"
 	"a.yandex-team.ru/yt/go/ytrecipe"
-	"a.yandex-team.ru/yt/go/ytrecipe/internal/blobcache"
-	"a.yandex-team.ru/yt/go/ytrecipe/internal/secret"
-)
-
-const (
-	ytCLIApplicationID = "322d0081ab604f2f89517dc87ee978f8"
-	ytCLISecret        = "d5089c88468c4bdfac52c7bda177d04f"
+	"a.yandex-team.ru/yt/go/ytrecipe/internal/ytexec"
 )
 
 func do() error {
-	cfg := zap.NewProductionConfig()
-	cfg.OutputPaths = []string{yatest.OutputPath("jobrun.log")}
-	cfg.Level.SetLevel(zapcore.DebugLevel)
-
-	l, err := zaplog.New(cfg)
-	if err != nil {
-		return err
-	}
-
 	configYS, err := ioutil.ReadFile(os.Getenv("YTRECIPE_CONFIG_PATH"))
 	if err != nil {
 		return err
@@ -49,43 +26,52 @@ func do() error {
 		return fmt.Errorf("invalid config: %w", err)
 	}
 
-	ytToken, err := secret.GetYTToken()
-	if err != nil {
-		l.Warn("secret YT_TOKEN is not available", log.Error(err))
-
-		ytToken, err = oauth.GetTokenBySSH(context.Background(), ytCLIApplicationID, ytCLISecret)
-		if err != nil {
-			return fmt.Errorf("failed to get YT token from ssh: %w", err)
-		}
+	var execConfig ytexec.Config
+	execConfig.Exec = ytexec.ExecConfig{
+		JobLog:         yatest.OutputPath("job.log"),
+		ExecLog:        yatest.OutputPath("ytexec.log"),
+		ReadmeFile:     yatest.OutputPath("README.md"),
+		DownloadScript: yatest.OutputPath("download.sh"),
+		PrepareFile:    yatest.OutputPath("prepare.json"),
+		ResultFile:     yatest.OutputPath("result.json"),
 	}
 
-	yc, err := ythttp.NewClient(&yt.Config{
-		Proxy:  config.Cluster,
-		Logger: l,
-		Token:  ytToken,
-	})
+	env, err := ytrecipe.CaptureEnv()
 	if err != nil {
 		return err
 	}
 
-	cacheConfig := blobcache.Config{
-		Root:             config.CachePath,
-		EntryTTL:         config.CacheTTL(),
-		UploadTimeout:    time.Second * 15,
-		UploadPingPeriod: time.Second * 5,
+	env.FillConfig(&execConfig)
+	if err := config.FillConfig(&execConfig); err != nil {
+		return err
 	}
 
-	r := &ytrecipe.Runner{
-		Config: &config,
-		YT:     yc,
-		L:      l,
+	exec, err := ytexec.New(execConfig)
+	if err != nil {
+		return err
 	}
 
-	if config.CoordinateUpload {
-		r.Cache = blobcache.NewCache(l, yc, cacheConfig)
+	ctx := context.Background()
+	if err := exec.Run(ctx); err != nil {
+		return err
 	}
 
-	return r.RunJob()
+	exitRow, err := exec.ReadOutputs(ctx)
+	if err != nil {
+		return err
+	}
+
+	if exitRow.KilledBySignal != 0 {
+		// If job was killed by internal timeout, wait for corresponding signal from out parent.
+		// Otherwise process will exit too early and CRASH/TIMEOUT statuses get confused.
+
+		ch := make(chan os.Signal, 1)
+		signal.Notify(ch, exitRow.KilledBySignal)
+		<-ch
+	}
+
+	os.Exit(exitRow.ExitCode)
+	return nil
 }
 
 func main() {

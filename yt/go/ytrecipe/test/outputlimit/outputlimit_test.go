@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"a.yandex-team.ru/yt/go/ytrecipe"
+	"a.yandex-team.ru/library/go/test/yatest"
 )
 
 func TestOutputLimit(t *testing.T) {
@@ -15,7 +15,9 @@ func TestOutputLimit(t *testing.T) {
 		return
 	}
 
-	f, err := os.Create(filepath.Join(ytrecipe.YTRecipeOutput, "big.log"))
+	require.NoError(t, os.MkdirAll(yatest.WorkPath("ytrecipe_output"), 0777))
+
+	f, err := os.Create(filepath.Join(yatest.WorkPath("ytrecipe_output"), "big.log"))
 	require.NoError(t, err)
 	defer f.Close()
 

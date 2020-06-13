@@ -4,5 +4,5 @@
     upload_binaries=[
         "yt/go/ytrecipe/test/timeoutcrash/timeoutcrash"
     ];
-    job_timeout_seconds=30;
+    job_timeout_seconds=10;
 }
