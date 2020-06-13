@@ -21,6 +21,13 @@ public:
     //! Interval between consecutive updates of latest timestamp.
     TDuration LatestTimestampUpdatePeriod;
 
+    //! All generation requests coming within this period are batched
+    //! together.
+    TDuration BatchPeriod;
+
+    bool EnableTimestampProviderDiscovery;
+    TDuration TimestampProviderDiscoveryPeriod;
+
     TRemoteTimestampProviderConfig()
     {
         RegisterParameter("rpc_timeout", RpcTimeout)
@@ -29,41 +36,10 @@ public:
             // COMPAT(babenko)
             .Alias("update_period")
             .Default(TDuration::Seconds(3));
-    }
-};
 
-DEFINE_REFCOUNTED_TYPE(TRemoteTimestampProviderConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TBatchingRemoteTimestampProviderConfig
-    : public TRemoteTimestampProviderConfig
-{
-public:
-    //! All generation requests coming within this period are batched
-    //! together.
-    TDuration BatchPeriod;
-
-    TBatchingRemoteTimestampProviderConfig()
-    {
         RegisterParameter("batch_period", BatchPeriod)
             .Default(TDuration::MilliSeconds(10));
-    }
-};
 
-DEFINE_REFCOUNTED_TYPE(TBatchingRemoteTimestampProviderConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRemoteTimestampProviderWithDiscoveryConfig
-    : public TRemoteTimestampProviderConfig
-{
-public:
-    bool EnableTimestampProviderDiscovery;
-    TDuration TimestampProviderDiscoveryPeriod;
-
-    TRemoteTimestampProviderWithDiscoveryConfig()
-    {
         RegisterParameter("enable_timestamp_provider_discovery", EnableTimestampProviderDiscovery)
             .Default(false);
         RegisterParameter("timestamp_provider_discovery_period", TimestampProviderDiscoveryPeriod)
@@ -71,7 +47,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TRemoteTimestampProviderWithDiscoveryConfig)
+DEFINE_REFCOUNTED_TYPE(TRemoteTimestampProviderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

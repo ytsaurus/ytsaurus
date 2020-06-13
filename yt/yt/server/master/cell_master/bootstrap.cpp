@@ -81,6 +81,8 @@
 
 #include <yt/server/lib/timestamp_server/timestamp_manager.h>
 
+#include <yt/server/lib/transaction_server/timestamp_proxy_service.h>
+
 #include <yt/ytlib/api/native/config.h>
 #include <yt/ytlib/api/native/connection.h>
 
@@ -661,17 +663,24 @@ void TBootstrap::DoInitialize()
 
     SchedulerPoolManager_ = New<TSchedulerPoolManager>(this);
 
-    if (Config_->EnableTimestampManager && MulticellManager_->IsPrimaryMaster()) {
-        TimestampManager_ = New<TTimestampManager>(
-            Config_->TimestampManager,
-            HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
-            HydraFacade_->GetHydraManager(),
-            HydraFacade_->GetAutomaton());
+    auto timestampProviderChannel = CreateTimestampProviderChannel(Config_->TimestampProvider, channelFactory);
+    if (MulticellManager_->IsPrimaryMaster() && !Config_->EnableTimestampManager) {
+        TimestampProvider_ = CreateBatchingRemoteTimestampProvider(
+            Config_->TimestampProvider,
+            std::move(timestampProviderChannel));
+        RpcServer_->RegisterService(CreateTimestampProxyService(TimestampProvider_));
+    } else {
+        TimestampProvider_ = CreateRemoteTimestampProvider(
+            Config_->TimestampProvider,
+            std::move(timestampProviderChannel));
+        if (MulticellManager_->IsPrimaryMaster()) {
+            TimestampManager_ = New<TTimestampManager>(
+                Config_->TimestampManager,
+                HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TimestampManager),
+                HydraFacade_->GetHydraManager(),
+                HydraFacade_->GetAutomaton());
+        }
     }
-
-    TimestampProvider_ = CreateRemoteTimestampProvider(
-        Config_->TimestampProvider,
-        CreateTimestampProviderChannel(Config_->TimestampProvider, channelFactory));
 
     // Initialize periodic latest timestamp update.
     TimestampProvider_->GetLatestTimestamp();
