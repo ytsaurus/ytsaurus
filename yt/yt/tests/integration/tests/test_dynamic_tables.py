@@ -1224,23 +1224,22 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         insert_rows("//tmp/t", [{"key": 0, "value": "0"}])
         unmount_table("//tmp/t")
 
-        wait(lambda: bool(get("//tmp/t/@tablet_error_count")))
+        def check():
+            if get("//tmp/t/@tablet_error_count") == 0:
+                return False
 
-        tablet = get("//tmp/t/@tablets/0/tablet_id")
-
-        address = get_tablet_leader_address(tablet)
-        orchid = self._find_tablet_orchid(address, tablet)
-        errors = orchid["errors"]
-
-        assert len(errors) == 1
-        assert errors[0]["attributes"]["background_activity"] == "flush"
-        assert errors[0]["attributes"]["tablet_id"] == tablet
-        assert get("#" + tablet + "/@state") == "unmounting"
-        assert get("//tmp/t/@tablets/0/error_count") == 1
-        assert get("//tmp/t/@tablet_error_count") == 1
-
-        for node in ls("//sys/cluster_nodes"):
-            set_node_decommissioned(node, False)
+            tablet = get("//tmp/t/@tablets/0/tablet_id")
+            address = get_tablet_leader_address(tablet)
+            orchid = self._find_tablet_orchid(address, tablet)
+            errors = orchid["errors"]
+            return len(errors) == 1 and \
+                   errors[0]["attributes"]["background_activity"] == "flush" and \
+                   errors[0]["attributes"]["tablet_id"] == tablet and \
+                   get("#" + tablet + "/@state") == "unmounting" and \
+                   get("//tmp/t/@tablets/0/error_count") == 1 and \
+                   get("//tmp/t/@tablet_error_count") == 1
+                
+        wait(check)
 
     @authors("ifsmirnov")
     def test_tablet_error_count(self):
