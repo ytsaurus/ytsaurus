@@ -1105,51 +1105,25 @@ print row + table_index
     def test_map_soft_interrupt_job(self):
         create_test_tables(row_count=1)
 
-        tmpdir = create_tmpdir("test_map_soft_interrupt_job")
-        tmpfile = os.path.join(tmpdir, "mapper_file")
-
-        command = "BREAKPOINT ; python mapper.py"
-        mapper = \
-"""
-import time
-print('{{interrupt=41}};')
-try:
-    with open('{tmpfile}', "w"):
-        pass
-    time.sleep(30)
-except KeyboardInterrupt:
-    print('{{interrupt=42}};')
-print('{{interrupt=43}};')
-""".format(tmpfile=tmpfile)
-
-        create("file", "//tmp/mapper.py")
-        write_file("//tmp/mapper.py", mapper)
+        command = """(trap "echo '{interrupt=42}'; exit 0" SIGINT; BREAKPOINT;)"""
 
         op = map(
             track=False,
+            command=with_breakpoint(command),
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command=with_breakpoint(command),
-            file="//tmp/mapper.py",
             spec={
-                "max_failed_job_count": 0,
                 "mapper": {
                     "interruption_signal": "SIGINT",
                 },
-            })
-
-        def job_is_sleeping():
-            if op.get_state() != "running":
-                op.track()
-            return os.path.exists(tmpfile)
+            }
+        )
 
         jobs = wait_breakpoint()
-        release_breakpoint()
-        wait(job_is_sleeping)
         interrupt_job(jobs[0])
         op.track()
 
-        assert read_table("//tmp/t_out") == [{"interrupt": 41}, {"interrupt": 42}, {"interrupt": 43}]
+        assert read_table("//tmp/t_out") == [{"interrupt": 42}]
 
     # YT-6324: false job interrupt when it does not consume any input data.
     @authors("klyachin")
