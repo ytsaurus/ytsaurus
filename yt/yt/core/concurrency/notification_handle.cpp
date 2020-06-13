@@ -15,13 +15,12 @@ TNotificationHandle::TNotificationHandle()
 #ifdef _linux_
     EventFD_ = HandleEintr(eventfd, 0, EFD_CLOEXEC | EFD_NONBLOCK);
     YT_VERIFY(EventFD_ >= 0);
-#else
-#ifdef _darwin_
+#elif defined(_darwin_)
     YT_VERIFY(HandleEintr(pipe, PipeFDs_) == 0);
+    YT_VERIFY(fcntl(PipeFDs_[0], F_SETFL, O_CLOEXEC) == 0);
+    YT_VERIFY(fcntl(PipeFDs_[1], F_SETFL, O_CLOEXEC) == 0);
 #else
     YT_VERIFY(HandleEintr(pipe2, PipeFDs_, O_CLOEXEC) == 0);
-#endif
-    YT_VERIFY(fcntl(PipeFDs_[0], F_SETFL, O_NONBLOCK) == 0);
 #endif
 }
 
@@ -45,9 +44,10 @@ void TNotificationHandle::Raise()
         // Avoid trashing pipe with redundant notifications.
         return;
     }
+    // Raise counter before write to close race with Clear.
+    PipeCount_.fetch_add(1, std::memory_order_relaxed);
     char c = 'x';
     YT_VERIFY(HandleEintr(write, PipeFDs_[1], &c, sizeof(char)) == sizeof(char));
-    PipeCount_.fetch_add(1, std::memory_order_relaxed);
 #endif
 }
 
