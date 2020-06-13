@@ -41,7 +41,7 @@ type httpClient struct {
 
 	requestLogger   *internal.LoggingInterceptor
 	mutationRetrier *internal.MutationRetrier
-	readRetrier     *internal.ReadRetrier
+	readRetrier     *internal.Retrier
 	errorWrapper    *internal.ErrorWrapper
 
 	clusterURL yt.ClusterURL
@@ -467,14 +467,8 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	client.Encoder.InvokeWrite = client.doWrite
 	client.Encoder.InvokeWriteRow = client.doWriteRow
 
-	client.mutationRetrier = &internal.MutationRetrier{
-		Backoff: &internal.DefaultBackoff,
-		Log:     client.log,
-	}
-	client.readRetrier = &internal.ReadRetrier{
-		Backoff: &internal.DefaultBackoff,
-		Log:     client.log,
-	}
+	client.mutationRetrier = &internal.MutationRetrier{Log: client.log}
+	client.readRetrier = &internal.Retrier{Log: client.log}
 	client.requestLogger = &internal.LoggingInterceptor{Structured: client.log}
 	client.errorWrapper = &internal.ErrorWrapper{}
 
