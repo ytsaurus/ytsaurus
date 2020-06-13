@@ -212,3 +212,15 @@ def get_gdb_path():
         return "gdb"
     else:
         return yatest_common.gdb_path()
+
+def remove_runtime_data(working_directory):
+    runtime_data_paths = []
+    for root, dirs, files in os.walk(working_directory):
+        if os.path.basename(root) == "runtime_data":
+            runtime_data_paths.append(os.path.join(working_directory, root))
+
+    for path in runtime_data_paths:
+        try:
+            shutil.rmtree(path, ignore_errors=True)
+        except IOError:
+            pass

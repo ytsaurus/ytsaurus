@@ -1,5 +1,5 @@
 from yt.common import update
-from yt.environment.arcadia_interop import prepare_yt_binaries, collect_cores, search_binary_path
+from yt.environment.arcadia_interop import prepare_yt_binaries, collect_cores, search_binary_path, remove_runtime_data
 
 import yt.yson as yson
 
@@ -566,12 +566,13 @@ class YtStuff(object):
                         ignored.add(name)
             return ignored
 
-        yt_output_dir = os.path.join(output_path, "yt_logs_%s" % self.yt_id)
-        shutil.copytree(src=self.yt_work_dir, dst=yt_output_dir, ignore=_ignore)
-        os.system("chmod -R 0775 " + yt_output_dir)
+        os.system("chmod -R 0775 " + self.yt_work_dir)
+
+        if not save_yt_all:
+            remove_runtime_data(self.yt_work_dir)
 
         # Split huge files, because ya.test cuts them.
-        for root, dirs, files in os.walk(yt_output_dir):
+        for root, dirs, files in os.walk(self.yt_work_dir):
             for file in files:
                 file_path = os.path.join(root, file)
                 if os.path.getsize(file_path) >= FILE_SIZE_LIMIT:
@@ -581,7 +582,7 @@ class YtStuff(object):
 
         collect_cores(
             self._get_pids(),
-            yt_output_dir,
+            self.yt_work_dir,
             [os.path.join(self.yt_bins_path, binary) for binary in os.listdir(self.yt_bins_path)],
             logger=self.logger)
 
