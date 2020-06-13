@@ -30,7 +30,6 @@ public:
     {
         ReaderThreadPool_->Shutdown();
         WriterThread_->Shutdown();
-        MemoryManagerThread_->Shutdown();
     }
 
     IInvokerPtr GetReaderInvoker()
@@ -43,15 +42,14 @@ public:
         return WriterThread_->GetInvoker();
     }
 
-    const IInvokerPtr& GetReaderMemoryManagerInvoker()
+    IInvokerPtr GetReaderMemoryManagerInvoker()
     {
-        return MemoryManagerThread_->GetInvoker();
+        return CreateSerializedInvoker(ReaderThreadPool_->GetInvoker());
     }
 
 private:
     const TActionQueuePtr WriterThread_ = New<TActionQueue>("ChunkWriter");
     const TThreadPoolPtr ReaderThreadPool_ = New<TThreadPool>(TDispatcherConfig::DefaultChunkReaderPoolSize, "ChunkReader");
-    const TActionQueuePtr MemoryManagerThread_ = New<TActionQueue>("MemoryManager");
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -93,7 +91,7 @@ IInvokerPtr TDispatcher::GetWriterInvoker()
     return Impl_->GetWriterInvoker();
 }
 
-const IInvokerPtr& TDispatcher::GetReaderMemoryManagerInvoker()
+IInvokerPtr TDispatcher::GetReaderMemoryManagerInvoker()
 {
     return Impl_->GetReaderMemoryManagerInvoker();
 }
