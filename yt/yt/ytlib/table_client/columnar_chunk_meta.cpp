@@ -42,8 +42,8 @@ TColumnarChunkMeta::TColumnarChunkMeta(const TChunkMeta& chunkMeta)
 
 void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
 {
-    ChunkType_ = EChunkType(chunkMeta.type());
-    ChunkFormat_ = ETableChunkFormat(chunkMeta.version());
+    ChunkType_ = CheckedEnumCast<EChunkType>(chunkMeta.type());
+    ChunkFormat_ = CheckedEnumCast<ETableChunkFormat>(chunkMeta.version());
 
     Misc_ = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
     BlockMeta_ = New<TRefCountedBlockMeta>(GetProtoExtension<TBlockMetaExt>(chunkMeta.extensions()));

@@ -16,9 +16,9 @@ public:
         Reader_(std::move(reader))
     { }
 
-    virtual IReaderBasePtr CreateReader() const override
+    virtual TFuture<IReaderBasePtr> CreateReader() const override
     {
-        return Reader_;
+        return MakeFuture(Reader_);
     }
 
     virtual bool CanCreateReader() const override

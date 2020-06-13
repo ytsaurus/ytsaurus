@@ -30,23 +30,24 @@ TMultiReaderManagerBase::TMultiReaderManagerBase(
 
     MultiReaderMemoryManager_->AddChunkReaderInfo(Id_);
 
-    UncancelableCompletionError_.Subscribe(BIND([Logger = Logger, multiReaderMemoryManager = MultiReaderMemoryManager_] (const TError& error) {
-        if (error.IsOK()) {
-            YT_LOG_DEBUG("Reading completed");
-        } else {
-            YT_LOG_INFO(error, "Reading completed with error");
-        }
-    }));
+    UncancelableCompletionError_.Subscribe(
+        BIND([Logger = Logger] (const TError& error) {
+            if (error.IsOK()) {
+                YT_LOG_DEBUG("Multi reader completed");
+            } else {
+                YT_LOG_WARNING(error, "Multi reader failed");
+            }
+        }));
 
     if (ReaderFactories_.empty()) {
-        CompletionError_.Set(TError());
+        CompletionError_.Set();
         ReadyEvent_ = UncancelableCompletionError_;
         return;
     }
 
     NonOpenedReaderIndexes_.reserve(ReaderFactories_.size());
     for (int i = 0; i < static_cast<int>(ReaderFactories_.size()); ++i) {
-        NonOpenedReaderIndexes_.insert(i);
+        YT_VERIFY(NonOpenedReaderIndexes_.insert(i).second);
     }
 }
 
@@ -116,9 +117,10 @@ std::vector<TChunkId> TMultiReaderManagerBase::GetFailedChunkIds() const
     return std::vector<TChunkId>(FailedChunks_.begin(), FailedChunks_.end());
 }
 
-void TMultiReaderManagerBase::OpenNextChunks()
+void TMultiReaderManagerBase::OpenNextReaders()
 {
     TGuard<TSpinLock> guard(PrefetchLock_);
+
     for (; PrefetchIndex_ < ReaderFactories_.size(); ++PrefetchIndex_) {
         if (!ReaderFactories_[PrefetchIndex_]->CanCreateReader() &&
             ActiveReaderCount_ > 0 &&
@@ -136,53 +138,77 @@ void TMultiReaderManagerBase::OpenNextChunks()
         YT_LOG_DEBUG("Creating next reader (Index: %v, ActiveReaderCount: %v)",
             PrefetchIndex_,
             ActiveReaderCount_.load());
-
+        
         ReaderInvoker_->Invoke(BIND(
-            &TMultiReaderManagerBase::DoOpenReader,
-            MakeWeak(this),
+            &TMultiReaderManagerBase::DoOpenReader,	
+            MakeWeak(this),	
             PrefetchIndex_));
     }
 }
 
 void TMultiReaderManagerBase::DoOpenReader(int index)
 {
-    YT_LOG_DEBUG("Opening reader (Index: %v)", index);
-
     if (CompletionError_.IsSet()) {
         return;
     }
 
-    IReaderBasePtr reader;
-    TError error;
+    YT_LOG_DEBUG("Opening reader (Index: %v)", index);
+
     try {
-        reader = ReaderFactories_[index]->CreateReader();
-        error = WaitFor(reader->GetReadyEvent());
+        ReaderFactories_[index]->CreateReader()
+            .Subscribe(BIND(&TMultiReaderManagerBase::OnReaderCreated, MakeWeak(this), index)
+                .Via(ReaderInvoker_));
     } catch (const std::exception& ex) {
-        error = ex;
+        OnReaderReady(nullptr, index, ex);
+    }
+}
+
+void TMultiReaderManagerBase::OnReaderCreated(
+    int index,
+    const TErrorOr<IReaderBasePtr>& readerOrError)
+{
+    if (CompletionError_.IsSet()) {
+        return;
     }
 
-    if (!error.IsOK()) {
-        if (reader) {
-            RegisterFailedReader(reader);
-        } else {
-            std::vector<TChunkId> chunkIds;
-            const auto& descriptor = ReaderFactories_[index]->GetDataSliceDescriptor();
-            for (const auto& chunkSpec : descriptor.ChunkSpecs) {
-                chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
-            }
-            
-            YT_LOG_WARNING(error, "Failed to open reader (Index: %v, ChunkIds: %v)",
-                index,
-                chunkIds);
-
+    if (!readerOrError.IsOK()) {
+        std::vector<TChunkId> chunkIds;
+        const auto& descriptor = ReaderFactories_[index]->GetDataSliceDescriptor();
+        for (const auto& chunkSpec : descriptor.ChunkSpecs) {
+            chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
+        }
+        
+        YT_LOG_WARNING(readerOrError, "Failed to open reader (Index: %v, ChunkIds: %v)",
+            index,
+            chunkIds);
+        
+        {
             TGuard<TSpinLock> guard(FailedChunksLock_);
             FailedChunks_.insert(chunkIds.begin(), chunkIds.end());
         }
 
-        CompletionError_.TrySet(error);
+        CompletionError_.TrySet(readerOrError);
+        return;
     }
 
+    const auto& reader = readerOrError.Value();
+    reader->GetReadyEvent()
+        .Subscribe(BIND(&TMultiReaderManagerBase::OnReaderReady, MakeWeak(this), reader, index)
+            .Via(ReaderInvoker_));
+}
+
+void TMultiReaderManagerBase::OnReaderReady(
+    const IReaderBasePtr& reader,
+    int index,
+    const TError& error)
+{
     if (CompletionError_.IsSet()) {
+        return;
+    }
+
+    if (!error.IsOK()) {
+        RegisterFailedReader(reader);
+        CompletionError_.TrySet(error);
         return;
     }
 
@@ -222,7 +248,7 @@ void TMultiReaderManagerBase::OnReaderFinished()
         ActiveReaderCount_.load());
 
     CurrentSession_.Reset();
-    OpenNextChunks();
+    OpenNextReaders();
 }
 
 bool TMultiReaderManagerBase::OnEmptyRead(bool readerFinished)
@@ -243,14 +269,14 @@ TFuture<void> TMultiReaderManagerBase::CombineCompletionError(TFuture<void> futu
         TFutureCombinerOptions{.CancelInputOnShortcut = false});
 }
 
-void TMultiReaderManagerBase::RegisterFailedReader(IReaderBasePtr reader)
+void TMultiReaderManagerBase::RegisterFailedReader(const IReaderBasePtr& reader)
 {
     auto chunkIds = reader->GetFailedChunkIds();
     YT_LOG_WARNING("Chunk reader failed (ChunkIds: %v)", chunkIds);
 
-    TGuard<TSpinLock> guard(FailedChunksLock_);
-    for (auto chunkId : chunkIds) {
-        FailedChunks_.insert(chunkId);
+    {
+        TGuard<TSpinLock> guard(FailedChunksLock_);
+        FailedChunks_.insert(chunkIds.begin(), chunkIds.end());
     }
 }
 

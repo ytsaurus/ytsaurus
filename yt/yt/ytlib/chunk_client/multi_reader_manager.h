@@ -61,7 +61,7 @@ struct IMultiReaderManager
 
     virtual bool OnEmptyRead(bool readerFinished) = 0;
 
-    virtual void RegisterFailedReader(IReaderBasePtr reader) = 0;
+    virtual void RegisterFailedReader(const IReaderBasePtr& reader) = 0;
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const = 0;
 
