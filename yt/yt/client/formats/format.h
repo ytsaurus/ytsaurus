@@ -80,14 +80,14 @@ DEFINE_REFCOUNTED_TYPE(ISchemalessFormatWriter)
 // It slightly differs from format for static tables. :(
 NTableClient::IUnversionedRowsetWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& Format,
-    const NTableClient::TTableSchema& schema,
+    NTableClient::TTableSchemaPtr schema,
     NConcurrency::IAsyncOutputStreamPtr output);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 NTableClient::IVersionedWriterPtr CreateVersionedWriterForFormat(
     const TFormat& Format,
-    const NTableClient::TTableSchema& schema,
+    NTableClient::TTableSchemaPtr schema,
     NConcurrency::IAsyncOutputStreamPtr output);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +95,7 @@ NTableClient::IVersionedWriterPtr CreateVersionedWriterForFormat(
 ISchemalessFormatWriterPtr CreateStaticTableWriterForFormat(
     const TFormat& format,
     NTableClient::TNameTablePtr nameTable,
-    const std::vector<NTableClient::TTableSchema>& tableSchemas,
+    const std::vector<NTableClient::TTableSchemaPtr>& tableSchemas,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,

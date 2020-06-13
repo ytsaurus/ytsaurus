@@ -66,7 +66,7 @@ protected:
             Store_->GetRowCount(),
             Store_->GetValueCount());
 
-        int schemaColumnCount = Tablet_->PhysicalSchema().GetColumnCount();
+        int schemaColumnCount = Tablet_->GetPhysicalSchema()->GetColumnCount();
         for (auto row : Store_->GetAllRows()) {
             builder.AppendChar('[');
             for (int i = 0; i < schemaColumnCount; ++i) {
@@ -287,9 +287,9 @@ class TOrderedDynamicStoreTimestampColumnTest
     : public TOrderedDynamicStoreTest
 {
 protected:
-    virtual TTableSchema GetSchema() const override
+    virtual TTableSchemaPtr GetSchema() const override
     {
-        return TTableSchema({
+        return New<TTableSchema>(std::vector{
             TColumnSchema("a", EValueType::Int64),
             TColumnSchema("$timestamp", EValueType::Uint64)
         });

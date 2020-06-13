@@ -173,10 +173,10 @@ private:
     {
         InitializeReader();
 
-        std::vector<TTableSchema> schemas;
+        std::vector<TTableSchemaPtr> schemas;
         auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
         for (const auto& dataSource : dataSourceDirectory->DataSources()) {
-            schemas.emplace_back(dataSource.Schema().value_or(TTableSchema()));
+            schemas.emplace_back(dataSource.Schema() ? dataSource.Schema() : New<TTableSchema>());
         }
 
         auto writer = CreateStaticTableWriterForFormat(
@@ -222,11 +222,11 @@ private:
             RunQuery(
                 querySpec,
                 readerFactory,
-                [&] (TNameTablePtr nameTable, const TTableSchema& schema) {
+                [&] (TNameTablePtr nameTable, TTableSchemaPtr schema) {
                     auto schemalessWriter = CreateStaticTableWriterForFormat(
                         format,
-                        nameTable,
-                        {schema},
+                        std::move(nameTable),
+                        {std::move(schema)},
                         asyncOutput,
                         true,
                         JobSpecHelper_->GetJobIOConfig()->ControlAttributes,

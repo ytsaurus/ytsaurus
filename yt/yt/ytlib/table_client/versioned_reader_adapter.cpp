@@ -25,10 +25,10 @@ class TVersionedReaderAdapter
 public:
     TVersionedReaderAdapter(
         ISchemafulUnversionedReaderPtr underlyingReader,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         TTimestamp timestamp)
         : UnderlyingReader_(std::move(underlyingReader))
-        , KeyColumnCount_(schema.GetKeyColumnCount())
+        , KeyColumnCount_(schema->GetKeyColumnCount())
         , Timestamp_(timestamp)
         , MemoryPool_(TVersionedReaderAdapterPoolTag())
     { }
@@ -126,7 +126,7 @@ DEFINE_REFCOUNTED_TYPE(TVersionedReaderAdapter)
 
 IVersionedReaderPtr CreateVersionedReaderAdapter(
     TSchemafulReaderFactory createReader,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp)
 {
@@ -134,11 +134,11 @@ IVersionedReaderPtr CreateVersionedReaderAdapter(
     if (!columnFilter.IsUniversal()) {
         TColumnFilter::TIndexes columnFilterIndexes;
 
-        for (int i = 0; i < schema.GetKeyColumnCount(); ++i) {
+        for (int i = 0; i < schema->GetKeyColumnCount(); ++i) {
             columnFilterIndexes.push_back(i);
         }
         for (int index : columnFilter.GetIndexes()) {
-            if (index >= schema.GetKeyColumnCount()) {
+            if (index >= schema->GetKeyColumnCount()) {
                 columnFilterIndexes.push_back(index);
             }
         }

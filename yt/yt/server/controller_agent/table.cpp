@@ -37,7 +37,7 @@ void TInputTable::Persist(const TPersistenceContext& context)
 
     using NYT::Persist;
     Persist(context, Chunks);
-    Persist(context, Schema);
+    Persist<TNonNullableIntrusivePtrSerializer<>>(context, Schema);
     Persist(context, SchemaMode);
     Persist(context, Dynamic);
 }

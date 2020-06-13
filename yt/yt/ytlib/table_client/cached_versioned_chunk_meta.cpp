@@ -35,9 +35,9 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta() = default;
 TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
     TChunkId chunkId,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     const TColumnRenameDescriptors& renameDescriptors,
-    TNodeMemoryTrackerPtr memoryTracker)
+    const TNodeMemoryTrackerPtr& memoryTracker)
 {
     try {
         auto cachedMeta = New<TCachedVersionedChunkMeta>();
@@ -51,11 +51,11 @@ TCachedVersionedChunkMetaPtr TCachedVersionedChunkMeta::Create(
 }
 
 TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
-    IChunkReaderPtr chunkReader,
+    const IChunkReaderPtr& chunkReader,
     const TClientBlockReadOptions& blockReadOptions,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     const TColumnRenameDescriptors& renameDescriptors,
-    TNodeMemoryTrackerPtr memoryTracker)
+    const TNodeMemoryTrackerPtr& memoryTracker)
 {
     auto chunkId = chunkReader->GetChunkId();
     return chunkReader->GetMeta(blockReadOptions)
@@ -67,13 +67,13 @@ TFuture<TCachedVersionedChunkMetaPtr> TCachedVersionedChunkMeta::Load(
 void TCachedVersionedChunkMeta::Init(
     TChunkId chunkId,
     const NChunkClient::NProto::TChunkMeta& chunkMeta,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     const TColumnRenameDescriptors& renameDescriptors,
     TNodeMemoryTrackerPtr memoryTracker)
 {
     ChunkId_ = chunkId;
 
-    auto keyColumns = schema.GetKeyColumns();
+    auto keyColumns = schema->GetKeyColumns();
     KeyColumnCount_ = keyColumns.size();
 
     TColumnarChunkMeta::InitExtensions(chunkMeta);
@@ -81,7 +81,7 @@ void TCachedVersionedChunkMeta::Init(
     TColumnarChunkMeta::InitBlockLastKeys(keyColumns);
 
     ValidateChunkMeta();
-    ValidateSchema(schema);
+    ValidateSchema(*schema);
 
     Schema_ = schema;
 
@@ -119,15 +119,15 @@ void TCachedVersionedChunkMeta::ValidateChunkMeta()
 
 void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 {
-    ChunkKeyColumnCount_ = ChunkSchema_.GetKeyColumnCount();
+    ChunkKeyColumnCount_ = ChunkSchema_->GetKeyColumnCount();
     auto throwIncompatibleKeyColumns = [&] () {
         THROW_ERROR_EXCEPTION(
             "Reader key columns %v are incompatible with chunk key columns %v",
             readerSchema.GetKeyColumns(),
-            ChunkSchema_.GetKeyColumns());
+            ChunkSchema_->GetKeyColumns());
     };
 
-    if (readerSchema.GetKeyColumnCount() < ChunkSchema_.GetKeyColumnCount()) {
+    if (readerSchema.GetKeyColumnCount() < ChunkSchema_->GetKeyColumnCount()) {
         throwIncompatibleKeyColumns();
     }
 
@@ -135,8 +135,8 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
         auto& column = readerSchema.Columns()[readerIndex];
         YT_VERIFY (column.SortOrder());
 
-        if (readerIndex < ChunkSchema_.GetKeyColumnCount()) {
-            const auto& chunkColumn = ChunkSchema_.Columns()[readerIndex];
+        if (readerIndex < ChunkSchema_->GetKeyColumnCount()) {
+            const auto& chunkColumn = ChunkSchema_->Columns()[readerIndex];
             YT_VERIFY(chunkColumn.SortOrder());
 
             if (chunkColumn.Name() != column.Name() ||
@@ -146,7 +146,7 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
                 throwIncompatibleKeyColumns();
             }
         } else {
-            auto* chunkColumn = ChunkSchema_.FindColumn(column.Name());
+            auto* chunkColumn = ChunkSchema_->FindColumn(column.Name());
             if (chunkColumn) {
                 THROW_ERROR_EXCEPTION(
                     "Incompatible reader key columns: %Qv is a non-key column in chunk schema %v",
@@ -158,7 +158,7 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 
     for (int readerIndex = readerSchema.GetKeyColumnCount(); readerIndex < readerSchema.Columns().size(); ++readerIndex) {
         auto& column = readerSchema.Columns()[readerIndex];
-        auto* chunkColumn = ChunkSchema_.FindColumn(column.Name());
+        auto* chunkColumn = ChunkSchema_->FindColumn(column.Name());
         if (!chunkColumn) {
             // This is a valid case, simply skip the column.
             continue;
@@ -173,7 +173,7 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
         }
 
         TColumnIdMapping mapping;
-        mapping.ChunkSchemaIndex = ChunkSchema_.GetColumnIndex(*chunkColumn);
+        mapping.ChunkSchemaIndex = ChunkSchema_->GetColumnIndex(*chunkColumn);
         mapping.ReaderSchemaIndex = readerIndex;
         SchemaIdMapping_.push_back(mapping);
     }
@@ -181,8 +181,9 @@ void TCachedVersionedChunkMeta::ValidateSchema(const TTableSchema& readerSchema)
 
 i64 TCachedVersionedChunkMeta::GetMemoryUsage() const
 {
-    return TColumnarChunkMeta::GetMemoryUsage() +
-        Schema_.GetMemoryUsage();
+    return
+        TColumnarChunkMeta::GetMemoryUsage() +
+        Schema_->GetMemoryUsage();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

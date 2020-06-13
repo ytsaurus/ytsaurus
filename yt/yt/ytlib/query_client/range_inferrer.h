@@ -19,7 +19,7 @@ using TRangeInferrer = std::function<std::vector<TMutableRowRange>(
 
 TRangeInferrer CreateRangeInferrer(
     TConstExpressionPtr predicate,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,

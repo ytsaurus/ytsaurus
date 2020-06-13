@@ -87,7 +87,8 @@ TLogicalType::TLogicalType(ELogicalMetatype type)
     : Metatype_(type)
 {}
 
-const TSimpleLogicalType& TLogicalType::AsSimpleTypeRef() const {
+const TSimpleLogicalType& TLogicalType::AsSimpleTypeRef() const
+{
     return dynamic_cast<const TSimpleLogicalType&>(*this);
 }
 

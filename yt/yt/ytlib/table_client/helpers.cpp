@@ -110,7 +110,7 @@ public:
         return UnderlyingReader_->GetKeyColumns();
     }
 
-    virtual const TTableSchema& GetTableSchema() const override
+    virtual const TTableSchemaPtr& GetTableSchema() const override
     {
         YT_ABORT();
     }
@@ -261,13 +261,13 @@ TOutputResult GetWrittenChunksBoundaryKeys(ISchemalessMultiChunkWriterPtr writer
         return result;
     }
 
-    result.set_sorted(writer->GetSchema().IsSorted());
+    result.set_sorted(writer->GetSchema()->IsSorted());
 
-    if (!writer->GetSchema().IsSorted()) {
+    if (!writer->GetSchema()->IsSorted()) {
         return result;
     }
 
-    result.set_unique_keys(writer->GetSchema().GetUniqueKeys());
+    result.set_unique_keys(writer->GetSchema()->GetUniqueKeys());
 
     auto frontBoundaryKeys = GetProtoExtension<NProto::TBoundaryKeysExt>(chunks.front().chunk_meta().extensions());
     result.set_min(frontBoundaryKeys.min());
@@ -545,4 +545,4 @@ TColumnarStatistics GetColumnarStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTableClient::NYT
+} // namespace NYT::NTableClient

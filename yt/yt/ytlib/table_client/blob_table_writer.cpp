@@ -49,7 +49,7 @@ TBlobTableWriter::TBlobTableWriter(
     Buffer_.Reserve(PartSize_);
 
     auto tableSchema = blobTableSchema.ToTableSchema();
-    auto nameTable = TNameTable::FromSchema(tableSchema);
+    auto nameTable = TNameTable::FromSchema(*tableSchema);
 
     for (const auto& column : blobTableSchema.BlobIdColumns) {
         BlobIdColumnIds_.emplace_back(nameTable->GetIdOrThrow(column.Name()));

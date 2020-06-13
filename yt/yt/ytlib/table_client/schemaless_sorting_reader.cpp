@@ -64,9 +64,9 @@ public:
         ReadDataWeight_ += dataWeight;
         ReadRowCount_ = endRowCount;
 
-        return CreateBatchFromUnversionedRows(
+        return CreateBatchFromUnversionedRows(TSharedRange<TUnversionedRow>(
             TRange<TUnversionedRow>(Rows_.data() + startRowCount, Rows_.data() + endRowCount),
-            this);
+            this));
     }
 
     virtual TFuture<void> GetReadyEvent() override

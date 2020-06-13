@@ -103,7 +103,7 @@ bool IsTrivialIntermediateSchema(const NTableClient::TTableSchema& schema)
 
     // Columns are ok, we check other schema attributes.
     auto expectedSchema = TTableSchema::FromKeyColumns(columnNames);
-    return schema == expectedSchema;
+    return schema == *expectedSchema;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

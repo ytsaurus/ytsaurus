@@ -23,13 +23,6 @@ using namespace NYson;
 template <EValueType ValueType, bool Scan, bool UnpackValue>
 class TStringValueExtractorBase
 {
-public:
-    i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex)
-    {
-        // XXX
-        return (upperRowIndex - lowerRowIndex) * sizeof(double);
-    }
-
 protected:
     const NProto::TStringSegmentMeta& StringMeta_;
     
@@ -271,6 +264,7 @@ public:
 
     void ReadColumnarBatch(
         i64 startRowIndex,
+        i64 rowCount,
         TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 2);
@@ -278,18 +272,22 @@ public:
         auto& rleColumn = columns[1];
         ReadColumnarStringValues(
             &rleColumn,
-            -1,
+            0,
+            OffsetReader_.GetSize(),
             StringMeta_.expected_length(),
             OffsetReader_.GetData(),
             StringData_);
         ReadColumnarNullBitmap(
             &rleColumn,
             -1,
+            -1,
             NullBitmap_.GetData());
         ReadColumnarRle(
             &primaryColumn,
             &rleColumn,
+            primaryColumn.Type,
             startRowIndex,
+            rowCount,
             RowIndexReader_.GetData());
     }
 
@@ -327,6 +325,7 @@ public:
 
     void ReadColumnarBatch(
         i64 startRowIndex,
+        i64 rowCount,
         TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 3);
@@ -335,19 +334,24 @@ public:
         auto& rleColumn = columns[2];
         ReadColumnarStringValues(
             &dictionaryColumn,
-            -1,
+            0,
+            OffsetReader_.GetSize(),
             StringMeta_.expected_length(),
             OffsetReader_.GetData(),
             StringData_);
         ReadColumnarDictionary(
             &rleColumn,
             &dictionaryColumn,
+            primaryColumn.Type,
+            -1,
             -1,
             IdReader_.GetData());
         ReadColumnarRle(
             &primaryColumn,
             &rleColumn,
+            primaryColumn.Type,
             startRowIndex,
+            rowCount,
             RowIndexReader_.GetData());
     }
 
@@ -382,6 +386,7 @@ public:
 
     void ReadColumnarBatch(
         i64 startRowIndex,
+        i64 rowCount,
         TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 2);
@@ -389,14 +394,17 @@ public:
         auto& dictionaryColumn = columns[1];
         ReadColumnarStringValues(
             &dictionaryColumn,
-            -1,
+            0,
+            OffsetReader_.GetSize(),
             StringMeta_.expected_length(),
             OffsetReader_.GetData(),
             StringData_);
         ReadColumnarDictionary(
             &primaryColumn,
             &dictionaryColumn,
+            primaryColumn.Type,
             startRowIndex,
+            rowCount,
             IdReader_.GetData());
     }
 
@@ -431,6 +439,7 @@ public:
 
     void ReadColumnarBatch(
         i64 startRowIndex,
+        i64 rowCount,
         TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 1);
@@ -438,12 +447,14 @@ public:
         ReadColumnarStringValues(
             &column,
             startRowIndex,
+            rowCount,
             StringMeta_.expected_length(),
             OffsetReader_.GetData(),
             StringData_);
         ReadColumnarNullBitmap(
             &column,
             startRowIndex,
+            rowCount,
             NullBitmap_.GetData());
     }
 

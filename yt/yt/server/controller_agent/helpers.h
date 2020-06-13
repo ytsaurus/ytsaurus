@@ -46,7 +46,7 @@ struct TUserFile
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
     bool Executable = false;
     NYson::TYsonString Format;
-    NTableClient::TTableSchema Schema;
+    NTableClient::TTableSchemaPtr Schema = New<NTableClient::TTableSchema>();
     bool Dynamic = false;
     bool Layer = false;
     // This field is used only during file size validation only for table chunks with column selectors.

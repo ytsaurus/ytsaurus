@@ -22,7 +22,7 @@ struct TTableUploadOptions
 {
     NChunkClient::EUpdateMode UpdateMode;
     NCypressClient::ELockMode LockMode;
-    TTableSchema TableSchema;
+    TTableSchemaPtr TableSchema = New<TTableSchema>();
     ETableSchemaModification SchemaModification;
     ETableSchemaMode SchemaMode;
     EOptimizeFor OptimizeFor;
@@ -31,7 +31,7 @@ struct TTableUploadOptions
     std::optional<std::vector<NSecurityClient::TSecurityTag>> SecurityTags;
     bool PartiallySorted;
 
-    TTableSchema GetUploadSchema() const;
+    TTableSchemaPtr GetUploadSchema() const;
 
     void Persist(NPhoenix::TPersistenceContext& context);
 };

@@ -257,7 +257,7 @@ public:
     TYqlValueWriter(
         const TWebJsonFormatConfigPtr& config,
         const TNameTablePtr& nameTable,
-        const std::vector<TTableSchema>& schemas,
+        const std::vector<TTableSchemaPtr>& schemas,
         IJsonWriter* consumer)
         : Consumer_(consumer)
         , TableIndexToColumnIdToTypeIndex_(schemas.size())
@@ -278,7 +278,7 @@ public:
 
         for (int tableIndex = 0; tableIndex != static_cast<int>(schemas.size()); ++tableIndex) {
             const auto& schema = schemas[tableIndex];
-            for (const auto& column : schema.Columns()) {
+            for (const auto& column : schema->Columns()) {
                 Types_.push_back(column.LogicalType());
                 Converters_.push_back(
                     CreateUnversionedValueToYqlConverter(column.LogicalType(), converterConfig, Consumer_));
@@ -368,7 +368,7 @@ public:
     TSchemalessValueWriter(
         const TWebJsonFormatConfigPtr& config,
         const TNameTablePtr& nameTable,
-        const std::vector<TTableSchema>& schemas,
+        const std::vector<TTableSchemaPtr>& schemas,
         IJsonWriter* writer)
         : FieldWeightLimit_(config->FieldWeightLimit)
         , BlobYsonWriter_(&TmpBlob_, EYsonType::Node)
@@ -381,7 +381,7 @@ public:
         Consumer_ = CreateJsonConsumer(writer, EYsonType::Node, std::move(jsonFormatConfig));
 
         for (int tableIndex = 0; tableIndex != schemas.size(); ++tableIndex) {
-            for (const auto& column : schemas[tableIndex].Columns()) {
+            for (const auto& column : schemas[tableIndex]->Columns()) {
                 if (column.SimplifiedLogicalType()) {
                     continue;
                 }
@@ -464,7 +464,7 @@ public:
         TNameTablePtr nameTable,
         IAsyncOutputStreamPtr output,
         TWebJsonColumnFilter columnFilter,
-        const std::vector<TTableSchema>& schemas,
+        const std::vector<TTableSchemaPtr>& schemas,
         TWebJsonFormatConfigPtr config);
 
     virtual bool Write(TRange<TUnversionedRow> rows) override;
@@ -510,7 +510,7 @@ TWriterForWebJson<TValueWriter>::TWriterForWebJson(
     TNameTablePtr nameTable,
     IAsyncOutputStreamPtr output,
     TWebJsonColumnFilter columnFilter,
-    const std::vector<TTableSchema>& schemas,
+    const std::vector<TTableSchemaPtr>& schemas,
     TWebJsonFormatConfigPtr config)
     : Config_(std::move(config))
     , NameTable_(std::move(nameTable))
@@ -705,7 +705,7 @@ void TWriterForWebJson<TValueWriter>::DoClose()
 ISchemalessFormatWriterPtr CreateWriterForWebJson(
     TWebJsonFormatConfigPtr config,
     TNameTablePtr nameTable,
-    const std::vector<TTableSchema>& schemas,
+    const std::vector<TTableSchemaPtr>& schemas,
     IAsyncOutputStreamPtr output)
 {
     switch (config->ValueFormat) {
@@ -731,7 +731,7 @@ ISchemalessFormatWriterPtr CreateWriterForWebJson(
 ISchemalessFormatWriterPtr CreateWriterForWebJson(
     const NYTree::IAttributeDictionary& attributes,
     TNameTablePtr nameTable,
-    const std::vector<TTableSchema>& schemas,
+    const std::vector<TTableSchemaPtr>& schemas,
     IAsyncOutputStreamPtr output)
 {
     return CreateWriterForWebJson(

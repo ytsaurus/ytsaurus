@@ -93,7 +93,7 @@ public:
         options->ValidateSorted = false;
         auto writerConfig = GetWriterConfig(outputSpec);
 
-        WriterFactory_ = [=] (TNameTablePtr nameTable, const TTableSchema& schema) mutable {
+        WriterFactory_ = [=] (TNameTablePtr nameTable, TTableSchemaPtr /*schema*/) mutable {
             YT_VERIFY(!Writer_);
             Writer_ = CreatePartitionMultiChunkWriter(
                 writerConfig,
@@ -124,7 +124,7 @@ private:
 
     virtual void CreateWriter() override
     {
-        WriterFactory_(NameTable_, TTableSchema());
+        WriterFactory_(NameTable_, nullptr);
     }
 
     virtual bool ShouldSendBoundaryKeys() const override

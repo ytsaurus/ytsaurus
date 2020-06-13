@@ -22,12 +22,11 @@ void ValidatePivotKey(
     const TOwningKey& pivotKey,
     const TTableSchema& schema);
 
-TTableSchema InferInputSchema(
-    const std::vector<TTableSchema>& schemas,
+TTableSchemaPtr InferInputSchema(
+    const std::vector<TTableSchemaPtr>& schemas,
     bool discardKeyColumns);
 
-//
-// Validate that values from table with inputSchema also match outputSchema.
+// Validates that values from table with inputSchema also match outputSchema.
 //
 // allowSimpleTypeDeoptionalize:
 // if set to true optional<T> will be compatible with T if T is simple type

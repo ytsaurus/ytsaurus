@@ -48,14 +48,14 @@ protected:
         i64 index) override
     {
         YT_VERIFY(column->StartIndex >= 0);
-        index -= column->StartIndex;
+        index += column->StartIndex;
         
         ResolveRleEncoding(column, index);
-        
-        if (column->NullBitmap && GetBit(*column->NullBitmap, index)) {
+
+        if (IsColumnValueNull(column, index)) {
             return std::nullopt;
         }
-        
+
         return DecodeBoolFromColumn(*column, index);
     }
 

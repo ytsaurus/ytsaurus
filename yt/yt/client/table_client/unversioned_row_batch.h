@@ -83,26 +83,26 @@ struct IUnversionedRowBatch
         //! before dereferencing the dictionary.
         bool ZeroMeansNull = false;
 
-        //! Contains the dictionary values.
+        //! Contains dictionary values.
         /*!
          *  Example (assuming ZeroMeansNull is true):
          *  Raw values:        hello, world, <null>, world
          *  Index values:      1, 2, 0, 2
          *  Dictionary values: hello, world
          */
-        TColumn* ValueColumn;
+        const TColumn* ValueColumn;
     };
 
     struct TRleEncoding
     {
-        //! Contains the row indexes where RLE segments start.
+        //! Contains RLE-encoded values.
         /*!
          *  Example:
          *  Raw values:  1, 1, 2, 3, 3, 3
          *  RLE values:  1, 2, 3
          *  RLE indexes: 0, 2, 3
          */
-        TColumn* ValueColumn;
+        const TColumn* ValueColumn;
     };
 
     struct TColumn
@@ -111,9 +111,16 @@ struct IUnversionedRowBatch
         //! -1 for non-root columns.
         int Id = -1;
 
-        //! Index of the first relevant value in the segment.
-        //! -1 for non-root columns.
+        //! Index of the first relevant value in the column.
+        //! For non-RLE encoded columns, #Values typically provides a vector whose elements starting from #StartIndex
+        //! give the desired values. For dictionary-encoded columns, these elemets are not actual values but rather
+        //! dictionary indexes (see #Dictionary).
+        //! For RLE encoded columns, #Values contains starting indexes of RLE segments and #StartIndex
+        //! must be compared against these indexes to obtain the relavant range of values (stored in #Rle).
         i64 StartIndex = -1;
+
+        //! The number of relevant values in this column (starting from #StartIndex).
+        i64 ValueCount = -1;
 
         //! The type of values in this column.
         NTableClient::TLogicalTypePtr Type;
@@ -127,7 +134,7 @@ struct IUnversionedRowBatch
         std::optional<TDictionaryEncoding> Dictionary;
     
         //! If non-null then continguous segments of coindicing #Values are collapsed.
-        //! #Rle describes row indexes where these segments start and end.
+        //! #Rle describes the resulting values and #Values store RLE indexes.
         std::optional<TRleEncoding> Rle;
 
         //! Somewhat encoded values.
@@ -149,7 +156,7 @@ struct IUnversionedRowBatch
     //! The batch must be columnar.
     //! This call is fast.
     //! Invoking #MaterializeRows after this call is forbidden.
-    virtual TRange<TColumn*> MaterializeColumns() = 0;
+    virtual TRange<const TColumn*> MaterializeColumns() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUnversionedRowBatch)
@@ -157,12 +164,7 @@ DEFINE_REFCOUNTED_TYPE(IUnversionedRowBatch)
 ////////////////////////////////////////////////////////////////////////////////
 
 IUnversionedRowBatchPtr CreateBatchFromUnversionedRows(
-    TRange<TUnversionedRow> rows,
-    TIntrusivePtr<TRefCounted> holder);
-
-IUnversionedRowBatchPtr CreateBatchFromUnversionedRows(
-    std::vector<TUnversionedRow>&& rows,
-    TIntrusivePtr<TRefCounted> holder);
+    TSharedRange<TUnversionedRow> rows);
 
 IUnversionedRowBatchPtr CreateEmptyUnversionedRowBatch();
 

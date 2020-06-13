@@ -111,7 +111,7 @@ public:
         return true;
     }
 
-    virtual const TTableSchema& GetSchema() const override
+    virtual const TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }
@@ -131,7 +131,7 @@ private:
     IInvokerPtr FlushBufferInvoker_;
     const TPeriodicExecutorPtr FlushExecutor_;
 
-    const TTableSchema Schema_;
+    const TTableSchemaPtr Schema_ = New<TTableSchema>();
 
     class TBuffer
     {
@@ -290,10 +290,10 @@ IUnversionedWriterPtr CreateSchemalessBufferedTableWriter(
     const TYPath& path)
 {
     return New<TSchemalessBufferedTableWriter>(
-        config,
-        options,
-        client,
-        nameTable,
+        std::move(config),
+        std::move(options),
+        std::move(client),
+        std::move(nameTable),
         path);
 }
 

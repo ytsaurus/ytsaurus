@@ -40,7 +40,7 @@ struct ITableReader
     virtual const NTableClient::TKeyColumns& GetKeyColumns() const = 0;
 
     //! Returns schema of the table.
-    virtual const NTableClient::TTableSchema& GetTableSchema() const = 0;
+    virtual const NTableClient::TTableSchemaPtr& GetTableSchema() const = 0;
 
     //! Returns the names of columns that are not accessible according to columnar ACL
     //! and were omitted. See #TTableReaderOptions::OmitInaccessibleColumns.

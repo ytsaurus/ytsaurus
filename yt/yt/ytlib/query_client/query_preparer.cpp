@@ -2225,7 +2225,7 @@ void PrepareQuery(
                 continue;
             }
 
-            const auto& expression = query->Schema.Original.Columns()[keyPrefix].Expression();
+            const auto& expression = query->Schema.Original->Columns()[keyPrefix].Expression();
 
             if (!expression) {
                 break;
@@ -2235,13 +2235,13 @@ void PrepareQuery(
             THashSet<TString> references;
             PrepareExpression(
                 *expression,
-                query->Schema.Original,
+                *query->Schema.Original,
                 builder.Functions,
                 &references);
 
             auto canEvaluate = true;
             for (const auto& reference : references) {
-                int referenceIndex = query->Schema.Original.GetColumnIndexOrThrow(reference);
+                int referenceIndex = query->Schema.Original->GetColumnIndexOrThrow(reference);
                 if (touchedKeyColumns[referenceIndex] < 0) {
                     canEvaluate = false;
                 }
@@ -2462,7 +2462,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         parsedSource.Source,
         functions,
         aliasMap,
-        query->Schema.Original,
+        *query->Schema.Original,
         table.Alias,
         &query->Schema.Mapping};
 
@@ -2474,7 +2474,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         const auto& foreignDataSplit = dataSplits[joinIndex + 1];
 
         auto foreignTableSchema = GetTableSchemaFromDataSplit(foreignDataSplit);
-        auto foreignKeyColumnsCount = foreignTableSchema.GetKeyColumns().size();
+        auto foreignKeyColumnsCount = foreignTableSchema->GetKeyColumns().size();
 
         auto joinClause = New<TJoinClause>();
         joinClause->Schema.Original = foreignTableSchema;
@@ -2486,7 +2486,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             parsedSource.Source,
             functions,
             aliasMap,
-            joinClause->Schema.Original,
+            *joinClause->Schema.Original,
             join.Table.Alias,
             &joinClause->Schema.Mapping};
 
@@ -2580,7 +2580,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
                 continue;
             }
 
-            const auto& foreignColumnExpression = foreignTableSchema.Columns()[keyPrefix].Expression();
+            const auto& foreignColumnExpression = foreignTableSchema->Columns()[keyPrefix].Expression();
 
             if (!foreignColumnExpression) {
                 break;
@@ -2589,13 +2589,13 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             THashSet<TString> references;
             auto evaluatedColumnExpression = PrepareExpression(
                 *foreignColumnExpression,
-                foreignTableSchema,
+                *foreignTableSchema,
                 functions,
                 &references);
 
             auto canEvaluate = true;
             for (const auto& reference : references) {
-                int referenceIndex = foreignTableSchema.GetColumnIndexOrThrow(reference);
+                int referenceIndex = foreignTableSchema->GetColumnIndexOrThrow(reference);
                 if (!keySelfEquations[referenceIndex].first) {
                     YT_VERIFY(!keyForeignEquations[referenceIndex]);
                     canEvaluate = false;
@@ -2609,7 +2609,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             keySelfEquations[keyPrefix] = std::make_pair(evaluatedColumnExpression, true);
 
             auto reference = NAst::TReference(
-                foreignTableSchema.Columns()[keyPrefix].Name(),
+                foreignTableSchema->Columns()[keyPrefix].Name(),
                 join.Table.Alias);
 
             auto foreignColumn = foreignBuilder.GetColumnPtr(reference);
@@ -2625,17 +2625,17 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             if (keySelfEquations[index].second) {
                 const auto& evaluatedColumnExpression = keySelfEquations[index].first;
 
-                if (const auto& selfColumnExpression = tableSchema.Columns()[index].Expression()) {
+                if (const auto& selfColumnExpression = tableSchema->Columns()[index].Expression()) {
                     auto evaluatedSelfColumnExpression = PrepareExpression(
                         *selfColumnExpression,
-                        tableSchema,
+                        *tableSchema,
                         functions);
 
                     if (!Compare(
                         evaluatedColumnExpression,
-                        foreignTableSchema,
+                        *foreignTableSchema,
                         evaluatedSelfColumnExpression,
-                        tableSchema,
+                        *tableSchema,
                         commonKeyPrefix))
                     {
                         commonKeyPrefix = std::min(commonKeyPrefix, index);
@@ -2726,8 +2726,8 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     auto queryFingerprint = InferName(query, true);
     YT_LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
         queryFingerprint,
-        query->GetReadSchema(),
-        query->GetTableSchema());
+        *query->GetReadSchema(),
+        *query->GetTableSchema());
 
     auto range = GetBothBoundsFromDataSplit(selfDataSplit);
 
@@ -2746,7 +2746,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
 
 TQueryPtr PrepareJobQuery(
     const TString& source,
-    const TTableSchema& tableSchema,
+    const TTableSchemaPtr& tableSchema,
     const TFunctionsFetcher& functionsFetcher)
 {
     auto astHead = NAst::TAstHead::MakeQuery();
@@ -2782,7 +2782,7 @@ TQueryPtr PrepareJobQuery(
         source,
         functions,
         aliasMap,
-        tableSchema,
+        *tableSchema,
         std::nullopt,
         &query->Schema.Mapping};
 

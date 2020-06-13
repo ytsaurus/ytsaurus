@@ -139,8 +139,8 @@ struct TTabletSnapshot
     TTabletWriterOptionsPtr WriterOptions;
     TOwningKey PivotKey;
     TOwningKey NextPivotKey;
-    NTableClient::TTableSchema PhysicalSchema;
-    NTableClient::TTableSchema QuerySchema;
+    NTableClient::TTableSchemaPtr PhysicalSchema;
+    NTableClient::TTableSchemaPtr QuerySchema;
     NTableClient::TSchemaData PhysicalSchemaData;
     NTableClient::TSchemaData KeysSchemaData;
     NTransactionClient::EAtomicity Atomicity;
@@ -348,8 +348,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NObjectClient::TObjectId, TableId);
     DEFINE_BYVAL_RO_PROPERTY(NYPath::TYPath, TablePath);
 
-    DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, TableSchema);
-    DEFINE_BYREF_RO_PROPERTY(NTableClient::TTableSchema, PhysicalSchema);
+    DEFINE_BYVAL_RO_PROPERTY(NTableClient::TTableSchemaPtr, TableSchema);
+    DEFINE_BYVAL_RO_PROPERTY(NTableClient::TTableSchemaPtr, PhysicalSchema);
 
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TSchemaData, PhysicalSchemaData);
     DEFINE_BYREF_RO_PROPERTY(NTableClient::TSchemaData, KeysSchemaData);
@@ -410,7 +410,7 @@ public:
         NObjectClient::TObjectId tableId,
         const NYPath::TYPath& path,
         ITabletContext* context,
-        const NTableClient::TTableSchema& schema,
+        NTableClient::TTableSchemaPtr schema,
         TOwningKey pivotKey,
         TOwningKey nextPivotKey,
         NTransactionClient::EAtomicity atomicity,

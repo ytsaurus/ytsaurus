@@ -56,12 +56,13 @@ public:
                 auto& value = row[columnIndex];
                 value.Id = PositionToId_[columnIndex];
                 if (field.isNull()) {
-                    if (Schema_.Columns()[columnIndex].Required()) {
-                        THROW_ERROR_EXCEPTION("Value NULL is not allowed in required column %v", Schema_.Columns()[columnIndex].Name());
+                    if (Schema_->Columns()[columnIndex].Required()) {
+                        THROW_ERROR_EXCEPTION("Value NULL is not allowed in required column %Qv",
+                            Schema_->Columns()[columnIndex].Name());
                     }
                     value.Type = EValueType::Null;
                 } else {
-                    value.Type = Schema_.Columns()[columnIndex].GetPhysicalType();
+                    value.Type = Schema_->Columns()[columnIndex].GetPhysicalType();
                     ConvertToUnversionedValue(field, &value);
                 }
             }
@@ -86,7 +87,7 @@ public:
 private:
     IUnversionedWriterPtr Writer_;
     TRowBufferPtr RowBuffer_;
-    TTableSchema Schema_;
+    TTableSchemaPtr Schema_;
     TNameTablePtr NameTable_;
     TLogger Logger;
     std::vector<int> PositionToId_;
@@ -94,9 +95,9 @@ private:
 
     void Prepare()
     {
-        HeaderBlock_ = ToHeaderBlock(Schema_);
+        HeaderBlock_ = ToHeaderBlock(*Schema_);
 
-        for (const auto& column : Schema_.Columns()) {
+        for (const auto& column : Schema_->Columns()) {
             PositionToId_.emplace_back(NameTable_->GetIdOrRegisterName(column.Name()));
         }
     }

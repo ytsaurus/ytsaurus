@@ -30,7 +30,7 @@ struct TEmptyValueConsumer
         return NameTable;
     }
 
-    virtual const TTableSchema& GetSchema() const override
+    virtual const TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }
@@ -50,7 +50,7 @@ struct TEmptyValueConsumer
     { }
 
 private:
-    const TTableSchema Schema_ = TTableSchema();
+    const TTableSchemaPtr Schema_ = New<TTableSchema>();
     const TNameTablePtr NameTable = New<TNameTable>();
 };
 

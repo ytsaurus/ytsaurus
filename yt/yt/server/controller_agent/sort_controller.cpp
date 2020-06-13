@@ -2146,7 +2146,7 @@ protected:
 
         for (const auto& table : InputTables_) {
             for (const auto& name : Spec->SortBy) {
-                if (auto column = table->Schema.FindColumn(name)) {
+                if (auto column = table->Schema->FindColumn(name)) {
                     if (column->Aggregate()) {
                         THROW_ERROR_EXCEPTION("Sort by aggregate column is not allowed")
                             << TErrorAttribute("table_path", table->Path)
@@ -2341,11 +2341,11 @@ private:
         ValidateSchemaInferenceMode(Spec->SchemaInferenceMode);
 
         if ((table->Dynamic || table->TableUploadOptions.UpdateMode == EUpdateMode::Append) &&
-            table->TableUploadOptions.TableSchema.GetKeyColumns() != Spec->SortBy)
+            table->TableUploadOptions.TableSchema->GetKeyColumns() != Spec->SortBy)
         {
             THROW_ERROR_EXCEPTION("sort_by is different from output table key columns")
                 << TErrorAttribute("output_table_path", Spec->OutputTablePath)
-                << TErrorAttribute("output_table_key_columns", table->TableUploadOptions.TableSchema.GetKeyColumns())
+                << TErrorAttribute("output_table_key_columns", table->TableUploadOptions.TableSchema->GetKeyColumns())
                 << TErrorAttribute("sort_by", Spec->SortBy);
         }
 
@@ -2354,9 +2354,7 @@ private:
                 if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     InferSchemaFromInput(Spec->SortBy);
                 } else {
-                    table->TableUploadOptions.TableSchema =
-                        table->TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
-
+                    table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
                     ValidateOutputSchemaCompatibility(true, true);
                 }
                 break;
@@ -2369,8 +2367,7 @@ private:
                 if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Weak) {
                     table->TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Spec->SortBy);
                 } else {
-                    table->TableUploadOptions.TableSchema =
-                        table->TableUploadOptions.TableSchema.ToSorted(Spec->SortBy);
+                    table->TableUploadOptions.TableSchema = table->TableUploadOptions.TableSchema->ToSorted(Spec->SortBy);
                 }
                 break;
 

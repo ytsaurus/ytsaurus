@@ -1063,9 +1063,9 @@ private:
         std::vector<TDataSliceDescriptor> dataSliceDescriptors;
         auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
 
-        std::optional<TTableSchema> schema = key.data_source().has_table_schema()
-            ? std::make_optional(FromProto<TTableSchema>(key.data_source().table_schema()))
-            : std::nullopt;
+        auto schema = key.data_source().has_table_schema()
+            ? FromProto<TTableSchemaPtr>(key.data_source().table_schema())
+            : nullptr;
 
         auto columnFilter = key.data_source().has_column_filter()
             ? std::make_optional(FromProto<std::vector<TString>>(key.data_source().column_filter().admitted_names()))
@@ -1087,7 +1087,7 @@ private:
                 YT_VERIFY(schema);
                 dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
                     CachedSourcePath,
-                    *schema,
+                    schema,
                     columnFilter,
                     /* omittedInaccessibleColumns */ {},
                     key.data_source().timestamp(),
@@ -1124,7 +1124,7 @@ private:
             auto writer = CreateStaticTableWriterForFormat(
                 format,
                 nameTable,
-                {schema.value_or(TTableSchema())},
+                {schema ? schema : New<TTableSchema>()},
                 CreateAsyncAdapter(output),
                 false, /* enableContextSaving */
                 New<TControlAttributesConfig>(),

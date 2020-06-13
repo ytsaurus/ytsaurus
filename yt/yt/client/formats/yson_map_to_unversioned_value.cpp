@@ -171,7 +171,7 @@ void TYsonMapToUnversionedValueConverter::OnEndRow()
     YT_ABORT();
 }
 
-const NTableClient::TTableSchema& TYsonMapToUnversionedValueConverter::GetSchema() const
+const NTableClient::TTableSchemaPtr& TYsonMapToUnversionedValueConverter::GetSchema() const
 {
     return Consumer_->GetSchema();
 }

@@ -77,7 +77,7 @@ public:
         if (MaybeColumnFilter_->IsUniversal()) {
             TColumnFilter::TIndexes columnFilterIndexes;
             // +2 is for (tablet_index, row_index).
-            for (int id = 0; id < static_cast<int>(Store_->Schema_.Columns().size()) + 2; ++id) {
+            for (int id = 0; id < static_cast<int>(Store_->Schema_->Columns().size()) + 2; ++id) {
                 columnFilterIndexes.push_back(id);
             }
             MaybeColumnFilter_.emplace(std::move(columnFilterIndexes));
@@ -105,7 +105,7 @@ public:
         }
         RowCount_ += rows.size();
         DataWeight_ += dataWeight;
-        return CreateBatchFromUnversionedRows(std::move(rows), this);
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -194,7 +194,7 @@ TOrderedDynamicStore::TOrderedDynamicStore(
     TStoreId id,
     TTablet* tablet)
     : TDynamicStoreBase(config, id, tablet)
-    , TimestampColumnId_(GetTimestampColumnId(Schema_))
+    , TimestampColumnId_(GetTimestampColumnId(*Schema_))
 {
     AllocateCurrentSegment(InitialOrderedDynamicSegmentIndex);
 
@@ -226,7 +226,7 @@ TOrderedDynamicRow TOrderedDynamicStore::WriteRow(
 {
     YT_ASSERT(context->Phase == EWritePhase::Commit);
 
-    int columnCount = static_cast<int>(Schema_.Columns().size());
+    int columnCount = static_cast<int>(Schema_->Columns().size());
     auto dynamicRow = RowBuffer_->AllocateUnversioned(columnCount);
 
     for (int index = 0; index < columnCount; ++index) {

@@ -203,7 +203,7 @@ protected:
         auto chunkWriter = CreateSchemalessChunkWriter(
             config,
             options,
-            std::get<1>(GetParam()),
+            New<TTableSchema>(std::get<1>(GetParam())),
             memoryWriter);
 
         WriteNameTable_ = chunkWriter->GetNameTable();
@@ -400,7 +400,7 @@ protected:
 
     static constexpr int N = 100003;
 
-    const TTableSchema Schema_ = ConvertTo<TTableSchema>(TYsonString(
+    const TTableSchemaPtr Schema_ = New<TTableSchema>(ConvertTo<TTableSchema>(TYsonString(
         "<strict=%true>["
             "{name = c1; type = int64; sort_order = ascending};"
             "{name = c2; type = uint64};"
@@ -408,7 +408,7 @@ protected:
             "{name = c4; type = boolean};"
             "{name = c5; type = double};"
             "{name = c6; type = any};"
-        "]"));
+        "]")));
 
     virtual void SetUp() override
     {
@@ -472,7 +472,7 @@ protected:
             New<TChunkReaderConfig>(),
             New<TChunkReaderOptions>(),
             MemoryReader_,
-            TNameTable::FromSchema(Schema_),
+            TNameTable::FromSchema(*Schema_),
             blockReadOptions,
             /* keyColumns */ {},
             /* omittedInaccessibleColumns */ {},
@@ -523,7 +523,7 @@ TEST_F(TColumnarReadTest, ReadAll)
     while (auto batch = WaitForRowBatch(reader, options)) {
         EXPECT_TRUE(batch->IsColumnar());
         auto columns = batch->MaterializeColumns();
-        EXPECT_EQ(Schema_.Columns().size(), columns.size());
+        EXPECT_EQ(Schema_->Columns().size(), columns.size());
         for (int index = 0; index < columns.size(); ++index) {
             EXPECT_EQ(index, columns[index]->Id);
         }
@@ -619,17 +619,17 @@ protected:
         YT_ABORT();
     }
 
-    TUnversionedRow CreateRow(int rowIndex, const TTableSchema& schema, TNameTablePtr nameTable)
+    TUnversionedRow CreateRow(int rowIndex, TTableSchemaPtr schema, TNameTablePtr nameTable)
     {
-        auto row = TMutableUnversionedRow::Allocate(&Pool_, schema.Columns().size());
-        for (int index = 0; index < schema.Columns().size(); ++index) {
-            const auto& column = schema.Columns()[index];
+        auto row = TMutableUnversionedRow::Allocate(&Pool_, schema->Columns().size());
+        for (int index = 0; index < schema->Columns().size(); ++index) {
+            const auto& column = schema->Columns()[index];
             row[index] = CreateValue(rowIndex, nameTable->GetIdOrRegisterName(column.Name()), column);
         }
         return row;
     }
 
-    void InitRows(int rowCount, const TTableSchema& schema, TNameTablePtr nameTable)
+    void InitRows(int rowCount, TTableSchemaPtr schema, TNameTablePtr nameTable)
     {
         std::vector<TUnversionedRow> rows;
 
@@ -640,20 +640,20 @@ protected:
         std::sort(
             rows.begin(),
             rows.end(), [&] (const TUnversionedRow& lhs, const TUnversionedRow& rhs) {
-                return CompareRows(lhs, rhs, schema.GetKeyColumnCount()) < 0;
+                return CompareRows(lhs, rhs, schema->GetKeyColumnCount()) < 0;
             });
         rows.erase(
             std::unique(
                 rows.begin(),
                 rows.end(), [&] (const TUnversionedRow& lhs, const TUnversionedRow& rhs) {
-                    return CompareRows(lhs, rhs, schema.GetKeyColumnCount()) == 0;
+                    return CompareRows(lhs, rhs, schema->GetKeyColumnCount()) == 0;
                 }),
             rows.end());
 
         Rows_ = std::move(rows);
     }
 
-    void InitChunk(int rowCount, EOptimizeFor optimizeFor, const TTableSchema& schema)
+    void InitChunk(int rowCount, EOptimizeFor optimizeFor, TTableSchemaPtr schema)
     {
         auto memoryWriter = New<TMemoryWriter>();
 
@@ -662,8 +662,8 @@ protected:
 
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = optimizeFor;
-        options->ValidateSorted = schema.IsSorted();
-        options->ValidateUniqueKeys = schema.IsUniqueKeys();
+        options->ValidateSorted = schema->IsSorted();
+        options->ValidateUniqueKeys = schema->IsUniqueKeys();
         auto chunkWriter = CreateSchemalessChunkWriter(
             config,
             options,
@@ -728,11 +728,11 @@ protected:
     virtual void SetUp() override
     {
         auto optimizeFor = std::get<0>(GetParam());
-        Schema_ = std::get<1>(GetParam());
+        Schema_ = New<TTableSchema>(std::get<1>(GetParam()));
         InitChunk(1000, optimizeFor, Schema_);
     }
 
-    TTableSchema Schema_;
+    TTableSchemaPtr Schema_;
     IChunkReaderPtr MemoryReader_;
     TNameTablePtr WriteNameTable_;
     TChunkSpec ChunkSpec_;
@@ -754,15 +754,15 @@ TEST_P(TSchemalessChunksLookupTest, Simple)
         auto row = Rows_[index];
         expected.push_back(row);
 
-        auto key = TMutableUnversionedRow::Allocate(&Pool_, Schema_.GetKeyColumnCount());
-        for (int valueIndex = 0; valueIndex < Schema_.GetKeyColumnCount(); ++valueIndex) {
+        auto key = TMutableUnversionedRow::Allocate(&Pool_, Schema_->GetKeyColumnCount());
+        for (int valueIndex = 0; valueIndex < Schema_->GetKeyColumnCount(); ++valueIndex) {
             key[valueIndex] = row[valueIndex];
         }
         keys.push_back(key);
     }
 
-    auto reader = LookupRows(MakeSharedRange(keys), Schema_.GetKeyColumns());
-    CheckSchemalessResult(expected, reader, Schema_.GetKeyColumnCount());
+    auto reader = LookupRows(MakeSharedRange(keys), Schema_->GetKeyColumns());
+    CheckSchemalessResult(expected, reader, Schema_->GetKeyColumnCount());
 }
 
 TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
@@ -770,7 +770,7 @@ TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
     std::vector<TUnversionedRow> expected;
     std::vector<TUnversionedRow> keys;
 
-    auto keyColumns = Schema_.GetKeyColumns();
+    auto keyColumns = Schema_->GetKeyColumns();
     keyColumns.push_back("w1");
     keyColumns.push_back("w2");
 
@@ -783,17 +783,17 @@ TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
         expected.push_back(row);
 
         auto key = TMutableUnversionedRow::Allocate(&Pool_, keyColumns.size());
-        for (int valueIndex = 0; valueIndex < Schema_.GetKeyColumnCount(); ++valueIndex) {
+        for (int valueIndex = 0; valueIndex < Schema_->GetKeyColumnCount(); ++valueIndex) {
             key[valueIndex] = row[valueIndex];
         }
-        for (int valueIndex = Schema_.GetKeyColumnCount(); valueIndex < key.GetCount(); ++valueIndex) {
+        for (int valueIndex = Schema_->GetKeyColumnCount(); valueIndex < key.GetCount(); ++valueIndex) {
             key[valueIndex] = MakeUnversionedSentinelValue(EValueType::Null, valueIndex);
         }
         keys.push_back(key);
     }
 
     auto reader = LookupRows(MakeSharedRange(keys), keyColumns);
-    CheckSchemalessResult(expected, reader, Schema_.GetKeyColumnCount());
+    CheckSchemalessResult(expected, reader, Schema_->GetKeyColumnCount());
 }
 
 INSTANTIATE_TEST_SUITE_P(Sorted,

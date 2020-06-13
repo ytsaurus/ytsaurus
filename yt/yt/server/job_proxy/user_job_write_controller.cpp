@@ -80,11 +80,7 @@ void TUserJobWriteController::Init()
 
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
-
-        TTableSchema schema;
-        if (outputSpec.has_table_schema()) {
-            schema = FromProto<TTableSchema>(outputSpec.table_schema());
-        }
+        auto schema = FromProto<TTableSchemaPtr>(outputSpec.table_schema());
 
         // ToDo(psushin): open writers in parallel.
         auto writer = userJobIOFactory->CreateWriter(

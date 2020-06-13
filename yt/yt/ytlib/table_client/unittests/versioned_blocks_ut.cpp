@@ -33,7 +33,7 @@ protected:
         } while (reader.NextRow());
     }
 
-    TTableSchema Schema;
+    TTableSchemaPtr Schema;
 
     TSharedRef Data;
     NProto::TBlockMeta Meta;
@@ -50,7 +50,7 @@ class TVersionedBlocksTestOneRow
 protected:
     virtual void SetUp() override
     {
-        Schema = TTableSchema({
+        Schema = New<TTableSchema>(std::vector{
             TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
@@ -104,8 +104,8 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
         Data,
         Meta,
         Schema,
-        Schema.GetKeyColumnCount(),
-        Schema.GetKeyColumnCount() + 2, // Two padding key columns.
+        Schema->GetKeyColumnCount(),
+        Schema->GetKeyColumnCount() + 2, // Two padding key columns.
         schemaIdMapping,
         KeyComparer_,
         7,
@@ -138,8 +138,8 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
         Data,
         Meta,
         Schema,
-        Schema.GetKeyColumnCount(),
-        Schema.GetKeyColumnCount(),
+        Schema->GetKeyColumnCount(),
+        Schema->GetKeyColumnCount(),
         schemaIdMapping,
         KeyComparer_,
         9,
@@ -166,8 +166,8 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
         Data,
         Meta,
         Schema,
-        Schema.GetKeyColumnCount(),
-        Schema.GetKeyColumnCount(),
+        Schema->GetKeyColumnCount(),
+        Schema->GetKeyColumnCount(),
         schemaIdMapping,
         KeyComparer_,
         SyncLastCommittedTimestamp,
@@ -196,8 +196,8 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
         Data,
         Meta,
         Schema,
-        Schema.GetKeyColumnCount(),
-        Schema.GetKeyColumnCount(),
+        Schema->GetKeyColumnCount(),
+        Schema->GetKeyColumnCount(),
         schemaIdMapping,
         KeyComparer_,
         AllCommittedTimestamp,

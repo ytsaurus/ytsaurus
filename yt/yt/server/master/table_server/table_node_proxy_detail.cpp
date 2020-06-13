@@ -1250,7 +1250,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
     // NB: Sorted dynamic tables contain unique keys, set this for user.
     if (dynamic && options.Schema && options.Schema->IsSorted() && !options.Schema->GetUniqueKeys()) {
-        schema = schema.ToUniqueKeys();
+        schema = *schema.ToUniqueKeys();
     }
 
     if (table->IsNative()) {
@@ -1321,7 +1321,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
 
     if (options.Schema || options.SchemaModification) {
         if (options.SchemaModification) {
-            schema = schema.ToModifiedSchema(*options.SchemaModification);
+            schema = *schema.ToModifiedSchema(*options.SchemaModification);
         }
 
         table->SharedTableSchema() = Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry()->GetSchema(

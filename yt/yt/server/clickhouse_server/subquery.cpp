@@ -123,7 +123,7 @@ private:
 
     IInvokerPtr Invoker_;
 
-    std::vector<TTableSchema> TableSchemas_;
+    std::vector<TTableSchemaPtr> TableSchemas_;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions_;
 
     std::optional<int> KeyColumnCount_ = 0;
@@ -146,9 +146,9 @@ private:
         if (!TableSchemas_.empty()) {
             // TODO(max42): it's better for query analyzer to do this substitution...
             if (TableSchemas_.size() == 1) {
-                KeyColumnCount_ = TableSchemas_.front().GetKeyColumnCount();
+                KeyColumnCount_ = TableSchemas_.front()->GetKeyColumnCount();
             }
-            auto commonSchemaPart = TableSchemas_.front().Columns();
+            auto commonSchemaPart = TableSchemas_.front()->Columns();
             if (KeyColumnCount_) {
                 commonSchemaPart.resize(*KeyColumnCount_);
             }

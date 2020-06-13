@@ -230,8 +230,8 @@ public:
 
         YT_LOG_DEBUG("Executing query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
             queryFingerprint,
-            query->GetReadSchema(),
-            query->GetTableSchema());
+            *query->GetReadSchema(),
+            *query->GetTableSchema());
 
         TQueryStatistics statistics;
         NProfiling::TWallTimer wallTime;

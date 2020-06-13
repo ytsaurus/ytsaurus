@@ -306,7 +306,7 @@ TSchemalessWriterAdapter::TSchemalessWriterAdapter(
 
 // CreateConsumerForFormat may throw an exception if there is no consumer for the given format,
 // so we set Consumer_ inside Init function rather than inside the constructor.
-void TSchemalessWriterAdapter::Init(const std::vector<NTableClient::TTableSchema>& tableSchemas, const TFormat& format)
+void TSchemalessWriterAdapter::Init(const std::vector<NTableClient::TTableSchemaPtr>& tableSchemas, const TFormat& format)
 {
     // This is generic code for those formats, that support skipping nulls.
     // See #TYsonFormatConfig and #TJsonFormatConfig.

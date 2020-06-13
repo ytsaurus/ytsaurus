@@ -13,20 +13,20 @@ class TSchemaCompatibilityChecker
     : public IOutputSchemaInferer
 {
 public:
-    TSchemaCompatibilityChecker(const NYPath::TYPath& outputPath, const TTableSchema& outputTableSchema)
+    TSchemaCompatibilityChecker(const NYPath::TYPath& outputPath, const TTableSchemaPtr& outputTableSchema)
         : OutputPath_(outputPath)
         , OutputTableSchema_(outputTableSchema)
     { }
 
     virtual void AddInputTableSchema(const NYPath::TYPath& path, const TTableSchema& tableSchema, ETableSchemaMode /*schemaMode*/) override
     {
-        auto res = ValidateTableSchemaCompatibility(tableSchema, OutputTableSchema_, /*ignoreSortOrder*/ true);
+        auto res = ValidateTableSchemaCompatibility(tableSchema, *OutputTableSchema_, /*ignoreSortOrder*/ true);
         THROW_ERROR_EXCEPTION_IF_FAILED(res, "Schema of output table %v is not compatible with schema of input table %v",
             OutputPath_,
             path);
     }
 
-    virtual const TTableSchema& GetOutputTableSchema() const override
+    virtual const TTableSchemaPtr& GetOutputTableSchema() const override
     {
         return OutputTableSchema_;
     }
@@ -38,7 +38,7 @@ public:
 
 private:
     const NYPath::TYPath OutputPath_;
-    const TTableSchema OutputTableSchema_;
+    const TTableSchemaPtr OutputTableSchema_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -52,9 +52,9 @@ public:
     {
         if (!AddedInputTables_) {
             if (schemaMode == ETableSchemaMode::Weak) {
-                OutputTableSchema_ = TTableSchema();
+                OutputTableSchema_ = New<TTableSchema>();
             } else {
-                OutputTableSchema_ = tableSchema.ToStrippedColumnAttributes().ToCanonical();
+                OutputTableSchema_ = tableSchema.ToStrippedColumnAttributes()->ToCanonical();
             }
             OutputTableSchemaMode_ = schemaMode;
             AddedInputTables_ = true;
@@ -62,14 +62,14 @@ public:
             if (schemaMode == ETableSchemaMode::Weak) {
                 OutputTableSchemaMode_ = ETableSchemaMode::Weak;
             }
-            if (OutputTableSchema_ != tableSchema.ToStrippedColumnAttributes().ToCanonical()) {
-                OutputTableSchema_ = TTableSchema();
+            if (*OutputTableSchema_ != *tableSchema.ToStrippedColumnAttributes()->ToCanonical()) {
+                OutputTableSchema_ = New<TTableSchema>();
                 OutputTableSchemaMode_ = ETableSchemaMode::Weak;
             }
         }
     }
 
-    virtual const TTableSchema& GetOutputTableSchema() const override
+    virtual const TTableSchemaPtr& GetOutputTableSchema() const override
     {
         return OutputTableSchema_;
     }
@@ -80,7 +80,7 @@ public:
     }
 
 private:
-    TTableSchema OutputTableSchema_;
+    TTableSchemaPtr OutputTableSchema_ = New<TTableSchema>();
     ETableSchemaMode OutputTableSchemaMode_ = ETableSchemaMode::Weak;
     bool AddedInputTables_ = false;
 };
@@ -88,7 +88,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 
-std::unique_ptr<IOutputSchemaInferer> CreateSchemaCompatibilityChecker(const NYPath::TYPath& outputPath, const TTableSchema& outputTableSchema)
+std::unique_ptr<IOutputSchemaInferer> CreateSchemaCompatibilityChecker(
+    const NYPath::TYPath& outputPath,
+    const TTableSchemaPtr& outputTableSchema)
 {
     return std::make_unique<TSchemaCompatibilityChecker>(outputPath, outputTableSchema);
 }

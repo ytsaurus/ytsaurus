@@ -131,20 +131,20 @@ public:
         TChunkWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         const TChunkTimestamps& chunkTimestamps)
         : Logger(NLogging::TLogger(TableClientLogger)
             .AddTag("ChunkWriterId: %v", TGuid::Create()))
-        , Schema_(schema)
+        , Schema_(std::move(schema))
         , ChunkTimestamps_(chunkTimestamps)
-        , ChunkNameTable_(TNameTable::FromSchema(schema))
-        , Config_(config)
-        , Options_(options)
+        , ChunkNameTable_(TNameTable::FromSchema(*Schema_))
+        , Config_(std::move(config))
+        , Options_(std::move(options))
         , EncodingChunkWriter_(New<TEncodingChunkWriter>(
-            config,
-            options,
-            chunkWriter,
-            blockCache,
+            Config_,
+            Options_,
+            std::move(chunkWriter),
+            std::move(blockCache),
             Logger))
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
@@ -232,7 +232,7 @@ public:
         return ChunkNameTable_;
     }
 
-    virtual const TTableSchema& GetSchema() const override
+    virtual const TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }
@@ -245,7 +245,7 @@ public:
 protected:
     const NLogging::TLogger Logger;
 
-    const TTableSchema Schema_;
+    const TTableSchemaPtr Schema_;
     const TChunkTimestamps ChunkTimestamps_;
 
     TNameTablePtr ChunkNameTable_;
@@ -267,7 +267,7 @@ protected:
 
     bool IsSorted() const
     {
-        return Schema_.IsSorted() && SupportBoundaryKeys();
+        return Schema_->IsSorted() && SupportBoundaryKeys();
     }
 
     void RegisterBlock(TBlock& block, TUnversionedRow lastRow)
@@ -276,7 +276,7 @@ protected:
             ToProto(
                 block.Meta.mutable_last_key(),
                 lastRow.Begin(),
-                lastRow.Begin() + Schema_.GetKeyColumnCount());
+                lastRow.Begin() + Schema_->GetKeyColumnCount());
         }
 
         YT_VERIFY(block.Meta.uncompressed_size() > 0);
@@ -306,7 +306,7 @@ protected:
     {
         auto& miscExt = EncodingChunkWriter_->MiscExt();
         miscExt.set_sorted(IsSorted());
-        miscExt.set_unique_keys(Schema_.GetUniqueKeys());
+        miscExt.set_unique_keys(Schema_->GetUniqueKeys());
         miscExt.set_row_count(RowCount_);
         miscExt.set_data_weight(DataWeight_);
 
@@ -327,7 +327,7 @@ protected:
         auto nameTableExt = ToProto<TNameTableExt>(ChunkNameTable_);
         SetProtoExtension(meta.mutable_extensions(), nameTableExt);
 
-        auto schemaExt = ToProto<TTableSchemaExt>(Schema_);
+        auto schemaExt = ToProto<TTableSchemaExt>(*Schema_);
         SetProtoExtension(meta.mutable_extensions(), schemaExt);
 
         SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
@@ -345,10 +345,10 @@ protected:
             SetProtoExtension(meta.mutable_extensions(), GetHeavyColumnStatisticsExt());
         }
 
-        if (Schema_.IsSorted()) {
+        if (Schema_->IsSorted()) {
             // Sorted or partition chunks.
             TKeyColumnsExt keyColumnsExt;
-            NYT::ToProto(keyColumnsExt.mutable_names(), Schema_.GetKeyColumns());
+            NYT::ToProto(keyColumnsExt.mutable_names(), Schema_->GetKeyColumns());
             SetProtoExtension(meta.mutable_extensions(), keyColumnsExt);
         }
     }
@@ -362,7 +362,7 @@ protected:
     i64 UpdateDataWeight(TUnversionedRow row)
     {
         i64 weight = 1;
-        int keyColumnCount = IsSorted() ? Schema_.GetKeyColumnCount() : 0;
+        int keyColumnCount = IsSorted() ? Schema_->GetKeyColumnCount() : 0;
 
         for (int index = 0; index < keyColumnCount; ++index) {
             weight += NTableClient::GetDataWeight(row[index]);
@@ -418,11 +418,11 @@ private:
             ToProto(
                 BoundaryKeysExt_.mutable_min(),
                 firstRow.Begin(),
-                firstRow.Begin() + Schema_.GetKeyColumnCount());
+                firstRow.Begin() + Schema_->GetKeyColumnCount());
         }
 
         auto lastRow = rows.Back();
-        LastKey_ = TOwningKey(lastRow.Begin(), lastRow.Begin() + Schema_.GetKeyColumnCount());
+        LastKey_ = TOwningKey(lastRow.Begin(), lastRow.Begin() + Schema_->GetKeyColumnCount());
     }
 
     void EmitSample(TUnversionedRow row)
@@ -528,14 +528,14 @@ public:
         TChunkWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         const TChunkTimestamps& chunkTimestamps)
         : TUnversionedChunkWriterBase(
-            config,
-            options,
-            chunkWriter,
-            blockCache,
-            schema,
+            std::move(config),
+            std::move(options),
+            std::move(chunkWriter),
+            std::move(blockCache),
+            std::move(schema),
             chunkTimestamps)
         , BlockWriter_(std::make_unique<THorizontalBlockWriter>())
     { }
@@ -604,20 +604,20 @@ public:
         TChunkWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         const TChunkTimestamps& chunkTimestamps)
         : TUnversionedChunkWriterBase(
-            config,
-            options,
-            chunkWriter,
-            blockCache,
-            schema,
+            std::move(config),
+            std::move(options),
+            std::move(chunkWriter),
+            std::move(blockCache),
+            std::move(schema),
             chunkTimestamps)
         , DataToBlockFlush_(Config_->BlockSize)
     {
         // Only scan-optimized version for now.
         THashMap<TString, TDataBlockWriter*> groupBlockWriters;
-        for (const auto& column : Schema_.Columns()) {
+        for (const auto& column : Schema_->Columns()) {
             if (column.Group() && groupBlockWriters.find(*column.Group()) == groupBlockWriters.end()) {
                 auto blockWriter = std::make_unique<TDataBlockWriter>();
                 groupBlockWriters[*column.Group()] = blockWriter.get();
@@ -634,20 +634,20 @@ public:
             }
         };
 
-        for (int columnIndex = 0; columnIndex < Schema_.Columns().size(); ++columnIndex) {
-            const auto& column = Schema_.Columns()[columnIndex];
+        for (int columnIndex = 0; columnIndex < Schema_->Columns().size(); ++columnIndex) {
+            const auto& column = Schema_->Columns()[columnIndex];
             ValueColumnWriters_.emplace_back(CreateUnversionedColumnWriter(
                 column,
                 columnIndex,
                 getBlockWriter(column)));
         }
 
-        if (!Schema_.GetStrict() || BlockWriters_.size() == 0) {
+        if (!Schema_->GetStrict() || BlockWriters_.size() == 0) {
             // When we have empty strict schema, we create schemaless writer (trash writer) to fullfill the invariant
             // that at least one writer should be present.
             auto blockWriter = std::make_unique<TDataBlockWriter>();
             ValueColumnWriters_.emplace_back(CreateSchemalessColumnWriter(
-               Schema_.Columns().size(),
+               Schema_->Columns().size(),
                blockWriter.get()));
             BlockWriters_.emplace_back(std::move(blockWriter));
         }
@@ -790,27 +790,30 @@ private:
 ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     IChunkWriterPtr chunkWriter,
     const TChunkTimestamps& chunkTimestamps,
     IBlockCachePtr blockCache)
 {
-    if (options->OptimizeFor == EOptimizeFor::Lookup) {
-        return New<TSchemalessChunkWriter>(
-            config,
-            options,
-            chunkWriter,
-            blockCache,
-            schema,
-            chunkTimestamps);
-    } else {
-        return New<TColumnUnversionedChunkWriter>(
-            config,
-            options,
-            chunkWriter,
-            blockCache,
-            schema,
-            chunkTimestamps);
+    switch (options->OptimizeFor) {
+        case EOptimizeFor::Lookup:
+            return New<TSchemalessChunkWriter>(
+                std::move(config),
+                std::move(options),
+                std::move(chunkWriter),
+                std::move(blockCache),
+                std::move(schema),
+                chunkTimestamps);
+        case EOptimizeFor::Scan:
+            return New<TColumnUnversionedChunkWriter>(
+                std::move(config),
+                std::move(options),
+                std::move(chunkWriter),
+                std::move(blockCache),
+                std::move(schema),
+                chunkTimestamps);
+        default:
+            YT_ABORT();
     }
 }
 
@@ -825,14 +828,14 @@ public:
         TChunkWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         int partitionCount)
         : TUnversionedChunkWriterBase(
             std::move(config),
             std::move(options),
             std::move(chunkWriter),
             std::move(blockCache),
-            schema,
+            std::move(schema),
             TChunkTimestamps())
     {
         PartitionsExt_.mutable_row_counts()->Resize(partitionCount, 0);
@@ -942,7 +945,7 @@ public:
         TTransactionId transactionId,
         TChunkListId parentChunkListId,
         TNameTablePtr nameTable,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         TOwningKey lastKey,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
@@ -957,18 +960,18 @@ public:
             trafficMeter,
             throttler,
             blockCache)
-        , Config_(config)
-        , Options_(options)
-        , NameTable_(nameTable)
-        , Schema_(schema)
-        , LastKey_(lastKey)
+        , Config_(std::move(config))
+        , Options_(std::move(options))
+        , NameTable_(std::move(nameTable))
+        , Schema_(std::move(schema))
+        , LastKey_(std::move(lastKey))
     {
         if (Options_->EvaluateComputedColumns) {
             ColumnEvaluator_ = Client_->GetNativeConnection()->GetColumnEvaluatorCache()->Find(Schema_);
         }
 
         if (Options_->EnableSkynetSharing) {
-            SkynetColumnEvaluator_ = New<TSkynetColumnEvaluator>(schema);
+            SkynetColumnEvaluator_ = New<TSkynetColumnEvaluator>(*Schema_);
         }
     }
 
@@ -986,7 +989,7 @@ public:
         return NameTable_;
     }
 
-    virtual const TTableSchema& GetSchema() const override
+    virtual const TTableSchemaPtr& GetSchema() const override
     {
         return Schema_;
     }
@@ -995,7 +998,7 @@ protected:
     const TTableWriterConfigPtr Config_;
     const TTableWriterOptionsPtr Options_;
     const TNameTablePtr NameTable_;
-    const TTableSchema Schema_;
+    const TTableSchemaPtr Schema_;
 
     TError Error_;
 
@@ -1018,11 +1021,11 @@ protected:
             auto row = rows[rowIndex];
             ValidateDuplicateIds(row);
 
-            int maxColumnCount = Schema_.Columns().size() + (Schema_.GetStrict() ? 0 : row.GetCount());
+            int maxColumnCount = Schema_->Columns().size() + (Schema_->GetStrict() ? 0 : row.GetCount());
             auto mutableRow = TMutableUnversionedRow::Allocate(RowBuffer_->GetPool(), maxColumnCount);
-            int columnCount = Schema_.Columns().size();
+            int columnCount = Schema_->Columns().size();
 
-            for (int i = 0; i < Schema_.Columns().size(); ++i) {
+            for (int i = 0; i < Schema_->Columns().size(); ++i) {
                 // Id for schema columns in chunk name table always coincide with column index in schema.
                 mutableRow[i] = MakeUnversionedSentinelValue(EValueType::Null, i);
             }
@@ -1037,13 +1040,13 @@ protected:
                 }
 
                 int id = IdMapping_[valueIt->Id];
-                if (id < Schema_.Columns().size()) {
+                if (id < Schema_->Columns().size()) {
                     // Validate schema column types.
                     mutableRow[id] = *valueIt;
                     mutableRow[id].Id = id;
                 } else {
                     // Validate non-schema columns for
-                    if (Schema_.GetStrict()) {
+                    if (Schema_->GetStrict()) {
                         THROW_ERROR_EXCEPTION(
                             EErrorCode::SchemaViolation,
                             "Unknown column %Qv in strict schema",
@@ -1058,8 +1061,8 @@ protected:
 
             // Now mutableRow contains all values that schema knows about.
             // And we can check types and check that all required fields are set.
-            for (int i = 0; i < Schema_.Columns().size(); ++i) {
-                const auto& column = Schema_.Columns()[i];
+            for (int i = 0; i < Schema_->Columns().size(); ++i) {
+                const auto& column = Schema_->Columns()[i];
                 ValidateValueType(mutableRow[i], column, /*typeAnyAcceptsAllValues*/ true);
             }
 
@@ -1145,14 +1148,14 @@ private:
             return;
         }
 
-        if (Schema_.IsSorted() || Options_->TableKeyColumnCount) {
-            auto tableKeyColumnCount = Options_->TableKeyColumnCount.value_or(Schema_.GetKeyColumnCount());
-            auto tableUniqueKeys = Options_->TableUniqueKeys.value_or(Schema_.IsUniqueKeys());
+        if (Schema_->IsSorted() || Options_->TableKeyColumnCount) {
+            auto tableKeyColumnCount = Options_->TableKeyColumnCount.value_or(Schema_->GetKeyColumnCount());
+            auto tableUniqueKeys = Options_->TableUniqueKeys.value_or(Schema_->IsUniqueKeys());
             ValidateSortOrder(LastKey_.Get(), rows.front(), tableKeyColumnCount, tableUniqueKeys);
 
-            if (Schema_.IsSorted()) {
-                auto chunkKeyColumnCount = Schema_.GetKeyColumnCount();
-                auto chunkUniqueKeys = Schema_.IsUniqueKeys();
+            if (Schema_->IsSorted()) {
+                auto chunkKeyColumnCount = Schema_->GetKeyColumnCount();
+                auto chunkUniqueKeys = Schema_->IsUniqueKeys();
 
                 ValidateKeyColumnCount(tableKeyColumnCount, chunkKeyColumnCount, tableUniqueKeys);
 
@@ -1161,7 +1164,7 @@ private:
                 }
 
                 const auto& lastKey = rows.back();
-                for (int keyColumnIndex = 0; keyColumnIndex < Schema_.GetKeyColumnCount(); ++keyColumnIndex) {
+                for (int keyColumnIndex = 0; keyColumnIndex < Schema_->GetKeyColumnCount(); ++keyColumnIndex) {
                     KeyBuilder_.AddValue(lastKey[keyColumnIndex]);
                 }
                 LastKey_ = KeyBuilder_.FinishRow();
@@ -1224,7 +1227,7 @@ public:
         TTransactionId transactionId,
         TChunkListId parentChunkListId,
         TNameTablePtr nameTable,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         IPartitionerPtr partitioner,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
@@ -1243,7 +1246,7 @@ public:
             throttler,
             blockCache)
         , Partitioner_(partitioner)
-        , BlockReserveSize_(std::max(config->MaxBufferSize / partitioner->GetPartitionCount() / 2, i64(1)))
+        , BlockReserveSize_(std::max(Config_->MaxBufferSize / Partitioner_->GetPartitionCount() / 2, i64(1)))
     {
         Logger.AddTag("PartitionMultiChunkWriterId: %v", TGuid::Create());
 
@@ -1430,7 +1433,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     NNative::IClientPtr client,
     TCellTag cellTag,
     TTransactionId transactionId,
@@ -1448,7 +1451,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         transactionId,
         parentChunkListId,
         std::move(nameTable),
-        schema,
+        std::move(schema),
         std::move(partitioner),
         std::move(trafficMeter),
         std::move(throttler),
@@ -1474,7 +1477,7 @@ public:
         TChunkListId parentChunkListId,
         std::function<ISchemalessChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TNameTablePtr nameTable,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         TOwningKey lastKey,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
@@ -1548,7 +1551,7 @@ public:
         TChunkListId parentChunkListId,
         std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> createChunkWriter,
         TNameTablePtr nameTable,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         TOwningKey lastKey,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
@@ -1561,14 +1564,14 @@ public:
             transactionId,
             parentChunkListId,
             nameTable,
-            schema.ToUnversionedUpdate(),
+            schema->ToUnversionedUpdate(),
             lastKey,
             trafficMeter,
             throttler,
             blockCache)
-        , CreateChunkWriter_(createChunkWriter)
-        , OriginalSchema_(schema)
-        , ChunkNameTable_(TNameTable::FromSchema(Schema_))
+        , CreateChunkWriter_(std::move(createChunkWriter))
+        , OriginalSchema_(std::move(schema))
+        , ChunkNameTable_(TNameTable::FromSchema(*Schema_))
     { }
 
     virtual bool Write(TRange<TUnversionedRow> rows) override
@@ -1598,7 +1601,7 @@ public:
 
 private:
     const std::function<IVersionedChunkWriterPtr(IChunkWriterPtr)> CreateChunkWriter_;
-    TTableSchema OriginalSchema_;
+    TTableSchemaPtr OriginalSchema_;
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TUnversionedUpdateMultiChunkWriterTag());
     TNameTablePtr ChunkNameTable_;
 
@@ -1662,7 +1665,7 @@ private:
                     THROW_ERROR_EXCEPTION(
                         EErrorCode::SchemaViolation,
                         "Column %Qv must be %Qlv when modification type is \"delete\"",
-                        Schema_.Columns()[index].Name(),
+                        Schema_->Columns()[index].Name(),
                         EValueType::Null);
                 }
             }
@@ -1678,11 +1681,11 @@ private:
                 const auto& flags = row[index + 1];
                 int originalId = ToOriginalId(value.Id, keyColumnCount);
 
-                ValidateFlags(flags, Schema_.Columns()[index + 1]);
+                ValidateFlags(flags, Schema_->Columns()[index + 1]);
 
                 bool isMissing = Any(FlagsFromValue(flags) & EUnversionedUpdateDataFlags::Missing);
 
-                const auto& columnSchema = OriginalSchema_.Columns()[originalId];
+                const auto& columnSchema = OriginalSchema_->Columns()[originalId];
                 if (columnSchema.Required()) {
                     if (isMissing) {
                         THROW_ERROR_EXCEPTION(
@@ -1709,7 +1712,7 @@ private:
             return TVersionedRow();
         }
 
-        int keyColumnCount = OriginalSchema_.GetKeyColumnCount();
+        int keyColumnCount = OriginalSchema_->GetKeyColumnCount();
 
         for (int index = 0; index < keyColumnCount; ++index) {
             YT_ASSERT(row[index].Id == index);
@@ -1786,7 +1789,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     TOwningKey lastKey,
     NNative::IClientPtr client,
     TCellTag cellTag,
@@ -1934,7 +1937,7 @@ public:
         return NameTable_;
     }
 
-    virtual const TTableSchema& GetSchema() const override
+    virtual const TTableSchemaPtr& GetSchema() const override
     {
         return TableUploadOptions_.TableSchema;
     }
@@ -1957,41 +1960,41 @@ private:
     ITransactionPtr UploadTransaction_;
     ISchemalessMultiChunkWriterPtr UnderlyingWriter_;
 
-    TTableSchema GetChunkSchema() const
+    TTableSchemaPtr GetChunkSchema() const
     {
         auto chunkSchema = GetSchema();
 
         auto chunkKeyColumnCount = RichPath_.GetChunkKeyColumnCount();
         if (chunkKeyColumnCount) {
-            if (chunkKeyColumnCount < 0 || chunkKeyColumnCount > chunkSchema.GetColumnCount()) {
+            if (chunkKeyColumnCount < 0 || chunkKeyColumnCount > chunkSchema->GetColumnCount()) {
                 THROW_ERROR_EXCEPTION(EErrorCode::InvalidSchemaValue, "Invalid chunk key column count")
                     << TErrorAttribute("key_column_count", chunkKeyColumnCount)
-                    << TErrorAttribute("column_count", chunkSchema.GetColumnCount());
+                    << TErrorAttribute("column_count", chunkSchema->GetColumnCount());
             }
 
-            if (*chunkKeyColumnCount < GetSchema().GetKeyColumnCount()) {
+            if (*chunkKeyColumnCount < GetSchema()->GetKeyColumnCount()) {
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::SchemaViolation,
                     "Chunk key column count is less than table schema key column count")
                     << TErrorAttribute("chunk_key_column_count", *chunkKeyColumnCount)
-                    << TErrorAttribute("table_key_column_count", GetSchema().GetKeyColumnCount());
+                    << TErrorAttribute("table_key_column_count", GetSchema()->GetKeyColumnCount());
             }
 
-            chunkSchema = chunkSchema.SetKeyColumnCount(*chunkKeyColumnCount);
+            chunkSchema = chunkSchema->SetKeyColumnCount(*chunkKeyColumnCount);
         }
 
         auto chunkUniqueKeys = RichPath_.GetChunkUniqueKeys();
         if (chunkUniqueKeys) {
-            if (!*chunkUniqueKeys && GetSchema().IsUniqueKeys()) {
+            if (!*chunkUniqueKeys && GetSchema()->IsUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::SchemaViolation,
                     "Table schema forces keys to be unique while chunk schema does not");
             }
 
-            chunkSchema = chunkSchema.SetUniqueKeys(*chunkUniqueKeys);
+            chunkSchema = chunkSchema->SetUniqueKeys(*chunkUniqueKeys);
         }
 
-        if (chunkSchema.IsUniqueKeys() && !chunkSchema.IsSorted()) {
+        if (chunkSchema->IsUniqueKeys() && !chunkSchema->IsSorted()) {
             THROW_ERROR_EXCEPTION(
                 EErrorCode::InvalidSchemaValue,
                 "Non-sorted schema can't have unique keys requirement");
@@ -2028,7 +2031,7 @@ private:
         auto externalCellTag = userObject.ExternalCellTag;
         auto objectIdPath = FromObjectId(ObjectId_);
 
-        TTableSchema chunkSchema;
+        TTableSchemaPtr chunkSchema;
 
         {
             YT_LOG_DEBUG("Requesting extended table attributes");
@@ -2085,13 +2088,13 @@ private:
             Options_->EnableSkynetSharing = attributes.Get<bool>("enable_skynet_sharing", false);
 
             // Table's schema is never stricter than chunk's schema.
-            Options_->ValidateSorted = chunkSchema.IsSorted();
-            Options_->ValidateUniqueKeys = chunkSchema.IsUniqueKeys();
+            Options_->ValidateSorted = chunkSchema->IsSorted();
+            Options_->ValidateUniqueKeys = chunkSchema->IsUniqueKeys();
 
             Options_->OptimizeFor = TableUploadOptions_.OptimizeFor;
-            Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema.HasComputedColumns();
-            Options_->TableKeyColumnCount = GetSchema().GetKeyColumnCount();
-            Options_->TableUniqueKeys = GetSchema().IsUniqueKeys();
+            Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema->HasComputedColumns();
+            Options_->TableKeyColumnCount = GetSchema()->GetKeyColumnCount();
+            Options_->TableUniqueKeys = GetSchema()->IsUniqueKeys();
 
             auto chunkWriterConfig = attributes.FindYson("chunk_writer");
             if (chunkWriterConfig) {
@@ -2160,7 +2163,7 @@ private:
 
             auto req =  TTableYPathProxy::GetUploadParams(objectIdPath);
             req->set_fetch_last_key(TableUploadOptions_.UpdateMode == EUpdateMode::Append &&
-                TableUploadOptions_.TableSchema.IsSorted());
+                TableUploadOptions_.TableSchema->IsSorted());
             SetTransactionId(req, UploadTransaction_);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
@@ -2173,10 +2176,10 @@ private:
             chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
             auto lastKey = FromProto<TOwningKey>(rsp->last_key());
             if (lastKey) {
-                YT_VERIFY(lastKey.GetCount() >= TableUploadOptions_.TableSchema.GetKeyColumnCount());
+                YT_VERIFY(lastKey.GetCount() >= TableUploadOptions_.TableSchema->GetKeyColumnCount());
                 writerLastKey = TOwningKey(
                     lastKey.Begin(),
-                    lastKey.Begin() + TableUploadOptions_.TableSchema.GetKeyColumnCount());
+                    lastKey.Begin() + TableUploadOptions_.TableSchema->GetKeyColumnCount());
             }
 
             Options_->MaxHeavyColumns = rsp->max_heavy_columns();

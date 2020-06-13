@@ -34,7 +34,7 @@ DEFINE_REFCOUNTED_TYPE(IVersionedChunkWriter)
 IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     NChunkClient::IChunkWriterPtr chunkWriter,
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
@@ -52,7 +52,7 @@ DEFINE_REFCOUNTED_TYPE(IVersionedMultiChunkWriter)
 IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,

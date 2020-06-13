@@ -384,8 +384,8 @@ protected:
                     OutputTables_[0]->TableUploadOptions.SchemaModification == ETableSchemaModification::None)
                 {
                     InputTables_[index]->Teleportable = ValidateTableSchemaCompatibility(
-                        InputTables_[index]->Schema,
-                        OutputTables_[0]->TableUploadOptions.TableSchema,
+                        *InputTables_[index]->Schema,
+                        *OutputTables_[0]->TableUploadOptions.TableSchema,
                         false /* ignoreSortOrder */).IsOK();
                 }
             }
@@ -410,7 +410,7 @@ protected:
         }
 
         for (const auto& table : OutputTables_) {
-            if (!table->TableUploadOptions.TableSchema.IsSorted()) {
+            if (!table->TableUploadOptions.TableSchema->IsSorted()) {
                 OrderedOutputRequired_ = true;
             }
         }
@@ -551,7 +551,7 @@ private:
     virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
-        return OutputTables_[0]->TableUploadOptions.TableSchema.IsSorted();
+        return OutputTables_[0]->TableUploadOptions.TableSchema->IsSorted();
     }
 
     virtual std::vector<TRichYPath> GetOutputTablePaths() const override
@@ -951,7 +951,7 @@ private:
     virtual bool IsBoundaryKeysFetchEnabled() const override
     {
         // Required for chunk teleporting in case of sorted output.
-        return OutputTables_[0]->TableUploadOptions.TableSchema.IsSorted();
+        return OutputTables_[0]->TableUploadOptions.TableSchema->IsSorted();
     }
 
     virtual void PrepareOutputTables() override
@@ -974,8 +974,8 @@ private:
                 } else {
                     if (InputTables_[0]->SchemaMode == ETableSchemaMode::Strong) {
                         ValidateTableSchemaCompatibility(
-                            InputTables_[0]->Schema,
-                            table->TableUploadOptions.TableSchema,
+                            *InputTables_[0]->Schema,
+                            *table->TableUploadOptions.TableSchema,
                             /* ignoreSortOrder */ false)
                             .ThrowOnError();
                     }
@@ -1006,8 +1006,8 @@ private:
 
         auto* jobSpecExt = JobSpecTemplate_.MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
         const auto& table = OutputTables_[0];
-        if (table->TableUploadOptions.TableSchema.IsSorted()) {
-            ToProto(jobSpecExt->mutable_key_columns(), table->TableUploadOptions.TableSchema.GetKeyColumns());
+        if (table->TableUploadOptions.TableSchema->IsSorted()) {
+            ToProto(jobSpecExt->mutable_key_columns(), table->TableUploadOptions.TableSchema->GetKeyColumns());
         }
     }
 
@@ -1145,12 +1145,12 @@ private:
                 // that schemas are identical.
                 for (const auto& inputTable : InputTables_) {
                     if (table->TableUploadOptions.SchemaMode == ETableSchemaMode::Strong &&
-                        inputTable->Schema.ToCanonical() != table->TableUploadOptions.TableSchema.ToCanonical())
+                        *inputTable->Schema->ToCanonical() != *table->TableUploadOptions.TableSchema->ToCanonical())
                     {
                         THROW_ERROR_EXCEPTION("Cannot make remote copy into table with \"strong\" schema since "
                             "input table schema differs from output table schema")
                             << TErrorAttribute("input_table_schema", inputTable->Schema)
-                            << TErrorAttribute("output_table_schema", table->TableUploadOptions.TableSchema);
+                            << TErrorAttribute("output_table_schema", *table->TableUploadOptions.TableSchema);
                     }
                 }
                 break;

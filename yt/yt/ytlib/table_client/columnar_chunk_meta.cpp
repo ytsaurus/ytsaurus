@@ -15,9 +15,9 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchema GetTableSchema(const NChunkClient::NProto::TChunkMeta& chunkMeta)
+TTableSchemaPtr GetTableSchema(const NChunkClient::NProto::TChunkMeta& chunkMeta)
 {
-    TTableSchema schema;
+    TTableSchemaPtr schema;
     auto keyColumnsExt = FindProtoExtension<TKeyColumnsExt>(chunkMeta.extensions());
     auto tableSchemaExt = FindProtoExtension<TTableSchemaExt>(chunkMeta.extensions());
     if (tableSchemaExt && keyColumnsExt) {
@@ -64,8 +64,8 @@ void TColumnarChunkMeta::InitExtensions(const TChunkMeta& chunkMeta)
 void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
 {
     int prefixLength = 0;
-    while (prefixLength < keyColumns.size() && prefixLength < ChunkSchema_.GetKeyColumnCount()) {
-        if (keyColumns[prefixLength] != ChunkSchema_.Columns()[prefixLength].Name()) {
+    while (prefixLength < keyColumns.size() && prefixLength < ChunkSchema_->GetKeyColumnCount()) {
+        if (keyColumns[prefixLength] != ChunkSchema_->Columns()[prefixLength].Name()) {
             break;
         }
         ++prefixLength;
@@ -78,7 +78,7 @@ void TColumnarChunkMeta::InitBlockLastKeys(const TKeyColumns& keyColumns)
     blockLastKeys.reserve(BlockMeta_->blocks_size());
     for (const auto& block : BlockMeta_->blocks()) {
         TKey key;
-        if (ChunkSchema_.GetKeyColumnCount() > 0) {
+        if (ChunkSchema_->GetKeyColumnCount() > 0) {
             YT_VERIFY(block.has_last_key());
             key = FromProto<TKey>(block.last_key(), tempBuffer);
         } else {
@@ -101,15 +101,15 @@ void TColumnarChunkMeta::RenameColumns(const TColumnRenameDescriptors& renameDes
         try {
             // ChunkSchema
             {
-                auto newColumns = ChunkSchema_.Columns();
+                auto newColumns = ChunkSchema_->Columns();
                 for (auto& column : newColumns) {
                     auto it = nameMapping.find(column.Name());
                     if (it != nameMapping.end()) {
                         column.SetName(it->second);
                     }
                 }
-                ChunkSchema_ = TTableSchema(newColumns, ChunkSchema_.GetStrict(), ChunkSchema_.GetUniqueKeys());
-                ValidateColumnUniqueness(ChunkSchema_);
+                ChunkSchema_ = New<TTableSchema>(newColumns, ChunkSchema_->GetStrict(), ChunkSchema_->GetUniqueKeys());
+                ValidateColumnUniqueness(*ChunkSchema_);
             }
             // ChunkNameTable
             if (ChunkNameTable_) {
@@ -141,7 +141,7 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
         sizeof(Misc_) +
         BlockMeta_->GetSize() +
         (ColumnMeta_ ? ColumnMeta_->GetSize() : 0) +
-        ChunkSchema_.GetMemoryUsage();
+        ChunkSchema_->GetMemoryUsage();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

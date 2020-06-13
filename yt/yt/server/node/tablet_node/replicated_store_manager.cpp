@@ -312,7 +312,7 @@ TUnversionedRow TReplicatedStoreManager::BuildLogRow(
     LogRowBuilder_.Reset();
     LogRowBuilder_.AddValue(MakeUnversionedSentinelValue(EValueType::Null, 0));
 
-    if (Tablet_->TableSchema().IsSorted()) {
+    if (Tablet_->GetTableSchema()->IsSorted()) {
         return BuildSortedLogRow(row, changeType);
     } else {
         return BuildOrderedLogRow(row, changeType);
@@ -339,8 +339,8 @@ TUnversionedRow TReplicatedStoreManager::BuildSortedLogRow(
 {
     LogRowBuilder_.AddValue(MakeUnversionedInt64Value(static_cast<int>(changeType), 1));
 
-    int keyColumnCount = Tablet_->TableSchema().GetKeyColumnCount();
-    int valueColumnCount = Tablet_->TableSchema().GetValueColumnCount();
+    int keyColumnCount = Tablet_->GetTableSchema()->GetKeyColumnCount();
+    int valueColumnCount = Tablet_->GetTableSchema()->GetValueColumnCount();
 
     YT_VERIFY(row.GetCount() >= keyColumnCount);
     for (int index = 0; index < keyColumnCount; ++index) {

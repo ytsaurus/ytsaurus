@@ -66,7 +66,7 @@ class TVersionedChunksLookupTestBase
     : public ::testing::Test
 {
 protected:
-    TTableSchema Schema;
+    TTableSchemaPtr Schema;
 
     IVersionedReaderPtr ChunkReader;
     IVersionedWriterPtr ChunkWriter;
@@ -79,7 +79,7 @@ protected:
     EOptimizeFor OptimizeFor;
 
     explicit TVersionedChunksLookupTestBase(EOptimizeFor optimizeFor)
-        : Schema({
+        : Schema(New<TTableSchema>(std::vector{
             TColumnSchema("k1", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("k2", EValueType::Int64)
@@ -88,7 +88,7 @@ protected:
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("v1", EValueType::Int64),
             TColumnSchema("v2", EValueType::Int64)
-        })
+        }))
         , OptimizeFor(optimizeFor)
     { }
 
@@ -359,8 +359,8 @@ protected:
 
     void TestRangeReader(
         EOptimizeFor optimizeFor,
-        TTableSchema writeSchema,
-        TTableSchema readSchema,
+        TTableSchemaPtr writeSchema,
+        TTableSchemaPtr readSchema,
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
@@ -505,8 +505,8 @@ protected:
 
     std::vector<TVersionedRow> CreateExpected(
         const std::vector<TVersionedRow>& rows,
-        TTableSchema writeSchema,
-        TTableSchema readSchema,
+        TTableSchemaPtr writeSchema,
+        TTableSchemaPtr readSchema,
         TOwningKey lowerKey,
         TOwningKey upperKey,
         TTimestamp timestamp,
@@ -514,11 +514,11 @@ protected:
     {
         std::vector<TVersionedRow> expected;
 
-        std::vector<int> idMapping(writeSchema.Columns().size(), -1);
-        for (int i = 0; i < writeSchema.Columns().size(); ++i) {
-            auto writeColumnSchema = writeSchema.Columns()[i];
-            for (int j = 0; j < readSchema.Columns().size(); ++j) {
-                auto readColumnSchema = readSchema.Columns()[j];
+        std::vector<int> idMapping(writeSchema->Columns().size(), -1);
+        for (int i = 0; i < writeSchema->Columns().size(); ++i) {
+            auto writeColumnSchema = writeSchema->Columns()[i];
+            for (int j = 0; j < readSchema->Columns().size(); ++j) {
+                auto readColumnSchema = readSchema->Columns()[j];
                 if (writeColumnSchema.Name() == readColumnSchema.Name()) {
                     idMapping[i] = j;
                 }
@@ -527,13 +527,13 @@ protected:
 
         for (auto row : rows) {
             std::vector<TUnversionedValue> key;
-            YT_VERIFY(row.GetKeyCount() <= readSchema.GetKeyColumnCount());
-            for (int i = 0; i < row.GetKeyCount() && i < readSchema.GetKeyColumnCount(); ++i) {
-                YT_VERIFY(row.BeginKeys()[i].Type == readSchema.Columns()[i].GetPhysicalType());
+            YT_VERIFY(row.GetKeyCount() <= readSchema->GetKeyColumnCount());
+            for (int i = 0; i < row.GetKeyCount() && i < readSchema->GetKeyColumnCount(); ++i) {
+                YT_VERIFY(row.BeginKeys()[i].Type == readSchema->Columns()[i].GetPhysicalType());
                 key.push_back(row.BeginKeys()[i]);
             }
 
-            for (int i = row.GetKeyCount(); i < readSchema.GetKeyColumnCount(); ++i) {
+            for (int i = row.GetKeyCount(); i < readSchema->GetKeyColumnCount(); ++i) {
                 key.push_back(MakeUnversionedSentinelValue(EValueType::Null, i));
             }
 
@@ -609,7 +609,7 @@ protected:
 
                 std::set<int> usedIds;
                 for (const auto& value : values) {
-                    if (usedIds.insert(value.Id).second || readSchema.Columns()[value.Id].Aggregate()) {
+                    if (usedIds.insert(value.Id).second || readSchema->Columns()[value.Id].Aggregate()) {
                         builder.AddValue(value);
                     }
                 }
@@ -622,35 +622,35 @@ protected:
 
     void DoFullScanCompaction(EOptimizeFor optimizeFor)
     {
-        auto writeSchema = TTableSchema(ColumnSchemas_);
-        auto readSchema = TTableSchema(ColumnSchemas_);
+        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
+        auto readSchema = New<TTableSchema>(ColumnSchemas_);
 
         TestRangeReader(optimizeFor, writeSchema, readSchema, MinKey(), MaxKey(), AllCommittedTimestamp, true);
     }
 
     void DoTimestampFullScanExtraKeyColumn(EOptimizeFor optimizeFor, TTimestamp timestamp)
     {
-        auto writeSchema = TTableSchema(ColumnSchemas_);
+        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
 
         auto columnSchemas = ColumnSchemas_;
         columnSchemas.insert(
             columnSchemas.begin() + 5,
             TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
 
-        auto readSchema = TTableSchema(columnSchemas);
+        auto readSchema = New<TTableSchema>(columnSchemas);
 
         TestRangeReader(optimizeFor, writeSchema, readSchema, MinKey(), MaxKey(), timestamp, false);
     }
 
     void DoEmptyReadWideSchema(EOptimizeFor optimizeFor)
     {
-        auto writeSchema = TTableSchema(ColumnSchemas_);
+        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
 
         auto columnSchemas = ColumnSchemas_;
         columnSchemas.insert(
             columnSchemas.begin() + 5,
             TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
-        auto readSchema = TTableSchema(columnSchemas);
+        auto readSchema = New<TTableSchema>(columnSchemas);
 
         TUnversionedOwningRowBuilder lowerKeyBuilder;
         for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
@@ -681,13 +681,13 @@ protected:
         EOptimizeFor optimizeFor,
         const std::pair<TUnversionedValue, TUnversionedValue>& bounds)
     {
-        auto writeSchema = TTableSchema(ColumnSchemas_);
+        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
 
         auto columnSchemas = ColumnSchemas_;
         columnSchemas.insert(
             columnSchemas.begin() + 5,
             TColumnSchema("extraKey", EValueType::Int64).SetSortOrder(ESortOrder::Ascending));
-        auto readSchema = TTableSchema(columnSchemas);
+        auto readSchema = New<TTableSchema>(columnSchemas);
 
         TUnversionedOwningRowBuilder lowerKeyBuilder;
         for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
@@ -748,12 +748,12 @@ TEST_F(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChange)
     writeColumnSchemas[6].SetGroup(TString("G2"));
     writeColumnSchemas[7].SetGroup(TString("G2"));
     writeColumnSchemas[8].SetGroup(TString("G2"));
-    auto writeSchema = TTableSchema(writeColumnSchemas);
+    auto writeSchema = New<TTableSchema>(writeColumnSchemas);
 
     auto readColumnSchemas = ColumnSchemas_;
     readColumnSchemas.erase(readColumnSchemas.begin() + 7, readColumnSchemas.end());
     readColumnSchemas.insert(readColumnSchemas.end(), TColumnSchema("extraValue", EValueType::Boolean));
-    auto readSchema = TTableSchema(readColumnSchemas);
+    auto readSchema = New<TTableSchema>(readColumnSchemas);
 
     int lowerIndex = InitialRows_.size() / 3;
 

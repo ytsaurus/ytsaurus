@@ -63,6 +63,93 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ESimpleLogicalValueType, ui32,
     ((Void)        (0x100c))
 );
 
+inline bool IsIntegralTypeSigned(ESimpleLogicalValueType type)
+{
+    switch (type) {
+        case ESimpleLogicalValueType::Int8:
+        case ESimpleLogicalValueType::Int16:
+        case ESimpleLogicalValueType::Int32:
+        case ESimpleLogicalValueType::Int64:
+            return true;
+        case ESimpleLogicalValueType::Uint8:
+        case ESimpleLogicalValueType::Uint16:
+        case ESimpleLogicalValueType::Uint32:
+        case ESimpleLogicalValueType::Uint64:
+            return false;
+        default:
+            YT_ABORT();
+    }
+}
+
+inline bool IsIntegralType(ESimpleLogicalValueType type)
+{
+    switch (type) {
+        case ESimpleLogicalValueType::Int8:
+        case ESimpleLogicalValueType::Int16:
+        case ESimpleLogicalValueType::Int32:
+        case ESimpleLogicalValueType::Int64:
+        case ESimpleLogicalValueType::Uint8:
+        case ESimpleLogicalValueType::Uint16:
+        case ESimpleLogicalValueType::Uint32:
+        case ESimpleLogicalValueType::Uint64:
+            return true;
+        default:
+            return false;
+    }
+}
+
+inline bool IsStringLikeType(ESimpleLogicalValueType type)
+{
+    switch (type) {
+        case ESimpleLogicalValueType::String:
+        case ESimpleLogicalValueType::Any:
+        case ESimpleLogicalValueType::Utf8:
+            return true;
+        default:
+            return false;
+    }
+}
+
+inline int GetIntegralTypeBitWidth(ESimpleLogicalValueType type)
+{
+    switch (type) {
+        case ESimpleLogicalValueType::Int8:
+        case ESimpleLogicalValueType::Uint8:
+            return 8;
+        case ESimpleLogicalValueType::Int16:
+        case ESimpleLogicalValueType::Uint16:
+            return 16;
+        case ESimpleLogicalValueType::Int32:
+        case ESimpleLogicalValueType::Uint32:
+            return 32;
+        case ESimpleLogicalValueType::Int64:
+        case ESimpleLogicalValueType::Uint64:
+            return 64;
+        default:
+            YT_ABORT();
+    }
+}
+
+inline int GetIntegralTypeByteSize(ESimpleLogicalValueType type)
+{
+    switch (type) {
+        case ESimpleLogicalValueType::Int8:
+        case ESimpleLogicalValueType::Uint8:
+            return 1;
+        case ESimpleLogicalValueType::Int16:
+        case ESimpleLogicalValueType::Uint16:
+            return 2;
+        case ESimpleLogicalValueType::Int32:
+        case ESimpleLogicalValueType::Uint32:
+            return 4;
+        case ESimpleLogicalValueType::Int64:
+        case ESimpleLogicalValueType::Uint64:
+            return 8;
+        default:
+            YT_ABORT();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline constexpr EValueType GetPhysicalType(ESimpleLogicalValueType type)
@@ -133,7 +220,10 @@ inline constexpr bool IsArithmeticType(EValueType type)
 
 inline constexpr bool IsStringLikeType(EValueType type)
 {
-    return type == EValueType::String || type == EValueType::Any || type == EValueType::Composite;
+    return
+        type == EValueType::String ||
+        type == EValueType::Any ||
+        type == EValueType::Composite;
 }
 
 inline constexpr bool IsValueType(EValueType type)

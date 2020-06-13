@@ -37,7 +37,7 @@ struct IUserJobIOFactory
         NTableClient::TTableWriterOptionsPtr options,
         NChunkClient::TChunkListId chunkListId,
         NTransactionClient::TTransactionId transactionId,
-        const NTableClient::TTableSchema& tableSchema,
+        NTableClient::TTableSchemaPtr tableSchema,
         const NTableClient::TChunkTimestamps& chunkTimestamps) = 0;
 };
 

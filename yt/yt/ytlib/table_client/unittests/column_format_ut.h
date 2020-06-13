@@ -216,7 +216,7 @@ protected:
     {
         const auto& primaryColumn = columns[0];
         for (int index = startIndex; index < startIndex + count; ++index) {
-            EXPECT_EQ(expected[index], DecodeValueFromColumn(&primaryColumn, index))
+            EXPECT_EQ(expected[index], DecodeValueFromColumn(&primaryColumn, index - startIndex))
                 << "Row index " << index;
         }
     }

@@ -36,21 +36,21 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnIdMapping>, SchemaIdMapping);
     DEFINE_BYVAL_RO_PROPERTY(int, ChunkKeyColumnCount);
     DEFINE_BYVAL_RO_PROPERTY(int, KeyColumnCount);
-    DEFINE_BYREF_RO_PROPERTY(TTableSchema, Schema);
+    DEFINE_BYVAL_RO_PROPERTY(TTableSchemaPtr, Schema);
 
     static TCachedVersionedChunkMetaPtr Create(
         NChunkClient::TChunkId chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         const TColumnRenameDescriptors& renameDescriptors = {},
-        NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker = nullptr);
+        const NNodeTrackerClient::TNodeMemoryTrackerPtr& memoryTracker = nullptr);
 
     static TFuture<TCachedVersionedChunkMetaPtr> Load(
-        NChunkClient::IChunkReaderPtr chunkReader,
+        const NChunkClient::IChunkReaderPtr& chunkReader,
         const NChunkClient::TClientBlockReadOptions& blockReadOptions,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         const TColumnRenameDescriptors& renameDescriptors = {},
-        NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker = nullptr);
+        const NNodeTrackerClient::TNodeMemoryTrackerPtr& memoryTracker = nullptr);
 
     virtual i64 GetMemoryUsage() const override;
 
@@ -62,7 +62,7 @@ private:
     void Init(
         NChunkClient::TChunkId chunkId,
         const NChunkClient::NProto::TChunkMeta& chunkMeta,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         const TColumnRenameDescriptors& renameDescriptors,
         NNodeTrackerClient::TNodeMemoryTrackerPtr memoryTracker);
 

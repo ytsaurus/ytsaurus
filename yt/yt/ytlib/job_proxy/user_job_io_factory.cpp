@@ -53,7 +53,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
     TTableWriterOptionsPtr options,
     TChunkListId chunkListId,
     TTransactionId transactionId,
-    const TTableSchema& tableSchema,
+    TTableSchemaPtr tableSchema,
     const TChunkTimestamps& chunkTimestamps,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler)
@@ -65,7 +65,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
         std::move(config),
         std::move(options),
         std::move(nameTable),
-        tableSchema,
+        std::move(tableSchema),
         TOwningKey(),
         std::move(client),
         CellTagFromId(chunkListId),
@@ -182,7 +182,7 @@ struct TUserJobIOFactoryBase
         TTableWriterOptionsPtr options,
         TChunkListId chunkListId,
         TTransactionId transactionId,
-        const TTableSchema& tableSchema,
+        TTableSchemaPtr tableSchema,
         const TChunkTimestamps& chunkTimestamps) override
     {
         return CreateTableWriter(
@@ -192,7 +192,7 @@ struct TUserJobIOFactoryBase
             std::move(options),
             chunkListId,
             transactionId,
-            tableSchema,
+            std::move(tableSchema),
             chunkTimestamps,
             TrafficMeter_,
             OutBandwidthThrottler_);
@@ -422,7 +422,7 @@ public:
         TTableWriterOptionsPtr options,
         TChunkListId chunkListId,
         TTransactionId transactionId,
-        const TTableSchema& tableSchema,
+        TTableSchemaPtr tableSchema,
         const TChunkTimestamps& chunkTimestamps) override
     {
         const auto& jobSpec = JobSpecHelper_->GetJobSpec();

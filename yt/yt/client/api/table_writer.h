@@ -27,7 +27,7 @@ struct ITableWriter
     virtual const NTableClient::TNameTablePtr& GetNameTable() const = 0;
 
     //! Returns the schema to be used for constructing rows.
-    virtual const NTableClient::TTableSchema& GetSchema() const = 0;
+    virtual const NTableClient::TTableSchemaPtr& GetSchema() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITableWriter)

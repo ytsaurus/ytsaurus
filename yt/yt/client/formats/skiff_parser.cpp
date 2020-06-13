@@ -173,14 +173,17 @@ TSkiffToUnversionedValueConverter CreateComplexValueConverter(
 class TSkiffParserImpl
 {
 public:
-    TSkiffParserImpl(const TSkiffSchemaPtr& skiffSchema, const TTableSchema& tableSchema, IValueConsumer* valueConsumer)
-        : SkiffSchemaList_({skiffSchema})
+    TSkiffParserImpl(
+        TSkiffSchemaPtr skiffSchema,
+        TTableSchemaPtr tableSchema,
+        IValueConsumer* valueConsumer)
+        : SkiffSchemaList_({std::move(skiffSchema)})
         , ValueConsumer_(valueConsumer)
         , YsonToUnversionedValueConverter_(EComplexTypeMode::Named, ValueConsumer_)
         , OtherColumnsConsumer_(EComplexTypeMode::Named, ValueConsumer_)
     {
         THashMap<TString, const TColumnSchema*> columnSchemas;
-        for (const auto& column : tableSchema.Columns()) {
+        for (const auto& column : tableSchema->Columns()) {
             columnSchemas[column.Name()] = &column;
         }
 
@@ -319,8 +322,14 @@ class TSkiffPushParser
     : public IParser
 {
 public:
-    TSkiffPushParser(const TSkiffSchemaPtr& skiffSchema, const TTableSchema& tableSchema, IValueConsumer* consumer)
-        : ParserImpl_(std::make_unique<TSkiffParserImpl>(skiffSchema, tableSchema, consumer))
+    TSkiffPushParser(
+        TSkiffSchemaPtr skiffSchema,
+        TTableSchemaPtr tableSchema,
+        IValueConsumer* consumer)
+        : ParserImpl_(std::make_unique<TSkiffParserImpl>(
+            std::move(skiffSchema),
+            std::move(tableSchema),
+            consumer))
         , ParserCoroPipe_(
             BIND(
                 [=](IZeroCopyInput* stream) {
@@ -353,7 +362,7 @@ private:
 
 std::unique_ptr<IParser> CreateParserForSkiff(
     TSkiffSchemaPtr skiffSchema,
-    const TTableSchema& tableSchema,
+    TTableSchemaPtr tableSchema,
     IValueConsumer* consumer)
 {
     auto tableDescriptionList = CreateTableDescriptionList({skiffSchema}, RangeIndexColumnName, RowIndexColumnName);
@@ -362,8 +371,8 @@ std::unique_ptr<IParser> CreateParserForSkiff(
             tableDescriptionList.size());
     }
     return std::make_unique<TSkiffPushParser>(
-        skiffSchema,
-        tableSchema,
+        std::move(skiffSchema),
+        std::move(tableSchema),
         consumer);
 }
 
@@ -378,13 +387,13 @@ std::unique_ptr<IParser> CreateParserForSkiff(
             tableIndex);
     }
     if (tableIndex == 0 && config->OverrideIntermediateTableSchema) {
-        if (!IsTrivialIntermediateSchema(consumer->GetSchema())) {
+        if (!IsTrivialIntermediateSchema(*consumer->GetSchema())) {
             THROW_ERROR_EXCEPTION("Cannot use \"override_intermediate_table_schema\" since output table #0 has nontrivial schema")
-                << TErrorAttribute("schema", consumer->GetSchema());
+                << TErrorAttribute("schema", *consumer->GetSchema());
         }
         return CreateParserForSkiff(
             skiffSchemas[tableIndex],
-            *config->OverrideIntermediateTableSchema,
+            New<TTableSchema>(*config->OverrideIntermediateTableSchema),
             consumer);
     } else {
         return CreateParserForSkiff(
@@ -397,7 +406,7 @@ std::unique_ptr<IParser> CreateParserForSkiff(
     TSkiffSchemaPtr skiffSchema,
     IValueConsumer* consumer)
 {
-    return CreateParserForSkiff(skiffSchema, consumer->GetSchema(), consumer);
+    return CreateParserForSkiff(std::move(skiffSchema), consumer->GetSchema(), consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

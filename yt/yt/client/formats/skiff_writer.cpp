@@ -66,10 +66,10 @@ void ResizeToContainIndex(std::vector<T>* vec, size_t index)
 class TIndexedSchemas
 {
 public:
-    explicit TIndexedSchemas(const std::vector<TTableSchema>& tableSchemas)
+    explicit TIndexedSchemas(const std::vector<TTableSchemaPtr>& tableSchemas)
     {
         for (size_t tableIndex = 0; tableIndex < tableSchemas.size(); ++tableIndex) {
-            const auto& columns = tableSchemas[tableIndex].Columns();
+            const auto& columns = tableSchemas[tableIndex]->Columns();
             for (const auto& column : columns) {
                 Columns_[std::pair<int,TString>(tableIndex, column.Name())] = column;
             }
@@ -422,7 +422,7 @@ public:
             keyColumnCount)
     { }
 
-    void Init(const std::vector<TTableSchema>& schemas, const std::vector<TSkiffSchemaPtr>& tableSkiffSchemas)
+    void Init(const std::vector<TTableSchemaPtr>& schemas, const std::vector<TSkiffSchemaPtr>& tableSkiffSchemas)
     {
         for (const auto& schema : schemas) {
             UnversionedValueToYsonConverter_.emplace_back(NameTable_, schema, EComplexTypeMode::Named, /* skipNullValues */ false);
@@ -787,7 +787,7 @@ private:
 ISchemalessFormatWriterPtr CreateWriterForSkiff(
     const NYTree::IAttributeDictionary& attributes,
     NTableClient::TNameTablePtr nameTable,
-    const std::vector<NTableClient::TTableSchema>& schemas,
+    const std::vector<NTableClient::TTableSchemaPtr>& schemas,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
@@ -796,14 +796,14 @@ ISchemalessFormatWriterPtr CreateWriterForSkiff(
     auto config = NYTree::ConvertTo<TSkiffFormatConfigPtr>(attributes);
     auto skiffSchemas = ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
 
-    std::vector<NTableClient::TTableSchema> copySchemas = schemas;
+    auto copySchemas = schemas;
     if (config->OverrideIntermediateTableSchema) {
         Y_VERIFY(schemas.size() > 0);
-        if (!IsTrivialIntermediateSchema(schemas[0])) {
+        if (!IsTrivialIntermediateSchema(*schemas[0])) {
             THROW_ERROR_EXCEPTION("Cannot use \"override_intermediate_table_schema\" since input table #0 has nontrivial schema")
-                << TErrorAttribute("schema", schemas[0]);
+                << TErrorAttribute("schema", *schemas[0]);
         }
-        copySchemas[0] = *config->OverrideIntermediateTableSchema;
+        copySchemas[0] = New<TTableSchema>(*config->OverrideIntermediateTableSchema);
     }
 
     return CreateWriterForSkiff(
@@ -813,14 +813,13 @@ ISchemalessFormatWriterPtr CreateWriterForSkiff(
         std::move(output),
         enableContextSaving,
         std::move(controlAttributesConfig),
-        keyColumnCount
-    );
+        keyColumnCount);
 }
 
 ISchemalessFormatWriterPtr CreateWriterForSkiff(
     const std::vector<TSkiffSchemaPtr>& tableSkiffSchemas,
     NTableClient::TNameTablePtr nameTable,
-    const std::vector<NTableClient::TTableSchema>& schemas,
+    const std::vector<NTableClient::TTableSchemaPtr>& schemas,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,
@@ -831,8 +830,7 @@ ISchemalessFormatWriterPtr CreateWriterForSkiff(
         output,
         enableContextSaving,
         controlAttributesConfig,
-        keyColumnCount
-    );
+        keyColumnCount);
     result->Init(schemas, tableSkiffSchemas);
     return result;
 }

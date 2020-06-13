@@ -120,7 +120,7 @@ public:
         TControlAttributesConfigPtr controlAttributesConfig,
         int keyColumnCount);
 
-    void Init(const std::vector<NTableClient::TTableSchema>& tableSchemas, const TFormat& format);
+    void Init(const std::vector<NTableClient::TTableSchemaPtr>& tableSchemas, const TFormat& format);
 
 private:
     template <class T>

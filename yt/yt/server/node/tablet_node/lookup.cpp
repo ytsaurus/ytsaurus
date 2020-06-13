@@ -109,8 +109,8 @@ public:
         , LookupKeys_(std::move(lookupKeys))
         , Merger_(
             New<TRowBuffer>(TLookupSessionBufferTag()),
-            TabletSnapshot_->PhysicalSchema.GetColumnCount(),
-            TabletSnapshot_->PhysicalSchema.GetKeyColumnCount(),
+            TabletSnapshot_->PhysicalSchema->GetColumnCount(),
+            TabletSnapshot_->PhysicalSchema->GetKeyColumnCount(),
             UniversalColumnFilter,
             TabletSnapshot_->Config,
             AllCommittedTimestamp,
@@ -457,14 +457,14 @@ void LookupRows(
 
     auto columnFilter = DecodeColumnFilter(
         std::unique_ptr<NTableClient::NProto::TColumnFilter>(req.release_column_filter()),
-        tabletSnapshot->PhysicalSchema.GetColumnCount());
-    auto schemaData = TWireProtocolReader::GetSchemaData(tabletSnapshot->PhysicalSchema.ToKeys());
+        tabletSnapshot->PhysicalSchema->GetColumnCount());
+    auto schemaData = TWireProtocolReader::GetSchemaData(*tabletSnapshot->PhysicalSchema->ToKeys());
     auto lookupKeys = reader->ReadSchemafulRowset(schemaData, false);
 
     TSchemafulRowMerger merger(
         New<TRowBuffer>(TLookupSessionBufferTag()),
-        tabletSnapshot->PhysicalSchema.Columns().size(),
-        tabletSnapshot->PhysicalSchema.GetKeyColumnCount(),
+        tabletSnapshot->PhysicalSchema->Columns().size(),
+        tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
         columnFilter,
         tabletSnapshot->ColumnEvaluator);
 
@@ -504,14 +504,14 @@ void VersionedLookupRows(
 
     auto columnFilter = DecodeColumnFilter(
         std::unique_ptr<NTableClient::NProto::TColumnFilter>(req.release_column_filter()),
-        tabletSnapshot->PhysicalSchema.GetColumnCount());
-    auto schemaData = TWireProtocolReader::GetSchemaData(tabletSnapshot->PhysicalSchema.ToKeys());
+        tabletSnapshot->PhysicalSchema->GetColumnCount());
+    auto schemaData = TWireProtocolReader::GetSchemaData(*tabletSnapshot->PhysicalSchema->ToKeys());
     auto lookupKeys = reader->ReadSchemafulRowset(schemaData, false);
 
     TVersionedRowMerger merger(
         New<TRowBuffer>(TLookupSessionBufferTag()),
-        tabletSnapshot->PhysicalSchema.GetColumnCount(),
-        tabletSnapshot->PhysicalSchema.GetKeyColumnCount(),
+        tabletSnapshot->PhysicalSchema->GetColumnCount(),
+        tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
         columnFilter,
         std::move(retentionConfig),
         timestamp,

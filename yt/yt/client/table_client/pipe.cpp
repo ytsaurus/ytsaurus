@@ -110,7 +110,7 @@ public:
             }
         }
 
-        return CreateBatchFromUnversionedRows(std::move(rows), this);
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
     }
 
     virtual TFuture<void> GetReadyEvent() override

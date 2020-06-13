@@ -122,6 +122,7 @@ using NTableClient::IUnversionedRowsetWriter;
 using NTableClient::IUnversionedRowsetWriterPtr;
 using NTableClient::EValueType;
 using NTableClient::TTableSchema;
+using NTableClient::TTableSchemaPtr;
 using NTableClient::TColumnSchema;
 using NTableClient::TKeyColumns;
 using NTableClient::TColumnFilter;

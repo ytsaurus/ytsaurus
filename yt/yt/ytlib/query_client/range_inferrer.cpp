@@ -728,14 +728,14 @@ ui64 GetRangeCountLimit(
 
 TRangeInferrer CreateHeavyRangeInferrer(
     TConstExpressionPtr predicate,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options)
 {
     auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag());
-    auto keySize = schema.GetKeyColumnCount();
+    auto keySize = schema->GetKeyColumnCount();
 
     auto evaluator = evaluatorCache->Find(schema);
     auto keyTrie = ExtractMultipleConstraints(
@@ -753,7 +753,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
     // TODO(savrus): this is a hotfix for YT-2836. Further discussion in YT-2842.
     auto rangeCountLimit = GetRangeCountLimit(
         *evaluator,
-        schema.Columns(),
+        schema->Columns(),
         keySize,
         options.RangeExpansionLimit);
 
@@ -777,7 +777,7 @@ TRangeInferrer CreateHeavyRangeInferrer(
     for (auto range : ranges) {
         EnrichKeyRange(
             *evaluator,
-            schema.Columns(),
+            schema->Columns(),
             buffer.Get(),
             range,
             enrichedRanges,
@@ -852,13 +852,13 @@ TRangeInferrer CreateLightRangeInferrer(
 
 TRangeInferrer CreateRangeInferrer(
     TConstExpressionPtr predicate,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     const TKeyColumns& keyColumns,
     const TColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options)
 {
-    return schema.HasComputedColumns()
+    return schema->HasComputedColumns()
         ? CreateHeavyRangeInferrer(
             predicate,
             schema,

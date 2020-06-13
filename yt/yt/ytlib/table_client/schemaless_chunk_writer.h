@@ -44,7 +44,7 @@ struct TChunkTimestamps
 ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     NChunkClient::IChunkWriterPtr chunkWriter,
     const TChunkTimestamps& chunkTimestamps = TChunkTimestamps(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
@@ -64,7 +64,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     NTableClient::TOwningKey lastKey,
     NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
@@ -79,7 +79,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
     TNameTablePtr nameTable,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     NApi::NNative::IClientPtr client,
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,

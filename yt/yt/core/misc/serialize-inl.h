@@ -157,13 +157,20 @@ template <class TTag, class TParts>
 TSharedRef MergeRefsToRef(const TParts& parts)
 {
     size_t size = GetByteSize(parts);
-    auto packedRef = TSharedMutableRef::Allocate<TTag>(size, false);
-    size_t pos = 0;
+    auto mergedRef = TSharedMutableRef::Allocate<TTag>(size, false);
+    MergeRefsToRef(parts, mergedRef);
+    return mergedRef;
+}
+
+template <class TParts>
+void MergeRefsToRef(const TParts& parts, TMutableRef dst)
+{
+    char* current = dst.Begin();
     for (const auto& part : parts) {
-        std::copy(part.Begin(), part.End(), packedRef.Begin() + pos);
-        pos += part.Size();
+        std::copy(part.Begin(), part.End(), current);
+        current += part.Size();
     }
-    return packedRef;
+    YT_VERIFY(current == dst.End());
 }
 
 template <class TParts>
@@ -1629,6 +1636,26 @@ struct TUniquePtrSerializer
         } else {
             ptr.reset();
         }
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TUnderlyingSerializer = TDefaultSerializer>
+struct TNonNullableIntrusivePtrSerializer
+{
+    template <class T, class C>
+    static void Save(C& context, const TIntrusivePtr<T>& ptr)
+    {
+        using NYT::Save;
+        TUnderlyingSerializer::Save(context, *ptr);
+    }
+
+    template <class T, class C>
+    static void Load(C& context, TIntrusivePtr<T>& ptr)
+    {
+        ptr = New<T>();
+        TUnderlyingSerializer::Load(context, *ptr);
     }
 };
 

@@ -42,7 +42,7 @@ public:
         return UnderlyingWriter_->GetNameTable();
     }
 
-    virtual const NTableClient::TTableSchema& GetSchema() const override
+    virtual const NTableClient::TTableSchemaPtr& GetSchema() const override
     {
         return UnderlyingWriter_->GetSchema();
     }
@@ -87,7 +87,7 @@ public:
         return UnderlyingWriter_->GetNameTable();
     }
 
-    virtual const NTableClient::TTableSchema& GetSchema() const override
+    virtual const NTableClient::TTableSchemaPtr& GetSchema() const override
     {
         return UnderlyingWriter_->GetSchema();
     }

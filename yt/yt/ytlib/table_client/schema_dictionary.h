@@ -15,7 +15,7 @@ class TSchemaDictionary
 public:
     int GetIdOrRegisterTable(const TTableSchema& table);
     int GetIdOrRegisterColumn(const TColumnSchema& column);
-    const TTableSchema& GetTable(int id) const;
+    const TTableSchemaPtr& GetTable(int id) const;
     const TColumnSchema& GetColumn(int id) const;
 
 private:
@@ -41,7 +41,7 @@ private:
     //! table schema representation and to the "real" table schema).
     THashMap<TTableSchemaInternal, int, THashInternal, TEqualsInternal> TableInternalToId_;
     std::vector<TTableSchemaInternal> IdToTableInternal_;
-    std::vector<TTableSchema> IdToTable_;
+    std::vector<TTableSchemaPtr> IdToTable_;
 
     friend void ToProto(NProto::TSchemaDictionary* protoDictionary, const TSchemaDictionary& dictionary);
     friend void FromProto(TSchemaDictionary* dictionary, const NProto::TSchemaDictionary& protoDictionary);

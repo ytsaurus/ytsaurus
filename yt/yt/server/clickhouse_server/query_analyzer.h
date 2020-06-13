@@ -17,7 +17,7 @@ DEFINE_ENUM(EPoolKind,
 
 struct TQueryAnalysisResult
 {
-    std::vector<NTableClient::TTableSchema> TableSchemas;
+    std::vector<NTableClient::TTableSchemaPtr> TableSchemas;
     std::vector<std::vector<TTablePtr>> Tables;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions;
     std::optional<int> KeyColumnCount;

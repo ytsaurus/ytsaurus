@@ -31,12 +31,12 @@ public:
         i64 startRowIndex,
         const TKeyColumns& keyColumns,
         const std::vector<TString>& omittedInaccessibleColumns,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         const NApi::NRpcProxy::NProto::TRowsetStatistics& statistics)
         : Underlying_ (std::move(underlying))
         , StartRowIndex_(startRowIndex)
         , KeyColumns_(keyColumns)
-        , TableSchema_(schema)
+        , TableSchema_(std::move(schema))
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
         , Parser_(CreateWireRowStreamParser(NameTable_))
     {
@@ -127,7 +127,7 @@ public:
         DataWeight_ += dataWeight;
 
         ReadyEvent_.TrySetFrom(RowsWithStatisticsFuture_);
-        return rows.empty() ? nullptr : CreateBatchFromUnversionedRows(std::move(rows), this);
+        return rows.empty() ? nullptr : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
     }
 
     virtual const TNameTablePtr& GetNameTable() const override
@@ -140,7 +140,7 @@ public:
         return KeyColumns_;
     }
 
-    virtual const TTableSchema& GetTableSchema() const override
+    virtual const TTableSchemaPtr& GetTableSchema() const override
     {
         return TableSchema_;
     }
@@ -151,18 +151,16 @@ public:
     }
 
 private:
-    using TRows = TSharedRange<TUnversionedRow>;
-    using TStatistics = NApi::NRpcProxy::NProto::TRowsetStatistics;
     struct TRowsWithStatistics
     {
-        TRows Rows;
-        TStatistics Statistics;
+        TSharedRange<TUnversionedRow> Rows;
+        NApi::NRpcProxy::NProto::TRowsetStatistics Statistics;
     };
 
     const IAsyncZeroCopyInputStreamPtr Underlying_;
     const i64 StartRowIndex_;
     const TKeyColumns KeyColumns_;
-    const TTableSchema TableSchema_;
+    const TTableSchemaPtr TableSchema_;
     const std::vector<TString> OmittedInaccessibleColumns_;
 
     const TNameTablePtr NameTable_ = New<TNameTable>();
@@ -178,13 +176,13 @@ private:
 
     TPromise<void> ReadyEvent_ = NewPromise<void>();
 
-    std::vector<TRows> StoredRows_;
+    std::vector<TSharedRange<TUnversionedRow>> StoredRows_;
     TFuture<TRowsWithStatistics> RowsWithStatisticsFuture_;
     i64 CurrentRowsOffset_ = 0;
 
     bool Finished_ = false;
 
-    void ApplyReaderStatistics(const TStatistics& statistics)
+    void ApplyReaderStatistics(const NApi::NRpcProxy::NProto::TRowsetStatistics& statistics)
     {
         TotalRowCount_ = statistics.total_row_count();
         DataStatistics_ = statistics.data_statistics();
@@ -199,7 +197,22 @@ private:
                     THROW_ERROR_EXCEPTION(NYT::EErrorCode::Canceled, "Reader destroyed");
                 }
 
-                auto rowsWithStatistics = DeserializeRows(block);
+                NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+                NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
+                auto payloadRef = DeserializeRowStreamBlockEnvelope(block, &descriptor, &statistics);
+                
+                ValidateRowsetDescriptor(
+                    descriptor,
+                    NApi::NRpcProxy::CurrentWireFormatVersion,
+                    NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+
+                auto parser = GetOrCreateParser(descriptor.rowset_format());
+                auto rows = parser->Parse(payloadRef, descriptor);
+                auto rowsWithStatistics = TRowsWithStatistics{
+                    std::move(rows),
+                    std::move(statistics)
+                };
+
                 if (rowsWithStatistics.Rows.Empty()) {
                     return ExpectEndOfStream(Underlying_).Apply(BIND([=] () {
                         return std::move(rowsWithStatistics);
@@ -209,11 +222,13 @@ private:
             }));
     }
 
-    TRowsWithStatistics DeserializeRows(const TSharedRef& block)
+    IRowStreamParserPtr GetOrCreateParser(NApi::NRpcProxy::NProto::ERowsetFormat format)
     {
-        TStatistics statistics;
-        auto rows = Parser_->Parse(block, &statistics);
-        return {std::move(rows), std::move(statistics)};
+        if (format != NApi::NRpcProxy::NProto::RF_YT_WIRE) {
+            THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
+                NApi::NRpcProxy::NProto::ERowsetFormat_Name(format));
+        }
+        return Parser_;
     }
 };
 
@@ -231,8 +246,7 @@ TFuture<ITableReaderPtr> CreateTableReader(TApiServiceProxy::TReqReadTablePtr re
                 auto keyColumns = FromProto<TKeyColumns>(meta.key_columns());
                 auto omittedInaccessibleColumns = FromProto<std::vector<TString>>(
                     meta.omitted_inaccessible_columns());
-                auto schema = FromProto<TTableSchema>(meta.schema());
-
+                auto schema = NYT::FromProto<TTableSchemaPtr>(meta.schema());
                 return New<TTableReader>(
                     inputStream,
                     startRowIndex,

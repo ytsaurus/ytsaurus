@@ -275,6 +275,7 @@ TServiceDescriptor GetServiceDescriptor()
 
 IRowStreamFormatterPtr CreateRowStreamFormatter(
     NApi::NRpcProxy::NProto::ERowsetFormat format,
+    TTableSchemaPtr schema, 
     TNameTablePtr nameTable)
 {
     switch (format) {
@@ -282,7 +283,7 @@ IRowStreamFormatterPtr CreateRowStreamFormatter(
             return CreateWireRowStreamFormatter(std::move(nameTable));
 
         case NApi::NRpcProxy::NProto::RF_ARROW:
-            return CreateArrowRowStreamFormatter(std::move(nameTable));
+            return CreateArrowRowStreamFormatter(std::move(schema), std::move(nameTable));
 
         default:
             THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
@@ -292,6 +293,7 @@ IRowStreamFormatterPtr CreateRowStreamFormatter(
 
 IRowStreamParserPtr CreateRowStreamParser(
     NApi::NRpcProxy::NProto::ERowsetFormat format,
+    TTableSchemaPtr schema, 
     TNameTablePtr nameTable)
 {
     switch (format) {
@@ -299,12 +301,17 @@ IRowStreamParserPtr CreateRowStreamParser(
             return CreateWireRowStreamParser(std::move(nameTable));
 
         case NApi::NRpcProxy::NProto::RF_ARROW:
-            return CreateArrowRowStreamParser(std::move(nameTable));
+            return CreateArrowRowStreamParser(std::move(schema), std::move(nameTable));
 
         default:
             THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
                 NApi::NRpcProxy::NProto::ERowsetFormat_Name(format));
     }
+}
+
+bool IsColumnarRowsetFormat(NApi::NRpcProxy::NProto::ERowsetFormat format)
+{
+    return format == NApi::NRpcProxy::NProto::RF_ARROW;
 }
 
 } // namespace
@@ -2350,10 +2357,6 @@ private:
         TSharedRange<TUnversionedRow>* keys,
         TOptions* options)
     {
-        NApi::NRpcProxy::ValidateRowsetDescriptor(
-            request->rowset_descriptor(),
-            NApi::NRpcProxy::CurrentWireFormatVersion,
-            NApi::NRpcProxy::NProto::RK_UNVERSIONED);
         if (request->Attachments().empty()) {
             THROW_ERROR_EXCEPTION("Request is missing rowset in attachments");
         }
@@ -2361,6 +2364,7 @@ private:
         auto rowset = NApi::NRpcProxy::DeserializeRowset<TUnversionedRow>(
             request->rowset_descriptor(),
             MergeRefsToRef<TApiServiceBufferTag>(request->Attachments()));
+        
         *nameTable = rowset->GetNameTable();
         *keys = MakeSharedRange(rowset->GetRows(), rowset);
 
@@ -3245,17 +3249,21 @@ private:
             FromProto(&options, request->transactional_options());
         }
 
+        auto desiredRowsetFormat = request->desired_rowset_format();
+
         context->SetRequestInfo(
-            "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v",
+            "Path: %v, Unordered: %v, OmitInaccessibleColumns: %v, DesiredRowsetFormat: %v",
             path,
             options.Unordered,
-            options.OmitInaccessibleColumns);
+            options.OmitInaccessibleColumns,
+            NApi::NRpcProxy::NProto::ERowsetFormat_Name(desiredRowsetFormat));
 
         auto tableReader = WaitFor(client->CreateTableReader(path, options))
             .ValueOrThrow();
 
         auto formatter = CreateRowStreamFormatter(
-            request->desired_rowset_format(),
+            desiredRowsetFormat,
+            tableReader->GetTableSchema(),
             tableReader->GetNameTable());
 
         auto outputStream = context->GetResponseAttachmentsStream();
@@ -3282,7 +3290,8 @@ private:
 
                 TRowBatchReadOptions options{
                     .MaxRowsPerRead = Config_->ReadBufferRowCount,
-                    .MaxDataWeightPerRead = Config_->ReadBufferDataWeight
+                    .MaxDataWeightPerRead = Config_->ReadBufferDataWeight,
+                    .Columnar = IsColumnarRowsetFormat(request->desired_rowset_format())
                 };
                 auto batch = WaitForRowBatch(tableReader, options);
                 if (!batch) {
@@ -3321,14 +3330,23 @@ private:
         auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
             .ValueOrThrow();
 
-        auto parser = CreateRowStreamParser(
-            NApi::NRpcProxy::NProto::RF_YT_WIRE,
-            tableWriter->GetNameTable());
+        THashMap<NApi::NRpcProxy::NProto::ERowsetFormat, IRowStreamParserPtr> parserMap;
+        auto getOrCreateParser = [&] (NApi::NRpcProxy::NProto::ERowsetFormat format) {
+            auto it =  parserMap.find(format);
+            if (it == parserMap.end()) {
+                auto parser = CreateRowStreamParser(
+                    format,
+                    tableWriter->GetSchema(),
+                    tableWriter->GetNameTable());
+                it = parserMap.emplace(format, std::move(parser)).first;
+            }
+            return it->second;
+        };
 
         auto outputStream = context->GetResponseAttachmentsStream();
-        const auto& schema = tableWriter->GetSchema();
+
         NApi::NRpcProxy::NProto::TWriteTableMeta meta;
-        ToProto(meta.mutable_schema(), schema);
+        ToProto(meta.mutable_schema(), tableWriter->GetSchema());
         auto metaRef = SerializeProtoToRef(meta);
         WaitFor(outputStream->Write(metaRef))
             .ThrowOnError();
@@ -3336,7 +3354,17 @@ private:
         HandleOutputStreamingRequest(
             context,
             [&] (const TSharedRef& block) {
-                auto rows = parser->Parse(block, nullptr);
+                NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+                auto payloadRef = DeserializeRowStreamBlockEnvelope(block, &descriptor, nullptr);
+
+                ValidateRowsetDescriptor(
+                    descriptor,
+                    NApi::NRpcProxy::CurrentWireFormatVersion,
+                    NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+
+                auto parser = getOrCreateParser(descriptor.rowset_format());
+
+                auto rows = parser->Parse(payloadRef, descriptor);
 
                 tableWriter->Write(rows);
                 

@@ -88,7 +88,7 @@ TSortedStoreManager::TSortedStoreManager(
         std::move(hydraManager),
         std::move(inMemoryManager),
         std::move(client))
-    , KeyColumnCount_(Tablet_->PhysicalSchema().GetKeyColumnCount())
+    , KeyColumnCount_(Tablet_->GetPhysicalSchema()->GetKeyColumnCount())
 {
     for (const auto& pair : Tablet_->StoreIdMap()) {
         auto store = pair.second->AsSorted();
@@ -359,7 +359,7 @@ void TSortedStoreManager::Mount(
 
     std::vector<TBoundaryDescriptor> chunkBoundaries;
     int descriptorIndex = 0;
-    const auto& schema = Tablet_->PhysicalSchema();
+    const auto& schema = *Tablet_->GetPhysicalSchema();
     chunkBoundaries.reserve(storeDescriptors.size());
     for (const auto& descriptor : storeDescriptors) {
         const auto& extensions = descriptor.chunk_meta().extensions();
@@ -659,8 +659,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         TVersionedRowMerger rowMerger(
             New<TRowBuffer>(TMergeRowsOnFlushTag()),
-            tabletSnapshot->QuerySchema.GetColumnCount(),
-            tabletSnapshot->QuerySchema.GetKeyColumnCount(),
+            tabletSnapshot->QuerySchema->GetColumnCount(),
+            tabletSnapshot->QuerySchema->GetKeyColumnCount(),
             TColumnFilter(),
             tabletSnapshot->Config,
             currentTimestamp,
@@ -1028,14 +1028,14 @@ void TSortedStoreManager::WaitOnBlockedRow(
     TSortedDynamicRow row,
     int lockIndex)
 {
-    const auto& lock = row.BeginLocks(Tablet_->PhysicalSchema().GetKeyColumnCount())[lockIndex];
+    const auto& lock = row.BeginLocks(Tablet_->GetPhysicalSchema()->GetKeyColumnCount())[lockIndex];
     const auto* transaction = lock.WriteTransaction;
     if (!transaction) {
         return;
     }
 
     YT_LOG_DEBUG("Waiting on blocked row (Key: %v, LockIndex: %v, TransactionId: %v)",
-        RowToKey(Tablet_->PhysicalSchema(), row),
+        RowToKey(*Tablet_->GetPhysicalSchema(), row),
         lockIndex,
         transaction->GetId());
 
@@ -1063,7 +1063,7 @@ TError TSortedStoreManager::CheckOverflow() const
     if (ActiveStore_ && ActiveStore_->GetMaxDataWeight() >= config->MaxDynamicStoreRowDataWeight) {
         return TError("Maximum row data weight limit reached")
             << TErrorAttribute("store_id", ActiveStore_->GetId())
-            << TErrorAttribute("key", RowToKey(Tablet_->PhysicalSchema(), ActiveStore_->GetMaxDataWeightWitnessKey()))
+            << TErrorAttribute("key", RowToKey(*Tablet_->GetPhysicalSchema(), ActiveStore_->GetMaxDataWeightWitnessKey()))
             << TErrorAttribute("data_weight", ActiveStore_->GetMaxDataWeight())
             << TErrorAttribute("data_weight_limit", config->MaxDynamicStoreRowDataWeight);
     }

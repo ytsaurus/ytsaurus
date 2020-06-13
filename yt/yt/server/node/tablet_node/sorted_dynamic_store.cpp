@@ -261,7 +261,7 @@ protected:
         // Prepare values.
         VersionedValues_.clear();
 
-        const auto& schemaColumns = TabletSnapshot_->PhysicalSchema.Columns();
+        const auto& schemaColumns = TabletSnapshot_->PhysicalSchema->Columns();
 
         auto fillValue = [&] (int index) {
             // NB: Inserting a new item into value list and adding a new write revision cannot
@@ -410,7 +410,7 @@ protected:
         if (null) {
             dstValue->Type = EValueType::Null;
         } else {
-            dstValue->Type = Store_->Schema_.Columns()[index].GetPhysicalType();
+            dstValue->Type = Store_->Schema_->Columns()[index].GetPhysicalType();
             if (IsStringLikeType(dstValue->Type)) {
                 dstValue->Length = srcData.String->Length;
                 dstValue->Data.String = srcData.String->Data;
@@ -832,7 +832,7 @@ TSortedDynamicStore::TSortedDynamicStore(
         LookupHashTable_ = std::make_unique<TLookupHashTable>(
             Tablet_->GetHashTableSize(),
             RowKeyComparer_,
-            Tablet_->PhysicalSchema().GetKeyColumnCount());
+            Tablet_->GetPhysicalSchema()->GetKeyColumnCount());
     }
 
     YT_LOG_DEBUG("Sorted dynamic store created (LookupHashTable: %v)",
@@ -1593,7 +1593,7 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, const TUnversionedVa
     ui32 nullKeyMask = 0;
     ui32 nullKeyBit = 1;
     auto* dstValue = dstRow.BeginKeys();
-    auto columnIt = Schema_.Columns().begin();
+    auto columnIt = Schema_->Columns().begin();
     for (int index = 0;
          index < KeyColumnCount_;
          ++index, nullKeyBit <<= 1, ++dstValue, ++columnIt)
@@ -1622,7 +1622,7 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow sr
     ui32 nullKeyBit = 1;
     const auto* srcKeys = srcRow.BeginKeys();
     auto* dstKeys = dstRow.BeginKeys();
-    auto columnIt = Schema_.Columns().begin();
+    auto columnIt = Schema_->Columns().begin();
     for (int index = 0;
          index < KeyColumnCount_;
          ++index, nullKeyBit <<= 1, ++srcKeys, ++dstKeys, ++columnIt)
@@ -1641,7 +1641,7 @@ void TSortedDynamicStore::SetKeys(TSortedDynamicRow dstRow, TSortedDynamicRow sr
 
 void TSortedDynamicStore::CommitValue(TSortedDynamicRow row, TValueList list, int index)
 {
-    row.GetDataWeight() += GetDataWeight(Schema_.Columns()[index].GetPhysicalType(), list.GetUncommitted());
+    row.GetDataWeight() += GetDataWeight(Schema_->Columns()[index].GetPhysicalType(), list.GetUncommitted());
     list.Commit();
 
     if (row.GetDataWeight() > MaxDataWeight_) {
@@ -1741,7 +1741,7 @@ ui32 TSortedDynamicStore::CaptureVersionedValue(
     const TVersionedValue& src,
     TTimestampToRevisionMap* timestampToRevision)
 {
-    YT_ASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].GetPhysicalType());
+    YT_ASSERT(src.Type == EValueType::Null || src.Type == Schema_->Columns()[src.Id].GetPhysicalType());
     ui32 revision = CaptureTimestamp(src.Timestamp, timestampToRevision);
     dst->Revision = revision;
     CaptureUnversionedValue(dst, src);
@@ -1754,7 +1754,7 @@ void TSortedDynamicStore::CaptureUncommittedValue(TDynamicValue* dst, const TDyn
     YT_ASSERT(src.Revision == UncommittedRevision);
 
     *dst = src;
-    if (!src.Null && IsStringLikeType(Schema_.Columns()[index].GetPhysicalType())) {
+    if (!src.Null && IsStringLikeType(Schema_->Columns()[index].GetPhysicalType())) {
         dst->Data = CaptureStringValue(src.Data);
     }
 }
@@ -1763,7 +1763,7 @@ void TSortedDynamicStore::CaptureUnversionedValue(
     TDynamicValue* dst,
     const TUnversionedValue& src)
 {
-    YT_ASSERT(src.Type == EValueType::Null || src.Type == Schema_.Columns()[src.Id].GetPhysicalType());
+    YT_ASSERT(src.Type == EValueType::Null || src.Type == Schema_->Columns()[src.Id].GetPhysicalType());
 
     dst->Aggregate = src.Aggregate;
 

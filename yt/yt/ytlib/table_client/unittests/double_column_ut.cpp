@@ -152,11 +152,12 @@ protected:
         const IUnversionedRowBatch::TColumn* column,
         i64 index) override
     {
-        index -= column->StartIndex;
+        YT_VERIFY(column->StartIndex >= 0);
+        index += column->StartIndex;
         
         ResolveRleEncoding(column, index);
         
-        if (column->NullBitmap && GetBit(*column->NullBitmap, index)) {
+        if (IsColumnValueNull(column, index)) {
             return std::nullopt;
         }
         

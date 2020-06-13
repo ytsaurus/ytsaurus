@@ -30,7 +30,7 @@ public:
         std::vector<NTableClient::TUnversionedRow> rows;
         rows.insert(rows.end(), Data_[CurrentDataIndex_].begin(), Data_[CurrentDataIndex_].end());
         ++CurrentDataIndex_;
-        return NTableClient::CreateBatchFromUnversionedRows(std::move(rows), this);
+        return NTableClient::CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
     }
 
     virtual TFuture<void> GetReadyEvent() override

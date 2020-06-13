@@ -344,7 +344,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
             dataSplit.mutable_chunk_id(),
             MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
-        TTableSchema tableSchema({
+        auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("h", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
                 .SetExpression(TString("a")),
@@ -356,7 +356,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
             TColumnSchema("d", EValueType::Int64)
         });
 
-        SetTableSchema(&dataSplit, tableSchema);
+        SetTableSchema(&dataSplit, *schema);
 
         EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
@@ -370,13 +370,12 @@ TEST_F(TQueryPrepareTest, SelectColumns)
 
         auto schema = query->GetReadSchema();
 
-        EXPECT_EQ(schema.Columns().size(), 5);
-
-        EXPECT_EQ(schema.Columns()[0].Name(), "h");
-        EXPECT_EQ(schema.Columns()[1].Name(), "a");
-        EXPECT_EQ(schema.Columns()[2].Name(), "b");
-        EXPECT_EQ(schema.Columns()[3].Name(), "c");
-        EXPECT_EQ(schema.Columns()[4].Name(), "d");
+        EXPECT_EQ(schema->Columns().size(), 5);
+        EXPECT_EQ(schema->Columns()[0].Name(), "h");
+        EXPECT_EQ(schema->Columns()[1].Name(), "a");
+        EXPECT_EQ(schema->Columns()[2].Name(), "b");
+        EXPECT_EQ(schema->Columns()[3].Name(), "c");
+        EXPECT_EQ(schema->Columns()[4].Name(), "d");
     }
 
     {
@@ -386,11 +385,10 @@ TEST_F(TQueryPrepareTest, SelectColumns)
 
         auto schema = query->GetReadSchema();
 
-        EXPECT_EQ(schema.Columns().size(), 3);
-
-        EXPECT_EQ(schema.Columns()[0].Name(), "a");
-        EXPECT_EQ(schema.Columns()[1].Name(), "c");
-        EXPECT_EQ(schema.Columns()[2].Name(), "d");
+        EXPECT_EQ(schema->Columns().size(), 3);
+        EXPECT_EQ(schema->Columns()[0].Name(), "a");
+        EXPECT_EQ(schema->Columns()[1].Name(), "c");
+        EXPECT_EQ(schema->Columns()[2].Name(), "d");
     }
 }
 
@@ -403,7 +401,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             dataSplit.mutable_chunk_id(),
             MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
-        TTableSchema tableSchema({
+        auto tableSchema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(cid))")),
@@ -417,7 +415,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             TColumnSchema("price", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, tableSchema);
+        SetTableSchema(&dataSplit, *tableSchema);
 
         EXPECT_CALL(PrepareMock_, GetInitialSplit("//bids", _))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
@@ -430,7 +428,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             dataSplit.mutable_chunk_id(),
             MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
-        TTableSchema tableSchema({
+        auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("ExportIDHash", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(ExportID))")),
@@ -446,7 +444,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             TColumnSchema("Clicks", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, tableSchema);
+        SetTableSchema(&dataSplit, *schema);
 
         EXPECT_CALL(PrepareMock_, GetInitialSplit("//DirectPhraseStat", _))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
@@ -459,7 +457,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             dataSplit.mutable_chunk_id(),
             MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
-        TTableSchema tableSchema({
+        auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(pid))")),
@@ -470,7 +468,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             TColumnSchema("status", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, tableSchema);
+        SetTableSchema(&dataSplit, *schema);
 
         EXPECT_CALL(PrepareMock_, GetInitialSplit("//phrases", _))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
@@ -483,7 +481,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             dataSplit.mutable_chunk_id(),
             MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
-        TTableSchema tableSchema({
+        auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(cid))")),
@@ -494,7 +492,7 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
             TColumnSchema("value", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, tableSchema);
+        SetTableSchema(&dataSplit, *schema);
 
         EXPECT_CALL(PrepareMock_, GetInitialSplit("//campaigns", _))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
@@ -573,7 +571,7 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
             dataSplit.mutable_chunk_id(),
             MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
-        TTableSchema tableSchema({
+        auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(a))")),
@@ -584,7 +582,7 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
             TColumnSchema("v", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, tableSchema);
+        SetTableSchema(&dataSplit, *schema);
 
         EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
@@ -619,7 +617,7 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
             dataSplit.mutable_chunk_id(),
             MakeId(EObjectType::Table, 0x42, 0, 0xdeadbabe));
 
-        TTableSchema tableSchema({
+        auto schema = New<TTableSchema>(std::vector{
             TColumnSchema("hash", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(a))")),
@@ -630,7 +628,7 @@ TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
             TColumnSchema("v", EValueType::Int64),
         });
 
-        SetTableSchema(&dataSplit, tableSchema);
+        SetTableSchema(&dataSplit, *schema);
 
         EXPECT_CALL(PrepareMock_, GetInitialSplit("//t", _))
             .WillRepeatedly(Return(MakeFuture(dataSplit)));
@@ -712,10 +710,13 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
         bcImplementations,
         GetCallingConvention(ECallingConvention::Simple));
 
-    auto schema = TTableSchema({{"a", EValueType::Int64}, {"b", EValueType::Int64}});
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
+        {"a", EValueType::Int64},
+        {"b", EValueType::Int64}
+    });
 
     { // ShortInvalidUdfImpl
-        auto expr = PrepareExpression("short_invalid_ir(a)", schema, TypeInferrers_);
+        auto expr = PrepareExpression("short_invalid_ir(a)", *schema, TypeInferrers_);
 
         TCGVariables variables;
 
@@ -726,7 +727,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     }
 
     { // LongInvalidUdfImpl
-        auto expr = PrepareExpression("long_invalid_ir(a)", schema, TypeInferrers_);
+        auto expr = PrepareExpression("long_invalid_ir(a)", *schema, TypeInferrers_);
 
         TCGVariables variables;
 
@@ -737,7 +738,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
     }
 
     { // InvalidUdfArity
-        auto expr = PrepareExpression("abs_udf_arity(a, b)", schema, TypeInferrers_);
+        auto expr = PrepareExpression("abs_udf_arity(a, b)", *schema, TypeInferrers_);
 
         TCGVariables variables;
 
@@ -749,7 +750,7 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
 
     { // InvalidUdfType
         EXPECT_THROW_THAT({
-            PrepareExpression("abs_udf_double(a)", schema, TypeInferrers_);
+            PrepareExpression("abs_udf_double(a)", *schema, TypeInferrers_);
         }, HasSubstr("Wrong type for argument"));
     }
 }
@@ -950,8 +951,7 @@ TOwningRow YsonToRow(
     bool treatMissingAsNull = true)
 {
     auto tableSchema = GetTableSchemaFromDataSplit(dataSplit);
-
-    return NTableClient::YsonToSchemafulRow(yson, tableSchema, treatMissingAsNull);
+    return NTableClient::YsonToSchemafulRow(yson, *tableSchema, treatMissingAsNull);
 }
 
 TQueryStatistics DoExecuteQuery(
@@ -966,7 +966,7 @@ TQueryStatistics DoExecuteQuery(
 {
     std::vector<TOwningRow> owningSourceRows;
     for (const auto& row : source) {
-        owningSourceRows.push_back(NTableClient::YsonToSchemafulRow(row, query->GetReadSchema(), true));
+        owningSourceRows.push_back(NTableClient::YsonToSchemafulRow(row, *query->GetReadSchema(), true));
     }
 
     std::vector<TRow> sourceRows;
@@ -989,7 +989,9 @@ TQueryStatistics DoExecuteQuery(
         std::vector<TRow> rows(rowsBegin, rowsBegin + size);
         rowsBegin += size;
         batchSize = std::min<size_t>(batchSize * 2, RowsetProcessingSize);
-        return rows.empty() ? nullptr : CreateBatchFromUnversionedRows(std::move(rows), nullptr);
+        return rows.empty()
+            ? nullptr
+            : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), nullptr));
     };
 
     auto readerMock = New<NiceMock<TReaderMock>>();
@@ -1326,7 +1328,7 @@ protected:
             auto resultRowset = WaitFor(asyncResultRowset)
                 .ValueOrThrow();
 
-            resultMatcher(resultRowset->GetRows(), TTableSchema(primaryQuery->GetTableSchema()));
+            resultMatcher(resultRowset->GetRows(), *primaryQuery->GetTableSchema());
 
             return primaryQuery;
         };

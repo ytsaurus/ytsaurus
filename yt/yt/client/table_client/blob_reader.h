@@ -18,7 +18,7 @@ struct TBlobTableSchema
     // type in all column schemas.
     std::vector<TColumnSchema> BlobIdColumns;
 
-    TTableSchema ToTableSchema() const;
+    TTableSchemaPtr ToTableSchema() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -134,7 +134,7 @@ template <typename TMessage>
 TCollectingValueConsumer ParseRows(
     const TMessage& message,
     const TProtobufFormatConfigPtr& config,
-    const TTableSchema& schema = {},
+    const TTableSchemaPtr& schema = New<TTableSchema>(),
     int count = 1)
 {
     TString lenvalBytes;
@@ -163,7 +163,7 @@ template <typename TMessage>
 TCollectingValueConsumer ParseRows(
     const TMessage& message,
     const INodePtr& config,
-    const TTableSchema& schema = {},
+    const TTableSchemaPtr& schema = New<TTableSchema>(),
     int count = 1)
 {
     return ParseRows(message, ParseFormatConfigFromNode(config->Attributes().ToMap()), schema, count);
@@ -430,11 +430,11 @@ private:
 
 namespace {
 
-TProtobufFormatConfigPtr ParseAndValidateConfig(const INodePtr& node, std::vector<TTableSchema> schemas = {})
+TProtobufFormatConfigPtr ParseAndValidateConfig(const INodePtr& node, std::vector<TTableSchemaPtr> schemas = {})
 {
     auto config = ParseFormatConfigFromNode(node);
     if (schemas.empty()) {
-        schemas.resize(config->Tables.size());
+        schemas.assign(config->Tables.size(), New<TTableSchema>());
     }
     New<TProtobufFormatDescription>()->Init(config, schemas, false);
     return config;
@@ -539,7 +539,7 @@ TEST(TProtobufFormat, TestConfigParsing)
             .EndList()
         .EndMap();
 
-    auto schema = TTableSchema({
+    auto schema = New<TTableSchema>(std::vector{
         TColumnSchema("SomeColumn", StructLogicalType({})),
     });
 
@@ -566,7 +566,7 @@ TEST(TProtobufFormat, TestConfigParsing)
             .EndList()
         .EndMap();
 
-    auto schemaWithUtf8 = TTableSchema({
+    auto schemaWithUtf8 = New<TTableSchema>(std::vector{
         TColumnSchema("SomeColumn", SimpleLogicalType(ESimpleLogicalValueType::Utf8)),
     });
 
@@ -619,7 +619,7 @@ TEST(TProtobufFormat, TestConfigParsing)
             .EndList()
         .EndMap();
 
-    auto schemaWithStringList = TTableSchema({
+    auto schemaWithStringList = New<TTableSchema>(std::vector{
         TColumnSchema("SomeColumn", ListLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::String)))
     });
@@ -802,7 +802,7 @@ TEST(TProtobufFormat, TestWriteEnumerationString)
     TStringOutput resultStream(result);
     auto writer = CreateWriterForProtobuf(
         config->Attributes(),
-        {TTableSchema()},
+        {New<TTableSchema>()},
         nameTable,
         CreateAsyncAdapter(&resultStream),
         true,
@@ -876,7 +876,7 @@ TEST(TProtobufFormat, TestWriteEnumerationInt)
         TStringOutput resultStream(result);
         auto writer = CreateWriterForProtobuf(
             config->Attributes(),
-            {TTableSchema()},
+            {New<TTableSchema>()},
             nameTable,
             CreateAsyncAdapter(&resultStream),
             true,
@@ -986,7 +986,7 @@ TEST(TProtobufFormat, TestWriteZeroColumns)
     TStringOutput resultStream(result);
     auto writer = CreateWriterForProtobuf(
         config->Attributes(),
-        {TTableSchema()},
+        {New<TTableSchema>()},
         nameTable,
         CreateAsyncAdapter(&resultStream),
         true,
@@ -1044,9 +1044,9 @@ TEST(TProtobufFormat, TestContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TTableSchema, INodePtr> CreateSchemaAndConfigWithStructuredMessage(EComplexTypeMode complexTypeMode)
+std::pair<TTableSchemaPtr, INodePtr> CreateSchemaAndConfigWithStructuredMessage(EComplexTypeMode complexTypeMode)
 {
-    TTableSchema schema({
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
         {"first", StructLogicalType({
             {"field_missing_from_proto1", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
             {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
@@ -1990,10 +1990,10 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
     }
 }
 
-std::pair<std::vector<TTableSchema>, INodePtr> CreateSeveralTablesSchemasAndConfig()
+std::pair<std::vector<TTableSchemaPtr>, INodePtr> CreateSeveralTablesSchemasAndConfig()
 {
-    std::vector<TTableSchema> schemas = {
-        TTableSchema({
+    std::vector<TTableSchemaPtr> schemas = {
+        New<TTableSchema>(std::vector<TColumnSchema>{
             {"embedded", StructLogicalType({
                 {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
                 {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
@@ -2001,12 +2001,12 @@ std::pair<std::vector<TTableSchema>, INodePtr> CreateSeveralTablesSchemasAndConf
             {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
             {"any_field", SimpleLogicalType(ESimpleLogicalValueType::Any)},
         }),
-        TTableSchema({
+        New<TTableSchema>(std::vector<TColumnSchema>{
             {"enum_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
             {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         }),
         // Empty schema.
-        TTableSchema(),
+        New<TTableSchema>(),
     };
 
     auto config = BuildYsonNodeFluently()
@@ -2283,14 +2283,14 @@ TEST(TProtobufFormat, ParseSeveralTables)
 
 TEST(TProtobufFormat, SchemaConfigMismatch)
 {
-    auto createParser = [] (const TTableSchema& schema, const INodePtr& configNode) {
+    auto createParser = [] (const TTableSchemaPtr& schema, const INodePtr& configNode) {
         TCollectingValueConsumer rowCollector(schema);
         return CreateParserForProtobuf(
             &rowCollector,
             ParseFormatConfigFromNode(configNode),
             0);
     };
-    auto createSeveralTableWriter = [] (const std::vector<TTableSchema>& schemas, const INodePtr& configNode) {
+    auto createSeveralTableWriter = [] (const std::vector<TTableSchemaPtr>& schemas, const INodePtr& configNode) {
         TString result;
         TStringOutput resultStream(result);
         return CreateWriterForProtobuf(
@@ -2302,17 +2302,17 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
             New<TControlAttributesConfig>(),
             0);
     };
-    auto createWriter = [&] (const TTableSchema& schema, const INodePtr& configNode) {
+    auto createWriter = [&] (const TTableSchemaPtr& schema, const INodePtr& configNode) {
         createSeveralTableWriter({schema}, configNode);
     };
 
-    auto schema_struct_with_int64 = TTableSchema({
+    auto schema_struct_with_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"struct", StructLogicalType({
             {"int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
         })},
     });
 
-    auto schema_struct_with_uint64 = TTableSchema({
+    auto schema_struct_with_uint64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"struct", StructLogicalType({
             {"int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))},
         })},
@@ -2360,19 +2360,19 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
 
     // No schema for structured field.
     EXPECT_THROW_WITH_SUBSTRING(
-        createParser(TTableSchema(), config_struct_with_int64),
+        createParser(New<TTableSchema>(), config_struct_with_int64),
         "Schema is required for repeated and \"structured_message\" protobuf fields");
     EXPECT_THROW_WITH_SUBSTRING(
-        createWriter(TTableSchema(), config_struct_with_int64),
+        createWriter(New<TTableSchema>(), config_struct_with_int64),
         "Schema is required for repeated and \"structured_message\" protobuf fields");
 
-    auto schema_list_int64 = TTableSchema({
+    auto schema_list_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"repeated", ListLogicalType(
             SimpleLogicalType(ESimpleLogicalValueType::Int64)
         )},
     });
 
-    auto schema_list_optional_int64 = TTableSchema({
+    auto schema_list_optional_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"repeated", ListLogicalType(
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))
         )},
@@ -2404,10 +2404,10 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
 
     // No schema for repeated field.
     EXPECT_THROW_WITH_SUBSTRING(
-        createParser(TTableSchema(), config_repeated_int64),
+        createParser(New<TTableSchema>(), config_repeated_int64),
         "Schema is required for repeated and \"structured_message\" protobuf fields");
     EXPECT_THROW_WITH_SUBSTRING(
-        createWriter(TTableSchema(), config_repeated_int64),
+        createWriter(New<TTableSchema>(), config_repeated_int64),
         "Schema is required for repeated and \"structured_message\" protobuf fields");
 
     // List of optional is not allowed.
@@ -2418,7 +2418,7 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
         createWriter(schema_list_optional_int64, config_repeated_int64),
         "expected simple type");
 
-    auto schema_optional_list_int64 = TTableSchema({
+    auto schema_optional_list_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"repeated", OptionalLogicalType(
             ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))
         )},
@@ -2428,7 +2428,7 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     EXPECT_NO_THROW(createParser(schema_optional_list_int64, config_repeated_int64));
     EXPECT_NO_THROW(createWriter(schema_optional_list_int64, config_repeated_int64));
 
-    auto schema_optional_optional_int64 = TTableSchema({
+    auto schema_optional_optional_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"field", OptionalLogicalType(
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))
         )},
@@ -2461,7 +2461,7 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
         createWriter(schema_optional_optional_int64, config_int64),
         "expected simple type, got \"optional\"");
 
-    auto schema_struct_with_both = TTableSchema({
+    auto schema_struct_with_both = New<TTableSchema>(std::vector<TColumnSchema>{
         {"struct", StructLogicalType({
             {"required_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
             {"optional_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
@@ -2576,7 +2576,7 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     EXPECT_NO_THROW(createParser(schema_struct_with_both, config_struct_with_unknown));
     EXPECT_NO_THROW(createWriter(schema_struct_with_both, config_struct_with_unknown));
 
-    auto schema_int64 = TTableSchema({
+    auto schema_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
     });
 
@@ -2696,7 +2696,7 @@ TEST_P(TProtobufFormatAllFields, Writer)
     TStringOutput resultStream(result);
     auto writer = CreateWriterForProtobuf(
         config->Attributes(),
-        {TTableSchema()},
+        {New<TTableSchema>()},
         nameTable,
         CreateAsyncAdapter(&resultStream),
         true,
@@ -2900,7 +2900,7 @@ TEST_P(TProtobufFormatAllFields, Parser)
     auto rowCollector = ParseRows(
         message,
         ParseFormatConfigFromNode(config->Attributes().ToMap()),
-        /* schema */ {},
+        New<TTableSchema>(),
         rowCount);
 
     for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
@@ -2958,17 +2958,17 @@ class TProtobufFormatCompat
     : public ::testing::Test
 {
 public:
-    static TTableSchema GetEarlySchema()
+    static TTableSchemaPtr GetEarlySchema()
     {
-        static const auto schema = TTableSchema({
+        static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         });
         return schema;
     }
 
-    static TTableSchema GetFirstMiddleSchema()
+    static TTableSchemaPtr GetFirstMiddleSchema()
     {
-        static const auto schema = TTableSchema({
+        static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
             {"b", OptionalLogicalType(StructLogicalType({
                 {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
@@ -2977,9 +2977,9 @@ public:
         return schema;
     }
 
-    static TTableSchema GetSecondMiddleSchema()
+    static TTableSchemaPtr GetSecondMiddleSchema()
     {
-        static const auto schema = TTableSchema({
+        static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
             {"b", OptionalLogicalType(StructLogicalType({
                 {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
@@ -2989,9 +2989,9 @@ public:
         return schema;
     }
 
-    static TTableSchema GetThirdMiddleSchema()
+    static TTableSchemaPtr GetThirdMiddleSchema()
     {
-        static const auto schema = TTableSchema({
+        static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
             {"b", OptionalLogicalType(StructLogicalType({
                 {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
@@ -3002,9 +3002,9 @@ public:
         return schema;
     }
 
-    static TTableSchema GetLateSchema()
+    static TTableSchemaPtr GetLateSchema()
     {
-        static const auto schema = TTableSchema({
+        static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
             {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
             {"c", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)))},
             {"b", OptionalLogicalType(StructLogicalType({
@@ -3076,14 +3076,14 @@ public:
 
 TEST_F(TProtobufFormatCompat, Write)
 {
-    auto nameTable = TNameTable::FromSchema(GetLateSchema());
+    auto nameTable = TNameTable::FromSchema(*GetLateSchema());
     auto aId = nameTable->GetIdOrThrow("a");
     auto bId = nameTable->GetIdOrThrow("b");
     auto cId = nameTable->GetIdOrThrow("c");
 
     auto config = GetSecondMiddleConfig();
 
-    auto writeRow = [&] (TUnversionedRow row, const TTableSchema& schema) {
+    auto writeRow = [&] (TUnversionedRow row, const TTableSchemaPtr& schema) {
         TString result;
         TStringOutput resultStream(result);
 

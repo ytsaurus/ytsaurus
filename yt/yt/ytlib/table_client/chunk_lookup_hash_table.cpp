@@ -151,7 +151,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                 blockReader = std::make_unique<TSimpleVersionedBlockReader>(
                     uncompressedBlock.Data,
                     blockMeta,
-                    chunkMeta->ChunkSchema(),
+                    chunkMeta->GetChunkSchema(),
                     chunkMeta->GetChunkKeyColumnCount(),
                     chunkMeta->GetKeyColumnCount(),
                     BuildVersionedSimpleSchemaIdMapping(TColumnFilter(), chunkMeta),
@@ -165,7 +165,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                 blockReader = std::make_unique<THorizontalSchemalessVersionedBlockReader>(
                     uncompressedBlock.Data,
                     blockMeta,
-                    chunkMeta->ChunkSchema(),
+                    chunkMeta->GetChunkSchema(),
                     BuildSchemalessHorizontalSchemaIdMapping(TColumnFilter(), chunkMeta),
                     chunkMeta->GetChunkKeyColumnCount(),
                     chunkMeta->GetKeyColumnCount(),

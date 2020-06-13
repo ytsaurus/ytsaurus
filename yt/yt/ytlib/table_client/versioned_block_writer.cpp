@@ -19,19 +19,18 @@ static const i64 NullValue = 0;
 
 struct TSimpleVersionedBlockWriterTag { };
 
-TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
-    const TTableSchema& schema)
+TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(TTableSchemaPtr schema)
     : MinTimestamp_(MaxTimestamp)
     , MaxTimestamp_(MinTimestamp)
-    , Schema_(schema)
-    , SchemaColumnCount_(schema.Columns().size())
-    , KeyColumnCount_(schema.GetKeyColumnCount())
+    , Schema_(std::move(schema))
+    , SchemaColumnCount_(Schema_->Columns().size())
+    , KeyColumnCount_(Schema_->GetKeyColumnCount())
     , KeyStream_(TSimpleVersionedBlockWriterTag())
     , ValueStream_(TSimpleVersionedBlockWriterTag())
     , TimestampStream_(TSimpleVersionedBlockWriterTag())
     , StringDataStream_(TSimpleVersionedBlockWriterTag())
 {
-    for (const auto& column : Schema_.Columns()) {
+    for (const auto& column : Schema_->Columns()) {
         if (column.Aggregate()) {
             ValueAggregateFlags_ = TBitmap();
             break;
@@ -50,7 +49,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
     int keyOffset = KeyStream_.GetSize();
     for (const auto* it = row.BeginKeys(); it != row.EndKeys(); ++it) {
         const auto& value = *it;
-        YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].GetPhysicalType());
+        YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetPhysicalType());
         WriteValue(KeyStream_, KeyNullFlags_, nullAggregateFlags, value);
     }
 
@@ -81,7 +80,7 @@ void TSimpleVersionedBlockWriter::WriteRow(
     ui32 valueCount = 0;
     while (valueCount < row.GetValueCount()) {
         const auto& value = row.BeginValues()[valueCount];
-        YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_.Columns()[value.Id].GetPhysicalType());
+        YT_ASSERT(value.Type == EValueType::Null || value.Type == Schema_->Columns()[value.Id].GetPhysicalType());
         YT_ASSERT(lastId <= value.Id);
         if (lastId < value.Id) {
             WritePod(KeyStream_, valueCount);

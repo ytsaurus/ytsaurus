@@ -218,11 +218,11 @@ std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForFormat(
 template <class TWriter, class TConsumerAdapter>
 TIntrusivePtr<TWriter> CreateAdaptedWriterForYson(
     const IAttributeDictionary& attributes,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TYsonFormatConfigPtr>(&attributes);
-    return New<TConsumerAdapter>(std::move(output), schema, [=] (IOutputStream* buffer) {
+    return New<TConsumerAdapter>(std::move(output), std::move(schema), [=] (IOutputStream* buffer) {
         if (config->Format == EYsonFormat::Binary) {
             return std::unique_ptr<IFlushableYsonConsumer>(new TBufferedBinaryYsonWriter(
                 buffer,
@@ -241,25 +241,25 @@ TIntrusivePtr<TWriter> CreateAdaptedWriterForYson(
 template <class TWriter, class TConsumerAdapter>
 TIntrusivePtr<TWriter> CreateAdaptedWriterForJson(
     const IAttributeDictionary& attributes,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     IAsyncOutputStreamPtr output)
 {
     auto config = ConvertTo<TJsonFormatConfigPtr>(&attributes);
-    return New<TConsumerAdapter>(std::move(output), schema, [&] (IOutputStream* buffer) {
+    return New<TConsumerAdapter>(std::move(output), std::move(schema), [&] (IOutputStream* buffer) {
         return CreateJsonConsumer(buffer, EYsonType::ListFragment, config);
     });
 }
 
 IUnversionedRowsetWriterPtr CreateSchemafulWriterForFormat(
     const TFormat& format,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     IAsyncOutputStreamPtr output)
 {
     switch (format.GetType()) {
         case EFormatType::Yson:
-            return CreateAdaptedWriterForYson<IUnversionedRowsetWriter, TSchemafulWriter>(format.Attributes(), schema, std::move(output));
+            return CreateAdaptedWriterForYson<IUnversionedRowsetWriter, TSchemafulWriter>(format.Attributes(), std::move(schema), std::move(output));
         case EFormatType::Json:
-            return CreateAdaptedWriterForJson<IUnversionedRowsetWriter, TSchemafulWriter>(format.Attributes(), schema, std::move(output));
+            return CreateAdaptedWriterForJson<IUnversionedRowsetWriter, TSchemafulWriter>(format.Attributes(), std::move(schema), std::move(output));
         case EFormatType::SchemafulDsv:
             return CreateSchemafulWriterForSchemafulDsv(format.Attributes(), schema, std::move(output));
         case EFormatType::WebJson: {
@@ -269,8 +269,8 @@ IUnversionedRowsetWriterPtr CreateSchemafulWriterForFormat(
             return CreateWriterForWebJson(
                 std::move(webJsonFormatConfig),
                 // WebJson expects that columns are unique, SafeFromSchema checks this fact.
-                TNameTable::SafeFromSchema(schema),
-                std::vector<TTableSchema>{schema},
+                TNameTable::SafeFromSchema(*schema),
+                {schema},
                 std::move(output));
         }
         default:
@@ -283,14 +283,14 @@ IUnversionedRowsetWriterPtr CreateSchemafulWriterForFormat(
 
 IVersionedWriterPtr CreateVersionedWriterForFormat(
     const TFormat& format,
-    const NTableClient::TTableSchema& schema,
+    NTableClient::TTableSchemaPtr schema,
     NConcurrency::IAsyncOutputStreamPtr output)
 {
     switch (format.GetType()) {
         case EFormatType::Yson:
-            return CreateAdaptedWriterForYson<IVersionedWriter, TVersionedWriter>(format.Attributes(), schema, output);
+            return CreateAdaptedWriterForYson<IVersionedWriter, TVersionedWriter>(format.Attributes(), std::move(schema), std::move(output));
         case EFormatType::Json:
-            return CreateAdaptedWriterForJson<IVersionedWriter, TVersionedWriter>(format.Attributes(), schema, output);
+            return CreateAdaptedWriterForJson<IVersionedWriter, TVersionedWriter>(format.Attributes(), std::move(schema), std::move(output));
         default:
             THROW_ERROR_EXCEPTION("Unsupported output format %Qlv", format.GetType());
     }
@@ -301,7 +301,7 @@ IVersionedWriterPtr CreateVersionedWriterForFormat(
 ISchemalessFormatWriterPtr CreateStaticTableWriterForFormat(
     const TFormat& format,
     TNameTablePtr nameTable,
-    const std::vector<TTableSchema>& tableSchemas,
+    const std::vector<TTableSchemaPtr>& tableSchemas,
     NConcurrency::IAsyncOutputStreamPtr output,
     bool enableContextSaving,
     TControlAttributesConfigPtr controlAttributesConfig,

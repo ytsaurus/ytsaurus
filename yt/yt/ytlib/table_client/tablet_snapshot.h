@@ -17,7 +17,7 @@ struct TTabletSnapshot
 {
 	NObjectClient::TObjectId TableId;
     NHydra::TRevision MountRevision = NHydra::NullRevision;
-    NTableClient::TTableSchema TableSchema;
+    NTableClient::TTableSchemaPtr TableSchema;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTabletSnapshot)

@@ -734,16 +734,15 @@ TEST_P(TInferSchemaTest, Basic)
     const auto& resultSchamaString = std::get<1>(param);
     bool discardKeyColumns = std::get<2>(param);
 
-    std::vector<TTableSchema> schemas;
+    std::vector<TTableSchemaPtr> schemas;
     for (const auto* schemaString : schemaStrings) {
-        schemas.emplace_back();
-        Deserialize(schemas.back(), ConvertToNode(TYsonString(schemaString)));
+        schemas.push_back(New<TTableSchema>(ConvertTo<TTableSchema>(TYsonString(schemaString))));
     }
 
     TTableSchema resultSchema;
     Deserialize(resultSchema, ConvertToNode(TYsonString(resultSchamaString)));
 
-    EXPECT_EQ(resultSchema, InferInputSchema(schemas, discardKeyColumns));
+    EXPECT_EQ(resultSchema, *InferInputSchema(schemas, discardKeyColumns));
 }
 
 auto* schema1 = "[{name=Key1;type=string;sort_order=ascending}; {name=Value1;type=string}]";
@@ -782,10 +781,9 @@ TEST_P(TInferSchemaInvalidTest, Basic)
 {
     const auto& schemaStrings = GetParam();
 
-    std::vector<TTableSchema> schemas;
+    std::vector<TTableSchemaPtr> schemas;
     for (const auto* schemaString : schemaStrings) {
-        schemas.emplace_back();
-        Deserialize(schemas.back(), ConvertToNode(TYsonString(schemaString)));
+        schemas.push_back(New<TTableSchema>(ConvertTo<TTableSchema>(TYsonString(schemaString))));
     }
 
     EXPECT_THROW(InferInputSchema(schemas, true), std::exception);

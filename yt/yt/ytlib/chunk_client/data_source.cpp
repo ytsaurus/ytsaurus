@@ -19,7 +19,7 @@ using namespace NTransactionClient;
 TDataSource::TDataSource(
     EDataSourceType type,
     const std::optional<TYPath>& path,
-    const std::optional<TTableSchema>& schema,
+    TTableSchemaPtr schema,
     const std::optional<std::vector<TString>>& columns,
     const std::vector<TString>& omittedInaccessibleColumns,
     TTimestamp timestamp,
@@ -27,7 +27,7 @@ TDataSource::TDataSource(
     const TColumnRenameDescriptors& columnRenameDescriptors)
     : Type_(type)
     , Path_(path)
-    , Schema_(schema)
+    , Schema_(std::move(schema))
     , Columns_(columns)
     , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
     , Timestamp_(timestamp)
@@ -82,7 +82,11 @@ void ToProto(NProto::TDataSource* protoDataSource, const TDataSource& dataSource
     ToProto(protoDataSource->mutable_column_rename_descriptors(), dataSource.ColumnRenameDescriptors());
 }
 
-void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSource, const TSchemaDictionary* schemaDictionary, const TColumnFilterDictionary* columnFilterDictionary)
+void FromProto(
+    TDataSource* dataSource,
+    const NProto::TDataSource& protoDataSource,
+    const TSchemaDictionary* schemaDictionary,
+    const TColumnFilterDictionary* columnFilterDictionary)
 {
     using NYT::FromProto;
 
@@ -97,7 +101,7 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
         YT_VERIFY(!protoDataSource.has_table_schema());
     } else {
         if (protoDataSource.has_table_schema()) {
-            dataSource->Schema() = FromProto<TTableSchema>(protoDataSource.table_schema());
+            dataSource->Schema() = FromProto<TTableSchemaPtr>(protoDataSource.table_schema());
         }
 
         YT_VERIFY(!protoDataSource.has_table_schema_id());
@@ -140,7 +144,7 @@ void FromProto(TDataSource* dataSource, const NProto::TDataSource& protoDataSour
 
 TDataSource MakeVersionedDataSource(
     const std::optional<TYPath>& path,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     const std::optional<std::vector<TString>>& columns,
     const std::vector<TString>& omittedInaccessibleColumns,
     NTransactionClient::TTimestamp timestamp,
@@ -150,7 +154,7 @@ TDataSource MakeVersionedDataSource(
     return TDataSource(
         EDataSourceType::VersionedTable,
         path,
-        schema,
+        std::move(schema),
         columns,
         omittedInaccessibleColumns,
         timestamp,
@@ -160,7 +164,7 @@ TDataSource MakeVersionedDataSource(
 
 TDataSource MakeUnversionedDataSource(
     const std::optional<TYPath>& path,
-    const std::optional<TTableSchema>& schema,
+    TTableSchemaPtr schema,
     const std::optional<std::vector<TString>>& columns,
     const std::vector<TString>& omittedInaccessibleColumns,
     const TColumnRenameDescriptors& columnRenameDescriptors)
@@ -168,7 +172,7 @@ TDataSource MakeUnversionedDataSource(
     return TDataSource(
         EDataSourceType::UnversionedTable,
         path,
-        schema,
+        std::move(schema),
         columns,
         omittedInaccessibleColumns,
         NullTimestamp,
@@ -181,7 +185,7 @@ TDataSource MakeFileDataSource(const std::optional<TYPath>& path)
     return TDataSource(
         EDataSourceType::File,
         path,
-        std::nullopt,
+        nullptr,
         std::nullopt,
         {},
         NullTimestamp,

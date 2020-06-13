@@ -4,6 +4,7 @@
 #include "chunk_meta_extensions.h"
 
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+
 #include <yt/client/table_client/schema.h>
 
 namespace NYT::NTableClient {
@@ -26,7 +27,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TRefCountedColumnMetaPtr, ColumnMeta);
     DEFINE_BYREF_RO_PROPERTY(NChunkClient::NProto::TMiscExt, Misc);
     DEFINE_BYREF_RO_PROPERTY(TSharedRange<TKey>, BlockLastKeys);
-    DEFINE_BYREF_RO_PROPERTY(TTableSchema, ChunkSchema);
+    DEFINE_BYVAL_RO_PROPERTY(TTableSchemaPtr, ChunkSchema);
     DEFINE_BYREF_RO_PROPERTY(TNameTablePtr, ChunkNameTable);
 
 public:
@@ -48,7 +49,7 @@ DEFINE_REFCOUNTED_TYPE(TColumnarChunkMeta)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchema GetTableSchema(const NChunkClient::NProto::TChunkMeta& chunkMeta);
+TTableSchemaPtr GetTableSchema(const NChunkClient::NProto::TChunkMeta& chunkMeta);
 
 ////////////////////////////////////////////////////////////////////////////////
 

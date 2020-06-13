@@ -129,6 +129,11 @@ public:
         return (Chunks_[chunkIndex] & chunkMask) != 0;
     }
 
+    size_t GetBitSize() const
+    {
+        return BitSize_;
+    }
+
     size_t GetByteSize() const
     {
         return TTraits::GetByteCapacity(BitSize_);

@@ -104,12 +104,12 @@ public:
         const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
-        auto schema = FromProto<TTableSchema>(outputSpec.table_schema());
+        auto schema = FromProto<TTableSchemaPtr>(outputSpec.table_schema());
 
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 
-        WriterFactory_ = [=] (TNameTablePtr nameTable, const TTableSchema&) {
+        WriterFactory_ = [=] (TNameTablePtr nameTable, TTableSchemaPtr /*schema*/) {
             YT_VERIFY(!Writer_);
             Writer_ = CreateSchemalessMultiChunkWriter(
                 writerConfig,
@@ -141,7 +141,7 @@ private:
     virtual void CreateWriter() override
     {
         // NB. WriterFactory_ ignores schema argument and uses schema of output table.
-        WriterFactory_(NameTable_, TTableSchema());
+        WriterFactory_(NameTable_, nullptr);
     }
 };
 

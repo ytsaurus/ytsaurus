@@ -379,7 +379,7 @@ static bool CanBePacked(EProtobufType type)
 
 void TProtobufFormatDescription::Init(
     const TProtobufFormatConfigPtr& config,
-    const std::vector<NTableClient::TTableSchema>& schemas,
+    const std::vector<NTableClient::TTableSchemaPtr>& schemas,
     bool validateMissingFieldsOptionality)
 {
     const bool tablesSpecified = !config->Tables.empty();
@@ -523,7 +523,7 @@ void TProtobufFormatDescription::InitFromFileDescriptors(const TProtobufFormatCo
 
 void TProtobufFormatDescription::InitFromProtobufSchema(
     const TProtobufFormatConfigPtr& config,
-    const std::vector<NTableClient::TTableSchema>& schemas,
+    const std::vector<NTableClient::TTableSchemaPtr>& schemas,
     bool validateMissingFieldsOptionality)
 {
     if (config->Enumerations) {
@@ -550,7 +550,7 @@ void TProtobufFormatDescription::InitFromProtobufSchema(
         const auto& tableSchema = schemas[tableIndex];
         auto& tableDescription = Tables_.emplace_back();
         for (const auto& columnConfig : tableConfig->Columns) {
-            auto columnSchema = tableSchema.FindColumn(columnConfig->Name);
+            auto columnSchema = tableSchema->FindColumn(columnConfig->Name);
             TLogicalTypePtr logicalType = columnSchema ? columnSchema->LogicalType() : nullptr;
             if (columnConfig->ProtoType == EProtobufType::OtherColumns) {
                 if (columnConfig->Repeated) {
@@ -567,7 +567,7 @@ void TProtobufFormatDescription::InitFromProtobufSchema(
 
             bool needSchema = columnConfig->Repeated || columnConfig->ProtoType == EProtobufType::StructuredMessage;
             if (!logicalType && needSchema) {
-                if (tableSchema.GetColumnCount() > 0) {
+                if (tableSchema->GetColumnCount() > 0) {
                     // Ignore missing column to facilitate schema evolution.
                     tableDescription.IgnoredColumnFieldNumbers.push_back(columnConfig->FieldNumber);
                     continue;
@@ -622,7 +622,6 @@ void TProtobufFormatDescription::InitSchemalessField(
         wireType = WireFormatLite::WireTypeForFieldType(wireFieldType);
     }
     field->WireTag = WireFormatLite::MakeTag(columnConfig->FieldNumber, wireType);
-
 
     if (field->Type == EProtobufType::EnumString) {
         if (!columnConfig->EnumerationName) {

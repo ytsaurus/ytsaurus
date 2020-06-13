@@ -125,10 +125,10 @@ std::tuple<TCachedTableSchemaPtr, bool> TLookupSession::FindTableSchema(
         return {nullptr, isSchemaRequested};
     }
 
-    auto tableSchema = FromProto<TTableSchema>(schemaData.schema());
+    auto tableSchema = FromProto<TTableSchemaPtr>(schemaData.schema());
     auto rowKeyComparer = TSortedDynamicRowKeyComparer::Create(
-        tableSchema.GetKeyColumns().size(),
-        tableSchema);
+        tableSchema->GetKeyColumns().size(),
+        *tableSchema);
 
     auto cachedTableSchema = New<TCachedTableSchema>(std::move(tableSchema), std::move(rowKeyComparer));
     tableSchemaWrapper->SetValue(cachedTableSchema);
@@ -144,7 +144,7 @@ std::tuple<TCachedTableSchemaPtr, bool> TLookupSession::FindTableSchema(
 
 void TLookupSession::Verify()
 {
-    const auto& tableKeyColumns = TableSchema_->TableSchema.GetKeyColumns();
+    const auto& tableKeyColumns = TableSchema_->TableSchema->GetKeyColumns();
     for (const auto& key : RequestedKeys_) {
         YT_VERIFY(key.GetCount() == tableKeyColumns.size());
     }
@@ -163,7 +163,7 @@ void TLookupSession::Verify()
             << TErrorAttribute("chunk_type", type);
     }
 
-    if (!TableSchema_->TableSchema.GetUniqueKeys()) {
+    if (!TableSchema_->TableSchema->GetUniqueKeys()) {
         THROW_ERROR_EXCEPTION("Chunk %v must have unique keys", ChunkId_)
             << TErrorAttribute("read_session_id", ReadSessionId_);
     }
@@ -200,7 +200,7 @@ TSharedRef TLookupSession::DoRun()
 {
     const auto& chunkMetaManager = Bootstrap_->GetVersionedChunkMetaManager();
     auto versionedChunkMeta = WaitFor(
-        chunkMetaManager->GetMeta(UnderlyingChunkReader_, TableSchema_->TableSchema, Options_))
+        chunkMetaManager->GetMeta(UnderlyingChunkReader_, *TableSchema_->TableSchema, Options_))
         .ValueOrThrow();
 
     TChunkSpec chunkSpec;

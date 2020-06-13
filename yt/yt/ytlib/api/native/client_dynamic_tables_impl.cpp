@@ -357,7 +357,7 @@ private:
     const NTabletClient::ITableMountCachePtr MountTableCache_;
     const IInvokerPtr Invoker_;
 
-    static TTableSchema GetTableSchema(
+    static TTableSchemaPtr GetTableSchema(
         const TRichYPath& path,
         const TTableMountInfoPtr& tableInfo)
     {
@@ -365,7 +365,7 @@ private:
             if (tableInfo->Dynamic) {
                 THROW_ERROR_EXCEPTION("Explicit YPath \"schema\" specification is only allowed for static tables");
             }
-            return *optionalPathSchema;
+            return New<TTableSchema>(*optionalPathSchema);
         }
 
         return tableInfo->Schemas[ETableSchemaKind::Query];
@@ -382,7 +382,7 @@ private:
 
         TDataSplit result;
         SetObjectId(&result, tableInfo->TableId);
-        SetTableSchema(&result, GetTableSchema(path, tableInfo));
+        SetTableSchema(&result, *GetTableSchema(path, tableInfo));
         SetTimestamp(&result, timestamp);
         return result;
     }
@@ -592,16 +592,16 @@ TRowset TClient::DoLookupRowsOnce(
     tableInfo->ValidateSorted();
 
     const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-    auto idMapping = BuildColumnIdMapping(schema, nameTable);
+    auto idMapping = BuildColumnIdMapping(*schema, nameTable);
     auto remappedColumnFilter = RemapColumnFilter(options.ColumnFilter, idMapping, nameTable);
-    auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary].Filter(remappedColumnFilter, true);
-    auto resultSchemaData = TWireProtocolReader::GetSchemaData(schema, remappedColumnFilter);
+    auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary]->Filter(remappedColumnFilter, true);
+    auto resultSchemaData = TWireProtocolReader::GetSchemaData(*schema, remappedColumnFilter);
 
     NSecurityClient::TPermissionKey permissionKey{
         .Object = FromObjectId(tableInfo->TableId),
         .User = Options_.GetAuthenticatedUser(),
         .Permission = EPermission::Read,
-        .Columns = GetLookupColumns(remappedColumnFilter, schema)
+        .Columns = GetLookupColumns(remappedColumnFilter, *schema)
     };
     const auto& permissionCache = Connection_->GetPermissionCache();
     WaitFor(permissionCache->Get(permissionKey))
@@ -623,8 +623,8 @@ TRowset TClient::DoLookupRowsOnce(
     auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
 
     for (int index = 0; index < keys.Size(); ++index) {
-        ValidateClientKey(keys[index], schema, idMapping, nameTable);
-        auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(keys[index], schema, idMapping, nullptr);
+        ValidateClientKey(keys[index], *schema, idMapping, nameTable);
+        auto capturedKey = inputRowBuffer->CaptureAndPermuteRow(keys[index], *schema, idMapping, nullptr);
 
         if (evaluator) {
             evaluator->EvaluateKeys(capturedKey, inputRowBuffer);
@@ -675,7 +675,7 @@ TRowset TClient::DoLookupRowsOnce(
             auto itemsBegin = sortedKeys.begin();
             auto itemsEnd = sortedKeys.end();
 
-            size_t keySize = schema.GetKeyColumnCount();
+            size_t keySize = schema->GetKeyColumnCount();
 
             itemsBegin = std::lower_bound(
                 itemsBegin,
@@ -1000,7 +1000,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         std::vector<TString> columns;
         columns.reserve(schema.Mapping.size());
         for (const auto& columnDescriptor : schema.Mapping) {
-            columns.push_back(schema.Original.Columns()[columnDescriptor.Index].Name());
+            columns.push_back(schema.Original->Columns()[columnDescriptor.Index].Name());
         }
         permissionKeys.push_back(NSecurityClient::TPermissionKey{
             .Object = FromObjectId(id),
@@ -1531,16 +1531,16 @@ TYsonString TClient::DoGetTablePivotKeys(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateSorted();
 
-    auto keySchema = tableInfo->Schemas[ETableSchemaKind::Primary].ToKeys();
+    auto keySchema = tableInfo->Schemas[ETableSchemaKind::Primary]->ToKeys();
 
     return BuildYsonStringFluently()
         .DoListFor(tableInfo->Tablets, [&] (TFluentList fluent, const TTabletInfoPtr& tablet) {
             fluent
                 .Item()
                 .DoMapFor(tablet->PivotKey, [&] (TFluentMap fluent, const TUnversionedValue& value) {
-                    if (value.Id <= keySchema.GetColumnCount()) {
+                    if (value.Id <= keySchema->GetColumnCount()) {
                         fluent
-                            .Item(keySchema.Columns()[value.Id].Name())
+                            .Item(keySchema->Columns()[value.Id].Name())
                             .Value(value);
                     }
                 });

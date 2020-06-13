@@ -40,7 +40,7 @@ public:
     TSimpleVersionedBlockReader(
         const TSharedRef& block,
         const NProto::TBlockMeta& meta,
-        const TTableSchema& chunkSchema,
+        const TTableSchemaPtr& chunkSchema,
         int chunkKeyColumnCount,
         int keyColumnCount,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
@@ -69,7 +69,7 @@ private:
     const int KeyColumnCount_;
 
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
-    const TTableSchema& ChunkSchema_;
+    const TTableSchemaPtr ChunkSchema_;
 
     const NProto::TBlockMeta& Meta_;
     const NProto::TSimpleVersionedBlockMeta& VersionedMeta_;
@@ -126,7 +126,7 @@ public:
     THorizontalSchemalessVersionedBlockReader(
         const TSharedRef& block,
         const NProto::TBlockMeta& meta,
-        const TTableSchema&,
+        const TTableSchemaPtr& schema,
         const std::vector<TColumnIdMapping>& idMapping,
         int chunkKeyColumnCount,
         int keyColumnCount,

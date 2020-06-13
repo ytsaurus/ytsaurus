@@ -83,12 +83,12 @@ class TQueryResponseReader
 public:
     TQueryResponseReader(
         TFuture<TQueryServiceProxy::TRspExecutePtr> asyncResponse,
-        const TTableSchema& schema,
+        TTableSchemaPtr schema,
         NCompression::ECodec codecId,
-        const NLogging::TLogger& logger)
-        : Schema_(schema)
+        NLogging::TLogger logger)
+        : Schema_(std::move(schema))
         , CodecId_(codecId)
-        , Logger(logger)
+        , Logger(std::move(logger))
     {
         // NB: Don't move this assignment to initializer list as
         // OnResponse will access "this", which is not fully constructed yet.
@@ -139,7 +139,7 @@ public:
     }
 
 private:
-    const TTableSchema Schema_;
+    const TTableSchemaPtr Schema_;
     const NCompression::ECodec CodecId_;
     const NLogging::TLogger Logger;
 
@@ -231,10 +231,10 @@ private:
         auto tableInfo = WaitFor(tableMountCache->GetTableInfo(FromObjectId(tableId)))
             .ValueOrThrow();
 
-        if (query->Schema.Original != tableInfo->Schemas[ETableSchemaKind::Query]) {
+        if (*query->Schema.Original != *tableInfo->Schemas[ETableSchemaKind::Query]) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::InvalidMountRevision,
-                "Invalid revision for table info; schema changed")
+                "Invalid revision for table info; schema has changed")
                 << TErrorAttribute("path", tableInfo->Path);
         }
 
@@ -360,7 +360,7 @@ private:
             YT_VERIFY(!dataSource.Schema.empty());
             size_t keyWidth = dataSource.Schema.size();
 
-            auto fullKeySize = tableInfo->Schemas[ETableSchemaKind::Query].GetKeyColumnCount();
+            auto fullKeySize = tableInfo->Schemas[ETableSchemaKind::Query]->GetKeyColumnCount();
 
             SplitKeysByTablets(
                 keys,
@@ -578,8 +578,8 @@ private:
         YT_LOG_DEBUG("Sending subquery (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v, SerializationTime: %v, "
             "RequestSize: %v)",
             queryFingerprint,
-            query->GetReadSchema(),
-            query->GetTableSchema(),
+            *query->GetReadSchema(),
+            *query->GetTableSchema(),
             serializationTime,
             req->ByteSize());
 

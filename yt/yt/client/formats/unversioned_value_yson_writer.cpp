@@ -16,7 +16,7 @@ using namespace NComplexTypes;
 
 TUnversionedValueYsonWriter::TUnversionedValueYsonWriter(
     const TNameTablePtr& nameTable,
-    const TTableSchema& tableSchema,
+    const TTableSchemaPtr& tableSchema,
     EComplexTypeMode complexTypeMode,
     bool skipNullValues)
 {
@@ -27,7 +27,7 @@ TUnversionedValueYsonWriter::TUnversionedValueYsonWriter(
     TPositionalToNamedConfig config;
     config.SkipNullValues = skipNullValues;
 
-    const auto& columns = tableSchema.Columns();
+    const auto& columns = tableSchema->Columns();
     for (size_t i = 0; i != columns.size(); ++i) {
         const auto& column = columns[i];
         if (column.SimplifiedLogicalType()) {

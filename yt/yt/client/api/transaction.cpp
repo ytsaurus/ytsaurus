@@ -118,7 +118,7 @@ void ITransaction::LockRows(
         .ValueOrThrow();
 
     auto lockMask = GetLockMask(
-        tableInfo->Schemas[NTabletClient::ETableSchemaKind::Write],
+        *tableInfo->Schemas[NTabletClient::ETableSchemaKind::Write],
         GetAtomicity() == NTransactionClient::EAtomicity::Full,
         locks,
         lockType);

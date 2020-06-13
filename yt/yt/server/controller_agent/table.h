@@ -44,7 +44,7 @@ struct TInputTable
     //! Number of chunks in the whole table (without range selectors).
     std::vector<NChunkClient::TInputChunkPtr> Chunks;
     NTableClient::TColumnRenameDescriptors ColumnRenameDescriptors;
-    NTableClient::TTableSchema Schema;
+    NTableClient::TTableSchemaPtr Schema = New<NTableClient::TTableSchema>();
     NTableClient::ETableSchemaMode SchemaMode;
     bool Dynamic = false;
     NHydra::TRevision ContentRevision = NHydra::NullRevision;

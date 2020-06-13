@@ -29,7 +29,7 @@ public:
 public:
     TBlockInputStream(
         NTableClient::ISchemalessMultiChunkReaderPtr reader,
-        NTableClient::TTableSchema readSchema,
+        NTableClient::TTableSchemaPtr readSchema,
         NTracing::TTraceContextPtr traceContext,
         THost* host,
         NLogging::TLogger logger,
@@ -44,7 +44,7 @@ public:
     virtual void readSuffixImpl() override;
 
 private:
-    NTableClient::TTableSchema ReadSchema_;
+    NTableClient::TTableSchemaPtr ReadSchema_;
     NTracing::TTraceContextPtr TraceContext_;
 
     THost* Host_;
@@ -63,7 +63,7 @@ private:
 
 std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     NTableClient::ISchemalessMultiChunkReaderPtr reader,
-    NTableClient::TTableSchema readSchema,
+    NTableClient::TTableSchemaPtr readSchema,
     NTracing::TTraceContextPtr traceContext,
     THost* host,
     NLogging::TLogger logger,

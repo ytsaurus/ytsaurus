@@ -977,7 +977,7 @@ private:
 
     EObjectType CommonType_;
 
-    TTableSchema OutputTableSchema_;
+    TTableSchemaPtr OutputTableSchema_;
     ETableSchemaMode OutputTableSchemaMode_;
 
     TTransactionPtr UploadTransaction_;
@@ -1220,7 +1220,7 @@ private:
                             Client_->Options_.User);
                         Sorted_ = true;
                     }
-                    outputSchemaInferer = CreateSchemaCompatibilityChecker(DstObject_.GetPath(), schema);
+                    outputSchemaInferer = CreateSchemaCompatibilityChecker(DstObject_.GetPath(), New<TTableSchema>(schema));
                     break;
                 case ETableSchemaMode::Weak:
                     outputSchemaInferer = CreateOutputSchemaInferer();
@@ -1347,15 +1347,15 @@ private:
 
             auto chunkSchema = FromProto<TTableSchema>(*chunkSchemaExt);
 
-            if (OutputTableSchema_.GetKeyColumnCount() > chunkSchema.GetKeyColumnCount()) {
+            if (OutputTableSchema_->GetKeyColumnCount() > chunkSchema.GetKeyColumnCount()) {
                 THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation,
                     "Chunk %v has less key columns than output schema",
                     chunkId)
                     << TErrorAttribute("chunk_key_column_count", chunkSchema.GetKeyColumnCount())
-                    << TErrorAttribute("output_table_key_column_count", OutputTableSchema_.GetKeyColumnCount());
+                    << TErrorAttribute("output_table_key_column_count", OutputTableSchema_->GetKeyColumnCount());
             }
 
-            if (OutputTableSchema_.GetUniqueKeys() && !chunkSchema.GetUniqueKeys()) {
+            if (OutputTableSchema_->GetUniqueKeys() && !chunkSchema.GetUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::SchemaViolation,
                     "Output table schema forces keys to be unique while chunk %v schema does not",
@@ -1379,7 +1379,7 @@ private:
                 auto lhsMinKey = FromProto<TOwningKey>(lhsBoundaryKeysExt->min());
                 auto rhsMinKey = FromProto<TOwningKey>(rhsBoundaryKeysExt->min());
 
-                int compareResult = CompareRows(lhsMinKey, rhsMinKey, OutputTableSchema_.GetKeyColumnCount());
+                int compareResult = CompareRows(lhsMinKey, rhsMinKey, OutputTableSchema_->GetKeyColumnCount());
                 if (compareResult < 0) {
                     return true;
                 } else if (compareResult > 0) {
@@ -1388,7 +1388,7 @@ private:
                     auto lhsMaxKey = FromProto<TOwningKey>(lhsBoundaryKeysExt->max());
                     auto rhsMaxKey = FromProto<TOwningKey>(rhsBoundaryKeysExt->max());
 
-                    return CompareRows(lhsMaxKey, rhsMaxKey, OutputTableSchema_.GetKeyColumnCount()) < 0;
+                    return CompareRows(lhsMaxKey, rhsMaxKey, OutputTableSchema_->GetKeyColumnCount()) < 0;
                 }
             });
     }
@@ -1411,7 +1411,7 @@ private:
             int compareResult = CompareRows(
                 currentChunkMaxKey,
                 nextChunkMinKey,
-                OutputTableSchema_.GetKeyColumnCount());
+                OutputTableSchema_->GetKeyColumnCount());
 
             if (compareResult > 0) {
                 THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SortOrderViolation, "Chunks ranges are overlapping")
@@ -1419,10 +1419,10 @@ private:
                     << TErrorAttribute("next_chunk_id", FromProto<TChunkId>(nextChunkSpec.chunk_id()))
                     << TErrorAttribute("current_chunk_max_key", currentChunkMaxKey)
                     << TErrorAttribute("next_chunk_min_key", nextChunkMinKey)
-                    << TErrorAttribute("key_column_count", OutputTableSchema_.GetKeyColumnCount());
+                    << TErrorAttribute("key_column_count", OutputTableSchema_->GetKeyColumnCount());
             }
 
-            if (compareResult == 0 && OutputTableSchema_.GetUniqueKeys()) {
+            if (compareResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::UniqueKeyViolation,
                     "Key appears in two chunks but output table schema requires unique keys")
@@ -1430,7 +1430,7 @@ private:
                     << TErrorAttribute("next_chunk_id", FromProto<TChunkId>(nextChunkSpec.chunk_id()))
                     << TErrorAttribute("current_chunk_max_key", currentChunkMaxKey)
                     << TErrorAttribute("next_chunk_min_key", nextChunkMinKey)
-                    << TErrorAttribute("key_column_count", OutputTableSchema_.GetKeyColumnCount());
+                    << TErrorAttribute("key_column_count", OutputTableSchema_->GetKeyColumnCount());
             }
         }
     }
@@ -1460,7 +1460,7 @@ private:
             auto compareResult = CompareRows(
                 maxKey,
                 firstChunkMinKey,
-                OutputTableSchema_.GetKeyColumnCount());
+                OutputTableSchema_->GetKeyColumnCount());
 
             if (compareResult > 0) {
                 THROW_ERROR_EXCEPTION(
@@ -1469,17 +1469,17 @@ private:
                     << TErrorAttribute("chunk_id", FromProto<TChunkId>(ChunkSpecs_[0].chunk_id()))
                     << TErrorAttribute("table_max_key", maxKey)
                     << TErrorAttribute("first_chunk_min_key", firstChunkMinKey)
-                    << TErrorAttribute("key_column_count", OutputTableSchema_.GetKeyColumnCount());
+                    << TErrorAttribute("key_column_count", OutputTableSchema_->GetKeyColumnCount());
             }
 
-            if (compareResult == 0 && OutputTableSchema_.GetUniqueKeys()) {
+            if (compareResult == 0 && OutputTableSchema_->GetUniqueKeys()) {
                 THROW_ERROR_EXCEPTION(
                     NTableClient::EErrorCode::UniqueKeyViolation,
                     "First key of chunk to append equals to last key in table")
                     << TErrorAttribute("chunk_id", FromProto<TChunkId>(ChunkSpecs_[0].chunk_id()))
                     << TErrorAttribute("table_max_key", maxKey)
                     << TErrorAttribute("first_chunk_min_key", firstChunkMinKey)
-                    << TErrorAttribute("key_column_count", OutputTableSchema_.GetKeyColumnCount());
+                    << TErrorAttribute("key_column_count", OutputTableSchema_->GetKeyColumnCount());
             }
         }
     }

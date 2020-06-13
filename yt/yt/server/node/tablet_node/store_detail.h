@@ -63,7 +63,7 @@ protected:
     const TRuntimeTabletDataPtr RuntimeData_;
     const TTabletId TabletId_;
     const NYPath::TYPath TablePath_;
-    const NTableClient::TTableSchema Schema_;
+    const NTableClient::TTableSchemaPtr Schema_;
     const int KeyColumnCount_;
     const int SchemaColumnCount_;
     const int ColumnLockCount_;

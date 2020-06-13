@@ -117,14 +117,14 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableSchema
+class TTableSchema final
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(std::vector<TColumnSchema>, Columns);
     //! Strict schema forbids columns not specified in the schema.
     DEFINE_BYVAL_RO_PROPERTY(bool, Strict);
     DEFINE_BYVAL_RO_PROPERTY(bool, UniqueKeys);
-    DEFINE_BYVAL_RW_PROPERTY(ETableSchemaModification, SchemaModification);
+    DEFINE_BYVAL_RO_PROPERTY(ETableSchemaModification, SchemaModification);
 
     //! Constructs an empty non-strict schema.
     TTableSchema();
@@ -145,13 +145,13 @@ public:
     int GetColumnIndex(TStringBuf name) const;
     int GetColumnIndexOrThrow(TStringBuf name) const;
 
-    TTableSchema Filter(
+    TTableSchemaPtr Filter(
         const TColumnFilter& columnFilter,
         bool discardSortOrder = false) const;
-    TTableSchema Filter(
+    TTableSchemaPtr Filter(
         const THashSet<TString>& columns,
         bool discardSortOrder = false) const;
-    TTableSchema Filter(
+    TTableSchemaPtr Filter(
         const std::optional<std::vector<TString>>& columns,
         bool discardSortOrder = false) const;
 
@@ -169,73 +169,76 @@ public:
     //! Constructs a non-strict schema from #keyColumns assigning all components EValueType::Any type.
     //! #keyColumns could be empty, in which case an empty non-strict schema is returned.
     //! The resulting schema is validated.
-    static TTableSchema FromKeyColumns(const TKeyColumns& keyColumns);
+    static TTableSchemaPtr FromKeyColumns(const TKeyColumns& keyColumns);
 
     //! Returns schema with first `keyColumnCount' columns sorted in ascending order
     //! and other columns non-sorted.
-    TTableSchema SetKeyColumnCount(int keyColumnCount) const;
+    TTableSchemaPtr SetKeyColumnCount(int keyColumnCount) const;
 
     //! Returns schema with `UniqueKeys' set to given value.
-    TTableSchema SetUniqueKeys(bool uniqueKeys) const;
+    TTableSchemaPtr SetUniqueKeys(bool uniqueKeys) const;
+
+    //! Returns schema with `SchemaModification' set to given value.
+    TTableSchemaPtr SetSchemaModification(ETableSchemaModification schemaModification) const;
 
     //! For sorted tables, return the current schema as-is.
     //! For ordered tables, prepends the current schema with |(tablet_index, row_index)| key columns.
-    TTableSchema ToQuery() const;
+    TTableSchemaPtr ToQuery() const;
 
     //! For sorted tables, return the current schema without computed columns.
     //! For ordered tables, prepends the current schema with |(tablet_index)| key column
     //! but without |$timestamp| column, if any.
-    TTableSchema ToWrite() const;
+    TTableSchemaPtr ToWrite() const;
 
     //! For sorted tables, return the current schema
     //! For ordered tables, prepends the current schema with |(tablet_index)| key column
-    TTableSchema WithTabletIndex() const;
+    TTableSchemaPtr WithTabletIndex() const;
 
     //! Only applies to sorted replicated tables.
     //! Returns the current schema as-is.
-    TTableSchema ToVersionedWrite() const;
+    TTableSchemaPtr ToVersionedWrite() const;
 
     //! For sorted tables, returns the non-computed key columns.
     //! For ordered tables, returns an empty schema.
-    TTableSchema ToLookup() const;
+    TTableSchemaPtr ToLookup() const;
 
     //! For sorted tables, returns the non-computed key columns.
     //! For ordered tables, returns an empty schema.
-    TTableSchema ToDelete() const;
+    TTableSchemaPtr ToDelete() const;
 
     //! Returns just the key columns.
-    TTableSchema ToKeys() const;
+    TTableSchemaPtr ToKeys() const;
 
     //! Returns the non-key columns.
-    TTableSchema ToValues() const;
+    TTableSchemaPtr ToValues() const;
 
     //! Returns the schema with UniqueKeys set to |true|.
-    TTableSchema ToUniqueKeys() const;
+    TTableSchemaPtr ToUniqueKeys() const;
 
     //! Returns the schema with all column attributes unset expect Name, Type and Required.
-    TTableSchema ToStrippedColumnAttributes() const;
+    TTableSchemaPtr ToStrippedColumnAttributes() const;
 
     //! Returns the schema with all column attributes unset expect Name, Type, Required and SortOrder.
-    TTableSchema ToSortedStrippedColumnAttributes() const;
+    TTableSchemaPtr ToSortedStrippedColumnAttributes() const;
 
     //! Returns (possibly reordered) schema sorted by column names.
-    TTableSchema ToCanonical() const;
+    TTableSchemaPtr ToCanonical() const;
 
     //! Returns (possibly reordered) schema with set key columns.
-    TTableSchema ToSorted(const TKeyColumns& keyColumns) const;
+    TTableSchemaPtr ToSorted(const TKeyColumns& keyColumns) const;
 
     //! Only applies to sorted replicated tables.
     //! Returns the ordered schema used in replication logs.
-    TTableSchema ToReplicationLog() const;
+    TTableSchemaPtr ToReplicationLog() const;
 
     //! Only applies to sorted dynamic tables.
     //! Returns the static schema used for unversioned updates from bulk insert.
     //! Key columns remain unchanged. Additional column |($change_type)| is prepended.
     //! Each value column |name| is replaced with two columns |($value:name)| and |($flags:name)|.
     //! If |sorted| is |false|, sort order is removed from key columns.
-    TTableSchema ToUnversionedUpdate(bool sorted = true) const;
+    TTableSchemaPtr ToUnversionedUpdate(bool sorted = true) const;
 
-    TTableSchema ToModifiedSchema(ETableSchemaModification schemaModification) const;
+    TTableSchemaPtr ToModifiedSchema(ETableSchemaModification schemaModification) const;
 
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
@@ -257,6 +260,13 @@ void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema);
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema);
 void FromProto(
     TTableSchema* schema,
+    const NProto::TTableSchemaExt& protoSchema,
+    const NProto::TKeyColumnsExt& keyColumnsExt);
+
+void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchemaPtr& schema);
+void FromProto(TTableSchemaPtr* schema, const NProto::TTableSchemaExt& protoSchema);
+void FromProto(
+    TTableSchemaPtr* schema,
     const NProto::TTableSchemaExt& protoSchema,
     const NProto::TKeyColumnsExt& keyColumnsExt);
 

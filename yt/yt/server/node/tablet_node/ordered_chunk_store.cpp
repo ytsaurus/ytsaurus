@@ -104,7 +104,7 @@ public:
             ++CurrentRowIndex_;
         }
 
-        return CreateBatchFromUnversionedRows(std::move(updatedRows), this);
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(updatedRows), this));
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -202,7 +202,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     auto chunkReader = GetReaders(throttler).ChunkReader;
     auto asyncChunkMeta = ChunkMetaManager_->GetMeta(
         chunkReader,
-        Schema_,
+        *Schema_,
         blockReadOptions);
     auto chunkMeta = WaitFor(asyncChunkMeta)
         .ValueOrThrow();
@@ -220,7 +220,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     TColumnFilter valueColumnFilter;
     if (!columnFilter.IsUniversal()) {
         TColumnFilter::TIndexes valueColumnFilterIndexes;
-        auto keyColumnCount = tabletSnapshot->QuerySchema.GetKeyColumnCount();
+        auto keyColumnCount = tabletSnapshot->QuerySchema->GetKeyColumnCount();
         for (auto index : columnFilter.GetIndexes()) {
             if (index >= keyColumnCount) {
                 valueColumnFilterIndexes.push_back(index - keyColumnCount);
@@ -229,15 +229,15 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
         valueColumnFilter = TColumnFilter(std::move(valueColumnFilterIndexes));
     }
 
-    auto querySchema = tabletSnapshot->QuerySchema.Filter(columnFilter);
-    auto readSchema = tabletSnapshot->PhysicalSchema.Filter(valueColumnFilter);
+    auto querySchema = tabletSnapshot->QuerySchema->Filter(columnFilter);
+    auto readSchema = tabletSnapshot->PhysicalSchema->Filter(valueColumnFilter);
 
     bool enableTabletIndex = columnFilter.ContainsIndex(0);
     bool enableRowIndex = columnFilter.ContainsIndex(1);
 
     TIdMapping idMapping;
-    for (const auto& readColumn : readSchema.Columns()) {
-        idMapping.push_back(querySchema.GetColumnIndex(readColumn.Name()));
+    for (const auto& readColumn : readSchema->Columns()) {
+        idMapping.push_back(querySchema->GetColumnIndex(readColumn.Name()));
     }
 
     auto chunkState = New<TChunkState>(

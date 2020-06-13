@@ -65,7 +65,7 @@ public:
         : Id_(id)
     { }
 
-    void Profile(const TTableSchema& tableSchema);
+    void Profile(const TTableSchemaPtr& tableSchema);
 
 protected:
     void Fold(int numeric);
@@ -105,9 +105,9 @@ void TSchemaProfiler::Fold(const llvm::FoldingSetNodeID& id)
     }
 }
 
-void TSchemaProfiler::Profile(const TTableSchema& tableSchema)
+void TSchemaProfiler::Profile(const TTableSchemaPtr& tableSchema)
 {
-    const auto& columns = tableSchema.Columns();
+    const auto& columns = tableSchema->Columns();
     Fold(static_cast<int>(EFoldingObjectType::TableSchema));
     for (int index = 0; index < columns.size(); ++index) {
         const auto& column = columns[index];
@@ -344,56 +344,56 @@ public:
 
     size_t Profile(
         const TConstExpressionPtr& expr,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
         bool isIsolated = false);
 
 private:
     size_t Profile(
         const TLiteralExpression* literalExpr,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
         bool isIsolated);
 
     size_t Profile(
         const TReferenceExpression* referenceExpr,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
         bool isIsolated);
 
     size_t Profile(
         const TFunctionExpression* functionExpr,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
         bool isIsolated);
 
     size_t Profile(
         const TUnaryOpExpression* unaryOp,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
         bool isIsolated);
 
     size_t Profile(
         const TBinaryOpExpression* binaryOp,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
         bool isIsolated);
 
     size_t Profile(
         const TInExpression* inExpr,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
         bool isIsolated);
 
     size_t Profile(
         const TBetweenExpression* betweenExpr,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
         bool isIsolated);
 
     size_t Profile(
         const TTransformExpression* transformExpr,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         TExpressionFragments* fragments,
         bool isIsolated);
 
@@ -405,7 +405,7 @@ protected:
 
 size_t TExpressionProfiler::Profile(
     const TLiteralExpression* literalExpr,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
     bool isIsolated)
 {
@@ -440,7 +440,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TReferenceExpression* referenceExpr,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
     bool isIsolated)
 {
@@ -448,7 +448,7 @@ size_t TExpressionProfiler::Profile(
     id.AddInteger(static_cast<ui16>(referenceExpr->Type));
 
     id.AddInteger(static_cast<int>(EFoldingObjectType::ReferenceExpr));
-    auto indexInSchema = schema.GetColumnIndexOrThrow(referenceExpr->ColumnName);
+    auto indexInSchema = schema->GetColumnIndexOrThrow(referenceExpr->ColumnName);
     id.AddInteger(indexInSchema);
 
     auto emplaced = fragments->Fingerprints.emplace(id, fragments->Items.size());
@@ -469,7 +469,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TFunctionExpression* functionExpr,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
     bool isIsolated)
 {
@@ -519,7 +519,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TUnaryOpExpression* unaryOp,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
     bool isIsolated)
 {
@@ -550,7 +550,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TBinaryOpExpression* binaryOp,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
     bool isIsolated)
 {
@@ -588,7 +588,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TInExpression* inExpr,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
     bool isIsolated)
 {
@@ -628,7 +628,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TBetweenExpression* betweenExpr,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
     bool isIsolated)
 {
@@ -668,7 +668,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TTransformExpression* transformExpr,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
     bool isIsolated)
 {
@@ -729,7 +729,7 @@ size_t TExpressionProfiler::Profile(
 
 size_t TExpressionProfiler::Profile(
     const TConstExpressionPtr& expr,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     TExpressionFragments* fragments,
     bool isIsolated)
 {
@@ -776,7 +776,7 @@ public:
         size_t finalSlot,
         size_t intermediateSlot,
         size_t totalsSlot,
-        TTableSchema schema,
+        TTableSchemaPtr schema,
         bool isMerge);
 
     void Profile(
@@ -795,7 +795,7 @@ protected:
 
     size_t Profile(
         const TNamedItem& namedExpression,
-        const TTableSchema& schema,
+        const TTableSchemaPtr& schema,
         TExpressionFragments* fragments);
 };
 
@@ -806,7 +806,7 @@ void TQueryProfiler::Profile(
     size_t finalSlot,
     size_t intermediateSlot,
     size_t totalsSlot,
-    TTableSchema schema,
+    TTableSchemaPtr schema,
     bool isMerge)
 {
     size_t dummySlot = (*slotCount)++;
@@ -1038,8 +1038,7 @@ void TQueryProfiler::Profile(
         auto orderFragmentsInfos = orderExprFragments.ToFragmentInfos("orderExpression");
         orderExprFragments.DumpArgs(orderExprIds);
 
-        auto schemaTypes = GetTypesFromSchema(schema);
-
+        auto schemaTypes = GetTypesFromSchema(*schema);
         for (auto type : schemaTypes) {
             Fold(static_cast<ui16>(type));
         }
@@ -1087,7 +1086,7 @@ void TQueryProfiler::Profile(
         finalSlot = MakeCodegenOffsetLimiterOp(codegenSource, slotCount, finalSlot, offsetId, limitId);
     }
 
-    size_t resultRowSize = schema.GetColumnCount();
+    size_t resultRowSize = schema->GetColumnCount();
 
     if (!isFinal) {
         finalSlot = MakeCodegenAddStreamOp(
@@ -1140,7 +1139,7 @@ void TQueryProfiler::Profile(
 
     auto Logger = MakeQueryLogger(query);
 
-    std::vector<size_t> joinGroups = GetJoinGroups(query->JoinClauses, schema);
+    auto joinGroups = GetJoinGroups(query->JoinClauses, schema);
     if (!joinGroups.empty()) {
         YT_LOG_DEBUG("Join groups: [%v]", JoinToString(joinGroups));
     }
@@ -1148,7 +1147,7 @@ void TQueryProfiler::Profile(
     size_t joinIndex = 0;
     for (size_t joinGroupSize : joinGroups) {
         TConstExpressionPtr selfFilter;
-        std::tie(selfFilter, whereClause) = SplitPredicateByColumnSubset(whereClause, schema);
+        std::tie(selfFilter, whereClause) = SplitPredicateByColumnSubset(whereClause, *schema);
 
         if (selfFilter && !IsTrue(selfFilter)) {
             Fold(static_cast<int>(EFoldingObjectType::FilterOp));
@@ -1242,7 +1241,7 @@ void TQueryProfiler::Profile(
                 auto foreignColumnNames = joinClause->ForeignJoinedColumns;
                 std::sort(foreignColumnNames.begin(), foreignColumnNames.end());
 
-                auto joinRenamedTableColumns = joinClause->GetRenamedSchema().Columns();
+                auto joinRenamedTableColumns = joinClause->GetRenamedSchema()->Columns();
 
                 std::vector<size_t> foreignColumns;
                 for (size_t index = 0; index < joinRenamedTableColumns.size(); ++index) {
@@ -1269,12 +1268,12 @@ void TQueryProfiler::Profile(
             }
             joinParameters.Items.push_back(std::move(singeJoinParameters));
 
-            lastSchema = joinClause->GetTableSchema(lastSchema);
+            lastSchema = joinClause->GetTableSchema(*lastSchema);
         }
 
         std::sort(selfColumnNames.begin(), selfColumnNames.end());
 
-        const auto& selfTableColumns = schema.Columns();
+        const auto& selfTableColumns = schema->Columns();
 
         std::vector<std::pair<size_t, EValueType>> primaryColumns;
         for (size_t index = 0; index < selfTableColumns.size(); ++index) {
@@ -1361,14 +1360,14 @@ void TQueryProfiler::Profile(
         codegenSource,
         slotCount,
         currentSlot,
-        schema.Columns().size());
+        schema->Columns().size());
 
     Profile(codegenSource, query, slotCount, finalSlot, intermediateSlot, totalsSlot, schema, true);
 }
 
 size_t TQueryProfiler::Profile(
     const TNamedItem& namedExpression,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     TExpressionFragments* fragments)
 {
     Fold(static_cast<int>(EFoldingObjectType::NamedExpression));
@@ -1385,7 +1384,7 @@ size_t TQueryProfiler::Profile(
 ////////////////////////////////////////////////////////////////////////////////
 
 void Profile(
-    const TTableSchema& tableSchema,
+    const TTableSchemaPtr& tableSchema,
     llvm::FoldingSetNodeID* id)
 {
     TSchemaProfiler profiler(id);
@@ -1394,7 +1393,7 @@ void Profile(
 
 TCGExpressionCallbackGenerator Profile(
     const TConstExpressionPtr& expr,
-    const TTableSchema& schema,
+    const TTableSchemaPtr& schema,
     llvm::FoldingSetNodeID* id,
     TCGVariables* variables,
     const TConstFunctionProfilerMapPtr& functionProfilers)

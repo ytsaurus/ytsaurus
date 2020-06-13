@@ -193,7 +193,10 @@ struct TColumnRenameDescriptor;
 using TColumnRenameDescriptors = std::vector<TColumnRenameDescriptor>;
 
 class TColumnSchema;
+
 class TTableSchema;
+using TTableSchemaPtr = TIntrusivePtr<TTableSchema>;
+
 class TLockMask;
 using TLockBitmap = ui64;
 
@@ -208,7 +211,9 @@ DECLARE_REFCOUNTED_STRUCT(ISchemafulUnversionedReader)
 DECLARE_REFCOUNTED_STRUCT(IUnversionedWriter)
 DECLARE_REFCOUNTED_STRUCT(IUnversionedRowsetWriter)
 
-using TSchemalessWriterFactory = std::function<IUnversionedRowsetWriterPtr(TNameTablePtr, const TTableSchema&)>;
+using TSchemalessWriterFactory = std::function<IUnversionedRowsetWriterPtr(
+    TNameTablePtr,
+    TTableSchemaPtr)>;
 
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)

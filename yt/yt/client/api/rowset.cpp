@@ -22,7 +22,7 @@ class TRowsetBase
     : public IRowset<TRow>
 {
 public:
-    explicit TRowsetBase(TTableSchema schema)
+    explicit TRowsetBase(TTableSchemaPtr schema)
         : Schema_(std::move(schema))
         , NameTableInitialized_(false)
     { }
@@ -34,7 +34,7 @@ public:
 
     virtual const TTableSchema& GetSchema() const override
     {
-        return Schema_;
+        return *Schema_;
     }
 
     virtual const TNameTablePtr& GetNameTable() const override
@@ -47,14 +47,14 @@ public:
         // Slow path.
         auto guard = Guard(NameTableLock_);
         if (!NameTable_) {
-            NameTable_ = TNameTable::FromSchema(Schema_);
+            NameTable_ = TNameTable::FromSchema(*Schema_);
         }
         NameTableInitialized_ = true;
         return NameTable_;
     }
 
 private:
-    const TTableSchema Schema_;
+    const TTableSchemaPtr Schema_;
     
     mutable std::atomic<bool> NameTableInitialized_;
     mutable TSpinLock NameTableLock_;
@@ -69,7 +69,7 @@ class TRowset
 {
 public:
     TRowset(
-        TTableSchema schema,
+        TTableSchemaPtr schema,
         TSharedRange<TRow> rows)
         : TRowsetBase<TRow>(std::move(schema))
         , Rows_(std::move(rows))
@@ -96,7 +96,7 @@ DEFINE_REFCOUNTED_TYPE(TRowset<TVersionedRow>)
 
 template <class TRow>
 IRowsetPtr<TRow> CreateRowset(
-    NTableClient::TTableSchema schema,
+    NTableClient::TTableSchemaPtr schema,
     TSharedRange<TRow> rows)
 {
     return New<TRowset<TRow>>(std::move(schema), std::move(rows));
@@ -104,11 +104,11 @@ IRowsetPtr<TRow> CreateRowset(
 
 template
 IUnversionedRowsetPtr CreateRowset<TUnversionedRow>(
-    NTableClient::TTableSchema schema,
+    NTableClient::TTableSchemaPtr schema,
     TSharedRange<TUnversionedRow> rows);
 template
 IVersionedRowsetPtr CreateRowset<TVersionedRow>(
-    NTableClient::TTableSchema schema,
+    NTableClient::TTableSchemaPtr schema,
     TSharedRange<TVersionedRow> rows);
 
 template <class TRow>
@@ -168,7 +168,7 @@ public:
     }
 
 private:
-    const TTableSchema Schema_;
+    const TTableSchemaPtr Schema_;
     const TNameTablePtr NameTable_;
 
     TPromise<IUnversionedRowsetPtr> Result_ = NewPromise<IUnversionedRowsetPtr>();
@@ -181,9 +181,9 @@ private:
 
 };
 
-std::tuple<IUnversionedRowsetWriterPtr, TFuture<IUnversionedRowsetPtr>> CreateSchemafulRowsetWriter(const TTableSchema& schema)
+std::tuple<IUnversionedRowsetWriterPtr, TFuture<IUnversionedRowsetPtr>> CreateSchemafulRowsetWriter(TTableSchemaPtr schema)
 {
-    auto writer = New<TSchemafulRowsetWriter>(schema);
+    auto writer = New<TSchemafulRowsetWriter>(std::move(schema));
     return std::make_tuple(writer, writer->GetResult());
 }
 

@@ -24,7 +24,7 @@ std::pair<TConstFrontQueryPtr, std::vector<TConstQueryPtr>> CoordinateQuery(
 
 TRowRanges GetPrunedRanges(
     const TConstExpressionPtr& predicate,
-    const TTableSchema& tableSchema,
+    const TTableSchemaPtr& tableSchema,
     const TKeyColumns& keyColumns,
     NObjectClient::TObjectId tableId,
     const TSharedRange<TRowRange>& ranges,

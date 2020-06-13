@@ -17,10 +17,10 @@ protected:
         Tablet_->StartEpoch(nullptr);
     }
 
-    virtual TTableSchema GetSchema() const override
+    virtual TTableSchemaPtr GetSchema() const override
     {
         // NB: Key columns must go first.
-        return TTableSchema({
+        return New<TTableSchema>(std::vector{
             TColumnSchema("key", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("a", EValueType::Int64),
@@ -66,9 +66,9 @@ protected:
 
         TUnversionedOwningRowBuilder builder;
 
-        const auto schema = Tablet_->PhysicalSchema();
-        int keyCount = schema.GetKeyColumnCount();
-        int schemaColumnCount = schema.GetColumnCount();
+        auto schema = Tablet_->GetPhysicalSchema();
+        int keyCount = schema->GetKeyColumnCount();
+        int schemaColumnCount = schema->GetColumnCount();
 
         // Keys
         const auto* keys = row.BeginKeys();
@@ -93,7 +93,7 @@ protected:
         TSortedDynamicRow row,
         int index = PrimaryLockIndex)
     {
-        return row.BeginLocks(Tablet_->PhysicalSchema().GetKeyColumnCount())[index];
+        return row.BeginLocks(Tablet_->GetPhysicalSchema()->GetKeyColumnCount())[index];
     }
 };
 

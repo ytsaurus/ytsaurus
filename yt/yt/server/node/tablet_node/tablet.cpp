@@ -183,7 +183,7 @@ bool TTabletSnapshot::IsPreallocatedDynamicStoreId(TDynamicStoreId storeId) cons
 
 IDynamicStorePtr TTabletSnapshot::FindDynamicStore(TDynamicStoreId storeId) const
 {
-    if (PhysicalSchema.IsSorted()) {
+    if (PhysicalSchema->IsSorted()) {
         for (const auto& store : Eden->Stores) {
             if (store->GetId() == storeId) {
                 return store->AsDynamic();
@@ -412,7 +412,7 @@ TTablet::TTablet(
     TObjectId tableId,
     const TYPath& path,
     ITabletContext* context,
-    const TTableSchema& schema,
+    TTableSchemaPtr schema,
     TOwningKey pivotKey,
     TOwningKey nextPivotKey,
     EAtomicity atomicity,
@@ -423,7 +423,7 @@ TTablet::TTablet(
     , MountRevision_(mountRevision)
     , TableId_(tableId)
     , TablePath_(path)
-    , TableSchema_(schema)
+    , TableSchema_(std::move(schema))
     , PivotKey_(std::move(pivotKey))
     , NextPivotKey_(std::move(nextPivotKey))
     , State_(ETabletState::Mounted)
@@ -530,7 +530,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, MountRevision_);
     Save(context, TablePath_);
     Save(context, GetPersistentState());
-    Save(context, TableSchema_);
+    TNonNullableIntrusivePtrSerializer<>::Save(context, TableSchema_);
     Save(context, Atomicity_);
     Save(context, CommitOrdering_);
     Save(context, UpstreamReplicaId_);
@@ -578,7 +578,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, MountRevision_);
     Load(context, TablePath_);
     Load(context, State_);
-    Load(context, TableSchema_);
+    TNonNullableIntrusivePtrSerializer<>::Load(context, TableSchema_);
     Load(context, Atomicity_);
     Load(context, CommitOrdering_);
     Load(context, UpstreamReplicaId_);
@@ -1076,12 +1076,12 @@ TTableReplicaInfo* TTablet::GetReplicaInfoOrThrow(TTableReplicaId id)
 
 bool TTablet::IsPhysicallySorted() const
 {
-    return PhysicalSchema_.GetKeyColumnCount() > 0;
+    return PhysicalSchema_->GetKeyColumnCount() > 0;
 }
 
 bool TTablet::IsPhysicallyOrdered() const
 {
-    return PhysicalSchema_.GetKeyColumnCount() == 0;
+    return PhysicalSchema_->GetKeyColumnCount() == 0;
 }
 
 bool TTablet::IsReplicated() const
@@ -1207,7 +1207,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
     snapshot->NextPivotKey = NextPivotKey_;
     snapshot->TableSchema = TableSchema_;
     snapshot->PhysicalSchema = PhysicalSchema_;
-    snapshot->QuerySchema = PhysicalSchema_.ToQuery();
+    snapshot->QuerySchema = PhysicalSchema_->ToQuery();
     snapshot->PhysicalSchemaData = PhysicalSchemaData_;
     snapshot->KeysSchemaData = KeysSchemaData_;
     snapshot->Atomicity = Atomicity_;
@@ -1304,19 +1304,19 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(TTabletSlotPtr slot, std::optional<TLo
 
 void TTablet::Initialize()
 {
-    PhysicalSchema_ = IsReplicated() ? TableSchema_.ToReplicationLog() : TableSchema_;
+    PhysicalSchema_ = IsReplicated() ? TableSchema_->ToReplicationLog() : TableSchema_;
 
-    PhysicalSchemaData_ = TWireProtocolReader::GetSchemaData(PhysicalSchema_);
-    KeysSchemaData_ = TWireProtocolReader::GetSchemaData(PhysicalSchema_.ToKeys());
+    PhysicalSchemaData_ = TWireProtocolReader::GetSchemaData(*PhysicalSchema_);
+    KeysSchemaData_ = TWireProtocolReader::GetSchemaData(*PhysicalSchema_->ToKeys());
 
-    int keyColumnCount = PhysicalSchema_.GetKeyColumnCount();
+    int keyColumnCount = PhysicalSchema_->GetKeyColumnCount();
 
     RowKeyComparer_ = TSortedDynamicRowKeyComparer::Create(
         keyColumnCount,
-        PhysicalSchema_);
+        *PhysicalSchema_);
 
-    THashMap<TString, int> groupToIndex = GetLocksMapping(
-        PhysicalSchema_,
+    auto groupToIndex = GetLocksMapping(
+        *PhysicalSchema_,
         Atomicity_ == EAtomicity::Full,
         &ColumnIndexToLockIndex_,
         &LockIndexToName_);

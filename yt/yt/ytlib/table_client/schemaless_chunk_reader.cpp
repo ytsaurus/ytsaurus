@@ -568,7 +568,7 @@ void THorizontalSchemalessRangeChunkReader::InitializeBlockSequenceSorted()
         THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
     }
 
-    auto chunkKeyColumns = ChunkMeta_->ChunkSchema().GetKeyColumns();
+    auto chunkKeyColumns = ChunkMeta_->GetChunkSchema()->GetKeyColumns();
     ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
     ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
@@ -610,7 +610,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
     BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
-        ChunkMeta_->ChunkSchema(),
+        ChunkMeta_->GetChunkSchema(),
         IdMapping_,
         ChunkKeyColumnCount_,
         KeyColumns_.size(),
@@ -711,7 +711,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
     RowCount_ += rows.size();
     DataWeight_ += dataWeight;
 
-    return CreateBatchFromUnversionedRows(std::move(rows), this);
+    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
 }
 
 TInterruptDescriptor THorizontalSchemalessRangeChunkReader::GetInterruptDescriptor(
@@ -829,7 +829,7 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
         THROW_ERROR_EXCEPTION("Requested lookup for a chunk without \"unique_keys\" restriction");
     }
 
-    auto chunkKeyColumns = ChunkMeta_->ChunkSchema().GetKeyColumns();
+    auto chunkKeyColumns = ChunkMeta_->GetChunkSchema()->GetKeyColumns();
     ChunkKeyColumnCount_ = chunkKeyColumns.size();
 
     ValidateKeyColumns(KeyColumns_, chunkKeyColumns, Options_->DynamicTable);
@@ -927,7 +927,9 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
         PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
     }
 
-    return success ? CreateBatchFromUnversionedRows(std::move(rows), this) : nullptr;
+    return success
+        ? CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this))
+        : nullptr;
 }
 
 void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
@@ -938,7 +940,7 @@ void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
     BlockReader_.reset(new THorizontalBlockReader(
         CurrentBlock_.Get().ValueOrThrow().Data,
         blockMeta,
-        ChunkMeta_->ChunkSchema(),
+        ChunkMeta_->GetChunkSchema(),
         IdMapping_,
         ChunkKeyColumnCount_,
         KeyColumns_.size(),
@@ -1009,7 +1011,7 @@ public:
             // Previous batch was not materialized, readers did not advance.
             // Perform a fake materialization.
             std::vector<IUnversionedRowBatch::TColumn> allBatchColumns;
-            std::vector<IUnversionedRowBatch::TColumn*> rootBatchColumns;
+            std::vector<const IUnversionedRowBatch::TColumn*> rootBatchColumns;
             MaterializeColumns(PendingUnmaterializedRowCount_, &allBatchColumns, &rootBatchColumns);
         }
         YT_VERIFY(PendingUnmaterializedRowCount_ == 0);
@@ -1096,7 +1098,7 @@ private:
             return MakeRange(*Rows_);
         }
 
-        virtual TRange<TColumn*> MaterializeColumns() override
+        virtual TRange<const TColumn*> MaterializeColumns() override
         {
             YT_VERIFY(!Rows_);
 
@@ -1115,7 +1117,7 @@ private:
         const i64 RowCount_;
 
         std::optional<std::vector<TUnversionedRow>> Rows_;
-        std::optional<std::vector<TColumn*>> RootColumns_;
+        std::optional<std::vector<const TColumn*>> RootColumns_;
         std::vector<TColumn> AllColumns_;
     };
 
@@ -1239,7 +1241,7 @@ private:
     void MaterializeColumns(
         i64 rowCount,
         std::vector<IUnversionedRowBatch::TColumn>* allBatchColumns,
-        std::vector<IUnversionedRowBatch::TColumn*>* rootBatchColumns)
+        std::vector<const IUnversionedRowBatch::TColumn*>* rootBatchColumns)
     {
         YT_VERIFY(PendingUnmaterializedRowCount_ == rowCount);
         PendingUnmaterializedRowCount_ = 0;
@@ -1265,11 +1267,11 @@ private:
             auto columnRange = TMutableRange<IUnversionedRowBatch::TColumn>(
                 allBatchColumns->data() + currentBatchColumnIndex,
                 columnCount);
-            reader->ReadColumnarBatch(columnRange, rowCount);
             auto* rootColumn = &columnRange.Front();
             rootColumn->Id = column.ColumnId;
-            rootColumn->Type = ChunkMeta_->ChunkSchema().Columns()[column.ColumnMetaIndex].LogicalType();
+            rootColumn->Type = ChunkMeta_->GetChunkSchema()->Columns()[column.ColumnMetaIndex].LogicalType();
             rootBatchColumns->push_back(rootColumn);
+            reader->ReadColumnarBatch(columnRange, rowCount);
             currentBatchColumnIndex += columnCount;
         }
 
@@ -1301,7 +1303,7 @@ private:
 
         ReadEpilogue(&rows);
 
-        return CreateBatchFromUnversionedRows(std::move(rows), this);
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
     }
 
     void InitializeBlockSequence()
@@ -1323,7 +1325,7 @@ private:
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
         }
 
-        const auto& chunkSchema = ChunkMeta_->ChunkSchema();
+        const auto& chunkSchema = *ChunkMeta_->GetChunkSchema();
         const auto& columnMeta = ChunkMeta_->ColumnMeta();
 
         ValidateKeyColumns(
@@ -1657,7 +1659,7 @@ public:
         RowCount_ += rowCount;
         DataWeight_ += dataWeight;
 
-        return CreateBatchFromUnversionedRows(std::move(rows), nullptr);
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), nullptr));
     }
 
     virtual TDataStatistics GetDataStatistics() const override
@@ -1714,7 +1716,7 @@ private:
             THROW_ERROR_EXCEPTION("Requested a sorted read for an unsorted chunk");
         }
 
-        const auto& chunkSchema = ChunkMeta_->ChunkSchema();
+        const auto& chunkSchema = *ChunkMeta_->GetChunkSchema();
         const auto& columnMeta = ChunkMeta_->ColumnMeta();
 
         ValidateKeyColumns(

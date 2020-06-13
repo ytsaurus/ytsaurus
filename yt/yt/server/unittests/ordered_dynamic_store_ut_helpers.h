@@ -19,9 +19,9 @@ protected:
         Tablet_->StartEpoch(nullptr);
     }
 
-    virtual TTableSchema GetSchema() const override
+    virtual TTableSchemaPtr GetSchema() const override
     {
-        return TTableSchema({
+        return New<TTableSchema>(std::vector{
             TColumnSchema("a", EValueType::Int64),
             TColumnSchema("b", EValueType::Double),
             TColumnSchema("c", EValueType::String)
@@ -32,7 +32,7 @@ protected:
     {
         // NB: Ordered reader accepts extended schema.
         TColumnFilter::TIndexes columnFilterIndexes;
-        for (int id = 0; id < GetSchema().Columns().size(); ++id) {
+        for (int id = 0; id < GetSchema()->Columns().size(); ++id) {
             columnFilterIndexes.push_back(id + 2);
         }
         auto columnFilter = TColumnFilter(std::move(columnFilterIndexes));

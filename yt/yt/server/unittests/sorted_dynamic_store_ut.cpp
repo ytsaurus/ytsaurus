@@ -63,7 +63,7 @@ protected:
         // Enrich with write locks
         {
             const auto& columnIndexToLockIndex = Tablet_->ColumnIndexToLockIndex();
-            int keyColumnCount = Tablet_->PhysicalSchema().GetKeyColumnCount();
+            int keyColumnCount = Tablet_->GetPhysicalSchema()->GetKeyColumnCount();
 
             for (int index = keyColumnCount; index < row.GetCount(); ++index) {
                 const auto& value = row[index];
@@ -237,8 +237,8 @@ protected:
             Store_->GetMinTimestamp(),
             Store_->GetMaxTimestamp());
 
-        int keyColumnCount = Tablet_->PhysicalSchema().GetKeyColumnCount();
-        int schemaColumnCount = Tablet_->PhysicalSchema().GetColumnCount();
+        int keyColumnCount = Tablet_->GetPhysicalSchema()->GetKeyColumnCount();
+        int schemaColumnCount = Tablet_->GetPhysicalSchema()->GetColumnCount();
         int columnLockCount = Tablet_->GetColumnLockCount();
         for (auto row : Store_->GetAllRows()) {
             builder.AppendChar('[');
@@ -317,7 +317,7 @@ private:
     {
         TUnversionedValue value{};
         value.Id = index;
-        value.Type = Tablet_->PhysicalSchema().Columns()[index].GetPhysicalType();
+        value.Type = Tablet_->GetPhysicalSchema()->Columns()[index].GetPhysicalType();
         if (IsStringLikeType(value.Type)) {
             value.Length = data.String->Length;
             value.Data.String = data.String->Data;
@@ -352,10 +352,10 @@ public:
         Transaction_ = StartTransaction();
 
         auto schema = GetSchema();
-        int keyColumnCount = schema.GetKeyColumnCount();
+        int keyColumnCount = schema->GetKeyColumnCount();
 
-        StaticComparer_ = TStaticComparer(schema);
-        LlvmComparer_ = TSortedDynamicRowKeyComparer::Create(keyColumnCount, schema);
+        StaticComparer_ = TStaticComparer(*schema);
+        LlvmComparer_ = TSortedDynamicRowKeyComparer::Create(keyColumnCount, *schema);
     }
 
     TSortedDynamicRow BuildDynamicRow(
@@ -592,9 +592,9 @@ private:
     };
 
 protected:
-    virtual TTableSchema GetSchema() const override
+    virtual TTableSchemaPtr GetSchema() const override
     {
-        TTableSchema schema({
+        return New<TTableSchema>(std::vector{
             TColumnSchema("a", EValueType::Int64)
                 .SetSortOrder(ESortOrder::Ascending),
             TColumnSchema("b", EValueType::Uint64)
@@ -606,7 +606,6 @@ protected:
             TColumnSchema("e", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending)
         });
-        return schema;
     }
 
     int Sign(int value) {
@@ -641,7 +640,7 @@ TEST_P(TSortedDynamicRowKeyComparerTest, Test)
         << "row1: " << ToString(urow1) << std::endl
         << "row2: " << ToString(urow2);
 
-    int keyColumnCount = GetSchema().GetKeyColumnCount();
+    int keyColumnCount = GetSchema()->GetKeyColumnCount();
 
     if (urow1.GetCount() == keyColumnCount && !HasSentinels(urow1) && !HasSentinels(urow2)) {
         auto drow1 = BuildDynamicRow(urow1);
@@ -1503,16 +1502,15 @@ class TMultiLockSortedDynamicStoreTest
     : public TSingleLockSortedDynamicStoreTest
 {
 protected:
-    virtual TTableSchema GetSchema() const
+    virtual TTableSchemaPtr GetSchema() const
     {
         // NB: Key columns must go first.
-        TTableSchema schema({
+        return New<TTableSchema>(std::vector{
             TColumnSchema(TColumnSchema("key", EValueType::Int64).SetSortOrder(ESortOrder::Ascending)),
             TColumnSchema(TColumnSchema("a", EValueType::Int64).SetLock(TString("l1"))),
             TColumnSchema(TColumnSchema("b", EValueType::Double).SetLock(TString("l2"))),
             TColumnSchema(TColumnSchema("c", EValueType::String))
         });
-        return schema;
     }
 
     TLockMask LockMask1;

@@ -169,7 +169,7 @@ public:
         ReadDataWeight_ += dataWeight;
 
         YT_VERIFY(!rows.empty());
-        return CreateBatchFromUnversionedRows(std::move(rows), this);
+        return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
     }
 
     virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override

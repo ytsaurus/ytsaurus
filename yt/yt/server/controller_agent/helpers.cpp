@@ -85,7 +85,7 @@ void TUserFile::Persist(const TPersistenceContext& context)
     Persist(context, Type);
     Persist(context, Executable);
     Persist(context, Format);
-    Persist(context, Schema);
+    Persist<TNonNullableIntrusivePtrSerializer<>>(context, Schema);
     Persist(context, Dynamic);
     Persist(context, Layer);
 }
@@ -102,7 +102,7 @@ TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     YT_VERIFY(!edgeDescriptor.TableWriterOptions->ValidateUniqueKeys || boundaryKeys.unique_keys());
 
     auto trimAndCaptureKey = [&] (const TOwningKey& key) {
-        int limit = edgeDescriptor.TableUploadOptions.TableSchema.GetKeyColumnCount();
+        int limit = edgeDescriptor.TableUploadOptions.TableSchema->GetKeyColumnCount();
         if (key.GetCount() > limit) {
             // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
             YT_VERIFY(!edgeDescriptor.TableWriterOptions->ValidateUniqueKeys);
@@ -127,7 +127,7 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
 
         ToProto(descriptor->mutable_chunk_specs(), file.ChunkSpecs);
 
-        if (file.Type == EObjectType::Table && file.Dynamic && file.Schema.IsSorted()) {
+        if (file.Type == EObjectType::Table && file.Dynamic && file.Schema->IsSorted()) {
             auto dataSource = MakeVersionedDataSource(
                 file.Path.GetPath(),
                 file.Schema,
@@ -174,7 +174,7 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
 {
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     for (const auto& inputTable : inputTables) {
-        auto dataSource = (inputTable->Dynamic && inputTable->Schema.IsSorted())
+        auto dataSource = (inputTable->Dynamic && inputTable->Schema->IsSorted())
             ? MakeVersionedDataSource(
                 inputTable->GetPath(),
                 inputTable->Schema,
@@ -202,7 +202,7 @@ TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory()
     auto dataSourceDirectory = New<TDataSourceDirectory>();
     dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
         IntermediatePath,
-        /* schema */ std::nullopt,
+        nullptr,
         /* columns */ std::nullopt,
         /* omittedInaccessibleColumns */ {}));
     return dataSourceDirectory;

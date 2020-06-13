@@ -19,7 +19,7 @@ using namespace NConcurrency;
 const TString TBlobTableSchema::PartIndexColumn = "part_index";
 const TString TBlobTableSchema::DataColumn = "data";
 
-TTableSchema TBlobTableSchema::ToTableSchema() const
+TTableSchemaPtr TBlobTableSchema::ToTableSchema() const
 {
     auto columns = BlobIdColumns;
     for (auto& idColumn : columns) {
@@ -28,7 +28,7 @@ TTableSchema TBlobTableSchema::ToTableSchema() const
     columns.emplace_back(PartIndexColumn, EValueType::Int64);
     columns.back().SetSortOrder(ESortOrder::Ascending);
     columns.emplace_back(DataColumn, EValueType::String);
-    return TTableSchema(
+    return New<TTableSchema>(
         std::move(columns),
         true, // strict
         true); // uniqueKeys

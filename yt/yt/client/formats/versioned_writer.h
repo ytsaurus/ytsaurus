@@ -23,7 +23,7 @@ class TVersionedWriter
 public:
     TVersionedWriter(
         NConcurrency::IAsyncOutputStreamPtr stream,
-        const NTableClient::TTableSchema& schema,
+        NTableClient::TTableSchemaPtr schema,
         const std::function<std::unique_ptr<NYson::IFlushableYsonConsumer>(IOutputStream*)>& consumerBuilder);
 
     virtual TFuture<void> Close() override;
@@ -34,11 +34,10 @@ public:
 
 private:
     const NConcurrency::IAsyncOutputStreamPtr Stream_;
-    const NTableClient::TTableSchema Schema_;
+    const NTableClient::TTableSchemaPtr Schema_;
     const std::unique_ptr<NYson::IFlushableYsonConsumer> Consumer_;
 
     TBlobOutput Buffer_;
-
     TFuture<void> Result_;
 };
 

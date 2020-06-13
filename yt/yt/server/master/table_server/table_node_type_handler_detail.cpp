@@ -83,9 +83,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         THROW_ERROR_EXCEPTION("Replicated table must be dynamic");
     }
 
-    auto optionalSchema = combinedAttributes.FindAndRemove<TTableSchema>("schema");
+    auto schema = combinedAttributes.FindAndRemove<TTableSchemaPtr>("schema");
 
-    if (dynamic && !optionalSchema) {
+    if (dynamic && !schema) {
         THROW_ERROR_EXCEPTION("\"schema\" is mandatory for dynamic tables");
     }
 
@@ -95,17 +95,17 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
         }
     }
 
-    if (optionalSchema) {
+    if (schema) {
         // NB: Sorted dynamic tables contain unique keys, set this for user.
-        if (dynamic && optionalSchema->IsSorted() && !optionalSchema->GetUniqueKeys()) {
-             optionalSchema = optionalSchema->ToUniqueKeys();
+        if (dynamic && schema->IsSorted() && !schema->GetUniqueKeys()) {
+            schema = schema->ToUniqueKeys();
         }
 
-        if (optionalSchema->HasNontrivialSchemaModification()) {
+        if (schema->HasNontrivialSchemaModification()) {
             THROW_ERROR_EXCEPTION("Cannot create table with nontrivial schema modification");
         }
 
-        ValidateTableSchemaUpdate(TTableSchema(), *optionalSchema, dynamic, true);
+        ValidateTableSchemaUpdate(TTableSchema(), *schema, dynamic, true);
     }
 
     auto optionalTabletCount = combinedAttributes.FindAndRemove<int>("tablet_count");
@@ -146,9 +146,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
             node->SetCommitOrdering(NTransactionClient::ECommitOrdering::Strong);
         }
 
-        if (optionalSchema) {
+        if (schema) {
             const auto& registry = this->Bootstrap_->GetCypressManager()->GetSharedTableSchemaRegistry();
-            node->SharedTableSchema() = registry->GetSchema(std::move(*optionalSchema));
+            node->SharedTableSchema() = registry->GetSchema(std::move(*schema));
             node->SetSchemaMode(ETableSchemaMode::Strong);
         }
 
