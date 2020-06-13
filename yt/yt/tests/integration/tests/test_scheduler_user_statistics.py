@@ -92,7 +92,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
         statistics = get(op.get_path() + "/@progress/job_statistics")
         assert get_statistics(statistics, "data.input.unmerged_data_weight.$.completed.map.count") == 2
 
-    @authors("tramsmm", "acid", "babenko")
+    @authors("babenko")
     def test_job_statistics_progress(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -111,7 +111,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
 
         def get_counter():
             statistics = get(op.get_path() + "/@progress")
-            counter_name = "user_job.cpu.user.$.completed.map.count"
+            counter_name = "data.input.unmerged_data_weight.$.completed.map.count"
             return get_statistics(statistics["job_statistics"], counter_name)
 
         wait(lambda: get_counter() == 1)
