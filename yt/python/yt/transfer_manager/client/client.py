@@ -1,6 +1,6 @@
 from yt.wrapper.common import get_value, require, generate_uuid, bool_to_string
 from yt.wrapper.http_helpers import get_retriable_errors, get_token, configure_ip
-from yt.wrapper.errors import hide_token
+from yt.wrapper.errors import hide_auth_headers
 from yt.wrapper.retries import Retrier
 from yt.wrapper import YtClient
 
@@ -121,8 +121,13 @@ class HTTPRequestRetrier(Retrier):
         self.params = params
 
     def except_action(self, exception, attempt):
-        logger.warning('HTTP %s request %s failed with error %s, message: "%s", headers: %s',
-            self.method, self.url, str(exception), str(type(exception)), str(hide_token(self.headers)))
+        logger.warning(
+            'HTTP %s request %s failed with error %s, message: "%s", headers: %s',
+            self.method,
+            self.url,
+            str(exception),
+            str(type(exception)),
+            str(hide_auth_headers(self.headers)))
 
         if self.is_mutating:
             if isinstance(exception, TransferManagerUnavailableError):
@@ -133,10 +138,11 @@ class HTTPRequestRetrier(Retrier):
 
     def action(self):
         update_inplace(self.headers, {"X-TM-Parameters": json.dumps(self.params)})
-        logger.debug("Request %s with %s method and headers %s",
+        logger.debug(
+            "Request %s with %s method and headers %s",
             self.url,
             self.method,
-            str(hide_token(self.headers)))
+            str(hide_auth_headers(self.headers)))
         response = self.session.request(self.method, self.url, headers=self.headers,
                                         timeout=self.timeout / 1000.0, data=self.data)
         _raise_for_status(response)
