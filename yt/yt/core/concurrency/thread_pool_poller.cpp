@@ -113,7 +113,7 @@ public:
             shutdownResults.push_back(Unregister(pollable));
         }
 
-        Combine(shutdownResults)
+        AllSucceeded(shutdownResults)
             .Get();
 
         {

@@ -184,7 +184,7 @@ private:
             for (auto writer : Writers_) {
                 asyncResults.push_back(writer->Open());
             }
-            WaitFor(Combine(asyncResults))
+            WaitFor(AllSucceeded(asyncResults))
                 .ThrowOnError();
         }
 
@@ -251,7 +251,7 @@ private:
             for (auto writer : Writers_) {
                 asyncResults.push_back(writer->Close(meta));
             }
-            WaitFor(Combine(asyncResults))
+            WaitFor(AllSucceeded(asyncResults))
                 .ThrowOnError();
         }
     }
@@ -522,7 +522,7 @@ private:
         for (auto reader : AllPartReaders_) {
             asyncResults.push_back(reader->ReadMissingBlocksToSave());
         }
-        WaitFor(Combine(asyncResults))
+        WaitFor(AllSucceeded(asyncResults))
             .ThrowOnError();
     }
 

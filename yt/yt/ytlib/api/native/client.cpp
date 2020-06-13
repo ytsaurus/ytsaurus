@@ -1025,7 +1025,7 @@ TYsonString TClient::DoGetOperation(
     }
     getOperationFutures.push_back(archiveFuture);
 
-    auto getOperationResponses = WaitFor(CombineAll<TYsonString>(getOperationFutures))
+    auto getOperationResponses = WaitFor(AllSet<TYsonString>(getOperationFutures))
         .ValueOrThrow();
 
     auto cypressResult = cypressFuture.Get()
@@ -2920,7 +2920,7 @@ TFuture<TClient::TListJobsFromArchiveResult> TClient::DoListJobsFromArchiveAsync
         selectRowsOptions,
         options);
 
-    return CombineAll(std::vector<TFuture<void>>{
+    return AllSet(std::vector<TFuture<void>>{
             jobsInProgressFuture.As<void>(),
             finishedJobsFuture.As<void>()})
         .Apply(BIND([jobsInProgressFuture, finishedJobsFuture, this, this_=MakeStrong(this)] (const std::vector<TError>&) {

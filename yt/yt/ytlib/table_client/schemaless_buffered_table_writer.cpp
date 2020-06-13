@@ -80,7 +80,7 @@ public:
         TGuard guard(SpinLock_);
         Closed_ = true;
         RotateBuffers();
-        return Combine(std::vector<TFuture<void>>(BufferFlushedFutures_.begin(), BufferFlushedFutures_.end()));
+        return AllSucceeded(std::vector<TFuture<void>>(BufferFlushedFutures_.begin(), BufferFlushedFutures_.end()));
     }
 
     virtual bool Write(TRange<TUnversionedRow> rows) override

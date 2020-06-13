@@ -846,7 +846,7 @@ private:
         }
 
         if (!dataTrimAsyncResults.empty()) {
-            WaitFor(Combine(dataTrimAsyncResults))
+            WaitFor(AllSucceeded(dataTrimAsyncResults))
                 .ThrowOnError();
 
             YT_LOG_DEBUG("Tablet data trim completed");

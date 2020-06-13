@@ -446,7 +446,7 @@ TEST_F(TSchedulerTest, WaitForInSerializedInvoker2)
         }
     }).AsyncVia(invoker).Run());
 
-    Combine(futures).Get().ThrowOnError();
+    AllSucceeded(futures).Get().ThrowOnError();
 }
 
 TEST_F(TSchedulerTest, WaitForInBoundedConcurrencyInvoker1)
@@ -1189,7 +1189,7 @@ TEST_P(TFairShareSchedulerTest, Test)
         futures.push_back(result);
     }
 
-    WaitFor(Combine(futures))
+    WaitFor(AllSucceeded(futures))
         .ThrowOnError();
 }
 
@@ -1281,7 +1281,7 @@ TEST_P(TFairShareSchedulerTest, Test2)
         futures.push_back(result);
     }
 
-    WaitFor(Combine(futures))
+    WaitFor(AllSucceeded(futures))
         .ThrowOnError();
 }
 

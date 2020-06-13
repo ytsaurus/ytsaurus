@@ -74,7 +74,7 @@ public:
                     .AsyncVia(GetCurrentInvoker())));
         }
 
-        Combine(asyncResults).Subscribe(
+        AllSucceeded(asyncResults).Subscribe(
             BIND(&TDiscoverSnapshotSession::OnComplete, MakeStrong(this))
                 .Via(GetCurrentInvoker()));
     }

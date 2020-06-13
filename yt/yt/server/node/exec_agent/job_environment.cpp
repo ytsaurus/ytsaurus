@@ -405,7 +405,7 @@ private:
                 rootContainer);
         };
 
-        auto result = WaitFor(CombineAll(futures));
+        auto result = WaitFor(AllSet(futures));
         throwOnError(result);
         for (const auto& error : result.Value()) {
             if (error.IsOK() ||

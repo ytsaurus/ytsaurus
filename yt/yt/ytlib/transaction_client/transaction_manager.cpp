@@ -986,7 +986,7 @@ private:
                 })));
         }
 
-        return Combine(asyncResults);
+        return AllSucceeded(asyncResults);
     }
 
     void RunPeriodicPings()
@@ -1083,7 +1083,7 @@ private:
                 })));
         }
 
-        return Combine(asyncResults);
+        return AllSucceeded(asyncResults);
     }
 
 

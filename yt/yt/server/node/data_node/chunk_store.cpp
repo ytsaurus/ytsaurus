@@ -69,7 +69,7 @@ void TChunkStore::Initialize()
         Locations_.push_back(location);
     }
 
-    WaitFor(Combine(futures))
+    WaitFor(AllSucceeded(futures))
         .ThrowOnError();
 
     YT_LOG_INFO("Chunk store initialized (ChunkCount: %v)",

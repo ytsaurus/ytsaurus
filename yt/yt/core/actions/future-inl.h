@@ -2131,27 +2131,6 @@ TFuture<std::vector<TErrorOr<T>>> AnyNSet(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-// COMPAT(babenko)
-
-template <class T>
-TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> Combine(std::vector<TFuture<T>> futures)
-{
-    return AllSucceeded(std::move(futures));
-}
-
-template <class T>
-TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> CombineQuorum(std::vector<TFuture<T>> futures, int quorum)
-{
-    return AnyNSucceeded(std::move(futures), quorum);
-}
-
-template <class T>
-TFuture<std::vector<TErrorOr<T>>> CombineAll(std::vector<TFuture<T>> futures)
-{
-    return AllSet(std::move(futures));
-}
-
-////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
 

@@ -338,7 +338,7 @@ private:
             }
         }
 
-        return Combine(asyncResults).Apply(BIND([] (const std::vector<std::pair<TCellTag, TAccountResourcesMap>>& results) {
+        return AllSucceeded(asyncResults).Apply(BIND([] (const std::vector<std::pair<TCellTag, TAccountResourcesMap>>& results) {
             TMulticellAccountResourcesMap multicellMap;
             for (const auto& pair : results) {
                 YT_VERIFY(multicellMap.insert(pair).second);
@@ -473,7 +473,7 @@ private:
             }
         }
 
-        return Combine(asyncResults).Apply(BIND([=] {
+        return AllSucceeded(asyncResults).Apply(BIND([=] {
             return finalizer(session);
         }));
     }

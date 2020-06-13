@@ -203,7 +203,7 @@ protected:
             }
         }
 
-        Combine(futures).Get().ThrowOnError();
+        AllSucceeded(futures).Get().ThrowOnError();
 
         auto invocationOrder = GetInvocationOrder();
 
@@ -491,7 +491,7 @@ TEST_F(TFairShareInvokerPoolTest, SwitchTo111AndSwitchTo222)
             Spin(Quantum);
         }).AsyncVia(invokerPool->GetInvoker(1)).Run());
 
-    Combine(futures).Get().ThrowOnError();
+    AllSucceeded(futures).Get().ThrowOnError();
 
     ExpectTotalCpuTime(0, Quantum * 3);
     ExpectTotalCpuTime(1, Quantum * 3);

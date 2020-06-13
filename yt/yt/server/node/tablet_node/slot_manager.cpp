@@ -486,7 +486,7 @@ private:
                 // Silent any error to avoid premature return from WaitFor.
                 .Apply(BIND([] (const TError&) { })));
         }
-        auto result = WaitFor(Combine(asyncResults));
+        auto result = WaitFor(AllSucceeded(asyncResults));
         YT_VERIFY(result.IsOK());
 
         EndSlotScan_.Fire();

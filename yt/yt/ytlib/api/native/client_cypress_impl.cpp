@@ -343,7 +343,7 @@ protected:
                 connection->GetMasterCellId(externalCellTag)));
         }
 
-        auto error = WaitFor(Combine(futures));
+        auto error = WaitFor(AllSucceeded(futures));
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error synchronizing external cells with the %v node cell",
             nodeKind);
 
@@ -1032,7 +1032,7 @@ private:
                 index);
         }
 
-        auto transactionsOrError = WaitFor(Combine(asyncTransactions));
+        auto transactionsOrError = WaitFor(AllSucceeded(asyncTransactions));
         THROW_ERROR_EXCEPTION_IF_FAILED(transactionsOrError, "Failed to start nested input transactions");
         NestedInputTransactions_ = transactionsOrError.Value();
         YT_VERIFY(NestedInputTransactions_.size() == transactionIdToIndex.size());

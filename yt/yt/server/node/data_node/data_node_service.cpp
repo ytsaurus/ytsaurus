@@ -793,7 +793,7 @@ private:
                     chunkId)));
             }
         }
-        return CombineAll(chunkMetaFutures);
+        return AllSet(chunkMetaFutures);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkSlices)
@@ -1233,7 +1233,7 @@ private:
                     .AsyncVia(heavyInvoker)));
         }
 
-        auto combinedResult = Combine(asyncResults);
+        auto combinedResult = AllSucceeded(asyncResults);
         context->SubscribeCanceled(BIND([combinedResult = combinedResult] {
             combinedResult.Cancel(TError("RPC request canceled"));
         }));

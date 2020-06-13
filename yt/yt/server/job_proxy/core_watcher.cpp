@@ -141,7 +141,7 @@ TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
         expectedCoreCount = std::max(expectedCoreCount, 1);
     }
 
-    auto waitResult = WaitFor(Combine(CoreFutures_)
+    auto waitResult = WaitFor(AllSucceeded(CoreFutures_)
         .WithTimeout(Config_->CoresProcessingTimeout));
     if (!waitResult.IsOK()) {
         YT_VERIFY(waitResult.FindMatching(NYT::EErrorCode::Timeout));

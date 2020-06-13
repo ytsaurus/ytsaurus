@@ -229,7 +229,7 @@ public:
         for (auto& shell : IdToShell_) {
             futures.push_back(shell.second->Shutdown(error));
         }
-        return CombineAll(futures).As<void>();
+        return AllSet(futures).As<void>();
     }
 
 private:

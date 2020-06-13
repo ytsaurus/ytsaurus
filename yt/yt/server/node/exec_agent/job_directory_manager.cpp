@@ -107,7 +107,7 @@ public:
             asyncUnlinkResults.emplace_back(Executor_->UnlinkVolume(path, "self"));
         }
 
-        return Combine(asyncUnlinkResults);
+        return AllSucceeded(asyncUnlinkResults);
     }
 
 private:

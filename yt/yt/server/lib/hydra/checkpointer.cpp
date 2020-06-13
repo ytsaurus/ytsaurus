@@ -139,7 +139,7 @@ private:
                 BIND(&TSession::OnLocalSnapshotBuilt, MakeStrong(this))
                     .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
 
-        Combine(asyncResults).Subscribe(
+        AllSucceeded(asyncResults).Subscribe(
             BIND(&TSession::OnSnapshotsComplete, MakeStrong(this))
                 .Via(Owner_->EpochContext_->EpochControlInvoker));
     }
@@ -251,7 +251,7 @@ private:
                 BIND(&TSession::OnLocalChangelogRotated, MakeStrong(this))
                     .AsyncVia(Owner_->EpochContext_->EpochControlInvoker)));
 
-        Combine(asyncResults).Subscribe(
+        AllSucceeded(asyncResults).Subscribe(
             BIND(&TSession::OnRotationFailed, MakeStrong(this))
                 .Via(Owner_->EpochContext_->EpochControlInvoker));
     }

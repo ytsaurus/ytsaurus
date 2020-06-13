@@ -6176,28 +6176,28 @@ TEST_P(TQueryEvaluateComplexTest, All)
 }
 
 INSTANTIATE_TEST_SUITE_P(1, TQueryEvaluateComplexTest,
-::testing::Combine(
-    ::testing::ValuesIn({
-        "",
-        "left"
-    }), // join type
-    ::testing::ValuesIn({
-        TJoinColumns{"a, b", "d, e"},
-        TJoinColumns{"b, c", "d, e"},
-        TJoinColumns{"a, c", "d, e"},
-        TJoinColumns{"c, a", "d, e"},
-    }), // join equation
-    ::testing::ValuesIn({
-        TGroupColumns{"a", "0", "0"},
-        TGroupColumns{"a", "b", "0"},
-        TGroupColumns{"a", "b", "c"},
-        TGroupColumns{"a", "b", "c % 3"},
-        TGroupColumns{"a", "(b * 10 + c) % 3", "0"}
-    }), // group by
-    ::testing::ValuesIn({
-        "",
-        "with totals"
-    })));
+    ::testing::Combine(
+        ::testing::ValuesIn({
+            "",
+            "left"
+        }), // join type
+        ::testing::ValuesIn({
+            TJoinColumns{"a, b", "d, e"},
+            TJoinColumns{"b, c", "d, e"},
+            TJoinColumns{"a, c", "d, e"},
+            TJoinColumns{"c, a", "d, e"},
+        }), // join equation
+        ::testing::ValuesIn({
+            TGroupColumns{"a", "0", "0"},
+            TGroupColumns{"a", "b", "0"},
+            TGroupColumns{"a", "b", "c"},
+            TGroupColumns{"a", "b", "c % 3"},
+            TGroupColumns{"a", "(b * 10 + c) % 3", "0"}
+        }), // group by
+        ::testing::ValuesIn({
+            "",
+            "with totals"
+        })));
 
 ////////////////////////////////////////////////////////////////////////////////
 

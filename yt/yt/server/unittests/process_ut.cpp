@@ -90,7 +90,7 @@ TEST_F(TPortoProcessTest, MultiBasic)
     TFuture<void> f2;
     ASSERT_NO_THROW(f1 = p1->Spawn());
     ASSERT_NO_THROW(f2 = p2->Spawn());
-    auto error = WaitFor((Combine(std::vector<TFuture<void>>{f1, f2})));
+    auto error = WaitFor((AllSucceeded(std::vector<TFuture<void>>{f1, f2})));
     EXPECT_TRUE(error.IsOK()) << ToString(error);
     EXPECT_TRUE(p1->IsFinished());
     EXPECT_TRUE(p2->IsFinished());

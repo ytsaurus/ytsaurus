@@ -87,7 +87,7 @@ TSubprocessResult TSubprocess::Execute(const TSharedRef& input)
     };
 
     try {
-        auto outputsOrError = WaitFor(Combine(futures));
+        auto outputsOrError = WaitFor(AllSucceeded(futures));
         THROW_ERROR_EXCEPTION_IF_FAILED(
             outputsOrError,
             "IO error occurred during subprocess call");

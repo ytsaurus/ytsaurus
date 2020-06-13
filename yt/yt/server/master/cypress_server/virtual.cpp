@@ -325,7 +325,7 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
         }
     }
 
-    return Combine(asyncResults);
+    return AllSucceeded(asyncResults);
 }
 
 TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromLocal()
@@ -387,7 +387,7 @@ TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBas
         }
     }
 
-    return Combine(asyncResults).Apply(BIND([=] () {
+    return AllSucceeded(asyncResults).Apply(BIND([=] () {
         return session;
     }));
 }
@@ -418,7 +418,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSes
         }
     }
 
-    return Combine(asyncAttributes)
+    return AllSucceeded(asyncAttributes)
         .Apply(BIND([=, aliveKeys = std::move(aliveKeys), this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
             YT_VERIFY(aliveKeys.size() == attributes.size());
             for (int index = 0; index < static_cast<int>(aliveKeys.size()); ++index) {
@@ -530,7 +530,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
 
     response->set_incomplete(response->items_size() == limit);
 
-    Combine(asyncValues)
+    AllSucceeded(asyncValues)
         .Subscribe(BIND([=] (const TErrorOr<std::vector<TYsonString>>& valuesOrError) {
             if (!valuesOrError.IsOK()) {
                 context->Reply(valuesOrError);

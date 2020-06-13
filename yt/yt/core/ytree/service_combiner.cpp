@@ -123,7 +123,7 @@ private:
                 }));
             serviceResultFutures.push_back(asyncInnerResult);
         }
-        auto asyncResult = Combine(serviceResultFutures);
+        auto asyncResult = AllSucceeded(serviceResultFutures);
         auto serviceResults = WaitFor(asyncResult)
             .ValueOrThrow();
 
@@ -189,7 +189,7 @@ private:
                 }));
             serviceResultFutures.push_back(asyncInnerResult);
         }
-        auto asyncResult = Combine(serviceResultFutures);
+        auto asyncResult = AllSucceeded(serviceResultFutures);
         auto serviceResults = WaitFor(asyncResult)
             .ValueOrThrow();
 
@@ -243,7 +243,7 @@ private:
             auto asyncList = AsyncYPathList(service, TYPath() /* path */, std::numeric_limits<i64>::max() /* limit */);
             serviceListFutures.push_back(asyncList);
         }
-        auto asyncResult = Combine(serviceListFutures);
+        auto asyncResult = AllSucceeded(serviceListFutures);
         auto serviceListsOrError = WaitFor(asyncResult);
 
         if (!serviceListsOrError.IsOK()) {

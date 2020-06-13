@@ -480,7 +480,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeRevivin
             NestedInputTransactions = nestedInputTransactions;
         }
 
-        WaitFor(Combine(asyncResults))
+        WaitFor(AllSucceeded(asyncResults))
             .ThrowOnError();
     }
 
@@ -1169,7 +1169,7 @@ void TOperationControllerBase::StartTransactions()
         }
     }
 
-    auto results = WaitFor(CombineAll(asyncResults))
+    auto results = WaitFor(AllSet(asyncResults))
         .ValueOrThrow();
 
     {
@@ -1792,7 +1792,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
         externalCellTags.push_back(externalCellTag);
     }
 
-    auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
+    auto combinedResultOrError = WaitFor(AllSet(asyncResults));
     THROW_ERROR_EXCEPTION_IF_FAILED(combinedResultOrError, "Error locking output dynamic tables");
     auto& combinedResult = combinedResultOrError.Value();
 
@@ -1828,7 +1828,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
             externalCellTags.push_back(externalCellTag);
         }
 
-        auto combinedResultOrError = WaitFor(CombineAll(asyncResults));
+        auto combinedResultOrError = WaitFor(AllSet(asyncResults));
         if (!combinedResultOrError.IsOK()) {
             innerErrors.push_back(combinedResultOrError);
             continue;
@@ -1911,7 +1911,7 @@ void TOperationControllerBase::CommitTransactions()
         commitFutures.push_back(DebugTransaction->Commit());
     }
 
-    WaitFor(Combine(commitFutures))
+    WaitFor(AllSucceeded(commitFutures))
         .ThrowOnError();
 
     YT_LOG_INFO("Scheduler transactions committed");
@@ -2222,7 +2222,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error finishing upload to output tables");
         };
 
-        auto result = WaitFor(Combine(asyncResults));
+        auto result = WaitFor(AllSucceeded(asyncResults));
         checkError(result);
 
         for (const auto& batchRsp : result.Value()) {
@@ -3266,7 +3266,7 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
         abortTransaction(transaction, InputClient, /* sync */ false);
     }
 
-    WaitFor(Combine(abortTransactionFutures))
+    WaitFor(AllSucceeded(abortTransactionFutures))
         .ThrowOnError();
 
     YT_VERIFY(finalState == EControllerState::Aborted || finalState == EControllerState::Failed);
@@ -4396,7 +4396,7 @@ TFuture<void> TOperationControllerBase::Suspend()
     VERIFY_THREAD_AFFINITY_ANY();
 
     if (Spec_->TestingOperationOptions->DelayInsideSuspend) {
-        return Combine(std::vector<TFuture<void>> {
+        return AllSucceeded(std::vector<TFuture<void>> {
             SuspendInvokerPool(SuspendableInvokerPool),
             TDelayedExecutor::MakeDelayed(*Spec_->TestingOperationOptions->DelayInsideSuspend)});
     }
@@ -5317,7 +5317,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error getting attributes of input tables");
     };
 
-    auto result = WaitFor(Combine(asyncResults));
+    auto result = WaitFor(AllSucceeded(asyncResults));
     checkError(result);
 
     for (const auto& batchRsp : result.Value()) {
@@ -5742,7 +5742,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error starting upload for output tables");
         };
 
-        auto result = WaitFor(Combine(asyncResults));
+        auto result = WaitFor(AllSucceeded(asyncResults));
         checkError(result);
 
         for (const auto& batchRsp : result.Value()) {
@@ -5785,7 +5785,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error getting upload parameters of output tables");
         };
 
-        auto result = WaitFor(Combine(asyncResults));
+        auto result = WaitFor(AllSucceeded(asyncResults));
         checkError(result);
 
         for (const auto& batchRsp : result.Value()) {
@@ -6481,7 +6481,7 @@ std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersione
         }
     }
 
-    WaitFor(Combine(asyncResults))
+    WaitFor(AllSucceeded(asyncResults))
         .ThrowOnError();
 
     std::vector<TInputDataSlicePtr> result;

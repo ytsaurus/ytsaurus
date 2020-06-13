@@ -708,7 +708,7 @@ TFuture<void> TServerBase::DoStop(bool graceful)
         }
     }
 
-    return Combine(asyncResults).Apply(BIND([=, this_ = MakeStrong(this)] () {
+    return AllSucceeded(asyncResults).Apply(BIND([=, this_ = MakeStrong(this)] () {
         YT_LOG_INFO("RPC server stopped");
     }));
 }

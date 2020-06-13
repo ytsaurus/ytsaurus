@@ -782,7 +782,7 @@ private:
     {
         std::vector<TFuture<void>> scheduledMutations;
         ScheduledMutations_.swap(scheduledMutations);
-        WaitFor(Combine(scheduledMutations))
+        WaitFor(AllSucceeded(scheduledMutations))
             .ThrowOnError();
     }
 

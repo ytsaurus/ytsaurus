@@ -700,7 +700,7 @@ public:
                 .AsyncVia(nodeShard->GetInvoker())
                 .Run(operation->GetId()));
         }
-        WaitFor(Combine(resumeFutures))
+        WaitFor(AllSucceeded(resumeFutures))
             .ThrowOnError();
 
         operation->SetSuspended(false);
@@ -1894,7 +1894,7 @@ private:
                 .Run());
         }
 
-        auto nodeLists = WaitFor(Combine(nodeListFutures)).ValueOrThrow();
+        auto nodeLists = WaitFor(AllSucceeded(nodeListFutures)).ValueOrThrow();
 
         LogEventFluently(ELogEventType::NodesInfo)
             .Item("nodes")
@@ -1935,7 +1935,7 @@ private:
                     .Run());
             }
 
-            auto invokerOrError = WaitFor(Combine(asyncInvokers));
+            auto invokerOrError = WaitFor(AllSucceeded(asyncInvokers));
             if (!invokerOrError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Error connecting node shards")
                     << invokerOrError;
@@ -2059,7 +2059,7 @@ private:
             }
 
             // XXX(babenko): fiber switch is forbidden here; do we actually need to wait for these results?
-            Combine(asyncResults)
+            AllSucceeded(asyncResults)
                 .Get();
 
             YT_LOG_INFO("Finished disconnecting node shards");
@@ -2204,7 +2204,7 @@ private:
                         .AsyncVia(nodeShard->GetInvoker())
                         .Run(std::move(nodeAddressesForShard[i])));
             }
-            WaitFor(Combine(removeFutures))
+            WaitFor(AllSucceeded(removeFutures))
                 .ThrowOnError();
 
             std::vector<TFuture<std::vector<TError>>> handleFutures;
@@ -2215,7 +2215,7 @@ private:
                         .AsyncVia(nodeShard->GetInvoker())
                         .Run(std::move(nodesForShard[i])));
             }
-            auto handleErrors = WaitFor(Combine(handleFutures))
+            auto handleErrors = WaitFor(AllSucceeded(handleFutures))
                 .ValueOrThrow();
 
             std::vector<TError> allErrors;
@@ -2398,7 +2398,7 @@ private:
                 .Run());
         }
 
-        auto shardDescriptors = WaitFor(Combine(shardDescriptorsFutures))
+        auto shardDescriptors = WaitFor(AllSucceeded(shardDescriptorsFutures))
             .ValueOrThrow();
 
         auto result = New<TRefCountedExecNodeDescriptorMap>();
@@ -2757,7 +2757,7 @@ private:
                 .Run(operation->GetId());
             asyncResults.emplace_back(std::move(asyncResult));
         }
-        return Combine(asyncResults);
+        return AllSucceeded(asyncResults);
     }
 
     TFuture<void> RegisterJobsFromRevivedOperation(const TOperationPtr& operation)
@@ -2788,7 +2788,7 @@ private:
                 .Run(operation->GetId(), std::move(jobsByShardId[shardId]));
             asyncResults.emplace_back(std::move(asyncResult));
         }
-        return Combine(asyncResults);
+        return AllSucceeded(asyncResults);
     }
 
     void BuildOperationOrchid(const TOperationPtr& operation, IYsonConsumer* consumer)
@@ -2941,7 +2941,7 @@ private:
                 .Run(operation->GetId(), error, terminated));
         }
 
-        WaitFor(Combine(abortFutures))
+        WaitFor(AllSucceeded(abortFutures))
             .ThrowOnError();
 
         YT_LOG_DEBUG("Requested node shards to abort all operation jobs (OperationId: %v)",
@@ -3321,7 +3321,7 @@ private:
             }
 
             try {
-                WaitFor(Combine(asyncResults))
+                WaitFor(AllSucceeded(asyncResults))
                     .ThrowOnError();
             } catch (const std::exception& ex) {
                 YT_LOG_DEBUG(ex, "Failed to abort transactions of orphaned operation (OperationId: %v)",

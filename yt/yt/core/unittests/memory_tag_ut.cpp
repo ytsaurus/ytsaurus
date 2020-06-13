@@ -140,7 +140,7 @@ void TestSwitchingFibers()
     auto future2 = BIND(&Action2)
         .AsyncVia(GetCurrentInvoker())
         .Run();
-    WaitFor(Combine(std::vector<TFuture<void>>{future1, future2}))
+    WaitFor(AllSucceeded(std::vector<TFuture<void>>{future1, future2}))
         .ThrowOnError();
     EXPECT_EQ(GetMemoryUsageForTag(1), 0);
     EXPECT_EQ(GetMemoryUsageForTag(2), 0);
@@ -228,7 +228,7 @@ void TestControllersInThreadPool()
                 .AsyncVia(controller->GetControlInvoker())
                 .Run());
     }
-    WaitFor(Combine(futures))
+    WaitFor(AllSucceeded(futures))
         .ThrowOnError();
     for (int index = 0; index < controllerCount; ++index) {
         EXPECT_NEAR(memoryUsages[index], controllers[index]->GetMemoryUsage(), 10_KB);

@@ -291,7 +291,7 @@ public:
                 futures.reserve(2);
                 futures.push_back(IndexFile_.FlushData());
                 futures.push_back(IOEngine_->FlushData(DataFile_).As<void>());
-                WaitFor(Combine(futures)).ThrowOnError();
+                WaitFor(AllSucceeded(futures)).ThrowOnError();
             }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error flushing changelog");
@@ -877,7 +877,7 @@ private:
 
             AppendOutput_.Clear();
 
-            // Combine records into a single memory blob.
+            // AllSucceeded records into a single memory blob.
             for (int index = 0; index < records.size(); ++index) {
                 const auto& record = records[index];
                 YT_VERIFY(!record.Empty());

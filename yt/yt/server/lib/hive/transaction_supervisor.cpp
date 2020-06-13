@@ -1586,7 +1586,7 @@ private:
             generateFor(cellId);
         }
 
-        Combine(asyncTimestamps)
+        AllSucceeded(asyncTimestamps)
             .Subscribe(BIND(&TImpl::OnCommitTimestampsGenerated, MakeStrong(this), transactionId)
                 .Via(EpochAutomatonInvoker_));
     }

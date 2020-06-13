@@ -180,7 +180,7 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::Get(
         InvokeGetMany(invokeEntries, invokeKeys, /* isPeriodicUpdate */ false);
     }
 
-    return CombineAll(results);
+    return AllSet(results);
 }
 
 template <class TKey, class TValue>
@@ -439,7 +439,7 @@ TFuture<std::vector<TErrorOr<TValue>>> TAsyncExpiringCache<TKey, TValue>::DoGetM
     for (const auto& key : keys) {
         results.push_back(DoGet(key, isPeriodicUpdate));
     }
-    return CombineAll(std::move(results));
+    return AllSet(std::move(results));
 }
 
 template <class TKey, class TValue>

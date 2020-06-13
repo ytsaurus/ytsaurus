@@ -322,7 +322,7 @@ void TFetcherBase::StartFetchingRound()
         }
     }
 
-    Combine(asyncResults).Subscribe(
+    AllSucceeded(asyncResults).Subscribe(
         BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this))
             .Via(Invoker_));
 }

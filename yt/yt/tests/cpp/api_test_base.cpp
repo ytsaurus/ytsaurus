@@ -266,7 +266,7 @@ void TDynamicTablesTestBase::RemoveSystemObjects(
         }
     }
 
-    WaitFor(Combine(asyncWait))
+    WaitFor(AllSucceeded(asyncWait))
         .ThrowOnError();
 }
 
@@ -290,7 +290,7 @@ void TDynamicTablesTestBase::RemoveTabletCells(
         }
     }
 
-    WaitFor(Combine(asyncWait))
+    WaitFor(AllSucceeded(asyncWait))
         .ThrowOnError();
 
     WaitUntil(

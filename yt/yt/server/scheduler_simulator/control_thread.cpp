@@ -190,7 +190,7 @@ void TSimulatorControlThread::Run()
         Yield();
     }
 
-    WaitFor(Combine(asyncWorkerResults))
+    WaitFor(AllSucceeded(asyncWorkerResults))
         .ThrowOnError();
 
     SchedulerStrategy_->OnMasterDisconnected();
@@ -294,7 +294,7 @@ void TSimulatorControlThread::OnLogNodes(const TControlThreadEvent& event)
             .Run());
     }
 
-    auto nodeLists = WaitFor(Combine(nodeListFutures))
+    auto nodeLists = WaitFor(AllSucceeded(nodeListFutures))
         .ValueOrThrow();
 
     StrategyHost_.LogEventFluently(ELogEventType::NodesInfo, event.Time)

@@ -401,7 +401,7 @@ void TLeaderRecovery::DoRun()
             futures.push_back(tryAbandonLeaderLeaseRequest->Invoke());
         }
 
-        auto rspsOrError = WaitFor(CombineAll(futures));
+        auto rspsOrError = WaitFor(AllSet(futures));
         if (rspsOrError.IsOK()) {
             const auto& rsps = rspsOrError.Value();
             for (int peerId = 0; peerId < rsps.size(); ++peerId) {

@@ -707,7 +707,7 @@ public:
             })));
         }
 
-        auto resultsOrError = WaitFor(Combine(futures));
+        auto resultsOrError = WaitFor(AllSucceeded(futures));
         if (!resultsOrError.IsOK()) {
             Host->Disconnect(resultsOrError);
             return;
@@ -1156,7 +1156,7 @@ private:
             futures.push_back(tree->ValidateOperationPoolsCanBeUsed(operation, pool));
         }
 
-        return Combine(futures);
+        return AllSucceeded(futures);
     }
 
     TFairShareStrategyOperationStatePtr FindOperationState(TOperationId operationId) const

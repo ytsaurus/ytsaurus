@@ -307,7 +307,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         masterRequest->Invoke();
     }
 
-    auto masterResponseMessages = WaitFor(Combine(asyncMasterResponseMessages))
+    auto masterResponseMessages = WaitFor(AllSucceeded(asyncMasterResponseMessages))
         .ValueOrThrow();
 
     auto& responseAttachments = response->Attachments();

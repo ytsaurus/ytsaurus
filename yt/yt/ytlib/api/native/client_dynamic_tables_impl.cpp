@@ -433,7 +433,7 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
         asyncRspsOrErrors.push_back(subrequest.Request->Invoke());
     }
 
-    auto rspsOrErrors = WaitFor(Combine(asyncRspsOrErrors))
+    auto rspsOrErrors = WaitFor(AllSucceeded(asyncRspsOrErrors))
         .ValueOrThrow();
 
     std::vector<TTabletInfo> results(tabletIndexes.size());
@@ -805,7 +805,7 @@ TRowset TClient::DoLookupRowsOnce(
             asyncResults[cellIndex] = req->Invoke();
         }
 
-        auto results = WaitFor(CombineAll(std::move(asyncResults)))
+        auto results = WaitFor(AllSet(std::move(asyncResults)))
             .ValueOrThrow();
 
         uniqueResultRows.resize(currentResultIndex, TTypeErasedRow{nullptr});
@@ -880,7 +880,7 @@ TRowset TClient::DoLookupRowsOnce(
                 Connection_->GetCellDirectory()));
         }
 
-        WaitFor(Combine(std::move(asyncResults)))
+        WaitFor(AllSucceeded(std::move(asyncResults)))
             .ThrowOnError();
 
         // Rows are type-erased here and below to handle different kinds of rowsets.
