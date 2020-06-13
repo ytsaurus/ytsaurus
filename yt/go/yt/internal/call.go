@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 
+	"github.com/cenkalti/backoff/v4"
+
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/ypath"
@@ -26,6 +28,8 @@ type Call struct {
 
 	YSONValue []byte
 	ProxyURL  string
+
+	Backoff backoff.BackOff
 
 	OnRspParams func(b []byte) error
 }

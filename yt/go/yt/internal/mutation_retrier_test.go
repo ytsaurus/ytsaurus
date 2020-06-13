@@ -4,20 +4,22 @@ import (
 	"context"
 	"testing"
 
-	"a.yandex-team.ru/yt/go/ypath"
-
+	"github.com/cenkalti/backoff/v4"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
-
-	"github.com/stretchr/testify/assert"
 )
 
 func TestMutationRetrierIgnoresGet(t *testing.T) {
-	r := MutationRetrier{Backoff: &zeroBackoff{}}
+	r := MutationRetrier{}
 
 	var called bool
-	_, err := r.Intercept(context.Background(), &Call{Params: NewGetNodeParams(ypath.Root, nil)},
+	_, err := r.Intercept(context.Background(), &Call{
+		Params:  NewGetNodeParams(ypath.Root, nil),
+		Backoff: &backoff.ZeroBackOff{},
+	},
 		func(ctx context.Context, call *Call) (*CallResult, error) {
 			if called {
 				t.Fatalf("get request retried")
@@ -30,12 +32,15 @@ func TestMutationRetrierIgnoresGet(t *testing.T) {
 }
 
 func TestMutationRetriesSet(t *testing.T) {
-	r := MutationRetrier{Backoff: &zeroBackoff{}}
+	r := MutationRetrier{}
 
 	var i int
 	var id yt.MutationID
 
-	_, err := r.Intercept(context.Background(), &Call{Params: NewSetNodeParams(ypath.Root, nil)},
+	_, err := r.Intercept(context.Background(), &Call{
+		Params:  NewSetNodeParams(ypath.Root, nil),
+		Backoff: &backoff.ZeroBackOff{},
+	},
 		func(ctx context.Context, call *Call) (*CallResult, error) {
 			options := call.Params.(*SetNodeParams).options
 			switch i {

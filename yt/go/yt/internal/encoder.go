@@ -21,7 +21,11 @@ type Encoder struct {
 }
 
 func (e *Encoder) newCall(p Params) *Call {
-	return &Call{Params: p, CallID: guid.New()}
+	return &Call{
+		Params:  p,
+		CallID:  guid.New(),
+		Backoff: DefaultBackoff(),
+	}
 }
 
 func (e *Encoder) do(ctx context.Context, call *Call, decode func(res *CallResult) error) error {

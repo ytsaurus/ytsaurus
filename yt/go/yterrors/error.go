@@ -9,23 +9,9 @@ import (
 	"strings"
 
 	"golang.org/x/xerrors"
-
-	"a.yandex-team.ru/yt/go/yson"
 )
 
 type ErrorCode int
-
-func (e ErrorCode) MarshalYSON(w *yson.Writer) error {
-	w.Int64(int64(e))
-	return w.Err()
-}
-
-func (e *ErrorCode) UnmarshalYSON(r *yson.Reader) (err error) {
-	var code int
-	err = (&yson.Decoder{R: r}).Decode(&code)
-	*e = ErrorCode(code)
-	return
-}
 
 // Error is an implementation of built-in go error interface.
 //

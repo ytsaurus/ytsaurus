@@ -5,21 +5,13 @@ import (
 	"fmt"
 	"net"
 	"testing"
-	"time"
 
-	"a.yandex-team.ru/yt/go/yterrors"
-
+	"github.com/cenkalti/backoff/v4"
 	"github.com/stretchr/testify/assert"
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/yt/go/ypath"
 )
-
-type zeroBackoff struct{}
-
-func (b *zeroBackoff) Backoff(int) (time.Duration, bool) {
-	return 0, true
-}
 
 type netError struct {
 	timeout   bool
@@ -40,27 +32,6 @@ func (n *netError) Temporary() bool {
 
 var _ net.Error = &netError{}
 
-func TestReadTransientErrors(t *testing.T) {
-	for _, e := range []error{
-		&netError{timeout: true},
-		&netError{temporary: true},
-		xerrors.Errorf("error: %w", &netError{timeout: true}),
-		yterrors.Err(yterrors.ErrorCode(1000000)),
-		xerrors.Errorf("error: %w", yterrors.Err(yterrors.ErrorCode(1000000))),
-	} {
-		assert.True(t, isTransientError(e), "%+v", e)
-	}
-}
-
-func TestReadFatalErrors(t *testing.T) {
-	for _, e := range []error{
-		yterrors.Err(yterrors.ErrorCode(500)),
-		&netError{},
-	} {
-		assert.False(t, isTransientError(e), "%+v", e)
-	}
-}
-
 func TestReadOnlyMethods(t *testing.T) {
 	for _, p := range []interface{}{
 		&GetNodeParams{},
@@ -78,9 +49,12 @@ func TestReadOnlyMethods(t *testing.T) {
 }
 
 func TestReadRetrierRetriesGet(t *testing.T) {
-	r := &ReadRetrier{Backoff: &zeroBackoff{}}
+	r := &Retrier{}
 
-	call := &Call{Params: NewGetNodeParams(ypath.Root, nil)}
+	call := &Call{
+		Params:  NewGetNodeParams(ypath.Root, nil),
+		Backoff: &backoff.ZeroBackOff{},
+	}
 
 	var failed bool
 
@@ -98,9 +72,12 @@ func TestReadRetrierRetriesGet(t *testing.T) {
 }
 
 func TestReadRetrierIgnoresMutations(t *testing.T) {
-	r := &ReadRetrier{Backoff: &zeroBackoff{}}
+	r := &Retrier{}
 
-	call := &Call{Params: NewSetNodeParams(ypath.Root, nil)}
+	call := &Call{
+		Params:  NewSetNodeParams(ypath.Root, nil),
+		Backoff: &backoff.ZeroBackOff{},
+	}
 
 	_, err := r.Intercept(context.Background(), call, func(context.Context, *Call) (*CallResult, error) {
 		return &CallResult{}, xerrors.New("request failed")
