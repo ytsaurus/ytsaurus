@@ -10,6 +10,18 @@ namespace NYT::NTableClient {
 
 namespace {
 
+ui64 SafeReadQword(const ui64* ptr, const char* end)
+{
+    ui64 qword = 0;
+    ::memcpy(&qword, ptr, std::min<size_t>(sizeof(ui64), end - reinterpret_cast<const char*>(ptr)));
+    return qword;
+}
+
+void SafeWriteQword(ui64* ptr, char* end, ui64 qword)
+{
+    ::memcpy(ptr, &qword, std::min<size_t>(sizeof(ui64), end - reinterpret_cast<char*>(ptr)));
+}
+
 template <bool Negate, class T>
 auto MaybeNegateValue(T value)
 {
@@ -96,8 +108,7 @@ void CopyBitmapRangeImpl(
         auto qword = currentQwordInput[0];
         qword >>= qwordShift;
         qword = MaybeNegateValue<Negate>(qword);
-        auto* currentByteOutput = reinterpret_cast<char*>(currentQwordOutput);
-        ::memcpy(currentByteOutput, &qword, std::min<size_t>(8, dst.End() - currentByteOutput));
+        SafeWriteQword(currentQwordOutput, dst.End(), qword);
     }
 }
 
@@ -336,15 +347,15 @@ i64 CountOnesInBitmap(TRef bitmap, i64 startIndex, i64 endIndex)
 
     const auto* qwords = reinterpret_cast<const ui64*>(bitmap.Begin());
 
-    auto startIndexRem = startIndex % 64;
-    auto startIndexQuot = startIndex / 64;
+    auto startIndexRem = startIndex & 63;
+    auto startIndexQuot = startIndex >> 6;
 
-    auto endIndexRem = endIndex % 64;
-    auto endIndexQuot = endIndex / 64;
+    auto endIndexRem = endIndex & 63;
+    auto endIndexQuot = endIndex >> 6;
 
     // Tiny
     if (startIndexQuot == endIndexQuot) {
-        auto qword = qwords[startIndexQuot];
+        auto qword = SafeReadQword(qwords + startIndexQuot, bitmap.End());
         qword &= (1ULL << endIndexRem) - 1;
         qword >>= startIndexRem;
         return __builtin_popcountll(qword);
@@ -372,7 +383,7 @@ i64 CountOnesInBitmap(TRef bitmap, i64 startIndex, i64 endIndex)
 
     // Tail
     if (endIndexRem != 0) {
-        auto qword = qwords[endIndexQuot];
+        auto qword = SafeReadQword(qwords + endIndexQuot, bitmap.End());
         qword &= (1ULL << endIndexRem) - 1;
         result += __builtin_popcountll(qword);
     }

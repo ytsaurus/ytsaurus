@@ -64,7 +64,6 @@ i64 CountNullsInRleDictionaryIndexesWithZeroNull(
     i64 endIndex);
 
 //! Counts the number of 1-bits in range [#startIndex, #endIndex) in #bitmap.
-//! #bitmap must be 8-byte aligned and its trailing qword must be readable.
 i64 CountOnesInBitmap(
     TRef bitmap,
     i64 startIndex,
