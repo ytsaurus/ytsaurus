@@ -1107,11 +1107,18 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         config_version = get("//sys/tablet_cells/{}/@config_version".format(cell_id))
         set("//sys/tablet_cell_bundles/custom/@options/changelog_account", "tmp")
         set("//sys/tablet_cell_bundles/custom/@options/snapshot_account", "tmp")
-        wait(lambda: config_version < get("//sys/tablet_cells/{}/@config_version".format(cell_id)))
+        wait(lambda: config_version + 2 <= get("//sys/tablet_cells/{}/@config_version".format(cell_id)))
 
         self._wait_cell_good(cell_id)
 
-        insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+        def _check_insert():
+            try:
+                insert_rows("//tmp/t", [{"key": 1, "value": "1"}])
+                return True
+            except:
+                return False
+        wait(_check_insert)
+
         build_snapshot(cell_id=cell_id)
         wait(lambda: _check_snapshot_and_changelog(expected_account="tmp"))
 
