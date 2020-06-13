@@ -26,7 +26,7 @@ ITimestampProviderPtr CreateRemoteTimestampProvider(
     NRpc::IChannelPtr channel);
 
 ITimestampProviderPtr CreateBatchingRemoteTimestampProvider(
-    TBatchingRemoteTimestampProviderConfigPtr config,
+    TRemoteTimestampProviderConfigPtr config,
     NRpc::IChannelPtr channel);
 
 ////////////////////////////////////////////////////////////////////////////////

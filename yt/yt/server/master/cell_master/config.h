@@ -189,7 +189,7 @@ public:
     bool EnableTimestampManager;
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
 
-    NTransactionClient::TRemoteTimestampProviderWithDiscoveryConfigPtr TimestampProvider;
+    NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
 
     NHiveServer::TTransactionSupervisorConfigPtr TransactionSupervisor;
 
