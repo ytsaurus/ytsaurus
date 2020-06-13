@@ -197,7 +197,7 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
 
                 auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
 
-                auto createReader = [=] () {
+                auto createReader = BIND([=] () -> IReaderBasePtr {
                     auto remoteReader = CreateRemoteReader(
                         chunkSpec,
                         config,
@@ -225,13 +225,13 @@ TPartitionMultiChunkReaderPtr CreatePartitionMultiChunkReader(
                         keyColumns,
                         partitionTag,
                         multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));
-                };
+                });
 
-                auto canCreateReader = [=] {
+                auto canCreateReader = BIND([=] {
                     return multiReaderMemoryManager->GetFreeMemorySize() >= memoryEstimate;
-                };
+                });
 
-                factories.emplace_back(CreateReaderFactory(
+                factories.push_back(CreateReaderFactory(
                     createReader,
                     canCreateReader,
                     dataSliceDescriptor));

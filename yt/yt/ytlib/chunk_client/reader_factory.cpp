@@ -9,15 +9,15 @@ class TReaderFactory
 {
 public:
     TReaderFactory(
-        std::function<IReaderBasePtr()> factory,
-        std::function<bool()> canCreateReader,
+        TCallback<TFuture<IReaderBasePtr>()> factory,
+        TCallback<bool()> canCreateReader,
         const TDataSliceDescriptor& dataSliceDescriptor)
-        : Factory_(factory)
-        , CanCreateReader_(canCreateReader)
+        : Factory_(std::move(factory))
+        , CanCreateReader_(std::move(canCreateReader))
         , DataSliceDescriptor_(dataSliceDescriptor)
     { }
 
-    virtual IReaderBasePtr CreateReader() const override
+    virtual TFuture<IReaderBasePtr> CreateReader() const override
     {
         return Factory_();
     }
@@ -33,19 +33,33 @@ public:
     }
 
 private:
-    const std::function<IReaderBasePtr()> Factory_;
-    const std::function<bool()> CanCreateReader_;
+    const TCallback<TFuture<IReaderBasePtr>()> Factory_;
+    const TCallback<bool()> CanCreateReader_;
     const TDataSliceDescriptor DataSliceDescriptor_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IReaderFactoryPtr CreateReaderFactory(
-    std::function<IReaderBasePtr()> factory,
-    std::function<bool()> canCreateReader,
+    TCallback<IReaderBasePtr()> factory,
+    TCallback<bool()> canCreateReader,
     const TDataSliceDescriptor& dataSliceDescriptor)
 {
-    return New<TReaderFactory>(factory, canCreateReader, dataSliceDescriptor);
+    return CreateReaderFactory(
+        BIND([factory = std::move(factory)] { return MakeFuture(factory()); }),
+        std::move(canCreateReader),
+        dataSliceDescriptor);
+}
+
+IReaderFactoryPtr CreateReaderFactory(
+    TCallback<TFuture<IReaderBasePtr>()> factory,
+    TCallback<bool()> canCreateReader,
+    const TDataSliceDescriptor& dataSliceDescriptor)
+{
+    return New<TReaderFactory>(
+        std::move(factory),
+        std::move(canCreateReader),
+        dataSliceDescriptor);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

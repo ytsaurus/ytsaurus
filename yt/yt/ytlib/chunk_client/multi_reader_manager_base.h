@@ -45,7 +45,7 @@ public:
 
     virtual bool OnEmptyRead(bool readerFinished) override;
 
-    virtual void RegisterFailedReader(IReaderBasePtr reader) override;
+    virtual void RegisterFailedReader(const IReaderBasePtr& reader) override;
 
     virtual void Interrupt() override;
 
@@ -89,11 +89,12 @@ protected:
 
     TFuture<void> CombineCompletionError(TFuture<void> future);
 
-    void OpenNextChunks();
-
+    void OpenNextReaders();
     void DoOpenReader(int index);
+    void OnReaderCreated(int index, const TErrorOr<IReaderBasePtr>& readerOrError);
+    void OnReaderReady(const IReaderBasePtr& reader, int index, const TError& error);
 
-    virtual void OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex) = 0;
+    virtual void OnReaderOpened(const IReaderBasePtr& chunkReader, int chunkIndex) = 0;
     virtual void OnReaderBlocked() = 0;
     virtual void OnReaderFinished();
 

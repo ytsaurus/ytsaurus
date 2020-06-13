@@ -29,7 +29,7 @@ private:
 
     virtual TFuture<void> DoOpen() override;
 
-    virtual void OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex) override;
+    virtual void OnReaderOpened(const IReaderBasePtr& chunkReader, int chunkIndex) override;
     virtual void OnReaderBlocked() override;
     virtual void OnReaderFinished() override;
 
@@ -68,11 +68,11 @@ TSequentialMultiReaderManager::TSequentialMultiReaderManager(
 
 TFuture<void> TSequentialMultiReaderManager::DoOpen()
 {
-    OpenNextChunks();
+    OpenNextReaders();
     return WaitForNextReader();
 }
 
-void TSequentialMultiReaderManager::OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex)
+void TSequentialMultiReaderManager::OnReaderOpened(const IReaderBasePtr& chunkReader, int chunkIndex)
 {
     // May have already been set in case of error.
     NextReaders_[chunkIndex].TrySet(std::move(chunkReader));

@@ -83,7 +83,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TColumnarChunkMetaPtr DownloadChunkMeta(
+TFuture<TColumnarChunkMetaPtr> DownloadChunkMeta(
     IChunkReaderPtr chunkReader,
     const TClientBlockReadOptions& blockReadOptions,
     std::optional<int> partitionTag)
@@ -98,14 +98,13 @@ TColumnarChunkMetaPtr DownloadChunkMeta(
         TProtoExtensionTag<NProto::TKeyColumnsExt>::Value
     };
 
-    auto asyncChunkMeta = chunkReader->GetMeta(
+    return chunkReader->GetMeta(
         blockReadOptions,
         partitionTag,
-        ExtensionTags);
-    auto chunkMeta = WaitFor(asyncChunkMeta)
-        .ValueOrThrow();
-
-    return New<TColumnarChunkMeta>(*chunkMeta);
+        ExtensionTags)
+        .Apply(BIND([] (const TRefCountedChunkMetaPtr& chunkMeta) {
+            return New<TColumnarChunkMeta>(*chunkMeta);
+        }));
 }
 
 TChunkReaderConfigPtr PatchConfig(TChunkReaderConfigPtr config, i64 memoryEstimate)
@@ -149,9 +148,10 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 const auto& chunkSpec = dataSliceDescriptor.GetSingleChunk();
 
                 auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
-                auto createReader = [=] {
+                auto createReader = BIND([=] {
+                    IChunkReaderPtr remoteReader;
                     try {
-                        auto remoteReader = CreateRemoteReader(
+                        remoteReader = CreateRemoteReader(
                             chunkSpec,
                             config,
                             options,
@@ -163,17 +163,18 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             trafficMeter,
                             bandwidthThrottler,
                             rpsThrottler);
+                    } catch (const std::exception& ex) {
+                        return MakeFuture<IReaderBasePtr>(ex);
+                    }
 
-                        TReadRange range{
-                            chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
-                            chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
-                        };
+                    TReadRange range{
+                        chunkSpec.has_lower_limit() ? TReadLimit(chunkSpec.lower_limit()) : TReadLimit(),
+                        chunkSpec.has_upper_limit() ? TReadLimit(chunkSpec.upper_limit()) : TReadLimit()
+                    };
 
-                        auto asyncChunkMeta = BIND(DownloadChunkMeta, remoteReader, blockReadOptions, partitionTag)
-                            .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
-                            .Run();
-                        auto chunkMeta = WaitFor(asyncChunkMeta)
-                            .ValueOrThrow();
+                    auto asyncChunkMeta = DownloadChunkMeta(remoteReader, blockReadOptions, partitionTag);
+
+                    return asyncChunkMeta.Apply(BIND([=] (const TColumnarChunkMetaPtr& chunkMeta) -> IReaderBasePtr {
                         chunkMeta->RenameColumns(dataSource.ColumnRenameDescriptors());
 
                         auto chunkState = New<TChunkState>(
@@ -185,8 +186,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             nullptr,
                             nullptr);
 
-                        auto chunkReaderMemoryManager =
-                            multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate);
+                        auto chunkReaderMemoryManager = multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate);
 
                         return CreateSchemalessChunkReader(
                             std::move(chunkState),
@@ -202,18 +202,14 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             range,
                             partitionTag,
                             chunkReaderMemoryManager);
-                    } catch(const std::exception& ex) {
-                        THROW_ERROR_EXCEPTION("Error creating chunk reader")
-                            << TErrorAttribute("chunk_id", chunkSpec.chunk_id())
-                            << ex;
-                    }
-                };
+                    }));
+                });
 
-                auto canCreateReader = [=] {
+                auto canCreateReader = BIND([=] {
                     return multiReaderMemoryManager->GetFreeMemorySize() >= memoryEstimate;
-                };
+                });
 
-                factories.emplace_back(CreateReaderFactory(createReader, canCreateReader, dataSliceDescriptor));
+                factories.push_back(CreateReaderFactory(createReader, canCreateReader, dataSliceDescriptor));
                 break;
             }
 
@@ -221,7 +217,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                 auto memoryEstimate = GetDataSliceDescriptorReaderMemoryEstimate(dataSliceDescriptor, config);
                 int dataSourceIndex = dataSliceDescriptor.GetDataSourceIndex();
                 const auto& dataSource = dataSourceDirectory->DataSources()[dataSourceIndex];
-                auto createReader = [=] {
+                auto createReader = BIND([=] () -> IReaderBasePtr {
                     return CreateSchemalessMergingMultiChunkReader(
                         config,
                         options,
@@ -238,13 +234,13 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                         trafficMeter,
                         bandwidthThrottler,
                         rpsThrottler);
-                };
+                });
 
-                auto canCreateReader = [=] {
+                auto canCreateReader = BIND([=] {
                     return multiReaderMemoryManager->GetFreeMemorySize() >= memoryEstimate;
-                };
+                });
 
-                factories.emplace_back(CreateReaderFactory(createReader, canCreateReader, dataSliceDescriptor));
+                factories.push_back(CreateReaderFactory(createReader, canCreateReader, dataSliceDescriptor));
                 break;
             }
 
@@ -1049,7 +1045,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         renameDescriptors,
         parallelReaderMemoryManager,
         Logger
-    ] (TChunkSpec chunkSpec) -> IVersionedReaderPtr {
+    ] (const TChunkSpec& chunkSpec) -> IVersionedReaderPtr {
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
         auto replicas = NYT::FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
@@ -1072,7 +1068,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             THROW_ERROR_EXCEPTION("Row index limit is not supported");
         }
 
-        YT_LOG_DEBUG("Create versioned chunk reader (ChunkId: %v, Range: <%v : %v>)",
+        YT_LOG_DEBUG("Creating versioned chunk reader (ChunkId: %v, Range: <%v : %v>)",
             chunkId,
             lowerLimit,
             upperLimit);

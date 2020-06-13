@@ -418,7 +418,7 @@ IFileReaderPtr CreateFileMultiChunkReader(
     for (const auto& chunkSpec : chunkSpecs) {
         auto memoryEstimate = GetChunkReaderMemoryEstimate(chunkSpec, config);
 
-        auto createReader = [=] () {
+        auto createReader = BIND([=] () -> IReaderBasePtr {
             auto remoteReader = CreateRemoteReader(
                 chunkSpec,
                 config,
@@ -453,13 +453,13 @@ IFileReaderPtr CreateFileMultiChunkReader(
                 startOffset,
                 endOffset,
                 multiReaderMemoryManager->CreateChunkReaderMemoryManager(memoryEstimate));
-        };
+        });
 
-        auto canCreateReader = [=] {
+        auto canCreateReader = BIND([=] {
             return multiReaderMemoryManager->GetFreeMemorySize() >= memoryEstimate;
-        };
+        });
 
-        factories.emplace_back(CreateReaderFactory(
+        factories.push_back(CreateReaderFactory(
             createReader,
             canCreateReader,
             TDataSliceDescriptor(chunkSpec)));

@@ -30,7 +30,7 @@ private:
 
     virtual TFuture<void> DoOpen() override;
 
-    virtual void OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex) override;
+    virtual void OnReaderOpened(const IReaderBasePtr& chunkReader, int chunkIndex) override;
     virtual void OnReaderBlocked() override;
     virtual void OnReaderFinished() override;
 
@@ -63,11 +63,11 @@ TParallelMultiReaderManager::TParallelMultiReaderManager(
 
 TFuture<void> TParallelMultiReaderManager::DoOpen()
 {
-    OpenNextChunks();
+    OpenNextReaders();
     return WaitForReadySession();
 }
 
-void TParallelMultiReaderManager::OnReaderOpened(IReaderBasePtr chunkReader, int chunkIndex)
+void TParallelMultiReaderManager::OnReaderOpened(const IReaderBasePtr& chunkReader, int chunkIndex)
 {
     TMultiReaderManagerSession session;
     session.Reader = std::move(chunkReader);
