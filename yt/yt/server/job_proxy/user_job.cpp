@@ -895,7 +895,7 @@ private:
 
         FinalizeActions_.push_back(BIND([=] () {
             auto checkErrors = [&] (const std::vector<TFuture<void>>& asyncErrors) {
-                auto error = WaitFor(Combine(asyncErrors));
+                auto error = WaitFor(AllSucceeded(asyncErrors));
                 THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
             };
 
@@ -1326,11 +1326,11 @@ private:
 
         // First, wait for all job output pipes.
         // If job successfully completes or dies prematurely, they close automatically.
-        WaitFor(CombineAll(outputFutures))
+        WaitFor(AllSet(outputFutures))
             .ThrowOnError();
         YT_LOG_INFO("Output actions finished");
 
-        WaitFor(CombineAll(stderrFutures))
+        WaitFor(AllSet(stderrFutures))
             .ThrowOnError();
         YT_LOG_INFO("Error actions finished");
 
@@ -1348,7 +1348,7 @@ private:
         }
 
         // Now make sure that input pipes are also completed.
-        WaitFor(CombineAll(inputFutures))
+        WaitFor(AllSet(inputFutures))
             .ThrowOnError();
         YT_LOG_INFO("Input actions finished");
     }

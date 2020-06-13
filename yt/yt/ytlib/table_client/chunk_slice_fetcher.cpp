@@ -207,7 +207,7 @@ private:
                         .AsyncVia(Invoker_)));
         }
 
-        return Combine(futures);
+        return AllSucceeded(futures);
     }
 
     void OnResponse(

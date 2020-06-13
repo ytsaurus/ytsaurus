@@ -80,7 +80,7 @@ private:
                     .AsyncVia(GetCurrentInvoker())));
         }
 
-        Combine(asyncResults).Subscribe(
+        AllSucceeded(asyncResults).Subscribe(
             BIND(&TDiscoverChangelogSession::OnComplete, MakeStrong(this))
                 .AsyncVia(GetCurrentInvoker()));
     }
@@ -230,7 +230,7 @@ private:
                 BIND(&TComputeQuorumInfoSession::OnResponse, MakeStrong(this), peerId)));
         }
 
-        Combine(asyncResults).Subscribe(
+        AllSucceeded(asyncResults).Subscribe(
             BIND(&TComputeQuorumInfoSession::OnComplete, MakeStrong(this)));
     }
 

@@ -679,7 +679,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
                             .Run());
                 }
 
-                auto results = WaitFor(Combine(asyncUncompressedBlocks))
+                auto results = WaitFor(AllSucceeded(asyncUncompressedBlocks))
                     .ValueOrThrow();
 
                 for (const auto& pair : results) {
@@ -898,7 +898,7 @@ private:
             asyncResults.push_back(req->Invoke());
         }
 
-        return CombineAll(asyncResults)
+        return AllSet(asyncResults)
             .Apply(BIND(&TRemoteInMemoryBlockCache::OnSendResponse, MakeStrong(this)));
     }
 
@@ -958,7 +958,7 @@ private:
             asyncResults.push_back(req->Invoke().As<void>());
         }
 
-        return Combine(asyncResults);
+        return AllSucceeded(asyncResults);
     }
 
 private:

@@ -813,7 +813,7 @@ public:
             asyncJobSpecs.push_back(asyncJobSpec);
         }
 
-        return CombineAll(asyncJobSpecs);
+        return AllSet(asyncJobSpecs);
     }
 
     TFuture<TOperationInfo> BuildOperationInfo(TOperationId operationId)

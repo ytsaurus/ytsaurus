@@ -17,7 +17,7 @@ TFuture<void> SuspendInvokerPool(const ISuspendableInvokerPoolPtr& invokerPool)
         futures.push_back(invokerPool->GetInvoker(i)->Suspend());
     }
 
-    return Combine(std::move(futures));
+    return AllSucceeded(std::move(futures));
 }
 
 void ResumeInvokerPool(const ISuspendableInvokerPoolPtr& invokerPool)

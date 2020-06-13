@@ -41,7 +41,7 @@ public:
                 asyncResults.push_back(it->second);
             }
         }
-        return CombineAll(asyncResults);
+        return AllSet(asyncResults);
     }
 
 private:

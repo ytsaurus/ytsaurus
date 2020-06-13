@@ -1573,7 +1573,7 @@ private:
             asyncChunks.push_back(asyncChunk);
         }
 
-        return Combine(asyncChunks);
+        return AllSucceeded(asyncChunks);
     }
 
     // Put files to sandbox.

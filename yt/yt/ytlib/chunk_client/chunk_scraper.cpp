@@ -228,7 +228,7 @@ TFuture<void> TChunkScraper::Stop()
     for (const auto& task : ScraperTasks_) {
         futures.push_back(task->Stop());
     }
-    return Combine(futures);
+    return AllSucceeded(futures);
 }
 
 void TChunkScraper::CreateTasks(const THashSet<TChunkId>& chunkIds)

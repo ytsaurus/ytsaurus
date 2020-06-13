@@ -190,7 +190,7 @@ private:
                 return NoClientResult;
             }
 
-            return Combine(std::vector<TFuture<void>>{
+            return AllSucceeded(std::vector<TFuture<void>>{
                 CheckTableExists(),
                 CheckBundleHealth()
             });
@@ -406,7 +406,7 @@ private:
                     futures.push_back(asyncReplica->Check());
                 }
 
-                CheckFuture_ = CombineAll(futures)
+                CheckFuture_ = AllSet(futures)
                     .Apply(BIND([
                         bootstrap,
                         syncReplicas,
@@ -485,7 +485,7 @@ private:
                             futures.push_back(goodSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
                         }
 
-                        return Combine(futures);
+                        return AllSucceeded(futures);
                     }));
             }
 
@@ -594,7 +594,7 @@ private:
             }
         }
 
-        WaitFor(CombineAll(futures))
+        WaitFor(AllSet(futures))
             .ThrowOnError();
     }
 

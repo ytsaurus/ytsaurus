@@ -878,7 +878,7 @@ TEST_F(TClassicFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)
     DoTestSchedule(rootElement, operationElement, execNodes[2], host->GetMediumDirectory());
     readyToGo.Set();
 
-    EXPECT_TRUE(Combine(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
+    EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

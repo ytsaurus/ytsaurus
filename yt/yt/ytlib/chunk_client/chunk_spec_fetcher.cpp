@@ -157,7 +157,7 @@ void TChunkSpecFetcher::DoFetch()
             .AsyncVia(Invoker_)
             .Run());
     }
-    WaitFor(Combine(asyncResults))
+    WaitFor(AllSucceeded(asyncResults))
         .ThrowOnError();
     YT_LOG_INFO("Finished processing chunk specs");
 

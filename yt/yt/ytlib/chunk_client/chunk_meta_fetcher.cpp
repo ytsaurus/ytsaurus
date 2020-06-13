@@ -65,7 +65,7 @@ TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> 
         asyncResults.emplace_back(req->Invoke());
     }
 
-    return Combine(std::move(asyncResults))
+    return AllSucceeded(std::move(asyncResults))
         .Apply(BIND(&TChunkMetaFetcher::OnResponse, MakeStrong(this), nodeId, chunkIndexes)
             .AsyncVia(Invoker_));
 }

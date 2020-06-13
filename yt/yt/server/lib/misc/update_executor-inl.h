@@ -121,7 +121,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates()
         RemoveUpdate(key);
     }
 
-    auto result = NConcurrency::WaitFor(CombineAll(asyncResults));
+    auto result = NConcurrency::WaitFor(AllSet(asyncResults));
     YT_VERIFY(result.IsOK());
     if (!result.IsOK()) {
         OnUpdateFailed_(result);

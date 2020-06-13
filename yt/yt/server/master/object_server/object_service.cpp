@@ -751,7 +751,7 @@ private:
             RequestId_,
             syncCellTags);
 
-        return Combine(syncFutures);
+        return AllSucceeded(syncFutures);
     }
 
     void RunSyncPhaseOne()

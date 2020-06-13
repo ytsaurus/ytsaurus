@@ -155,7 +155,7 @@ TEST_F(TNetTest, BidirectionalTransfer)
         startReceiver(b)
     };
 
-    Combine(futures).Get().ThrowOnError();
+    AllSucceeded(futures).Get().ThrowOnError();
 }
 
 TEST_F(TNetTest, StressConcurrentClose)
@@ -256,7 +256,7 @@ TEST_F(TNetTest, ManyDials)
         auto futureDial1 = dialer->Dial(listener->GetAddress());
         auto futureDial2 = dialer->Dial(listener->GetAddress());
 
-        WaitFor(Combine(std::vector<TFuture<IConnectionPtr>>{futureDial1, futureDial2, futureAccept1, futureAccept2})).ValueOrThrow();
+        WaitFor(AllSucceeded(std::vector<TFuture<IConnectionPtr>>{futureDial1, futureDial2, futureAccept1, futureAccept2})).ValueOrThrow();
     })
         .AsyncVia(Poller->GetInvoker())
         .Run()

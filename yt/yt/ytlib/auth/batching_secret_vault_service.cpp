@@ -47,7 +47,7 @@ public:
         for (const auto& subrequest : subrequests) {
             asyncResults.push_back(DoGetSecret(subrequest, guard));
         }
-        return CombineAll(asyncResults);
+        return AllSet(asyncResults);
     }
 
 private:

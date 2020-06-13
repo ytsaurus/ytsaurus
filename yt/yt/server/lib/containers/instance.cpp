@@ -661,7 +661,7 @@ private:
 
     TError WaitForActions()
     {
-        auto error = WaitFor(Combine(Actions_));
+        auto error = WaitFor(AllSucceeded(Actions_));
         Actions_.clear();
         return error;
     }

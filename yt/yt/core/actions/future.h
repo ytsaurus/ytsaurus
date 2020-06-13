@@ -662,24 +662,6 @@ TFuture<std::vector<TErrorOr<T>>> AnyNSet(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class T>
-// COMPAT(babenko) [[deprecated("Use AllSucceeded instead")]]
-TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> Combine(
-    std::vector<TFuture<T>> futures);
-
-template <class T>
-// COMPAT(babenko) [[deprecated("Use AnyNSet instead")]]
-TFuture<typename TFutureCombinerTraits<T>::TCombinedVector> CombineQuorum(
-    std::vector<TFuture<T>> futures,
-    int quorum);
-
-template <class T>
-// COMPAT(babenko) [[deprecated("Use AllSet instead")]]
-TFuture<std::vector<TErrorOr<T>>> CombineAll(
-    std::vector<TFuture<T>> futures);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Executes given #callbacks, allowing up to #concurrencyLimit simultaneous invocations.
 template <class T>
 TFuture<std::vector<TErrorOr<T>>> RunWithBoundedConcurrency(

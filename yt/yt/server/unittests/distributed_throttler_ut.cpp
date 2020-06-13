@@ -186,7 +186,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
         .AsyncVia(actionQueues[i]->GetInvoker())
         .Run());
     }
-    WaitFor(CombineAll(futures)).ThrowOnError();
+    WaitFor(AllSet(futures)).ThrowOnError();
 
     auto duration = timer.GetElapsedTime().MilliSeconds();
     EXPECT_GE(duration, 3000);
@@ -269,7 +269,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
         .AsyncVia(actionQueues[i]->GetInvoker())
         .Run());
     }
-    WaitFor(CombineAll(futures)).ThrowOnError();
+    WaitFor(AllSet(futures)).ThrowOnError();
 
     auto duration = timer.GetElapsedTime().MilliSeconds();
     EXPECT_GE(duration, 8000);

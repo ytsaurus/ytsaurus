@@ -323,7 +323,7 @@ TFuture<void> TColumnarRangeChunkReaderBase::RequestFirstBlocks()
     if (PendingBlocks_.empty()) {
         return VoidFuture;
     } else {
-        return Combine(blockFetchResult);
+        return AllSucceeded(blockFetchResult);
     }
 }
 
@@ -349,7 +349,7 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
     }
 
     if (!blockFetchResult.empty()) {
-        ReadyEvent_ = Combine(blockFetchResult);
+        ReadyEvent_ = AllSucceeded(blockFetchResult);
     }
 
     return PendingBlocks_.empty();
@@ -450,7 +450,7 @@ TFuture<void> TColumnarLookupChunkReaderBase::RequestFirstBlocks()
         }
     }
 
-    return Combine(blockFetchResult);
+    return AllSucceeded(blockFetchResult);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

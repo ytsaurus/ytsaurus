@@ -200,7 +200,7 @@ public:
             }
         }
 
-        Combine(asyncResults).Subscribe(
+        AllSucceeded(asyncResults).Subscribe(
             BIND(&TBatch::OnCompleted, MakeStrong(this))
                 .Via(owner->EpochContext_->EpochControlInvoker));
     }

@@ -1458,7 +1458,7 @@ private:
 
         YT_VERIFY(readRowCount == writeRowCount);
 
-        WaitFor(Combine(asyncCloseResults))
+        WaitFor(AllSucceeded(asyncCloseResults))
             .ThrowOnError();
 
         std::vector<TChunkInfo> chunkInfos;

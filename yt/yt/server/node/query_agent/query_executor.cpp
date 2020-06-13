@@ -629,7 +629,7 @@ private:
                     } else {
                         TQueryStatistics statistics = result.Value();
 
-                        return Combine(*asyncSubqueryResults)
+                        return AllSucceeded(*asyncSubqueryResults)
                         .Apply(BIND([
                             =,
                             this_ = MakeStrong(this)

@@ -247,7 +247,7 @@ void TSchemafulOverlappingLookupReader::UpdateReadyEvent()
             readyEvents.push_back(session->ReadyEvent);
         }
     }
-    ReadyEvent_ = Combine(readyEvents);
+    ReadyEvent_ = AllSucceeded(readyEvents);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -667,7 +667,7 @@ void TSchemafulOverlappingRangeReaderBase<TRowMerger>::UpdateReadyEvent()
             readyEvents.push_back(session->ReadyEvent);
         }
     }
-    ReadyEvent_ = Combine(readyEvents);
+    ReadyEvent_ = AllSucceeded(readyEvents);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -55,7 +55,7 @@ public:
             }
         }
 
-        Combine(AsyncResults_).Subscribe(
+        AllSucceeded(AsyncResults_).Subscribe(
             BIND(&TFollowerPinger::OnComplete, MakeStrong(this))
                 .Via(Owner_->EpochContext_->EpochControlInvoker));
 
@@ -257,7 +257,7 @@ TFuture<void> TLeaseTracker::FireLeaseCheck()
         asyncResults.push_back(callback.Run());
     }
 
-    return Combine(asyncResults);
+    return AllSucceeded(asyncResults);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

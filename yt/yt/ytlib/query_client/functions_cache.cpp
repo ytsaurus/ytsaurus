@@ -695,7 +695,7 @@ void FetchFunctionImplementationsFromCypress(
         asyncResults.push_back(cache->FetchImplementation(key, externalCGInfo->NodeDirectory, blockReadOptions));
     }
 
-    auto results = WaitFor(Combine(asyncResults))
+    auto results = WaitFor(AllSucceeded(asyncResults))
         .ValueOrThrow();
 
     for (size_t index = 0; index < externalCGInfo->Functions.size(); ++index) {

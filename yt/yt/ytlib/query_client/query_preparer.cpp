@@ -1172,7 +1172,7 @@ private:
     std::vector<TTable> Tables;
 
 protected:
-    // TODO: Combine in Structure? Move out?
+    // TODO: AllSucceeded in Structure? Move out?
     const TNamedItemList* GroupItems = nullptr;
     TAggregateItemList* AggregateItems = nullptr;
 
@@ -2448,7 +2448,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         asyncDataSplits.push_back(callbacks->GetInitialSplit(join.Table.Path, timestamp));
     }
 
-    auto dataSplits = WaitFor(Combine(asyncDataSplits))
+    auto dataSplits = WaitFor(AllSucceeded(asyncDataSplits))
         .ValueOrThrow();
 
     YT_LOG_DEBUG("Initial data splits received");

@@ -93,7 +93,7 @@ TFuture<std::vector<TBlock>> TFileReader::ReadBlocks(
         return MakeFuture<std::vector<TBlock>>(error);
     }
 
-    return CombineAll(std::move(futures))
+    return AllSet(std::move(futures))
         .Apply(BIND([count] (const std::vector<TErrorOr<std::vector<TBlock>>>& result) {
             std::vector<TBlock> blocks;
             blocks.reserve(count);

@@ -492,7 +492,7 @@ private:
         for (const auto& queue : Queues_) {
             flushResults.push_back(queue->AsyncFlush());
         }
-        return Combine(flushResults);
+        return AllSucceeded(flushResults);
     }
 };
 

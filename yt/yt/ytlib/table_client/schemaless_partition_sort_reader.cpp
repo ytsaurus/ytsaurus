@@ -509,7 +509,7 @@ private:
     {
         YT_LOG_INFO("Waiting for sort thread");
         PROFILE_TIMING ("/reduce/sort_wait_time") {
-            WaitFor(Combine(SortErrors_))
+            WaitFor(AllSucceeded(SortErrors_))
                 .ThrowOnError();
         }
         YT_LOG_INFO("Sort thread is idle");

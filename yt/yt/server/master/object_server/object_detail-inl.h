@@ -101,7 +101,7 @@ TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NY
         asyncResults.push_back(result);
     }
 
-    return Combine(asyncResults);
+    return AllSucceeded(asyncResults);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

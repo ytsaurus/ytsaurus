@@ -295,7 +295,7 @@ void TErasureWriter::DoOpen()
     for (auto writer : Writers_) {
         asyncResults.push_back(writer->Open());
     }
-    WaitFor(Combine(asyncResults))
+    WaitFor(AllSucceeded(asyncResults))
         .ThrowOnError();
 
     IsOpen_ = true;
@@ -318,7 +318,7 @@ TFuture<void> TErasureWriter::WriteDataBlocks()
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run());
     }
-    return Combine(asyncResults);
+    return AllSucceeded(asyncResults);
 }
 
 void TErasureWriter::WriteDataPart(int partIndex, IChunkWriterPtr writer, const std::vector<TBlock>& blocks)
@@ -416,7 +416,7 @@ TFuture<void> TErasureWriter::Close(const TRefCountedChunkMetaPtr& chunkMeta)
             .Run()
     };
 
-    return Combine(asyncResults).Apply(
+    return AllSucceeded(asyncResults).Apply(
         BIND(&TErasureWriter::OnWritten, MakeStrong(this))
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker()));
 }
@@ -432,7 +432,7 @@ void TErasureWriter::OnWritten()
         asyncResults.push_back(writer->Close(ChunkMeta_));
     }
 
-    WaitFor(Combine(asyncResults))
+    WaitFor(AllSucceeded(asyncResults))
         .ThrowOnError();
 
     i64 diskSpace = 0;

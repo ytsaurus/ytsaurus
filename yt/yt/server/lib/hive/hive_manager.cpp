@@ -462,7 +462,7 @@ private:
             asyncResults.push_back(SyncWith(cellId, true));
         }
 
-        context->ReplyFrom(Combine(asyncResults));
+        context->ReplyFrom(AllSucceeded(asyncResults));
     }
 
 

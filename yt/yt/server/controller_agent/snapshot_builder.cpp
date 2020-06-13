@@ -105,7 +105,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
         job->Suspended = false;
         Jobs_.push_back(job);
 
-        // TODO(ignat): migrate here to cancelable invoker (introduce CombineAll that ignores cancellation of combined futures).
+        // TODO(ignat): migrate here to cancelable invoker (introduce AllSet that ignores cancellation of combined futures).
         onSnapshotStartedFutures.push_back(BIND([weakController = job->WeakController] {
                 if (auto controller = weakController.Lock()) {
                     return controller->OnSnapshotStarted();
@@ -126,8 +126,8 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
     // because controller was disposed.
     std::vector<TSnapshotJobPtr> preparedJobs;
     PROFILE_TIMING("/controllers_prepare_time") {
-        auto resultsOrError = WaitFor(CombineAll(onSnapshotStartedFutures));
-        YT_VERIFY(resultsOrError.IsOK() && "CombineAll failed");
+        auto resultsOrError = WaitFor(AllSet(onSnapshotStartedFutures));
+        YT_VERIFY(resultsOrError.IsOK() && "AllSet failed");
         const auto& results = resultsOrError.Value();
         YT_VERIFY(results.size() == Jobs_.size());
         for (int index = 0; index < Jobs_.size(); ++index) {
@@ -161,7 +161,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
     }
 
     PROFILE_TIMING ("/controllers_suspend_time") {
-        auto result = WaitFor(Combine(operationSuspendFutures)
+        auto result = WaitFor(AllSucceeded(operationSuspendFutures)
             .WithTimeout(Config_->OperationControllerSuspendTimeout));
         if (!result.IsOK()) {
             if (result.GetCode() == NYT::EErrorCode::Timeout) {
@@ -207,7 +207,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
                     }
                 }
             }));
-    return Combine(std::vector<TFuture<void>>{forkFuture, uploadFuture});
+    return AllSucceeded(std::vector<TFuture<void>>{forkFuture, uploadFuture});
 }
 
 void TSnapshotBuilder::OnControllerSuspended(const TSnapshotJobPtr& job)
@@ -325,7 +325,7 @@ TFuture<std::vector<TError>> TSnapshotBuilder::UploadSnapshots()
                 .Run();
         snapshotUploadFutures.push_back(std::move(uploadFuture));
     }
-    return CombineAll(snapshotUploadFutures);
+    return AllSet(snapshotUploadFutures);
 }
 
 void TSnapshotBuilder::UploadSnapshot(const TSnapshotJobPtr& job)

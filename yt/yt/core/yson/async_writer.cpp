@@ -104,7 +104,7 @@ TFuture<TYsonString> TAsyncYsonWriter::Finish()
 {
     FlushCurrentSegment();
 
-    return Combine(AsyncSegments_).Apply(BIND([type = Type_] (const std::vector<TString>& segments) {
+    return AllSucceeded(AsyncSegments_).Apply(BIND([type = Type_] (const std::vector<TString>& segments) {
         size_t length = 0;
         for (const auto& segment : segments) {
             length += segment.length();

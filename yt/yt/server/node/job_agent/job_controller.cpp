@@ -1330,7 +1330,7 @@ TFuture<void> TJobController::TImpl::ProcessHeartbeatResponse(
                 asyncResults.push_back(asyncResult);
             }
 
-            Y_UNUSED(WaitFor(CombineAll(asyncResults)));
+            Y_UNUSED(WaitFor(AllSet(asyncResults)));
         })
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run();

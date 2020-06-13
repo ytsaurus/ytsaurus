@@ -1123,7 +1123,7 @@ TYPED_TEST(TRpcTest, ManyAsyncRequests)
         asyncResults.push_back(asyncResult);
     }
 
-    EXPECT_TRUE(Combine(asyncResults).Get().IsOK());
+    EXPECT_TRUE(AllSucceeded(asyncResults).Get().IsOK());
 }
 
 TYPED_TEST(TRpcTest, RegularAttachments)

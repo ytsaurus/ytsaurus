@@ -125,7 +125,7 @@ TEST(TAsyncExpiringCacheTest, TestEntryRemoval)
             .AsyncVia(threadPool->GetInvoker())
             .Run());
     }
-    WaitFor(Combine(asyncResult))
+    WaitFor(AllSucceeded(asyncResult))
         .ThrowOnError();
 
     Sleep(TDuration::MilliSeconds(200));

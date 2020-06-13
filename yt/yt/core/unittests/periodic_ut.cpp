@@ -82,7 +82,7 @@ TEST_W(TPeriodicTest, ParallelStop)
     {
         auto future1 = executor->Stop();
         auto future2 = executor->Stop();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})))
+        WaitFor(AllSucceeded(std::vector<TFuture<void>>({future1, future2})))
             .ThrowOnError();
     }
     EXPECT_EQ(1, count.load());
@@ -93,7 +93,7 @@ TEST_W(TPeriodicTest, ParallelStop)
         auto future1 = executor->Stop();
         auto future2 = executor->Stop();
         auto future3 = executor->Stop();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2, future3})))
+        WaitFor(AllSucceeded(std::vector<TFuture<void>>({future1, future2, future3})))
             .ThrowOnError();
     }
     EXPECT_EQ(2, count.load());
@@ -118,7 +118,7 @@ TEST_W(TPeriodicTest, ParallelOnExecuted1)
     {
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})))
+        WaitFor(AllSucceeded(std::vector<TFuture<void>>({future1, future2})))
             .ThrowOnError();
     }
     EXPECT_EQ(2, count.load());
@@ -129,7 +129,7 @@ TEST_W(TPeriodicTest, ParallelOnExecuted1)
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
         auto future3 = executor->GetExecutedEvent();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2, future3})))
+        WaitFor(AllSucceeded(std::vector<TFuture<void>>({future1, future2, future3})))
             .ThrowOnError();
     }
     EXPECT_EQ(4, count.load());
@@ -154,7 +154,7 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
     {
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})))
+        WaitFor(AllSucceeded(std::vector<TFuture<void>>({future1, future2})))
             .ThrowOnError();
     }
     EXPECT_EQ(2, count.load());
@@ -165,7 +165,7 @@ TEST_W(TPeriodicTest, ParallelOnExecuted2)
         auto future1 = executor->GetExecutedEvent();
         auto future2 = executor->GetExecutedEvent();
         auto future3 = executor->GetExecutedEvent();
-        WaitFor(Combine(std::vector<TFuture<void>>({future1, future2, future3})))
+        WaitFor(AllSucceeded(std::vector<TFuture<void>>({future1, future2, future3})))
             .ThrowOnError();
     }
     EXPECT_EQ(3, count.load());
@@ -195,7 +195,7 @@ TEST_W(TPeriodicTest, OnExecutedEventCanceled)
         auto future3 = executor->GetExecutedEvent();
         future3.Cancel(TError(NYT::EErrorCode::Canceled, "Canceled"));
 
-        EXPECT_NO_THROW(WaitFor(Combine(std::vector<TFuture<void>>({future1, future2})))
+        EXPECT_NO_THROW(WaitFor(AllSucceeded(std::vector<TFuture<void>>({future1, future2})))
             .ThrowOnError());
     }
     EXPECT_EQ(2, count.load());

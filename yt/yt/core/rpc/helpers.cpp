@@ -536,7 +536,7 @@ TFuture<std::vector<std::invoke_result_t<TFunctor, const TInput&>>> AsyncTransfo
                 .Run();
         });
 
-    return Combine(asyncResults);
+    return AllSucceeded(asyncResults);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

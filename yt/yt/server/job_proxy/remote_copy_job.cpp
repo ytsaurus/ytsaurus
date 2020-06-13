@@ -155,11 +155,11 @@ public:
                 }
             }
 
-            WaitFor(Combine(chunkCopyResults))
+            WaitFor(AllSucceeded(chunkCopyResults))
                 .ThrowOnError();
 
             {
-                auto finalizeResult = WaitFor(Combine(ChunkFinalizationResults_));
+                auto finalizeResult = WaitFor(AllSucceeded(ChunkFinalizationResults_));
                 THROW_ERROR_EXCEPTION_IF_FAILED(finalizeResult, "Error finalizing chunk");
             }
 
@@ -351,7 +351,7 @@ private:
 
             YT_LOG_INFO("Waiting for erasure parts data to be copied");
 
-            WaitFor(Combine(copyResults))
+            WaitFor(AllSucceeded(copyResults))
                 .ThrowOnError();
 
             ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeErasureChunk, MakeStrong(this))
@@ -431,7 +431,7 @@ private:
             closeReplicaWriterResults.push_back(writer->Close(chunkMeta));
         }
 
-        WaitFor(Combine(closeReplicaWriterResults))
+        WaitFor(AllSucceeded(closeReplicaWriterResults))
             .ThrowOnError();
 
         i64 diskSpace = 0;

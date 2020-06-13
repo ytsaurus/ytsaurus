@@ -319,7 +319,7 @@ TFuture<void> TAsyncFileChangelogIndex::FlushDirtyBuckets()
     DirtyBuckets_.clear();
     HasDirtyBuckets_ = false;
 
-    return Combine(asyncResults);
+    return AllSucceeded(asyncResults);
 }
 
 void TAsyncFileChangelogIndex::UpdateIndexBuckets()
@@ -397,7 +397,7 @@ TFuture<void> TAsyncFileChangelogIndex::FlushData()
         asyncResults.reserve(2);
         asyncResults.push_back(FlushDirtyBuckets());
         asyncResults.push_back(IOEngine_->FlushData(IndexFile_).As<void>());
-        return Combine(asyncResults);
+        return AllSucceeded(asyncResults);
     } else {
         return VoidFuture;
     }

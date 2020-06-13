@@ -533,7 +533,7 @@ private:
             req->set_instance_state(static_cast<int>(selfState));
             futures.push_back(req->Invoke());
         }
-        auto responses = WaitFor(CombineAll(futures))
+        auto responses = WaitFor(AllSet(futures))
             .ValueOrThrow();
 
         i64 bannedCount = 0;

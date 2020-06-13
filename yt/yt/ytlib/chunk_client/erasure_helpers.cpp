@@ -439,7 +439,7 @@ public:
         for (const auto& producer : Producers_) {
             asyncBlocks.push_back(producer->Produce(range));
         }
-        return Combine(asyncBlocks);
+        return AllSucceeded(asyncBlocks);
     }
 
     TFuture<void> ConsumeBlocks(const TPartRange& range, const std::vector<TSharedRef>& blocks)
@@ -450,7 +450,7 @@ public:
         for (int index = 0; index < blocks.size(); ++index) {
             asyncResults.push_back(Consumers_[index]->Consume(range, blocks[index]));
         }
-        return Combine(asyncResults);
+        return AllSucceeded(asyncResults);
     }
 
     void Run()

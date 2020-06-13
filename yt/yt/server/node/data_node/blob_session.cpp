@@ -212,7 +212,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
 
     auto netThrottler = Bootstrap_->GetInThrottler(Options_.WorkloadDescriptor);
     auto diskThrottler = Location_->GetInThrottler(Options_.WorkloadDescriptor);
-    return Combine(std::vector<TFuture<void>>({
+    return AllSucceeded(std::vector<TFuture<void>>({
         netThrottler->Throttle(totalSize),
         diskThrottler->Throttle(totalSize) }));
 }

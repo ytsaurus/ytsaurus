@@ -584,7 +584,7 @@ public:
 
         auto delayedResult = TDelayedExecutor::MakeDelayed(Config_->CleanDelay);
 
-        auto combinedResult = Combine(std::vector<TFuture<void>>{prevResult, delayedResult});
+        auto combinedResult = AllSucceeded(std::vector<TFuture<void>>{prevResult, delayedResult});
         curResult.SetFrom(combinedResult.Apply(
             BIND(&TMultiplexedWriter::DoMarkMultiplexedChangelogClean, MakeStrong(this), changelogId)
                 .Via(GetHydraIOInvoker())));
@@ -678,7 +678,7 @@ private:
             barriers.push_back(multiplexedFlushResult);
             Barriers_.clear();
 
-            auto combinedBarrier = Combine(barriers);
+            auto combinedBarrier = AllSucceeded(barriers);
 
             int oldId = MultiplexedChangelogId_;
             int newId = MultiplexedChangelogId_ + 1;

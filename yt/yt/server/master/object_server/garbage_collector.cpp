@@ -456,7 +456,7 @@ void TGarbageCollector::OnObjectRemovalCellsSync()
         futures.push_back(connection->SyncHiveCellWithOthers(secondaryCellIds, cellId));
     }
 
-    auto result = WaitFor(Combine(futures));
+    auto result = WaitFor(AllSucceeded(futures));
     if (!result.IsOK()) {
         YT_LOG_WARNING(result, "Error synchronizing secondary cells");
         return;

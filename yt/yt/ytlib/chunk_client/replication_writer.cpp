@@ -498,7 +498,7 @@ private:
                     .Run());
         }
 
-        WaitFor(Combine(asyncResults))
+        WaitFor(AllSucceeded(asyncResults))
             .ThrowOnError();
     }
 
@@ -600,7 +600,7 @@ private:
                     .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
                     .Run());
         }
-        Combine(asyncResults).Subscribe(
+        AllSucceeded(asyncResults).Subscribe(
             BIND(
                 &TReplicationWriter::OnWindowShifted,
                 MakeWeak(this),

@@ -212,7 +212,7 @@ public:
                     unlinkFutures.push_back(VolumeExecutor_->UnlinkVolume(volumePath, "self"));
                 }
             }
-            WaitFor(Combine(unlinkFutures))
+            WaitFor(AllSucceeded(unlinkFutures))
                 .ThrowOnError();
 
             RunTool<TRemoveDirAsRootTool>(VolumesPath_);
@@ -1303,7 +1303,7 @@ private:
             futures.push_back(std::move(future));
         }
 
-        auto fetchResultsOrError = WaitFor(Combine(futures));
+        auto fetchResultsOrError = WaitFor(AllSucceeded(futures));
         if (!fetchResultsOrError.IsOK()) {
             SetTmpfsAlert(TError("Failed to fetch tmpfs layer descriptions")
                 << fetchResultsOrError);
@@ -1354,7 +1354,7 @@ private:
             newLayerFutures.push_back(DownloadAndImportLayer(artifactKey, tag, true));
         }
 
-        auto newLayersOrError = WaitFor(CombineAll(newLayerFutures));
+        auto newLayersOrError = WaitFor(AllSet(newLayerFutures));
         if (!newLayersOrError.IsOK()) {
             SetTmpfsAlert(TError("Failed to import new tmpfs layers")
                 << newLayersOrError);
@@ -1633,7 +1633,7 @@ public:
 
         // ToDo(psushin): choose proper invoker.
         // Avoid sync calls to WaitFor, to please job preparation context switch guards.
-        Combine(layerFutures)
+        AllSucceeded(layerFutures)
             .Subscribe(BIND(
                 &TPortoVolumeManager::OnLayersPrepared,
                 MakeStrong(this),

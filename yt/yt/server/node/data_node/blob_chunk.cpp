@@ -304,7 +304,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         }
     }
 
-    Combine(session->AsyncResults)
+    AllSucceeded(session->AsyncResults)
         .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             if (error.IsOK()) {
                 CompleteSession(session);

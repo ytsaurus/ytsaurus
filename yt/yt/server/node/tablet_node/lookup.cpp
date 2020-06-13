@@ -345,7 +345,7 @@ private:
         }
 
         if (!asyncFutures.empty()) {
-            WaitFor(Combine(asyncFutures))
+            WaitFor(AllSucceeded(asyncFutures))
                 .ThrowOnError();
         }
     }

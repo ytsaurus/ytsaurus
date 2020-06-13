@@ -374,7 +374,7 @@ public:
                         .AsyncVia(Owner_->EpochControlInvoker_)));
         }
 
-        Combine(asyncResults).Subscribe(
+        AllSucceeded(asyncResults).Subscribe(
             BIND(&TVotingRound::OnComplete, MakeStrong(this))
                 .Via(Owner_->EpochControlInvoker_));
     }

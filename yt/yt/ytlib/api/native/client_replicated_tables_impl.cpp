@@ -105,7 +105,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
             ToProto(req->mutable_tablet_ids(), perCellTabletIds);
             futures.push_back(req->Invoke());
         }
-        auto responsesResult = WaitFor(Combine(futures));
+        auto responsesResult = WaitFor(AllSucceeded(futures));
         auto responses = responsesResult.ValueOrThrow();
 
         THashMap<TTableReplicaId, int> replicaIdToCount;
@@ -200,7 +200,7 @@ TFuture<TTableReplicaInfoPtrList> TClient::PickInSyncReplicas(
         asyncResults.push_back(req->Invoke());
     }
 
-    return Combine(asyncResults).Apply(
+    return AllSucceeded(asyncResults).Apply(
         BIND([=, this_ = MakeStrong(this)] (const std::vector<TQueryServiceProxy::TRspGetTabletInfoPtr>& rsps) {
         THashMap<TTableReplicaId, int> replicaIdToCount;
         for (const auto& rsp : rsps) {
@@ -249,7 +249,7 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
         asyncTableInfos.push_back(tableMountCache->GetTableInfo(path));
     }
 
-    auto tableInfos = WaitFor(Combine(asyncTableInfos))
+    auto tableInfos = WaitFor(AllSucceeded(asyncTableInfos))
         .ValueOrThrow();
 
     bool someReplicated = false;
@@ -275,7 +275,7 @@ std::optional<TString> TClient::PickInSyncClusterAndPatchQuery(
         asyncCandidates.push_back(PickInSyncReplicas(tableInfos[tableIndex], options));
     }
 
-    auto candidates = WaitFor(Combine(asyncCandidates))
+    auto candidates = WaitFor(AllSucceeded(asyncCandidates))
         .ValueOrThrow();
 
     THashMap<TString, int> clusterNameToCount;

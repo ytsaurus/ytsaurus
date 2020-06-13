@@ -463,7 +463,7 @@ public:
         for (const auto& server : Servers_) {
             asyncResults.push_back(server->Stop());
         }
-        return Combine(asyncResults);
+        return AllSucceeded(asyncResults);
     }
 
 private:

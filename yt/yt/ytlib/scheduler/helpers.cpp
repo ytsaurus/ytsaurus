@@ -546,7 +546,7 @@ void ValidateOperationAccess(
         }
     }
 
-    auto results = WaitFor(Combine(futures))
+    auto results = WaitFor(AllSucceeded(futures))
         .ValueOrThrow();
 
     if (!results.empty() && !results.front().MissingSubjects.empty()) {

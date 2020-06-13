@@ -1585,7 +1585,7 @@ private:
             asyncResults.push_back(session->Invoke(std::move(channel)));
         }
 
-        return Combine(asyncResults);
+        return AllSucceeded(asyncResults);
     }
 
     TTransactionCommitOptions AdjustCommitOptions(TTransactionCommitOptions options)
@@ -1630,7 +1630,7 @@ private:
                         flushFutures.push_back(SendRequests()
                             .Apply(BIND([] { return TTransactionFlushResult{}; })));
                     }
-                    return Combine(std::move(flushFutures));
+                    return AllSucceeded(std::move(flushFutures));
                 }).AsyncVia(GetCurrentInvoker()))
             .Apply(
                 BIND([=, this_ = MakeStrong(this)] (const std::vector<TTransactionFlushResult>& results) {
