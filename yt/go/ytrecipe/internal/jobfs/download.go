@@ -1,34 +1,33 @@
-package ytrecipe
+package jobfs
 
 import (
 	"io"
 	"os"
 	"syscall"
+	"time"
 
 	"a.yandex-team.ru/yt/go/yt"
 )
 
-type FileRow struct {
-	FilePath  string `yson:"filename,omitempty"`
-	IsDir     bool   `yson:"is_dir,omitempty"`
-	PartIndex int    `yson:"part_index,omitempty"`
-	Data      []byte `yson:"data,omitempty"`
+type ExitRow struct {
+	ExitCode       int            `yson:"exit_code,omitempty"`
+	KilledBySignal syscall.Signal `yson:"killed_by_signal,omitempty"`
+	IsOOM          bool           `yson:"is_oom,omitempty"`
 
-	// For space files. Row with DataSize != 0, represents DataSize zeroes.
-	DataSize int64 `yson:"data_size,omitempty"`
+	StartedAt  time.Time `yson:"started_at"`
+	UnpackedAt time.Time `yson:"unpacked_at"`
+	FinishedAt time.Time `yson:"finished_at"`
 }
 
 type OutputRow struct {
 	FileRow
+	*ExitRow
 
 	Stderr []byte `yson:"stdout,omitempty"`
 	Stdout []byte `yson:"stderr,omitempty"`
-
-	ExitCode       *int           `yson:"exit_code,omitempty"`
-	KilledBySignal syscall.Signal `yson:"killed_by_signal,omitempty"`
 }
 
-func ReadOutputTable(r yt.TableReader, replacePath func(string) string, stdout, stderr io.Writer) (*OutputRow, error) {
+func ReadOutputTable(r yt.TableReader, transformPath func(string) (string, bool), stdout, stderr io.Writer) (*ExitRow, error) {
 	var currentFileName string
 	var currentFile *os.File
 	var currentFileSize int64
@@ -54,17 +53,27 @@ func ReadOutputTable(r yt.TableReader, replacePath func(string) string, stdout, 
 				return nil, err
 			}
 
-		case row.ExitCode != nil:
-			return &row, nil
+		case row.ExitRow != nil:
+			return row.ExitRow, nil
 
 		case row.IsDir:
-			if err := os.MkdirAll(replacePath(row.FilePath), 0777); err != nil {
+			path, ok := transformPath(row.FilePath)
+			if !ok {
+				continue
+			}
+
+			if err := os.MkdirAll(path, 0777); err != nil {
 				return nil, err
 			}
 
 		case row.FilePath != "":
+			path, ok := transformPath(row.FilePath)
+			if !ok {
+				continue
+			}
+
 			var err error
-			if replacePath(row.FilePath) != currentFileName {
+			if path != currentFileName {
 				if currentFile != nil {
 					if err := currentFile.Close(); err != nil {
 						return nil, err
@@ -73,8 +82,8 @@ func ReadOutputTable(r yt.TableReader, replacePath func(string) string, stdout, 
 				}
 
 				currentFileSize = 0
-				currentFileName = replacePath(row.FilePath)
-				currentFile, err = os.Create(replacePath(row.FilePath))
+				currentFileName = path
+				currentFile, err = os.Create(path)
 				if err != nil {
 					return nil, err
 				}

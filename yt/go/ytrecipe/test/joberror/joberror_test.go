@@ -3,11 +3,6 @@ package joberror
 import (
 	"os"
 	"testing"
-
-	"github.com/stretchr/testify/require"
-
-	"a.yandex-team.ru/library/go/test/yatest"
-	"a.yandex-team.ru/yt/go/ytrecipe"
 )
 
 func TestJobError(t *testing.T) {
@@ -15,6 +10,6 @@ func TestJobError(t *testing.T) {
 		return
 	}
 
-	_, err := os.Create(yatest.OutputPath(ytrecipe.CrashJobFileMarker))
-	require.NoError(t, err)
+	//_, err := os.Create(yatest.OutputPath(ytrecipe.CrashJobFileMarker))
+	//require.NoError(t, err)
 }

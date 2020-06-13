@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -13,7 +14,8 @@ import (
 
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt/ythttp"
-	"a.yandex-team.ru/yt/go/ytrecipe"
+	"a.yandex-team.ru/yt/go/ytrecipe/internal/jobfs"
+	"a.yandex-team.ru/yt/go/ytrecipe/internal/ytexec"
 )
 
 func init() {
@@ -21,14 +23,13 @@ func init() {
 
 	downloadCmd.Flags().StringVar(&flagPath, "path", "", "cypress path")
 	downloadCmd.Flags().StringVar(&flagOutput, "output", "", "output directory")
-	downloadCmd.Flags().StringVar(&flagTrimPrefix, "trim-prefix", "", "trim prefix from all paths")
+	downloadCmd.Flags().Bool("update-me-to-v2", false, "dummy flag to check for version compatibility")
 	downloadCmd.Flags().BoolVar(&flagSkipYaOutput, "skip-ya-output", false, "")
 }
 
 var (
 	flagPath         string
 	flagOutput       string
-	flagTrimPrefix   string
 	flagSkipYaOutput bool
 )
 
@@ -44,7 +45,13 @@ func doDownload() error {
 	}
 
 	ctx := context.Background()
-	r, err := yc.ReadTable(ctx, ypath.Path(flagPath).Child(ytrecipe.YTRecipeOutput), nil)
+
+	var fs jobfs.Config
+	if err := yc.GetNode(ctx, ypath.Path(flagPath).Attr("fs_config"), &fs, nil); err != nil {
+		return err
+	}
+
+	r, err := yc.ReadTable(ctx, ypath.Path(flagPath).Child(ytexec.YTOutputTableName), nil)
 	if err != nil {
 		return err
 	}
@@ -55,11 +62,17 @@ func doDownload() error {
 		_, _ = fmt.Fprintf(os.Stderr, "downloading to %s\n", flagOutput)
 	}
 
-	replacePath := func(s string) string {
-		return filepath.Join(flagOutput, strings.TrimPrefix(s, flagTrimPrefix))
+	transformPath := func(s string) (string, bool) {
+		for prefix, to := range fs.Download {
+			if strings.HasPrefix(s, prefix) {
+				return filepath.Join(flagOutput, to, strings.TrimPrefix(s, prefix)), true
+			}
+		}
+
+		return "", false
 	}
 
-	if _, err := ytrecipe.ReadOutputTable(r, replacePath, ioutil.Discard, ioutil.Discard); err != nil {
+	if _, err := jobfs.ReadOutputTable(r, transformPath, ioutil.Discard, ioutil.Discard); err != nil {
 		return err
 	}
 
@@ -67,28 +80,45 @@ func doDownload() error {
 		return nil
 	}
 
-	r, err = yc.ReadTable(ctx, ypath.Path(flagPath).Child(ytrecipe.OutputTableName), nil)
+	r, err = yc.ReadTable(ctx, ypath.Path(flagPath).Child(ytexec.OutputTableName), nil)
 	if err != nil {
 		return err
 	}
 	defer r.Close()
 
-	if err := os.MkdirAll(filepath.Join(flagOutput, "testing_out_stuff"), 0777); err != nil {
-		return err
+	var stdout, stderr io.Writer
+	if stdoutPath, ok := transformPath(fs.StdoutFile); ok {
+		if err := os.MkdirAll(filepath.Dir(stdoutPath), 0777); err != nil {
+			return err
+		}
+
+		stdoutFile, err := os.Create(stdoutPath)
+		if err != nil {
+			return err
+		}
+		defer stdoutFile.Close()
+
+		stdout = stdoutFile
+	} else {
+		stdout = ioutil.Discard
 	}
 
-	stdoutFile, err := os.Create(filepath.Join(flagOutput, "testing_out_stuff", "stdout"))
-	if err != nil {
-		return err
-	}
-	defer stdoutFile.Close()
+	if stderrPath, ok := transformPath(fs.StderrFile); ok {
+		if err := os.MkdirAll(filepath.Dir(stderrPath), 0777); err != nil {
+			return err
+		}
 
-	stderrFile, err := os.Create(filepath.Join(flagOutput, "testing_out_stuff", "stderr"))
-	if err != nil {
-		return err
-	}
-	defer stderrFile.Close()
+		stderrFile, err := os.Create(stderrPath)
+		if err != nil {
+			return err
+		}
+		defer stderrFile.Close()
 
-	_, err = ytrecipe.ReadOutputTable(r, replacePath, stdoutFile, stderrFile)
+		stderr = stderrFile
+	} else {
+		stderr = ioutil.Discard
+	}
+
+	_, err = jobfs.ReadOutputTable(r, transformPath, stdout, stderr)
 	return err
 }

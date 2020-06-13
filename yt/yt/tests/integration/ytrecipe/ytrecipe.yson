@@ -21,14 +21,8 @@
         "yt/python/yt/environment/bin/yt_env_watcher_make/yt_env_watcher";
     ];
 
-    upload_workfile=[
-        "layers/static-bin.tar.gz";
-        "layers/static_cat";
-        "layers/test.tar.gz";
-        "layers/corrupted.tar.gz";
-        "layers/playground.tar.gz";
-        "layers/olli.tar.gz";
-        "layers/marko.tar.gz";
+    upload_workdir=[
+        "layers";
     ];
 
     resource_limits={

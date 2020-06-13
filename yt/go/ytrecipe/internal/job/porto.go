@@ -1,4 +1,4 @@
-package ytrecipe
+package job
 
 import (
 	"fmt"
@@ -12,31 +12,24 @@ import (
 	"time"
 
 	porto "a.yandex-team.ru/infra/porto/api_go"
-	pporto "a.yandex-team.ru/infra/porto/proto"
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/yt/go/guid"
 )
 
 const (
-	bindRootPath     = "/slot/sandbox/tmpfs/bind"
-	hddDirPath       = "/slot/sandbox/ytrecipe_hdd"
-	coreDumpsDirPath = "/slot/sandbox/ytrecipe_coredumps"
+	tmpfsStorage = "/slot/sandbox/tmpfs"
+	ext4Storage  = "/slot/sandbox/ext4"
 )
 
-func (j *Job) spawnPorto(quit chan syscall.Signal, stdout, stderr io.Writer) error {
-	conn, err := porto.Dial()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
+func (j *Job) createRootFSVolumes(conn porto.PortoAPI) error {
 	bindPoints, err := j.FS.LocateBindPoints()
 	if err != nil {
 		return err
 	}
+	j.L.Debug("located bind points", log.Strings("paths", bindPoints))
 
-	var bindVolumes []*pporto.TVolumeDescription
-	createBind := func(at, storage string) error {
-		if err := os.MkdirAll(at, 0777); err != nil {
+	createBind := func(storage, path string) error {
+		if err := os.MkdirAll(path, 0777); err != nil {
 			return err
 		}
 
@@ -44,35 +37,60 @@ func (j *Job) spawnPorto(quit chan syscall.Signal, stdout, stderr io.Writer) err
 			return err
 		}
 
-		v, err := conn.CreateVolume(at, map[string]string{
+		_, err := conn.CreateVolume(path, map[string]string{
 			"backend": "rbind",
 			"storage": storage,
 		})
+
+		j.L.Info("created volume",
+			log.String("name", path),
+			log.String("storage", storage))
+
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to bind %s to %s: %w", storage, path, err)
 		}
 
-		bindVolumes = append(bindVolumes, v)
 		return nil
 	}
 
-	for _, p := range bindPoints {
-		bindPoint := filepath.Join(bindRootPath, p)
+	for _, dir := range bindPoints {
+		storage := filepath.Join(tmpfsStorage, guid.New().String())
 
-		if err := createBind(bindPoint, bindPoint); err != nil {
+		if err := createBind(storage, dir); err != nil {
 			return err
 		}
 	}
 
-	if err := createBind(filepath.Join(bindRootPath, j.FS.YTHDD), hddDirPath); err != nil {
-		return err
-	}
-	bindPoints = append(bindPoints, j.FS.YTHDD)
+	for _, path := range j.FS.Ext4Dirs {
+		storage := filepath.Join(ext4Storage, guid.New().String())
 
-	if err := createBind(filepath.Join(bindRootPath, j.FS.YTCoreDumps), coreDumpsDirPath); err != nil {
+		if err := createBind(storage, path); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (j *Job) spawnPorto(
+	quit chan syscall.Signal,
+	prepareFS func() error,
+	stdout, stderr io.Writer,
+) error {
+	conn, err := porto.Dial()
+	if err != nil {
 		return err
 	}
-	bindPoints = append(bindPoints, j.FS.YTCoreDumps)
+	defer conn.Close()
+
+	err = j.createRootFSVolumes(conn)
+	if err != nil {
+		return err
+	}
+
+	if err := prepareFS(); err != nil {
+		return err
+	}
 
 	const ctName = "self/T"
 
@@ -90,11 +108,11 @@ func (j *Job) spawnPorto(quit chan syscall.Signal, stdout, stderr io.Writer) err
 		return err
 	}
 
-	for i, v := range bindVolumes {
-		if err := conn.LinkVolumeTarget(*v.Path, ctName, bindPoints[i], false); err != nil {
-			return err
-		}
-	}
+	//for i, v := range volumes {
+	//	if err := conn.LinkVolumeTarget(*v.Path, ctName, bindPaths[i], false); err != nil {
+	//		return fmt.Errorf("failed to link volume: %w", err)
+	//	}
+	//}
 
 	setProperty := func(name, value string) {
 		if err != nil {
@@ -107,23 +125,23 @@ func (j *Job) spawnPorto(quit chan syscall.Signal, stdout, stderr io.Writer) err
 		}
 	}
 
-	setProperty("command", strings.Join(j.Env.Args, " "))
+	setProperty("command", strings.Join(j.Cmd.Args, " "))
 	setProperty("user", "root")
 	setProperty("net", "none")
-	setProperty("cwd", j.Env.WorkPath)
-	setProperty("env", strings.Join(j.Env.Environ, ";"))
+	setProperty("cwd", j.Cmd.Cwd)
+	setProperty("env", strings.Join(j.Cmd.Environ, ";"))
 	setProperty("stdout_path", fmt.Sprintf("/dev/fd/%d", stdoutW.Fd()))
 	setProperty("stderr_path", fmt.Sprintf("/dev/fd/%d", stderrW.Fd()))
 	setProperty("controllers[memory]", "true")
-	setProperty("memory_limit", fmt.Sprintf("%d", j.Config.ResourceLimits.MemoryLimit))
+	setProperty("memory_limit", fmt.Sprintf("%d", j.OperationConfig.MemoryLimit))
 	setProperty("ulimit", "core: unlimited")
-	setProperty("core_command", fmt.Sprintf("cp --sparse=always /dev/stdin %s/${CORE_EXE_NAME}-${CORE_PID}.core", YTRecipeCoreDumps))
+	setProperty("core_command", fmt.Sprintf("cp --sparse=always /dev/stdin %s/${CORE_EXE_NAME}-${CORE_PID}.core", j.FS.CoredumpDir))
 
 	if err != nil {
 		return err
 	}
 
-	j.L.Info("spawning nested porto container", log.Int("memory_limit", j.Config.ResourceLimits.MemoryLimit))
+	j.L.Info("spawning nested porto container", log.Int("memory_limit", j.OperationConfig.MemoryLimit))
 	if err := conn.Start(ctName); err != nil {
 		return err
 	}
@@ -176,14 +194,10 @@ func (j *Job) spawnPorto(quit chan syscall.Signal, stdout, stderr io.Writer) err
 		return fmt.Errorf("can't parse exit_code: %w", err)
 	}
 
-	if exitCodeInt != 0 {
-		return &ContainerExitError{
-			ExitCode:       exitCodeInt,
-			KilledBySignal: lastSignal,
-		}
+	return &ContainerExitError{
+		ExitCode:       exitCodeInt,
+		KilledBySignal: lastSignal,
 	}
-
-	return nil
 }
 
 type ContainerExitError struct {

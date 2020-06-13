@@ -9,14 +9,16 @@ import (
 
 	porto "a.yandex-team.ru/infra/porto/api_go"
 	"a.yandex-team.ru/library/go/test/yatest"
-	"a.yandex-team.ru/yt/go/ytrecipe"
 )
 
 func TestNestedPorto(t *testing.T) {
 	conn, err := porto.Dial()
 	require.NoError(t, err)
 
-	volumePath := yatest.WorkPath(filepath.Join(ytrecipe.YTRecipeOutput, "volume"))
+	require.NoError(t, os.MkdirAll(yatest.WorkPath("ytrecipe_output"), 0777))
+	require.NoError(t, os.MkdirAll(yatest.WorkPath("ytrecipe_hdd"), 0777))
+
+	volumePath := filepath.Join(yatest.WorkPath("ytrecipe_output"), "volume")
 
 	require.NoError(t, os.Mkdir(volumePath, 0777))
 	_, err = conn.CreateVolume(volumePath, map[string]string{
@@ -26,7 +28,7 @@ func TestNestedPorto(t *testing.T) {
 
 	require.NoError(t, err)
 
-	volumePath = yatest.WorkPath(filepath.Join(ytrecipe.YTRecipeHDD, "volume"))
+	volumePath = filepath.Join(yatest.WorkPath("ytrecipe_hdd"), "volume")
 
 	require.NoError(t, os.Mkdir(volumePath, 0777))
 	_, err = conn.CreateVolume(volumePath, map[string]string{
