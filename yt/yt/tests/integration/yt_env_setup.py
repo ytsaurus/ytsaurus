@@ -573,6 +573,7 @@ class YTEnvSetup(object):
             if env is None:
                 continue
             env.stop()
+            env.remove_runtime_data()
 
         yt_commands.terminate_drivers()
         gc.collect()
@@ -614,11 +615,6 @@ class YTEnvSetup(object):
                 # XXX(dcherednik): Delete named pipes.
                 # TODO(prime@): remove this garbage
                 subprocess.check_call(["find", cls.path_to_run, "-type", "p", "-delete"])
-
-            runtime_data = [os.path.join(cls.path_to_run, "runtime_data")] + glob.glob(cls.path_to_run + "/*/runtime_data")
-            for dir in runtime_data:
-                if os.path.exists(dir):
-                    shutil.rmtree(dir, ignore_errors=True)
 
             if SANDBOX_ROOTDIR != SANDBOX_STORAGE_ROOTDIR:
                 destination_path = os.path.join(SANDBOX_STORAGE_ROOTDIR, cls.test_name)
