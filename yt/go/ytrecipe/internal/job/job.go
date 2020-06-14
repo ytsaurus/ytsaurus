@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"sync"
 	"syscall"
 	"time"
@@ -19,6 +20,8 @@ func init() {
 
 type Job struct {
 	mapreduce.Untyped
+
+	DmesgLogPath string
 
 	Cmd             Cmd
 	OperationConfig OperationConfig
@@ -64,6 +67,19 @@ func (j *Job) scheduleSignals() chan syscall.Signal {
 	return quit
 }
 
+func (j *Job) saveDmesg() error {
+	logFile, err := os.Create(j.DmesgLogPath)
+	if err != nil {
+		return err
+	}
+
+	cmd := exec.Command("/bin/dmesg", "-T")
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+
+	return cmd.Run()
+}
+
 func (j *Job) runJob(out mapreduce.Writer) error {
 	stdout := &stdWriter{w: out, mu: new(sync.Mutex), stdout: true}
 	stderr := &stdWriter{w: out, mu: stdout.mu, stdout: false}
@@ -83,6 +99,10 @@ func (j *Job) runJob(out mapreduce.Writer) error {
 
 	err := j.spawnPorto(j.scheduleSignals(), prepareFS, stdout, stderr)
 	exitRow.FinishedAt = time.Now()
+
+	if err := j.saveDmesg(); err != nil {
+		return err
+	}
 
 	var ctErr *ContainerExitError
 	if errors.As(err, &ctErr) {
