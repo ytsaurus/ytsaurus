@@ -1194,7 +1194,7 @@ private:
             for (i64 rowIndex = 0; rowIndex < rows->size(); ++rowIndex) {
                 i64 tableRowIndex = ChunkSpec_.table_row_index() + RowIndex_ - rows->size() + rowIndex;
                 if (Sampler_.Sample(tableRowIndex)) {
-                    rows[insertIndex] = rows[rowIndex];
+                    (*rows)[insertIndex] = (*rows)[rowIndex];
                     ++insertIndex;
                 }
             }
