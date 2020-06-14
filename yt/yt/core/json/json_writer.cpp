@@ -495,7 +495,7 @@ void TJsonConsumer::OnBooleanScalar(bool value)
             JsonWriter->OnStringScalar(AsStringBuf("boolean"));
         }
         EnterNode();
-        if (Config->Stringify || Config->BooleanAsString) {
+        if (Config->Stringify) {
             WriteStringScalar(FormatBool(value));
         } else {
             JsonWriter->OnBooleanScalar(value);

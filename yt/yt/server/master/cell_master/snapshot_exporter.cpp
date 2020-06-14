@@ -179,8 +179,7 @@ void DoExportSnapshot(
             &Cout,
             EYsonFormat::Text,
             EYsonType::Node,
-            /* enableRaw */ false,
-            /* booleanAsString */ false);
+            /* enableRaw */ false);
 
         auto transaction = node->GetTransaction();
         BuildYsonFluently(writer.get())

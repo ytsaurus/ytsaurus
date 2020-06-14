@@ -26,8 +26,7 @@ void TDriverResponseHolder::Initialize()
         &ResponseParametersBlobOutput_,
         EYsonFormat::Binary,
         EYsonType::MapFragment,
-        /* enableRaw */ false,
-        /* booleanAsString */ false);
+        /* enableRaw */ false);
 }
 
 TDriverResponseHolder::~TDriverResponseHolder()

@@ -143,13 +143,11 @@ TYsonWriter::TYsonWriter(
     EYsonFormat format,
     EYsonType type,
     bool enableRaw,
-    bool booleanAsString,
     int indent)
     : Stream_(stream)
     , Format_(format)
     , Type_(type)
     , EnableRaw_(enableRaw)
-    , BooleanAsString_(booleanAsString)
     , IndentSize_(indent)
 {
     YT_ASSERT(Stream_);
@@ -262,11 +260,6 @@ void TYsonWriter::OnDoubleScalar(double value)
 
 void TYsonWriter::OnBooleanScalar(bool value)
 {
-    if (BooleanAsString_) {
-        OnStringScalar(value ? AsStringBuf("true") : AsStringBuf("false"));
-        return;
-    }
-
     if (Format_ == EYsonFormat::Binary) {
         Stream_->Write(value ? NDetail::TrueMarker : NDetail::FalseMarker);
     } else {
@@ -361,12 +354,10 @@ int TYsonWriter::GetDepth() const
 TBufferedBinaryYsonWriter::TBufferedBinaryYsonWriter(
     IOutputStream* stream,
     EYsonType type,
-    bool enableRaw,
-    bool booleanAsString)
+    bool enableRaw)
     : Stream_(stream)
     , Type_(type)
     , EnableRaw_(enableRaw)
-    , BooleanAsString_(booleanAsString)
     , BufferStart_(Buffer_)
     , BufferEnd_(Buffer_ + BufferSize)
     , BufferCursor_(BufferStart_)
@@ -471,13 +462,9 @@ void TBufferedBinaryYsonWriter::OnDoubleScalar(double value)
 
 void TBufferedBinaryYsonWriter::OnBooleanScalar(bool value)
 {
-    if (Y_UNLIKELY(BooleanAsString_)) {
-        OnStringScalar(value ? AsStringBuf("true") : AsStringBuf("false"));
-    } else {
-        EnsureSpace(2);
-        *BufferCursor_++ = (value ? NDetail::TrueMarker : NDetail::FalseMarker);
-        EndNode();
-    }
+    EnsureSpace(2);
+    *BufferCursor_++ = (value ? NDetail::TrueMarker : NDetail::FalseMarker);
+    EndNode();
 }
 
 void TBufferedBinaryYsonWriter::OnEntity()
@@ -563,22 +550,19 @@ std::unique_ptr<IFlushableYsonConsumer> CreateYsonWriter(
     EYsonFormat format,
     EYsonType type,
     bool enableRaw,
-    bool booleanAsString,
     int indent)
 {
     if (format == EYsonFormat::Binary) {
         return std::unique_ptr<IFlushableYsonConsumer>(new TBufferedBinaryYsonWriter(
             output,
             type,
-            enableRaw,
-            booleanAsString));
+            enableRaw));
     } else {
         return std::unique_ptr<IFlushableYsonConsumer>(new TYsonWriter(
             output,
             format,
             type,
             enableRaw,
-            booleanAsString,
             indent));
     }
 }

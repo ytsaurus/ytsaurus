@@ -29,8 +29,6 @@ public:
 
     std::optional<int> StringLengthLimit;
 
-    bool BooleanAsString;
-
     bool Stringify;
     bool AnnotateWithTypes;
 
@@ -57,8 +55,6 @@ public:
             .Default(true);
         RegisterParameter("string_length_limit", StringLengthLimit)
             .Default();
-        RegisterParameter("boolean_as_string", BooleanAsString)
-            .Default(false);
         RegisterParameter("stringify", Stringify)
             .Default(false);
         RegisterParameter("annotate_with_types", AnnotateWithTypes)
