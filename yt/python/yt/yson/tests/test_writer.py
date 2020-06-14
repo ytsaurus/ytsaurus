@@ -42,10 +42,8 @@ class YsonWriterTestBase(object):
         assert self.dumps({"key": "1\\"}, yson_format="text") == b'{"key"="1\\\\";}'
 
     def test_boolean(self):
-        assert self.dumps(False, boolean_as_string=True) == b'"false"'
-        assert self.dumps(True, boolean_as_string=True) == b'"true"'
-        assert self.dumps(False, boolean_as_string=False) == b"%false"
-        assert self.dumps(True, boolean_as_string=False) == b"%true"
+        assert self.dumps(False) == b"%false"
+        assert self.dumps(True) == b"%true"
 
     def test_integers(self):
         value = 0

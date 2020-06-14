@@ -533,12 +533,6 @@ private:
             indent = static_cast<int>(longIndent);
         }
 
-        bool booleanAsString = false;
-        if (HasArgument(args, kwargs, "boolean_as_string")) {
-            auto arg = ExtractArgument(args, kwargs, "boolean_as_string");
-            booleanAsString = Py::Boolean(arg);
-        }
-
         bool ignoreInnerAttributes = false;
         if (HasArgument(args, kwargs, "ignore_inner_attributes")) {
             auto arg = ExtractArgument(args, kwargs, "ignore_inner_attributes");
@@ -567,8 +561,7 @@ private:
             outputStream,
             ysonFormat,
             ysonType,
-            false,
-            booleanAsString,
+            /* enableRaw */ false,
             indent);
 
         switch (ysonType) {

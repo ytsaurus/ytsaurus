@@ -27,7 +27,6 @@ public:
         EYsonFormat format = EYsonFormat::Binary,
         EYsonType type = EYsonType::Node,
         bool enableRaw = false,
-        bool booleanAsString = false,
         int indent = DefaultIndent);
 
     // IYsonConsumer overrides.
@@ -61,7 +60,6 @@ protected:
     const EYsonFormat Format_;
     const EYsonType Type_;
     const bool EnableRaw_;
-    const bool BooleanAsString_;
     const int IndentSize_;
 
     int Depth_ = 0;
@@ -100,8 +98,7 @@ public:
     TBufferedBinaryYsonWriter(
         IOutputStream* stream,
         EYsonType type = EYsonType::Node,
-        bool enableRaw = true,
-        bool booleanAsString = false);
+        bool enableRaw = true);
 
     // IYsonConsumer overrides.
     virtual void OnStringScalar(TStringBuf value) override;
@@ -133,7 +130,6 @@ protected:
     IOutputStream* const Stream_;
     const EYsonType Type_;
     const bool EnableRaw_;
-    const bool BooleanAsString_;
 
     static constexpr size_t BufferSize = 1024;
     static constexpr size_t MaxSmallStringLength = 256;
@@ -161,7 +157,6 @@ std::unique_ptr<IFlushableYsonConsumer> CreateYsonWriter(
     EYsonFormat format,
     EYsonType type,
     bool enableRaw,
-    bool booleanAsString,
     int indent = TYsonWriter::DefaultIndent);
 
 ////////////////////////////////////////////////////////////////////////////////

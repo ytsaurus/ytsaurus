@@ -59,8 +59,7 @@ TYsonString CombineObjectIds(
         &stringOutput,
         EYsonFormat::Binary,
         EYsonType::Node,
-        /* enableRaw */ false,
-        /* booleanAsString */ false);
+        /* enableRaw */ false);
 
     BuildYsonFluently(writer.get())
         .BeginList()

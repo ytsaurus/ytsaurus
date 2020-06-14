@@ -574,7 +574,7 @@ class YsonFormat(Format):
     """
 
     def __init__(self, format=None, control_attributes_mode=None,
-                 ignore_inner_attributes=None, boolean_as_string=None, table_index_column="@table_index",
+                 ignore_inner_attributes=None, table_index_column="@table_index",
                  attributes=None, raw=None, always_create_attributes=None, encoding=_ENCODING_SENTINEL,
                  require_yson_bindings=None, lazy=None, sort_keys=None):
         """
@@ -586,14 +586,12 @@ class YsonFormat(Format):
         as fields of the iterator, including "tablet_index" control attribute. \
         In "none" mode rows are unmodified.
         """
-        defaults = {"boolean_as_string": False,
-                    "ignore_inner_attributes": False,
+        defaults = {"ignore_inner_attributes": False,
                     "always_create_attributes": False,
                     "format": "binary",
                     "lazy": False,
                     "sort_keys": False}
-        options = {"boolean_as_string": boolean_as_string,
-                   "ignore_inner_attributes": ignore_inner_attributes,
+        options = {"ignore_inner_attributes": ignore_inner_attributes,
                    "always_create_attributes": always_create_attributes,
                    "format": format,
                    "lazy": lazy,
@@ -689,7 +687,6 @@ class YsonFormat(Format):
             yson.dump(rows, stream_or_streams,
                       yson_type="list_fragment",
                       yson_format=self.attributes["format"],
-                      boolean_as_string=self.attributes["boolean_as_string"],
                       **kwargs)
             return
 
@@ -724,7 +721,6 @@ class YsonFormat(Format):
             yson.dump(rows_iterator, stream_or_streams[rows_iterator.table_index],
                       yson_type="list_fragment",
                       yson_format=self.attributes["format"],
-                      boolean_as_string=self.attributes["boolean_as_string"],
                       **kwargs)
 
     def postprocess(self, string):

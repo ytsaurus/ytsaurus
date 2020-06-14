@@ -73,19 +73,18 @@ def _escape_bytes(obj):
     return ESCAPE.sub(replace, obj)
 
 def dump(object, stream, yson_format=None, indent=None, check_circular=True, encoding="utf-8", yson_type=None,
-         boolean_as_string=False, sort_keys=False):
+         sort_keys=False):
     """Serializes `object` as a YSON formatted stream to `stream`.
 
     :param str yson_format: format of YSON, one of ["binary", "text", "pretty"].
     :param str yson_type: type of YSON, one of ["node", "list_fragment", "map_fragment"].
     :param int indent: number of identation spaces in pretty format.
     :param str encoding: encoding that uses to encode unicode strings.
-    :param bool boolean_as_string: whether dump boolean values as YSON strings (needed for backward compatibility).
     :param bool sort_keys: if True, mapping items are printed in sorted order.
     """
 
     stream.write(dumps(object, yson_format=yson_format, check_circular=check_circular, encoding=encoding,
-                       indent=indent, yson_type=yson_type, boolean_as_string=boolean_as_string, sort_keys=sort_keys))
+                       indent=indent, yson_type=yson_type, sort_keys=sort_keys))
 
 class YsonContext(object):
     def __init__(self):
@@ -109,7 +108,7 @@ def _raise_error_with_context(message, context):
     raise YsonError(message, attributes=attributes)
 
 def dumps(object, yson_format=None, indent=None, check_circular=True, encoding="utf-8", yson_type=None,
-          boolean_as_string=False, sort_keys=False):
+          sort_keys=False):
     """Serializes `object` as a YSON formatted stream to string and returns it. See :func:`dump <.dump>`."""
     if indent is None:
         indent = 4
@@ -127,13 +126,12 @@ def dumps(object, yson_format=None, indent=None, check_circular=True, encoding="
     else:
         yson_type = "node"
 
-    d = Dumper(check_circular, encoding, indent, yson_type, boolean_as_string, sort_keys)
+    d = Dumper(check_circular, encoding, indent, yson_type, sort_keys)
     return d.dumps(object, YsonContext())
 
 class Dumper(object):
-    def __init__(self, check_circular, encoding, indent, yson_type, boolean_as_string, sort_keys):
+    def __init__(self, check_circular, encoding, indent, yson_type, sort_keys):
         self.yson_type = yson_type
-        self.boolean_as_string = boolean_as_string
 
         self._seen_objects = None
         if check_circular:
@@ -162,15 +160,9 @@ class Dumper(object):
 
         result = None
         if obj is False or (isinstance(obj, yson_types.YsonBoolean) and not obj):
-            if self.boolean_as_string:
-                result = b'"false"'
-            else:
-                result = b"%false"
+            result = b"%false"
         elif obj is True or (isinstance(obj, yson_types.YsonBoolean) and obj):
-            if self.boolean_as_string:
-                result = b'"true"'
-            else:
-                result = b"%true"
+            result = b"%true"
         elif isinstance(obj, integer_types):
             if obj < -2 ** 63 or obj >= 2 ** 64:
                 _raise_error_with_context("Integer {0} cannot be represented in YSON "

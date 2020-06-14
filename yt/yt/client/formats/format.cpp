@@ -126,8 +126,7 @@ std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForYson(
         output,
         config->Format,
         DataTypeToYsonType(dataType),
-        config->Format == EYsonFormat::Binary,
-        config->BooleanAsString);
+        config->Format == EYsonFormat::Binary);
 }
 
 std::unique_ptr<IFlushableYsonConsumer> CreateConsumerForJson(
@@ -227,8 +226,7 @@ TIntrusivePtr<TWriter> CreateAdaptedWriterForYson(
             return std::unique_ptr<IFlushableYsonConsumer>(new TBufferedBinaryYsonWriter(
                 buffer,
                 EYsonType::ListFragment,
-                true,
-                config->BooleanAsString));
+                true));
         } else {
             return std::unique_ptr<IFlushableYsonConsumer>(new TYsonWriter(
                 buffer,

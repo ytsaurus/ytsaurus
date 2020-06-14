@@ -116,8 +116,7 @@ void SerializeSkiff(
             &stringOutput,
             EYsonFormat::Binary,
             EYsonType::Node,
-            /* enableRaw */ false,
-            /* booleanAsString */ false);
+            /* enableRaw */ false);
 
         NYTree::BuildYsonFluently(writer.get())
             .DoMapFor(*record->GetOtherFields(), [=] (NYTree::TFluentMap fluent, const std::pair<TString, Py::Object>& column) {
