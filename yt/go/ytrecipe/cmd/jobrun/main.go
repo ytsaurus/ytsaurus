@@ -30,6 +30,7 @@ func do() error {
 	execConfig.Exec = ytexec.ExecConfig{
 		JobLog:         yatest.OutputPath("job.log"),
 		ExecLog:        yatest.OutputPath("ytexec.log"),
+		DmesgLog:       yatest.OutputPath("dmesg.log"),
 		ReadmeFile:     yatest.OutputPath("README.md"),
 		DownloadScript: yatest.OutputPath("download.sh"),
 		PrepareFile:    yatest.OutputPath("prepare.json"),

@@ -13,8 +13,9 @@ type ExecConfig struct {
 	DownloadScript string `json:"download_script"`
 	ResultFile     string `json:"result_file"`
 
-	ExecLog string `json:"exec_log"`
-	JobLog  string `json:"job_log"`
+	ExecLog  string `json:"exec_log"`
+	JobLog   string `json:"job_log"`
+	DmesgLog string `json:"dmesg_log"`
 
 	YTTokenEnv string `json:"yt_token_env"`
 }

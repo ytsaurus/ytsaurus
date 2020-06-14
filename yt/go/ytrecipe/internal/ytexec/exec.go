@@ -205,6 +205,7 @@ func (e *Exec) PrepareJob(ctx context.Context) (j *job.Job, s *spec.Spec, output
 		OperationConfig: e.config.Operation,
 		Cmd:             e.config.Cmd,
 		FS:              jobfs.New(),
+		DmesgLogPath:    e.config.Exec.DmesgLog,
 	}
 
 	if err = j.FS.Add(e.config.FS); err != nil {
