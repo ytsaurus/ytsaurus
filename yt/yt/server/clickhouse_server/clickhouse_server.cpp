@@ -77,7 +77,15 @@ public:
             ProfilingPeriod))
     {
         SetupLogger();
-        SetupContext();
+
+        // NB: under debug build this method does not fit in regular fiber stack
+        // due to force inlining stack bloat: https://max42.at.yandex-team.ru/103.
+        TCoroutine<void()> coroutine(BIND([&] (TCoroutine<void()>& /* self */) {
+            SetupContext();
+        }), EExecutionStackKind::Large);
+        coroutine.Run();
+        YT_VERIFY(coroutine.IsCompleted());
+
         WarmupDictionaries();
     }
 
@@ -231,12 +239,9 @@ private:
         DB::DatabaseCatalog::instance().attachDatabase(DB::DatabaseCatalog::TEMPORARY_DATABASE, DatabaseForTemporaryAndExternalTables);
 
         YT_LOG_DEBUG("Initializing system logs");
-        // XXX(max42): fill link :)
-        // NB: under debug build this method does not fit in regular fiber stack
-        // due to https://...
-        TCoroutine<void()> coroutine(BIND([&] (TCoroutine<void()>& /* self */) { ServerContext_->initializeSystemLogs(); }), EExecutionStackKind::Large);
-        coroutine.Run();
-        YT_VERIFY(coroutine.IsCompleted());
+
+        ServerContext_->initializeSystemLogs();
+
         YT_LOG_DEBUG("System logs initialized");
 
         YT_LOG_DEBUG("Setting up access manager");
