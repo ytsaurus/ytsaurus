@@ -137,6 +137,7 @@ protected:
             auto options = controller->GetOrderedChunkPoolOptions();
             options.Task = GetTitle();
             ChunkPool_ = CreateOrderedChunkPool(options, controller->GetInputStreamDirectory());
+            ChunkPool_->SubscribeChunkTeleported(BIND(&TOrderedTask::OnChunkTeleported, MakeWeak(this)));
         }
 
         virtual IChunkPoolInput* GetChunkPoolInput() const override
@@ -156,6 +157,8 @@ protected:
             using NYT::Persist;
             Persist(context, Controller_);
             Persist(context, ChunkPool_);
+
+            ChunkPool_->SubscribeChunkTeleported(BIND(&TOrderedTask::OnChunkTeleported, MakeWeak(this)));
         }
 
     private:
@@ -237,6 +240,17 @@ protected:
         virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             return TTask::OnJobAborted(joblet, jobSummary);
+        }
+
+        virtual void OnChunkTeleported(TInputChunkPtr teleportChunk, std::any tag) override
+        {
+            TTask::OnChunkTeleported(teleportChunk, tag);
+
+            if (Controller_->OrderedOutputRequired_) {
+                Controller_->RegisterTeleportChunk(teleportChunk, /*key=*/TOutputOrder::TEntry(teleportChunk), /*tableIndex=*/0);
+            } else {
+                Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key=*/0, /*tableIndex=*/0);
+            }
         }
     };
 
@@ -421,22 +435,6 @@ protected:
         ProcessInputs();
 
         FinishTaskInput(OrderedTask_);
-
-        for (const auto& teleportChunk : OrderedTask_->GetChunkPoolOutput()->GetTeleportChunks()) {
-            if (OrderedOutputRequired_) {
-                RegisterTeleportChunk(
-                    teleportChunk,
-                    OrderedTask_,
-                    TOutputOrder::TEntry(teleportChunk) /* key */,
-                    0 /* tableIndex */);
-            } else {
-                RegisterTeleportChunk(
-                    teleportChunk,
-                    OrderedTask_,
-                    0 /* key */,
-                    0 /* tableIndex */);
-            }
-        }
 
         FinishPreparation();
     }

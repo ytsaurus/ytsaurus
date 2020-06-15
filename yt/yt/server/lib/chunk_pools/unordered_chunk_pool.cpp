@@ -621,7 +621,7 @@ private:
                 InputStreamDirectory_.GetDescriptor(dataSlice->GetTableIndex()).IsTeleportable())
             {
                 if (Sampler_.Sample()) {
-                    TeleportChunks_.emplace_back(chunk);
+                    ChunkTeleported_.Fire(chunk, /*tag=*/std::any{});
                 } else {
                     // Drop this teleport chunk.
                 }

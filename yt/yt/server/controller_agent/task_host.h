@@ -119,7 +119,6 @@ struct ITaskHost
 
     virtual void RegisterTeleportChunk(
         NChunkClient::TInputChunkPtr chunkSpec,
-        const TTaskPtr& teleportingTask,
         NChunkPools::TChunkStripeKey key,
         int tableIndex) = 0;
 

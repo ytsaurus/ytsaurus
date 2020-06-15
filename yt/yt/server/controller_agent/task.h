@@ -105,8 +105,6 @@ public:
 
     virtual void OnJobLost(TCompletedJobPtr completedJob);
 
-    virtual void OnChunkTeleported(const NChunkClient::TInputChunkPtr& chunk);
-
     virtual void OnStripeRegistrationFailed(
         TError error,
         NChunkPools::IChunkPoolInput::TCookie cookie,
@@ -195,6 +193,8 @@ protected:
 
     //! True if task supports lost jobs.
     virtual bool CanLoseJobs() const;
+
+    virtual void OnChunkTeleported(NChunkClient::TInputChunkPtr chunk, std::any tag);
 
     void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
 

@@ -124,6 +124,10 @@ protected:
         ChunkPool_ = CreateOrderedChunkPool(
             Options_,
             useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
+        ChunkPool_->SubscribeChunkTeleported(
+            BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
+                TeleportChunks_.push_back(std::move(teleportChunk));
+            }));
     }
 
     TInputDataSlicePtr BuildDataSliceByChunk(const TInputChunkPtr& chunk)
@@ -198,6 +202,10 @@ protected:
         loadContext.SetRowBuffer(RowBuffer_);
         loadContext.SetInput(&input);
         Load(loadContext, ChunkPool_);
+        ChunkPool_->SubscribeChunkTeleported(
+            BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
+                TeleportChunks_.push_back(std::move(teleportChunk));
+            }));
     }
 
     std::vector<TChunkStripeListPtr> GetAllStripeLists()
@@ -212,8 +220,7 @@ protected:
     //! Perform all the correctness checks over the given result of ordered chunk pool invocation
     //! (without any suspends nor job interruptions).
     void CheckEverything(
-        const std::vector<TChunkStripeListPtr>& stripeLists,
-        const std::vector<TInputChunkPtr>& teleportChunks)
+        const std::vector<TChunkStripeListPtr>& stripeLists)
     {
         CheckStripeListsContainOnlyActiveChunks();
         CheckSlicesFollowInOriginalOrder(stripeLists);
@@ -339,6 +346,8 @@ protected:
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
 
     std::mt19937 Gen_;
+
+    std::vector<TInputChunkPtr> TeleportChunks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -370,12 +379,11 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSimple)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(2, stripeLists.size());
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -487,13 +495,12 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_LE(9, stripeLists.size());
     EXPECT_LE(stripeLists.size(), 11);
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

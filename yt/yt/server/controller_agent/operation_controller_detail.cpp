@@ -6917,7 +6917,6 @@ const ITransactionPtr& TOperationControllerBase::GetTransactionForOutputTable(co
 
 void TOperationControllerBase::RegisterTeleportChunk(
     TInputChunkPtr chunk,
-    const TTaskPtr& teleportingTask,
     TChunkStripeKey key,
     int tableIndex)
 {
@@ -6949,8 +6948,6 @@ void TOperationControllerBase::RegisterTeleportChunk(
     }
 
     RegisterOutputRows(chunk->GetRowCount(), tableIndex);
-
-    teleportingTask->OnChunkTeleported(chunk);
 
     YT_LOG_DEBUG("Teleport chunk registered (Table: %v, ChunkId: %v, Key: %v)",
         tableIndex,

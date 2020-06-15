@@ -59,6 +59,10 @@ struct TChunkStripe
 
     NChunkClient::TChunkListId ChunkListId;
     TBoundaryKeys BoundaryKeys;
+
+    //! This field represents correspondence of chunk stripe to chunk pool in multi chunk pool.
+    //! For example, it may represent partition index in intermediate sort or output table index in sink.
+    std::optional<int> PartitionTag = std::nullopt;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkStripe)
