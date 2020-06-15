@@ -203,6 +203,10 @@ class YtResponseError(YtError):
     def is_access_denied(self):
         """Access denied."""
         return self.contains_code(901)
+    
+    def is_account_limit_exceeded(self):
+        """Access denied."""
+        return self.contains_code(902)
 
     def is_concurrent_transaction_lock_conflict(self):
         """Deprecated! Transaction lock conflict."""

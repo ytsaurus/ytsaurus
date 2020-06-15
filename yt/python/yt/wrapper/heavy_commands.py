@@ -98,10 +98,11 @@ class WriteRequestRetrier(Retrier):
         retry_config = get_config(client)["write_retries"]
         request_timeout = get_config(client)["proxy"]["heavy_request_timeout"]
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
-        super(WriteRequestRetrier, self).__init__(retry_config=retry_config,
-                                                  timeout=request_timeout,
-                                                  exceptions=get_retriable_errors() + (YtMasterCommunicationError, YtAllTargetNodesFailed,),
-                                                  chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
+        super(WriteRequestRetrier, self).__init__(
+            retry_config=retry_config,
+            timeout=request_timeout,
+            exceptions=get_retriable_errors() + (YtMasterCommunicationError, YtAllTargetNodesFailed,),
+            chaos_monkey=default_chaos_monkey(chaos_monkey_enable))
         self.write_action = write_action
         self.transaction_timeout = transaction_timeout
         self.client = client
