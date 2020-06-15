@@ -51,7 +51,7 @@ func Example() error {
 		return err
 	}
 
-	fmt.Println("Infered struct schema:")
+	fmt.Println("Inferred struct schema:")
 	spew.Fdump(os.Stdout, tableSchema)
 	ctx := context.Background()
 	tablePath := ypath.Path("//tmp/go-table-example-" + guid.New().String())
@@ -76,7 +76,7 @@ func Example() error {
 	if err = writer.Commit(); err != nil {
 		return err
 	}
-	fmt.Printf("Written and commited %v rows", len(fakeContacts))
+	fmt.Printf("Written and committed %v rows", len(fakeContacts))
 
 	type Attrs struct {
 		Rows int `yson:"row_count"`
