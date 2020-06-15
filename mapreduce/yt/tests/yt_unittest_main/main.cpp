@@ -1,4 +1,4 @@
-#include <library/cpp/unittest/utmain.h>
+#include <library/cpp/testing/unittest/utmain.h>
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/common/config.h>

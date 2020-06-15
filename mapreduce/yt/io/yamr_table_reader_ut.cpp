@@ -1,6 +1,6 @@
 #include <mapreduce/yt/io/yamr_table_reader.h>
 
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/registar.h>
 
 using namespace NYT;
 

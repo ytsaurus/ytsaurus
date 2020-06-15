@@ -4,8 +4,8 @@
 #include <mapreduce/yt/interface/client.h>
 #include <library/cpp/yson/node/node_io.h>
 
-#include <library/cpp/unittest/utmain.h>
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/utmain.h>
+#include <library/cpp/testing/unittest/registar.h>
 
 #include <util/system/env.h>
 #include <util/generic/vector.h>

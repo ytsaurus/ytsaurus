@@ -7,7 +7,7 @@
 #include <mapreduce/yt/tests/native/proto_lib/row.pb.h>
 #include <mapreduce/yt/tests/native/ydl_lib/row.ydl.h>
 
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/registar.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;

@@ -1,6 +1,6 @@
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/registar.h>
 
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/error_codes.h>

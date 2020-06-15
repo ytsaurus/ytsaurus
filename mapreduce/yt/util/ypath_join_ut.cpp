@@ -1,7 +1,7 @@
 #include <util/generic/string.h> // should be before #include "ypath_join.h"
 #include "ypath_join.h"
 
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/registar.h>
 
 using namespace NYT;
 

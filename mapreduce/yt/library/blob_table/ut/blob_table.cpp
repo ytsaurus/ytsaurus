@@ -1,7 +1,7 @@
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
 #include <mapreduce/yt/library/blob_table/blob_table.h>
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/registar.h>
 
 #include <util/generic/yexception.h>
 

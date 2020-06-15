@@ -4,7 +4,7 @@
 
 #include <yt/core/misc/error.h>
 
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/registar.h>
 
 using namespace NYT::NTesting;
 using NYT::TCypressPath;
