@@ -1,7 +1,6 @@
 #include "storage_distributor.h"
 
 #include "config.h"
-#include "block_input_stream.h"
 #include "block_output_stream.h"
 #include "helpers.h"
 #include "query_context.h"
@@ -11,6 +10,7 @@
 #include "query_analyzer.h"
 #include "table.h"
 #include "host.h"
+#include "logging_transform.h"
 #include "query_context.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
@@ -31,6 +31,7 @@
 #include <Interpreters/ProcessList.h>
 #include <DataTypes/DataTypeFactory.h>
 #include <DataTypes/DataTypeNullable.h>
+#include <DataStreams/RemoteQueryExecutor.h>
 #include <Storages/MergeTree/MergeTreeData.h>
 #include <Storages/StorageFactory.h>
 #include <Storages/SelectQueryInfo.h>
@@ -41,6 +42,7 @@
 #include <Parsers/ASTSampleRatio.h>
 #include <Parsers/queryToString.h>
 #include <Processors/Sources/SourceFromInputStream.h>
+#include <Processors/Sources/RemoteSource.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -107,7 +109,7 @@ DB::BlockInputStreamPtr CreateLocalStream(
     return std::make_shared<DB::MaterializingBlockInputStream>(stream);
 }
 
-DB::BlockInputStreamPtr CreateRemoteStream(
+DB::Pipe CreateRemoteSource(
     const IClusterNodePtr& remoteNode,
     const DB::ASTPtr& queryAst,
     const DB::Context& context,
@@ -123,24 +125,23 @@ DB::BlockInputStreamPtr CreateRemoteStream(
     std::string query = queryToString(queryAst);
 
     // TODO(max42): can be done only once?
-    DB::Block header = materializeBlock(DB::InterpreterSelectQuery(
+    DB::Block header = DB::InterpreterSelectQuery(
         queryAst,
         context,
-        DB::SelectQueryOptions(processedStage).analyze()).getSampleBlock());
+        DB::SelectQueryOptions(processedStage).analyze()).getSampleBlock();
 
-
-    auto stream = std::make_shared<DB::RemoteBlockInputStream>(
+    auto remoteQueryExecutor = std::make_shared<DB::RemoteQueryExecutor>(
         remoteNode->GetConnection(),
         query,
         header,
         context,
-        nullptr,    // will use settings from context
+        nullptr,
         throttler,
-        context.getScalars(),
+        context.getQueryContext().getScalars(),
         externalTables,
         processedStage);
+    remoteQueryExecutor->setPoolMode(DB::PoolMode::GET_MANY);
 
-    stream->setPoolMode(DB::PoolMode::GET_MANY);
     auto remoteQueryId = ToString(TQueryId::Create());
     auto* traceContext = GetCurrentTraceContext();
     if (!traceContext) {
@@ -153,13 +154,30 @@ DB::BlockInputStreamPtr CreateRemoteStream(
     auto compositeQueryId = Format("%v@%v@%" PRIx64 "@%v", remoteQueryId, traceId, spanId, sampled);
 
     YT_LOG_INFO("Composite query id for secondary query constructed (RemoteQueryId: %v, CompositeQueryId: %v)", remoteQueryId, compositeQueryId);
-    stream->setQueryId(compositeQueryId);
+    remoteQueryExecutor->setQueryId(compositeQueryId);
 
-    return CreateBlockInputStreamLoggingAdapter(std::move(stream), TLogger(queryContext->Logger)
-        .AddTag("RemoteQueryId: %v, RemoteNode: %v, RemoteStreamId: %v",
+    // XXX(max42): should we use this?
+    // if (!table_func_ptr)
+    //     remote_query_executor->setMainTable(main_table); */
+
+    bool addAggregationInfo = processedStage == DB::QueryProcessingStage::WithMergeableState;
+    bool addTotals = false;
+    bool addExtremes = false;
+    if (processedStage == DB::QueryProcessingStage::Complete) {
+        addTotals = queryAst->as<DB::ASTSelectQuery &>().group_by_with_totals;
+        addExtremes = context.getSettingsRef().extremes;
+    }
+
+    auto pipe = createRemoteSourcePipe(remoteQueryExecutor, addAggregationInfo, addTotals, addExtremes);
+
+    auto loggingTransform = std::make_shared<TLoggingTransform>(pipe.getHeader(), TLogger(queryContext->Logger)
+        .AddTag("RemoteQueryId: %v, RemoteNode: %v",
             remoteQueryId,
-            remoteNode->GetName().ToString(),
-            TGuid::Create()));
+            remoteNode->GetName().ToString()));
+
+    pipe.addSimpleTransform(std::move(loggingTransform));
+
+    return pipe;
 }
 
 void ValidateReadPermissions(
@@ -376,24 +394,16 @@ public:
                 index,
                 subqueryCount);
 
-            bool isLocal = cliqueNode->IsLocal();
-            // XXX(max42): weird workaround.
-            isLocal = false;
-            auto substream = isLocal
-                ? CreateLocalStream(
-                    subqueryAst,
-                    newContext,
-                    processedStage)
-                : CreateRemoteStream(
-                    cliqueNode,
-                    subqueryAst,
-                    newContext,
-                    throttler,
-                    context.getExternalTables(),
-                    processedStage,
-                    Logger);
+            auto pipe = CreateRemoteSource(
+                cliqueNode,
+                subqueryAst,
+                newContext,
+                throttler,
+                context.getExternalTables(),
+                processedStage,
+                Logger);
 
-            pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(std::move(substream)));
+            pipes.emplace_back(std::move(pipe));
         }
 
         YT_LOG_INFO("Finished distribution");

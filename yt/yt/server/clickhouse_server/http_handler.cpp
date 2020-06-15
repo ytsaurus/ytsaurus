@@ -93,7 +93,9 @@ public:
 
         auto userName = request.get("X-ClickHouse-User", "");
         if (userName.empty()) {
-            THROW_ERROR_EXCEPTION("User name should be specified via X-ClickHouse-User header");
+            response.setStatusAndReason(Poco::Net::HTTPResponse::HTTP_UNAUTHORIZED);
+            response.send() << "User name should be specified via X-ClickHouse-User header" << std::endl;
+            return;
         }
 
         const auto& Logger = ClickHouseYtLogger;
