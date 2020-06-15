@@ -1,4 +1,5 @@
 #include "common.h"
+#include "errors.h"
 #include "common_ut.h"
 
 #include <mapreduce/yt/interface/protobuf_table_schema_ut.pb.h>
@@ -272,5 +273,19 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
                 .Type(NTi::Optional(NTi::Struct({{"embedded",  ToTypeV3(EValueType::VT_STRING, false)}}))))
             .AddColumn(TColumnSchema().Name("Embedded_ProtobufOption").Type(ToTypeV3(EValueType::VT_STRING, false)))
             .AddColumn(TColumnSchema().Name("Embedded_NoOption").Type(ToTypeV3(EValueType::VT_STRING, false))));
+    }
+
+    Y_UNIT_TEST(Cyclic)
+    {
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TCyclic>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TCyclic::TA>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TCyclic::TB>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TCyclic::TC>(), TApiUsageError);
+        UNIT_ASSERT_EXCEPTION(CreateTableSchema<NTesting::TCyclic::TD>(), TApiUsageError);
+
+        ASSERT_SERIALIZABLES_EQUAL(
+            TTableSchema().AddColumn(
+                TColumnSchema().Name("d").TypeV3(NTi::Optional(NTi::String()))),
+            CreateTableSchema<NTesting::TCyclic::TE>());
     }
 }

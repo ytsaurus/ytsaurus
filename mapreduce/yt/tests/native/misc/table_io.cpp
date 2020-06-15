@@ -37,30 +37,28 @@ static TString RandomBytes() {
 }
 
 template <typename TRow>
-static TNode GetRowSchema();
+static NTi::TTypePtr GetRowType();
 
 template <>
-TNode GetRowSchema<TUrlRow>()
+NTi::TTypePtr GetRowType<TUrlRow>()
 {
-    static auto schema = TNode()
-        ("metatype", "struct")
-        ("fields", TNode()
-            .Add(TNode()("name", "Host")("type", "string"))
-            .Add(TNode()("name", "Path")("type", "string"))
-            .Add(TNode()("name", "HttpCode")("type", "int32")));
-    return schema;
+    static auto type = NTi::Struct({
+        {"Host", NTi::String()},
+        {"Path", NTi::String()},
+        {"HttpCode", NTi::Int32()},
+    });
+    return type;
 }
 
 template <>
-TNode GetRowSchema<TUrlRowWithColumnNames>()
+NTi::TTypePtr GetRowType<TUrlRowWithColumnNames>()
 {
-    static auto schema = TNode()
-        ("metatype", "struct")
-        ("fields", TNode()
-            .Add(TNode()("name", "Host_ColumnName")("type", "string"))
-            .Add(TNode()("name", "Path_KeyColumnName")("type", "string"))
-            .Add(TNode()("name", "HttpCode")("type", "int32")));
-    return schema;
+    static auto type = NTi::Struct({
+        {"Host_ColumnName", NTi::String()},
+        {"Path_KeyColumnName", NTi::String()},
+        {"HttpCode", NTi::Int32()},
+    });
+    return type;
 }
 
 template <>
@@ -616,7 +614,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
         auto setType = [] (EWrapperFieldFlag::Enum mode, TColumnSchema& column) {
             switch (mode) {
                 case EWrapperFieldFlag::SERIALIZATION_YT:
-                    column.RawTypeV2(GetRowSchema<TElement>());
+                    column.Type(GetRowType<TElement>());
                     return;
                 case EWrapperFieldFlag::SERIALIZATION_PROTOBUF:
                     column.Type(EValueType::VT_STRING);
@@ -755,16 +753,9 @@ Y_UNIT_TEST_SUITE(TableIo) {
         auto workingDir = fixture.GetWorkingDir();
 
         auto schema = TTableSchema()
-            .AddColumn(TColumnSchema()
-                .Name("Ints")
-                .RawTypeV2(TNode()
-                    ("metatype", "list")
-                    ("element", "int64")))
-            .AddColumn(TColumnSchema()
-                .Name("UrlRows")
-                .RawTypeV2(TNode()
-                    ("metatype", "list")
-                    ("element", GetRowSchema<TUrlRow>())));
+            .AddColumn(TColumnSchema().Name("Ints").Type(NTi::List(NTi::Int64())))
+            .AddColumn(TColumnSchema().Name("UrlRows").Type(NTi::List(GetRowType<TUrlRow>())))
+            .AddColumn(TColumnSchema().Name("PackedInts").Type(NTi::List(NTi::Int64())));
 
         {
             auto writer = client->CreateTableWriter<TRowSerializedRepeatedFields>(
@@ -774,6 +765,9 @@ Y_UNIT_TEST_SUITE(TableIo) {
                 row.AddInts(1);
                 row.AddInts(2);
                 row.AddInts(3);
+                row.AddPackedInts(-1);
+                row.AddPackedInts(-2);
+                row.AddPackedInts(-3);
                 auto& urlRow1 = *row.AddUrlRows();
                 urlRow1.SetHost("http://www.example.com");
                 urlRow1.SetPath("/");
@@ -789,6 +783,9 @@ Y_UNIT_TEST_SUITE(TableIo) {
                 row.AddInts(101);
                 row.AddInts(201);
                 row.AddInts(301);
+                row.AddPackedInts(-101);
+                row.AddPackedInts(-201);
+                row.AddPackedInts(-301);
                 auto& urlRow1 = *row.AddUrlRows();
                 urlRow1.SetHost("http://www.example.com");
                 urlRow1.SetPath("/index.php");
@@ -809,6 +806,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
                 reader->GetRow(),
                 TNode()
                     ("Ints", TNode().Add(1).Add(2).Add(3))
+                    ("PackedInts", TNode().Add(-1).Add(-2).Add(-3))
                     ("UrlRows", TNode()
                         .Add(TNode()("Host", "http://www.example.com")("Path", "/")("HttpCode", 303))
                         .Add(TNode()("Host", "http://www.example.com")("Path", "/")("HttpCode", 307))));
@@ -818,6 +816,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
                 reader->GetRow(),
                 TNode()
                     ("Ints", TNode().Add(101).Add(201).Add(301))
+                    ("PackedInts", TNode().Add(-101).Add(-201).Add(-301))
                     ("UrlRows", TNode()
                         .Add(TNode()("Host", "http://www.example.com")("Path", "/index.php")("HttpCode", 200))
                         .Add(TNode()("Host", "http://www.example.com")("Path", "/index.php")("HttpCode", 201))));
@@ -831,6 +830,8 @@ Y_UNIT_TEST_SUITE(TableIo) {
             const auto& row = reader->GetRow();
             TVector<int> ints(row.GetInts().begin(), row.GetInts().end());
             UNIT_ASSERT_VALUES_EQUAL(ints, (TVector<int>{1, 2, 3}));
+            TVector<int> packedInts(row.GetPackedInts().begin(), row.GetPackedInts().end());
+            UNIT_ASSERT_VALUES_EQUAL(packedInts, (TVector<int>{-1, -2, -3}));
             UNIT_ASSERT_VALUES_EQUAL(row.UrlRowsSize(), 2);
             const auto& urlRow1 = row.GetUrlRows(0);
             UNIT_ASSERT_VALUES_EQUAL(urlRow1.GetHost(), "http://www.example.com");
@@ -847,6 +848,8 @@ Y_UNIT_TEST_SUITE(TableIo) {
             const auto& row = reader->GetRow();
             TVector<int> ints(row.GetInts().begin(), row.GetInts().end());
             UNIT_ASSERT_VALUES_EQUAL(ints, (TVector<int>{101, 201, 301}));
+            TVector<int> packedInts(row.GetPackedInts().begin(), row.GetPackedInts().end());
+            UNIT_ASSERT_VALUES_EQUAL(packedInts, (TVector<int>{-101, -201, -301}));
             UNIT_ASSERT_VALUES_EQUAL(row.UrlRowsSize(), 2);
             const auto& urlRow1 = row.GetUrlRows(0);
             UNIT_ASSERT_VALUES_EQUAL(urlRow1.GetHost(), "http://www.example.com");
@@ -868,11 +871,7 @@ Y_UNIT_TEST_SUITE(TableIo) {
         auto workingDir = fixture.GetWorkingDir();
 
         auto schema = TTableSchema()
-            .AddColumn(TColumnSchema()
-                .Name("Ints")
-                .RawTypeV2(TNode()
-                    ("metatype", "list")
-                    ("element", "int64")));
+            .AddColumn(TColumnSchema().Name("Ints").Type(NTi::List(NTi::Int64())));
 
         UNIT_ASSERT_EXCEPTION_CONTAINS(
             client->CreateTableWriter<TBadProtobufSerializedRow>(
