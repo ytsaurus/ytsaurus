@@ -328,7 +328,19 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     // NB(psushin): This keepalive is an ugly hack for a long-running command with structured output - YT-9713.
     // Remove once framing is implemented - YT-9838.
     static auto keepAliveSpace = TSharedRef::FromString(" ");
-    auto keepAliveCallback = [context] () {
+
+    // TODO(prime@): this code should be removed, once HTTP framing is deployed.
+    auto writeLock = std::make_shared<TSpinLock>();
+    auto writeRequested = std::make_shared<bool>(false);
+    auto writeStopped = NewPromise<void>();
+
+    auto keepAliveCallback = [context, writeLock, writeStopped, writeRequested] () {
+        auto guard = Guard(*writeLock);
+        if (*writeRequested) {
+            writeStopped.TrySet();
+            return;
+        }
+
         auto error = WaitFor(context->Request().OutputStream->Write(keepAliveSpace));
         // Ignore errors here. If user closed connection, it must be handled on the upper layer.
         Y_UNUSED(error);
@@ -343,6 +355,13 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
     auto allStatistics = WaitFor(context->GetClient()->GetColumnarStatistics(Paths, Options))
         .ValueOrThrow();
 
+    {
+        auto guard = Guard(*writeLock);
+        *writeRequested = true;
+    }
+        
+    WaitFor(writeStopped.ToFuture())
+        .ThrowOnError();
     WaitFor(keepAliveExecutor->Stop())
         .ThrowOnError();
 
