@@ -503,6 +503,15 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
         });
 }
 
+void TTask::PropagatePartitions(
+    const TChunkStripeListPtr& /*inputStripeList*/,
+    std::vector<TChunkStripePtr>* outputStripes)
+{
+    for (int stripeIndex = 0; stripeIndex < outputStripes->size(); ++stripeIndex) {
+        (*outputStripes)[stripeIndex]->PartitionTag = EdgeDescriptors_[stripeIndex].PartitionTag;
+    }
+}
+
 std::optional<EAbortReason> TTask::ShouldAbortJob(const TJobletPtr& joblet)
 {
     return CompetitiveJobManager_.ShouldAbortJob(joblet);
@@ -1081,6 +1090,12 @@ void TTask::RegisterOutput(
         schedulerJobResultExt,
         chunkListIds,
         schedulerJobResultExt->output_boundary_keys());
+    TChunkStripeListPtr inputStripeList;
+    if (joblet) {
+        inputStripeList = joblet->InputStripeList;
+    }
+    PropagatePartitions(std::move(inputStripeList), &outputStripes);
+
     for (int tableIndex = 0; tableIndex < EdgeDescriptors_.size(); ++tableIndex) {
         if (outputStripes[tableIndex]) {
             for (const auto& dataSlice : outputStripes[tableIndex]->DataSlices) {

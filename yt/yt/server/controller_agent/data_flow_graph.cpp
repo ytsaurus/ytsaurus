@@ -60,6 +60,7 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, IsFinalOutput);
     Persist(context, LivePreviewIndex);
     Persist(context, TargetDescriptor);
+    Persist(context, PartitionTag);
 }
 
 TEdgeDescriptor& TEdgeDescriptor::operator =(const TEdgeDescriptor& other)

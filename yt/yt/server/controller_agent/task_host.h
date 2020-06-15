@@ -133,7 +133,7 @@ struct ITaskHost
 
     virtual TSharedRef BuildJobSpecProto(const TJobletPtr& joblet) = 0;
 
-    virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) = 0;
+    virtual void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) = 0;
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) = 0;
 

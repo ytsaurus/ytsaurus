@@ -98,6 +98,8 @@ struct TEdgeDescriptor
     int LivePreviewIndex = 0;
     TDataFlowGraph::TVertexDescriptor TargetDescriptor;
 
+    std::optional<int> PartitionTag;
+
     void Persist(const TPersistenceContext& context);
 
     TEdgeDescriptor& operator =(const TEdgeDescriptor& other);

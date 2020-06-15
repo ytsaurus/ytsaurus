@@ -168,6 +168,10 @@ public:
 
     void BuildTaskYson(NYTree::TFluentMap fluent) const;
 
+    virtual void PropagatePartitions(
+        const NChunkPools::TChunkStripeListPtr& inputStripeList,
+        std::vector<NChunkPools::TChunkStripePtr>* outputStripes);
+
 protected:
     NLogging::TLogger Logger;
 

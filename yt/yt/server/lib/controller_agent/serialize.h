@@ -35,6 +35,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((StartAndCompletionTimeInTask)         (300402))
     ((DataFlowInProgress)                   (300403))
     ((MultiChunkPool)                       (300404))
+    ((JoinSinks)                            (300405))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

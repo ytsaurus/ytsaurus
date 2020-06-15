@@ -19,6 +19,7 @@
 #include <yt/server/lib/core_dump/helpers.h>
 
 #include <yt/server/lib/chunk_pools/helpers.h>
+#include <yt/server/lib/chunk_pools/multi_chunk_pool.h>
 
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
@@ -561,9 +562,12 @@ bool TOperationControllerBase::HasUserJobFiles() const
 
 void TOperationControllerBase::InitOutputTables()
 {
-    for (const auto& path : GetOutputTablePaths()) {
-        RegisterOutputTable(path);
-    }
+    RegisterOutputTables(GetOutputTablePaths());
+}
+
+IChunkPoolInput* TOperationControllerBase::GetSink()
+{
+    return Sink_.get();
 }
 
 std::vector<TTransactionId> TOperationControllerBase::GetNonTrivialInputTransactionIds()
@@ -4653,13 +4657,14 @@ const std::vector<TEdgeDescriptor>& TOperationControllerBase::GetStandardEdgeDes
 
 void TOperationControllerBase::InitializeStandardEdgeDescriptors()
 {
-    StandardEdgeDescriptors_.resize(Sinks_.size());
-    for (int index = 0; index < Sinks_.size(); ++index) {
+    StandardEdgeDescriptors_.resize(OutputTables_.size());
+    for (int index = 0; index < OutputTables_.size(); ++index) {
         StandardEdgeDescriptors_[index] = OutputTables_[index]->GetEdgeDescriptorTemplate(index);
-        StandardEdgeDescriptors_[index].DestinationPool = Sinks_[index].get();
+        StandardEdgeDescriptors_[index].DestinationPool = GetSink();
         StandardEdgeDescriptors_[index].IsFinalOutput = true;
         StandardEdgeDescriptors_[index].LivePreviewIndex = index;
         StandardEdgeDescriptors_[index].TargetDescriptor = TDataFlowGraph::SinkDescriptor;
+        StandardEdgeDescriptors_[index].PartitionTag = index;
     }
 }
 
@@ -8440,6 +8445,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, FinishedJobs_);
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, Sinks_);
+    Persist(context, Sink_);
     Persist(context, AutoMergeTaskGroup);
     Persist(context, AutoMergeTasks);
     Persist(context, AutoMergeJobSpecTemplates_);
@@ -8702,34 +8708,42 @@ void TOperationControllerBase::LoadSnapshot(const NYT::NControllerAgent::TOperat
     DoLoadSnapshot(snapshot);
 }
 
-TOutputTablePtr TOperationControllerBase::RegisterOutputTable(const TRichYPath& outputTablePath)
+void TOperationControllerBase::RegisterOutputTables(const std::vector<TRichYPath>& outputTablePaths)
 {
-    auto it = PathToOutputTable_.find(outputTablePath.GetPath());
-    if (it != PathToOutputTable_.end()) {
-        const auto& lhsAttributes = it->second->Path.Attributes();
-        const auto& rhsAttributes = outputTablePath.Attributes();
-        if (lhsAttributes != rhsAttributes) {
-            THROW_ERROR_EXCEPTION("Output table %v appears twice with different attributes", outputTablePath.GetPath())
-                << TErrorAttribute("lhs_attributes", lhsAttributes)
-                << TErrorAttribute("rhs_attributes", rhsAttributes);
+    std::vector<IChunkPoolInput*> sinkPtrs;
+    Sinks_.reserve(outputTablePaths.size());
+    sinkPtrs.reserve(outputTablePaths.size());
+
+    for (const auto& outputTablePath : outputTablePaths) {
+        auto it = PathToOutputTable_.find(outputTablePath.GetPath());
+        if (it != PathToOutputTable_.end()) {
+            const auto& lhsAttributes = it->second->Path.Attributes();
+            const auto& rhsAttributes = outputTablePath.Attributes();
+            if (lhsAttributes != rhsAttributes) {
+                THROW_ERROR_EXCEPTION("Output table %v appears twice with different attributes", outputTablePath.GetPath())
+                    << TErrorAttribute("lhs_attributes", lhsAttributes)
+                    << TErrorAttribute("rhs_attributes", rhsAttributes);
+            }
+            continue;
         }
-        return it->second;
-    }
-    auto table = New<TOutputTable>(outputTablePath, EOutputTableType::Output);
-    auto rowCountLimit = table->Path.GetRowCountLimit();
-    if (rowCountLimit) {
-        if (RowCountLimitTableIndex) {
-            THROW_ERROR_EXCEPTION("Only one output table with row_count_limit is supported");
+        auto table = New<TOutputTable>(outputTablePath, EOutputTableType::Output);
+        table->TableIndex = OutputTables_.size();
+        auto rowCountLimit = table->Path.GetRowCountLimit();
+        if (rowCountLimit) {
+            if (RowCountLimitTableIndex) {
+                THROW_ERROR_EXCEPTION("Only one output table with row_count_limit is supported");
+            }
+            RowCountLimitTableIndex = table->TableIndex;
+            RowCountLimit = *rowCountLimit;
         }
-        RowCountLimitTableIndex = OutputTables_.size();
-        RowCountLimit = *rowCountLimit;
+
+        Sinks_.emplace_back(std::make_unique<TSink>(this, table->TableIndex));
+        sinkPtrs.push_back(Sinks_.back().get());
+        OutputTables_.emplace_back(table);
+        PathToOutputTable_[outputTablePath.GetPath()] = table;
     }
 
-    Sinks_.emplace_back(std::make_unique<TSink>(this, OutputTables_.size()));
-    table->ChunkPoolInput = Sinks_.back().get();
-    OutputTables_.emplace_back(table);
-    PathToOutputTable_[outputTablePath.GetPath()] = table;
-    return table;
+    Sink_ = CreateMultiChunkPoolInput(std::move(sinkPtrs));
 }
 
 void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason)
