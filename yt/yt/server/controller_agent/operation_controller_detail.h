@@ -367,7 +367,7 @@ public:
 
     virtual void LoadSnapshot(const TOperationSnapshot& snapshot) override;
 
-    virtual TOutputTablePtr RegisterOutputTable(const NYPath::TRichYPath& outputTablePath) override;
+    virtual void RegisterOutputTables(const std::vector<NYPath::TRichYPath>& outputTablePaths) override;
 
     virtual void AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason) override;
     virtual void OnSpeculativeJobScheduled(const TJobletPtr& joblet) override;
@@ -919,6 +919,8 @@ protected:
 
     virtual void InitOutputTables();
 
+    NChunkPools::IChunkPoolInput* GetSink();
+
     //! One output table can have row_count_limit attribute in operation.
     std::optional<int> RowCountLimitTableIndex;
     i64 RowCountLimit = std::numeric_limits<i64>::max();
@@ -1055,8 +1057,8 @@ private:
     THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
     std::vector<std::pair<TJobId, NYson::TYsonString>> RetainedFinishedJobs_;
 
-    class TSink;
-    std::vector<std::unique_ptr<TSink>> Sinks_;
+    std::vector<std::unique_ptr<NChunkPools::IChunkPoolInput>> Sinks_;
+    std::unique_ptr<NChunkPools::IChunkPoolInput> Sink_;
 
     std::vector<NJobTrackerClient::NProto::TJobSpec> AutoMergeJobSpecTemplates_;
 

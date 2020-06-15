@@ -101,14 +101,13 @@ struct TOutputTable
 
     NTransactionClient::TTimestamp Timestamp = NTransactionClient::NullTimestamp;
 
-    //! Corresponding sink.
-    NChunkPools::IChunkPoolInput* ChunkPoolInput = nullptr;
-
     bool Dynamic = false;
     std::vector<NTableClient::TOwningKey> PivotKeys;
     std::vector<NChunkClient::TChunkListId> TabletChunkListIds;
 
     std::vector<NChunkClient::TInputChunkPtr> OutputChunks;
+
+    int TableIndex;
 
     TEdgeDescriptor GetEdgeDescriptorTemplate(int tableIndex = -1);
 

@@ -69,17 +69,16 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, OutputChunkTreeIds);
     Persist(context, EffectiveAcl);
     Persist(context, WriterConfig);
-    Persist(context, ChunkPoolInput);
     Persist(context, Dynamic);
     Persist(context, PivotKeys);
     Persist(context, TabletChunkListIds);
     Persist(context, OutputChunks);
+    Persist(context, TableIndex);
 }
 
 TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate(int tableIndex)
 {
     TEdgeDescriptor descriptor;
-    descriptor.DestinationPool = ChunkPoolInput;
     descriptor.TableUploadOptions = TableUploadOptions;
     descriptor.TableWriterOptions = CloneYsonSerializable(TableWriterOptions);
     descriptor.TableWriterOptions->TableIndex = tableIndex;
@@ -91,6 +90,8 @@ TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate(int tableIndex)
     descriptor.CellTag = ExternalCellTag;
     descriptor.ImmediatelyUnstageChunkLists = false;
     descriptor.IsOutputTableDynamic = Dynamic;
+    descriptor.PartitionTag = TableIndex;
+
     return descriptor;
 }
 

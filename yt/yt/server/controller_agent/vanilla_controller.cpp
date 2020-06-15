@@ -226,6 +226,7 @@ public:
             int taskIndex = Tasks.size();
             for (int index = 0; index < TaskOutputTables_[taskIndex].size(); ++index) {
                 edgeDescriptors.emplace_back(TaskOutputTables_[taskIndex][index]->GetEdgeDescriptorTemplate(index));
+                edgeDescriptors.back().DestinationPool = GetSink();
                 edgeDescriptors.back().TargetDescriptor = TDataFlowGraph::SinkDescriptor;
             }
             auto task = New<TVanillaTask>(this, taskSpec, taskName, TaskGroup_, std::move(edgeDescriptors));
@@ -256,10 +257,14 @@ public:
 
     virtual void InitOutputTables() override
     {
+        TOperationControllerBase::InitOutputTables();
+
+        TaskOutputTables_.reserve(Spec_->Tasks.size());
         for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
-            TaskOutputTables_.emplace_back();
+            auto& taskOutputTables = TaskOutputTables_.emplace_back();
+            taskOutputTables.reserve(taskSpec->OutputTablePaths.size());
             for (const auto& outputTablePath : taskSpec->OutputTablePaths) {
-                TaskOutputTables_.back().emplace_back(RegisterOutputTable(outputTablePath));
+                taskOutputTables.push_back(GetOrCrash(PathToOutputTable_, outputTablePath.GetPath()));
             }
         }
     }
