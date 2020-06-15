@@ -12,9 +12,6 @@
 
 #include <util/system/compiler.h>
 
-// These tests do not work under MSAN.
-#if !defined(_msan_enabled_)
-
 namespace NYT {
 
 using namespace NYTAlloc;
@@ -272,6 +269,4 @@ INSTANTIATE_TEST_SUITE_P(MemoryTagTest, TMemoryTagTest, Values(
 
 } // namespace
 } // namespace NYT
-
-#endif // !defined(_msan_enabled_)
 
