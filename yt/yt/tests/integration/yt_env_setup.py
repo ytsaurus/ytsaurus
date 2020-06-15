@@ -199,6 +199,14 @@ def is_asan_build():
     version = subprocess.check_output([binary, "--version"])
     return "asan" in version
 
+def is_msan_build():
+    if arcadia_interop.yatest_common is not None:
+        return arcadia_interop.yatest_common.context.sanitize == "memory"
+
+    binary = find_executable("ytserver-master")
+    version = subprocess.check_output([binary, "--version"])
+    return "msan" in version
+
 def skip_if_rpc_driver_backend(func):
     def wrapper(func, self, *args, **kwargs):
         if self.DRIVER_BACKEND == "rpc":
