@@ -152,18 +152,73 @@ class TestContainerCpuLimit(YTEnvSetup):
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
-    @authors("max42")
-    @flaky(max_runs=3)
-    def test_container_cpu_limit(self):
-        op = vanilla(spec={"tasks": {"main": {"command": "timeout 5s md5sum /dev/zero || true",
-                                              "job_count": 1,
-                                              "set_container_cpu_limit": True,
-                                              "cpu_limit": 0.1,
-                                              }}})
-        statistics = get(op.get_path() + "/@progress/job_statistics")
-        cpu_usage = get_statistics(statistics, "user_job.cpu.user.$.completed.vanilla.max")
-        assert cpu_usage < 2500
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "map_operation_options": {
+                "set_container_cpu_limit": True,
+                "cpu_limit_overcommit_multiplier" : 2,
+                "initial_cpu_limit_overcommit" : 0.05,
+            },
+        }
+    }
 
+    def get_job_container_cpu_limit(self):
+        from porto import Connection, exceptions
+        conn = Connection()
+
+        containers = self.Env.list_node_subcontainers(0)
+        assert containers
+        user_job_container = [x for x in containers if x.endswith("/uj")][0]
+        # Strip last three symbols "/uj"
+        slot_container = user_job_container[:-3]
+
+        return conn.GetProperty(slot_container, "cpu_limit")
+
+    @authors("psushin", "max42")
+    def test_container_cpu_limit_spec(self):
+        create("table", "//tmp/t1", attributes={"replication_factor" : 1})
+        write_table("//tmp/t1", [{"foo": 1}])
+
+        create("table", "//tmp/t2", attributes={"replication_factor" : 1})
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={
+                "mapper" : {
+                    "cpu_limit" : 0.1, 
+                    "set_container_cpu_limit": True,
+                }
+            })
+
+        wait_breakpoint()
+        assert self.get_job_container_cpu_limit() == '0.1c'
+        release_breakpoint()
+        op.track()
+
+    @authors("psushin")
+    def test_container_cpu_limit_no_spec(self):
+        create("table", "//tmp/t1", attributes={"replication_factor" : 1})
+        write_table("//tmp/t1", [{"foo": 1}])
+
+        create("table", "//tmp/t2", attributes={"replication_factor" : 1})
+
+        op = map(
+            wait_for_jobs=True,
+            track=False,
+            command=with_breakpoint("BREAKPOINT ; cat"),
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            spec={"mapper" : {"cpu_limit" : 0.1}})
+        wait_breakpoint()
+        # Cpu limit is set due to map_operation_options.
+        assert self.get_job_container_cpu_limit() == '0.25c'
+        release_breakpoint()
+        op.track()
+ 
 ###############################################################################################
 
 class TestUpdateInstanceLimits(YTEnvSetup):

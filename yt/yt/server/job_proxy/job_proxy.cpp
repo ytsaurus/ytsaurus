@@ -596,7 +596,10 @@ TJobResult TJobProxy::DoRun()
             if (schedulerJobSpecExt.has_user_job_spec() &&
                 schedulerJobSpecExt.user_job_spec().set_container_cpu_limit())
             {
-                environment->SetCpuLimit(CpuShare_);
+                auto limit = schedulerJobSpecExt.user_job_spec().container_cpu_limit() > 0
+                    ? schedulerJobSpecExt.user_job_spec().container_cpu_limit()
+                    : CpuShare_.load();
+                environment->SetCpuLimit(limit);
             }
         }
 

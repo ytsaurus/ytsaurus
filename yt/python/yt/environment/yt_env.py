@@ -690,6 +690,15 @@ class YTInstance(object):
                 del self._pid_to_process[process.pid]
                 processes[index] = None
 
+    def list_node_subcontainers(self, index):
+        with self._lock:
+            processes = self._service_processes["node"]
+            process = processes[index]
+            if not isinstance(process, PortoSubprocess):
+                raise YtError("Cannot list subcontainers for non-porto environment")
+            
+            return process.list_subcontainers()
+
     def set_nodes_cpu_limit(self, cpu_limit):
         with self._lock:
             logger.info("Setting cpu limit {0} for nodes".format(cpu_limit))

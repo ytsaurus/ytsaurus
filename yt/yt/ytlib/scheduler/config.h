@@ -800,8 +800,9 @@ public:
     //! Makes sense only with porto environment.
     bool UsePortoMemoryTracking;
 
-    //! This flag currently makes sense only for porto environment. It forces restriction on cpu limit with the
-    //! container means. This option should normally be useful only for experiments and benchmarks.
+    //! This flag currently makes sense only for porto environment. 
+    //! It forces setting container cpu limit on slot container equal to CpuLimit provided in task spec
+    //! and overrides setting in operation options.
     bool SetContainerCpuLimit;
 
     //! Forcefully run job with proper ulimit -c in order to enable core dump collection.
