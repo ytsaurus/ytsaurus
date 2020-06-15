@@ -75,6 +75,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtRequestTimedOut
         elif self.is_no_such_transaction():
             self.__class__ = YtNoSuchTransaction
+        elif self.is_account_limit_exceeded():
+            self.__class__ = YtAccountLimitExceeded
         elif self.is_master_communication_error():
             self.__class__ = YtMasterCommunicationError
         elif self.is_chunk_unavailable():
@@ -145,6 +147,10 @@ class YtRequestTimedOut(YtHttpResponseError):
 class YtNoSuchTransaction(YtHttpResponseError):
     """No such transaction.
        It is used in retries."""
+    pass
+
+class YtAccountLimitExceeded(YtHttpResponseError):
+    """Account limit exceeded, used to avoid excessive retries."""
     pass
 
 class YtMasterCommunicationError(YtHttpResponseError):
