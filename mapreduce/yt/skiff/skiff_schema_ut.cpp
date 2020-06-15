@@ -4,7 +4,7 @@
 #include "unchecked_parser.h"
 #include "unchecked_writer.h"
 
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/registar.h>
 
 #include <util/stream/buffer.h>
 

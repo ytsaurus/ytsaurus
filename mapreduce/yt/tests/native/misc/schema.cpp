@@ -8,7 +8,7 @@
 
 #include <mapreduce/yt/http/abortable_http_response.h>
 
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/registar.h>
 
 #include <util/random/fast.h>
 

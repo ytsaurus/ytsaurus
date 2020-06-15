@@ -1,12 +1,12 @@
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/library/parallel_io/parallel_writer.h>
 #include <util/system/user.h>
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/registar.h>
 #include <mapreduce/yt/tests/lib/owning_yamr_row.h>
 #include <mapreduce/yt/library/parallel_io/ut/data.pb.h>
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/registar.h>
 
 using namespace NYT;
 using namespace NYT::NTesting;

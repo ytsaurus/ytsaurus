@@ -4,7 +4,7 @@
 #include <util/generic/hash.h>
 #include <util/generic/singleton.h>
 
-#include <library/cpp/unittest/gtest.h>
+#include <library/cpp/testing/unittest/gtest.h>
 
 namespace NYT {
 namespace NTest {

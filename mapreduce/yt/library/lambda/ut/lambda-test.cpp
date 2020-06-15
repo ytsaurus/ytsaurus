@@ -2,8 +2,8 @@
 #include <mapreduce/yt/library/lambda/ut/dispersion.pb.h>
 
 #include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
-#include <library/cpp/unittest/registar.h>
-#include <library/cpp/unittest/utmain.h> // UNITTEST_WITH_CUSTOM_ENTRY_POINT
+#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/unittest/utmain.h> // UNITTEST_WITH_CUSTOM_ENTRY_POINT
 
 using namespace NYT;
 using namespace NYT::NTesting;

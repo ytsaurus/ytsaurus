@@ -1,4 +1,4 @@
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/registar.h>
 
 #include <library/cpp/json/json_reader.h>
 #include <mapreduce/yt/common/helpers.h>

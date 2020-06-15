@@ -3,7 +3,7 @@
 
 #include <library/cpp/yson/node/node_io.h>
 
-#include <library/cpp/unittest/registar.h>
+#include <library/cpp/testing/unittest/registar.h>
 
 using namespace NYT;
 

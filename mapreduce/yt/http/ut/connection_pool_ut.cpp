@@ -7,8 +7,8 @@
 
 #include <library/cpp/http/io/stream.h>
 
-#include <library/cpp/unittest/registar.h>
-#include <library/cpp/unittest/tests_data.h>
+#include <library/cpp/testing/unittest/registar.h>
+#include <library/cpp/testing/unittest/tests_data.h>
 
 #include <util/string/builder.h>
 #include <util/stream/tee.h>
