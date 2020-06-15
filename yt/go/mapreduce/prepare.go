@@ -6,6 +6,7 @@ import (
 	"math"
 	"strconv"
 
+	"github.com/cenkalti/backoff/v4"
 	"golang.org/x/xerrors"
 
 	"a.yandex-team.ru/library/go/maxprocs"
@@ -35,36 +36,42 @@ type prepare struct {
 
 func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) prepareAction {
 	return func(ctx context.Context, p *prepare) error {
-		b, err := encodeJob(state)
-		if err != nil {
-			return err
-		}
-		tmpPath := ypath.Path("//tmp").Child(guid.New().String())
+		doUpload := func() error {
+			b, err := encodeJob(state)
+			if err != nil {
+				return backoff.Permanent(err)
+			}
+			tmpPath := ypath.Path("//tmp").Child(guid.New().String())
 
-		_, err = p.mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, nil)
-		if err != nil {
-			return err
+			_, err = p.mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, nil)
+			if err != nil {
+				return err
+			}
+
+			w, err := p.mr.yc.WriteFile(ctx, tmpPath, nil)
+			if err != nil {
+				return err
+			}
+
+			if _, err = w.Write(b.Bytes()); err != nil {
+				return err
+			}
+
+			if err = w.Close(); err != nil {
+				return err
+			}
+
+			(*userScript).FilePaths = append((*userScript).FilePaths, spec.File{
+				FileName:    "job-state",
+				CypressPath: tmpPath,
+				Executable:  false,
+			})
+
+			return nil
 		}
 
-		w, err := p.mr.yc.WriteFile(ctx, tmpPath, nil)
-		if err != nil {
-			return err
-		}
-
-		if _, err = w.Write(b.Bytes()); err != nil {
-			return err
-		}
-
-		if err = w.Close(); err != nil {
-			return err
-		}
-
-		(*userScript).FilePaths = append((*userScript).FilePaths, spec.File{
-			FileName:    "job-state",
-			CypressPath: tmpPath,
-			Executable:  false,
-		})
-		return nil
+		return backoff.Retry(doUpload,
+			backoff.WithContext(backoff.NewExponentialBackOff(), ctx))
 	}
 }
 

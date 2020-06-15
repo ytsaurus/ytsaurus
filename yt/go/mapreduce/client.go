@@ -7,6 +7,8 @@ import (
 	"os"
 	"sync"
 
+	"github.com/cenkalti/backoff/v4"
+
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
 	"a.yandex-team.ru/yt/go/ypath"
@@ -77,6 +79,14 @@ type client struct {
 }
 
 func (mr *client) uploadSelf(ctx context.Context) error {
+	return backoff.Retry(
+		func() error {
+			return mr.doUploadSelf(ctx)
+		},
+		backoff.WithContext(backoff.NewExponentialBackOff(), ctx))
+}
+
+func (mr *client) doUploadSelf(ctx context.Context) error {
 	// TODO(prime@): this is broken with respect to context cancellation
 
 	mr.m.Lock()
