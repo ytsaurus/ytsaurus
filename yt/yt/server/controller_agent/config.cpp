@@ -234,6 +234,17 @@ TOperationOptions::TOperationOptions()
         .Default(2.0)
         .GreaterThan(1.0);
 
+    RegisterParameter("initial_cpu_limit_overcommit", InitialCpuLimitOvercommit)
+        .Default(2.0)
+        .GreaterThanOrEqual(0);
+
+    RegisterParameter("cpu_limit_overcommit_multiplier", CpuLimitOvercommitMultiplier)
+        .Default(1.0)
+        .GreaterThanOrEqual(1.0);
+
+    RegisterParameter("set_container_cpu_limit", SetContainerCpuLimit)
+        .Default(false);
+
     RegisterPostprocessor([&] () {
         if (MaxSliceDataWeight < MinSliceDataWeight) {
             THROW_ERROR_EXCEPTION("Minimum slice data weight must be less than or equal to maximum slice data size")

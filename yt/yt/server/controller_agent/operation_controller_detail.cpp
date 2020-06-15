@@ -7938,7 +7938,18 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_custom_statistics_count_limit(config->CustomStatisticsCountLimit);
     jobSpec->set_copy_files(config->CopyFiles);
     jobSpec->set_file_account(fileAccount);
-    jobSpec->set_set_container_cpu_limit(config->SetContainerCpuLimit);
+    jobSpec->set_set_container_cpu_limit(config->SetContainerCpuLimit || Options->SetContainerCpuLimit);
+
+    // This is common policy for all operations of given type.
+    if (Options->SetContainerCpuLimit) {
+        jobSpec->set_container_cpu_limit(Options->CpuLimitOvercommitMultiplier * config->CpuLimit + Options->InitialCpuLimitOvercommit);
+    }
+
+    // Option in task spec overrides value in operation options.
+    if (config->SetContainerCpuLimit) {
+        jobSpec->set_container_cpu_limit(config->CpuLimit);
+    }
+
     jobSpec->set_force_core_dump(config->ForceCoreDump);
 
     jobSpec->set_port_count(config->PortCount);
