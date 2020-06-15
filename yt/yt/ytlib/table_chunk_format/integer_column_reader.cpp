@@ -96,7 +96,7 @@ public:
 
     void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
     {
-        auto dictionaryId = IdReader_[valueIndex];
+        auto dictionaryId = IndexReader_[valueIndex];
         if (dictionaryId == 0) {
             *value = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
         } else {
@@ -105,8 +105,10 @@ public:
     }
 
 protected:
-    using TIdsReader = TBitPackedUnsignedVectorReader<ui32, Scan>;
-    TIdsReader IdReader_;
+    const IUnversionedColumnarRowBatch::TDictionaryId DictionaryId_ = IUnversionedColumnarRowBatch::GenerateDictionaryId();
+
+    using TIndexReader = TBitPackedUnsignedVectorReader<ui32, Scan>;
+    TIndexReader IndexReader_;
 
     using TIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
     using typename TIntegerValueExtractorBase<ValueType, Scan>::TValueReader;
@@ -116,8 +118,8 @@ protected:
         ValueReader_ = TValueReader(reinterpret_cast<const ui64*>(ptr));
         ptr += ValueReader_.GetByteSize();
 
-        IdReader_ = TIdsReader(reinterpret_cast<const ui64*>(ptr));
-        ptr += IdReader_.GetByteSize();
+        IndexReader_ = TIndexReader(reinterpret_cast<const ui64*>(ptr));
+        ptr += IndexReader_.GetByteSize();
 
         return ptr;
     }
@@ -304,7 +306,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 1);
         auto& column = columns[0];
@@ -352,7 +354,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 2);
         auto& primaryColumn = columns[0];
@@ -367,16 +369,18 @@ public:
         ReadColumnarDictionary(
             &primaryColumn,
             &dictionaryColumn,
+            DictionaryId_,
             primaryColumn.Type,
             startRowIndex,
             rowCount,
-            IdReader_.GetData());
+            IndexReader_.GetData());
     }
 
 private:
-    using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::IdReader_;
+    using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::IndexReader_;
     using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
     using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::Meta_;
+    using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::DictionaryId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -405,7 +409,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 2);
         auto& primaryColumn = columns[0];
@@ -465,7 +469,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 3);
         auto& primaryColumn = columns[0];
@@ -481,10 +485,11 @@ public:
         ReadColumnarDictionary(
             &rleColumn,
             &dictionaryColumn,
+            DictionaryId_,
             primaryColumn.Type,
             -1,
             -1,
-            IdReader_.GetData());
+            IndexReader_.GetData());
         ReadColumnarRle(
             &primaryColumn,
             &rleColumn,
@@ -497,8 +502,9 @@ public:
 private:
     using typename TRleValueExtractorBase<Scan>::TRowIndexReader;
     using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::ValueReader_;
-    using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::IdReader_;
+    using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::IndexReader_;
     using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::Meta_;
+    using TDictionaryIntegerValueExtractorBase<ValueType, Scan>::DictionaryId_;
     using TRleValueExtractorBase<Scan>::RowIndexReader_;
 };
 

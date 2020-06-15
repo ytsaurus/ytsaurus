@@ -347,7 +347,7 @@ int TUnversionedColumnReaderBase::GetBatchColumnCount()
 }
 
 void TUnversionedColumnReaderBase::ReadColumnarBatch(
-    TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
+    TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns,
     i64 rowCount)
 {
     EnsureCurrentSegmentReader();
@@ -439,7 +439,7 @@ void TVersionedColumnReaderBase::CreateCurrentSegmentReader()
 ////////////////////////////////////////////////////////////////////////////////
 
 void ReadColumnarNullBitmap(
-    NTableClient::IUnversionedRowBatch::TColumn* column,
+    NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
     i64 startIndex,
     i64 valueCount,
     TRange<ui64> bitmap)
@@ -452,7 +452,7 @@ void ReadColumnarNullBitmap(
 }
 
 void ReadColumnarIntegerValues(
-    NTableClient::IUnversionedRowBatch::TColumn* column,
+    NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
     i64 startIndex,
     i64 valueCount,
     NTableClient::EValueType valueType,
@@ -470,7 +470,7 @@ void ReadColumnarIntegerValues(
 }
 
 void ReadColumnarBooleanValues(
-    NTableClient::IUnversionedRowBatch::TColumn* column,
+    NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
     i64 startIndex,
     i64 valueCount,
     TRange<ui64> bitmap)
@@ -484,7 +484,7 @@ void ReadColumnarBooleanValues(
 }
 
 void ReadColumnarDoubleValues(
-    NTableClient::IUnversionedRowBatch::TColumn* column,
+    NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
     i64 startIndex,
     i64 valueCount,
     TRange<double> data)
@@ -498,7 +498,7 @@ void ReadColumnarDoubleValues(
 }
 
 void ReadColumnarStringValues(
-    NTableClient::IUnversionedRowBatch::TColumn* column,
+    NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
     i64 startIndex,
     i64 valueCount,
     ui32 avgLength,
@@ -519,8 +519,9 @@ void ReadColumnarStringValues(
 }
 
 void ReadColumnarDictionary(
-    NTableClient::IUnversionedRowBatch::TColumn* primaryColumn,
-    NTableClient::IUnversionedRowBatch::TColumn* dictionaryColumn,
+    NTableClient::IUnversionedColumnarRowBatch::TColumn* primaryColumn,
+    NTableClient::IUnversionedColumnarRowBatch::TColumn* dictionaryColumn,
+    NTableClient::IUnversionedColumnarRowBatch::TDictionaryId dictionaryId,
     NTableClient::TLogicalTypePtr type,
     i64 startIndex,
     i64 valueCount,
@@ -536,13 +537,14 @@ void ReadColumnarDictionary(
     primaryValues.Data = TRef(ids.Begin(), ids.End());
 
     auto& dictionary = primaryColumn->Dictionary.emplace();
+    dictionary.DictionaryId = dictionaryId;
     dictionary.ZeroMeansNull = true;
     dictionary.ValueColumn = dictionaryColumn;
 }
 
 void ReadColumnarRle(
-    NTableClient::IUnversionedRowBatch::TColumn* primaryColumn,
-    NTableClient::IUnversionedRowBatch::TColumn* rleColumn,
+    NTableClient::IUnversionedColumnarRowBatch::TColumn* primaryColumn,
+    NTableClient::IUnversionedColumnarRowBatch::TColumn* rleColumn,
     NTableClient::TLogicalTypePtr type,
     i64 startIndex,
     i64 valueCount,

@@ -244,6 +244,7 @@ DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetReader)
 DECLARE_REFCOUNTED_STRUCT(IWireProtocolRowsetWriter)
 
 DECLARE_REFCOUNTED_STRUCT(IUnversionedRowBatch)
+DECLARE_REFCOUNTED_STRUCT(IUnversionedColumnarRowBatch)
 
 struct IValueConsumer;
 

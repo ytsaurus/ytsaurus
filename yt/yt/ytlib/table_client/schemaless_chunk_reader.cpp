@@ -1010,8 +1010,8 @@ public:
         if (PendingUnmaterializedRowCount_ > 0) {
             // Previous batch was not materialized, readers did not advance.
             // Perform a fake materialization.
-            std::vector<IUnversionedRowBatch::TColumn> allBatchColumns;
-            std::vector<const IUnversionedRowBatch::TColumn*> rootBatchColumns;
+            std::vector<IUnversionedColumnarRowBatch::TColumn> allBatchColumns;
+            std::vector<const IUnversionedColumnarRowBatch::TColumn*> rootBatchColumns;
             MaterializeColumns(PendingUnmaterializedRowCount_, &allBatchColumns, &rootBatchColumns);
         }
         YT_VERIFY(PendingUnmaterializedRowCount_ == 0);
@@ -1067,7 +1067,7 @@ private:
 
 
     class TColumnarRowBatch
-        : public IUnversionedRowBatch
+        : public IUnversionedColumnarRowBatch
     {
     public:
         TColumnarRowBatch(
@@ -1082,12 +1082,7 @@ private:
             return RowCount_;
         }
 
-        virtual bool IsColumnar() const override
-        {
-            return true;
-        }
-
-        virtual TRange<TUnversionedRow> MaterializeRows() override
+        virtual TSharedRange<TUnversionedRow> MaterializeRows() override
         {
             YT_VERIFY(!RootColumns_);
 
@@ -1095,7 +1090,7 @@ private:
                 Rows_ = Reader_->MaterializeRows(RowCount_);
             }
 
-            return MakeRange(*Rows_);
+            return Rows_;
         }
 
         virtual TRange<const TColumn*> MaterializeColumns() override
@@ -1111,12 +1106,17 @@ private:
 
             return MakeRange(*RootColumns_);
         }
+        
+        virtual TRange<TDictionaryId> GetRetiringDictionaryIds() const override
+        {
+            return {};
+        }
 
     private:
         const TColumnarSchemalessRangeChunkReaderPtr Reader_;
         const i64 RowCount_;
 
-        std::optional<std::vector<TUnversionedRow>> Rows_;
+        TSharedRange<TUnversionedRow> Rows_;
         std::optional<std::vector<const TColumn*>> RootColumns_;
         std::vector<TColumn> AllColumns_;
     };
@@ -1229,19 +1229,19 @@ private:
         return New<TColumnarRowBatch>(this, PendingUnmaterializedRowCount_);
     }
 
-    std::vector<TUnversionedRow> MaterializeRows(i64 rowCount)
+    TSharedRange<TUnversionedRow> MaterializeRows(i64 rowCount)
     {
         std::vector<TUnversionedRow> rows;
         rows.reserve(rowCount);
         ReadRows(rowCount, &rows);
         ReadEpilogue(&rows);
-        return rows;
+        return MakeSharedRange(std::move(rows), this);
     }
 
     void MaterializeColumns(
         i64 rowCount,
-        std::vector<IUnversionedRowBatch::TColumn>* allBatchColumns,
-        std::vector<const IUnversionedRowBatch::TColumn*>* rootBatchColumns)
+        std::vector<IUnversionedColumnarRowBatch::TColumn>* allBatchColumns,
+        std::vector<const IUnversionedColumnarRowBatch::TColumn*>* rootBatchColumns)
     {
         YT_VERIFY(PendingUnmaterializedRowCount_ == rowCount);
         PendingUnmaterializedRowCount_ = 0;
@@ -1264,7 +1264,7 @@ private:
             const auto& reader = RowColumnReaders_[index];
             const auto& column = Columns_[index];
             int columnCount = reader->GetBatchColumnCount();
-            auto columnRange = TMutableRange<IUnversionedRowBatch::TColumn>(
+            auto columnRange = TMutableRange<IUnversionedColumnarRowBatch::TColumn>(
                 allBatchColumns->data() + currentBatchColumnIndex,
                 columnCount);
             auto* rootColumn = &columnRange.Front();

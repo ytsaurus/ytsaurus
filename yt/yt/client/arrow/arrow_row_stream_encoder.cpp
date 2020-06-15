@@ -1,4 +1,4 @@
-#include "arrow_row_stream.h"
+#include "arrow_row_stream_encoder.h"
 
 #include <yt/client/arrow/fbs/Message.fbs.h>
 #include <yt/client/arrow/fbs/Schema.fbs.h>
@@ -30,7 +30,7 @@ static const auto& Logger = ArrowLogger;
 
 namespace {
 
-using TBatchColumn = IUnversionedRowBatch::TColumn;
+using TBatchColumn = IUnversionedColumnarRowBatch::TColumn;
 using TBodyWriter = std::function<void(TMutableRef)>;
 
 constexpr i64 ArrowAlignment = 8;
@@ -71,7 +71,7 @@ std::tuple<org::apache::arrow::flatbuf::Type, flatbuffers::Offset<void>> Seriali
 {
     auto type = DropOptional(schema.LogicalType());
     if (type->GetMetatype() != ELogicalMetatype::Simple) {
-        THROW_ERROR_EXCEPTION("Column %Qv has metatype %Qlv that is not currently supported by Arrow formatter",
+        THROW_ERROR_EXCEPTION("Column %Qv has metatype %Qlv that is not currently supported by Arrow encoder",
             schema.Name(),
             type->GetMetatype());
     }
@@ -127,7 +127,7 @@ std::tuple<org::apache::arrow::flatbuf::Type, flatbuffers::Offset<void>> Seriali
                     .Union());
 
         default:
-            THROW_ERROR_EXCEPTION("Column %Qv has type %Qlv that is not currently supported by Arrow formatter",
+            THROW_ERROR_EXCEPTION("Column %Qv has type %Qlv that is not currently supported by Arrow encoder",
                 schema.Name(),
                 simpleType);
     }
@@ -676,13 +676,13 @@ auto SerializeRecordBatch(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TArrowRowStreamBlockFormatter
+class TArrowRowStreamBlockEncoder
 {
 public:
-    explicit TArrowRowStreamBlockFormatter(
+    TArrowRowStreamBlockEncoder(
         TTableSchemaPtr schema,
         TNameTablePtr nameTable,
-        IUnversionedRowBatchPtr batch)
+        IUnversionedColumnarRowBatchPtr batch)
         : Schema_(std::move(schema))
         , NameTable_(std::move(nameTable))
         , Batch_(std::move(batch))
@@ -741,7 +741,7 @@ public:
 private:
     const TTableSchemaPtr Schema_;
     const TNameTablePtr NameTable_;
-    const IUnversionedRowBatchPtr Batch_;
+    const IUnversionedColumnarRowBatchPtr Batch_;
 
     std::vector<TTypedBatchColumn> TypedColumns_;
 
@@ -931,31 +931,32 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TArrowRowStreamFormatter
-    : public IRowStreamFormatter
+class TArrowRowStreamEncoder
+    : public IRowStreamEncoder
 {
 public:
-    TArrowRowStreamFormatter(
+    TArrowRowStreamEncoder(
         TTableSchemaPtr schema,
         TNameTablePtr nameTable)
         : Schema_(std::move(schema))
         , NameTable_(std::move(nameTable))
-        , FallbackFormatter_(CreateWireRowStreamFormatter(NameTable_))
+        , FallbackEncoder_(CreateWireRowStreamEncoder(NameTable_))
     {
-        YT_LOG_DEBUG("Row stream formatter created (Schema: %v)",
+        YT_LOG_DEBUG("Row stream encoder created (Schema: %v)",
             *Schema_);
     }
     
-    virtual TSharedRef Format(
+    virtual TSharedRef Encode(
         const IUnversionedRowBatchPtr& batch,
         const NApi::NRpcProxy::NProto::TRowsetStatistics* statistics) override
     {
-        if (!batch->IsColumnar()) {
-            YT_LOG_DEBUG("Formatting non-columnar batch; running fallback");
-            return FallbackFormatter_->Format(batch, statistics);
+        auto columnarBatch = batch->TryAsColumnar();
+        if (!columnarBatch) {
+            YT_LOG_DEBUG("Encoding non-columnar batch; running fallback");
+            return FallbackEncoder_->Encode(batch, statistics);
         }
 
-        YT_LOG_DEBUG("Formatting columnar batch (RowCount: %v)",
+        YT_LOG_DEBUG("Encoding columnar batch (RowCount: %v)",
             batch->GetRowCount());
 
         NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
@@ -963,14 +964,14 @@ public:
         descriptor.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
         descriptor.set_rowset_format(NApi::NRpcProxy::NProto::RF_ARROW);
 
-        TArrowRowStreamBlockFormatter blockFormatter(Schema_, NameTable_, batch);
+        TArrowRowStreamBlockEncoder blockEncoder(Schema_, NameTable_, std::move(columnarBatch));
 
         auto [block, payloadRef] = SerializeRowStreamBlockEnvelope(
-            blockFormatter.GetPayloadSize(),
+            blockEncoder.GetPayloadSize(),
             descriptor,
             statistics);
 
-        blockFormatter.WritePayload(payloadRef);
+        blockEncoder.WritePayload(payloadRef);
 
         return block;
     }
@@ -979,25 +980,16 @@ private:
     const TTableSchemaPtr Schema_;
     const TNameTablePtr NameTable_;
 
-    const IRowStreamFormatterPtr FallbackFormatter_;
+    const IRowStreamEncoderPtr FallbackEncoder_;
 };
 
-IRowStreamFormatterPtr CreateArrowRowStreamFormatter(
+IRowStreamEncoderPtr CreateArrowRowStreamEncoder(
     TTableSchemaPtr schema,
     TNameTablePtr nameTable)
 {
-    return New<TArrowRowStreamFormatter>(
+    return New<TArrowRowStreamEncoder>(
         std::move(schema),
         std::move(nameTable));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-IRowStreamParserPtr CreateArrowRowStreamParser(
-     TTableSchemaPtr /*schema*/,
-    TNameTablePtr /*nameTable*/)
-{
-    THROW_ERROR_EXCEPTION("Arrow parser is not implemented yet");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

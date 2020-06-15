@@ -73,14 +73,14 @@ void AppendVector(std::vector<T>* data, const std::vector<T> toAppend)
 }
 
 template <class T>
-TRange<T> GetTypedData(const NTableClient::IUnversionedRowBatch::TValueBuffer& buffer)
+TRange<T> GetTypedData(const NTableClient::IUnversionedColumnarRowBatch::TValueBuffer& buffer)
 {
     return MakeRange(
         reinterpret_cast<const T*>(buffer.Data.Begin()),
         reinterpret_cast<const T*>(buffer.Data.End()));
 }
 
-inline bool GetBit(const NTableClient::IUnversionedRowBatch::TValueBuffer& buffer, int index)
+inline bool GetBit(const NTableClient::IUnversionedColumnarRowBatch::TValueBuffer& buffer, int index)
 {
     return (buffer.Data[index / 8] & (1 << (index % 8))) != 0;
 }
@@ -90,13 +90,13 @@ inline bool GetBit(TRef data, int index)
     return (data[index / 8] & (1 << (index % 8))) != 0;
 }
 
-inline bool GetBit(const NTableClient::IUnversionedRowBatch::TBitmap& bitmap, int index)
+inline bool GetBit(const NTableClient::IUnversionedColumnarRowBatch::TBitmap& bitmap, int index)
 {
     return GetBit(bitmap.Data, index);
 }
 
 inline void ResolveRleEncoding(
-    const NTableClient::IUnversionedRowBatch::TColumn*& column,
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn*& column,
     i64& index)
 {
     if (!column->Rle) {
@@ -111,14 +111,14 @@ inline void ResolveRleEncoding(
 }
 
 inline bool IsColumnValueNull(
-    const NTableClient::IUnversionedRowBatch::TColumn* column,
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
     int index)
 {
     return column->NullBitmap && GetBit(*column->NullBitmap, index);
 }
 
 inline bool ResolveDictionaryEncoding(
-    const NTableClient::IUnversionedRowBatch::TColumn*& column,
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn*& column,
     i64& index)
 {
     if (!column->Dictionary) {
@@ -138,7 +138,7 @@ inline bool ResolveDictionaryEncoding(
 }
 
 inline TStringBuf DecodeStringFromColumn(
-    const NTableClient::IUnversionedRowBatch::TColumn& column,
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn& column,
     i64 index)
 {
     const auto& strings = *column.Strings;
@@ -159,7 +159,7 @@ inline TStringBuf DecodeStringFromColumn(
 
 template <class T>
 T DecodeIntegerFromColumn(
-    const NTableClient::IUnversionedRowBatch::TColumn& column,
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn& column,
     i64 index)
 {
     YT_ASSERT(column.Values->BitWidth == 64);
@@ -172,7 +172,7 @@ T DecodeIntegerFromColumn(
 }
 
 inline double DecodeDoubleFromColumn(
-    const NTableClient::IUnversionedRowBatch::TColumn& column,
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn& column,
     i64 index)
 {
     YT_ASSERT(column.Values->BitWidth == 64);
@@ -180,7 +180,7 @@ inline double DecodeDoubleFromColumn(
 }
 
 inline bool DecodeBoolFromColumn(
-    const NTableClient::IUnversionedRowBatch::TColumn& column,
+    const NTableClient::IUnversionedColumnarRowBatch::TColumn& column,
     i64 index)
 {
     YT_ASSERT(column.Values->BitWidth == 1);

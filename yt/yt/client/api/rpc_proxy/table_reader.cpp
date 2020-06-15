@@ -38,7 +38,7 @@ public:
         , KeyColumns_(keyColumns)
         , TableSchema_(std::move(schema))
         , OmittedInaccessibleColumns_(omittedInaccessibleColumns)
-        , Parser_(CreateWireRowStreamParser(NameTable_))
+        , Decoder_(CreateWireRowStreamDecoder(NameTable_))
     {
         YT_VERIFY(Underlying_);
 
@@ -164,7 +164,7 @@ private:
     const std::vector<TString> OmittedInaccessibleColumns_;
 
     const TNameTablePtr NameTable_ = New<TNameTable>();
-    const IRowStreamParserPtr Parser_;
+    const IRowStreamDecoderPtr Decoder_;
 
     NChunkClient::NProto::TDataStatistics DataStatistics_;
     i64 TotalRowCount_;
@@ -206,8 +206,9 @@ private:
                     NApi::NRpcProxy::CurrentWireFormatVersion,
                     NApi::NRpcProxy::NProto::RK_UNVERSIONED);
 
-                auto parser = GetOrCreateParser(descriptor.rowset_format());
-                auto rows = parser->Parse(payloadRef, descriptor);
+                auto decoder = GetOrCreateDecoder(descriptor.rowset_format());
+                auto batch = decoder->Decode(payloadRef, descriptor);
+                auto rows = batch->MaterializeRows();
                 auto rowsWithStatistics = TRowsWithStatistics{
                     std::move(rows),
                     std::move(statistics)
@@ -222,13 +223,13 @@ private:
             }));
     }
 
-    IRowStreamParserPtr GetOrCreateParser(NApi::NRpcProxy::NProto::ERowsetFormat format)
+    IRowStreamDecoderPtr GetOrCreateDecoder(NApi::NRpcProxy::NProto::ERowsetFormat format)
     {
         if (format != NApi::NRpcProxy::NProto::RF_YT_WIRE) {
             THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
                 NApi::NRpcProxy::NProto::ERowsetFormat_Name(format));
         }
-        return Parser_;
+        return Decoder_;
     }
 };
 

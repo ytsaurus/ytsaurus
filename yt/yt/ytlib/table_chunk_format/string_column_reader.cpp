@@ -77,18 +77,20 @@ public:
 
     void ExtractValue(TUnversionedValue* value, i64 valueIndex, int id, bool aggregate) const
     {
-        auto dictionaryId = IdReader_[valueIndex];
-        if (dictionaryId == 0) {
+        auto dictionaryIndex = IndexReader_[valueIndex];
+        if (dictionaryIndex == 0) {
             *value = MakeUnversionedSentinelValue(EValueType::Null, id, aggregate);
         } else {
-            SetStringValue(value, dictionaryId - 1, id, aggregate);
+            SetStringValue(value, dictionaryIndex - 1, id, aggregate);
         }
     }
 
 protected:
+    const IUnversionedColumnarRowBatch::TDictionaryId DictionaryId_ = IUnversionedColumnarRowBatch::GenerateDictionaryId();
+
     using TBase = TStringValueExtractorBase<ValueType, Scan, UnpackValue>;
-    using TIdsReader = TBitPackedUnsignedVectorReader<ui32, Scan>;
-    TIdsReader IdReader_;
+    using TIndexReader = TBitPackedUnsignedVectorReader<ui32, Scan>;
+    TIndexReader IndexReader_;
 
     using TBase::SetStringValue;
     using TBase::OffsetReader_;
@@ -99,8 +101,8 @@ protected:
     {
         const char* ptr = begin;
 
-        IdReader_ = TIdsReader(reinterpret_cast<const ui64*>(ptr));
-        ptr += IdReader_.GetByteSize();
+        IndexReader_ = TIndexReader(reinterpret_cast<const ui64*>(ptr));
+        ptr += IndexReader_.GetByteSize();
 
         OffsetReader_ = TOffsetsReader(reinterpret_cast<const ui64*>(ptr));
         ptr += OffsetReader_.GetByteSize();
@@ -265,7 +267,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 2);
         auto& primaryColumn = columns[0];
@@ -326,7 +328,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 3);
         auto& primaryColumn = columns[0];
@@ -342,10 +344,11 @@ public:
         ReadColumnarDictionary(
             &rleColumn,
             &dictionaryColumn,
+            DictionaryId_,
             primaryColumn.Type,
             -1,
             -1,
-            IdReader_.GetData());
+            IndexReader_.GetData());
         ReadColumnarRle(
             &primaryColumn,
             &rleColumn,
@@ -358,10 +361,11 @@ public:
 private:
     using TRleValueExtractorBase<Scan>::RowIndexReader_;
     using typename TRleValueExtractorBase<Scan>::TRowIndexReader;
-    using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::IdReader_;
+    using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::IndexReader_;
     using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::OffsetReader_;
     using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::StringMeta_;
     using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::StringData_;
+    using TDictionaryStringValueExtractorBase<ValueType, Scan, true>::DictionaryId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -387,7 +391,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 2);
         auto& primaryColumn = columns[0];
@@ -402,18 +406,20 @@ public:
         ReadColumnarDictionary(
             &primaryColumn,
             &dictionaryColumn,
+            DictionaryId_,
             primaryColumn.Type,
             startRowIndex,
             rowCount,
-            IdReader_.GetData());
+            IndexReader_.GetData());
     }
 
 private:
     using TBase = TDictionaryStringValueExtractorBase<ValueType, Scan, true>;
-    using TBase::IdReader_;
+    using TBase::IndexReader_;
     using TBase::OffsetReader_;
     using TBase::StringMeta_;
     using TBase::StringData_;
+    using TBase::DictionaryId_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -440,7 +446,7 @@ public:
     void ReadColumnarBatch(
         i64 startRowIndex,
         i64 rowCount,
-        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns)
+        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns)
     {
         YT_VERIFY(columns.size() == 1);
         auto& column = columns[0];

@@ -49,7 +49,8 @@
 
 #include <yt/client/ypath/rich.h>
 
-#include <yt/client/arrow/arrow_row_stream.h>
+#include <yt/client/arrow/arrow_row_stream_encoder.h>
+#include <yt/client/arrow/arrow_row_stream_decoder.h>
 
 #include <yt/core/concurrency/scheduler.h>
 
@@ -273,17 +274,17 @@ TServiceDescriptor GetServiceDescriptor()
         });
 }
 
-IRowStreamFormatterPtr CreateRowStreamFormatter(
+IRowStreamEncoderPtr CreateRowStreamEncoder(
     NApi::NRpcProxy::NProto::ERowsetFormat format,
     TTableSchemaPtr schema, 
     TNameTablePtr nameTable)
 {
     switch (format) {
         case NApi::NRpcProxy::NProto::RF_YT_WIRE:
-            return CreateWireRowStreamFormatter(std::move(nameTable));
+            return CreateWireRowStreamEncoder(std::move(nameTable));
 
         case NApi::NRpcProxy::NProto::RF_ARROW:
-            return CreateArrowRowStreamFormatter(std::move(schema), std::move(nameTable));
+            return CreateArrowRowStreamEncoder(std::move(schema), std::move(nameTable));
 
         default:
             THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
@@ -291,17 +292,17 @@ IRowStreamFormatterPtr CreateRowStreamFormatter(
     }
 }
 
-IRowStreamParserPtr CreateRowStreamParser(
+IRowStreamDecoderPtr CreateRowStreamDecoder(
     NApi::NRpcProxy::NProto::ERowsetFormat format,
     TTableSchemaPtr schema, 
     TNameTablePtr nameTable)
 {
     switch (format) {
         case NApi::NRpcProxy::NProto::RF_YT_WIRE:
-            return CreateWireRowStreamParser(std::move(nameTable));
+            return CreateWireRowStreamDecoder(std::move(nameTable));
 
         case NApi::NRpcProxy::NProto::RF_ARROW:
-            return CreateArrowRowStreamParser(std::move(schema), std::move(nameTable));
+            return CreateArrowRowStreamDecoder(std::move(schema), std::move(nameTable));
 
         default:
             THROW_ERROR_EXCEPTION("Unsupported rowset format %Qv",
@@ -3261,7 +3262,7 @@ private:
         auto tableReader = WaitFor(client->CreateTableReader(path, options))
             .ValueOrThrow();
 
-        auto formatter = CreateRowStreamFormatter(
+        auto encoder = CreateRowStreamEncoder(
             desiredRowsetFormat,
             tableReader->GetTableSchema(),
             tableReader->GetNameTable());
@@ -3302,7 +3303,7 @@ private:
                 statistics.set_total_row_count(tableReader->GetTotalRowCount());
                 ToProto(statistics.mutable_data_statistics(), tableReader->GetDataStatistics());
 
-                return formatter->Format(
+                return encoder->Encode(
                     batch ? batch : CreateEmptyUnversionedRowBatch(),
                     &statistics);
             });
@@ -3330,11 +3331,11 @@ private:
         auto tableWriter = WaitFor(client->CreateTableWriter(path, options))
             .ValueOrThrow();
 
-        THashMap<NApi::NRpcProxy::NProto::ERowsetFormat, IRowStreamParserPtr> parserMap;
-        auto getOrCreateParser = [&] (NApi::NRpcProxy::NProto::ERowsetFormat format) {
+        THashMap<NApi::NRpcProxy::NProto::ERowsetFormat, IRowStreamDecoderPtr> parserMap;
+        auto getOrCreateDecoder = [&] (NApi::NRpcProxy::NProto::ERowsetFormat format) {
             auto it =  parserMap.find(format);
             if (it == parserMap.end()) {
-                auto parser = CreateRowStreamParser(
+                auto parser = CreateRowStreamDecoder(
                     format,
                     tableWriter->GetSchema(),
                     tableWriter->GetNameTable());
@@ -3362,9 +3363,11 @@ private:
                     NApi::NRpcProxy::CurrentWireFormatVersion,
                     NApi::NRpcProxy::NProto::RK_UNVERSIONED);
 
-                auto parser = getOrCreateParser(descriptor.rowset_format());
+                auto decoder = getOrCreateDecoder(descriptor.rowset_format());
 
-                auto rows = parser->Parse(payloadRef, descriptor);
+                auto batch = decoder->Decode(payloadRef, descriptor);
+
+                auto rows = batch->MaterializeRows();
 
                 tableWriter->Write(rows);
                 
