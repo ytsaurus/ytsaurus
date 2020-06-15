@@ -379,7 +379,7 @@ private:
     TBufferOutput BufferOutput_;
     TBufferedBinaryYsonWriter YsonWriter_;
     TComplexTypeFieldDescriptor Descriptor_;
-    ui16 CurrentGeneration_ = 0;
+    ui16 CurrentGeneration_;
 };
 
 TYsonConverter CreateNamedToPositionalVariantStructConverter(

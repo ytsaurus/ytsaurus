@@ -558,7 +558,7 @@ private:
             IOEngine_->FlushData(DataFile_).Get().ValueOrThrow();
 
             auto header = MakeChangelogHeader<T>();
-            auto data = TAsyncFileChangelogIndex::AllocateAligned(header.FirstRecordOffset, true, Alignment);
+            auto data = TAsyncFileChangelogIndex::AllocateAligned(header.FirstRecordOffset, false, Alignment);
             ::memcpy(data.Begin(), &header, sizeof(header));
 
             IOEngine_->Pwrite(DataFile_, data, 0).Get().ThrowOnError();
