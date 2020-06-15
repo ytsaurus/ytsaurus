@@ -87,6 +87,8 @@
 
 #include <yt/core/rpc/helpers.h>
 
+#include <yt/core/yson/protobuf_interop.h>
+
 #include <yt/core/ytree/helpers.h>
 #include <yt/core/ytree/ypath_proxy.h>
 #include <yt/core/ytree/ypath_resolver.h>
@@ -1195,7 +1197,7 @@ IChannelPtr TClient::TryCreateChannelToJobNode(
         auto address = ConvertToNode(jobYsonString)->AsMap()->GetChild("address")->GetValue<TString>();
 
         auto nodeChannel = ChannelFactory_->CreateChannel(address);
-        auto jobSpecOrError = TryGetJobSpecFromJobNode(jobId, nodeChannel);
+        auto jobSpecOrError = TryFetchJobSpecFromJobNode(jobId, nodeChannel);
         if (!jobSpecOrError.IsOK()) {
             return nullptr;
         }
@@ -1211,7 +1213,7 @@ IChannelPtr TClient::TryCreateChannelToJobNode(
     }
 }
 
-TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryGetJobSpecFromJobNode(
+TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryFetchJobSpecFromJobNode(
     TJobId jobId,
     const NRpc::IChannelPtr& nodeChannel)
 {
@@ -1233,9 +1235,7 @@ TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryGetJobSpecFromJobNode(
     return spec;
 }
 
-// Get job spec from node and check that user has |requiredPermissions|
-// for accessing the corresponding operation.
-TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryGetJobSpecFromJobNode(
+TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryFetchJobSpecFromJobNode(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
@@ -1246,12 +1246,10 @@ TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryGetJobSpecFromJobNode(
 
     const auto& nodeDescriptor = jobNodeDescriptorOrError.Value();
     auto nodeChannel = ChannelFactory_->CreateChannel(nodeDescriptor);
-    return TryGetJobSpecFromJobNode(jobId, nodeChannel);
+    return TryFetchJobSpecFromJobNode(jobId, nodeChannel);
 }
 
-// Get job spec from job archive and check that user has |requiredPermissions|
-// for accessing the corresponding operation.
-NJobTrackerClient::NProto::TJobSpec TClient::GetJobSpecFromArchive(
+NJobTrackerClient::NProto::TJobSpec TClient::FetchJobSpecFromArchive(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
@@ -1307,11 +1305,11 @@ NJobTrackerClient::NProto::TJobSpec TClient::GetJobSpecFromArchive(
     return jobSpec;
 }
 
-IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
-    TJobId jobId,
-    const TGetJobInputOptions& /*options*/)
+NJobTrackerClient::NProto::TJobSpec TClient::FetchJobSpec(
+    NScheduler::TJobId jobId,
+    NYTree::EPermissionSet requiredPermissions)
 {
-    auto jobSpecFromProxyOrError = TryGetJobSpecFromJobNode(jobId, EPermissionSet(EPermission::Read));
+    auto jobSpecFromProxyOrError = TryFetchJobSpecFromJobNode(jobId, requiredPermissions);
     if (!jobSpecFromProxyOrError.IsOK() && !IsNoSuchJobOrOperationError(jobSpecFromProxyOrError)) {
         THROW_ERROR jobSpecFromProxyOrError;
     }
@@ -1320,8 +1318,17 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
     if (jobSpecFromProxyOrError.IsOK()) {
         jobSpec = std::move(jobSpecFromProxyOrError.Value());
     } else {
-        jobSpec = GetJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
+        jobSpec = FetchJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
     }
+
+    return jobSpec;
+}
+
+IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
+    TJobId jobId,
+    const TGetJobInputOptions& /*options*/)
+{
+    auto jobSpec = FetchJobSpec(jobId, EPermissionSet(EPermission::Read));
 
     auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -1384,16 +1391,7 @@ TYsonString TClient::DoGetJobInputPaths(
     TJobId jobId,
     const TGetJobInputPathsOptions& /*options*/)
 {
-    NJobTrackerClient::NProto::TJobSpec jobSpec;
-    auto jobSpecFromProxyOrError = TryGetJobSpecFromJobNode(jobId, EPermissionSet(EPermission::Read));
-    if (!jobSpecFromProxyOrError.IsOK() && !IsNoSuchJobOrOperationError(jobSpecFromProxyOrError)) {
-        THROW_ERROR jobSpecFromProxyOrError;
-    }
-    if (jobSpecFromProxyOrError.IsOK()) {
-        jobSpec = std::move(jobSpecFromProxyOrError.Value());
-    } else {
-        jobSpec = GetJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
-    }
+    auto jobSpec = FetchJobSpec(jobId, EPermissionSet(EPermissionSet::Read));
 
     auto schedulerJobSpecExt = jobSpec.GetExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -1554,6 +1552,36 @@ TYsonString TClient::DoGetJobInputPaths(
         });
 }
 
+TYsonString TClient::DoGetJobSpec(
+    TJobId jobId,
+    const TGetJobSpecOptions& options)
+{
+    auto jobSpec = FetchJobSpec(jobId, EPermissionSet(EPermissionSet::Read));
+    auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
+
+    if (options.OmitNodeDirectory) {
+        schedulerJobSpecExt->clear_input_node_directory();
+    }
+
+    if (options.OmitInputTableSpecs) {
+        schedulerJobSpecExt->clear_input_table_specs();
+        schedulerJobSpecExt->clear_foreign_input_table_specs();
+    }
+
+    if (options.OmitOutputTableSpecs) {
+        schedulerJobSpecExt->clear_output_table_specs();
+    }
+
+    TString jobSpecYsonBytes;
+    TStringOutput jobSpecYsonBytesOutput(jobSpecYsonBytes);
+    TYsonWriter jobSpecYsonWriter(&jobSpecYsonBytesOutput);
+    WriteProtobufMessage(&jobSpecYsonWriter, jobSpec);
+
+    auto jobSpecNode = ConvertToNode(TYsonString(jobSpecYsonBytes));
+
+    return ConvertToYsonString(jobSpecNode);
+}
+
 TSharedRef TClient::DoGetJobStderrFromNode(
     TOperationId operationId,
     TJobId jobId)
@@ -1636,7 +1664,7 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
     TJobId jobId)
 {
     // Check permissions.
-    GetJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
+    FetchJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
 
     try {
         TJobStderrTableDescriptor tableDescriptor;
@@ -1715,7 +1743,7 @@ TSharedRef TClient::DoGetJobFailContextFromArchive(
     TJobId jobId)
 {
     // Check permissions.
-    GetJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
+    FetchJobSpecFromArchive(jobId, EPermissionSet(EPermission::Read));
 
     try {
         TJobFailContextTableDescriptor tableDescriptor;

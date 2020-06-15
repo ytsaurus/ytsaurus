@@ -432,6 +432,10 @@ def get_job_input_paths(job_id, **kwargs):
     kwargs["job_id"] = job_id
     return execute_command("get_job_input_paths", kwargs)
 
+def get_job_spec(job_id, **kwargs):
+    kwargs["job_id"] = job_id
+    return execute_command("get_job_spec", kwargs)
+
 def get_table_columnar_statistics(paths, **kwargs):
     kwargs["paths"] = paths
     return execute_command("get_table_columnar_statistics", kwargs, parse_yson=True)

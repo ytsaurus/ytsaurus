@@ -90,6 +90,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobInput,
         .SetStreamingEnabled(true));
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobInputPaths);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobSpec);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobStderr);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetJobFailContext);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AbandonJob);

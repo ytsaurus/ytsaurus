@@ -659,6 +659,20 @@ void SetNodeByYPath(
     }
 }
 
+bool RemoveNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path)
+{
+    auto node = WalkNodeByYPath(root, path, FindNodeByYPathOptions);
+    if (!node) {
+        return false;
+    }
+
+    node->GetParent()->RemoveChild(node);
+
+    return true;
+}
+
 void ForceYPath(
     const INodePtr& root,
     const TYPath& path)
@@ -689,7 +703,7 @@ void ForceYPath(
             case ENodeType::Map: {
                 auto currentMap = currentNode->AsMap();
                 const auto& key = currentLiteralValue;
-                child = currentMap->AsMap()->FindChild(key);
+                child = currentMap->FindChild(key);
                 if (!child) {
                     child = factory->CreateMap();
                     YT_VERIFY(currentMap->AddChild(key, child));

@@ -1566,6 +1566,22 @@ message TRspGetJobInputPaths
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqGetJobSpec
+{
+    required NYT.NProto.TGuid job_id = 1;
+
+    optional bool omit_node_directory = 2 [default = true];
+    optional bool omit_input_table_specs = 3 [default = false];
+    optional bool omit_output_table_specs = 4 [default = false];
+}
+
+message TRspGetJobSpec
+{
+    required bytes job_spec = 1; // YSON
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqGetJobStderr
 {
     required NYT.NProto.TGuid operation_id = 1;

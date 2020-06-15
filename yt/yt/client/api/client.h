@@ -796,6 +796,14 @@ struct TGetJobInputPathsOptions
     : public TTimeoutOptions
 { };
 
+struct TGetJobSpecOptions
+    : public TTimeoutOptions
+{
+    bool OmitNodeDirectory;
+    bool OmitInputTableSpecs;
+    bool OmitOutputTableSpecs;
+};
+
 
 struct TGetJobStderrOptions
     : public TTimeoutOptions
@@ -1414,6 +1422,10 @@ struct IClient
     virtual TFuture<NYson::TYsonString> GetJobInputPaths(
         NJobTrackerClient::TJobId jobId,
         const TGetJobInputPathsOptions& options = {}) = 0;
+
+    virtual TFuture<NYson::TYsonString> GetJobSpec(
+        NJobTrackerClient::TJobId jobId,
+        const TGetJobSpecOptions& options = {}) = 0;
 
     virtual TFuture<TSharedRef> GetJobStderr(
         NJobTrackerClient::TOperationId operationId,

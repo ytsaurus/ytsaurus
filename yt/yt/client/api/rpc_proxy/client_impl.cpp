@@ -823,6 +823,25 @@ TFuture<TYsonString> TClient::GetJobInputPaths(
     }));
 }
 
+TFuture<TYsonString> TClient::GetJobSpec(
+    NJobTrackerClient::TJobId jobId,
+    const TGetJobSpecOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.GetJobSpec();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_job_id(), jobId);
+    req->set_omit_node_directory(options.OmitNodeDirectory);
+    req->set_omit_input_table_specs(options.OmitInputTableSpecs);
+    req->set_omit_output_table_specs(options.OmitOutputTableSpecs);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetJobSpecPtr& rsp) {
+        return TYsonString(rsp->job_spec());
+    }));
+}
+
 TFuture<TSharedRef> TClient::GetJobStderr(
     NJobTrackerClient::TOperationId operationId,
     NJobTrackerClient::TJobId jobId,

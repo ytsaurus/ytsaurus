@@ -71,6 +71,28 @@ void TGetJobInputPathsCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TGetJobSpecCommand::TGetJobSpecCommand()
+{
+    RegisterParameter("job_id", JobId);
+    RegisterParameter("omit_node_directory", Options.OmitNodeDirectory)
+        .Default(true);
+    RegisterParameter("omit_input_table_specs", Options.OmitInputTableSpecs)
+        .Default(false);
+    RegisterParameter("omit_output_table_specs", Options.OmitOutputTableSpecs)
+        .Default(false);
+}
+
+void TGetJobSpecCommand::DoExecute(ICommandContextPtr context)
+{
+    auto jobSpec = WaitFor(context->GetClient()->GetJobSpec(JobId, Options))
+        .ValueOrThrow();
+
+    auto output = context->Request().OutputStream;
+    context->ProduceOutputValue(std::move(jobSpec));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TGetJobStderrCommand::TGetJobStderrCommand()
 {
     RegisterParameter("operation_id", OperationId);

@@ -2,6 +2,7 @@ package NYT.NScheduler.NProto;
 
 import "yt/core/misc/proto/guid.proto";
 import "yt/core/misc/proto/protobuf_helpers.proto";
+import "yt/core/yson/proto/protobuf_interop.proto";
 import "yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt/ytlib/chunk_client/proto/data_source.proto";
 import "yt/ytlib/core_dump/proto/core_info.proto";
@@ -58,7 +59,7 @@ message TFileDescriptor
 {
     optional string file_name = 3;
     optional bool executable = 6;
-    optional bytes format = 7;
+    optional bytes format = 7 [(NYT.NYson.NProto.yson_string) = true];
     required NChunkClient.NProto.TDataSource data_source = 8;
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 9;
     optional bool bypass_artifact_cache = 10;
@@ -67,7 +68,7 @@ message TFileDescriptor
 message TTableBlobSpec
 {
     required TTableOutputSpec output_table_spec = 1;
-    required bytes blob_table_writer_config = 2;
+    required bytes blob_table_writer_config = 2 [(NYT.NYson.NProto.yson_string) = true];
 }
 
 message TTmpfsVolume
@@ -87,10 +88,10 @@ message TUserJobSpec
     required string shell_command = 2;
 
     // Input format description (in YSON).
-    required string input_format = 3;
+    required string input_format = 3 [(NYT.NYson.NProto.yson_string) = true];
 
     // Output format description (in YSON).
-    required string output_format = 4;
+    required string output_format = 4 [(NYT.NYson.NProto.yson_string) = true];
 
     // Environment strings (K=V format) for starting user process.
     repeated string environment = 5;
@@ -199,10 +200,10 @@ message TTableOutputSpec
     required NYT.NProto.TGuid chunk_list_id = 2;
 
     // YSON-serialized writer options obtained from table attributes.
-    required string table_writer_options = 6;
+    required string table_writer_options = 6 [(NYT.NYson.NProto.yson_string) = true];
 
     // YSON-serialized writer config obtained from table attributes.
-    optional string table_writer_config = 9;
+    optional string table_writer_config = 9 [(NYT.NYson.NProto.yson_string) = true];
 
     // Timestamp for rows.
     optional int64 timestamp = 10 [default = 0];
@@ -221,16 +222,18 @@ message TSchedulerJobSpecExt
         optional TSchedulerJobSpecExt scheduler_job_spec_ext = 100;
     }
 
+    // NB: Make sure to register all extensions that can appear here in
+    // TClient::DoGetJobSpec to make extension appear in GetJobSpec result.
     optional NYT.NProto.TExtensionSet extensions = 18;
 
     // Configuration for IO during job execution.
-    optional bytes io_config = 1;
+    optional bytes io_config = 1 [(NYT.NYson.NProto.yson_string) = true];
 
     // The transaction used for writing output chunks.
     optional NYT.NProto.TGuid output_transaction_id = 2;
 
     // Job input.
-    optional string table_reader_options = 19;
+    optional string table_reader_options = 19 [(NYT.NYson.NProto.yson_string) = true];
     repeated TTableInputSpec input_table_specs = 3;
     repeated TTableInputSpec foreign_input_table_specs = 15;
 
@@ -267,9 +270,9 @@ message TSchedulerJobSpecExt
 
     optional bool abort_job_if_account_limit_exceeded = 20;
 
-    optional string acl = 21;
+    optional string acl = 21 [(NYT.NYson.NProto.yson_string) = true];
 
-    optional string job_cpu_monitor_config = 22;
+    optional string job_cpu_monitor_config = 22 [(NYT.NYson.NProto.yson_string) = true];
 
     optional int64 waiting_job_timeout = 23;
 
