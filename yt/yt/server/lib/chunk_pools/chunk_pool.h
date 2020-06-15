@@ -8,6 +8,8 @@
 
 #include <yt/ytlib/chunk_client/public.h>
 
+#include <yt/core/actions/signal.h>
+
 #include <yt/core/misc/small_vector.h>
 
 namespace NYT::NChunkPools {
@@ -84,8 +86,6 @@ struct IChunkPoolOutput
 
     virtual i64 GetDataSliceCount() const = 0;
 
-    virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const = 0;
-
     virtual TOutputOrderPtr GetOutputOrder() const = 0;
 
     virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const = 0;
@@ -111,6 +111,9 @@ struct IChunkPoolOutput
     virtual void Failed(TCookie cookie) = 0;
     virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) = 0;
     virtual void Lost(TCookie cookie) = 0;
+
+    //! Raises when dynamic config changes.
+    DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -119,16 +122,9 @@ class TChunkPoolOutputBase
     : public virtual IChunkPoolOutput
 {
 public:
-    virtual const std::vector<NChunkClient::TInputChunkPtr>& GetTeleportChunks() const override;
-
     virtual TOutputOrderPtr GetOutputOrder() const override;
 
     virtual i64 GetLocality(NNodeTrackerClient::TNodeId nodeId) const override;
-
-    virtual void Persist(const TPersistenceContext& context) override;
-
-protected:
-    std::vector<NChunkClient::TInputChunkPtr> TeleportChunks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -54,11 +54,6 @@ void TChunkPoolInputBase::Persist(const TPersistenceContext& context)
 
 // IPersistent implementation.
 
-const std::vector<TInputChunkPtr>& TChunkPoolOutputBase::GetTeleportChunks() const
-{
-    return TeleportChunks_;
-}
-
 TOutputOrderPtr TChunkPoolOutputBase::GetOutputOrder() const
 {
     return nullptr;
@@ -67,13 +62,6 @@ TOutputOrderPtr TChunkPoolOutputBase::GetOutputOrder() const
 i64 TChunkPoolOutputBase::GetLocality(NNodeTrackerClient::TNodeId /* nodeId */) const
 {
     return 0;
-}
-
-void TChunkPoolOutputBase::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, TeleportChunks_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,8 +104,6 @@ const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetJobCounter() con
 
 void TChunkPoolOutputWithCountersBase::Persist(const TPersistenceContext& context)
 {
-    TChunkPoolOutputBase::Persist(context);
-
     using NYT::Persist;
     Persist(context, DataWeightCounter);
     Persist(context, RowCounter);
@@ -214,8 +200,6 @@ const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetJobCounter() c
 
 void TChunkPoolOutputWithJobManagerBase::Persist(const TPersistenceContext& context)
 {
-    TChunkPoolOutputBase::Persist(context);
-
     using NYT::Persist;
     Persist(context, JobManager_);
 }

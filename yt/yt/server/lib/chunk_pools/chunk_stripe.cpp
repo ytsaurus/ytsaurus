@@ -94,6 +94,7 @@ void TChunkStripe::Persist(const TPersistenceContext& context)
     Persist(context, Solid);
     Persist(context, ChunkListId);
     Persist(context, BoundaryKeys);
+    Persist(context, PartitionTag);
 }
 
 TChunkStripeStatistics operator + (

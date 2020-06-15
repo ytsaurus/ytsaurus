@@ -314,6 +314,8 @@ private:
 
     bool HasForeignData_ = false;
 
+    std::vector<TInputChunkPtr> TeleportChunks_;
+
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
     //! (for versioned stripes).
@@ -565,6 +567,7 @@ private:
 
         i64 totalTeleportChunkSize = 0;
         for (const auto& teleportChunk : TeleportChunks_) {
+            ChunkTeleported_.Fire(teleportChunk, /*tag=*/std::any{});
             totalTeleportChunkSize += teleportChunk->GetUncompressedDataSize();
         }
 

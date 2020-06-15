@@ -34,6 +34,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RefactorReduce)                       (300401))
     ((StartAndCompletionTimeInTask)         (300402))
     ((DataFlowInProgress)                   (300403))
+    ((MultiChunkPool)                       (300404))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

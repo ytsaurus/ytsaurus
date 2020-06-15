@@ -7,6 +7,7 @@
 #include <yt/server/controller_agent/operation_controller.h>
 
 #include <yt/server/lib/chunk_pools/input_chunk_mapping.h>
+#include <yt/server/lib/chunk_pools/multi_chunk_pool.h>
 #include <yt/server/lib/chunk_pools/sorted_chunk_pool.h>
 
 #include <yt/ytlib/chunk_client/input_chunk.h>
@@ -267,6 +268,10 @@ protected:
             Options_,
             !MockBuilders_.empty() ? BuildMockChunkSliceFetcherFactory() : nullptr,
             useGenericInputStreamDirectory ? IntermediateInputStreamDirectory : TInputStreamDirectory(InputTables_));
+        ChunkPool_->SubscribeChunkTeleported(
+            BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
+                TeleportChunks_.push_back(std::move(teleportChunk));
+            }));
     }
 
     IChunkPoolInput::TCookie AddMultiChunkStripe(std::vector<TInputChunkPtr> chunks)
@@ -351,6 +356,7 @@ protected:
         TSaveContext saveContext;
         saveContext.SetVersion(ToUnderlying(GetCurrentSnapshotVersion()));
         saveContext.SetOutput(&output);
+        Save(saveContext, UnderlyingPools_);
         Save(saveContext, ChunkPool_);
         auto blob = output.Flush();
         ChunkPool_.reset();
@@ -360,7 +366,12 @@ protected:
         loadContext.SetVersion(ToUnderlying(GetCurrentSnapshotVersion()));
         loadContext.SetRowBuffer(RowBuffer_);
         loadContext.SetInput(&input);
+        Load(loadContext, UnderlyingPools_);
         Load(loadContext, ChunkPool_);
+        ChunkPool_->SubscribeChunkTeleported(
+            BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
+                TeleportChunks_.push_back(std::move(teleportChunk));
+            }));
     }
 
     std::vector<TChunkStripeListPtr> GetAllStripeLists()
@@ -392,10 +403,10 @@ protected:
     //! * For each input table the input data slices follow in an ascending order with tie broken by:
     //! *** For the unversioned tables by chunk row index;
     //! *** For the versioned tables by the full key;
-    void CheckDataIntegrity(const std::vector<TChunkStripeListPtr>& stripeLists, const std::vector<TInputChunkPtr>& teleportChunks)
+    void CheckDataIntegrity(const std::vector<TChunkStripeListPtr>& stripeLists)
     {
         THashMap<TInputChunkPtr, std::vector<TInputChunkSlicePtr>> chunkSlicesByInputChunk;
-        THashSet<TInputChunkPtr> teleportChunksSet(teleportChunks.begin(), teleportChunks.end());
+        THashSet<TInputChunkPtr> teleportChunksSet(TeleportChunks_.begin(), TeleportChunks_.end());
 
         // Check that data slices from each stripe are all from the same table.
         for (const auto& stripeList : stripeLists) {
@@ -506,10 +517,9 @@ protected:
     //! Unfortunately we cannot check the Options_.MaxPrimaryDataSizePerJob constraint satisfaction as this is not an absolute
     //! restriction, but only a best-effort bound.
     void TryCheckJobConstraintsSatisfaction(
-        const std::vector<TChunkStripeListPtr>& stripeLists,
-        const std::vector<TInputChunkPtr>& teleportChunks)
+        const std::vector<TChunkStripeListPtr>& stripeLists)
     {
-        for (const auto& teleportChunk : teleportChunks) {
+        for (const auto& teleportChunk : TeleportChunks_) {
             EXPECT_TRUE(teleportChunk->IsLargeCompleteChunk(Options_.MinTeleportChunkSize));
         }
 
@@ -548,7 +558,7 @@ protected:
 
     //! Find all teleport chunks naively (in quadratic time) and check that chunk pool detected exactly
     //! the same chunks.
-    void CheckTeleportChunks(const std::vector<TInputChunkPtr>& teleportChunks)
+    void CheckTeleportChunks()
     {
         // TODO(max42): implement a naive procedure for finding the teleport chunks and compare
         // its result with `teleportChunks`.
@@ -563,12 +573,11 @@ protected:
     //! Perform all the correctness checks over the given result of sorted chunk pool invocation
     //! (without any suspends nor job interruptions).
     void CheckEverything(
-        const std::vector<TChunkStripeListPtr>& stripeLists,
-        const std::vector<TInputChunkPtr>& teleportChunks)
+        const std::vector<TChunkStripeListPtr>& stripeLists)
     {
-        CheckDataIntegrity(stripeLists, teleportChunks);
-        TryCheckJobConstraintsSatisfaction(stripeLists, teleportChunks);
-        CheckTeleportChunks(teleportChunks);
+        CheckDataIntegrity(stripeLists);
+        TryCheckJobConstraintsSatisfaction(stripeLists);
+        CheckTeleportChunks();
         CheckStripeListsContainOnlyActiveChunks();
         CheckForeignStripesAreMarkedAsForeign();
         if (Options_.SortedJobOptions.EnableKeyGuarantee) {
@@ -643,6 +652,12 @@ protected:
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
 
     std::mt19937 Gen_;
+
+    std::vector<std::unique_ptr<IChunkPool>> UnderlyingPools_;
+
+    THashMap<TChunkId, int> ChunkIdToUnderlyingPoolIndex_;
+
+    std::vector<TInputChunkPtr> TeleportChunks_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -677,12 +692,11 @@ TEST_F(TSortedChunkPoolTest, SortedMergeTeleports1)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, UnorderedElementsAreArray({chunkA, chunkB, chunkC}));
+    EXPECT_THAT(TeleportChunks_, UnorderedElementsAreArray({chunkA, chunkB, chunkC}));
     EXPECT_EQ(1, stripeLists.size());
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, SortedMergeTeleports2)
@@ -716,13 +730,12 @@ TEST_F(TSortedChunkPoolTest, SortedMergeTeleports2)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, UnorderedElementsAreArray({chunkB, chunkC}));
+    EXPECT_THAT(TeleportChunks_, UnorderedElementsAreArray({chunkB, chunkC}));
     // Non-teleportable chunks are separated with teleportable ones, so there should be two separate jobs.
     EXPECT_EQ(2, stripeLists.size());
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, SortedMergeTeleports3)
@@ -742,6 +755,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeTeleports3)
     auto chunkC = CreateChunk(BuildRow({1, 10}), BuildRow({1, 13}), 2);
 
     CreateChunkPool();
+    PersistAndRestore();
 
     AddChunk(chunkA);
     AddChunk(chunkB);
@@ -751,12 +765,11 @@ TEST_F(TSortedChunkPoolTest, SortedMergeTeleports3)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, UnorderedElementsAreArray({chunkA, chunkB, chunkC}));
+    EXPECT_THAT(TeleportChunks_, UnorderedElementsAreArray({chunkA, chunkB, chunkC}));
     EXPECT_EQ(0, stripeLists.size());
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, SortedMergeTeleports4)
@@ -789,12 +802,11 @@ TEST_F(TSortedChunkPoolTest, SortedMergeTeleports4)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(1, stripeLists.size());
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 // NB(max42): completely getting into this test may take several hours of your life.
@@ -1071,9 +1083,8 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, UnorderedElementsAreArray({
+    EXPECT_THAT(TeleportChunks_, UnorderedElementsAreArray({
         chunkA1, chunkB1,
         chunkA2, chunkB2,
         chunkA9, chunkB9,
@@ -1095,7 +1106,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
         chunkB30,
     }));
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, SortedMergeSimple)
@@ -1128,12 +1139,11 @@ TEST_F(TSortedChunkPoolTest, SortedMergeSimple)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(1, stripeLists.size());
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, SortedMergeWithPersistBeforeFinish)
@@ -1163,9 +1173,8 @@ TEST_F(TSortedChunkPoolTest, SortedMergeWithPersistBeforeFinish)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(1, stripeLists.size());
     EXPECT_EQ(3, stripeLists.front()->Stripes.size());
 }
@@ -1200,12 +1209,11 @@ TEST_F(TSortedChunkPoolTest, SortedMergeSimpleWithGenericInputStreamDirectory)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(1, stripeLists.size());
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, SlicingManiacs)
@@ -1240,9 +1248,8 @@ TEST_F(TSortedChunkPoolTest, SlicingManiacs)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
 
     // In an ideal world we would've split all this stuff into (100 + 2) / 3 == 34 jobs.
     // Since our implementation is not perfect, we ensure that there is at least 34 jobs
@@ -1250,7 +1257,7 @@ TEST_F(TSortedChunkPoolTest, SlicingManiacs)
     EXPECT_LE((100 + 2) / 3, stripeLists.size());
     EXPECT_LE(stripeLists.size(), 100 / 2 + 2);
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1283,16 +1290,15 @@ TEST_F(TSortedChunkPoolTest, SortedReduceSimple)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     ASSERT_EQ(2, stripeLists.size());
     // At least one stripe list should be responsible for the shared key {2}.
     EXPECT_TRUE(
         (stripeLists[0]->Stripes[0] && stripeLists[0]->Stripes[1]) ||
         (stripeLists[0]->Stripes[1] && stripeLists[1]->Stripes[1]));
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, SortedReduceManiacs)
@@ -1322,11 +1328,10 @@ TEST_F(TSortedChunkPoolTest, SortedReduceManiacs)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
@@ -1621,9 +1626,8 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, UnorderedElementsAreArray({
+    EXPECT_THAT(TeleportChunks_, UnorderedElementsAreArray({
         chunkA1, chunkB1,
         chunkA12,
         chunkA16,
@@ -1633,7 +1637,7 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
         chunkB30,
     }));
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, SortedReduceWithJoin)
@@ -1669,11 +1673,10 @@ TEST_F(TSortedChunkPoolTest, SortedReduceWithJoin)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, JoinReduce)
@@ -1709,11 +1712,10 @@ TEST_F(TSortedChunkPoolTest, JoinReduce)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, ManiacIsSliced)
@@ -2120,9 +2122,7 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase)
     chunkSequence.erase(std::unique(chunkSequence.begin(), chunkSequence.end()), chunkSequence.end());
     ASSERT_EQ(chunkSequence.size(), 2);
 
-    auto teleportChunks = ChunkPool_->GetTeleportChunks();
-
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
@@ -2171,9 +2171,7 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase2)
     chunkSequence.erase(std::unique(chunkSequence.begin(), chunkSequence.end()), chunkSequence.end());
     ASSERT_EQ(chunkSequence.size(), 3);
 
-    auto teleportChunks = ChunkPool_->GetTeleportChunks();
-
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, TestTrickyCase3)
@@ -2204,9 +2202,8 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase3)
     ExtractOutputCookiesWhilePossible();
 
     auto stripeLists = GetAllStripeLists();
-    auto teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, TestTrickyCase4)
@@ -2249,11 +2246,10 @@ TEST_F(TSortedChunkPoolTest, TestTrickyCase4)
     ExtractOutputCookiesWhilePossible();
 
     auto stripeLists = GetAllStripeLists();
-    auto teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 
-    EXPECT_TRUE(teleportChunks.empty());
+    EXPECT_TRUE(TeleportChunks_.empty());
     ASSERT_EQ(stripeLists.size(), 2);
 
     // We assert that chunkB should become split up into two slices that go to each of the jobs.
@@ -2287,12 +2283,11 @@ TEST_F(TSortedChunkPoolTest, TestNoChunkSliceFetcher)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(1, stripeLists.size());
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
 }
 
 TEST_F(TSortedChunkPoolTest, TestStripeListStatisticsAreSet)
@@ -2320,9 +2315,8 @@ TEST_F(TSortedChunkPoolTest, TestStripeListStatisticsAreSet)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(1, stripeLists.size());
 
     EXPECT_GT(stripeLists[0]->TotalChunkCount, 0);
@@ -2355,9 +2349,8 @@ TEST_F(TSortedChunkPoolTest, TestSeveralSlicesInInputStripe)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(1, stripeLists.size());
     EXPECT_EQ(2, stripeLists[0]->Stripes.size());
     EXPECT_EQ(2, stripeLists[0]->Stripes[0]->DataSlices.size());
@@ -2393,9 +2386,8 @@ TEST_F(TSortedChunkPoolTest, TestPivotKeys1)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(4, stripeLists.size());
     EXPECT_EQ(1, stripeLists[0]->Stripes.size());
     EXPECT_EQ(1, stripeLists[0]->Stripes[0]->DataSlices.size());
@@ -2430,9 +2422,8 @@ TEST_F(TSortedChunkPoolTest, TestPivotKeys2)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(4, stripeLists.size());
     EXPECT_EQ(1, stripeLists[0]->Stripes.size());
     EXPECT_EQ(1, stripeLists[0]->Stripes[0]->DataSlices.size());
@@ -2474,9 +2465,8 @@ TEST_F(TSortedChunkPoolTest, SuspendFinishResumeTest)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(1, stripeLists.size());
     EXPECT_EQ(1, stripeLists[0]->Stripes.size());
     EXPECT_EQ(3, stripeLists[0]->Stripes[0]->DataSlices.size());
@@ -2513,9 +2503,8 @@ TEST_F(TSortedChunkPoolTest, SliceByPrimaryDataSize)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_LE(5, stripeLists.size());
     EXPECT_GE(20, stripeLists.size());
 }
@@ -2546,9 +2535,8 @@ TEST_F(TSortedChunkPoolTest, ExtractByDataSize)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_EQ(stripeLists.size(), 3);
     std::vector<i64> stripeListDataSizes;
     for (auto cookie : ExtractedCookies_) {
@@ -2613,9 +2601,8 @@ TEST_F(TSortedChunkPoolTest, CartesianProductViaJoinReduce)
     ExtractOutputCookiesWhilePossible();
 
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_GE(stripeLists.size(), 90);
     EXPECT_LE(stripeLists.size(), 110);
 }
@@ -2652,9 +2639,8 @@ TEST_F(TSortedChunkPoolTest, ResetBeforeFinish)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_EQ(teleportChunks, std::vector<TInputChunkPtr>{chunkC1Replayed});
+    EXPECT_EQ(TeleportChunks_, std::vector<TInputChunkPtr>{chunkC1Replayed});
     EXPECT_EQ(1, stripeLists.size());
 }
 
@@ -2685,9 +2671,8 @@ TEST_F(TSortedChunkPoolTest, TeleportChunkAndShortReadLimits)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_EQ(1, teleportChunks.size());
+    EXPECT_EQ(1, TeleportChunks_.size());
     EXPECT_EQ(2, stripeLists.size());
     EXPECT_EQ(1, stripeLists[0]->Stripes.size());
     EXPECT_EQ(1, stripeLists[1]->Stripes.size());
@@ -2792,7 +2777,7 @@ TEST_F(TSortedChunkPoolTest, EnlargingWithTeleportation)
 
     ChunkPool_->Finish();
 
-    EXPECT_EQ(1, ChunkPool_->GetTeleportChunks().size());
+    EXPECT_EQ(1, TeleportChunks_.size());
     EXPECT_EQ(2, ChunkPool_->GetPendingJobCount());
 }
 
@@ -2947,18 +2932,17 @@ TEST_F(TSortedChunkPoolTest, JoinReduceForeignChunkSlicing)
 
     ExtractOutputCookiesWhilePossible();
     auto stripeLists = GetAllStripeLists();
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
 
-    EXPECT_THAT(teleportChunks, IsEmpty());
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
 
-    CheckEverything(stripeLists, teleportChunks);
+    CheckEverything(stripeLists);
     EXPECT_EQ(2, stripeLists[0]->Stripes[0]->DataSlices.size());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSortedChunkPoolTestRandomized
-    : public WithParamInterface<int>
+    : public WithParamInterface<std::tuple<int, bool>>
     , public TSortedChunkPoolTest
 {
 public:
@@ -2967,7 +2951,7 @@ public:
     virtual void SetUp() override final
     {
         TSortedChunkPoolTest::SetUp();
-        Gen_.seed(GetParam());
+        Gen_.seed(get<0>(GetParam()));
     }
 };
 
@@ -2985,13 +2969,39 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     DataSizePerJob_ = 1_KB;
     InitJobConstraints();
 
-    const int chunkCount = 50;
+    constexpr int chunkCount = 50;
+    constexpr int maxUnderlyingPoolCount = 10;
 
     for (int index = 0; index < chunkCount; ++index) {
         auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
     }
 
-    CreateChunkPool();
+    bool useMultiPool = get<1>(GetParam());
+    int underlyingPoolCount = 0;
+
+    if (useMultiPool) {
+        // Multi pool created of several sorted subpools.
+        underlyingPoolCount = std::uniform_int_distribution<>(1, maxUnderlyingPoolCount)(Gen_);
+        std::vector<IChunkPool*> underlyingPoolPtrs;
+        UnderlyingPools_.reserve(underlyingPoolCount);
+        underlyingPoolPtrs.reserve(underlyingPoolCount);
+        for (int poolIndex = 0; poolIndex < underlyingPoolCount; ++poolIndex) {
+            auto underlyingPool = CreateSortedChunkPool(
+                Options_,
+                nullptr,
+                TInputStreamDirectory(InputTables_));
+
+            UnderlyingPools_.push_back(std::move(underlyingPool));
+            underlyingPoolPtrs.push_back(UnderlyingPools_.back().get());
+        }
+        ChunkPool_ = CreateMultiChunkPool(underlyingPoolPtrs);
+        ChunkPool_->SubscribeChunkTeleported(
+            BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
+                TeleportChunks_.push_back(std::move(teleportChunk));
+            }));
+    } else {
+        CreateChunkPool();
+    }
 
     std::uniform_int_distribution<> dice(0, 99);
 
@@ -3020,12 +3030,18 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
     for (const auto& chunk : CreatedUnversionedPrimaryChunks_) {
         auto chunkId = chunk->ChunkId();
-        auto cookie = AddChunk(chunk);
+        auto stripe = CreateStripe({chunk});
+        if (useMultiPool) {
+            stripe->PartitionTag = std::uniform_int_distribution<>(0, underlyingPoolCount - 1)(Gen_);
+            ChunkIdToUnderlyingPoolIndex_[chunkId] = *stripe->PartitionTag;
+        }
+        auto cookie = ChunkPool_->Add(stripe);
         chunkIdToInputCookie[chunkId] = cookie;
         chunkIdToChunk[chunkId] = chunk;
         resumedCookies.insert(cookie);
         resumedChunks.insert(chunkId);
         pendingChunks.insert(chunkId);
+        InputCookieToChunkId_[cookie] = chunkId;
     }
 
     ChunkPool_->Finish();
@@ -3039,24 +3055,56 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     int invalidationCount = 0;
     const int MaxInvalidationCount = 5;
 
-    auto invalidate = [&] {
-        pendingChunks.insert(startedChunks.begin(), startedChunks.end());
-        pendingChunks.insert(completedChunks.begin(), completedChunks.end());
-        chunkIdToInputCookie.clear();
-        completedChunks.clear();
+    auto invalidate = [&] (std::optional<int> underlyingPoolIndex) {
+        std::vector<TChunkId> toDeleteInStarted;
+        for (const auto& chunkId : startedChunks) {
+            if (!underlyingPoolIndex || GetOrCrash(ChunkIdToUnderlyingPoolIndex_, chunkId) == underlyingPoolIndex) {
+                pendingChunks.insert(chunkId);
+                toDeleteInStarted.push_back(chunkId);
+            }
+        }
+
+        std::vector<TChunkId> toDeleteInCompleted;
+        for (const auto& chunkId : completedChunks) {
+            if (!underlyingPoolIndex || GetOrCrash(ChunkIdToUnderlyingPoolIndex_, chunkId) == underlyingPoolIndex) {
+                pendingChunks.insert(chunkId);
+                toDeleteInCompleted.push_back(chunkId);
+            }
+        }
+
+        std::vector<TChunkId> toDeleteInChunkIdToInputCookie;
+        for (const auto& [chunkId, cookie] : chunkIdToInputCookie) {
+            if (!underlyingPoolIndex || GetOrCrash(ChunkIdToUnderlyingPoolIndex_, chunkId) == underlyingPoolIndex) {
+                toDeleteInChunkIdToInputCookie.push_back(chunkId);
+            }
+        }
+
+        for (const auto& chunkId : toDeleteInCompleted) {
+            Cdebug << Format("Deleting chunk %v from completed", chunkId) << Endl;
+            YT_VERIFY(completedChunks.erase(chunkId));
+        }
+
+        for (const auto& chunkId : toDeleteInChunkIdToInputCookie) {
+            Cdebug << Format("Deleting chunk %v from chunk id to input cookie map", chunkId) << Endl;
+            YT_VERIFY(chunkIdToInputCookie.erase(chunkId));
+        }
+
         ++invalidationCount;
         Cdebug << "Invalidating pool" << Endl;
-        for (auto chunkId : startedChunks) {
+        for (const auto& chunkId : toDeleteInStarted) {
             Cdebug << Format("Aborted chunk %v due to invalidation", chunkId) << Endl;
             auto outputCookie = chunkIdToOutputCookie.at(chunkId);
             ASSERT_TRUE(chunkIdToOutputCookie.erase(chunkId));
             ChunkPool_->Aborted(outputCookie, EAbortReason::Unknown);
         }
-        startedChunks.clear();
+        for (const auto& chunkId : toDeleteInStarted) {
+            Cdebug << Format("Deleting chunk %v from started", chunkId) << Endl;
+            YT_VERIFY(startedChunks.erase(chunkId));
+        }
     };
 
     while (completedChunks.size() < chunkCount) {
-        EXPECT_FALSE(ChunkPool_->IsCompleted());
+        YT_VERIFY(!ChunkPool_->IsCompleted());
 
         // 0..0 - pool is persisted and restored;
         // 1..19 - chunk is suspended;
@@ -3106,7 +3154,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 // TODO(max42): reset to something different.
                 const auto& chunk = chunkIdToChunk.at(chunkId);
                 ResetChunk(cookie, chunk);
-                invalidate();
+                invalidate(useMultiPool ? std::make_optional(ChunkIdToUnderlyingPoolIndex_[chunkId]) : std::nullopt);
             }
         } else if (eventType <= 69) {
             if (ChunkPool_->GetPendingJobCount()) {
@@ -3172,7 +3220,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
 INSTANTIATE_TEST_SUITE_P(VariousOperationsWithPoolInstantiation,
     TSortedChunkPoolTestRandomized,
-    ::testing::Range(0, NumberOfRepeats));
+    ::testing::Combine(::testing::Range(0, NumberOfRepeats), ::testing::Bool()));
 
 ////////////////////////////////////////////////////////////////////////////////
 

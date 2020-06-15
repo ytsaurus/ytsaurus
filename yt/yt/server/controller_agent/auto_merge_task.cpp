@@ -10,6 +10,7 @@
 
 namespace NYT::NControllerAgent {
 
+using namespace NChunkClient;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NChunkPools;
@@ -100,6 +101,8 @@ TAutoMergeTask::TAutoMergeTask(
     ChunkPool_ = CreateUnorderedChunkPool(
         std::move(options),
         TeleportableIntermediateInputStreamDirectory);
+    ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this)));
+
     TaskHost_->GetDataFlowGraph()
         ->RegisterCounter(GetVertexDescriptor(), ChunkPool_->GetJobCounter(), GetJobType());
 
@@ -180,7 +183,6 @@ bool TAutoMergeTask::IsJobInterruptible() const
 
 void TAutoMergeTask::UpdateSelf()
 {
-    RegisterNewTeleportChunks();
     CanScheduleJob_ = TaskHost_->GetAutoMergeDirector()->CanScheduleMergeJob(CurrentChunkCount_) ||
         ChunkPool_->GetPendingJobCount() > 1;
 
@@ -236,15 +238,6 @@ TJobFinishedResult TAutoMergeTask::OnJobFailed(TJobletPtr joblet, const TFailedJ
     return result;
 }
 
-void TAutoMergeTask::RegisterNewTeleportChunks()
-{
-    const auto& teleportChunks = ChunkPool_->GetTeleportChunks();
-    while (RegisteredTeleportChunkCount_ < teleportChunks.size()) {
-        TaskHost_->RegisterTeleportChunk(teleportChunks[RegisteredTeleportChunkCount_++], MakeStrong(this), 0 /* key */, TableIndex_);
-        --CurrentChunkCount_;
-    }
-}
-
 void TAutoMergeTask::SetupCallbacks()
 {
     TTask::SetupCallbacks();
@@ -267,7 +260,16 @@ void TAutoMergeTask::Persist(const TPersistenceContext& context)
     Persist(context, ChunkPoolInput_);
     Persist(context, TableIndex_);
     Persist(context, CurrentChunkCount_);
-    Persist(context, RegisteredTeleportChunkCount_);
+
+    ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this)));
+}
+
+void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any tag)
+{
+    TTask::OnChunkTeleported(teleportChunk, tag);
+
+    TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key=*/0, TableIndex_);
+    --CurrentChunkCount_;
 }
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask);

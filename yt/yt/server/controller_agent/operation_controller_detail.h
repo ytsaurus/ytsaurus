@@ -831,7 +831,6 @@ protected:
 
     virtual void RegisterTeleportChunk(
         NChunkClient::TInputChunkPtr chunk,
-        const TTaskPtr& teleportingTask,
         NChunkPools::TChunkStripeKey key,
         int tableIndex) override;
 

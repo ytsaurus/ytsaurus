@@ -23,7 +23,9 @@ void PrintTo(const TIntrusivePtr<T>& arg, std::ostream* os)
         << reinterpret_cast<uintptr_t>(arg.Get())
         << std::dec
         << " [";
-    ::testing::internal::UniversalPrinter<T>::Print(*arg, os);
+    if (arg) {
+        ::testing::internal::UniversalPrinter<T>::Print(*arg, os);
+    }
     *os << "]";
 }
 

@@ -587,6 +587,26 @@ bool TTask::CanLoseJobs() const
     return false;
 }
 
+void TTask::OnChunkTeleported(TInputChunkPtr chunk, std::any /*tag*/)
+{
+    NChunkClient::NProto::TDataStatistics dataStatistics;
+
+    dataStatistics.set_uncompressed_data_size(chunk->GetUncompressedDataSize());
+    dataStatistics.set_compressed_data_size(chunk->GetCompressedDataSize());
+    dataStatistics.set_row_count(chunk->GetRowCount());
+    dataStatistics.set_chunk_count(1);
+    dataStatistics.set_data_weight(chunk->GetDataWeight());
+
+    auto vertexDescriptor = GetVertexDescriptor();
+
+    // TODO(gritukan): Create a virtual source task and get rid of this hack.
+    if (InputVertex_ == TDataFlowGraph::SourceDescriptor) {
+        TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(InputVertex_, vertexDescriptor, dataStatistics);
+    }
+
+    TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(vertexDescriptor, TDataFlowGraph::SinkDescriptor, dataStatistics);
+}
+
 bool TTask::IsSimpleTask() const
 {
     return true;
@@ -735,26 +755,6 @@ void TTask::OnJobLost(TCompletedJobPtr completedJob)
     YT_VERIFY(LostJobCookieMap.insert(std::make_pair(
         TCookieAndPool(completedJob->OutputCookie, completedJob->DestinationPool),
         completedJob->InputCookie)).second);
-}
-
-void TTask::OnChunkTeleported(const TInputChunkPtr& chunk)
-{
-    NChunkClient::NProto::TDataStatistics dataStatistics;
-
-    dataStatistics.set_uncompressed_data_size(chunk->GetUncompressedDataSize());
-    dataStatistics.set_compressed_data_size(chunk->GetCompressedDataSize());
-    dataStatistics.set_row_count(chunk->GetRowCount());
-    dataStatistics.set_chunk_count(1);
-    dataStatistics.set_data_weight(chunk->GetDataWeight());
-
-    auto vertexDescriptor = GetVertexDescriptor();
-
-    // TODO(gritukan): Create a virtual source task and get rid of this hack.
-    if (InputVertex_ == TDataFlowGraph::SourceDescriptor) {
-        TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(InputVertex_, vertexDescriptor, dataStatistics);
-    }
-
-    TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(vertexDescriptor, TDataFlowGraph::SinkDescriptor, dataStatistics);
 }
 
 void TTask::OnStripeRegistrationFailed(

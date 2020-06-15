@@ -133,7 +133,7 @@ protected:
                 options,
                 controller->CreateChunkSliceFetcherFactory(),
                 controller->GetInputStreamDirectory());
-
+            ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
 
         virtual TTaskGroupPtr GetGroup() const override
@@ -170,6 +170,8 @@ protected:
             using NYT::Persist;
             Persist(context, Controller_);
             Persist(context, ChunkPool_);
+
+            ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
 
     protected:
@@ -228,6 +230,15 @@ protected:
         virtual TJobFinishedResult OnJobAborted(TJobletPtr joblet, const TAbortedJobSummary& jobSummary) override
         {
             return TTask::OnJobAborted(joblet, jobSummary);
+        }
+
+        virtual void OnChunkTeleported(TInputChunkPtr teleportChunk, std::any tag) override
+        {
+            TTask::OnChunkTeleported(teleportChunk, tag);
+
+            // If teleport chunks were found, then teleport table index should be non-null.
+            Controller_->RegisterTeleportChunk(
+                std::move(teleportChunk), /*key=*/0, /*tableIndex=*/*Controller_->GetOutputTeleportTableIndex());
         }
     };
 
@@ -497,11 +508,6 @@ protected:
             if (AutoMergeTasks[index]) {
                 AutoMergeTasks[index]->FinishInput(SortedTask_->GetVertexDescriptor());
             }
-        }
-
-        for (const auto& teleportChunk : SortedTask_->GetChunkPoolOutput()->GetTeleportChunks()) {
-            // If teleport chunks were found, then teleport table index should be non-null.
-            RegisterTeleportChunk(teleportChunk, SortedTask_, 0, *GetOutputTeleportTableIndex());
         }
 
         FinishPreparation();

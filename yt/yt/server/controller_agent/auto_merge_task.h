@@ -96,6 +96,7 @@ protected:
     void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override;
     bool IsJobInterruptible() const override;
 
+    virtual void OnChunkTeleported(NChunkClient::TInputChunkPtr teleportChunk, std::any tag) override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask, 0x4ef99f1a);
@@ -105,7 +106,6 @@ private:
 
     int TableIndex_;
     int CurrentChunkCount_ = 0;
-    int RegisteredTeleportChunkCount_ = 0;
 
     // NB: this field is intentionally transient (otherwise automerge can stuck after loading from snapshot).
     bool CanScheduleJob_ = true;

@@ -262,6 +262,7 @@ private:
         }
 
         int droppedTeleportChunkCount = 0;
+        int chunksTeleported = 0;
 
         auto yielder = CreatePeriodicYielder();
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
@@ -280,7 +281,9 @@ private:
                             CurrentJob()->SetIsBarrier(true);
                             JobManager_->AddJob(std::move(CurrentJob()));
 
-                            TeleportChunks_.emplace_back(inputChunk);
+                            ChunkTeleported_.Fire(inputChunk, /*tag=*/std::any{});
+                            ++chunksTeleported;
+
                             if (OutputOrder_) {
                                 OutputOrder_->Push(TOutputOrder::TEntry(inputChunk));
                             }
@@ -310,7 +313,7 @@ private:
 
         YT_LOG_INFO("Jobs created (Count: %v, TeleportChunkCount: %v, DroppedTeleportChunkCount: %v)",
             BuiltJobCount_,
-            TeleportChunks_.size(),
+            chunksTeleported,
             droppedTeleportChunkCount);
 
         if (JobSizeConstraints_->GetSamplingRate()) {

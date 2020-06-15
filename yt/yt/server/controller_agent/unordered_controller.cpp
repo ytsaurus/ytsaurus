@@ -60,34 +60,35 @@ public:
     public:
         //! For persistence only.
         TUnorderedTaskBase()
-            : Controller(nullptr)
+            : Controller_(nullptr)
         { }
 
         TUnorderedTaskBase(TUnorderedControllerBase* controller, std::vector<TEdgeDescriptor> edgeDescriptors)
             : TTask(controller, std::move(edgeDescriptors))
-            , Controller(controller)
+            , Controller_(controller)
         {
-            auto options = Controller->GetUnorderedChunkPoolOptions();
+            auto options = Controller_->GetUnorderedChunkPoolOptions();
             options.Task = GetTitle();
 
-            ChunkPool_ = CreateUnorderedChunkPool(std::move(options), Controller->GetInputStreamDirectory());
+            ChunkPool_ = CreateUnorderedChunkPool(std::move(options), Controller_->GetInputStreamDirectory());
+            ChunkPool_->SubscribeChunkTeleported(BIND(&TUnorderedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
 
         virtual TTaskGroupPtr GetGroup() const override
         {
-            return Controller->UnorderedTaskGroup;
+            return Controller_->UnorderedTaskGroup;
         }
 
         virtual TDuration GetLocalityTimeout() const override
         {
-            return Controller->IsLocalityEnabled()
-                ? Controller->Spec->LocalityTimeout
+            return Controller_->IsLocalityEnabled()
+                ? Controller_->Spec->LocalityTimeout
                 : TDuration::Zero();
         }
 
         virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
         {
-            auto result = Controller->GetUnorderedOperationResources(
+            auto result = Controller_->GetUnorderedOperationResources(
                 joblet->InputStripeList->GetStatistics());
             AddFootprintAndUserJobResources(result);
             return result;
@@ -108,18 +109,20 @@ public:
             TTask::Persist(context);
 
             using NYT::Persist;
-            Persist(context, Controller);
+            Persist(context, Controller_);
             Persist(context, ChunkPool_);
+
+            ChunkPool_->SubscribeChunkTeleported(BIND(&TUnorderedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
 
         virtual TUserJobSpecPtr GetUserJobSpec() const override
         {
-            return Controller->GetUserJobSpec();
+            return Controller_->GetUserJobSpec();
         }
 
         virtual EJobType GetJobType() const override
         {
-            return Controller->GetJobType();
+            return Controller_->GetJobType();
         }
 
         virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
@@ -132,22 +135,30 @@ public:
         }
 
     private:
-        TUnorderedControllerBase* Controller;
+        TUnorderedControllerBase* Controller_;
 
         std::unique_ptr<IChunkPool> ChunkPool_;
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
-            auto result = Controller->GetUnorderedOperationResources(ChunkPool_->GetApproximateStripeStatistics());
+            auto result = Controller_->GetUnorderedOperationResources(ChunkPool_->GetApproximateStripeStatistics());
             AddFootprintAndUserJobResources(result);
             return result;
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
-            jobSpec->CopyFrom(Controller->JobSpecTemplate);
+            jobSpec->CopyFrom(Controller_->JobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);
             AddOutputTableSpecs(jobSpec, joblet);
+        }
+
+        virtual void OnChunkTeleported(TInputChunkPtr teleportChunk, std::any tag) override
+        {
+            TTask::OnChunkTeleported(teleportChunk, tag);
+
+            YT_VERIFY(GetJobType() == EJobType::UnorderedMerge);
+            Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key=*/0, /*tableIndex=*/0);
         }
     };
 
@@ -348,14 +359,6 @@ protected:
         for (int index = 0; index < AutoMergeTasks.size(); ++index) {
             if (AutoMergeTasks[index]) {
                 AutoMergeTasks[index]->FinishInput(UnorderedTask_->GetVertexDescriptor());
-            }
-        }
-
-        auto teleportChunks = UnorderedTask_->GetChunkPoolOutput()->GetTeleportChunks();
-        if (!teleportChunks.empty()) {
-            YT_VERIFY(GetJobType() == EJobType::UnorderedMerge);
-            for (const auto& chunk : teleportChunks) {
-                RegisterTeleportChunk(chunk, UnorderedTask_, 0 /* key */, 0 /* tableIndex */);
             }
         }
 
