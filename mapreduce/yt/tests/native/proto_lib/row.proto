@@ -48,7 +48,8 @@ message TRowMixedSerializationOptions {
 message TRowSerializedRepeatedFields {
     option (NYT.default_field_flags) = SERIALIZATION_YT;
     repeated int64 Ints = 1;
-    repeated TUrlRow UrlRows = 2;
+    repeated int64 PackedInts = 2 [packed=true];
+    repeated TUrlRow UrlRows = 3;
 }
 
 message TUrlRowWithColumnNames {

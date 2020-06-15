@@ -207,3 +207,45 @@ message TOptionalList
 {
     repeated int64 OptionalListInt64 = 1 [(NYT.flags) = OPTIONAL_LIST, (NYT.flags) = SERIALIZATION_YT];
 }
+
+message TPacked
+{
+    repeated int64 PackedListInt64 = 1 [(NYT.flags) = SERIALIZATION_YT, packed=true];
+}
+
+message TCyclic
+{
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
+
+    message TA
+    {
+        option (NYT.default_field_flags) = SERIALIZATION_YT;
+        repeated TB b = 1;
+        optional TC c = 2;
+    }
+
+    message TB
+    {
+        option (NYT.default_field_flags) = SERIALIZATION_YT;
+        optional TD d = 1;
+    }
+
+    message TC
+    {
+        option (NYT.default_field_flags) = SERIALIZATION_YT;
+        optional TD d = 1;
+    }
+
+    message TD
+    {
+        option (NYT.default_field_flags) = SERIALIZATION_YT;
+        optional TA a = 1;
+    }
+
+    message TE
+    {
+        optional TD d = 1 [(NYT.flags) = SERIALIZATION_PROTOBUF];
+    }
+
+    optional TA a = 1;
+}

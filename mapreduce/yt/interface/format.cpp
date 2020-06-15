@@ -9,6 +9,7 @@
 #include <contrib/libs/protobuf/messagext.h>
 
 #include <util/generic/hash_set.h>
+#include <util/generic/stack.h>
 
 #include <util/stream/output.h>
 
@@ -198,6 +199,51 @@ void ValidateProtobufType(const FieldDescriptor& fieldDescriptor, EProtobufType 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCycleChecker
+{
+private:
+    class TGuard
+    {
+    public:
+        TGuard(TCycleChecker* checker, const Descriptor* descriptor)
+            : Checker_(checker)
+            , Descriptor_(descriptor)
+        {
+            Checker_->ActiveVertices_.insert(Descriptor_);
+            Checker_->Stack_.push(Descriptor_);
+        }
+
+        ~TGuard()
+        {
+            Checker_->ActiveVertices_.erase(Descriptor_);
+            Checker_->Stack_.pop();
+        }
+
+    private:
+        TCycleChecker* Checker_;
+        const Descriptor* Descriptor_;
+    };
+
+public:
+    [[nodiscard]] TGuard Enter(const Descriptor* descriptor)
+    {
+        if (ActiveVertices_.contains(descriptor)) {
+            Y_VERIFY(!Stack_.empty());
+            ythrow TApiUsageError() << "Cyclic reference found for protobuf messages. " <<
+                "Consider removing " << EWrapperFieldFlag::SERIALIZATION_YT << " flag " <<
+                "somewhere on the cycle containing " <<
+                Stack_.top()->full_name() << " and " << descriptor->full_name();
+        }
+        return TGuard(this, descriptor);
+    }
+
+private:
+    THashSet<const Descriptor*> ActiveVertices_;
+    TStack<const Descriptor*> Stack_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TNode MakeEnumerationConfig(const ::google::protobuf::EnumDescriptor* enumDescriptor)
 {
     auto config = TNode::CreateMap();
@@ -248,12 +294,14 @@ TString GetColumnName(const ::google::protobuf::FieldDescriptor& field)
 
 TNode MakeProtoFormatMessageFieldsConfig(
     const Descriptor* descriptor,
-    TNode* enumerations);
+    TNode* enumerations,
+    TCycleChecker& cycleChecker);
 
 TNode MakeProtoFormatFieldConfig(
     const FieldDescriptor* fieldDescriptor,
     TNode* enumerations,
-    const TProtobufFieldOptions& defaultOptions)
+    const TProtobufFieldOptions& defaultOptions,
+    TCycleChecker& cycleChecker)
 {
     auto fieldConfig = TNode::CreateMap();
     fieldConfig["field_number"] = fieldDescriptor->number();
@@ -270,6 +318,7 @@ TNode MakeProtoFormatFieldConfig(
             "must have flag " << EWrapperFieldFlag::SERIALIZATION_YT);
     }
     fieldConfig["repeated"] = fieldDescriptor->is_repeated();
+    fieldConfig["packed"] = fieldDescriptor->is_packed();
 
     fieldConfig["proto_type"] = DeduceProtobufType(fieldDescriptor, fieldOptions);
 
@@ -281,7 +330,10 @@ TNode MakeProtoFormatFieldConfig(
         fieldDescriptor->type() == FieldDescriptor::TYPE_MESSAGE &&
         fieldOptions.SerializationMode == EProtobufSerializationMode::Yt)
     {
-        fieldConfig["fields"] = MakeProtoFormatMessageFieldsConfig(fieldDescriptor->message_type(), enumerations);
+        fieldConfig["fields"] = MakeProtoFormatMessageFieldsConfig(
+            fieldDescriptor->message_type(),
+            enumerations,
+            cycleChecker);
     }
 
     return fieldConfig;
@@ -289,17 +341,20 @@ TNode MakeProtoFormatFieldConfig(
 
 TNode MakeProtoFormatMessageFieldsConfig(
     const Descriptor* descriptor,
-    TNode* enumerations)
+    TNode* enumerations,
+    TCycleChecker& cycleChecker)
 {
     TNode fields = TNode::CreateList();
     TProtobufFieldOptions fieldOptions;
     ParseProtobufFieldOptions(descriptor->options().GetRepeatedExtension(default_field_flags), &fieldOptions);
+    auto guard = cycleChecker.Enter(descriptor);
     for (int fieldIndex = 0; fieldIndex < descriptor->field_count(); ++fieldIndex) {
         auto* fieldDesc = descriptor->field(fieldIndex);
         fields.Add(MakeProtoFormatFieldConfig(
             fieldDesc,
             enumerations,
-            fieldOptions));
+            fieldOptions,
+            cycleChecker));
     }
     return fields;
 }
@@ -314,7 +369,8 @@ TNode MakeProtoFormatConfig(const TVector<const Descriptor*>& descriptors)
     auto& enumerations = config.Attributes()["enumerations"];
 
     for (auto* descriptor : descriptors) {
-        auto columns = MakeProtoFormatMessageFieldsConfig(descriptor, &enumerations);
+        TCycleChecker cycleChecker;
+        auto columns = MakeProtoFormatMessageFieldsConfig(descriptor, &enumerations, cycleChecker);
         config.Attributes()["tables"].Add(
             TNode()("columns", std::move(columns)));
     }
@@ -378,7 +434,8 @@ bool HasNameExtension(const FieldDescriptor& fieldDescriptor)
 
 TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
     const FieldDescriptor& fieldDescriptor,
-    const TProtobufFieldOptions& defaultOptions)
+    const TProtobufFieldOptions& defaultOptions,
+    TCycleChecker& cycleChecker)
 {
     auto options = defaultOptions;
     ParseProtobufFieldOptions(
@@ -394,6 +451,7 @@ TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
         options.SerializationMode == EProtobufSerializationMode::Yt)
     {
         const auto& messageDescriptor = *fieldDescriptor.message_type();
+        auto guard = cycleChecker.Enter(&messageDescriptor);
         TProtobufFieldOptions embeddedMessageDefaultOptions;
         ParseProtobufFieldOptions(
             messageDescriptor.options().GetRepeatedExtension(default_field_flags),
@@ -404,7 +462,8 @@ TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
             const auto& innerFieldDescriptor = *messageDescriptor.field(fieldIndex);
             auto type = GetFieldType(
                 innerFieldDescriptor,
-                embeddedMessageDefaultOptions);
+                embeddedMessageDefaultOptions,
+                cycleChecker);
 
             if (HoldsAlternative<TOtherColumns>(type)) {
                 ythrow TApiUsageError() <<
@@ -499,13 +558,15 @@ TTableSchema CreateTableSchema(
     ParseProtobufFieldOptions(
         messageDescriptor.options().GetRepeatedExtension(default_field_flags),
         &defaultOptions);
+    TCycleChecker cycleChecker;
+    auto guard = cycleChecker.Enter(&messageDescriptor);
     for (int fieldIndex = 0; fieldIndex < messageDescriptor.field_count(); ++fieldIndex) {
         const auto& fieldDescriptor = *messageDescriptor.field(fieldIndex);
         if (!keepFieldsWithoutExtension && !HasNameExtension(fieldDescriptor)) {
             continue;
         }
 
-        auto type = GetFieldType(fieldDescriptor, defaultOptions);
+        auto type = GetFieldType(fieldDescriptor, defaultOptions, cycleChecker);
         if (HoldsAlternative<TOtherColumns>(type)) {
             result.Strict(false);
         } else if (HoldsAlternative<NTi::TTypePtr>(type)) {
