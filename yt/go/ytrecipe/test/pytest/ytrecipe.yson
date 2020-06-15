@@ -1,6 +1,9 @@
 {
     cluster=freud;
     pool="yt-integration-tests";
+    resource_limits={
+        memory_limit=2000000000;
+    };
     upload_binaries=[
         "yt/go/ytrecipe/test/pytest/yt-go-ytrecipe-test-pytest"
     ];
