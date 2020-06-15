@@ -700,6 +700,7 @@ ui64 Crc(const void* buf, size_t buflen, ui64 crcinit)
 
 namespace {
 
+// COMPAT(akozhikhov): drop this code after a while
 ui64 CrcImplOld(const void* data, size_t length, ui64 seed)
 {
 #ifdef YT_USE_SSE42
@@ -714,7 +715,10 @@ ui64 CrcImplOld(const void* data, size_t length, ui64 seed)
 ui64 CrcImpl(const void* data, size_t length, ui64 seed)
 {
 #ifdef YT_USE_SSE42
-    return NIsaCrc64::CrcImplFast(data, length, 0);
+    static const bool Native = NX86::HaveSSE42() && NX86::HavePCLMUL();
+    if (Native) {
+        return NIsaCrc64::CrcImplFast(data, length, 0);
+    }
 #endif
     return NIsaCrc64::CrcImplBase(data, length, 0);
 }
