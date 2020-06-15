@@ -1211,7 +1211,7 @@ TYPED_TEST(TNotGrpcTest, Compression)
     }
 }
 
-#ifndef _asan_enabled_
+#if !defined(_asan_enabled_) && !defined(_msan_enabled_)
 
 TYPED_TEST(TRpcTest, ResponseMemoryTag)
 {

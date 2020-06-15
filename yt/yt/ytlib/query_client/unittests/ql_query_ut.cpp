@@ -153,7 +153,7 @@ TEST_F(TQueryPrepareTest, BadTypecheck)
         ContainsRegex("Type mismatch in expression"));
 }
 
-#if not defined(_asan_enabled_)
+#if !defined(_asan_enabled_) && !defined(_msan_enabled_)
 
 TEST_F(TQueryPrepareTest, TooBigQuery)
 {
@@ -262,7 +262,7 @@ TEST_F(TQueryPrepareTest, TooBigQuery2)
         ContainsRegex("Maximum expression depth exceeded"));
 }
 
-#endif // defined(_asan_enabled_)
+#endif // !defined(_asan_enabled_) && !defined(_msan_enabled_)
 
 TEST_F(TQueryPrepareTest, BigQuery)
 {

@@ -266,7 +266,7 @@ TEST_P(TSyncFileChangelogTest, Padding)
         TFileWrapper file(TemporaryFile->Name(), RdOnly);
 
         {
-            auto record = TSharedMutableRef::Allocate(12, false);
+            auto record = TSharedMutableRef::Allocate(12, true);
             changelog->Append(0, {record});
             changelog->Flush();
 
@@ -285,7 +285,7 @@ TEST_P(TSyncFileChangelogTest, Padding)
         }
 
         {
-            auto record = TSharedMutableRef::Allocate(Alignment - 2 * GetRecordHeaderSize(), false);
+            auto record = TSharedMutableRef::Allocate(Alignment - 2 * GetRecordHeaderSize(), true);
             changelog->Append(1, {record});
             changelog->Flush();
 
