@@ -1304,6 +1304,31 @@ class TestClickHouseCommon(ClickHouseTestBase):
         with Clique(1) as clique:
             assert clique.make_query("select any(value) from `//tmp/t` where key = 2") == [{"any(value)": None}]
 
+    @authors("max42")
+    def test_constants(self):
+        # CHYT-400.
+        create("table", "//tmp/t", attributes={"schema": [{"name": "key", "type": "int64"},
+                                                          {"name": "value", "type": "string"}]})
+        write_table("//tmp/t", [{"key": 1, "value": "a"}])
+
+        with Clique(1) as clique:
+            assert clique.make_query("select 1 from `//tmp/t`") == [{"1": 1}]
+
+    @authors("max42")
+    def test_group_by(self):
+        # CHYT-401.
+        create("table", "//tmp/t", attributes={"schema": [{"name": "key", "type": "int64"},
+                                                          {"name": "value", "type": "int64"}]})
+        write_table("//tmp/t", [{"key": 1, "value": 3},
+                                {"key": 2, "value": 1},
+                                {"key": 1, "value": 2},
+                                {"key": 2, "value": 5}])
+
+        with Clique(1) as clique:
+            assert clique.make_query("select key, min(value), max(value) from `//tmp/t` group by key order by key") == \
+                   [{"key": 1, "min(value)": 2, "max(value)": 3},
+                    {"key": 2, "min(value)": 1, "max(value)": 5}]
+
 
 class TestJobInput(ClickHouseTestBase):
     def setup(self):
