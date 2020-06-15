@@ -15,27 +15,27 @@ namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IRowStreamFormatter
+struct IRowStreamEncoder
     : public virtual TRefCounted
 {
-    virtual TSharedRef Format(
+    virtual TSharedRef Encode(
         const NTableClient::IUnversionedRowBatchPtr& batch,
         const NProto::TRowsetStatistics* statistics) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IRowStreamFormatter)
+DEFINE_REFCOUNTED_TYPE(IRowStreamEncoder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IRowStreamParser
+struct IRowStreamDecoder
     : public virtual TRefCounted
 {
-    virtual TSharedRange<NTableClient::TUnversionedRow> Parse(
+    virtual NTableClient::IUnversionedRowBatchPtr Decode(
         const TSharedRef& payloadRef,
         const NProto::TRowsetDescriptor& descriptor) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IRowStreamParser)
+DEFINE_REFCOUNTED_TYPE(IRowStreamDecoder)
 
 ////////////////////////////////////////////////////////////////////////////////
 

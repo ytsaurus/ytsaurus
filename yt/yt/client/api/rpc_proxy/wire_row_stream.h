@@ -8,8 +8,8 @@ namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IRowStreamFormatterPtr CreateWireRowStreamFormatter(NTableClient::TNameTablePtr nameTable);
-IRowStreamParserPtr CreateWireRowStreamParser(NTableClient::TNameTablePtr nameTable);
+IRowStreamEncoderPtr CreateWireRowStreamEncoder(NTableClient::TNameTablePtr nameTable);
+IRowStreamDecoderPtr CreateWireRowStreamDecoder(NTableClient::TNameTablePtr nameTable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

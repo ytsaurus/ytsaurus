@@ -71,13 +71,13 @@ struct IUnversionedColumnReader
     //! Read values into proper position inside rows.
     virtual void ReadValues(TMutableRange<NTableClient::TMutableUnversionedRow> rows) = 0;
 
-    //! Returns the number of IUnversionedRowBatch::TColumn instances needed to represent
+    //! Returns the number of IUnversionedColumnarRowBatch::TColumn instances needed to represent
     //! the current segement.
     virtual int GetBatchColumnCount() = 0;
 
     //! Reads values into #columns (of size #GetBatchColumnCount).
     virtual void ReadColumnarBatch(
-        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
+        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns,
         i64 rowCount) = 0;
 
     //! Gives an estimate for data weight in [lowerRowIndex, upperRowIndex) row range.

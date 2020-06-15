@@ -27,7 +27,7 @@ public:
         TTableSchemaPtr schema)
         : Underlying_(std::move(underlying))
         , Schema_(std::move(schema))
-        , Formatter_(CreateWireRowStreamFormatter(NameTable_))
+        , Encoder_(CreateWireRowStreamEncoder(NameTable_))
     {
         YT_VERIFY(Underlying_);
         NameTable_->SetEnableColumnNameValidation();
@@ -40,7 +40,7 @@ public:
 
         auto batch = CreateBatchFromUnversionedRows(TSharedRange<TUnversionedRow>(rows, nullptr));
         
-        auto block = Formatter_->Format(batch, nullptr);
+        auto block = Encoder_->Encode(batch, nullptr);
 
         ReadyEvent_ = NewPromise<void>();
         ReadyEvent_.TrySetFrom(Underlying_->Write(std::move(block)));
@@ -76,7 +76,7 @@ private:
     const TTableSchemaPtr Schema_;
 
     const TNameTablePtr NameTable_ = New<TNameTable>();
-    const IRowStreamFormatterPtr Formatter_;
+    const IRowStreamEncoderPtr Encoder_;
 
     TPromise<void> ReadyEvent_ = MakePromise<void>(TError());
     bool Closed_ = false;

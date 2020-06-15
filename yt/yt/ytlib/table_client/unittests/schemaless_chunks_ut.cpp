@@ -503,8 +503,9 @@ TEST_F(TColumnarReadTest, ReadJustC1)
         .Columnar = true
     };
     while (auto batch = WaitForRowBatch(reader, options)) {
-        EXPECT_TRUE(batch->IsColumnar());
-        auto columns = batch->MaterializeColumns();
+        auto columnarBatch = batch->TryAsColumnar();
+        ASSERT_TRUE(columnarBatch.operator bool());
+        auto columns = columnarBatch->MaterializeColumns();
         EXPECT_EQ(1, columns.size());
         EXPECT_EQ(0, columns[0]->Id);
     }
@@ -521,8 +522,9 @@ TEST_F(TColumnarReadTest, ReadAll)
         .Columnar = true
     };
     while (auto batch = WaitForRowBatch(reader, options)) {
-        EXPECT_TRUE(batch->IsColumnar());
-        auto columns = batch->MaterializeColumns();
+        auto columnarBatch = batch->TryAsColumnar();
+        ASSERT_TRUE(columnarBatch.operator bool());
+        auto columns = columnarBatch->MaterializeColumns();
         EXPECT_EQ(Schema_->Columns().size(), columns.size());
         for (int index = 0; index < columns.size(); ++index) {
             EXPECT_EQ(index, columns[index]->Id);

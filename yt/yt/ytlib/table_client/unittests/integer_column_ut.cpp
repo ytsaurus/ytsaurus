@@ -358,7 +358,7 @@ protected:
     }
 
     virtual std::optional<TValue> DecodeValueFromColumn(
-        const IUnversionedRowBatch::TColumn* column,
+        const IUnversionedColumnarRowBatch::TColumn* column,
         i64 index) override
     {
         YT_VERIFY(column->StartIndex >= 0);

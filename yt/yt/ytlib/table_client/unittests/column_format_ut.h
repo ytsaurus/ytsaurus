@@ -209,7 +209,7 @@ protected:
     }
 
     void ValidateSegmentPart(
-        const std::vector<IUnversionedRowBatch::TColumn>& columns,
+        const std::vector<IUnversionedColumnarRowBatch::TColumn>& columns,
         const std::vector<std::optional<TValue>>& expected,
         int startIndex,
         int count)
@@ -233,10 +233,10 @@ protected:
             reader->SkipToRowIndex(currentRowIndex);
             reader->Rearm();
             i64 batchEndRowIndex = std::min(static_cast<int>(reader->GetReadyUpperRowIndex()), endRowIndex);
-            std::vector<IUnversionedRowBatch::TColumn> columns;
+            std::vector<IUnversionedColumnarRowBatch::TColumn> columns;
             columns.resize(reader->GetBatchColumnCount());
             reader->ReadColumnarBatch(
-                TMutableRange<IUnversionedRowBatch::TColumn>(columns.data(), columns.size()),
+                TMutableRange<IUnversionedColumnarRowBatch::TColumn>(columns.data(), columns.size()),
                 batchEndRowIndex - currentRowIndex);
             ValidateSegmentPart(columns, expected, currentRowIndex, batchEndRowIndex - currentRowIndex);
             currentRowIndex = batchEndRowIndex;
@@ -248,7 +248,7 @@ protected:
     virtual std::unique_ptr<NTableChunkFormat::IValueColumnWriter> CreateColumnWriter(
         NTableChunkFormat::TDataBlockWriter* blockWriter) = 0;
     virtual std::optional<TValue> DecodeValueFromColumn(
-        const IUnversionedRowBatch::TColumn* column,
+        const IUnversionedColumnarRowBatch::TColumn* column,
         i64 index) = 0;
 };
 

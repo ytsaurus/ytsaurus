@@ -71,7 +71,7 @@ protected:
         const double Fraction;
         
         IUnversionedRowBatchPtr Batch;
-        TRange<TUnversionedRow> Rows;
+        TSharedRange<TUnversionedRow> Rows;
         int CurrentRowIndex = 0;
         int TableIndex = 0;
     };

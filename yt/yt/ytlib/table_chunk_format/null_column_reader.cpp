@@ -34,7 +34,7 @@ public:
     void ReadColumnarBatch(
         i64 /*startRowIndex*/,
         i64 /*rowCount*/,
-        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> /*columns*/)
+        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> /*columns*/)
     { }
 };
 
@@ -152,7 +152,7 @@ public:
     }
 
     virtual void ReadColumnarBatch(
-        TMutableRange<NTableClient::IUnversionedRowBatch::TColumn> columns,
+        TMutableRange<NTableClient::IUnversionedColumnarRowBatch::TColumn> columns,
         i64 /*rowCount*/) override
     {
         YT_VERIFY(columns.size() == 1);

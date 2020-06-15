@@ -17,15 +17,15 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWireRowStreamFormatter
-    : public IRowStreamFormatter
+class TWireRowStreamEncoder
+    : public IRowStreamEncoder
 {
 public:
-    explicit TWireRowStreamFormatter(TNameTablePtr nameTable)
+    explicit TWireRowStreamEncoder(TNameTablePtr nameTable)
         : NameTable_(std::move(nameTable))
     { }
     
-    virtual TSharedRef Format(
+    virtual TSharedRef Encode(
         const IUnversionedRowBatchPtr& batch,
         const NApi::NRpcProxy::NProto::TRowsetStatistics* statistics) override
     {
@@ -62,30 +62,30 @@ private:
     int NameTableSize_ = 0;
 };
 
-IRowStreamFormatterPtr CreateWireRowStreamFormatter(TNameTablePtr nameTable)
+IRowStreamEncoderPtr CreateWireRowStreamEncoder(TNameTablePtr nameTable)
 {
-    return New<TWireRowStreamFormatter>(std::move(nameTable));
+    return New<TWireRowStreamEncoder>(std::move(nameTable));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TWireRowStreamParser
-    : public IRowStreamParser
+class TWireRowStreamDecoder
+    : public IRowStreamDecoder
 {
 public:
-    explicit TWireRowStreamParser(TNameTablePtr nameTable)
+    explicit TWireRowStreamDecoder(TNameTablePtr nameTable)
         : NameTable_(std::move(nameTable))
     {
         Descriptor_.set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
         Descriptor_.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
     }
 
-    virtual TSharedRange<TUnversionedRow> Parse(
+    virtual IUnversionedRowBatchPtr Decode(
         const TSharedRef& payloadRef,
         const NProto::TRowsetDescriptor& descriptorDelta) override
     {
-        struct TWireRowStreamParserTag { };
-        TWireProtocolReader reader(payloadRef, New<TRowBuffer>(TWireRowStreamParserTag()));
+        struct TWireRowStreamDecoderTag { };
+        TWireProtocolReader reader(payloadRef, New<TRowBuffer>(TWireRowStreamDecoderTag()));
         auto rows = reader.ReadUnversionedRowset(true);
 
         auto oldNameTableSize = Descriptor_.name_table_entries_size();
@@ -119,7 +119,7 @@ public:
             }
         }
 
-        return rows;
+        return CreateBatchFromUnversionedRows(std::move(rows));
     }
 
 private:
@@ -130,9 +130,9 @@ private:
     bool HasNontrivialIdMapping_ = false;
 };
 
-IRowStreamParserPtr CreateWireRowStreamParser(TNameTablePtr nameTable)
+IRowStreamDecoderPtr CreateWireRowStreamDecoder(TNameTablePtr nameTable)
 {
-    return New<TWireRowStreamParser>(std::move(nameTable));
+    return New<TWireRowStreamDecoder>(std::move(nameTable));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

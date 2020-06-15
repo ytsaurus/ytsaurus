@@ -21,16 +21,24 @@ struct IUnversionedRowBatch
     //! A helper method that returns |true| iff #GetRowCount is zero.
     bool IsEmpty() const;
 
-    //! Returns |true| if the batch is internally represeted by a set of columns.
-    //! In this case #MaterializeColumns provides access to columnar data.
-    virtual bool IsColumnar() const = 0;
+    //! Tries to dynamic-cast the instance to IUnversionedColumnarRowBatch;
+    //! returns null on failure.
+    IUnversionedColumnarRowBatchPtr TryAsColumnar();
 
     //! Returns the rows representing the batch.
     //! If the batch is columnar then the rows are materialized on first
     //! call to #MaterializeRows. This call could be slow.
     //! Invoking #MaterializeColumns after this call is forbidden.
-    virtual TRange<TUnversionedRow> MaterializeRows() = 0;
+    virtual TSharedRange<TUnversionedRow> MaterializeRows() = 0;
+};
 
+DEFINE_REFCOUNTED_TYPE(IUnversionedRowBatch)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IUnversionedColumnarRowBatch
+    : public IUnversionedRowBatch
+{
     struct TValueBuffer;
     struct TStringBuffer;
     struct TBitmap;
@@ -76,8 +84,22 @@ struct IUnversionedRowBatch
         TRef Data;
     };
 
+    //! An opaque dictionary id.
+    using TDictionaryId = ui64;
+    
+    //! This dictionary id is invalid and cannot appear in #TDictionaryEncoding::Id.
+    static constexpr TDictionaryId NullDictionaryId = 0;
+
+    //! A helper for generating unique dictionary ids.
+    static TDictionaryId GenerateDictionaryId();
+
     struct TDictionaryEncoding
     {
+        //! The unique id of the dictionary.
+        //! Dictionary ids are never reused (within a process incarnation).
+        //! If you see a previously appearing ids then you could safely assume that this is exactly same dictionary.
+        TDictionaryId DictionaryId = NullDictionaryId;
+
         //! If |true| then dictionary indexes are in fact 1-based; 0 in #TColumn::Values means null
         //! and #TColumn::NullBitmap is not used; one should subtract 1 from value in #TColumn::Values
         //! before dereferencing the dictionary.
@@ -157,9 +179,13 @@ struct IUnversionedRowBatch
     //! This call is fast.
     //! Invoking #MaterializeRows after this call is forbidden.
     virtual TRange<const TColumn*> MaterializeColumns() = 0;
+
+    //! Contains the ids of dictionaries that are guaranteed to never be used
+    //! past this batch. These ids, however, can appear in this very batch.
+    virtual TRange<TDictionaryId> GetRetiringDictionaryIds() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IUnversionedRowBatch)
+DEFINE_REFCOUNTED_TYPE(IUnversionedColumnarRowBatch)
 
 ////////////////////////////////////////////////////////////////////////////////
 
