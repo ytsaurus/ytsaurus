@@ -2,11 +2,14 @@
 #include "schema.h"
 #include "name_table.h"
 
+#include <yt/client/table_client/proto/chunk_meta.pb.h>
+
 #include <yt/core/ytree/convert.h>
 
 #include <yt/core/net/address.h>
 
 #include <yt/core/yson/parser.h>
+#include <yt/core/yson/protobuf_interop.h>
 #include <yt/core/yson/token_writer.h>
 
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
@@ -1224,6 +1227,40 @@ TSharedRange<TUnversionedRow> TUnversionedRowsBuilder::Build()
 {
     return MakeSharedRange(std::move(Rows_), std::move(RowBuffer_));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TBlockMeta, /*last_key*/9, TUnversionedOwningRow)
+
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TBoundaryKeysExt, /*min*/1, TUnversionedOwningRow)
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TBoundaryKeysExt, /*max*/2, TUnversionedOwningRow)
+
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TSamplesExt, /*entries*/1, TUnversionedOwningRow)
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! These converters are used only for THeavyColumnStatisticsExt column_data_weights field proto<->yson conversion.
+void FromBytes(std::vector<int>* vector, TStringBuf bytes)
+{
+    for (auto value : bytes) {
+        vector->push_back(static_cast<int>(value));
+    }
+}
+
+void ToBytes(TString* bytes, const std::vector<int>& vector)
+{
+    for (auto value : vector) {
+        bytes->push_back(static_cast<unsigned char>(value));
+    }
+}
+
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::THeavyColumnStatisticsExt, /*column_data_weights*/5, TUnversionedOwningRow)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 

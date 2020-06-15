@@ -12,6 +12,7 @@
 #include <yt/ytlib/core_dump/proto/core_info.pb.h>
 
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
+#include <yt/ytlib/chunk_client/key_set.h>
 
 #include <yt/ytlib/node_tracker_client/helpers.h>
 
@@ -19,9 +20,12 @@
 
 #include <yt/client/security_client/helpers.h>
 
+#include <yt/client/table_client/unversioned_row.h>
+
 #include <yt/client/api/transaction.h>
 
 #include <yt/core/ytree/node.h>
+#include <yt/core/ytree/serialize.h>
 
 namespace NYT::NScheduler {
 
@@ -32,6 +36,7 @@ using namespace NYPath;
 using namespace NCoreDump::NProto;
 using namespace NYson;
 using namespace NObjectClient;
+using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NSecurityClient;
@@ -235,6 +240,56 @@ TOperationFairShareTreeRuntimeParametersPtr GetSchedulingOptionsPerPoolTree(IOpe
 {
     return GetOrCrash(operation->GetRuntimeParameters()->SchedulingOptionsPerPoolTree, treeId);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FromBytes(std::vector<TOwningKey>* keys, TStringBuf bytes)
+{
+    TKeySetReader reader(TSharedRef::FromString(TString(bytes)));
+    for (auto key : reader.GetKeys()) {
+        keys->push_back(TOwningKey(key));
+    }
+}
+
+void ToBytes(TString* bytes, const std::vector<TOwningKey>& keys)
+{
+    auto keySetWriter = New<TKeySetWriter>();
+    for (const auto& key : keys) {
+        keySetWriter->WriteKey(key);
+    }
+    auto serializedKeys = keySetWriter->Finish();
+    *bytes = TString(serializedKeys.begin(), serializedKeys.end());
+}
+
+// TODO(gritukan): Why does not it compile without these helpers?
+void Serialize(const std::vector<TOwningKey>& keys, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .DoListFor(keys, [] (TFluentList fluent, const TOwningKey& key) {
+            Serialize(key, fluent.GetConsumer());
+        });
+}
+
+void Deserialize(std::vector<TOwningKey>& keys, INodePtr node)
+{
+    for (const auto& child : node->AsList()->GetChildren()) {
+        TOwningKey key;
+        Deserialize(key, child);
+        keys.push_back(key);
+    }
+}
+
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TPartitionJobSpecExt, /*wire_partition_keys*/8, std::vector<TOwningKey>)
+
+////////////////////////////////////////////////////////////////////////////////
+
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
 

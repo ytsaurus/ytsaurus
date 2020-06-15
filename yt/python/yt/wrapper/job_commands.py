@@ -130,3 +130,17 @@ def get_job_fail_context(operation_id, job_id, client=None):
         return_content=False,
         use_heavy_proxy=True,
         client=client)
+
+def get_job_spec(job_id, omit_node_directory=None, omit_input_table_specs=None, omit_output_table_specs=None, client=None):
+    """Get spec of the specified job.
+
+    :param str job_id: job id.
+    :param bool omit_node_directory: whether node directory should be removed from job spec.
+    :param bool omit_input_table_specs: whether input table specs should be removed from job spec.
+    :param bool omit_output_table_specc: whether output table specs should be removed from job spec.
+    """
+    params = {"job_id": job_id}
+    set_param(params, "omit_node_directory", omit_node_directory)
+    set_param(params, "omit_input_table_specs", omit_input_table_specs)
+    set_param(params, "omit_output_table_specs", omit_output_table_specs)
+    return make_formatted_request("get_job_spec", params, format=None, client=client)

@@ -183,6 +183,10 @@ public:
         NJobTrackerClient::TJobId jobId,
         const NApi::TGetJobInputPathsOptions& options) override;
 
+    virtual TFuture<NYson::TYsonString> GetJobSpec(
+        NJobTrackerClient::TJobId jobId,
+        const NApi::TGetJobSpecOptions& options) override;
+
     virtual TFuture<TSharedRef> GetJobStderr(
         NJobTrackerClient::TOperationId operationId,
         NJobTrackerClient::TJobId jobId,

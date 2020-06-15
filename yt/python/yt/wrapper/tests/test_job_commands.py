@@ -225,3 +225,19 @@ class TestJobCommands(object):
 
         attrs = yt.get_operation_attributes(op.id)
         assert attrs["progress"]["jobs"]["aborted"]["total"] == 1
+
+    def test_get_job_spec(self, job_events):
+        input_table = TEST_DIR + "/input_table"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_table(input_table, [{"x": 1}])
+
+        mapper = job_events.with_breakpoint("cat ; BREAKPOINT")
+
+        op = yt.run_map(mapper, input_table, output_table, format=yt.DsvFormat(), sync=False)
+
+        job_id = job_events.wait_breakpoint()[0]
+
+        assert "scheduler_job_spec_ext" in yt.get_job_spec(job_id)
+
+        job_events.release_breakpoint()
+        op.wait()

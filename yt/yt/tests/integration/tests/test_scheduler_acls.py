@@ -209,6 +209,7 @@ class TestSchedulerAcls(YTEnvSetup):
             _dump_job_context,
             get_job_input,
             get_job_stderr,
+            get_job_spec,
         ]
 
         with self._run_op_context_manager(should_update_operation_parameters) as (op, job_id):
@@ -242,6 +243,7 @@ class TestSchedulerAcls(YTEnvSetup):
             get_job_fail_context,
             get_job_input,
             get_job_stderr,
+            get_job_spec,
         ]
 
         op, job_id = self._run_and_fail_op(should_update_operation_parameters=False)

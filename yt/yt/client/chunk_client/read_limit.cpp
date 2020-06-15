@@ -3,6 +3,8 @@
 #include <yt/core/misc/format.h>
 #include <yt/core/misc/protobuf_helpers.h>
 
+#include <yt/core/yson/protobuf_interop.h>
+
 #include <yt/core/ytree/convert.h>
 #include <yt/core/ytree/fluent.h>
 #include <yt/core/ytree/node.h>
@@ -523,6 +525,10 @@ void TReadRange::Persist(const TStreamPersistenceContext& context)
     Persist(context, LowerLimit_);
     Persist(context, UpperLimit_);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NProto::TReadLimit, /*key*/4, TUnversionedOwningRow)
 
 ////////////////////////////////////////////////////////////////////////////////
 

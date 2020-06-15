@@ -1248,6 +1248,18 @@ def add_get_job_input_paths_parser(add_parser):
     parser = add_parser("get-job-input-paths", get_job_input_paths)
     add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
 
+@copy_docstring_from(yt.get_job_spec)
+def get_job_spec(**kwargs):
+    job_spec = yt.get_job_spec(**kwargs)
+    print(dump_data(map(yt.YPath.to_yson_type, job_spec)))
+
+def add_get_job_spec_parser(add_parser):
+    parser = add_parser("get-job-spec", get_job_spec)
+    add_hybrid_argument(parser, "job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
+    parser.add_argument("--omit-node-directory", type=bool, help='Whether node directory should be removed from job spec (true by default)')
+    parser.add_argument("--omit-input-table-specs", type=bool, help='Whether input table specs should be removed from job spec (false by default)')
+    parser.add_argument("--omit-output-table-specs", type=bool, help='Whether output table specs should be removed from job spec (false by default)')
+
 @copy_docstring_from(yt.get_job)
 def get_job(**kwargs):
     result = yt.get_job(**kwargs)
@@ -1684,6 +1696,7 @@ def main():
     add_get_job_input_paths_parser(add_parser)
     add_abort_job_parser(add_parser)
     add_list_jobs_parser(add_parser)
+    add_get_job_spec_parser(add_parser)
     add_get_job_parser(add_parser)
 
     add_execute_parser(add_parser)

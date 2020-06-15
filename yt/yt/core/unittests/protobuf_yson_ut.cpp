@@ -105,6 +105,7 @@ void Deserialize(TBytesIntermediateRepresentation& value, NYTree::INodePtr node)
 }
 
 REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NYT::NProto::TMessage, 29, TBytesIntermediateRepresentation)
+REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NYT::NProto::TMessage, 30, TBytesIntermediateRepresentation)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -250,6 +251,11 @@ TEST(TYsonToProtobufYsonTest, Success)
             .Item("bytes_with_custom_converter").BeginMap()
                 .Item("x").Value(43)
             .EndMap()
+            .Item("repeated_bytes_with_custom_converter").BeginList()
+                .Item().BeginMap()
+                    .Item("x").Value(124)
+                .EndMap()
+            .EndList()
             .Item("extensions").BeginMap()
                 .Item("ext").BeginMap()
                     .Item("x").Value(42)
@@ -352,6 +358,9 @@ TEST(TYsonToProtobufYsonTest, Success)
     EXPECT_EQ(0xdeadbeef, message.guid().second());
 
     EXPECT_EQ("42", message.bytes_with_custom_converter());
+
+    EXPECT_EQ(1, message.repeated_bytes_with_custom_converter_size());
+    EXPECT_EQ("123", message.repeated_bytes_with_custom_converter(0));
 
     EXPECT_EQ(GetProtoExtension<NYT::NProto::TMessageExt>(message.extensions()).x(), 42);
 }
@@ -1117,6 +1126,7 @@ TEST(TProtobufToYsonTest, Success)
     }
 
     message.set_bytes_with_custom_converter("42");
+    message.add_repeated_bytes_with_custom_converter("123");
 
     {
         NYT::NProto::TMessageExt messageExt;
@@ -1233,6 +1243,11 @@ TEST(TProtobufToYsonTest, Success)
             .Item("bytes_with_custom_converter").BeginMap()
                 .Item("x").Value(43)
             .EndMap()
+            .Item("repeated_bytes_with_custom_converter").BeginList()
+                .Item().BeginMap()
+                    .Item("x").Value(124)
+                .EndMap()
+            .EndList()
             .Item("extensions").BeginMap()
                 .Item("ext").BeginMap()
                     .Item("x").Value(42)

@@ -390,6 +390,7 @@ public:
             .SetStreamingEnabled(true)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobInputPaths));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobSpec));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobStderr));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJobFailContext));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetJob));
@@ -2204,6 +2205,35 @@ private:
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_paths(result.GetData());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, GetJobSpec)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto jobId = FromProto<TJobId>(request->job_id());
+
+        TGetJobSpecOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        options.OmitNodeDirectory = request->omit_node_directory();
+        options.OmitInputTableSpecs = request->omit_input_table_specs();
+        options.OmitOutputTableSpecs = request->omit_output_table_specs();
+
+        context->SetRequestInfo("JobId: %v, OmitNodeDirectory: %v, OmitInputTableSpecs: %v, OmitOutputTableSpecs: %v",
+            jobId,
+            options.OmitNodeDirectory,
+            options.OmitInputTableSpecs,
+            options.OmitOutputTableSpecs);
+
+        CompleteCallWith(
+            client,
+            context,
+            client->GetJobSpec(jobId, options),
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                response->set_job_spec(result.GetData());
             });
     }
 

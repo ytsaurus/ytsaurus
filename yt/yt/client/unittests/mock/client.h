@@ -329,6 +329,10 @@ public:
         NJobTrackerClient::TJobId jobId,
         const TGetJobInputPathsOptions& options));
 
+    MOCK_METHOD2(GetJobSpec, TFuture<NYson::TYsonString>(
+        NJobTrackerClient::TJobId jobId,
+        const TGetJobSpecOptions& options));
+
     MOCK_METHOD3(GetJobStderr, TFuture<TSharedRef>(
         NJobTrackerClient::TOperationId operationId,
         NJobTrackerClient::TJobId jobId,

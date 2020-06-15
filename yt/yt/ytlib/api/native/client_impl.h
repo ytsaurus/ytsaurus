@@ -1,7 +1,6 @@
 #pragma once
 
 #include "client.h"
-
 #include "private.h"
 
 #include <yt/ytlib/tablet_client/public.h>
@@ -378,6 +377,10 @@ public:
     IMPLEMENT_METHOD(NYson::TYsonString, GetJobInputPaths, (
         NScheduler::TJobId jobId,
         const TGetJobInputPathsOptions& options),
+        (jobId, options))
+    IMPLEMENT_METHOD(NYson::TYsonString, GetJobSpec, (
+        NScheduler::TJobId jobId,
+        const TGetJobSpecOptions& options),
         (jobId, options))
     IMPLEMENT_METHOD(TSharedRef, GetJobStderr, (
         NScheduler::TOperationId operationId,
@@ -842,17 +845,23 @@ private:
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
 
-    TErrorOr<NJobTrackerClient::NProto::TJobSpec> TryGetJobSpecFromJobNode(
+    TErrorOr<NJobTrackerClient::NProto::TJobSpec> TryFetchJobSpecFromJobNode(
         NScheduler::TJobId jobId,
         const NRpc::IChannelPtr& nodeChannel);
-    // Get job spec from node and check that user has |requiredPermissions|
+    // Fetch job spec from node and check that user has |requiredPermissions|
     // for accessing the corresponding operation.
-    TErrorOr<NJobTrackerClient::NProto::TJobSpec> TryGetJobSpecFromJobNode(
+    TErrorOr<NJobTrackerClient::NProto::TJobSpec> TryFetchJobSpecFromJobNode(
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
-    // Get job spec from job archive and check that user has |requiredPermissions|
+    // Fetch job spec from job archive and check that user has |requiredPermissions|
     // for accessing the corresponding operation.
-    NJobTrackerClient::NProto::TJobSpec GetJobSpecFromArchive(
+    NJobTrackerClient::NProto::TJobSpec FetchJobSpecFromArchive(
+        NScheduler::TJobId jobId,
+        NYTree::EPermissionSet requiredPermissions);
+    // Tries to fetch job spec from both node and job archive and checks 
+    // that user has |requiredPermissions| for accessing the corresponding operation.
+    // Throws if spec could not be fetched.
+    NJobTrackerClient::NProto::TJobSpec FetchJobSpec(
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
 
@@ -862,6 +871,9 @@ private:
     NYson::TYsonString DoGetJobInputPaths(
         NScheduler::TJobId jobId,
         const TGetJobInputPathsOptions& options);
+    NYson::TYsonString DoGetJobSpec(
+        NScheduler::TJobId jobId,
+        const TGetJobSpecOptions& options);
     TSharedRef DoGetJobStderrFromNode(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId);

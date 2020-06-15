@@ -650,6 +650,75 @@ class TestGetJobStderr(YTEnvSetup):
         finally:
             set("//sys/operations/@inherit_acl", True)
 
+class TestGetJobSpec(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    @authors("gritukan")
+    def test_get_job_spec(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("BREAKPOINT; cat"))
+
+        wait_breakpoint()
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 1
+        job_id = jobs[0]
+
+        def path_exists(job_spec, path):
+            for token in path.split("/"):
+                if token not in job_spec:
+                    return False
+                job_spec = job_spec[token]
+            return True
+
+        job_spec = yson.loads(get_job_spec(job_id))
+        assert not path_exists(job_spec, "scheduler_job_spec_ext/input_node_directory")
+        assert path_exists(job_spec, "scheduler_job_spec_ext/input_table_specs")
+        assert path_exists(job_spec, "scheduler_job_spec_ext/output_table_specs")
+
+        job_spec = yson.loads(get_job_spec(job_id, omit_node_directory=False,
+                              omit_input_table_specs=True, omit_output_table_specs=True))
+
+        assert path_exists(job_spec, "scheduler_job_spec_ext/input_node_directory")
+        assert not path_exists(job_spec, "scheduler_job_spec_ext/input_table_specs")
+        assert not path_exists(job_spec, "scheduler_job_spec_ext/output_table_specs")
+
+        release_breakpoint()
+        op.track()
+
+    @authors("gritukan")
+    def test_get_job_spec_acl(self):
+        create_user("u")
+        create_user("v")
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", {"a": "b"})
+
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("BREAKPOINT; cat"),
+            authenticated_user="u")
+
+        wait_breakpoint()
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 1
+        job_id = jobs[0]
+
+        get_job_spec(job_id, authenticated_user="u")
+        with pytest.raises(YtError):
+            get_job_spec(job_id, authenticated_user="v")
+
 ##################################################################
 
 class TestGetJobInputRpcProxy(TestGetJobInput):
@@ -661,3 +730,6 @@ class TestGetJobStderrRpcProxy(TestGetJobStderr):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
+class TestGetJobSpecRpcProxy(TestGetJobSpec):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True

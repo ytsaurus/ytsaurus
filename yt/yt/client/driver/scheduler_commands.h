@@ -55,6 +55,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetJobSpecCommand
+    : public TTypedCommand<NApi::TGetJobSpecOptions>
+{
+public:
+    TGetJobSpecCommand();
+
+private:
+    NJobTrackerClient::TJobId JobId;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGetJobStderrCommand
     : public TTypedCommand<NApi::TGetJobStderrOptions>
 {

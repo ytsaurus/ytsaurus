@@ -334,6 +334,13 @@ void SetNodeByYPath(
     const TYPath& path,
     const INodePtr& value);
 
+/*!
+ *  Returns |false| if the specified node does not exists.
+ */
+bool RemoveNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree

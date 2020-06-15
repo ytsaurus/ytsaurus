@@ -1452,6 +1452,16 @@ void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRo
     }
 }
 
+void ToBytes(TString* bytes, const TUnversionedOwningRow& row)
+{
+    *bytes = SerializeToString(row);
+}
+
+void FromBytes(TUnversionedOwningRow* row, TStringBuf bytes)
+{
+    *row = DeserializeFromString(TString(bytes));
+}
+
 TString ToString(TUnversionedRow row)
 {
     return row

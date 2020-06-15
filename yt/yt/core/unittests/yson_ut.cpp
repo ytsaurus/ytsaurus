@@ -44,6 +44,37 @@ TYPED_TEST(TYsonTypedTest, SetNodeByYPath)
     EXPECT_EQ(4, ConvertTo<int>(submap->GetChild("other_key")));
 }
 
+TYPED_TEST(TYsonTypedTest, RemoveNodeByYPathMap)
+{
+    auto node = NYT::NYTree::ConvertToNode(TypeParam("{x={y={z=1}}}"));
+    EXPECT_EQ(true, RemoveNodeByYPath(node, "/x/y/z"));
+
+    auto submap = node->AsMap()->GetChild("x")->AsMap()->GetChild("y")->AsMap();
+    EXPECT_EQ(0, submap->GetChildCount());
+}
+
+TYPED_TEST(TYsonTypedTest, RemoveNodeByYPathList)
+{
+    auto node = NYT::NYTree::ConvertToNode(TypeParam("{x={y=[1]}}"));
+    EXPECT_EQ(true, RemoveNodeByYPath(node, "/x/y/0"));
+
+    auto sublist = node->AsMap()->GetChild("x")->AsMap()->GetChild("y")->AsList();
+    EXPECT_EQ(0, sublist->GetChildCount());
+}
+
+TYPED_TEST(TYsonTypedTest, RemoveNodeByYPathInvalid)
+{
+    auto node = NYT::NYTree::ConvertToNode(TypeParam("{map={a=1};list=[1]}"));
+    auto nodeCopy = CloneNode(node);
+    EXPECT_EQ(false, RemoveNodeByYPath(node, "/map/b"));
+    EXPECT_THROW(RemoveNodeByYPath(node, "/map/a/1"), std::exception);
+    EXPECT_EQ(false, RemoveNodeByYPath(node, "/map/1"));
+    EXPECT_EQ(false, RemoveNodeByYPath(node, "/list/1"));
+    EXPECT_THROW(RemoveNodeByYPath(node, "/list/a"), std::exception);
+    EXPECT_THROW(RemoveNodeByYPath(node, "/list/0/a"), std::exception);
+    EXPECT_TRUE(AreNodesEqual(node, nodeCopy));
+}
+
 TYPED_TEST(TYsonTypedTest, ConvertToNode)
 {
     TString yson = "{key=value; other_key=10}";
