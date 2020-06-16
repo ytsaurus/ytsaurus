@@ -32,8 +32,8 @@ public:
     //! Return invoker over "ChunkWriter" thread.
     IInvokerPtr GetWriterInvoker();
 
-    //! Returns serialized invoker for reader memory manager over "ChunkReader:*" thread pool.
-    IInvokerPtr GetReaderMemoryManagerInvoker();
+    //! Serialized invoker for reader memory managers.
+    const IInvokerPtr& GetReaderMemoryManagerInvoker();
 
 private:
     class TImpl;
