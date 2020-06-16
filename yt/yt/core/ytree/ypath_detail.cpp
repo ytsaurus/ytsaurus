@@ -775,11 +775,16 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
 
             // Set custom attributes.
             if (customAttributes) {
+
+                auto modifyPermission = builtinAttributeProvider
+                    ? builtinAttributeProvider->GetCustomAttributeModifyPermission()
+                    : EPermission::Write;
+
                 auto customKeys = customAttributes->ListKeys();
                 std::sort(customKeys.begin(), customKeys.end());
                 for (const auto& key : customKeys) {
                     if (!newAttributes->Contains(key)) {
-                        permissionValidator.Validate(EPermission::Write);
+                        permissionValidator.Validate(modifyPermission);
 
                         YT_VERIFY(customAttributes->Remove(key));
                     }
@@ -795,7 +800,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                         ? descriptorMap.find(internedKey)
                         : descriptorMap.end();
                     if (it == descriptorMap.end() || it->second.Custom) {
-                        permissionValidator.Validate(EPermission::Write);
+                        permissionValidator.Validate(modifyPermission);
 
                         customAttributes->SetYson(key, value);
 
@@ -821,7 +826,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                             ThrowCannotSetBuiltinAttribute(key);
                         }
 
-                        permissionValidator.Validate(descriptor.WritePermission);
+                        permissionValidator.Validate(descriptor.ModifyPermission);
 
                         if (!GuardedSetBuiltinAttribute(internedKey, newAttributeYson)) {
                             ThrowCannotSetBuiltinAttribute(key);
@@ -829,7 +834,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
 
                         YT_VERIFY(newAttributes->Remove(key));
                     } else if (descriptor.Removable) {
-                        permissionValidator.Validate(descriptor.WritePermission);
+                        permissionValidator.Validate(descriptor.ModifyPermission);
 
                         if (!GuardedRemoveBuiltinAttribute(internedKey)) {
                             ThrowCannotRemoveAttribute(key);
@@ -861,7 +866,7 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                     ThrowCannotSetBuiltinAttribute(key);
                 }
 
-                permissionValidator.Validate(descriptor->WritePermission);
+                permissionValidator.Validate(descriptor->ModifyPermission);
 
                 if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                     if (!GuardedSetBuiltinAttribute(internedKey, newYson)) {
@@ -885,8 +890,10 @@ void TSupportsAttributes::DoSetAttribute(const TYPath& path, const TYsonString& 
                 if (!customAttributes) {
                     THROW_ERROR_EXCEPTION("Custom attributes are not supported");
                 }
-
-                permissionValidator.Validate(EPermission::Write);
+                auto modifyPermission = builtinAttributeProvider
+                    ? builtinAttributeProvider->GetCustomAttributeModifyPermission()
+                    : EPermission::Write;
+                permissionValidator.Validate(modifyPermission);
 
                 if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                     customAttributes->SetYson(key, newYson);
@@ -942,11 +949,14 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
     switch (tokenizer.Advance()) {
         case NYPath::ETokenType::Asterisk: {
             if (customAttributes) {
+                auto modifyPermission = builtinAttributeProvider
+                    ? builtinAttributeProvider->GetCustomAttributeModifyPermission()
+                    : EPermission::Write;
+                permissionValidator.Validate(modifyPermission);
+
                 auto customKeys = customAttributes->ListKeys();
                 std::sort(customKeys.begin(), customKeys.end());
                 for (const auto& key : customKeys) {
-                    permissionValidator.Validate(EPermission::Write);
-
                     YT_VERIFY(customAttributes->Remove(key));
                 }
             }
@@ -959,7 +969,10 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
             auto customYson = customAttributes ? customAttributes->FindYson(key) : TYsonString();
             if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
                 if (customYson) {
-                    permissionValidator.Validate(EPermission::Write);
+                    auto modifyPermission = builtinAttributeProvider
+                        ? builtinAttributeProvider->GetCustomAttributeModifyPermission()
+                        : EPermission::Write;
+                    permissionValidator.Validate(modifyPermission);
 
                     YT_VERIFY(customAttributes->Remove(key));
                 } else {
@@ -981,7 +994,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
                         ThrowCannotRemoveAttribute(key);
                     }
 
-                    permissionValidator.Validate(descriptor->WritePermission);
+                    permissionValidator.Validate(descriptor->ModifyPermission);
 
                     if (!GuardedRemoveBuiltinAttribute(internedKey)) {
                         ThrowNoSuchBuiltinAttribute(key);
@@ -989,7 +1002,10 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
                 }
             } else {
                 if (customYson) {
-                    permissionValidator.Validate(EPermission::Write);
+                    auto modifyPermission = builtinAttributeProvider
+                        ? builtinAttributeProvider->GetCustomAttributeModifyPermission()
+                        : EPermission::Write;
+                    permissionValidator.Validate(modifyPermission);
 
                     auto customNode = ConvertToNode(customYson);
                     SyncYPathRemove(customNode, TYPath(tokenizer.GetInput()), /*recursive*/ true, force);
@@ -1016,7 +1032,7 @@ void TSupportsAttributes::DoRemoveAttribute(const TYPath& path, bool force)
                         ThrowCannotSetBuiltinAttribute(key);
                     }
 
-                    permissionValidator.Validate(descriptor->WritePermission);
+                    permissionValidator.Validate(descriptor->ModifyPermission);
 
                     auto builtinYson = builtinAttributeProvider->FindBuiltinAttribute(internedKey);
                     if (!builtinYson) {

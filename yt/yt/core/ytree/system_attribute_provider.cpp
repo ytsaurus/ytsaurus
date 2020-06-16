@@ -8,6 +8,11 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EPermission ISystemAttributeProvider::GetCustomAttributeModifyPermission()
+{
+    return EPermission::Write;
+}
+
 void ISystemAttributeProvider::ReserveAndListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)
 {
     descriptors->reserve(64);

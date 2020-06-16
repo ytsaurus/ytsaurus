@@ -40,6 +40,7 @@ protected:
     virtual bool GetBuiltinAttribute(NYTree::TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override;
     virtual bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value) override;
     virtual bool RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key) override;
+    virtual NYTree::EPermission GetCustomAttributeModifyPermission() override;
 
     // TODO(renadeen): move to SchedulerPool?
     bool IsKnownPoolAttribute(NYTree::TInternedAttributeKey key);
