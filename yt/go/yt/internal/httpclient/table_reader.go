@@ -1,7 +1,6 @@
 package httpclient
 
 import (
-	"fmt"
 	"io"
 	"reflect"
 
@@ -19,8 +18,7 @@ type tableReader struct {
 	end     bool
 	started bool
 
-	startRowIndex       int64
-	approximateRowCount int64
+	rspParams tableReaderRspParams
 }
 
 func (r *tableReader) Scan(value interface{}) error {
@@ -83,14 +81,7 @@ type tableReaderRspParams struct {
 }
 
 func (r *tableReader) setRspParams(params *tableReaderRspParams) error {
-	if params.StartRowIndex != nil {
-		r.startRowIndex = *params.StartRowIndex
-	}
-
-	if params.ApproximateRowCount == nil {
-		return fmt.Errorf("\"approximate_row_count\" is missing")
-	}
-	r.approximateRowCount = *params.ApproximateRowCount
+	r.rspParams = *params
 	return nil
 }
 
@@ -102,12 +93,20 @@ func decodeRspParams(ys []byte) (*tableReaderRspParams, error) {
 	return &params, nil
 }
 
-func (r *tableReader) StartRowIndex() int64 {
-	return r.startRowIndex
+func (r *tableReader) StartRowIndex() (int64, bool) {
+	if r.rspParams.StartRowIndex != nil {
+		return *r.rspParams.StartRowIndex, true
+	} else {
+		return 0, false
+	}
 }
 
-func (r *tableReader) ApproximateRowCount() int64 {
-	return r.approximateRowCount
+func (r *tableReader) ApproximateRowCount() (int64, bool) {
+	if r.rspParams.ApproximateRowCount != nil {
+		return *r.rspParams.ApproximateRowCount, true
+	} else {
+		return 0, false
+	}
 }
 
 var _ yt.TableReader = (*tableReader)(nil)

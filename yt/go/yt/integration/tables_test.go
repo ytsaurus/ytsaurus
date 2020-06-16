@@ -163,9 +163,8 @@ func TestTables(t *testing.T) {
 		require.NoError(t, err)
 		defer r.Close()
 
-		startRowIndex, ok := yt.StartRowIndex(r)
-		require.True(t, ok)
-		require.Equal(t, int64(0), startRowIndex)
+		_, ok := yt.StartRowIndex(r)
+		require.False(t, ok)
 	})
 
 	t.Run("ReaderInfo", func(t *testing.T) {
