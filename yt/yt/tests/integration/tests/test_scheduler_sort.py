@@ -6,8 +6,40 @@ from yt_env_setup import YTEnvSetup
 from yt.environment.helpers import assert_items_equal
 from yt_commands import *
 
+import __builtin__
 
 ##################################################################
+
+def sort_1_phase(in_, out, sort_by):
+    op = sort(in_=in_, out=out, sort_by=sort_by)
+    op.track()
+    job_types = get_operation(op.id)["progress"]["job_statistics"]["time"]["total"]["$"]["completed"].keys()
+    assert __builtin__.set(job_types) == {"simple_sort"}
+
+def sort_2_phase(in_, out, sort_by):
+    op = sort(in_=in_, out=out, sort_by=sort_by, spec={
+        "partition_job_count" : 2,
+        "partition_count" : 2,
+    })
+    op.track()
+    job_types = get_operation(op.id)["progress"]["job_statistics"]["time"]["total"]["$"]["completed"].keys()
+    assert __builtin__.set(job_types) == {"partition", "final_sort"}
+
+def sort_3_phase(in_, out, sort_by):
+    op = sort(in_=in_, out=out, sort_by=sort_by, spec={
+        "partition_job_count" : 10,
+        "partition_count" : 10,
+        "data_size_per_sort_job": 1,
+        "partition_job_io" : {
+            "table_writer" : {
+                "desired_chunk_size" : 1,
+                "block_size" : 1024,
+            }
+        }
+    })
+    op.track()
+    job_types = get_operation(op.id)["progress"]["job_statistics"]["time"]["total"]["$"]["completed"].keys()
+    assert __builtin__.set(job_types) == {'intermediate_sort', 'partition', 'sorted_merge'}
 
 class TestSchedulerSortCommands(YTEnvSetup):
     NUM_MASTERS = 1
@@ -1082,6 +1114,23 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert data_weight > 0
         assert data_flow_graph["edges"]["partition"]["final_sort"]["statistics"]["data_weight"] == data_weight
         assert data_flow_graph["edges"]["final_sort"]["sink"]["statistics"]["data_weight"] == data_weight
+
+    @authors("ermolovd")
+    @pytest.mark.parametrize("sort_func", [sort_1_phase, sort_2_phase, sort_3_phase])
+    def test_sort_nonkey_complex_type(self, sort_func):
+        create("table", "//tmp/in", attributes={
+            "schema": [
+                {"name": "key", "type_v3": "int64"},
+                {"name": "value", "type_v3": list_type("int64")},
+            ]
+        })
+        write_table("//tmp/in", [
+            {"key": i, "value": [1] * i}
+            for i in xrange(100, 1, -1)
+        ])
+        create("table", "//tmp/out")
+        sort_3_phase(in_="//tmp/in", out="//tmp/out", sort_by="key")
+
 
 ##################################################################
 
