@@ -244,10 +244,10 @@ private:
 
     TString GetJobProxyUnixDomainSocketPath() const
     {
-        return NFS::GetRealPath(NFS::CombinePaths({
+        return NFS::CombinePaths({
             Location_->GetSlotPath(SlotIndex_),
             "pipes",
-            Format("%v-job-proxy-%v", NodeTag_, SlotIndex_)}));
+            Format("%v-job-proxy-%v", NodeTag_, SlotIndex_)});
     }
 };
 

@@ -53,6 +53,7 @@ TSlotLocation::TSlotLocation(
     , JobDirectoryManager_(jobDirectoryManager)
     , LocationQueue_(New<TActionQueue>(Format("IO:%v", id)))
     , EnableTmpfs_(enableTmpfs)
+    , LocationPath_(NFS::GetRealPath(Config_->Path))
 {
     Enabled_ = true;
 
@@ -536,7 +537,7 @@ TString TSlotLocation::GetConfigPath(int slotIndex) const
 
 TString TSlotLocation::GetSlotPath(int slotIndex) const
 {
-    return NFS::CombinePaths(Config_->Path, Format("%v", slotIndex));
+    return NFS::CombinePaths(LocationPath_, Format("%v", slotIndex));
 }
 
 TString TSlotLocation::GetMediumName() const
