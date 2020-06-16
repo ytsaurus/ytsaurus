@@ -47,7 +47,6 @@ class TOrderedChunkPool
     , public TChunkPoolOutputWithJobManagerBase
     , public IChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
-    , public TRefTracked<TOrderedChunkPool>
 {
 public:
     //! Used only for persistence.
@@ -441,11 +440,11 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IChunkPool> CreateOrderedChunkPool(
+IChunkPoolPtr CreateOrderedChunkPool(
     const TOrderedChunkPoolOptions& options,
     TInputStreamDirectory inputStreamDirectory)
 {
-    return std::make_unique<TOrderedChunkPool>(options, std::move(inputStreamDirectory));
+    return New<TOrderedChunkPool>(options, std::move(inputStreamDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

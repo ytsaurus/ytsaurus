@@ -27,9 +27,6 @@ DECLARE_REFCOUNTED_CLASS(TJobManager)
 
 DECLARE_REFCOUNTED_CLASS(TOutputOrder)
 
-struct IChunkPoolInput;
-struct IChunkPoolOutput;
-struct IChunkPool;
 struct IShuffleChunkPool;
 
 ////////////////////////////////////////////////////////////////////////////////

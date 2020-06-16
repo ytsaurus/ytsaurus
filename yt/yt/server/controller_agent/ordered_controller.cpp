@@ -140,14 +140,14 @@ protected:
             ChunkPool_->SubscribeChunkTeleported(BIND(&TOrderedTask::OnChunkTeleported, MakeWeak(this)));
         }
 
-        virtual IChunkPoolInput* GetChunkPoolInput() const override
+        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
         {
-            return ChunkPool_.get();
+            return ChunkPool_;
         }
 
-        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
-            return ChunkPool_.get();
+            return ChunkPool_;
         }
 
         virtual void Persist(const TPersistenceContext& context) override
@@ -166,7 +166,7 @@ protected:
 
         TOrderedControllerBase* Controller_;
 
-        std::unique_ptr<IChunkPool> ChunkPool_;
+        IChunkPoolPtr ChunkPool_;
 
         virtual TTaskGroupPtr GetGroup() const override
         {

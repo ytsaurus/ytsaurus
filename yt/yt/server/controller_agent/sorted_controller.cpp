@@ -153,14 +153,14 @@ protected:
             return GetMergeResources(joblet->InputStripeList->GetStatistics());
         }
 
-        virtual IChunkPoolInput* GetChunkPoolInput() const override
+        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
         {
-            return ChunkPool_.get();
+            return ChunkPool_;
         }
 
-        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
-            return ChunkPool_.get();
+            return ChunkPool_;
         }
 
         virtual void Persist(const TPersistenceContext& context) override
@@ -178,7 +178,7 @@ protected:
         TSortedControllerBase* Controller_;
 
         //! Initialized in descendandt tasks.
-        std::unique_ptr<IChunkPool> ChunkPool_;
+        IChunkPoolPtr ChunkPool_;
 
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {

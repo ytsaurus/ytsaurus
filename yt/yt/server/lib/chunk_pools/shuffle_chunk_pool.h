@@ -7,7 +7,7 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
+IShuffleChunkPoolPtr CreateShuffleChunkPool(
     int partitionCount,
     i64 dataWeightThreshold,
     i64 chunkSliceThreshold);

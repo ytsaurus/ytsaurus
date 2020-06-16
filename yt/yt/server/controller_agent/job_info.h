@@ -159,7 +159,7 @@ struct TCompletedJob
     NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
     i64 DataWeight;
 
-    NChunkPools::IChunkPoolInput* DestinationPool = nullptr;
+    NChunkPools::IChunkPoolInputPtr DestinationPool;
     NChunkPools::IChunkPoolInput::TCookie InputCookie;
     NChunkPools::TChunkStripePtr InputStripe;
     bool Restartable;

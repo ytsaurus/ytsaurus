@@ -35,6 +35,8 @@ struct ISortedChunkPool
         GetLimits(IChunkPoolOutput::TCookie cookie) const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(ISortedChunkPool)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IChunkSliceFetcherFactory
@@ -53,7 +55,7 @@ DEFINE_REFCOUNTED_TYPE(IChunkSliceFetcherFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<ISortedChunkPool> CreateSortedChunkPool(
+ISortedChunkPoolPtr CreateSortedChunkPool(
     const TSortedChunkPoolOptions& options,
     IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
     TInputStreamDirectory dataSourceDirectory);

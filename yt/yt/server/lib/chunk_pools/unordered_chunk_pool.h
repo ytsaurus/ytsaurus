@@ -29,7 +29,7 @@ struct TUnorderedChunkPoolOptions
     void Persist(const TPersistenceContext& context);
 };
 
-std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
+IChunkPoolPtr CreateUnorderedChunkPool(
     const TUnorderedChunkPoolOptions& options,
     TInputStreamDirectory dataSourceDirectory);
 

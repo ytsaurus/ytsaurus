@@ -31,7 +31,7 @@ struct TOrderedChunkPoolOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IChunkPool> CreateOrderedChunkPool(
+IChunkPoolPtr CreateOrderedChunkPool(
     const TOrderedChunkPoolOptions& options,
     TInputStreamDirectory inputStreamDirectory);
 

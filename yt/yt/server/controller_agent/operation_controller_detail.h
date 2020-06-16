@@ -922,7 +922,7 @@ protected:
 
     virtual void InitOutputTables();
 
-    NChunkPools::IChunkPoolInput* GetSink();
+    const NChunkPools::IChunkPoolInputPtr& GetSink();
 
     //! One output table can have row_count_limit attribute in operation.
     std::optional<int> RowCountLimitTableIndex;
@@ -1060,8 +1060,7 @@ private:
     THashMap<TJobId, TFinishedJobInfoPtr> FinishedJobs_;
     std::vector<std::pair<TJobId, NYson::TYsonString>> RetainedFinishedJobs_;
 
-    std::vector<std::unique_ptr<NChunkPools::IChunkPoolInput>> Sinks_;
-    std::unique_ptr<NChunkPools::IChunkPoolInput> Sink_;
+    NChunkPools::IChunkPoolInputPtr Sink_;
 
     std::vector<NJobTrackerClient::NProto::TJobSpec> AutoMergeJobSpecTemplates_;
 

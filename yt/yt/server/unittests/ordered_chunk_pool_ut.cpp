@@ -194,7 +194,7 @@ protected:
         saveContext.SetOutput(&output);
         Save(saveContext, ChunkPool_);
         auto blob = output.Flush();
-        ChunkPool_.reset();
+        ChunkPool_.Reset();
 
         TMemoryInput input(blob.Begin(), blob.Size());
         TLoadContext loadContext;
@@ -316,7 +316,7 @@ protected:
 
     std::vector<TChunkId> OriginalChunks_;
 
-    std::unique_ptr<IChunkPool> ChunkPool_;
+    IChunkPoolPtr ChunkPool_;
 
     //! Set containing all unversioned primary input chunks that have ever been created.
     THashSet<TInputChunkPtr> CreatedUnversionedPrimaryChunks_;

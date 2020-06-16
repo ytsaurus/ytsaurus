@@ -17,7 +17,8 @@ namespace NYT::NChunkPools {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IChunkPoolInput
-    : public virtual IPersistent
+    : public virtual TRefCounted
+    , public virtual IPersistent
 {
     using TCookie = TIntCookie;
     static const TCookie NullCookie = -1;
@@ -40,6 +41,8 @@ struct IChunkPoolInput
 
     virtual bool IsFinished() const = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IChunkPoolInput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +73,8 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IChunkPoolOutput
-    : public virtual IPersistent
+    : public virtual TRefCounted
+    , public virtual IPersistent
 {
     using TCookie = TIntCookie;
     static constexpr TCookie NullCookie = -1;
@@ -115,6 +119,8 @@ struct IChunkPoolOutput
     //! Raises when dynamic config changes.
     DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
 };
+
+DEFINE_REFCOUNTED_TYPE(IChunkPoolOutput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -188,16 +194,21 @@ struct IChunkPool
     , public virtual IChunkPoolOutput
 { };
 
+DEFINE_REFCOUNTED_TYPE(IChunkPool)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IShuffleChunkPool
-    : public virtual IPersistent
+    : public virtual TRefCounted
+    , public virtual IPersistent
 {
-    virtual IChunkPoolInput* GetInput() = 0;
-    virtual IChunkPoolOutput* GetOutput(int partitionIndex) = 0;
+    virtual IChunkPoolInputPtr GetInput() = 0;
+    virtual IChunkPoolOutputPtr GetOutput(int partitionIndex) = 0;
     virtual i64 GetTotalDataSliceCount() const = 0;
     virtual i64 GetTotalJobCount() const = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IShuffleChunkPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 

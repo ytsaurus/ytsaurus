@@ -83,7 +83,6 @@ class TSortedChunkPool
     , public TChunkPoolOutputWithJobManagerBase
     , public ISortedChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
-    , public TRefTracked<TSortedChunkPool>
 {
 public:
     //! Used only for persistence.
@@ -785,12 +784,12 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<ISortedChunkPool> CreateSortedChunkPool(
+ISortedChunkPoolPtr CreateSortedChunkPool(
     const TSortedChunkPoolOptions& options,
     IChunkSliceFetcherFactoryPtr chunkSliceFetcherFactory,
     TInputStreamDirectory inputStreamDirectory)
 {
-    return std::make_unique<TSortedChunkPool>(options, std::move(chunkSliceFetcherFactory), std::move(inputStreamDirectory));
+    return New<TSortedChunkPool>(options, std::move(chunkSliceFetcherFactory), std::move(inputStreamDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

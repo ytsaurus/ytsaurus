@@ -356,17 +356,15 @@ protected:
         TSaveContext saveContext;
         saveContext.SetVersion(ToUnderlying(GetCurrentSnapshotVersion()));
         saveContext.SetOutput(&output);
-        Save(saveContext, UnderlyingPools_);
         Save(saveContext, ChunkPool_);
         auto blob = output.Flush();
-        ChunkPool_.reset();
+        ChunkPool_.Reset();
 
         TMemoryInput input(blob.Begin(), blob.Size());
         TLoadContext loadContext;
         loadContext.SetVersion(ToUnderlying(GetCurrentSnapshotVersion()));
         loadContext.SetRowBuffer(RowBuffer_);
         loadContext.SetInput(&input);
-        Load(loadContext, UnderlyingPools_);
         Load(loadContext, ChunkPool_);
         ChunkPool_->SubscribeChunkTeleported(
             BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
@@ -614,7 +612,7 @@ protected:
         }
     }
 
-    std::unique_ptr<IChunkPool> ChunkPool_;
+    IChunkPoolPtr ChunkPool_;
 
     //! Set containing all unversioned primary input chunks that have ever been created.
     THashSet<TInputChunkPtr> CreatedUnversionedPrimaryChunks_;
@@ -652,8 +650,6 @@ protected:
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
 
     std::mt19937 Gen_;
-
-    std::vector<std::unique_ptr<IChunkPool>> UnderlyingPools_;
 
     THashMap<TChunkId, int> ChunkIdToUnderlyingPoolIndex_;
 
@@ -2982,19 +2978,15 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     if (useMultiPool) {
         // Multi pool created of several sorted subpools.
         underlyingPoolCount = std::uniform_int_distribution<>(1, maxUnderlyingPoolCount)(Gen_);
-        std::vector<IChunkPool*> underlyingPoolPtrs;
-        UnderlyingPools_.reserve(underlyingPoolCount);
-        underlyingPoolPtrs.reserve(underlyingPoolCount);
+        std::vector<IChunkPoolPtr> underlyingPools;
+        underlyingPools.reserve(underlyingPoolCount);
         for (int poolIndex = 0; poolIndex < underlyingPoolCount; ++poolIndex) {
-            auto underlyingPool = CreateSortedChunkPool(
+            underlyingPools.push_back(CreateSortedChunkPool(
                 Options_,
                 nullptr,
-                TInputStreamDirectory(InputTables_));
-
-            UnderlyingPools_.push_back(std::move(underlyingPool));
-            underlyingPoolPtrs.push_back(UnderlyingPools_.back().get());
+                TInputStreamDirectory(InputTables_)));
         }
-        ChunkPool_ = CreateMultiChunkPool(underlyingPoolPtrs);
+        ChunkPool_ = CreateMultiChunkPool(std::move(underlyingPools));
         ChunkPool_->SubscribeChunkTeleported(
             BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
                 TeleportChunks_.push_back(std::move(teleportChunk));

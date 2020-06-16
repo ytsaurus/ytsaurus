@@ -65,7 +65,6 @@ class TUnorderedChunkPool
     , public TChunkPoolOutputWithCountersBase
     , public IChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
-    , public TRefTracked<TUnorderedChunkPool>
 {
 public:
     //! For persistence only.
@@ -946,11 +945,11 @@ void TUnorderedChunkPoolOptions::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IChunkPool> CreateUnorderedChunkPool(
+IChunkPoolPtr CreateUnorderedChunkPool(
     const TUnorderedChunkPoolOptions& options,
     TInputStreamDirectory directory)
 {
-    return std::make_unique<TUnorderedChunkPool>(
+    return New<TUnorderedChunkPool>(
         options,
         std::move(directory));
 }

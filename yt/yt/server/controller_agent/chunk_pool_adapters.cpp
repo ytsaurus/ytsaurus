@@ -10,8 +10,8 @@ using namespace NChunkPools;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkPoolInputAdapterBase::TChunkPoolInputAdapterBase(IChunkPoolInput* underlyingInput)
-    : UnderlyingInput_(underlyingInput)
+TChunkPoolInputAdapterBase::TChunkPoolInputAdapterBase(IChunkPoolInputPtr underlyingInput)
+    : UnderlyingInput_(std::move(underlyingInput))
 { }
 
 IChunkPoolInput::TCookie TChunkPoolInputAdapterBase::AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key)
@@ -64,8 +64,8 @@ class TIntermediateLivePreviewAdapter
 public:
     TIntermediateLivePreviewAdapter() = default;
 
-    TIntermediateLivePreviewAdapter(IChunkPoolInput* chunkPoolInput, ITaskHost* taskHost)
-        : TChunkPoolInputAdapterBase(chunkPoolInput)
+    TIntermediateLivePreviewAdapter(IChunkPoolInputPtr chunkPoolInput, ITaskHost* taskHost)
+        : TChunkPoolInputAdapterBase(std::move(chunkPoolInput))
         , TaskHost_(taskHost)
     { }
 
@@ -101,11 +101,11 @@ private:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TIntermediateLivePreviewAdapter);
 
-std::unique_ptr<IChunkPoolInput> CreateIntermediateLivePreviewAdapter(
-    IChunkPoolInput* chunkPoolInput,
+IChunkPoolInputPtr CreateIntermediateLivePreviewAdapter(
+    IChunkPoolInputPtr chunkPoolInput,
     ITaskHost* taskHost)
 {
-    return std::make_unique<TIntermediateLivePreviewAdapter>(chunkPoolInput, taskHost);
+    return New<TIntermediateLivePreviewAdapter>(std::move(chunkPoolInput), taskHost);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,8 +116,8 @@ class THintAddingAdapter
 public:
     THintAddingAdapter() = default;
 
-    THintAddingAdapter(IChunkPoolInput* chunkPoolInput, TTask* task)
-        : TChunkPoolInputAdapterBase(chunkPoolInput)
+    THintAddingAdapter(IChunkPoolInputPtr chunkPoolInput, TTask* task)
+        : TChunkPoolInputAdapterBase(std::move(chunkPoolInput))
         , Task_(task)
     { }
 
@@ -151,11 +151,11 @@ private:
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(THintAddingAdapter);
 
-std::unique_ptr<IChunkPoolInput> CreateHintAddingAdapter(
-    IChunkPoolInput* chunkPoolInput,
+IChunkPoolInputPtr CreateHintAddingAdapter(
+    IChunkPoolInputPtr chunkPoolInput,
     TTask* task)
 {
-    return std::make_unique<THintAddingAdapter>(chunkPoolInput, task);
+    return New<THintAddingAdapter>(std::move(chunkPoolInput), task);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
