@@ -169,6 +169,7 @@ public:
     void BuildTaskYson(NYTree::TFluentMap fluent) const;
 
     virtual void PropagatePartitions(
+        const std::vector<TEdgeDescriptor>& edgeDescriptors,
         const NChunkPools::TChunkStripeListPtr& inputStripeList,
         std::vector<NChunkPools::TChunkStripePtr>* outputStripes);
 
@@ -264,6 +265,8 @@ protected:
 
     virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
     virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
+
+    virtual void SetEdgeDescriptors(TJobletPtr joblet) const;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TTask, 0x81ab3cd3);

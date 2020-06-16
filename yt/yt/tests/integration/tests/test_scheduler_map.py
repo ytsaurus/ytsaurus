@@ -1315,6 +1315,14 @@ done
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", {"a": "b"})
+
+        def get_directions(op):
+            data_flow = get(op.get_path() + "/@progress/data_flow")
+            directions = {}
+            for direction in data_flow:
+                directions[(direction["source_name"], direction["target_name"])] = direction
+            return directions
+
         op = map(
             track=False,
             in_="//tmp/t1",
@@ -1322,15 +1330,29 @@ done
             command="cat")
         op.track()
 
-        directions = {}
-        data_flow = get(op.get_path() + "/@progress/data_flow")
-        for direction in data_flow:
-            directions[(direction["source_name"], direction["target_name"])] = direction
-
-        assert directions[("map", "output")]["job_data_statistics"]["data_weight"] == 2
-        assert directions[("map", "output")]["teleport_data_statistics"]["data_weight"] == 0
+        directions = get_directions(op)
+        assert len(directions) == 2
         assert directions[("input", "map")]["job_data_statistics"]["data_weight"] == 0
         assert directions[("input", "map")]["teleport_data_statistics"]["data_weight"] == 2
+        assert directions[("map", "output")]["job_data_statistics"]["data_weight"] == 2
+        assert directions[("map", "output")]["teleport_data_statistics"]["data_weight"] == 0
+
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command="cat",
+            spec={"auto_merge": {"mode": "relaxed"}})
+        op.track()
+
+        directions = get_directions(op)
+        assert len(directions) == 3
+        assert directions[("input", "map")]["job_data_statistics"]["data_weight"] == 0
+        assert directions[("input", "map")]["teleport_data_statistics"]["data_weight"] == 2
+        assert directions[("map", "auto_merge")]["job_data_statistics"]["data_weight"] == 2
+        assert directions[("map", "auto_merge")]["teleport_data_statistics"]["data_weight"] == 0
+        assert directions[("auto_merge", "output")]["job_data_statistics"]["data_weight"] == 2
+        assert directions[("auto_merge", "output")]["teleport_data_statistics"]["data_weight"] == 0
 
     @authors("gritukan")
     def test_data_flow_graph(self):

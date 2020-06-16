@@ -170,7 +170,8 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
     @authors("max42")
     def test_several_auto_merge_output_tables(self):
-        self._create_account(35)
+        # TODO(gritukan): Set limit to 35 after YT-13081.
+        self._create_account(37)
 
         create("table", "//tmp/t_in", attributes={"account": "acc"})
         create("table", "//tmp/t_out1", attributes={"account": "acc"})
@@ -331,6 +332,19 @@ class TestSchedulerAutoMerge(YTEnvSetup):
             row_counts.append(get("#{0}/@row_count".format(chunk_id)))
         row_counts = sorted(row_counts)
         assert row_counts == [1, 1, 1, 1, 1, 5]
+
+        data_flow = get(op.get_path() + "/@progress/data_flow")
+        directions = {}
+        for direction in data_flow:
+            directions[(direction["source_name"], direction["target_name"])] = direction
+
+        assert len(directions) == 3
+        assert directions[("input", "map")]["job_data_statistics"]["chunk_count"] == 0
+        assert directions[("input", "map")]["teleport_data_statistics"]["chunk_count"] == 10
+        assert directions[("map", "auto_merge")]["job_data_statistics"]["chunk_count"] == 10
+        assert directions[("map", "auto_merge")]["teleport_data_statistics"]["chunk_count"] == 0
+        assert directions[("auto_merge", "output")]["job_data_statistics"]["chunk_count"] == 1
+        assert directions[("auto_merge", "output")]["teleport_data_statistics"]["chunk_count"] == 5
 
     @authors("max42")
     @pytest.mark.timeout(60)

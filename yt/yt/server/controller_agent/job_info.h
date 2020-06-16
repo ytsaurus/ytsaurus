@@ -2,6 +2,7 @@
 
 #include "task.h"
 #include "controller_agent.h"
+#include "data_flow_graph.h"
 
 #include <yt/server/lib/scheduler/job_metrics.h>
 #include <yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -115,6 +116,8 @@ public:
     NScheduler::TJobMetrics JobMetrics;
 
     std::optional<TDuration> JobSpeculationTimeout;
+
+    std::vector<TEdgeDescriptor> EdgeDescriptors;
 
     virtual void Persist(const TPersistenceContext& context) override;
 

@@ -477,8 +477,11 @@ protected:
     //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
     std::vector<TTaskGroupPtr> TaskGroups;
 
-    //! Auto merge task for each of the output tables.
-    std::vector<TAutoMergeTaskPtr> AutoMergeTasks;
+    TAutoMergeTaskPtr AutoMergeTask_;
+
+    //! Whether auto-merge is enabled for particular output table.
+    std::vector<bool> AutoMergeEnabled_;
+
     TTaskGroupPtr AutoMergeTaskGroup;
 
     TDataFlowGraphPtr DataFlowGraph_;
@@ -1063,8 +1066,6 @@ private:
     std::vector<NJobTrackerClient::NProto::TJobSpec> AutoMergeJobSpecTemplates_;
 
     std::unique_ptr<TAutoMergeDirector> AutoMergeDirector_;
-
-    bool AutoMergeEnabled_ = false;
 
     //! Release queue of job ids that were completed after the latest snapshot was built.
     //! It is a transient field.
