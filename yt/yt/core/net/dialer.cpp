@@ -217,15 +217,11 @@ private:
         Poller_->Arm(Socket_, Pollable_, EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered);
     }
 
-    void UnarmPollable()
+    void UnregisterPollable()
     {
         if (Socket_ != INVALID_SOCKET) {
             Poller_->Unarm(Socket_);
         }
-    }
-
-    void UnregisterPollable()
-    {
         Poller_->Unregister(Pollable_);
         Pollable_.Reset();
     }
@@ -300,10 +296,6 @@ private:
             return;
         }
 
-        // Unarm pollable before calling OnFinished_ which may arm same fd.
-        // Some pollers does not support multiple pollables for one fd.
-        UnarmPollable();
-
         {
             TGuard<TSpinLock> guard(SpinLock_);
 
@@ -331,7 +323,6 @@ private:
             return;
         }
 
-        UnarmPollable();
         UnregisterPollable();
         CloseSocket();
 
