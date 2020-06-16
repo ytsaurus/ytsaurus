@@ -18,7 +18,7 @@ TString GetVersion()
     }
     if (pos != TString::npos) {
         pos += 5;
-        return branch.substr(pos) + "." + ToString(GetVersionPatch()) + "~" + hash;
+        return branch.substr(pos) + "." + ToString(GetArcadiaPatchNumber()) + "~" + hash;
     } else if (branch.find("trunk") != TString::npos) {
         return "0.0." + ToString(GetProgramSvnRevision()) + "-trunk~" + hash;
     } else {
