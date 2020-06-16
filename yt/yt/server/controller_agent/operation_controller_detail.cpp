@@ -1404,7 +1404,6 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
         return false;
     }
 
-    AutoMergeTasks.reserve(OutputTables_.size());
     i64 maxIntermediateChunkCount;
     i64 chunkCountPerMergeJob;
     switch (mode) {
@@ -1461,57 +1460,62 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
     bool sortedOutputAutoMergeRequired = false;
 
     auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
+
+    std::vector<TEdgeDescriptor> edgeDescriptors;
+    edgeDescriptors.reserve(OutputTables_.size());
+    AutoMergeEnabled_.resize(OutputTables_.size(), false);
     for (int index = 0; index < OutputTables_.size(); ++index) {
         const auto& outputTable = OutputTables_[index];
         if (outputTable->Path.GetAutoMerge()) {
             if (outputTable->TableUploadOptions.TableSchema->IsSorted()) {
                 sortedOutputAutoMergeRequired = true;
-                AutoMergeTasks.emplace_back(nullptr);
             } else {
                 auto edgeDescriptor = standardEdgeDescriptors[index];
                 // Auto-merge jobs produce single output, so we override the table
                 // index in writer options with 0.
                 edgeDescriptor.TableWriterOptions = CloneYsonSerializable(edgeDescriptor.TableWriterOptions);
                 edgeDescriptor.TableWriterOptions->TableIndex = 0;
-                auto task = New<TAutoMergeTask>(
-                    this /* taskHost */,
-                    index,
-                    chunkCountPerMergeJob,
-                    autoMergeSpec->ChunkSizeThreshold,
-                    dataWeightPerJob,
-                    Spec_->MaxDataWeightPerJob,
-                    edgeDescriptor);
-                RegisterTask(task);
-                AutoMergeTasks.emplace_back(std::move(task));
-                AutoMergeEnabled_ = true;
+                edgeDescriptors.push_back(std::move(edgeDescriptor));
+                AutoMergeEnabled_[index] = true;
             }
-        } else {
-            AutoMergeTasks.emplace_back(nullptr);
         }
     }
 
-    if (sortedOutputAutoMergeRequired && !AutoMergeEnabled_) {
+    bool autoMergeEnabled = !edgeDescriptors.empty();
+    if (autoMergeEnabled) {
+        AutoMergeTask_ = New<TAutoMergeTask>(
+            this /* taskHost */,
+            chunkCountPerMergeJob,
+            autoMergeSpec->ChunkSizeThreshold,
+            dataWeightPerJob,
+            Spec_->MaxDataWeightPerJob,
+            std::move(edgeDescriptors));
+        RegisterTask(AutoMergeTask_);
+    }
+
+    if (sortedOutputAutoMergeRequired && !autoMergeEnabled) {
         auto error = TError("Sorted output with auto merge is not supported for now, it will be done in YT-8024");
         SetOperationAlert(EOperationAlertType::AutoMergeDisabled, error);
     }
 
-    return AutoMergeEnabled_;
+    return autoMergeEnabled;
 }
 
 std::vector<TEdgeDescriptor> TOperationControllerBase::GetAutoMergeEdgeDescriptors()
 {
     auto edgeDescriptors = GetStandardEdgeDescriptors();
     YT_VERIFY(GetAutoMergeDirector());
-    YT_VERIFY(AutoMergeTasks.size() == edgeDescriptors.size());
+
+    int autoMergeTaskTableIndex = 0;
     for (int index = 0; index < edgeDescriptors.size(); ++index) {
-        if (AutoMergeTasks[index]) {
-            const auto& autoMergeTask = AutoMergeTasks[index];
-            edgeDescriptors[index].DestinationPool = autoMergeTask->GetChunkPoolInput();
-            edgeDescriptors[index].ChunkMapping = autoMergeTask->GetChunkMapping();
+        if (AutoMergeEnabled_[index]) {
+            edgeDescriptors[index].DestinationPool = AutoMergeTask_->GetChunkPoolInput();
+            edgeDescriptors[index].ChunkMapping = AutoMergeTask_->GetChunkMapping();
             edgeDescriptors[index].ImmediatelyUnstageChunkLists = true;
             edgeDescriptors[index].RequiresRecoveryInfo = true;
             edgeDescriptors[index].IsFinalOutput = false;
-            edgeDescriptors[index].TargetDescriptor = autoMergeTask->GetVertexDescriptor();
+            edgeDescriptors[index].TargetDescriptor = AutoMergeTask_->GetVertexDescriptor();
+            edgeDescriptors[index].PartitionTag = autoMergeTaskTableIndex++;
         }
     }
     return edgeDescriptors;
@@ -7600,7 +7604,7 @@ void TOperationControllerBase::BuildRetainedFinishedJobsYson(TFluentMap fluent) 
 
 bool TOperationControllerBase::ShouldShowDataFlowSectionsInProgress() const
 {
-    return !AutoMergeEnabled_;
+    return true;
 }
 
 void TOperationControllerBase::CheckTentativeTreeEligibility()
@@ -8446,8 +8450,8 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, Sinks_);
     Persist(context, Sink_);
+    Persist(context, AutoMergeTask_);
     Persist(context, AutoMergeTaskGroup);
-    Persist(context, AutoMergeTasks);
     Persist(context, AutoMergeJobSpecTemplates_);
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
     Persist(context, JobSplitter_);
@@ -8461,10 +8465,7 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobMetricsDeltaPerTree_);
     Persist(context, TotalTimePerTree_);
     Persist(context, CompletedRowCount_);
-    // COMPAT(gritukan)
-    if (context.GetVersion() >= ESnapshotVersion::AutoMergeEnabled) {
-        Persist(context, AutoMergeEnabled_);
-    }
+    Persist(context, AutoMergeEnabled_);
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
@@ -8668,10 +8669,8 @@ void TOperationControllerBase::SetOperationAlert(EOperationAlertType alertType, 
 
 bool TOperationControllerBase::IsCompleted() const
 {
-    for (const auto& task : AutoMergeTasks) {
-        if (task && !task->IsCompleted()) {
-            return false;
-        }
+    if (AutoMergeTask_ && !AutoMergeTask_->IsCompleted()) {
+        return false;
     }
     return true;
 }

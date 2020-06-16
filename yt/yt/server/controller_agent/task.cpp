@@ -417,7 +417,7 @@ void TTask::ScheduleJob(
 
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
-        "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, Splittable: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
+        "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, Splittable: %v, PartitionTag: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
         "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, Speculative: %v, JobSpeculationTimeout: %v)",
         joblet->JobId,
         TaskHost_->GetOperationId(),
@@ -432,6 +432,7 @@ void TTask::ScheduleJob(
         joblet->InputStripeList->LocalDataWeight,
         joblet->InputStripeList->TotalRowCount,
         joblet->InputStripeList->IsSplittable,
+        joblet->InputStripeList->PartitionTag,
         restarted,
         FormatResources(estimatedResourceUsage),
         joblet->JobProxyMemoryReserveFactor,
@@ -440,7 +441,9 @@ void TTask::ScheduleJob(
         joblet->Speculative,
         joblet->JobSpeculationTimeout);
 
-    for (const auto& edgeDescriptor : EdgeDescriptors_) {
+    SetEdgeDescriptors(joblet);
+
+    for (const auto& edgeDescriptor : joblet->EdgeDescriptors) {
         joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(edgeDescriptor.CellTag));
     }
 
@@ -504,11 +507,13 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
 }
 
 void TTask::PropagatePartitions(
+    const std::vector<TEdgeDescriptor>& edgeDescriptors,
     const TChunkStripeListPtr& /*inputStripeList*/,
     std::vector<TChunkStripePtr>* outputStripes)
 {
+    YT_VERIFY(outputStripes->size() == edgeDescriptors.size());
     for (int stripeIndex = 0; stripeIndex < outputStripes->size(); ++stripeIndex) {
-        (*outputStripes)[stripeIndex]->PartitionTag = EdgeDescriptors_[stripeIndex].PartitionTag;
+        (*outputStripes)[stripeIndex]->PartitionTag = edgeDescriptors[stripeIndex].PartitionTag;
     }
 }
 
@@ -943,10 +948,11 @@ void TTask::AddOutputTableSpecs(
     TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    YT_VERIFY(joblet->ChunkListIds.size() == EdgeDescriptors_.size());
+    const auto& edgeDescriptors = joblet->EdgeDescriptors;
+    YT_VERIFY(joblet->ChunkListIds.size() == edgeDescriptors.size());
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
-        const auto& edgeDescriptor = EdgeDescriptors_[index];
+    for (int index = 0; index < edgeDescriptors.size(); ++index) {
+        const auto& edgeDescriptor = edgeDescriptors[index];
         auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
         outputSpec->set_table_writer_options(ConvertToYsonString(edgeDescriptor.TableWriterOptions).GetData());
         if (edgeDescriptor.TableWriterConfig) {
@@ -1020,6 +1026,11 @@ void TTask::FinishTaskInput(const TTaskPtr& task)
     task->FinishInput(GetVertexDescriptor() /* inputVertex */);
 }
 
+void TTask::SetEdgeDescriptors(TJobletPtr joblet) const
+{
+    joblet->EdgeDescriptors = EdgeDescriptors_;
+}
+
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
 {
     auto jobSpec = ObjectPool<NJobTrackerClient::NProto::TJobSpec>().Allocate();
@@ -1090,24 +1101,25 @@ void TTask::RegisterOutput(
         schedulerJobResultExt,
         chunkListIds,
         schedulerJobResultExt->output_boundary_keys());
-    TChunkStripeListPtr inputStripeList;
-    if (joblet) {
-        inputStripeList = joblet->InputStripeList;
-    }
-    PropagatePartitions(std::move(inputStripeList), &outputStripes);
+    PropagatePartitions(
+        joblet->EdgeDescriptors,
+        joblet->InputStripeList,
+        &outputStripes);
 
-    for (int tableIndex = 0; tableIndex < EdgeDescriptors_.size(); ++tableIndex) {
+    const auto& edgeDescriptors = joblet->EdgeDescriptors;
+    for (int tableIndex = 0; tableIndex < edgeDescriptors.size(); ++tableIndex) {
         if (outputStripes[tableIndex]) {
+            const auto& edgeDescriptor = edgeDescriptors[tableIndex];
             for (const auto& dataSlice : outputStripes[tableIndex]->DataSlices) {
                 TaskHost_->RegisterLivePreviewChunk(
                     GetVertexDescriptor(),
-                    EdgeDescriptors_[tableIndex].LivePreviewIndex,
+                    edgeDescriptor.LivePreviewIndex,
                     dataSlice->GetSingleUnversionedChunkOrThrow());
             }
 
             RegisterStripe(
                 std::move(outputStripes[tableIndex]),
-                EdgeDescriptors_[tableIndex],
+                edgeDescriptor,
                 joblet,
                 key);
         }

@@ -80,7 +80,7 @@ public:
         const TUnorderedChunkPoolOptions& options,
         TInputStreamDirectory directory)
         : OperationId_(options.OperationId)
-        , Task_(options.Task)
+        , Name_(options.Name)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , Sampler_(JobSizeConstraints_->GetSamplingRate())
         , Mode(options.Mode)
@@ -91,7 +91,7 @@ public:
     {
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
-        Logger.AddTag("Task: %v", Task_);
+        Logger.AddTag("Name: %v", Name_);
 
         if (Mode == EUnorderedChunkPoolMode::Normal) {
             JobCounter->Set(JobSizeConstraints_->GetJobCount());
@@ -497,7 +497,7 @@ public:
         using NYT::Persist;
         Persist(context, ChunkPoolId_);
         Persist(context, OperationId_);
-        Persist(context, Task_);
+        Persist(context, Name_);
         Persist(context, InputCookieToInternalCookies_);
         Persist(context, InputCookieIsSuspended_);
         Persist(context, Stripes);
@@ -524,7 +524,7 @@ public:
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
             Logger.AddTag("OperationId: %v", OperationId_);
-            Logger.AddTag("Task: %v", Task_);
+            Logger.AddTag("Name: %v", Name_);
         }
     }
 
@@ -534,7 +534,7 @@ private:
     TLogger Logger = ChunkPoolLogger;
     TGuid ChunkPoolId_ = TGuid::Create();
     TOperationId OperationId_;
-    TString Task_;
+    TString Name_;
 
     //! A mappping between input cookies (that are returned and used by controllers) and internal smaller
     //! stripe cookies that are obtained by slicing the input stripes.
@@ -941,7 +941,7 @@ void TUnorderedChunkPoolOptions::Persist(const TPersistenceContext& context)
     Persist(context, MinTeleportChunkDataWeight);
     Persist(context, SliceErasureChunksByParts);
     Persist(context, OperationId);
-    Persist(context, Task);
+    Persist(context, Name);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -504,10 +504,8 @@ protected:
         ProcessInputs();
 
         FinishTaskInput(SortedTask_);
-        for (int index = 0; index < AutoMergeTasks.size(); ++index) {
-            if (AutoMergeTasks[index]) {
-                AutoMergeTasks[index]->FinishInput(SortedTask_->GetVertexDescriptor());
-            }
+        if (AutoMergeTask_) {
+            AutoMergeTask_->FinishInput(SortedTask_->GetVertexDescriptor());
         }
 
         FinishPreparation();

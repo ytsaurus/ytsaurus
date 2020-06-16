@@ -1254,14 +1254,14 @@ protected:
 
         struct TJobOutput
         {
-            std::vector<NChunkClient::TChunkListId> ChunkListIds;
+            TJobletPtr Joblet;
             TCompletedJobSummary JobSummary;
 
             void Persist(const TPersistenceContext& context)
             {
                 using NYT::Persist;
 
-                Persist(context, ChunkListIds);
+                Persist(context, Joblet);
                 Persist(context, JobSummary);
             }
         };
@@ -1271,9 +1271,7 @@ protected:
         {
             for (auto& jobOutput : JobOutputs_) {
                 Controller->AccountRows(jobOutput.JobSummary.Statistics);
-                // We definitely know that output of current job is going directly to the sink, so
-                // it is ok not to specify joblet at all.
-                RegisterOutput(&jobOutput.JobSummary.Result, jobOutput.ChunkListIds, nullptr /* joblet */);
+                RegisterOutput(&jobOutput.JobSummary.Result, jobOutput.Joblet->ChunkListIds, jobOutput.Joblet);
             }
         }
 
@@ -1319,7 +1317,7 @@ protected:
             Controller->SortedMergeJobCounter->Completed(1);
             YT_VERIFY(ActiveJoblets_.erase(joblet) == 1);
             if (!InvalidatedJoblets_.contains(joblet)) {
-                JobOutputs_.emplace_back(TJobOutput{joblet->ChunkListIds, jobSummary});
+                JobOutputs_.emplace_back(TJobOutput{joblet, jobSummary});
             }
 
             return result;
@@ -1626,7 +1624,7 @@ protected:
             options.JobSizeConstraints = std::move(jobSizeConstraints);
             options.JobSizeAdjusterConfig = std::move(jobSizeAdjusterConfig);
             options.OperationId = OperationId;
-            options.Task = PartitionTask->GetTitle();
+            options.Name = PartitionTask->GetTitle();
 
             PartitionPool = CreateUnorderedChunkPool(
                 std::move(options),
@@ -1655,7 +1653,7 @@ protected:
         TUnorderedChunkPoolOptions options;
         options.JobSizeConstraints = std::move(jobSizeConstraints);
         options.OperationId = OperationId;
-        options.Task = Partitions[0]->SortTask->GetTitle();
+        options.Name = Partitions[0]->SortTask->GetTitle();
 
         SimpleSortPool = CreateUnorderedChunkPool(
             std::move(options),

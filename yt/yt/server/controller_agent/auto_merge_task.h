@@ -53,12 +53,11 @@ public:
 
     TAutoMergeTask(
         ITaskHostPtr taskHost,
-        int tableIndex,
         int maxChunksPerJob,
         i64 chunkSizeThreshold,
         i64 dataWeightPerJob,
         i64 maxDataWeightPerJob,
-        TEdgeDescriptor edgeDescriptor);
+        std::vector<TEdgeDescriptor> edgeDescriptors);
 
     virtual TString GetTitle() const override;
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
@@ -98,19 +97,28 @@ protected:
 
     virtual void OnChunkTeleported(NChunkClient::TInputChunkPtr teleportChunk, std::any tag) override;
 
+    virtual void SetEdgeDescriptors(TJobletPtr joblet) const override;
+
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask, 0x4ef99f1a);
 
+    //! Per-table chunk pools.
+    std::vector<std::unique_ptr<NChunkPools::IChunkPool>> UnorderedChunkPools_;
+
+    //! Multi chunk pool built over unordered chunk pools.
     std::unique_ptr<NChunkPools::IChunkPool> ChunkPool_;
+
+    //! Input adapter built over multi chunk pool.
     std::unique_ptr<TAutoMergeChunkPoolAdapter> ChunkPoolInput_;
 
-    int TableIndex_;
     int CurrentChunkCount_ = 0;
 
     // NB: this field is intentionally transient (otherwise automerge can stuck after loading from snapshot).
     bool CanScheduleJob_ = true;
 
     void UpdateSelf();
+
+    int GetTableIndex(int poolIndex) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TAutoMergeTask);

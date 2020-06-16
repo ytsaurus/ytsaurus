@@ -6,6 +6,8 @@
 #include "task_host.h"
 #include "job_size_constraints.h"
 
+#include <yt/server/lib/chunk_pools/multi_chunk_pool.h>
+
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
 namespace NYT::NControllerAgent {
@@ -68,39 +70,46 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter);
 
 TAutoMergeTask::TAutoMergeTask(
     ITaskHostPtr taskHost,
-    int tableIndex,
     int maxChunksPerJob,
     i64 chunkSizeThreshold,
     i64 dataWeightPerJob,
     i64 maxDataWeightPerJob,
-    TEdgeDescriptor edgeDescriptor)
-    : TTask(taskHost, {edgeDescriptor})
-    , TableIndex_(tableIndex)
+    std::vector<TEdgeDescriptor> edgeDescriptors)
+    : TTask(taskHost, std::move(edgeDescriptors))
 {
-    auto autoMergeJobSizeConstraints = CreateExplicitJobSizeConstraints(
-        false /* canAdjustDataSizePerJob */,
-        false /* isExplicitJobCount */,
-        1 /* jobCount */,
-        dataWeightPerJob /* dataWeightPerJob */,
-        std::numeric_limits<i64>::max() /* primaryDataWeightPerJob */,
-        maxChunksPerJob /* maxDataSlicesPerJob */,
-        std::numeric_limits<i64>::max() /* maxDataWeightPerJob */,
-        std::numeric_limits<i64>::max() /* primaryMaxDataWeightPerJob */,
-        std::numeric_limits<i64>::max() /* inputSliceDataSize */,
-        std::numeric_limits<i64>::max() /* inputSliceRowCount */,
-        std::nullopt /* samplingRate */);
+    std::vector<IChunkPool*> unorderedChunkPoolPtrs;
+    UnorderedChunkPools_.reserve(EdgeDescriptors_.size());
+    unorderedChunkPoolPtrs.reserve(EdgeDescriptors_.size());
+    for (int poolIndex = 0; poolIndex < EdgeDescriptors_.size(); ++poolIndex) {
+        auto autoMergeJobSizeConstraints = CreateExplicitJobSizeConstraints(
+            false /* canAdjustDataSizePerJob */,
+            false /* isExplicitJobCount */,
+            1 /* jobCount */,
+            dataWeightPerJob /* dataWeightPerJob */,
+            std::numeric_limits<i64>::max() /* primaryDataWeightPerJob */,
+            maxChunksPerJob /* maxDataSlicesPerJob */,
+            std::numeric_limits<i64>::max() /* maxDataWeightPerJob */,
+            std::numeric_limits<i64>::max() /* primaryMaxDataWeightPerJob */,
+            std::numeric_limits<i64>::max() /* inputSliceDataSize */,
+            std::numeric_limits<i64>::max() /* inputSliceRowCount */,
+            std::nullopt /* samplingRate */);
 
-    TUnorderedChunkPoolOptions options;
-    options.Mode = EUnorderedChunkPoolMode::AutoMerge;
-    options.JobSizeConstraints = std::move(autoMergeJobSizeConstraints);
-    options.MinTeleportChunkDataWeight = 0.5 * maxDataWeightPerJob;
-    options.MinTeleportChunkSize = chunkSizeThreshold;
-    options.OperationId = TaskHost_->GetOperationId();
-    options.Task = GetTitle();
+        TUnorderedChunkPoolOptions options;
+        options.Mode = EUnorderedChunkPoolMode::AutoMerge;
+        options.JobSizeConstraints = std::move(autoMergeJobSizeConstraints);
+        options.MinTeleportChunkDataWeight = 0.5 * maxDataWeightPerJob;
+        options.MinTeleportChunkSize = chunkSizeThreshold;
+        options.OperationId = TaskHost_->GetOperationId();
+        options.Name = Format("%v(%v)", GetTitle(), poolIndex);
 
-    ChunkPool_ = CreateUnorderedChunkPool(
-        std::move(options),
-        TeleportableIntermediateInputStreamDirectory);
+        UnorderedChunkPools_.emplace_back(CreateUnorderedChunkPool(
+            std::move(options),
+            TeleportableIntermediateInputStreamDirectory));
+        unorderedChunkPoolPtrs.push_back(UnorderedChunkPools_.back().get());
+    }
+
+    ChunkPool_ = CreateMultiChunkPool(std::move(unorderedChunkPoolPtrs));
+
     ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this)));
 
     TaskHost_->GetDataFlowGraph()
@@ -116,7 +125,7 @@ TAutoMergeTask::TAutoMergeTask(
 
 TString TAutoMergeTask::GetTitle() const
 {
-    return Format("AutoMerge(%v)", TableIndex_);
+    return Format("AutoMerge");
 }
 
 TDataFlowGraph::TVertexDescriptor TAutoMergeTask::GetVertexDescriptor() const
@@ -171,7 +180,8 @@ TExtendedJobResources TAutoMergeTask::GetMinNeededResourcesHeavy() const
 
 void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec)
 {
-    jobSpec->CopyFrom(TaskHost_->GetAutoMergeJobSpecTemplate(TableIndex_));
+    auto poolIndex = *joblet->InputStripeList->PartitionTag;
+    jobSpec->CopyFrom(TaskHost_->GetAutoMergeJobSpecTemplate(GetTableIndex(poolIndex)));
     AddSequentialInputSpec(jobSpec, joblet);
     AddOutputTableSpecs(jobSpec, joblet);
 }
@@ -256,9 +266,9 @@ void TAutoMergeTask::Persist(const TPersistenceContext& context)
 
     using NYT::Persist;
 
+    Persist(context, UnorderedChunkPools_);
     Persist(context, ChunkPool_);
     Persist(context, ChunkPoolInput_);
-    Persist(context, TableIndex_);
     Persist(context, CurrentChunkCount_);
 
     ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this)));
@@ -268,8 +278,20 @@ void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any ta
 {
     TTask::OnChunkTeleported(teleportChunk, tag);
 
-    TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key=*/0, TableIndex_);
+    auto poolIndex = std::any_cast<int>(tag);
+    TaskHost_->RegisterTeleportChunk(std::move(teleportChunk), /*key=*/0, GetTableIndex(poolIndex));
     --CurrentChunkCount_;
+}
+
+void TAutoMergeTask::SetEdgeDescriptors(TJobletPtr joblet) const
+{
+    auto poolIndex = *joblet->InputStripeList->PartitionTag;
+    joblet->EdgeDescriptors = {EdgeDescriptors_[poolIndex]};
+}
+
+int TAutoMergeTask::GetTableIndex(int poolIndex) const
+{
+    return *EdgeDescriptors_[poolIndex].PartitionTag;
 }
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask);

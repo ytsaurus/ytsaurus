@@ -24,7 +24,7 @@ struct TUnorderedChunkPoolOptions
     i64 MinTeleportChunkDataWeight = std::numeric_limits<i64>::max();
     bool SliceErasureChunksByParts = false;
     NScheduler::TOperationId OperationId;
-    TString Task;
+    TString Name;
 
     void Persist(const TPersistenceContext& context);
 };

@@ -68,7 +68,7 @@ public:
             , Controller_(controller)
         {
             auto options = Controller_->GetUnorderedChunkPoolOptions();
-            options.Task = GetTitle();
+            options.Name = GetTitle();
 
             ChunkPool_ = CreateUnorderedChunkPool(std::move(options), Controller_->GetInputStreamDirectory());
             ChunkPool_->SubscribeChunkTeleported(BIND(&TUnorderedTaskBase::OnChunkTeleported, MakeWeak(this)));
@@ -356,10 +356,8 @@ protected:
         ProcessInputs();
 
         FinishTaskInput(UnorderedTask_);
-        for (int index = 0; index < AutoMergeTasks.size(); ++index) {
-            if (AutoMergeTasks[index]) {
-                AutoMergeTasks[index]->FinishInput(UnorderedTask_->GetVertexDescriptor());
-            }
+        if (AutoMergeTask_) {
+            AutoMergeTask_->FinishInput(UnorderedTask_->GetVertexDescriptor());
         }
 
         InitJobIOConfig();
