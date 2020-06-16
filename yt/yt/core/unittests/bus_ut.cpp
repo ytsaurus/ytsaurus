@@ -14,7 +14,7 @@
 
 #include <yt/core/misc/fs.h>
 
-#include <library/cpp/unittest/tests_data.h>
+#include <library/cpp/testing/unittest/tests_data.h>
 
 namespace NYT::NBus {
 namespace {

@@ -40,7 +40,7 @@
 #include <yt/core/yson/string.h>
 #include <yt/core/ytree/fluent.h>
 
-#include <library/cpp/unittest/tests_data.h>
+#include <library/cpp/testing/unittest/tests_data.h>
 
 #include <random>
 
