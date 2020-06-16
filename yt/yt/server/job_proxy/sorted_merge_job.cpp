@@ -88,6 +88,11 @@ public:
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
+        // Right now intermediate data in sort operation doesn't have schema
+        // so all composite values in input tables become Any values.
+        // Cast them back.
+        options->CastAnyToComposite = true;
+
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
         auto schema = FromProto<TTableSchemaPtr>(outputSpec.table_schema());

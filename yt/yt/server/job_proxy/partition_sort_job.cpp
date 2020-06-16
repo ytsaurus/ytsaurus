@@ -84,6 +84,11 @@ public:
         options->ExplodeOnValidationError = true;
         options->ValidateKeyWeight = true;
 
+        // Right now intermediate data in sort operation doesn't have schema
+        // so all composite values in input tables become Any values.
+        // Cast them back.
+        options->CastAnyToComposite = true;
+
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
 

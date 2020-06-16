@@ -268,6 +268,7 @@ public:
     bool EvaluateComputedColumns;
     bool EnableSkynetSharing;
     bool ReturnBoundaryKeys;
+    bool CastAnyToComposite;
 
     ETableSchemaModification SchemaModification;
 
@@ -300,6 +301,8 @@ public:
             .Default(false);
         RegisterParameter("return_boundary_keys", ReturnBoundaryKeys)
             .Default(true);
+        RegisterParameter("cast_any_to_composite", MaxHeavyColumns)
+            .Default(false);
         RegisterParameter("schema_modification", SchemaModification)
             .Default(ETableSchemaModification::None);
         RegisterParameter("max_heavy_columns", MaxHeavyColumns)

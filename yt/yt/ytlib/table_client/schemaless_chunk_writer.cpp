@@ -1059,6 +1059,15 @@ protected:
                 }
             }
 
+            if (Options_->CastAnyToComposite) {
+                for (int i = 0; i < Schema_->Columns().size(); ++i) {
+                    const auto& column = Schema_->Columns()[i];
+                    if (!column.SimplifiedLogicalType() && mutableRow[i].Type == EValueType::Any) {
+                        mutableRow[i].Type = EValueType::Composite;
+                    }
+                }
+            }
+
             // Now mutableRow contains all values that schema knows about.
             // And we can check types and check that all required fields are set.
             for (int i = 0; i < Schema_->Columns().size(); ++i) {
