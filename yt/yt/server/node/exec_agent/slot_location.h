@@ -102,6 +102,9 @@ private:
 
     const bool EnableTmpfs_;
 
+    //! Absolute path to location.
+    const TString LocationPath_;
+
     std::set<TString> TmpfsPaths_;
     std::set<int> SlotsWithQuota_;
 
