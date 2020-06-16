@@ -108,7 +108,7 @@ class PortoSubprocess(object):
         self._container.SetProperty("memory_limit", "{}".format(memory_limit))
 
     def list_subcontainers(self):
-        return [x for x in self._connection.List() if x.startswith(self._portoName)]
+        return [x for x in self._connection.List() if self._portoName in x]
 
     @property
     def returncode(self):
