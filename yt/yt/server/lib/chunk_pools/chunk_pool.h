@@ -46,6 +46,19 @@ DEFINE_REFCOUNTED_TYPE(IChunkPoolInput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IMultiChunkPoolInput
+    : public virtual IChunkPoolInput
+{
+    //! Finishes underlying pool with given index.
+    //! NB: One should not finish underlying pools directlty.
+    //! For now, this method is used for testing purposes only.
+    virtual void FinishPool(int poolIndex) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IMultiChunkPoolInput)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkPoolInputBase
     : public virtual IChunkPoolInput
 {
@@ -124,6 +137,20 @@ DEFINE_REFCOUNTED_TYPE(IChunkPoolOutput)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IMultiChunkPoolOutput
+    : public virtual IChunkPoolOutput
+{
+    //! Should be called when all underlying pools are added.
+    virtual void Finalize() = 0;
+
+    //! Adds new underlying chunk pool output to multi chunk pool.
+    virtual void AddPoolOutput(IChunkPoolOutputPtr pool) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IMultiChunkPoolOutput)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkPoolOutputBase
     : public virtual IChunkPoolOutput
 {
@@ -195,6 +222,19 @@ struct IChunkPool
 { };
 
 DEFINE_REFCOUNTED_TYPE(IChunkPool)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IMultiChunkPool
+    : public virtual IMultiChunkPoolInput
+    , public virtual IMultiChunkPoolOutput
+    , public virtual IChunkPool
+{
+    //! Adds new underlying chunk pool to multi chunk pool.
+    virtual void AddPool(IChunkPoolPtr pool) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IMultiChunkPool)
 
 ////////////////////////////////////////////////////////////////////////////////
 
