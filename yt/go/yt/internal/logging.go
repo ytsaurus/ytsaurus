@@ -20,14 +20,6 @@ type loggingReader struct {
 	logged atomic.Bool
 }
 
-func (r *loggingReader) RspParams() ([]byte, bool) {
-	rsp, ok := r.r.(interface{ RspParams() ([]byte, bool) })
-	if !ok {
-		return nil, false
-	}
-	return rsp.RspParams()
-}
-
 func (r *loggingReader) logFinish(err error, fields ...log.Field) {
 	if !r.logged.Swap(true) {
 		r.l.logFinish(r.ctx, err, fields...)

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"a.yandex-team.ru/yt/go/schema"
-
 	"a.yandex-team.ru/yt/go/ypath"
 )
 
@@ -30,9 +29,9 @@ type TableWriter interface {
 //
 // Index might not be available, depending on the underlying implementation
 func StartRowIndex(r TableReader) (rowIndex int64, ok bool) {
-	indexer, ok := r.(interface{ StartRowIndex() int64 })
+	rr, ok := r.(interface{ StartRowIndex() (int64, bool) })
 	if ok {
-		rowIndex = indexer.StartRowIndex()
+		return rr.StartRowIndex()
 	}
 	return
 }
@@ -41,9 +40,9 @@ func StartRowIndex(r TableReader) (rowIndex int64, ok bool) {
 //
 // Might not be available, depending on the underlying implementation
 func ApproximateRowCount(r TableReader) (count int64, ok bool) {
-	indexer, ok := r.(interface{ ApproximateRowCount() int64 })
+	rr, ok := r.(interface{ ApproximateRowCount() (int64, bool) })
 	if ok {
-		count = indexer.ApproximateRowCount()
+		return rr.ApproximateRowCount()
 	}
 	return
 }
