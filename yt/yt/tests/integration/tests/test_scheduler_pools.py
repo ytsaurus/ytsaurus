@@ -823,6 +823,31 @@ class TestSchedulerPoolAcls(YTEnvSetup):
         set("//sys/pool_trees/my_tree/nirvana/@acl", [make_ace("allow", "u", ["administer", "write"])])
         set("//sys/pool_trees/my_tree/nirvana/@enable_aggressive_starvation", True, authenticated_user="u")
 
+    def test_administer_allows_to_set_non_system_attribute(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
+
+        create_user("u")
+        set("//sys/pool_trees/my_tree/nirvana/@acl", [make_ace("allow", "u", "write")])
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/my_tree/nirvana/@non_system_attribute", True, authenticated_user="u")
+
+        set("//sys/pool_trees/my_tree/nirvana/@acl", [make_ace("allow", "u", ["administer", "write"])])
+        set("//sys/pool_trees/my_tree/nirvana/@non_system_attribute", True, authenticated_user="u")
+
+    def test_administer_allows_to_remove_non_system_attribute(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
+        set("//sys/pool_trees/my_tree/nirvana/@non_system_attribute", True)
+
+        create_user("u")
+        set("//sys/pool_trees/my_tree/nirvana/@acl", [make_ace("allow", "u", "write")])
+        with pytest.raises(YtError):
+            remove("//sys/pool_trees/my_tree/nirvana/@non_sytem_attribute", authenticated_user="u")
+
+        set("//sys/pool_trees/my_tree/nirvana/@acl", [make_ace("allow", "u", ["administer", "write"])])
+        remove("//sys/pool_trees/my_tree/nirvana/@non_system_attribute", authenticated_user="u")
+
     def test_write_on_root_allows_to_create_remove_pool_trees(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_user("u")

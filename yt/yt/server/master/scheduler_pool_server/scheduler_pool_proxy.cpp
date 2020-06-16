@@ -227,6 +227,11 @@ void TSchedulerPoolProxy::ValidateNoAliasClash(
     }
 }
 
+EPermission TSchedulerPoolProxy::GetCustomAttributeModifyPermission()
+{
+    return NYTree::EPermission::Administer;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TSchedulerPoolFactory::TSchedulerPoolFactory(NCellMaster::TBootstrap* bootstrap)

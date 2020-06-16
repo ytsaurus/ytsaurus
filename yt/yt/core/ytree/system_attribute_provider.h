@@ -32,7 +32,7 @@ struct ISystemAttributeProvider
         bool Replicated = false;
         bool Mandatory = false;
         bool External = false;
-        EPermissionSet WritePermission = EPermission::Write;
+        EPermissionSet ModifyPermission = EPermission::Write;
 
         TAttributeDescriptor& SetPresent(bool value)
         {
@@ -84,7 +84,7 @@ struct ISystemAttributeProvider
 
         TAttributeDescriptor& SetWritePermission(EPermission value)
         {
-            WritePermission = value;
+            ModifyPermission = value;
             return *this;
         }
 
@@ -129,6 +129,11 @@ struct ISystemAttributeProvider
      */
     virtual bool RemoveBuiltinAttribute(TInternedAttributeKey key) = 0;
 
+    //! Permission to set/remove non-builtin attributes.
+    /*!
+     *  \returns permission to set/remove non-builtin attributes.
+     */
+    virtual EPermission GetCustomAttributeModifyPermission();
 
     // Extension methods.
 
