@@ -149,8 +149,8 @@ public:
 
     virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const = 0;
 
-    virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const = 0;
-    virtual NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const = 0;
+    virtual NChunkPools::IChunkPoolInputPtr GetChunkPoolInput() const = 0;
+    virtual NChunkPools::IChunkPoolOutputPtr GetChunkPoolOutput() const = 0;
 
     virtual EJobType GetJobType() const = 0;
 
@@ -281,7 +281,7 @@ private:
 
     bool CompletedFired_ = false;
 
-    using TCookieAndPool = std::pair<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::IChunkPoolInput*>;
+    using TCookieAndPool = std::pair<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::IChunkPoolInputPtr>;
 
     //! For each lost job currently being replayed and destination pool, maps output cookie to corresponding input cookie.
     std::map<TCookieAndPool, NChunkPools::IChunkPoolInput::TCookie> LostJobCookieMap;

@@ -20,7 +20,6 @@ using namespace NControllerAgent;
 class TVanillaChunkPool
     : public TChunkPoolOutputWithJobManagerBase
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
-    , public TRefTracked<TVanillaChunkPool>
 {
 public:
     explicit TVanillaChunkPool(const TVanillaChunkPoolOptions& options)
@@ -82,9 +81,9 @@ DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IChunkPoolOutput> CreateVanillaChunkPool(const TVanillaChunkPoolOptions& options)
+IChunkPoolOutputPtr CreateVanillaChunkPool(const TVanillaChunkPoolOptions& options)
 {
-    return std::make_unique<TVanillaChunkPool>(options);
+    return New<TVanillaChunkPool>(options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -204,7 +204,6 @@ void TChunkPoolOutputWithJobManagerBase::Persist(const TPersistenceContext& cont
     Persist(context, JobManager_);
 }
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkPools

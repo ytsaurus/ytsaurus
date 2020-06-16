@@ -17,7 +17,7 @@ class TChunkPoolInputAdapterBase
 public:
     TChunkPoolInputAdapterBase() = default;
 
-    explicit TChunkPoolInputAdapterBase(NChunkPools::IChunkPoolInput* underlyingInput);
+    explicit TChunkPoolInputAdapterBase(NChunkPools::IChunkPoolInputPtr underlyingInput);
 
     virtual TCookie AddWithKey(NChunkPools::TChunkStripePtr stripe, NChunkPools::TChunkStripeKey key) override;
 
@@ -37,17 +37,17 @@ public:
 
 private:
     // NB: Underlying input is owned by the owner of the adapter.
-    NChunkPools::IChunkPoolInput* UnderlyingInput_ = nullptr;
+    NChunkPools::IChunkPoolInputPtr UnderlyingInput_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<NChunkPools::IChunkPoolInput> CreateIntermediateLivePreviewAdapter(
-    NChunkPools::IChunkPoolInput* chunkPoolInput,
+NChunkPools::IChunkPoolInputPtr CreateIntermediateLivePreviewAdapter(
+    NChunkPools::IChunkPoolInputPtr chunkPoolInput,
     ITaskHost* taskHost);
 
-std::unique_ptr<NChunkPools::IChunkPoolInput> CreateHintAddingAdapter(
-    NChunkPools::IChunkPoolInput* chunkPoolInput,
+NChunkPools::IChunkPoolInputPtr CreateHintAddingAdapter(
+    NChunkPools::IChunkPoolInputPtr chunkPoolInput,
     TTask* task);
 
 ////////////////////////////////////////////////////////////////////////////////

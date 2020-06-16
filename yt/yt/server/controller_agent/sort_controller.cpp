@@ -273,7 +273,7 @@ protected:
         TUnorderedMergeTaskPtr UnorderedMergeTask;
 
         // Chunk pool output obtained from the shuffle pool.
-        IChunkPoolOutput* ChunkPoolOutput;
+        IChunkPoolOutputPtr ChunkPoolOutput;
 
         void Persist(const TPersistenceContext& context)
         {
@@ -320,10 +320,10 @@ protected:
     TJobIOConfigPtr SortedMergeJobIOConfig;
     TJobIOConfigPtr UnorderedMergeJobIOConfig;
 
-    std::unique_ptr<IChunkPool> PartitionPool;
-    std::unique_ptr<IShuffleChunkPool> ShufflePool;
-    std::unique_ptr<IChunkPoolInput> ShufflePoolInput;
-    std::unique_ptr<IChunkPool> SimpleSortPool;
+    IChunkPoolPtr PartitionPool;
+    IShuffleChunkPoolPtr ShufflePool;
+    IChunkPoolInputPtr ShufflePoolInput;
+    IChunkPoolPtr SimpleSortPool;
     TInputChunkMappingPtr ShuffleChunkMapping_;
 
     TTaskGroupPtr PartitionTaskGroup;
@@ -394,14 +394,14 @@ protected:
             return result;
         }
 
-        virtual IChunkPoolInput* GetChunkPoolInput() const override
+        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
         {
-            return Controller->PartitionPool.get();
+            return Controller->PartitionPool;
         }
 
-        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
-            return Controller->PartitionPool.get();
+            return Controller->PartitionPool;
         }
 
         virtual TUserJobSpecPtr GetUserJobSpec() const override
@@ -709,17 +709,17 @@ protected:
             return result;
         }
 
-        virtual IChunkPoolInput* GetChunkPoolInput() const override
+        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return Controller->SimpleSort
-                ? Controller->SimpleSortPool.get()
+                ? Controller->SimpleSortPool
                 : Controller->ShufflePool->GetInput();
         }
 
-        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return Controller->SimpleSort
-                ? Controller->SimpleSortPool.get()
+                ? Controller->SimpleSortPool
                 : Partition->ChunkPoolOutput;
         }
 
@@ -1128,7 +1128,7 @@ protected:
             : TMergeTask(controller, partition, std::move(edgeDescriptors))
         {
             ChunkPool_ = controller->CreateSortedMergeChunkPool(GetTitle());
-            ChunkPoolInput_ = CreateHintAddingAdapter(ChunkPool_.get(), this);
+            ChunkPoolInput_ = CreateHintAddingAdapter(ChunkPool_, this);
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -1156,9 +1156,9 @@ protected:
             return result;
         }
 
-        virtual IChunkPoolInput* GetChunkPoolInput() const override
+        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
         {
-            return ChunkPoolInput_.get();
+            return ChunkPoolInput_;
         }
 
         virtual void Persist(const TPersistenceContext& context) override
@@ -1239,8 +1239,8 @@ protected:
     private:
         DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeTask, 0x4ab19c75);
 
-        std::unique_ptr<IChunkPool> ChunkPool_;
-        std::unique_ptr<IChunkPoolInput> ChunkPoolInput_;
+        IChunkPoolPtr ChunkPool_;
+        IChunkPoolInputPtr ChunkPoolInput_;
 
         THashSet<TJobletPtr> ActiveJoblets_;
         THashSet<TJobletPtr> InvalidatedJoblets_;
@@ -1288,9 +1288,9 @@ protected:
             return result;
         }
 
-        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
-            return ChunkPool_.get();
+            return ChunkPool_;
         }
 
         virtual void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
@@ -1385,12 +1385,12 @@ protected:
             return result;
         }
 
-        virtual IChunkPoolInput* GetChunkPoolInput() const override
+        virtual IChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return Controller->ShufflePool->GetInput();
         }
 
-        virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+        virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return Partition->ChunkPoolOutput;
         }
@@ -2160,7 +2160,7 @@ protected:
         return GetStandardEdgeDescriptors();
     }
 
-    std::unique_ptr<IChunkPool> CreateSortedMergeChunkPool(TString taskId)
+    IChunkPoolPtr CreateSortedMergeChunkPool(TString taskId)
     {
         TSortedChunkPoolOptions chunkPoolOptions;
         TSortedJobOptions jobOptions;
@@ -2457,7 +2457,7 @@ private:
 
             InitSimpleSortPool(jobSizeConstraints);
             auto& partition = Partitions[0];
-            partition->ChunkPoolOutput = SimpleSortPool.get();
+            partition->ChunkPoolOutput = SimpleSortPool;
             partition->SortedMergeTask->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
             ProcessInputs(partition->SortTask, jobSizeConstraints);
 
@@ -2486,7 +2486,7 @@ private:
             std::vector<TChunkStripePtr> stripes;
 
             TEdgeDescriptor shuffleEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
-            shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
+            shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput;
             shuffleEdgeDescriptor.ChunkMapping = ShuffleChunkMapping_;
             shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
             PartitionTask = New<TPartitionTask>(this, std::vector<TEdgeDescriptor> {shuffleEdgeDescriptor});
@@ -3117,7 +3117,7 @@ private:
 
         // Primary edge descriptor for shuffled output of the mapper.
         TEdgeDescriptor shuffleEdgeDescriptor = GetIntermediateEdgeDescriptorTemplate();
-        shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput.get();
+        shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput;
         shuffleEdgeDescriptor.ChunkMapping = ShuffleChunkMapping_;
         shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
 

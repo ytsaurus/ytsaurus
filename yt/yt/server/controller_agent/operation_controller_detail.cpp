@@ -565,9 +565,9 @@ void TOperationControllerBase::InitOutputTables()
     RegisterOutputTables(GetOutputTablePaths());
 }
 
-IChunkPoolInput* TOperationControllerBase::GetSink()
+const IChunkPoolInputPtr& TOperationControllerBase::GetSink()
 {
-    return Sink_.get();
+    return Sink_;
 }
 
 std::vector<TTransactionId> TOperationControllerBase::GetNonTrivialInputTransactionIds()
@@ -8448,7 +8448,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, RetainedJobCount_);
     Persist(context, FinishedJobs_);
     Persist(context, JobSpecCompletedArchiveCount_);
-    Persist(context, Sinks_);
     Persist(context, Sink_);
     Persist(context, AutoMergeTask_);
     Persist(context, AutoMergeTaskGroup);
@@ -8709,10 +8708,8 @@ void TOperationControllerBase::LoadSnapshot(const NYT::NControllerAgent::TOperat
 
 void TOperationControllerBase::RegisterOutputTables(const std::vector<TRichYPath>& outputTablePaths)
 {
-    std::vector<IChunkPoolInput*> sinkPtrs;
-    Sinks_.reserve(outputTablePaths.size());
-    sinkPtrs.reserve(outputTablePaths.size());
-
+    std::vector<IChunkPoolInputPtr> sinks;
+    sinks.reserve(outputTablePaths.size());
     for (const auto& outputTablePath : outputTablePaths) {
         auto it = PathToOutputTable_.find(outputTablePath.GetPath());
         if (it != PathToOutputTable_.end()) {
@@ -8736,13 +8733,12 @@ void TOperationControllerBase::RegisterOutputTables(const std::vector<TRichYPath
             RowCountLimit = *rowCountLimit;
         }
 
-        Sinks_.emplace_back(std::make_unique<TSink>(this, table->TableIndex));
-        sinkPtrs.push_back(Sinks_.back().get());
+        sinks.emplace_back(New<TSink>(this, table->TableIndex));
         OutputTables_.emplace_back(table);
         PathToOutputTable_[outputTablePath.GetPath()] = table;
     }
 
-    Sink_ = CreateMultiChunkPoolInput(std::move(sinkPtrs));
+    Sink_ = CreateMultiChunkPoolInput(std::move(sinks));
 }
 
 void TOperationControllerBase::AbortJobViaScheduler(TJobId jobId, EAbortReason abortReason)

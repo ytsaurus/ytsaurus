@@ -21,9 +21,9 @@ using namespace NJobTrackerClient::NProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 TAutoMergeChunkPoolAdapter::TAutoMergeChunkPoolAdapter(
-    IChunkPoolInput* underlyingInput,
+    IChunkPoolInputPtr underlyingInput,
     TAutoMergeTask* task)
-    : TChunkPoolInputAdapterBase(underlyingInput)
+    : TChunkPoolInputAdapterBase(std::move(underlyingInput))
     , Task_(task)
 { }
 
@@ -77,9 +77,8 @@ TAutoMergeTask::TAutoMergeTask(
     std::vector<TEdgeDescriptor> edgeDescriptors)
     : TTask(taskHost, std::move(edgeDescriptors))
 {
-    std::vector<IChunkPool*> unorderedChunkPoolPtrs;
-    UnorderedChunkPools_.reserve(EdgeDescriptors_.size());
-    unorderedChunkPoolPtrs.reserve(EdgeDescriptors_.size());
+    std::vector<IChunkPoolPtr> underlyingPools;
+    underlyingPools.reserve(EdgeDescriptors_.size());
     for (int poolIndex = 0; poolIndex < EdgeDescriptors_.size(); ++poolIndex) {
         auto autoMergeJobSizeConstraints = CreateExplicitJobSizeConstraints(
             false /* canAdjustDataSizePerJob */,
@@ -102,21 +101,20 @@ TAutoMergeTask::TAutoMergeTask(
         options.OperationId = TaskHost_->GetOperationId();
         options.Name = Format("%v(%v)", GetTitle(), poolIndex);
 
-        UnorderedChunkPools_.emplace_back(CreateUnorderedChunkPool(
+        underlyingPools.emplace_back(CreateUnorderedChunkPool(
             std::move(options),
             TeleportableIntermediateInputStreamDirectory));
-        unorderedChunkPoolPtrs.push_back(UnorderedChunkPools_.back().get());
     }
 
-    ChunkPool_ = CreateMultiChunkPool(std::move(unorderedChunkPoolPtrs));
+    ChunkPool_ = CreateMultiChunkPool(std::move(underlyingPools));
 
     ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this)));
 
     TaskHost_->GetDataFlowGraph()
         ->RegisterCounter(GetVertexDescriptor(), ChunkPool_->GetJobCounter(), GetJobType());
 
-    ChunkPoolInput_ = std::make_unique<TAutoMergeChunkPoolAdapter>(
-        ChunkPool_.get(),
+    ChunkPoolInput_ = New<TAutoMergeChunkPoolAdapter>(
+        ChunkPool_,
         this);
 
     // Tentative trees are not allowed for auto-merge jobs since they are genuinely IO-bound.
@@ -145,14 +143,14 @@ TExtendedJobResources TAutoMergeTask::GetNeededResources(const TJobletPtr& joble
     return result;
 }
 
-NChunkPools::IChunkPoolInput* TAutoMergeTask::GetChunkPoolInput() const
+NChunkPools::IChunkPoolInputPtr TAutoMergeTask::GetChunkPoolInput() const
 {
-    return ChunkPoolInput_.get();
+    return ChunkPoolInput_;
 }
 
-NChunkPools::IChunkPoolOutput* TAutoMergeTask::GetChunkPoolOutput() const
+NChunkPools::IChunkPoolOutputPtr TAutoMergeTask::GetChunkPoolOutput() const
 {
-    return ChunkPool_.get();
+    return ChunkPool_;
 }
 
 EJobType TAutoMergeTask::GetJobType() const
@@ -266,7 +264,6 @@ void TAutoMergeTask::Persist(const TPersistenceContext& context)
 
     using NYT::Persist;
 
-    Persist(context, UnorderedChunkPools_);
     Persist(context, ChunkPool_);
     Persist(context, ChunkPoolInput_);
     Persist(context, CurrentChunkCount_);

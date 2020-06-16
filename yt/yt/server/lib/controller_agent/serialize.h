@@ -37,6 +37,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((MultiChunkPool)                       (300404))
     ((JoinSinks)                            (300405))
     ((JoinAutoMergeTasks)                   (300406))
+    ((RefCountedChunkPools)                 (300407))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

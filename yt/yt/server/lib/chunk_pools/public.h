@@ -6,11 +6,6 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IChunkPoolInput;
-struct IChunkPoolOutput;
-struct IChunkPool;
-struct ISortedChunkPool;
-
 DECLARE_REFCOUNTED_STRUCT(TChunkStripe)
 
 DECLARE_REFCOUNTED_STRUCT(TChunkStripeList)
@@ -19,6 +14,12 @@ DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcherFactory)
 
 DECLARE_REFCOUNTED_CLASS(TJobSizeAdjusterConfig)
 DECLARE_REFCOUNTED_CLASS(TInputChunkMapping)
+
+DECLARE_REFCOUNTED_STRUCT(IChunkPoolInput)
+DECLARE_REFCOUNTED_STRUCT(IChunkPoolOutput)
+DECLARE_REFCOUNTED_STRUCT(IChunkPool)
+DECLARE_REFCOUNTED_STRUCT(IShuffleChunkPool)
+DECLARE_REFCOUNTED_STRUCT(ISortedChunkPool)
 
 DEFINE_ENUM(EErrorCode,
     ((DataSliceLimitExceeded)             (2000))

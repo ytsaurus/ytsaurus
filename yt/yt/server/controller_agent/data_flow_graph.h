@@ -77,7 +77,7 @@ struct TEdgeDescriptor
     TEdgeDescriptor() = default;
 
     // Keep fields below in sync with operator =.
-    NChunkPools::IChunkPoolInput* DestinationPool = nullptr;
+    NChunkPools::IChunkPoolInputPtr DestinationPool;
     // May be null if recovery info is not required.
     NChunkPools::TInputChunkMappingPtr ChunkMapping;
     bool RequiresRecoveryInfo = false;

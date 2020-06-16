@@ -294,7 +294,7 @@ void TTask::ScheduleJob(
         return;
     }
 
-    auto* chunkPoolOutput = GetChunkPoolOutput();
+    auto chunkPoolOutput = GetChunkPoolOutput();
     bool speculative = chunkPoolOutput->GetPendingJobCount() == 0;
     if (speculative && treeIsTentative) {
         scheduleJobResult->RecordFail(EScheduleJobFailReason::TentativeSpeculativeForbidden);
@@ -1158,7 +1158,7 @@ void TTask::RegisterStripe(
         return;
     }
 
-    auto* destinationPool = edgeDescriptor.DestinationPool;
+    const auto& destinationPool = edgeDescriptor.DestinationPool;
     if (edgeDescriptor.RequiresRecoveryInfo) {
         YT_VERIFY(joblet);
 

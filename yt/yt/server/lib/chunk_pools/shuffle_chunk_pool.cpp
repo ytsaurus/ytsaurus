@@ -26,7 +26,6 @@ class TShuffleChunkPool
     : public TChunkPoolInputBase
     , public IShuffleChunkPool
     , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
-    , public TRefTracked<TShuffleChunkPool>
 {
 public:
     //! For persistence only.
@@ -41,22 +40,22 @@ public:
         : DataWeightThreshold(dataSizeThreshold)
         , ChunkSliceThreshold(chunkSliceThreshold)
     {
-        Outputs.resize(partitionCount);
+        Outputs.reserve(partitionCount);
         for (int index = 0; index < partitionCount; ++index) {
-            Outputs[index].reset(new TOutput(this, index));
+            Outputs.push_back(New<TOutput>(this, index));
         }
     }
 
     // IShuffleChunkPool implementation.
 
-    virtual IChunkPoolInput* GetInput() override
+    virtual IChunkPoolInputPtr GetInput() override
     {
         return this;
     }
 
-    virtual IChunkPoolOutput* GetOutput(int partitionIndex) override
+    virtual IChunkPoolOutputPtr GetOutput(int partitionIndex) override
     {
-        return Outputs[partitionIndex].get();
+        return Outputs[partitionIndex];
     }
 
     // IChunkPoolInput implementation.
@@ -508,7 +507,7 @@ private:
         }
     };
 
-    std::vector<std::unique_ptr<TOutput>> Outputs;
+    std::vector<TIntrusivePtr<TOutput>> Outputs;
 
     struct TInputStripe
     {
@@ -530,12 +529,12 @@ private:
 DEFINE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool);
 DEFINE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool::TOutput);
 
-std::unique_ptr<IShuffleChunkPool> CreateShuffleChunkPool(
+IShuffleChunkPoolPtr CreateShuffleChunkPool(
     int partitionCount,
     i64 dataWeightThreshold,
     i64 chunkSliceThreshold)
 {
-    return std::make_unique<TShuffleChunkPool>(
+    return New<TShuffleChunkPool>(
         partitionCount,
         dataWeightThreshold,
         chunkSliceThreshold);

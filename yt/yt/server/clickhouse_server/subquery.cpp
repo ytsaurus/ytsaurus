@@ -380,7 +380,7 @@ std::vector<TSubquery> BuildSubqueries(
         }
     }
 
-    std::unique_ptr<IChunkPool> chunkPool;
+    IChunkPoolPtr chunkPool;
 
     // TODO(max42): consider introducing new job size constraints to incapsulate all these heuristics.
 
@@ -452,7 +452,7 @@ std::vector<TSubquery> BuildSubqueries(
         subquery.StripeList = chunkPool->GetStripeList(cookie);
         subquery.Cookie = cookie;
         if (poolKind == EPoolKind::Sorted) {
-            auto limits = static_cast<ISortedChunkPool*>(chunkPool.get())->GetLimits(cookie);
+            auto limits = static_cast<ISortedChunkPool*>(chunkPool.Get())->GetLimits(cookie);
             subquery.Limits.first = TUnversionedOwningRow(limits.first);
             subquery.Limits.second = TUnversionedOwningRow(limits.second);
         }

@@ -79,14 +79,15 @@ public:
         return TaskGroup_;
     }
 
-    virtual IChunkPoolInput* GetChunkPoolInput() const override
+    virtual IChunkPoolInputPtr GetChunkPoolInput() const override
     {
-        return nullptr;
+        static IChunkPoolInputPtr NullPool = nullptr;
+        return NullPool;
     }
 
-    virtual IChunkPoolOutput* GetChunkPoolOutput() const override
+    virtual IChunkPoolOutputPtr GetChunkPoolOutput() const override
     {
-        return VanillaChunkPool_.get();
+        return VanillaChunkPool_;
     }
 
     virtual TUserJobSpecPtr GetUserJobSpec() const override
@@ -157,7 +158,7 @@ private:
     TJobSpec JobSpecTemplate_;
 
     //! This chunk pool does not really operate with chunks, it is used as an interface for a job counter in it.
-    std::unique_ptr<IChunkPoolOutput> VanillaChunkPool_;
+    IChunkPoolOutputPtr VanillaChunkPool_;
 
     void InitJobSpecTemplate()
     {

@@ -19,7 +19,7 @@ public:
     TAutoMergeChunkPoolAdapter() = default;
 
     TAutoMergeChunkPoolAdapter(
-        NChunkPools::IChunkPoolInput* underlyingInput,
+        NChunkPools::IChunkPoolInputPtr underlyingInput,
         TAutoMergeTask* task);
 
     virtual NChunkPools::IChunkPoolInput::TCookie AddWithKey(
@@ -66,9 +66,9 @@ public:
 
     virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
 
-    virtual NChunkPools::IChunkPoolInput* GetChunkPoolInput() const override;
+    virtual NChunkPools::IChunkPoolInputPtr GetChunkPoolInput() const override;
 
-    virtual NChunkPools::IChunkPoolOutput* GetChunkPoolOutput() const override;
+    virtual NChunkPools::IChunkPoolOutputPtr GetChunkPoolOutput() const override;
 
     virtual EJobType GetJobType() const override;
 
@@ -102,14 +102,11 @@ protected:
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask, 0x4ef99f1a);
 
-    //! Per-table chunk pools.
-    std::vector<std::unique_ptr<NChunkPools::IChunkPool>> UnorderedChunkPools_;
-
     //! Multi chunk pool built over unordered chunk pools.
-    std::unique_ptr<NChunkPools::IChunkPool> ChunkPool_;
+    NChunkPools::IChunkPoolPtr ChunkPool_;
 
     //! Input adapter built over multi chunk pool.
-    std::unique_ptr<TAutoMergeChunkPoolAdapter> ChunkPoolInput_;
+    NChunkPools::IChunkPoolInputPtr ChunkPoolInput_;
 
     int CurrentChunkCount_ = 0;
 

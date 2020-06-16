@@ -55,6 +55,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TChunkPoolInputMock)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolOutputMock
@@ -112,6 +114,8 @@ public:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TChunkPoolOutputMock)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolMock
@@ -150,24 +154,27 @@ class TMultiChunkPoolInputTest
 {
 protected:
     TMultiChunkPoolInputTest()
-        : Mocks_(10)
     {
-        MockPtrs_.reserve(Mocks_.size());
-        for (auto& mock : Mocks_) {
-            MockPtrs_.push_back(&mock);
+        constexpr int UnderlyingPoolCount = 10;
+        std::vector<IChunkPoolInputPtr> mockPtrs;
+        Mocks_.reserve(UnderlyingPoolCount);
+        mockPtrs.reserve(UnderlyingPoolCount);
+        for (int poolIndex = 0; poolIndex < UnderlyingPoolCount; ++poolIndex) {
+            Mocks_.push_back(New<TChunkPoolInputMock>());
+            mockPtrs.push_back(Mocks_.back());
         }
 
-        Pool_ = CreateMultiChunkPoolInput(MockPtrs_);
+
+        Pool_ = CreateMultiChunkPoolInput(mockPtrs);
     }
 
-    std::vector<TChunkPoolInputMock> Mocks_;
-    std::vector<IChunkPoolInput*> MockPtrs_;
-    std::unique_ptr<IChunkPoolInput> Pool_;
+    std::vector<TIntrusivePtr<TChunkPoolInputMock>> Mocks_;
+    IChunkPoolInputPtr Pool_;
 };
 
 TEST_F(TMultiChunkPoolInputTest, TestAdd)
 {
-    EXPECT_CALL(Mocks_[0], Add(Stripes_[0]))
+    EXPECT_CALL(*Mocks_[0], Add(Stripes_[0]))
         .WillOnce(Return(42));
 
     Stripes_[0]->PartitionTag = 0;
@@ -179,7 +186,7 @@ TEST_F(TMultiChunkPoolInputTest, TestAddWithKey)
 {
     TChunkStripeKey key;
 
-    EXPECT_CALL(Mocks_[0], AddWithKey(Stripes_[0], key))
+    EXPECT_CALL(*Mocks_[0], AddWithKey(Stripes_[0], key))
         .WillOnce(Return(42));
 
     Stripes_[0]->PartitionTag = 0;
@@ -190,9 +197,9 @@ TEST_F(TMultiChunkPoolInputTest, TestAddWithKey)
 TEST_F(TMultiChunkPoolInputTest, TestSuspend)
 {
     InSequence sequence;
-    EXPECT_CALL(Mocks_[0], Add(Stripes_[0]))
+    EXPECT_CALL(*Mocks_[0], Add(Stripes_[0]))
         .WillOnce(Return(42));
-    EXPECT_CALL(Mocks_[0], Suspend(42))
+    EXPECT_CALL(*Mocks_[0], Suspend(42))
         .Times(1);
 
     Stripes_[0]->PartitionTag = 0;
@@ -204,9 +211,9 @@ TEST_F(TMultiChunkPoolInputTest, TestSuspend)
 TEST_F(TMultiChunkPoolInputTest, TestResume)
 {
     InSequence sequence;
-    EXPECT_CALL(Mocks_[0], Add(Stripes_[0]))
+    EXPECT_CALL(*Mocks_[0], Add(Stripes_[0]))
         .WillOnce(Return(42));
-    EXPECT_CALL(Mocks_[0], Resume(42))
+    EXPECT_CALL(*Mocks_[0], Resume(42))
         .Times(1);
 
     Stripes_[0]->PartitionTag = 0;
@@ -220,9 +227,9 @@ TEST_F(TMultiChunkPoolInputTest, TestReset)
     auto mapping = New<TInputChunkMapping>();
 
     InSequence sequence;
-    EXPECT_CALL(Mocks_[0], Add(Stripes_[0]))
+    EXPECT_CALL(*Mocks_[0], Add(Stripes_[0]))
         .WillOnce(Return(42));
-    EXPECT_CALL(Mocks_[0], Reset(42, Stripes_[1], mapping))
+    EXPECT_CALL(*Mocks_[0], Reset(42, Stripes_[1], mapping))
         .Times(1);
 
     Stripes_[0]->PartitionTag = 0;
@@ -235,7 +242,7 @@ TEST_F(TMultiChunkPoolInputTest, TestReset)
 TEST_F(TMultiChunkPoolInputTest, TestFinish)
 {
     for (auto& mock : Mocks_) {
-        EXPECT_CALL(mock, Finish())
+        EXPECT_CALL(*mock, Finish())
             .Times(1);
     }
 
@@ -250,7 +257,7 @@ TEST_F(TMultiChunkPoolInputTest, TestPartitionTag)
 
     InSequence sequence;
     for (int index = 0; index < partitions.size(); ++index) {
-        EXPECT_CALL(Mocks_[partitions[index]], Add(Stripes_[index]))
+        EXPECT_CALL(*Mocks_[partitions[index]], Add(Stripes_[index]))
             .WillOnce(Return(42));
     }
 
@@ -278,9 +285,9 @@ TEST_F(TMultiChunkPoolInputTest, TestCookieMapping)
 
     for (int i = 0; i < cookies.size(); i++) {
         auto [pool, cookie] = cookies[i];
-        EXPECT_CALL(Mocks_[pool], Add(Stripes_[i]))
+        EXPECT_CALL(*Mocks_[pool], Add(Stripes_[i]))
             .WillOnce(Return(cookie));
-        EXPECT_CALL(Mocks_[pool], Suspend(cookie))
+        EXPECT_CALL(*Mocks_[pool], Suspend(cookie))
             .Times(cookies.size() - i);
     }
 
@@ -306,7 +313,10 @@ protected:
 
     void InitPools(std::vector<int> stripeCounts)
     {
-        Mocks_ = std::vector<TChunkPoolOutputMock>(stripeCounts.size());
+        Mocks_.reserve(stripeCounts.size());
+        for (int poolIndex = 0; poolIndex < stripeCounts.size(); ++poolIndex) {
+            Mocks_.push_back(New<TChunkPoolOutputMock>());
+        }
         StripeCounts_ = stripeCounts;
 
         MockCounters_ = std::vector<int>(Mocks_.size(), 0);
@@ -316,7 +326,7 @@ protected:
             InSequence extractSequence;
             for (int index = 0; index < Mocks_.size(); ++index) {
                 if (stripeCounts[index]) {
-                    EXPECT_CALL(Mocks_[index], Extract(0))
+                    EXPECT_CALL(*Mocks_[index], Extract(0))
                         .Times(stripeCounts[index])
                         .WillRepeatedly(InvokeWithoutArgs([this, index] {
                             ++MutationCounters_[index];
@@ -327,46 +337,46 @@ protected:
         }
 
         for (int index = 0; index < Mocks_.size(); ++index) {
-            EXPECT_CALL(Mocks_[index], IsCompleted())
+            EXPECT_CALL(*Mocks_[index], IsCompleted())
                 .WillRepeatedly(InvokeWithoutArgs([this, index] {
                     return MockCounters_[index] == StripeCounts_[index];
                 }));
-            EXPECT_CALL(Mocks_[index], GetStripeList(_))
+            EXPECT_CALL(*Mocks_[index], GetStripeList(_))
                 .WillRepeatedly(InvokeWithoutArgs([this, index] {
                     MutationCounters_[index] += 10;
                     return New<TChunkStripeList>();
                 }));
-            EXPECT_CALL(Mocks_[index], GetPendingJobCount())
+            EXPECT_CALL(*Mocks_[index], GetPendingJobCount())
                 .WillRepeatedly(InvokeWithoutArgs([this, index] {
                     // In this suite we assume that all jobs are created before first extract
                     // and that jobs never fail. That's enough to test interface correctness.
                     return StripeCounts_[index] - MockCounters_[index];
                 }));
-            EXPECT_CALL(Mocks_[index], GetTotalJobCount())
+            EXPECT_CALL(*Mocks_[index], GetTotalJobCount())
                 .WillRepeatedly(InvokeWithoutArgs([this, index] {
                     return (1 << 1) + MutationCounters_[index] * (index + 1);
                 }));
-            EXPECT_CALL(Mocks_[index], GetDataSliceCount())
+            EXPECT_CALL(*Mocks_[index], GetDataSliceCount())
                 .WillRepeatedly(InvokeWithoutArgs([this, index] {
                     return (1 << 2) + MutationCounters_[index] * (index + 1);
                 }));
-            EXPECT_CALL(Mocks_[index], GetTotalRowCount())
+            EXPECT_CALL(*Mocks_[index], GetTotalRowCount())
                 .WillRepeatedly(InvokeWithoutArgs([this, index] {
                     return (1 << 3) + MutationCounters_[index] * (index + 1);
                 }));
-            EXPECT_CALL(Mocks_[index], GetPendingDataWeight())
+            EXPECT_CALL(*Mocks_[index], GetPendingDataWeight())
                 .WillRepeatedly(InvokeWithoutArgs([this, index] {
                     return (1 << 4) + MutationCounters_[index] * (index + 1);
                 }));
-            EXPECT_CALL(Mocks_[index], GetCompletedDataWeight())
+            EXPECT_CALL(*Mocks_[index], GetCompletedDataWeight())
                 .WillRepeatedly(InvokeWithoutArgs([this, index] {
                     return (1 << 5) + MutationCounters_[index] * (index + 1);
                 }));
-            EXPECT_CALL(Mocks_[index], GetRunningDataWeight())
+            EXPECT_CALL(*Mocks_[index], GetRunningDataWeight())
                 .WillRepeatedly(InvokeWithoutArgs([this, index] {
                     return (1 << 6) + MutationCounters_[index] * (index + 1);
                 }));
-            EXPECT_CALL(Mocks_[index], GetTotalDataWeight())
+            EXPECT_CALL(*Mocks_[index], GetTotalDataWeight())
                 .WillRepeatedly(InvokeWithoutArgs([this, index] {
                     return (1 << 7) + MutationCounters_[index] * (index + 1);
                 }));
@@ -378,25 +388,25 @@ protected:
 
     void CreatePool()
     {
-        std::vector<IChunkPoolOutput*> mockPtrs;
+        std::vector<IChunkPoolOutputPtr> mockPtrs;
         mockPtrs.reserve(Mocks_.size());
-        for (auto& mock : Mocks_) {
-            mockPtrs.push_back(&mock);
+        for (const auto& mock : Mocks_) {
+            mockPtrs.push_back(mock);
             // Job counter is required once during initialization.
             static TProgressCounterPtr nullCounter = nullptr;
-            EXPECT_CALL(mock, GetJobCounter())
+            EXPECT_CALL(*mock, GetJobCounter())
                 .WillOnce(ReturnRef(nullCounter));
             // Multi chunk pool checks that underlying pool does not have
             // output order during initialization.
-            EXPECT_CALL(mock, GetOutputOrder())
+            EXPECT_CALL(*mock, GetOutputOrder())
                 .WillOnce(Return(nullptr));
         }
 
         Pool_ = CreateMultiChunkPoolOutput(mockPtrs);
     }
 
-    std::vector<TChunkPoolOutputMock> Mocks_;
-    std::unique_ptr<IChunkPoolOutput> Pool_;
+    std::vector<TIntrusivePtr<TChunkPoolOutputMock>> Mocks_;
+    IChunkPoolOutputPtr Pool_;
     std::vector<int> MockCounters_;
     std::vector<int> StripeCounts_;
 
@@ -467,9 +477,9 @@ TEST_F(TMultiChunkPoolOutputTest, TestTeleportChunks)
         teleportChunks.emplace_back(std::move(teleportChunk), std::any_cast<int>(tag));
     }));
 
-    Mocks_[1].TeleportChunk(chunk1);
-    Mocks_[0].TeleportChunk(chunk2);
-    Mocks_[1].TeleportChunk(chunk3);
+    Mocks_[1]->TeleportChunk(chunk1);
+    Mocks_[0]->TeleportChunk(chunk2);
+    Mocks_[1]->TeleportChunk(chunk3);
 
     EXPECT_EQ(teleportChunks.size(), 3);
     EXPECT_EQ(teleportChunks[0], std::make_pair(chunk1, 1));
@@ -504,11 +514,11 @@ TEST_F(TMultiChunkPoolOutputTest, TestGetStripeList)
     auto stripeList10 = New<TChunkStripeList>();
 
     InSequence sequence;
-    EXPECT_CALL(Mocks_[1], GetStripeList(0))
+    EXPECT_CALL(*Mocks_[1], GetStripeList(0))
         .WillOnce(Return(stripeList10));
-    EXPECT_CALL(Mocks_[0], GetStripeList(0))
+    EXPECT_CALL(*Mocks_[0], GetStripeList(0))
         .WillOnce(Return(stripeList00));
-    EXPECT_CALL(Mocks_[0], GetStripeList(1))
+    EXPECT_CALL(*Mocks_[0], GetStripeList(1))
         .WillOnce(Return(stripeList01));
 
     for (int i = 0; i < 3; i++) {
@@ -529,11 +539,11 @@ TEST_F(TMultiChunkPoolOutputTest, TestGetStripeListSliceCount)
     InitPools({2, 1});
 
     InSequence sequence;
-    EXPECT_CALL(Mocks_[1], GetStripeListSliceCount(0))
+    EXPECT_CALL(*Mocks_[1], GetStripeListSliceCount(0))
         .WillOnce(Return(42));
-    EXPECT_CALL(Mocks_[0], GetStripeListSliceCount(0))
+    EXPECT_CALL(*Mocks_[0], GetStripeListSliceCount(0))
         .WillOnce(Return(25));
-    EXPECT_CALL(Mocks_[0], GetStripeListSliceCount(1))
+    EXPECT_CALL(*Mocks_[0], GetStripeListSliceCount(1))
         .WillOnce(Return(52));
 
     for (int i = 0; i < 3; i++) {
@@ -550,11 +560,11 @@ TEST_F(TMultiChunkPoolOutputTest, TestCompleted)
     InitPools({2, 1});
 
     InSequence sequence;
-    EXPECT_CALL(Mocks_[1], Completed(0, _))
+    EXPECT_CALL(*Mocks_[1], Completed(0, _))
         .Times(1);
-    EXPECT_CALL(Mocks_[0], Completed(0, _))
+    EXPECT_CALL(*Mocks_[0], Completed(0, _))
         .Times(1);
-    EXPECT_CALL(Mocks_[0], Completed(1, _))
+    EXPECT_CALL(*Mocks_[0], Completed(1, _))
         .Times(1);
 
     for (int i = 0; i < 3; i++) {
@@ -571,11 +581,11 @@ TEST_F(TMultiChunkPoolOutputTest, TestFailed)
     InitPools({2, 1});
 
     InSequence sequence;
-    EXPECT_CALL(Mocks_[1], Failed(0))
+    EXPECT_CALL(*Mocks_[1], Failed(0))
         .Times(1);
-    EXPECT_CALL(Mocks_[0], Failed(0))
+    EXPECT_CALL(*Mocks_[0], Failed(0))
         .Times(1);
-    EXPECT_CALL(Mocks_[0], Failed(1))
+    EXPECT_CALL(*Mocks_[0], Failed(1))
         .Times(1);
 
     for (int i = 0; i < 3; i++) {
@@ -592,11 +602,11 @@ TEST_F(TMultiChunkPoolOutputTest, TestAborted)
     InitPools({2, 1});
 
     InSequence sequence;
-    EXPECT_CALL(Mocks_[1], Aborted(0, EAbortReason::AccountLimitExceeded))
+    EXPECT_CALL(*Mocks_[1], Aborted(0, EAbortReason::AccountLimitExceeded))
         .Times(1);
-    EXPECT_CALL(Mocks_[0], Aborted(0, EAbortReason::FailedChunks))
+    EXPECT_CALL(*Mocks_[0], Aborted(0, EAbortReason::FailedChunks))
         .Times(1);
-    EXPECT_CALL(Mocks_[0], Aborted(1, EAbortReason::Scheduler))
+    EXPECT_CALL(*Mocks_[0], Aborted(1, EAbortReason::Scheduler))
         .Times(1);
 
     for (int i = 0; i < 3; i++) {
@@ -613,11 +623,11 @@ TEST_F(TMultiChunkPoolOutputTest, TestLost)
     InitPools({2, 1});
 
     InSequence sequence;
-    EXPECT_CALL(Mocks_[1], Lost(0))
+    EXPECT_CALL(*Mocks_[1], Lost(0))
         .Times(1);
-    EXPECT_CALL(Mocks_[0], Lost(0))
+    EXPECT_CALL(*Mocks_[0], Lost(0))
         .Times(1);
-    EXPECT_CALL(Mocks_[0], Lost(1))
+    EXPECT_CALL(*Mocks_[0], Lost(1))
         .Times(1);
 
     for (int i = 0; i < 3; i++) {
@@ -696,7 +706,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestCookieMapping)
     InSequence sequence;
     for (auto externalCookie : permutation) {
         auto [pool, cookie] = cookies[externalCookie];
-        EXPECT_CALL(Mocks_[pool], Failed(cookie))
+        EXPECT_CALL(*Mocks_[pool], Failed(cookie))
             .Times(1);
     }
 
