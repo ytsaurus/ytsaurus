@@ -3,7 +3,7 @@
 #include <yt/core/misc/assert.h>
 #include <yt/core/misc/error.h>
 
-#include <library/cpp/unittest/tests_data.h>
+#include <library/cpp/testing/unittest/tests_data.h>
 
 namespace NYT::NTests {
 
