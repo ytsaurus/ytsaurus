@@ -357,6 +357,7 @@ protected:
         saveContext.SetVersion(ToUnderlying(GetCurrentSnapshotVersion()));
         saveContext.SetOutput(&output);
         Save(saveContext, ChunkPool_);
+        Save(saveContext, MultiChunkPool_);
         auto blob = output.Flush();
         ChunkPool_.Reset();
 
@@ -366,6 +367,7 @@ protected:
         loadContext.SetRowBuffer(RowBuffer_);
         loadContext.SetInput(&input);
         Load(loadContext, ChunkPool_);
+        Load(loadContext, MultiChunkPool_);
         ChunkPool_->SubscribeChunkTeleported(
             BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
                 TeleportChunks_.push_back(std::move(teleportChunk));
@@ -613,6 +615,7 @@ protected:
     }
 
     IChunkPoolPtr ChunkPool_;
+    IMultiChunkPoolPtr MultiChunkPool_;
 
     //! Set containing all unversioned primary input chunks that have ever been created.
     THashSet<TInputChunkPtr> CreatedUnversionedPrimaryChunks_;
@@ -2974,11 +2977,12 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
     bool useMultiPool = get<1>(GetParam());
     int underlyingPoolCount = 0;
+    std::vector<IChunkPoolPtr> underlyingPools;
+    int addedUnderlyingPoolCount = 0;
 
     if (useMultiPool) {
         // Multi pool created of several sorted subpools.
         underlyingPoolCount = std::uniform_int_distribution<>(1, maxUnderlyingPoolCount)(Gen_);
-        std::vector<IChunkPoolPtr> underlyingPools;
         underlyingPools.reserve(underlyingPoolCount);
         for (int poolIndex = 0; poolIndex < underlyingPoolCount; ++poolIndex) {
             underlyingPools.push_back(CreateSortedChunkPool(
@@ -2986,7 +2990,9 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 nullptr,
                 TInputStreamDirectory(InputTables_)));
         }
-        ChunkPool_ = CreateMultiChunkPool(std::move(underlyingPools));
+        MultiChunkPool_ = CreateMultiChunkPool({underlyingPools[0]});
+        ChunkPool_ = MultiChunkPool_;
+        addedUnderlyingPoolCount = 1;
         ChunkPool_->SubscribeChunkTeleported(
             BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
                 TeleportChunks_.push_back(std::move(teleportChunk));
@@ -3020,25 +3026,50 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     THashSet<TChunkId> completedChunks;
     THashMap<TChunkId, TInputChunkPtr> chunkIdToChunk;
 
+    std::vector<std::vector<TChunkStripePtr>> stripesByPoolIndex;
+    if (useMultiPool) {
+        stripesByPoolIndex.resize(underlyingPoolCount);
+    } else {
+        stripesByPoolIndex.resize(1);
+    }
+
+    THashMap<TChunkStripePtr, TChunkId> stripeToChunkId;
+
     for (const auto& chunk : CreatedUnversionedPrimaryChunks_) {
         auto chunkId = chunk->ChunkId();
+        chunkIdToChunk[chunkId] = chunk;
         auto stripe = CreateStripe({chunk});
+        YT_VERIFY(stripeToChunkId.emplace(stripe, chunkId).second);
         if (useMultiPool) {
             stripe->PartitionTag = std::uniform_int_distribution<>(0, underlyingPoolCount - 1)(Gen_);
             ChunkIdToUnderlyingPoolIndex_[chunkId] = *stripe->PartitionTag;
+            stripesByPoolIndex[*stripe->PartitionTag].push_back(stripe);
+        } else {
+            stripesByPoolIndex[0].push_back(stripe);
         }
+    }
+
+    auto registerStripe = [&] (TChunkStripePtr stripe) {
+        auto chunkId = GetOrCrash(stripeToChunkId, stripe);
         auto cookie = ChunkPool_->Add(stripe);
         chunkIdToInputCookie[chunkId] = cookie;
-        chunkIdToChunk[chunkId] = chunk;
         resumedCookies.insert(cookie);
         resumedChunks.insert(chunkId);
         pendingChunks.insert(chunkId);
         InputCookieToChunkId_[cookie] = chunkId;
+    };
+
+    for (const auto& stripe : stripesByPoolIndex[0]) {
+        registerStripe(stripe);
     }
 
-    ChunkPool_->Finish();
+    if (useMultiPool) {
+        MultiChunkPool_->FinishPool(0);
+    } else {
+        ChunkPool_->Finish();
+    }
 
-    ASSERT_EQ(ChunkPool_->GetPendingJobCount(), chunkCount);
+    ASSERT_EQ(ChunkPool_->GetPendingJobCount(), stripesByPoolIndex[0].size());
 
     // Set this to true when debugging locally. It helps a lot to understand what happens.
     constexpr bool EnableDebugOutput = false;
@@ -3105,7 +3136,8 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         // 60..69 - chunk is extracted;
         // 70..79 - chunk is completed;
         // 80..89 - chunk is failed;
-        // 90..99 - chunk is aborted.
+        // 90..97 - chunk is aborted.
+        // 98..99 - add new pool to multi pool if multi pool is used.
         int eventType = dice(Gen_);
         if (eventType <= 0) {
             Cdebug << "Persisting and restoring the pool" << Endl;
@@ -3188,7 +3220,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(pendingChunks.insert(chunkId).second);
                 ChunkPool_->Aborted(outputCookie, EAbortReason::Unknown);
             }
-        } else { // if (eventType <= 99)
+        } else if (eventType <= 97) {
             if (auto randomElement = chooseRandomElement(startedChunks)) {
                 auto chunkId = *randomElement;
                 Cdebug << Format("Failed chunk %v", chunkId) << Endl;
@@ -3197,6 +3229,20 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(chunkIdToOutputCookie.erase(chunkId));
                 ASSERT_TRUE(pendingChunks.insert(chunkId).second);
                 ChunkPool_->Failed(outputCookie);
+            }
+        } else /* eventType <= 99 */ {
+            if (useMultiPool && addedUnderlyingPoolCount < underlyingPools.size()) {
+                auto poolIndex = addedUnderlyingPoolCount++;
+                Cdebug << Format("Adding pool %v to multi pool", poolIndex) << Endl;
+                MultiChunkPool_->AddPool(underlyingPools[poolIndex]);
+                for (const auto& stripe : stripesByPoolIndex[poolIndex]) {
+                    registerStripe(stripe);
+                }
+                MultiChunkPool_->FinishPool(poolIndex);
+                if (addedUnderlyingPoolCount == underlyingPools.size()) {
+                    // Finilize output part.
+                    MultiChunkPool_->Finalize();
+                }
             }
         }
     }

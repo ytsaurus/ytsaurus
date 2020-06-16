@@ -14,7 +14,7 @@ ESnapshotVersion GetCurrentSnapshotVersion()
 bool ValidateSnapshotVersion(int version)
 {
     // NB: Version can be not valid enum value, so we do not cast version to enum here.
-    return version >= ToUnderlying(ESnapshotVersion::RefCountedChunkPools) &&
+    return version >= ToUnderlying(ESnapshotVersion::DynamicMultiPool) &&
         version <= ToUnderlying(GetCurrentSnapshotVersion());
 }
 

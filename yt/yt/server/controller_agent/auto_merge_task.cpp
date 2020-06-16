@@ -106,7 +106,9 @@ TAutoMergeTask::TAutoMergeTask(
             TeleportableIntermediateInputStreamDirectory));
     }
 
-    ChunkPool_ = CreateMultiChunkPool(std::move(underlyingPools));
+    auto chunkPool = CreateMultiChunkPool(std::move(underlyingPools));
+    chunkPool->Finalize();
+    ChunkPool_ = std::move(chunkPool);
 
     ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this)));
 

@@ -119,7 +119,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkPoolOutputMock)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolMock
-    : public IChunkPool
+    : public IMultiChunkPool
     , public TChunkPoolInputMock
     , public TChunkPoolOutputMock
 {
@@ -164,12 +164,11 @@ protected:
             mockPtrs.push_back(Mocks_.back());
         }
 
-
         Pool_ = CreateMultiChunkPoolInput(mockPtrs);
     }
 
     std::vector<TIntrusivePtr<TChunkPoolInputMock>> Mocks_;
-    IChunkPoolInputPtr Pool_;
+    IMultiChunkPoolInputPtr Pool_;
 };
 
 TEST_F(TMultiChunkPoolInputTest, TestAdd)
@@ -251,6 +250,21 @@ TEST_F(TMultiChunkPoolInputTest, TestFinish)
     EXPECT_TRUE(Pool_->IsFinished());
 }
 
+TEST_F(TMultiChunkPoolInputTest, TestFinishPool)
+{
+    std::vector<int> finishPermutation = {3, 5, 2, 1, 6, 0};
+
+    InSequence sequence;
+    for (auto poolIndex : finishPermutation) {
+        EXPECT_CALL(*Mocks_[poolIndex], Finish())
+            .Times(1);
+    }
+    for (auto poolIndex : finishPermutation) {
+        Pool_->FinishPool(poolIndex);
+    }
+    EXPECT_FALSE(Pool_->IsFinished());
+}
+
 TEST_F(TMultiChunkPoolInputTest, TestPartitionTag)
 {
     const std::vector<int> partitions = {0, 1, 3, 2, 1, 0, 2};
@@ -311,7 +325,10 @@ class TMultiChunkPoolOutputTest
 protected:
     TMultiChunkPoolOutputTest() = default;
 
-    void InitPools(std::vector<int> stripeCounts)
+    void InitPools(
+        std::vector<int> stripeCounts, 
+        bool finalize = true,
+        std::optional<int> poolsToAdd = std::nullopt)
     {
         Mocks_.reserve(stripeCounts.size());
         for (int poolIndex = 0; poolIndex < stripeCounts.size(); ++poolIndex) {
@@ -383,15 +400,22 @@ protected:
         }
 
         // NB: IsCompleted() is called during pool initialization.
-        CreatePool();
+        CreatePool(poolsToAdd.value_or(Mocks_.size()));
+
+        if (finalize) {
+            Pool_->Finalize();
+        }
     }
 
-    void CreatePool()
+    void CreatePool(int poolsToAdd)
     {
         std::vector<IChunkPoolOutputPtr> mockPtrs;
-        mockPtrs.reserve(Mocks_.size());
-        for (const auto& mock : Mocks_) {
-            mockPtrs.push_back(mock);
+        mockPtrs.reserve(poolsToAdd);
+        for (int poolIndex = 0; poolIndex < poolsToAdd; ++poolIndex) {
+            const auto& mock = Mocks_[poolIndex];
+            if (poolIndex < poolsToAdd) {
+                mockPtrs.push_back(mock);
+            }
             // Job counter is required once during initialization.
             static TProgressCounterPtr nullCounter = nullptr;
             EXPECT_CALL(*mock, GetJobCounter())
@@ -406,7 +430,7 @@ protected:
     }
 
     std::vector<TIntrusivePtr<TChunkPoolOutputMock>> Mocks_;
-    IChunkPoolOutputPtr Pool_;
+    IMultiChunkPoolOutputPtr Pool_;
     std::vector<int> MockCounters_;
     std::vector<int> StripeCounts_;
 
@@ -713,6 +737,36 @@ TEST_F(TMultiChunkPoolOutputTest, TestCookieMapping)
     for (auto externalCookie : permutation) {
         Pool_->Failed(externalCookie);
     }
+}
+
+TEST_F(TMultiChunkPoolOutputTest, TestFinalize)
+{
+    InitPools({2, 1}, /*finalize=*/false);
+
+    for (int cookie = 0; cookie < 3; ++cookie) {
+        EXPECT_EQ(Pool_->Extract(), cookie);
+        EXPECT_FALSE(Pool_->IsCompleted());
+    }
+
+    Pool_->Finalize();
+    EXPECT_TRUE(Pool_->IsCompleted());
+}
+
+TEST_F(TMultiChunkPoolOutputTest, TestAddPoolOutput)
+{
+    InitPools({3, 2, 1}, /*finalize=*/false, /*poolsToAdd=*/2);
+
+    for (int cookie = 0; cookie < 5; ++cookie) {
+        EXPECT_EQ(Pool_->Extract(), cookie);
+        EXPECT_FALSE(Pool_->IsCompleted());
+    }
+
+    Pool_->AddPoolOutput(Mocks_[2]);
+    Pool_->Finalize();
+
+    EXPECT_FALSE(Pool_->IsCompleted());
+    EXPECT_EQ(Pool_->Extract(), 5);
+    EXPECT_TRUE(Pool_->IsCompleted());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -20,6 +20,9 @@ DECLARE_REFCOUNTED_STRUCT(IChunkPoolOutput)
 DECLARE_REFCOUNTED_STRUCT(IChunkPool)
 DECLARE_REFCOUNTED_STRUCT(IShuffleChunkPool)
 DECLARE_REFCOUNTED_STRUCT(ISortedChunkPool)
+DECLARE_REFCOUNTED_STRUCT(IMultiChunkPoolInput)
+DECLARE_REFCOUNTED_STRUCT(IMultiChunkPoolOutput)
+DECLARE_REFCOUNTED_STRUCT(IMultiChunkPool)
 
 DEFINE_ENUM(EErrorCode,
     ((DataSliceLimitExceeded)             (2000))
@@ -28,7 +31,6 @@ DEFINE_ENUM(EErrorCode,
 );
 
 constexpr double ApproximateSizesBoostFactor = 1.3;
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
