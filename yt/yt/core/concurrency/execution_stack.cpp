@@ -25,7 +25,7 @@ static const auto& Logger = ConcurrencyLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 // Stack sizes.
-#if defined(_asan_enabled_)
+#if defined(_asan_enabled_) || defined(_msan_enabled_)
     static constexpr size_t SmallExecutionStackSize = 2_MB;
     static constexpr size_t LargeExecutionStackSize = 64_MB;
 #else

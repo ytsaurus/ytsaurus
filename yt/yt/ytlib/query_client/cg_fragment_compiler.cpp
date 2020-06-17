@@ -42,7 +42,7 @@ Value* CodegenAllocateValues(TCGIRBuilderPtr& builder, size_t valueCount)
     Value* newValues = builder->CreateAlignedAlloca(
         TTypeBuilder<TValue>::Get(builder->getContext()),
         8,
-        builder->getInt32(valueCount),
+        builder->getInt64(valueCount),
         "allocatedValues");
 
     return newValues;
@@ -2120,7 +2120,7 @@ size_t MakeCodegenMultiJoinOp(
         ) {
             Value* keyPtrs = builder->CreateAlloca(
                 TTypeBuilder<TValue*>::Get(builder->getContext()),
-                builder->getInt32(parameters.size()));
+                builder->getInt64(parameters.size()));
 
             Value* primaryValuesPtr = builder->CreateAlloca(TTypeBuilder<TValue*>::Get(builder->getContext()));
 
@@ -2211,7 +2211,7 @@ size_t MakeCodegenMultiJoinOp(
 
         Value* joinComparers = builder->CreateAlloca(
             TTypeBuilder<TJoinComparers>::Get(builder->getContext()),
-            builder->getInt32(parameters.size()));
+            builder->getInt64(parameters.size()));
 
         typedef TTypeBuilder<TJoinComparers>::Fields TFields;
 
