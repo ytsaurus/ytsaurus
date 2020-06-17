@@ -429,20 +429,20 @@ TEST(TYsonSerializableTest, LoadSingleParameterWithMergeStrategy)
     builder->BeginTree();
     BuildYsonFluently(builder.get())
         .BeginMap()
-        .Item("my_int").Value(10)
+        .Item("my_int").Value(100)
         .EndMap();
     auto subConfig = builder->EndTree();
 
     auto config1 = New<TTestConfig>();
     config1->Subconfig->MyBool = true;
     config1->LoadParameter("sub", subConfig, EMergeStrategy::Default);
-    EXPECT_EQ(10, config1->Subconfig->MyInt);
+    EXPECT_EQ(100, config1->Subconfig->MyInt);
     EXPECT_TRUE(config1->Subconfig->MyBool);  // Subconfig merged by default.
 
     auto config2 = New<TTestConfig>();
     config2->Subconfig->MyBool = true;
     config2->LoadParameter("sub", subConfig, EMergeStrategy::Overwrite);
-    EXPECT_EQ(10, config2->Subconfig->MyInt);
+    EXPECT_EQ(100, config2->Subconfig->MyInt);
     EXPECT_FALSE(config2->Subconfig->MyBool);  // Overwrite destroyed previous values.
 }
 

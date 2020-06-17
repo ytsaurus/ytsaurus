@@ -352,6 +352,21 @@ void TYsonSerializableLite::TParameter<T>::Load(NYTree::INodePtr node, const NYP
 }
 
 template <class T>
+void TYsonSerializableLite::TParameter<T>::SafeLoad(NYTree::INodePtr node, const NYPath::TYPath& path, const std::function<void()>& validate, std::optional<EMergeStrategy> mergeStrategy)
+{
+    if (node) {
+        T oldValue = Parameter;
+        try {
+            NDetail::LoadFromNode(Parameter, node, path, mergeStrategy.value_or(MergeStrategy), KeepUnrecognizedRecursively);
+            validate();
+        } catch (std::exception ex) {
+            Parameter = oldValue;
+            throw;
+        }
+    }
+}
+
+template <class T>
 void TYsonSerializableLite::TParameter<T>::Postprocess(const NYPath::TYPath& path) const
 {
     for (const auto& postprocessor : Postprocessors) {
