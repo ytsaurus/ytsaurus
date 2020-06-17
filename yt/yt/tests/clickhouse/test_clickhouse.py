@@ -475,6 +475,12 @@ class TestClickHouseCommon(ClickHouseTestBase):
     }
 
     @authors("evgenstf")
+    def test_extract_array_raw(self):
+        with Clique(1) as clique:
+            assert clique.make_query('select YSONExtractArrayRaw(\'["a";"0";""]\')') == [{'YSONExtractArrayRaw(\'["a";"0";""]\')': ['"a"', '"0"', '""']}]
+            assert clique.make_query('select JSONExtractArrayRaw(\'["a","0",""]\')') == [{'JSONExtractArrayRaw(\'["a","0",""]\')': ['"a"', '"0"', '""']}]
+
+    @authors("evgenstf")
     def test_timezone(self):
         create("table", "//tmp/test_table", attributes={"schema": [{"name": "date_time", "type": "datetime"}]})
         write_table("//tmp/test_table", [{"date_time": 100}])
