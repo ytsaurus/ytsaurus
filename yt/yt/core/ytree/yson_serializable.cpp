@@ -197,7 +197,22 @@ void TYsonSerializableLite::SaveParameter(const TString& key, IYsonConsumer* con
 
 void TYsonSerializableLite::LoadParameter(const TString& key, const NYTree::INodePtr& node, EMergeStrategy mergeStrategy) const
 {
-    GetParameter(key)->Load(node, /* path */"", mergeStrategy);
+    const auto& parameter = GetParameter(key);
+    auto validate = [&] () {
+        parameter->Postprocess("/" + key);
+        try {
+            for (const auto& postprocessor : Postprocessors) {
+                postprocessor();
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION(
+                "Postprocess failed while loading parameter %Qv from value %Qv",
+                key,
+                ConvertToYsonString(node, EYsonFormat::Text))
+                << ex;
+        }
+    };
+    parameter->SafeLoad(node, /* path */ "", validate, mergeStrategy);
 }
 
 void TYsonSerializableLite::ResetParameter(const TString& key) const

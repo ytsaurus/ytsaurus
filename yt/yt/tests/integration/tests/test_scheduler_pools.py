@@ -488,6 +488,22 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
             set("//sys/pool_trees/my_tree/@default_parent_pool", True)
         assert get("//sys/pool_trees/my_tree/@default_parent_pool") == "research"
 
+    def test_pool_attribute_constraints_are_enforced_on_set(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)
+
+        set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", 10)
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/my_tree/nirvana/@max_operation_count", -1)
+        assert get("//sys/pool_trees/my_tree/nirvana/@max_operation_count") == 10
+
+    def test_pooltree_attribute_constraints_are_enforced_on_set(self):
+        create_pool_tree("my_tree", wait_for_orchid=False)
+        set("//sys/pool_trees/my_tree/@max_ephemeral_pools_per_user", 10)
+        with pytest.raises(YtError):
+            set("//sys/pool_trees/my_tree/@max_ephemeral_pools_per_user", -1)
+        assert get("//sys/pool_trees/my_tree/@max_ephemeral_pools_per_user") == 10
+
     def test_remove_builtin_pool_attribute(self):
         create_pool_tree("my_tree", wait_for_orchid=False)
         create_pool("nirvana", pool_tree="my_tree", wait_for_orchid=False)

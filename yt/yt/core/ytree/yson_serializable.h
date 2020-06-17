@@ -41,6 +41,7 @@ public:
         : public TIntrinsicRefCounted
     {
         virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path, std::optional<EMergeStrategy> mergeStrategy = std::nullopt) = 0;
+        virtual void SafeLoad(NYTree::INodePtr node, const NYPath::TYPath& path, const std::function<void()>& validate, std::optional<EMergeStrategy> mergeStrategy = std::nullopt) = 0;
         virtual void Postprocess(const NYPath::TYPath& path) const = 0;
         virtual void SetDefaults() = 0;
         virtual void Save(NYson::IYsonConsumer* consumer) const = 0;
@@ -64,6 +65,7 @@ public:
         TParameter(TString key, T& parameter);
 
         virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path, std::optional<EMergeStrategy> mergeStrategy) override;
+        virtual void SafeLoad(NYTree::INodePtr node, const NYPath::TYPath& path, const std::function<void()>& validate, std::optional<EMergeStrategy> mergeStrategy = std::nullopt) override;
         virtual void Postprocess(const NYPath::TYPath& path) const override;
         virtual void SetDefaults() override;
         virtual void Save(NYson::IYsonConsumer* consumer) const override;
