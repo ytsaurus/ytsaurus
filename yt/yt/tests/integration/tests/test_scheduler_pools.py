@@ -56,7 +56,6 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
         remove_pool_tree("my_tree", wait_for_orchid=False)
         assert get("//sys/pool_trees") == {}
 
-    @pytest.mark.xfail(run=True, reason="Not important yet(renadeen)")
     def test_remove_with_force(self):
         with pytest.raises(YtError):
             remove_pool_tree("my_tree", wait_for_orchid=False)

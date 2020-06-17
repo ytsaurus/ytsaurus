@@ -59,6 +59,12 @@ void ThrowNoSuchChildKey(const IConstNodePtr& node, TStringBuf key)
         ToYPathLiteral(key));
 }
 
+void ThrowNoSuchChildKey(TStringBuf key)
+{
+    THROW_ERROR_EXCEPTION("Node has no child with key %Qv",
+        ToYPathLiteral(key));
+}
+
 void ThrowNoSuchChildIndex(const IConstNodePtr& node, int index)
 {
     THROW_ERROR_EXCEPTION(

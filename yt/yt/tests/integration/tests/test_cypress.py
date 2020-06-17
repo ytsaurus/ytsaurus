@@ -990,6 +990,16 @@ class TestCypress(YTEnvSetup):
         create_user("u")
         with pytest.raises(YtError): create_user("u", ignore_existing=True)
 
+    @authors("kiselyovp")
+    def test_remove_from_virtual_map(self):
+        create_user("u")
+        with pytest.raises(YtError): remove("//sys/users/*")
+        assert exists("//sys/users/u")
+        remove("//sys/users/u")
+        assert not exists("//sys/users/u")
+        with pytest.raises(YtError): remove("//sys/users/u")
+        remove("//sys/users/u", force=True)
+
     @authors("babenko")
     def test_link1(self):
         link("//tmp/a", "//tmp/b")
