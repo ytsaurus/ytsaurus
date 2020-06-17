@@ -144,13 +144,18 @@ public:
             i64 dataWeight = 0;
             int dataSliceCount = 0;
             for (const auto& dataSliceDescriptor : threadDataSliceDescriptors) {
-                rowCount += dataSliceDescriptor.ChunkSpecs[0].row_count_override();
-                dataWeight += dataSliceDescriptor.ChunkSpecs[0].data_weight_override();
-                ++dataSliceCount;
                 for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
-                    // It is crucial for better memory estimation.
-                    YT_VERIFY(FindProtoExtension<NChunkClient::NProto::TMiscExt>(
-                        chunkSpec.chunk_meta().extensions()));
+                    rowCount += chunkSpec.row_count_override();
+                    dataWeight += chunkSpec.data_weight_override();
+                }
+                ++dataSliceCount;
+
+                if (SubquerySpec_.DataSourceDirectory->DataSources().front().GetType() == EDataSourceType::UnversionedTable) {
+                    for (const auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
+                        // It is crucial for better memory estimation.
+                        YT_VERIFY(FindProtoExtension<NChunkClient::NProto::TMiscExt>(
+                            chunkSpec.chunk_meta().extensions()));
+                    }
                 }
             }
             YT_LOG_DEBUG(

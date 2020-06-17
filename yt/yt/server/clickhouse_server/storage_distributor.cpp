@@ -514,8 +514,7 @@ private:
         }
 
         for (const auto& subquery : Subqueries_) {
-            if (static_cast<ui64>(subquery.StripeList->TotalDataWeight) >
-                QueryContext_->Host->GetConfig()->Subquery->MaxDataWeightPerSubquery)
+            if (subquery.StripeList->TotalDataWeight > QueryContext_->Host->GetConfig()->Subquery->MaxDataWeightPerSubquery)
             {
                 THROW_ERROR_EXCEPTION(
                     NClickHouseServer::EErrorCode::SubqueryDataWeightLimitExceeded,

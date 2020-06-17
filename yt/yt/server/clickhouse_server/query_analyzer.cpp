@@ -43,14 +43,18 @@ void FillDataSliceDescriptors(
     for (const auto& chunkStripe : chunkStripes) {
         auto& inputDataSliceDescriptors = subquerySpec.DataSliceDescriptors.emplace_back();
         for (const auto& dataSlice : chunkStripe->DataSlices) {
-            const auto& chunkSlice = dataSlice->ChunkSlices[0];
-            auto& chunkSpec = inputDataSliceDescriptors.emplace_back().ChunkSpecs.emplace_back();
-            ToProto(&chunkSpec, chunkSlice, EDataSourceType::UnversionedTable);
-            auto it = miscExtMap.find(chunkSlice->GetInputChunk()->ChunkId());
-            YT_VERIFY(it != miscExtMap.end());
-            SetProtoExtension(
-                chunkSpec.mutable_chunk_meta()->mutable_extensions(),
-                static_cast<const NChunkClient::NProto::TMiscExt&>(*it->second));
+            auto& inputDataSliceDescriptor = inputDataSliceDescriptors.emplace_back();
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                auto& chunkSpec = inputDataSliceDescriptor.ChunkSpecs.emplace_back();
+                ToProto(&chunkSpec, chunkSlice, EDataSourceType::UnversionedTable);
+                auto it = miscExtMap.find(chunkSlice->GetInputChunk()->ChunkId());
+                YT_VERIFY(it != miscExtMap.end());
+                if (it->second) {
+                    SetProtoExtension(
+                        chunkSpec.mutable_chunk_meta()->mutable_extensions(),
+                        static_cast<const NChunkClient::NProto::TMiscExt&>(*it->second));
+                }
+            }
         }
     }
 }

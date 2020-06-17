@@ -53,7 +53,9 @@ public:
     int MaxChunksPerFetch;
     int MaxChunksPerLocateRequest;
 
-    ui64 MaxDataWeightPerSubquery;
+    i64 MaxDataWeightPerSubquery;
+
+    i64 MinSliceDataWeight;
 
     TSubqueryConfig();
 };
@@ -161,6 +163,8 @@ public:
     TDuration ProfilingPeriod;
 
     THealthCheckerConfigPtr HealthChecker;
+
+    bool EnableDynamicTables;
 
     TYtConfig();
 };

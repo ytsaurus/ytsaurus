@@ -8,6 +8,7 @@
 #include "table.h"
 #include "host.h"
 #include "query_analyzer.h"
+#include "job_size_constraints.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 #include <yt/server/lib/chunk_pools/helpers.h>
@@ -80,8 +81,7 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(max42): rename
-class TDataSliceFetcher
+class TInputFetcher
     : public TRefCounted
 {
 public:
@@ -91,7 +91,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TMiscExtMap, MiscExtMap);
 
 public:
-    TDataSliceFetcher(
+    TInputFetcher(
         TQueryContext* queryContext,
         const TQueryAnalysisResult& queryAnalysisResult)
         : Client_(queryContext->Client())
@@ -100,12 +100,13 @@ public:
         , KeyConditions_(queryAnalysisResult.KeyConditions)
         , KeyColumnCount_(queryAnalysisResult.KeyColumnCount)
         , Config_(queryContext->Host->GetConfig()->Subquery)
+        , RowBuffer_(queryContext->RowBuffer)
         , Logger(queryContext->Logger)
     {
         OperandCount_ = queryAnalysisResult.Tables.size();
         for (int operandIndex = 0; operandIndex < static_cast<int>(queryAnalysisResult.Tables.size()); ++operandIndex) {
             for (auto& table : queryAnalysisResult.Tables[operandIndex]) {
-                table->TableIndex = operandIndex;
+                table->OperandIndex = operandIndex;
                 InputTables_.emplace_back(std::move(table));
             }
         }
@@ -113,7 +114,7 @@ public:
 
     TFuture<void> Fetch()
     {
-        return BIND(&TDataSliceFetcher::DoFetch, MakeWeak(this))
+        return BIND(&TInputFetcher::DoFetch, MakeWeak(this))
             .AsyncVia(Invoker_)
             .Run();
     }
@@ -138,6 +139,8 @@ private:
 
     std::vector<TInputChunkPtr> InputChunks_;
 
+    TRowBufferPtr RowBuffer_;
+
     TLogger Logger;
 
     void DoFetch()
@@ -155,36 +158,103 @@ private:
             KeyColumnDataTypes_ = ToDataTypes(TTableSchema(commonSchemaPart));
         }
 
-        FetchChunks();
+        FetchTables();
 
         std::vector<TChunkStripePtr> stripes;
         for (int index = 0; index < OperandCount_; ++index) {
             stripes.emplace_back(New<TChunkStripe>());
         }
-        for (const auto& chunk : InputChunks_) {
-            if (!chunk->BoundaryKeys() ||
-                GetRangeMask(chunk->BoundaryKeys()->MinKey, chunk->BoundaryKeys()->MaxKey, chunk->GetTableIndex()).can_be_true)
-            {
-                stripes[chunk->GetTableIndex()]->DataSlices.emplace_back(CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk)));
-            }
-        }
+
+        CollectUnversionedDataSlices(stripes);
+        CollectVersionedDataSlices(stripes);
+
         for (auto& stripe : stripes) {
+            auto& dataSlices = stripe->DataSlices;
+
+            auto it = std::remove_if(dataSlices.begin(), dataSlices.end(), [&] (const TInputDataSlicePtr& dataSlice) {
+                if (!dataSlice->LowerLimit().Key && !dataSlice->UpperLimit().Key) {
+                    return false;
+                }
+                return !GetRangeMask(dataSlice->LowerLimit().Key, dataSlice->UpperLimit().Key, dataSlice->GetTableIndex()).can_be_true;
+            });
+            dataSlices.resize(it - dataSlices.begin());
+
             ResultStripeList_->AddStripe(std::move(stripe));
         }
+
         YT_LOG_INFO(
-            "Input chunks fetched (TotalChunkCount: %v, TotalDataWeight: %v, TotalRowCount: %v)",
+            "Input fetched (TotalChunkCount: %v, TotalDataWeight: %v, TotalRowCount: %v)",
             ResultStripeList_->TotalChunkCount,
             ResultStripeList_->TotalDataWeight,
             ResultStripeList_->TotalRowCount);
     }
 
-    void FetchChunks()
+    void CollectUnversionedDataSlices(std::vector<TChunkStripePtr>& destinationStripes)
+    {
+        YT_LOG_DEBUG("Collecting unversioned data slices");
+
+        for (const auto& chunk : InputChunks_) {
+            auto tableIndex = chunk->GetTableIndex();
+            const auto& table = InputTables_[tableIndex];
+            if (table->Dynamic) {
+                continue;
+            }
+            auto operandIndex = table->OperandIndex;
+            SubstituteOperandIndex(chunk);
+            auto dataSlice = CreateUnversionedInputDataSlice(CreateInputChunkSlice(chunk));
+            InferLimitsFromBoundaryKeys(dataSlice, RowBuffer_);
+            destinationStripes[operandIndex]->DataSlices.emplace_back(std::move(dataSlice));
+        }
+    }
+
+    void CollectVersionedDataSlices(std::vector<TChunkStripePtr>& destinationStripes)
+    {
+        YT_LOG_DEBUG("Collecting versioned data slices");
+
+        std::vector<std::vector<TInputChunkSlicePtr>> dynamicTableChunkSlices(InputTables_.size());
+
+        for (const auto& chunk : InputChunks_) {
+            auto tableIndex = chunk->GetTableIndex();
+            const auto& table = InputTables_[tableIndex];
+            if (!table->Dynamic) {
+                continue;
+            }
+
+            SubstituteOperandIndex(chunk);
+            auto chunkSlice = CreateInputChunkSlice(chunk);
+            InferLimitsFromBoundaryKeys(chunkSlice, RowBuffer_, table->Schema->GetKeyColumnCount());
+            dynamicTableChunkSlices[tableIndex].emplace_back(std::move(chunkSlice));
+        }
+
+        for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables_.size()); ++tableIndex) {
+            const auto& chunkSlices = dynamicTableChunkSlices[tableIndex];
+            if (chunkSlices.empty()) {
+                continue;
+            }
+
+            const auto& table = InputTables_[tableIndex];
+            auto operandIndex = table->OperandIndex;
+            auto dataSlices = CombineVersionedChunkSlices(chunkSlices);
+
+            for (auto& dataSlice : dataSlices) {
+                destinationStripes[operandIndex]->DataSlices.emplace_back(std::move(dataSlice));
+            }
+        }
+    }
+
+    void SubstituteOperandIndex(const TInputChunkPtr& chunk)
+    {
+        const auto& table = InputTables_[chunk->GetTableIndex()];
+        chunk->SetTableIndex(table->OperandIndex);
+    }
+
+    void FetchTables()
     {
         i64 totalChunkCount = 0;
         for (const auto& inputTable : InputTables_) {
             totalChunkCount += inputTable->ChunkCount;
         }
-        YT_LOG_INFO("Fetching input chunks (InputTableCount: %v, TotalChunkCount: %v)",
+        YT_LOG_INFO("Fetching input tables (InputTableCount: %v, TotalChunkCount: %v)",
             InputTables_.size(),
             totalChunkCount);
 
@@ -203,37 +273,63 @@ private:
             },
             Logger);
 
-        for (const auto& table : InputTables_) {
-            auto logicalTableIndex = table->TableIndex;
+        int dynamicTableCount = 0;
+        int staticTableCount = 0;
 
-            auto dataSource = MakeUnversionedDataSource(
-                std::nullopt /* path */,
-                table->Schema,
-                std::nullopt /* columns */,
-                // TODO(max42): YT-10402, omitted inaccessible columns
-                {});
-
+        for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables_.size()); ++tableIndex) {
+            const auto& table = InputTables_[tableIndex];
+            TDataSource dataSource;
+            if (table->Dynamic) {
+                dataSource = MakeVersionedDataSource(
+                    std::nullopt /* path */,
+                    table->Schema,
+                    std::nullopt /* columns */,
+                    // TODO(max42): YT-10402, omitted inaccessible columns
+                    {},
+                    table->Path.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
+                    table->Path.GetRetentionTimestamp().value_or(NullTimestamp));
+                ++dynamicTableCount;
+            } else {
+                dataSource = MakeUnversionedDataSource(
+                    std::nullopt /* path */,
+                    table->Schema,
+                    std::nullopt /* columns */,
+                    // TODO(max42): YT-10402, omitted inaccessible columns
+                    {});
+                ++staticTableCount;
+            }
             DataSourceDirectory_->DataSources().push_back(std::move(dataSource));
 
             chunkSpecFetcher->Add(
                 table->ObjectId,
                 table->ExternalCellTag,
                 table->ChunkCount,
-                logicalTableIndex,
+                tableIndex,
                 table->Path.GetRanges());
+        }
+
+        YT_LOG_INFO("Fetching chunk specs (StaticTableCount: %v, DynamicTableCount: %v)",
+            staticTableCount,
+            dynamicTableCount);
+
+        if (dynamicTableCount > 0 && staticTableCount > 0) {
+            THROW_ERROR_EXCEPTION("Reading static tables together with dynamic tables is not supported yet");
         }
 
         WaitFor(chunkSpecFetcher->Fetch())
             .ThrowOnError();
 
-        YT_LOG_INFO("Chunks fetched (ChunkCount: %v)", chunkSpecFetcher->ChunkSpecs().size());
+        YT_LOG_INFO("Chunk specs fetched (ChunkCount: %v)", chunkSpecFetcher->ChunkSpecs().size());
 
         for (const auto& chunkSpec : chunkSpecFetcher->ChunkSpecs()) {
             auto inputChunk = New<TInputChunk>(chunkSpec);
             auto miscExt = FindProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
-            YT_VERIFY(miscExt);
-            // Note that misc extension for given chunk may already be present as same chunk may appear several times.
-            MiscExtMap_.emplace(inputChunk->ChunkId(), New<TRefCountedMiscExt>(*miscExt));
+            if (miscExt) {
+                // Note that misc extension for given chunk may already be present as same chunk may appear several times.
+                MiscExtMap_.emplace(inputChunk->ChunkId(), New<TRefCountedMiscExt>(*miscExt));
+            } else {
+                MiscExtMap_.emplace(inputChunk->ChunkId(), nullptr);
+            }
             InputChunks_.emplace_back(std::move(inputChunk));
         }
         YT_LOG_DEBUG("Misc extension map statistics (Count: %v)", MiscExtMap_.size());
@@ -252,16 +348,36 @@ private:
         DB::FieldRef minKey[*KeyColumnCount_];
         DB::FieldRef maxKey[*KeyColumnCount_];
 
-        for (int index = 0; index < *KeyColumnCount_; ++index) {
-            minKey[index] = ConvertToField(lowerKey[index]);
-            maxKey[index] = ConvertToField(upperKey[index]);
+        bool isMin = lowerKey.GetCount() >= 1 && lowerKey[0].Type == EValueType::Min;
+        if (!isMin) {
+            for (int index = 0; index < *KeyColumnCount_; ++index) {
+                minKey[index] = ConvertToField(lowerKey[index]);
+            }
+        } else {
+            // Luckily, Null is smaller than any other value and is recognizible by ClickHouse. Phew.
+            for (int index = 0; index < *KeyColumnCount_; ++index) {
+                minKey[index] = ConvertToField(MakeUnversionedNullValue());
+            }
         }
 
-        return BoolMask(KeyConditions_[tableIndex]->mayBeTrueInRange(*KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_), false);
+        bool isMax = upperKey.GetCount() >= 1 && upperKey[0].Type == EValueType::Max;
+        if (!isMax) {
+            for (int index = 0; index < *KeyColumnCount_; ++index) {
+                maxKey[index] = ConvertToField(upperKey[index]);
+            }
+        }
+        // We do not have any Max-equiavalent in ClickHouse, but luckily again we have mayBeTrueAfter method which allows
+        // us checking key condition on half-open ray.
+
+        if (!isMax) {
+            return BoolMask(KeyConditions_[tableIndex]->mayBeTrueInRange(*KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_), false);
+        } else {
+            return BoolMask(KeyConditions_[tableIndex]->mayBeTrueAfter(*KeyColumnCount_, minKey, KeyColumnDataTypes_), false);
+        }
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TDataSliceFetcher);
+DEFINE_REFCOUNTED_TYPE(TInputFetcher);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -270,14 +386,17 @@ TQueryInput FetchInput(
     const TQueryAnalysisResult& queryAnalysisResult,
     TSubquerySpec& specTemplate)
 {
-    auto dataSliceFetcher = New<TDataSliceFetcher>(queryContext, queryAnalysisResult);
-    WaitFor(dataSliceFetcher->Fetch())
+    auto inputFetcher = New<TInputFetcher>(queryContext, queryAnalysisResult);
+    WaitFor(inputFetcher->Fetch())
         .ThrowOnError();
 
     YT_VERIFY(!specTemplate.DataSourceDirectory);
-    specTemplate.DataSourceDirectory = std::move(dataSliceFetcher->DataSourceDirectory());
+    specTemplate.DataSourceDirectory = std::move(inputFetcher->DataSourceDirectory());
 
-    return TQueryInput{std::move(dataSliceFetcher->ResultStripeList()), std::move(dataSliceFetcher->MiscExtMap())};
+    return TQueryInput{
+        .StripeList = std::move(inputFetcher->ResultStripeList()),
+        .MiscExtMap = std::move(inputFetcher->MiscExtMap()),
+    };
 }
 
 void LogSubqueryDebugInfo(const std::vector<TSubquery>& subqueries, TStringBuf phase, const TLogger& logger)
@@ -350,64 +469,25 @@ std::vector<TSubquery> BuildSubqueries(
 
     std::vector<TSubquery> subqueries;
 
-    auto dataWeightPerJob = inputStripeList->TotalDataWeight / jobCount;
-
     if (inputStripeList->TotalRowCount * samplingRate.value_or(1.0) < 1.0) {
         YT_LOG_INFO("Total row count times sampling rate is less than 1, returning empty subqueries");
         return subqueries;
     }
 
-    if (samplingRate) {
-        double rate = samplingRate.value();
-        auto adjustedRate = std::max(rate, static_cast<double>(jobCount) / config->MaxJobCountForPool);
-        auto adjustedJobCount = std::floor(jobCount / rate);
-        YT_LOG_INFO("Adjusting job count and sampling rate (OldSamplingRate: %v, AdjustedSamplingRate: %v, OldJobCount: %v, AdjustedJobCount: %v)",
-            rate,
-            adjustedRate,
-            jobCount,
-            adjustedJobCount);
-        rate = adjustedRate;
-        jobCount = adjustedJobCount;
-    } else {
-        // Try not to form too small ranges when total data weight is small.
-        auto maxJobCount = inputStripeList->TotalDataWeight / std::max<i64>(1, config->MinDataWeightPerThread) + 1;
-        if (maxJobCount < jobCount) {
-            jobCount = maxJobCount;
-            dataWeightPerJob = std::max<i64>(1, inputStripeList->TotalDataWeight / maxJobCount);
-            YT_LOG_INFO("Query is small and without sampling; forcing new contraints (JobCount: %v, DataWeightPerJob: %v)",
-                jobCount,
-                dataWeightPerJob);
-        }
-    }
+    auto jobSizeConstraints = CreateClickHouseJobSizeConstraints(
+        config,
+        inputStripeList->TotalDataWeight,
+        inputStripeList->TotalRowCount,
+        jobCount,
+        samplingRate,
+        Logger);
 
     IChunkPoolPtr chunkPool;
-
-    // TODO(max42): consider introducing new job size constraints to incapsulate all these heuristics.
-
-    constexpr i64 MinSliceDataWeight = 1_MB;
-
-    auto inputSliceDataWeight = std::max<i64>(1, dataWeightPerJob * 0.1);
-    if (inputSliceDataWeight < MinSliceDataWeight) {
-        inputSliceDataWeight = dataWeightPerJob;
-    }
-
-    auto jobSizeConstraints = CreateExplicitJobSizeConstraints(
-        false /* canAdjustDataWeightPerJob */,
-        true /* isExplicitJobCount */,
-        jobCount,
-        dataWeightPerJob,
-        1024 * 1024 * 1_TB /* primaryDataWeightPerJob */,
-        1'000'000'000'000ll /* maxDataSlicesPerJob */,
-        1024 * 1024 * 1_TB /* maxDataWeightPerJob */,
-        1024 * 1024 * 1_TB /* primaryMaxDataWeightPerJob */,
-        inputSliceDataWeight /* inputSliceDataWeight */,
-        std::max<i64>(1, inputStripeList->TotalRowCount / jobCount) /* inputSliceRowCount */,
-        std::nullopt /* samplingRate */);
 
     if (poolKind == EPoolKind::Unordered) {
         chunkPool = CreateUnorderedChunkPool(
             TUnorderedChunkPoolOptions{
-                .JobSizeConstraints = std::move(jobSizeConstraints),
+                .JobSizeConstraints = jobSizeConstraints,
                 .OperationId = queryContext->QueryId,
             },
             TInputStreamDirectory({TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */)}));
@@ -436,9 +516,6 @@ std::vector<TSubquery> BuildSubqueries(
     }
 
     for (const auto& chunkStripe : inputStripeList->Stripes) {
-        for (const auto& dataSlice : chunkStripe->DataSlices) {
-            InferLimitsFromBoundaryKeys(dataSlice, queryContext->RowBuffer);
-        }
         chunkPool->Add(chunkStripe);
     }
     chunkPool->Finish();

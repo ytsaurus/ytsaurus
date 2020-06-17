@@ -451,25 +451,57 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     auto readerMemoryManager = queryContext->Host->GetMultiReaderMemoryManager()->CreateMultiReaderMemoryManager(
         queryContext->Host->GetConfig()->ReaderMemoryRequirement,
         {queryContext->UserTagId});
-    auto reader = CreateSchemalessParallelMultiReader(
-        NDetail::CreateTableReaderConfig(),
-        New<NTableClient::TTableReaderOptions>(),
-        queryContext->Client(),
-        /* localDescriptor =*/{},
-        std::nullopt,
-        queryContext->Client()->GetNativeConnection()->GetBlockCache(),
-        queryContext->Client()->GetNativeConnection()->GetNodeDirectory(),
-        subquerySpec.DataSourceDirectory,
-        dataSliceDescriptors,
-        TNameTable::FromSchema(*schema),
-        blockReadOptions,
-        TColumnFilter(schema->Columns().size()),
-        /* keyColumns =*/{},
-        /* partitionTag =*/std::nullopt,
-        /* trafficMeter =*/nullptr,
-        /* bandwidthThrottler =*/GetUnlimitedThrottler(),
-        /* rpsThrottler =*/GetUnlimitedThrottler(),
-        /* multiReaderMemoryManager =*/readerMemoryManager);
+
+    ISchemalessMultiChunkReaderPtr reader;
+
+    if (!subquerySpec.DataSourceDirectory->DataSources().empty() &&
+        subquerySpec.DataSourceDirectory->DataSources()[0].GetType() == EDataSourceType::VersionedTable)
+    {
+        std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
+        for (const auto& dataSliceDescriptor : dataSliceDescriptors) {
+            for (auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
+                chunkSpecs.emplace_back(std::move(chunkSpec));
+            }
+        }
+        TDataSliceDescriptor dataSliceDescriptor(std::move(chunkSpecs));
+
+        reader = CreateSchemalessMergingMultiChunkReader(
+            NDetail::CreateTableReaderConfig(),
+            New<NTableClient::TTableReaderOptions>(),
+            queryContext->Client(),
+            /* localDescriptor */ {},
+            /* partitionTag */ std::nullopt,
+            queryContext->Client()->GetNativeConnection()->GetBlockCache(),
+            queryContext->Client()->GetNativeConnection()->GetNodeDirectory(),
+            subquerySpec.DataSourceDirectory,
+            dataSliceDescriptor,
+            TNameTable::FromSchema(*schema),
+            blockReadOptions,
+            TColumnFilter(schema->Columns().size()),
+            /* trafficMeter */ nullptr,
+            GetUnlimitedThrottler(),
+            GetUnlimitedThrottler());
+    } else {
+        reader = CreateSchemalessParallelMultiReader(
+            NDetail::CreateTableReaderConfig(),
+            New<NTableClient::TTableReaderOptions>(),
+            queryContext->Client(),
+            /* localDescriptor =*/{},
+            std::nullopt,
+            queryContext->Client()->GetNativeConnection()->GetBlockCache(),
+            queryContext->Client()->GetNativeConnection()->GetNodeDirectory(),
+            subquerySpec.DataSourceDirectory,
+            dataSliceDescriptors,
+            TNameTable::FromSchema(*schema),
+            blockReadOptions,
+            TColumnFilter(schema->Columns().size()),
+            /* keyColumns =*/{},
+            /* partitionTag =*/std::nullopt,
+            /* trafficMeter =*/nullptr,
+            /* bandwidthThrottler =*/GetUnlimitedThrottler(),
+            /* rpsThrottler =*/GetUnlimitedThrottler(),
+            /* multiReaderMemoryManager =*/readerMemoryManager);
+    }
 
     return CreateBlockInputStream(
         reader,

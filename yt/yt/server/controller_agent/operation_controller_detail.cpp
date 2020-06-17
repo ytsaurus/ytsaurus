@@ -6430,21 +6430,6 @@ std::vector<TInputChunkPtr> TOperationControllerBase::CollectPrimaryVersionedChu
     return CollectPrimaryChunks(true);
 }
 
-std::pair<i64, i64> TOperationControllerBase::CalculatePrimaryVersionedChunksStatistics() const
-{
-    i64 dataWeight = 0;
-    i64 rowCount = 0;
-    for (const auto& table : InputTables_) {
-        if (!table->IsForeign() && table->Dynamic && table->Schema->IsSorted()) {
-            for (const auto& chunk : table->Chunks) {
-                dataWeight += chunk->GetDataWeight();
-                rowCount += chunk->GetRowCount();
-            }
-        }
-    }
-    return std::make_pair(dataWeight, rowCount);
-}
-
 std::vector<TInputDataSlicePtr> TOperationControllerBase::CollectPrimaryVersionedDataSlices(i64 sliceSize)
 {
     auto createScraperForFetcher = [&] () -> IFetcherChunkScraperPtr {
@@ -8933,7 +8918,7 @@ std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() c
         return GetOrCrash(vertexDescriptorToIndex, lhs->GetVertexDescriptor()) < GetOrCrash(vertexDescriptorToIndex, rhs->GetVertexDescriptor());
     });
 
-    return tasks;    
+    return tasks;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
