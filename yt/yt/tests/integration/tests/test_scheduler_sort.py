@@ -1129,7 +1129,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             for i in xrange(100, 1, -1)
         ])
         create("table", "//tmp/out")
-        sort_3_phase(in_="//tmp/in", out="//tmp/out", sort_by="key")
+        sort_func(in_="//tmp/in", out="//tmp/out", sort_by="key")
 
 
 ##################################################################
