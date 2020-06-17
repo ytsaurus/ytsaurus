@@ -23,6 +23,11 @@ public:
         return TicketCache_->Get(serviceId);
     }
 
+    virtual TErrorOr<TParsedTicket> ParseUserTicket(const TString& ticket) override
+    {
+        return TicketCache_->Underlying_->ParseUserTicket(ticket);
+    }
+
 private:
     class TTicketCache
         : public TAsyncExpiringCache<TString, TString>
@@ -36,7 +41,6 @@ private:
             , Underlying_(std::move(underlying))
         { }
 
-    private:
         const ITvmServicePtr Underlying_;
 
     private:
@@ -66,4 +70,3 @@ ITvmServicePtr CreateCachingTvmService(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NAuth
-

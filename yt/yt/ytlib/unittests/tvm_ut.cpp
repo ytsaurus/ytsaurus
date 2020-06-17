@@ -8,6 +8,10 @@
 #include <yt/core/concurrency/thread_pool_poller.h>
 #include <yt/core/test_framework/framework.h>
 
+#include <library/cpp/unittest/env.h>
+
+#include <util/system/fs.h>
+
 namespace NYT::NAuth {
 namespace {
 
@@ -23,6 +27,15 @@ using ::testing::NiceMock;
 using ::testing::Return;
 using ::testing::Throw;
 using ::testing::_;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TString USER_TICKET =
+    "3:user:CAwQ__________9_GhcKAgh7EHsaB2ZvbzpiYXIg0oXYzAQoAg:HtBvtdGQBlIFtsg0bj9qmks1qeNdRQG1k"
+    "ur-f5f_TTFWAtY1QtV_ak9MYKTLdAK3t_KKxBB-yx0NUWFdOe8gDDDqwgREId8CxwWODmm6vwiA7F10Q1XR-aO4mVnn"
+    "x03UqBPKzoqPxIFHigcIGWzTli8BCe7iGmD9K4FxOra1PRc";
+
+static const TString CACHE_PATH = "./ticket_parser_cache/";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -191,6 +204,103 @@ TEST_F(TDefaultTvmTest, NoSrc)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TTicketParserTvmTest
+    : public ::testing::Test
+{
+protected:
+    void SetUp() override
+    {
+        NFs::MakeDirectoryRecursive(CACHE_PATH, NFs::FP_COMMON_FILE);
+    }
+
+    void TearDown() override
+    {
+        NFs::RemoveRecursive(CACHE_PATH);
+    }
+
+    void PopulateCache()
+    {
+        for (const auto file : { "public_keys", "service_tickets" }) {
+            NFs::Copy(
+                ArcadiaSourceRoot() + "/library/cpp/ticket_parser2/client/ut/files/" + file,
+                CACHE_PATH + file);
+        }
+    }
+
+    TDefaultTvmServiceConfigPtr CreateDefaultTvmServiceConfig()
+    {
+        auto config = New<TDefaultTvmServiceConfig>();
+        config->ClientSelfId = 100500;
+        config->ClientDiskCacheDir = CACHE_PATH;
+        config->TvmHost = "https://localhost";
+        config->TvmPort = 1;
+        config->ClientEnableUserTicketChecking = true;
+        config->ClientEnableServiceTicketFetching = true;
+        config->ClientSelfSecret = "IAmATvmToken";
+        config->ClientDstMap["TheDestination"] = 19;
+        return config;
+    }
+
+    ITvmServicePtr CreateDefaultTvmService(
+        TDefaultTvmServiceConfigPtr config = {}, bool populateCache = true)
+    {
+        if (populateCache) {
+            PopulateCache();
+        }
+        return NAuth::CreateDefaultTvmService(
+            config ? config : CreateDefaultTvmServiceConfig(),
+            CreateThreadPoolPoller(1, "HttpPoller"));
+    }
+};
+
+TEST_F(TTicketParserTvmTest, FetchesServiceTicket)
+{
+    auto service = CreateDefaultTvmService();
+    auto result = service->GetTicket("TheDestination").Get();
+    ASSERT_TRUE(result.IsOK());
+    EXPECT_EQ("service_ticket_1", result.ValueOrThrow());
+
+    result = service->GetTicket("AnotherDestination").Get();
+    ASSERT_FALSE(result.IsOK());
+}
+
+TEST_F(TTicketParserTvmTest, DoesNotFetchServiceTicketWhenDisabled)
+{
+    auto config = CreateDefaultTvmServiceConfig();
+    config->ClientEnableServiceTicketFetching = false;
+    auto service = CreateDefaultTvmService(config);
+    auto result = service->GetTicket("TheDestination").Get();
+    ASSERT_FALSE(result.IsOK());
+}
+
+TEST_F(TTicketParserTvmTest, ParsesUserTicket)
+{
+    auto service = CreateDefaultTvmService();
+    auto result = service->ParseUserTicket(USER_TICKET);
+    ASSERT_TRUE(result.IsOK());
+    auto parsed = result.ValueOrThrow();
+    EXPECT_EQ(123, parsed.DefaultUid);
+    EXPECT_EQ(THashSet<TString>{"foo:bar"}, parsed.Scopes);
+    result = service->ParseUserTicket("BadTicket");
+    ASSERT_FALSE(result.IsOK());
+}
+
+TEST_F(TTicketParserTvmTest, DoesNotParseUserTicketWhenDisabled)
+{
+    auto config = CreateDefaultTvmServiceConfig();
+    config->ClientEnableUserTicketChecking = false;
+    auto service = CreateDefaultTvmService(config);
+    auto result = service->ParseUserTicket(USER_TICKET);
+    ASSERT_FALSE(result.IsOK());
+}
+
+TEST_F(TTicketParserTvmTest, InitializationFailure)
+{
+    EXPECT_THROW(
+        CreateDefaultTvmService(CreateDefaultTvmServiceConfig(), false),
+        std::exception);
+}
 
 } // namespace
 } // namespace NYT::NAuth

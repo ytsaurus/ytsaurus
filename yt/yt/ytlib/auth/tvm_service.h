@@ -10,12 +10,11 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Abstracts away TVM daemon.
-//! See https://wiki.yandex-team.ru/passport/tvm2/tvm-daemon for API reference.
 struct ITvmService
     : public virtual TRefCounted
 {
     virtual TFuture<TString> GetTicket(const TString& serviceId) = 0;
+    virtual TErrorOr<TParsedTicket> ParseUserTicket(const TString& ticket) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITvmService)
