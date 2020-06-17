@@ -886,7 +886,7 @@ void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStrin
 
 TString ToString(const TTableSchema& schema)
 {
-    return ConvertToYsonString(schema, EYsonFormat::Text).GetData();
+    return ToStringViaBuilder(schema);
 }
 
 void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
