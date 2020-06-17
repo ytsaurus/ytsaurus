@@ -98,6 +98,12 @@ struct TAuthenticationResult
     TString Realm;
 };
 
+struct TParsedTicket
+{
+    ui64 DefaultUid;
+    THashSet<TString> Scopes;
+};
+
 inline bool operator ==(
     const TCookieCredentials& lhs,
     const TCookieCredentials& rhs)

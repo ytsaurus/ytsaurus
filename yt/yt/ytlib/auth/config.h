@@ -63,6 +63,7 @@ class TDefaultTvmServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    // TvmTool settings (deprecated)
     NHttp::TClientConfigPtr HttpClient;
     TString Host;
     int Port;
@@ -71,17 +72,50 @@ public:
 
     TDuration RequestTimeout;
 
+    // TvmClient settings
+    ui32 ClientSelfId;
+    TString ClientDiskCacheDir;
+
+    TString TvmHost;
+    ui16 TvmPort;
+
+    bool ClientEnableUserTicketChecking;
+    TString ClientBlackboxEnv;
+
+    bool ClientEnableServiceTicketFetching;
+    TString ClientSelfSecret;
+    THashMap<TString, ui32> ClientDstMap;
+
     TDefaultTvmServiceConfig()
     {
         RegisterParameter("http_client", HttpClient)
             .DefaultNew();
         RegisterParameter("host", Host)
-            .Default("localhost");
+            .Default();
         RegisterParameter("port", Port);
         RegisterParameter("token", Token);
         RegisterParameter("request_timeout", RequestTimeout)
             .Default(TDuration::Seconds(3));
         RegisterParameter("src", Src)
+            .Optional();
+
+        RegisterParameter("client_self_id", ClientSelfId)
+            .Default(0);
+        RegisterParameter("client_disk_cache_dir", ClientDiskCacheDir)
+            .Optional();
+        RegisterParameter("tvm_host", TvmHost)
+            .Optional();
+        RegisterParameter("tvm_port", TvmPort)
+            .Optional();
+        RegisterParameter("client_enable_user_ticket_checking", ClientEnableUserTicketChecking)
+            .Default(false);
+        RegisterParameter("client_blackbox_env", ClientBlackboxEnv)
+            .Default("ProdYateam");
+        RegisterParameter("client_enable_service_ticket_fetching", ClientEnableServiceTicketFetching)
+            .Default(false);
+        RegisterParameter("client_self_secret", ClientSelfSecret)
+            .Optional();
+        RegisterParameter("client_dst_map", ClientDstMap)
             .Optional();
     }
 };

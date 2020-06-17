@@ -70,6 +70,11 @@ private:
         {
             return MakeFuture("ticket:" + serviceId);
         }
+
+        virtual TErrorOr<TParsedTicket> ParseUserTicket(const TString& ticket) override
+        {
+            return TError("Not implemented");
+        }
     };
 
     TMockHttpServer MockHttpServer_;
