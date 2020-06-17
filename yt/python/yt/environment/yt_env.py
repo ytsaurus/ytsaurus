@@ -11,7 +11,8 @@ from .watcher import ProcessWatcher
 try:
     from .arcadia_interop import get_gdb_path
 except:
-    get_gdb_path = None
+    def get_gdb_path():
+        return None
 
 from yt.common import YtError, remove_file, makedirp, update, which, get_value
 from yt.wrapper.common import generate_uuid, flatten
@@ -547,7 +548,7 @@ class YTInstance(object):
                 logger.info("Process children: %s", children)
                 for child in children:
                     backtrace_path = os.path.join(self.backtraces_path, "gdb.{}".format(child))
-                    self._dump_backtrace(int(child), backtrace_path)
+                    self._try_dump_backtrace(int(child), backtrace_path)
             except Exception as e:
                 logger.warning("Failed to list children of current process: %s", e)
                 logger.exception(e)
@@ -696,7 +697,7 @@ class YTInstance(object):
             process = processes[index]
             if not isinstance(process, PortoSubprocess):
                 raise YtError("Cannot list subcontainers for non-porto environment")
-            
+
             return process.list_subcontainers()
 
     def set_nodes_cpu_limit(self, cpu_limit):
@@ -1424,7 +1425,7 @@ class YTInstance(object):
 
         self._process_stderrs(name)
 
-        self._dump_backtraces(name)
+        self._try_dump_backtraces(name)
 
         error = YtError("{0} still not ready after {1} seconds. See logs in working dir for details."
                         .format(name.capitalize(), max_wait_time))
@@ -1435,11 +1436,16 @@ class YTInstance(object):
 
         raise error
 
-    def _dump_backtrace(self, pid, backtrace_path):
+    def _try_dump_backtrace(self, pid, backtrace_path):
+        gdb_path = get_gdb_path()
+        if gdb_path is None:
+            logger.warning("GDB is unavailable, cannot dump backtrace for process {} to {}"
+                           .format(pid, backtrace_path))
+            return
         logger.info("Dumping backtrace for process {} to {}".format(pid, backtrace_path))
         subprocess.check_call(
             "{gdb} -p {pid} -ex 'set confirm off' -ex 'set pagination off' -ex 'thread apply all bt' -ex 'quit'".format(
-                gdb=get_gdb_path(),
+                gdb=gdb_path,
                 pid=pid,
             ),
             stdout=open(backtrace_path, "w"),
@@ -1447,13 +1453,13 @@ class YTInstance(object):
             shell=True,
         )
 
-    def _dump_backtraces(self, name):
+    def _try_dump_backtraces(self, name):
         for index, process in enumerate(self._service_processes[name]):
             if process is None:
                 continue
-            if get_gdb_path is not None and process.poll() is None:
+            if process.poll() is None:
                 backtrace_path = os.path.join(self.backtraces_path, "gdb.{}-{}".format(name, index))
-                self._dump_backtrace(process.pid, backtrace_path)
+                self._try_dump_backtrace(process.pid, backtrace_path)
 
     def _start_watcher(self):
         log_paths = []
