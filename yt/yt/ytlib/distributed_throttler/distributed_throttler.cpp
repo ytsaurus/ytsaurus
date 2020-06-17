@@ -541,12 +541,12 @@ private:
                 }
                 auto totalLimit = *optionalTotalLimit;
 
-                auto defaultLimit = FloatingPointLowerBound(0, totalLimit, [&, &throttlerId = throttlerId](double value) {
+                auto defaultLimit = FloatingPointInverseLowerBound(0, totalLimit, [&, &throttlerId = throttlerId](double value) {
                     double total = 0;
                     for (const auto& [memberId, usageRate] : throttlerIdToUsageRates[throttlerId]) {
                         total += Min(value, usageRate);
                     }
-                    return total < totalLimit;
+                    return total <= totalLimit;
                 });
 
                 auto extraLimit = (Config_->ExtraLimitRatio * totalLimit + Max<double>(0, totalLimit - totalUsageRate)) / memberCount;
@@ -594,7 +594,6 @@ private:
             }
 
             {
-
                 TWriterGuard guard(throttlerShard.TotalLimitsLock);
                 for (const auto& deadThrottlerId : deadThrottlersIds) {
                     throttlerShard.ThrottlerIdToTotalLimit.erase(deadThrottlerId);
