@@ -309,6 +309,7 @@ struct TNameYsonExtractString { static constexpr auto name{"YSONExtractString"};
 struct TNameYsonExtract { static constexpr auto name{"YSONExtract"}; };
 struct TNameYsonExtractKeysAndValues { static constexpr auto name{"YSONExtractKeysAndValues"}; };
 struct TNameYsonExtractRaw { static constexpr auto name{"YSONExtractRaw"}; };
+struct TNameYsonExtractArrayRaw { static constexpr auto name{"YSONExtractArrayRaw"}; };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -329,6 +330,7 @@ void RegisterYsonExtractFunctions()
     factory.registerFunction<TFunctionYson<TNameYsonExtractString, JSONExtractStringImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtract, JSONExtractImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractKeysAndValues, JSONExtractKeysAndValuesImpl>>();
+    factory.registerFunction<TFunctionYson<TNameYsonExtractArrayRaw, JSONExtractArrayRawImpl>>();
     // This is wrong. It converts unpacked data to json, so we use our own implementation for YSONExtractRaw.
     // factory.registerFunction<TFunctionYson<TNameYsonExtractRaw, JSONExtractRawImpl>>();
     factory.registerFunction<TFunctionYson<TNameYsonExtractRaw, TYsonExtractRawImpl>>();
