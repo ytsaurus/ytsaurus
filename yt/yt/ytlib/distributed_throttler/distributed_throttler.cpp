@@ -402,7 +402,12 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NDistributedThrottler::NProto, Throttle)
     {
-        YT_VERIFY(Config_->Mode == EDistributedThrottlerMode::Precise);
+        if (Config_->Mode != EDistributedThrottlerMode::Precise) {
+            THROW_ERROR_EXCEPTION(
+                NDistributedThrottler::EErrorCode::UnexpectedThrottlerMode,
+                "Cannot handle throttle request in %v mode",
+                Config_->Mode);
+        }
 
         const auto& throttlerId = request->throttler_id();
         auto count = request->count();
@@ -748,6 +753,7 @@ public:
             }
             Throttlers_.Throttlers[throttlerId] = wrappedThrottler;
 
+            YT_LOG_INFO("Distributed throttler created (ThrottlerId: %v)", throttlerId);
             return wrappedThrottler;
         }
     }
