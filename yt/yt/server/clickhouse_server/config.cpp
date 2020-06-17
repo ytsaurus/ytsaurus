@@ -38,6 +38,8 @@ TSubqueryConfig::TSubqueryConfig()
         .Default(10'000);
     RegisterParameter("max_data_weight_per_subquery", MaxDataWeightPerSubquery)
         .Default(50_GB);
+    RegisterParameter("min_slice_data_weight", MinSliceDataWeight)
+        .Default(1_MB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,6 +140,9 @@ TYtConfig::TYtConfig()
 
     RegisterParameter("health_checker", HealthChecker)
         .DefaultNew();
+
+    RegisterParameter("enable_dynamic_tables", EnableDynamicTables)
+        .Default(false);
 
     RegisterPreprocessor([&] {
         PermissionCache->ExpireAfterAccessTime = TDuration::Minutes(2);

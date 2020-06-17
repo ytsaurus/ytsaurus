@@ -843,7 +843,6 @@ protected:
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryChunks(bool versioned) const;
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryUnversionedChunks() const;
     std::vector<NChunkClient::TInputChunkPtr> CollectPrimaryVersionedChunks() const;
-    std::pair<i64, i64> CalculatePrimaryVersionedChunksStatistics() const;
     std::vector<NChunkClient::TInputDataSlicePtr> CollectPrimaryVersionedDataSlices(i64 sliceSize);
 
     //! Returns the list of all input data slices collected from all primary input tables.

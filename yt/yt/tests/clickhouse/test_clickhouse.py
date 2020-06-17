@@ -9,13 +9,11 @@ from yt.packages.six.moves import map as imap
 
 import yt.environment.init_operation_archive as init_operation_archive
 
+from yt.environment.helpers import assert_items_equal
+
 import yt.yson as yson
 
-from yt.wrapper.ypath import FilePath
-
 from yt.common import update, parts_to_uuid
-
-from datetime import datetime
 
 from threading import Thread
 
@@ -27,7 +25,6 @@ import pytest
 import random
 import threading
 import pprint
-import signal
 
 from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config, get_log_tailer_config
 
@@ -3031,3 +3028,172 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
             remove(log_table)
             raise
         remove(log_table)
+
+
+class TestClickHouseDynamicTables(ClickHouseTestBase):
+    def setup(self):
+        sync_create_cells(1)
+
+        self._setup()
+
+    def _get_config_patch(self):
+        return {
+            "yt": {
+                "enable_dynamic_tables": True,
+                "subquery": {
+                    "min_data_weight_per_thread": 0,
+                },
+            },
+        }
+
+    def _create_simple_dynamic_table(self, path, sort_order="ascending", **attributes):
+        if "schema" not in attributes:
+            attributes.update({"schema": [
+                {"name": "key", "type": "int64", "sort_order": sort_order},
+                {"name": "value", "type": "string"}]
+            })
+        create_dynamic_table(path, **attributes)
+
+    @authors("max42")
+    def test_simple(self):
+        create(
+            "table",
+            "//tmp/dt",
+            attributes={
+                "dynamic": True,
+                "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"},
+                           {"name": "value", "type": "string"}],
+                "enable_dynamic_store_read": True,
+            }
+        )
+        sync_mount_table("//tmp/dt")
+
+        data = [{"key": i, "value": "foo" + str(i)} for i in range(10)]
+
+        for i in range(10):
+            insert_rows("//tmp/dt", [data[i]])
+
+        with Clique(1, config_patch=self._get_config_patch()) as clique:
+            assert clique.make_query("select * from `//tmp/dt` order by key") == data
+            assert clique.make_query("select value from `//tmp/dt` where key == 5 order by key") == [{"value": "foo5"}]
+            assert clique.make_query("select key from `//tmp/dt` where value == 'foo7' order by key") == [{"key": 7}]
+
+            sync_unmount_table("//tmp/dt")
+
+            assert clique.make_query("select * from `//tmp/dt` order by key") == data
+            assert clique.make_query("select value from `//tmp/dt` where key == 5 order by key") == [{"value": "foo5"}]
+            assert clique.make_query("select key from `//tmp/dt` where value == 'foo7' order by key") == [{"key": 7}]
+
+            sync_mount_table("//tmp/dt")
+
+            assert clique.make_query("select * from `//tmp/dt` order by key") == data
+            assert clique.make_query("select value from `//tmp/dt` where key == 5 order by key") == [{"value": "foo5"}]
+            assert clique.make_query("select key from `//tmp/dt` where value == 'foo7' order by key") == [{"key": 7}]
+
+
+    # Tests below are obtained from similar already existing tests on dynamic tables.
+
+    @authors("max42", "savrus")
+    @pytest.mark.parametrize("instance_count", [1, 2])
+    def test_map_on_dynamic_table(self, instance_count):
+        self._create_simple_dynamic_table("//tmp/t", sort_order="ascending")
+        set("//tmp/t/@min_compaction_store_count", 5)
+
+        rows = [{"key": i, "value": str(i)} for i in range(10)]
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+        sync_unmount_table("//tmp/t")
+
+        with Clique(instance_count, config_patch=self._get_config_patch()) as clique:
+            assert_items_equal(clique.make_query("select * from `//tmp/t`"), rows)
+
+        rows1 = [{"key": i, "value": str(i+1)} for i in range(3)]
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows1)
+        sync_unmount_table("//tmp/t")
+
+        rows2 = [{"key": i, "value": str(i+2)} for i in range(2, 6)]
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows2)
+        sync_unmount_table("//tmp/t")
+
+        rows3 = [{"key": i, "value": str(i+3)} for i in range(7, 8)]
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows3)
+        sync_unmount_table("//tmp/t")
+
+        assert len(get("//tmp/t/@chunk_ids")) == 4
+
+        def update(new):
+            def update_row(row):
+                for r in rows:
+                    if r["key"] == row["key"]:
+                        r["value"] = row["value"]
+                        return
+                rows.append(row)
+            for row in new:
+                update_row(row)
+
+        update(rows1)
+        update(rows2)
+        update(rows3)
+
+        with Clique(instance_count, config_patch=self._get_config_patch()) as clique:
+            assert_items_equal(clique.make_query("select * from `//tmp/t`"), rows)
+
+    @authors("max42", "savrus")
+    @pytest.mark.parametrize("instance_count", [1, 2])
+    def test_dynamic_table_timestamp(self, instance_count):
+        self._create_simple_dynamic_table("//tmp/t", enable_dynamic_store_read=False)
+
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", rows)
+
+        time.sleep(1)
+        ts = generate_timestamp()
+
+        sync_flush_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": i, "value": str(i+1)} for i in range(2)])
+        sync_flush_table("//tmp/t")
+        sync_compact_table("//tmp/t")
+
+        with Clique(instance_count, config_patch=self._get_config_patch()) as clique:
+            assert_items_equal(clique.make_query("select * from `<timestamp=%s>//tmp/t`" % ts), rows)
+
+            # TODO(max42): these checks are not working for now but TBH I can't imagine
+            # anybody using dynamic table timestamps in CHYT.
+            # To make them work, invoke ValidateDynamicTableTimestamp helper somewhere
+            # in table preparation pipeline. Note that required table attributes are
+            # taken from cache, thus are stale.
+            #
+            # with pytest.raises(YtError):
+            #     clique.make_query("select * from `<timestamp=%s>//tmp/t`" % MinTimestamp)
+            # insert_rows("//tmp/t", rows)
+            # with pytest.raises(YtError):
+            #     clique.make_query("select * from `<timestamp=%s>//tmp/t`" % generate_timestamp())
+
+    @authors("max42", "ifsmirnov")
+    @pytest.mark.parametrize("instance_count", [1, 2])
+    def test_basic_read1(self, instance_count):
+        self._create_simple_dynamic_table("//tmp/t")
+        set("//tmp/t/@enable_dynamic_store_read", True)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": str(i)} for i in range(3000)]
+
+        insert_rows("//tmp/t", rows[:1500])
+
+        with Clique(instance_count, config_patch=self._get_config_patch()) as clique:
+            assert clique.make_query("select * from `//tmp/t` order by key", verbose=False) == rows[:1500]
+            assert clique.make_query("select * from `//tmp/t[100:500]` order by key", verbose=False) == rows[100:500]
+
+            ts = generate_timestamp()
+            ypath_with_ts = "<timestamp={}>//tmp/t".format(ts)
+
+            insert_rows("//tmp/t", rows[1500:])
+            assert clique.make_query("select * from `//tmp/t` order by key", verbose=False) == rows
+            assert clique.make_query("select * from `{}` order by key".format(ypath_with_ts), verbose=False) == rows[:1500]
+
+            sync_freeze_table("//tmp/t")
+            assert clique.make_query("select * from `//tmp/t` order by key", verbose=False) == rows

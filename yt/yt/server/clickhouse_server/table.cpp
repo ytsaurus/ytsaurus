@@ -25,17 +25,7 @@ TTable::TTable(TRichYPath path, const TAttributeMap& attributes)
 {
     ObjectId = TObjectId::FromString(attributes.at("id")->GetValue<TString>());
     Type = TypeFromId(ObjectId);
-    if (Type != NObjectClient::EObjectType::Table) {
-        THROW_ERROR_EXCEPTION("Node %v has invalid type: expected %Qlv, actual %Qlv",
-            Path.GetPath(),
-            NObjectClient::EObjectType::Table,
-            Type);
-    }
     Dynamic = attributes.at("dynamic")->GetValue<bool>();
-    if (Dynamic) {
-        THROW_ERROR_EXCEPTION("Table %v is dynamic; dynamic tables are not supported yet (CHYT-57)",
-            Path.GetPath());
-    }
     ExternalCellTag = attributes.at("external")->GetValue<bool>()
         ? attributes.at("external_cell_tag")->GetValue<ui64>()
         : CellTagFromId(ObjectId);
@@ -72,11 +62,23 @@ std::vector<TTablePtr> FetchTables(
 
         try {
             const auto& attributes = attributesOrError.ValueOrThrow();
-            if (attributes.contains("type") && attributes.at("type")->GetValue<TString>() == "table") {
-                tables.emplace_back(New<TTable>(path, attributes));
-            } else {
-                THROW_ERROR_EXCEPTION("Path %Qv does not correspond to a table", path);
+            std::optional<EObjectType> type;
+            if (attributes.contains("type")) {
+                type = ConvertTo<EObjectType>(attributes.at("type"));
             }
+            if (type != EObjectType::Table) {
+                THROW_ERROR_EXCEPTION("Path %Qv does not correspond to a table; expected type %Qlv, actual type %Qlv",
+                    path,
+                    EObjectType::Table,
+                    type);
+            }
+            if (attributes.at("dynamic")->GetValue<bool>() && !host->GetConfig()->EnableDynamicTables) {
+                THROW_ERROR_EXCEPTION(
+                    "Table %Qv is dynamic; dynamic tables are not supported yet (CHYT-57)",
+                    path.GetPath());
+            }
+
+            tables.emplace_back(New<TTable>(path, attributes));
         } catch (const std::exception& ex) {
             if (!skipUnsuitableNodes) {
                 errors.emplace_back(TError("Error fetching table %v", path)
