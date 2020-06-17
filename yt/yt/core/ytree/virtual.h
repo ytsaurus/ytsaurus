@@ -29,6 +29,11 @@ protected:
     virtual TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context) override;
     virtual void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
     virtual void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override;
+    virtual void RemoveRecursive(
+        const TYPath &path,
+        TReqRemove* request,
+        TRspRemove* response,
+        const TCtxRemovePtr& context) override;
 
     // TSupportsAttributes overrides
     virtual ISystemAttributeProvider* GetBuiltinAttributeProvider() override;

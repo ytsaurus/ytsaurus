@@ -34,6 +34,7 @@ bool TVirtualMapBase::DoInvoke(const IServiceContextPtr& context)
     DISPATCH_YPATH_SERVICE_METHOD(Get);
     DISPATCH_YPATH_SERVICE_METHOD(List);
     DISPATCH_YPATH_SERVICE_METHOD(Exists);
+    DISPATCH_YPATH_SERVICE_METHOD(Remove);
     return TSupportsAttributes::DoInvoke(context);
 }
 
@@ -47,12 +48,12 @@ IYPathService::TResolveResult TVirtualMapBase::ResolveRecursive(
     auto key = tokenizer.GetLiteralValue();
     auto service = FindItemService(key);
     if (!service) {
-        if (context->GetMethod() == "Exists") {
-            return TResolveResultHere{path};
+        const auto& method = context->GetMethod();
+        if (method == "Exists" || method == "Remove") {
+            return TResolveResultHere{"/" + path};
         }
         // TODO(babenko): improve diagnostics
-        THROW_ERROR_EXCEPTION("Node has no child with key %Qv",
-            ToYPathLiteral(key));
+        ThrowNoSuchChildKey(key);
     }
 
     return TResolveResultThere{std::move(service), TYPath(tokenizer.GetSuffix())};
@@ -193,6 +194,25 @@ void TVirtualMapBase::ListSelf(
             context->Reply(resultOrError);
         }
     }));
+}
+
+void TVirtualMapBase::RemoveRecursive(
+    const TYPath& path,
+    TReqRemove* request,
+    TRspRemove* /*response*/,
+    const TSupportsRemove::TCtxRemovePtr& context)
+{
+    context->SetRequestInfo();
+
+    NYPath::TTokenizer tokenizer(path);
+    tokenizer.Advance();
+    tokenizer.Expect(NYPath::ETokenType::Literal);
+    if (request->force()) {
+        context->Reply();
+    } else {
+        // TODO(babenko): improve diagnostics
+        ThrowNoSuchChildKey(tokenizer.GetLiteralValue());
+    }
 }
 
 void TVirtualMapBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors)

@@ -19,6 +19,7 @@ void ValidateNodeType(
     const THashSet<ENodeType>& expectedTypes,
     const TString& expectedTypesStringRepresentation);
 void ThrowNoSuchChildKey(const IConstNodePtr& node, TStringBuf key);
+void ThrowNoSuchChildKey(TStringBuf key);
 void ThrowNoSuchChildIndex(const IConstNodePtr& node, int index);
 void ThrowNoSuchAttribute(TStringBuf key);
 void ThrowNoSuchBuiltinAttribute(TStringBuf key);
