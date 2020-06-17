@@ -403,7 +403,8 @@ def _remove_objects():
     object_ids_to_check = []
     for type in TYPES:
 
-        objects = yt.list("//sys/" + type, attributes=["id", "builtin", "life_stage"])
+        objects = yt.list("//sys/" + ("account_tree" if type == "accounts" else type),
+                          attributes=["id", "builtin", "life_stage"])
         for object in objects:
             if object.attributes["builtin"]:
                 continue
@@ -426,7 +427,7 @@ def _remove_objects():
                 object_ids_to_remove.append(id)
 
     for id in object_ids_to_remove:
-        yt.remove("#" + id, force=True)
+        yt.remove("#" + id, force=True, recursive=True)
 
     for id in object_ids_to_check:
         wait(lambda: not yt.exists("#" + id))

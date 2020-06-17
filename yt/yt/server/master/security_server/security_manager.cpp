@@ -648,7 +648,7 @@ public:
             for (const auto& [account, oldLimits] : limitsBackup) {
                 account->ClusterResourceLimits() = oldLimits;
             }
-            THROW_ERROR_EXCEPTION("Failed to transfer quota from account %Qv to account %Qv",
+            THROW_ERROR_EXCEPTION("Failed to transfer resources from account %Qv to account %Qv",
                 srcAccount->GetName(),
                 dstAccount->GetName())
                 << ex;
