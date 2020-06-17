@@ -557,6 +557,24 @@ test_check_permissions()
     $YT check-permission test_user read "//home/wrapper_test/table" --columns '[a]' | grep allow
 }
 
+test_transfer_account_resources()
+{
+    $YT create account --attributes '{name=a1;resource_limits={node_count=10}}'
+    $YT create account --attributes '{name=a2;resource_limits={node_count=12}}'
+
+    $YT transfer-account-resources a1 a2 --resource-delta '{node_count=3}'
+    check "7" "$($YT get //sys/accounts/a1/@resource_limits/node_count)"
+    check "15" "$($YT get //sys/accounts/a2/@resource_limits/node_count)"
+
+    $YT transfer-account-resources --src a1 --dst a2 --resource-delta '{node_count=3}'
+    check "4" "$($YT get //sys/accounts/a1/@resource_limits/node_count)"
+    check "18" "$($YT get //sys/accounts/a2/@resource_limits/node_count)"
+
+    $YT transfer-account-resources --destination-account a1 --source-account a2 --resource-delta '{node_count=6}'
+    check "10" "$($YT get //sys/accounts/a1/@resource_limits/node_count)"
+    check "12" "$($YT get //sys/accounts/a2/@resource_limits/node_count)"
+}
+
 tear_down
 run_test test_cypress_commands
 run_test test_list_long_format
@@ -583,3 +601,4 @@ run_test test_vanilla_operations
 run_test test_ping_ancestor_transactions_in_operations
 run_test test_operation_and_job_commands
 run_test test_check_permissions
+run_test test_transfer_account_resources

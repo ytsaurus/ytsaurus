@@ -63,7 +63,7 @@ Operation tools:
 Diagnostics:
     job-tool, download-core-dump
 Other commands:
-    show-spec, execute, execute-batch, sky-share, show-default-config
+    show-spec, execute, execute-batch, sky-share, show-default-config, transfer-account-resources
 Subtools:
     clickhouse, spark, idm
 '''
@@ -196,15 +196,15 @@ class ParseMemoryLimit(Action):
             values = yt.common.MB * int(values)
         setattr(namespace, self.dest, values)
 
-def add_argument(parser, name, help, description, **kwargs):
+def add_argument(parser, name, help, description, aliases=[], **kwargs):
     if description:
         if help:
             help = "".join([help, ". ", description])
         else:
             help = description
-    return parser.add_argument(name, help=help, **kwargs)
+    return parser.add_argument(name, *aliases, help=help, **kwargs)
 
-def add_hybrid_argument(parser, name, help=None, description=None, group_required=True, **kwargs):
+def add_hybrid_argument(parser, name, help=None, description=None, group_required=True, aliases=[], **kwargs):
     group = parser.add_mutually_exclusive_group(required=group_required)
     dest = None
     positional_name = name
@@ -224,7 +224,9 @@ def add_hybrid_argument(parser, name, help=None, description=None, group_require
     optional = add_argument(parser=group,
                             name="--" + name.replace("_", "-"),
                             help=help,
-                            description=description, **kwargs)
+                            description=description,
+                            aliases=aliases,
+                            **kwargs)
     return positional, optional
 
 def add_ypath_argument(parser, name, help="address in Cypress", hybrid=False, **kwargs):
@@ -1210,6 +1212,12 @@ def add_execute_batch_parser(add_parser):
     parser.add_argument("requests", action=ParseStructuredArguments, nargs="+", help="Request description")
     parser.set_defaults(func=execute_batch)
 
+def add_transfer_account_resources_parser(add_parser):
+    parser = add_parser("transfer-account-resources", yt.transfer_account_resources)
+    add_hybrid_argument(parser, "source_account", aliases=["--src"])
+    add_hybrid_argument(parser, "destination_account", aliases=["--dst"])
+    add_structured_argument(parser, "--resource-delta")
+
 def add_run_job_shell_parser(add_parser):
     parser = add_parser("run-job-shell", yt.run_job_shell)
     parser.add_argument("job_id", help="job id, for example: 5c51-24e204-384-9f3f6437")
@@ -1689,6 +1697,7 @@ def main():
     add_check_permission_parser(add_parser)
     add_get_table_columnar_statistics_parser(add_parser)
     add_execute_batch_parser(add_parser)
+    add_transfer_account_resources_parser(add_parser)
 
     add_run_job_shell_parser(add_parser)
     add_get_job_stderr_parser(add_parser)

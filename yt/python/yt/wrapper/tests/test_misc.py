@@ -981,3 +981,61 @@ class TestStream(object):
         for pieces in make_stream().split_chunks(2):
             chunk = b"".join(pieces)
             assert chunk[-1:] == b"\n"
+
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestTransferAccountResources(object):
+    def test_transfer_account_resources_simple(self):
+        if yt.config["api_version"] != "v4":
+            pytest.skip()
+
+        yt.create("account", attributes={"name": "a1", "resource_limits": {"node_count": 5}})
+        yt.create("account", attributes={"name": "a2", "resource_limits": {"node_count": 5}})
+
+        with pytest.raises(yt.YtError):
+            yt.transfer_account_resources("a1", "a2", 123)
+        with pytest.raises(yt.YtError):
+            yt.transfer_account_resources("a1", "a2", {"node_count": -1})
+        with pytest.raises(yt.YtError):
+            yt.transfer_account_resources("a1", "a2", {"chunk_count": 1})
+
+        yt.transfer_account_resources("a1", "a2", {"node_count": 2})
+        assert yt.get("//sys/accounts/a1/@resource_limits/node_count") == 3
+        assert yt.get("//sys/accounts/a2/@resource_limits/node_count") == 7
+
+        yt.transfer_account_resources("a2", "a1", {"node_count": 3, "chunk_count": 0})
+        assert yt.get("//sys/accounts/a1/@resource_limits/node_count") == 6
+        assert yt.get("//sys/accounts/a2/@resource_limits/node_count") == 4
+
+
+    def test_transfer_account_resources(self):
+        if yt.config["api_version"] != "v4":
+            pytest.skip()
+
+        def get_limits(x=1):
+            return {
+                "node_count": 100 * x,
+                "chunk_count": 1000 * x,
+                "tablet_count": 5 * x,
+                "tablet_static_memory": 1000 * x,
+                "master_memory": 25000 * x,
+                "disk_space": 50000 * x,
+                "disk_space_per_medium": {"default": 50000 * x} if x != 0 else {}}
+        yt.create("account", attributes={"name": "a", "resource_limits": get_limits(6)})
+        yt.create("account", attributes={"name": "a1", "parent_name": "a", "resource_limits": get_limits(3)})
+        yt.create("account", attributes={"name": "a2", "parent_name": "a", "resource_limits": get_limits(3)})
+
+        with pytest.raises(yt.YtError):
+            yt.transfer_account_resources("a1", "a2", get_limits(4))
+        yt.transfer_account_resources("a1", "a2", get_limits())
+        assert yt.get("//sys/accounts/a1/@resource_limits") == get_limits(2)
+        assert yt.get("//sys/accounts/a2/@resource_limits") == get_limits(4)
+        assert yt.get("//sys/accounts/a/@resource_limits") == get_limits(6)
+
+        yt.create("account", attributes={"name": "a11", "parent_name": "a1", "resource_limits": get_limits()})
+        yt.create("account", attributes={"name": "a21", "parent_name": "a2", "resource_limits": get_limits()})
+        yt.transfer_account_resources("a21", "a11", get_limits())
+        assert yt.get("//sys/accounts/a21/@resource_limits") == get_limits(0)
+        assert yt.get("//sys/accounts/a2/@resource_limits") == get_limits(3)
+        assert yt.get("//sys/accounts/a1/@resource_limits") == get_limits(3)
+        assert yt.get("//sys/accounts/a11/@resource_limits") == get_limits(2)
+        assert yt.get("//sys/accounts/a/@resource_limits") == get_limits(6)

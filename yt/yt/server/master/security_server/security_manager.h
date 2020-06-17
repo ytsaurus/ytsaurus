@@ -168,7 +168,7 @@ public:
     //! LCA(|srcAccount|, |dstAccount|), then adds it to |dstAccount| and all its ancestors up to
     //! (but not including) LCA(|srcAccount|, |dstAccount|).
     /*!
-     * Throws if transferring quota would violate the invariants or if authenticated user lacks
+     * Throws if transferring resources would violate the invariants or if authenticated user lacks
      * the write permission for any of the modified accounts.
      */
     void TransferAccountResources(
