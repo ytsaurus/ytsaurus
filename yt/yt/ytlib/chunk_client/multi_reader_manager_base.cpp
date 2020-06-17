@@ -155,8 +155,9 @@ void TMultiReaderManagerBase::DoOpenReader(int index)
     YT_LOG_DEBUG("Opening reader (Index: %v)", index);
 
     try {
+        // NB: MakeStrong here delays MultiReaderMemoryManager finalization until child reader is fully created.
         ReaderFactories_[index]->CreateReader()
-            .Subscribe(BIND(&TMultiReaderManagerBase::OnReaderCreated, MakeWeak(this), index)
+            .Subscribe(BIND(&TMultiReaderManagerBase::OnReaderCreated, MakeStrong(this), index)
                 .Via(ReaderInvoker_));
     } catch (const std::exception& ex) {
         OnReaderReady(nullptr, index, ex);
