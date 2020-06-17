@@ -504,7 +504,7 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     public CompletableFuture<GUID> createNode(String path, ObjectType type) {
-        return createNode(path, type);
+        return createNode(new CreateNode(path, type));
     }
 
     public CompletableFuture<GUID> createNode(String path, ObjectType type, @Nullable Duration requestTimeout) {
@@ -519,7 +519,7 @@ public class ApiServiceClient implements TransactionalClient {
                                               ObjectType type,
                                               Map<String, YTreeNode> attributes,
                                               @Nullable Duration requestTimeout) {
-        return createNode(new CreateNode(path, type, attributes).setTimeout(null));
+        return createNode(new CreateNode(path, type, attributes).setTimeout(requestTimeout));
     }
 
     @Override
@@ -1078,7 +1078,7 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     public CompletableFuture<Void> freezeTable(String path, @Nullable Duration requestTimeout) {
-        return freezeTable(new FreezeTable(path).setTimeout(null));
+        return freezeTable(new FreezeTable(path).setTimeout(requestTimeout));
     }
 
     public CompletableFuture<Void> unfreezeTable(FreezeTable req) {
@@ -1293,7 +1293,7 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     public CompletableFuture<Void> suspendOperation(GUID guid, String alias, boolean abortRunningJobs) {
-        return suspendOperation(guid, alias, abortRunningJobs);
+        return suspendOperation(guid, alias, abortRunningJobs, null);
     }
 
     public CompletableFuture<Void> suspendOperation(GUID guid, String alias, boolean abortRunningJobs, @Nullable Duration requestTimeout) {
@@ -1348,7 +1348,7 @@ public class ApiServiceClient implements TransactionalClient {
     }
 
     public CompletableFuture<Void> completeOperation(GUID guid, String alias) {
-        return completeOperation(guid, alias);
+        return completeOperation(guid, alias, null);
     }
 
     public CompletableFuture<Void> completeOperation(GUID guid, String alias, @Nullable Duration requestTimeout) {
