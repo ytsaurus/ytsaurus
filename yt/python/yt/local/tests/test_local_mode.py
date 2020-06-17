@@ -417,14 +417,16 @@ class TestLocalMode(object):
                           node_config=yson_file.name,
                           scheduler_config=yson_file.name,
                           proxy_config=json_file.name,
-                          rpc_proxy_config=yson_file.name) as environment:
-                for service in ["master", "node", "scheduler", "http_proxy", "rpc_proxy"]:
-                    if isinstance(environment.configs[service], list):
-                        assert environment.configs[service], "Not configs for service '{}'".format(service)
-                        for config in environment.configs[service]:
-                            assert config["test_key"] == "test_value"
-                    else:  # Proxy config
-                        assert environment.configs[service]["test_key"] == "test_value"
+                          rpc_proxy_config=yson_file.name,
+                          watcher_config=yson_file.name) as environment:
+                for service in ["master", "node", "scheduler", "http_proxy", "rpc_proxy", "watcher"]:
+                    if service == "watcher":
+                        configs = [environment.watcher_config]
+                    else:
+                        configs = environment.configs[service]
+                    assert configs, "Not configs for service '{}'".format(service)
+                    for config in configs:
+                        assert config["test_key"] == "test_value"
         finally:
             remove_file(yson_file.name, force=True)
             remove_file(json_file.name, force=True)
@@ -437,14 +439,16 @@ class TestLocalMode(object):
                       node_config=patch,
                       scheduler_config=patch,
                       proxy_config=patch,
-                      rpc_proxy_config=patch) as environment:
-            for service in ["master", "node", "scheduler", "http_proxy", "rpc_proxy"]:
-                if isinstance(environment.configs[service], list):
-                    assert environment.configs[service], "Not configs for service '{}'".format(service)
-                    for config in environment.configs[service]:
-                        assert config["test_key"] == "test_value"
-                else:  # Proxy config
-                    assert environment.configs[service]["test_key"] == "test_value"
+                      rpc_proxy_config=patch,
+                      watcher_config=patch) as environment:
+            for service in ["master", "node", "scheduler", "http_proxy", "rpc_proxy", "watcher"]:
+                if service == "watcher":
+                    configs = [environment.watcher_config]
+                else:
+                    configs = environment.configs[service]
+                assert configs, "Not configs for service '{}'".format(service)
+                for config in configs:
+                    assert config["test_key"] == "test_value"
 
     def test_yt_local_binary(self):
         env_id = self.yt_local("start", fqdn="localhost", id=_get_id("test_yt_local_binary_simple"))

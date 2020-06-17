@@ -281,6 +281,8 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
         rpc_proxy_config_patch=_load_config(rpc_proxy_config),
         proxy_config_patch=_load_config(proxy_config, is_proxy_config=True))
 
+    watcher_config = _load_config(watcher_config)
+
     # Enable capturing stderrs to file
     os.environ["YT_CAPTURE_STDERR_TO_FILE"] = "1"
 
