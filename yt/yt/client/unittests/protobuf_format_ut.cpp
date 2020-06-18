@@ -436,7 +436,8 @@ TProtobufFormatConfigPtr ParseAndValidateConfig(const INodePtr& node, std::vecto
     if (schemas.empty()) {
         schemas.assign(config->Tables.size(), New<TTableSchema>());
     }
-    New<TProtobufFormatDescription>()->Init(config, schemas, false);
+    New<TProtobufParserFormatDescription>()->Init(config, schemas);
+    New<TProtobufWriterFormatDescription>()->Init(config, schemas);
     return config;
 }
 
@@ -594,8 +595,11 @@ TEST(TProtobufFormat, TestConfigParsing)
             .EndList()
         .EndMap();
 
+    auto schemaWithInt64List = New<TTableSchema>(std::vector<TColumnSchema>{
+        {"SomeColumn", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+    });
     EXPECT_THROW_WITH_SUBSTRING(
-        ParseAndValidateConfig(configWithPackedNonRepeated, {}),
+        ParseAndValidateConfig(configWithPackedNonRepeated, {schemaWithInt64List}),
         "Field \"SomeColumn\" is marked \"packed\" but is not marked \"repeated\"");
 
     auto configWithPackedRepeatedString = BuildYsonNodeFluently()
@@ -627,6 +631,91 @@ TEST(TProtobufFormat, TestConfigParsing)
     EXPECT_THROW_WITH_SUBSTRING(
         ParseAndValidateConfig(configWithPackedRepeatedString, {schemaWithStringList}),
         "packed protobuf field must have primitive numeric type, got \"string\"");
+
+    auto configWithMissingFieldNumber = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("SomeColumn")
+                            .Item("proto_type").Value("string")
+                            .Item("repeated").Value(true)
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        ParseAndValidateConfig(configWithMissingFieldNumber, {schemaWithStringList}),
+        "\"field_number\" is required");
+}
+
+TEST(TProtobufFormat, TestDebugString)
+{
+    auto configNode = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("SomeColumn")
+                            .Item("proto_type").Value("structured_message")
+                            .Item("field_number").Value(13)
+                            .Item("repeated").Value(true)
+                            .Item("fields").BeginList()
+                                .Item().BeginMap()
+                                    .Item("name").Value("oneof_field")
+                                    .Item("proto_type").Value("oneof")
+                                    .Item("fields").BeginList()
+                                        .Item().BeginMap()
+                                            .Item("name").Value("struct_field")
+                                            .Item("proto_type").Value("structured_message")
+                                            .Item("field_number").Value(13)
+                                            .Item("fields").BeginList()
+                                                .Item().BeginMap()
+                                                    .Item("name").Value("int64_field")
+                                                    .Item("proto_type").Value("int64")
+                                                    .Item("field_number").Value(13)
+                                                .EndMap()
+                                            .EndList()
+                                        .EndMap()
+                                    .EndList()
+                                .EndMap()
+                            .EndList()
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
+        {"SomeColumn", ListLogicalType(StructLogicalType({
+            {"oneof_field", VariantStructLogicalType({
+                {"struct_field", StructLogicalType({
+                    {"int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                })},
+            })},
+        }))},
+    });
+    auto description = New<TProtobufParserFormatDescription>();
+    description->Init(ParseFormatConfigFromNode(configNode), {schema});
+    const auto& root = description->GetRootDescription();
+
+    EXPECT_EQ(root.Children[0].GetDebugString(), "<root>.SomeColumn");
+    EXPECT_EQ(root.Children[0].Children[0].GetDebugString(), "<root>.SomeColumn.oneof_field.struct_field");
+    EXPECT_EQ(
+        root.Children[0].Children[0].Children[0].GetDebugString(),
+        "<root>.SomeColumn.oneof_field.struct_field.int64_field");
 }
 
 TEST(TProtobufFormat, TestParseBigZigZag)
@@ -1067,6 +1156,14 @@ std::pair<TTableSchemaPtr, INodePtr> CreateSchemaAndConfigWithStructuredMessage(
             {"repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
             {"packed_repeated_enum_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
             {"optional_repeated_bool_field", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)))},
+            {"oneof_field", VariantStructLogicalType({
+                {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"oneof_message_field", StructLogicalType({
+                    {"key", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                    {"value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                })},
+            })},
             {"field_missing_from_proto2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
         })},
         {"repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
@@ -1089,7 +1186,7 @@ std::pair<TTableSchemaPtr, INodePtr> CreateSchemaAndConfigWithStructuredMessage(
 
         {"enum_int_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
         {"enum_string_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
-        {"enum_string_int64_field", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        {"enum_string_int64_field", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
 
         {"repeated_optional_any_field", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any)))},
 
@@ -1104,7 +1201,51 @@ std::pair<TTableSchemaPtr, INodePtr> CreateSchemaAndConfigWithStructuredMessage(
         {"packed_repeated_int64_field", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
 
         {"optional_repeated_int64_field", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64)))},
+
+        {"oneof_field", OptionalLogicalType(VariantStructLogicalType({
+            {"oneof_string_field_1", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"oneof_string_field", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"oneof_message_field", StructLogicalType({
+                {"key", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+                {"value", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
+            })},
+        }))},
     });
+
+    auto oneofConfig = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("name").Value("oneof_field")
+            .Item("proto_type").Value("oneof")
+            .Item("fields").BeginList()
+                .Item().BeginMap()
+                    .Item("name").Value("oneof_string_field_1")
+                    .Item("field_number").Value(101)
+                    .Item("proto_type").Value("string")
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("name").Value("oneof_string_field")
+                    .Item("field_number").Value(102)
+                    .Item("proto_type").Value("string")
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("name").Value("oneof_message_field")
+                    .Item("field_number").Value(1000)
+                    .Item("proto_type").Value("structured_message")
+                    .Item("fields").BeginList()
+                        .Item().BeginMap()
+                            .Item("name").Value("key")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("string")
+                        .EndMap()
+                        .Item().BeginMap()
+                            .Item("name").Value("value")
+                            .Item("field_number").Value(2)
+                            .Item("proto_type").Value("string")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
 
     auto config = BuildYsonNodeFluently()
         .BeginAttributes()
@@ -1225,6 +1366,7 @@ std::pair<TTableSchemaPtr, INodePtr> CreateSchemaAndConfigWithStructuredMessage(
                                     .Item("proto_type").Value("bool")
                                     .Item("repeated").Value(true)
                                 .EndMap()
+                                .Item().Value(oneofConfig)
                             .EndList()
                         .EndMap()
                         .Item()
@@ -1384,6 +1526,8 @@ std::pair<TTableSchemaPtr, INodePtr> CreateSchemaAndConfigWithStructuredMessage(
                             .Item("proto_type").Value("int64")
                             .Item("repeated").Value(true)
                         .EndMap()
+
+                        .Item().Value(oneofConfig)
                     .EndList()
                 .EndMap()
             .EndList()
@@ -1443,6 +1587,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
     auto otherComplexFieldId = nameTable->RegisterName("other_complex_field");
     auto packedRepeatedInt64FieldId = nameTable->RegisterName("packed_repeated_int64_field");
     auto optionalRepeatedInt64FieldId = nameTable->RegisterName("optional_repeated_int64_field");
+    auto oneofFieldId = nameTable->RegisterName("oneof_field");
 
     auto [schema, config] = CreateSchemaAndConfigWithStructuredMessage(complexTypeMode);
 
@@ -1459,23 +1604,30 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
 
     auto firstYson = BuildYsonStringFluently()
         .BeginList()
+            // field_missing_from_proto1
             .Item().Value(11111)
+            // enum_field
             .Item().Value("Two")
+            // int64_field
             .Item().Value(44)
+            // repeated_int64_field
             .Item()
                 .BeginList()
                     .Item().Value(55)
                     .Item().Value(56)
                     .Item().Value(57)
                 .EndList()
+            // another_repeated_int64_field
             .Item()
                 .BeginList()
                 .EndList()
+            // message_field
             .Item()
                 .BeginList()
                     .Item().Value("key")
                     .Item().Value("value")
                 .EndList()
+            // repeated_message_field
             .Item()
                 .BeginList()
                     .Item()
@@ -1489,28 +1641,44 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
                         .Item().Value("value2")
                     .EndList()
                 .EndList()
+            // any_int64_field
             .Item().Value(45)
+            // any_map_field
             .Item()
                 .BeginMap()
                     .Item("key").Value("value")
                 .EndMap()
+            // optional_int64_field
             .Item().Entity()
+            // repeated_optional_any_field
             .Item()
                 .BeginList()
                     .Item().Value(2)
                     .Item().Entity()
                     .Item().Value("foo")
                 .EndList()
+            // packed_repeated_enum_field
             .Item()
                 .BeginList()
                     .Item().Value("MinusFortyTwo")
                     .Item().Value("Two")
                 .EndList()
+            // optional_repeated_bool_field
             .Item()
                 .BeginList()
                     .Item().Value(false)
                     .Item().Value(true)
                     .Item().Value(false)
+                .EndList()
+            // oneof_field
+            .Item()
+                .BeginList()
+                    // message_field
+                    .Item().Value(2)
+                    .Item().BeginList()
+                        .Item().Value("foo")
+                        .Item().Entity()
+                    .EndList()
                 .EndList()
         .EndList();
 
@@ -1589,6 +1757,8 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
 
     builder.AddValue(MakeUnversionedCompositeValue("[1;2;3]", optionalRepeatedInt64FieldId));
 
+    builder.AddValue(MakeUnversionedCompositeValue("[0; foobaz]", oneofFieldId));
+
     auto rows = std::vector<TUnversionedRow>(rowCount, builder.GetRow());
     writer->Write(rows);
 
@@ -1625,28 +1795,28 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
         EXPECT_EQ(first.repeated_message_field(1).key(), "key2");
         EXPECT_EQ(first.repeated_message_field(1).value(), "value2");
 
-        EXPECT_TRUE(AreNodesEqual(
+        EXPECT_NODES_EQUAL(
             ConvertToNode(TYsonString(first.any_int64_field())),
-            BuildYsonNodeFluently().Value(45)));
+            BuildYsonNodeFluently().Value(45));
 
-        EXPECT_TRUE(AreNodesEqual(
+        EXPECT_NODES_EQUAL(
             ConvertToNode(TYsonString(first.any_map_field())),
             BuildYsonNodeFluently().BeginMap()
                 .Item("key").Value("value")
-            .EndMap()));
+            .EndMap());
 
         std::vector<TYsonString> firstRepeatedOptionalAnyField(
             first.repeated_optional_any_field().begin(),
             first.repeated_optional_any_field().end());
 
-        EXPECT_TRUE(AreNodesEqual(
+        EXPECT_NODES_EQUAL(
             ConvertToNode(firstRepeatedOptionalAnyField),
             BuildYsonNodeFluently()
                 .BeginList()
                     .Item().Value(2)
                     .Item().Entity()
                     .Item().Value("foo")
-                .EndList()));
+                .EndList());
 
         EXPECT_FALSE(first.has_optional_int64_field());
 
@@ -1662,6 +1832,12 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
             first.optional_repeated_bool_field().end());
         auto expectedFirstOptionalRepeatedBoolField = std::vector<bool>{false, true, false};
         EXPECT_EQ(expectedFirstOptionalRepeatedBoolField, firstOptionalRepeatedBoolField);
+
+        EXPECT_FALSE(first.has_oneof_string_field_1());
+        EXPECT_FALSE(first.has_oneof_string_field());
+        EXPECT_TRUE(first.has_oneof_message_field());
+        EXPECT_EQ(first.oneof_message_field().key(), "foo");
+        EXPECT_FALSE(first.oneof_message_field().has_value());
 
         const auto& second = message.second();
         EXPECT_EQ(second.one(), 101);
@@ -1735,6 +1911,11 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
             message.optional_repeated_int64_field().end());
         auto expectedOptionalRepeatedInt64Field = std::vector<i64>{1, 2, 3};
         EXPECT_EQ(expectedOptionalRepeatedInt64Field, actualOptionalRepeatedInt64Field);
+
+        EXPECT_TRUE(message.has_oneof_string_field_1());
+        EXPECT_EQ(message.oneof_string_field_1(), "foobaz");
+        EXPECT_FALSE(message.has_oneof_string_field());
+        EXPECT_FALSE(message.has_oneof_message_field());
     }
 
     ASSERT_FALSE(lenvalParser.Next());
@@ -1782,7 +1963,9 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
     first->add_packed_repeated_enum_field(EEnum::max_int32);
     first->add_packed_repeated_enum_field(EEnum::minus_forty_two);
 
-    // Intentionally do not add optional_repeated_bool_field.
+    // optional_repeated_bool_field is intentionally empty.
+
+    first->mutable_oneof_message_field()->set_key("KEY");
 
     auto* second = message.mutable_second();
     second->set_one(101);
@@ -1855,12 +2038,14 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
 
     message.add_optional_repeated_int64_field(-4242);
 
+    message.set_oneof_string_field("spam");
+
     auto rowCollector = ParseRows(message, config, schema, rowCount);
     for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
         auto firstNode = GetComposite(rowCollector.GetRowValue(rowIndex, "first"));
         ASSERT_EQ(firstNode->GetType(), ENodeType::List);
         const auto& firstList = firstNode->AsList();
-        ASSERT_EQ(firstList->GetChildCount(), 14);
+        ASSERT_EQ(firstList->GetChildCount(), 15);
 
         EXPECT_EQ(firstList->GetChild(0)->GetType(), ENodeType::Entity);
         EXPECT_EQ(firstList->GetChild(1)->GetValue<TString>(), "Two");
@@ -1924,8 +2109,20 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         // optional_repeated_bool_field.
         ASSERT_EQ(firstList->GetChild(12)->GetType(), ENodeType::Entity);
 
+        // oneof_field
+        EXPECT_NODES_EQUAL(
+            firstList->GetChild(13),
+            BuildYsonNodeFluently()
+                .BeginList()
+                    .Item().Value(2)
+                    .Item().BeginList()
+                        .Item().Value("KEY")
+                        .Item().Entity()
+                    .EndList()
+                .EndList());
+
         // field_missing_from_proto2.
-        ASSERT_EQ(firstList->GetChild(13)->GetType(), ENodeType::Entity);
+        ASSERT_EQ(firstList->GetChild(14)->GetType(), ENodeType::Entity);
 
         auto secondNode = GetComposite(rowCollector.GetRowValue(rowIndex, "second"));
         ASSERT_EQ(secondNode->GetType(), ENodeType::List);
@@ -1987,6 +2184,10 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         EXPECT_NODES_EQUAL(
             GetComposite(rowCollector.GetRowValue(rowIndex, "optional_repeated_int64_field")),
             ConvertToNode(TYsonString("[-4242]")));
+
+        EXPECT_NODES_EQUAL(
+            GetComposite(rowCollector.GetRowValue(rowIndex, "oneof_field")),
+            ConvertToNode(TYsonString("[1; \"spam\"]")));
     }
 }
 
@@ -2361,10 +2562,10 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     // No schema for structured field.
     EXPECT_THROW_WITH_SUBSTRING(
         createParser(New<TTableSchema>(), config_struct_with_int64),
-        "Schema is required for repeated and \"structured_message\" protobuf fields");
+        "requires a corresponding schematized column");
     EXPECT_THROW_WITH_SUBSTRING(
         createWriter(New<TTableSchema>(), config_struct_with_int64),
-        "Schema is required for repeated and \"structured_message\" protobuf fields");
+        "requires a corresponding schematized column");
 
     auto schema_list_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"repeated", ListLogicalType(
@@ -2405,18 +2606,18 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     // No schema for repeated field.
     EXPECT_THROW_WITH_SUBSTRING(
         createParser(New<TTableSchema>(), config_repeated_int64),
-        "Schema is required for repeated and \"structured_message\" protobuf fields");
+        "requires a corresponding schematized column");
     EXPECT_THROW_WITH_SUBSTRING(
         createWriter(New<TTableSchema>(), config_repeated_int64),
-        "Schema is required for repeated and \"structured_message\" protobuf fields");
+        "requires a corresponding schematized column");
 
     // List of optional is not allowed.
     EXPECT_THROW_WITH_SUBSTRING(
         createParser(schema_list_optional_int64, config_repeated_int64),
-        "expected simple type");
+        "unexpected logical metatype \"optional\"");
     EXPECT_THROW_WITH_SUBSTRING(
         createWriter(schema_list_optional_int64, config_repeated_int64),
-        "expected simple type");
+        "unexpected logical metatype \"optional\"");
 
     auto schema_optional_list_int64 = New<TTableSchema>(std::vector<TColumnSchema>{
         {"repeated", OptionalLogicalType(
@@ -2456,10 +2657,10 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     // Optional of optional is not allowed.
     EXPECT_THROW_WITH_SUBSTRING(
         createParser(schema_optional_optional_int64, config_int64),
-        "expected simple type, got \"optional\"");
+        "unexpected logical metatype \"optional\"");
     EXPECT_THROW_WITH_SUBSTRING(
         createWriter(schema_optional_optional_int64, config_int64),
-        "expected simple type, got \"optional\"");
+        "unexpected logical metatype \"optional\"");
 
     auto schema_struct_with_both = New<TTableSchema>(std::vector<TColumnSchema>{
         {"struct", StructLogicalType({
@@ -2615,6 +2816,52 @@ TEST(TProtobufFormat, SchemaConfigMismatch)
     EXPECT_THROW_WITH_SUBSTRING(
         createSeveralTableWriter({schema_int64, schema_int64, schema_int64}, config_two_tables),
         "Number of schemas is greater than number of tables in protobuf config: 3 > 2");
+
+    auto schema_variant_with_int = New<TTableSchema>(std::vector<TColumnSchema>{
+        {"variant", VariantStructLogicalType({
+            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+        })},
+    });
+    auto schema_variant_with_optional_int = New<TTableSchema>(std::vector<TColumnSchema>{
+        {"variant", VariantStructLogicalType({
+            {"a", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
+        })},
+    });
+
+    auto config_with_oneof = BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("tables")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("columns")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("name").Value("variant")
+                            .Item("proto_type").Value("oneof")
+                            .Item("fields").BeginList()
+                                .Item()
+                                .BeginMap()
+                                    .Item("name").Value("a")
+                                    .Item("field_number").Value(1)
+                                    .Item("proto_type").Value("int64")
+                                .EndMap()
+                            .EndList()
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+        .EndMap();
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        createParser(schema_variant_with_optional_int, config_with_oneof),
+        "Optional variant field \"variant.a\"");
+    EXPECT_THROW_WITH_SUBSTRING(
+        createWriter(schema_variant_with_optional_int, config_with_oneof),
+        "Optional variant field \"variant.a\"");
+    EXPECT_NO_THROW(createParser(schema_variant_with_int, config_with_oneof));
+    EXPECT_NO_THROW(createWriter(schema_variant_with_int, config_with_oneof));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2961,7 +3208,9 @@ public:
     static TTableSchemaPtr GetEarlySchema()
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
-            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"a", OptionalLogicalType(VariantStructLogicalType({
+                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            }))},
         });
         return schema;
     }
@@ -2969,7 +3218,10 @@ public:
     static TTableSchemaPtr GetFirstMiddleSchema()
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
-            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"a", OptionalLogicalType(VariantStructLogicalType({
+                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            }))},
             {"b", OptionalLogicalType(StructLogicalType({
                 {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
             }))},
@@ -2980,7 +3232,10 @@ public:
     static TTableSchemaPtr GetSecondMiddleSchema()
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
-            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"a", OptionalLogicalType(VariantStructLogicalType({
+                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            }))},
             {"b", OptionalLogicalType(StructLogicalType({
                 {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
                 {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
@@ -2992,7 +3247,10 @@ public:
     static TTableSchemaPtr GetThirdMiddleSchema()
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
-            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"a", OptionalLogicalType(VariantStructLogicalType({
+                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+            }))},
             {"b", OptionalLogicalType(StructLogicalType({
                 {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
                 {"y", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))},
@@ -3005,7 +3263,11 @@ public:
     static TTableSchemaPtr GetLateSchema()
     {
         static const auto schema = New<TTableSchema>(std::vector<TColumnSchema>{
-            {"a", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"a", OptionalLogicalType(VariantStructLogicalType({
+                {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"f3", SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+            }))},
             {"c", OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean)))},
             {"b", OptionalLogicalType(StructLogicalType({
                 {"x", SimpleLogicalType(ESimpleLogicalValueType::String)},
@@ -3022,8 +3284,15 @@ public:
             .BeginMap().Item("tables").BeginList().Item().BeginMap().Item("columns").BeginList()
                 .Item().BeginMap()
                     .Item("name").Value("a")
-                    .Item("field_number").Value(1)
-                    .Item("proto_type").Value("int64")
+                    .Item("field_number").Value(0)
+                    .Item("proto_type").Value("oneof")
+                    .Item("fields").BeginList()
+                        .Item().BeginMap()
+                            .Item("name").Value("f1")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
+                    .EndList()
                 .EndMap()
                 .Item().BeginMap()
                     .Item("name").Value("b")
@@ -3048,8 +3317,20 @@ public:
             .BeginMap().Item("tables").BeginList().Item().BeginMap().Item("columns").BeginList()
                 .Item().BeginMap()
                     .Item("name").Value("a")
-                    .Item("field_number").Value(1)
-                    .Item("proto_type").Value("int64")
+                    .Item("field_number").Value(0)
+                    .Item("proto_type").Value("oneof")
+                    .Item("fields").BeginList()
+                        .Item().BeginMap()
+                            .Item("name").Value("f1")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
+                        .Item().BeginMap()
+                            .Item("name").Value("f2")
+                            .Item("field_number").Value(101)
+                            .Item("proto_type").Value("string")
+                        .EndMap()
+                    .EndList()
                 .EndMap()
                 .Item().BeginMap()
                     .Item("name").Value("b")
@@ -3074,6 +3355,43 @@ public:
     }
 };
 
+template <typename TMessage>
+TMessage WriteRow(
+    TUnversionedRow row,
+    const TProtobufFormatConfigPtr& config,
+    const TTableSchemaPtr& schema,
+    const TNameTablePtr& nameTable)
+{
+    TString result;
+    TStringOutput resultStream(result);
+
+    auto writer = CreateWriterForProtobuf(
+        config,
+        {schema},
+        nameTable,
+        CreateAsyncAdapter(&resultStream),
+        true,
+        New<TControlAttributesConfig>(),
+        0);
+    writer->Write(std::vector<TUnversionedRow>{row});
+    writer->Close().Get().ThrowOnError();
+
+    TStringInput input(result);
+    TLenvalParser lenvalParser(&input);
+    auto entry = lenvalParser.Next();
+    if (!entry) {
+        THROW_ERROR_EXCEPTION("Unexpected end of stream in lenval parser");
+    }
+    TMessage message;
+    if (!message.ParseFromString(entry->RowData)) {
+        THROW_ERROR_EXCEPTION("Failed to parse message");
+    }
+    if (lenvalParser.Next()) {
+        THROW_ERROR_EXCEPTION("Unexpected entry in lenval parser");
+    }
+    return message;
+}
+
 TEST_F(TProtobufFormatCompat, Write)
 {
     auto nameTable = TNameTable::FromSchema(*GetLateSchema());
@@ -3084,55 +3402,30 @@ TEST_F(TProtobufFormatCompat, Write)
     auto config = GetSecondMiddleConfig();
 
     auto writeRow = [&] (TUnversionedRow row, const TTableSchemaPtr& schema) {
-        TString result;
-        TStringOutput resultStream(result);
-
-        auto writer = CreateWriterForProtobuf(
-            config,
-            {schema},
-            nameTable,
-            CreateAsyncAdapter(&resultStream),
-            true,
-            New<TControlAttributesConfig>(),
-            0);
-        writer->Write(std::vector<TUnversionedRow>{row});
-        writer->Close().Get().ThrowOnError();
-
-        TStringInput input(result);
-        TLenvalParser lenvalParser(&input);
-        auto entry = lenvalParser.Next();
-        if (!entry) {
-            THROW_ERROR_EXCEPTION("Unexpected end of stream in lenval parser");
-        }
-        NYT::TCompatMessage message;
-        if (!message.ParseFromString(entry->RowData)) {
-            THROW_ERROR_EXCEPTION("Failed to parse message");
-        }
-        if (lenvalParser.Next()) {
-            THROW_ERROR_EXCEPTION("Unexpected entry in lenval parser");
-        }
-        return message;
+        return WriteRow<NYT::TCompatMessage>(row, config, schema, nameTable);
     };
 
-    auto aValue = MakeUnversionedInt64Value(42, aId);
+    auto aEarlyValue = MakeUnversionedCompositeValue("[0; -24]", aId);
+    auto aMiddleValue = MakeUnversionedCompositeValue("[1; foobar]", aId);
+    auto aLateValue = MakeUnversionedCompositeValue("[2; %true]", aId);
     auto bFirstValue = MakeUnversionedCompositeValue("[foo]", bId);
     auto bSecondValue = MakeUnversionedCompositeValue("[foo; bar]", bId);
     auto bThirdValue = MakeUnversionedCompositeValue("[foo; bar; spam]", bId);
     auto cValue = MakeUnversionedCompositeValue("[%false; %true; %false]", cId);
 
     TUnversionedOwningRowBuilder builder;
-    builder.AddValue(aValue);
+    builder.AddValue(aEarlyValue);
     auto earlyRow = builder.FinishRow();
-    builder.AddValue(aValue);
+    builder.AddValue(aMiddleValue);
     builder.AddValue(bFirstValue);
     auto firstMiddleRow = builder.FinishRow();
-    builder.AddValue(aValue);
+    builder.AddValue(aMiddleValue);
     builder.AddValue(bSecondValue);
     auto secondMiddleRow = builder.FinishRow();
-    builder.AddValue(aValue);
+    builder.AddValue(aMiddleValue);
     builder.AddValue(bThirdValue);
     auto thirdMiddleRow = builder.FinishRow();
-    builder.AddValue(aValue);
+    builder.AddValue(aLateValue);
     builder.AddValue(cValue);
     builder.AddValue(bThirdValue);
     auto lateRow = builder.FinishRow();
@@ -3140,34 +3433,39 @@ TEST_F(TProtobufFormatCompat, Write)
     {
         SCOPED_TRACE("early");
         auto message = writeRow(earlyRow, GetEarlySchema());
-        EXPECT_EQ(message.a(), 42);
+        EXPECT_EQ(message.f1(), -24);
+        EXPECT_FALSE(message.has_f2());
         EXPECT_EQ(message.has_b(), false);
     }
     {
         SCOPED_TRACE("firstMiddle");
         auto message = writeRow(firstMiddleRow, GetFirstMiddleSchema());
-        EXPECT_EQ(message.a(), 42);
+        EXPECT_FALSE(message.has_f1());
+        EXPECT_EQ(message.f2(), "foobar");
         EXPECT_EQ(message.b().x(), "foo");
         EXPECT_EQ(message.b().has_y(), false);
     }
     {
         SCOPED_TRACE("secondMiddle");
         auto message = writeRow(secondMiddleRow, GetSecondMiddleSchema());
-        EXPECT_EQ(message.a(), 42);
+        EXPECT_FALSE(message.has_f1());
+        EXPECT_EQ(message.f2(), "foobar");
         EXPECT_EQ(message.b().x(), "foo");
         EXPECT_EQ(message.b().y(), "bar");
     }
     {
         SCOPED_TRACE("thirdMiddle");
         auto message = writeRow(thirdMiddleRow, GetThirdMiddleSchema());
-        EXPECT_EQ(message.a(), 42);
+        EXPECT_FALSE(message.has_f1());
+        EXPECT_EQ(message.f2(), "foobar");
         EXPECT_EQ(message.b().x(), "foo");
         EXPECT_EQ(message.b().y(), "bar");
     }
     {
         SCOPED_TRACE("late");
         auto message = writeRow(lateRow, GetLateSchema());
-        EXPECT_EQ(message.a(), 42);
+        EXPECT_FALSE(message.has_f1());
+        EXPECT_FALSE(message.has_f2());
         EXPECT_EQ(message.b().x(), "foo");
         EXPECT_EQ(message.b().y(), "bar");
     }
@@ -3178,42 +3476,50 @@ TEST_F(TProtobufFormatCompat, Parse)
     auto config = GetSecondMiddleConfig();
 
     NYT::TCompatMessage message;
-    message.set_a(42);
+    message.set_f2("Sandiego");
     message.mutable_b()->set_x("foo");
     message.mutable_b()->set_y("bar");
 
     {
         SCOPED_TRACE("early");
         auto collector = ParseRows(message, config, GetEarlySchema());
-        EXPECT_EQ(GetInt64(collector.GetRowValue(0, "a")), 42);
+        EXPECT_FALSE(collector.FindRowValue(0, "a"));
         EXPECT_FALSE(collector.GetNameTable()->FindId("b"));
         EXPECT_FALSE(collector.GetNameTable()->FindId("c"));
     }
     {
         SCOPED_TRACE("firstMiddle");
         auto collector = ParseRows(message, config, GetFirstMiddleSchema());
-        EXPECT_EQ(GetInt64(collector.GetRowValue(0, "a")), 42);
+        EXPECT_NODES_EQUAL(
+            GetComposite(collector.GetRowValue(0, "a")),
+            ConvertToNode(TYsonString("[1;Sandiego]")));
         EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString("[foo]")));
         EXPECT_FALSE(collector.GetNameTable()->FindId("c"));
     }
     {
         SCOPED_TRACE("secondMiddle");
         auto collector = ParseRows(message, config, GetSecondMiddleSchema());
-        EXPECT_EQ(GetInt64(collector.GetRowValue(0, "a")), 42);
+        EXPECT_NODES_EQUAL(
+            GetComposite(collector.GetRowValue(0, "a")),
+            ConvertToNode(TYsonString("[1;Sandiego]")));
         EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString("[foo;bar]")));
         EXPECT_FALSE(collector.GetNameTable()->FindId("c"));
     }
     {
         SCOPED_TRACE("thirdMiddle");
         auto collector = ParseRows(message, config, GetThirdMiddleSchema());
-        EXPECT_EQ(GetInt64(collector.GetRowValue(0, "a")), 42);
+        EXPECT_NODES_EQUAL(
+            GetComposite(collector.GetRowValue(0, "a")),
+            ConvertToNode(TYsonString("[1;Sandiego]")));
         EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString("[foo;bar;#]")));
         EXPECT_FALSE(collector.GetNameTable()->FindId("c"));
     }
     {
         SCOPED_TRACE("late");
         auto collector = ParseRows(message, config, GetLateSchema());
-        EXPECT_EQ(GetInt64(collector.GetRowValue(0, "a")), 42);
+        EXPECT_NODES_EQUAL(
+            GetComposite(collector.GetRowValue(0, "a")),
+            ConvertToNode(TYsonString("[1;Sandiego]")));
         EXPECT_NODES_EQUAL(GetComposite(collector.GetRowValue(0, "b")), ConvertToNode(TYsonString("[foo;bar;#]")));
         EXPECT_TRUE(collector.GetNameTable()->FindId("c"));
     }
@@ -3222,14 +3528,160 @@ TEST_F(TProtobufFormatCompat, Parse)
 TEST_F(TProtobufFormatCompat, ParseWrong)
 {
     NYT::TCompatMessage message;
-    message.set_a(42);
+    message.set_f1(42);
     message.mutable_b()->set_x("foo");
     message.mutable_b()->set_y("bar");
 
-    auto config = GetFirstMiddleConfig();
     EXPECT_THROW_WITH_SUBSTRING(
-        ParseRows(message, config, GetFirstMiddleSchema()),
+        ParseRows(message, GetFirstMiddleConfig(), GetFirstMiddleSchema()),
         "Unexpected field number 2");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProtobufFormatRuntimeErrors
+    : public ::testing::Test
+{
+public:
+    static TTableSchemaPtr GetSchemaWithVariant(bool optional = false)
+    {
+        auto variantType = VariantStructLogicalType({
+            {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        });
+        return New<TTableSchema>(std::vector<TColumnSchema>{
+            {"a", optional ? OptionalLogicalType(variantType) : variantType},
+        });
+    }
+
+    static TTableSchemaPtr GetSchemaWithStruct(bool optional = false)
+    {
+        auto structType = StructLogicalType({
+            {"f1", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"f2", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        });
+        return New<TTableSchema>(std::vector<TColumnSchema>{
+            {"a", optional ? OptionalLogicalType(structType) : structType},
+        });
+    }
+
+    static TProtobufFormatConfigPtr GetConfigWithVariant()
+    {
+        static const auto config = ParseFormatConfigFromNode(BuildYsonNodeFluently()
+            .BeginMap().Item("tables").BeginList().Item().BeginMap().Item("columns").BeginList()
+                .Item().BeginMap()
+                    .Item("name").Value("a")
+                    .Item("proto_type").Value("oneof")
+                    .Item("fields").BeginList()
+                        .Item().BeginMap()
+                            .Item("name").Value("f1")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
+                        .Item().BeginMap()
+                            .Item("name").Value("f2")
+                            .Item("field_number").Value(2)
+                            .Item("proto_type").Value("string")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList().EndMap().EndList().EndMap());
+        return config;
+    }
+
+    static TProtobufFormatConfigPtr GetConfigWithStruct()
+    {
+        static const auto config = ParseFormatConfigFromNode(BuildYsonNodeFluently()
+            .BeginMap().Item("tables").BeginList().Item().BeginMap().Item("columns").BeginList()
+                .Item().BeginMap()
+                    .Item("name").Value("a")
+                    .Item("field_number").Value(1)
+                    .Item("proto_type").Value("structured_message")
+                    .Item("fields").BeginList()
+                        .Item().BeginMap()
+                            .Item("name").Value("f1")
+                            .Item("field_number").Value(1)
+                            .Item("proto_type").Value("int64")
+                        .EndMap()
+                        .Item().BeginMap()
+                            .Item("name").Value("f2")
+                            .Item("field_number").Value(2)
+                            .Item("proto_type").Value("string")
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList().EndMap().EndList().EndMap());
+        return config;
+    }
+};
+
+TEST_F(TProtobufFormatRuntimeErrors, ParseVariant)
+{
+    {
+        SCOPED_TRACE("Optional variant, all missing");
+        TMessageWithOneof message;
+        auto collector = ParseRows(message, GetConfigWithVariant(), GetSchemaWithVariant(/* optional */ true));
+        EXPECT_FALSE(collector.FindRowValue(0, "a"));
+    }
+    {
+        SCOPED_TRACE("All missing");
+        TMessageWithOneof message;
+        EXPECT_THROW_WITH_SUBSTRING(
+            ParseRows(message, GetConfigWithVariant(), GetSchemaWithVariant()),
+            "required field \"<root>.a\" is missing");
+    }
+    {
+        SCOPED_TRACE("Two alternatives");
+        TMessageWithStruct::TStruct message;
+        message.set_f1(5);
+        message.set_f2("boo");
+        EXPECT_THROW_WITH_SUBSTRING(
+            ParseRows(message, GetConfigWithVariant(), GetSchemaWithVariant()),
+            "multiple entries for oneof field \"<root>.a\"");
+    }
+}
+
+TEST_F(TProtobufFormatRuntimeErrors, ParseStruct)
+{
+    {
+        SCOPED_TRACE("Optional submessage missing");
+        TMessageWithStruct message;
+        auto collector = ParseRows(message, GetConfigWithStruct(), GetSchemaWithStruct(/* optional */ true));
+        EXPECT_FALSE(collector.FindRowValue(0, "a"));
+    }
+    {
+        SCOPED_TRACE("Required submessage missing");
+        TMessageWithStruct message;
+        EXPECT_THROW_WITH_SUBSTRING(
+            ParseRows(message, GetConfigWithStruct(), GetSchemaWithStruct()),
+            "required field \"<root>.a\" is missing");
+    }
+    {
+        SCOPED_TRACE("All fields missing");
+        TMessageWithStruct message;
+        message.mutable_a();
+        EXPECT_THROW_WITH_SUBSTRING(
+            ParseRows(message, GetConfigWithStruct(), GetSchemaWithStruct()),
+            "required field \"<root>.a.f1\" is missing");
+    }
+    {
+        SCOPED_TRACE("Second field missing");
+        TMessageWithStruct message;
+        message.mutable_a()->set_f1(17);
+        EXPECT_THROW_WITH_SUBSTRING(
+            ParseRows(message, GetConfigWithStruct(), GetSchemaWithStruct()),
+            "required field \"<root>.a.f2\" is missing");
+    }
+    {
+        SCOPED_TRACE("All present");
+        TMessageWithStruct message;
+        message.mutable_a()->set_f1(17);
+        message.mutable_a()->set_f2("foobar");
+        auto collector = ParseRows(message, GetConfigWithStruct(), GetSchemaWithStruct());
+        EXPECT_NODES_EQUAL(
+            GetComposite(collector.GetRowValue(0, "a")),
+            ConvertToNode(TYsonString("[17;foobar]")));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

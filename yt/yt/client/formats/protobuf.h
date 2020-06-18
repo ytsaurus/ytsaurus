@@ -31,71 +31,130 @@ private:
 struct TProtobufFieldDescriptionBase
 {
     TString Name;
-    EProtobufType Type;
-    ui64 WireTag;
-    size_t TagSize;
+    EProtobufType Type = EProtobufType::Int64;
+    ui64 WireTag = 0;
+    size_t TagSize = 0;
 
-    const TEnumerationDescription* EnumerationDescription;
-
-    // Number of fields in struct in schema (only for |Type == StructuredMessage|).
-    int StructElementCount;
+    const TEnumerationDescription* EnumerationDescription = nullptr;
 
     // Index of field inside struct (for fields corresponding to struct fields in schema).
-    int StructElementIndex;
+    int StructFieldIndex = 0;
+
+    // Number of fields in struct in schema (only for |Type == StructuredMessage|).
+    int StructFieldCount = 0;
 
     // Is field repeated?
-    bool Repeated;
+    bool Repeated = false;
 
     // Is a repeated field packed (i.e. it is encoded as `<tag> <length> <value1> ... <valueK>`)?
-    bool Packed;
+    bool Packed = false;
 
     // Is the corresponding type in schema optional?
-    bool Optional;
-
-    std::vector<int> IgnoredChildFieldNumbers;
+    bool Optional = true;
 
     // Extracts field number from |WireTag|.
     ui32 GetFieldNumber() const;
 };
 
-struct TProtobufFieldDescription
+class TProtobufWriterFieldDescription
     : public TProtobufFieldDescriptionBase
 {
-    std::vector<TProtobufFieldDescription> Children;
+public:
+    TProtobufWriterFieldDescription* AddChild(int fieldIndex);
+    const TProtobufWriterFieldDescription* FindAlternative(int alternativeIndex) const;
+
+public:
+    std::vector<TProtobufWriterFieldDescription> Children;
+
+private:
+    std::vector<int> AlternativeToChildIndex_;
+    static constexpr int InvalidChildIndex = -1;
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-
-struct TProtobufTableDescription
+class TProtobufParserFieldDescription
+    : public TProtobufFieldDescriptionBase
 {
-    THashMap<TString, TProtobufFieldDescription> Columns;
-    std::vector<int> IgnoredColumnFieldNumbers;
+public:
+    TProtobufParserFieldDescription* AddChild(int fieldNumber);
+    void IgnoreChild(int fieldNumber);
+
+    // Returns std::nullopt iff the field is ignored (missing from table schema).
+    // Throws an exception iff the field number is unknown.
+    std::optional<int> FieldNumberToChildIndex(int fieldNumber) const;
+
+    // Return concise human-readable description of the path to the field.
+    TString GetDebugString() const;
+
+    bool IsOneofAlternative() const
+    {
+        return AlternativeIndex.has_value();
+    }
+
+private:
+    void SetChildIndex(int fieldNumber, int childIndex);
+
+public:
+    std::vector<TProtobufParserFieldDescription> Children;
+    std::optional<int> AlternativeIndex;
+
+    // For non-oneof members Parent points to the description
+    // containing this as a child.
+    // For oneof members Parent points to corresponding oneof description.
+    TProtobufParserFieldDescription* Parent = nullptr;
+
+private:
+    static constexpr int InvalidChildIndex = -1;
+    static constexpr int IgnoredChildIndex = -2;
+    static constexpr int MaxFieldNumberVectorSize = 256;
+
+    std::vector<int> FieldNumberToChildIndexVector_;
+    THashMap<int, int> FieldNumberToChildIndexMap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProtobufFormatDescription
+class TProtobufFormatDescriptionBase
     : public TRefCounted
 {
 public:
-    TProtobufFormatDescription() = default;
-
     void Init(
         const TProtobufFormatConfigPtr& config,
-        const std::vector<NTableClient::TTableSchemaPtr>& schemas,
-        bool validateMissingFieldsOptionality);
-    const TProtobufTableDescription& GetTableDescription(ui32 tableIndex) const;
-    size_t GetTableCount() const;
+        const std::vector<NTableClient::TTableSchemaPtr>& schemas);
+
+protected:
+    virtual bool NonOptionalMissingFieldsAllowed() const = 0;
+
+    virtual void AddTable() = 0;
+
+    virtual void IgnoreField(
+        int tableIndex,
+        TProtobufFieldDescriptionBase* parent,
+        const TProtobufColumnConfigPtr& columnConfig) = 0;
+
+    virtual TProtobufFieldDescriptionBase* AddField(
+        int tableIndex,
+        TProtobufFieldDescriptionBase* parent,
+        int fieldIndex,
+        const TProtobufColumnConfigPtr& columnConfig) = 0;
+
+    // Returns |field| for convenience.
+    TProtobufFieldDescriptionBase* InitField(
+        TProtobufFieldDescriptionBase* field,
+        int structFieldIndex,
+        const TProtobufColumnConfigPtr& columnConfig);
+
+protected:
+    THashMap<TString, TEnumerationDescription> EnumerationDescriptionMap_;
 
 private:
     void InitFromFileDescriptors(const TProtobufFormatConfigPtr& config);
     void InitFromProtobufSchema(
         const TProtobufFormatConfigPtr& config,
-        const std::vector<NTableClient::TTableSchemaPtr>& schemas,
-        bool validateMissingFieldsOptionality);
+        const std::vector<NTableClient::TTableSchemaPtr>& schemas);
 
-    // Initialize field description from column config and logical type from schema.
+    // Traverse column config, matching it with column schema and
+    // calling |AddField| and |AddOneofField| for corresponding subfields.
+    //
     // Matching of the config and type is performed by the following rules:
     //  * Field of simple type matches simple type T "naturally"
     //  * Repeated field matches List<T> iff corresponding non-repeated field matches T and T is not Optional<...>
@@ -104,27 +163,110 @@ private:
     //  * StructuredMessage field matches Struct<Name1: Type1, ..., NameN: TypeN> iff
     //      - the field has subfields whose names are in set {Name1, ..., NameN}
     //      - the subfield with name NameK matches TypeK
-    //      - if |validateMissingFieldsOptionality| is |true|,
+    //      - if |NonOptionalMissingFieldsAllowed()| is |false|,
     //        for each name NameK missing from subfields TypeK is Optional<...>
-    void InitField(
-        TProtobufFieldDescription* field,
+    void Traverse(
+        int tableIndex,
+        TProtobufFieldDescriptionBase* field,
         const TProtobufColumnConfigPtr& columnConfig,
-        NTableClient::TComplexTypeFieldDescriptor descriptor,
-        int elementIndex,
-        bool validateMissingFieldsOptionality);
+        NTableClient::TComplexTypeFieldDescriptor descriptor);
 
-    // Initialize field description from column config without matching it with logical type.
-    // StructuredMessage and repeated fields must _not_ be initialized solely by this method.
-    void InitSchemalessField(
-        TProtobufFieldDescription* field,
-        const TProtobufColumnConfigPtr& columnConfig);
-
-private:
-    std::vector<TProtobufTableDescription> Tables_;
-    THashMap<TString, TEnumerationDescription> EnumerationDescriptionMap_;
+    void TraverseComposite(
+        int tableIndex,
+        TProtobufFieldDescriptionBase* parent,
+        const TProtobufColumnConfigPtr& columnConfig,
+        NTableClient::TComplexTypeFieldDescriptor descriptor);
 };
 
-DEFINE_REFCOUNTED_TYPE(TProtobufFormatDescription)
+////////////////////////////////////////////////////////////////////////////////
+
+class TProtobufWriterFormatDescription
+    : public TProtobufFormatDescriptionBase
+{
+public:
+    const TProtobufWriterFieldDescription* FindField(
+        int tableIndex,
+        int fieldIndex,
+        const NTableClient::TNameTablePtr& nameTable) const;
+
+    int GetTableCount() const;
+
+    const TProtobufWriterFieldDescription* FindOtherColumnsField(int tableIndex) const;
+
+private:
+    virtual bool NonOptionalMissingFieldsAllowed() const override;
+
+    virtual void AddTable() override;
+
+    virtual void IgnoreField(
+        int tableIndex,
+        TProtobufFieldDescriptionBase* parent,
+        const TProtobufColumnConfigPtr& columnConfig) override;
+
+    virtual TProtobufFieldDescriptionBase* AddField(
+        int tableIndex,
+        TProtobufFieldDescriptionBase* parent,
+        int fieldIndex,
+        const TProtobufColumnConfigPtr& columnConfig) override;
+
+private:
+    struct TTableDescription
+    {
+        THashMap<TString, TProtobufWriterFieldDescription> Columns;
+
+        // Cached data.
+        mutable std::vector<const TProtobufWriterFieldDescription*> FieldIndexToDescription;
+        mutable const TProtobufWriterFieldDescription* OtherColumnsField = nullptr;
+    };
+
+private:
+    const TTableDescription& GetTableDescription(int tableIndex) const;
+
+private:
+    std::vector<TTableDescription> Tables_;
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TProtobufWriterFormatDescription)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProtobufParserFormatDescription
+    : public TProtobufFormatDescriptionBase
+{
+public:
+    TProtobufParserFormatDescription();
+    const TProtobufParserFieldDescription& GetRootDescription() const;
+    std::vector<ui16> CreateRootChildColumnIds(const NTableClient::TNameTablePtr& nameTable) const;
+
+private:
+    virtual bool NonOptionalMissingFieldsAllowed() const override;
+
+    virtual void AddTable() override;
+
+    virtual void IgnoreField(
+        int tableIndex,
+        TProtobufFieldDescriptionBase* parent,
+        const TProtobufColumnConfigPtr& columnConfig) override;
+
+    virtual TProtobufFieldDescriptionBase* AddField(
+        int tableIndex,
+        TProtobufFieldDescriptionBase* parent,
+        int fieldIndex,
+        const TProtobufColumnConfigPtr& columnConfig) override;
+
+private:
+    TProtobufParserFieldDescription* ResolveField(TProtobufFieldDescriptionBase* parent);
+
+private:
+    TProtobufParserFieldDescription RootDescription_;
+
+    // Storage of oneof descriptions.
+    // NB. Use deque to avoid pointer invalidation on insertions.
+    std::deque<TProtobufParserFieldDescription> OneofDescriptions_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TProtobufParserFormatDescription)
 
 ////////////////////////////////////////////////////////////////////////////////
 

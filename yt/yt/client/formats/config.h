@@ -365,11 +365,14 @@ DEFINE_ENUM(EProtobufType,
     (Message)
 
     // Protobuf type must be message.
-    // It corresponds to a complex type.
+    // It corresponds to struct type.
     (StructuredMessage)
 
+    // Corresponds to variant struct type.
+    (Oneof)
+
     // Protobuf type must be string.
-    // Maps to any type (not necessarily "any" type) in table row.
+    // Maps to any scalar type (not necessarily "any" type) in table row.
     (Any)
 
     // Protobuf type must be string containing valid YSON map.
@@ -385,7 +388,7 @@ class TProtobufColumnConfig
 public:
     TString Name;
     EProtobufType ProtoType;
-    ui64 FieldNumber;
+    std::optional<ui64> FieldNumber;
     bool Repeated;
     bool Packed;
     std::vector<TProtobufColumnConfigPtr> Fields;
@@ -396,7 +399,8 @@ public:
         RegisterParameter("name", Name)
             .NonEmpty();
         RegisterParameter("proto_type", ProtoType);
-        RegisterParameter("field_number", FieldNumber);
+        RegisterParameter("field_number", FieldNumber)
+            .Optional();
         RegisterParameter("repeated", Repeated)
             .Default(false);
         RegisterParameter("packed", Packed)
@@ -405,6 +409,13 @@ public:
             .Default();
         RegisterParameter("enumeration_name", EnumerationName)
             .Default();
+
+        RegisterPostprocessor([&] {
+            if (!FieldNumber && ProtoType != EProtobufType::Oneof) {
+                THROW_ERROR_EXCEPTION("\"field_number\" is required for type %Qlv",
+                    ProtoType);
+            }
+        });
     }
 };
 DEFINE_REFCOUNTED_TYPE(TProtobufColumnConfig)
@@ -490,12 +501,12 @@ DEFINE_ENUM(EWebJsonValueFormat,
     // Values are stringified and (de-)serialized together with their types in form
     // |"column_name": {"$type": "double", "$value": "3.141592"}|.
     // Strings with length exceeding |FieldWeightLimit| are truncated and meta-attribute
-    // "$incomplete" with value |true| is added to the representation, i.e.
+    // "$incomplete" with value |true| is added to the representation, e.g.
     // |"column_name": {"$type": "string", "$incomplete": true, "$value": "Some very long st"}|
     (Schemaless)
 
     // Values are stringified and (de-)serialized in form
-    // |<column_name>: [ <value>,  <stringified-type-index>]|, i.e. |"column_name": ["3.141592", "3"]|.
+    // |<column_name>: [ <value>,  <stringified-type-index>]|, e.g. |"column_name": ["3.141592", "3"]|.
     // Type indices point to type registry stored under "yql_type_registry" key.
     // Non-UTF-8 strings are Base64-encoded and enclosed in a map with "b64" and "val" keys:
     //    | "column_name": {"val": "aqw==", "b64": true} |.

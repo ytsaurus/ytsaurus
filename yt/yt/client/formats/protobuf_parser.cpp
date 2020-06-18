@@ -29,84 +29,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProtobufParserFieldDescription
-    : public TProtobufFieldDescriptionBase
-{
-public:
-    TProtobufParserFieldDescription() = default;
-
-    explicit TProtobufParserFieldDescription(TProtobufFieldDescription description)
-        : TProtobufFieldDescriptionBase(std::move(description))
-        , Children_(std::move_iterator(description.Children.begin()), std::move_iterator(description.Children.end()))
-    {
-        // Setup field number to child index mapping.
-        int vectorSize = 0;
-        for (const auto& child : Children_) {
-            if (child.GetFieldNumber() < MaxFieldNumberVectorSize && vectorSize <= child.GetFieldNumber()) {
-                vectorSize = child.GetFieldNumber() + 1;
-            }
-        }
-
-        FieldNumberToChildIndexVector_.assign(vectorSize, InvalidChildIndex);
-        FieldNumberToChildIndexMap_.clear();
-
-        for (int childIndex = 0; childIndex < static_cast<int>(Children_.size()); ++childIndex) {
-            auto fieldNumber = Children_[childIndex].GetFieldNumber();
-            if (fieldNumber < vectorSize) {
-                FieldNumberToChildIndexVector_[fieldNumber] = childIndex;
-            } else {
-                FieldNumberToChildIndexMap_.emplace(fieldNumber, childIndex);
-            }
-        }
-        for (auto fieldNumber : IgnoredChildFieldNumbers) {
-            if (fieldNumber < vectorSize) {
-                FieldNumberToChildIndexVector_[fieldNumber] = IgnoredChildIndex;
-            } else {
-                FieldNumberToChildIndexMap_.emplace(fieldNumber, IgnoredChildIndex);
-            }
-        }
-    }
-
-    // Returns std::nullopt iff the field is ignored (missing from table schema).
-    // Throws an exception iff the field number is unknown.
-    std::optional<int> FieldNumberToChildIndex(int fieldNumber) const
-    {
-        int index;
-        if (fieldNumber < FieldNumberToChildIndexVector_.size()) {
-            index = FieldNumberToChildIndexVector_[fieldNumber];
-            if (Y_UNLIKELY(index == InvalidChildIndex)) {
-                THROW_ERROR_EXCEPTION("Unexpected field number %v", fieldNumber);
-            }
-        } else {
-            auto it = FieldNumberToChildIndexMap_.find(fieldNumber);
-            if (Y_UNLIKELY(it == FieldNumberToChildIndexMap_.end())) {
-                THROW_ERROR_EXCEPTION("Unexpected field number %v", fieldNumber);
-            }
-            index = it->second;
-        }
-        if (index == IgnoredChildIndex) {
-            return {};
-        }
-        return index;
-    }
-
-    const std::vector<TProtobufParserFieldDescription>& GetChildren() const
-    {
-        return Children_;
-    }
-
-private:
-    static constexpr int InvalidChildIndex = -1;
-    static constexpr int IgnoredChildIndex = -2;
-    static constexpr int MaxFieldNumberVectorSize = 256;
-
-    std::vector<TProtobufParserFieldDescription> Children_;
-    std::vector<int> FieldNumberToChildIndexVector_;
-    THashMap<int, int> FieldNumberToChildIndexMap_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TRowParser
 {
 public:
@@ -277,7 +199,7 @@ private:
 int ComputeDepth(const TProtobufParserFieldDescription& description)
 {
     int depth = 0;
-    for (const auto& child : description.GetChildren()) {
+    for (const auto& child : description.Children) {
         depth = std::max(depth, ComputeDepth(child) + 1);
     }
     return depth;
@@ -306,12 +228,14 @@ public:
     // the |tableIndex| parameter is for debugging purposes only.
     TProtobufParser(
         IValueConsumer* valueConsumer,
-        TProtobufFormatDescriptionPtr description,
+        TProtobufParserFormatDescriptionPtr description,
         int tableIndex,
         EComplexTypeMode complexTypeMode)
         : ValueConsumer_(valueConsumer)
         , Description_(std::move(description))
         , TableIndex_(tableIndex)
+        , RootChildColumnIds_(Description_->CreateRootChildColumnIds(ValueConsumer_->GetNameTable()))
+        , RootChildOutputFlags_(Description_->GetRootDescription().Children.size())
         // NB. We use ColumnConsumer_ to generate yson representation of complex types we don't want additional
         // conversions so we use Positional mode.
         // At the same time we use OtherColumnsConsumer_ to feed yson passed by users.
@@ -319,27 +243,7 @@ public:
         , ColumnConsumer_(EComplexTypeMode::Positional, valueConsumer)
         , OtherColumnsConsumer_(complexTypeMode, valueConsumer)
     {
-        YT_VERIFY(Description_->GetTableCount() == 1);
-        const auto& tableDescription = Description_->GetTableDescription(0);
-        const auto& columns = tableDescription.Columns;
-
-        auto nameTable = ValueConsumer_->GetNameTable();
-
-        TProtobufFieldDescription rootDescription;
-        for (const auto& [name, columnDescription] : columns) {
-            rootDescription.Children.push_back(columnDescription);
-            ChildColumnIds_.push_back(static_cast<ui16>(nameTable->GetIdOrRegisterName(columnDescription.Name)));
-        }
-
-        for (auto fieldNumber : tableDescription.IgnoredColumnFieldNumbers) {
-            rootDescription.IgnoredChildFieldNumbers.push_back(fieldNumber);
-        }
-
-        rootDescription.Type = EProtobufType::StructuredMessage;
-        rootDescription.StructElementCount = static_cast<int>(columns.size());
-        RootDescription_ = TProtobufParserFieldDescription(std::move(rootDescription));
-
-        FieldVectors_.resize(ComputeDepth(RootDescription_) + 1);
+        FieldVectors_.resize(ComputeDepth(Description_->GetRootDescription()) + 1);
     }
 
     void Read(TStringBuf data) override
@@ -416,7 +320,9 @@ private:
     void OutputRow(TStringBuf buffer)
     {
         ValueConsumer_->OnBeginRow();
-        ProcessStructuredMessage(buffer, RootDescription_, /* depth */ 0);
+        const auto& rootDescription = Description_->GetRootDescription();
+        RootChildOutputFlags_.assign(rootDescription.Children.size(), false);
+        ProcessStructuredMessage(buffer, rootDescription, /* depth */ 0);
         ValueConsumer_->OnEndRow();
     }
 
@@ -436,15 +342,13 @@ private:
                     continue;
                 }
                 auto childIndex = *maybeChildIndex;
-                const auto& childDescription = description.GetChildren()[childIndex];
-
+                const auto& childDescription = description.Children[childIndex];
                 if (Y_UNLIKELY(wireTag != childDescription.WireTag)) {
                     THROW_ERROR_EXCEPTION("Expected wire tag for field %Qv to be %v, got %v",
-                        childDescription.Name,
+                        childDescription.GetDebugString(),
                         childDescription.WireTag,
                         wireTag)
-                        << TErrorAttribute("field_number", fieldNumber)
-                        << TErrorAttribute("table_index", TableIndex_);
+                        << TErrorAttribute("field_number", fieldNumber);
                 }
 
                 if (childDescription.Packed) {
@@ -457,10 +361,12 @@ private:
                 }
             }
         } catch (const TErrorException& exception) {
-            THROW_ERROR_EXCEPTION(exception) << rowParser.GetContextErrorAttributes();
+            THROW_ERROR_EXCEPTION(exception)
+                << TErrorAttribute("table_index", TableIndex_)
+                << rowParser.GetContextErrorAttributes();
         }
 
-        CountingSorter_.Sort(&fields, static_cast<int>(description.GetChildren().size()));
+        CountingSorter_.Sort(&fields, static_cast<int>(description.Children.size()));
         OutputChildren(fields, description, depth);
     }
 
@@ -481,7 +387,8 @@ private:
             if (Y_UNLIKELY(std::distance(begin, end) > 1)) {
                 THROW_ERROR_EXCEPTION("Error parsing protobuf: found %v entries for non-repeated field %Qv",
                     std::distance(begin, end),
-                    childDescription.Name);
+                    childDescription.GetDebugString())
+                    << TErrorAttribute("table_index", TableIndex_);
             }
             OutputValue(begin->Value, childDescription, depth);
         }
@@ -494,44 +401,83 @@ private:
     {
         const auto inRoot = (depth == 0);
 
-        int structElementIndex = 0;
-        auto skipElements = [&](int targetIndex) {
+        auto skipElements = [&](int count) {
             if (inRoot) {
-                // structElementIndex is irrelevant for root level, so do nothing.
                 return;
             }
-            YT_VERIFY(structElementIndex <= targetIndex);
-            while (structElementIndex < targetIndex) {
+            YT_VERIFY(count >= 0);
+            for (int i = 0; i < count; ++i) {
                 ColumnConsumer_.OnEntity();
-                ++structElementIndex;
             }
         };
 
-        auto fieldIt = fields.cbegin();
-        auto childrenCount = description.GetChildren().size();
-        for (int childIndex = 0; childIndex < childrenCount; ++childIndex) {
-            if (inRoot) {
-                ColumnConsumer_.SetColumnIndex(ChildColumnIds_[childIndex]);
+        auto isStructFieldPresentOrLegallyMissing = [&] (int childIndex, int lastOutputStructFieldIndex) {
+            const auto& childDescription = description.Children[childIndex];
+            if (ShouldOutputValueImmediately(inRoot, childDescription) && RootChildOutputFlags_[childIndex]) {
+                // The value is already output.
+                return true;
             }
+            if (!childDescription.IsOneofAlternative()) {
+                return childDescription.Optional;
+            }
+            if (childDescription.Parent->Optional) {
+                return true;
+            }
+            if (lastOutputStructFieldIndex == childDescription.StructFieldIndex) {
+                // It is not missing.
+                return true;
+            }
+            if (childIndex + 1 == description.Children.size()) {
+                return false;
+            }
+            const auto& nextChildDescription = description.Children[childIndex + 1];
+            // The current alternative is missing, but the next one corresponds to the same field,
+            // so the check is deferred to the next alternative.
+            return childDescription.StructFieldIndex == nextChildDescription.StructFieldIndex;
+        };
 
-            const auto& childDescription = description.GetChildren()[childIndex];
-            skipElements(childDescription.StructElementIndex);
+        auto fieldIt = fields.cbegin();
+        auto childrenCount = static_cast<int>(description.Children.size());
+        auto lastOutputStructFieldIndex = -1;
+        for (int childIndex = 0; childIndex < childrenCount; ++childIndex) {
+            const auto& childDescription = description.Children[childIndex];
             auto fieldRangeBegin = fieldIt;
             while (fieldIt != fields.cend() && fieldIt->ChildIndex == childIndex) {
                 ++fieldIt;
             }
             if (fieldRangeBegin != fieldIt || (childDescription.Repeated && !childDescription.Optional)) {
-                OutputChild(fieldRangeBegin, fieldIt, childDescription, depth);
-            } else if (!inRoot) {
-                if (Y_UNLIKELY(!childDescription.Optional)) {
-                    THROW_ERROR_EXCEPTION("Error parsing protobuf: missing non-optional field %Qv",
-                        childDescription.Name);
+                if (Y_UNLIKELY(
+                    childDescription.IsOneofAlternative() &&
+                    lastOutputStructFieldIndex == childDescription.StructFieldIndex))
+                {
+                    auto parent = childDescription.Parent;
+                    YT_VERIFY(parent);
+                    THROW_ERROR_EXCEPTION(
+                        "Error parsing protobuf: multiple entries for oneof field %Qv; the second one is %Qv",
+                        parent->GetDebugString(),
+                        childDescription.GetDebugString())
+                        << TErrorAttribute("table_index", TableIndex_);
                 }
-                ColumnConsumer_.OnEntity();
+                skipElements(childDescription.StructFieldIndex - lastOutputStructFieldIndex - 1);
+                if (inRoot) {
+                    ColumnConsumer_.SetColumnIndex(RootChildColumnIds_[childIndex]);
+                    RootChildOutputFlags_[childIndex] = true;
+                }
+                OutputChild(fieldRangeBegin, fieldIt, childDescription, depth);
+                lastOutputStructFieldIndex = childDescription.StructFieldIndex;
+            } else {
+                if (Y_UNLIKELY(!isStructFieldPresentOrLegallyMissing(childIndex, lastOutputStructFieldIndex))) {
+                    const TProtobufParserFieldDescription* actualDescription = &childDescription;
+                    if (childDescription.IsOneofAlternative()) {
+                        actualDescription = childDescription.Parent;
+                        YT_VERIFY(actualDescription);
+                    }
+                    THROW_ERROR_EXCEPTION("Error parsing protobuf: required field %Qv is missing",
+                        actualDescription->GetDebugString());
+                }
             }
-            ++structElementIndex;
         }
-        skipElements(description.StructElementCount);
+        skipElements(description.StructFieldCount - lastOutputStructFieldIndex - 1);
     }
 
     Y_FORCE_INLINE void OutputValue(
@@ -539,6 +485,14 @@ private:
         const TProtobufParserFieldDescription& description,
         int depth)
     {
+        const auto inRoot = (depth == 0);
+
+        if (description.IsOneofAlternative()) {
+            ColumnConsumer_.OnBeginList();
+            ColumnConsumer_.OnListItem();
+            ColumnConsumer_.OnInt64Scalar(*description.AlternativeIndex);
+            ColumnConsumer_.OnListItem();
+        }
         switch (description.Type) {
             case EProtobufType::StructuredMessage:
                 YT_VERIFY(value.Type == EValueType::String);
@@ -547,11 +501,21 @@ private:
                 ColumnConsumer_.OnEndList();
                 break;
             case EProtobufType::OtherColumns:
-                NTableClient::UnversionedValueToYson(value, &OtherColumnsConsumer_);
+                UnversionedValueToYson(value, &OtherColumnsConsumer_);
+                break;
+            case EProtobufType::Any:
+                UnversionedValueToYson(value, &ColumnConsumer_);
                 break;
             default:
-                NTableClient::UnversionedValueToYson(value, &ColumnConsumer_);
+                if (ShouldOutputValueImmediately(inRoot, description)) {
+                    ValueConsumer_->OnValue(value);
+                } else {
+                    UnversionedValueToYson(value, &ColumnConsumer_);
+                }
                 break;
+        }
+        if (description.IsOneofAlternative()) {
+            ColumnConsumer_.OnEndList();
         }
     }
 
@@ -566,117 +530,83 @@ private:
         std::vector<TField>* fields)
     {
         const auto inRoot = (depth == 0);
-        const auto addToFields = (!inRoot || description.Repeated);
-        const auto id = (depth == 0) ? ChildColumnIds_[childIndex] : static_cast<ui16>(0);
-        TUnversionedValue value;
-        switch (description.Type) {
-            case EProtobufType::StructuredMessage:
-                value = MakeUnversionedStringValue(rowParser.ReadLengthDelimited(), id);
-                if (!addToFields) {
-                    if (inRoot) {
-                        ColumnConsumer_.SetColumnIndex(id);
-                    }
-                    ColumnConsumer_.OnBeginList();
-                    ProcessStructuredMessage(TStringBuf(value.Data.String, value.Length), description, depth + 1);
-                    ColumnConsumer_.OnEndList();
-                    return;
+        const auto id = inRoot ? RootChildColumnIds_[childIndex] : static_cast<ui16>(0);
+        auto value = [&] {
+            switch (description.Type) {
+                case EProtobufType::StructuredMessage:
+                    return MakeUnversionedStringValue(rowParser.ReadLengthDelimited(), id);
+                case EProtobufType::OtherColumns:
+                    return MakeUnversionedAnyValue(rowParser.ReadLengthDelimited(), id);
+                case EProtobufType::Any:
+                    return MakeUnversionedAnyValue(rowParser.ReadLengthDelimited(), id);
+                case EProtobufType::String:
+                case EProtobufType::Message:
+                case EProtobufType::Bytes:
+                    return MakeUnversionedStringValue(rowParser.ReadLengthDelimited(), id);
+                case EProtobufType::Uint64:
+                    return MakeUnversionedUint64Value(rowParser.ReadVarUint64(), id);
+                case EProtobufType::Uint32:
+                    return MakeUnversionedUint64Value(rowParser.ReadVarUint32(), id);
+                case EProtobufType::Int64:
+                    // Value is *not* zigzag encoded, so we use Uint64 intentionally.
+                    return MakeUnversionedInt64Value(rowParser.ReadVarUint64(), id);
+                case EProtobufType::EnumInt:
+                case EProtobufType::Int32:
+                    // Value is *not* zigzag encoded, so we use Uint64 intentionally.
+                    return MakeUnversionedInt64Value(rowParser.ReadVarUint64(), id);
+                case EProtobufType::Sint64:
+                    return MakeUnversionedInt64Value(rowParser.ReadVarSint64(), id);
+                case EProtobufType::Sint32:
+                    return MakeUnversionedInt64Value(rowParser.ReadVarSint32(), id);
+                case EProtobufType::Fixed64:
+                    return MakeUnversionedUint64Value(rowParser.ReadFixed<ui64>(), id);
+                case EProtobufType::Fixed32:
+                    return MakeUnversionedUint64Value(rowParser.ReadFixed<ui32>(), id);
+                case EProtobufType::Sfixed64:
+                    return MakeUnversionedInt64Value(rowParser.ReadFixed<i64>(), id);
+                case EProtobufType::Sfixed32:
+                    return MakeUnversionedInt64Value(rowParser.ReadFixed<i32>(), id);
+                case EProtobufType::Double:
+                    return MakeUnversionedDoubleValue(rowParser.ReadFixed<double>(), id);
+                case EProtobufType::Float:
+                    return MakeUnversionedDoubleValue(rowParser.ReadFixed<float>(), id);
+                case EProtobufType::Bool:
+                    return MakeUnversionedBooleanValue(rowParser.ReadVarUint64(), id);
+                case EProtobufType::EnumString: {
+                    auto enumValue = static_cast<i32>(rowParser.ReadVarUint64());
+                    YT_VERIFY(description.EnumerationDescription);
+                    const auto& enumString = description.EnumerationDescription->GetValueName(enumValue);
+                    return MakeUnversionedStringValue(enumString, id);
                 }
-                break;
-            case EProtobufType::OtherColumns:
-                value = MakeUnversionedAnyValue(rowParser.ReadLengthDelimited(), id);
-                if (!addToFields) {
-                    NTableClient::UnversionedValueToYson(value, &OtherColumnsConsumer_);
-                    return;
-                }
-                break;
-            case EProtobufType::Any:
-                value = MakeUnversionedAnyValue(rowParser.ReadLengthDelimited(), id);
-                if (!addToFields) {
-                    if (inRoot) {
-                        ColumnConsumer_.SetColumnIndex(id);
-                    }
-                    NTableClient::UnversionedValueToYson(value, &ColumnConsumer_);
-                    return;
-                }
-                break;
-            case EProtobufType::String:
-            case EProtobufType::Message:
-            case EProtobufType::Bytes:
-                value = MakeUnversionedStringValue(rowParser.ReadLengthDelimited(), id);
-                break;
-            case EProtobufType::Uint64:
-                value = MakeUnversionedUint64Value(rowParser.ReadVarUint64(), id);
-                break;
-            case EProtobufType::Uint32:
-                value = MakeUnversionedUint64Value(rowParser.ReadVarUint32(), id);
-                break;
-            case EProtobufType::Int64:
-                // Value is *not* zigzag encoded, so we use Uint64 intentionally.
-                value = MakeUnversionedInt64Value(rowParser.ReadVarUint64(), id);
-                break;
-            case EProtobufType::EnumInt:
-            case EProtobufType::Int32:
-                // Value is *not* zigzag encoded, so we use Uint64 intentionally.
-                value = MakeUnversionedInt64Value(rowParser.ReadVarUint64(), id);
-                break;
-            case EProtobufType::Sint64:
-                value = MakeUnversionedInt64Value(rowParser.ReadVarSint64(), id);
-                break;
-            case EProtobufType::Sint32:
-                value = MakeUnversionedInt64Value(rowParser.ReadVarSint32(), id);
-                break;
-            case EProtobufType::Fixed64:
-                value = MakeUnversionedUint64Value(rowParser.ReadFixed<ui64>(), id);
-                break;
-            case EProtobufType::Fixed32:
-                value = MakeUnversionedUint64Value(rowParser.ReadFixed<ui32>(), id);
-                break;
-            case EProtobufType::Sfixed64:
-                value = MakeUnversionedInt64Value(rowParser.ReadFixed<i64>(), id);
-                break;
-            case EProtobufType::Sfixed32:
-                value = MakeUnversionedInt64Value(rowParser.ReadFixed<i32>(), id);
-                break;
-            case EProtobufType::Double:
-                value = MakeUnversionedDoubleValue(rowParser.ReadFixed<double>(), id);
-                break;
-            case EProtobufType::Float:
-                value = MakeUnversionedDoubleValue(rowParser.ReadFixed<float>(), id);
-                break;
-            case EProtobufType::Bool:
-                value = MakeUnversionedBooleanValue(rowParser.ReadVarUint64(), id);
-                break;
-            case EProtobufType::EnumString: {
-                auto enumValue = static_cast<i32>(rowParser.ReadVarUint64());
-                YT_VERIFY(description.EnumerationDescription);
-                const auto& enumString = description.EnumerationDescription->GetValueName(enumValue);
-                value = MakeUnversionedStringValue(enumString, id);
-                break;
+                case EProtobufType::Oneof:
+                    THROW_ERROR_EXCEPTION("Oneof inside oneof is not supported in protobuf format; offending field %Qv",
+                        description.GetDebugString())
+                        << TErrorAttribute("table_index", TableIndex_);
             }
-            default: {
-                auto fieldNumber = WireFormatLite::GetTagFieldNumber(static_cast<ui32>(description.WireTag));
-                THROW_ERROR_EXCEPTION("Field has invalid type %Qlv",
-                    description.Type)
-                    << TErrorAttribute("field_number", fieldNumber)
-                    << TErrorAttribute("table_index", TableIndex_)
-                    << rowParser.GetContextErrorAttributes();
-            }
-        }
-        if (addToFields) {
-            fields->push_back({value, childIndex});
+            YT_ABORT();
+        }();
+        if (ShouldOutputValueImmediately(inRoot, description)) {
+            ColumnConsumer_.SetColumnIndex(id);
+            RootChildOutputFlags_[childIndex] = true;
+            OutputValue(value, description, depth);
         } else {
-            ValueConsumer_->OnValue(value);
+            fields->push_back({value, childIndex});
         }
+    }
+
+    Y_FORCE_INLINE static bool ShouldOutputValueImmediately(bool inRoot, const TProtobufParserFieldDescription& description)
+    {
+        return inRoot && !description.Repeated && !description.IsOneofAlternative();
     }
 
 private:
     IValueConsumer* const ValueConsumer_;
 
-    TProtobufFormatDescriptionPtr Description_;
+    TProtobufParserFormatDescriptionPtr Description_;
     int TableIndex_;
 
-    TProtobufParserFieldDescription RootDescription_;
-    std::vector<ui16> ChildColumnIds_;
+    std::vector<ui16> RootChildColumnIds_;
+    std::vector<bool> RootChildOutputFlags_;
 
     TYsonToUnversionedValueConverter ColumnConsumer_;
     TYsonMapToUnversionedValueConverter OtherColumnsConsumer_;
@@ -702,7 +632,6 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
     TProtobufFormatConfigPtr config,
     int tableIndex)
 {
-    auto formatDescription = New<TProtobufFormatDescription>();
     bool newFormat = !config->Tables.empty();
     if (newFormat) {
         // Retain only one table config, as we have only one schema here.
@@ -713,10 +642,8 @@ std::unique_ptr<IParser> CreateParserForProtobuf(
         }
         config->Tables = {config->Tables[tableIndex]};
     }
-    formatDescription->Init(
-        config,
-        {consumer->GetSchema()},
-        /* validateMissingFieldsOptionality */ true);
+    auto formatDescription = New<TProtobufParserFormatDescription>();
+    formatDescription->Init(config, {consumer->GetSchema()});
     return std::make_unique<TProtobufParser>(
         consumer,
         formatDescription,
