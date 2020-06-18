@@ -998,7 +998,7 @@ echo {v = 2} >&7
         assert job_indexes[1] == 4
         assert get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/join_reduce/sum".format(op.id)) == len(result) - 2
 
-    @authors("klyachin")
+    @authors("psushin")
     def test_join_reduce_job_splitter(self):
         create("table", "//tmp/in_1")
         for j in range(20):
@@ -1020,20 +1020,21 @@ echo {v = 2} >&7
                     "block_size": 1024,
                 })
 
-        input_ = ["<foreign=true>//tmp/in_2"] + ["//tmp/in_1"]
+        input_ = ["<foreign=true>//tmp/in_2", "//tmp/in_1"]
         output = "//tmp/output"
         create("table", output)
 
-        command="""
+        command=with_breakpoint("""
+if [ "$YT_JOB_INDEX" == 0 ]; then
+    BREAKPOINT        
+fi
 while read ROW; do
     if [ "$YT_JOB_INDEX" == 0 ]; then
-        sleep 2
-    else
-        sleep 0.2
+        sleep 3
     fi
     echo "$ROW"
 done
-"""
+""")
 
         op = join_reduce(
             track=False,
@@ -1053,6 +1054,9 @@ done
                 },
             })
 
+        wait_breakpoint(job_count=1)
+        wait(lambda: op.get_job_count("completed") >= 4)
+        release_breakpoint()
         op.track()
 
         completed = get(op.get_path() + "/@progress/jobs/completed")
