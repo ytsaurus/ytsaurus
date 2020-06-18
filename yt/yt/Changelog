@@ -6,6 +6,7 @@
 #    yt/server/master/cell_master/serialize.cpp - if the version differs, then the update should be done with master snapshots (+ --set-read-only).
 #    yt/server/node/tablet_node/serialize.cpp - if the version differs, then the update should be done with tablet cell recreation.
 
+* shakurov: Unconditionally opaque portal entrances. Update masters via snapshot.
 * s-v-m: Added subject aliases. Update masters via snapshot.
 * shakurov: YT-13015. Update masters via snapshot.
 * gritukan: Master config changed. Update masters via snapshot.

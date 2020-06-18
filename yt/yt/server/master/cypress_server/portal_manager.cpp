@@ -29,6 +29,7 @@ namespace NYT::NCypressServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NHydra;
+using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NObjectClient;
 using namespace NSecurityServer;
@@ -151,6 +152,8 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    // COMPAT(shakurov)
+    bool NeedMakePortalEntrancesOpaque_ = false;
 
     void SaveKeys(NCellMaster::TSaveContext& /*context*/) const
     { }
@@ -175,6 +178,9 @@ private:
         using NYT::Load;
         Load(context, EntranceNodes_);
         Load(context, ExitNodes_);
+
+        // COMPAT(shakurov)
+        NeedMakePortalEntrancesOpaque_ = context.GetVersion() < EMasterReign::OpaquePortalEntrances;
     }
 
     virtual void Clear() override
@@ -185,6 +191,27 @@ private:
 
         EntranceNodes_.clear();
         ExitNodes_.clear();
+    }
+
+    virtual void OnBeforeSnapshotLoaded() override
+    {
+        TMasterAutomatonPart::OnBeforeSnapshotLoaded();
+
+        NeedMakePortalEntrancesOpaque_ = false;
+    }
+
+    virtual void OnAfterSnapshotLoaded() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnAfterSnapshotLoaded();
+
+        // COMPAT(shakurov)
+        if (NeedMakePortalEntrancesOpaque_) {
+            for (auto [nodeId, node] : EntranceNodes_) {
+                node->SetOpaque(true);
+            }
+        }
     }
 
 
