@@ -73,12 +73,12 @@ public:
 
     virtual bool IsFetchingCompleted() const override
     {
-        YT_ABORT();
+        return UnderlyingReader_->IsFetchingCompleted();
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        YT_ABORT();
+        return UnderlyingReader_->GetFailedChunkIds();
     }
 
 private:
