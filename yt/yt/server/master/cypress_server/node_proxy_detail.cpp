@@ -1618,7 +1618,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
 
     auto* node = GetThisImpl();
 
-    ValidatePermission(node, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::Read);
+    ValidatePermission(node, EPermissionCheckScope::This | EPermissionCheckScope::Descendants, EPermission::FullRead);
 
     TBeginCopyContext copyContext(
         Transaction_,

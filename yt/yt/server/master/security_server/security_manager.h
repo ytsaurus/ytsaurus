@@ -310,14 +310,14 @@ public:
         NObjectServer::TObject* object,
         TUser* user,
         EPermission permission,
-        const TPermissionCheckOptions& options = {});
+        TPermissionCheckOptions options = {});
 
     //! Checks if given ACL allows access with #permission.
     TPermissionCheckResponse CheckPermission(
         TUser* user,
         EPermission permission,
         const TAccessControlList& acl,
-        const TPermissionCheckOptions& options = {});
+        TPermissionCheckOptions options = {});
 
     //! Similar to #CheckPermission but throws a human-readable exception on failure.
     /*!
@@ -327,13 +327,13 @@ public:
         NObjectServer::TObject* object,
         TUser* user,
         EPermission permission,
-        const TPermissionCheckOptions& options = {});
+        TPermissionCheckOptions options = {});
 
     //! Another overload that uses the current user.
     void ValidatePermission(
         NObjectServer::TObject* object,
         EPermission permission,
-        const TPermissionCheckOptions& options = {});
+        TPermissionCheckOptions options = {});
 
     //! If #result is denying then logs a record into a security log and throw an exception.
     void LogAndThrowAuthorizationError(

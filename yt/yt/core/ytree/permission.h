@@ -16,6 +16,9 @@ DEFINE_BIT_ENUM(EPermission,
     //! Applies to: all objects
     ((Read)           (0x0001))
 
+    //! Applies to: tables; same as Read for all other objects
+    ((FullRead)       (0x2000))
+
     //! Applies to: all objects
     ((Write)          (0x0002))
 

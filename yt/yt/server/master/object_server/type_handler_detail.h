@@ -97,6 +97,11 @@ public:
         return DoFindAcd(object->As<TImpl>());
     }
 
+    virtual std::optional<std::vector<TString>> ListColumns(TObject* object) override
+    {
+        return DoListColumns(object->As<TImpl>());
+    }
+
     virtual TObject* GetParent(TObject* object) override
     {
         return DoGetParent(object->As<TImpl>());
@@ -154,6 +159,11 @@ protected:
     virtual NSecurityServer::TAccessControlDescriptor* DoFindAcd(TImpl* /*object*/)
     {
         return nullptr;
+    }
+
+    virtual std::optional<std::vector<TString>> DoListColumns(TImpl* /*object*/)
+    {
+        return std::nullopt;
     }
 
     virtual TObject* DoGetParent(TImpl* /*object*/)

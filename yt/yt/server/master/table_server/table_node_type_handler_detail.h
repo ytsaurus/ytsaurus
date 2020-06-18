@@ -52,6 +52,8 @@ protected:
         TImpl* node,
         NCypressServer::TEndCopyContext* context,
         NCypressServer::ICypressNodeFactory* factory) override;
+
+    virtual std::optional<std::vector<TString>> DoListColumns(TImpl* node) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

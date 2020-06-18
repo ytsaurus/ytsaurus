@@ -368,6 +368,23 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TSt
     return TBase::IsSupportedInheritableAttribute(key);
 }
 
+template <class TImpl>
+std::optional<std::vector<TString>> TTableNodeTypeHandlerBase<TImpl>::DoListColumns(TImpl* node) const
+{
+    const auto& sharedSchema = node->SharedTableSchema();
+    if (!sharedSchema) {
+        return std::nullopt;
+    }
+
+    const auto& schema = sharedSchema->GetTableSchema();
+    std::vector<TString> result;
+    result.reserve(schema.Columns().size());
+    for (const auto& column : schema.Columns()) {
+        result.push_back(column.Name());
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 EObjectType TTableNodeTypeHandler::GetObjectType() const
