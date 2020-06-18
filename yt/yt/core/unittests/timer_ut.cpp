@@ -63,8 +63,8 @@ TEST_F(TTimerTest, CpuWallCompare)
     .Get();
 
     EXPECT_LT(cpu, 10 * 1000);
-    EXPECT_GT(wall, 90 * 1000);
-    EXPECT_LT(wall, 110 * 1000);
+    EXPECT_GT(wall, 80 * 1000);
+    EXPECT_LT(wall, 120 * 1000);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
