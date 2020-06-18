@@ -527,9 +527,10 @@ private:
 
         if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {
 #ifdef _asan_enabled_
-            THROW_ERROR_EXCEPTION("Core dumps are not allowed in ASAN build");
-#endif
+            YT_LOG_WARNING("Core dumps are not allowed in ASAN build");
+#else
             Process_->AddArgument("--enable-core-dump");
+#endif
         }
 
         // Init environment variables.
