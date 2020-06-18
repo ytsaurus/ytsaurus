@@ -570,6 +570,27 @@ const IChunkPoolInputPtr& TOperationControllerBase::GetSink()
     return Sink_;
 }
 
+void TOperationControllerBase::ValidateIntermediateDataAccountPermission(EPermission permission) const
+{
+    auto user = AuthenticatedUser;
+    auto account = Spec_->IntermediateDataAccount;
+
+    const auto& client = Host->GetClient();
+    auto asyncResult = client->CheckPermission(
+        user,
+        "//sys/accounts/" + account,
+        permission);
+    auto result = WaitFor(asyncResult)
+        .ValueOrThrow();
+
+    if (result.Action == ESecurityAction::Deny) {
+        THROW_ERROR_EXCEPTION("User %Qv has been denied %Qv access to intermediate account %Qv",
+            user,
+            permission,
+            account);
+    }
+}
+
 std::vector<TTransactionId> TOperationControllerBase::GetNonTrivialInputTransactionIds()
 {
     // NB: keep it sync with InitializeStructures.
@@ -1506,6 +1527,12 @@ std::vector<TEdgeDescriptor> TOperationControllerBase::GetAutoMergeEdgeDescripto
     auto edgeDescriptors = GetStandardEdgeDescriptors();
     YT_VERIFY(GetAutoMergeDirector());
 
+    std::optional<TString> intermediateDataAccount;
+    if (Spec_->AutoMerge->UseIntermediateDataAccount) {
+        ValidateIntermediateDataAccountPermission(EPermission::Use);
+        intermediateDataAccount = Spec_->IntermediateDataAccount;
+    }
+
     int autoMergeTaskTableIndex = 0;
     for (int index = 0; index < edgeDescriptors.size(); ++index) {
         if (AutoMergeEnabled_[index]) {
@@ -1516,6 +1543,9 @@ std::vector<TEdgeDescriptor> TOperationControllerBase::GetAutoMergeEdgeDescripto
             edgeDescriptors[index].IsFinalOutput = false;
             edgeDescriptors[index].TargetDescriptor = AutoMergeTask_->GetVertexDescriptor();
             edgeDescriptors[index].PartitionTag = autoMergeTaskTableIndex++;
+            if (intermediateDataAccount) {
+                edgeDescriptors[index].TableWriterOptions->Account = *intermediateDataAccount;
+            }
         }
     }
     return edgeDescriptors;

@@ -923,6 +923,8 @@ protected:
 
     const NChunkPools::IChunkPoolInputPtr& GetSink();
 
+    void ValidateIntermediateDataAccountPermission(NYTree::EPermission permission) const;
+
     //! One output table can have row_count_limit attribute in operation.
     std::optional<int> RowCountLimitTableIndex;
     i64 RowCountLimit = std::numeric_limits<i64>::max();
