@@ -1090,4 +1090,11 @@ class TestResolveCache(YTEnvSetup):
         assert get("//tmp/dir1/dir2b/@resolve_cached")
         assert get("//tmp/dir1/dir2b/p&/@resolve_cached")
 
-
+    @authors("s-v-m")
+    def test_link_through_portal(self):
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
+        create("table", "//tmp/p/t")
+        link("//tmp/p/t-non-existing", "//tmp/l-bad")
+        assert get("//tmp/l-bad&/@broken")
+        link("//tmp/p/t", "//tmp/l-ok")
+        assert not get("//tmp/l-ok&/@broken")

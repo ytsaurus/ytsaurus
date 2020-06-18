@@ -100,11 +100,6 @@ private:
                 return true;
             }
 
-            case EInternedAttributeKey::Broken:
-                BuildYsonFluently(consumer)
-                    .Value(IsBroken());
-                return true;
-
             default:
                 break;
         }
@@ -112,22 +107,33 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    bool IsBroken() const
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
-        try {
-            const auto* linkNode = GetThisImpl();
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->ResolvePathToObject(
-                linkNode->ComputeEffectiveTargetPath(),
-                Transaction_,
-                TObjectManager::TResolvePathOptions{
-                    .EnablePartialResolve = false,
-                    .FollowPortals = false
-                });
-            return false;
-        } catch (const std::exception&) {
-            return true;
+        switch (key) {
+            case EInternedAttributeKey::Broken:
+                return IsBroken().Apply(BIND([] (bool result) {
+                    return ConvertToYsonString(result);
+                }));
+
+            default:
+                break;
         }
+
+        return TBase::GetBuiltinAttributeAsync(key);
+    }
+
+    TFuture<bool> IsBroken() const
+    {
+        const auto* linkNode = GetThisImpl();
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto req = TYPathProxy::Exists(linkNode->ComputeEffectiveTargetPath());
+        auto rsp = ExecuteVerb(objectManager->GetRootService(), req);
+        return rsp.Apply(BIND([] (const TYPathProxy::TErrorOrRspExistsPtr& rspOrError) {
+            if (!rspOrError.IsOK()) {
+                return TrueFuture;
+            }
+            return MakeFuture(!rspOrError.Value()->value());
+        }));
     }
 };
 
