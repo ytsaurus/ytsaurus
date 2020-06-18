@@ -64,10 +64,10 @@ void THierarchicPermissionValidator<TObject>::ValidateCopyFromSourcePermissions(
     ValidatePermission(
         sourceImpl,
         NYTree::EPermissionCheckScope::This | NYTree::EPermissionCheckScope::Descendants,
-        NYTree::EPermission::Read);
+        NYTree::EPermission::FullRead);
 
     if (mode == NCypressClient::ENodeCloneMode::Move) {
-        // NB(kiselyovp): passing a disjunction of check scopes to ValidatePermission makes it
+        // NB: passing a disjunction of check scopes to ValidatePermission makes it
         // check multiple scopes but doing the same for permissions checks that at least one
         // of them is valid.
         ValidatePermission(

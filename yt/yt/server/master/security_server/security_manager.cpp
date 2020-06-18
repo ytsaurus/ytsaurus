@@ -119,7 +119,7 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     NRpc::TAuthenticationIdentity identity)
 {
     User_ = securityManager->GetUserByNameOrThrow(identity.User);
-    
+
     securityManager->SetAuthenticatedUser(User_);
     SecurityManager_ = std::move(securityManager);
 
@@ -1353,11 +1353,18 @@ public:
         TObject* object,
         TUser* user,
         EPermission permission,
-        const TPermissionCheckOptions& options = {})
+        TPermissionCheckOptions options = {})
     {
         if (IsVersionedType(object->GetType()) && object->IsForeign()) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), "Checking permission for a versioned foreign object (ObjectId: %v)",
                 object->GetId());
+        }
+
+        if (permission == EPermission::FullRead) {
+            YT_VERIFY(!options.Columns);
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& handler = objectManager->GetHandler(object);
+            options.Columns = handler->ListColumns(object);
         }
 
         TPermissionChecker checker(
@@ -1428,7 +1435,7 @@ public:
         TUser* user,
         EPermission permission,
         const TAccessControlList& acl,
-        const TPermissionCheckOptions& options = {})
+        TPermissionCheckOptions options = {})
     {
         TPermissionChecker checker(
             this,
@@ -1454,7 +1461,7 @@ public:
         TObject* object,
         TUser* user,
         EPermission permission,
-        const TPermissionCheckOptions& options = {})
+        TPermissionCheckOptions options = {})
     {
         if (IsHiveMutation()) {
             return;
@@ -1462,7 +1469,7 @@ public:
 
         YT_VERIFY(!options.Columns);
 
-        auto response = CheckPermission(object, user, permission, options);
+        auto response = CheckPermission(object, user, permission, std::move(options));
         if (response.Action == ESecurityAction::Allow) {
             return;
         }
@@ -1479,13 +1486,13 @@ public:
     void ValidatePermission(
         TObject* object,
         EPermission permission,
-        const TPermissionCheckOptions& options = {})
+        TPermissionCheckOptions options = {})
     {
         ValidatePermission(
             object,
             GetAuthenticatedUser(),
             permission,
-            options);
+            std::move(options));
     }
 
     void LogAndThrowAuthorizationError(
@@ -3102,7 +3109,10 @@ private:
             const TPermissionCheckOptions& options)
             : Impl_(impl)
             , User_(user)
-            , Permission_(permission)
+            , FullRead_(CheckPermissionMatch(permission, EPermission::FullRead))
+            , Permission_(FullRead_
+                ? (permission ^ EPermission::FullRead) | EPermission::Read
+                : permission)
             , Options_(options)
         {
             auto fastAction = FastCheckPermission();
@@ -3174,11 +3184,16 @@ private:
                         if (it == ColumnToResult_.end()) {
                             continue;
                         }
+                        auto& columnResult = it->second;
                         ProcessMatchingAce(
-                            &it->second,
+                            &columnResult,
                             ace,
                             adjustedSubject,
                             object);
+                        if (FullRead_ && columnResult.Action == ESecurityAction::Deny) {
+                            SetDeny(adjustedSubject, object);
+                            break;
+                        }
                     }
                 } else {
                     ProcessMatchingAce(
@@ -3206,6 +3221,7 @@ private:
 
             if (Response_.Action == ESecurityAction::Allow && Options_.Columns) {
                 Response_.Columns = std::vector<TPermissionCheckResult>(Options_.Columns->size());
+                std::optional<TPermissionCheckResult> deniedColumnResult;
                 for (size_t index = 0; index < Options_.Columns->size(); ++index) {
                     const auto& column = (*Options_.Columns)[index];
                     auto& result = (*Response_.Columns)[index];
@@ -3216,8 +3232,15 @@ private:
                         result = it->second;
                         if (result.Action == ESecurityAction::Undefined) {
                             result.Action = ESecurityAction::Deny;
+                            if (!deniedColumnResult) {
+                                deniedColumnResult = result;
+                            }
                         }
                     }
+                }
+
+                if (FullRead_ && deniedColumnResult) {
+                    SetDeny(deniedColumnResult->Subject, deniedColumnResult->Object);
                 }
             }
 
@@ -3227,6 +3250,7 @@ private:
     private:
         TImpl* const Impl_;
         TUser* const User_;
+        const bool FullRead_;
         const EPermission Permission_;
         const TPermissionCheckOptions& Options_;
 
@@ -3859,50 +3883,50 @@ TPermissionCheckResponse TSecurityManager::CheckPermission(
     TObject* object,
     TUser* user,
     EPermission permission,
-    const TPermissionCheckOptions& options)
+    TPermissionCheckOptions options)
 {
     return Impl_->CheckPermission(
         object,
         user,
         permission,
-        options);
+        std::move(options));
 }
 
 TPermissionCheckResponse TSecurityManager::CheckPermission(
     TUser* user,
     EPermission permission,
     const TAccessControlList& acl,
-    const TPermissionCheckOptions& options)
+    TPermissionCheckOptions options)
 {
     return Impl_->CheckPermission(
         user,
         permission,
         acl,
-        options);
+        std::move(options));
 }
 
 void TSecurityManager::ValidatePermission(
     TObject* object,
     TUser* user,
     EPermission permission,
-    const TPermissionCheckOptions& options)
+    TPermissionCheckOptions options)
 {
     Impl_->ValidatePermission(
         object,
         user,
         permission,
-        options);
+        std::move(options));
 }
 
 void TSecurityManager::ValidatePermission(
     TObject* object,
     EPermission permission,
-    const TPermissionCheckOptions& options)
+    TPermissionCheckOptions options)
 {
     Impl_->ValidatePermission(
         object,
         permission,
-        options);
+        std::move(options));
 }
 
 void TSecurityManager::LogAndThrowAuthorizationError(

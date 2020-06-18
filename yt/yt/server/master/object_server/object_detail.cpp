@@ -194,7 +194,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
 
     auto* user = securityManager->GetUserByNameOrThrow(userName);
 
-    auto checkResponse = securityManager->CheckPermission(Object_, user, permission, checkOptions);
+    auto checkResponse = securityManager->CheckPermission(Object_, user, permission, std::move(checkOptions));
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
 

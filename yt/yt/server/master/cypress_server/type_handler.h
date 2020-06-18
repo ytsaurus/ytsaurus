@@ -136,6 +136,8 @@ struct INodeTypeHandler
         TNodeId hintId,
         ENodeCloneMode mode,
         NSecurityServer::TAccount* account) = 0;
+
+    virtual std::optional<std::vector<TString>> ListColumns(TCypressNode* node) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(INodeTypeHandler)

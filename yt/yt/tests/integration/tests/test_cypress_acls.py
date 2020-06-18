@@ -1102,6 +1102,43 @@ class TestCypressAcls(CheckPermissionBase):
 
         assert check_permission("u", "read", "#" + table_id)["action"] == "allow"
 
+    def _test_columnar_acl_copy_yt_12749(self, src_dir, dst_dir):
+        create("table", src_dir + "/t1", attributes={
+            "schema": [
+                {"name": "a", "type": "string"},
+                {"name": "b", "type": "string"},
+            ],
+            "acl": [
+                make_ace("deny", "u1", "read", columns="b"),
+            ]})
+
+        create("table", src_dir + "/t2", attributes={
+            "schema": [
+                {"name": "a", "type": "string"},
+                {"name": "b", "type": "string"},
+            ],
+            "acl": [
+                make_ace("allow", "u2", "read", columns="b"),
+            ]})
+
+        # Explicitly denied.
+        with pytest.raises(YtError):
+            copy(src_dir + "/t1", dst_dir + "/t1_copy", authenticated_user="u1")
+
+        # No matching ACE.
+        with pytest.raises(YtError):
+            copy(src_dir + "/t2", dst_dir + "/t2_copy", authenticated_user="u1")
+
+        remove(src_dir + "/t1")
+        remove(src_dir + "/t2")
+
+    @authors("shakurov")
+    def test_columnar_acl_copy_yt_12749(self):
+        create_user("u1")
+        create_user("u2")
+
+        self._test_columnar_acl_copy_yt_12749("//tmp", "//tmp")
+
 ##################################################################
 
 class TestCypressAclsMulticell(TestCypressAcls):
@@ -1113,4 +1150,20 @@ class TestCheckPermissionRpcProxy(CheckPermissionBase):
     ENABLE_RPC_PROXY = True
 
 class TestCypressAclsPortal(TestCypressAclsMulticell):
+    NUM_SECONDARY_MASTER_CELLS = 3
     ENABLE_TMP_PORTAL = True
+
+    @authors("shakurov")
+    def test_columnar_acl_copy_yt_12749(self):
+        set("//sys/@config/multicell_manager/cell_roles",
+            {
+                "1": ["cypress_node_host"],
+                "2": ["cypress_node_host"],
+                "3": ["chunk_host"]
+            })
+
+        super(TestCypressAclsPortal, self).test_columnar_acl_copy_yt_12749()
+
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
+        self._test_columnar_acl_copy_yt_12749("//tmp", "//tmp/p")
+        self._test_columnar_acl_copy_yt_12749("//tmp/p", "//tmp")

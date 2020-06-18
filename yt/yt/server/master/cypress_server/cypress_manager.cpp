@@ -681,6 +681,11 @@ private:
         return &node->GetTrunkNode()->Acd();
     }
 
+    virtual std::optional<std::vector<TString>> DoListColumns(TCypressNode* node) override
+    {
+        return UnderlyingHandler_->ListColumns(node);
+    }
+
     virtual TObject* DoGetParent(TCypressNode* node) override
     {
         return node->GetParent();

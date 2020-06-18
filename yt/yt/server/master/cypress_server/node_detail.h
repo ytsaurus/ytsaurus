@@ -287,6 +287,11 @@ public:
             branchedNode->template As<TImpl>());
     }
 
+    virtual std::optional<std::vector<TString>> ListColumns(TCypressNode* node) const override
+    {
+        return DoListColumns(node->template As<TImpl>());
+    }
+
 protected:
     virtual ICypressNodeProxyPtr DoGetProxy(
         TImpl* trunkNode,
@@ -406,6 +411,11 @@ protected:
         TImpl* /*branchedNode*/)
     {
         return false;
+    }
+
+    virtual std::optional<std::vector<TString>> DoListColumns(TImpl* /*node*/) const
+    {
+        return std::nullopt;
     }
 };
 
