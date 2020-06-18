@@ -121,38 +121,49 @@ void TMultiReaderManagerBase::OpenNextReaders()
 {
     TGuard<TSpinLock> guard(PrefetchLock_);
 
-    for (; PrefetchIndex_ < ReaderFactories_.size(); ++PrefetchIndex_) {
-        if (!ReaderFactories_[PrefetchIndex_]->CanCreateReader() &&
-            ActiveReaderCount_ > 0 &&
-            !Options_->KeepInMemory)
-        {
-            return;
-        }
-
-        if (ActiveReaderCount_ >= Config_->MaxParallelReaders) {
-            return;
-        }
-
-        ++ActiveReaderCount_;
-
-        YT_LOG_DEBUG("Creating next reader (Index: %v, ActiveReaderCount: %v)",
-            PrefetchIndex_,
-            ActiveReaderCount_.load());
-        
-        ReaderInvoker_->Invoke(BIND(
-            &TMultiReaderManagerBase::DoOpenReader,	
-            MakeWeak(this),	
-            PrefetchIndex_));
+    if (PrefetchIndex_ >= ReaderFactories_.size()) {
+        return;
     }
+
+    if (CreatingReader_) {
+        return;
+    }
+    
+    if (!ReaderFactories_[PrefetchIndex_]->CanCreateReader() &&
+        ActiveReaderCount_ > 0 &&
+        !Options_->KeepInMemory)
+    {
+        return;
+    }
+
+    if (ActiveReaderCount_ >= Config_->MaxParallelReaders) {
+        return;
+    }
+
+    ++ActiveReaderCount_;
+
+    YT_LOG_DEBUG("Scheduling next reader creation (Index: %v, ActiveReaderCount: %v)",
+        PrefetchIndex_,
+        ActiveReaderCount_.load());
+        
+    ReaderInvoker_->Invoke(
+        BIND(&TMultiReaderManagerBase::DoCreateReader, MakeWeak(this), PrefetchIndex_));
+
+    ++PrefetchIndex_;
 }
 
-void TMultiReaderManagerBase::DoOpenReader(int index)
+void TMultiReaderManagerBase::OnNextReaderCreated(const TError& /*error*/)
+{
+    OpenNextReaders();
+}
+
+void TMultiReaderManagerBase::DoCreateReader(int index)
 {
     if (CompletionError_.IsSet()) {
         return;
     }
 
-    YT_LOG_DEBUG("Opening reader (Index: %v)", index);
+    YT_LOG_DEBUG("Creating reader (Index: %v)", index);
 
     try {
         // NB: MakeStrong here delays MultiReaderMemoryManager finalization until child reader is fully created.
@@ -160,7 +171,7 @@ void TMultiReaderManagerBase::DoOpenReader(int index)
             .Subscribe(BIND(&TMultiReaderManagerBase::OnReaderCreated, MakeStrong(this), index)
                 .Via(ReaderInvoker_));
     } catch (const std::exception& ex) {
-        OnReaderReady(nullptr, index, ex);
+        OnReaderCreated(index, ex);
     }
 }
 
@@ -172,6 +183,13 @@ void TMultiReaderManagerBase::OnReaderCreated(
         return;
     }
 
+    {
+        auto guard = Guard(PrefetchLock_);
+        CreatingReader_ = false;
+    }
+
+    OpenNextReaders();
+
     if (!readerOrError.IsOK()) {
         std::vector<TChunkId> chunkIds;
         const auto& descriptor = ReaderFactories_[index]->GetDataSliceDescriptor();
@@ -179,7 +197,7 @@ void TMultiReaderManagerBase::OnReaderCreated(
             chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
         }
         
-        YT_LOG_WARNING(readerOrError, "Failed to open reader (Index: %v, ChunkIds: %v)",
+        YT_LOG_WARNING(readerOrError, "Failed to create reader (Index: %v, ChunkIds: %v)",
             index,
             chunkIds);
         
