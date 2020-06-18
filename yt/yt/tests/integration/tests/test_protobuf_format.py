@@ -380,6 +380,20 @@ SCHEMA = [
         "name": "packed_repeated_int8",
         "type_v3": list_type("int8"),
     },
+    {
+        "name": "variant",
+        "type_v3": optional_type(variant_struct_type([
+            ("f1", "int8"),
+            ("f2", "int8"),
+            ("f3", struct_type([
+                ("var", optional_type(variant_struct_type([
+                    ("g1", "string"),
+                    ("g2", "string"),
+                ]))),
+                ("list_of_ints", optional_type(list_type("int64"))),
+            ])),
+        ])),
+    },
 ]
 
 SCHEMAFUL_TABLE_PROTOBUF_CONFIG = {
@@ -485,6 +499,53 @@ SCHEMAFUL_TABLE_PROTOBUF_CONFIG = {
             "proto_type": "int64",
             "repeated": True,
         },
+        {
+            "name": "variant",
+            "field_number": 0,
+            "proto_type": "oneof",
+            "fields": [
+                {
+                    "name": "f1",
+                    "field_number": 1001,
+                    "proto_type": "int32",
+                },
+                {
+                    "name": "f2",
+                    "field_number": 1002,
+                    "proto_type": "sfixed64",
+                },
+                {
+                    "name": "f3",
+                    "field_number": 1111,
+                    "proto_type": "structured_message",
+                    "fields": [
+                        {
+                            "name": "var",
+                            "field_number": 0,
+                            "proto_type": "oneof",
+                            "fields": [
+                                {
+                                    "name": "g1",
+                                    "field_number": 1,
+                                    "proto_type": "string",
+                                },
+                                {
+                                    "name": "g2",
+                                    "field_number": 2,
+                                    "proto_type": "string",
+                                },
+                            ]
+                        },
+                        {
+                            "name": "list_of_ints",
+                            "field_number": 3,
+                            "proto_type": "int64",
+                            "repeated": True,
+                        },
+                    ],
+                },
+            ],
+        },
     ],
 }
 
@@ -524,6 +585,7 @@ SCHEMAFUL_TABLE_ROWS = [
         "utf8": GOODBYE_WORLD,
         "packed_repeated_int8": [],
         "optional_list_of_int64": [-300, -200, -100],
+        "variant": ["f3", {"var": ["g2", "spam"], "list_of_ints": [3, 4, 5]}],
     },
 ]
 
@@ -554,6 +616,7 @@ PROTOBUF_SCHEMAFUL_TABLE_ROWS = [
         },
         "utf8": GOODBYE_WORLD,
         "optional_list_of_int64": [-300, -200, -100],
+        "variant": ["f3", {"var": ["g2", "spam"], "list_of_ints": [3, 4, 5]}],
     },
 ]
 
@@ -574,6 +637,7 @@ SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD = [
         "utf8": HELLO_WORLD,
         "packed_repeated_int8": [0, 12, 127],
         "optional_list_of_int64": yson.YsonEntity(),
+        "variant": yson.YsonEntity(),
     },
     {
         "int16": -32768,
@@ -591,6 +655,7 @@ SCHEMAFUL_TABLE_ROWS_WITH_ENTITY_EXTRA_FIELD = [
         "utf8": GOODBYE_WORLD,
         "packed_repeated_int8": [],
         "optional_list_of_int64": [-300, -200, -100],
+        "variant": ["f3", {"var": ["g2", "spam"], "list_of_ints": [3, 4, 5]}],
     },
 ]
 
@@ -605,6 +670,11 @@ def make_random_list(max_len, generator, optional=False):
     if length == -1:
         return yson.YsonEntity()
     return [generator() for _ in xrange(length)]
+
+
+def make_random_variant_struct(fields):
+    name, generator = random.choice(fields)
+    return [name, generator()]
 
 
 @authors("levysotsky")
@@ -658,6 +728,17 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
                 "utf8": make_random_string(10),
                 "packed_repeated_int8": make_random_list(5, lambda: random.randrange(-128, 128)),
                 "optional_list_of_int64": make_random_list(5, lambda: random.randrange(1 << 63), optional=True),
+                "variant": make_random_variant_struct([
+                    ("f1", lambda: random.randrange(-128, 128)),
+                    ("f2", lambda: random.randrange(-128, 128)),
+                    ("f3", lambda: {
+                        "var": make_random_variant_struct([
+                            ("g1", lambda: make_random_string(7)),
+                            ("g2", lambda: make_random_string(7)),
+                        ]),
+                        "list_of_ints": make_random_list(5, lambda: random.randrange(1 << 63)),
+                    }),
+                ]),
             })
         print rows[0]
         return rows
@@ -683,6 +764,8 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
             row["struct"]["extra_field"] = yson.YsonEntity()
             empty_to_entity(row, "optional_list_of_int64")
             empty_to_entity(row["struct"], "optional_list_of_structs")
+            if row["variant"][0] == "f3":
+                empty_to_entity(row["variant"][1], "list_of_ints")
         print read_rows[159]
         print expected_rows[159]
         assert_rowsets_equal(read_rows, expected_rows)
@@ -712,6 +795,8 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
             remove_empty(row, "packed_repeated_int8")
             remove_empty(row, "optional_list_of_int64")
             remove_empty(row["struct"], "optional_list_of_structs")
+            if row["variant"][0] == "f3":
+                remove_empty(row["variant"][1], "list_of_ints")
         assert_rowsets_equal(parsed_rows, expected_rows)
 
     @unix_only

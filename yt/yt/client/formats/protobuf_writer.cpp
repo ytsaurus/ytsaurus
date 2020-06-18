@@ -44,10 +44,10 @@ public:
     TOtherColumnsWriter(
         const std::vector<TTableSchemaPtr>& schemas,
         const TNameTablePtr& nameTable,
-        const TProtobufFormatDescriptionPtr& description,
+        const TProtobufWriterFormatDescriptionPtr& description,
         EComplexTypeMode complexTypeMode)
         : NameTableReader_(nameTable)
-        , TableIndexToOtherColumnsField_(description->GetTableCount())
+        , Description_(description)
         , TableIndexToConverter_(description->GetTableCount())
         , Writer_(
             &OutputStream_,
@@ -55,18 +55,14 @@ public:
             EYsonType::Node,
             /* enableRaw */ true)
     {
-        for (size_t tableIndex = 0; tableIndex < description->GetTableCount(); ++tableIndex) {
-            const auto& tableDescription = description->GetTableDescription(tableIndex);
-            for (const auto& [name, fieldDescription] : tableDescription.Columns) {
-                if (fieldDescription.Type == EProtobufType::OtherColumns) {
-                    TableIndexToOtherColumnsField_[tableIndex] = fieldDescription;
-                    TableIndexToConverter_[tableIndex].emplace(
-                        nameTable,
-                        schemas[tableIndex],
-                        complexTypeMode,
-                        /* skipNullValues */ false);
-                    break;
-                }
+        for (int tableIndex = 0; tableIndex < description->GetTableCount(); ++tableIndex) {
+            if (auto fieldDescription = description->FindOtherColumnsField(tableIndex)) {
+                TableIndexToConverter_[tableIndex].emplace(
+                    nameTable,
+                    schemas[tableIndex],
+                    complexTypeMode,
+                    /* skipNullValues */ false);
+                break;
             }
         }
 
@@ -83,11 +79,10 @@ public:
     void SetTableIndex(i64 tableIndex)
     {
         YT_VERIFY(!InsideRow_);
-        if (TableIndexToOtherColumnsField_[tableIndex]) {
-            FieldDescription_ = &*TableIndexToOtherColumnsField_[tableIndex];
+        FieldDescription_ = Description_->FindOtherColumnsField(tableIndex);
+        if (FieldDescription_) {
             Converter_ = &*TableIndexToConverter_[tableIndex];
         } else {
-            FieldDescription_ = nullptr;
             Converter_ = nullptr;
         }
     }
@@ -176,9 +171,9 @@ private:
 private:
     const TNameTableReader NameTableReader_;
 
-    std::vector<std::optional<TProtobufFieldDescription>> TableIndexToOtherColumnsField_;
-    const TProtobufFieldDescription* FieldDescription_ = nullptr;
+    TProtobufWriterFormatDescriptionPtr Description_;
 
+    const TProtobufWriterFieldDescription* FieldDescription_ = nullptr;
     std::vector<std::optional<TUnversionedValueYsonWriter>> TableIndexToConverter_;
     TUnversionedValueYsonWriter* Converter_ = nullptr;
 
@@ -207,7 +202,7 @@ public:
         InRange = TryIntegralCast<i32>(value, &EnumValue);
     }
 
-    Y_FORCE_INLINE void OnString(TStringBuf value, const TProtobufFieldDescription& fieldDescription)
+    Y_FORCE_INLINE void OnString(TStringBuf value, const TProtobufWriterFieldDescription& fieldDescription)
     {
         if (Y_UNLIKELY(!fieldDescription.EnumerationDescription)) {
             THROW_ERROR_EXCEPTION("Enumeration description not found for field %Qv",
@@ -224,7 +219,7 @@ public:
 template <typename TValueExtractor>
 Y_FORCE_INLINE void WriteProtobufField(
     TZeroCopyOutputStreamWriter* writer,
-    const TProtobufFieldDescription& fieldDescription,
+    const TProtobufWriterFieldDescription& fieldDescription,
     const TValueExtractor& extractor)
 {
     switch (fieldDescription.Type) {
@@ -295,6 +290,7 @@ Y_FORCE_INLINE void WriteProtobufField(
         case EProtobufType::Any:
         case EProtobufType::OtherColumns:
         case EProtobufType::StructuredMessage:
+        case EProtobufType::Oneof:
             THROW_ERROR_EXCEPTION("Wrong protobuf type %Qlv",
                 fieldDescription.Type);
     }
@@ -322,7 +318,7 @@ public:
         : Parser_(parser)
     { }
 
-    void ExtractEnum(TEnumVisitor* visitor, const TProtobufFieldDescription& fieldDescription) const
+    void ExtractEnum(TEnumVisitor* visitor, const TProtobufWriterFieldDescription& fieldDescription) const
     {
         auto item = Parser_->Next();
         switch (item.GetType()) {
@@ -394,7 +390,7 @@ public:
         : Value_(value)
     { }
 
-    void ExtractEnum(TEnumVisitor* visitor, const TProtobufFieldDescription& fieldDescription) const
+    void ExtractEnum(TEnumVisitor* visitor, const TProtobufWriterFieldDescription& fieldDescription) const
     {
         switch (Value_.Type) {
             case EValueType::Int64:
@@ -450,7 +446,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Write varint reprsentation occupying exactly `size` bytes.
+// Write varint representation occupying exactly `size` bytes.
 // If `value` is too small, `0x80` bytes will be added in due amount.
 int WriteVarUint64WithPadding(char* output, ui64 value, int size)
 {
@@ -522,6 +518,13 @@ public:
     }
 };
 
+static bool MatchesCompositeType(const TProtobufWriterFieldDescription& field)
+{
+    return field.Repeated ||
+        field.Type == EProtobufType::StructuredMessage ||
+        field.Type == EProtobufType::Oneof;
+}
+
 class TWriterImpl
 {
 private:
@@ -531,7 +534,7 @@ public:
     TWriterImpl(
         const std::vector<TTableSchemaPtr>& schemas,
         const TNameTablePtr& nameTable,
-        const TProtobufFormatDescriptionPtr& description,
+        const TProtobufWriterFormatDescriptionPtr& description,
         EComplexTypeMode complexTypeMode)
         : OtherColumnsWriter_(schemas, nameTable, description, complexTypeMode)
     { }
@@ -582,9 +585,9 @@ public:
         ThrowUnexpectedValueType(value.Type);
     }
 
-    Y_FORCE_INLINE void OnValue(TUnversionedValue value, const TProtobufFieldDescription& fieldDescription)
+    Y_FORCE_INLINE void OnValue(TUnversionedValue value, const TProtobufWriterFieldDescription& fieldDescription)
     {
-        if (fieldDescription.Repeated || fieldDescription.Type == EProtobufType::StructuredMessage) {
+        if (MatchesCompositeType(fieldDescription)) {
             ValidateUnversionedValueType(value, EValueType::Composite);
             TMemoryInput input(value.Data.String, value.Length);
             TYsonPullParser parser(&input, EYsonType::Node);
@@ -627,7 +630,7 @@ public:
 
 private:
     void Traverse(
-        const TProtobufFieldDescription& fieldDescription,
+        const TProtobufWriterFieldDescription& fieldDescription,
         TYsonPullParser* parser,
         int maxVarIntSize)
     {
@@ -650,6 +653,22 @@ private:
         }
     }
 
+    void TraverseOneof(
+        const TProtobufWriterFieldDescription& fieldDescription,
+        TYsonPullParser* parser,
+        int maxVarIntSize)
+    {
+        parser->ParseBeginList();
+        auto alternativeIndex = parser->ParseInt64();
+        auto alternative = fieldDescription.FindAlternative(alternativeIndex);
+        if (alternative) {
+            Traverse(*alternative, parser, maxVarIntSize);
+        } else {
+            parser->SkipComplexValue();
+        }
+        parser->ParseEndList();
+    }
+
     template <typename TFun>
     Y_FORCE_INLINE void WriteWithSizePrefix(int maxVarIntSize, TFun writerFun)
     {
@@ -664,7 +683,7 @@ private:
     }
 
     Y_FORCE_INLINE void TraversePackedRepeated(
-        const TProtobufFieldDescription& fieldDescription,
+        const TProtobufWriterFieldDescription& fieldDescription,
         TYsonPullParser* parser,
         int maxVarIntSize)
     {
@@ -681,10 +700,14 @@ private:
     }
 
     Y_FORCE_INLINE void TraverseNonRepeated(
-        const TProtobufFieldDescription& fieldDescription,
+        const TProtobufWriterFieldDescription& fieldDescription,
         TYsonPullParser* parser,
         int maxVarIntSize)
     {
+        if (fieldDescription.Type == EProtobufType::Oneof) {
+            TraverseOneof(fieldDescription, parser, maxVarIntSize);
+            return;
+        }
         if (fieldDescription.Optional && parser->IsEntity()) {
             parser->ParseEntity();
             if (fieldDescription.Type == EProtobufType::Any) {
@@ -701,7 +724,7 @@ private:
         switch (fieldDescription.Type) {
             case EProtobufType::StructuredMessage:
                 WriteWithSizePrefix(maxVarIntSize, [&] {
-                    WriteStruct(fieldDescription, parser, maxVarIntSize);
+                    TraverseStruct(fieldDescription, parser, maxVarIntSize);
                 });
                 return;
             case EProtobufType::Any:
@@ -710,6 +733,8 @@ private:
                     parser->TransferComplexValue(&writer);
                 });
                 return;
+            case EProtobufType::Oneof:
+                YT_ABORT();
             default:
                 WriteProtobufField(Writer_, fieldDescription, TYsonValueExtractor(parser));
                 return;
@@ -717,8 +742,8 @@ private:
         YT_ABORT();
     }
 
-    Y_FORCE_INLINE void WriteStruct(
-        const TProtobufFieldDescription& fieldDescription,
+    Y_FORCE_INLINE void TraverseStruct(
+        const TProtobufWriterFieldDescription& fieldDescription,
         TYsonPullParser* parser,
         int maxVarIntSize)
     {
@@ -726,7 +751,7 @@ private:
         auto childIterator = fieldDescription.Children.cbegin();
         int elementIndex = 0;
         while (!parser->IsEndList()) {
-            if (childIterator == fieldDescription.Children.cend() || childIterator->StructElementIndex != elementIndex) {
+            if (childIterator == fieldDescription.Children.cend() || childIterator->StructFieldIndex != elementIndex) {
                 parser->SkipComplexValue();
                 ++elementIndex;
                 continue;
@@ -762,7 +787,7 @@ public:
         bool enableContextSaving,
         TControlAttributesConfigPtr controlAttributesConfig,
         int keyColumnCount,
-        TProtobufFormatDescriptionPtr description,
+        TProtobufWriterFormatDescriptionPtr description,
         EComplexTypeMode complexTypeMode)
         : TSchemalessFormatWriterBase(
             nameTable,
@@ -774,7 +799,6 @@ public:
         , WriterImpl_(schemas, nameTable, description, complexTypeMode)
         , StreamWriter_(GetOutputStream())
     {
-        TableIndexToFieldIndexToDescription_.resize(Description_->GetTableCount());
         WriterImpl_.SetTableIndex(CurrentTableIndex_);
     }
 
@@ -793,7 +817,7 @@ private:
 
             WriterImpl_.OnBeginRow(&*StreamWriter_);
             for (const auto& value : row) {
-                const auto* fieldDescription = GetFieldDescription(
+                const auto* fieldDescription = Description_->FindField(
                     CurrentTableIndex_,
                     value.Id,
                     NameTable_);
@@ -859,36 +883,8 @@ private:
         WritePod(*StreamWriter_, static_cast<ui64>(rowIndex));
     }
 
-    const TProtobufFieldDescription* GetFieldDescription(
-        ui32 tableIndex,
-        ui32 fieldIndex,
-        const TNameTablePtr& nameTable)
-    {
-        if (Y_UNLIKELY(tableIndex >= TableIndexToFieldIndexToDescription_.size())) {
-            THROW_ERROR_EXCEPTION("Table with index %v is missing in format description",
-                tableIndex);
-        }
-        auto& fieldIndexToDescription = TableIndexToFieldIndexToDescription_[tableIndex];
-        if (fieldIndexToDescription.size() <= fieldIndex) {
-            const auto& tableDescription = Description_->GetTableDescription(tableIndex);
-            fieldIndexToDescription.reserve(fieldIndex + 1);
-            for (size_t i = fieldIndexToDescription.size(); i <= fieldIndex; ++i) {
-                YT_ASSERT(fieldIndexToDescription.size() == i);
-                auto fieldName = nameTable->GetName(i);
-                auto it = tableDescription.Columns.find(fieldName);
-                if (it == tableDescription.Columns.end()) {
-                    fieldIndexToDescription.push_back(nullptr);
-                } else {
-                    fieldIndexToDescription.push_back(&it->second);
-                }
-            }
-        }
-        return fieldIndexToDescription[fieldIndex];
-    }
-
 private:
-    const TProtobufFormatDescriptionPtr Description_;
-    std::vector<std::vector<const TProtobufFieldDescription*>> TableIndexToFieldIndexToDescription_;
+    const TProtobufWriterFormatDescriptionPtr Description_;
     TWriterImpl WriterImpl_;
 
     // Use optional to be able to destruct underlying object when switching output streams.
@@ -908,8 +904,8 @@ ISchemalessFormatWriterPtr CreateWriterForProtobuf(
     TControlAttributesConfigPtr controlAttributesConfig,
     int keyColumnCount)
 {
-    auto description = New<TProtobufFormatDescription>();
-    description->Init(config, schemas, /* validateMissingFieldsOptionality */ false);
+    auto description = New<TProtobufWriterFormatDescription>();
+    description->Init(config, schemas);
     return New<TSchemalessWriterForProtobuf>(
         schemas,
         nameTable,

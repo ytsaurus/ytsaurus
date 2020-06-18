@@ -1,5 +1,6 @@
 import yt.yson
 
+import copy
 import ctypes
 import collections
 from cStringIO import StringIO
@@ -265,10 +266,17 @@ def parse_protobuf_message(message, field_configs, enumerations):
         else:
             return type_info.reader_function(reader)
 
-    field_number_to_field_config = {
-        field_config["field_number"]: field_config
-        for field_config in field_configs
-    }
+    field_number_to_field_config = {}
+    for field_config in field_configs:
+        if field_config["proto_type"] == "oneof":
+            for subfield_config in field_config["fields"]:
+                assert subfield_config["proto_type"] != "oneof"
+                subfield_config_copy = copy.deepcopy(subfield_config)
+                subfield_config_copy["oneof_name"] = field_config["name"]
+                field_number_to_field_config[subfield_config["field_number"]] = subfield_config_copy
+        else:
+            field_number_to_field_config[field_config["field_number"]] = field_config
+
     result = {}
     bufio = StringIO(message)
     reader = ProtobufReader(bufio)
@@ -284,7 +292,9 @@ def parse_protobuf_message(message, field_configs, enumerations):
         assert tag & 0b111 == get_wire_type(type_info, packed)
 
         value = parse(reader, field_config, type_info)
-        if field_config.get("repeated", False) and not field_config.get("packed", False):
+        if "oneof_name" in field_config:
+            result[field_config["oneof_name"]] = [field_config["name"], value]
+        elif field_config.get("repeated", False) and not field_config.get("packed", False):
             result.setdefault(field_name, []).append(value)
         elif field_type == "other_columns":
             result.update(value)
@@ -396,6 +406,11 @@ def write_protobuf_message(message_dict, field_configs, enumerations):
             continue
 
         field_config = field_name_to_field_config[name]
+        if field_config["proto_type"] == "oneof":
+            alternative_name, value = value[0], value[1]
+            subfields = [sf for sf in field_config["fields"] if sf["name"] == alternative_name]
+            assert len(subfields) == 1
+            field_config = subfields[0]
         field_type = field_config["proto_type"]
         type_info = TYPE_NAME_TO_TYPE_INFO[field_type]
         tag = create_protobuf_tag(

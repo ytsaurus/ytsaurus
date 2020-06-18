@@ -34,6 +34,11 @@ message TMessageWithStructuredEmbedded
         repeated bytes repeated_optional_any_field = 10;
         repeated EEnum packed_repeated_enum_field = 11 [packed=true];
         repeated bool optional_repeated_bool_field = 12;
+        oneof oneof_field {
+            string oneof_string_field_1 = 101;
+            string oneof_string_field = 102;
+            TEmbeddedMessage oneof_message_field = 1000;
+        }
     }
 
     message TSecondMessage
@@ -70,6 +75,12 @@ message TMessageWithStructuredEmbedded
     repeated int64 packed_repeated_int64_field = 17 [packed=true];
 
     repeated int64 optional_repeated_int64_field = 18;
+
+    oneof oneof_field {
+        string oneof_string_field_1 = 101;
+        string oneof_string_field = 102;
+        TEmbeddedMessage oneof_message_field = 1000;
+    }
 }
 
 message TSeveralTablesMessageFirst
@@ -135,6 +146,27 @@ message TCompatMessage
         optional string y = 2;
     }
 
-    optional int64 a = 1;
+    oneof a {
+        int64 f1 = 1;
+        string f2 = 101;
+    }
     optional TEmbedded b = 2;
+}
+
+message TMessageWithOneof
+{
+    oneof variant {
+        int64 f1 = 1;
+        string f2 = 2;
+    }
+}
+
+message TMessageWithStruct
+{
+    message TStruct
+    {
+        optional int64 f1 = 1;
+        optional string f2 = 2;
+    }
+    optional TStruct a = 1;
 }
