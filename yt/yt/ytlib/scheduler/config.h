@@ -830,6 +830,9 @@ public:
     //! If true, then a job is considered failed once is produces a core dump.
     bool FailJobOnCoreDump;
 
+    //! If true, RootFS in user job is writable.
+    bool MakeRootFSWritable;
+
     TUserJobSpec();
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);

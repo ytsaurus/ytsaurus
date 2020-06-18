@@ -8034,6 +8034,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_fail_job_on_core_dump(config->FailJobOnCoreDump);
     jobSpec->set_enable_cuda_gpu_core_dump(GetEnableCudaGpuCoreDump());
 
+    jobSpec->set_make_rootfs_writable(config->MakeRootFSWritable);
+
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {
             jobSpec->add_environment(Format("%v=%v", key, value));

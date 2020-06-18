@@ -504,7 +504,7 @@ TJobResult TJobProxy::DoRun()
             YT_LOG_DEBUG("Job is using custom root fs (Path: %v)", Config_->RootPath);
 
             TRootFS rootFS;
-            rootFS.IsRootReadOnly = true;
+            rootFS.IsRootReadOnly = !Config_->MakeRootFSWritable;
             rootFS.RootPath = *Config_->RootPath;
 
             for (const auto& bind : Config_->Binds) {

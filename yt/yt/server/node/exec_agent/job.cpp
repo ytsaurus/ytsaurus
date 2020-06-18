@@ -1385,6 +1385,13 @@ private:
             proxyConfig->GpuDevices.push_back(slot->GetDeviceName());
         }
 
+        if (SchedulerJobSpecExt_->has_user_job_spec()) {
+            const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
+            proxyConfig->MakeRootFSWritable = userJobSpec.make_rootfs_writable();
+        } else {
+            proxyConfig->MakeRootFSWritable = false;
+        }
+
         if (NetworkProjectId_) {
             const auto& nodeAddresses = Bootstrap_->GetResolvedNodeAddresses();
             if (nodeAddresses.empty()) {
