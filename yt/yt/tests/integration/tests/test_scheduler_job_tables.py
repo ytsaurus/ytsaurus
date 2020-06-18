@@ -484,7 +484,6 @@ def queue_iterator(queue):
             return
         yield chunk
 
-@pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
 class TestCoreTable(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -1081,6 +1080,8 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job_ids[0]: [ret_dict["core_info"]]}
         assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}
 
+
+@pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
 @patch_porto_env_only(TestCoreTable)
 class TestCoreTablePorto(YTEnvSetup):
     USE_PORTO = True
