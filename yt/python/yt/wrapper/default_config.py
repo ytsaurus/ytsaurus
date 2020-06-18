@@ -758,7 +758,10 @@ def get_config_from_env():
         key = key[len(prefix):]
         if key in SHORTCUTS:
             name = SHORTCUTS[key]
-            var_type = _get_var_type(_get(config, name))
+            if name == "driver_config":
+                var_type = yson.loads
+            else:
+                var_type = _get_var_type(_get(config, name))
             # NB: it is necessary to set boolean vaiable as 0 or 1.
             if var_type is bool:
                 value = int(value)
