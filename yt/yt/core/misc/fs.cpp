@@ -124,7 +124,12 @@ TString GetDirectoryName(const TString& path)
 {
     auto absPath = CombinePaths(NFs::CurrentWorkingDirectory(), path);
     size_t slashPosition = absPath.find_last_of(LOCSLASH_C);
-    return absPath.substr(0, slashPosition);
+    if (slashPosition == 0) {
+        // Root.
+        return "/";
+    } else {
+        return absPath.substr(0, slashPosition);
+    }
 }
 
 TString GetRealPath(const TString& path)

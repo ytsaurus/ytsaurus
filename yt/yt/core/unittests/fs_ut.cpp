@@ -9,7 +9,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TFSTest, GetRealPath)
+TEST(TFSTest, TestGetRealPath)
 {
     auto cwd = NFs::CurrentWorkingDirectory();
     EXPECT_EQ(CombinePaths(cwd, "dir"), GetRealPath("dir"));
@@ -18,10 +18,19 @@ TEST(TFSTest, GetRealPath)
     EXPECT_EQ(GetRealPath("/a"), "/a");
     EXPECT_EQ(GetRealPath("/a/b"), "/a/b");
     EXPECT_EQ(GetRealPath("/a/b/c/.././../d/."), "/a/d");
-
 }
 
-TEST(TFSTest, IsPathRelativeAndInvolvesNoTraversal)
+TEST(TFSTest, TestGetDirectoryName)
+{
+    auto cwd = NFs::CurrentWorkingDirectory();
+    EXPECT_EQ(GetDirectoryName("/a/b/c"), "/a/b");
+    EXPECT_EQ(GetDirectoryName("a/b/c"), cwd + "/a/b");
+    EXPECT_EQ(GetDirectoryName("."), cwd);
+    EXPECT_EQ(GetDirectoryName("/"), "/");
+    EXPECT_EQ(GetDirectoryName("/a"), "/");
+}
+
+TEST(TFSTest, TestIsPathRelativeAndInvolvesNoTraversal)
 {
     EXPECT_TRUE(NFS::IsPathRelativeAndInvolvesNoTraversal(""));
     EXPECT_TRUE(NFS::IsPathRelativeAndInvolvesNoTraversal("some"));
