@@ -48,12 +48,20 @@ def lazy_import_driver_bindings(backend_type, allow_fallback_to_native_driver):
 
 def read_config(path):
     driver_config = yson.load(open(path, "rb"))
-    return (
-        driver_config["driver"],
-        driver_config.get("logging"),
-        driver_config.get("tracing"),
-        driver_config.get("address_resolver"),
-    )
+    if "driver" in driver_config:
+        return (
+            driver_config["driver"],
+            driver_config.get("logging"),
+            driver_config.get("tracing"),
+            driver_config.get("address_resolver"),
+        )
+    else:
+        return (
+            driver_config,
+            None,
+            None,
+            None
+        )
 
 logging_configured = False
 def configure_logging(logging_config_from_file, client):
