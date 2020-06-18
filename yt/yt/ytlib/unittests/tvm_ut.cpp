@@ -8,7 +8,7 @@
 #include <yt/core/concurrency/thread_pool_poller.h>
 #include <yt/core/test_framework/framework.h>
 
-#include <library/cpp/unittest/env.h>
+#include <library/cpp/testing/common/env.h>
 
 #include <util/system/fs.h>
 
