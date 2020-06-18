@@ -101,6 +101,7 @@ public:
         builder.AppendFormat("%v\n", WriteCount_);
         auto buffer = builder.GetBuffer();
         fwrite(buffer.begin(), buffer.length(), 1, stdout);
+        fflush(stdout);
     }
 
 private:
