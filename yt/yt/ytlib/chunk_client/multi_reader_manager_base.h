@@ -71,6 +71,7 @@ protected:
 
     TSpinLock PrefetchLock_;
     int PrefetchIndex_ = 0;
+    bool CreatingReader_ = false;
 
     TSpinLock FailedChunksLock_;
     THashSet<TChunkId> FailedChunks_;
@@ -90,7 +91,8 @@ protected:
     TFuture<void> CombineCompletionError(TFuture<void> future);
 
     void OpenNextReaders();
-    void DoOpenReader(int index);
+    void OnNextReaderCreated(const TError& error);
+    void DoCreateReader(int index);
     void OnReaderCreated(int index, const TErrorOr<IReaderBasePtr>& readerOrError);
     void OnReaderReady(const IReaderBasePtr& reader, int index, const TError& error);
 
