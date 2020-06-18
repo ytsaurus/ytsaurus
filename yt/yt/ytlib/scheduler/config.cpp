@@ -210,6 +210,9 @@ TAutoMergeConfig::TAutoMergeConfig()
     RegisterParameter("mode", Mode)
         .Default(EAutoMergeMode::Disabled);
 
+    RegisterParameter("use_intermediate_data_account", UseIntermediateDataAccount)
+        .Default(false);
+
     RegisterPostprocessor([&] {
         if (Mode == EAutoMergeMode::Manual) {
             if (!MaxIntermediateChunkCount || !ChunkCountPerMergeJob) {

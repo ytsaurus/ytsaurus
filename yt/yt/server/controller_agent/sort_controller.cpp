@@ -2125,22 +2125,7 @@ protected:
     {
         TOperationControllerBase::CustomPrepare();
 
-        auto user = AuthenticatedUser;
-        auto account = Spec->IntermediateDataAccount;
-
-        const auto& client = Host->GetClient();
-        auto asyncResult = client->CheckPermission(
-            user,
-            "//sys/accounts/" + account,
-            EPermission::Use);
-        auto result = WaitFor(asyncResult)
-            .ValueOrThrow();
-
-        if (result.Action == ESecurityAction::Deny) {
-            THROW_ERROR_EXCEPTION("User %Qv has been denied access to intermediate account %Qv",
-                user,
-                account);
-        }
+        ValidateIntermediateDataAccountPermission(EPermission::Use);
 
         for (const auto& table : InputTables_) {
             for (const auto& name : Spec->SortBy) {

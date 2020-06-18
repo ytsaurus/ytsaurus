@@ -529,6 +529,9 @@ public:
     i64 ChunkSizeThreshold;
     EAutoMergeMode Mode;
 
+    //! Whether intermediate chunks should be allocated in intermediate data account.
+    bool UseIntermediateDataAccount;
+
     TAutoMergeConfig();
 };
 

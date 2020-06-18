@@ -135,10 +135,10 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     @pytest.mark.timeout(480)
     @pytest.mark.parametrize("op_type", ["map", "reduce"])
     def test_account_chunk_limit(self, op_type):
-        self._create_account(50)
+        self._create_account(35)
 
         create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
-        create("table", "//tmp/t_out", attributes={"account": "acc"})
+        create("table", "//tmp/t_out")
 
         row_count = 300
         write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)],
@@ -159,9 +159,11 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "mode": "manual",
                     "max_intermediate_chunk_count": 35,
                     "chunk_count_per_merge_job": 20,
+                    "use_intermediate_data_account": True,
                 },
                 "data_size_per_job": 1,
                 "suspend_operation_if_account_limit_exceeded": True,
+                "intermediate_data_account": "acc",
             })
 
         self._track_and_report_peak_chunk_count(op)
@@ -170,12 +172,11 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
     @authors("max42")
     def test_several_auto_merge_output_tables(self):
-        # TODO(gritukan): Set limit to 35 after YT-13081.
-        self._create_account(37)
+        self._create_account(20)
 
-        create("table", "//tmp/t_in", attributes={"account": "acc"})
-        create("table", "//tmp/t_out1", attributes={"account": "acc"})
-        create("table", "//tmp/t_out2", attributes={"account": "acc"})
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
 
         row_count = 100
         write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
@@ -191,12 +192,14 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "mode": "manual",
                     "max_intermediate_chunk_count": 20,
                     "chunk_count_per_merge_job": 15,
+                    "use_intermediate_data_account": True,
                 },
                 "mapper": {
                     "format": yson.loads("<columns=[a]>schemaful_dsv")
                 },
                 "data_size_per_job": 1,
                 "suspend_operation_if_account_limit_exceeded": True,
+                "intermediate_data_account": "acc",
             })
 
         self._track_and_report_peak_chunk_count(op)
@@ -208,12 +211,12 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     @pytest.mark.timeout(480)
     @pytest.mark.parametrize("with_revive", [True, False])
     def test_only_auto_merge_output_table(self, with_revive):
-        chunk_limit = 1000 if with_revive else 40
+        chunk_limit = 1000 if with_revive else 20
         self._create_account(chunk_limit)
 
-        create("table", "//tmp/t_in", attributes={"account": "acc"})
-        create("table", "//tmp/t_out1", attributes={"account": "acc"})
-        create("table", "//tmp/t_out2", attributes={"account": "acc"})
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out1")
+        create("table", "//tmp/t_out2")
 
         row_count = 100
         write_table("//tmp/t_in", [{"a" : i} for i in range(row_count)])
@@ -228,12 +231,14 @@ class TestSchedulerAutoMerge(YTEnvSetup):
                     "mode": "manual",
                     "max_intermediate_chunk_count": 20,
                     "chunk_count_per_merge_job": 15,
+                    "use_intermediate_data_account": True,
                 },
                 "mapper": {
                     "format": yson.loads("<columns=[a]>schemaful_dsv")
                 },
                 "data_size_per_job": 1,
                 "suspend_operation_if_account_limit_exceeded": True,
+                "intermediate_data_account": "acc",
             })
 
         self._track_and_report_peak_chunk_count(op, with_revive=with_revive)
@@ -489,8 +494,6 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     @authors("max42")
     @pytest.mark.timeout(60)
     def test_live_preview(self):
-        self._create_account(35)
-
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out1")
         create("table", "//tmp/t_out2")
@@ -547,7 +550,6 @@ class TestSchedulerAutoMerge(YTEnvSetup):
 
     @authors("ifsmirnov")
     def test_unversioned_update_no_auto_merge(self):
-        self._create_account(1000)
         sync_create_cells(1)
         create("table", "//tmp/t_out", attributes={
             "dynamic": True,
