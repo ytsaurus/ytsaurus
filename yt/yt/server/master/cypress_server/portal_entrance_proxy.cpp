@@ -64,11 +64,34 @@ private:
                     .Value(MakePortalExitNodeId(node->GetId(), node->GetExitCellTag()));
                 return true;
 
+            case EInternedAttributeKey::Opaque:
+                YT_ASSERT(node->GetOpaque());
+                // Let the base class handle it.
+                break;
+
             default:
                 break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
+    {
+        switch (key) {
+            case EInternedAttributeKey::Opaque: {
+                auto opaque = ConvertTo<bool>(value);
+                if (!opaque) {
+                    THROW_ERROR_EXCEPTION("Portal entrances cannot be made non-opaque");
+                }
+                return true;
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::SetBuiltinAttribute(key, value);
     }
 };
 

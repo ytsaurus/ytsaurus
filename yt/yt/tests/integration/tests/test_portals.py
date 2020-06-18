@@ -498,6 +498,16 @@ class TestPortals(YTEnvSetup):
         remove("//tmp/p2")
 
     @authors("shakurov")
+    def test_portal_entrance_always_opaque(self):
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
+        assert not get("//tmp/p1/@opaque")
+        assert get("//tmp/p1&/@opaque")
+
+        set("//tmp/p1/@opaque", True)
+        assert get("//tmp/p1/@opaque")
+        with pytest.raises(YtError): set("//tmp/p1&/@opaque", False)
+
+    @authors("shakurov")
     def test_cross_cell_move_opaque_with_user_attribute(self):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 1})
 

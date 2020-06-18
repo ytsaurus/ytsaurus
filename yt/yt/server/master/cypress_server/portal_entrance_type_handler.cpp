@@ -75,6 +75,7 @@ private:
 
         auto nodeHolder = TBase::DoCreate(id, context);
         auto* node = nodeHolder.get();
+        node->SetOpaque(true);
 
         node->SetExitCellTag(exitCellTag);
 
