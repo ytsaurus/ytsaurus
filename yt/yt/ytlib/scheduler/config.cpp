@@ -638,6 +638,8 @@ TUserJobSpec::TUserJobSpec()
         .Default();
     RegisterParameter("fail_job_on_core_dump", FailJobOnCoreDump)
         .Default(true);
+    RegisterParameter("make_rootfs_writable", MakeRootFSWritable)
+        .Default(false);
 
     RegisterPostprocessor([&] () {
         if ((TmpfsSize || TmpfsPath) && !TmpfsVolumes.empty()) {
@@ -732,6 +734,10 @@ TUserJobSpec::TUserJobSpec()
             DiskRequest->InodeCount = InodeLimit;
             DiskSpaceLimit = std::nullopt;
             InodeLimit = std::nullopt;
+        }
+
+        if (MakeRootFSWritable && LayerPaths.empty()) {
+            THROW_ERROR_EXCEPTION("Option \"make_rootfs_writable\" cannot be set without specifying \"layer_paths\"");
         }
     });
 }

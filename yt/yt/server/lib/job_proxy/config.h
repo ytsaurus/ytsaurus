@@ -127,6 +127,7 @@ public:
 
     //! Path for container root.
     std::optional<TString> RootPath;
+    bool MakeRootFSWritable;
 
     //! Path to write stderr (for testing purposes).
     std::optional<TString> StderrPath;
@@ -177,6 +178,9 @@ public:
         
         RegisterParameter("stderr_path", StderrPath)
             .Default();
+
+        RegisterParameter("make_rootfs_writable", MakeRootFSWritable)
+            .Default(false);
 
         RegisterParameter("binds", Binds)
             .Default();

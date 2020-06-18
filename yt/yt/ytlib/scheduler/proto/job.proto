@@ -175,6 +175,8 @@ message TUserJobSpec
     optional bool enable_cuda_gpu_core_dump = 52 [default = false];
 
     optional double container_cpu_limit = 53 [default = 0];
+
+    optional bool make_rootfs_writable = 54 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////
