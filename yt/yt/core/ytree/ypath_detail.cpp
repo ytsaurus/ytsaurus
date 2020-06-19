@@ -228,42 +228,58 @@ void TSupportsExists::ExistsRecursive(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_RPC_SERVICE_METHOD(TSupportsMultiset, Multiset)
+DEFINE_RPC_SERVICE_METHOD(TSupportsMultisetAttributes, Multiset)
 {
     context->SetRequestInfo("KeyCount: %v", request->subrequests_size());
 
-    NYPath::TTokenizer tokenizer(GetRequestTargetYPath(context->RequestHeader()));
-
-    // NOTE(asaitgalin): Not tokenizing keys in subrequests intentionally, key a/b/c will be treated
-    // as the whole key, not path.
-    if (tokenizer.Advance() == NYPath::ETokenType::EndOfStream) {
-        SetChildren(request, response);
-    } else {
-        tokenizer.Skip(NYPath::ETokenType::Ampersand);
-        tokenizer.Expect(NYPath::ETokenType::Slash);
-        if (tokenizer.Advance() != NYPath::ETokenType::At) {
-            tokenizer.ThrowUnexpected();
-        }
-
-        SetAttributes(TYPath(tokenizer.GetSuffix()), request, response);
+    TReqMultisetAttributes req;
+    for (const auto& subrequest : request->subrequests()) {
+        auto* subreq = req.add_subrequests();
+        subreq->set_attribute(subrequest.key());
+        subreq->set_value(subrequest.value());
     }
+
+    TRspMultisetAttributes rsp;
+    DoSetAttributes(GetRequestTargetYPath(context->RequestHeader()), &req, &rsp);
 
     context->Reply();
 }
 
-void TSupportsMultiset::SetChildren(TReqMultiset* request, TRspMultiset* response)
+DEFINE_RPC_SERVICE_METHOD(TSupportsMultisetAttributes, MultisetAttributes)
 {
-    Y_UNUSED(request);
-    Y_UNUSED(response);
-    ThrowMethodNotSupported("Multiset", TString("self"));
+    context->SetRequestInfo("KeyCount: %v", request->subrequests_size());
+
+    DoSetAttributes(GetRequestTargetYPath(context->RequestHeader()), request, response);
+
+    context->Reply();
 }
 
-void TSupportsMultiset::SetAttributes(const TYPath& path, TReqMultiset* request, TRspMultiset* response)
+void TSupportsMultisetAttributes::DoSetAttributes(
+    const TYPath& path,
+    TReqMultisetAttributes* request,
+    TRspMultisetAttributes* response)
+{
+    NYPath::TTokenizer tokenizer(path);
+
+    tokenizer.Advance();
+    tokenizer.Skip(NYPath::ETokenType::Ampersand);
+    tokenizer.Expect(NYPath::ETokenType::Slash);
+    if (tokenizer.Advance() != NYPath::ETokenType::At) {
+        tokenizer.ThrowUnexpected();
+    }
+
+    SetAttributes(TYPath(tokenizer.GetSuffix()), request, response);
+}
+
+void TSupportsMultisetAttributes::SetAttributes(
+    const TYPath& path,
+    TReqMultisetAttributes* request,
+    TRspMultisetAttributes* response)
 {
     Y_UNUSED(path);
     Y_UNUSED(request);
     Y_UNUSED(response);
-    ThrowMethodNotSupported("Multiset", TString("attributes"));
+    ThrowMethodNotSupported("MultisetAttributes", TString("attributes"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -431,7 +447,8 @@ IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
         method != "List" &&
         method != "Remove" &&
         method != "Exists" &&
-        method != "Multiset")
+        method != "Multiset" &&
+        method != "MultisetAttributes")
     {
         ThrowMethodNotSupported(method);
     }
@@ -1073,54 +1090,23 @@ void TSupportsAttributes::RemoveAttribute(
     context->Reply();
 }
 
-void TSupportsAttributes::SetAttributes(const TYPath& path, TReqMultiset* request, TRspMultiset* /* response */)
+void TSupportsAttributes::SetAttributes(const TYPath& path, TReqMultisetAttributes* request, TRspMultisetAttributes* /* response */)
 {
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
-    auto* attributesDictionary = GetCombinedAttributes();
-    YT_VERIFY(attributesDictionary);
-
-    // TODO(asaitgalin): Do proper permission validation for builtin attributes.
-    NYPath::TTokenizer tokenizer(path);
-    switch (tokenizer.Advance()) {
-        case NYPath::ETokenType::EndOfStream: {
-            for (const auto& subrequest : request->subrequests()) {
-                const auto& key = subrequest.key();
-                const auto& value = subrequest.value();
-
-                ValidateAttributeKey(key);
-                attributesDictionary->SetYson(key, TYsonString(value));
-            }
-
-            break;
+    for (const auto& subrequest : request->subrequests()) {
+        const auto& attribute = subrequest.attribute();
+        const auto& value = subrequest.value();
+        if (attribute.empty()) {
+            THROW_ERROR_EXCEPTION("Empty attribute names are not allowed");
         }
 
-        case NYPath::ETokenType::Literal: {
-            auto key = tokenizer.GetLiteralValue();
-            ValidateAttributeKey(key);
-
-            auto oldWholeYson = attributesDictionary->FindYson(key);
-            if (!oldWholeYson) {
-                ThrowNoSuchCustomAttribute(key);
-            }
-
-            auto wholeNode = ConvertToNode(oldWholeYson);
-
-            for (const auto& setRequest : request->subrequests()) {
-                SyncYPathSet(
-                    wholeNode,
-                    TYPath(tokenizer.GetSuffix()) + "/" + ToYPathLiteral(setRequest.key()),
-                    TYsonString(setRequest.value()));
-            }
-
-            auto newWholeYson = ConvertToYsonStringStable(wholeNode);
-            attributesDictionary->SetYson(key, newWholeYson);
-
-            break;
+        TYPath attributePath;
+        if (path.empty()) {
+            attributePath = attribute;
+        } else {
+            attributePath = path + "/" + attribute;
         }
 
-        default:
-            tokenizer.ThrowUnexpected();
+        DoSetAttribute(attributePath, TYsonString(value));
     }
 }
 

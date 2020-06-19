@@ -153,6 +153,7 @@ public:
         REGISTER    (TConcatenateCommand,                 "concatenate",                   Null,       Structured, true,  false, ApiVersion4);
         REGISTER    (TRemoveCommand,                      "remove",                        Null,       Structured, true,  false, ApiVersion4);
         REGISTER    (TSetCommand,                         "set",                           Structured, Structured, true,  false, ApiVersion4);
+        REGISTER    (TMultisetAttributesCommand,          "multiset_attributes",           Structured, Structured, true,  false, ApiVersion4);
         REGISTER    (TExternalizeCommand,                 "externalize",                   Null,       Null,       true,  false, ApiVersion4);
         REGISTER    (TInternalizeCommand,                 "internalize",                   Null,       Null,       true,  false, ApiVersion4);
 

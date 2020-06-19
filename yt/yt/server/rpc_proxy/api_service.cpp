@@ -356,6 +356,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SetNode));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(MultisetAttributesNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LockNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UnlockNode));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CopyNode));
@@ -1181,6 +1182,44 @@ private:
             client,
             context,
             client->SetNode(path, value, options));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, MultisetAttributesNode)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        const auto& path = request->path();
+
+        auto attributes = GetEphemeralNodeFactory()->CreateMap();
+        for (const auto& protoSubrequest : request->subrequests()) {
+            attributes->AddChild(
+                protoSubrequest.attribute(),
+                ConvertToNode(TYsonString(protoSubrequest.value())));
+        }
+
+        TMultisetAttributesNodeOptions options;
+        SetTimeoutOptions(&options, context.Get());
+        if (request->has_transactional_options()) {
+            FromProto(&options, request->transactional_options());
+        }
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
+        if (request->has_mutating_options()) {
+            FromProto(&options, request->mutating_options());
+        }
+        if (request->has_suppressable_access_tracking_options()) {
+            FromProto(&options, request->suppressable_access_tracking_options());
+        }
+
+        context->SetRequestInfo("Path: %v, Attributes: %v",
+            path,
+            attributes->GetKeys());
+
+        CompleteCallWith(
+            client,
+            context,
+            client->MultisetAttributesNode(path, attributes, options));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, LockNode)

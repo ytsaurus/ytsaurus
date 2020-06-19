@@ -2575,7 +2575,6 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError):
             move("//tmp/x", "//tmp/x1", ignore_existing=True, lock_existing=True)
 
-
     @authors("babenko")
     def test_malformed_clone_src(self):
         create("map_node", "//tmp/m")
@@ -2588,6 +2587,115 @@ class TestCypress(YTEnvSetup):
             copy("//tmp/m/t1/", "//tmp/t2", force=True)
         with pytest.raises(YtError):
             copy("//tmp/m/t1/@attr", "//tmp/t2", force=True)
+
+    @authors("gritukan")
+    def test_multiset_attributes(self):
+        multiset_attributes("//tmp/@", {"a": 1, "b": 2})
+        assert get("//tmp/@a") == 1
+        assert get("//tmp/@b") == 2
+        multiset_attributes("//tmp/@", {"b": 3, "c": 4})
+        assert get("//tmp/@a") == 1
+        assert get("//tmp/@b") == 3
+        assert get("//tmp/@c") == 4
+
+        set("//tmp/@m", {})
+
+        multiset_attributes("//tmp/@m", {"x": 5, "y": 6})
+        assert get("//tmp/@m/x", 5)
+        assert get("//tmp/@m/y", 6)
+
+        multiset_attributes("//tmp/@", {"m/y": 7, "m/z": 8})
+        assert get("//tmp/@m/x", 5)
+        assert get("//tmp/@m/y", 7)
+        assert get("//tmp/@m/y", 8)
+
+    @authors("gritukan")
+    def test_multiset_attributes_invalid(self):
+        with pytest.raises(YtError):
+            multiset_attributes("//tmp", {"a": 1})
+        with pytest.raises(YtError):
+            multiset_attributes("//tmp/@", {"": 2})
+        with pytest.raises(YtError):
+            multiset_attributes("//tmp/@", {"a/b": 3})
+        with pytest.raises(YtError):
+            multiset_attributes("//tmp/@", {"ref_counter": 5})
+
+    @authors("gritukan")
+    def test_multiset_attributes_nonatomicity(self):
+        # This test relies on subrequests execution in lexicographic sorted order.
+        # It might be changed in the future.
+
+        with pytest.raises(YtError):
+            multiset_attributes("//tmp/@", {"a": 1, "b/x": 2, "c": 3})
+        attributes = get("//tmp/@")
+        assert attributes["a"] == 1
+        assert "b" not in attributes
+        assert "c" not in attributes
+
+    @authors("gritukan")
+    def test_multiset_attributes_tricky(self):
+        # Result of these commands depends on order of subrequests execution.
+        # We assume that it's undefined, so check that result is consistent
+        # with some ordering of subrequests and that master doesn't crash.
+
+        try:
+            multiset_attributes("//tmp/@", {"a": {}, "a/b": 1})
+            assert get("//tmp/@a") == {"b": 1}
+        except:
+            assert "a" not in get("//tmp/@a")
+
+        with pytest.raises(YtError):
+            multiset_attributes("//tmp/@", {"a": 1, "id": 2, "z": 3})
+
+        attributes = get("//tmp/@")
+        if "a" in attributes:
+            assert attributes["a"] == 1
+        if "c" in attributes:
+            assert attributes["c"] == 3
+
+        set("//tmp/@a", {})
+        multiset_attributes("//tmp/@", {"a": {"b": 2}, "a/b": 3})
+        assert get("//tmp/@a/b") == 2 or get("//tmp/@a/b") == 3
+
+        multiset_attributes("//tmp/@", {"a": 4, "a": 5})
+        assert get("//tmp/@a") == 4 or get("//tmp/@a") == 5
+        
+    @authors("gritukan")
+    def test_multiset_attributes_permissions(self):
+        create_user("u1")
+        create_user("u2")
+        create("document", "//tmp/doc", authenticated_user="u1")
+        set("//tmp/doc/@acl", [make_ace("deny", "u2", "write")])
+
+        multiset_attributes("//tmp/doc/@", {"a": 1}, authenticated_user="u1")
+        assert get("//tmp/doc/@a") == 1
+
+        with pytest.raises(YtError):
+            multiset_attributes("//tmp/doc/@", {"a": 2}, authenticated_user="u2")
+        assert get("//tmp/doc/@a") == 1
+
+        multiset_attributes("//tmp/doc/@", {"a": 3})
+        assert get("//tmp/doc/@a") == 3
+
+    @authors("gritukan")
+    def test_multiset_attributes_transaction(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        multiset_attributes("//tmp/@", {"a": 1}, tx=tx1)
+        multiset_attributes("//tmp/@", {"b": 2}, tx=tx2)
+        commit_transaction(tx1)
+        commit_transaction(tx2)
+        assert get("//tmp/@a") == 1
+        assert get("//tmp/@b") == 2
+
+        tx3 = start_transaction()
+        tx4 = start_transaction()
+        multiset_attributes("//tmp/@", {"a": 3}, tx=tx3)
+        with pytest.raises(YtError):
+            multiset_attributes("//tmp/@", {"a": 4}, tx=tx4)
+        commit_transaction(tx3)
+        assert get("//tmp/@a") == 3
+        assert get("//tmp/@b") == 2
 
 ##################################################################
 

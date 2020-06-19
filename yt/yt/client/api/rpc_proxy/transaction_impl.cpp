@@ -20,6 +20,7 @@ using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NCypressClient;
 using namespace NApi;
+using namespace NYTree;
 using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -567,6 +568,18 @@ TFuture<void> TTransaction::SetNode(
     return Client_->SetNode(
         path,
         value,
+        PatchTransactionId(options));
+}
+
+TFuture<void> TTransaction::MultisetAttributesNode(
+    const TYPath& path,
+    const IMapNodePtr& attributes,
+    const TMultisetAttributesNodeOptions& options)
+{
+    ValidateActive();
+    return Client_->MultisetAttributesNode(
+        path,
+        attributes,
         PatchTransactionId(options));
 }
 

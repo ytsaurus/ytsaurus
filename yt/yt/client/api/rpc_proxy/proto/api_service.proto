@@ -899,6 +899,29 @@ message TRspSetNode
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqMultisetAttributesNode
+{
+    required string path = 1; // YPath
+
+    message TSubrequest
+    {
+        required string attribute = 1;
+        required bytes value = 2; // YSON
+    }
+    repeated TSubrequest subrequests = 2;
+
+    optional TTransactionalOptions transactional_options = 100;
+    optional TPrerequisiteOptions prerequisite_options = 101;
+    optional TMutatingOptions mutating_options = 103;
+    optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
+}
+
+message TRspMultisetAttributesNode
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqLockNode
 {
     required string path = 1; // YPath

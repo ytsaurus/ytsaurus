@@ -113,14 +113,24 @@ protected:
 
 };
 
-class TSupportsMultiset
+class TSupportsMultisetAttributes
     : public virtual TRefCounted
 {
 protected:
     DECLARE_YPATH_SERVICE_METHOD(NProto, Multiset);
+    DECLARE_YPATH_SERVICE_METHOD(NProto, MultisetAttributes);
 
-    virtual void SetChildren(TReqMultiset* request, TRspMultiset* response);
-    virtual void SetAttributes(const TYPath& path, TReqMultiset* request, TRspMultiset* response);
+    virtual void SetAttributes(
+        const TYPath& path,
+        TReqMultisetAttributes* request,
+        TRspMultisetAttributes* response);
+
+private:
+    // COMPAT(gritukan) Move it to MultisetAttributes.
+    void DoSetAttributes(
+        const TYPath& path,
+        TReqMultisetAttributes* request,
+        TRspMultisetAttributes* response);
 };
 
 DECLARE_SUPPORTS_METHOD(GetKey, virtual TRefCounted);
@@ -172,7 +182,7 @@ class TSupportsAttributes
     , public virtual TSupportsGet
     , public virtual TSupportsList
     , public virtual TSupportsSet
-    , public virtual TSupportsMultiset
+    , public virtual TSupportsMultisetAttributes
     , public virtual TSupportsRemove
     , public virtual TSupportsExists
     , public virtual TSupportsPermissions
@@ -222,7 +232,10 @@ protected:
         TRspRemove* response,
         const TCtxRemovePtr& context) override;
 
-    virtual void SetAttributes(const TYPath& path, TReqMultiset* request, TRspMultiset* response) override;
+    virtual void SetAttributes(
+        const TYPath& path,
+        TReqMultisetAttributes* request,
+        TRspMultisetAttributes* response) override;
 
 private:
     class TCombinedAttributeDictionary

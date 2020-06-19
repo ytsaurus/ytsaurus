@@ -301,6 +301,34 @@ TFuture<void> TClientBase::SetNode(
     return req->Invoke().As<void>();
 }
 
+TFuture<void> TClientBase::MultisetAttributesNode(
+    const TYPath& path,
+    const IMapNodePtr& attributes,
+    const TMultisetAttributesNodeOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.MultisetAttributesNode();
+    SetTimeoutOptions(*req, options);
+
+    req->set_path(path);
+
+    auto children = attributes->GetChildren();
+    std::sort(children.begin(), children.end());
+    for (const auto& [attribute, value] : children) {
+        auto* protoSubrequest = req->add_subrequests();
+        protoSubrequest->set_attribute(attribute);
+        protoSubrequest->set_value(ConvertToYsonString(value).GetData());
+    }
+
+    ToProto(req->mutable_suppressable_access_tracking_options(), options);
+    ToProto(req->mutable_transactional_options(), options);
+    ToProto(req->mutable_prerequisite_options(), options);
+    ToProto(req->mutable_mutating_options(), options);
+
+    return req->Invoke().As<void>();
+}
+
 TFuture<TLockNodeResult> TClientBase::LockNode(
     const TYPath& path,
     NCypressClient::ELockMode mode,

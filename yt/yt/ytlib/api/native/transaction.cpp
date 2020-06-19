@@ -52,6 +52,7 @@ using namespace NTabletClient;
 using namespace NTableClient;
 using namespace NQueryClient;
 using namespace NYson;
+using namespace NYTree;
 using namespace NConcurrency;
 using namespace NRpc;
 
@@ -421,6 +422,11 @@ public:
         const TYsonString& value,
         const TSetNodeOptions& options),
         (path, value, options))
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, MultisetAttributesNode, (
+        const TYPath& path,
+        const IMapNodePtr& attributes,
+        const TMultisetAttributesNodeOptions& options),
+        (path, attributes, options))
     DELEGATE_TRANSACTIONAL_METHOD(TFuture<void>, RemoveNode, (
         const TYPath& path,
         const TRemoveNodeOptions& options),

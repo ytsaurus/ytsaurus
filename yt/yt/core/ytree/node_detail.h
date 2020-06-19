@@ -19,7 +19,7 @@ class TNodeBase
     , public virtual TSupportsGetKey
     , public virtual TSupportsGet
     , public virtual TSupportsSet
-    , public virtual TSupportsMultiset
+    , public virtual TSupportsMultisetAttributes
     , public virtual TSupportsRemove
     , public virtual TSupportsList
     , public virtual TSupportsExists
@@ -81,7 +81,7 @@ protected:
 class TCompositeNodeMixin
     : public virtual TYPathServiceBase
     , public virtual TSupportsSet
-    , public virtual TSupportsMultiset
+    , public virtual TSupportsMultisetAttributes
     , public virtual TSupportsRemove
     , public virtual TSupportsPermissions
     , public virtual ICompositeNode
@@ -140,8 +140,6 @@ protected:
         bool recursive);
 
     virtual int GetMaxKeyLength() const;
-
-    virtual void SetChildren(TReqMultiset* request, TRspMultiset* response) override;
 
 private:
     void ThrowMaxKeyLengthViolated() const;

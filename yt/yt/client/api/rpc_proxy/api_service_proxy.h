@@ -36,6 +36,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ExistsNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, GetNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SetNode);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MultisetAttributesNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, RemoveNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ListNode);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, CreateNode);
