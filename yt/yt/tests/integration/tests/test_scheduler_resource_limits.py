@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only
+from yt_env_setup import YTEnvSetup, unix_only, patch_porto_env_only, is_asan_build
 from yt_commands import *
 
 from flaky import flaky
@@ -92,6 +92,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
         }
     }
 
+    @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
     @authors("max42")
     @unix_only
     def test_memory_reserve_factor(self):
@@ -189,7 +190,7 @@ class TestContainerCpuLimit(YTEnvSetup):
             out="//tmp/t2",
             spec={
                 "mapper" : {
-                    "cpu_limit" : 0.1, 
+                    "cpu_limit" : 0.1,
                     "set_container_cpu_limit": True,
                 }
             })
@@ -218,7 +219,7 @@ class TestContainerCpuLimit(YTEnvSetup):
         assert self.get_job_container_cpu_limit() == '0.25c'
         release_breakpoint()
         op.track()
- 
+
 ###############################################################################################
 
 class TestUpdateInstanceLimits(YTEnvSetup):
