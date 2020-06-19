@@ -114,6 +114,27 @@ TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureSchedulesUpdatesProp
     EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 5000);
 }
 
+TEST(TReconfigurableThroughputThrottlerTest, TestSetLimit)
+{
+    auto throttler = CreateReconfigurableThroughputThrottler(
+        New<TThroughputThrottlerConfig>(1));
+
+    NProfiling::TWallTimer timer;
+
+    std::vector<TFuture<void>> scheduled;
+    for (int i = 0; i < 4; ++i) {
+        scheduled.push_back(throttler->Throttle(100));
+    }
+
+    throttler->SetLimit(100);
+
+    for (const auto& future : scheduled) {
+        future.Get().ThrowOnError();
+    }
+
+    EXPECT_LE(timer.GetElapsedTime().MilliSeconds(), 5000);
+}
+
 TEST(TReconfigurableThroughputThrottlerTest, TestReconfigureMustRescheduleUpdate)
 {
     auto throttler = CreateReconfigurableThroughputThrottler(

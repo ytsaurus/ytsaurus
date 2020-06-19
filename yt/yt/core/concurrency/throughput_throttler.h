@@ -81,6 +81,10 @@ struct IReconfigurableThroughputThrottler
 {
     //! Updates the configuration.
     virtual void Reconfigure(TThroughputThrottlerConfigPtr config) = 0;
+
+    //! Updates the limit.
+    //! See TThroughputThrottlerConfig::Limit.
+    virtual void SetLimit(std::optional<double> limit) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IReconfigurableThroughputThrottler)
