@@ -574,7 +574,7 @@ private:
         {
             for (int i = 0; i < Config_->ShardCount; ++i) {
                 auto& shard = MemberShards_[i];
-                TReaderGuard guard(shard.LimitsLock);
+                TWriterGuard guard(shard.LimitsLock);
                 shard.MemberIdToLimit.swap(memberIdToLimit[i]);
             }
         }
