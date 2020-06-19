@@ -492,6 +492,6 @@ class TestSchedulerSimulatorWithVectorHDRF(TestSchedulerSimulator):
         super(TestSchedulerSimulatorWithVectorHDRF, self).\
             _set_scheduler_simulator_config_params(simulator_files_path)
 
-        self.scheduler_simulator_config["use_classic_scheduling"] = False
+        self.scheduler_simulator_config["use_classic_scheduler"] = False
 
 ##################################################################
