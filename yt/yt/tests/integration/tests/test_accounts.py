@@ -39,19 +39,6 @@ def add_recursive(lhs, rhs):
 def subtract_recursive(lhs, rhs):
     return add_recursive(lhs, multiply_recursive(rhs, -1))
 
-# NB: does not check master_memory yet!
-def resources_equal(a, b):
-    if a["disk_space"] != b["disk_space"] or \
-        a["chunk_count"] != b["chunk_count"] or \
-        a["node_count"] != b["node_count"] or \
-        a["tablet_count"] != b["tablet_count"] or \
-        a["tablet_static_memory"] != b["tablet_static_memory"]:
-       return False
-
-    mediums = __builtin__.set(a["disk_space_per_medium"].keys())
-    mediums.union(__builtin__.set(b["disk_space_per_medium"].keys()))
-    return all(a["disk_space_per_medium"].get(medium, 0) == b["disk_space_per_medium"].get(medium, 0) for medium in mediums)
-
 ##################################################################
 
 class AccountsTestSuiteBase(YTEnvSetup):
@@ -137,8 +124,8 @@ class AccountsTestSuiteBase(YTEnvSetup):
         node_count = get("//sys/accounts/tmp/@committed_resource_usage/node_count")
         expected_usage = self._build_resource_limits(node_count=node_count)
         expected_usage["disk_space"] = 0
-        wait(lambda: resources_equal(get("//sys/accounts/tmp/@committed_resource_usage"), expected_usage) and
-            resources_equal(get("//sys/accounts/tmp/@resource_usage"), expected_usage))
+        wait(lambda: cluster_resources_equal(get("//sys/accounts/tmp/@committed_resource_usage"), expected_usage) and
+            cluster_resources_equal(get("//sys/accounts/tmp/@resource_usage"), expected_usage))
 
     # A context manager used for waiting until a chunk owner node which has been created, modified or moved
     # to another account gets accounted for in resource usage of account(s). Might not handle cases of
@@ -221,17 +208,17 @@ class AccountsTestSuiteBase(YTEnvSetup):
 
             if self._new_account == self._old_account:
                 self._expected_old_account_usage = add_recursive(self._expected_old_account_usage, new_resource_usage)
-                wait(lambda: resources_equal(
+                wait(lambda: cluster_resources_equal(
                     self._get_account_resource_usage(self._old_account),
                     self._expected_old_account_usage),
                     iter=20)
             else:
                 self._expected_new_account_usage = add_recursive(self._expected_new_account_usage, new_resource_usage)
                 wait(lambda:
-                    resources_equal(
+                    cluster_resources_equal(
                         self._get_account_resource_usage(self._old_account),
                         self._expected_old_account_usage) and
-                    resources_equal(
+                    cluster_resources_equal(
                         self._get_account_resource_usage(self._new_account),
                         self._expected_new_account_usage),
                     iter=20)
@@ -1824,8 +1811,8 @@ class TestAccounts(AccountsTestSuiteBase):
             sleep(0.3)
             new_resource_usage = get("//sys/accounts/@total_resource_usage")
             new_committed_resource_usage = get("//sys/accounts/@total_committed_resource_usage")
-            if (resources_equal(resource_usage, new_resource_usage) and
-                resources_equal(committed_resource_usage, new_committed_resource_usage)):
+            if (cluster_resources_equal(resource_usage, new_resource_usage) and
+                cluster_resources_equal(committed_resource_usage, new_committed_resource_usage)):
                 stable_iteration_count += 1
                 if stable_iteration_count == 10:
                     # Totals have been stable long enough, continue.
@@ -1835,7 +1822,7 @@ class TestAccounts(AccountsTestSuiteBase):
                 committed_resource_usage = new_committed_resource_usage
                 stable_iteration_count = 0
 
-        assert resources_equal(get("//sys/accounts/@total_resource_limits"), total_resource_limits)
+        assert cluster_resources_equal(get("//sys/accounts/@total_resource_limits"), total_resource_limits)
 
         create("table", "//tmp/t1", attributes={"account": "a1"})
         create("table", "//tmp/t2", attributes={"account": "a2"})
@@ -1855,8 +1842,8 @@ class TestAccounts(AccountsTestSuiteBase):
             total_resource_usage = add_resources(resource_usage, resource_usage1, resource_usage2)
             total_committed_resource_usage = add_resources(committed_resource_usage, committed_resource_usage1, committed_resource_usage2)
 
-            return (resources_equal(get("//sys/accounts/@total_resource_usage"), total_resource_usage) and
-                    resources_equal(get("//sys/accounts/@total_committed_resource_usage"), total_committed_resource_usage))
+            return (cluster_resources_equal(get("//sys/accounts/@total_resource_usage"), total_resource_usage) and
+                    cluster_resources_equal(get("//sys/accounts/@total_committed_resource_usage"), total_committed_resource_usage))
 
         wait(totals_match)
 
@@ -3088,8 +3075,8 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         with pytest.raises(YtError):
             create("map_node", "//tmp/test", attributes={"account": "yt-dev"})
-        assert resources_equal(get("//sys/accounts/yt-dev/@resource_limits"), self._build_resource_limits(include_disk_space=True))
-        assert resources_equal(get("//sys/accounts/yt-prod/@resource_limits"), limits)
+        assert cluster_resources_equal(get("//sys/accounts/yt-dev/@resource_limits"), self._build_resource_limits(include_disk_space=True))
+        assert cluster_resources_equal(get("//sys/accounts/yt-prod/@resource_limits"), limits)
 
     @authors("kiselyovp")
     def test_transfer_account_resources3(self):
@@ -3112,7 +3099,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         def validate_node_counts(parent, child, grandchild):
             for account, node_count in [("parent", parent), ("child", child), ("grandchild", grandchild)]:
-                assert resources_equal(get("//sys/accounts/{0}/@resource_limits".format(account)),
+                assert cluster_resources_equal(get("//sys/accounts/{0}/@resource_limits".format(account)),
                                        self._build_resource_limits(node_count=node_count, include_disk_space=True))
         with pytest.raises(YtError):
             transfer_account_resources("grandchild", "parent", {"node_count": 6})
@@ -3201,7 +3188,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         transfer_account_resources("yt-master", "yt-morda", {"node_count": 1})
         for account, node_count in [("yt", 16), ("yt-dev", 11), ("yt-master", 7), ("yt-cypress-server", 4),
                                     ("yt-security-server", 3), ("yt-scheduler", 10), ("yt-front", 16), ("yt-morda", 9)]:
-            assert resources_equal(get("//sys/accounts/{0}/@resource_limits".format(account)),
+            assert cluster_resources_equal(get("//sys/accounts/{0}/@resource_limits".format(account)),
                                    self._build_resource_limits(node_count=node_count, include_disk_space=True))
 
     @authors("kiselyovp")

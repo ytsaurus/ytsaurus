@@ -1021,6 +1021,27 @@ class TestPortals(YTEnvSetup):
 
         assert read_table("//tmp/p1/t") == [{"c": "d"}]
 
+    @authors("shakurov")
+    def test_recursive_resource_usage_portal(self):
+        create("map_node", "//tmp/d")
+        create("portal_entrance", "//tmp/d/p1", attributes={"exit_cell_tag": 1})
+
+        create("table", "//tmp/d/t", attributes={"external_cell_tag": 2})
+        write_table("//tmp/d/t", {"a": "b"})
+        table_usage = get("//tmp/d/t/@resource_usage")
+
+        create("table", "//tmp/d/p1/t", attributes={"external_cell_tag": 2})
+        write_table("//tmp/d/p1/t", {"a": "b"})
+
+        expected_usage = {
+            "node_count": 5, # two tables + one map node + portal entrance and exit
+            "disk_space": 2 * table_usage["disk_space"],
+            "disk_space_per_medium": {"default": 2 * table_usage["disk_space_per_medium"]["default"]},
+            "chunk_count": 2 * table_usage["chunk_count"],
+        }
+        total_usage = get("//tmp/d/@recursive_resource_usage")
+        assert cluster_resources_equal(total_usage, expected_usage)
+
 ##################################################################
 
 class TestResolveCache(YTEnvSetup):
