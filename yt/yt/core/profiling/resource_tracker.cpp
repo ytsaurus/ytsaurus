@@ -1,7 +1,6 @@
 #include "resource_tracker.h"
 #include "profile_manager.h"
 #include "profiler.h"
-#include "timing.h"
 
 #include <yt/core/logging/log.h>
 
@@ -35,6 +34,8 @@ static const TDuration UpdatePeriod = TDuration::Seconds(1);
 static TProfiler Profiler("/resource_tracker");
 static NLogging::TLogger Logger("Profiling");
 
+static constexpr auto procPath = "/proc/self/task";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -53,14 +54,17 @@ i64 GetTicksPerSecond()
 // Please, refer to /proc documentation to know more about available information.
 // http://www.kernel.org/doc/Documentation/filesystems/proc.txt
 
-TResourceTracker::TTimings TResourceTracker::TTimings::operator+(const TResourceTracker::TTimings& other) const
-{
-    return {UserJiffies + other.UserJiffies, SystemJiffies + other.SystemJiffies, CpuWaitNsec + other.CpuWaitNsec};
-}
-
 TResourceTracker::TTimings TResourceTracker::TTimings::operator-(const TResourceTracker::TTimings& other) const
 {
     return {UserJiffies - other.UserJiffies, SystemJiffies - other.SystemJiffies, CpuWaitNsec - other.CpuWaitNsec};
+}
+
+TResourceTracker::TTimings& TResourceTracker::TTimings::operator+=(const TResourceTracker::TTimings& other)
+{
+    UserJiffies += other.UserJiffies;
+    SystemJiffies += other.SystemJiffies;
+    CpuWaitNsec += other.CpuWaitNsec;
+    return *this;
 }
 
 TResourceTracker::TResourceTracker(IInvokerPtr invoker)
@@ -85,15 +89,89 @@ void TResourceTracker::EnqueueUsage()
     YT_LOG_DEBUG("Resource tracker enqueue started");
 
     EnqueueMemoryUsage();
-    EnqueueCpuUsage();
+    EnqueueThreadStats();
 
     YT_LOG_DEBUG("Resource tracker enqueue finished ");
 }
 
-TResourceTracker::TThreadMap TResourceTracker::ReadThreadStats()
+bool TResourceTracker::ProcessThread(TString tid, TResourceTracker::TThreadInfo* info)
 {
-    static constexpr auto procPath = "/proc/self/task";
+    auto threadStatPath = NFS::CombinePaths(procPath, tid);
+    auto statPath = NFS::CombinePaths(threadStatPath, "stat");
+    auto statusPath = NFS::CombinePaths(threadStatPath, "status");
+    auto schedStatPath = NFS::CombinePaths(threadStatPath, "schedstat");
 
+    try {
+        // Parse status.
+        {
+            TIFStream file(statusPath);
+            for (TString line; file.ReadLine(line); ) {
+                auto tokens = SplitString(line, "\t");
+
+                if (tokens[0] == "Name:") {
+                    info->ThreadName = tokens[1];
+                } else if (tokens[0] == "SigBlk:") {
+                    // This is a heuristic way to distinguish YT thread from non-YT threads.
+                    // It is used primarily for CHYT, which links against CH and Poco that
+                    // have their own complicated manner of handling threads. We want to be
+                    // able to visually distinguish them from our threads.
+                    //
+                    // Poco threads always block SIGQUIT, SIGPIPE and SIGTERM; we use the latter
+                    // one presence. Feel free to change this heuristic if needed.
+                    YT_VERIFY(tokens[1].size() == 16);
+                    auto mask = IntFromString<ui64, 16>(tokens[1]);
+                    // Note that signals are 1-based, so 14-th bit is SIGTERM (15).
+                    bool sigtermBlocked = (mask >> 14) & 1ull;
+                    info->IsYtThread = !sigtermBlocked;
+                }
+            }
+        }
+
+        // Parse schedstat.
+        {
+            TIFStream file(schedStatPath);
+            auto tokens = SplitString(file.ReadLine(), " ");
+            if (tokens.size() < 3) {
+                return false;
+            }
+
+            info->Timings.CpuWaitNsec = FromString<i64>(tokens[1]);
+        }
+
+        // Parse stat.
+        {
+            TIFStream file(statPath);
+            auto tokens = SplitString(file.ReadLine(), " ");
+            if (tokens.size() < 15) {
+                return false;
+            }
+
+            info->Timings.UserJiffies = FromString<i64>(tokens[13]);
+            info->Timings.SystemJiffies = FromString<i64>(tokens[14]);
+        }
+
+        info->ProfilingKey = info->ThreadName;
+        if (!info->IsYtThread) {
+            info->ProfilingKey += "@";
+        }
+    } catch (const TIoException&) {
+        // Ignore all IO exceptions.
+        return false;
+    }
+
+    YT_LOG_TRACE("Thread statistics (Tid: %v, ThreadName: %v, IsYtThread: %v, UserJiffies: %v, SystemJiffies: %v, CpuWaitNsec: %v)",
+        tid,
+        info->ThreadName,
+        info->IsYtThread,
+        info->Timings.UserJiffies,
+        info->Timings.SystemJiffies,
+        info->Timings.CpuWaitNsec);
+
+    return true;
+}
+
+TResourceTracker::TThreadMap TResourceTracker::ProcessThreads()
+{
     TDirsList dirsList;
     try {
         dirsList.Fill(procPath);
@@ -106,78 +184,48 @@ TResourceTracker::TThreadMap TResourceTracker::ReadThreadStats()
 
     for (int index = 0; index < dirsList.Size(); ++index) {
         auto tid = TString(dirsList.Next());
-        auto threadStatPath = NFS::CombinePaths(procPath, tid);
-        auto cpuStatPath = NFS::CombinePaths(threadStatPath, "stat");
-        auto schedStatPath = NFS::CombinePaths(threadStatPath, "schedstat");
-
-        std::vector<TString> fields;
-        std::vector<TString> schedFields;
-        try {
-            TIFStream cpuStatFile(cpuStatPath);
-            fields = SplitString(cpuStatFile.ReadLine(), " ");
-
-            TIFStream schedStatFile(schedStatPath);
-            schedFields = SplitString(schedStatFile.ReadLine(), " ");
-            if (schedFields.size() < 3) {
-                continue;
-            }
-        } catch (const TIoException&) {
-            // Ignore all IO exceptions.
-            continue;
+        TThreadInfo info;
+        if (ProcessThread(tid, &info)) {
+            tidToStats[tid] = info;
+        } else {
+            YT_LOG_TRACE("Failed to prepare thread info for thread (Tid: %v)", tid);
         }
-
-        // Get rid of parentheses in process title.
-        YT_VERIFY(fields[1].size() >= 2);
-
-        auto threadName = fields[1].substr(1, fields[1].size() - 2);
-        i64 userJiffies = FromString<i64>(fields[13]); // In jiffies.
-        i64 systemJiffies = FromString<i64>(fields[14]); // In jiffies.
-        i64 cpuWaitNsec = FromString<i64>(schedFields[1]); // In nanoseconds.
-
-        YT_LOG_TRACE("Thread statistics (Tid: %v, ThreadName: %v, UserJiffies: %v, SystemJiffies: %v, CpuWaitNsec: %v)",
-            tid,
-            threadName,
-            userJiffies,
-            systemJiffies,
-            cpuWaitNsec);
-
-        tidToStats[tid] = TThreadStats{threadName, TTimings{userJiffies, systemJiffies, cpuWaitNsec}};
     }
 
     return tidToStats;
 }
 
 void TResourceTracker::EnqueueAggregatedTimings(
-    const TResourceTracker::TThreadMap& oldTidToStats,
-    const TResourceTracker::TThreadMap& newTidToStats,
+    const TResourceTracker::TThreadMap& oldTidToInfo,
+    const TResourceTracker::TThreadMap& newTidToInfo,
     i64 timeDeltaUsec)
 {
     double totalUserCpuTime = 0.0;
     double totalSystemCpuTime = 0.0;
     double totalCpuWaitTime = 0.0;
 
-    THashMap<TString, TTimings> threadNameToAggregatedTimings;
+    THashMap<TString, TTimings> profilingKeyToAggregatedTimings;
 
     // Consider only those threads which did not change their thread names.
     // In each group of such threads with same thread name, export aggregated timings.
 
-    for (const auto& [tid, newStats] : newTidToStats) {
-        auto it = oldTidToStats.find(tid);
+    for (const auto& [tid, newInfo] : newTidToInfo) {
+        auto it = oldTidToInfo.find(tid);
 
-        if (it == oldTidToStats.end()) {
+        if (it == oldTidToInfo.end()) {
             continue;
         }
 
-        const auto& oldStats = it->second;
+        const auto& oldInfo = it->second;
 
-        if (oldStats.ThreadName != newStats.ThreadName) {
+        if (oldInfo.ProfilingKey != newInfo.ProfilingKey) {
             continue;
         }
 
-        threadNameToAggregatedTimings[newStats.ThreadName] = threadNameToAggregatedTimings[newStats.ThreadName] + (newStats.Timings - oldStats.Timings);
+        profilingKeyToAggregatedTimings[newInfo.ProfilingKey] += newInfo.Timings - oldInfo.Timings;
     }
 
-    for (const auto& [threadName, aggregatedTimings] : threadNameToAggregatedTimings) {
+    for (const auto& [profilingKey, aggregatedTimings] : profilingKeyToAggregatedTimings) {
         // Multiplier 1e6 / timeDelta is for taking average over time (all values should be "per second").
         // Multiplier 100 for CPU time is for measuring CPU load in percents. It is due to historical reasons.
         double userCpuTime = std::max<double>(0.0, 100. * aggregatedTimings.UserJiffies / TicksPerSecond_ * (1e6 / timeDeltaUsec));
@@ -189,14 +237,14 @@ void TResourceTracker::EnqueueAggregatedTimings(
         totalCpuWaitTime += waitTime;
 
         TTagIdList tagIds;
-        tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", threadName));
+        tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", profilingKey));
 
         Profiler.Enqueue("/user_cpu", userCpuTime, EMetricType::Gauge, tagIds);
         Profiler.Enqueue("/system_cpu", systemCpuTime, EMetricType::Gauge, tagIds);
         Profiler.Enqueue("/cpu_wait", waitTime, EMetricType::Gauge, tagIds);
 
-        YT_LOG_TRACE("Thread CPU timings in percent/sec (ThreadName: %v, UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
-            threadName,
+        YT_LOG_TRACE("Thread CPU timings in percent/sec (ProfilingKey: %v, UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
+            profilingKey,
             userCpuTime,
             systemCpuTime,
             waitTime);
@@ -206,22 +254,43 @@ void TResourceTracker::EnqueueAggregatedTimings(
     LastSystemCpu_.store(totalSystemCpuTime);
     LastCpuWait_.store(totalCpuWaitTime);
 
-    YT_LOG_DEBUG("Cpu timings in percent/sec (UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
+    YT_LOG_DEBUG("Total cpu timings in percent/sec (UserCpu: %v, SystemCpu: %v, CpuWait: %v)",
         totalUserCpuTime,
         totalSystemCpuTime,
         totalCpuWaitTime);
 }
 
-void TResourceTracker::EnqueueCpuUsage()
+void TResourceTracker::EnqueueThreadCounts(const TThreadMap& tidToInfo) const
+{
+    THashMap<TString, int> profilingKeyToCount;
+
+    for (const auto& [tid, info] : tidToInfo) {
+        ++profilingKeyToCount[info.ProfilingKey];
+    }
+
+    for (const auto& [profilingKey, count] : profilingKeyToCount) {
+        TTagIdList tagIds;
+        tagIds.push_back(TProfileManager::Get()->RegisterTag("thread", profilingKey));
+
+        Profiler.Enqueue("/thread_count", count, EMetricType::Gauge, tagIds);
+    }
+
+    YT_LOG_DEBUG("Total thread count (ThreadCount: %v)",
+        tidToInfo.size());
+}
+
+void TResourceTracker::EnqueueThreadStats()
 {
     i64 timeDeltaUsec = TInstant::Now().MicroSeconds() - LastUpdateTime_.MicroSeconds();
     if (timeDeltaUsec <= 0) {
         return;
     }
 
-    auto tidToStats = ReadThreadStats();
-    EnqueueAggregatedTimings(TidToStats_, tidToStats, timeDeltaUsec);
-    TidToStats_ = tidToStats;
+    auto tidToInfo = ProcessThreads();
+    EnqueueAggregatedTimings(TidToInfo_, tidToInfo, timeDeltaUsec);
+    TidToInfo_ = tidToInfo;
+
+    EnqueueThreadCounts(TidToInfo_);
 
     LastUpdateTime_ = TInstant::Now();
 }
