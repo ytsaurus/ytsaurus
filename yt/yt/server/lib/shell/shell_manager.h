@@ -30,6 +30,7 @@ DEFINE_REFCOUNTED_TYPE(IShellManager)
 IShellManagerPtr CreateShellManager(
     NContainers::IPortoExecutorPtr portoExecutor,
     NContainers::IInstancePtr rootInstnace,
+    const TString& preparationDir,
     const TString& workingDir,
     std::optional<int> userId,
     std::optional<TString> messageOfTheDay,
