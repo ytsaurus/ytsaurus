@@ -8,6 +8,7 @@
 #include <yt/core/concurrency/periodic_executor.h>
 
 #include <yt/core/misc/algorithm_helpers.h>
+#include <yt/core/misc/atomic_object.h>
 #include <yt/core/misc/historic_usage_aggregator.h>
 
 #include <yt/ytlib/discovery_client/discovery_client.h>
@@ -55,12 +56,12 @@ public:
         return HistoricUsageAggregator_.GetHistoricUsage();
     }
 
-    const TThroughputThrottlerConfigPtr& GetConfig()
+    TThroughputThrottlerConfigPtr GetConfig()
     {
-        return ThrottlerConfig_;
+        return ThrottlerConfig_.Load();
     }
 
-    TFuture<void> Throttle(i64 count)
+    virtual TFuture<void> Throttle(i64 count) override
     {
         if (Config_->Mode == EDistributedThrottlerMode::Precise) {
             auto leaderChannel = GetLeaderChannel();
@@ -88,7 +89,7 @@ public:
         return future;
     }
 
-    bool TryAcquire(i64 count)
+    virtual bool TryAcquire(i64 count) override
     {
         YT_VERIFY(Config_->Mode != EDistributedThrottlerMode::Precise);
 
@@ -99,7 +100,7 @@ public:
         return result;
     }
 
-    i64 TryAcquireAvailable(i64 count)
+    virtual i64 TryAcquireAvailable(i64 count) override
     {
         YT_VERIFY(Config_->Mode != EDistributedThrottlerMode::Precise);
 
@@ -110,7 +111,7 @@ public:
         return result;
     }
 
-    void Acquire(i64 count)
+    virtual void Acquire(i64 count) override
     {
         YT_VERIFY(Config_->Mode != EDistributedThrottlerMode::Precise);
 
@@ -118,32 +119,32 @@ public:
         Underlying_->Acquire(count);
     }
 
-    bool IsOverdraft()
+    virtual bool IsOverdraft() override
     {
         YT_VERIFY(Config_->Mode != EDistributedThrottlerMode::Precise);
 
         return Underlying_->IsOverdraft();
     }
 
-    i64 GetQueueTotalCount() const
+    virtual i64 GetQueueTotalCount() const override
     {
         YT_VERIFY(Config_->Mode != EDistributedThrottlerMode::Precise);
 
         return Underlying_->GetQueueTotalCount();
     }
 
-    void Reconfigure(TThroughputThrottlerConfigPtr config)
+    virtual void Reconfigure(TThroughputThrottlerConfigPtr config) override
     {
         if (Config_->Mode == EDistributedThrottlerMode::Precise) {
-            DoReconfigure(std::move(config));
+            Underlying_->Reconfigure(std::move(config));
         } else {
-            ThrottlerConfig_ = CloneYsonSerializable(std::move(config));
+            ThrottlerConfig_.Store(CloneYsonSerializable(std::move(config)));
         }
     }
 
-    void DoReconfigure(TThroughputThrottlerConfigPtr config)
+    virtual void SetLimit(std::optional<double> limit) override
     {
-        Underlying_->Reconfigure(std::move(config));
+        Underlying_->SetLimit(limit);
     }
 
     void SetLeaderChannel(const IChannelPtr& leaderChannel)
@@ -157,7 +158,7 @@ private:
     const TString ThrottlerId_;
 
     TDistributedThrottlerConfigPtr Config_;
-    TThroughputThrottlerConfigPtr ThrottlerConfig_;
+    TAtomicObject<TThroughputThrottlerConfigPtr> ThrottlerConfig_;
 
     TReaderWriterSpinLock LeaderChannelLock_;
     IChannelPtr LeaderChannel_;
@@ -777,13 +778,6 @@ private:
 
     TDistributedThrottlerServicePtr DistributedThrottlerService_;
 
-    void UpdateThroughputThrottlerLimit(const TWrappedThrottlerPtr& throttler, std::optional<double> limit)
-    {
-        auto config = CloneYsonSerializable(throttler->GetConfig());
-        config->Limit = limit;
-        throttler->DoReconfigure(config);
-    }
-
     void UpdateLimits()
     {
         if (Config_->Mode == EDistributedThrottlerMode::Precise) {
@@ -834,7 +828,7 @@ private:
             auto limits = DistributedThrottlerService_->GetMemberLimits(MemberId_, GetKeys(throttlerIdToUsageRate));
             for (const auto& [throttlerId, limit] : limits) {
                 const auto& throttler = GetOrCrash(throttlers, throttlerId);
-                UpdateThroughputThrottlerLimit(throttler, limit);
+                throttler->SetLimit(limit);
                 YT_LOG_TRACE("Throttler limit updated (ThrottlerId: %v, Limit: %v)",
                     throttlerId,
                     limit);
@@ -879,7 +873,7 @@ private:
                     auto limit = rspThrottler.has_limit() ? std::make_optional(rspThrottler.limit()) : std::nullopt;
                     const auto& throttlerId = rspThrottler.id();
                     const auto& throttler = GetOrCrash(throttlers, throttlerId);
-                    UpdateThroughputThrottlerLimit(throttler, limit);
+                    throttler->SetLimit(limit);
                     YT_LOG_TRACE("Throttler limit updated (LeaderId: %v, ThrottlerId: %v, Limit: %v)",
                         currentLeaderId,
                         throttlerId,

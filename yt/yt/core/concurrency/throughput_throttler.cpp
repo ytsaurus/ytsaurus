@@ -191,32 +191,14 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        // Slow lane (only).
-        TGuard<TSpinLock> guard(SpinLock_);
+        DoReconfigure(config->Limit, config->Period);
+    }
 
-        auto limit = config->Limit;
-        Limit_ = limit.value_or(-1);
-        TDelayedExecutor::CancelAndClear(UpdateCookie_);
-        auto now = NProfiling::GetInstant();
-        if (limit) {
-            Period_ = config->Period;
-            auto lastUpdated = LastUpdated_.load();
-            auto millisecondsPassed = (now - lastUpdated).MilliSeconds();
-            auto deltaAvailable = static_cast<i64>(millisecondsPassed * *limit / 1000);
-            auto newAvailable = Available_.load() + deltaAvailable;
-            auto maxAvailable = static_cast<i64>(Period_.load().SecondsFloat()) * *limit;
-            if (newAvailable > maxAvailable) {
-                LastUpdated_ = now;
-                newAvailable = maxAvailable;
-            } else {
-                LastUpdated_ = lastUpdated + TDuration::MilliSeconds(deltaAvailable * 1000 / *limit);
-            }
-            Available_ = newAvailable;
-        } else {
-            Available_ = 0;
-            LastUpdated_ = now;
-        }
-        ProcessRequests(std::move(guard));
+    virtual void SetLimit(std::optional<double> limit) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        DoReconfigure(limit, Period_);
     }
 
     virtual i64 GetQueueTotalCount() const override
@@ -246,6 +228,37 @@ private:
     TDelayedExecutorCookie UpdateCookie_;
 
     std::queue<TThrottlerRequestPtr> Requests_;
+
+    void DoReconfigure(std::optional<double> limit, TDuration period)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        // Slow lane (only).
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        Limit_ = limit.value_or(-1);
+        TDelayedExecutor::CancelAndClear(UpdateCookie_);
+        auto now = NProfiling::GetInstant();
+        if (limit) {
+            Period_ = period;
+            auto lastUpdated = LastUpdated_.load();
+            auto millisecondsPassed = (now - lastUpdated).MilliSeconds();
+            auto deltaAvailable = static_cast<i64>(millisecondsPassed * *limit / 1000);
+            auto newAvailable = Available_.load() + deltaAvailable;
+            auto maxAvailable = static_cast<i64>(Period_.load().SecondsFloat()) * *limit;
+            if (newAvailable > maxAvailable) {
+                LastUpdated_ = now;
+                newAvailable = maxAvailable;
+            } else {
+                LastUpdated_ = lastUpdated + TDuration::MilliSeconds(deltaAvailable * 1000 / *limit);
+            }
+            Available_ = newAvailable;
+        } else {
+            Available_ = 0;
+            LastUpdated_ = now;
+        }
+        ProcessRequests(std::move(guard));
+    }
 
     void ScheduleUpdate()
     {
