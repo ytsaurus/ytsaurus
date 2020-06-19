@@ -41,33 +41,42 @@ private:
         i64 SystemJiffies = 0;
         i64 CpuWaitNsec = 0;
 
-        TTimings operator+(const TTimings& other) const;
         TTimings operator-(const TTimings& other) const;
+        TTimings& operator+=(const TTimings& other);
     };
 
-    struct TThreadStats
+    struct TThreadInfo
     {
         TString ThreadName;
         TTimings Timings;
+        bool IsYtThread = true;
+        //! This key is IsYtThread ? ThreadName : ThreadName + "@".
+        //! It allows to distinguish YT threads from non-YT threads that
+        //! inherited parent YT thread name.
+        TString ProfilingKey;
     };
 
     // thread id -> stats
-    using TThreadMap = THashMap<TString, TThreadStats>;
+    using TThreadMap = THashMap<TString, TThreadInfo>;
 
-    TThreadMap TidToStats_;
+    TThreadMap TidToInfo_;
 
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
 
     void EnqueueUsage();
 
-    void EnqueueCpuUsage();
+    void EnqueueThreadStats();
     void EnqueueMemoryUsage();
 
-    TThreadMap ReadThreadStats();
+    bool ProcessThread(TString tid, TThreadInfo* result);
+    TThreadMap ProcessThreads();
+
     void EnqueueAggregatedTimings(
-        const TThreadMap& oldTidToStats,
-        const TThreadMap& newTidToStats,
+        const TThreadMap& oldTidToInfo,
+        const TThreadMap& newTidToInfo,
         i64 timeDeltaUsec);
+
+    void EnqueueThreadCounts(const TThreadMap& tidToInfo) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
