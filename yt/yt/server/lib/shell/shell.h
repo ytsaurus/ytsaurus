@@ -20,6 +20,7 @@ struct TShellOptions
     TString Term = "xterm";
     int Height = 24;
     int Width = 80;
+    TString PreparationDir = "/";
     TString WorkingDir = "/";
     std::vector<TString> Environment;
     std::optional<TString> Bashrc;

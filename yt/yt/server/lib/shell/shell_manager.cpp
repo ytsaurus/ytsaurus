@@ -66,12 +66,14 @@ public:
     TShellManager(
         IPortoExecutorPtr portoExecutor,
         IInstancePtr rootInstance,
+        const TString& preparationDir,
         const TString& workingDir,
         std::optional<int> userId,
         std::optional<TString> messageOfTheDay,
         std::vector<TString> environment)
         : PortoExecutor_(std::move(portoExecutor))
         , RootInstance_(std::move(rootInstance))
+        , PreparationDir_(preparationDir)
         , WorkingDir_(workingDir)
         , UserId_(userId)
         , MessageOfTheDay_(messageOfTheDay)
@@ -119,6 +121,7 @@ public:
                     parameters.Environment.begin(),
                     parameters.Environment.end());
                 options->Environment = Environment_;
+                options->PreparationDir = PreparationDir_;
                 options->WorkingDir = WorkingDir_;
                 if (parameters.Command) {
                     options->Command = parameters.Command;
@@ -235,6 +238,7 @@ public:
 private:
     const IPortoExecutorPtr PortoExecutor_;
     const IInstancePtr RootInstance_;
+    const TString PreparationDir_;
     const TString WorkingDir_;
     std::optional<int> UserId_;
     std::optional<TString> MessageOfTheDay_;
@@ -277,6 +281,7 @@ private:
 IShellManagerPtr CreateShellManager(
     IPortoExecutorPtr portoExecutor,
     IInstancePtr rootInstance,
+    const TString& preparationDir,
     const TString& workingDir,
     std::optional<int> userId,
     std::optional<TString> messageOfTheDay,
@@ -285,6 +290,7 @@ IShellManagerPtr CreateShellManager(
     return New<TShellManager>(
         std::move(portoExecutor),
         std::move(rootInstance),
+        preparationDir,
         workingDir,
         userId,
         messageOfTheDay,
@@ -296,6 +302,7 @@ IShellManagerPtr CreateShellManager(
 IShellManagerPtr CreateShellManager(
     IPortoExecutorPtr portoExecutor,
     IInstancePtr rootInstance,
+    const TString& preparationDir,
     const TString& workingDir,
     std::optional<int> userId,
     std::optional<TString> messageOfTheDay,

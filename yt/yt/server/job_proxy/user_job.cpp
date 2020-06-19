@@ -209,7 +209,7 @@ public:
 
             IUserJobEnvironment::TUserJobProcessOptions options;
             if (UserJobSpec_.has_core_table_spec()) {
-                options.CoreWatcherDirectory = NFS::GetRealPath(NFS::CombinePaths({Host_->GetSlotPath(), "cores"}));
+                options.CoreWatcherDirectory = NFS::GetRealPath(NFS::CombinePaths({Host_->GetPreparationPath(), "cores"}));
             }
             options.EnablePorto = TranslateEnablePorto(CheckedEnumCast<NScheduler::EEnablePorto>(UserJobSpec_.enable_porto()));
             options.EnableCudaGpuCoreDump = UserJobSpec_.enable_cuda_gpu_core_dump();
@@ -589,6 +589,7 @@ private:
             ShellManager_ = CreateShellManager(
                 portoExecutor,
                 UserJobEnvironment_->GetUserJobInstance(),
+                Host_->GetPreparationPath(),
                 Host_->GetSlotPath(),
                 shellManagerUid,
                 Format("Job environment:\n%v\n", JoinToString(visibleEnvironment, AsStringBuf("\n"))),

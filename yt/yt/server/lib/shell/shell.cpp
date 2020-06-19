@@ -78,15 +78,17 @@ public:
 
         int uid = Options_->Uid.value_or(::getuid());
         auto user = SafeGetUsernameByUid(uid);
-        auto home = Options_->WorkingDir;
+        auto preparationDir = Options_->PreparationDir;
+        auto workingDir = Options_->WorkingDir;
 
-        YT_LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, Home: %v, InactivityTimeout: %v, Command: %v)",
+        YT_LOG_INFO("Spawning TTY (Term: %v, Height: %v, Width: %v, Uid: %v, Username: %v, PreparationDir: %v, WorkingDir: %v, InactivityTimeout: %v, Command: %v)",
             Options_->Term,
             CurrentHeight_,
             CurrentWidth_,
             uid,
             user,
-            home,
+            preparationDir,
+            workingDir,
             InactivityTimeout_,
             Command_);
 
@@ -114,14 +116,14 @@ public:
         Writer_ = Pty_->CreateMasterAsyncWriter();
         ZeroCopyWriter_ = CreateZeroCopyAdapter(Writer_);
 
-        Process_->SetWorkingDirectory(home);
+        Process_->SetWorkingDirectory(workingDir);
 
         auto addEnv = [&] (const TString& name, const TString& value) {
             Process_->AddEnvVar(Format("%v=%v", name, value));
         };
 
         // Init environment variables.
-        addEnv("HOME", home);
+        addEnv("HOME", workingDir);
         addEnv("LOGNAME", user);
         addEnv("USER", user);
         addEnv("TERM", Options_->Term);
@@ -133,7 +135,7 @@ public:
         }
 
         if (Options_->MessageOfTheDay) {
-            auto path = NFS::CombinePaths(home, ".motd");
+            auto path = NFS::CombinePaths(preparationDir, ".motd");
 
             try {
                 TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
@@ -146,7 +148,7 @@ public:
             }
         }
         if (Options_->Bashrc) {
-            auto path = NFS::CombinePaths(home, ".bashrc");
+            auto path = NFS::CombinePaths(preparationDir, ".bashrc");
 
             try {
                 TFile file(path, CreateAlways | WrOnly | Seq | CloseOnExec);
