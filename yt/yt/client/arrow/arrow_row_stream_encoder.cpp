@@ -143,7 +143,7 @@ bool IsRleButNotDictionaryEncodedStringLikeColumn(const TBatchColumn& column)
         !column.Rle->ValueColumn->Dictionary;
 }
 
-bool IsRleDictionaryEncodedColumn(const TBatchColumn& column)
+bool IsRleAndDictionaryEncodedColumn(const TBatchColumn& column)
 {
     return
         column.Rle &&
@@ -154,22 +154,8 @@ bool IsDictionaryEncodedColumn(const TBatchColumn& column)
 {
     return
         column.Dictionary ||
-        IsRleDictionaryEncodedColumn(column) ||
+        IsRleAndDictionaryEncodedColumn(column) ||
         IsRleButNotDictionaryEncodedStringLikeColumn(column);
-}
-
-flatbuffers::Offset<org::apache::arrow::flatbuf::DictionaryEncoding> SerializeDictionaryEncoding(
-    flatbuffers::FlatBufferBuilder* flatbufBuilder,
-    const TBatchColumn& column,
-    int* dictionaryIdCounter)
-{
-    if (!IsDictionaryEncodedColumn(column)) {
-        return {};
-    }
-
-    return org::apache::arrow::flatbuf::CreateDictionaryEncoding(
-        *flatbufBuilder,
-        *dictionaryIdCounter++);
 }
 
 struct TTypedBatchColumn
@@ -676,19 +662,78 @@ auto SerializeRecordBatch(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TArrowRowStreamEncoder)
+
+class TArrowRowStreamEncoder
+    : public IRowStreamEncoder
+{
+public:
+    TArrowRowStreamEncoder(
+        TTableSchemaPtr schema,
+        TNameTablePtr nameTable)
+        : Schema_(std::move(schema))
+        , NameTable_(std::move(nameTable))
+        , FallbackEncoder_(CreateWireRowStreamEncoder(NameTable_))
+    {
+        YT_LOG_DEBUG("Row stream encoder created (Schema: %v)",
+            *Schema_);
+    }
+
+    const TTableSchemaPtr& GetSchema()
+    {
+        return Schema_;
+    }
+    
+    const TNameTablePtr& GetNameTable()
+    {
+        return NameTable_;
+    }
+
+    bool IsFirstBatch()
+    {
+        return FirstBatch_;
+    }
+
+    std::vector<IUnversionedColumnarRowBatch::TDictionaryId>& ArrowDictionaryIds()
+    {
+        return ArrowDictionaryIds_;
+    }
+
+    virtual TSharedRef Encode(
+        const IUnversionedRowBatchPtr& batch,
+        const NApi::NRpcProxy::NProto::TRowsetStatistics* statistics) override;
+
+private:
+    const TTableSchemaPtr Schema_;
+    const TNameTablePtr NameTable_;
+
+    const IRowStreamEncoderPtr FallbackEncoder_;
+
+    bool FirstBatch_ = true;
+    std::vector<IUnversionedColumnarRowBatch::TDictionaryId> ArrowDictionaryIds_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TArrowRowStreamEncoder)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TArrowRowStreamBlockEncoder
 {
 public:
     TArrowRowStreamBlockEncoder(
-        TTableSchemaPtr schema,
-        TNameTablePtr nameTable,
+        TArrowRowStreamEncoderPtr streamEncoder,
         IUnversionedColumnarRowBatchPtr batch)
-        : Schema_(std::move(schema))
-        , NameTable_(std::move(nameTable))
+        : StreamEncoder_(std::move(streamEncoder))
         , Batch_(std::move(batch))
     {
         PrepareColumns();
-        PrepareSchema();
+        if (IsSchemaMessageNeeded()) {
+            if (!StreamEncoder_->IsFirstBatch()) {
+                RegisterEosMarker();
+            }
+            ResetArrowDictionaries();
+            PrepareSchema();
+        }
         PrepareDictionaryBatches();
         PrepareRecordBatch();
     }
@@ -699,8 +744,10 @@ public:
         for (const auto& message : Messages_) {
             size += sizeof (ui32); // continuation indicator
             size += sizeof (ui32); // metadata size
-            size += AlignUp<i64>(message.FlatbufBuilder.GetSize(), ArrowAlignment); // metadata message
-            size += AlignUp<i64>(message.BodySize, ArrowAlignment); // body
+            if (message.FlatbufBuilder) {
+                size += AlignUp<i64>(message.FlatbufBuilder->GetSize(), ArrowAlignment); // metadata message
+                size += AlignUp<i64>(message.BodySize, ArrowAlignment); // body
+            }
         }
         return size;
     }
@@ -715,23 +762,29 @@ public:
             *reinterpret_cast<ui32*>(current) = 0xFFFFFFFF;
             current += sizeof(ui32);
 
-            // Metadata size
-            *reinterpret_cast<ui32*>(current) = AlignUp<i64>(message.FlatbufBuilder.GetSize(), ArrowAlignment);
-            current += sizeof(ui32);
+            if (message.FlatbufBuilder) {
+                auto metadataSize = message.FlatbufBuilder->GetSize();
+                auto* metadataPtr = message.FlatbufBuilder->GetBufferPointer();
+                
+                // Metadata size
+                *reinterpret_cast<ui32*>(current) = AlignUp<i64>(metadataSize, ArrowAlignment);
+                current += sizeof(ui32);
 
-            // Metadata message
-            std::copy(
-                message.FlatbufBuilder.GetBufferPointer(),
-                message.FlatbufBuilder.GetBufferPointer() + message.FlatbufBuilder.GetSize(),
-                current);
-            current += AlignUp<i64>(message.FlatbufBuilder.GetSize(), ArrowAlignment);
+                // Metadata message
+                ::memcpy(current, metadataPtr, metadataSize);
+                current += AlignUp<i64>(metadataSize, ArrowAlignment);
 
-            // Body
-            if (message.BodyWriter) {
-                message.BodyWriter(TMutableRef(current, current + message.BodySize));
-                current += AlignUp<i64>(message.BodySize, ArrowAlignment);
+                // Body
+                if (message.BodyWriter) {
+                    message.BodyWriter(TMutableRef(current, current + message.BodySize));
+                    current += AlignUp<i64>(message.BodySize, ArrowAlignment);
+                } else {
+                    YT_VERIFY(message.BodySize == 0);
+                }
             } else {
-                YT_VERIFY(message.BodySize == 0);
+                // EOS marker
+                *reinterpret_cast<ui32*>(current) = 0;
+                current += sizeof(ui32);
             }
         }
         YT_VERIFY(current == payloadRef.End());
@@ -739,20 +792,31 @@ public:
     }
 
 private:
-    const TTableSchemaPtr Schema_;
-    const TNameTablePtr NameTable_;
+    const TArrowRowStreamEncoderPtr StreamEncoder_;
     const IUnversionedColumnarRowBatchPtr Batch_;
 
     std::vector<TTypedBatchColumn> TypedColumns_;
 
     struct TMessage
     {
-        flatbuffers::FlatBufferBuilder FlatbufBuilder;
+        std::optional<flatbuffers::FlatBufferBuilder> FlatbufBuilder;
         i64 BodySize;
         TBodyWriter BodyWriter;
     };
 
     std::vector<TMessage> Messages_;
+
+
+    void RegisterEosMarker()
+    {
+        YT_LOG_DEBUG("EOS marker registered");
+
+        Messages_.push_back(TMessage{
+            std::nullopt,
+            0,
+            TBodyWriter()
+        });
+    }
 
     void RegisterMessage(
         org::apache::arrow::flatbuf::MessageHeader type,
@@ -776,8 +840,8 @@ private:
     const TColumnSchema& GetColumnSchema(const TBatchColumn& column)
     {
         YT_VERIFY(column.Id >= 0);
-        auto name = NameTable_->GetName(column.Id);
-        return Schema_->GetColumn(name);
+        auto name = StreamEncoder_->GetNameTable()->GetName(column.Id);
+        return StreamEncoder_->GetSchema()->GetColumn(name);
     }
 
     void PrepareColumns()
@@ -792,11 +856,36 @@ private:
         }
     }
 
+    bool IsSchemaMessageNeeded()
+    {
+        if (!StreamEncoder_->IsFirstBatch()) {
+            return true;
+        }
+        
+        YT_VERIFY(StreamEncoder_->ArrowDictionaryIds().size() == TypedColumns_.size());
+
+        bool result = StreamEncoder_->IsFirstBatch();
+        for (int index = 0; index < TypedColumns_.size(); ++index) {
+            bool currentDictionary = IsDictionaryEncodedColumn(*TypedColumns_[index].Column);
+            bool previousDictionary = StreamEncoder_->ArrowDictionaryIds()[index] != IUnversionedColumnarRowBatch::NullDictionaryId;
+            if (currentDictionary != previousDictionary) {
+                result = true;
+            }
+        }
+        return result;
+    }
+
+    void ResetArrowDictionaries()
+    {
+        StreamEncoder_->ArrowDictionaryIds().assign(TypedColumns_.size(), IUnversionedColumnarRowBatch::NullDictionaryId);
+    }
+
+
     void PrepareSchema()
     {
         flatbuffers::FlatBufferBuilder flatbufBuilder;
         
-        int dictionaryIdCounter = 0;
+        int arrowDictionaryIdCounter = 0;
         std::vector<flatbuffers::Offset<org::apache::arrow::flatbuf::Field>> fieldOffsets;
         
         for (const auto& typedColumn : TypedColumns_) {
@@ -806,11 +895,13 @@ private:
             
             auto [typeType, typeOffset] = SerializeColumnType(&flatbufBuilder, columnSchema);
             
-            auto dictionaryEncodingOffset = SerializeDictionaryEncoding(
-                &flatbufBuilder,
-                *typedColumn.Column,
-                &dictionaryIdCounter);
-            
+            flatbuffers::Offset<org::apache::arrow::flatbuf::DictionaryEncoding> dictionaryEncodingOffset;
+            if (IsDictionaryEncodedColumn(*typedColumn.Column)) {
+                dictionaryEncodingOffset = org::apache::arrow::flatbuf::CreateDictionaryEncoding(
+                    flatbufBuilder,
+                    arrowDictionaryIdCounter++);
+            }
+
             auto fieldOffset = org::apache::arrow::flatbuf::CreateField(
                 flatbufBuilder,
                 nameOffset,
@@ -845,33 +936,62 @@ private:
 
     void PrepareDictionaryBatches()
     {
-        int dictionaryIdCounter = 0;
-        auto prepareDictionaryBatch = [&] (const TTypedBatchColumn& typedColumn, const TBatchColumn* dictionaryColumn) {
-            PrepareDictionaryBatch(
-                TTypedBatchColumn{dictionaryColumn, typedColumn.Type},
-                dictionaryIdCounter++);
+        int arrowDictionaryIdCounter = 0;
+        auto prepareDictionaryBatch = [&] (
+            int columnIndex,
+            IUnversionedColumnarRowBatch::TDictionaryId ytDictionaryId,
+            const TBatchColumn* dictionaryColumn)
+        {
+            int arrowDictionaryId = arrowDictionaryIdCounter++;
+            const auto& typedColumn = TypedColumns_[columnIndex];
+            auto previousYTDictionaryId = StreamEncoder_->ArrowDictionaryIds()[columnIndex];
+            if (ytDictionaryId == previousYTDictionaryId) {
+                YT_LOG_DEBUG("Reusing previous dictionary (ColumnId: %v, YTDictionaryId: %v, ArrowDictionaryId: %v)",
+                    typedColumn.Column->Id,
+                    ytDictionaryId,
+                    arrowDictionaryId);
+            } else {
+                YT_LOG_DEBUG("Sending new dictionary (ColumnId: %v, YTDictionaryId: %v, ArrowDictionaryId: %v)",
+                    typedColumn.Column->Id,
+                    ytDictionaryId,
+                    arrowDictionaryId);
+                PrepareDictionaryBatch(
+                    TTypedBatchColumn{dictionaryColumn, typedColumn.Type},
+                    arrowDictionaryId);
+                StreamEncoder_->ArrowDictionaryIds()[columnIndex] = ytDictionaryId;
+            }
         };
 
-        for (const auto& typedColumn : TypedColumns_) {
+        for (int columnIndex = 0; columnIndex < TypedColumns_.size(); ++columnIndex) {
+            const auto& typedColumn = TypedColumns_[columnIndex];
             if (typedColumn.Column->Dictionary) {
                 YT_LOG_DEBUG("Adding dictionary batch for dictionary-encoded column (ColumnId: %v)",
                     typedColumn.Column->Id);
-                prepareDictionaryBatch(typedColumn, typedColumn.Column->Dictionary->ValueColumn);
+                prepareDictionaryBatch(
+                    columnIndex,
+                    typedColumn.Column->Dictionary->DictionaryId,
+                    typedColumn.Column->Dictionary->ValueColumn);
             } else if (IsRleButNotDictionaryEncodedStringLikeColumn(*typedColumn.Column)) {
                 YT_LOG_DEBUG("Adding dictionary batch for RLE- but not dictionary-encoded string-like column (ColumnId: %v)",
                     typedColumn.Column->Id);
-                prepareDictionaryBatch(typedColumn, typedColumn.Column->Rle->ValueColumn);
-            } else if (IsRleDictionaryEncodedColumn(*typedColumn.Column)) {
+                prepareDictionaryBatch(
+                    columnIndex,
+                    IUnversionedColumnarRowBatch::GenerateDictionaryId(), // any unique one will do
+                    typedColumn.Column->Rle->ValueColumn);
+            } else if (IsRleAndDictionaryEncodedColumn(*typedColumn.Column)) {
                 YT_LOG_DEBUG("Adding dictionary batch for RLE- and dictionary-encoded column (ColumnId: %v)",
                     typedColumn.Column->Id);
-                prepareDictionaryBatch(typedColumn, typedColumn.Column->Rle->ValueColumn->Dictionary->ValueColumn);
+                prepareDictionaryBatch(
+                    columnIndex,
+                    typedColumn.Column->Rle->ValueColumn->Dictionary->DictionaryId,
+                    typedColumn.Column->Rle->ValueColumn->Dictionary->ValueColumn);
             }
         }
     }
 
     void PrepareDictionaryBatch(
         const TTypedBatchColumn& typedColumn,
-        int dictionaryId)
+        int arrowDictionaryId)
     {
         flatbuffers::FlatBufferBuilder flatbufBuilder;
 
@@ -882,7 +1002,7 @@ private:
 
         auto dictionaryBatchOffset = org::apache::arrow::flatbuf::CreateDictionaryBatch(
             flatbufBuilder,
-            dictionaryId,
+            arrowDictionaryId,
             recordBatchOffset);
 
         auto messageOffset = org::apache::arrow::flatbuf::CreateMessage(
@@ -927,61 +1047,43 @@ private:
     }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+TSharedRef TArrowRowStreamEncoder::Encode(
+    const IUnversionedRowBatchPtr& batch,
+    const NApi::NRpcProxy::NProto::TRowsetStatistics* statistics)
+{
+    auto columnarBatch = batch->TryAsColumnar();
+    if (!columnarBatch) {
+        YT_LOG_DEBUG("Encoding non-columnar batch; running fallback");
+        return FallbackEncoder_->Encode(batch, statistics);
+    }
+
+    YT_LOG_DEBUG("Encoding columnar batch (RowCount: %v)",
+        batch->GetRowCount());
+
+    NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+    descriptor.set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
+    descriptor.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
+    descriptor.set_rowset_format(NApi::NRpcProxy::NProto::RF_ARROW);
+
+    TArrowRowStreamBlockEncoder blockEncoder(this, std::move(columnarBatch));
+
+    auto [block, payloadRef] = SerializeRowStreamBlockEnvelope(
+        blockEncoder.GetPayloadSize(),
+        descriptor,
+        statistics);
+
+    blockEncoder.WritePayload(payloadRef);
+
+    FirstBatch_ = false;
+
+    return block;
+}
+
 } // namespace 
 
 ////////////////////////////////////////////////////////////////////////////////
-
-class TArrowRowStreamEncoder
-    : public IRowStreamEncoder
-{
-public:
-    TArrowRowStreamEncoder(
-        TTableSchemaPtr schema,
-        TNameTablePtr nameTable)
-        : Schema_(std::move(schema))
-        , NameTable_(std::move(nameTable))
-        , FallbackEncoder_(CreateWireRowStreamEncoder(NameTable_))
-    {
-        YT_LOG_DEBUG("Row stream encoder created (Schema: %v)",
-            *Schema_);
-    }
-    
-    virtual TSharedRef Encode(
-        const IUnversionedRowBatchPtr& batch,
-        const NApi::NRpcProxy::NProto::TRowsetStatistics* statistics) override
-    {
-        auto columnarBatch = batch->TryAsColumnar();
-        if (!columnarBatch) {
-            YT_LOG_DEBUG("Encoding non-columnar batch; running fallback");
-            return FallbackEncoder_->Encode(batch, statistics);
-        }
-
-        YT_LOG_DEBUG("Encoding columnar batch (RowCount: %v)",
-            batch->GetRowCount());
-
-        NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
-        descriptor.set_wire_format_version(NApi::NRpcProxy::CurrentWireFormatVersion);
-        descriptor.set_rowset_kind(NApi::NRpcProxy::NProto::RK_UNVERSIONED);
-        descriptor.set_rowset_format(NApi::NRpcProxy::NProto::RF_ARROW);
-
-        TArrowRowStreamBlockEncoder blockEncoder(Schema_, NameTable_, std::move(columnarBatch));
-
-        auto [block, payloadRef] = SerializeRowStreamBlockEnvelope(
-            blockEncoder.GetPayloadSize(),
-            descriptor,
-            statistics);
-
-        blockEncoder.WritePayload(payloadRef);
-
-        return block;
-    }
-
-private:
-    const TTableSchemaPtr Schema_;
-    const TNameTablePtr NameTable_;
-
-    const IRowStreamEncoderPtr FallbackEncoder_;
-};
 
 IRowStreamEncoderPtr CreateArrowRowStreamEncoder(
     TTableSchemaPtr schema,
