@@ -661,6 +661,35 @@ void TClient::DoSetNode(
         .ThrowOnError();
 }
 
+void TClient::DoMultisetAttributesNode(
+    const TYPath& path,
+    const IMapNodePtr& attributes,
+    const TMultisetAttributesNodeOptions& options)
+{
+    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto batchReq = proxy->ExecuteBatch();
+    SetPrerequisites(batchReq, options);
+
+    auto req = TYPathProxy::MultisetAttributes(path);
+    SetTransactionId(req, options, true);
+    SetSuppressAccessTracking(req, options);
+    SetMutationId(req, options);
+
+    auto children = attributes->GetChildren();
+    std::sort(children.begin(), children.end());
+    for (const auto& [attribute, value] : children) {
+        auto* protoSubrequest = req->add_subrequests();
+        protoSubrequest->set_attribute(attribute);
+        protoSubrequest->set_value(ConvertToYsonString(value).GetData());
+    }
+
+    batchReq->AddRequest(req);
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+    batchRsp->GetResponse<TYPathProxy::TRspMultisetAttributes>(0)
+        .ThrowOnError();
+}
+
 void TClient::DoRemoveNode(
     const TYPath& path,
     const TRemoveNodeOptions& options)

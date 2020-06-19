@@ -109,6 +109,11 @@ public:
         const NYson::TYsonString& value,
         const NApi::TSetNodeOptions& options) override;
 
+    virtual TFuture<void> MultisetAttributesNode(
+        const NYPath::TYPath& path,
+        const NYTree::IMapNodePtr& attributes,
+        const NApi::TMultisetAttributesNodeOptions& options) override;
+
     virtual TFuture<void> RemoveNode(
         const NYPath::TYPath& path,
         const NApi::TRemoveNodeOptions& options) override;

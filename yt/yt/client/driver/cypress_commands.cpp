@@ -13,6 +13,7 @@
 namespace NYT::NDriver {
 
 using namespace NYTree;
+using namespace NYson;
 using namespace NObjectClient;
 using namespace NApi;
 using namespace NConcurrency;
@@ -67,6 +68,27 @@ void TSetCommand::DoExecute(ICommandContextPtr context)
     auto asyncResult = context->GetClient()->SetNode(
         RewritePath(Path.GetPath(), RewriteOperationPath),
         value,
+        Options);
+    WaitFor(asyncResult)
+        .ThrowOnError();
+
+    ProduceEmptyOutput(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TMultisetAttributesCommand::TMultisetAttributesCommand()
+{
+    RegisterParameter("path", Path);
+}
+
+void TMultisetAttributesCommand::DoExecute(ICommandContextPtr context)
+{
+    auto attributes = ConvertTo<IMapNodePtr>(context->ConsumeInputValue());
+
+    auto asyncResult = context->GetClient()->MultisetAttributesNode(
+        RewritePath(Path.GetPath(), RewriteOperationPath),
+        attributes,
         Options);
     WaitFor(asyncResult)
         .ThrowOnError();

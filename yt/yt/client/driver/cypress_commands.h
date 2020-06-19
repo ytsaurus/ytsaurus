@@ -39,6 +39,20 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMultisetAttributesCommand
+    : public TTypedCommand<NApi::TMultisetAttributesNodeOptions>
+{
+public:
+    TMultisetAttributesCommand();
+
+private:
+    NYPath::TRichYPath Path;
+
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TRemoveCommand
     : public TTypedCommand<NApi::TRemoveNodeOptions>
 {

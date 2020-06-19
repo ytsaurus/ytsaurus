@@ -123,6 +123,7 @@ message TRspExists
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(gritukan) This is an alias for TReqMultisetAttributes.
 message TReqMultiset
 {
     message TSubrequest
@@ -139,3 +140,18 @@ message TRspMultiset
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqMultisetAttributes
+{
+    message TSubrequest
+    {
+        required string attribute = 1;
+        required bytes value = 2;
+    }
+
+    repeated TSubrequest subrequests = 1;
+}
+
+message TRspMultisetAttributes
+{ }
+
+////////////////////////////////////////////////////////////////////////////////

@@ -199,6 +199,11 @@ public:
         const NYson::TYsonString& value,
         const TSetNodeOptions& options),
         (path, value, options))
+    IMPLEMENT_METHOD(void, MultisetAttributesNode, (
+        const NYPath::TYPath& path,
+        const NYTree::IMapNodePtr& attributes,
+        const TMultisetAttributesNodeOptions& options),
+        (path, attributes, options))
     IMPLEMENT_METHOD(void, RemoveNode, (
         const NYPath::TYPath& path,
         const TRemoveNodeOptions& options),
@@ -658,6 +663,10 @@ private:
         const NYPath::TYPath& path,
         const NYson::TYsonString& value,
         const TSetNodeOptions& options);
+    void DoMultisetAttributesNode(
+        const NYPath::TYPath& path,
+        const NYTree::IMapNodePtr& attributes,
+        const TMultisetAttributesNodeOptions& options);
     void DoRemoveNode(
         const NYPath::TYPath& path,
         const TRemoveNodeOptions& options);

@@ -526,6 +526,12 @@ def set(path, value, is_raw=False, **kwargs):
     kwargs["path"] = path
     execute_command("set", kwargs, input_stream=StringIO(value))
 
+def multiset_attributes(path, subrequests, is_raw=False, **kwargs):
+    if not is_raw:
+        subrequests = yson.dumps(subrequests)
+    kwargs["path"] = path
+    execute_command("multiset_attributes", kwargs, input_stream=StringIO(subrequests))
+
 def create(object_type, path, **kwargs):
     kwargs["type"] = object_type
     kwargs["path"] = path

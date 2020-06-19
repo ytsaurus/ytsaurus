@@ -74,6 +74,11 @@ public:
         const NYson::TYsonString& value,
         const TSetNodeOptions& options));
 
+    MOCK_METHOD3(MultisetAttributesNode, TFuture<void>(
+        const NYPath::TYPath& path,
+        const NYTree::IMapNodePtr& attributes,
+        const TMultisetAttributesNodeOptions& options));
+
     MOCK_METHOD2(RemoveNode, TFuture<void>(
         const NYPath::TYPath& path,
         const TRemoveNodeOptions& options));

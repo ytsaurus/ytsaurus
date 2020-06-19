@@ -528,6 +528,14 @@ struct TSetNodeOptions
     bool Force = false;
 };
 
+struct TMultisetAttributesNodeOptions
+    : public TTimeoutOptions
+    , public TTransactionalOptions
+    , public TMutatingOptions
+    , public TSuppressableAccessTrackingOptions
+    , public TPrerequisiteOptions
+{ };
+
 struct TRemoveNodeOptions
     : public TTimeoutOptions
     , public TTransactionalOptions
@@ -1145,6 +1153,11 @@ struct IClientBase
         const NYPath::TYPath& path,
         const NYson::TYsonString& value,
         const TSetNodeOptions& options = {}) = 0;
+
+    virtual TFuture<void> MultisetAttributesNode(
+        const NYPath::TYPath& path,
+        const NYTree::IMapNodePtr& attributes,
+        const TMultisetAttributesNodeOptions& options = {}) = 0;
 
     virtual TFuture<void> RemoveNode(
         const NYPath::TYPath& path,

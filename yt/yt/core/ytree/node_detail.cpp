@@ -30,6 +30,7 @@ bool TNodeBase::DoInvoke(const IServiceContextPtr& context)
     DISPATCH_YPATH_SERVICE_METHOD(List);
     DISPATCH_YPATH_SERVICE_METHOD(Exists);
     DISPATCH_YPATH_SERVICE_METHOD(Multiset);
+    DISPATCH_YPATH_SERVICE_METHOD(MultisetAttributes);
     return TYPathServiceBase::DoInvoke(context);
 }
 
@@ -438,31 +439,6 @@ void TMapNodeMixin::ThrowMaxKeyLengthViolated() const
         "Map node %v is not allowed to contain items with keys longer than %v symbols",
         GetPath(),
         GetMaxKeyLength());
-}
-
-void TMapNodeMixin::SetChildren(TReqMultiset* request, TRspMultiset* /* response */)
-{
-    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-
-    auto mapNode = AsMap();
-    auto maxKeyLength = GetMaxKeyLength();
-    auto path = GetPath();
-
-    for (const auto& subrequest : request->subrequests()) {
-        const auto& key = subrequest.key();
-        const auto& value = subrequest.value();
-
-        if (key.length() > maxKeyLength) {
-            ThrowMaxKeyLengthViolated();
-        }
-
-        ValidateChildCount(path, mapNode->GetChildCount());
-
-        auto factory = CreateFactory();
-        auto childNode = ConvertToNode(value, factory.get());
-        YT_VERIFY(mapNode->AddChild(key, childNode));
-        factory->Commit();
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
