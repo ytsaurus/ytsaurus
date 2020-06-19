@@ -8,7 +8,9 @@ namespace NYT::NCypressServer {
 
 using namespace NYTree;
 using namespace NYson;
+using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NSecurityServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
 
@@ -69,11 +71,65 @@ private:
                 // Let the base class handle it.
                 break;
 
+            case EInternedAttributeKey::RecursiveResourceUsage:
+                // NB: suppress falling back to base class, forcing async getter to be called.
+                return false;
+
             default:
                 break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    virtual TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    {
+        const auto* node = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::RecursiveResourceUsage: {
+                auto exitCellTag = node->GetExitCellTag();
+                auto portalExitNodeId = MakePortalExitNodeId(node->GetId(), exitCellTag);
+
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+                auto channel = multicellManager->GetMasterChannelOrThrow(exitCellTag, NHydra::EPeerKind::Follower);
+
+                TObjectServiceProxy proxy(channel);
+                auto batchReq = proxy.ExecuteBatch();
+
+                auto req = TYPathProxy::Get(FromObjectId(portalExitNodeId) + "/@" + key.Unintern());
+                batchReq->AddRequest(req);
+
+                return batchReq->Invoke()
+                    .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                        auto cumulativeError = GetCumulativeError(batchRspOrError);
+                        THROW_ERROR_EXCEPTION_IF_FAILED(cumulativeError, "Error fetching attribute %Qv of portal exit %v from cell %v",
+                            key.Unintern(),
+                            portalExitNodeId,
+                            exitCellTag);
+
+                        const auto& batchRsp = batchRspOrError.Value();
+                        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
+                        const auto& rsp = rspOrError.Value();
+
+                        auto serializableResourceUsage = ConvertTo<TSerializableClusterResourcesPtr>(TYsonString(rsp->value()));
+                        const auto& chunkManager = Bootstrap_->GetChunkManager();
+                        auto resourceUsage = serializableResourceUsage->ToClusterResources(chunkManager);
+
+                        // NB: account for both portal entrance and portal exit resource usage.
+                        resourceUsage += node->GetTotalResourceUsage();
+
+                        auto resourceSerializer = New<TSerializableClusterResources>(chunkManager, resourceUsage);
+                        return BuildYsonStringFluently()
+                            .Value(resourceSerializer);
+                    }).AsyncVia(GetCurrentInvoker()));
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::GetBuiltinAttributeAsync(key);
     }
 
     virtual bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
@@ -85,6 +141,7 @@ private:
                     THROW_ERROR_EXCEPTION("Portal entrances cannot be made non-opaque");
                 }
                 return true;
+
             }
 
             default:

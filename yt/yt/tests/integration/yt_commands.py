@@ -1527,6 +1527,19 @@ def get_account_disk_space_limit(account, medium="default"):
 def set_account_disk_space_limit(account, limit, medium="default"):
     set("//sys/accounts/{0}/@resource_limits/disk_space_per_medium/{1}".format(account, medium), limit)
 
+# NB: does not check master_memory yet!
+def cluster_resources_equal(a, b):
+    if  a.get("disk_space", 0) != b.get("disk_space", 0) or \
+        a.get("chunk_count", 0) != b.get("chunk_count", 0) or \
+        a.get("node_count", 0) != b.get("node_count", 0) or \
+        a.get("tablet_count", 0) != b.get("tablet_count", 0) or \
+        a.get("tablet_static_memory", 0) != b.get("tablet_static_memory", 0):
+       return False
+
+    media = __builtin__.set(a.get("disk_space_per_medium", {}).keys())
+    media.union(__builtin__.set(b.get("disk_space_per_medium", {}).keys()))
+    return all(a.get("disk_space_per_medium", {}).get(medium, 0) == b.get("disk_space_per_medium", {}).get(medium, 0) for medium in media)
+
 def get_chunk_replication_factor(chunk_id):
     return get("#{0}/@media/default/replication_factor".format(chunk_id))
 
