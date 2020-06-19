@@ -69,7 +69,6 @@ class YtConfig(object):
                  yt_id=None,
                  yt_path=None,
                  yt_work_dir=None,
-                 keep_yt_work_dir=None,
                  proxy_port=None,
                  master_config=None,
                  node_config=None,
@@ -77,7 +76,7 @@ class YtConfig(object):
                  scheduler_config=None,
                  controller_agent_config=None,
                  node_count=None,
-                 save_all_logs=None,
+                 save_runtime_data=None,
                  ram_drive_path=None,
                  local_cypress_dir=None,
                  wait_tablet_cell_initialization=None,
@@ -103,9 +102,8 @@ class YtConfig(object):
 
         self.yt_path = yt_path
 
-        self.save_all_logs = save_all_logs
+        self.save_runtime_data = save_runtime_data
         self.yt_work_dir = yt_work_dir
-        self.keep_yt_work_dir = keep_yt_work_dir
         self.ram_drive_path = ram_drive_path
         self.local_cypress_dir = local_cypress_dir
 
@@ -503,7 +501,7 @@ class YtStuff(object):
                 time_to_sleep = min(i * FAIL_PENALTY, MAX_WAIT_TIME)
                 time.sleep(time_to_sleep)
         else:
-            self._save_logs(save_yt_all=True)
+            self._cleanup_working_directory(save_runtime_data=True)
             raise Exception("Cannot start local YT with id %s for %d attempts." % (self.yt_id, max_retries))
 
     def suspend_local_yt(self):
@@ -523,7 +521,7 @@ class YtStuff(object):
             self._port_manager.release()
         except Exception as e:
             self._log("Errors while stopping local YT:\n%s", str(e))
-            self._save_logs(save_yt_all=True)
+            self._cleanup_working_directory(save_runtime_data=True)
             raise
 
     @_timing
@@ -534,51 +532,27 @@ class YtStuff(object):
                 fcntl.flock(lock_file, fcntl.LOCK_EX)
                 fcntl.flock(lock_file, fcntl.LOCK_UN)
 
-        self._save_logs(save_yt_all=self.config.save_all_logs or yatest.common.get_param("yt_save_all_data"))
-
-        if not self.config.keep_yt_work_dir:
-            shutil.rmtree(self.yt_work_dir, ignore_errors=True)
+        self._cleanup_working_directory()
 
     @_timing
-    def _save_logs(self, save_yt_all=None):
-        output_path = yatest.common.output_path()
-
-        self._log("Logs saved in %s", output_path)
-
-        common_interface_log = yatest.common.work_path("mr-client.log")
-        if os.path.exists(common_interface_log):
-            p = os.path.join(output_path, "mr-client.log")
-            shutil.copyfile(common_interface_log, p)
-
-        def _ignore(path, names):
-            IGNORE_DIRS_ALWAYS = ["pipes"]
-            IGNORE_DIRS = ["chunk_store", "chunk_cache", "changelogs", "snapshots"]
-            ignored = set()
-            for name in names:
-                full_path = os.path.join(path, name)
-                if os.path.islink(full_path):
-                    ignored.add(name)
-                elif os.path.isdir(full_path):
-                    should_ignore = False
-                    should_ignore |= name in IGNORE_DIRS_ALWAYS
-                    should_ignore |= not save_yt_all and name in IGNORE_DIRS
-                    if should_ignore:
-                        ignored.add(name)
-            return ignored
+    def _cleanup_working_directory(self, save_runtime_data=False):
+        self._log("Cleaning working directory %s", self.yt_work_dir)
 
         os.system("chmod -R 0775 " + self.yt_work_dir)
 
-        if not save_yt_all:
+        save_runtime_data = save_runtime_data or self.config.save_runtime_data or yatest.common.get_param("yt_save_runtime_data")
+        if not save_runtime_data:
             remove_runtime_data(self.yt_work_dir)
 
         # Split huge files, because ya.test cuts them.
         for root, dirs, files in os.walk(self.yt_work_dir):
-            for file in files:
-                file_path = os.path.join(root, file)
-                if os.path.getsize(file_path) >= FILE_SIZE_LIMIT:
-                    if sys.version_info.major < 3:  # XXX
-                        self._split_file(file_path)
-                        os.remove(file_path)
+            if os.path.basename(root) == "logs":
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    if os.path.getsize(file_path) >= FILE_SIZE_LIMIT:
+                        if sys.version_info.major < 3:  # XXX
+                            self._split_file(file_path)
+                            os.remove(file_path)
 
         collect_cores(
             self._get_pids(),
