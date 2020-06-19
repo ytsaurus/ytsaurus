@@ -137,9 +137,9 @@ public:
     ~TJob()
     {
         // Offload job spec destruction to a large thread pool.
-        auto jobSpec = New<TRefCountedProto<TJobSpec>>(std::move(JobSpec_));
-        NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(
-            BIND([jobSpec = jobSpec.Release()] { NYT::Unref(jobSpec); }));
+        auto jobSpec = std::make_unique<TJobSpec>(std::move(JobSpec_));
+        NRpc::TDispatcher::Get()->GetCompressionPoolInvoker()->Invoke(
+            BIND([jobSpec = std::move(jobSpec)] () mutable { jobSpec.reset(); }));
     }
 
     virtual void Start() override
