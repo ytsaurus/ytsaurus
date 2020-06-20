@@ -1,8 +1,10 @@
 #pragma once
 
+#include <yt/core/misc/public.h>
+
 #include <library/cpp/http/server/http.h>
 
-#include <yt/core/misc/public.h>
+#include <library/cpp/testing/unittest/tests_data.h>
 
 namespace NYT::NTests {
 
@@ -55,6 +57,7 @@ private:
     };
 
     TCallback Callback_;
+    TPortManager PortManager_;
 
     std::unique_ptr<THttpServerImpl> ServerImpl_;
     std::unique_ptr<THttpServer> Server_;

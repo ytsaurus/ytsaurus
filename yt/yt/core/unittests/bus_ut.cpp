@@ -120,11 +120,11 @@ class TBusTest
 public:
     ui16 Port;
     TString Address;
+    TPortManager PortManager;
 
     TBusTest()
     {
-        TPortManager portManager;
-        Port = portManager.GetPort();
+        Port = PortManager.GetPort();
         Address = Format("localhost:%v", Port);
     }
 
@@ -260,8 +260,7 @@ TEST_F(TBusTest, TerminateBeforeAccept)
 
 TEST_F(TBusTest, Failed)
 {
-    TPortManager portManager;
-    auto port = portManager.GetPort();
+    auto port = PortManager.GetPort();
 
     auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Format("localhost:%v", port)));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
