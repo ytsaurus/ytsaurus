@@ -418,8 +418,7 @@ class TTestBase
 public:
     virtual void SetUp() override final
     {
-        TPortManager portManager;
-        Port_ = portManager.GetPort();
+        Port_ = PortManager_.GetPort();
         Address_ = Format("localhost:%v", Port_);
 
         Server_ = CreateServer(Port_);
@@ -473,6 +472,7 @@ public:
     }
 
 protected:
+    TPortManager PortManager_;
     ui16 Port_;
     TString Address_;
 

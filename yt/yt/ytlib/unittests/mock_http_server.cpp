@@ -3,8 +3,6 @@
 #include <yt/core/misc/assert.h>
 #include <yt/core/misc/error.h>
 
-#include <library/cpp/testing/unittest/tests_data.h>
-
 namespace NYT::NTests {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,8 +56,7 @@ void TMockHttpServer::Start()
     ServerImpl_ = std::make_unique<THttpServerImpl>();
     ServerImpl_->SetCallback(Callback_);
 
-    TPortManager portManager;
-    auto port = portManager.GetPort();
+    auto port = PortManager_.GetPort();
 
     Server_ = std::make_unique<THttpServer>(
         ServerImpl_.get(),
