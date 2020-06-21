@@ -12,9 +12,7 @@
 
 #include <yt/core/yson/null_consumer.h>
 
-#include <contrib/libs/gmock/include/gmock/gmock.h>
-#include <contrib/libs/gmock/include/gmock/gmock-matchers.h>
-#include <contrib/libs/gmock/include/gmock/gmock-actions.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 namespace NYT::NScheduler::NClassicScheduler {
 namespace {
