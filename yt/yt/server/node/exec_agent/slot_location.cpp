@@ -41,27 +41,30 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 TSlotLocation::TSlotLocation(
-    const TSlotLocationConfigPtr& config,
-    const NClusterNode::TBootstrap* bootstrap,
+    TSlotLocationConfigPtr config,
+    NClusterNode::TBootstrap* bootstrap,
     const TString& id,
-    const IJobDirectoryManagerPtr& jobDirectoryManager,
+    IJobDirectoryManagerPtr jobDirectoryManager,
     bool enableTmpfs,
     int slotCount)
     : TDiskLocation(config, id, ExecAgentLogger)
-    , Config_(config)
+    , Config_(std::move(config))
     , Bootstrap_(bootstrap)
-    , JobDirectoryManager_(jobDirectoryManager)
-    , LocationQueue_(New<TActionQueue>(Format("IO:%v", id)))
+    , JobDirectoryManager_(std::move(jobDirectoryManager))
     , EnableTmpfs_(enableTmpfs)
-    , LocationPath_(NFS::GetRealPath(Config_->Path))
-{
-    Enabled_ = true;
-
-    HealthChecker_ = New<TDiskHealthChecker>(
+    , LocationQueue_(New<TActionQueue>(Format("IO:%v", id)))
+    , HealthChecker_(New<TDiskHealthChecker>(
         bootstrap->GetConfig()->DataNode->DiskHealthChecker,
         Config_->Path,
         LocationQueue_->GetInvoker(),
-        Logger);
+        Logger))
+    , DiskResourcesUpdateExecutor_(New<TPeriodicExecutor>(
+        LocationQueue_->GetInvoker(),
+        BIND(&TSlotLocation::UpdateDiskResources, MakeWeak(this)),
+        Bootstrap_->GetConfig()->ExecAgent->SlotManager->DiskResourcesUpdatePeriod))
+    , LocationPath_(NFS::GetRealPath(Config_->Path))
+{
+    Enabled_ = true;
 
     try {
         NFS::MakeDirRecursive(Config_->Path, 0755);
@@ -96,10 +99,6 @@ TSlotLocation::TSlotLocation(
         .Via(LocationQueue_->GetInvoker()));
     HealthChecker_->Start();
 
-    DiskResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
-        LocationQueue_->GetInvoker(),
-        BIND(&TSlotLocation::UpdateDiskResources, MakeWeak(this)),
-        Bootstrap_->GetConfig()->ExecAgent->SlotManager->DiskResourcesUpdatePeriod);
     DiskResourcesUpdateExecutor_->Start();
 }
 
@@ -598,8 +597,9 @@ void TSlotLocation::ValidateEnabled() const
 
 void TSlotLocation::Disable(const TError& error)
 {
-    if (!Enabled_.exchange(false))
+    if (!Enabled_.exchange(false)) {
         return;
+    }
 
     auto alert = TError(
         EErrorCode::SlotLocationDisabled,
@@ -611,9 +611,7 @@ void TSlotLocation::Disable(const TError& error)
     auto masterConnector = Bootstrap_->GetMasterConnector();
     masterConnector->RegisterAlert(alert);
 
-    if (DiskResourcesUpdateExecutor_) {
-        DiskResourcesUpdateExecutor_->Stop();
-    }
+    DiskResourcesUpdateExecutor_->Stop();
 }
 
 void TSlotLocation::InvokeUpdateDiskResources()

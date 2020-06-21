@@ -152,26 +152,26 @@ class TLayerLocation
 {
 public:
     TLayerLocation(
-        const TLayerLocationConfigPtr& locationConfig,
-        const TDiskHealthCheckerConfigPtr healthCheckerConfig,
+        TLayerLocationConfigPtr locationConfig,
+        TDiskHealthCheckerConfigPtr healthCheckerConfig,
         IPortoExecutorPtr volumeExecutor,
         IPortoExecutorPtr layerExecutor,
         const TString& id)
         : TDiskLocation(locationConfig, id, DataNodeLogger)
-          , Config_(locationConfig)
-          , VolumeExecutor_(std::move(volumeExecutor))
-          , LayerExecutor_(std::move(layerExecutor))
-          , LocationQueue_(New<TActionQueue>(id))
-          , VolumesPath_(NFS::CombinePaths(Config_->Path, VolumesName))
-          , VolumesMetaPath_(NFS::CombinePaths(Config_->Path, VolumesMetaName))
-          , LayersPath_(NFS::CombinePaths(Config_->Path, LayersName))
-          , LayersMetaPath_(NFS::CombinePaths(Config_->Path, LayersMetaName))
-    {
+        , Config_(locationConfig)
+        , VolumeExecutor_(std::move(volumeExecutor))
+        , LayerExecutor_(std::move(layerExecutor))
+        , LocationQueue_(New<TActionQueue>(id))
+        , VolumesPath_(NFS::CombinePaths(Config_->Path, VolumesName))
+        , VolumesMetaPath_(NFS::CombinePaths(Config_->Path, VolumesMetaName))
+        , LayersPath_(NFS::CombinePaths(Config_->Path, LayersName))
+        , LayersMetaPath_(NFS::CombinePaths(Config_->Path, LayersMetaName))
         // If true, location is placed on a YT-specific drive, binded into container from dom0 host,
         // so it has absolute path relative to dom0 root.
         // Otherwise, location is placed inside a persistent volume, and should be treated differently.
         // More details here: PORTO-460.
-        PlacePath_ = (Config_->LocationIsAbsolute ? "" : "//") + Config_->Path;
+        , PlacePath_((Config_->LocationIsAbsolute ? "" : "//") + Config_->Path)
+    {
 
         auto* profileManager = NProfiling::TProfileManager::Get();
         Profiler_ = DataNodeProfiler
@@ -284,9 +284,9 @@ public:
     {
         std::vector<TLayerMeta> layers;
 
-        auto guard = Guard(SpinLock);
-        for (const auto& pair : Layers_) {
-            layers.push_back(pair.second);
+        auto guard = Guard(SpinLock_);
+        for (const auto& [id, layer] : Layers_) {
+            layers.push_back(layer);
         }
         return layers;
     }
@@ -327,13 +327,13 @@ public:
 
     int GetLayerCount() const
     {
-        auto guard = Guard(SpinLock);
+        auto guard = Guard(SpinLock_);
         return Layers_.size();
     }
 
     int GetVolumeCount() const
     {
-        auto guard = Guard(SpinLock);
+        auto guard = Guard(SpinLock_);
         return Volumes_.size();
     }
 
@@ -386,21 +386,20 @@ private:
     const IPortoExecutorPtr LayerExecutor_;
 
     const TActionQueuePtr LocationQueue_ ;
+    const TString VolumesPath_;
+    const TString VolumesMetaPath_;
+    const TString LayersPath_;
+    const TString LayersMetaPath_;
+    const TString PlacePath_;
+
     TDiskHealthCheckerPtr HealthChecker_;
 
     NProfiling::TProfiler Profiler_;
     TLayerLocationPerformanceCounters PerformanceCounters_;
 
-    TString PlacePath_;
-
-    TSpinLock SpinLock;
-    const TString VolumesPath_;
-    const TString VolumesMetaPath_;
-    const TString LayersPath_;
-    const TString LayersMetaPath_;
-
     std::atomic<int> LayerImportsInProgress_ = 0;
 
+    TSpinLock SpinLock_;
     THashMap<TLayerId, TLayerMeta> Layers_;
     THashMap<TVolumeId, TVolumeMeta> Volumes_;
 
@@ -546,8 +545,10 @@ private:
 
             UsedSpace_ += meta.size();
 
-            auto guard = Guard(SpinLock);
-            YT_VERIFY(Layers_.insert(std::make_pair(id, meta)).second);
+            {
+                auto guard = Guard(SpinLock_);
+                YT_VERIFY(Layers_.insert(std::make_pair(id, meta)).second);
+            }
         }
     }
 
@@ -616,7 +617,7 @@ private:
         UsedSpace_ += layerMeta.size();
 
         {
-            auto guard = Guard(SpinLock);
+            auto guard = Guard(SpinLock_);
             Layers_[layerMeta.Id] = layerMeta;
         }
 
@@ -727,7 +728,7 @@ private:
         i64 layerSize = -1;
 
         {
-            auto guard = Guard(SpinLock);
+            auto guard = Guard(SpinLock_);
             layerSize = Layers_[layerId].size();
             Layers_.erase(layerId);
         }
@@ -808,8 +809,10 @@ private:
                 id,
                 volumeMetaFileName);
 
-            auto guard = Guard(SpinLock);
-            YT_VERIFY(Volumes_.insert(std::make_pair(id, volumeMeta)).second);
+            {
+                auto guard = Guard(SpinLock_);
+                YT_VERIFY(Volumes_.insert(std::make_pair(id, volumeMeta)).second);
+            }
 
             return volumeMeta;
         } catch (const std::exception& ex) {
@@ -825,7 +828,7 @@ private:
         ValidateEnabled();
 
         {
-            auto guard = Guard(SpinLock);
+            auto guard = Guard(SpinLock_);
             YT_VERIFY(Volumes_.contains(volumeId));
         }
 
@@ -851,8 +854,10 @@ private:
                 volumePath,
                 volumeMetaPath);
 
-            auto guard = Guard(SpinLock);
-            YT_VERIFY(Volumes_.erase(volumeId) == 1);
+            {
+                auto guard = Guard(SpinLock_);
+                YT_VERIFY(Volumes_.erase(volumeId) == 1);
+            }
         } catch (const std::exception& ex) {
             auto error = TError("Failed to remove volume %v", volumeId)
                 << ex;
