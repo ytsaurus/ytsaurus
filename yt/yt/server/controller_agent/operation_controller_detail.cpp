@@ -5367,7 +5367,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
 
             auto table = std::any_cast<TInputTablePtr>(rsp->Tag());
             table->Dynamic = attributes->Get<bool>("dynamic");
-            table->Schema = New<TTableSchema>(attributes->Get<TTableSchema>("schema"));
+            table->Schema = attributes->Get<TTableSchemaPtr>("schema");
             table->SchemaMode = attributes->Get<ETableSchemaMode>("schema_mode");
             table->ChunkCount = attributes->Get<int>("chunk_count");
             table->ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
@@ -6184,7 +6184,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
 
                         case EObjectType::Table:
                             file.Dynamic = attributes.Get<bool>("dynamic");
-                            file.Schema = New<TTableSchema>(attributes.Get<TTableSchema>("schema"));
+                            file.Schema = attributes.Get<TTableSchemaPtr>("schema");
                             file.Format = attributes.FindYson("format");
                             if (!file.Format) {
                                 file.Format = file.Path.GetFormat();

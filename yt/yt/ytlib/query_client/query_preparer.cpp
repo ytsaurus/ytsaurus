@@ -1172,7 +1172,7 @@ private:
     std::vector<TTable> Tables;
 
 protected:
-    // TODO: AllSucceeded in Structure? Move out?
+    // TODO: Combine in Structure? Move out?
     const TNamedItemList* GroupItems = nullptr;
     TAggregateItemList* AggregateItems = nullptr;
 

@@ -2053,7 +2053,7 @@ private:
 } // namespace NDetail
 
 template <class T>
-TFuture<T> AnySucceded(
+TFuture<T> AnySucceeded(
     std::vector<TFuture<T>> futures,
     TFutureCombinerOptions options)
 {

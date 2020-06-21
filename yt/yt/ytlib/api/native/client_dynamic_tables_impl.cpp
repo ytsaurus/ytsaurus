@@ -361,11 +361,11 @@ private:
         const TRichYPath& path,
         const TTableMountInfoPtr& tableInfo)
     {
-        if (auto optionalPathSchema = path.GetSchema()) {
+        if (auto pathSchema = path.GetSchema()) {
             if (tableInfo->Dynamic) {
                 THROW_ERROR_EXCEPTION("Explicit YPath \"schema\" specification is only allowed for static tables");
             }
-            return New<TTableSchema>(*optionalPathSchema);
+            return pathSchema;
         }
 
         return tableInfo->Schemas[ETableSchemaKind::Query];

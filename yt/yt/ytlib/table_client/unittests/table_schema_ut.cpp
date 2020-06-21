@@ -736,7 +736,7 @@ TEST_P(TInferSchemaTest, Basic)
 
     std::vector<TTableSchemaPtr> schemas;
     for (const auto* schemaString : schemaStrings) {
-        schemas.push_back(New<TTableSchema>(ConvertTo<TTableSchema>(TYsonString(schemaString))));
+        schemas.push_back(ConvertTo<TTableSchemaPtr>(TYsonString(schemaString)));
     }
 
     TTableSchema resultSchema;
@@ -783,7 +783,7 @@ TEST_P(TInferSchemaInvalidTest, Basic)
 
     std::vector<TTableSchemaPtr> schemas;
     for (const auto* schemaString : schemaStrings) {
-        schemas.push_back(New<TTableSchema>(ConvertTo<TTableSchema>(TYsonString(schemaString))));
+        schemas.push_back(ConvertTo<TTableSchemaPtr>(TYsonString(schemaString)));
     }
 
     EXPECT_THROW(InferInputSchema(schemas, true), std::exception);

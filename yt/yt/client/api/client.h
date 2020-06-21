@@ -480,7 +480,7 @@ struct TSelectRowsOptions
     ui64 RangeExpansionLimit = 200000;
     //! Limits maximum parallel subqueries.
     int MaxSubqueries = std::numeric_limits<int>::max();
-    //! AllSucceeded independent joins in one.
+    //! Combine independent joins in one.
     bool UseMultijoin = true;
     //! Allow queries without any condition on key columns.
     bool AllowFullScan = true;

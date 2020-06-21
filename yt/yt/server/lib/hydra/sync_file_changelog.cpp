@@ -877,7 +877,7 @@ private:
 
             AppendOutput_.Clear();
 
-            // AllSucceeded records into a single memory blob.
+            // Combine records into a single memory blob.
             for (int index = 0; index < records.size(); ++index) {
                 const auto& record = records[index];
                 YT_VERIFY(!record.Empty());

@@ -653,7 +653,7 @@ TEST_F(TFutureTest, AnyCombiner)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnySucceded(futures);
+    auto f = AnySucceeded(futures);
     EXPECT_FALSE(f.IsSet());
     p2.Set(2);
     EXPECT_TRUE(f.IsSet());
@@ -682,7 +682,7 @@ TEST_F(TFutureTest, AnyCombinerRetainError)
 TEST_F(TFutureTest, AnyCombinerEmpty)
 {
     std::vector<TFuture<int>> futures;
-    auto error = AnySucceded(futures).Get();
+    auto error = AnySucceeded(futures).Get();
     EXPECT_EQ(NYT::EErrorCode::FutureCombinerFailure, error.GetCode());
 }
 
@@ -696,7 +696,7 @@ TEST_F(TFutureTest, AnyCombinerSkipError)
         p2.ToFuture(),
         p3.ToFuture()
     };
-    auto f = AnySucceded(futures);
+    auto f = AnySucceeded(futures);
     EXPECT_FALSE(f.IsSet());
     EXPECT_FALSE(p2.IsCanceled());
     p1.Set(TError("oops"));
@@ -717,7 +717,7 @@ TEST_F(TFutureTest, AnyCombinerSuccessShortcut)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnySucceded(futures);
+    auto f = AnySucceeded(futures);
     EXPECT_FALSE(f.IsSet());
     EXPECT_FALSE(p2.IsCanceled());
     p1.Set(1);
@@ -736,7 +736,7 @@ TEST_F(TFutureTest, AnyCombinerDontCancelOnShortcut)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnySucceded(
+    auto f = AnySucceeded(
         futures,
         TFutureCombinerOptions{.CancelInputOnShortcut = false});
     p1.Set(1);
@@ -751,7 +751,7 @@ TEST_F(TFutureTest, AnyCombinerPropagateCancelation)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnySucceded(futures);
+    auto f = AnySucceeded(futures);
     EXPECT_FALSE(p1.IsCanceled());
     EXPECT_FALSE(p2.IsCanceled());
     f.Cancel(TError("oops"));
@@ -767,7 +767,7 @@ TEST_F(TFutureTest, AnyCombinerDontPropagateCancelation)
         p1.ToFuture(),
         p2.ToFuture()
     };
-    auto f = AnySucceded(
+    auto f = AnySucceeded(
         futures,
         TFutureCombinerOptions{.PropagateCancelationToInput = false});
     EXPECT_FALSE(p1.IsCanceled());
@@ -784,7 +784,7 @@ TEST_F(TFutureTest, AnyCombiner1)
     std::vector<TFuture<int>> futures{
         future
     };
-    EXPECT_EQ(future, AnySucceded(futures));
+    EXPECT_EQ(future, AnySucceeded(futures));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

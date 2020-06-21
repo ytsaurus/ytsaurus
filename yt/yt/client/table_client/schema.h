@@ -250,11 +250,15 @@ private:
 };
 
 void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStringBuf spec);
+void FormatValue(TStringBuilderBase* builder, const TTableSchemaPtr& schema, TStringBuf spec);
 
 TString ToString(const TTableSchema& schema);
+TString ToString(const TTableSchemaPtr& schema);
 
 void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TTableSchema& schema, NYTree::INodePtr node);
+void Serialize(const TTableSchemaPtr& schema, NYson::IYsonConsumer* consumer);
+void Deserialize(TTableSchemaPtr& schema, NYTree::INodePtr node);
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema);
 void FromProto(TTableSchema* schema, const NProto::TTableSchemaExt& protoSchema);

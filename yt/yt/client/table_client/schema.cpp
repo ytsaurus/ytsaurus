@@ -865,7 +865,7 @@ i64 TTableSchema::GetMemoryUsage() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStringBuf spec)
+void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStringBuf /*spec*/)
 {
     builder->AppendFormat("<strict=%v;unique_keys=%v", schema.GetStrict(), schema.GetUniqueKeys());
     if (schema.HasNontrivialSchemaModification()) {
@@ -885,6 +885,20 @@ void FormatValue(TStringBuilderBase* builder, const TTableSchema& schema, TStrin
 }
 
 TString ToString(const TTableSchema& schema)
+{
+    return ToStringViaBuilder(schema);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TTableSchemaPtr& schema, TStringBuf spec)
+{
+    if (schema) {
+        FormatValue(builder, *schema, spec);
+    } else {
+        builder->AppendString(AsStringBuf("<null>"));
+    }
+}
+
+TString ToString(const TTableSchemaPtr& schema)
 {
     return ToStringViaBuilder(schema);
 }
@@ -911,6 +925,18 @@ void Deserialize(TTableSchema& schema, INodePtr node)
         node->Attributes().Get<ETableSchemaModification>(
             "schema_modification",
             ETableSchemaModification::None));
+}
+
+void Serialize(const TTableSchemaPtr& schema, IYsonConsumer* consumer)
+{
+    Serialize(*schema, consumer);
+}
+
+void Deserialize(TTableSchemaPtr& schema, INodePtr node)
+{
+    TTableSchema actualSchema;
+    Deserialize(actualSchema, node);
+    schema = New<TTableSchema>(std::move(actualSchema));
 }
 
 void ToProto(NProto::TTableSchemaExt* protoSchema, const TTableSchema& schema)
