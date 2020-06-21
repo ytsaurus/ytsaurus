@@ -28,10 +28,10 @@ class TSlotLocation
 
 public:
     TSlotLocation(
-        const TSlotLocationConfigPtr& config,
-        const NClusterNode::TBootstrap* bootstrap,
+        TSlotLocationConfigPtr config,
+        NClusterNode::TBootstrap* bootstrap,
         const TString& id,
-        const IJobDirectoryManagerPtr& jobDirectoryManager,
+        IJobDirectoryManagerPtr jobDirectoryManager,
         bool enableTmpfs,
         int slotCount);
 
@@ -93,17 +93,16 @@ public:
 private:
     const TSlotLocationConfigPtr Config_;
     const NClusterNode::TBootstrap* Bootstrap_;
-
     const IJobDirectoryManagerPtr JobDirectoryManager_;
-
-    NConcurrency::TActionQueuePtr LocationQueue_;
-
-    TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
-
     const bool EnableTmpfs_;
 
+    const NConcurrency::TActionQueuePtr LocationQueue_;
+    const TDiskHealthCheckerPtr HealthChecker_;
+    const NConcurrency::TPeriodicExecutorPtr DiskResourcesUpdateExecutor_;
     //! Absolute path to location.
     const TString LocationPath_;
+
+    TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
     std::set<TString> TmpfsPaths_;
     std::set<int> SlotsWithQuota_;
@@ -111,11 +110,8 @@ private:
     NConcurrency::TReaderWriterSpinLock SlotsLock_;
     THashMap<int, std::optional<i64>> OccupiedSlotToDiskLimit_;
 
-    TDiskHealthCheckerPtr HealthChecker_;
-
-    NNodeTrackerClient::NProto::TDiskLocationResources DiskResources_;
     NConcurrency::TReaderWriterSpinLock DiskResourcesLock_;
-    NConcurrency::TPeriodicExecutorPtr DiskResourcesUpdateExecutor_;
+    NNodeTrackerClient::NProto::TDiskLocationResources DiskResources_;
 
     void ValidateEnabled() const;
 
