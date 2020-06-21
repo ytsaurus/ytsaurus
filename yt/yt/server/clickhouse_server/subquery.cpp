@@ -39,6 +39,7 @@
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/schema.h>
 #include <yt/ytlib/table_client/table_ypath_proxy.h>
+#include <yt/ytlib/table_client/columnar_statistics_fetcher.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
@@ -93,11 +94,13 @@ public:
 public:
     TInputFetcher(
         TQueryContext* queryContext,
-        const TQueryAnalysisResult& queryAnalysisResult)
+        const TQueryAnalysisResult& queryAnalysisResult,
+        const std::vector<std::string>& columnNames)
         : Client_(queryContext->Client())
         , Invoker_(CreateSerializedInvoker(queryContext->Host->GetWorkerInvoker()))
         , TableSchemas_(queryAnalysisResult.TableSchemas)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
+        , ColumnNames_(columnNames)
         , KeyColumnCount_(queryAnalysisResult.KeyColumnCount)
         , Config_(queryContext->Host->GetConfig()->Subquery)
         , RowBuffer_(queryContext->RowBuffer)
@@ -126,6 +129,8 @@ private:
 
     std::vector<TTableSchemaPtr> TableSchemas_;
     std::vector<std::optional<DB::KeyCondition>> KeyConditions_;
+
+    const std::vector<std::string>& ColumnNames_;
 
     std::optional<int> KeyColumnCount_ = 0;
     DB::DataTypes KeyColumnDataTypes_;
@@ -159,6 +164,27 @@ private:
         }
 
         FetchTables();
+
+        if (Config_->UseColumnarStatistics) {
+            auto columnarStatisticsFetcher = New<TColumnarStatisticsFetcher>(
+                Config_->ChunkSliceFetcher,
+                /*nodeDirectory =*/ nullptr,
+                Invoker_,
+                /*chunkScraper =*/ nullptr,
+                Client_,
+                EColumnarStatisticsFetcherMode::FromMaster,
+                /*storeChunkStatistics =*/ false,
+                Logger);
+
+            std::vector<TString> columnNames(ColumnNames_.begin(), ColumnNames_.end());
+            for (const auto& inputChunk : InputChunks_) {
+                columnarStatisticsFetcher->AddChunk(inputChunk, columnNames);
+            }
+
+            WaitFor(columnarStatisticsFetcher->Fetch())
+                .ThrowOnError();
+            columnarStatisticsFetcher->ApplyColumnSelectivityFactors();
+        }
 
         std::vector<TChunkStripePtr> stripes;
         for (int index = 0; index < OperandCount_; ++index) {
@@ -268,6 +294,7 @@ private:
                 req->set_fetch_all_meta_extensions(false);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
+                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
                 SetTransactionId(req, NullTransactionId);
                 SetSuppressAccessTracking(req, true);
             },
@@ -384,9 +411,10 @@ DEFINE_REFCOUNTED_TYPE(TInputFetcher);
 TQueryInput FetchInput(
     TQueryContext* queryContext,
     const TQueryAnalysisResult& queryAnalysisResult,
-    TSubquerySpec& specTemplate)
+    TSubquerySpec& specTemplate,
+    const std::vector<std::string>& columnNames)
 {
-    auto inputFetcher = New<TInputFetcher>(queryContext, queryAnalysisResult);
+    auto inputFetcher = New<TInputFetcher>(queryContext, queryAnalysisResult, columnNames);
     WaitFor(inputFetcher->Fetch())
         .ThrowOnError();
 
@@ -395,7 +423,7 @@ TQueryInput FetchInput(
 
     return TQueryInput{
         .StripeList = std::move(inputFetcher->ResultStripeList()),
-        .MiscExtMap = std::move(inputFetcher->MiscExtMap()),
+        .MiscExtMap = std::move(inputFetcher->MiscExtMap())
     };
 }
 

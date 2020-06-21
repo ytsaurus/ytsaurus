@@ -472,6 +472,29 @@ class TestClickHouseCommon(ClickHouseTestBase):
     }
 
     @authors("evgenstf")
+    def test_subquery_columnar_data_weight(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}, {"name": "b", "type": "string"}]})
+        write_table("//tmp/t", [{"a": "2012-12-12 20:00:00", "b": "2012-12-12 20:00:00"}])
+        column_weight = get_table_columnar_statistics('["//tmp/t{a,b}"]')[0]['column_data_weights']['a']
+
+        with Clique(1, config_patch={"yt": {"subquery": {"max_data_weight_per_subquery": column_weight - 1}}}) as clique:
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('select a from "//tmp/t"')
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('select b from "//tmp/t"')
+
+        with Clique(1, config_patch={"yt": {"subquery": {"max_data_weight_per_subquery": column_weight + 1}}}) as clique:
+            clique.make_query('select a from "//tmp/t"') == [{'a': "2012-12-12 20:00:00"}]
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('select a, b from "//tmp/t"')
+
+        with Clique(1, config_patch={"yt": {"subquery": {"use_columnar_statistics": False, "max_data_weight_per_subquery": column_weight + 1}}}) as clique:
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('select a from "//tmp/t"') == [{'a': "2012-12-12 20:00:00"}]
+            with raises_yt_error(QueryFailedError):
+                clique.make_query('select a, b from "//tmp/t"')
+
+    @authors("evgenstf")
     def test_extract_array_raw(self):
         with Clique(1) as clique:
             assert clique.make_query('select YSONExtractArrayRaw(\'["a";"0";""]\')') == [{'YSONExtractArrayRaw(\'["a";"0";""]\')': ['"a"', '"0"', '""']}]

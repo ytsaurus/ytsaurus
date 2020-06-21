@@ -38,6 +38,8 @@ TSubqueryConfig::TSubqueryConfig()
         .Default(10'000);
     RegisterParameter("max_data_weight_per_subquery", MaxDataWeightPerSubquery)
         .Default(50_GB);
+    RegisterParameter("use_columnar_statistics", UseColumnarStatistics)
+        .Default(true);
     RegisterParameter("min_slice_data_weight", MinSliceDataWeight)
         .Default(1_MB);
 }
