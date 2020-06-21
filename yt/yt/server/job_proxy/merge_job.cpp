@@ -104,6 +104,7 @@ public:
         const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
+        options->CastAnyToComposite = true;
         auto schema = FromProto<TTableSchemaPtr>(outputSpec.table_schema());
 
         auto writerConfig = GetWriterConfig(outputSpec);
