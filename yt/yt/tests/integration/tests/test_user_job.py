@@ -734,7 +734,15 @@ class TestNetworkIsolation(YTEnvSetup):
         }
     }
 
+    USE_DYNAMIC_TABLES = True
     USE_PORTO = True
+
+    def setup(self):
+        sync_create_cells(1)
+        init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
+
+    def teardown(self):
+        remove("//sys/operations_archive")
 
     @authors("gritukan")
     def test_create_network_project_map(self):
