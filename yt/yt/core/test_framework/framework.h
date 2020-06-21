@@ -2,14 +2,12 @@
 
 #include <yt/core/actions/public.h>
 
-#include <library/cpp/testing/gtest_extensions/gtest_extensions.h>
 #include <library/cpp/ytalloc/core/misc/preprocessor.h>
 
 // Include Google Test and Google Mock headers.
 #define GTEST_DONT_DEFINE_FAIL 1
 
-#include <contrib/libs/gtest/include/gtest/gtest.h>
-#include <contrib/libs/gmock/include/gmock/gmock.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 namespace NYT {
 

@@ -2,7 +2,7 @@
 
 #include <yt/core/yson/consumer.h>
 
-#include <contrib/libs/gmock/include/gmock/gmock.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 namespace NYT::NYson {
 

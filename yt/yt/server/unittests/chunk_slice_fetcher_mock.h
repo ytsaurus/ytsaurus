@@ -8,7 +8,7 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
-#include <contrib/libs/gmock/include/gmock/gmock.h>
+#include <library/cpp/testing/gtest/gtest.h>
 
 namespace NYT::NTableClient {
 
