@@ -482,7 +482,8 @@ private:
         auto input = FetchInput(
             QueryContext_,
             queryAnalysisResult,
-            SpecTemplate_);
+            SpecTemplate_,
+            columnNames);
 
         MiscExtMap_ = std::move(input.MiscExtMap);
 

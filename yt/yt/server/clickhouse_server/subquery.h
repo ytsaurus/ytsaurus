@@ -35,7 +35,8 @@ struct TQueryInput
 TQueryInput FetchInput(
     TQueryContext* queryContet,
     const TQueryAnalysisResult& queryAnalysisResult,
-    TSubquerySpec& specTemplate);
+    TSubquerySpec& specTemplate,
+    const std::vector<std::string>& columnNames);
 
 std::vector<TSubquery> BuildSubqueries(
     const NChunkPools::TChunkStripeListPtr& inputStripeList,

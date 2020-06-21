@@ -54,6 +54,7 @@ public:
     int MaxChunksPerLocateRequest;
 
     i64 MaxDataWeightPerSubquery;
+    bool UseColumnarStatistics;
 
     i64 MinSliceDataWeight;
 

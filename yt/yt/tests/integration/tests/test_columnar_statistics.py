@@ -110,7 +110,7 @@ class TestColumnarStatistics(YTEnvSetup):
         make_table([256, 42])
         self._expect_statistics(0, 1, "x0,x1,zzz", [0, 0, 0], fetcher_mode="from_master")
         self._expect_statistics(0, 1, "x0,x1,zzz", [256, 42, 0], fetcher_mode="fallback")
-        
+
     @authors("dakovalkov")
     def test_get_table_columnar_statistics_multi(self):
         create("table", "//tmp/t")
