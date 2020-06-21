@@ -89,7 +89,7 @@ TTableUploadOptions GetTableUploadOptions(
     const IAttributeDictionary& cypressTableAttributes,
     i64 rowCount)
 {
-    auto schema = New<TTableSchema>(cypressTableAttributes.Get<TTableSchema>("schema"));
+    auto schema = cypressTableAttributes.Get<TTableSchemaPtr>("schema");
     auto schemaMode = cypressTableAttributes.Get<ETableSchemaMode>("schema_mode");
     auto optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
     auto compressionCodec = cypressTableAttributes.Get<NCompression::ECodec>("compression_codec");
@@ -215,11 +215,7 @@ TTableUploadOptions GetTableUploadOptions(
             << TErrorAttribute("path", path);
     }
 
-    if (path.GetErasureCodec()) {
-        result.ErasureCodec = *path.GetErasureCodec();
-    } else {
-        result.ErasureCodec = erasureCodec;
-    }
+    result.ErasureCodec = path.GetErasureCodec().value_or(erasureCodec);
 
     if (path.GetSchemaModification() == ETableSchemaModification::UnversionedUpdateUnsorted) {
         THROW_ERROR_EXCEPTION("YPath attribute \"schema_modification\" cannot have value %Qlv for output tables",

@@ -340,7 +340,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
 
         chunkCount = attributes->Get<int>("chunk_count");
         dynamic = attributes->Get<bool>("dynamic");
-        schema = New<TTableSchema>(attributes->Get<TTableSchema>("schema"));
+        schema = attributes->Get<TTableSchemaPtr>("schema");
 
         ValidateDynamicTableTimestamp(richPath, dynamic, *schema, *attributes);
     }

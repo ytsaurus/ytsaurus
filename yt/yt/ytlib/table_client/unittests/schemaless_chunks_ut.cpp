@@ -400,7 +400,7 @@ protected:
 
     static constexpr int N = 100003;
 
-    const TTableSchemaPtr Schema_ = New<TTableSchema>(ConvertTo<TTableSchema>(TYsonString(
+    const TTableSchemaPtr Schema_ = ConvertTo<TTableSchemaPtr>(TYsonString(
         "<strict=%true>["
             "{name = c1; type = int64; sort_order = ascending};"
             "{name = c2; type = uint64};"
@@ -408,7 +408,7 @@ protected:
             "{name = c4; type = boolean};"
             "{name = c5; type = double};"
             "{name = c6; type = any};"
-        "]")));
+        "]"));
 
     virtual void SetUp() override
     {

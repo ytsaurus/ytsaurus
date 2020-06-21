@@ -609,7 +609,7 @@ struct TFutureCombinerOptions
 //! future among #futures.
 //! Individual errors are ignored; if all input futures fail then an error is reported.
 template <class T>
-TFuture<T> AnySucceded(
+TFuture<T> AnySucceeded(
     std::vector<TFuture<T>> futures,
     TFutureCombinerOptions options = {});
 

@@ -588,7 +588,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
     YT_LOG_DEBUG("Creating table (Attributes: %v)", ConvertToYsonString(attributes->ToMap(), EYsonFormat::Text));
 
-    auto schema = New<TTableSchema>(attributes->Get<TTableSchema>("schema"));
+    auto schema = attributes->Get<TTableSchemaPtr>("schema");
 
     NApi::TCreateNodeOptions options;
     options.Attributes = std::move(attributes);

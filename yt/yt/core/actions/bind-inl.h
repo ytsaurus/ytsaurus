@@ -438,16 +438,16 @@ class TTraceContextMixin
 {
 public:
     TTraceContextMixin()
-        : TraceContext(NTracing::GetCurrentTraceContext())
+        : TraceContext_(NTracing::GetCurrentTraceContext())
     { }
 
     NTracing::TTraceContextGuard GetTraceContextGuard()
     {
-        return NTracing::TTraceContextGuard(TraceContext);
+        return NTracing::TTraceContextGuard(TraceContext_);
     }
 
 private:
-    const NTracing::TTraceContextPtr TraceContext;
+    const NTracing::TTraceContextPtr TraceContext_;
 };
 
 template <>

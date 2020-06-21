@@ -188,7 +188,6 @@ TEST(TUnversionedRowsBuilder, SomeValues)
     auto rows = builder.Build();
     EXPECT_EQ(2, rows.size());
     {
-        fprintf(stderr, "%s\n", Format("%v", rows[0]).c_str());
         auto [i, s] = FromUnversionedRow<int, TString>(rows[0]);
         EXPECT_EQ(1, i);
         EXPECT_EQ("hello", s);

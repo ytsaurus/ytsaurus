@@ -238,9 +238,6 @@ public:
             driverRequest.OutputStream = AsyncOutput_;
         }
         if (Descriptor_.Volatile) {
-            // XXX(babenko): investigate 'Duplicate request is not marked as "retry"'
-            const auto& Logger = DriverLogger;
-            YT_LOG_DEBUG("XXX %v", MutationId_);
             parameters->Set("mutation_id", MutationId_);
             parameters->Set("retry", Retry_);
         }
