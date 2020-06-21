@@ -10,11 +10,15 @@ import __builtin__
 
 ##################################################################
 
+def get_operation_job_types(opid):
+    return get_operation(opid)["progress"]["job_statistics"]["time"]["total"]["$"]["completed"].keys()
+
+
 def sort_1_phase(in_, out, sort_by):
     op = sort(in_=in_, out=out, sort_by=sort_by)
     op.track()
-    job_types = get_operation(op.id)["progress"]["job_statistics"]["time"]["total"]["$"]["completed"].keys()
-    assert __builtin__.set(job_types) == {"simple_sort"}
+    assert __builtin__.set(get_operation_job_types(op.id)) == {"simple_sort"}
+
 
 def sort_2_phase(in_, out, sort_by):
     op = sort(in_=in_, out=out, sort_by=sort_by, spec={
@@ -22,8 +26,8 @@ def sort_2_phase(in_, out, sort_by):
         "partition_count" : 2,
     })
     op.track()
-    job_types = get_operation(op.id)["progress"]["job_statistics"]["time"]["total"]["$"]["completed"].keys()
-    assert __builtin__.set(job_types) == {"partition", "final_sort"}
+    assert __builtin__.set(get_operation_job_types(op.id)) == {"partition", "final_sort"}
+
 
 def sort_3_phase(in_, out, sort_by):
     op = sort(in_=in_, out=out, sort_by=sort_by, spec={
@@ -38,8 +42,25 @@ def sort_3_phase(in_, out, sort_by):
         }
     })
     op.track()
-    job_types = get_operation(op.id)["progress"]["job_statistics"]["time"]["total"]["$"]["completed"].keys()
-    assert __builtin__.set(job_types) == {'intermediate_sort', 'partition', 'sorted_merge'}
+    assert __builtin__.set(get_operation_job_types(op.id)) == {'intermediate_sort', 'partition', 'sorted_merge'}
+
+
+def sort_maniac(in_, out, sort_by):
+    if isinstance(sort_by, str):
+        sort_by = [sort_by]
+
+    def get_key(row):
+        return tuple(row[k] for k in sort_by)
+    key_count = len(__builtin__.set(get_key(r) for r in read_table(in_)))
+
+    op = sort(in_=in_, out=out, sort_by=sort_by, spec={
+        "partition_job_count" : 4,
+        "partition_count" : key_count * 5,
+        "data_size_per_sort_job": 1,
+    })
+    op.track()
+    assert __builtin__.set(get_operation_job_types(op.id)) == {'unordered_merge', 'partition'}
+
 
 class TestSchedulerSortCommands(YTEnvSetup):
     NUM_MASTERS = 1
@@ -1116,7 +1137,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert data_flow_graph["edges"]["final_sort"]["sink"]["statistics"]["data_weight"] == data_weight
 
     @authors("ermolovd")
-    @pytest.mark.parametrize("sort_func", [sort_1_phase, sort_2_phase, sort_3_phase])
+    @pytest.mark.parametrize("sort_func", [sort_1_phase, sort_2_phase, sort_3_phase, sort_maniac])
     def test_sort_nonkey_complex_type(self, sort_func):
         create("table", "//tmp/in", attributes={
             "schema": [
@@ -1124,10 +1145,12 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 {"name": "value", "type_v3": list_type("int64")},
             ]
         })
-        write_table("//tmp/in", [
-            {"key": i, "value": [1] * i}
+        data = [
+            {"key": i % 10, "value": [1] * i}
             for i in xrange(100, 1, -1)
-        ])
+        ]
+        for d in data:
+            write_table("<append=%true>//tmp/in", [d])
         create("table", "//tmp/out")
         sort_func(in_="//tmp/in", out="//tmp/out", sort_by="key")
 
