@@ -187,6 +187,17 @@ TLauncherConfig::TLauncherConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TMemoryConfig::TMemoryConfig()
+{
+    RegisterParameter("reader", Reader);
+    RegisterParameter("uncompressed_block_cache", UncompressedBlockCache);
+    RegisterParameter("memory_limit", MemoryLimit);
+    RegisterParameter("max_server_memory_usage", MaxServerMemoryUsage);
+    RegisterParameter("watchdog_oom_watermark", WatchdogOomWatermark);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
 {
     RegisterParameter("cluster_connection", ClusterConnection);
@@ -207,9 +218,20 @@ TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
     RegisterParameter("cpu_limit", CpuLimit)
         .Default();
 
+    RegisterParameter("memory", Memory)
+        .Default();
+
     RegisterPostprocessor([&] {
         if (CpuLimit) {
             Yt->CpuLimit = CpuLimit;
+        }
+
+        if (Memory) {
+            Yt->TotalReaderMemoryLimit = Memory->Reader;
+            Yt->MemoryWatchdog->MemoryLimit = Memory->MemoryLimit;
+            Yt->MemoryWatchdog->CodicilWatermark = Memory->WatchdogOomWatermark;
+            ClusterConnection->BlockCache->UncompressedData->Capacity = Memory->UncompressedBlockCache;
+            ClickHouse->MaxServerMemoryUsage = Memory->MaxServerMemoryUsage;
         }
     });
 }

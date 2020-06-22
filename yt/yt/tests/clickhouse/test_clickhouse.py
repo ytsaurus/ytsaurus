@@ -31,15 +31,23 @@ from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_con
 HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer"])
 
 DEFAULTS = {
-    "memory_footprint": 1 * 1000**3,
-    "memory_limit": int(4.5 * 1000**3),
+    "memory_config": {
+        "footprint": 1 * 1024**3,
+        "clickhouse": int(2.5 * 1024**3),
+        "reader": 1 * 1024**3,
+        "uncompressed_block_cache": 0,
+        "log_tailer": 0,
+        "watchdog_oom_watermark": 0,
+        "clickhouse_watermark": 1 * 1024**3,
+        "memory_limit": int((1 + 2.5 + 1 + 1) * 1024**3),
+        "max_server_memory_usage": int((1 + 2.5 + 1) * 1024**3),
+    },
     "host_ytserver_clickhouse_path": HOST_PATHS["ytserver-clickhouse"],
     "host_clickhouse_trampoline_path": HOST_PATHS["clickhouse-trampoline"],
     "host_ytserver_log_tailer_path": HOST_PATHS["ytserver-log-tailer"],
     "cpu_limit": 1,
     "enable_monitoring": False,
     "clickhouse_config": {},
-    "uncompressed_block_cache_size": 0,
     "max_instance_count": 100,
 }
 
@@ -85,13 +93,13 @@ class Clique(object):
         core_dump_destination = os.environ.get("YT_CORE_DUMP_DESTINATION")
 
         spec_builder = get_clique_spec_builder(instance_count,
-                                                          cypress_config_paths=cypress_config_paths,
-                                                          max_failed_job_count=max_failed_job_count,
-                                                          defaults=DEFAULTS,
-                                                          cpu_limit=cpu_limit,
-                                                          spec=spec,
-                                                          core_dump_destination=core_dump_destination,
-                                                          trampoline_log_file=os.path.join(self.log_root, "trampoline.debug.log"),
+                                               cypress_config_paths=cypress_config_paths,
+                                               max_failed_job_count=max_failed_job_count,
+                                               defaults=DEFAULTS,
+                                               cpu_limit=cpu_limit,
+                                               spec=spec,
+                                               core_dump_destination=core_dump_destination,
+                                               trampoline_log_file=os.path.join(self.log_root, "trampoline.debug.log"),
                                                           **kwargs)
         self.spec = simplify_structure(spec_builder.build())
         if not is_asan_build() and core_dump_destination is not None:

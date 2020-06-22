@@ -23,16 +23,14 @@ def get_clique_spec_builder(instance_count,
                             cypress_config_paths=None,
                             max_failed_job_count=None,
                             cpu_limit=None,
-                            memory_limit=None,
-                            memory_footprint=None,
                             enable_monitoring=None,
                             cypress_geodata_path=None,
                             core_dump_destination=None,
                             description=None,
                             operation_alias=None,
+                            memory_config = None,
                             enable_job_tables=None,
                             enable_log_tailer=None,
-                            uncompressed_block_cache_size=None,
                             trampoline_log_file=None,
                             max_instance_count=None,
                             spec=None):
@@ -46,8 +44,6 @@ def get_clique_spec_builder(instance_count,
     :type host_ytserver_clickhouse_path: str
     :param max_failed_job_count: maximum number of failed jobs that is allowed for the underlying vanilla operation.
     :type max_failed_job_count: int
-    :param memory_footprint: amount of memory that goes to the YT runtime
-    :type memory_footprint: int
     :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
     :type enable_monitoring: bool
     :param spec: other spec options.
@@ -132,7 +128,7 @@ def get_clique_spec_builder(instance_count,
             .job_count(instance_count) \
             .file_paths(file_paths) \
             .command(trampoline_command) \
-            .memory_limit(memory_limit + memory_footprint + uncompressed_block_cache_size) \
+            .memory_limit(memory_config["memory_limit"]) \
             .cpu_limit(cpu_limit) \
             .max_stderr_size(1024 * 1024 * 1024) \
             .port_count(5) \

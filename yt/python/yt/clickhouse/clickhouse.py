@@ -97,34 +97,23 @@ def prepare_configs(instance_count,
                     cypress_log_tailer_config_path=None,
                     clickhouse_config=None,
                     cpu_limit=None,
-                    memory_limit=None,
-                    memory_footprint=None,
+                    memory_config=None,
                     operation_alias=None,
-                    uncompressed_block_cache_size=None,
                     client=None):
-    """Merges a document pointed by `config_template_cypress_path`,  and `config` and uploads the
-    result as a config.yson file suitable for specifying as a config file for clickhouse clique.
-
-    :param cypress_base_config_path: path to a document that will be taken as a base config; if None, no base config is used
-    :type cypress_base_config_path: str or None
-    :param clickhouse_config: configuration patch to be applied onto the base config; if None, nothing happens
-    :type clickhouse_config: dict or None
-    :param uncompressed_block_cache_size: size of uncompressed block cache at each instance.
-    :type int
-    """
-
     require(cpu_limit is not None, lambda: YtError("Cpu limit should be set to prepare the ClickHouse config"))
-    require(memory_limit is not None, lambda: YtError("Memory limit should be set to prepare the ClickHouse config"))
+    require(memory_config is not None, lambda: YtError("Memory config should be set to prepare the ClickHouse config"))
 
     clickhouse_config_base = {
         # COMPAT(max42): rename into "clickhouse".
         "engine": {
             "settings": {
                 "max_threads": cpu_limit,
-                "max_memory_usage_for_all_queries": memory_limit,
+                # COMPAT(max42): fresh CH does not recognize this option.
+                "max_memory_usage_for_all_queries": memory_config["clickhouse"],
                 "log_queries": 1,
                 "queue_max_wait_ms": 30 * 1000,
             },
+            "max_server_memory_usage": memory_config["max_server_memory_usage"]
         },
         "profile_manager": {
             "global_tags": {"operation_alias": operation_alias[1:]} if operation_alias is not None else {},
@@ -132,7 +121,7 @@ def prepare_configs(instance_count,
         "cluster_connection": {
             "block_cache": {
                 "uncompressed_data": {
-                    "capacity": uncompressed_block_cache_size,
+                    "capacity": memory_config["uncompressed_block_cache"],
                 },
             },
         },
@@ -141,7 +130,7 @@ def prepare_configs(instance_count,
             "directory": "//sys/clickhouse/cliques",
         },
         "memory_watchdog": {
-            "memory_limit": memory_limit + uncompressed_block_cache_size + memory_footprint,
+            "memory_limit": memory_config["memory_limit"],
         },
         "worker_thread_count": cpu_limit,
         "cpu_limit": cpu_limit,
@@ -149,12 +138,13 @@ def prepare_configs(instance_count,
             "worker_thread_count": cpu_limit,
             "cpu_limit": cpu_limit,
             "memory_watchdog": {
-                "memory_limit": memory_limit + uncompressed_block_cache_size + memory_footprint,
+                "memory_limit": memory_config["memory_limit"],
             },
         },
         "launcher": {
             "version": LAUNCHER_VERSION,
-        }
+        },
+        "memory": memory_config,
     }
 
     cluster_connection_patch = {
@@ -280,6 +270,29 @@ def do_wait_for_instances(op, instance_count, operation_alias, client=None):
             op.printer(state)
 
 
+@patch_defaults
+def process_memory_config(memory_config=None):
+    if memory_config is None:
+        raise YtError("Missing memory config; CHYT defaults for the cluster seem to be obsolete")
+    allowed_keys = {"reader", "uncompressed_block_cache", "clickhouse", "footprint",
+                    "clickhouse_watermark", "watchdog_oom_watermark", "log_tailer"}
+    for key in allowed_keys:
+        if key not in memory_config:
+            raise YtError("Missing memory config key {}; CHYT defaults for the cluster seem to be obsolete".format(key))
+    memory_config["max_server_memory_usage"] = (memory_config["reader"] + memory_config["uncompressed_block_cache"] +
+                                                memory_config["clickhouse"] + memory_config["footprint"])
+    memory_config["memory_limit"] = memory_config["max_server_memory_usage"] + memory_config["clickhouse_watermark"]
+    return memory_config
+
+
+@patch_defaults
+def validate_dominant_resource(memory_config=None, cpu_limit=None, desired_memory_per_core=None):
+    memory_per_core = memory_config["memory_limit"] / cpu_limit
+    if memory_per_core > desired_memory_per_core:
+        logger.warning("Memory per CPU core is higher than recommended: actual = {} > desired = {}; "
+                       "consider increasing CPU limit".format(memory_per_core, desired_memory_per_core))
+
+
 def start_clique(instance_count,
                  alias=None,
                  cypress_base_config_path=None,
@@ -291,15 +304,13 @@ def start_clique(instance_count,
                  host_ytserver_log_tailer_path=None,
                  clickhouse_config=None,
                  cpu_limit=None,
-                 memory_limit=None,
-                 memory_footprint=None,
+                 memory_config=None,
                  enable_monitoring=None,
                  cypress_geodata_path=None,
                  description=None,
                  abort_existing=None,
                  dump_tables=None,
                  spec=None,
-                 uncompressed_block_cache_size=None,
                  cypress_log_tailer_config_path=None,
                  enable_job_tables=None,
                  artifact_path=None,
@@ -334,10 +345,10 @@ def start_clique(instance_count,
     :type clickhouse_config: dict or None
     :param cpu_limit: number of cores that will be available to each instance
     :type cpu_limit: int or None
-    :param memory_limit: amount of memory that will be available to each instance
-    :type memory_limit: int or None
-    :param memory_footprint: amount of memory that goes to the YT runtime
-    :type memory_footprint: int or None
+    :param memory_config: amount of per-category memory that will be available to each instance; should be dict,
+    following keys are possible: 'reader', 'uncompressed_block_cache', 'clickhouse', 'footprint',
+    'clickhouse_watermark', 'watchdog_oom_watermark', 'log_tailer'.
+    :type memory_config: dict or None
     :param enable_monitoring: (only for development use) option that makes clickhouse bind monitoring port to 10042.
     :type enable_monitoring: bool or None
     :param dump_tables: if stderr and/or core tables are specified, copy their incarnations from the previous operation
@@ -383,18 +394,13 @@ def start_clique(instance_count,
     prev_operation = _resolve_alias(alias, client=client)
     if alias is not None:
         if prev_operation is not None:
-            logger.info("Previous operation with alias %s is %s with state %s", alias, prev_operation["id"], prev_operation["state"])
+            logger.info("Previous operation with alias %s is %s with state %s",
+                        alias, prev_operation["id"], prev_operation["state"])
             if not abort_existing:
-                raise YtError("There is already an operation with alias {}; abort it or specify --abort-existing command-line flag".format(alias))
+                raise YtError("There is already an operation with alias {}; "
+                              "abort it or specify --abort-existing command-line flag".format(alias))
         else:
             logger.info("There was no operation with alias %s before", alias)
-
-    if abort_existing:
-        if prev_operation is not None and not prev_operation["state"].endswith("ed"):
-            logger.info("Aborting previous operation with alias %s", alias)
-            abort_operation(prev_operation["id"], client=client)
-        else:
-            logger.info("There is no running operation with alias %s; not aborting anything", alias)
 
     prev_operation_id = prev_operation["id"] if prev_operation is not None else None
 
@@ -433,15 +439,21 @@ def start_clique(instance_count,
     if wait_for_instances is None:
         wait_for_instances = True
 
+    memory_config = process_memory_config(memory_config=memory_config, defaults=defaults)
+    validate_dominant_resource(
+        memory_config=memory_config,
+        cpu_limit=cpu_limit,
+        desired_memory_per_core=defaults.get("desired_memory_per_core", 5 * 1024**3),
+        defaults=defaults)
+
     configs = prepare_configs(instance_count,
                               cypress_base_config_path=cypress_base_config_path,
                               cypress_log_tailer_config_path=cypress_log_tailer_config_path,
                               clickhouse_config=clickhouse_config,
                               cpu_limit=cpu_limit,
-                              memory_limit=memory_limit,
+                              memory_config=memory_config,
                               defaults=defaults,
                               operation_alias=alias,
-                              uncompressed_block_cache_size=uncompressed_block_cache_size,
                               client=client)
 
     prepare_artifacts(artifact_path,
@@ -456,12 +468,17 @@ def start_clique(instance_count,
 
     cypress_config_paths = upload_configs(configs, client=client)
 
+    if abort_existing:
+        if prev_operation is not None and not prev_operation["state"].endswith("ed"):
+            logger.info("Aborting previous operation with alias %s", alias)
+            abort_operation(prev_operation["id"], client=client)
+        else:
+            logger.info("There is no running operation with alias %s; not aborting anything", alias)
+
     op = run_operation(get_clique_spec_builder(instance_count,
                                                artifact_path=artifact_path,
                                                cypress_config_paths=cypress_config_paths,
                                                cpu_limit=cpu_limit,
-                                               memory_limit=memory_limit,
-                                               memory_footprint=memory_footprint,
                                                enable_monitoring=enable_monitoring,
                                                cypress_ytserver_clickhouse_path=cypress_ytserver_clickhouse_path,
                                                cypress_clickhouse_trampoline_path=cypress_clickhouse_trampoline_path,
@@ -472,7 +489,7 @@ def start_clique(instance_count,
                                                cypress_geodata_path=cypress_geodata_path,
                                                operation_alias=alias,
                                                description=description,
-                                               uncompressed_block_cache_size=uncompressed_block_cache_size,
+                                               memory_config=memory_config,
                                                spec=spec,
                                                enable_job_tables=enable_job_tables,
                                                enable_log_tailer=True,

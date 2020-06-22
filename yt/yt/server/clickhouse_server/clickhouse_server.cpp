@@ -16,27 +16,27 @@
 #include <yt/core/concurrency/coroutine.h>
 
 #include <Server/IServer.h>
-#include <Interpreters/AsynchronousMetrics.h>
-#include <Interpreters/Context.h>
-#include <Interpreters/ProcessList.h>
-#include <Interpreters/ExternalDictionariesLoader.h>
-#include <Storages/System/attachSystemTables.h>
-#include <Storages/StorageFactory.h>
-#include <Storages/StorageMemory.h>
-#include <TableFunctions/registerTableFunctions.h>
-#include <Dictionaries/registerDictionaries.h>
-#include <Functions/registerFunctions.h>
-#include <AggregateFunctions/registerAggregateFunctions.h>
-#include <Common/ClickHouseRevision.h>
-#include <Databases/DatabaseMemory.h>
+
 #include <Access/AccessControlManager.h>
 #include <Access/MemoryAccessStorage.h>
-
-#include <Storages/System/StorageSystemProcesses.h>
+#include <AggregateFunctions/registerAggregateFunctions.h>
+#include <Common/ClickHouseRevision.h>
+#include <Common/MemoryTracker.h>
+#include <Databases/DatabaseMemory.h>
+#include <Dictionaries/registerDictionaries.h>
+#include <Functions/registerFunctions.h>
+#include <Interpreters/AsynchronousMetrics.h>
+#include <Interpreters/Context.h>
+#include <Interpreters/ExternalDictionariesLoader.h>
+#include <Interpreters/ProcessList.h>
+#include <Storages/StorageFactory.h>
+#include <Storages/StorageMemory.h>
 #include <Storages/System/StorageSystemAsynchronousMetrics.h>
 #include <Storages/System/StorageSystemDictionaries.h>
 #include <Storages/System/StorageSystemMetrics.h>
-
+#include <Storages/System/StorageSystemProcesses.h>
+#include <Storages/System/attachSystemTables.h>
+#include <TableFunctions/registerTableFunctions.h>
 
 #include <Poco/DirectoryIterator.h>
 #include <Poco/File.h>
@@ -44,7 +44,6 @@
 #include <Poco/Net/TCPServer.h>
 #include <Poco/ThreadPool.h>
 #include <Poco/Util/LayeredConfiguration.h>
-
 
 namespace NYT::NClickHouseServer {
 
@@ -243,6 +242,12 @@ private:
         ServerContext_->initializeSystemLogs();
 
         YT_LOG_DEBUG("System logs initialized");
+
+        if (Config_->MaxServerMemoryUsage) {
+            total_memory_tracker.setOrRaiseHardLimit(*Config_->MaxServerMemoryUsage);
+            total_memory_tracker.setDescription("(total)");
+            total_memory_tracker.setMetric(CurrentMetrics::MemoryTracking);
+        }
 
         YT_LOG_DEBUG("Setting up access manager");
 

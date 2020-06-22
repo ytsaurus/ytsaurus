@@ -17,22 +17,29 @@ HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse
                                               "ytserver-dummy"])
 
 DEFAULTS = {
-    "memory_footprint": 1 * 1000**3,
-    "memory_limit": int(4.5 * 1000**3),
+    "memory_config": {
+        "footprint": 1 * 1024**3,
+        "clickhouse": int(2.5 * 1024**3),
+        "reader": 1 * 1024**3,
+        "uncompressed_block_cache": 0,
+        "log_tailer": 0,
+        "watchdog_oom_watermark": 0,
+        "clickhouse_watermark": 1 * 1024**3,
+        "memory_limit": int((1 + 2.5 + 1 + 1) * 1024**3),
+        "max_server_memory_usage": int((1 + 2.5 + 1) * 1024**3),
+    },
     "host_ytserver_clickhouse_path": HOST_PATHS["ytserver-clickhouse"],
     "host_clickhouse_trampoline_path": HOST_PATHS["clickhouse-trampoline"],
     "host_ytserver_log_tailer_path": HOST_PATHS["ytserver-log-tailer"],
     "cpu_limit": 1,
     "enable_monitoring": False,
     "clickhouse_config": {},
-    "uncompressed_block_cache_size": 0,
     "max_instance_count": 100,
     "cypress_log_tailer_config_path": "//sys/clickhouse/log_tailer_config",
     "log_tailer_table_attribute_patch": {"primary_medium": "default"},
     "log_tailer_tablet_count": 1,
     "skip_version_compatibility_validation": True,
 }
-
 
 class ClickhouseTestBase(object):
     def _setup(self):

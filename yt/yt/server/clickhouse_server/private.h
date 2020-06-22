@@ -57,6 +57,7 @@ DECLARE_REFCOUNTED_STRUCT(IClickHouseServer);
 DECLARE_REFCOUNTED_CLASS(THost);
 DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig);
 DECLARE_REFCOUNTED_CLASS(TLauncherConfig);
+DECLARE_REFCOUNTED_CLASS(TMemoryConfig);
 
 struct TValue;
 class TSubquerySpec;
@@ -185,9 +186,6 @@ extern const Event OSWriteBytes;
 
 } // namespace ProfileEvents
 
-// Why this class is outside of namespace DB? 0_o
-class IGeoDictionariesLoader;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace CurrentMetrics {
@@ -196,6 +194,7 @@ namespace CurrentMetrics {
 
 extern const size_t Revision;
 extern const size_t VersionInteger;
+extern const size_t MemoryTracking;
 
 ////////////////////////////////////////////////////////////////////////////////
 
