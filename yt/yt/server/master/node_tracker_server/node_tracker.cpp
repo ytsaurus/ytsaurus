@@ -914,11 +914,8 @@ private:
             node->SetLocalState(ENodeState::Offline);
 
             THROW_ERROR_EXCEPTION("Node %Qv (#%v) created and provisionally banned",
-                node->GetId(),
                 address,
-                tags,
-                leaseTransactionId,
-                statistics);
+                node->GetId());
         }
 
         YT_LOG_INFO_UNLESS(IsRecovery(), "Node registered (NodeId: %v, Address: %v, Tags: %v, LeaseTransactionId: %v, %v)",
@@ -1052,7 +1049,9 @@ private:
                 }
 
                 auto rspTags = response->mutable_tags();
-                for (auto tag : node->Tags()) {
+                SmallVector<TString, 16> sortedTags(node->Tags().begin(), node->Tags().end());
+                std::sort(sortedTags.begin(), sortedTags.end());
+                for (auto tag : sortedTags) {
                     rspTags->Add(std::move(tag));
                 }
 
@@ -1605,6 +1604,11 @@ private:
         request.set_node_id(node->GetId());
         ToProto(request.mutable_node_addresses(), node->GetNodeAddresses());
         *request.mutable_statistics() = node->Statistics();
+        for (const auto& tag : node->NodeTags()) {
+            request.add_tags(tag);
+        }
+        request.set_cypress_annotations(node->GetAnnotations().GetData());
+        request.set_build_version(node->GetVersion());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToSecondaryMasters(request);
