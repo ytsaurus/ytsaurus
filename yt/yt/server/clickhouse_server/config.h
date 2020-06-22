@@ -187,6 +187,23 @@ DEFINE_REFCOUNTED_TYPE(TLauncherConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMemoryConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    i64 Reader;
+    i64 UncompressedBlockCache;
+    i64 MemoryLimit;
+    i64 MaxServerMemoryUsage;
+    i64 WatchdogOomWatermark;
+
+    TMemoryConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TPorts
 {
     // YT ports.
@@ -216,6 +233,8 @@ public:
 
     // COMPAT(max42): deprecate in favor of yt/cpu_limit.
     std::optional<int> CpuLimit;
+
+    TMemoryConfigPtr Memory;
 
     TPorts GetPorts() const;
 

@@ -137,6 +137,8 @@ public:
     int TcpPort;
     int HttpPort;
 
+    std::optional<i64> MaxServerMemoryUsage;
+
     //! Settings for default user profile, this field is introduced for convenience.
     //! Refer to https://clickhouse.yandex/docs/en/operations/settings/settings/ for a complete list.
     //! This map is merged into `users/profiles/default`.

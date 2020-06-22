@@ -129,6 +129,9 @@ TClickHouseConfig::TClickHouseConfig()
         .Optional()
         .MergeBy(NYTree::EMergeStrategy::Combine);
 
+    RegisterParameter("max_server_memory_usage", MaxServerMemoryUsage)
+        .Default();
+
     RegisterPreprocessor([&] {
         Settings["max_memory_usage_for_all_queries"] = NYTree::ConvertToNode(9_GB);
         Settings["max_threads"] = NYTree::ConvertToNode(32);

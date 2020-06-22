@@ -108,7 +108,7 @@ def create_log_tailer_table(table_kind, table_path, client=None):
         "dynamic": True,
         "schema": schema,
     }
-    logger.info("Creating log tailer table %s of kind %s", table_path, table_kind)
+    logger.debug("Creating log tailer table %s of kind %s", table_path, table_kind)
     create("table", table_path, attributes=attributes, client=client, force=True)
 
 
@@ -134,7 +134,7 @@ def prepare_log_tailer_tables(log_file,
     ttl = log_file["ttl"]
 
     for kind, path in [("ordered_normally", ordered_normally_path), ("ordered_by_trace_id", ordered_by_trace_id_path)]:
-        logger.info("Preparing log table %s", path)
+        logger.debug("Preparing log table %s", path)
         if not exists(path, client=client):
             create_log_tailer_table(kind, path, client=client)
         else:
