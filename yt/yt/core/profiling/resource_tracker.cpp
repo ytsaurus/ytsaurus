@@ -108,6 +108,10 @@ bool TResourceTracker::ProcessThread(TString tid, TResourceTracker::TThreadInfo*
             for (TString line; file.ReadLine(line); ) {
                 auto tokens = SplitString(line, "\t");
 
+                if (tokens.size() < 2) {
+                   return false;
+                }
+
                 if (tokens[0] == "Name:") {
                     info->ThreadName = tokens[1];
                 } else if (tokens[0] == "SigBlk:") {
