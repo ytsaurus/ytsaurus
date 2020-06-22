@@ -108,7 +108,8 @@ REPOS="$REPOS $EXTRA_REPOSITORIES"
 REPOS_TO_UPLOAD=""
 if [ -z "$FORCE_DEPLOY" ]; then
     for REPO in $REPOS; do
-        if [ "$(found_debian_version "$PACKAGE" "$REPO" "$VERSION")" = "0" ]; then
+        find_result="$(found_debian_version "$PACKAGE" "$REPO" "$VERSION")"
+        if [ "$find_result" = "0" ]; then
             REPOS_TO_UPLOAD="$REPOS_TO_UPLOAD $REPO"
         fi
     done
@@ -136,7 +137,8 @@ fi
 # Upload python wheel
 if [ -z "$SKIP_WHEEL" ]; then
     PYPI_PACKAGE_NAME=$(python -c "import setup; import sys; sys.stdout.write(setup.PACKAGE_NAME)")
-    if [ "$($CURRENT_DIR/find_pypi_package.py "$PYPI_PACKAGE_NAME")" = "0" ]; then
+    find_result="$($CURRENT_DIR/find_pypi_package.py "$PYPI_PACKAGE_NAME")"
+    if [ "$find_result" = "0" ]; then
         python setup.py bdist_wheel --universal upload -r yandex
     fi
 fi
