@@ -1,7 +1,7 @@
 import pytest
 import yt.yson as yson
 
-from yt_env_setup import YTEnvSetup, unix_only, Restarter, SCHEDULERS_SERVICE
+from yt_env_setup import YTEnvSetup, unix_only, Restarter, SCHEDULERS_SERVICE, is_asan_build
 from yt_commands import *
 
 from time import sleep
@@ -87,6 +87,7 @@ class TestSchedulerAutoMerge(YTEnvSetup):
     @authors("max42")
     @pytest.mark.timeout(480)
     @pytest.mark.parametrize("op_type", ["map", "reduce"])
+    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_auto_merge_does_not_stuck(self, op_type):
         create("table", "//tmp/t_in", attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]})
         create("table", "//tmp/t_out")

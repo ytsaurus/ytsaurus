@@ -1,7 +1,7 @@
 import pytest
 
 from yt_env_setup import YTEnvSetup, wait, parametrize_external,\
-    Restarter, NODES_SERVICE, MASTERS_SERVICE
+    Restarter, NODES_SERVICE, MASTERS_SERVICE, is_asan_build
 from yt_commands import *
 from yt_helpers import *
 
@@ -1046,6 +1046,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         self._test_cell_bundle_distribution(False)
 
     @authors("gritukan")
+    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_tablet_cell_balancer_works_after_decommission(self):
         self._test_cell_bundle_distribution(True, True)
 
@@ -1705,6 +1706,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_traverse_table_with_alter_and_ranges_stress(self, optimize_for):
         sync_create_cells(1)
         schema1 = [
