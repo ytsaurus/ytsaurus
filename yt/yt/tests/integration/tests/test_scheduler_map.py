@@ -1,5 +1,5 @@
 from yt_env_setup import (
-    YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto, parametrize_external,
+    YTEnvSetup, unix_only, patch_porto_env_only, wait, skip_if_porto, parametrize_external, is_asan_build,
 )
 
 from yt_commands import *
@@ -112,6 +112,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
         assert res[2]["v2"].startswith("/")
 
     @authors("ignat")
+    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_big_input(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

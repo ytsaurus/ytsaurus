@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, is_asan_build
 from yt_commands import *
 import yt.yson
 import random
@@ -391,6 +391,7 @@ class TestErasureJournals(TestJournals):
 
     @pytest.mark.parametrize("erasure_codec", ["none", "isa_lrc_12_2_2", "isa_reed_solomon_3_3"])
     @authors("babenko", "ignat")
+    @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_read_with_repair(self, erasure_codec):
         create("journal", "//tmp/j", attributes=self.JOURNAL_ATTRIBUTES[erasure_codec])
         self._write_and_wait_until_sealed("//tmp/j", self.DATA)
