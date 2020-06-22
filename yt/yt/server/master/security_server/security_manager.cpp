@@ -1409,8 +1409,8 @@ public:
 
             auto* parentObject = handler->GetParent(currentObject);
 
-            // XXX(shakurov): YT-10896: remove this workaround.
-            if (!HasMutationContext() && IsVersionedType(object->GetType())) {
+            // XXX(shakurov): YT-3005, YT-10896: remove this workaround.
+            if (IsVersionedType(object->GetType())) {
                 // Check if current object is orphaned.
                 if (!parentObject && currentObject != rootObject) {
                     checker.ProcessAce(
