@@ -767,7 +767,7 @@ class TestNetworkIsolation(YTEnvSetup):
             op.track()
 
         op = run_test_vanilla(with_breakpoint("echo $YT_NETWORK_PROJECT_ID >&2; hostname >&2; BREAKPOINT"),
-                         task_patch = {"network_project": "n"}, authenticated_user="u1")
+                              task_patch = {"network_project": "n"}, authenticated_user="u1")
 
         job_id = wait_breakpoint()[0]
         network_project_id, hostname, _ = get_job_stderr(op.id, job_id).split('\n')
