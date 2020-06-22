@@ -1102,6 +1102,7 @@ print row + table_index
         assert get(op.get_path() + "/@progress/job_statistics/data/input/row_count/$/completed/{}/sum".format(job_type)) == len(result) - 2
 
     @authors("dakovalkov", "gritukan")
+    @flaky(max_runs=3)
     def test_map_soft_interrupt_job(self):
         create_test_tables(row_count=1)
 
