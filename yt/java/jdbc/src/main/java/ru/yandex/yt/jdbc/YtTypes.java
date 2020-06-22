@@ -45,7 +45,7 @@ class YtTypes {
             case "int32":
             case "int16":
             case "int8":
-            case "unt64":
+            case "uint64":
             case "uint32":
             case "uint16":
             case "uint8":
