@@ -105,6 +105,8 @@ TWebJsonColumnFilter CreateWebJsonColumnFilter(const TWebJsonFormatConfigPtr& we
 TStringBuf GetSimpleYqlTypeName(ESimpleLogicalValueType type)
 {
     switch (type) {
+        case ESimpleLogicalValueType::Float:
+            return AsStringBuf("Float");
         case ESimpleLogicalValueType::Double:
             return AsStringBuf("Double");
         case ESimpleLogicalValueType::Boolean:
@@ -115,6 +117,8 @@ TStringBuf GetSimpleYqlTypeName(ESimpleLogicalValueType type)
             return AsStringBuf("Utf8");
         case ESimpleLogicalValueType::Any:
             return AsStringBuf("Yson");
+        case ESimpleLogicalValueType::Json:
+            return AsStringBuf("Json");
         case ESimpleLogicalValueType::Int8:
             return AsStringBuf("Int8");
         case ESimpleLogicalValueType::Int16:

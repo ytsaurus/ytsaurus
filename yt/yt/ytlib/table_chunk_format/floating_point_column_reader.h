@@ -6,14 +6,16 @@ namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IVersionedColumnReader> CreateVersionedDoubleColumnReader(
+template <typename T>
+std::unique_ptr<IVersionedColumnReader> CreateVersionedFloatingPointColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnId,
     bool aggregate);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IUnversionedColumnReader> CreateUnversionedDoubleColumnReader(
+template <typename T>
+std::unique_ptr<IUnversionedColumnReader> CreateUnversionedFloatingPointColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnIndex,
     int columnId);

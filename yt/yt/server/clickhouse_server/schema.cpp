@@ -76,10 +76,13 @@ DB::DataTypePtr RepresentYtType(const TLogicalTypePtr& valueType)
 
                 case ESimpleLogicalValueType::Double:
                     return std::make_shared<DB::DataTypeFloat64>();
+                case ESimpleLogicalValueType::Float:
+                    return std::make_shared<DB::DataTypeFloat32>();
 
                 case ESimpleLogicalValueType::String:
                 case ESimpleLogicalValueType::Utf8:
                 case ESimpleLogicalValueType::Any:
+                case ESimpleLogicalValueType::Json:
                     return std::make_shared<DB::DataTypeString>();
 
                 case ESimpleLogicalValueType::Date:

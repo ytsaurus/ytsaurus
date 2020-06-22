@@ -1,7 +1,7 @@
 #include "column_reader.h"
 
 #include "boolean_column_reader.h"
-#include "double_column_reader.h"
+#include "floating_point_column_reader.h"
 #include "integer_column_reader.h"
 #include "null_column_reader.h"
 #include "string_column_reader.h"
@@ -34,8 +34,13 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
             return CreateUnversionedUint64ColumnReader(meta, columnIndex, columnId);
 
         case EValueType::Double:
-            return CreateUnversionedDoubleColumnReader(meta, columnIndex, columnId);
-
+            switch (*simplifiedLogicalType) {
+                case ESimpleLogicalValueType::Float:
+                    return CreateUnversionedFloatingPointColumnReader<float>(meta, columnIndex, columnId);
+                default:
+                    YT_VERIFY(*simplifiedLogicalType == ESimpleLogicalValueType::Double);
+                    return CreateUnversionedFloatingPointColumnReader<double>(meta, columnIndex, columnId);
+            }
         case EValueType::String:
             return CreateUnversionedStringColumnReader(meta, columnIndex, columnId);
 
@@ -60,6 +65,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
     const TColumnMeta& meta,
     int columnId)
 {
+    auto simplifiedLogicalType = schema.SimplifiedLogicalType();
     switch (schema.GetPhysicalType()) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnReader(
@@ -74,10 +80,19 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
                 static_cast<bool>(schema.Aggregate()));
 
         case EValueType::Double:
-            return CreateVersionedDoubleColumnReader(
-                meta,
-                columnId,
-                static_cast<bool>(schema.Aggregate()));
+            YT_VERIFY(simplifiedLogicalType);
+            switch (*simplifiedLogicalType) {
+                case ESimpleLogicalValueType::Float:
+                    return CreateVersionedFloatingPointColumnReader<float>(
+                        meta,
+                        columnId,
+                        static_cast<bool>(schema.Aggregate()));
+                default:
+                    return CreateVersionedFloatingPointColumnReader<double>(
+                        meta,
+                        columnId,
+                        static_cast<bool>(schema.Aggregate()));
+            }
 
         case EValueType::Boolean:
             return CreateVersionedBooleanColumnReader(

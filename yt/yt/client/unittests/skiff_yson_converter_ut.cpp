@@ -136,6 +136,12 @@ TEST(TYsonSkiffConverterTest, TestSimpleTypes)
         "00000000" "00000000");
 
     CHECK_BIDIRECTIONAL_CONVERSION(
+        SimpleLogicalType(ESimpleLogicalValueType::Float),
+        CreateSimpleTypeSchema(EWireType::Double),
+        "0.",
+        "00000000" "00000000");
+
+    CHECK_BIDIRECTIONAL_CONVERSION(
         SimpleLogicalType(ESimpleLogicalValueType::String),
         CreateSimpleTypeSchema(EWireType::String32),
         "\"foo\"",

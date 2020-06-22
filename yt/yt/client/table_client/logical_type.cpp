@@ -644,6 +644,7 @@ void TDictLogicalType::ValidateNode(const TWalkContext&) const
             case ELogicalMetatype::Simple:
                 switch (auto simpleType = logicalType->AsSimpleTypeRef().GetElement()) {
                     case ESimpleLogicalValueType::Any:
+                    case ESimpleLogicalValueType::Json:
                         THROW_ERROR_EXCEPTION("%Qv is of type %Qv that is not allowed in dict key",
                             descriptor.GetDescription(),
                             simpleType);
@@ -658,6 +659,7 @@ void TDictLogicalType::ValidateNode(const TWalkContext&) const
                     case ESimpleLogicalValueType::Uint16:
                     case ESimpleLogicalValueType::Uint32:
                     case ESimpleLogicalValueType::Uint64:
+                    case ESimpleLogicalValueType::Float:
                     case ESimpleLogicalValueType::Double:
                     case ESimpleLogicalValueType::String:
                     case ESimpleLogicalValueType::Utf8:
@@ -1221,9 +1223,11 @@ std::pair<ESimpleLogicalValueType, TString> V3SimpleLogicalValueTypeEncoding[] =
     {ESimpleLogicalValueType::Int64,     "int64"},
     {ESimpleLogicalValueType::Uint64,    "uint64"},
     {ESimpleLogicalValueType::Double,    "double"},
+    {ESimpleLogicalValueType::Float,     "float"},
     {ESimpleLogicalValueType::Boolean,   "bool"},  // NB. diff
     {ESimpleLogicalValueType::String,    "string"},
     {ESimpleLogicalValueType::Any,       "yson"}, // NB. diff
+    {ESimpleLogicalValueType::Json,      "json"},
     {ESimpleLogicalValueType::Int8,      "int8"},
     {ESimpleLogicalValueType::Uint8,     "uint8"},
 

@@ -6,13 +6,15 @@ namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IValueColumnWriter> CreateUnversionedDoubleColumnWriter(
+template <typename T>
+std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter(
     int columnIndex,
     TDataBlockWriter* blockWriter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IValueColumnWriter> CreateVersionedDoubleColumnWriter(
+template <typename T>
+std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter(
     int columnId,
     bool aggregate,
     TDataBlockWriter* blockWriter);

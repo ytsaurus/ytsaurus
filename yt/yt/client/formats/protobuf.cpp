@@ -346,6 +346,9 @@ void ValidateSimpleType(
         }
 
         case EProtobufType::Float:
+            validateLogicalType(ESimpleLogicalValueType::Float, ESimpleLogicalValueType::Double);
+            return;
+
         case EProtobufType::Double:
             validateLogicalType(ESimpleLogicalValueType::Double);
             return;

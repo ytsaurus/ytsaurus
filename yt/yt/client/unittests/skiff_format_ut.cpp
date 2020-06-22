@@ -340,7 +340,8 @@ void TestAllWireTypes(bool useSchema)
     auto skiffSchema = CreateTupleSchema({
         CreateSimpleTypeSchema(EWireType::Int64)->SetName("int64"),
         CreateSimpleTypeSchema(EWireType::Uint64)->SetName("uint64"),
-        CreateSimpleTypeSchema(EWireType::Double)->SetName("double"),
+        CreateSimpleTypeSchema(EWireType::Double)->SetName("double_1"),
+        CreateSimpleTypeSchema(EWireType::Double)->SetName("double_2"),
         CreateSimpleTypeSchema(EWireType::Boolean)->SetName("boolean"),
         CreateSimpleTypeSchema(EWireType::String32)->SetName("string32"),
         CreateSimpleTypeSchema(EWireType::Nothing)->SetName("null"),
@@ -356,7 +357,11 @@ void TestAllWireTypes(bool useSchema)
         CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
             CreateSimpleTypeSchema(EWireType::Double),
-        })->SetName("opt_double"),
+        })->SetName("opt_double_1"),
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateSimpleTypeSchema(EWireType::Double),
+        })->SetName("opt_double_2"),
         CreateVariant8Schema({
             CreateSimpleTypeSchema(EWireType::Nothing),
             CreateSimpleTypeSchema(EWireType::Boolean),
@@ -371,13 +376,15 @@ void TestAllWireTypes(bool useSchema)
         tableSchemas.push_back(New<TTableSchema>(std::vector{
             TColumnSchema("int64", EValueType::Int64),
             TColumnSchema("uint64", EValueType::Uint64),
-            TColumnSchema("double", EValueType::Double),
+            TColumnSchema("double_1", EValueType::Double),
+            TColumnSchema("double_2", ESimpleLogicalValueType::Float),
             TColumnSchema("boolean", EValueType::Boolean),
             TColumnSchema("string32", EValueType::String),
             TColumnSchema("null", EValueType::Null),
             TColumnSchema("opt_int64", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
             TColumnSchema("opt_uint64", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Uint64))),
-            TColumnSchema("opt_double", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Double))),
+            TColumnSchema("opt_double_1", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Double))),
+            TColumnSchema("opt_double_2", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Float))),
             TColumnSchema("opt_boolean", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Boolean))),
             TColumnSchema("opt_string32", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String))),
         }));
@@ -395,14 +402,16 @@ void TestAllWireTypes(bool useSchema)
                 MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
                 MakeUnversionedInt64Value(-1, nameTable->GetIdOrRegisterName("int64")),
                 MakeUnversionedUint64Value(2, nameTable->GetIdOrRegisterName("uint64")),
-                MakeUnversionedDoubleValue(3.0, nameTable->GetIdOrRegisterName("double")),
+                MakeUnversionedDoubleValue(3.0, nameTable->GetIdOrRegisterName("double_1")),
+                MakeUnversionedDoubleValue(3.0, nameTable->GetIdOrRegisterName("double_2")),
                 MakeUnversionedBooleanValue(true, nameTable->GetIdOrRegisterName("boolean")),
                 MakeUnversionedStringValue("four", nameTable->GetIdOrRegisterName("string32")),
                 MakeUnversionedNullValue(nameTable->GetIdOrRegisterName("null")),
 
                 MakeUnversionedInt64Value(-5, nameTable->GetIdOrRegisterName("opt_int64")),
                 MakeUnversionedUint64Value(6, nameTable->GetIdOrRegisterName("opt_uint64")),
-                MakeUnversionedDoubleValue(7.0, nameTable->GetIdOrRegisterName("opt_double")),
+                MakeUnversionedDoubleValue(7.0, nameTable->GetIdOrRegisterName("opt_double_1")),
+                MakeUnversionedDoubleValue(7.0, nameTable->GetIdOrRegisterName("opt_double_2")),
                 MakeUnversionedBooleanValue(false, nameTable->GetIdOrRegisterName("opt_boolean")),
                 MakeUnversionedStringValue("eight", nameTable->GetIdOrRegisterName("opt_string32")),
             }).Get(),
@@ -412,14 +421,16 @@ void TestAllWireTypes(bool useSchema)
                 MakeUnversionedInt64Value(0, nameTable->GetIdOrRegisterName(TableIndexColumnName)),
                 MakeUnversionedInt64Value(-9, nameTable->GetIdOrRegisterName("int64")),
                 MakeUnversionedUint64Value(10, nameTable->GetIdOrRegisterName("uint64")),
-                MakeUnversionedDoubleValue(11.0, nameTable->GetIdOrRegisterName("double")),
+                MakeUnversionedDoubleValue(11.0, nameTable->GetIdOrRegisterName("double_1")),
+                MakeUnversionedDoubleValue(11.0, nameTable->GetIdOrRegisterName("double_2")),
                 MakeUnversionedBooleanValue(false, nameTable->GetIdOrRegisterName("boolean")),
                 MakeUnversionedStringValue("twelve", nameTable->GetIdOrRegisterName("string32")),
                 MakeUnversionedNullValue(nameTable->GetIdOrRegisterName("null")),
 
                 MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_int64")),
                 MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_uint64")),
-                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_double")),
+                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_double_1")),
+                MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_double_2")),
                 MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_boolean")),
                 MakeUnversionedSentinelValue(EValueType::Null, nameTable->GetIdOrRegisterName("opt_string32")),
             }).Get()
@@ -437,6 +448,9 @@ void TestAllWireTypes(bool useSchema)
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
     ASSERT_EQ(checkedSkiffParser.ParseInt64(), -1);
     ASSERT_EQ(checkedSkiffParser.ParseUint64(), 2);
+    // double_1
+    ASSERT_EQ(checkedSkiffParser.ParseDouble(), 3.0);
+    // double_2
     ASSERT_EQ(checkedSkiffParser.ParseDouble(), 3.0);
     ASSERT_EQ(checkedSkiffParser.ParseBoolean(), true);
     ASSERT_EQ(checkedSkiffParser.ParseString32(), "four");
@@ -447,6 +461,11 @@ void TestAllWireTypes(bool useSchema)
     ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
     ASSERT_EQ(checkedSkiffParser.ParseUint64(), 6);
 
+    // double_1
+    ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
+    ASSERT_EQ(checkedSkiffParser.ParseDouble(), 7.0);
+
+    // double_2
     ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
     ASSERT_EQ(checkedSkiffParser.ParseDouble(), 7.0);
 
@@ -460,12 +479,18 @@ void TestAllWireTypes(bool useSchema)
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
     ASSERT_EQ(checkedSkiffParser.ParseInt64(), -9);
     ASSERT_EQ(checkedSkiffParser.ParseUint64(), 10);
+    // double_1
+    ASSERT_EQ(checkedSkiffParser.ParseDouble(), 11.0);
+    // double_2
     ASSERT_EQ(checkedSkiffParser.ParseDouble(), 11.0);
     ASSERT_EQ(checkedSkiffParser.ParseBoolean(), false);
     ASSERT_EQ(checkedSkiffParser.ParseString32(), "twelve");
 
     ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
     ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
+    // double_1
+    ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
+    // double_2
     ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
     ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
     ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 0);
