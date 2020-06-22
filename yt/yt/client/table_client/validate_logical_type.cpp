@@ -1,14 +1,19 @@
 #include "validate_logical_type.h"
 #include "logical_type.h"
 
+#include <yt/core/misc/finally.h>
+
 #include <yt/core/yson/pull_parser.h>
 
 #include <util/stream/mem.h>
 #include <util/generic/adaptor.h>
 
+#include <library/cpp/json/json_reader.h>
+
 namespace NYT::NTableClient {
 
 using namespace NYson;
+using namespace NJson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -175,9 +180,11 @@ private:
             CASE(ESimpleLogicalValueType::Int64)
             CASE(ESimpleLogicalValueType::Uint64)
             CASE(ESimpleLogicalValueType::Double)
+            CASE(ESimpleLogicalValueType::Float)
             CASE(ESimpleLogicalValueType::Boolean)
             CASE(ESimpleLogicalValueType::String)
             CASE(ESimpleLogicalValueType::Any)
+            CASE(ESimpleLogicalValueType::Json)
             CASE(ESimpleLogicalValueType::Int8)
             CASE(ESimpleLogicalValueType::Uint8)
             CASE(ESimpleLogicalValueType::Int16)
@@ -553,6 +560,51 @@ void ValidateComplexLogicalType(TStringBuf ysonData, const TLogicalTypePtr& type
     TYsonPullParser parser(&in, EYsonType::Node);
     TComplexLogicalTypeValidatorImpl validator(&parser, TComplexTypeFieldDescriptor(type));
     validator.Validate();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TValidateJsonCallbacks
+    : public TJsonCallbacks
+{
+public:
+    TValidateJsonCallbacks()
+        : TJsonCallbacks(/* throwOnError */ true)
+    {}
+
+    bool OnDouble(double value) final
+    {
+        if (Y_UNLIKELY(std::isinf(value))) {
+            ythrow TJsonException() << "infinite values are not allowed";
+        }
+        return true;
+    }
+
+    bool OnEnd() final
+    {
+        if (Finished_) {
+            ythrow TJsonException() << "JSON value is already finished";
+        }
+        Finished_ = true;
+        return true;
+    }
+
+private:
+     bool Finished_ = false;
+};
+
+template <>
+void ValidateSimpleLogicalType<ESimpleLogicalValueType::Json>(TStringBuf value)
+{
+    TMemoryInput input(value);
+    TValidateJsonCallbacks callbacks;
+    try {
+        auto ok = ReadJson(&input, &callbacks);
+        // We expect all the errors to be thrown.
+        YT_VERIFY(ok);
+    } catch (const TJsonException& ex) {
+        THROW_ERROR_EXCEPTION(EErrorCode::SchemaViolation, "Invalid JSON: %s", ex.AsStrBuf());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

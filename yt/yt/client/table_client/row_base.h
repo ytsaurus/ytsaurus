@@ -40,9 +40,11 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ESimpleLogicalValueType, ui32,
     ((Uint64)      (0x04))
     ((Double)      (0x05))
     ((Boolean)     (0x06))
+    ((Float)       (0x07))
 
     ((String)      (0x10))
     ((Any)         (0x11))
+    ((Json)        (0x12))
 
     ((Int8)        (0x1000))
     ((Uint8)       (0x1001))
@@ -175,6 +177,7 @@ inline constexpr EValueType GetPhysicalType(ESimpleLogicalValueType type)
             return EValueType::Uint64;
 
         case ESimpleLogicalValueType::Utf8:
+        case ESimpleLogicalValueType::Json:
             return EValueType::String;
         case ESimpleLogicalValueType::Date:
         case ESimpleLogicalValueType::Datetime:
@@ -185,6 +188,9 @@ inline constexpr EValueType GetPhysicalType(ESimpleLogicalValueType type)
 
         case ESimpleLogicalValueType::Void:
             return EValueType::Null;
+
+        case ESimpleLogicalValueType::Float:
+            return EValueType::Double;
 
         default:
             YT_ABORT();

@@ -384,6 +384,9 @@ TEST(TLogicalTypeTest, TestTypeV3Yson)
     CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Double), "double");
     EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Double), *FromTypeV3("{type_name=double;}"));
 
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Float), "float");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Float), *FromTypeV3("{type_name=float;}"));
+
     CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Boolean), "bool");
     EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Boolean), *FromTypeV3("{type_name=bool;}"));
     EXPECT_THROW_WITH_SUBSTRING(FromTypeV3("boolean"), "is not valid type_v3 simple type");
@@ -405,7 +408,7 @@ TEST(TLogicalTypeTest, TestTypeV3Yson)
     CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Int16), "int16");
     EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Int16), *FromTypeV3("{type_name=int16;}"));
 
-    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Int8),  "int8");
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Int8), "int8");
     EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Int8),  *FromTypeV3("{type_name=int8;}"));
 
     CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Uint32), "uint32");
@@ -414,7 +417,7 @@ TEST(TLogicalTypeTest, TestTypeV3Yson)
     CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Uint16), "uint16");
     EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Uint16), *FromTypeV3("{type_name=uint16;}"));
 
-    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Uint8),  "uint8");
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Uint8), "uint8");
     EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Uint8),  *FromTypeV3("{type_name=uint8;}"));
 
     CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Utf8), "utf8");
@@ -431,6 +434,9 @@ TEST(TLogicalTypeTest, TestTypeV3Yson)
 
     CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Interval), "interval");
     EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Interval), *FromTypeV3("{type_name=interval;}"));
+
+    CHECK_TYPE_V3(SimpleLogicalType(ESimpleLogicalValueType::Json), "json");
+    EXPECT_EQ(*SimpleLogicalType(ESimpleLogicalValueType::Json), *FromTypeV3("{type_name=json;}"));
 
     // Optional.
     CHECK_TYPE_V3(

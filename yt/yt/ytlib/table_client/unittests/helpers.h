@@ -171,12 +171,15 @@ T DecodeIntegerFromColumn(
     return static_cast<T>(value);
 }
 
-inline double DecodeDoubleFromColumn(
+template <typename T>
+T DecodeFloatingPointFromColumn(
     const NTableClient::IUnversionedColumnarRowBatch::TColumn& column,
     i64 index)
 {
-    YT_ASSERT(column.Values->BitWidth == 64);
-    return GetTypedData<double>(*column.Values)[index];
+    static_assert(std::is_floating_point_v<T>);
+
+    YT_ASSERT(column.Values->BitWidth == sizeof(T) * 8);
+    return GetTypedData<T>(*column.Values)[index];
 }
 
 inline bool DecodeBoolFromColumn(

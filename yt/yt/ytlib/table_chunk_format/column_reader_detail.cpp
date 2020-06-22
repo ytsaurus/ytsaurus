@@ -483,19 +483,34 @@ void ReadColumnarBooleanValues(
     values.Data = TRef(bitmap.Begin(), bitmap.End());
 }
 
-void ReadColumnarDoubleValues(
+template <typename T>
+void ReadColumnarFloatingPointValues(
     NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
     i64 startIndex,
     i64 valueCount,
-    TRange<double> data)
+    TRange<T> data)
 {
     column->StartIndex = startIndex;
     column->ValueCount = valueCount;
-    
+
     auto& values = column->Values.emplace();
-    values.BitWidth = 64;
+    values.BitWidth = sizeof(T) * 8;
     values.Data = TRef(data.Begin(), data.End());
 }
+
+template
+void ReadColumnarFloatingPointValues<float>(
+    NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
+    i64 startIndex,
+    i64 valueCount,
+    TRange<float> data);
+
+template
+void ReadColumnarFloatingPointValues<double>(
+    NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
+    i64 startIndex,
+    i64 valueCount,
+    TRange<double> data);
 
 void ReadColumnarStringValues(
     NTableClient::IUnversionedColumnarRowBatch::TColumn* column,

@@ -614,6 +614,9 @@ class TestLogicalType(YTEnvSetup):
             "datetime",
             "timestamp",
             "interval",
+
+            "float",
+            "json",
         ], dynamic=dynamic)
 
         type_tester.check_good_value("int8", 2 ** 7 - 1)
@@ -701,6 +704,26 @@ class TestLogicalType(YTEnvSetup):
         type_tester.check_good_value("interval", -timestamp_upper_bound + 1)
         type_tester.check_bad_value("interval", timestamp_upper_bound)
         type_tester.check_bad_value("interval", -timestamp_upper_bound)
+
+        type_tester.check_good_value("float", -3.14)
+        type_tester.check_good_value("float", -3.14e35)
+        type_tester.check_good_value("float", 3.14e35)
+        type_tester.check_bad_value("float", 3.14e135)
+        type_tester.check_bad_value("float", -3.14e135)
+
+        type_tester.check_good_value("json", "null")
+        type_tester.check_good_value("json", "true")
+        type_tester.check_good_value("json", "false")
+        type_tester.check_good_value("json", "3.25")
+        type_tester.check_good_value("json", "3.25e14")
+        type_tester.check_good_value("json", "\"x\"")
+        type_tester.check_good_value("json", "{\"x\": \"y\"}")
+        type_tester.check_good_value("json", "[2, \"foo\", null, {}]")
+        type_tester.check_bad_value("json", "without_quoutes")
+        type_tester.check_bad_value("json", "False")
+        type_tester.check_bad_value("json", "}{")
+        type_tester.check_bad_value("json", "{3: \"wrong key type\"}")
+        type_tester.check_bad_value("json", "Non-utf8: \xFF")
 
     @authors("ermolovd")
     def test_bad_alter_table(self):

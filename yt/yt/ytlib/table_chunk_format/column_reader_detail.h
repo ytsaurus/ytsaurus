@@ -1065,11 +1065,12 @@ void ReadColumnarBooleanValues(
     i64 valueCount,
     TRange<ui64> bitmap);
 
-void ReadColumnarDoubleValues(
+template <typename T>
+void ReadColumnarFloatingPointValues(
     NTableClient::IUnversionedColumnarRowBatch::TColumn* column,
     i64 startIndex,
     i64 valueCount,
-    TRange<double> data);
+    TRange<T> data);
 
 void ReadColumnarStringValues(
     NTableClient::IUnversionedColumnarRowBatch::TColumn* column,

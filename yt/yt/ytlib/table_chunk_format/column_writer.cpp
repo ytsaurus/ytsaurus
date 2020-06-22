@@ -1,7 +1,7 @@
 #include "column_writer.h"
 
 #include "boolean_column_writer.h"
-#include "double_column_writer.h"
+#include "floating_point_column_writer.h"
 #include "integer_column_writer.h"
 #include "null_column_writer.h"
 #include "string_column_writer.h"
@@ -32,7 +32,12 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
             return CreateUnversionedUint64ColumnWriter(columnIndex, blockWriter);
 
         case EValueType::Double:
-            return CreateUnversionedDoubleColumnWriter(columnIndex, blockWriter);
+            switch (*simplifiedLogicalType) {
+                case NTableClient::ESimpleLogicalValueType::Float:
+                    return CreateUnversionedFloatingPointColumnWriter<float>(columnIndex, blockWriter);
+                default:
+                    return CreateUnversionedFloatingPointColumnWriter<double>(columnIndex, blockWriter);
+            }
 
         case EValueType::String:
             return CreateUnversionedStringColumnWriter(columnIndex, blockWriter);
@@ -62,6 +67,7 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
     int id,
     TDataBlockWriter* blockWriter)
 {
+    auto simplifiedLogicalType = columnSchema.SimplifiedLogicalType();
     switch (columnSchema.GetPhysicalType()) {
         case EValueType::Int64:
             return CreateVersionedInt64ColumnWriter(
@@ -76,10 +82,19 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                 blockWriter);
 
         case EValueType::Double:
-            return CreateVersionedDoubleColumnWriter(
-                id,
-                static_cast<bool>(columnSchema.Aggregate()),
-                blockWriter);
+            YT_VERIFY(simplifiedLogicalType);
+            switch (*simplifiedLogicalType) {
+                case ESimpleLogicalValueType::Float:
+                    return CreateVersionedFloatingPointColumnWriter<float>(
+                        id,
+                        static_cast<bool>(columnSchema.Aggregate()),
+                        blockWriter);
+                default:
+                    return CreateVersionedFloatingPointColumnWriter<double>(
+                        id,
+                        static_cast<bool>(columnSchema.Aggregate()),
+                        blockWriter);
+            }
 
         case EValueType::Boolean:
             return CreateVersionedBooleanColumnWriter(

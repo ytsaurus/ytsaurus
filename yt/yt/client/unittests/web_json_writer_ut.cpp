@@ -711,6 +711,8 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             {"date", SimpleLogicalType(ESimpleLogicalValueType::Date)},
             {"datetime", SimpleLogicalType(ESimpleLogicalValueType::Datetime)},
             {"interval", SimpleLogicalType(ESimpleLogicalValueType::Interval)},
+            {"json", SimpleLogicalType(ESimpleLogicalValueType::Json)},
+            {"float", SimpleLogicalType(ESimpleLogicalValueType::Float)},
         })},
         {"column_c", ListLogicalType(StructLogicalType({
             {"very_optional_key", OptionalLogicalType(MakeLogicalType(ESimpleLogicalValueType::String, false))},
@@ -815,7 +817,15 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             [
                 "interval";
                 ["DataType"; "Interval"]
-            ]
+            ];
+            [
+                "json";
+                ["DataType"; "Json"]
+            ];
+            [
+                "float";
+                ["DataType"; "Float"]
+            ];
         ]
     ])"));
     auto firstColumnCType = ConvertToNode(TYsonString(R"([
@@ -886,7 +896,9 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 100u;
                 101u;
                 102u;
-                103
+                103;
+                "[\"a\", {\"b\": 42}]";
+                -3.25;
             ])",
             KeyBId_));
         builder.AddValue(MakeUnversionedCompositeValue(R"([[[#]; "value"]; [["key"]; #]])", KeyCId_));
@@ -907,7 +919,9 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 0u;
                 1101u;
                 1102u;
-                1103
+                1103;
+                "null";
+                0.0;
             ])",
             KeyBId_));
         builder.AddValue(MakeUnversionedCompositeValue(R"([[#; #]; [["key1"]; #]])", KeyCId_));
@@ -927,7 +941,9 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 30u;
                 3101u;
                 3202u;
-                3103
+                3103;
+                "{\"x\": false}";
+                1e10;
             ])",
             KeyBId_));
         builder.AddValue(MakeUnversionedCompositeValue(R"([[["key"]; #]])", KeyCId_));
@@ -949,7 +965,9 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
                 40u;
                 4101u;
                 4202u;
-                4103
+                4103;
+                "{}";
+                -2.125;
             ])",
             KeyBId_));
         builder.AddValue(MakeUnversionedCompositeValue(R"([])", KeyCId_));
@@ -1033,7 +1051,9 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             "100";
             "101";
             "102";
-            "103"
+            "103";
+            "[\"a\", {\"b\": 42}]";
+            "-3.25";
         ])"));
     CHECK_YQL_TYPE_AND_VALUE(row1, "column_b", firstColumnBType, row1BValue, yqlTypes);
     auto row1CValue = ConvertToNode(TYsonString(R"({
@@ -1060,7 +1080,9 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             "0";
             "1101";
             "1102";
-            "1103"
+            "1103";
+            "null";
+            "0";
         ])"));
     CHECK_YQL_TYPE_AND_VALUE(row2, "column_b", firstColumnBType, row2BValue, yqlTypes);
     auto row2CValue = ConvertToNode(TYsonString(R"({
@@ -1087,7 +1109,9 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             "30";
             "3101";
             "3202";
-            "3103"
+            "3103";
+            "{\"x\": false}";
+            "10000000000";
         ])"));
     CHECK_YQL_TYPE_AND_VALUE(row3, "column_b", firstColumnBType, row3BValue, yqlTypes);
     auto row3CValue = ConvertToNode(TYsonString(R"({
@@ -1115,7 +1139,9 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
             "40";
             "4101";
             "4202";
-            "4103"
+            "4103";
+            "{}";
+            "-2.125";
         ])"));
     CHECK_YQL_TYPE_AND_VALUE(row4, "column_b", firstColumnBType, row4BValue, yqlTypes);
 

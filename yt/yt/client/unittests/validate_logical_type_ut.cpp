@@ -54,6 +54,7 @@ TEST(TValidateLogicalTypeTest, TestBasicTypes)
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Int64), " 42 ");
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Uint64), " 42u ");
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Double), " 3.14 ");
+    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Float), " 3.14 ");
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Boolean), " %false ");
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Null), " # ");
 
@@ -61,6 +62,7 @@ TEST(TValidateLogicalTypeTest, TestBasicTypes)
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Int64), " %true ");
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Uint64), " 14 ");
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Double), " bar ");
+    EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Float), " rab ");
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Boolean), " 1 ");
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Null), " 0 ");
 }
@@ -149,6 +151,14 @@ TEST(TValidateLogicalTypeTest, TestLogicalTypes)
     CHECK_GOOD(ESimpleLogicalValueType::Utf8, " foo ");
     CHECK_GOOD(ESimpleLogicalValueType::Utf8, " \"фу\" ");
     CHECK_BAD(ESimpleLogicalValueType::Utf8, " \"\244\" ");
+
+    // Float
+    CHECK_GOOD(ESimpleLogicalValueType::Float, " 3.14 ");
+    CHECK_GOOD(ESimpleLogicalValueType::Float, " -3.14e35 ");
+    CHECK_GOOD(ESimpleLogicalValueType::Float, " 3.14e35 ");
+    CHECK_BAD(ESimpleLogicalValueType::Float, " 3.14e39 ");
+    CHECK_BAD(ESimpleLogicalValueType::Float, " -3.14e39 ");
+    CHECK_BAD(ESimpleLogicalValueType::Float, " blah");
 }
 
 TEST(TValidateLogicalTypeTest, TestAnyType)
@@ -167,6 +177,30 @@ TEST(TValidateLogicalTypeTest, TestAnyType)
 
     EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Any), "<>1");
     EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Any), "[<>1]");
+}
+
+TEST(TValidateLogicalTypeTest, TestJsonType)
+{
+    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Json), R"( "\"foo\"" )");
+    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Json), R"( "42" )");
+    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Json), R"( "true" )");
+    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Json), R"( "3.14" )");
+    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Json), R"( "null" )");
+
+    // Infinities are disallowed.
+    EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Json), R"( "Infinity" )");
+
+    EXPECT_GOOD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Json), R"( "[142, 53, {\"foo\":\"bar\", \"bar\":[\"baz\"]}]" )");
+    // Extra comma.
+    EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Json), R"( "[142, 53,]" )");
+    // Wrong delimiter.
+    EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Json), R"( "[142; 53]" )");
+
+    EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Json)), "#");
+    EXPECT_GOOD_TYPE(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Json)), R"( "[{\"bar\": []}, \"bar\", [\"baz\"]]" )");
+
+    // Non-UTF-8.
+    EXPECT_BAD_TYPE(SimpleLogicalType(ESimpleLogicalValueType::Json), R"( "\xFF" )");
 }
 
 TEST(TValidateLogicalTypeTest, TestOptionalComplexType)

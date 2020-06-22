@@ -1086,6 +1086,8 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
             CASE(ESimpleLogicalValueType::Boolean)
             CASE(ESimpleLogicalValueType::String)
 
+            CASE(ESimpleLogicalValueType::Float)
+
             CASE(ESimpleLogicalValueType::Int8)
             CASE(ESimpleLogicalValueType::Int16)
             CASE(ESimpleLogicalValueType::Int32)
@@ -1099,6 +1101,7 @@ void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& colu
             CASE(ESimpleLogicalValueType::Datetime)
             CASE(ESimpleLogicalValueType::Timestamp)
             CASE(ESimpleLogicalValueType::Interval)
+            CASE(ESimpleLogicalValueType::Json)
 #undef CASE
         }
         YT_ABORT();
