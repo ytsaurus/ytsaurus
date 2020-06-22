@@ -22,7 +22,7 @@ static const auto& Logger = HttpLogger;
 http_parser_settings THttpParser::GetParserSettings()
 {
     http_parser_settings settings;
-    yt_http_parser_settings_init(&settings);
+    http_parser_settings_init(&settings);
 
     settings.on_url = &OnUrl;
     settings.on_status = &OnStatus;
@@ -40,7 +40,7 @@ const http_parser_settings ParserSettings = THttpParser::GetParserSettings();
 THttpParser::THttpParser(http_parser_type parserType)
     : Headers_(New<THeaders>())
 {
-    yt_http_parser_init(&Parser_, parserType);
+    http_parser_init(&Parser_, parserType);
     Parser_.data = reinterpret_cast<void*>(this);
 }
 
@@ -74,7 +74,7 @@ TSharedRef THttpParser::Feed(const TSharedRef& input)
         InputBuffer_ = nullptr;
     });
 
-    size_t read = yt_http_parser_execute(&Parser_, &ParserSettings, input.Begin(), input.Size());
+    size_t read = http_parser_execute(&Parser_, &ParserSettings, input.Begin(), input.Size());
     auto http_errno = static_cast<enum http_errno>(Parser_.http_errno);
     if (http_errno != 0 && http_errno != HPE_PAUSED) {
         // 64 bytes before error
@@ -85,13 +85,13 @@ TSharedRef THttpParser::Feed(const TSharedRef& input)
 
         TString errorContext(input.Begin() + contextStart, contextEnd - contextStart);
 
-        THROW_ERROR_EXCEPTION("HTTP parse error: %v", yt_http_errno_description(http_errno))
-            << TErrorAttribute("parser_error_name", yt_http_errno_name(http_errno))
+        THROW_ERROR_EXCEPTION("HTTP parse error: %v", http_errno_description(http_errno))
+            << TErrorAttribute("parser_error_name", http_errno_name(http_errno))
             << TErrorAttribute("error_context", EscapeC(errorContext));
     }
 
     if (http_errno == HPE_PAUSED) {
-        yt_http_parser_pause(&Parser_, 0);
+        http_parser_pause(&Parser_, 0);
     }
 
     return input.Slice(read, input.Size());
@@ -205,7 +205,7 @@ int THttpParser::OnBody(http_parser* parser, const char *at, size_t length)
 {
     auto that = reinterpret_cast<THttpParser*>(parser->data);
     that->LastBodyChunk_ = that->InputBuffer_->Slice(at, at + length);
-    yt_http_parser_pause(parser, 1);
+    http_parser_pause(parser, 1);
     return 0;
 }
 
@@ -215,8 +215,8 @@ int THttpParser::OnMessageComplete(http_parser* parser)
     that->MaybeFlushHeader(that->State_ == EParserState::HeadersFinished);
 
     that->State_ = EParserState::MessageFinished;
-    that->ShouldKeepAlive_ = yt_http_should_keep_alive(parser);
-    yt_http_parser_pause(parser, 1);
+    that->ShouldKeepAlive_ = http_should_keep_alive(parser);
+    http_parser_pause(parser, 1);
     return 0;
 }
 
