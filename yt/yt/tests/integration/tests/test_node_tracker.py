@@ -142,6 +142,27 @@ class TestNodeTracker(YTEnvSetup):
 class TestNodeTrackerMulticell(TestNodeTracker):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    @authors("shakurov")
+    def test_tag_replication(self):
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{0}/@user_tags/end".format(node), "cool_tag")
+
+        create_rack("r0")
+        create_data_center("d0")
+        set("//sys/racks/r0/@data_center", "d0")
+        set("//sys/cluster_nodes/{0}/@rack".format(node), "r0")
+
+        tags = {tag for tag in get("//sys/cluster_nodes/{0}/@tags".format(node))}
+        assert "cool_tag" in tags
+        assert "r0" in tags
+        assert "d0" in tags
+
+        tags1 = {tag for tag in get("//sys/cluster_nodes/{0}/@tags".format(node), driver=get_driver(1))}
+        assert tags1 == tags
+
+        tags2 = {tag for tag in get("//sys/cluster_nodes/{0}/@tags".format(node), driver=get_driver(2))}
+        assert tags2 == tags2
+
 ################################################################################
 
 class TestRemoveClusterNodes(YTEnvSetup):
