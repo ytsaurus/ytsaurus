@@ -1633,6 +1633,9 @@ auto TFairShareTree<TFairShareImpl>::DoBuildPoolsInformation(
                 .Item("aggressive_starvation_enabled").Value(pool->IsAggressiveStarvationEnabled())
                 .Item("forbid_immediate_operations").Value(pool->AreImmediateOperationsForbidden())
                 .Item("is_ephemeral").Value(pool->IsDefaultConfigured())
+                .Item("integral_guarantee_type").Value(pool->GetIntegralGuaranteeType())
+                .Item("resource_flow_ratio").Value(pool->GetSpecifiedResourceFlowRatio())
+                .Item("burst_ratio").Value(pool->GetSpecifiedBurstRatio())
                 .DoIf(pool->GetMode() == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                     fluent
                         .Item("fifo_sort_parameters").Value(pool->GetFifoSortParameters());

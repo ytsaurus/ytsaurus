@@ -587,6 +587,10 @@ public:
 
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* statistics) const override;
 
+    // COMPAT(renadeen): for compatibility with classic.
+    double GetSpecifiedBurstRatio() const;
+    double GetSpecifiedResourceFlowRatio() const;
+
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
