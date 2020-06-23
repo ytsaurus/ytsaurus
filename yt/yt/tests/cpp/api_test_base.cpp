@@ -1,4 +1,5 @@
 #include "api_test_base.h"
+#include "private.h"
 
 #include <yt/client/api/rowset.h>
 #include <yt/client/api/transaction.h>
@@ -9,8 +10,7 @@
 #include <yt/core/logging/config.h>
 #include <yt/core/logging/log_manager.h>
 
-namespace NYT {
-namespace NCppTests {
+namespace NYT::NCppTests {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -22,6 +22,10 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = CppTestsLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,11 +47,23 @@ void TApiTestBase::SetUpTestCase()
         NLogging::TLogManager::Get()->Configure(ConvertTo<NLogging::TLogManagerConfigPtr>(config));
     }
 
+    {
+        const auto* testSuite = ::testing::UnitTest::GetInstance()->current_test_suite();
+        YT_LOG_INFO("Set Up Test (SuiteName: %v)",
+            testSuite->name());
+    }
+
     Client_ = CreateClient(NRpc::RootUserName);
 }
 
 void TApiTestBase::TearDownTestCase()
 {
+    {
+        const auto* testSuite = ::testing::UnitTest::GetInstance()->current_test_suite();
+        YT_LOG_INFO("Tear Down Test (SuiteName: %v)",
+            testSuite->name());
+    }
+
     Client_.Reset();
     Connection_.Reset();
 }
@@ -312,5 +328,4 @@ TYPath TDynamicTablesTestBase::Table_;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NCppTests
-} // namespace NYT
+} // namespace NYT::NCppTests
