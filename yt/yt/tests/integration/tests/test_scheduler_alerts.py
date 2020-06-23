@@ -218,7 +218,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
         wait(lambda: "unused_tmpfs_space" in op.get_alerts())
 
         op = map(
-            command="printf '=%.0s' {1..768} >local_file; sleep 1.5; cat",
+            command="printf '=%.0s' {1..768} >local_file; sleep 3; cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
             spec={
@@ -316,6 +316,9 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
             abort_job(job)
 
         op.track()
+
+        # For debug purposes.
+        print_debug("Job statistics for", op.id, ":", yson.dumps(get(op.get_path() + "/@progress/job_statistics"), yson_format="text"))
 
         if operation_type == "map":
             assert "long_aborted_jobs" in op.get_alerts()
