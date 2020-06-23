@@ -849,7 +849,8 @@ type SelectRowsOptions struct {
 }
 
 type StartTabletTxOptions struct {
-	Atomicity *string `http:"atomicity,omitnil"`
+	Atomicity *string        `http:"atomicity,omitnil"`
+	Timeout   *yson.Duration `http:"timeout,omitnil"`
 
 	Master        bool
 	CommitOptions *CommitTxOptions
@@ -981,8 +982,17 @@ type Client interface {
 	// BeginTx creates new tx.
 	//
 	// Tx lifetime is bound to ctx. Tx is automatically aborted when ctx is canceled.
+	//
+	// Active transaction consumes resources, client must finish transaction by calling Commit(), Abort()
+	// or canceling ctx passed to BeginTx.
 	BeginTx(ctx context.Context, options *StartTxOptions) (tx Tx, err error)
 
+	// BeginTabletTx creates new tablet transaction.
+	//
+	// Tx lifetime is bound to ctx. Tx is automatically aborted when ctx is canceled.
+	//
+	// Active transaction consumes resources, client must finish transaction by calling Commit(), Abort()
+	// or canceling ctx passed to BeginTabletTx.
 	BeginTabletTx(ctx context.Context, options *StartTabletTxOptions) (tx TabletTx, err error)
 
 	TabletClient

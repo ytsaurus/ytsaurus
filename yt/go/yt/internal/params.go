@@ -761,6 +761,10 @@ func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
 		w.MapKeyString("atomicity")
 		w.Any(o.Atomicity)
 	}
+	if o.Timeout != nil {
+		w.MapKeyString("timeout")
+		w.Any(o.Timeout)
+	}
 }
 
 func writeLocateSkynetShareOptions(w *yson.Writer, o *yt.LocateSkynetShareOptions) {
