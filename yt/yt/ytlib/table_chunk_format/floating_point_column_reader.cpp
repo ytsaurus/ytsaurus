@@ -165,7 +165,7 @@ public:
 
     i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex)
     {
-        return (upperRowIndex - lowerRowIndex) * 8;
+        return (upperRowIndex - lowerRowIndex) * sizeof(T);
     }
 };
 
