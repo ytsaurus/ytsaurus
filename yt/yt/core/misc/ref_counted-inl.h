@@ -91,9 +91,19 @@ Y_FORCE_INLINE bool TRefCounter::TryRef() const noexcept
 
 Y_FORCE_INLINE bool TRefCounter::Unref() const
 {
+    // We must properly synchronize last access to object with it destruction.
+    // Otherwise compiler might reorder access to object past this decrement.
+    //
+    // See http://www.boost.org/doc/libs/1_55_0/doc/html/atomic/usage_examples.html#boost_atomic.usage_examples.example_reference_counters
+    //
     auto oldStrongCount = StrongCount_.fetch_sub(1, std::memory_order_release);
     YT_ASSERT(oldStrongCount > 0);
-    return oldStrongCount == 1;
+    if (oldStrongCount == 1) {
+        StrongCount_.load(std::memory_order_acquire);
+        return true;
+    } else {
+        return false;
+    }
 }
 
 Y_FORCE_INLINE int TRefCounter::GetWeakRefCount() const noexcept
