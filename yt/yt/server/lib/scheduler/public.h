@@ -65,6 +65,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((LowGpuUsage)                                 (19))
     ((HighQueueAverageWaitTime)                    (20))
     ((AutoMergeDisabled)                           (21))
+    ((InvalidAclInSpecIgnored)                     (22))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,
