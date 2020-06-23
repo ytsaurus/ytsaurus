@@ -4,6 +4,7 @@
 #include "private.h"
 #include "config.h"
 #include "helpers.h"
+#include "caching_profiler.h"
 
 #include <yt/core/ytree/ypath_service.h>
 #include <yt/core/ytree/fluent.h>
@@ -199,6 +200,8 @@ public:
             BIND(&TImpl::UpdateProcessListSnapshot, MakeWeak(this)),
             processListSnapshotUpdatePeriod))
         , QueryRegistryProfiler_(ClickHouseYtProfiler.AppendPath("/query_registry"))
+        , CachingQueryRegistryProfiler_(&QueryRegistryProfiler_)
+        , CachingClickHouseNativeProfiler_(&ClickHouseNativeProfiler)
     {
         for (const auto& queryPhase : TEnumTraits<EQueryPhase>::GetDomainValues()) {
             QueryPhaseToProfilingTagId_[queryPhase] = NProfiling::TProfileManager::Get()->RegisterTag("query_phase", FormatEnum(queryPhase));
@@ -319,13 +322,13 @@ public:
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
         for (const auto& [user, userProfilingInfo] : UserToUserProfilingEntry_) {
-            QueryRegistryProfiler_.Enqueue(
+            CachingQueryRegistryProfiler_.Enqueue(
                 "/running_initial_query_count",
                 userProfilingInfo.RunningInitialQueryCount,
                 EMetricType::Gauge,
                 {userProfilingInfo.TagId});
 
-            QueryRegistryProfiler_.Enqueue(
+            CachingQueryRegistryProfiler_.Enqueue(
                 "/running_secondary_query_count",
                 userProfilingInfo.RunningSecondaryQueryCount,
                 EMetricType::Gauge,
@@ -337,46 +340,46 @@ public:
                     continue;
                 }
 
-                QueryRegistryProfiler_.Enqueue(
+                CachingQueryRegistryProfiler_.Enqueue(
                     "/running_initial_query_count_per_phase",
                     userProfilingInfo.PerPhaseRunningInitialQueryCount[queryPhase],
                     EMetricType::Gauge,
                     {userProfilingInfo.TagId, QueryPhaseToProfilingTagId_[queryPhase]});
 
-                QueryRegistryProfiler_.Enqueue(
+                CachingQueryRegistryProfiler_.Enqueue(
                     "/running_secondary_query_count_per_phase",
                     userProfilingInfo.PerPhaseRunningSecondaryQueryCount[queryPhase],
                     EMetricType::Gauge,
                     {userProfilingInfo.TagId, QueryPhaseToProfilingTagId_[queryPhase]});
             }
 
-            QueryRegistryProfiler_.Enqueue(
+            CachingQueryRegistryProfiler_.Enqueue(
                 "/historical_initial_query_count",
                 userProfilingInfo.HistoricalInitialQueryCount,
                 EMetricType::Counter,
                 {userProfilingInfo.TagId});
 
-            QueryRegistryProfiler_.Enqueue(
+            CachingQueryRegistryProfiler_.Enqueue(
                 "/historical_secondary_query_count",
                 userProfilingInfo.HistoricalSecondaryQueryCount,
                 EMetricType::Counter,
                 {userProfilingInfo.TagId});
 
             if (const auto* processListForUserInfo = ProcessListSnapshot_.FindProcessListForUserInfoByUser(user)) {
-                QueryRegistryProfiler_.Enqueue(
+                CachingQueryRegistryProfiler_.Enqueue(
                     "/memory_usage",
                     processListForUserInfo->memory_usage,
                     EMetricType::Gauge,
                     {userProfilingInfo.TagId});
 
-                QueryRegistryProfiler_.Enqueue(
+                CachingQueryRegistryProfiler_.Enqueue(
                     "/peak_memory_usage",
                     processListForUserInfo->peak_memory_usage,
                     EMetricType::Gauge,
                     {userProfilingInfo.TagId});
 
                 for (const auto& [name, value] : GetBriefProfileCounters(*processListForUserInfo->profile_counters)) {
-                    ClickHouseNativeProfiler.Enqueue(
+                    CachingClickHouseNativeProfiler_.Enqueue(
                         "/user_profile_events/" + name,
                         value,
                         EMetricType::Counter,
@@ -434,6 +437,8 @@ private:
     TEnumIndexedVector<EQueryPhase, NProfiling::TTagId> QueryPhaseToProfilingTagId_;
 
     TProfiler QueryRegistryProfiler_;
+    TCachingProfilerWrapper CachingQueryRegistryProfiler_;
+    TCachingProfilerWrapper CachingClickHouseNativeProfiler_;
 
     void BuildYson(IYsonConsumer* consumer) const
     {

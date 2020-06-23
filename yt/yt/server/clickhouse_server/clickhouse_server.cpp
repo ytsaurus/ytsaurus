@@ -8,6 +8,7 @@
 #include "poco_config.h"
 #include "host.h"
 #include "helpers.h"
+#include "caching_profiler.h"
 
 #include <yt/core/misc/fs.h>
 
@@ -74,6 +75,7 @@ public:
             ProfilingQueue_->GetInvoker(),
             BIND(&TClickHouseServer::OnProfiling, MakeWeak(this)),
             ProfilingPeriod))
+        , CachingClickHouseNativeProfiler_(&ClickHouseNativeProfiler)
     {
         SetupLogger();
 
@@ -165,6 +167,8 @@ private:
     std::shared_ptr<DB::IDatabase> SystemDatabase_;
 
     ext::scope_guard DictionaryGuard_;
+
+    TCachingProfilerWrapper CachingClickHouseNativeProfiler_;
 
     void SetupLogger()
     {
@@ -325,14 +329,14 @@ private:
         for (int index = 0; index < static_cast<int>(CurrentMetrics::end()); ++index) {
             const auto* name = CurrentMetrics::getName(index);
             auto value = CurrentMetrics::values[index].load(std::memory_order_relaxed);
-            ClickHouseNativeProfiler.Enqueue(
+            CachingClickHouseNativeProfiler_.Enqueue(
                 "/current_metrics/" + CamelCaseToUnderscoreCase(TString(name)),
                 value,
                 NProfiling::EMetricType::Gauge);
         }
 
         for (const auto& [name, value] : AsynchronousMetrics_->getValues()) {
-            ClickHouseNativeProfiler.Enqueue(
+            CachingClickHouseNativeProfiler_.Enqueue(
                 "/asynchronous_metrics/" + CamelCaseToUnderscoreCase(TString(name)),
                 value,
                 NProfiling::EMetricType::Gauge);
@@ -341,7 +345,7 @@ private:
         for (int index = 0; index < static_cast<int>(ProfileEvents::end()); ++index) {
             const auto* name = ProfileEvents::getName(index);
             auto value = ProfileEvents::global_counters[index].load(std::memory_order_relaxed);
-            ClickHouseNativeProfiler.Enqueue(
+            CachingClickHouseNativeProfiler_.Enqueue(
                 "/global_profile_events/" + CamelCaseToUnderscoreCase(TString(name)),
                 value,
                 NProfiling::EMetricType::Counter);
