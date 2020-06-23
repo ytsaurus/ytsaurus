@@ -103,6 +103,12 @@ TVariant16SchemaPtr CreateVariant16Schema(TSkiffSchemaList children)
     return ::MakeIntrusive<TVariant16Schema>(std::move(children));
 }
 
+TRepeatedVariant8SchemaPtr CreateRepeatedVariant8Schema(TSkiffSchemaList children)
+{
+    VerifyNonemptyChildren(children, EWireType::RepeatedVariant8);
+    return ::MakeIntrusive<TRepeatedVariant8Schema>(std::move(children));
+}
+
 TRepeatedVariant16SchemaPtr CreateRepeatedVariant16Schema(TSkiffSchemaList children)
 {
     VerifyNonemptyChildren(children, EWireType::RepeatedVariant16);

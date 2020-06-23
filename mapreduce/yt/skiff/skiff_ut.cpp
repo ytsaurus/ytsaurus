@@ -149,6 +149,109 @@ Y_UNIT_TEST_SUITE(TSkiffTestSuite) {
         }
     }
 
+    Y_UNIT_TEST(TestRepeatedVariant8)
+    {
+
+        auto schema = CreateRepeatedVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Int64),
+            CreateSimpleTypeSchema(EWireType::Uint64),
+        });
+
+        {
+            TBufferStream bufferStream;
+            TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+
+            // row 0
+            tokenWriter.WriteVariant8Tag(0);
+            tokenWriter.WriteInt64(-8);
+
+            // row 2
+            tokenWriter.WriteVariant8Tag(1);
+            tokenWriter.WriteUint64(42);
+
+            // end
+            tokenWriter.WriteVariant8Tag(EndOfSequenceTag<ui8>());
+
+            tokenWriter.Finish();
+
+            TCheckedSkiffParser parser(schema, &bufferStream);
+
+            // row 1
+            UNIT_ASSERT_VALUES_EQUAL(parser.ParseVariant8Tag(), 0);
+            UNIT_ASSERT_VALUES_EQUAL(parser.ParseInt64(), -8);
+
+            // row 2
+            UNIT_ASSERT_VALUES_EQUAL(parser.ParseVariant8Tag(), 1);
+            UNIT_ASSERT_VALUES_EQUAL(parser.ParseUint64(), 42);
+
+            // end
+            UNIT_ASSERT_VALUES_EQUAL(parser.ParseVariant8Tag(), EndOfSequenceTag<ui8>());
+
+            parser.ValidateFinished();
+        }
+
+        {
+            TBufferStream bufferStream;
+            TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+
+            tokenWriter.WriteVariant8Tag(0);
+            UNIT_ASSERT_EXCEPTION(tokenWriter.WriteUint64(5), yexception);
+        }
+
+        {
+            TBufferStream bufferStream;
+            TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+
+            tokenWriter.WriteVariant8Tag(1);
+            tokenWriter.WriteUint64(5);
+
+            UNIT_ASSERT_EXCEPTION(tokenWriter.Finish(), yexception);
+        }
+
+        {
+            TBufferStream bufferStream;
+            TCheckedSkiffWriter tokenWriter(schema, &bufferStream);
+
+            // row 0
+            tokenWriter.WriteVariant8Tag(0);
+            tokenWriter.WriteInt64(-8);
+
+            // row 2
+            tokenWriter.WriteVariant8Tag(1);
+            tokenWriter.WriteUint64(42);
+
+            // end
+            tokenWriter.WriteVariant8Tag(EndOfSequenceTag<ui8>());
+
+            tokenWriter.Finish();
+
+            {
+                TBufferInput input(bufferStream.Buffer());
+                TCheckedSkiffParser parser(schema, &input);
+
+                UNIT_ASSERT_EXCEPTION(parser.ParseInt64(), yexception);
+            }
+
+            {
+                TBufferInput input(bufferStream.Buffer());
+                TCheckedSkiffParser parser(schema, &input);
+
+                parser.ParseVariant8Tag();
+                UNIT_ASSERT_EXCEPTION(parser.ParseUint64(), yexception);
+            }
+
+            {
+                TBufferInput input(bufferStream.Buffer());
+                TCheckedSkiffParser parser(schema, &input);
+
+                parser.ParseVariant8Tag();
+                parser.ParseInt64();
+
+                UNIT_ASSERT_EXCEPTION(parser.ValidateFinished(), yexception);
+            }
+        }
+    }
+
     Y_UNIT_TEST(TestRepeatedVariant16)
     {
 

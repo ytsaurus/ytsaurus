@@ -84,7 +84,16 @@ Y_UNIT_TEST_SUITE(TSkiffSchemaTestSuite) {
         schema3->SetName("kek");
         hashes.insert(THash<NSkiff::TSkiffSchema>()(*schema3));
 
-        UNIT_ASSERT_VALUES_EQUAL(hashes.size(), 6);
+        auto schema4 = CreateRepeatedVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Int64),
+            schema2,
+        });
+        hashes.insert(THash<NSkiff::TSkiffSchema>()(*schema4));
+
+        schema4->SetName("kek");
+        hashes.insert(THash<NSkiff::TSkiffSchema>()(*schema4));
+
+        UNIT_ASSERT_VALUES_EQUAL(hashes.size(), 8);
     }
 
     Y_UNIT_TEST(TestDifferent)
@@ -122,6 +131,12 @@ Y_UNIT_TEST_SUITE(TSkiffSchemaTestSuite) {
         });
         schema5->SetName("kek");
         schemas.push_back(schema5);
+
+        auto schema6 = CreateRepeatedVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Int64),
+            schema2,
+        });
+        schemas.push_back(schema6);
 
         for (size_t i = 0; i < schemas.size(); ++i) {
             for (size_t j = i + 1; j < schemas.size(); ++j) {

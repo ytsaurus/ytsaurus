@@ -23,11 +23,11 @@ inline bool IsSimpleType(EWireType type)
         case EWireType::Tuple:
         case EWireType::Variant8:
         case EWireType::Variant16:
+        case EWireType::RepeatedVariant8:
         case EWireType::RepeatedVariant16:
             return false;
-        default:
-            Y_FAIL("Unknown EWireType %d", static_cast<int>(type));
     }
+    Y_FAIL("Unknown EWireType %d", static_cast<int>(type));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
