@@ -16,6 +16,7 @@ import (
 	logzap "a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/migrate"
 	"a.yandex-team.ru/yt/go/schema"
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
 )
@@ -30,6 +31,8 @@ type testRow struct {
 }
 
 func TestTabletTx(t *testing.T) {
+	t.Parallel()
+
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
@@ -112,6 +115,8 @@ func TestTabletTx(t *testing.T) {
 }
 
 func TestAbortCommittedTx(t *testing.T) {
+	t.Parallel()
+
 	core, recorded := observer.New(zapcore.ErrorLevel)
 	l := logzap.Logger{L: zap.New(core)}
 
@@ -142,10 +147,39 @@ func TestAbortCommittedTx(t *testing.T) {
 }
 
 func TestGenerateTimestamp(t *testing.T) {
+	t.Parallel()
+
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
 	ts, err := env.YT.GenerateTimestamp(env.Ctx, nil)
 	require.NoError(t, err)
 	require.NotZero(t, ts)
+}
+
+func TestTxDuration(t *testing.T) {
+	t.Parallel()
+
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	testTable := env.TmpPath().Child("table")
+	require.NoError(t, migrate.Create(env.Ctx, env.YT, testTable, schema.MustInfer(&testRow{})))
+	require.NoError(t, migrate.MountAndWait(env.Ctx, env.YT, testTable))
+
+	rows := []interface{}{
+		&testRow{"bar", "2"},
+		&testRow{"foo", "1"},
+	}
+
+	var timeout = yson.Duration(1 * time.Second)
+	tx, err := env.YT.BeginTabletTx(env.Ctx, &yt.StartTabletTxOptions{
+		Timeout: &timeout,
+	})
+	require.NoError(t, err)
+
+	time.Sleep(time.Second * 15)
+
+	require.NoError(t, tx.InsertRows(env.Ctx, testTable, rows, nil))
+	require.NoError(t, tx.Commit())
 }

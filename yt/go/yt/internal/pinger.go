@@ -5,11 +5,11 @@ import (
 	"sync"
 	"time"
 
-	"a.yandex-team.ru/yt/go/yterrors"
-
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
+// abortCtx preserves parent ctx Value()-s, but resets deadline and cancellation state.
 type abortCtx struct {
 	context.Context
 }
@@ -24,7 +24,7 @@ func (*abortCtx) Done() <-chan struct{} {
 
 var _ context.Context = (*abortCtx)(nil)
 
-type pinger struct {
+type Pinger struct {
 	l                  sync.Mutex
 	committed, aborted bool
 	yc                 yt.LowLevelTxClient
@@ -36,8 +36,8 @@ type pinger struct {
 	finished           chan struct{}
 }
 
-func newPinger(ctx context.Context, yc yt.LowLevelTxClient, txID yt.TxID, txTimeout time.Duration, stop *StopGroup) *pinger {
-	return &pinger{
+func NewPinger(ctx context.Context, yc yt.LowLevelTxClient, txID yt.TxID, txTimeout time.Duration, stop *StopGroup) *Pinger {
+	return &Pinger{
 		yc:        yc,
 		ctx:       ctx,
 		abortCtx:  &abortCtx{ctx},
@@ -48,8 +48,8 @@ func newPinger(ctx context.Context, yc yt.LowLevelTxClient, txID yt.TxID, txTime
 	}
 }
 
-func (p *pinger) abortBackground() {
-	if err := p.tryAbort(); err != nil {
+func (p *Pinger) abortBackground() {
+	if err := p.TryAbort(); err != nil {
 		return
 	}
 
@@ -59,7 +59,7 @@ func (p *pinger) abortBackground() {
 	_ = p.yc.AbortTx(ctx, p.txID, nil)
 }
 
-func (p *pinger) check() error {
+func (p *Pinger) Check() error {
 	p.l.Lock()
 	defer p.l.Unlock()
 
@@ -73,7 +73,7 @@ func (p *pinger) check() error {
 	return nil
 }
 
-func (p *pinger) tryAbort() error {
+func (p *Pinger) TryAbort() error {
 	p.l.Lock()
 	defer p.l.Unlock()
 
@@ -89,7 +89,7 @@ func (p *pinger) tryAbort() error {
 	return nil
 }
 
-func (p *pinger) tryCommit() error {
+func (p *Pinger) TryCommit() error {
 	p.l.Lock()
 	defer p.l.Unlock()
 
@@ -105,10 +105,10 @@ func (p *pinger) tryCommit() error {
 	return nil
 }
 
-func (p *pinger) run() {
+func (p *Pinger) Run() {
 	defer p.stop.Done()
 
-	ticker := time.NewTicker(p.txTimeout / 4)
+	ticker := time.NewTicker(p.txTimeout / 3)
 	defer ticker.Stop()
 
 	for {
@@ -127,7 +127,7 @@ func (p *pinger) run() {
 		case <-ticker.C:
 			err := p.yc.PingTx(p.ctx, p.txID, nil)
 			if yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchTransaction) {
-				_ = p.tryAbort()
+				_ = p.TryAbort()
 				return
 			}
 		}

@@ -5,17 +5,16 @@ import (
 	"io"
 	"time"
 
-	"a.yandex-team.ru/yt/go/yson"
-
 	"golang.org/x/xerrors"
 
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 )
 
 type TxInterceptor struct {
 	Encoder
 	Client *Encoder
-	pinger *pinger
+	pinger *Pinger
 }
 
 type TransactionParams interface {
@@ -41,7 +40,7 @@ func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxO
 	tx := &TxInterceptor{
 		Encoder: e,
 		Client:  &e,
-		pinger:  newPinger(ctx, &e, txID, time.Duration(*updatedOptions.Timeout), stop),
+		pinger:  NewPinger(ctx, &e, txID, time.Duration(*updatedOptions.Timeout), stop),
 	}
 
 	tx.Encoder.Invoke = tx.Encoder.Invoke.Wrap(tx.Intercept)
@@ -55,7 +54,7 @@ func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxO
 		return nil, xerrors.New("client is stopped")
 	}
 
-	go tx.pinger.run()
+	go tx.pinger.Run()
 
 	return tx, nil
 }
@@ -69,7 +68,7 @@ func (t *TxInterceptor) Finished() <-chan struct{} {
 }
 
 func (t *TxInterceptor) BeginTx(ctx context.Context, options *yt.StartTxOptions) (tx yt.Tx, err error) {
-	if err = t.pinger.check(); err != nil {
+	if err = t.pinger.Check(); err != nil {
 		return
 	}
 
@@ -82,7 +81,7 @@ func (t *TxInterceptor) BeginTx(ctx context.Context, options *yt.StartTxOptions)
 }
 
 func (t *TxInterceptor) Abort() (err error) {
-	if err = t.pinger.tryAbort(); err != nil {
+	if err = t.pinger.TryAbort(); err != nil {
 		return
 	}
 
@@ -90,7 +89,7 @@ func (t *TxInterceptor) Abort() (err error) {
 }
 
 func (t *TxInterceptor) Commit() (err error) {
-	if err = t.pinger.tryCommit(); err != nil {
+	if err = t.pinger.TryCommit(); err != nil {
 		return
 	}
 
@@ -98,7 +97,7 @@ func (t *TxInterceptor) Commit() (err error) {
 }
 
 func (t *TxInterceptor) setTx(call *Call) error {
-	if err := t.pinger.check(); err != nil {
+	if err := t.pinger.Check(); err != nil {
 		return err
 	}
 
