@@ -587,6 +587,17 @@ public:
             spec->Alias,
             spec->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree);
 
+        if (spec->AclNode) {
+            try {
+                ConvertTo<TSerializableAccessControlList>(spec->AclNode);
+            } catch (const TErrorException& error) {
+                operation->SetAlert(
+                    EOperationAlertType::InvalidAclInSpecIgnored,
+                    TError("Failed to parse \"acl\" field in spec, ignoring it")
+                        << error);
+            }
+        }
+
         if (!spec->Owners.empty()) {
             operation->SetAlert(
                 EOperationAlertType::OwnersInSpecIgnored,
