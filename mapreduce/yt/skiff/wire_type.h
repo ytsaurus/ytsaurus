@@ -18,6 +18,7 @@ enum class EWireType : ui8 {
     Tuple /* "tuple" */,
     Variant8 /* "variant8" */,
     Variant16 /* "variant16" */,
+    RepeatedVariant8 /* "repeated_variant8" */,
     RepeatedVariant16 /* "repeated_variant16" */,
 };
 

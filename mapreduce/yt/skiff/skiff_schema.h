@@ -35,6 +35,8 @@ using TVariant8Schema = TComplexSchema<EWireType::Variant8>;
 using TVariant8SchemaPtr = TIntrusivePtr<TVariant8Schema>;
 using TVariant16Schema = TComplexSchema<EWireType::Variant16>;
 using TVariant16SchemaPtr = TIntrusivePtr<TVariant16Schema>;
+using TRepeatedVariant8Schema = TComplexSchema<EWireType::RepeatedVariant8>;
+using TRepeatedVariant8SchemaPtr = TIntrusivePtr<TRepeatedVariant8Schema>;
 using TRepeatedVariant16Schema = TComplexSchema<EWireType::RepeatedVariant16>;
 using TRepeatedVariant16SchemaPtr = TIntrusivePtr<TRepeatedVariant16Schema>;
 
@@ -96,6 +98,7 @@ TSimpleTypeSchemaPtr CreateSimpleTypeSchema(EWireType type);
 TTupleSchemaPtr CreateTupleSchema(TSkiffSchemaList children);
 TVariant8SchemaPtr CreateVariant8Schema(TSkiffSchemaList children);
 TVariant16SchemaPtr CreateVariant16Schema(TSkiffSchemaList children);
+TRepeatedVariant8SchemaPtr CreateRepeatedVariant8Schema(TSkiffSchemaList children);
 TRepeatedVariant16SchemaPtr CreateRepeatedVariant16Schema(TSkiffSchemaList children);
 
 ////////////////////////////////////////////////////////////////////////////////
