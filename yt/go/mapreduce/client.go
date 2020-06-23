@@ -102,9 +102,10 @@ func (mr *client) doUploadSelf(ctx context.Context) error {
 	}
 	defer func() { _ = exe.Close() }()
 
-	tmpPath := ypath.Path("//tmp").Child(guid.New().String())
+	id := guid.New().String()
+	tmpPath := ypath.Path("//tmp/go_binary").Child(id[:2]).Child(id)
 
-	_, err = mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, nil)
+	_, err = mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
 	if err != nil {
 		return err
 	}

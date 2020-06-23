@@ -41,9 +41,11 @@ func (p *prepare) uploadJobState(userScript *spec.UserScript, state *jobState) p
 			if err != nil {
 				return backoff.Permanent(err)
 			}
-			tmpPath := ypath.Path("//tmp").Child(guid.New().String())
 
-			_, err = p.mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, nil)
+			id := guid.New().String()
+			tmpPath := ypath.Path("//tmp/go_job_state").Child(id[:2]).Child(id)
+
+			_, err = p.mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
 			if err != nil {
 				return err
 			}
