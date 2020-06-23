@@ -2896,3 +2896,31 @@ class TestIntegralGuarantees(YTEnvSetup):
 
         wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool"))
         assert get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/integral_resource_volume") > 1
+
+    def test_integral_pools_orchid(self):
+        create_pool("burst_pool", attributes={
+            "min_share_resources": {"cpu": 2},
+            "integral_guarantees": {
+                "guarantee_type": "burst",
+                "resource_flow": {"cpu": 3},
+                "burst_guarantee_resources": {"cpu": 8}
+            }
+        })
+
+        create_pool("relaxed_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 5}
+            }
+        })
+
+        burst_pool_path = scheduler_orchid_default_pool_tree_path() + "/pools/burst_pool"
+        relaxed_pool_path = scheduler_orchid_default_pool_tree_path() + "/pools/relaxed_pool"
+        wait(lambda: exists(relaxed_pool_path))
+
+        assert get(burst_pool_path + "/integral_guarantee_type") == "burst"
+        assert get(burst_pool_path + "/resource_flow_ratio") == 0.3
+        assert get(burst_pool_path + "/burst_ratio") == 0.8
+
+        assert get(relaxed_pool_path + "/integral_guarantee_type") == "relaxed"
+        assert get(relaxed_pool_path + "/resource_flow_ratio") == 0.5

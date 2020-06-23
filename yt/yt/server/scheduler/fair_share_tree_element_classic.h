@@ -564,6 +564,9 @@ public:
 
     virtual void BuildResourceMetering(const std::optional<TMeteringKey>& parentKey, TMeteringMap* statistics) const override;
 
+    virtual double GetSpecifiedBurstRatio() const = 0;
+    virtual double GetSpecifiedResourceFlowRatio() const = 0;
+
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
@@ -600,9 +603,6 @@ protected:
 
 private:
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
-
-    virtual double GetSpecifiedBurstRatio() const = 0;
-    virtual double GetSpecifiedResourceFlowRatio() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCompositeSchedulerElement)
@@ -704,14 +704,15 @@ public:
     virtual void BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap) override;
 
     virtual std::optional<TMeteringKey> GetMeteringKey() const override;
+
+    virtual double GetSpecifiedBurstRatio() const override;
+    virtual double GetSpecifiedResourceFlowRatio() const override;
+
 private:
     TPoolConfigPtr Config_;
     TSchedulingTagFilter SchedulingTagFilter_;
 
     void DoSetConfig(TPoolConfigPtr newConfig);
-
-    virtual double GetSpecifiedBurstRatio() const override;
-    virtual double GetSpecifiedResourceFlowRatio() const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TPool)

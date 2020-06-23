@@ -1909,6 +1909,16 @@ void TCompositeSchedulerElement::BuildResourceMetering(const std::optional<TMete
     }
 }
 
+double TCompositeSchedulerElement::GetSpecifiedBurstRatio() const
+{
+    return 0;
+}
+
+double TCompositeSchedulerElement::GetSpecifiedResourceFlowRatio() const
+{
+    return 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPoolFixedState::TPoolFixedState(TString id)
