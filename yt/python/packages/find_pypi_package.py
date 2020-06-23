@@ -14,7 +14,10 @@ def main():
     package_name = sys.argv[1]
 
     version = get_version()
-    version, build_number = version.split("-", 1)
+    if "-" in version:
+        version, build_number = version.split("-", 1)
+    else:
+        build_number = "0"
 
     is_stable = True
     if os.path.exists("stable_versions"):
