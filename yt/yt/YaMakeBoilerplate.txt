@@ -1,9 +1,6 @@
 SET(YT_VERSION_MAJOR 20)
 SET(YT_VERSION_MINOR 3)
 
-
-SET(PROTO_NAMESPACE yt)
-
 SET(YT_ARCADIA_CXXFLAGS
     -Wno-sign-compare
     -Wno-unused-function
