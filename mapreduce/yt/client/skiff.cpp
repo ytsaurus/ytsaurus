@@ -259,7 +259,7 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
 
     TRawBatchRequest batchRequest;
     TVector<NThreading::TFuture<TNode>> tables;
-    for (const auto& path : CanonizePaths(auth, tablePaths)) {
+    for (const auto& path : NRawClient::CanonizeYPaths(/* retryPolicy */ nullptr, auth, tablePaths)) {
         auto getOptions = TGetOptions().AttributeFilter(TAttributeFilter().AddAttribute("schema").AddAttribute("dynamic"));
         tables.push_back(batchRequest.Get(transactionId, path.Path_, getOptions));
     }

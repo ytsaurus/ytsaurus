@@ -287,6 +287,16 @@ TVector<TTableColumnarStatistics> GetTableColumnarStatistics(
     const TVector<TRichYPath>& paths,
     const TGetTableColumnarStatisticsOptions& options);
 
+TRichYPath CanonizeYPath(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TRichYPath& path);
+
+TVector<TRichYPath> CanonizeYPaths(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TVector<TRichYPath>& paths);
+
 //
 // Tables
 //

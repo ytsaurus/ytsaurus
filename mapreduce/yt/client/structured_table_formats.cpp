@@ -9,6 +9,8 @@
 
 #include <mapreduce/yt/interface/common.h>
 
+#include <mapreduce/yt/raw_client/raw_requests.h>
+
 #include <library/cpp/type_info/type_info.h>
 #include <library/cpp/yson/writer.h>
 
@@ -135,7 +137,7 @@ TStructuredJobTableList CanonizeStructuredTableList(const TAuth& auth, const TVe
     for (const auto& table : tableList) {
         toCanonize.emplace_back(table.RichYPath);
     }
-    const auto canonized = CanonizePaths(auth, toCanonize);
+    const auto canonized = NRawClient::CanonizeYPaths(/* retryPolicy */ nullptr, auth, toCanonize);
     Y_VERIFY(canonized.size() == tableList.size());
 
     TStructuredJobTableList result;

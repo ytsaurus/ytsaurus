@@ -65,35 +65,6 @@ void ParseJsonStringArray(const TString& response, TVector<TString>& result)
     }
 }
 
-TRichYPath CanonizePath(const TAuth& auth, const TRichYPath& path)
-{
-    TRichYPath result;
-    if (path.Path_.find_first_of("<>{}[]") != TString::npos) {
-        THttpHeader header("GET", "parse_ypath");
-        auto pathNode = PathToNode(path);
-        header.AddParameter("path", pathNode);
-        auto requestResult = NDetail::RetryRequestWithPolicy(nullptr, auth, header);
-        auto response = NodeFromYsonString(requestResult.Response);
-        for (const auto& item : pathNode.GetAttributes().AsMap()) {
-            response.Attributes()[item.first] = item.second;
-        }
-        Deserialize(result, response);
-    } else {
-        result = path;
-    }
-    result.Path_ = AddPathPrefix(result.Path_);
-    return result;
-}
-
-TVector<TRichYPath> CanonizePaths(const TAuth& auth, const TVector<TRichYPath>& paths)
-{
-    TVector<TRichYPath> result;
-    for (const auto& path : paths) {
-        result.push_back(CanonizePath(auth, path));
-    }
-    return result;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TString GetProxyForHeavyRequest(const TAuth& auth)

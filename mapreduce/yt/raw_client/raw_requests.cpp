@@ -37,10 +37,8 @@ void ExecuteBatch(
     const auto concurrency = options.Concurrency_.GetOrElse(50);
     const auto batchPartMaxSize = options.BatchPartMaxSize_.GetOrElse(concurrency * 5);
 
-    IRequestRetryPolicyPtr defaultRetryPolicy = nullptr;
     if (!retryPolicy) {
-        defaultRetryPolicy = CreateDefaultRequestRetryPolicy();
-        retryPolicy = defaultRetryPolicy.Get();
+        retryPolicy = CreateDefaultRequestRetryPolicy();
     }
 
     while (batchRequest.BatchSize()) {
@@ -816,6 +814,34 @@ TVector<TTableColumnarStatistics> GetTableColumnarStatistics(
     auto response = NodeFromYsonString(requestResult.Response);
     TVector<TTableColumnarStatistics> result;
     Deserialize(result, response);
+    return result;
+}
+
+TRichYPath CanonizeYPath(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TRichYPath& path)
+{
+    return CanonizeYPaths(retryPolicy, auth, {path}).front();
+}
+
+TVector<TRichYPath> CanonizeYPaths(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TVector<TRichYPath>& paths)
+{
+    TRawBatchRequest batch;
+    TVector<NThreading::TFuture<TRichYPath>> futures;
+    futures.reserve(paths.size());
+    for (int i = 0; i < static_cast<int>(paths.size()); ++i) {
+        futures.push_back(batch.CanonizeYPath(paths[i]));
+    }
+    ExecuteBatch(retryPolicy, auth, batch, TExecuteBatchOptions{});
+    TVector<TRichYPath> result;
+    result.reserve(futures.size());
+    for (auto& future : futures) {
+        result.push_back(future.ExtractValueSync());
+    }
     return result;
 }
 
