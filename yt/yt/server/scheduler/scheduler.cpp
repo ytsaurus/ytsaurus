@@ -3658,7 +3658,7 @@ private:
         const auto& agentTracker = Bootstrap_->GetControllerAgentTracker();
         auto agent = agentTracker->PickAgentForOperation(operation);
         if (!agent) {
-            YT_LOG_DEBUG("Failed to assign operation to agent; backing off");
+            YT_LOG_DEBUG("Failed to assign operation to agent; backing off (OperationId: %v)", operation->GetId());
             OperationToAgentAssignmentFailureTime_ = TInstant::Now();
             return false;
         }
@@ -3785,7 +3785,10 @@ private:
 
         YT_LOG_DEBUG("Started scanning transient operation queue");
 
+
         if (TInstant::Now() > OperationToAgentAssignmentFailureTime_ + Config_->OperationToAgentAssignmentBackoff) {
+            int scannedOperationCount = 0;
+
             auto& queuedOperations = StateToTransientOperations_[EOperationState::WaitingForAgent];
             std::vector<TOperationPtr> newQueuedOperations;
             for (const auto& operation : queuedOperations) {
@@ -3795,11 +3798,14 @@ private:
                         operation->GetState());
                     continue;
                 }
+                ++scannedOperationCount;
                 if (!HandleWaitingForAgentOperation(operation)) {
                     newQueuedOperations.push_back(operation);
                 }
             }
             queuedOperations = std::move(newQueuedOperations);
+
+            YT_LOG_DEBUG("Waiting operations handled (OperationCount: %v)", scannedOperationCount);
         }
 
         HandleOrphanedOperations();
