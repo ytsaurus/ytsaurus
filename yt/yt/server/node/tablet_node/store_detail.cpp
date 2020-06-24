@@ -388,6 +388,11 @@ public:
         return MapInMemoryModeToBlockType(ChunkData_->InMemoryMode);
     }
 
+    virtual void OnProfiling() override
+    {
+        UnderlyingCache_->OnProfiling();
+    }
+
 private:
     const TWeakPtr<TChunkStoreBase> Owner_;
     const TInMemoryChunkDataPtr ChunkData_;
@@ -703,7 +708,7 @@ IChunkStore::TReaders TChunkStoreBase::GetReaders(const IThroughputThrottlerPtr&
     auto makeResult = [&] {
         return TReaders{
             CachedChunkReader_,
-            CachedLookupReader_  
+            CachedLookupReader_
         };
     };
 

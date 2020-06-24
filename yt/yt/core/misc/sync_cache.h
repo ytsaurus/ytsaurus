@@ -52,7 +52,6 @@ public:
 protected:
     TSlruCacheConfigPtr Config_;
 
-
     explicit TSyncSlruCacheBase(
         TSlruCacheConfigPtr config,
         const NProfiling::TProfiler& profiler = NProfiling::TProfiler());
@@ -60,6 +59,8 @@ protected:
     virtual i64 GetWeight(const TValuePtr& value) const;
     virtual void OnAdded(const TValuePtr& value);
     virtual void OnRemoved(const TValuePtr& value);
+
+    void OnProfiling();
 
 private:
     struct TItem

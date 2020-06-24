@@ -21,6 +21,7 @@
 
 #include <yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
+#include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
@@ -299,10 +300,21 @@ public:
                 EMetricType::Gauge);
         }
 
+        ClickHouseYtProfiler.Enqueue(
+            "/memory_limit/watchdog",
+            Config_->MemoryWatchdog->MemoryLimit - Config_->MemoryWatchdog->CodicilWatermark,
+            EMetricType::Gauge);
+
+        ClickHouseYtProfiler.Enqueue(
+            "/memory_limit/oom",
+            Config_->MemoryWatchdog->MemoryLimit,
+            EMetricType::Gauge);
+
         HealthChecker_->OnProfiling();
 
-        // Without this fiber execution stack graphs look weird.
+        // TODO(max42): workarounds for YT-13120.
         auto dummyFiber = New<TFiber>();
+        Connection_->GetBlockCache()->OnProfiling();
     }
 
     const IInvokerPtr& GetControlInvoker() const
