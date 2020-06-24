@@ -1504,7 +1504,7 @@ public:
         const auto& channelFactory = GetMasterClient()->GetChannelFactory();
         auto channel = channelFactory->CreateChannel(addressWithNetwork);
 
-        TJobProberServiceProxy proxy(channel);
+        TJobProberServiceProxy proxy(std::move(channel));
         proxy.SetDefaultTimeout(Config_->JobProberRpcTimeout);
         return proxy;
     }

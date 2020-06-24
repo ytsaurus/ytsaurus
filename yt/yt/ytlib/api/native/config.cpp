@@ -151,6 +151,9 @@ TConnectionConfig::TConnectionConfig()
     RegisterParameter("default_list_operations_timeout", DefaultListOperationsTimeout)
         .Default(TDuration::Seconds(60));
 
+    RegisterParameter("job_prober_rpc_timeout", JobProberRpcTimeout)
+        .Default(TDuration::Seconds(15));
+
     RegisterParameter("cache_sticky_group_size_override", CacheStickyGroupSizeOverride)
         .Default(1);
 

@@ -1,4 +1,6 @@
 #include "client_impl.h"
+#include "connection.h"
+#include "config.h"
 
 #include <yt/ytlib/node_tracker_client/channel.h>
 
@@ -27,12 +29,15 @@ TYsonString TClient::DoPollJobShell(
     const TYsonString& parameters,
     const TPollJobShellOptions& options)
 {
+    YT_LOG_DEBUG("Polling job shell (JobId: %v)", jobId);
+
     auto jobNodeDescriptor = TryGetJobNodeDescriptor(jobId, EPermissionSet(EPermission::Manage | EPermission::Read))
         .ValueOrThrow();
+    
     auto nodeChannel = ChannelFactory_->CreateChannel(jobNodeDescriptor);
-    NJobProberClient::TJobProberServiceProxy proxy(nodeChannel);
+    NJobProberClient::TJobProberServiceProxy proxy(std::move(nodeChannel));
+    proxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
 
-    YT_LOG_DEBUG("Polling job shell (JobId: %v)", jobId);
     auto req = proxy.PollJobShell();
     ToProto(req->mutable_job_id(), jobId);
     ToProto(req->mutable_parameters(), parameters.GetData());

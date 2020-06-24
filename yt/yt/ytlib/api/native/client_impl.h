@@ -856,7 +856,7 @@ private:
 
     TErrorOr<NJobTrackerClient::NProto::TJobSpec> TryFetchJobSpecFromJobNode(
         NScheduler::TJobId jobId,
-        const NRpc::IChannelPtr& nodeChannel);
+        NRpc::IChannelPtr nodeChannel);
     // Fetch job spec from node and check that user has |requiredPermissions|
     // for accessing the corresponding operation.
     TErrorOr<NJobTrackerClient::NProto::TJobSpec> TryFetchJobSpecFromJobNode(

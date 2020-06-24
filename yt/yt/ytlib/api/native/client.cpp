@@ -1215,9 +1215,10 @@ IChannelPtr TClient::TryCreateChannelToJobNode(
 
 TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryFetchJobSpecFromJobNode(
     TJobId jobId,
-    const NRpc::IChannelPtr& nodeChannel)
+    NRpc::IChannelPtr nodeChannel)
 {
-    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
+    jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
 
     auto req = jobProberServiceProxy.GetSpec();
     ToProto(req->mutable_job_id(), jobId);
@@ -1591,7 +1592,10 @@ TSharedRef TClient::DoGetJobStderrFromNode(
         return TSharedRef();
     }
 
-    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(nodeChannel);
+    NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
+    jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
+    
+    
     auto req = jobProberServiceProxy.GetStderr();
     req->SetMultiplexingBand(EMultiplexingBand::Heavy);
     ToProto(req->mutable_job_id(), jobId);
