@@ -939,7 +939,7 @@ public:
         return New<TOperationController>(Bootstrap_, SchedulerConfig_, operation);
     }
 
-    TControllerAgentPtr PickAgentForOperation(const TOperationPtr& /* operation */)
+    TControllerAgentPtr PickAgentForOperation(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -952,6 +952,10 @@ public:
         }
 
         if (registeredAgents.size() < Config_->MinAgentCount) {
+            YT_LOG_DEBUG("Not enough agents to pick (AgentCount: %v, MinAgentCount: %v, OperationId: %v)",
+                registeredAgents.size(),
+                Config_->MinAgentCount,
+                operation->GetId());
             return nullptr;
         }
 
