@@ -429,8 +429,8 @@ TSimpleOperationIo CreateSimpleOperationIo(
     VerifyHasElements(spec.GetOutputs(), "output");
 
     return TSimpleOperationIo {
-        CanonizePaths(preparer.GetAuth(), spec.GetInputs()),
-        CanonizePaths(preparer.GetAuth(), spec.GetOutputs()),
+        CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetInputs()),
+        CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetOutputs()),
 
         getFormatOrDefault(spec.InputFormat_, "input"),
         getFormatOrDefault(spec.OutputFormat_, "output"),
@@ -541,7 +541,7 @@ public:
         , Options_(options)
     {
         CreateStorage();
-        auto cypressFileList = CanonizePaths(OperationPreparer_.GetAuth(), spec.Files_);
+        auto cypressFileList = CanonizeYPaths(/* retryPolicy */ nullptr, OperationPreparer_.GetAuth(), spec.Files_);
         for (const auto& file : cypressFileList) {
             UseFileInCypress(file);
         }
@@ -2122,9 +2122,9 @@ TOperationId ExecuteRawMapReduce(
     LOG_DEBUG("Starting raw map-reduce operation (PreparationId: %s)",
         preparer.GetPreparationId().c_str());
     TMapReduceOperationIo operationIo;
-    operationIo.Inputs = CanonizePaths(preparer.GetAuth(), spec.GetInputs());
-    operationIo.MapOutputs = CanonizePaths(preparer.GetAuth(), spec.GetMapOutputs());
-    operationIo.Outputs = CanonizePaths(preparer.GetAuth(), spec.GetOutputs());
+    operationIo.Inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetInputs());
+    operationIo.MapOutputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetMapOutputs());
+    operationIo.Outputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.GetOutputs());
 
     VerifyHasElements(operationIo.Inputs, "inputs");
     VerifyHasElements(operationIo.Outputs, "outputs");
@@ -2169,8 +2169,8 @@ TOperationId ExecuteSort(
 {
     LOG_DEBUG("Starting sort operation (PreparationId: %s)",
         preparer.GetPreparationId().c_str());
-    auto inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
-    auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
+    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.Inputs_);
+    auto output = CanonizeYPath(nullptr, preparer.GetAuth(), spec.Output_);
 
     if (options.CreateOutputTables_) {
         CheckInputTablesExist(preparer, inputs);
@@ -2209,8 +2209,8 @@ TOperationId ExecuteMerge(
 {
     LOG_DEBUG("Starting merge operation (PreparationId: %s)",
         preparer.GetPreparationId().c_str());
-    auto inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
-    auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
+    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.Inputs_);
+    auto output = CanonizeYPath(nullptr, preparer.GetAuth(), spec.Output_);
 
     if (options.CreateOutputTables_) {
         CheckInputTablesExist(preparer, inputs);
@@ -2250,7 +2250,7 @@ TOperationId ExecuteErase(
 {
     LOG_DEBUG("Starting erase operation (PreparationId: %s)",
         preparer.GetPreparationId().c_str());
-    auto tablePath = CanonizePath(preparer.GetAuth(), spec.TablePath_);
+    auto tablePath = CanonizeYPath(nullptr, preparer.GetAuth(), spec.TablePath_);
 
     TNode specNode = BuildYsonNodeFluently()
     .BeginMap().Item("spec").BeginMap()
@@ -2278,8 +2278,8 @@ TOperationId ExecuteRemoteCopy(
 {
     LOG_DEBUG("Starting remote copy operation (PreparationId: %s)",
         preparer.GetPreparationId().c_str());
-    auto inputs = CanonizePaths(preparer.GetAuth(), spec.Inputs_);
-    auto output = CanonizePath(preparer.GetAuth(), spec.Output_);
+    auto inputs = CanonizeYPaths(/* retryPolicy */ nullptr, preparer.GetAuth(), spec.Inputs_);
+    auto output = CanonizeYPath(nullptr, preparer.GetAuth(), spec.Output_);
 
     if (options.CreateOutputTables_) {
         CreateOutputTable(preparer, output);

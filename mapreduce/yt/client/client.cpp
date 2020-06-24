@@ -160,7 +160,7 @@ void TClientBase::Concatenate(
 
 TRichYPath TClientBase::CanonizeYPath(const TRichYPath& path)
 {
-    return CanonizePath(Auth_, path);
+    return NRawClient::CanonizeYPath(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, path);
 }
 
 TVector<TTableColumnarStatistics> TClientBase::GetTableColumnarStatistics(
@@ -211,7 +211,7 @@ IFileReaderPtr TClientBase::CreateFileReader(
     const TFileReaderOptions& options)
 {
     return new TFileReader(
-        CanonizePath(Auth_, path),
+        CanonizeYPath(path),
         ClientRetryPolicy_,
         Auth_,
         TransactionId_,
@@ -222,7 +222,7 @@ IFileWriterPtr TClientBase::CreateFileWriter(
     const TRichYPath& path,
     const TFileWriterOptions& options)
 {
-    auto realPath = CanonizePath(Auth_, path);
+    auto realPath = CanonizeYPath(path);
     if (!NRawClient::Exists(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, realPath.Path_)) {
         NRawClient::Create(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, realPath.Path_, NT_FILE,
             TCreateOptions().IgnoreExisting(true));
@@ -256,7 +256,7 @@ TRawTableWriterPtr TClientBase::CreateRawWriter(
         TransactionId_,
         GetWriteTableCommand(),
         format,
-        CanonizePath(Auth_, path),
+        CanonizeYPath(path),
         BUFFER_SIZE,
         options).Get();
 }
@@ -482,7 +482,7 @@ void TClientBase::AlterTable(
     bool useFormatFromTableAttributes)
 {
     return ::MakeIntrusive<TClientReader>(
-        CanonizePath(Auth_, path),
+        CanonizeYPath(path),
         ClientRetryPolicy_,
         Auth_,
         TransactionId_,
@@ -496,7 +496,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     const TFormat& format,
     const TTableWriterOptions& options)
 {
-    auto realPath = CanonizePath(Auth_, path);
+    auto realPath = CanonizeYPath(path);
     if (!NRawClient::Exists(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, realPath.Path_)) {
         NRawClient::Create(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, realPath.Path_, NT_TABLE,
             TCreateOptions().IgnoreExisting(true));

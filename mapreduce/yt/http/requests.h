@@ -26,12 +26,6 @@ bool ParseBoolFromResponse(const TString& response);
 
 TGUID ParseGuidFromResponse(const TString& response);
 
-TRichYPath CanonizePath(
-    const TAuth& auth, const TRichYPath& path);
-
-TVector<TRichYPath> CanonizePaths(
-    const TAuth& auth, const TVector<TRichYPath>& paths);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TString GetProxyForHeavyRequest(const TAuth& auth);
