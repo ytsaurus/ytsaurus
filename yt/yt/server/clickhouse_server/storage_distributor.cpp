@@ -222,7 +222,9 @@ public:
             THROW_ERROR_EXCEPTION("CHYT does not support tables without schema")
                 << TErrorAttribute("path", getTableName());
         }
-        setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*Schema_)));
+        DB::StorageInMemoryMetadata storage_metadata;
+        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*Schema_)));
+        setInMemoryMetadata(storage_metadata);
     }
 
     std::string getName() const override
@@ -245,7 +247,7 @@ public:
         return Schema_->IsSorted();
     }
 
-    virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* queryAst */, const DB::Context& /* context */) const override
+    virtual bool mayBenefitFromIndexForIn(const DB::ASTPtr& /* queryAst */, const DB::Context& /* context */, const DB::StorageMetadataPtr& /* metadata_snapshot */) const override
     {
         return supportsIndexForIn();
     }
@@ -286,6 +288,7 @@ public:
 
     virtual DB::Pipes read(
         const DB::Names& columnNames,
+        const DB::StorageMetadataPtr& /*metadata_snapshot*/,
         const DB::SelectQueryInfo& queryInfo,
         const DB::Context& context,
         DB::QueryProcessingStage::Enum processedStage,
@@ -416,7 +419,7 @@ public:
         return true;
     }
 
-    virtual DB::BlockOutputStreamPtr write(const DB::ASTPtr& /* ptr */, const DB::Context& /* context */) override
+    virtual DB::BlockOutputStreamPtr write(const DB::ASTPtr& /* ptr */, const DB::StorageMetadataPtr& /*metadata_snapshot*/, const DB::Context& /* context */) override
     {
         // Set append if it is not set.
 

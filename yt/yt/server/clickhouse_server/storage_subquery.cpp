@@ -43,7 +43,9 @@ public:
             SubquerySpec_.SubqueryIndex,
             SubquerySpec_.TableIndex);
 
-        setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema)));
+        DB::StorageInMemoryMetadata storage_metadata;
+        storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema)));
+        setInMemoryMetadata(storage_metadata);
 
         queryContext->MoveToPhase(EQueryPhase::Preparation);
     }
@@ -67,6 +69,7 @@ public:
 
     DB::Pipes read(
         const DB::Names& columnNames,
+        const DB::StorageMetadataPtr& /* metadata_snapshot */,
         const DB::SelectQueryInfo& queryInfo,
         const DB::Context& context,
         DB::QueryProcessingStage::Enum /* processedStage */,
