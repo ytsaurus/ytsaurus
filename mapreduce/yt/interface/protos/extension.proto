@@ -21,6 +21,15 @@ message EWrapperFieldFlag
     }
 }
 
+message EWrapperMessageFlag
+{
+    enum Enum
+    {
+        DEPRECATED_SORT_FIELDS_AS_IN_PROTO_FILE = 0;
+        SORT_FIELDS_BY_FIELD_NUMBER = 1;
+    }
+}
+
 extend google.protobuf.FieldOptions
 {
     repeated EWrapperFieldFlag.Enum flags = 56788;
@@ -31,4 +40,5 @@ extend google.protobuf.FieldOptions
 extend google.protobuf.MessageOptions
 {
     repeated EWrapperFieldFlag.Enum default_field_flags = 56789;
+    repeated EWrapperMessageFlag.Enum message_flags = 56790;
 }

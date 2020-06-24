@@ -20,7 +20,9 @@
 
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/fluent.h>
+#include <mapreduce/yt/interface/format.h>
 #include <mapreduce/yt/interface/job_statistics.h>
+#include <mapreduce/yt/interface/protobuf_format.h>
 
 #include <mapreduce/yt/interface/logging/log.h>
 
