@@ -30,6 +30,9 @@
 #include <Interpreters/Context.h>
 #include <Interpreters/ExternalDictionariesLoader.h>
 #include <Interpreters/ProcessList.h>
+#include <Interpreters/QueryLog.h>
+#include <Interpreters/SystemLog.h>
+#include <Interpreters/executeQuery.h>
 #include <Storages/StorageFactory.h>
 #include <Storages/StorageMemory.h>
 #include <Storages/System/StorageSystemAsynchronousMetrics.h>
@@ -193,6 +196,7 @@ private:
         DB::registerAggregateFunctions();
         DB::registerTableFunctions();
         DB::registerStorageMemory(DB::StorageFactory::instance());
+        DB::registerStorageBuffer(DB::StorageFactory::instance());
         DB::registerDictionaries();
 
         CurrentMetrics::set(CurrentMetrics::Revision, ClickHouseRevision::get());
@@ -243,6 +247,7 @@ private:
 
         YT_LOG_DEBUG("Initializing system logs");
 
+        PrepareSystemLogTables();
         ServerContext_->initializeSystemLogs();
 
         YT_LOG_DEBUG("System logs initialized");
@@ -270,6 +275,50 @@ private:
         YT_LOG_INFO("Warming up dictionaries");
         ServerContext_->getEmbeddedDictionaries();
         YT_LOG_INFO("Finished warming up");
+    }
+
+    void PrepareSystemLogTables()
+    {
+        YT_LOG_DEBUG("Preparing query log tables");
+        // This log won't actually be serving as log; we use it
+        // to extract table creation query and apply it to our two
+        // buffer tables implementing in-memory query log with rotation.
+        auto log = std::make_shared<DB::QueryLog>(
+            *ServerContext_,
+            "system",
+            "{table_name}",
+            Config_->QueryLog->Engine,
+            Config_->QueryLog->FlushIntervalMilliseconds);
+
+        auto createTableAst = log->getCreateTableQuery();
+        auto createTableQuery = ToString(createTableAst);
+
+        const TString TableNamePlaceholder = "{table_name}";
+        const TString UnderlyingTableNamePlaceholder = "{underlying_table_name}";
+        const TString DatabasePlaceholder = "{database}";
+
+        auto replace = [&] (TString query, TString placeholder, TString with) {
+            auto position = query.find(placeholder);
+            YT_VERIFY(position != TString::npos);
+            query.replace(position, placeholder.size(), with);
+            return query;
+        };
+
+        auto createTableQueryNewer = createTableQuery;
+        createTableQueryNewer = replace(createTableQueryNewer, TableNamePlaceholder, "query_log");
+        createTableQueryNewer = replace(createTableQueryNewer, UnderlyingTableNamePlaceholder, "query_log_older");
+        createTableQueryNewer = replace(createTableQueryNewer, DatabasePlaceholder, "system");
+
+        YT_LOG_DEBUG("Creating newer query log table (Query: %v)", createTableQueryNewer);
+        DB::executeQuery(createTableQueryNewer, *ServerContext_, true);
+
+        auto createTableQueryOlder = createTableQuery;
+        createTableQueryOlder = replace(createTableQueryOlder, TableNamePlaceholder, "query_log_older");
+        createTableQueryOlder = replace(createTableQueryOlder, UnderlyingTableNamePlaceholder, "");
+        createTableQueryOlder = replace(createTableQueryOlder, DatabasePlaceholder, "");
+
+        YT_LOG_DEBUG("Creating older query log table (Query: %v)", createTableQueryOlder);
+        DB::executeQuery(createTableQueryOlder, *ServerContext_, true);
     }
 
     void SetupServers()

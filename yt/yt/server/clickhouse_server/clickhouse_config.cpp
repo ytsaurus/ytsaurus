@@ -9,7 +9,7 @@ namespace NYT::NClickHouseServer {
 TSystemLogConfig::TSystemLogConfig()
 {
     RegisterParameter("engine", Engine)
-        .Default("ENGINE = Memory()");
+        .Default("ENGINE = Buffer('{database}', '{underlying_table_name}', 1, 1, 1800, 1000000000000, 1000000000000, 1000000000000, 1000000000000)");
     RegisterParameter("flush_interval_milliseconds", FlushIntervalMilliseconds)
         .Default(100);
 }
@@ -137,6 +137,7 @@ TClickHouseConfig::TClickHouseConfig()
         Settings["max_threads"] = NYTree::ConvertToNode(32);
         Settings["max_concurrent_queries_for_user"] = NYTree::ConvertToNode(10);
         Settings["connect_timeout_with_failover_ms"] = NYTree::ConvertToNode(1000); // 1 sec.
+        Settings["log_queries"] = NYTree::ConvertToNode(1);
     });
 
     RegisterPostprocessor([&] {
