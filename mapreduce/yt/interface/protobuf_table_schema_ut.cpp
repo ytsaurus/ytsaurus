@@ -288,4 +288,26 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
                 TColumnSchema().Name("d").TypeV3(NTi::Optional(NTi::String()))),
             CreateTableSchema<NTesting::TCyclic::TE>());
     }
+
+    Y_UNIT_TEST(FieldSortOrder)
+    {
+        const auto schema = CreateTableSchema<NTesting::TFieldSortOrder>();
+
+        auto byFieldNumber = NTi::Optional(NTi::Struct({
+            {"z", NTi::Optional(NTi::Bool())},
+            {"x", NTi::Optional(NTi::Int64())},
+            {"y", NTi::Optional(NTi::String())},
+        }));
+
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema().Name("EmbeddedDefault").Type(byFieldNumber))
+            .AddColumn(TColumnSchema()
+                .Name("EmbeddedAsInProtoFile")
+                .Type(NTi::Optional(NTi::Struct({
+                    {"x", NTi::Optional(NTi::Int64())},
+                    {"y", NTi::Optional(NTi::String())},
+                    {"z", NTi::Optional(NTi::Bool())},
+                }))))
+            .AddColumn(TColumnSchema().Name("EmbeddedByFieldNumber").Type(byFieldNumber)));
+    }
 }

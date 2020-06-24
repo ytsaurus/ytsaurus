@@ -7,7 +7,7 @@
 
 #include "node.h"
 
-#include <contrib/libs/protobuf/message.h>
+#include <contrib/libs/protobuf/descriptor.h>
 
 namespace NYT {
 
@@ -114,26 +114,6 @@ TFormat TFormat::Protobuf() {
 TTableSchema CreateTableSchema(
     const ::google::protobuf::Descriptor& messageDescriptor,
     bool keepFieldsWithoutExtension);
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
-enum class EProtobufType
-{
-    EnumInt       /* "enum_int" */,
-    EnumString    /* "enum_string" */,
-    Any           /* "any" */,
-    OtherColumns  /* "other_columns" */,
-};
-
-TMaybe<TVector<TString>> InferColumnFilter(const ::google::protobuf::Descriptor& descriptor);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 

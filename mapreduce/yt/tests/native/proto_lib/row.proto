@@ -85,12 +85,12 @@ message TRowWithTypeOptions
         optional bytes AnyField = 3 [(NYT.flags) = ANY];
     }
 
-    optional Color ColorIntField = 1 [(NYT.flags) = ENUM_INT];
     optional Color ColorStringField = 2 [(NYT.flags) = ENUM_STRING];
-    optional bytes AnyField = 3 [(NYT.flags) = ANY];
     optional bytes OtherColumnsField = 4 [(NYT.flags) = OTHER_COLUMNS];
+    optional Color ColorIntField = 1 [(NYT.flags) = ENUM_INT];
     optional Embedded EmbeddedField = 5 [(NYT.flags) = SERIALIZATION_YT];
     repeated Color RepeatedEnumIntField = 6 [(NYT.flags) = SERIALIZATION_YT, (NYT.flags) = ENUM_INT];
+    optional bytes AnyField = 3 [(NYT.flags) = ANY];
 }
 
 message TGrepperRecord

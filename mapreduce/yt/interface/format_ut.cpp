@@ -48,6 +48,32 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
         }
     }
 
+    Y_UNIT_TEST(TRowFieldSerializationOption)
+    {
+        const auto format = TFormat::Protobuf<NTesting::TRowFieldSerializationOption>();
+        const auto& columns = format.Config.GetAttributes()["tables"][0]["columns"];
+
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["name"], "UrlRow_1");
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["proto_type"], "structured_message");
+        UNIT_ASSERT_VALUES_EQUAL(columns[0]["field_number"], 1);
+        const auto& fields = columns[0]["fields"];
+        UNIT_ASSERT_VALUES_EQUAL(fields[0]["name"], "Host");
+        UNIT_ASSERT_VALUES_EQUAL(fields[0]["proto_type"], "string");
+        UNIT_ASSERT_VALUES_EQUAL(fields[0]["field_number"], 1);
+
+        UNIT_ASSERT_VALUES_EQUAL(fields[1]["name"], "Path");
+        UNIT_ASSERT_VALUES_EQUAL(fields[1]["proto_type"], "string");
+        UNIT_ASSERT_VALUES_EQUAL(fields[1]["field_number"], 2);
+
+        UNIT_ASSERT_VALUES_EQUAL(fields[2]["name"], "HttpCode");
+        UNIT_ASSERT_VALUES_EQUAL(fields[2]["proto_type"], "sint32");
+        UNIT_ASSERT_VALUES_EQUAL(fields[2]["field_number"], 3);
+
+        UNIT_ASSERT_VALUES_EQUAL(columns[1]["name"], "UrlRow_2");
+        UNIT_ASSERT_VALUES_EQUAL(columns[1]["proto_type"], "message");
+        UNIT_ASSERT_VALUES_EQUAL(columns[1]["field_number"], 2);
+    }
+
     Y_UNIT_TEST(Packed)
     {
         const auto format = TFormat::Protobuf<NTesting::TPacked>();

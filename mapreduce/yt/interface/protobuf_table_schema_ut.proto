@@ -249,3 +249,29 @@ message TCyclic
 
     optional TA a = 1;
 }
+
+message TFieldSortOrder
+{
+    message TEmbeddedDefault {
+        optional int64 x = 2;
+        optional string y = 12;
+        optional bool z = 1;
+    }
+    message TEmbeddedAsInProtoFile {
+        option (NYT.message_flags) = DEPRECATED_SORT_FIELDS_AS_IN_PROTO_FILE;
+        optional int64 x = 2;
+        optional string y = 12;
+        optional bool z = 1;
+    }
+    message TEmbeddedByFieldNumber {
+        option (NYT.message_flags) = SORT_FIELDS_BY_FIELD_NUMBER;
+        optional int64 x = 2;
+        optional string y = 12;
+        optional bool z = 1;
+    }
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
+
+    optional TEmbeddedDefault EmbeddedDefault = 1;
+    optional TEmbeddedAsInProtoFile EmbeddedAsInProtoFile = 2;
+    optional TEmbeddedByFieldNumber EmbeddedByFieldNumber = 3;
+}
