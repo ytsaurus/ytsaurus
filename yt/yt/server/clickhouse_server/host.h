@@ -47,7 +47,15 @@ public:
         const NApi::NNative::IClientPtr& client);
 
     const IInvokerPtr& GetControlInvoker() const;
+
+    //! Thread pool for heavy stuff.
     const IInvokerPtr& GetWorkerInvoker() const;
+
+    //! Wrapper around previous thread pool which does bookkeeping around
+    //! DB::current_thread.
+    //!
+    //! Cf. clickhouse_invoker.h
+    const IInvokerPtr& GetClickHouseWorkerInvoker() const;
 
     NApi::NNative::IClientPtr GetRootClient() const;
     NApi::NNative::IClientPtr CreateClient(const TString& user);

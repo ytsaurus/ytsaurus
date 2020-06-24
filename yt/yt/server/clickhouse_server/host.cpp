@@ -1,5 +1,6 @@
 #include "host.h"
 
+#include "clickhouse_invoker.h"
 #include "clickhouse_service_proxy.h"
 #include "query_context.h"
 #include "query_registry.h"
@@ -133,6 +134,7 @@ public:
             Config_->GossipPeriod))
         , WorkerThreadPool_(New<TThreadPool>(Config_->WorkerThreadCount, "Worker"))
         , WorkerInvoker_(WorkerThreadPool_->GetInvoker())
+        , ClickHouseWorkerInvoker_(CreateClickHouseInvoker(WorkerInvoker_))
         , TotalMemoryTrackerUpdateExecutor_(New<TPeriodicExecutor>(
             WorkerInvoker_,
             BIND(&TImpl::UpdateTotalMemoryTracker, MakeWeak(this)),
@@ -327,6 +329,11 @@ public:
         return WorkerInvoker_;
     }
 
+    const IInvokerPtr& GetClickHouseWorkerInvoker() const
+    {
+        return ClickHouseWorkerInvoker_;
+    }
+
     const IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const
     {
         return ParallelReaderMemoryManager_;
@@ -411,6 +418,7 @@ private:
     TPeriodicExecutorPtr GossipExecutor_;
     NConcurrency::TThreadPoolPtr WorkerThreadPool_;
     IInvokerPtr WorkerInvoker_;
+    IInvokerPtr ClickHouseWorkerInvoker_;
     TPeriodicExecutorPtr TotalMemoryTrackerUpdateExecutor_;
 
     NApi::NNative::IClientPtr RootClient_;
@@ -719,6 +727,11 @@ const IInvokerPtr& THost::GetControlInvoker() const
 const IInvokerPtr& THost::GetWorkerInvoker() const
 {
     return Impl_->GetWorkerInvoker();
+}
+
+const IInvokerPtr& THost::GetClickHouseWorkerInvoker() const
+{
+    return Impl_->GetClickHouseWorkerInvoker();
 }
 
 TClusterNodes THost::GetNodes() const
