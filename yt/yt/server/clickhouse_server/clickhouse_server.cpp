@@ -399,6 +399,13 @@ private:
                 value,
                 NProfiling::EMetricType::Counter);
         }
+
+        if (Config_->MaxServerMemoryUsage) {
+            ClickHouseNativeProfiler.Enqueue(
+                "/memory_limit",
+                *Config_->MaxServerMemoryUsage,
+                NProfiling::EMetricType::Gauge);
+        }
     }
 };
 

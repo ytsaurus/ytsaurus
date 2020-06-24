@@ -99,6 +99,11 @@ public:
         }
     }
 
+    void OnProfiling()
+    {
+        TSyncSlruCacheBase::OnProfiling();
+    }
+
 private:
     const EBlockType Type_;
 
@@ -163,6 +168,13 @@ public:
         return SupportedBlockTypes_;
     }
 
+    virtual void OnProfiling()
+    {
+        for (const auto& [_, cache] : PerTypeCaches_) {
+            cache->OnProfiling();
+        }
+    }
+
 private:
     const EBlockType SupportedBlockTypes_;
 
@@ -208,6 +220,9 @@ public:
     {
         return EBlockType::None;
     }
+
+    virtual void OnProfiling() override
+    { }
 };
 
 IBlockCachePtr GetNullBlockCache()

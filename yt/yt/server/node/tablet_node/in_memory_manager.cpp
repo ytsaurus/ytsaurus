@@ -437,6 +437,9 @@ private:
             return BlockType_;
         }
 
+        virtual void OnProfiling() override
+        { }
+
     private:
         const TInMemoryManagerPtr Owner_;
         const EInMemoryMode Mode_;
@@ -849,6 +852,9 @@ public:
                 chunkInfos));
     }
 
+    virtual void OnProfiling() override
+    { }
+
 private:
     TFuture<void> SendNextBatch()
     {
@@ -1005,6 +1011,9 @@ public:
     {
         return VoidFuture;
     }
+
+    virtual void OnProfiling() override
+    { }
 };
 
 IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(

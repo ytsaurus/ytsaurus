@@ -386,6 +386,16 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Pop(TShard* shard, TItem* item)
     item->Unlink();
 }
 
+template <class TKey, class TValue, class THash>
+void TSyncSlruCacheBase<TKey, TValue, THash>::OnProfiling()
+{
+    Profiler.Increment(HitWeightCounter_, 0);
+    Profiler.Increment(MissedWeightCounter_, 0);
+    Profiler.Increment(DroppedWeightCounter_, 0);
+    Profiler.Increment(YoungerWeightCounter_, 0);
+    Profiler.Increment(OlderWeightCounter_, 0);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TKey, class TValue, class THash>
