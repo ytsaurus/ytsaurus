@@ -31,4 +31,8 @@
     };
 
     job_timeout_seconds=1700;
+
+    spec_patch={
+        scheduling_tag_filter="!tablet_common";
+    };
 }

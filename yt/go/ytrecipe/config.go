@@ -36,6 +36,9 @@ type Config struct {
 	UploadBinaries []string `yson:"upload_binaries"`
 	UploadWorkFile []string `yson:"upload_workfile"`
 	UploadWorkDir  []string `yson:"upload_workdir"`
+
+	SpecPatch interface{} `yson:"spec_patch"`
+	TaskPatch interface{} `yson:"task_patch"`
 }
 
 func (c *Config) CacheTTL() time.Duration {
@@ -58,6 +61,8 @@ func (c *Config) FillConfig(e *ytexec.Config) error {
 	e.Operation.OutputTTL = time.Duration(c.OutputTTLHours) * time.Hour
 	e.Operation.BlobTTL = time.Duration(c.CacheTTLHours) * time.Hour
 	e.Operation.Timeout = time.Hour
+	e.Operation.SpecPatch = c.SpecPatch
+	e.Operation.TaskPatch = c.TaskPatch
 
 	for _, path := range c.UploadBinaries {
 		e.FS.UploadFile = append(e.FS.UploadFile, yatest.BuildPath(path))
