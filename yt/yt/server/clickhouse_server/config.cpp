@@ -146,6 +146,9 @@ TYtConfig::TYtConfig()
     RegisterParameter("enable_dynamic_tables", EnableDynamicTables)
         .Default(false);
 
+    RegisterParameter("total_memory_tracker_update_period", TotalMemoryTrackerUpdatePeriod)
+        .Default(TDuration::Seconds(1));
+
     RegisterPreprocessor([&] {
         PermissionCache->ExpireAfterAccessTime = TDuration::Minutes(2);
         PermissionCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(20);

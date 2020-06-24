@@ -50,6 +50,8 @@
 
 #include <Common/Exception.h>
 #include <Common/StringUtils/StringUtils.h>
+#include <Common/MemoryTracker.h>
+#include <Common/CurrentMetrics.h>
 #include <IO/HTTPCommon.h>
 
 #include <common/DateLUT.h>
@@ -130,6 +132,10 @@ public:
             Config_->GossipPeriod))
         , WorkerThreadPool_(New<TThreadPool>(Config_->WorkerThreadCount, "Worker"))
         , WorkerInvoker_(WorkerThreadPool_->GetInvoker())
+        , TotalMemoryTrackerUpdateExecutor_(New<TPeriodicExecutor>(
+            WorkerInvoker_,
+            BIND(&TImpl::UpdateTotalMemoryTracker, MakeWeak(this)),
+            Config_->TotalMemoryTrackerUpdatePeriod))
     {
         InitializeClients();
         InitializeCaches();
@@ -174,6 +180,7 @@ public:
         ProfilingExecutor_->Start();
         GossipExecutor_->Start();
         HealthChecker_->Start();
+        TotalMemoryTrackerUpdateExecutor_->Start();
         MemoryWatchdogExecutor_->Start();
         CreateOrchidNode();
         StartDiscovery();
@@ -392,6 +399,7 @@ private:
     TPeriodicExecutorPtr GossipExecutor_;
     NConcurrency::TThreadPoolPtr WorkerThreadPool_;
     IInvokerPtr WorkerInvoker_;
+    TPeriodicExecutorPtr TotalMemoryTrackerUpdateExecutor_;
 
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
@@ -602,6 +610,17 @@ private:
         }
 
         Discovery_->UpdateList(Config_->UnknownInstanceAgeThreshold);
+    }
+
+    void UpdateTotalMemoryTracker()
+    {
+        // ClickHouse periodically snaphots current RSS and then tracks its
+        // allocations, changing presumed value of RSS accordingly. It does
+        // not work in our case as we have lots of our own allocations, so
+        // we have to reconcile RSS more frequently than once per minute.
+        auto rss = GetProcessMemoryUsage().Rss;
+        total_memory_tracker.set(rss);
+        CurrentMetrics::set(CurrentMetrics::MemoryTracking, rss);
     }
 
     void CreateOrchidNode()

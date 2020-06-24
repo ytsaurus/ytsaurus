@@ -167,6 +167,8 @@ public:
 
     bool EnableDynamicTables;
 
+    TDuration TotalMemoryTrackerUpdatePeriod;
+
     TYtConfig();
 };
 
