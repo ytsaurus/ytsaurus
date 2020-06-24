@@ -12,6 +12,7 @@
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/chunk_server/chunk.h>
 #include <yt/server/master/chunk_server/chunk_list.h>
@@ -67,6 +68,15 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     const TCreateNodeContext& context)
 {
     const auto& config = this->Bootstrap_->GetConfig()->CypressManager;
+    const auto& chunkManagerConfig = this->Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+
+    if (auto compressionCodecValue = context.ExplicitAttributes->FindYson("compression_codec")) {
+        ValidateCompressionCodec(
+            compressionCodecValue,
+            chunkManagerConfig->DeprecatedCodecIds,
+            chunkManagerConfig->DeprecatedCodecNameToAlias);
+    }
+
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
     auto optionalTabletCellBundleName = combinedAttributes.FindAndRemove<TString>("tablet_cell_bundle");
     auto optimizeFor = combinedAttributes.GetAndRemove<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);

@@ -422,6 +422,31 @@ TString SuggestCypressShardName(TCypressShard* shard)
     }
 }
 
+void ValidateCompressionCodec(
+    const NYson::TYsonString& value,
+    const std::optional<THashSet<NCompression::ECodec>>& configuredDeprecatedCodecIds,
+    const std::optional<THashMap<TString, TString>>& configuredDeprecatedCodecNameToAlias)
+{
+    auto deprecatedCodecs = configuredDeprecatedCodecIds
+        ? *configuredDeprecatedCodecIds
+        : NCompression::GetDeprecatedCodecIds();
+    auto codecId = ConvertTo<NCompression::ECodec>(value);
+    if (deprecatedCodecs.find(codecId) != deprecatedCodecs.end()) {
+        THROW_ERROR_EXCEPTION("Codec %Qv is deprecated", codecId);
+    }
+
+    auto deprecatedCodecNameToAlias = configuredDeprecatedCodecNameToAlias
+        ? *configuredDeprecatedCodecNameToAlias
+        : NCompression::GetDeprecatedCodecNameToAlias();
+    auto codecName = ConvertTo<TString>(value);
+    auto it = deprecatedCodecNameToAlias.find(codecName);
+    if (deprecatedCodecNameToAlias.find(codecName) != deprecatedCodecNameToAlias.end()) {
+        auto& [_, alias] = *it;
+        THROW_ERROR_EXCEPTION("Codec name %Qv is deprecated, use %Qv instead", codecName, alias);
+
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

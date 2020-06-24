@@ -14,6 +14,8 @@
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/config_manager.h>
 
+#include <yt/server/master/cypress_server/helpers.h>
+
 #include <yt/server/master/node_tracker_server/node_directory_builder.h>
 
 #include <yt/server/lib/misc/interned_attributes.h>
@@ -756,6 +758,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
     const TYsonString& value)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
 
     switch (key) {
         case EInternedAttributeKey::ReplicationFactor: {
@@ -799,6 +802,12 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
             const auto& uninternedKey = key.Unintern();
             auto* node = LockThisImpl<TChunkOwnerBase>(TLockRequest::MakeSharedAttribute(uninternedKey));
+
+            ValidateCompressionCodec(
+                value,
+                config->DeprecatedCodecIds,
+                config->DeprecatedCodecNameToAlias);
+
             node->SetCompressionCodec(ConvertTo<NCompression::ECodec>(value));
 
             return true;
