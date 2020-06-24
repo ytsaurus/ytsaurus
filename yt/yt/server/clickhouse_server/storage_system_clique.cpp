@@ -33,7 +33,9 @@ public:
         , Discovery_(std::move(discovery))
         , InstanceId_(std::move(instanceId))
     {
-        setColumns(CreateColumnList());
+        DB::StorageInMemoryMetadata storage_metadata;
+        storage_metadata.setColumns(CreateColumnList());
+        setInMemoryMetadata(storage_metadata);
     }
 
     std::string getName() const override
@@ -43,6 +45,7 @@ public:
 
     DB::Pipes read(
         const DB::Names& /* columnNames */,
+        const DB::StorageMetadataPtr& metadata_snapshot,
         const DB::SelectQueryInfo& /* queryInfo */,
         const DB::Context& /* context */,
         DB::QueryProcessingStage::Enum /* processedStage */,
@@ -51,7 +54,7 @@ public:
     {
         auto nodes = Discovery_->List();
 
-        DB::MutableColumns res_columns = getSampleBlock().cloneEmptyColumns();
+        DB::MutableColumns res_columns = metadata_snapshot->getSampleBlock().cloneEmptyColumns();
 
         for (const auto& [name, attributes] : nodes) {
             res_columns[0]->insert(std::string(attributes.at("host")->GetValue<TString>()));
@@ -65,7 +68,7 @@ public:
             res_columns[8]->insert(attributes.at("job_cookie")->GetValue<ui64>());
         }
 
-        auto blockInputStream = std::make_shared<DB::OneBlockInputStream>(getSampleBlock().cloneWithColumns(std::move(res_columns)));
+        auto blockInputStream = std::make_shared<DB::OneBlockInputStream>(metadata_snapshot->getSampleBlock().cloneWithColumns(std::move(res_columns)));
         auto source = std::make_shared<DB::SourceFromInputStream>(std::move(blockInputStream));
         DB::Pipe pipe(std::move(source));
         DB::Pipes result;
