@@ -16,6 +16,8 @@
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/coroutine.h>
 
+#include <yt/core/profiling/profile_manager.h>
+
 #include <Server/IServer.h>
 
 #include <Access/AccessControlManager.h>
@@ -405,6 +407,22 @@ private:
                 "/memory_limit",
                 *Config_->MaxServerMemoryUsage,
                 NProfiling::EMetricType::Gauge);
+        }
+
+        {
+            for (
+                auto tableIterator = SystemDatabase_->getTablesIterator(*ServerContext_);
+                tableIterator->isValid();
+                tableIterator->next())
+            {
+                if (auto totalBytes = tableIterator->table()->totalBytes()) {
+                    ClickHouseNativeProfiler.Enqueue(
+                        "/system_tables/memory",
+                        *totalBytes,
+                        NProfiling::EMetricType::Gauge,
+                        {NProfiling::TProfileManager::Get()->RegisterTag("table", tableIterator->name())});
+                }
+            }
         }
     }
 };
