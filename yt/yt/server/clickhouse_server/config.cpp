@@ -147,7 +147,7 @@ TYtConfig::TYtConfig()
         .Default(false);
 
     RegisterParameter("total_memory_tracker_update_period", TotalMemoryTrackerUpdatePeriod)
-        .Default(TDuration::Seconds(1));
+        .Default(TDuration::MilliSeconds(300));
 
     RegisterPreprocessor([&] {
         PermissionCache->ExpireAfterAccessTime = TDuration::Minutes(2);

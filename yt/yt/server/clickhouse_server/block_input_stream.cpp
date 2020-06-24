@@ -270,7 +270,7 @@ DB::Block TBlockInputStream::readImpl()
             IdToColumnIndex_,
             RowBuffer_,
             InputHeaderBlock_.cloneEmpty())
-            .AsyncVia(Host_->GetWorkerInvoker())
+            .AsyncVia(Host_->GetClickHouseWorkerInvoker())
             .Run())
             .ValueOrThrow();
 
@@ -283,7 +283,7 @@ DB::Block TBlockInputStream::readImpl()
                 IdToColumnIndex_,
                 RowBuffer_,
                 InputHeaderBlock_,
-                Host_->GetWorkerInvoker());
+                Host_->GetClickHouseWorkerInvoker());
         }
 
         // NB: ConvertToField copies all strings, so clearing row buffer is safe here.
