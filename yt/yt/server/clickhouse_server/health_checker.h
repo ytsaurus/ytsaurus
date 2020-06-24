@@ -19,7 +19,7 @@ public:
     THealthChecker(
         THealthCheckerConfigPtr config,
         TString dataBaseUser,
-        const DB::Context* databaseContext,
+        DB::Context* databaseContext,
         THost* host);
 
     void Start();
@@ -29,7 +29,7 @@ public:
 private:
     const THealthCheckerConfigPtr Config_;
     const TString DatabaseUser_;
-    const DB::Context* const DatabaseContext_;
+    DB::Context* const DatabaseContext_;
     THost* const Host_;
     NConcurrency::TActionQueuePtr ActionQueue_;
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;

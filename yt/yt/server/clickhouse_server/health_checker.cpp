@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "query_context.h"
+#include "helpers.h"
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/periodic_executor.h>
@@ -12,11 +13,8 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-#include <Parsers/ParserQuery.h>
-#include <Parsers/parseQuery.h>
-
 #include <Interpreters/ClientInfo.h>
-#include <Interpreters/InterpreterSelectWithUnionQuery.h>
+#include <Interpreters/executeQuery.h>
 
 #include <Core/Types.h>
 
@@ -45,7 +43,7 @@ std::vector<NProfiling::TTagId> RegisterQueryTags(size_t queryCount)
 }
 
 DB::Context PrepareContextForQuery(
-    const DB::Context* databaseContext,
+    DB::Context* databaseContext,
     const TString& dataBaseUser,
     TDuration timeout,
     THost* host)
@@ -82,10 +80,11 @@ DB::Context PrepareContextForQuery(
     return contextForQuery;
 }
 
-void ValidateQueryResult(DB::BlockIO blockIO)
+void ValidateQueryResult(DB::BlockIO& blockIO)
 {
+    auto stream = blockIO.getInputStream();
     size_t totalRowCount = 0;
-    while (auto block = blockIO.in->read()) {
+    while (auto block = stream->read()) {
         totalRowCount += block.rows();
     }
     YT_LOG_DEBUG("Health checker query result validated (TotalRowCount: %v)", totalRowCount);
@@ -98,27 +97,15 @@ void ValidateQueryResult(DB::BlockIO blockIO)
 
 void THealthChecker::ExecuteQuery(const TString& query)
 {
-    DB::ParserQuery queryParser(query.end(), /*enableExplain =*/false);
-
-    auto querySyntaxTree = parseQuery(
-        queryParser,
-        query.begin(),
-        query.end(),
-        /*description =*/"HealthCheckerQuery",
-        /*maxQuerySize =*/0,
-        /*maxParserDepth =*/DBMS_DEFAULT_MAX_PARSER_DEPTH);
-
-    NDetail::ValidateQueryResult(DB::InterpreterSelectWithUnionQuery(
-        querySyntaxTree,
-        NDetail::PrepareContextForQuery(DatabaseContext_, DatabaseUser_, Config_->Timeout, Host_),
-        DB::SelectQueryOptions())
-        .execute());
+    auto context = NDetail::PrepareContextForQuery(DatabaseContext_, DatabaseUser_, Config_->Timeout, Host_);
+    auto blockIO = DB::executeQuery(query, context, true /* internal */);
+    NDetail::ValidateQueryResult(blockIO);
 }
 
 THealthChecker::THealthChecker(
     THealthCheckerConfigPtr config,
     TString dataBaseUser,
-    const DB::Context* databaseContext,
+    DB::Context* databaseContext,
     THost* host)
     : Config_(std::move(config))
     , DatabaseUser_(std::move(dataBaseUser))
@@ -130,7 +117,9 @@ THealthChecker::THealthChecker(
         BIND(&THealthChecker::ExecuteQueries, MakeWeak(this)),
         Config_->Period))
     , QueryIndexToTag_(NDetail::RegisterQueryTags(Config_->Queries.size()))
-{ }
+{
+    RegisterNewUser(DatabaseContext_->getAccessControlManager(), DatabaseUser_);
+}
 
 void THealthChecker::Start()
 {
