@@ -8,8 +8,6 @@
 
 #include <yt/library/numeric/binary_search.h>
 
-#include <contrib/libs/gtest/include/gtest/gtest_prod.h>
-
 #include <vector>
 #include <algorithm>
 #include <random>
