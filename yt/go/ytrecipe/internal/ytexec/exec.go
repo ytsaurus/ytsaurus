@@ -200,6 +200,11 @@ const (
 	StderrTableName   = "stderr"
 )
 
+func init() {
+	mapreduce.RegisterJobPart(map[string]interface{}{})
+	mapreduce.RegisterJobPart([]interface{}{})
+}
+
 func (e *Exec) PrepareJob(ctx context.Context) (j *job.Job, s *spec.Spec, outputDir ypath.Path, err error) {
 	j = &job.Job{
 		OperationConfig: e.config.Operation,
@@ -232,10 +237,12 @@ func (e *Exec) PrepareJob(ctx context.Context) (j *job.Job, s *spec.Spec, output
 		return
 	}
 
-	specPatch, _ := yson.Marshal(e.config.Operation.SpecPatch)
-	if err = yson.Unmarshal(specPatch, &s); err != nil {
-		err = fmt.Errorf("spec patch failed: %w", err)
-		return
+	if e.config.Operation.SpecPatch != nil {
+		specPatch, _ := yson.Marshal(e.config.Operation.SpecPatch)
+		if err = yson.Unmarshal(specPatch, s); err != nil {
+			err = fmt.Errorf("spec patch failed: %w", err)
+			return
+		}
 	}
 
 	us := s.Tasks["testtool"]
@@ -252,10 +259,12 @@ func (e *Exec) PrepareJob(ctx context.Context) (j *job.Job, s *spec.Spec, output
 	}
 	us.EnablePorto = "isolate"
 
-	taskPatch, _ := yson.Marshal(e.config.Operation.TaskPatch)
-	if err = yson.Unmarshal(taskPatch, &us); err != nil {
-		err = fmt.Errorf("task patch failed: %w", err)
-		return
+	if e.config.Operation.TaskPatch != nil {
+		taskPatch, _ := yson.Marshal(e.config.Operation.TaskPatch)
+		if err = yson.Unmarshal(taskPatch, us); err != nil {
+			err = fmt.Errorf("task patch failed: %w", err)
+			return
+		}
 	}
 
 	return
