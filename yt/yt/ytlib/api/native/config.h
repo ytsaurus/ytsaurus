@@ -115,6 +115,8 @@ public:
     TDuration DefaultGetJobTimeout;
     TDuration DefaultListOperationsTimeout;
 
+    TDuration JobProberRpcTimeout;
+
     int CacheStickyGroupSizeOverride;
 
     ssize_t MaxRequestWindowSize;
