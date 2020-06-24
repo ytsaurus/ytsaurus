@@ -302,6 +302,12 @@ public:
     //! Maximum number of heavy columns in chunk approximate statistics.
     int MaxHeavyColumns;
 
+    //! Deprecated codec ids, used values from yt/core/compression by default.
+    std::optional<THashSet<NCompression::ECodec>> DeprecatedCodecIds;
+
+    //! Deprecated codec names and their alises, used values from yt/core/compression by default.
+    std::optional<THashMap<TString, TString>> DeprecatedCodecNameToAlias;
+
     TDynamicChunkManagerConfig()
     {
         RegisterParameter("enable_chunk_replicator", EnableChunkReplicator)
@@ -407,6 +413,12 @@ public:
         RegisterParameter("max_heavy_columns", MaxHeavyColumns)
             .Default(30)
             .GreaterThanOrEqual(0);
+
+        RegisterParameter("deprecated_codec_ids", DeprecatedCodecIds)
+            .Default();
+    
+        RegisterParameter("deprecated_codec_name_to_alias", DeprecatedCodecNameToAlias)
+            .Default();
 
         RegisterPreprocessor([&] () {
             JobThrottler->Limit = 10000;

@@ -466,5 +466,27 @@ ICodec* GetCodec(ECodec id)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+THashSet<ECodec> GetDeprecatedCodecIds()
+{
+    return {ECodec::ZstdLegacy};
+}
+
+THashMap<TString, TString> GetDeprecatedCodecNameToAlias()
+{
+    static THashMap<TString, TString> deprecatedCodecNameToAlias = {
+        {"zlib6", FormatEnum(ECodec::Zlib_6)},
+        {"gzip_normal", FormatEnum(ECodec::Zlib_6)},
+        {"zlib9", FormatEnum(ECodec::Zlib_9)},
+        {"gzip_best_compression", FormatEnum(ECodec::Zlib_9)},
+        {"zstd", FormatEnum(ECodec::Zstd_3)},
+        {"brotli3", FormatEnum(ECodec::Brotli_3)},
+        {"brotli5", FormatEnum(ECodec::Brotli_5)},
+        {"brotli8", FormatEnum(ECodec::Brotli_8)}};
+
+    return deprecatedCodecNameToAlias;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCompression
 

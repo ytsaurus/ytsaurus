@@ -1991,6 +1991,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
     // pertains to, and these attributes may be modified virtually independently.
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
+    const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
 
     auto throwReplicationFactorMismatch = [&] (int mediumIndex) {
         const auto& medium = chunkManager->GetMediumByIndexOrThrow(mediumIndex);
@@ -2115,8 +2116,8 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             return true; \
 
         // Can't use FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE here as
-        // replication_factor is "simple" yet must be handled separately.
-        XX(CompressionCodec, compression_codec)
+        // replication_factor is "simple" yet must be handled separately,
+        // and we have non-standard processing for "compression_codec".
         XX(ErasureCodec, erasure_codec)
         XX(Vital, vital)
         XX(Atomicity, atomicity)
@@ -2124,6 +2125,16 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
         XX(InMemoryMode, in_memory_mode)
         XX(OptimizeFor, optimize_for)
 #undef XX
+
+        case EInternedAttributeKey::CompressionCodec: {
+            ValidateNoTransaction();
+            ValidateCompressionCodec(
+                value,
+                chunkManagerConfig->DeprecatedCodecIds,
+                chunkManagerConfig->DeprecatedCodecNameToAlias);
+            node->SetCompressionCodec(ConvertTo<NCompression::ECodec>(value));
+            return true;
+        }
 
         default:
             break;
@@ -2271,9 +2282,25 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
         return; \
     }
 
-    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
+    XX(ErasureCodec, erasure_codec)
+    XX(ReplicationFactor, replication_factor)
+    XX(Vital, vital)
+    XX(Atomicity, atomicity)
+    XX(CommitOrdering, commit_ordering)
+    XX(InMemoryMode, in_memory_mode)
+    XX(OptimizeFor, optimize_for)
 
 #undef XX
+
+    if (key == "compression_codec") {
+        const auto& chunkManagerConfig = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+        ValidateCompressionCodec(
+            value,
+            chunkManagerConfig->DeprecatedCodecIds,
+            chunkManagerConfig->DeprecatedCodecNameToAlias);
+        InheritedAttributes_.CompressionCodec = ConvertTo<NCompression::ECodec>(value);
+        return;
+    }
 
     if (key == "primary_medium") {
         const auto& chunkManager = Bootstrap_->GetChunkManager();

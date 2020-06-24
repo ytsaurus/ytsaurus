@@ -32,6 +32,10 @@ struct ICodec
 //! Returns a codec for the registered id.
 ICodec* GetCodec(ECodec id);
 
+//! Deprecated codecs information.
+THashSet<ECodec> GetDeprecatedCodecIds();
+THashMap<TString, TString> GetDeprecatedCodecNameToAlias();
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCompression

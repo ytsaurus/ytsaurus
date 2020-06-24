@@ -109,6 +109,11 @@ NObjectClient::TObjectId MakeCypressShardId(
 
 TString SuggestCypressShardName(TCypressShard* shard);
 
+void ValidateCompressionCodec(
+    const NYson::TYsonString& value,
+    const std::optional<THashSet<NCompression::ECodec>>& configuredDeprecatedCodecIds,
+    const std::optional<THashMap<TString, TString>>& configuredDeprecatedCodecNameToAlias);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
