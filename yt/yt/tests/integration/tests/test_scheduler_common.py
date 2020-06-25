@@ -1808,13 +1808,13 @@ class TestEventLog(YTEnvSetup):
             command='cat; bash -c "for (( I=0 ; I<=100*1000 ; I++ )) ; do echo $(( I+I*I )); done; sleep 2" >/dev/null')
 
         statistics = get(op.get_path() + "/@progress/job_statistics")
-        assert get_statistics(statistics, "user_job.cpu.user.$.completed.map.sum") > 0
-        assert get_statistics(statistics, "user_job.block_io.bytes_read.$.completed.map.sum") is not None
-        assert get_statistics(statistics, "user_job.current_memory.rss.$.completed.map.count") > 0
-        assert get_statistics(statistics, "user_job.max_memory.$.completed.map.count") > 0
-        assert get_statistics(statistics, "user_job.cumulative_memory_mb_sec.$.completed.map.count") > 0
-        assert get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1
-        assert get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1
+        wait(lambda: get_statistics(statistics, "user_job.cpu.user.$.completed.map.sum") > 0)
+        wait(lambda: get_statistics(statistics, "user_job.block_io.bytes_read.$.completed.map.sum") is not None)
+        wait(lambda: get_statistics(statistics, "user_job.current_memory.rss.$.completed.map.count") > 0)
+        wait(lambda: get_statistics(statistics, "user_job.max_memory.$.completed.map.count") > 0)
+        wait(lambda: get_statistics(statistics, "user_job.cumulative_memory_mb_sec.$.completed.map.count") > 0)
+        wait(lambda: get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1)
+        wait(lambda: get_statistics(statistics, "job_proxy.cpu.user.$.completed.map.count") == 1)
 
         # wait for scheduler to dump the event log
         def check():
