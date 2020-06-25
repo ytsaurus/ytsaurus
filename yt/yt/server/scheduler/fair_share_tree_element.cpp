@@ -255,15 +255,13 @@ void TSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
 {
     YT_VERIFY(Mutable_);
 
-    LimitsShare_ = TResourceVector::FromDouble(MinComponent(TResourceVector::FromJobResources(
-        Min(ResourceLimits_, TotalResourceLimits_),
-        TotalResourceLimits_,
-        /* zeroDivByZero */ 1.0,
-        /* oneDivByZero */ 1.0)));
-    YT_VERIFY(Dominates(TResourceVector::Ones(), LimitsShare_));
-    YT_VERIFY(Dominates(LimitsShare_, TResourceVector::Zero()));
-
     UpdateAttributes();
+}
+
+void TSchedulerElement::UpdateMinShare(TUpdateFairShareContext* /* context */)
+{
+    // NB(eshcherbin): We assume that at this point min share is already computed.
+    YT_VERIFY(Dominates(Attributes_.LimitsShare, Attributes_.MinShare));
 }
 
 void TSchedulerElement::UpdatePreemption(TUpdateFairShareContext* context)
@@ -314,7 +312,9 @@ void TSchedulerElement::UpdateAttributes()
 {
     YT_VERIFY(Mutable_);
 
-    auto limitedResourceDemand = Min(TotalResourceLimits_, LimitedResourceDemand_);
+    Attributes_.LimitsShare = ComputeLimitsShare();
+    YT_VERIFY(Dominates(TResourceVector::Ones(), Attributes_.LimitsShare));
+    YT_VERIFY(Dominates(Attributes_.LimitsShare, TResourceVector::Zero()));
 
     if (ResourceUsageAtUpdate_ == TJobResources()) {
         Attributes_.DominantResource = GetDominantResource(ResourceDemand_, TotalResourceLimits_);
@@ -325,12 +325,6 @@ void TSchedulerElement::UpdateAttributes()
     Attributes_.UsageShare = TResourceVector::FromJobResources(ResourceUsageAtUpdate_, TotalResourceLimits_, 0, 1);
     Attributes_.DemandShare = TResourceVector::FromJobResources(ResourceDemand_, TotalResourceLimits_, 0, 1);
     YT_VERIFY(Dominates(Attributes_.DemandShare, Attributes_.UsageShare));
-
-    // TODO(HDRFV): Rethink how and why PossibleUsageRatio is computed and used.
-    auto greedyAllocationResources = ComputeGreedyAllocationResources(limitedResourceDemand);
-    Attributes_.PossibleUsageShare = TResourceVector::Min(
-        TResourceVector::FromJobResources(greedyAllocationResources, TotalResourceLimits_, 0, 1),
-        GetMaxShare());
 }
 
 const TSchedulingTagFilter& TSchedulerElement::GetSchedulingTagFilter() const
@@ -359,7 +353,6 @@ TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributes& 
         "Satisfaction: %.4lg, "
         "AdjustedMinShare: %.6v, "
         "UnlimitedDemandFairShare: %.6v, "
-        "PossibleUsageRatio: %.6v,  "
         "Starving: %v, "
         "Weight: %v",
         GetStatus(),
@@ -370,7 +363,6 @@ TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributes& 
         dynamicAttributes.SatisfactionRatio,
         Attributes_.AdjustedMinShare,
         Attributes_.UnlimitedDemandFairShare,
-        Attributes_.PossibleUsageShare,
         GetStarving(),
         GetWeight());
 }
@@ -723,6 +715,15 @@ TJobResources TSchedulerElement::GetTotalResourceLimits() const
     return TotalResourceLimits_;
 }
 
+TResourceVector TSchedulerElement::ComputeLimitsShare() const
+{
+    return TResourceVector::FromJobResources(
+        Min(ResourceLimits_, TotalResourceLimits_),
+        TotalResourceLimits_,
+        /* zeroDivByZero */ 1.0,
+        /* oneDivByZero */ 1.0);
+}
+
 double TSchedulerElement::GetBestAllocationRatio() const
 {
     // NB(eshcherbin): Best allocation ratio only makes sense for operation elements in vector strategy.
@@ -732,11 +733,9 @@ double TSchedulerElement::GetBestAllocationRatio() const
 
 TResourceVector TSchedulerElement::GetVectorSuggestion(double suggestion) const
 {
-    // TODO(ignat): move this YT_VERIFY to another place.
-    YT_VERIFY(Dominates(LimitsShare_, Attributes().MinShare));
     TResourceVector vectorSuggestion = TResourceVector::FromDouble(suggestion);
     vectorSuggestion = TResourceVector::Max(vectorSuggestion, Attributes().MinShare);
-    vectorSuggestion = TResourceVector::Min(vectorSuggestion, LimitsShare_);
+    vectorSuggestion = TResourceVector::Min(vectorSuggestion, Attributes().LimitsShare);
     return vectorSuggestion;
 }
 
@@ -819,7 +818,7 @@ void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext*
         auto fsbffComponent = NDetail::ExtractComponent(r, *FairShareByFitFactor_);
         YT_VERIFY(fsbffComponent.IsTrimmed());
 
-        double limit = std::min(LimitsShare_[r], fsbffComponent.RightFunctionValue());
+        double limit = std::min(Attributes().LimitsShare[r], fsbffComponent.RightFunctionValue());
 
         double guarantee = Attributes().MinShare[r];
         guarantee = std::max(guarantee, fsbffComponent.LeftFunctionValue());
@@ -1049,10 +1048,8 @@ void TCompositeSchedulerElement::UpdateBottomUp(TDynamicAttributesList* dynamicA
         }
 
         PendingJobCount_ += child->GetPendingJobCount();
-        limitedResourceDemand += child->LimitedResourceDemand();
     }
 
-    LimitedResourceDemand_ = Min(limitedResourceDemand, ResourceLimits_);
     TSchedulerElement::UpdateBottomUp(dynamicAttributesList, context);
 }
 
@@ -1090,19 +1087,6 @@ void TCompositeSchedulerElement::UpdateDynamicAttributes(
     }
 
     TSchedulerElement::UpdateDynamicAttributes(dynamicAttributesList, context);
-}
-
-TJobResources TCompositeSchedulerElement::ComputeGreedyAllocationResources(TJobResources limit) const
-{
-    TJobResources additionalResources;
-
-    for (const auto& child : EnabledChildren_) {
-        auto childResources = child->ComputeGreedyAllocationResources(limit);
-        limit -= childResources;
-        additionalResources += childResources;
-    }
-
-    return additionalResources;
 }
 
 double TCompositeSchedulerElement::GetFairShareStarvationToleranceLimit() const
@@ -1411,8 +1395,9 @@ void TCompositeSchedulerElement::UpdateMinShare(TUpdateFairShareContext* context
     for (const auto& child : EnabledChildren_) {
         child->UpdateMinShare(context);
     }
-}
 
+    TSchedulerElement::UpdateMinShare(context);
+}
 
 void TCompositeSchedulerElement::UpdateMinShareFifo(TUpdateFairShareContext* context)
 {
@@ -1447,10 +1432,10 @@ void TCompositeSchedulerElement::UpdateMinShareNormal(TUpdateFairShareContext* c
         // NB: Semantics of this MinShare differs from the original one.
         childAttributes.MinShare = TResourceVector::FromDouble(minShareRatioByResources);
 
-        // RecursiveMinShare must not be greater than LimitsShare_
+        // RecursiveMinShare must not be greater than LimitsShare.
         childAttributes.MinShare = TResourceVector::Min(
             childAttributes.MinShare,
-            child->LimitsShare_);
+            childAttributes.LimitsShare);
 
         if (child->IsOperation()) {
             minShareSumForOperations += childAttributes.MinShare;
@@ -1511,7 +1496,7 @@ void TCompositeSchedulerElement::UpdateMinShareNormal(TUpdateFairShareContext* c
             auto result = TResourceVector::FromDouble(fitFactor * child->GetWeight() / minWeight);
             // Never give less than promised by min share.
             result = TResourceVector::Max(result, childAttributes.MinShare);
-            result = TResourceVector::Min(result, child->LimitsShare());
+            result = TResourceVector::Min(result, childAttributes.LimitsShare);
             return result;
         },
         [&] (const TSchedulerElementPtr& child, TResourceVector value) {
@@ -2839,26 +2824,23 @@ void TOperationElement::UpdateBottomUp(TDynamicAttributesList* dynamicAttributes
 {
     YT_VERIFY(Mutable_);
 
-    PendingJobCount_ = ComputePendingJobCount();
-    LimitedResourceDemand_ = Min(ResourceLimits_, ResourceDemand_);
-
-    // It should be called after update of ResourceDemand_ and LimitedResourceDemand_ since
-    // these fields are used to calculate dominant resource.
-    TSchedulerElement::UpdateBottomUp(dynamicAttributesList, context);
-
     if (PersistentAttributes_.LastBestAllocationRatioUpdateTime + TreeConfig_->BestAllocationRatioUpdatePeriod > context->Now) {
         auto allocationLimits = GetAdjustedResourceLimits(
             ResourceDemand_,
             TotalResourceLimits_,
             GetHost()->GetExecNodeMemoryDistribution(SchedulingTagFilter_ & TreeConfig_->NodesFilter));
-        PersistentAttributes_.BestAllocationShare = TResourceVector::Max(
-            Attributes_.UsageShare,
-            TResourceVector::FromJobResources(allocationLimits, TotalResourceLimits_, 0, 1));
+        PersistentAttributes_.BestAllocationShare = TResourceVector::FromJobResources(
+            allocationLimits,
+            TotalResourceLimits_,
+            /* zeroDivByZero */ 0.0,
+            /* oneDivByZero */ 1.0);
         PersistentAttributes_.LastBestAllocationRatioUpdateTime = context->Now;
     }
 
-    RemainingDemandShare_ = Attributes_.DemandShare - Attributes_.UsageShare;
-    YT_VERIFY(Dominates(RemainingDemandShare_, TResourceVector::Zero()));
+    // This should be called after BestAllocationShare update since it is used to compute the limits.
+    TSchedulerElement::UpdateBottomUp(dynamicAttributesList, context);
+
+    PendingJobCount_ = ComputePendingJobCount();
 
     if (!IsSchedulable()) {
         (*dynamicAttributesList)[GetTreeIndex()].Active = false;
@@ -2887,9 +2869,6 @@ void TOperationElement::UpdatePreemption(TUpdateFairShareContext* context)
 
     UpdatePreemptableJobsList();
 }
-
-void TOperationElement::UpdateMinShare(TUpdateFairShareContext* context)
-{ }
 
 void TOperationElement::PrepareFairShareByFitFactor(TUpdateFairShareContext* context)
 {
@@ -2927,26 +2906,7 @@ void TOperationElement::PrepareFairShareByFitFactor(TUpdateFairShareContext* con
     }
 
     // After that we just give fair share proportionally to the remaining demand.
-    double maxRemainingDemandFitFactor = 1.0;
-    for (int r = 0; r < ResourceCount; ++r) {
-        if (RemainingDemandShare_[r] < RatioComputationPrecision) {
-            continue;
-        }
-
-        if (PersistentAttributes_.BestAllocationShare[r] - Attributes_.UsageShare[r] < RemainingDemandShare_[r]) {
-            maxRemainingDemandFitFactor = std::min(
-                maxRemainingDemandFitFactor,
-                (PersistentAttributes_.BestAllocationShare[r] - Attributes_.UsageShare[r]) / RemainingDemandShare_[r]);
-        }
-    }
-
-    TResourceVector rightBoundValue = Attributes_.UsageShare + RemainingDemandShare_ * maxRemainingDemandFitFactor;
-    if (maxRemainingDemandFitFactor > 0.0) {
-        builder.PushSegment({1.0, Attributes_.UsageShare}, {1.0 + maxRemainingDemandFitFactor, rightBoundValue});
-    }
-    if (maxRemainingDemandFitFactor < 1.0) {
-        builder.PushSegment({1.0 + maxRemainingDemandFitFactor, rightBoundValue}, {2.0, rightBoundValue});
-    }
+    builder.PushSegment({{1.0, Attributes_.UsageShare}, {2.0, Attributes_.DemandShare}});
 
     FairShareByFitFactor_ = builder.Finish();
 }
@@ -2977,23 +2937,6 @@ TResourceVector TOperationElement::DoUpdateFairShare(double suggestion, TUpdateF
         fsbffSegment.LeftBound(), fsbffSegment.RightBound(),
         fsbffSegment.LeftValue(), fsbffSegment.RightValue());
     return usedFairShare;
-}
-
-TJobResources TOperationElement::ComputeGreedyAllocationResources(TJobResources limit) const
-{
-    auto usage = ResourceUsageAtUpdate();
-    if (!Dominates(limit, usage)) {
-        return usage * GetMinResourceRatio(limit, usage);
-    } else {
-        auto remainingDemand = ResourceDemand() - usage;
-        if (remainingDemand == TJobResources()) {
-            return usage;
-        }
-
-        auto remainingLimit = Max({}, limit - usage);
-        // TODO(asaitgalin): Move this to MaxPossibleResourceUsage computation.
-        return Min(ResourceDemand(), usage + remainingDemand * GetMinResourceRatio(remainingLimit, remainingDemand));
-    }
 }
 
 bool TOperationElement::HasJobsSatisfyingResourceLimits(const TFairShareContext& context) const
@@ -3450,6 +3393,11 @@ std::optional<int> TOperationElement::GetMaybeSlotIndex() const
 TString TOperationElement::GetUserName() const
 {
     return UserName_;
+}
+
+TResourceVector TOperationElement::ComputeLimitsShare() const
+{
+    return TResourceVector::Min(TSchedulerElement::ComputeLimitsShare(), PersistentAttributes_.BestAllocationShare);
 }
 
 double TOperationElement::GetBestAllocationRatio() const
