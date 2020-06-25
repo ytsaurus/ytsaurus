@@ -177,7 +177,7 @@ test_codec()
 
     # We cannot write to existing table with replication factor
     $MAPREDUCE_YT -drop "ignat/temp"
-    $MAPREDUCE_YT -write "ignat/temp" -codec "zlib9" -replicationfactor 5 <table_file
+    $MAPREDUCE_YT -write "ignat/temp" -codec "zlib_9" -replicationfactor 5 <table_file
     check 5 "`$MAPREDUCE_YT -get "ignat/temp/@replication_factor"`"
 }
 
