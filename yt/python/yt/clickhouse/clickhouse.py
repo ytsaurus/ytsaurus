@@ -220,7 +220,7 @@ def prepare_artifacts(artifact_path,
                 logger.info("Dumping %s into %s", table_path, new_path)
                 copy(table_path, new_path, client=client)
 
-    log_tailer_version = get(cypress_ytserver_log_tailer_path + "/@yt_version") if cypress_ytserver_log_tailer_path else ""
+    log_tailer_version = get(cypress_ytserver_log_tailer_path + "/@yt_version", client=client) if cypress_ytserver_log_tailer_path else ""
 
     for log_file in log_tailer_config.get("log_tailer", {}).get("log_files", []):
         prepare_log_tailer_tables(log_file, artifact_path, log_tailer_version=log_tailer_version, client=client,
