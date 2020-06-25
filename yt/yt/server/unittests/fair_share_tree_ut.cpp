@@ -539,7 +539,7 @@ TEST_F(TFairShareTreeTest, TestAttributes)
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
         rootElement->Update(&dynamicAttributes, &updateContext);
 
-        TResourceVector operationDemand = TResourceVector::FromJobResources(jobResources, nodeResources, 0, 1);
+        TResourceVector operationDemand = TResourceVector::FromJobResources(jobResources, nodeResources, 0.0, 1.0);
         EXPECT_EQ(operationDemand, rootElement->Attributes().DemandShare);
         EXPECT_EQ(operationDemand, poolA->Attributes().DemandShare);
         EXPECT_EQ(TResourceVector::Zero(), poolB->Attributes().DemandShare);
@@ -574,6 +574,83 @@ TEST_F(TFairShareTreeTest, TestAttributes)
     }
 }
 
+TEST_F(TFairShareTreeTest, TestResourceLimits)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(10);
+    nodeResources.SetCpu(10);
+    nodeResources.SetMemory(100);
+
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(1, nodeResources));
+
+    auto rootElement = CreateTestRootElement(host.Get());
+
+    auto poolA = CreateTestPool(host.Get(), "PoolA");
+    poolA->AttachParent(rootElement.Get());
+
+    auto poolB = CreateTestPool(host.Get(), "PoolB");
+    poolB->AttachParent(poolA.Get());
+
+    {
+        TDynamicAttributesList dynamicAttributes = {};
+        TUpdateFairShareContext updateContext;
+
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(TResourceVector::Ones(), rootElement->Attributes().LimitsShare);
+        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
+
+        EXPECT_EQ(TResourceVector::Ones(), poolA->Attributes().LimitsShare);
+        EXPECT_EQ(nodeResources.ToJobResources(), poolA->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
+
+        EXPECT_EQ(TResourceVector::Ones(), poolB->Attributes().LimitsShare);
+        EXPECT_EQ(nodeResources.ToJobResources(), poolB->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), poolB->GetTotalResourceLimits());
+    }
+
+    TJobResources poolAResourceLimits;
+    poolAResourceLimits.SetUserSlots(6);
+    poolAResourceLimits.SetCpu(7);
+    poolAResourceLimits.SetMemory(80);
+
+    auto poolAConfig = poolA->GetConfig();
+    poolAConfig->ResourceLimits->UserSlots = poolAResourceLimits.GetUserSlots();
+    poolAConfig->ResourceLimits->Cpu = static_cast<double>(poolAResourceLimits.GetCpu());
+    poolAConfig->ResourceLimits->Memory = poolAResourceLimits.GetMemory();
+    poolA->SetConfig(poolAConfig);
+
+    const double maxShareRatio = 0.9;
+    auto poolBConfig = poolB->GetConfig();
+    poolBConfig->MaxShareRatio = maxShareRatio;
+    poolB->SetConfig(poolBConfig);
+
+    {
+        TDynamicAttributesList dynamicAttributes = {};
+        TUpdateFairShareContext updateContext;
+
+        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+        rootElement->Update(&dynamicAttributes, &updateContext);
+
+        EXPECT_EQ(TResourceVector::Ones(), rootElement->Attributes().LimitsShare);
+        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
+
+        auto poolALimitsShare = TResourceVector::FromJobResources(poolAResourceLimits, nodeResources, 1.0, 1.0);
+        EXPECT_EQ(poolALimitsShare, poolA->Attributes().LimitsShare);
+        EXPECT_EQ(poolAResourceLimits, poolA->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
+
+        auto poolBResourceLimits = nodeResources * maxShareRatio;
+        auto poolBLimitsShare = TResourceVector::FromJobResources(poolBResourceLimits, nodeResources, 1.0, 1.0);
+        EXPECT_EQ(poolBLimitsShare, poolB->Attributes().LimitsShare);
+        EXPECT_EQ(poolBResourceLimits, poolB->ResourceLimits());
+        EXPECT_EQ(nodeResources.ToJobResources(), poolB->GetTotalResourceLimits());
+    }
+}
+
 TEST_F(TFairShareTreeTest, TestFractionalResourceLimits)
 {
     TJobResourcesWithQuota nodeResources;
@@ -587,22 +664,6 @@ TEST_F(TFairShareTreeTest, TestFractionalResourceLimits)
 
     auto poolA = CreateTestPool(host.Get(), "PoolA");
     poolA->AttachParent(rootElement.Get());
-
-    {
-        TDynamicAttributesList dynamicAttributes = {};
-        TUpdateFairShareContext updateContext;
-
-        rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-        rootElement->Update(&dynamicAttributes, &updateContext);
-
-        EXPECT_EQ(TResourceVector::Ones(), rootElement->LimitsShare());
-        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->ResourceLimits());
-        EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
-
-        EXPECT_EQ(TResourceVector::Ones(), poolA->LimitsShare());
-        EXPECT_EQ(nodeResources.ToJobResources(), poolA->ResourceLimits());
-        EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
-    }
 
     const double maxShareRatio = 0.99;
 
@@ -622,11 +683,12 @@ TEST_F(TFairShareTreeTest, TestFractionalResourceLimits)
         rootElement->PreUpdate(&dynamicAttributes, &updateContext);
         rootElement->Update(&dynamicAttributes, &updateContext);
 
-        EXPECT_EQ(TResourceVector::Ones(), rootElement->LimitsShare());
+        EXPECT_EQ(TResourceVector::Ones(), rootElement->Attributes().LimitsShare);
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->ResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), rootElement->GetTotalResourceLimits());
 
-        EXPECT_EQ(TResourceVector::FromDouble(maxShareRatio), poolA->LimitsShare());
+        auto poolLimitsShare = TResourceVector::FromJobResources(poolResourceLimits, nodeResources, 1.0, 1.0);
+        EXPECT_EQ(poolLimitsShare, poolA->Attributes().LimitsShare);
         EXPECT_EQ(poolResourceLimits.ToJobResources(), poolA->ResourceLimits());
         EXPECT_EQ(nodeResources.ToJobResources(), poolA->GetTotalResourceLimits());
     }
@@ -724,11 +786,13 @@ TEST_F(TFairShareTreeTest, TestBestAllocationShare)
     rootElement->Update(&dynamicAttributes, &updateContext);
 
     auto totalResources = nodeResourcesA * 2. + nodeResourcesB;
-    auto demandShare = TResourceVector::FromJobResources(jobResources * 3., totalResources, 0, 1);
-    auto fairShare = TResourceVector::FromJobResources(jobResources, totalResources, 0, 1);
+    auto demandShare = TResourceVector::FromJobResources(jobResources * 3., totalResources, 0.0, 1.0);
+    auto fairShare = TResourceVector::FromJobResources(jobResources, totalResources, 0.0, 1.0);
     EXPECT_EQ(demandShare, operationElementX->Attributes().DemandShare);
     EXPECT_EQ(0.375, operationElementX->PersistentAttributes().BestAllocationShare[EJobResourceType::Memory]);
-    EXPECT_EQ(fairShare, operationElementX->Attributes().FairShare);
+    EXPECT_THAT(
+        fairShare,
+        ResourceVectorNear(operationElementX->Attributes().FairShare, 1e-7));
 }
 
 TEST_F(TFairShareTreeTest, TestOperationCountLimits)
@@ -767,54 +831,6 @@ TEST_F(TFairShareTreeTest, TestOperationCountLimits)
 
     EXPECT_EQ(0, rootElement->OperationCount());
     EXPECT_EQ(0, rootElement->RunningOperationCount());
-}
-
-TEST_F(TFairShareTreeTest, TestPossibleUsageShareWithoutLimit)
-{
-    auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-    operationOptions->Weight = 1.0;
-
-    // Total resource vector is <100, 100>.
-    TJobResourcesWithQuota nodeResources;
-    nodeResources.SetCpu(100);
-    nodeResources.SetMemory(100);
-    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList({nodeResources}));
-
-    // First operation with demand <5, 5>.
-    TJobResourcesWithQuota firstOperationJobResources;
-    firstOperationJobResources.SetCpu(5);
-    firstOperationJobResources.SetMemory(5);
-
-    auto firstOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, firstOperationJobResources));
-    auto firstOperationElement = CreateTestOperationElement(host.Get(), operationOptions, firstOperation.Get());
-
-    // Second operation with demand <5, 10>.
-    TJobResourcesWithQuota secondOperationJobResources;
-    secondOperationJobResources.SetCpu(5);
-    secondOperationJobResources.SetMemory(10);
-
-    auto secondOperation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, secondOperationJobResources));
-    auto secondOperationElement = CreateTestOperationElement(host.Get(), operationOptions, secondOperation.Get());
-
-    // Pool with total demand <10, 15>.
-    auto pool = CreateTestPool(host.Get(), "PoolA");
-
-    // Root element.
-    auto rootElement = CreateTestRootElement(host.Get());
-    pool->AttachParent(rootElement.Get());
-
-    firstOperationElement->AttachParent(pool.Get(), true);
-    secondOperationElement->AttachParent(pool.Get(), true);
-
-    // Check PossibleUsage computation.
-    TDynamicAttributesList dynamicAttributes = {};
-
-    TUpdateFairShareContext updateContext;
-    rootElement->PreUpdate(&dynamicAttributes, &updateContext);
-    rootElement->Update(&dynamicAttributes, &updateContext);
-    EXPECT_EQ(
-        TResourceVector::FromJobResources(firstOperationJobResources + secondOperationJobResources, nodeResources, 0, 1),
-        pool->Attributes().PossibleUsageShare);
 }
 
 TEST_F(TFairShareTreeTest, DontSuggestMoreResourcesThanOperationNeeds)

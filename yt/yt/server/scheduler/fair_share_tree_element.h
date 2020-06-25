@@ -46,10 +46,10 @@ struct TSchedulableAttributes
     TResourceVector FairShare = {};
     TResourceVector UsageShare = {};
     TResourceVector DemandShare = {};
+    TResourceVector LimitsShare = TResourceVector::Ones();
     TResourceVector MinShare = {};
     TResourceVector AdjustedMinShare = {};
     TResourceVector UnlimitedDemandFairShare = {};
-    TResourceVector PossibleUsageShare = TResourceVector::Ones();
 
     int FifoIndex = -1;
 
@@ -59,6 +59,7 @@ struct TSchedulableAttributes
 
     // Set of methods for compatibility with the classic scheduler.
 
+    // TODO(eshcherbin): Use <Attribute>[Attributes_.DominantResource] instead of MaxComponent[<Attribute>] here and below.
     double GetFairShareRatio() const
     {
         return MaxComponent(FairShare);
@@ -87,7 +88,8 @@ struct TSchedulableAttributes
 
     double GetPossibleUsageRatio() const
     {
-        return MaxComponent(PossibleUsageShare);
+        // NB(eshcherbin): For compatibility.
+        return MaxComponent(DemandShare);
     }
 
     TResourceVector GetUnlimitedDemandFairShare() const
@@ -232,8 +234,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceDemand);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsageAtUpdate);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits, TJobResources::Infinite());
-    DEFINE_BYREF_RO_PROPERTY(TResourceVector, LimitsShare, TResourceVector::Ones());
-    DEFINE_BYREF_RO_PROPERTY(TJobResources, LimitedResourceDemand);
     DEFINE_BYREF_RW_PROPERTY(TSchedulableAttributes, Attributes);
     DEFINE_BYREF_RW_PROPERTY(TPersistentAttributes, PersistentAttributes);
     DEFINE_BYVAL_RW_PROPERTY(int, SchedulingTagFilterIndex, EmptySchedulingTagFilterIndex);
@@ -309,8 +309,6 @@ public:
     virtual void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
         TUpdateFairShareContext* context);
-
-    virtual TJobResources ComputeGreedyAllocationResources(TJobResources limit) const = 0;
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList);
 
@@ -393,7 +391,7 @@ public:
 
     const NLogging::TLogger& GetLogger() const;
 
-    virtual void UpdateMinShare(TUpdateFairShareContext* context) = 0;
+    virtual void UpdateMinShare(TUpdateFairShareContext* context);
 
     virtual void PrepareUpdateFairShare(TUpdateFairShareContext* context);
 
@@ -413,6 +411,7 @@ public:
     TJobResources ComputeTotalResourcesOnSuitableNodes() const;
 
     TJobResources ComputeResourceLimits() const;
+    virtual TResourceVector ComputeLimitsShare() const;
 
     TJobResources GetTotalResourceLimits() const;
 
@@ -524,8 +523,6 @@ public:
     virtual void UpdateDynamicAttributes(
         TDynamicAttributesList* dynamicAttributesList,
         TUpdateFairShareContext* context) override;
-
-    virtual TJobResources ComputeGreedyAllocationResources(TJobResources limit) const override;
 
     virtual double GetFairShareStarvationToleranceLimit() const;
     virtual TDuration GetMinSharePreemptionTimeoutLimit() const;
@@ -743,9 +740,6 @@ DEFINE_REFCOUNTED_TYPE(TPool)
 
 class TOperationElementFixedState
 {
-public:
-    DEFINE_BYREF_RO_PROPERTY(TResourceVector, RemainingDemandShare);
-
 protected:
     TOperationElementFixedState(
         IOperationStrategyHost* operation,
@@ -931,8 +925,6 @@ public:
     virtual void UpdateBottomUp(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
     virtual void UpdatePreemption(TUpdateFairShareContext* context) override;
 
-    virtual void UpdateMinShare(TUpdateFairShareContext* context) override;
-
     virtual void PrepareFairShareByFitFactor(TUpdateFairShareContext* context) override;
 
     virtual TResourceVector DoUpdateFairShare(double suggestion, TUpdateFairShareContext* context) override;
@@ -940,8 +932,6 @@ public:
     virtual bool IsOperation() const override;
 
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
-
-    virtual TJobResources ComputeGreedyAllocationResources(TJobResources limit) const override;
 
     virtual void UpdateDynamicAttributes(TDynamicAttributesList* dynamicAttributesList) override;
 
@@ -992,6 +982,8 @@ public:
     TString GetUserName() const;
 
     bool DetailedLogsEnabled() const;
+
+    virtual TResourceVector ComputeLimitsShare() const override;
 
     virtual double GetBestAllocationRatio() const override;
 
