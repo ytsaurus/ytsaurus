@@ -39,14 +39,16 @@ struct IInstance
     virtual TResourceUsage GetResourceUsage(const std::vector<EStatField>& fields) const = 0;
     virtual TResourceLimits GetResourceLimits() const = 0;
     virtual TResourceLimits GetResourceLimitsRecursive() const = 0;
-    virtual void SetCpuShare(double cores) = 0;
+    virtual void SetCpuGuarantee(double cores) = 0;
     virtual void SetCpuLimit(double cores) = 0;
+    virtual void SetCpuWeight(double weight) = 0;
     virtual void SetIOWeight(double weight) = 0;
     virtual void SetIOThrottle(i64 operations) = 0;
     virtual void SetMemoryGuarantee(i64 memoryGuarantee) = 0;
     virtual void SetDevices(const std::vector<TDevice>& devices) = 0;
     virtual TString GetName() const = 0;
     virtual TString GetAbsoluteName() const = 0;
+    virtual TString GetParentName() const = 0;
     virtual TString GetStderr() const = 0;
     virtual void SetEnablePorto(EEnablePorto enablePorto) = 0;
     virtual void SetIsolate(bool isolate) = 0;

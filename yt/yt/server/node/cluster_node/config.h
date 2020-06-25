@@ -87,6 +87,10 @@ public:
     // COMPAT(gritukan): Drop optional after configs migration.
     std::optional<double> CpuPerTabletSlot;
 
+    double NodeCpuWeight;
+
+    i64 MemoryAccountingTolerance;
+
     TResourceLimitsConfig()
     {
         // Very low default, override for production use.
@@ -115,6 +119,15 @@ public:
         RegisterParameter("cpu_per_tablet_slot", CpuPerTabletSlot)
             .Default();
 
+        RegisterParameter("node_cpu_weight", NodeCpuWeight)
+            .GreaterThanOrEqual(0.01)
+            .LessThanOrEqual(100)
+            .Default(10);
+
+        RegisterParameter("memory_accounting_tolerance", MemoryAccountingTolerance)
+            .GreaterThan(0)
+            .LessThanOrEqual(1_GB)
+            .Default(1_MB);
     }
 };
 

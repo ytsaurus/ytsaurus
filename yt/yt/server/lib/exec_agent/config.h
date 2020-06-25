@@ -79,6 +79,10 @@ public:
 
     bool TestNetwork;
 
+    // COMPAT(psushin): this is compatibility option between different versions of ytcfgen and yt_node.
+    //! Used by ytcfgen, when it creates "yt_daemon" subcontainer inside iss_hook_start.
+    bool UseDaemonSubcontainer;
+
     TPortoJobEnvironmentConfig()
     {
         RegisterParameter("porto_executor", PortoExecutor)
@@ -100,6 +104,9 @@ public:
             .Default(false);
 
         RegisterParameter("test_network", TestNetwork)
+            .Default(false);
+
+        RegisterParameter("use_daemon_subcontainter", UseDaemonSubcontainer)
             .Default(false);
     }
 };

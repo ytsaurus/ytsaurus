@@ -40,11 +40,4 @@ DEFINE_REFCOUNTED_TYPE(TInstanceLimitsTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInstanceLimitsTrackerPtr CreateSelfPortoInstanceLimitsTracker(
-    IPortoExecutorPtr executor,
-    IInvokerPtr invoker,
-    TDuration updatePeriod);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NContainers
