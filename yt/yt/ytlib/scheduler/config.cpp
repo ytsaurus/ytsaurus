@@ -79,6 +79,11 @@ const std::optional<TString>& TPoolName::GetParentPool() const
     return ParentPool;
 }
 
+const TString& TPoolName::GetSpecifiedPoolName() const
+{
+    return ParentPool ? *ParentPool : Pool;
+}
+
 TPoolName TPoolName::FromString(const TString& value)
 {
     std::vector<TString> parts;

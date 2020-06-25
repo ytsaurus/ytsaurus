@@ -60,6 +60,7 @@ public:
 
     const TString& GetPool() const;
     const std::optional<TString>& GetParentPool() const;
+    const TString& GetSpecifiedPoolName() const;
 
 private:
     TString Pool;
