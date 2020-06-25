@@ -380,7 +380,6 @@ private:
     const TPortoJobEnvironmentConfigPtr Config_;
     IPortoExecutorPtr PortoExecutor_;
 
-    IInstancePtr SelfInstance_;
     IInstancePtr MetaInstance_;
     THashMap<int, IInstancePtr> JobProxyInstances_;
 
@@ -433,10 +432,13 @@ private:
         CpuLimit_ = cpuLimit;
 
         PortoExecutor_->SubscribeFailed(portoFatalErrorHandler);
-        SelfInstance_ = GetSelfPortoInstance(PortoExecutor_);
+        auto selfInstance = GetSelfPortoInstance(PortoExecutor_);
 
         auto getMetaContainer = [&] () -> IInstancePtr {
-            auto metaInstanceName = Format("%v/%v", SelfInstance_->GetAbsoluteName(), GetDefaultJobsMetaContainerName());
+            auto baseContainer = Config_->UseDaemonSubcontainer
+                ? selfInstance->GetParentName()
+                : selfInstance->GetAbsoluteName();
+            auto metaInstanceName = Format("%v/%v", baseContainer, GetDefaultJobsMetaContainerName());
 
             try {
                 WaitFor(PortoExecutor_->DestroyContainer(metaInstanceName))

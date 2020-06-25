@@ -63,6 +63,7 @@
 #include <yt/server/lib/admin/admin_service.h>
 
 #ifdef __linux__
+#include <yt/server/lib/containers/instance.h>
 #include <yt/server/lib/containers/instance_limits_tracker.h>
 #include <yt/server/lib/containers/porto_executor.h>
 #endif
@@ -127,6 +128,7 @@
 
 #include <yt/core/misc/collection_helpers.h>
 #include <yt/core/misc/core_dumper.h>
+#include <yt/core/misc/proc.h>
 #include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
@@ -250,15 +252,43 @@ void TBootstrap::DoInitialize()
     NodeResourceManager_ = New<TNodeResourceManager>(this);
 
 #ifdef __linux__
-    if (Config_->InstanceLimitsUpdatePeriod) {
-        auto portoExecutorConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecAgent->SlotManager->JobEnvironment)->PortoExecutor;
+    if (GetEnvironmentType() == EJobEnvironmentType::Porto) {
+        auto portoEnvironmentConfig = ConvertTo<TPortoJobEnvironmentConfigPtr>(Config_->ExecAgent->SlotManager->JobEnvironment);
         auto portoExecutor = CreatePortoExecutor(
-            portoExecutorConfig,
-            "limits");
-        InstanceLimitsTracker_ = CreateSelfPortoInstanceLimitsTracker(
-            portoExecutor,
-            GetControlInvoker(),
-            *Config_->InstanceLimitsUpdatePeriod);
+            portoEnvironmentConfig->PortoExecutor,
+            "limits_tracker");
+
+        portoExecutor->SubscribeFailed(BIND([=] (const TError& error) {
+            YT_LOG_ERROR(error, "Porto executor failed");
+            auto slotManager = GetExecSlotManager();
+            if (slotManager) {
+                slotManager->Disable(error);
+            }
+        }));
+
+        auto self = GetSelfPortoInstance(portoExecutor);
+        if (Config_->InstanceLimitsUpdatePeriod) {
+            auto instance = portoEnvironmentConfig->UseDaemonSubcontainer
+                ? GetPortoInstance(portoExecutor, self->GetParentName())
+                : self;
+
+            InstanceLimitsTracker_ = New<TInstanceLimitsTracker>(
+                instance,
+                GetControlInvoker(),
+                *Config_->InstanceLimitsUpdatePeriod);
+
+            InstanceLimitsTracker_->SubscribeLimitsUpdated(BIND(&TNodeResourceManager::OnInstanceLimitsUpdated, NodeResourceManager_)
+                .Via(GetControlInvoker()));
+        }
+
+        if (portoEnvironmentConfig->UseDaemonSubcontainer) {
+            self->SetCpuWeight(Config_->ResourceLimits->NodeCpuWeight);
+
+            NodeResourceManager_->SubscribeSelfMemoryGuaranteeUpdated(BIND([self] (i64 memoryGuarantee) {
+                YT_LOG_DEBUG("Self memory guarantee updated (MemoryGuarantee: %v)", memoryGuarantee);
+                self->SetMemoryGuarantee(memoryGuarantee);
+            }));
+        }
     }
 #endif
 
@@ -1022,13 +1052,6 @@ const TNodeResourceManagerPtr& TBootstrap::GetNodeResourceManager() const
 {
     return NodeResourceManager_;
 }
-
-#ifdef __linux__
-const NContainers::TInstanceLimitsTrackerPtr& TBootstrap::GetInstanceLimitsTracker() const
-{
-    return InstanceLimitsTracker_;
-}
-#endif
 
 const IQuerySubexecutorPtr& TBootstrap::GetQueryExecutor() const
 {

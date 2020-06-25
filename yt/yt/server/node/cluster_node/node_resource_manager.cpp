@@ -57,14 +57,6 @@ TNodeResourceManager::TNodeResourceManager(TBootstrap* bootstrap)
 void TNodeResourceManager::Start()
 {
     UpdateExecutor_->Start();
-
-#ifdef __linux__
-    if (const auto& instanceLimitsTracker = Bootstrap_->GetInstanceLimitsTracker()) {
-        instanceLimitsTracker->SubscribeLimitsUpdated(
-            BIND(&TNodeResourceManager::OnInstanceLimitsUpdated, MakeWeak(this))
-                .Via(Bootstrap_->GetControlInvoker()));
-    }
-#endif
 }
 
 void TNodeResourceManager::OnInstanceLimitsUpdated(double cpuLimit, i64 memoryLimit)
@@ -152,13 +144,22 @@ void TNodeResourceManager::UpdateMemoryLimits()
         auto oldLimit = memoryUsageTracker->GetLimit(category);
         auto newLimit = newLimits[category];
 
-        if (oldLimit != newLimit) {
+        if (std::abs(oldLimit - newLimit) > Config_->MemoryAccountingTolerance) {
             YT_LOG_INFO("Updating memory category limit (Category: %v, OldLimit: %v, NewLimit: %v)",
                 category,
                 oldLimit,
                 newLimit);
             memoryUsageTracker->SetCategoryLimit(category, newLimit);
         }
+    }
+
+    auto externalMemory = std::max(
+        memoryUsageTracker->GetLimit(EMemoryCategory::UserJobs),
+        memoryUsageTracker->GetUsed(EMemoryCategory::UserJobs));
+    auto selfMemoryGuarantee = TotalMemory_ - externalMemory;
+    if (std::abs(selfMemoryGuarantee - SelfMemoryGuarantee_) > Config_->MemoryAccountingTolerance) {
+        SelfMemoryGuarantee_ = selfMemoryGuarantee;
+        SelfMemoryGuaranteeUpdated_.Fire(SelfMemoryGuarantee_);
     }
 }
 

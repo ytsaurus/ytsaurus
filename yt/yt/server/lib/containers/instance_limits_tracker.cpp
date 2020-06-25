@@ -66,18 +66,4 @@ void TInstanceLimitsTracker::DoUpdateLimits()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TInstanceLimitsTrackerPtr CreateSelfPortoInstanceLimitsTracker(
-    IPortoExecutorPtr executor,
-    IInvokerPtr invoker,
-    TDuration updatePeriod)
-{
-#ifdef _linux_
-    return New<TInstanceLimitsTracker>(GetSelfPortoInstance(executor), invoker, updatePeriod);
-#else
-    return nullptr;
-#endif
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NContainters

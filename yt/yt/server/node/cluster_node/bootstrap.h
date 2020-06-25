@@ -103,9 +103,6 @@ public:
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const TDynamicConfigManagerPtr& GetDynamicConfigManager() const;
     const TNodeResourceManagerPtr& GetNodeResourceManager() const;
-#ifdef __linux__
-    const NContainers::TInstanceLimitsTrackerPtr& GetInstanceLimitsTracker() const;
-#endif
 
     const NConcurrency::IThroughputThrottlerPtr& GetReplicationInThrottler() const;
     const NConcurrency::IThroughputThrottlerPtr& GetReplicationOutThrottler() const;

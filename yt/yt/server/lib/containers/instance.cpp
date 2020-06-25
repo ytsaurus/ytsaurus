@@ -34,7 +34,7 @@ using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
+namespace NDetail {
 
 // Porto passes command string to wordexp, where quota (') symbol
 // is delimiter. So we must replace it with concatenation ('"'"').
@@ -109,7 +109,38 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
         BIND([] (const TString& in) { return std::stol(in);                     } ) } }
 };
 
-} // namespace
+std::optional<TString> GetParentName(const TString& absoluteName)
+{
+    static const TString Prefix("/porto");
+    YT_VERIFY(absoluteName.length() > Prefix.length());
+
+    auto slashPosition = absoluteName.rfind('/');
+    auto parentName = absoluteName.substr(0, slashPosition);
+
+    if (parentName == Prefix) {
+        return std::nullopt;
+    } else {
+        return parentName;
+    }
+}
+
+TString GetAbsoluteName(const TString& name, const IPortoExecutorPtr& executor)
+{
+    try {
+        auto properties = WaitFor(executor->GetContainerProperties(
+            name,
+            std::vector<TString>{"absolute_name"}))
+            .ValueOrThrow();
+
+        return properties.at("absolute_name")
+            .ValueOrThrow();
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Failed to get absolute name for container %Qv", name)
+            << ex;
+    }
+}
+
+} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -121,17 +152,21 @@ public:
     {
         auto error = WaitFor(executor->CreateContainer(name));
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Unable to create container");
-        return New<TPortoInstance>(name, executor, autoDestroy);
+        auto absoluteName = NDetail::GetAbsoluteName(name, executor);
+
+        return New<TPortoInstance>(name, absoluteName, executor, autoDestroy);
     }
 
     static IInstancePtr GetSelf(IPortoExecutorPtr executor)
     {
-        return New<TPortoInstance>("self", executor, false);
+        auto absoluteName = NDetail::GetAbsoluteName("self", executor);
+        return New<TPortoInstance>("self", absoluteName, executor, false);
     }
 
     static IInstancePtr GetInstance(IPortoExecutorPtr executor, const TString& name)
     {
-        return New<TPortoInstance>(name, executor, false);
+        auto absoluteName = NDetail::GetAbsoluteName(name, executor);
+        return New<TPortoInstance>(name, absoluteName, executor, false);
     }
 
     ~TPortoInstance()
@@ -260,14 +295,14 @@ public:
 
     virtual void Destroy() override
     {
-        WaitFor(Executor_->DestroyContainer(Name_))
+        WaitFor(Executor_->DestroyContainer(AbsoluteName_))
             .ThrowOnError();
         Destroyed_ = true;
     }
 
     virtual void Stop() override
     {
-        WaitFor(Executor_->StopContainer(Name_))
+        WaitFor(Executor_->StopContainer(AbsoluteName_))
             .ThrowOnError();
     }
 
@@ -305,7 +340,7 @@ public:
 
         bool contextSwitchesRequested = false;
         for (auto field : fields) {
-            if (auto it = PortoStatRules.find(field)) {
+            if (auto it = NDetail::PortoStatRules.find(field)) {
                 const auto& rule = it->second;
                 properties.push_back(rule.first);
             } else if (field == EStatField::ContextSwitches) {
@@ -316,14 +351,14 @@ public:
             }
         }
 
-        auto propertyMap = WaitFor(Executor_->GetContainerProperties(Name_, properties))
+        auto propertyMap = WaitFor(Executor_->GetContainerProperties(AbsoluteName_, properties))
             .ValueOrThrow();
 
         TResourceUsage result;
         
         for (auto field : fields) {
-            auto ruleIt = PortoStatRules.find(field);
-            if (ruleIt == PortoStatRules.end()) {
+            auto ruleIt = NDetail::PortoStatRules.find(field);
+            if (ruleIt == NDetail::PortoStatRules.end()) {
                 continue;
             }
 
@@ -420,18 +455,12 @@ public:
 
     virtual TResourceLimits GetResourceLimitsRecursive() const override
     {
-        static const TString Prefix("/porto");
-
         auto resourceLimits = GetResourceLimits();
 
-        auto absoluteName = GetAbsoluteName();
+        auto parentName = NDetail::GetParentName(AbsoluteName_);
 
-        auto slashPosition = absoluteName.rfind('/');
-        auto parentName = absoluteName.substr(0, slashPosition);
-
-        if (parentName != Prefix) {
-            YT_VERIFY(parentName.length() > Prefix.length());
-            auto parent = GetInstance(Executor_, parentName);
+        if (parentName) {
+            auto parent = GetInstance(Executor_, *parentName);
             auto parentLimits = parent->GetResourceLimitsRecursive();
 
             if (resourceLimits.Cpu == 0 || (parentLimits.Cpu < resourceLimits.Cpu && parentLimits.Cpu > 0)) {
@@ -446,19 +475,13 @@ public:
         return resourceLimits;
     }
 
-    virtual TString GetAbsoluteName() const override
-    {
-        return *WaitFor(Executor_->GetContainerProperty(Name_, "absolute_name"))
-            .ValueOrThrow();
-    }
-
     virtual TString GetStderr() const override
     {
-        return *WaitFor(Executor_->GetContainerProperty(Name_, "stderr"))
+        return *WaitFor(Executor_->GetContainerProperty(AbsoluteName_, "stderr"))
             .ValueOrThrow();
     }
 
-    virtual void SetCpuShare(double cores) override
+    virtual void SetCpuGuarantee(double cores) override
     {
         SetProperty("cpu_guarantee", ToString(cores) + "c");
     }
@@ -466,6 +489,11 @@ public:
     virtual void SetCpuLimit(double cores) override
     {
         SetProperty("cpu_limit", ToString(cores) + "c");
+    }
+
+    virtual void SetCpuWeight(double weight) override
+    {
+        SetProperty("cpu_weight", ToString(weight));
     }
 
     virtual void SetEnablePorto(EEnablePorto enablePorto) override
@@ -509,6 +537,19 @@ public:
         return Name_;
     }
 
+    virtual TString GetAbsoluteName() const override
+    {
+        return AbsoluteName_;
+    }
+
+    virtual TString GetParentName() const override
+    {
+        auto maybeParentName = NDetail::GetParentName(AbsoluteName_);
+        return maybeParentName
+            ? *maybeParentName
+            : AbsoluteName_;
+    }
+
     virtual pid_t GetPid() const override
     {
         auto pid = *WaitFor(Executor_->GetContainerProperty(Name_, "root_pid"))
@@ -546,7 +587,7 @@ public:
         TStringBuilder commandBuilder;
         for (const auto* arg : argv) {
             commandBuilder.AppendString("'");
-            commandBuilder.AppendString(EscapeForWordexp(arg));
+            commandBuilder.AppendString(NDetail::EscapeForWordexp(arg));
             commandBuilder.AppendString("' ");
         }
         auto command = commandBuilder.Flush();
@@ -620,6 +661,7 @@ public:
 
 private:
     const TString Name_;
+    const TString AbsoluteName_;
     const IPortoExecutorPtr Executor_;
     const bool AutoDestroy_;
     const NLogging::TLogger Logger;
@@ -644,10 +686,12 @@ private:
     std::vector<THostsRecord> HostsRecords_;
 
     TPortoInstance(
-        const TString& name,
+        const TString name,
+        const TString absoluteName,
         IPortoExecutorPtr executor,
         bool autoDestroy)
-        : Name_(name)
+        : Name_(std::move(name))
+        , AbsoluteName_(std::move(absoluteName))
         , Executor_(executor)
         , AutoDestroy_(autoDestroy)
         , Logger(NLogging::TLogger(ContainersLogger)
