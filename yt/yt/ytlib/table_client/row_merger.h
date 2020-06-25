@@ -101,7 +101,8 @@ public:
         TTimestamp majorTimestamp,
         NQueryClient::TColumnEvaluatorPtr columnEvaluator,
         bool lookup,
-        bool mergeRowsOnFlush);
+        bool mergeRowsOnFlush,
+        bool mergeDeletionsOnFlush = false);
 
     void AddPartialRow(TVersionedRow row);
     TVersionedRow BuildMergedRow();
@@ -117,6 +118,7 @@ private:
     const NQueryClient::TColumnEvaluatorPtr ColumnEvaluator_;
     const bool Lookup_ = true;
     const bool MergeRowsOnFlush_;
+    const bool MergeDeletionsOnFlush_;
 
     bool Started_ = false;
 
