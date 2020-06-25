@@ -130,6 +130,7 @@ public:
     bool EnableLsmVerboseLogging;
 
     bool MergeRowsOnFlush;
+    bool MergeDeletionsOnFlush;
 
     std::optional<i64> MaxUnversionedBlockSize;
     std::optional<int> CriticalOverlappingStoreCount;
@@ -303,6 +304,9 @@ public:
             .Default(true);
 
         RegisterParameter("merge_rows_on_flush", MergeRowsOnFlush)
+            .Default(false);
+
+        RegisterParameter("merge_deletions_on_flush", MergeDeletionsOnFlush)
             .Default(false);
 
         RegisterParameter("enable_lsm_verbose_logging", EnableLsmVerboseLogging)

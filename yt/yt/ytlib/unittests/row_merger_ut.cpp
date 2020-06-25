@@ -528,7 +528,8 @@ public:
         TTimestamp majorTimestamp,
         TTableSchema schema = GetTypicalSchema(),
         TColumnFilter columnFilter = TColumnFilter(),
-        bool forceMergeAggregates = false)
+        bool mergeRowsOnFlush = false,
+        bool mergeDeletionsOnFlush  = false)
     {
         auto evaluator = ColumnEvaluatorCache_->Find(GetKeyedSchema(schema, 1));
         return std::make_unique<TVersionedRowMerger>(
@@ -541,7 +542,8 @@ public:
             majorTimestamp,
             evaluator,
             false,
-            forceMergeAggregates);
+            mergeRowsOnFlush,
+            mergeDeletionsOnFlush);
     }
 
     TRetentionConfigPtr GetRetentionConfig()
@@ -1480,6 +1482,74 @@ TEST_F(TVersionedRowMergerTest, YT_7668_2)
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "", "<id=2;ts=1> 1", {2}, {3})},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+// YT-13129
+TEST_F(TVersionedRowMergerTest, DeleteTimestampsPrunedOnFlush1)
+{
+    auto config = GetRetentionConfig();
+    auto merger = GetTypicalMerger(
+        config,
+        1000,
+        0,
+        GetTypicalSchema(),
+        TColumnFilter(),
+        true,
+        true);
+
+    // Sequence of deletes and writes:
+    //  d d w d d d w d w  w  d
+    //  1 2 3 4 5 6 7 8 9 10 11
+
+    auto row = BuildVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=3> 1; <id=1;ts=7> 2; <id=1;ts=9> 3; <id=1;ts=10> 4",
+        {1, 2, 4, 5, 6, 8, 11});
+
+    merger->AddPartialRow(row);
+
+    auto expectedMergedRow = BuildVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=3> 1; <id=1;ts=7> 2; <id=1;ts=9> 3; <id=1;ts=10> 4",
+        {1, 4, 8, 11});
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{expectedMergedRow},
+        TIdentityComparableVersionedRow{merger->BuildMergedRow()});
+}
+
+// YT-13129
+TEST_F(TVersionedRowMergerTest, DeleteTimestampsPrunedOnFlush2)
+{
+    auto config = GetRetentionConfig();
+    auto merger = GetTypicalMerger(
+        config,
+        1000,
+        0,
+        GetTypicalSchema(),
+        TColumnFilter(),
+        true,
+        true);
+
+    // Sequence of deletes and writes:
+    //  d d w d d d w d w  w
+    //  1 2 3 4 5 6 7 8 9 10
+
+    auto row = BuildVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=3> 1; <id=1;ts=7> 2; <id=1;ts=9> 3; <id=1;ts=10> 4",
+        {1, 2, 4, 5, 6, 8});
+
+    merger->AddPartialRow(row);
+
+    auto expectedMergedRow = BuildVersionedRow(
+        "<id=0> 0",
+        "<id=1;ts=3> 1; <id=1;ts=7> 2; <id=1;ts=9> 3; <id=1;ts=10> 4",
+        {1, 4, 8});
+
+    EXPECT_EQ(
+        TIdentityComparableVersionedRow{expectedMergedRow},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 

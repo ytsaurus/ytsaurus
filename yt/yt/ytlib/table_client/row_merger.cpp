@@ -397,7 +397,8 @@ TVersionedRowMerger::TVersionedRowMerger(
     TTimestamp majorTimestamp,
     TColumnEvaluatorPtr columnEvaluator,
     bool lookup,
-    bool mergeRowsOnFlush)
+    bool mergeRowsOnFlush,
+    bool mergeDeletionsOnFlush)
     : RowBuffer_(std::move(rowBuffer))
     , KeyColumnCount_(keyColumnCount)
     , Config_(std::move(config))
@@ -407,6 +408,7 @@ TVersionedRowMerger::TVersionedRowMerger(
     , ColumnEvaluator_(std::move(columnEvaluator))
     , Lookup_(lookup)
     , MergeRowsOnFlush_(mergeRowsOnFlush)
+    , MergeDeletionsOnFlush_(mergeDeletionsOnFlush)
 {
     size_t mergedKeyColumnCount = 0;
     if (columnFilter.IsUniversal()) {
@@ -620,7 +622,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
 
                     for (auto valueIt = aggregateBeginIt; valueIt <= retentionBeginIt; ++valueIt) {
                         const auto& value = *valueIt;
-                        // Do no expect any thombstones.
+                        // Do no expect any tombstones.
                         YT_ASSERT(value.Type != EValueType::TheBottom);
                         // Only expect overwrites at the very beginning.
                         YT_ASSERT(value.Aggregate || valueIt == aggregateBeginIt);
@@ -656,14 +658,37 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
         partialValueIt = columnEndIt;
     }
 
-    // Reverse delete timestamps list to make them appear in descending order.
-    std::reverse(DeleteTimestamps_.begin(), DeleteTimestamps_.end());
-
-    // Sort write timestamps in descending order, remove duplicates.
-    std::sort(WriteTimestamps_.begin(), WriteTimestamps_.end(), std::greater<TTimestamp>());
+    // Sort write timestamps in ascending order, remove duplicates.
+    std::sort(WriteTimestamps_.begin(), WriteTimestamps_.end());
     WriteTimestamps_.erase(
         std::unique(WriteTimestamps_.begin(), WriteTimestamps_.end()),
         WriteTimestamps_.end());
+
+    // Delete redundant delete timestamps between subsequent write timestamps.
+    if (MergeRowsOnFlush_ && MergeDeletionsOnFlush_) {
+        auto nextWriteTimestampIt = WriteTimestamps_.begin();
+        TTimestamp lastWriteTimestamp = MinTimestamp;
+        auto deleteTimestampOutputIt = DeleteTimestamps_.begin();
+        bool deleteTimestampStored = false;
+
+        for (auto deleteTimestamp : DeleteTimestamps_) {
+            while (nextWriteTimestampIt != WriteTimestamps_.end() && *nextWriteTimestampIt <= deleteTimestamp) {
+                lastWriteTimestamp = *nextWriteTimestampIt++;
+                deleteTimestampStored = false;
+            }
+
+            if (!deleteTimestampStored) {
+                *deleteTimestampOutputIt++ = deleteTimestamp;
+                deleteTimestampStored = true;
+            }
+        }
+
+        DeleteTimestamps_.erase(deleteTimestampOutputIt, DeleteTimestamps_.end());
+    }
+
+    // Reverse write and delete timestamps list to make them appear in descending order.
+    std::reverse(DeleteTimestamps_.begin(), DeleteTimestamps_.end());
+    std::reverse(WriteTimestamps_.begin(), WriteTimestamps_.end());
 
     // Delete redundant tombstones preceding major timestamp.
     {

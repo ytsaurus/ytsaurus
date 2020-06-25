@@ -666,20 +666,23 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             currentTimestamp,
             0,
             tabletSnapshot->ColumnEvaluator,
-            false,
-            true);
+            /*lookup*/ false,
+            /*mergeRowsOnFlush*/ true,
+            /*mergeDeletionsOnFlush*/ tabletSnapshot->Config->MergeDeletionsOnFlush);
 
         std::vector<TVersionedRow> rows;
         rows.reserve(MaxRowsPerFlushRead);
 
-        YT_LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, RetentionConfig: %v)",
+        YT_LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, "
+            "MergeDeletionsOnFlush: %v, RetentionConfig: %v)",
             store->GetId(),
             tabletSnapshot->Config->MergeRowsOnFlush,
+            tabletSnapshot->Config->MergeDeletionsOnFlush,
             ConvertTo<TRetentionConfigPtr>(tabletSnapshot->Config));
 
         const auto& rowCache = tabletSnapshot->RowCache;
 
-	THazardPtrFlushGuard flushGuard;
+        THazardPtrFlushGuard flushGuard;
 
         while (true) {
             // NB: Memory store reader is always synchronous.
