@@ -10,6 +10,7 @@
 #include "fair_share_strategy_operation_controller.h"
 
 #include <yt/server/lib/scheduler/config.h>
+#include <yt/server/lib/scheduler/helpers.h>
 #include <yt/server/lib/scheduler/resource_metering.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
@@ -27,6 +28,7 @@
 #include <yt/core/profiling/profile_manager.h>
 #include <yt/core/profiling/timing.h>
 #include <yt/core/profiling/metrics_accumulator.h>
+
 
 namespace NYT::NScheduler {
 
@@ -1147,6 +1149,10 @@ private:
             THROW_ERROR_EXCEPTION(
                 "Scheduling tag filter cannot be specified for operations "
                 "to be scheduled in multiple fair-share trees");
+        }
+
+        for (const auto& [_, poolName]: pools) {
+            ValidatePoolName(poolName.GetSpecifiedPoolName());
         }
 
         std::vector<TFuture<void>> futures;

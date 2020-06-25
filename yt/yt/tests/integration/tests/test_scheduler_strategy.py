@@ -1943,6 +1943,15 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
         op.abort()
         check_pool_count(2)
 
+    @authors("renadeen")
+    def test_ephemeral_pool_name_validation(self):
+        with pytest.raises(YtError):
+            run_sleeping_vanilla(spec={"pool": "invalid$name"})
+
+        op = run_sleeping_vanilla(spec={"pool": "valid_name"})
+        with pytest.raises(YtError):
+            update_op_parameters(op.id, parameters={"pool": "invalid|name"})
+
 
 class TestSchedulerPoolsReconfiguration(YTEnvSetup):
     NUM_MASTERS = 1
