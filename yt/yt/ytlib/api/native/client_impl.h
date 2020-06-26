@@ -580,7 +580,10 @@ private:
         i64 rowCount,
         const TTruncateJournalOptions& options);
 
-    // Dynamic tables
+    //
+    // Dynamic tables.
+    //
+
     std::vector<TTabletInfo> DoGetTabletInfos(
         const NYPath::TYPath& path,
         const std::vector<int>& tabletIndexes,
@@ -655,7 +658,10 @@ private:
         const std::vector< NYPath::TYPath>& movableTables,
         const TBalanceTabletCellsOptions& options);
 
-    // Cypress
+    //
+    // Cypress.
+    //
+
     NYson::TYsonString DoGetNode(
         const NYPath::TYPath& path,
         const TGetNodeOptions& options);
@@ -723,7 +729,10 @@ private:
         NObjectClient::EObjectType type,
         const TCreateObjectOptions& options);
 
-    // File Cache
+    //
+    // File cache.
+    //
+
     void SetTouchedAttribute(
         const TString& destination,
         const TPrerequisiteOptions& options = TPrerequisiteOptions(),
@@ -741,7 +750,10 @@ private:
         const TString& expectedMD5,
         const TPutFileToCacheOptions& options);
 
-    // Security
+    //
+    // Security.
+    //
+
     void DoAddMember(
         const TString& group,
         const TString& member,
@@ -782,7 +794,10 @@ private:
         NYTree::INodePtr resourceDelta,
         const TTransferAccountResourcesOptions& options);
 
-    // Operations
+    //
+    // Operations.
+    //
+
     NScheduler::TOperationId DoStartOperation(
         NScheduler::EOperationType type,
         const NYson::TYsonString& spec,
@@ -804,15 +819,12 @@ private:
         const NYson::TYsonString& parameters,
         const TUpdateOperationParametersOptions& options);
 
+    //
+    // Operation info.
+    //
+
     bool DoesOperationsArchiveExist();
     int DoGetOperationsArchiveVersion();
-
-    // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
-    // commands to Cypress node attribute names.
-    static std::vector<TString> MakeCypressOperationAttributes(const THashSet<TString>& attributes);
-    // Map operation attribute names as they are requested in 'get_operation' or 'list_operations'
-    // commands to operations archive column names.
-    std::vector<TString> MakeArchiveOperationAttributes(const THashSet<TString>& attributes);
 
     NYson::TYsonString DoGetOperationFromCypress(
         NScheduler::TOperationId operationId,
@@ -822,26 +834,65 @@ private:
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TGetOperationOptions& options);
+    NYson::TYsonString DoGetOperation(
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+        const TGetOperationOptions& options);
 
     NScheduler::TOperationId ResolveOperationAlias(
         const TString& alias,
         const TGetOperationOptions& options,
         TInstant deadline);
 
-    NYson::TYsonString DoGetOperation(
-        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
-        const TGetOperationOptions& options);
+    // Searches in Cypress for operations satisfying given filters.
+    // Adds found operations to |idToOperation| map.
+    // The operations are returned with requested fields plus necessarily "start_time" and "id".
+    void DoListOperationsFromCypress(
+        TInstant deadline,
+        TListOperationsCountingFilter& countingFilter,
+        const TListOperationsOptions& options,
+        THashMap<NScheduler::TOperationId, TOperation>* idToOperation);
+
+    THashMap<NScheduler::TOperationId, TOperation> LookupOperationsInArchiveTyped(
+        const std::vector<NScheduler::TOperationId>& ids,
+        const std::optional<THashSet<TString>>& attributes,
+        std::optional<TDuration> timeout);
+
+    // Searches in archive for operations satisfying given filters.
+    // Returns operations with requested fields plus necessarily "start_time" and "id".
+    THashMap<NScheduler::TOperationId, TOperation> DoListOperationsFromArchive(
+        TInstant deadline,
+        TListOperationsCountingFilter& countingFilter,
+        const TListOperationsOptions& options);
+
+    // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
+    // and an operation is in both Cypress and archive.
+    // XXX(levysotsky): The "failed_jobs_count" counter is incorrect if corresponding failed operations
+    // are in archive and outside of queried range.
+    TListOperationsResult DoListOperations(const TListOperationsOptions& options);
+
+    //
+    // Jobs.
+    //
+
+    void DoAbandonJob(
+        NScheduler::TJobId jobId,
+        const TAbandonJobOptions& options);
+    NYson::TYsonString DoPollJobShell(
+        NScheduler::TJobId jobId,
+        const NYson::TYsonString& parameters,
+        const TPollJobShellOptions& options);
+    void DoAbortJob(
+        NScheduler::TJobId jobId,
+        const TAbortJobOptions& options);
+
+    //
+    // Job artifacts and info.
+    //
 
     void DoDumpJobContext(
         NScheduler::TJobId jobId,
         const NYPath::TYPath& path,
         const TDumpJobContextOptions& options);
-
-    static void ValidateJobSpecVersion(
-        NScheduler::TJobId jobId,
-        const NYT::NJobTrackerClient::NProto::TJobSpec& jobSpec);
-
-    static bool IsNoSuchJobOrOperationError(const TError& error);
 
     // Get job node descriptor from scheduler and check that user has |requiredPermissions|
     // for accessing the corresponding operation.
@@ -908,64 +959,6 @@ private:
         NScheduler::TJobId jobId,
         const TGetJobFailContextOptions& options);
 
-    static TString ExtractTextFactorForCypressItem(const TOperation& operation);
-    static std::vector<TString> GetPoolsFromRuntimeParameters(const NYTree::INodePtr& runtimeParameters);
-
-    TOperation CreateOperationFromNode(
-        const NYTree::INodePtr& node,
-        const std::optional<THashSet<TString>>& attributes = std::nullopt);
-
-    // XXX(babenko): rename
-    THashSet<TString> MakeFinalAttributeSet(
-        const std::optional<THashSet<TString>>& originalAttributes,
-        const THashSet<TString>& requiredAttributes,
-        const THashSet<TString>& defaultAttributes,
-        const THashSet<TString>& ignoredAttributes);
-
-    // Searches in Cypress for operations satisfying given filters.
-    // Adds found operations to |idToOperation| map.
-    // The operations are returned with requested fields plus necessarily "start_time" and "id".
-    void DoListOperationsFromCypress(
-        TInstant deadline,
-        TListOperationsCountingFilter& countingFilter,
-        const TListOperationsOptions& options,
-        THashMap<NScheduler::TOperationId, TOperation>* idToOperation);
-
-    THashMap<NScheduler::TOperationId, TOperation> LookupOperationsInArchiveTyped(
-        const std::vector<NScheduler::TOperationId>& ids,
-        const std::optional<THashSet<TString>>& attributes,
-        std::optional<TDuration> timeout);
-
-    // Searches in archive for operations satisfying given filters.
-    // Returns operations with requested fields plus necessarily "start_time" and "id".
-    THashMap<NScheduler::TOperationId, TOperation> DoListOperationsFromArchive(
-        TInstant deadline,
-        TListOperationsCountingFilter& countingFilter,
-        const TListOperationsOptions& options);
-
-    THashSet<TString> GetSubjectClosure(
-        const TString& subject,
-        NObjectClient::TObjectServiceProxy& proxy,
-        const TMasterReadOptions& options);
-
-    // XXX(levysotsky): The counters may be incorrect if |options.IncludeArchive| is |true|
-    // and an operation is in both Cypress and archive.
-    // XXX(levysotsky): The "failed_jobs_count" counter is incorrect if corresponding failed operations
-    // are in archive and outside of queried range.
-    TListOperationsResult DoListOperations(const TListOperationsOptions& options);
-
-    // XXX(babenko): rename
-    static void ValidateNotNull(
-        const NTableClient::TUnversionedValue& value,
-        TStringBuf name,
-        NScheduler::TOperationId operationId,
-        NScheduler::TJobId jobId = {});
-
-    NQueryClient::TQueryBuilder GetListJobsQueryBuilder(
-        NScheduler::TOperationId operationId,
-        const std::optional<std::vector<NJobTrackerClient::EJobState>>& states,
-        const TListJobsOptions& options);
-
     // Asynchronously perform "select_rows" from job archive and parse result.
     // |Offset| and |Limit| fields in |options| are ignored, |limit| is used instead.
     // Jobs are additionally filtered by |states|.
@@ -1019,16 +1012,6 @@ private:
         NScheduler::TOperationId operationId,
         const TListJobsOptions& options);
 
-    template <typename TValue>
-    static void TryAddFluentItem(
-        NYTree::TFluentMap fluent,
-        TStringBuf key,
-        NTableClient::TUnversionedRow row,
-        const NTableClient::TColumnFilter& columnFilter,
-        int columnIndex);
-
-    static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes);
-
     std::optional<TJob> DoGetJobFromArchive(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
@@ -1046,17 +1029,8 @@ private:
         NScheduler::TJobId jobId,
         const TGetJobOptions& options);
 
-    void DoAbandonJob(
-        NScheduler::TJobId jobId,
-        const TAbandonJobOptions& options);
-    NYson::TYsonString DoPollJobShell(
-        NScheduler::TJobId jobId,
-        const NYson::TYsonString& parameters,
-        const TPollJobShellOptions& options);
-    void DoAbortJob(
-        NScheduler::TJobId jobId,
-        const TAbortJobOptions& options);
 
+    // Misc.
     TClusterMeta DoGetClusterMeta(
         const TGetClusterMetaOptions& options);
 
