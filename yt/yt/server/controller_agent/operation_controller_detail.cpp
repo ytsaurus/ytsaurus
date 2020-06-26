@@ -8034,7 +8034,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->set_output_format(ConvertToYsonString(outputFormat).GetData());
     }
 
-    jobSpec->set_enable_setup_commands(config->EnableSetupCommands);
     jobSpec->set_enable_gpu_layers(config->EnableGpuLayers);
 
     if (config->CudaToolkitVersion) {

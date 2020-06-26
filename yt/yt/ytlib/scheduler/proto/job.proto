@@ -159,7 +159,6 @@ message TUserJobSpec
 
     optional string interruption_signal = 43;
 
-    optional bool enable_setup_commands = 44 [default = true];
     optional bool enable_gpu_layers = 45 [default = true];
 
     optional string cuda_toolkit_version = 46;

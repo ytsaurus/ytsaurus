@@ -83,7 +83,7 @@ private:
     bool Disabled_ = false;
 
     NYPath::TYPath DriverLayerPath_;
-    NHydra::TRevision DriverLayerRevision_;
+    NHydra::TRevision DriverLayerRevision_ = 0;
     std::optional<NDataNode::TArtifactKey> DriverLayerKey_;
     TString DriverVersionString_;
 
