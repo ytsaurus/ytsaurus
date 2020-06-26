@@ -128,6 +128,8 @@ void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLo
 void Serialize(const TLogicalTypePtr& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TLogicalTypePtr& schema, NYTree::INodePtr node);
 
+bool IsComparable(const TLogicalTypePtr& type);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Special wrapper class that allows to serialize LogicalType in type_v3 format

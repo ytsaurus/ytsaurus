@@ -41,8 +41,6 @@ THorizontalBlockReader::THorizontalBlockReader(
     Offsets_ = TRef(Block_.Begin(), Block_.Begin() + offsetsLength);
     Data_ = TRef(Offsets_.End(), Block_.End());
 
-    JumpToRowIndex(0);
-
     const auto& schemaColumns = schema->Columns();
     IsCompositeColumn_.assign(schemaColumns.size(), false);
     for (int i = 0; i < schemaColumns.size(); ++i) {
@@ -51,6 +49,8 @@ THorizontalBlockReader::THorizontalBlockReader(
             IsCompositeColumn_[i] = true;
         }
     }
+
+    JumpToRowIndex(0);
 }
 
 bool THorizontalBlockReader::NextRow()
@@ -193,7 +193,14 @@ bool THorizontalBlockReader::JumpToRowIndex(i64 rowIndex)
 
     const char* ptr = CurrentPointer_;
     for (int i = 0; i < ChunkKeyColumnCount_; ++i) {
-        ptr += ReadValue(ptr, Key_.Begin() + i);
+        auto* currentKeyValue = Key_.Begin() + i;
+        ptr += ReadValue(ptr, currentKeyValue);
+        if (currentKeyValue->Type == EValueType::Any
+            && currentKeyValue->Id < IsCompositeColumn_.size()
+            && IsCompositeColumn_[currentKeyValue->Id])
+        {
+            currentKeyValue->Type = EValueType::Composite;
+        }
     }
 
     return true;

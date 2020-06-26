@@ -337,6 +337,58 @@ TEST(TLogicalTypeTest, TestBadProtobufDeserialization)
         "Cannot parse unknown logical type from proto");
 }
 
+TEST(TLogicalTypeTest, TestIsComparable) {
+    EXPECT_TRUE(IsComparable(
+        OptionalLogicalType(
+            OptionalLogicalType(
+                SimpleLogicalType(ESimpleLogicalValueType::Int64)
+            )
+        )
+    ));
+
+    EXPECT_TRUE(IsComparable(
+        ListLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::Int64)
+        )
+    ));
+
+    EXPECT_TRUE(IsComparable(
+        TupleLogicalType({
+            SimpleLogicalType(ESimpleLogicalValueType::Int64),
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+        })
+    ));
+
+    EXPECT_FALSE(IsComparable(
+        StructLogicalType({
+            {"foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        })
+    ));
+
+    EXPECT_FALSE(IsComparable(
+        DictLogicalType(
+            SimpleLogicalType(ESimpleLogicalValueType::Int64),
+            SimpleLogicalType(ESimpleLogicalValueType::String)
+        )
+    ));
+
+    EXPECT_FALSE(IsComparable(
+        VariantStructLogicalType({
+            {"foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        })
+    ));
+
+    EXPECT_TRUE(IsComparable(
+        VariantTupleLogicalType({
+            SimpleLogicalType(ESimpleLogicalValueType::Int64),
+            SimpleLogicalType(ESimpleLogicalValueType::String),
+        })
+    ));
+
+}
+
 TString CanonizeYsonString(TString input)
 {
     auto node = ConvertToNode(TYsonString(input));

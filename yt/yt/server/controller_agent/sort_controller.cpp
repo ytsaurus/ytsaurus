@@ -751,7 +751,9 @@ protected:
             EdgeDescriptors_[0].DestinationPool = Partition->SortedMergeTask->GetChunkPoolInput();
             EdgeDescriptors_[0].ChunkMapping = Partition->SortedMergeTask->GetChunkMapping();
             EdgeDescriptors_[0].TableWriterOptions = Controller->GetIntermediateTableWriterOptions();
-            EdgeDescriptors_[0].TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Controller->Spec->SortBy);
+            if (EdgeDescriptors_[0].TableUploadOptions.TableSchema->GetKeyColumns() != Controller->Spec->SortBy) {
+                EdgeDescriptors_[0].TableUploadOptions.TableSchema = TTableSchema::FromKeyColumns(Controller->Spec->SortBy);
+            }
             EdgeDescriptors_[0].RequiresRecoveryInfo = true;
             EdgeDescriptors_[0].IsFinalOutput = false;
         }
@@ -2474,6 +2476,7 @@ private:
             shuffleEdgeDescriptor.DestinationPool = ShufflePoolInput;
             shuffleEdgeDescriptor.ChunkMapping = ShuffleChunkMapping_;
             shuffleEdgeDescriptor.TableWriterOptions->ReturnBoundaryKeys = false;
+            shuffleEdgeDescriptor.TableUploadOptions.TableSchema = OutputTables_[0]->TableUploadOptions.TableSchema;
             PartitionTask = New<TPartitionTask>(this, std::vector<TEdgeDescriptor> {shuffleEdgeDescriptor});
             InitPartitionPool(partitionJobSizeConstraints, nullptr, false /* ordered */);
             RegisterTask(PartitionTask);

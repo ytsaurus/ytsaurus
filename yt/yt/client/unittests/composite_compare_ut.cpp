@@ -1,6 +1,9 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/client/table_client/composite_compare.h>
+#include <yt/client/table_client/unversioned_row.h>
+
+#include <yt/core/yson/writer.h>
 
 namespace NYT::NTableClient {
 namespace {
@@ -47,7 +50,20 @@ TEST(TCompositeCompare, Simple)
     EXPECT_EQ(-1, CompareCompositeValues("[1; 2]", "[1; 2; #]"));
     EXPECT_EQ(-1, CompareCompositeValues("[1; 2; #]", "[1; 2; 3]"));
     EXPECT_EQ(1, CompareCompositeValues("[1; 2; 3]", "[1; 2; #]"));
+}
 
+TEST(TCompositeCompare, CompositeFingerprint)
+{
+    EXPECT_EQ(CompositeHash("-42"), GetFarmFingerprint(MakeUnversionedInt64Value(-42)));
+
+    EXPECT_EQ(CompositeHash("100500u"), GetFarmFingerprint(MakeUnversionedUint64Value(100500)));
+
+
+    EXPECT_EQ(CompositeHash("3.25"), GetFarmFingerprint(MakeUnversionedDoubleValue(3.25)));
+
+    EXPECT_EQ(CompositeHash("%true"), GetFarmFingerprint(MakeUnversionedBooleanValue(true)));
+    EXPECT_EQ(CompositeHash("%false"), GetFarmFingerprint(MakeUnversionedBooleanValue(false)));
+    EXPECT_EQ(CompositeHash("#"), GetFarmFingerprint(MakeUnversionedNullValue()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
