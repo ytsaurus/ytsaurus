@@ -165,6 +165,7 @@ class TestDynamicCpuReclaim(YTEnvSetup):
         job_id1 = wait_breakpoint("Op1")[0]
 
         stats_path = self.wait_and_get_stats_path(job_id1)
+        wait(lambda: exists(stats_path + "/preemptable_cpu_x100"))
         wait(lambda: get(stats_path + "/preemptable_cpu_x100")["max"] > 50)
 
         run_test_vanilla(with_breakpoint("BREAKPOINT", "Op2"))
