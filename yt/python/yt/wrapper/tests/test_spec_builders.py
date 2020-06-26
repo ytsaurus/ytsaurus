@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import TEST_DIR, check, get_test_file_path, set_config_option, get_python
 
 from yt.wrapper.common import update
@@ -33,6 +34,7 @@ class TestSpecBuilders(object):
         yt.config["tabular_data_format"] = None
         yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
+    @authors("ignat")
     def test_merge(self):
         tableX = TEST_DIR + "/tableX"
         tableY = TEST_DIR + "/tableY"
@@ -80,6 +82,7 @@ class TestSpecBuilders(object):
         assert yt.get_attribute(res_table, "sorted")
         check([{"x": 1}], yt.read_table(res_table))
 
+    @authors("ignat")
     def test_run_operation(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -184,6 +187,7 @@ class TestSpecBuilders(object):
         assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
         assert sorted([rec["c"] for rec in records]) == []
 
+    @authors("ignat")
     def test_reduce_combiner(self):
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/output_table"
@@ -204,6 +208,7 @@ class TestSpecBuilders(object):
         yt.run_operation(spec_builder)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
+    @authors("asaitgalin")
     def test_preserve_user_spec_between_invocations(self):
         input_ = TEST_DIR + "/input"
         output = TEST_DIR + "/output"
@@ -214,6 +219,7 @@ class TestSpecBuilders(object):
         yt.run_map("cat", input_, output, format="json", spec=spec)
         yt.run_map_reduce(None, "cat", input_, output, reduce_by=["x"], format="json", spec=spec)
 
+    @authors("asaitgalin")
     def test_spec_overrides_and_defaults(self):
         input_table = TEST_DIR + "/input"
         output_table = TEST_DIR + "/output"
@@ -254,6 +260,7 @@ class TestSpecBuilders(object):
                 assert attributes["spec"]["mapper"]["environment"]["var2"] == "5"
                 assert attributes["spec"]["mapper"]["environment"]["var3"] == "6"
 
+    @authors("prime")
     def test_user_job_spec_defaults(self):
         input_table = TEST_DIR + "/input"
         output_table = TEST_DIR + "/output"
@@ -295,6 +302,7 @@ class TestSpecBuilders(object):
             assert attributes["spec"]["reducer"]["environment"]["MY_ENV"] == "value"
             assert attributes["spec"]["reducer"]["environment"]["OTHER_ENV"] == "10"
 
+    @authors("ignat")
     def test_spec_deepcopy(self):
         def mapper(row):
             yield {"x": row["x"] + 5, "tag": row["tag"]}
@@ -339,6 +347,7 @@ class TestSpecBuilders(object):
             ordered=False
         )
 
+    @authors("prime")
     def test_vanilla_spec_builder(self):
         vanilla_spec = VanillaSpecBuilder()\
             .begin_task("sample")\
@@ -361,6 +370,7 @@ class TestSpecBuilders(object):
 
         assert update(result_spec, correct_spec) == result_spec
 
+    @authors("max42")
     def test_allow_http_requets_to_yt_from_job_vanilla(self):
         with set_config_option("allow_http_requests_to_yt_from_job", True):
             spec_builder = VanillaSpecBuilder().spec({
@@ -394,6 +404,7 @@ class TestSpecBuilders(object):
         assert update(result_spec1, correct_spec) == result_spec1
         assert update(result_spec2, correct_spec) == result_spec2
 
+    @authors("max42")
     def test_allow_http_requets_to_yt_from_job_map(self):
         with set_config_option("allow_http_requests_to_yt_from_job", True):
             spec_builder = MapSpecBuilder().spec({

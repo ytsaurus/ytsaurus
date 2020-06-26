@@ -1,6 +1,9 @@
+from .conftest import authors
+
 import yt.wrapper as yt
 
 import pytest
+
 
 class TestAclCommands(object):
     def setup(self):
@@ -15,6 +18,7 @@ class TestAclCommands(object):
         yt.remove("//sys/accounts/tester", force=True)
         yt.remove("//sys/groups/super_testers", force=True)
 
+    @authors("sandello", "ignat")
     @pytest.mark.usefixtures("yt_env_with_rpc")
     def test_check_permission(self):
         assert yt.check_permission("tester", "read", "//sys")["action"] == "allow"
@@ -38,6 +42,7 @@ class TestAclCommands(object):
         finally:
             yt.remove("//home/tester", force=True)
 
+    @authors("sandello")
     @pytest.mark.usefixtures("yt_env")
     def test_add_remove_member(self):
         yt.add_member("tester", "testers")
@@ -59,4 +64,3 @@ class TestAclCommands(object):
         yt.remove_member("testers", "super_testers")
         assert yt.get_attribute("//sys/groups/super_testers", "members") == []
         assert "super_testers" not in yt.get_attribute("//sys/groups/testers", "member_of")
-

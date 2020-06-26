@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import TEST_DIR, check, yatest_common
 
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
@@ -9,6 +10,7 @@ import pytest
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestUserStatistics(object):
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_user_statistics_in_jobs(self):
         def write_statistics(row):

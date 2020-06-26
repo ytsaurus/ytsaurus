@@ -2,6 +2,7 @@
 
 from __future__ import print_function
 
+from .conftest import authors
 from .helpers import TEST_DIR, set_config_option
 
 import yt.json_wrapper as json
@@ -19,6 +20,7 @@ import datetime
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestCypressCommands(object):
+    @authors("ignat")
     def test_ypath(self):
         path = yt.TablePath("<append=%false;sort-by=[key]>//my/table")
         assert str(path) == "//my/table"
@@ -38,6 +40,7 @@ class TestCypressCommands(object):
         assert path.append is None
         assert path.attributes == {"ranges": []}
 
+    @authors("asaitgalin")
     def test_get_set_exists(self):
         assert yt.get("/")
         assert len(yt.list("/")) > 1
@@ -65,6 +68,7 @@ class TestCypressCommands(object):
         assert yt.get(TEST_DIR) == {"other_node": {}}
         assert json.loads(yt.get(TEST_DIR, format="json")) == {"other_node": {}}
 
+    @authors("asaitgalin")
     def test_remove(self):
         for recursive in [False, True]:
             with pytest.raises(yt.YtError):
@@ -77,6 +81,7 @@ class TestCypressCommands(object):
                       recursive=True,
                       force=force)
 
+    @authors("asaitgalin")
     def test_mkdir(self):
         yt.mkdir(TEST_DIR, recursive=True)
         with pytest.raises(yt.YtError):
@@ -87,6 +92,7 @@ class TestCypressCommands(object):
         yt.mkdir(TEST_DIR + "/x")
         yt.mkdir(TEST_DIR + "/x/y/z", recursive=True)
 
+    @authors("ignat", "ostyakov")
     @pytest.mark.parametrize("enable_batch_mode", [False, True])
     def test_search(self, enable_batch_mode):
         yt.mkdir(TEST_DIR + "/dir/other_dir", recursive=True)
@@ -203,6 +209,7 @@ class TestCypressCommands(object):
 
         assert list(yt.search())
 
+    @authors("asaitgalin")
     def test_create(self):
         with pytest.raises(yt.YtError):
             yt.create("map_node", TEST_DIR + "/map", attributes={"type": "table"})
@@ -231,6 +238,7 @@ class TestCypressCommands(object):
             yt.remove("//sys/groups/test_group", force=True)
             yt.remove("//sys/accounts/test_account", force=True)
 
+    @authors("asaitgalin")
     def test_attributes_commands(self):
         table = TEST_DIR + "/table_with_attributes"
         yt.write_table(table, [{"x": 1, "y": 1}, {"x": 2, "y": 2}], format="dsv")
@@ -259,6 +267,7 @@ class TestCypressCommands(object):
         assert str(result[0]) == table
         assert result[0].attributes["my_attribute"] == {"000": 10}
 
+    @authors("asaitgalin")
     def test_link(self):
         table = TEST_DIR + "/table_with_attributes"
         link = TEST_DIR + "/table_link"
@@ -281,6 +290,7 @@ class TestCypressCommands(object):
         yt.link(link, other_link, recursive=True)
         assert yt.get_attribute(other_link + "&", "target_path") == expected
 
+    @authors("asaitgalin")
     def test_list(self):
         tables = ["{0}/{1}".format(TEST_DIR, name) for name in ("a", "b", "c")]
         for table in tables:
@@ -298,6 +308,7 @@ class TestCypressCommands(object):
         with pytest.raises(yt.YtError):
             yt.list(TEST_DIR + "/subdir", absolute=True, format="json")
 
+    @authors("asaitgalin")
     def test_get_type(self):
         table = TEST_DIR + "/table"
         map_node = TEST_DIR + "/map_node"
@@ -306,6 +317,7 @@ class TestCypressCommands(object):
         assert yt.get_type(table) == "table"
         assert yt.get_type(map_node) == "map_node"
 
+    @authors("asaitgalin")
     def test_simple_copy_move(self):
         table = TEST_DIR + "/table"
         dir = TEST_DIR + "/dir"
@@ -372,6 +384,7 @@ class TestCypressCommands(object):
         assert yt.get(TEST_DIR + "/ttt/@expiration_time") == yt.get(TEST_DIR + "/ttt_copied/@expiration_time")
         assert yt.get(TEST_DIR + "/ttt/@creation_time") == yt.get(TEST_DIR + "/ttt_copied/@creation_time")
 
+    @authors("asaitgalin", "ignat")
     @flaky(max_runs=5)
     def test_transactions(self):
         table = TEST_DIR + "/transaction_test_table"
@@ -443,6 +456,7 @@ class TestCypressCommands(object):
         time.sleep(6)
         assert not yt.exists("#" + tx_id)
 
+    @authors("asaitgalin")
     @pytest.mark.skipif("True")  # Enable when st/YT-4182 is done.
     def test_signal_in_transactions(self):
         new_client = yt.YtClient(token=yt.config["token"], config=yt.config.config)
@@ -476,6 +490,7 @@ class TestCypressCommands(object):
             yt.config["transaction_use_signal_if_ping_failed"] = False
             yt.config["proxy"]["request_timeout"] = old_request_timeout
 
+    @authors("ignat")
     def test_ping_failed_mode_pass(self):
         new_client = yt.YtClient(token=yt.config["token"], config=yt.config.config)
 
@@ -487,6 +502,7 @@ class TestCypressCommands(object):
             except yt.YtResponseError as err:
                 assert err.is_no_such_transaction()
 
+    @authors("ignat")
     def test_lock(self):
         dir = TEST_DIR + "/dir"
 
@@ -531,6 +547,7 @@ class TestCypressCommands(object):
         finally:
             client.abort_transaction(tx)
 
+    @authors("ignat")
     def test_shared_key_attribute_locks(self):
         dir = TEST_DIR + "/dir"
         yt.create("map_node", dir)
@@ -555,6 +572,7 @@ class TestCypressCommands(object):
         yt.set(TEST_DIR + "/@my_attr", 30)
         yt.remove(TEST_DIR + "/child")
 
+    @authors("asaitgalin")
     def test_copy_move_sorted_table(self):
         def is_sorted_by_y(table_path):
             sorted_by = yt.get_attribute(table_path, "sorted_by", None)
@@ -577,9 +595,11 @@ class TestCypressCommands(object):
         assert yt.is_sorted(another_table)
         assert is_sorted_by_y(another_table)
 
+    @authors("asaitgalin")
     def test_utf8(self):
         yt.create("table", TEST_DIR + "/table", attributes={"attr": u"капуста"})
 
+    @authors("ignat")
     def test_concatenate(self):
         tableA = TEST_DIR + "/tableA"
         tableB = TEST_DIR + "/tableB"
@@ -611,6 +631,7 @@ class TestCypressCommands(object):
         with pytest.raises(yt.YtError):
             yt.concatenate([TEST_DIR, tableB], output_table)
 
+    @authors("ostyakov")
     def test_set_recursive(self):
         yt.create("map_node", TEST_DIR + "/node")
 

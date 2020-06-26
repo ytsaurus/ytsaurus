@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from .conftest import authors
 from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path, wait, get_default_resource_limits,
                       get_environment_for_binary_test, check, set_config_options, set_config_option,
                       get_python, get_environment_for_binary_test)
@@ -49,6 +50,7 @@ import tempfile
 import time
 import uuid
 
+@authors("asaitgalin")
 def test_docs_exist():
     functions = inspect.getmembers(
         yt, lambda o: inspect.isfunction(o) and not o.__name__.startswith("_"))
@@ -71,6 +73,7 @@ def test_docs_exist():
                                if name not in ignore_methods and not inspect.getdoc(method)]
         assert not methods_without_doc
 
+@authors("ignat")
 def test_ypath_join():
     assert ypath_join("a", "b") == "a/b"
     assert ypath_join("a/", "b") == "a/b"
@@ -84,6 +87,7 @@ def test_ypath_join():
     assert ypath_join("/a", "/b", "c") == "/a/b/c"
     assert ypath_join("/a", "//b", "c") == "//b/c"
 
+@authors("ostyakov")
 def test_ypath_split():
     assert ypath_split("/") == ("/", "")
     assert ypath_split("//home") == ("/", "home")
@@ -94,6 +98,7 @@ def test_ypath_split():
     assert ypath_split("#a-b-c-d/a/b") == ("#a-b-c-d/a", "b")
     assert ypath_split("//a/b\\\\\\/c") == ("//a", "b\\\\\\/c")
 
+@authors("asaitgalin")
 def test_ypath_dirname():
     assert ypath_dirname("/") == "/"
     assert ypath_dirname("//a") == "/"
@@ -130,6 +135,7 @@ def test_ypath_dirname():
 @pytest.mark.timeout(1200)
 @pytest.mark.usefixtures("yt_env_job_archive")
 class TestYtBinary(object):
+    @authors("asaitgalin")
     def test_yt_binary(self, yt_env_job_archive):
         env = get_environment_for_binary_test(yt_env_job_archive)
         env["FALSE"] = "%false"
@@ -150,6 +156,7 @@ class TestYtBinary(object):
 
         assert proc.returncode == 0
 
+    @authors("ignat")
     def test_secure_vault_in_logging(self, yt_env_job_archive):
         if yatest_common is None:
             pytest.skip()
@@ -194,6 +201,7 @@ class TestYtBinary(object):
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestDriverLogging(object):
+    @authors("ignat")
     def test_driver_logging(self, yt_env_with_rpc):
         def get_stderr_from_cli(log_level=None):
             env = get_environment_for_binary_test(yt_env_with_rpc, enable_request_logging=False)
@@ -238,6 +246,7 @@ class TestMutations(object):
         if final_action is not None:
             final_action(result)
 
+    @authors("asaitgalin")
     def test_master_mutation_id(self):
         test_dir = ypath_join(TEST_DIR, "test")
         test_dir2 = ypath_join(TEST_DIR, "test2")
@@ -267,6 +276,7 @@ class TestMutations(object):
 
         self.check_command(lambda: yt.move(test_dir, test_dir2))
 
+    @authors("ignat")
     def test_scheduler_mutation_id(self):
         def abort(operation_response):
             operation_id = operation_response["operation_id"] if get_api_version() == "v4" else operation_response
@@ -311,6 +321,7 @@ class TestMutations(object):
 
 @pytest.mark.usefixtures("yt_env")
 class TestRetries(object):
+    @authors("bidzilya")
     def test_custom_chaos_monkey(self):
         class _Retrier(Retrier):
             def __init__(self, chaos_monkey_values, retries_count=1):
@@ -339,6 +350,7 @@ class TestRetries(object):
                 _Retrier(chaos_monkey_values, retries_count).run()
             assert 42 == _Retrier(chaos_monkey_values, retries_count + 1).run()
 
+    @authors("ostyakov")
     def test_run_with_retries(self):
         def action():
             if random.randint(0, 3) == 1:
@@ -347,6 +359,7 @@ class TestRetries(object):
 
         assert 1 == run_with_retries(action, retry_count=10, backoff=0.01)
 
+    @authors("asaitgalin")
     def test_read_with_retries(self):
         old_value = yt.config["read_retries"]["enable"]
         yt.config["read_retries"]["enable"] = True
@@ -384,6 +397,7 @@ class TestRetries(object):
             yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
             yt.config["read_retries"]["enable"] = old_value
 
+    @authors("ignat")
     def test_read_ranges_with_retries(self, yt_env):
         yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
         try:
@@ -440,18 +454,22 @@ class TestRetries(object):
         finally:
             yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
 
+    @authors("ostyakov")
     def test_read_parallel_with_retries(self):
         with set_config_option("read_parallel/enable", True):
             self.test_read_with_retries()
 
+    @authors("ostyakov")
     def test_read_ranges_parallel_with_retries(self, yt_env):
         with set_config_option("read_parallel/enable", True):
             self.test_read_ranges_with_retries(yt_env)
 
+    @authors("ignat")
     def test_read_has_no_leaks(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"a": "b"}])
 
+        @authors("ignat")
         def test_func():
             client = yt.YtClient(config=deepcopy(yt.config.config))
             for row in client.read_table(table):
@@ -462,6 +480,7 @@ class TestRetries(object):
         for obj in gc.get_objects():
             assert id(obj) != obj_id
 
+    @authors("asaitgalin")
     def test_heavy_requests_with_retries(self):
         table = TEST_DIR + "/table"
 
@@ -489,6 +508,7 @@ class TestRetries(object):
             yt.config["proxy"]["heavy_request_timeout"] = old_request_timeout
             yt.config["write_retries"]["enable"] = old_enable_write_retries
 
+    @authors("asaitgalin")
     def test_http_retries(self):
         old_request_timeout = yt.config["proxy"]["request_timeout"]
         yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
@@ -509,6 +529,7 @@ class TestRetries(object):
             yt.config["proxy"]["request_timeout"] = old_request_timeout
             yt.config["proxy"]["request_backoff_time"] = None
 
+    @authors("asaitgalin")
     def test_download_with_retries(self):
         text = b"some long text repeated twice " * 2
         file_path = TEST_DIR + "/file"
@@ -530,6 +551,7 @@ class TestRetries(object):
             yt.config["read_retries"]["enable"] = old_value
             yt.config["read_buffer_size"] = old_buffer_size
 
+    @authors("asaitgalin")
     def test_write_retries_and_schema(self):
         table = TEST_DIR + "/table"
 
@@ -552,6 +574,7 @@ class TestRetries(object):
             yt.config["write_retries"]["enable"] = old_enable_write_retries
             yt.config["write_retries"]["chunk_size"] = old_chunk_size
 
+    @authors("asaitgalin")
     def test_dynamic_tables_requests_retries(self):
         table = TEST_DIR + "/dyn_table"
         yt.create("table", table, attributes={
@@ -590,6 +613,7 @@ class TestRetries(object):
         finally:
             yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
 
+    @authors("ignat")
     def test_concatenate(self):
         yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
         override_options = {
@@ -611,6 +635,7 @@ class TestRetries(object):
         finally:
             yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
 
+    @authors("se4min")
     @flaky(max_runs=5)
     @pytest.mark.parametrize("total_timeout", [3000, 20000])
     def test_retries_total_timeout(self, total_timeout):
@@ -639,6 +664,7 @@ class TestRetries(object):
             retrier.run()
         assert 0.5 * total_timeout / 1000. < time.time() - start < total_timeout / 1000. + 1
 
+@authors("asaitgalin")
 def test_wrapped_streams():
     import yt.wrapper.py_runner_helpers as runner_helpers
     with pytest.raises(yt.YtError):
@@ -657,6 +683,7 @@ def test_wrapped_streams():
         print("")
         sys.stdout.write("")
 
+@authors("asaitgalin", "ignat")
 def test_keyboard_interrupts_catcher():
     with pytest.raises(KeyboardInterrupt):
         with KeyboardInterruptsCatcher(lambda: None):
@@ -678,6 +705,7 @@ def test_keyboard_interrupts_catcher():
             raise KeyboardInterrupt()
     assert len(list) == 0
 
+@authors("asaitgalin", "ignat")
 def test_verified_dict():
     vdict = VerifiedDict({"b": 1, "c": True, "a": {"k": "v"}, "d": {"x": "y"}}, keys_to_ignore=["a"])
     assert len(vdict) == 4
@@ -706,6 +734,7 @@ def test_verified_dict():
     vdict["a"] = "E"
     assert vdict["a"] == "e"
 
+@authors("asaitgalin")
 def test_frozen_dict():
     fdict = FrozenDict(a=1, b=2)
     assert len(fdict) == 2
@@ -752,6 +781,7 @@ def test_frozen_dict():
         fdict["a"] = 3
 
 class TestResponseStream(object):
+    @authors("asaitgalin")
     def test_chunk_iterator(self):
         random_line = lambda: b("".join(random.choice(string.ascii_lowercase) for _ in xrange(100)))
         s = b"\n".join(random_line() for _ in xrange(3))
@@ -820,6 +850,7 @@ class TestResponseStream(object):
         stream.close()
         assert len(close_list) > 0
 
+    @authors("asaitgalin")
     def test_empty_response_stream(self):
         stream = EmptyResponseStream()
         assert stream.read() == b""
@@ -836,6 +867,7 @@ class TestResponseStream(object):
 
 @pytest.mark.usefixtures("yt_env")
 class TestExecuteBatch(object):
+    @authors("ignat")
     @pytest.mark.parametrize("concurrency", [None, 1])
     def test_simple(self, concurrency):
         yt.create("map_node", "//tmp/test_dir", ignore_existing=True)
@@ -859,6 +891,7 @@ class TestExecuteBatch(object):
 
 @pytest.mark.usefixtures("yt_env_multicell")
 class TestCellId(object):
+    @authors("ignat")
     def test_simple(self, yt_env_multicell):
         yt.mkdir("//tmp/test_dir")
         yt.write_table("//tmp/test_dir/table", [{"a": "b"}])
@@ -876,6 +909,7 @@ class TestCellId(object):
 
 @pytest.mark.usefixtures("yt_env_multicell")
 class TestExternalize(object):
+    @authors("ignat")
     def test_externalize(self):
         yt.create("account", attributes={"name": "a", "resource_limits" : get_default_resource_limits(yt)})
         yt.create("account", attributes={"name": "b", "resource_limits" : get_default_resource_limits(yt)})
@@ -961,16 +995,19 @@ class TestExternalize(object):
 
 @pytest.mark.usefixtures("yt_env")
 class TestGenerateTimestamp(object):
+    @authors("asaitgalin", "se4min")
     def test_generate_timestamp(self):
         ts = yt.generate_timestamp()
         assert ts >= 0
 
 class TestStream(object):
+    @authors("se4min")
     def test_empty_stream(self):
         for allow_resplit in (True, False):
             stream = _ChunkStream([], chunk_size=512, allow_resplit=allow_resplit)
             assert list(stream) == [b""]
 
+    @authors("se4min")
     def test_no_resplit(self):
         lines = ["".join(random.choice(string.digits) for _ in xrange(random.randrange(1, 10))) + "\n"
                  for _ in xrange(100)]
@@ -984,6 +1021,7 @@ class TestStream(object):
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTransferAccountResources(object):
+    @authors("kiselyovp")
     def test_transfer_account_resources_simple(self):
         if yt.config["api_version"] != "v4":
             pytest.skip()
@@ -1007,6 +1045,7 @@ class TestTransferAccountResources(object):
         assert yt.get("//sys/accounts/a2/@resource_limits/node_count") == 4
 
 
+    @authors("kiselyovp")
     def test_transfer_account_resources(self):
         if yt.config["api_version"] != "v4":
             pytest.skip()

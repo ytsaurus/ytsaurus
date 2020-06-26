@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from .conftest import authors
 from .helpers import (TEST_DIR, get_test_file_path, check, set_config_option, get_tests_sandbox,
                       dumps_yt_config, get_python, wait, get_operation_path)
 
@@ -89,6 +90,7 @@ class TestOperations(object):
         char_set = string.ascii_lowercase + string.digits + string.ascii_uppercase
         return "".join(random.sample(char_set, length))
 
+    @authors("ignat")
     def test_merge(self):
         tableX = TEST_DIR + "/tableX"
         tableY = TEST_DIR + "/tableY"
@@ -128,6 +130,7 @@ class TestOperations(object):
         # assert not parse_bool(yt.get_attribute(res_table, "sorted"))
         # check([{}], yt.read_table(res_table))
 
+    @authors("ignat")
     def test_auto_merge(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -147,6 +150,7 @@ class TestOperations(object):
         finally:
             yt.config["auto_merge_output"].update(old_auto_merge_output)
 
+    @authors("ignat")
     def test_sort(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -175,6 +179,7 @@ class TestOperations(object):
         with pytest.raises(yt.YtError):
             yt.run_sort(table, sort_by=None)
 
+    @authors("ignat")
     def test_run_operation(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -220,6 +225,7 @@ class TestOperations(object):
         assert sorted([rec["c"] for rec in records]) == []
         assert get_operation_error(operation.id) is None
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_run_join_operation(self):
         table1 = TEST_DIR + "/first"
@@ -269,6 +275,7 @@ class TestOperations(object):
         with pytest.raises(yt.YtError):
             yt.run_reduce("cat", [table1, table2], table, join_by=["x"])
 
+    @authors("asaitgalin")
     @add_failed_operation_stderrs_to_error_message
     def test_vanilla_operation(self):
         def check(op):
@@ -290,6 +297,7 @@ class TestOperations(object):
         op = yt.run_operation(vanilla_spec)
         check(op)
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_many_output_tables(self):
         table = TEST_DIR + "/table"
@@ -310,6 +318,7 @@ class TestOperations(object):
             assert yt.row_count(table) == 1
         check([{"x": "1", "y": "1"}, {"x": "10", "y": "10"}], yt.read_table(append_table), ordered=False)
 
+    @authors("ignat")
     def test_attached_mode_simple(self):
         table = TEST_DIR + "/table"
 
@@ -323,6 +332,7 @@ class TestOperations(object):
         finally:
             yt.config["detached"] = 1
 
+    @authors("ignat")
     def test_attached_mode_op_aborted(self, yt_env_with_rpc):
         script = """
 from __future__ import print_function
@@ -348,6 +358,7 @@ print(op.id)
                                         env=self.env, stderr=sys.stderr).strip()
         wait(lambda: yt.get(get_operation_path(op_id) + "/@state") == "aborted")
 
+    @authors("ignat")
     def test_reduce_combiner(self):
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/output_table"
@@ -357,6 +368,7 @@ print(op.id)
                           source_table=table, destination_table=output_table)
         check([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
 
+    @authors("ignat")
     def test_reduce_differently_sorted_table(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -370,6 +382,7 @@ print(op.id)
         with pytest.raises(yt.YtError):
             yt.run_reduce("cat", source_table=table, destination_table=other_table, reduce_by=["c"])
 
+    @authors("ignat")
     def test_reduce_sort_by(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1, "y": 1}])
@@ -377,6 +390,7 @@ print(op.id)
         op = yt.run_reduce("cat", table, table, format=yt.JsonFormat(), reduce_by=["x"], sort_by=["x", "y"])
         assert "sort_by" in op.get_attributes()["spec"]
 
+    @authors("ignat")
     def test_remote_copy(self):
         mode = yt.config["backend"]
         if mode == "http":
@@ -418,6 +432,7 @@ print(op.id)
             if instance is not None:
                 stop(instance.id, path=dir, remove_runtime_data=True)
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_shuffle(self):
         table = TEST_DIR + "/table"
@@ -432,6 +447,7 @@ print(op.id)
         yt.shuffle_table(table)
         assert len(list(yt.read_table(table))) == 3
 
+    @authors("ignat")
     def test_stderr_decoding(self):
         input_table = TEST_DIR + "/input"
         output_table = TEST_DIR + "/output"
@@ -442,6 +458,7 @@ print(op.id)
             assert len(job_infos) == 1
             assert job_infos[0]["stderr"] == "\xF1\xF2\xF3\xF4"
 
+    @authors("ignat")
     def test_operation_alert(self):
         try:
             config_patch = {
@@ -472,6 +489,7 @@ print(op.id)
             yt.remove("//sys/controller_agents/config", recursive=True, force=True)
 
 
+    @authors("ignat")
     def test_operations_spec(self):
         input_table = TEST_DIR + "/input"
         output_table = TEST_DIR + "/output"
@@ -480,6 +498,7 @@ print(op.id)
         op = yt.run_map("cat; sleep 120", input_table, output_table, spec={"asdfghjkl" : 1234567890}, sync=False)
         wait(lambda: op.get_attributes(fields=["unrecognized_spec"]).get("unrecognized_spec", {}))
 
+    @authors("ignat")
     def test_map_without_output(self, tmpdir):
         input_table = TEST_DIR + "/input"
         yt.write_table(input_table, [{"x": 1}, {"x": 2}, {"x": 3}])
@@ -505,6 +524,7 @@ print(op.id)
                 data = f.read()
             assert set(data.split()) == {"1", "2", "3"}
 
+    @authors("ignat")
     def test_reduce_without_output(self, tmpdir):
         input_table = TEST_DIR + "/input"
         yt.write_table(input_table, [
@@ -537,6 +557,7 @@ print(op.id)
                 data = f.read()
             assert int(data.strip()) == 700
 
+    @authors("ignat")
     def test_retrying_operation_count_limit_exceeded(self):
         # TODO(ignat): Rewrite test without sleeps.
         old_value = yt.config["start_operation_request_timeout"]
@@ -582,6 +603,7 @@ print(op.id)
         finally:
             yt.config["start_operation_request_timeout"] = old_value
 
+    @authors("ignat")
     def test_enable_logging_failed_operation(self):
         tableX = TEST_DIR + "/tableX"
         tableY = TEST_DIR + "/tableY"
@@ -590,6 +612,7 @@ print(op.id)
             with pytest.raises(yt.YtError):
                 yt.run_map("cat; echo 'Hello %username%!' >&2; exit 1", tableX, tableY)
 
+    @authors("ignat")
     def test_empty_job_command(self):
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/output_table"
@@ -616,6 +639,7 @@ class TestStderrTable(object):
         yt.config["tabular_data_format"] = None
         yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
+    @authors("ignat")
     def test_stderr_table(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -652,6 +676,7 @@ class TestStderrTable(object):
         for r in row_list:
             assert r["data"] in ["mr-map\n", "mr-reduce\n"]
 
+    @authors("ignat")
     def test_stderr_table_inside_transaction(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
@@ -687,6 +712,7 @@ class TestOperationCommands(object):
         yt.config["tabular_data_format"] = None
         yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
+    @authors("ignat")
     def test_get_operation_command(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
@@ -706,6 +732,7 @@ class TestOperationCommands(object):
             assert len(job_infos) == 1
             assert job_infos[0]["stderr"] == "AAA\n"
 
+    @authors("ignat")
     def test_list_operations(self):
         if yt.config["backend"] == "rpc":
             pytest.skip()
@@ -723,6 +750,7 @@ class TestOperationCommands(object):
         assert operation["state"] == "completed"
         assert operation["type"] == "map"
 
+    @authors("ignat")
     def test_iterate_operations(self):
         if yt.config["backend"] == "rpc":
             pytest.skip()
@@ -756,6 +784,7 @@ class TestOperationCommands(object):
         assert past_to_future == future_to_past[::-1]
         assert future_to_past == operations[1:]
 
+    @authors("ignat")
     def test_update_operation_parameters(self):
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/output_table"
@@ -768,6 +797,7 @@ class TestOperationCommands(object):
             yt.get_operation(op.id, include_scheduler=True)["progress"]["scheduling_info_per_pool_tree"]["default"]["weight"],
             10.0))
 
+    @authors("ignat")
     def test_abort_operation(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
@@ -775,6 +805,7 @@ class TestOperationCommands(object):
         op.abort()
         assert op.get_state() == "aborted"
 
+    @authors("ignat")
     def test_complete_operation(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}])
@@ -785,6 +816,7 @@ class TestOperationCommands(object):
         assert op.get_state() == "completed"
         op.complete()
 
+    @authors("ignat")
     def test_suspend_resume(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"key": 1}])
@@ -825,6 +857,7 @@ class TestOperationsFormat(object):
         yt.config["tabular_data_format"] = None
         yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_yamred_dsv(self):
         def foo(rec):
@@ -838,6 +871,7 @@ class TestOperationsFormat(object):
                    output_format=yt.YamrFormat(has_subkey=False, lenval=False))
         check([{"key": "2", "value": "x=1"}], list(yt.read_table(table)))
 
+    @authors("ignat")
     def test_schemaful_dsv(self):
         def foo(rec):
             yield rec
@@ -850,6 +884,7 @@ class TestOperationsFormat(object):
         yt.run_map(foo, table, table, format=yt.SchemafulDsvFormat(columns=["x"]))
         check([b"x=1\n", b"x=\\n\n"], sorted(list(yt.read_table(table, format=yt.DsvFormat(), raw=True))))
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_schemaful_dsv_several_output_tables(self):
         def mapper(row):
@@ -876,6 +911,7 @@ class TestOperationsFormat(object):
                        format=yt.SchemafulDsvFormat(columns=["x"], enable_table_index=True),
                        spec={"mapper": {"enable_input_table_index": True}})
 
+    @authors("ignat")
     def test_lazy_yson(self):
         def mapper(row):
             assert not isinstance(row, (YsonMap, dict))
@@ -910,6 +946,7 @@ class TestPythonOperations(object):
         yt.config["tabular_data_format"] = None
         yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations_common(self):
         def change_x(rec):
@@ -981,6 +1018,7 @@ class TestPythonOperations(object):
         yt.run_map(sum_x_raw, table, table, format=yt.DsvFormat())
         check(yt.read_table(table), [{"sum": "9"}])
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations_with_local_python(self):
         def func(row):
@@ -995,6 +1033,7 @@ class TestPythonOperations(object):
 
         check(yt.read_table(output), [{"x": 1}, {"y": 2}], ordered=False)
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations_in_local_mode(self):
         with set_config_option("is_local_mode", True):
@@ -1016,6 +1055,7 @@ class TestPythonOperations(object):
                 finally:
                     yt.config["local_temp_directory"] = old_tmp_dir
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_cross_format_operations(self):
         @yt.raw
@@ -1045,6 +1085,7 @@ class TestPythonOperations(object):
         yt.run_map("cat", table, table, input_format="dsv", output_format="dsv")
         assert list(yt.read_table(table, format=yt.format.DsvFormat(), raw=True)) == [b"k=1\ts=2\tv=3\n"]
 
+    @authors("ignat")
     def test_python_operations_io(self):
         """All access (except read-only) to stdin/out during the operation should be disabled."""
         table = TEST_DIR + "/table_io_test"
@@ -1076,6 +1117,7 @@ class TestPythonOperations(object):
                 yt.run_map(mapper, table, table)
 
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_reduce_aggregator(self):
         table = TEST_DIR + "/table"
@@ -1094,6 +1136,7 @@ class TestPythonOperations(object):
         yt.run_reduce(reducer, table, other_table, reduce_by=["x"])
         assert [{"sum_y": 9}] == list(yt.read_table(other_table))
 
+    @authors("ignat")
     def test_operation_receives_spec_from_config(self):
         memory_limit = yt.config["memory_limit"]
         yt.config["memory_limit"] = 123
@@ -1122,6 +1165,7 @@ class TestPythonOperations(object):
             except yt.YtError:
                 pass
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_operation_start_finish_methods(self):
         table = TEST_DIR + "/table"
@@ -1135,6 +1179,7 @@ class TestPythonOperations(object):
         yt.run_reduce(AggregateReducer(), table, other_table, reduce_by=["x"])
         check([{"sum": 1}, {"sum": 2}, {"sum": 9}], list(yt.read_table(other_table)))
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_stdout_fd_protection(self):
         def mapper(record):
@@ -1157,6 +1202,7 @@ class TestPythonOperations(object):
                 yt.run_map(mapper, table, output_table)
             check([{"x": 1}, {"x": 2}], list(yt.read_table(output_table)))
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_create_modules_archive(self):
         def foo(rec):
@@ -1186,6 +1232,7 @@ class TestPythonOperations(object):
         finally:
             yt.config["pickling"]["create_modules_archive_function"] = None
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_is_inside_job(self):
         table = TEST_DIR + "/table"
@@ -1198,6 +1245,7 @@ class TestPythonOperations(object):
         assert not yt.is_inside_job()
         assert list(yt.read_table(table)) == [{"flag": "true"}]
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_reduce_key_modification(self):
         def reducer(key, recs):
@@ -1220,6 +1268,7 @@ class TestPythonOperations(object):
         yt.run_reduce(reducer_that_yields_key, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
         check([{"x": 1}, {"x": 2}], yt.read_table(TEST_DIR + "/other"), ordered=False)
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_reduce_without_reading_all_rows(self):
         def reducer1(key, recs):
@@ -1239,6 +1288,7 @@ class TestPythonOperations(object):
         yt.run_reduce(reducer2, table, TEST_DIR + "/other", reduce_by=["x"], format="json")
         check([{"x": 10}, {"x": 10}], yt.read_table(TEST_DIR + "/other"), ordered=False)
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_table_and_row_index_from_job(self):
         @yt.aggregator
@@ -1272,6 +1322,7 @@ class TestPythonOperations(object):
             {"table_index": 1, "row_index": 0, "x": 2}
         ] == result
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_functions_with_context(self):
         @yt.with_context
@@ -1326,6 +1377,7 @@ class TestOperationsTracker(object):
         yt.config["tabular_data_format"] = None
         yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
+    @authors("max42")
     def test_reduce_with_foreign_tables_and_disabled_key_guarantee(self):
         table1 = TEST_DIR + "/table1"
         table2 = TEST_DIR + "/table2"
@@ -1342,6 +1394,7 @@ class TestOperationsTracker(object):
         assert "enable_key_guarantee" in op.get_attributes()["spec"]
         check([{"x": 1, "y": 1}, {"x": 1}], yt.read_table(table))
 
+    @authors("renadeen")
     def test_operations_tracker_multiple_instances(self):
         tracker = yt.OperationsTracker()
 
@@ -1395,6 +1448,7 @@ class TestOperationsTracker(object):
             if instance is not None:
                 stop(instance.id, path=dir, remove_runtime_data=True)
 
+    @authors("ignat")
     def test_operations_tracker(self):
         tracker = yt.OperationsTracker()
 
@@ -1453,6 +1507,7 @@ class TestOperationsTracker(object):
         finally:
             logger.LOGGER.setLevel(old_level)
 
+    @authors("renadeen")
     def test_pool_tracker_multiple_instances(self):
         def create_spec_builder(binary, source_table, destination_table):
             return MapSpecBuilder() \
@@ -1540,6 +1595,7 @@ class TestOperationsTracker(object):
             if instance is not None:
                 stop(instance.id, path=dir, remove_runtime_data=True)
 
+    @authors("asaitgalin")
     def test_pool_tracker(self):
         def create_spec_builder(binary, source_table, destination_table):
             return MapSpecBuilder() \
@@ -1628,6 +1684,7 @@ class TestOperationsTmpfs(object):
         yt.config["tabular_data_format"] = None
         yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
+    @authors("sandello", "ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_mount_tmpfs_in_sandbox(self, yt_env_with_porto):
         def foo(rec):
@@ -1672,6 +1729,7 @@ class TestOperationsTmpfs(object):
             assert memory_limit - tmpfs_size == 512 * 1024 * 1024
             assert get_spec_option(op.id, "mapper/tmpfs_path") == "."
 
+    @authors("ignat")
     def test_download_job_stderr_messages(self):
         def mapper(row):
             sys.stderr.write("Job with stderr")
@@ -1717,6 +1775,7 @@ class TestOperationsTmpfs(object):
         else:
             assert False, "Process did not terminate after {0:.2f} seconds".format(timeout)
 
+    @authors("sandello", "ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_sandbox_file_name_specification(self, yt_env_with_porto):
         def mapper(row):
@@ -1746,6 +1805,7 @@ class TestOperationsSeveralOutputTables(object):
         yt.config["tabular_data_format"] = None
         yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
+    @authors("asaitgalin")
     @add_failed_operation_stderrs_to_error_message
     def test_yson_several_output_tables(self):
         def first_mapper(row):
@@ -1782,6 +1842,7 @@ class TestOperationsSeveralOutputTables(object):
         with pytest.raises(yt.YtError):
             yt.run_map(third_mapper, table, output_tables, format=yt.YsonFormat(control_attributes_mode="iterator"))
 
+    @authors("asaitgalin")
     @add_failed_operation_stderrs_to_error_message
     def test_json_several_output_tables(self):
         def first_mapper(row):
@@ -1818,6 +1879,7 @@ class TestOperationsSeveralOutputTables(object):
         with pytest.raises(yt.YtError):
             yt.run_map(third_mapper, table, output_tables, format=yt.JsonFormat(control_attributes_mode="iterator"))
 
+    @authors("asaitgalin")
     @add_failed_operation_stderrs_to_error_message
     def test_yamr_several_output_tables(self):
         def first_mapper(rec):
@@ -1843,6 +1905,7 @@ class TestOperationsSeveralOutputTables(object):
         with pytest.raises(yt.YtError):
             yt.run_map(second_mapper, table, output_tables, format=yt.YamrFormat())
 
+    @authors("asaitgalin")
     def test_multiple_mapper_output_tables_in_mapreduce(self):
         input_table = TEST_DIR + "/table"
         mapper_output_table = TEST_DIR + "/mapper_output_table"
@@ -1886,6 +1949,7 @@ class TestOperationsSkiffFormat(object):
         yt.config["tabular_data_format"] = None
         yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_skiff(self):
         table = TEST_DIR + "/table"
@@ -1949,6 +2013,7 @@ class TestOperationsSkiffFormat(object):
         yt.run_map(mapper, table, output_table, format=format)
         assert list(yt.read_table(output_table)) == [{"x": 3, "y": 9}, {"x": 5, "y": 25}, {"x": 0, "y": 0}]
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_skiff_multi_table(self):
         first_table = TEST_DIR + "/table1"
@@ -2019,6 +2084,7 @@ class TestOperationsSkiffFormat(object):
         assert list(yt.read_table(first_output_table)) == [{"x": 3, "y": 9}, {"x": 5, "y": 25}, {"x": 0, "y": 0}]
         assert list(yt.read_table(second_output_table)) == [{"z": -1, "y": 1}, {"z": -2, "y": 4}, {"z": -5, "y": 25}]
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_with_skiff_schemas(self):
         input_table = TEST_DIR + "/table"
@@ -2090,6 +2156,7 @@ class TestOperationsSkiffFormat(object):
         assert list(yt.read_table(first_output_table)) == [{"z": 9}]
         assert list(yt.read_table(second_output_table)) == [{"x": 10}, {"x": 14}]
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_skiff_schema_from_table(self):
         @yt.with_skiff_schemas

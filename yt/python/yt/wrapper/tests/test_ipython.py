@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import TEST_DIR, get_environment_for_binary_test
 
 import yt.environment.arcadia_interop as arcadia_interop
@@ -9,6 +10,7 @@ import tempfile
 
 @pytest.mark.usefixtures("yt_env")
 class TestIPython(object):
+    @authors("ignat")
     def test_run_operation(self, yt_env):
         if arcadia_interop.yatest_common is None:
             pytest.skip()

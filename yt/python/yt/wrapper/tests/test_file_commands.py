@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 
+from .conftest import authors
 from .helpers import TEST_DIR, set_config_option, set_config_options, failing_heavy_request
 
 from yt.wrapper.common import MB
@@ -21,6 +22,7 @@ except ImportError:  # Python 3
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestFileCommands(object):
+    @authors("asaitgalin")
     def test_file_commands(self):
         with pytest.raises(yt.YtError):
             yt.write_file(TEST_DIR + "/dir/file", b"")
@@ -74,6 +76,7 @@ class TestFileCommands(object):
             yt.smart_upload_file(filename, destination="subdir/abc", placement_strategy="replace")
             assert yt.read_file("subdir/abc").read() == b"some content"
 
+    @authors("ostyakov", "ignat")
     def test_parallel_read_file(self, yt_env_with_rpc):
         override_options = {
             "read_parallel/enable": True,
@@ -82,6 +85,7 @@ class TestFileCommands(object):
         with set_config_options(override_options):
             self.test_file_commands()
 
+    @authors("ostyakov")
     @pytest.mark.parametrize("use_tmp_dir_for_intermediate_data", [True, False])
     def test_parallel_write_file(self, use_tmp_dir_for_intermediate_data):
         override_options = {
@@ -93,6 +97,7 @@ class TestFileCommands(object):
         with set_config_options(override_options):
             self.test_file_commands()
 
+    @authors("asaitgalin", "ignat")
     def test_unicode(self):
         data = u"строка"
         path = TEST_DIR + "/filename"
@@ -104,6 +109,7 @@ class TestFileCommands(object):
             with pytest.raises(yt.YtError):
                 yt.write_file(path, data)
 
+    @authors("asaitgalin")
     def test_write_compressed_file_data(self):
         fd, filename = tempfile.mkstemp()
         os.close(fd)
@@ -120,6 +126,7 @@ class TestFileCommands(object):
                     yt.write_file(TEST_DIR + "/file", f, is_stream_compressed=True)
                     assert b"test write compressed file data" == yt.read_file(TEST_DIR + "/file").read()
 
+    @authors("ignat")
     def test_etag(self):
         if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
@@ -139,6 +146,7 @@ class TestFileCommands(object):
                                 params={"path": file_path}, headers={"If-None-Match": str(revision)})
         assert response.status_code == 304
 
+    @authors("se4min")
     def test_write_file_retries(self):
         chunks = [b"abc", b"def", b"xyz"]
         chunks_generator = (chunk for chunk in chunks)
@@ -149,6 +157,7 @@ class TestFileCommands(object):
 
         assert b"".join(chunks) == tuple(yt.read_file(file_path))[0]
 
+    @authors("se4min")
     @pytest.mark.parametrize("progress_bar", (False, True))
     def test_read_file_retries(self, progress_bar):
         data = b"abc" * 50
@@ -162,6 +171,7 @@ class TestFileCommands(object):
 
     @pytest.mark.parametrize("parallel,progress_bar", [(False, False), (True, False), (False, True),
                                                        (True, True)])
+    @authors("se4min")
     def test_write_big_file_retries(self, parallel, progress_bar):
         with set_config_option("write_parallel/enable", parallel):
             with set_config_option("write_progress_bar/enable", progress_bar):

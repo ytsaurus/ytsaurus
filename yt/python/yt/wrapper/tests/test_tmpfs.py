@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import TEST_DIR, set_config_option, check
 
 from yt.wrapper.spec_builders import MapSpecBuilder
@@ -10,6 +11,7 @@ import os
 
 @pytest.mark.usefixtures("yt_env")
 class TestTmpfs(object):
+    @authors("ignat")
     def test_tmpfs_configuration(self):
         def mapper(row):
             yield row
@@ -31,6 +33,7 @@ class TestTmpfs(object):
         assert spec["mapper"]["tmpfs_path"] == "tmpfs"
         assert "tmpfs_size" in spec["mapper"]
 
+    @authors("ignat")
     def test_tmpfs_usage(self):
         def mapper(row):
             assert os.path.exists("tmpfs")

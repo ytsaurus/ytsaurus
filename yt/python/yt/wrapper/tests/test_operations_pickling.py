@@ -1,5 +1,6 @@
 from __future__ import print_function
 
+from .conftest import authors
 from .helpers import (TEST_DIR, set_config_option, get_tests_sandbox, check, get_test_file_path, get_test_files_dir_path,
                       build_python_egg, get_python, dumps_yt_config, run_python_script_with_check, get_operation_path)
 
@@ -38,6 +39,7 @@ class TestOperationsPickling(object):
             "PYTHONPATH": os.environ["PYTHONPATH"]
         }
 
+    @authors("asaitgalin")
     @add_failed_operation_stderrs_to_error_message
     def test_pickling(self):
         def foo(rec):
@@ -57,6 +59,7 @@ class TestOperationsPickling(object):
             yt.write_table(table, [{"x": 1}])
             yt.run_map(foo, table, table)
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_module_filter(self):
         assert has_test_module
@@ -96,6 +99,7 @@ class TestOperationsPickling(object):
             yt.run_map(mapper_no_test_module, table, table)
         check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
+    @authors("ignat")
     @pytest.mark.usefixtures("test_dynamic_library")
     @add_failed_operation_stderrs_to_error_message
     def test_modules_compatibility_filter(self, test_dynamic_library):
@@ -138,6 +142,7 @@ class TestOperationsPickling(object):
                 os.environ["LD_LIBRARY_PATH"] = old_ld_library_path
             sys.platform = old_platform
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_eggs_file_usage_from_operation(self, yt_env_with_increased_memory):
         script = """\
@@ -175,6 +180,7 @@ if __name__ == "__main__":
         op.wait()
         assert list(yt.read_table(TEST_DIR + "/other_table")) == [{"x": "hello"}]
 
+    @authors("ignat")
     @pytest.mark.usefixtures("test_dynamic_library")
     @add_failed_operation_stderrs_to_error_message
     def test_enable_dynamic_libraries_collection(self, test_dynamic_library):
@@ -202,6 +208,7 @@ if __name__ == "__main__":
             if old_ld_library_path:
                 os.environ["LD_LIBRARY_PATH"] = old_ld_library_path
 
+    @authors("ignat")
     def test_disable_yt_accesses_from_job(self, yt_env_with_increased_memory):
         if yt.config["backend"] == "native":
             pytest.skip()
@@ -259,6 +266,7 @@ if __name__ == "__main__":
 
             assert b"Did you forget to surround" in yt.read_file(stderr_path).read()
 
+    @authors("ignat")
     def test_python_operations_pickling(self, yt_env_with_increased_memory):
         test_script = """\
 from __future__ import print_function
@@ -372,6 +380,7 @@ class Mapper(object):
             _format_script(methods_call_order_test, source_table=table, destination_table=table))
         assert list(yt.read_table(table)) == [{"x": 666}, {"x": 667}, {"x": 668}]
 
+    @authors("ignat")
     def test_python_job_preparation_time(self):
         def mapper(rec):
             yield rec
@@ -383,12 +392,14 @@ class Mapper(object):
         assert sorted(list(op.get_job_statistics()["custom"])) == ["python_job_preparation_time"]
         check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
 
+    @authors("ignat")
     def test_relative_imports_with_run_module(self, yt_env_with_increased_memory):
         yt.write_table("//tmp/input_table", [{"value": 0}])
         subprocess.check_call([sys.executable, "-m", "test_rel_import_module.run"],
                                cwd=get_test_files_dir_path(), env=self.env)
         check(yt.read_table("//tmp/output_table"), [{"value": 0, "constant": 10}])
 
+    @authors("ignat")
     @pytest.mark.skipif("PY3")
     def test_run_standalone_binary(self):
         table = TEST_DIR + "/table"
@@ -400,6 +411,7 @@ class Mapper(object):
         subprocess.check_call([get_python(), binary, table, other_table], env=self.env, stderr=sys.stderr)
         check([{"x": 1}, {"x": 2}], yt.read_table(other_table))
 
+    @authors("ignat")
     def test_local_file_attributes(self):
         def command(row):
             pass
@@ -438,6 +450,7 @@ class Mapper(object):
             yt.config["pickling"]["modules_bypass_artifacts_cache"] = None
 
     # Remove flaky after YT-10347.
+    @authors("ignat")
     @flaky(max_runs=5)
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations_and_file_cache(self):

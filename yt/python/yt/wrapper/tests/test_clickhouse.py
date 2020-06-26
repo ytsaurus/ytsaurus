@@ -1,9 +1,11 @@
+from .conftest import authors
+from .helpers import check
+
 import yt.wrapper as yt
 import yt.clickhouse as chyt
 from yt.packages.six import PY3
 from yt.packages.six.moves import map as imap
 
-from .helpers import check
 from yt.test_helpers import wait
 
 from yt.clickhouse.test_helpers import get_clickhouse_server_config, get_host_paths
@@ -62,6 +64,7 @@ class TestClickhouseFromHost(ClickhouseTestBase):
     def setup(self):
         self._setup()
 
+    @authors("max42", "ignat")
     def test_execute(self):
         content = [{"a": i} for i in range(4)]
         yt.create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -132,5 +135,6 @@ class TestClickhouseFromCypress(ClickhouseTestBase):
             yt.remove("//sys/clickhouse/defaults/host_" + destination_bin.replace("-", "_") + "_path")
         yt.set("//sys/bin/ytserver-log-tailer/ytserver-log-tailer/@yt_version", "")
 
+    @authors("max42")
     def test_fake_chyt(self):
         chyt.start_clique(1, alias="*c", wait_for_instances=False)

@@ -1,5 +1,6 @@
 from __future__ import with_statement
 
+from .conftest import authors
 from .helpers import TEST_DIR, set_config_option, get_tests_sandbox, wait, check
 
 from yt.wrapper.driver import get_command_list, get_api_version
@@ -30,6 +31,7 @@ class TestDynamicTableCommands(object):
         attributes.update({"dynamic": True})
         yt.create("table", path, attributes=attributes)
 
+    @authors("ifsmirnov")
     def test_mount_unmount(self, yt_env):
         table = TEST_DIR + "/table"
         self._create_dynamic_table(table)
@@ -53,6 +55,7 @@ class TestDynamicTableCommands(object):
         yt.unmount_table(table, sync=True)
         _check_tablet_state("unmounted")
 
+    @authors("ifsmirnov")
     def test_reshard(self, yt_env):
         table = TEST_DIR + "/table_reshard"
         self._create_dynamic_table(table)
@@ -67,6 +70,7 @@ class TestDynamicTableCommands(object):
         assert yt.get("{}/@tablet_state".format(table)) == "unmounted"
         assert yt.get("{}/@tablet_count".format(table)) == 1
 
+    @authors("ifsmirnov")
     def test_insert_lookup_delete(self, yt_env):
         with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
@@ -85,6 +89,7 @@ class TestDynamicTableCommands(object):
             yt.delete_rows(table, [{"x": "a"}], raw=False)
             assert [{"x": "c", "y": "d"}] == list(yt.select_rows("* from [{0}]".format(table), raw=False))
 
+    @authors("ifsmirnov")
     @pytest.mark.xfail(run=False, reason="In progress")
     def test_select(self):
         table = TEST_DIR + "/table"
@@ -112,6 +117,7 @@ class TestDynamicTableCommands(object):
 
         assert [{"x": 1, "y": 2, "z": 3}] == select()
 
+    @authors("ifsmirnov")
     def test_insert_lookup_delete_with_transaction(self, yt_env):
         if yt.config["backend"] != "native":
             pytest.skip()
@@ -153,6 +159,7 @@ class TestDynamicTableCommands(object):
             with yt.Transaction(type="tablet"):
                 yt.lock_rows(table, [{"x": "b"}, {"x": "c"}], raw=False)
 
+    @authors("ifsmirnov")
     def test_read_from_dynamic_table(self):
         with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
@@ -169,6 +176,7 @@ class TestDynamicTableCommands(object):
             with set_config_option("read_parallel/enable", True):
                 assert list(yt.read_table(table)) == [{"x": "a", "y": "b"}]
 
+    @authors("ifsmirnov")
     def test_incorrect_dynamic_table_commands(self):
         table = TEST_DIR + "/dyn_table"
         yt.create("table", table, attributes={
@@ -191,6 +199,7 @@ class TestDynamicTableCommands(object):
         with pytest.raises(yt.YtResponseError):
             yt.insert_rows(table, [{"a": "b"}])
 
+    @authors("ifsmirnov")
     def test_trim_rows(self):
         def remove_control_attributes(rows):
             for row in rows:
@@ -222,6 +231,7 @@ class TestDynamicTableCommands(object):
             yt.trim_rows(table, tablet_index, 3)
             assert [] == list(yt.select_rows("* from [{0}]".format(table), raw=False))
 
+    @authors("ifsmirnov")
     def test_alter_table_replica(self):
         mode = yt.config["backend"]
         if mode != "native":
@@ -284,6 +294,7 @@ class TestDynamicTableCommands(object):
         yt.reshard_table_automatic(table, sync=True)
         assert yt.get("{}/@tablet_count".format(table)) == 1
 
+    @authors("ifsmirnov")
     @pytest.mark.parametrize("tables", [None, [TEST_DIR + "/table_balance_cells"]])
     def test_balance_tablet_cells(self, tables):
         cells = [self._sync_create_tablet_cell() for i in xrange(2)]
@@ -303,6 +314,7 @@ class TestDynamicTableCommands(object):
         tablets = yt.get("{}/@tablets".format(table))
         assert tablets[0]["cell_id"] != tablets[1]["cell_id"]
 
+    @authors("ignat")
     def test_get_tablet_infos(self):
         if get_api_version() != "v4":
             pytest.skip()
@@ -314,6 +326,7 @@ class TestDynamicTableCommands(object):
 
         assert yt.get_tablet_infos(table, [0])["tablets"][0]["total_row_count"] == 0
 
+    @authors("ignat")
     def test_tablet_index_control_attribute(self):
         self._sync_create_tablet_cell()
         table = TEST_DIR + "/dyntable"
@@ -350,6 +363,7 @@ class TestDynamicTableCommands(object):
 
         check(yt.read_table(dump_table), [{"tablet_index": 0}, {"tablet_index": 1}], ordered=False)
 
+    @authors("lukyan")
     def test_explain_query(self):
         self._sync_create_tablet_cell()
 

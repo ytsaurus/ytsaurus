@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 
+from .conftest import authors
+
 from yt.wrapper.errors import YtHttpResponseError
 from yt.wrapper.common import (update, unlist, parse_bool, dict_depth, bool_to_string,
                                is_prefix, prefix, first_not_none, group_blobs_by_size,
@@ -13,16 +15,19 @@ import yt.wrapper as yt
 from datetime import datetime
 import pytest
 
+@authors("ignat")
 def test_update():
     assert update({"a": 10}, {"b": 20}) == {"a": 10, "b": 20}
     assert update({"a": 10}, {"a": 20, "b": {"c": 10}}) == {"a": 20, "b": {"c": 10}}
     assert update({"a": 10, "b": "some"}, {"a": 20, "b": {"c": 10}}) == {"a": 20, "b": {"c": 10}}
 
+@authors("asaitgalin")
 def test_unlist():
     assert unlist(["a"]) == "a"
     assert unlist(4) == 4
     assert unlist("abc") == "abc"
 
+@authors("asaitgalin")
 def test_parse_bool():
     assert parse_bool("true")
     assert parse_bool("True")
@@ -31,12 +36,14 @@ def test_parse_bool():
     with pytest.raises(yt.YtError):
         parse_bool("42")
 
+@authors("asaitgalin")
 def test_dict_depth():
     assert dict_depth({"x": "y"}) == 1
     assert dict_depth({"x": {"y": 1}}) == 2
     assert dict_depth({"x": {"y": 1}, "z": {"t": {"v": 3}}}) == 3
     assert dict_depth(0) == 0
 
+@authors("asaitgalin")
 def test_bool_to_string():
     assert bool_to_string(True) == "true"
     assert bool_to_string(False) == "false"
@@ -49,6 +56,7 @@ def test_bool_to_string():
     with pytest.raises(yt.YtError):
         bool_to_string(42)
 
+@authors("asaitgalin")
 def test_is_prefix():
     assert is_prefix("ab", "abc")
     assert not is_prefix("ab", "dbac")
@@ -58,6 +66,7 @@ def test_is_prefix():
     assert is_prefix([], [1, 2, 3])
     assert not is_prefix(list(xrange(100)), [1])
 
+@authors("asaitgalin")
 def test_prefix():
     assert list(prefix([1, 2, 3], 1)) == [1]
     assert list(prefix([1, 2, 3], 10)) == [1, 2, 3]
@@ -65,12 +74,14 @@ def test_prefix():
     assert list(prefix([], 1)) == []
     assert list(prefix([1, 2], 0)) == []
 
+@authors("asaitgalin")
 def test_first_not_none():
     assert first_not_none([None, None, None, 1]) == 1
     assert first_not_none(["a", None]) == "a"
     with pytest.raises(StopIteration):
         first_not_none([])
 
+@authors("asaitgalin", "ostyakov")
 def test_group_blobs_by_size():
     # Is it right behaviour?
     lines = ["ab", "abc", "def", "ghijklmn", "op"]
@@ -79,6 +90,7 @@ def test_group_blobs_by_size():
            [["ab", "abc"], ["def"], ["ghijklmn"], ["op"]]
     assert list(group_blobs_by_size(["abcdef"], 2)) == [["abcdef"]]
 
+@authors("ignat")
 def test_time_functions():
     now = datetime.now()
     now_utc = datetime.utcnow()
@@ -88,6 +100,7 @@ def test_time_functions():
     tm2 = date_string_to_timestamp(str2)
     assert abs(tm1 - tm2) < 10
 
+@authors("ignat")
 def test_error_pickling():
     error = yt.YtError("error", code=100, attributes={"attr": 10})
     pickled_error = pickle.dumps(error)
@@ -97,16 +110,19 @@ def test_error_pickling():
     pickled_error = pickle.dumps(error)
     assert pickle.loads(pickled_error).message == error.message
 
+@authors("ignat")
 def test_error_str():
     error = yt.YtError(u"моя ошибка", code=100, attributes={"аттрибут": 10, "другой атрибут": "со странным значением"})
     assert "10" in str(error)
 
+@authors("ostyakov")
 def test_chunk_iter_list():
     assert list(chunk_iter_list([1, 2, 3], chunk_size=1)) == [[1], [2], [3]]
     assert list(chunk_iter_list([1, 2, 3], chunk_size=2)) == [[1, 2], [3]]
     assert list(chunk_iter_list([1, 2, 3], chunk_size=5)) == [[1, 2, 3]]
     assert list(chunk_iter_list([], chunk_size=1)) == []
 
+@authors("ignat")
 def test_escape_c():
     assert escape_c("http://ya.ru/") == "http://ya.ru/"
     assert escape_c("http://ya.ru/\x17\n") == "http://ya.ru/\\x17\\n"

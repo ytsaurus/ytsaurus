@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import set_config_option
 
 import yt.wrapper as yt
@@ -7,6 +8,7 @@ import pytest
 
 @pytest.mark.usefixtures("yt_env")
 class TestRandomSample(object):
+    @authors("ignat")
     def test_random_sample_locally(self):
         yt.write_table("//tmp/test_table", [{"x": i} for i in range(1000)])
 
@@ -21,6 +23,7 @@ class TestRandomSample(object):
 
             assert sorted([row["x"] for row in first_table_iterator]) != sorted([row["x"] for row in second_table_iterator])
 
+    @authors("ignat")
     def test_random_sample_in_operation(self):
         yt.write_table("//tmp/test_table", [{"x": i} for i in range(1000)])
 

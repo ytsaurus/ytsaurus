@@ -1,3 +1,5 @@
+from .conftest import authors
+
 from yt.common import update
 
 import yt.wrapper.default_config as default_config_module
@@ -8,6 +10,7 @@ import pytest
 
 @pytest.mark.usefixtures("yt_env")
 class TestConfig(object):
+    @authors("asaitgalin")
     @pytest.mark.usefixtures("config")
     def test_special_config_options(self, config):
         env_merge_option = os.environ.get("YT_MERGE_INSTEAD_WARNING", None)

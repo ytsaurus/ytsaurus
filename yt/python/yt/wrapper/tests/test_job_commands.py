@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import TEST_DIR, create_job_events
 
 import yt.environment.arcadia_interop as arcadia_interop
@@ -35,6 +36,7 @@ class TestJobCommands(object):
                 return output
             raise
 
+    @authors("klyachin")
     def test_job_shell(self, job_events):
         if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
@@ -71,6 +73,7 @@ class TestJobCommands(object):
         job_events.release_breakpoint()
         op.wait()
 
+    @authors("klyachin")
     def test_job_shell_command(self, job_events):
         if arcadia_interop.yatest_common is not None:
             pytest.skip()
@@ -100,6 +103,7 @@ class TestJobCommands(object):
         job_events.release_breakpoint()
         op.wait()
 
+    @authors("ignat")
     def test_secure_vault_variables_in_job_shell(self):
         if arcadia_interop.yatest_common is not None:
             pytest.skip()
@@ -160,6 +164,7 @@ class TestJobCommands(object):
         job_events.release_breakpoint()
         op.wait()
 
+    @authors("ermolovd")
     def test_get_job_stderr(self, job_events):
         input_table = TEST_DIR + "/input_table"
         output_table = TEST_DIR + "/output_table"
@@ -175,6 +180,7 @@ class TestJobCommands(object):
         job_events.release_breakpoint()
         op.wait()
 
+    @authors("levysotsky")
     def test_get_job_input(self, job_events):
         input_table = TEST_DIR + "/input_table"
         output_table = TEST_DIR + "/output_table"
@@ -191,6 +197,7 @@ class TestJobCommands(object):
         job_events.release_breakpoint()
         op.wait()
 
+    @authors("levysotsky")
     def test_get_job_input_paths(self, job_events):
         input_table = TEST_DIR + "/input_table"
         output_table = TEST_DIR + "/output_table"
@@ -207,6 +214,7 @@ class TestJobCommands(object):
         job_events.release_breakpoint()
         op.wait()
 
+    @authors("ostyakov")
     def test_abort_job(self, job_events):
         input_table = TEST_DIR + "/input_table"
         output_table = TEST_DIR + "/output_table"
@@ -226,6 +234,7 @@ class TestJobCommands(object):
         attrs = yt.get_operation_attributes(op.id)
         assert attrs["progress"]["jobs"]["aborted"]["total"] == 1
 
+    @authors("gritukan")
     def test_get_job_spec(self, job_events):
         input_table = TEST_DIR + "/input_table"
         output_table = TEST_DIR + "/output_table"

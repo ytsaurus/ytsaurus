@@ -1,3 +1,5 @@
+from .conftest import authors
+
 from yt.common import YtError
 
 import yt.wrapper as yt
@@ -11,14 +13,17 @@ def _create_error(code):
                                           "inner_errors": [] }
                                      ]})
 
+@authors("bidzilya", "ignat")
 def test_response_error():
     assert _create_error(str(904)).is_request_rate_limit_exceeded()
 
+@authors("max42", "bidzilya")
 def test_rpc_unavailable():
     assert _create_error(str(105)).is_rpc_unavailable()
 
 @pytest.mark.usefixtures("yt_env")
 class TestYtError(object):
+    @authors("max42")
     def test_error_matching(self):
         yt.create("table", "//tmp/t_in")
         yt.write_table("//tmp/t_in", [{"a": 1}])
