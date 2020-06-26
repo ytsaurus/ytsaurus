@@ -14,6 +14,7 @@ import yt.environment.arcadia_interop as arcadia_interop
 
 import pytest
 import os.path
+import copy
 
 HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer",
                                               "ytserver-dummy"])
@@ -37,6 +38,7 @@ DEFAULTS = {
     "enable_monitoring": False,
     "clickhouse_config": {},
     "max_instance_count": 100,
+    "enable_job_tables": True,
     "cypress_log_tailer_config_path": "//sys/clickhouse/log_tailer_config",
     "log_tailer_table_attribute_patch": {"primary_medium": "default"},
     "log_tailer_tablet_count": 1,
@@ -64,7 +66,7 @@ class TestClickhouseFromHost(ClickhouseTestBase):
     def setup(self):
         self._setup()
 
-    @authors("max42", "ignat")
+    @authors("max42")
     def test_execute(self):
         content = [{"a": i} for i in range(4)]
         yt.create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
@@ -102,6 +104,23 @@ class TestClickhouseFromHost(ClickhouseTestBase):
                      '{"a":1,"multiply(a, a)":1}',
                      '{"a":2,"multiply(a, a)":4}',
                      '{"a":3,"multiply(a, a)":9}'])
+
+    @authors("max42")
+    def test_non_trivial_client(self):
+        config = copy.deepcopy(yt.config.config)
+        yt.set("//sys/clickhouse/log_tailer_config/log_tailer", {"log_files": [{"ttl": 604800000, "path": "clickhouse.log"}]})
+
+        try:
+            # We ruin global proxy config to make sure start_clique uses only provided client.
+            yt.config["proxy"]["url"] = "invalid_url_due_to_forgotten_client=client"
+            chyt.start_clique(1, alias="*d", client=yt.YtClient(config=config))
+        finally:
+            # Restore original global config.
+            yt.config.config = config
+            # Remove log tailer options.
+            yt.set("//sys/clickhouse/log_tailer_config/log_tailer", {})
+            yt.remove("//sys/clickhouse/log_tailer_config/log_tailer")
+
 
 # Waiting for real ytserver-clickhouse upload is too long, so we upload fake binary instead.
 @pytest.mark.usefixtures("yt_env")

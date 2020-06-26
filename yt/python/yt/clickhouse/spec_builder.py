@@ -33,7 +33,8 @@ def get_clique_spec_builder(instance_count,
                             enable_log_tailer=None,
                             trampoline_log_file=None,
                             max_instance_count=None,
-                            spec=None):
+                            spec=None,
+                            client=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
     :param instance_count: number of instances (also the number of jobs in the underlying vanilla operation).
@@ -141,7 +142,7 @@ def get_clique_spec_builder(instance_count,
             .alias(operation_alias) \
             .spec(spec)
 
-    if "pool" not in spec_builder.build():
+    if "pool" not in spec_builder.build(client=client):
         logger.warning("It is discouraged to run clique in ephemeral pool "
                        "(which happens when pool is not specified explicitly)")
 

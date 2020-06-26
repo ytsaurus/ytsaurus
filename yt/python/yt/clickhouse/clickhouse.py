@@ -223,6 +223,7 @@ def prepare_artifacts(artifact_path,
     log_tailer_version = get(cypress_ytserver_log_tailer_path + "/@yt_version", client=client) if cypress_ytserver_log_tailer_path else ""
 
     for log_file in log_tailer_config.get("log_tailer", {}).get("log_files", []):
+
         prepare_log_tailer_tables(log_file, artifact_path, log_tailer_version=log_tailer_version, client=client,
                                   attribute_patch=log_tailer_table_attribute_patch,
                                   tablet_count=log_tailer_tablet_count)
@@ -494,6 +495,7 @@ def start_clique(instance_count,
                                                enable_job_tables=enable_job_tables,
                                                enable_log_tailer=True,
                                                defaults=defaults,
+                                               client=client,
                                                **kwargs),
                        client=client,
                        sync=False)
