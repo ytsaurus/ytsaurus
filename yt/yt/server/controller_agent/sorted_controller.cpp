@@ -345,23 +345,25 @@ protected:
                     continue;
                 }
                 const auto& column = table->Schema->GetColumnOrThrow(columnName);
-                if (!column.SimplifiedLogicalType()) {
-                    THROW_ERROR_EXCEPTION("Key column %Qv cannot have complex type %Qv",
-                        columnName,
-                        *column.LogicalType());
-                }
-                if (*column.SimplifiedLogicalType() == ESimpleLogicalValueType::Any) {
+                if (column.SimplifiedLogicalType() && *column.SimplifiedLogicalType() == ESimpleLogicalValueType::Any) {
                     continue;
                 }
                 if (referenceColumn) {
-                    YT_VERIFY(referenceColumn->SimplifiedLogicalType());
-                    if (GetPhysicalType(*referenceColumn->SimplifiedLogicalType()) != GetPhysicalType(*column.SimplifiedLogicalType())) {
+                    bool ok = true;
+                    if (!referenceColumn->SimplifiedLogicalType()) {
+                        if (*column.LogicalType() != *referenceColumn->LogicalType())  {
+                            ok = false;
+                        }
+                    } else if (GetPhysicalType(*referenceColumn->SimplifiedLogicalType()) != GetPhysicalType(*column.SimplifiedLogicalType())) {
+                        ok = false;
+                    }
+                    if (!ok) {
                         THROW_ERROR_EXCEPTION("Key columns have different types in input tables")
-                            << TErrorAttribute("column_name", columnName)
-                            << TErrorAttribute("input_table_1", referenceTable->GetPath())
-                            << TErrorAttribute("type_1", ToString(*referenceColumn->LogicalType()))
-                            << TErrorAttribute("input_table_2", table->GetPath())
-                            << TErrorAttribute("type_2", ToString(*column.LogicalType()));
+                                << TErrorAttribute("column_name", columnName)
+                                << TErrorAttribute("input_table_1", referenceTable->GetPath())
+                                << TErrorAttribute("type_1", ToString(*referenceColumn->LogicalType()))
+                                << TErrorAttribute("input_table_2", table->GetPath())
+                                << TErrorAttribute("type_2", ToString(*column.LogicalType()));
                     }
                 } else {
                     referenceColumn = &column;

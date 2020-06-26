@@ -56,6 +56,9 @@ static_assert(
 //! Computes hash for a given TUnversionedValue.
 ui64 GetHash(const TUnversionedValue& value);
 
+//! Computes hash for a given set of values.
+ui64 GetHash(const TUnversionedValue* begin, const TUnversionedValue* end);
+
 //! Computes FarmHash forever-fixed fingerprint for a given TUnversionedValue.
 TFingerprint GetFarmFingerprint(const TUnversionedValue& value);
 

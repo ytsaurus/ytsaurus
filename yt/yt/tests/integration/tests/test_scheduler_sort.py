@@ -44,16 +44,41 @@ def sort_3_phase(in_, out, sort_by):
     op.track()
     assert __builtin__.set(get_operation_job_types(op.id)) == {'intermediate_sort', 'partition', 'sorted_merge'}
 
-
 def sort_maniac(in_, out, sort_by):
     if isinstance(sort_by, str):
         sort_by = [sort_by]
 
+    def normalize_key(value):
+        if isinstance(value, list):
+            return tuple(normalize_key(v) for v in value)
+        else:
+            return value
+
     def get_key(row):
-        return tuple(row[k] for k in sort_by)
+        return tuple(normalize_key(row[k]) for k in sort_by)
+
+    def count_keys(key_list):
+        # NB. The easier solution would be create a set of keys
+        # but sometimes keys contain YsonLists that are unhashable
+        # so we use sorting.
+
+        prev = ()  # empty tuple is never met in keys
+        count = 0
+        for k in sorted(key_list):
+            if k != prev:
+                count += 1
+            prev = k
+        return count
+
     key_count = len(__builtin__.set(get_key(r) for r in read_table(in_)))
 
-    op = sort(in_=in_, out=out, sort_by=sort_by, spec={
+    tmp = in_ + ".tmp"
+    copy(in_, tmp)
+    write_table(tmp, [])
+    for r in read_table(in_):
+        write_table("<append=%true>" + tmp, [r])
+
+    op = sort(in_=tmp, out=out, sort_by=sort_by, spec={
         "partition_job_count" : 4,
         "partition_count" : key_count * 5,
         "data_size_per_sort_job": 1,
@@ -1154,6 +1179,68 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/out")
         sort_func(in_="//tmp/in", out="//tmp/out", sort_by="key")
 
+    def run_test_complex_sort(self, sort_func, type_v3, data, expected_data):
+        create("table", "//tmp/in", attributes={
+            "schema": [
+                {"name": "key", "type_v3": type_v3}
+            ],
+        })
+        write_table("//tmp/in", [{"key": d} for d in data])
+
+        create("table", "//tmp/out")
+        sort_func("//tmp/in", "//tmp/out", sort_by="key")
+
+        out_data = [r["key"] for r in read_table("//tmp/out")]
+        assert out_data == expected_data
+
+    @authors("ermolovd")
+    @pytest.mark.parametrize("sort_func", [sort_1_phase, sort_2_phase, sort_3_phase])
+    def test_sort_key_complex_type_list(self, sort_func):
+        self.run_test_complex_sort(
+            sort_func,
+            list_type(optional_type("int64")),
+            [
+                [0, 4, 8],
+                [0],
+                [1, 2, 3, 5],
+                [2, 2, 3, 5],
+                [2, None, 3, 5],
+                [5],
+                [5],
+                [5],
+                [5],
+                [5],
+                [5],
+            ],
+            [
+                [0],
+                [0, 4, 8],
+                [1, 2, 3, 5],
+                [2, None, 3, 5],
+                [2, 2, 3, 5],
+                [5],
+                [5],
+                [5],
+                [5],
+                [5],
+                [5],
+            ],
+        )
+
+    @authors("ermolovd")
+    def test_sort_key_complex_type_maniac(self):
+        create("table", "//tmp/in", attributes={
+            "schema": [
+                {"name": "key", "type_v3": list_type("int64")}
+            ],
+        })
+
+        data = [{"key": [i % 10] } for i in xrange(100, 1, -1)]
+        for d in data:
+            write_table("<append=%true>//tmp/in", [d])
+
+        create("table", "//tmp/out")
+        sort_maniac("//tmp/in", "//tmp/out", sort_by="key")
 
 ##################################################################
 

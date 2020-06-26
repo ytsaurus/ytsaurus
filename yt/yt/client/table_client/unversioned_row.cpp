@@ -645,8 +645,9 @@ bool operator > (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
 
 ui64 GetHash(TUnversionedRow row, ui32 keyColumnCount)
 {
-    // NB: hash function may change in future. Use fingerprints for persistent hashing.
-    return GetFarmFingerprint(row, keyColumnCount);
+    auto partCount = std::min(row.GetCount(), keyColumnCount);
+    const auto* begin = row.Begin();
+    return GetHash(begin, begin + partCount);
 }
 
 TFingerprint GetFarmFingerprint(TUnversionedRow row, ui32 keyColumnCount)
@@ -1601,6 +1602,18 @@ void Serialize(const TUnversionedValue& value, IYsonConsumer* consumer, bool any
             consumer->OnEntity();
             break;
 
+        case EValueType::Composite:
+            consumer->OnBeginAttributes();
+            consumer->OnKeyedItem("type");
+            consumer->OnStringScalar(FormatEnum(type));
+            consumer->OnEndAttributes();
+            if (anyAsRaw) {
+                consumer->OnRaw(TStringBuf(value.Data.String, value.Length), EYsonType::Node);
+            } else {
+                ParseYsonStringBuffer(TStringBuf(value.Data.String, value.Length), EYsonType::Node, consumer);
+            }
+            break;
+
         default:
             consumer->OnBeginAttributes();
             consumer->OnKeyedItem("type");
@@ -1835,7 +1848,7 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
     size_t variableSize = 0;
     for (auto it = begin; it != end; ++it) {
         const auto& otherValue = *it;
-        if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
+        if (IsStringLikeType(otherValue.Type)) {
             variableSize += otherValue.Length;
         }
     }
@@ -1847,7 +1860,7 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
         for (int index = 0; index < count; ++index) {
             const auto& otherValue = begin[index];
             auto& value = reinterpret_cast<TUnversionedValue*>(header + 1)[index];
-            if (otherValue.Type == EValueType::String || otherValue.Type == EValueType::Any) {
+            if (IsStringLikeType(otherValue.Type)) {
                 ::memcpy(current, otherValue.Data.String, otherValue.Length);
                 value.Data.String = current;
                 current += otherValue.Length;

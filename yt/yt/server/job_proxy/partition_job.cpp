@@ -84,6 +84,10 @@ public:
 
         YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
+        auto outputSchema = TTableSchema::FromKeyColumns(keyColumns);
+        if (outputSpec.has_table_schema()) {
+            outputSchema = FromProto<TTableSchemaPtr>(outputSpec.table_schema())->ToSorted(keyColumns);
+        }
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
@@ -99,7 +103,7 @@ public:
                 writerConfig,
                 options,
                 nameTable,
-                TTableSchema::FromKeyColumns(keyColumns),
+                outputSchema,
                 Host_->GetClient(),
                 CellTagFromId(chunkListId),
                 transactionId,

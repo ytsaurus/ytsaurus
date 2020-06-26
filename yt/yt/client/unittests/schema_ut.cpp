@@ -341,9 +341,19 @@ TEST(TTableSchemaTest, ColumnSchemaValidation)
             {"\255", SimpleLogicalType(ESimpleLogicalValueType::Int8)}
         })));
 
-    // Key column cannot be of complex type
-    expectBad(
+    ValidateColumnSchema(
         TColumnSchema("Column", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int8)), ESortOrder::Ascending)
+    );
+
+    expectBad(
+        TColumnSchema("Column", ListLogicalType(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))), ESortOrder::Ascending)
+    );
+
+    expectBad(
+        TColumnSchema("Column", StructLogicalType({
+            {"foo", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"bar", SimpleLogicalType(ESimpleLogicalValueType::String)},
+        }), ESortOrder::Ascending)
     );
 }
 

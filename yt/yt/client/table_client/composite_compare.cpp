@@ -1,6 +1,8 @@
 #include "composite_compare.h"
 
 #include <yt/core/yson/pull_parser.h>
+#include <yt/core/misc/farm_hash.h>
+#include <yt/library/numeric/util.h>
 
 #include <util/stream/mem.h>
 
@@ -164,6 +166,99 @@ int CompareCompositeValues(TStringBuf lhs, TStringBuf rhs)
         }
         Y_ASSERT(lhsItem.GetType() != EYsonItemType::EndOfStream &&
             rhsItem.GetType() != EYsonItemType::EndOfStream);
+    }
+}
+
+TFingerprint CompositeHash(TStringBuf value)
+{
+    auto throwUnexpectedYsonToken = [] (const TYsonItem& item) {
+        THROW_ERROR_EXCEPTION("Unexpected yson token in composite value: %Qlv", item.GetType());
+    };
+    TMemoryInput in(value);
+    TYsonPullParser parser(&in, EYsonType::Node);
+
+    auto item = parser.Next();
+    TFingerprint res;
+    switch (item.GetType()) {
+        case EYsonItemType::BeginAttributes:
+        case EYsonItemType::EndAttributes:
+        case EYsonItemType::BeginMap:
+        case EYsonItemType::EndMap:
+            throwUnexpectedYsonToken(item);
+        case EYsonItemType::BeginList:
+            res = FarmFingerprint('[');
+            break;
+        case EYsonItemType::EndList:
+            res = FarmFingerprint(']');
+            break;
+        case EYsonItemType::EntityValue:
+            res = FarmFingerprint(0);
+            break;
+        case EYsonItemType::Int64Value:
+            res = FarmFingerprint(item.UncheckedAsInt64());
+            break;
+        case EYsonItemType::Uint64Value:
+            res = FarmFingerprint(item.UncheckedAsUint64());
+            break;
+        case EYsonItemType::DoubleValue: {
+            // NB. We cannot compute hash of double
+            // So we replicate logic of  FarmFingerprint(const TUnversionedValue& ) here
+            // and cast double to ui64
+            res = FarmFingerprint(BitCast<ui64>(item.UncheckedAsDouble()));
+            break;
+        }
+        case EYsonItemType::BooleanValue:
+            res = FarmFingerprint(item.UncheckedAsBoolean());
+            break;
+        case EYsonItemType::StringValue: {
+            auto string = item.UncheckedAsString();
+            res = FarmFingerprint(FarmFingerprint(string.Data(), string.size()));
+            break;
+        }
+        case EYsonItemType::EndOfStream:
+            // Invalid yson, parser should have thrown.
+            Y_FAIL();
+    }
+
+    for (;;) {
+        item = parser.Next();
+        switch (item.GetType()) {
+            case EYsonItemType::BeginAttributes:
+            case EYsonItemType::EndAttributes:
+            case EYsonItemType::BeginMap:
+            case EYsonItemType::EndMap:
+                throwUnexpectedYsonToken(item);
+                continue;
+            case EYsonItemType::BeginList:
+                res = FarmFingerprint(res, '[');
+                continue;
+            case EYsonItemType::EndList:
+                res = FarmFingerprint(res, ']');
+                continue;
+            case EYsonItemType::EntityValue:
+                res = FarmFingerprint(res, 0);
+                continue;
+            case EYsonItemType::Int64Value:
+                res = FarmFingerprint(item.UncheckedAsInt64(), res);
+                continue;
+            case EYsonItemType::Uint64Value:
+                res = FarmFingerprint(res, item.UncheckedAsUint64());
+                continue;
+            case EYsonItemType::DoubleValue:
+                // NB. see comment above.
+                res = FarmFingerprint(BitCast<ui64>(item.UncheckedAsDouble()));
+                continue;
+            case EYsonItemType::BooleanValue:
+                res = FarmFingerprint(res, item.UncheckedAsBoolean());
+                continue;
+            case EYsonItemType::StringValue: {
+                auto string = item.UncheckedAsString();
+                res = FarmFingerprint(res, FarmFingerprint(string.Data(), string.size()));
+                continue;
+            }
+            case EYsonItemType::EndOfStream:
+                return res;
+        }
     }
 }
 

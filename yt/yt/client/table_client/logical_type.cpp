@@ -1210,6 +1210,67 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
     YT_ABORT();
 }
 
+
+bool IsComparable(const TLogicalTypePtr& type)
+{
+    switch (type->GetMetatype()) {
+        case ELogicalMetatype::Simple:
+            switch (type->AsSimpleTypeRef().GetElement()) {
+                case ESimpleLogicalValueType::Int64:
+                case ESimpleLogicalValueType::Int32:
+                case ESimpleLogicalValueType::Int16:
+                case ESimpleLogicalValueType::Int8:
+
+                case ESimpleLogicalValueType::Uint64:
+                case ESimpleLogicalValueType::Uint32:
+                case ESimpleLogicalValueType::Uint16:
+                case ESimpleLogicalValueType::Uint8:
+
+                case ESimpleLogicalValueType::Boolean:
+
+                case ESimpleLogicalValueType::Double:
+                case ESimpleLogicalValueType::Float:
+
+                case ESimpleLogicalValueType::String:
+                case ESimpleLogicalValueType::Utf8:
+
+                case ESimpleLogicalValueType::Date:
+                case ESimpleLogicalValueType::Datetime:
+                case ESimpleLogicalValueType::Timestamp:
+                case ESimpleLogicalValueType::Interval:
+
+                case ESimpleLogicalValueType::Null:
+                case ESimpleLogicalValueType::Void:
+                    return true;
+
+                case ESimpleLogicalValueType::Any:
+                case ESimpleLogicalValueType::Json:
+                    return false;
+            }
+            Y_FAIL();
+
+        case ELogicalMetatype::Optional:
+        case ELogicalMetatype::List:
+        case ELogicalMetatype::Tagged:
+            return IsComparable(type->GetElement());
+
+        case ELogicalMetatype::Tuple:
+        case ELogicalMetatype::VariantTuple: {
+            for (const auto& element : type->GetElements()) {
+                if (!IsComparable(element)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        case ELogicalMetatype::Struct:
+        case ELogicalMetatype::VariantStruct:
+        case ELogicalMetatype::Dict:
+            return false;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TV3Variant

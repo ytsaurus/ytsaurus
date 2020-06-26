@@ -805,6 +805,9 @@ private:
         if (type == EValueType::Any) {
             limit = MaxAnyValueLength;
         }
+        if (type == EValueType::Composite) {
+            limit = MaxCompositeValueLength;
+        }
         if (length > limit) {
             THROW_ERROR_EXCEPTION("Value is too long: length %v, limit %v",
                 length,

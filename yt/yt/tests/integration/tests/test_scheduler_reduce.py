@@ -1943,6 +1943,64 @@ done
                     "enable_key_guarantee": False
                 })
 
+    @authors("ermolovd")
+    def test_complex_key_reduce(self):
+        create("table", "//tmp/in", attributes={
+            "schema": [
+                {"name": "key", "type_v3": tuple_type(["int64", "int64"]), "sort_order": "ascending"},
+                {"name": "value", "type_v3": "int64"},
+            ],
+            "compression_codec": "none"
+        })
+
+        write_table("//tmp/in", [
+            {"key": (1, 2), "value": 1},
+            {"key": (1, 2), "value": 5},
+            {"key": (2, 3), "value": 8},
+            {"key": (2, 3), "value": -1},
+        ])
+
+        create("table", "//tmp/out")
+
+        script = """
+import json
+import sys
+
+key_start = True
+for line in sys.stdin:
+    row = json.loads(line)
+    if "$attributes" in row:
+        if row["$attributes"].get("key_switch", False):
+            key_start = True
+    else:
+        row["key_start"] = key_start
+        print(json.dumps(row))
+        key_start=False
+        """
+
+        create("file", "//tmp/script.py")
+        write_file("//tmp/script.py", script)
+
+        op = reduce(
+            in_="//tmp/in",
+            out="//tmp/out",
+            reduce_by="key",
+            command="python script.py",
+            file="//tmp/script.py",
+            spec={
+                "reducer": {
+                    "format": "json"
+                },
+                "job_io": {"control_attributes": {"enable_key_switch": "true"}},
+            })
+        op.track()
+        assert read_table("//tmp/out") == [
+            {"key": [1, 2], "value": 1, "key_start": True},
+            {"key": [1, 2], "value": 5, "key_start": False},
+            {"key": [2, 3], "value": 8, "key_start": True},
+            {"key": [2, 3], "value": -1, "key_start": False},
+        ]
+
 ##################################################################
 
 class TestSchedulerReduceCommandsSliceSize(YTEnvSetup):
