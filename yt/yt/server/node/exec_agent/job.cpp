@@ -192,7 +192,7 @@ public:
                 }
             }
 
-            if (!Config_->JobController->TestGpuResource) {
+            if (NeedGpu() && !Config_->JobController->TestGpuResource) {
                 for (int i = 0; i < GetResourceUsage().gpu(); ++i) {
                     GpuSlots_.emplace_back(Bootstrap_->GetGpuManager()->AcquireGpuSlot());
 
@@ -1029,27 +1029,18 @@ private:
 
             RootVolume_ = volumeOrError.Value();
 
-            if (SchedulerJobSpecExt_->has_user_job_spec()) {
-                const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
-                if (userJobSpec.enable_setup_commands()) {
-                    SetJobPhase(EJobPhase::RunningSetupCommands);
-                    YT_LOG_INFO("Running setup commands");
+            SetJobPhase(EJobPhase::RunningSetupCommands);
+            YT_LOG_INFO("Running setup commands");
 
-                    // Even though #RunSetupCommands returns future, we still need to pass it through invoker
-                    // since Porto API is used and can cause context switch.
-                    BIND(&TJob::RunSetupCommands, MakeStrong(this))
-                        .AsyncVia(Invoker_)
-                        .Run()
-                        .Subscribe(BIND(
-                            &TJob::OnSetupCommandsFinished,
-                            MakeWeak(this))
-                            .Via(Invoker_));
-                    return;
-                } else {
-                    YT_LOG_INFO("Setup commands disabled, running job proxy");
-                }
-            }
-            RunJobProxy();
+            // Even though #RunSetupCommands returns future, we still need to pass it through invoker
+            // since Porto API is used and can cause context switch.
+            BIND(&TJob::RunSetupCommands, MakeStrong(this))
+                .AsyncVia(Invoker_)
+                .Run()
+                .Subscribe(BIND(
+                    &TJob::OnSetupCommandsFinished,
+                    MakeWeak(this))
+                    .Via(Invoker_));
         });
     }
 
@@ -1494,9 +1485,9 @@ private:
                     nullptr});
             }
 
-            bool needGpu = GetResourceUsage().gpu() > 0 || Config_->JobController->TestGpuLayers;
+            bool needGpuLayers = NeedGpuLayers() || Config_->JobController->TestGpuLayers;
 
-            if (needGpu && userJobSpec.enable_gpu_layers()) {
+            if (needGpuLayers && userJobSpec.enable_gpu_layers()) {
                 if (userJobSpec.layers().empty()) {
                     THROW_ERROR_EXCEPTION(EErrorCode::GpuJobWithoutLayers,
                         "No layers specified for GPU job; at least a base layer is required to use GPU");
@@ -1881,7 +1872,7 @@ private:
 
         addIfPresent(Config_->JobController->JobSetupCommand);
 
-        bool needGpu = GetResourceUsage().gpu() > 0 || Config_->JobController->TestGpuSetupCommands;
+        bool needGpu = NeedGpuLayers() || Config_->JobController->TestGpuSetupCommands;
         if (needGpu) {
             auto gpu_commands = Bootstrap_->GetGpuManager()->GetSetupCommands();
             result.insert(result.end(), gpu_commands.begin(), gpu_commands.end());
@@ -1970,6 +1961,23 @@ private:
     static bool ShouldCleanSandboxes()
     {
         return GetEnv(DisableSandboxCleanupEnv) != "1";
+    }
+
+    bool NeedGpuLayers()
+    {
+        if (SchedulerJobSpecExt_->has_user_job_spec()) {
+            const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
+            if (userJobSpec.has_cuda_toolkit_version()) {
+                return true;
+            }
+        }
+
+        return GetResourceUsage().gpu() > 0;
+    }
+
+    bool NeedGpu()
+    {
+        return GetResourceUsage().gpu() > 0;
     }
 };
 

@@ -76,25 +76,31 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
         /*splay*/ Config_->DriverLayerFetchPeriod))
 {
     auto descriptors = NJobAgent::ListGpuDevices();
-    bool testGpu = Bootstrap_->GetConfig()->ExecAgent->JobController->TestGpuLayers;
-    if (!descriptors.empty() || testGpu) {
+    bool hasGpuDevices = !descriptors.empty() || Bootstrap_->GetConfig()->ExecAgent->JobController->TestGpuLayers;
+    if (hasGpuDevices) {
         try {
             DriverVersionString_ = Config_->DriverVersion ? *Config_->DriverVersion : GetGpuDriverVersionString();
         } catch (const std::exception& ex) {
             YT_LOG_FATAL(ex, "Cannot determine GPU driver version");
         }
+    } else {
+        DriverVersionString_ = Config_->DriverVersion ? *Config_->DriverVersion : GetDummyGpuDriverVersionString();
+    }
 
-        if (Config_->DriverLayerDirectoryPath) {
-            DriverLayerPath_ = *Config_->DriverLayerDirectoryPath + "/" + DriverVersionString_;
+    if (Config_->DriverLayerDirectoryPath) {
+        DriverLayerPath_ = *Config_->DriverLayerDirectoryPath + "/" + DriverVersionString_;
 
-            YT_LOG_INFO("GPU driver layer specified (Path: %v, Version: %v)",
-                DriverLayerPath_,
-                DriverVersionString_);
+        YT_LOG_INFO("GPU driver layer specified (Path: %v, Version: %v)",
+            DriverLayerPath_,
+            DriverVersionString_);
 
+        if (hasGpuDevices) {
             FetchDriverLayerExecutor_->Start();
         } else {
-            YT_LOG_INFO("No GPU driver layer directory specified");
+            OnFetchDriverLayerInfo();
         }
+    } else {
+        YT_LOG_INFO("No GPU driver layer directory specified");
     }
 
     if (descriptors.empty()) {

@@ -291,6 +291,12 @@ TString GetGpuDriverVersionString()
     }
 }
 
+TString GetDummyGpuDriverVersionString()
+{
+    static TString version = "dummy";
+    return version;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobAgent

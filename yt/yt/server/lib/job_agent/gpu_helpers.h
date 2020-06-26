@@ -42,6 +42,7 @@ struct TGpuDriverVersion
 bool operator < (const TGpuDriverVersion& lhs, const TGpuDriverVersion& rhs);
 
 TString GetGpuDriverVersionString();
+TString GetDummyGpuDriverVersionString();
 
 ////////////////////////////////////////////////////////////////////////////////
 
