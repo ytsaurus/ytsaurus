@@ -428,3 +428,33 @@ class TestSkiffFormat(YTEnvSetup):
         )
         assert [{"key": "bar", "value": []}, {"key": "foo", "value": [1 ,2 ,3]}] == list(sorted(read_table("//tmp/t_out_reducer"), key=lambda x: x["key"]))
         assert [{"key": "baz", "value": [0x42]}] == read_table("//tmp/t_out_mapper")
+
+    @authors("ermolovd")
+    def test_read_write_empty_tuple(self):
+        schema = [
+            {"name": "column", "type_v3": struct_type([])}
+        ]
+        create("table", "//tmp/table", attributes={
+            "schema": schema,
+        })
+
+        format = yson.YsonString("skiff")
+        format.attributes["table_skiff_schemas"] = [
+            {
+                "wire_type": "tuple",
+                "children": [
+                    {
+                        "wire_type": "tuple",
+                        "children": [],
+                        "name": "column",
+                    }
+                ],
+            }
+        ]
+
+        skiff_data = "\x00\x00" "\x00\x00"
+
+        write_table("//tmp/table", skiff_data, is_raw=True, input_format=format)
+        assert read_table("//tmp/table") == [{"column": {}}, {"column": {}}]
+        read_data = read_table("//tmp/table", is_raw=True, output_format=format)
+        assert skiff_data == read_data
