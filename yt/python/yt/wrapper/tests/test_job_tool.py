@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import (get_tests_sandbox, TEST_DIR, get_tests_location, wait_record_in_job_archive,
                       yatest_common, get_operation_path)
 
@@ -124,6 +125,7 @@ class TestJobTool(object):
 
         shutil.rmtree(job_path)
 
+    @authors("ignat")
     def test_job_tool(self, yt_env_job_archive, job_events):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"key": "1", "value": "2"}])
@@ -159,6 +161,7 @@ class TestJobTool(object):
         self._check(op.id, yt_env_job_archive, check_running=True)
         op.abort()
 
+    @authors("ignat")
     def test_job_tool_full(self, yt_env_job_archive):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"key": "1", "value": "2"}])
@@ -170,6 +173,7 @@ class TestJobTool(object):
         self._check(op.id, yt_env_job_archive, get_context_mode=FULL_INPUT_MODE,
                     expect_ok_return_code=True)
 
+    @authors("ignat")
     def test_job_tool_full_join_reduce(self, yt_env_job_archive):
         primary_table = TEST_DIR + "/primary"
         yt.write_table(yt.TablePath(primary_table, sorted_by=["key", "subkey"]), [{"key": "1", "subkey": "2", "value": "2"}])
@@ -190,6 +194,7 @@ class TestJobTool(object):
         self._check(op.id, yt_env_job_archive, get_context_mode=FULL_INPUT_MODE,
                     expect_ok_return_code=True)
 
+    @authors("ignat")
     def test_run_sh(self, yt_env_job_archive):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"key": "1", "value": "2"}])
@@ -204,6 +209,7 @@ class TestJobTool(object):
         _, p_stderr = p.communicate()
         assert p_stderr == u"OK_COMMAND\n".encode("ascii")
 
+    @authors("ignat")
     def test_environment(self, yt_env_job_archive):
         command = self.get_ok_command() + """ ; if [ "$YT_JOB_TOOL_TEST_VARIABLE" != "present" ] ; then echo "BAD VARIABLE" >&2 ; exit 1 ; fi """
 
@@ -221,6 +227,7 @@ class TestJobTool(object):
         _, p_stderr = p.communicate()
         assert p_stderr == u"OK_COMMAND\n".encode("ascii")
 
+    @authors("max42")
     def test_file_name_precedence(self, yt_env_job_archive):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"key": "1", "value": "2"}])
@@ -260,6 +267,7 @@ class TestJobTool(object):
 
         check_file_present(link_to_file, "file_name_in_link_attribute")
 
+    @authors("ignat")
     def test_bash_env(self, yt_env_job_archive):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"key": "1", "value": "2"}])
@@ -281,6 +289,7 @@ class TestJobTool(object):
         _, p_stderr = p.communicate()
         assert p_stderr == u"FROM_BASH_ENV\nOK_COMMAND\n".encode("ascii")
 
+    @authors("ignat")
     def test_table_download(self, yt_env_job_archive):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"key": "1", "value": "2"}])
@@ -303,6 +312,7 @@ class TestJobTool(object):
             table_as_file_saved = json.load(inf)
             assert table_as_file_saved == TABLE_AS_FILE_DATA
 
+    @authors("ignat")
     def test_user_transaction(self, yt_env_job_archive):
         with yt.Transaction():
             file_ = TEST_DIR + "/_test_file"

@@ -1,6 +1,8 @@
 # coding=utf-8
 from __future__ import print_function
 
+from .conftest import authors
+
 from yt.common import update
 from yt.wrapper.driver import make_request, get_api_version
 from yt.yson import loads, YsonString, YsonUnicode, YsonError
@@ -104,6 +106,7 @@ def make_parse_ypath_request(path, client=None):
 
 @pytest.mark.usefixtures("yt_env")
 class TestParseYpath(object):
+    @authors("ostyakov")
     def test_parse_ypath(self):
         for path in TEST_PATHS:
             obj2 = make_parse_ypath_request(path)
@@ -116,6 +119,7 @@ class TestParseYpath(object):
             with pytest.raises((YtError, TypeError, YsonError, YPathError)):
                 parse_ypath(path)
 
+    @authors("ostyakov")
     @flaky(max_runs=5)
     def test_speed(self):
         start_time = time.time()

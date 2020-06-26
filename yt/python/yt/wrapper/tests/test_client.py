@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import TEST_DIR, set_config_option
 
 from yt.wrapper.table import TablePath
@@ -22,6 +23,7 @@ class TestClient(object):
         yt.remove("//sys/users/tester", force=True)
         yt.remove("//sys/groups/testers", force=True)
 
+    @authors("asaitgalin")
     def test_client(self, yt_env):
         client = yt.YtClient(config=yt.config.config)
 
@@ -158,12 +160,14 @@ class TestClient(object):
                 assert client.exists(table)
             assert not client.exists(table)
 
+    @authors("asaitgalin", "ignat")
     def test_default_api_version(self):
         if yt.config["backend"] != "native":
             client = yt.YtClient(proxy=yt.config["proxy"]["url"])
             client.get("/")
             assert client._api_version == "v3"
 
+    @authors("asaitgalin")
     def test_client_with_unknown_api_version(self):
         client = yt.YtClient(config=yt.config.config)
         client.config["api_version"] = None
@@ -173,6 +177,7 @@ class TestClient(object):
         client.get("/")
         assert client._api_version == "v3"
 
+    @authors("asaitgalin", "ignat")
     def test_get_user_name(self):
         if yt.config["backend"] != "native":
             # With disabled authentication in proxy it always return root
@@ -185,6 +190,7 @@ class TestClient(object):
         #yt.set("//sys/tokens/" + token, "user")
         #assert get_user_name(token) == "user"
 
+    @authors("asaitgalin", "ignat")
     def test_get_token(self):
         client = yt.YtClient(token="a" * 32)
         client.config["enable_token"] = True

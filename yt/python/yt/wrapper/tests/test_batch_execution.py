@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import TEST_DIR
 
 from yt.wrapper.batch_helpers import create_batch_client
@@ -29,6 +30,7 @@ class TestBatchExecution(object):
         client.remove("//sys/groups/batch_super_testers", force=True)
         client.commit_batch()
 
+    @authors("ostyakov")
     def test_unsupported_commands(self):
         with pytest.raises(AttributeError):
             client = create_batch_client()
@@ -41,6 +43,7 @@ class TestBatchExecution(object):
             client.set(TEST_DIR + "/batch_node2", batch_node)
             client.commit_batch()
 
+    @authors("ostyakov")
     def test_cypress_commands(self):
         table = TEST_DIR + "/batch_node/table"
         other_table = TEST_DIR + "/batch_node/other_table"
@@ -113,6 +116,7 @@ class TestBatchExecution(object):
 
         assert set(list_result.get_result()) == set(("table_" + str(i) for i in xrange(10)))
 
+    @authors("ostyakov")
     def test_acl_commands(self):
         client = create_batch_client()
         permissions_read = client.check_permission("batch_tester", "read", "//sys")
@@ -131,6 +135,7 @@ class TestBatchExecution(object):
 
         assert yt.get_attribute("//sys/groups/batch_testers", "members") == []
 
+    @authors("ostyakov")
     def test_table_commands(self, yt_env):
         table = TEST_DIR + "/batch_node/test_table"
 
@@ -176,6 +181,7 @@ class TestBatchExecution(object):
         while yt.get("{0}/@tablets/0/state".format(table)) != "unmounted":
             time.sleep(0.1)
 
+    @authors("ostyakov")
     def test_transactions(self):
         table = TEST_DIR + "/batch_node/test_transaction_table"
         new_client = yt.YtClient(token=yt.config["token"], config=yt.config.config)
@@ -187,6 +193,7 @@ class TestBatchExecution(object):
 
             assert not new_client.exists(table)
 
+    @authors("ostyakov")
     def test_commit(self):
         client = create_batch_client()
         client.mkdir(TEST_DIR + "/batch_commit", recursive=True)
@@ -196,6 +203,7 @@ class TestBatchExecution(object):
         client.commit_batch()
         assert exist_result.get_result()
 
+    @authors("ostyakov")
     def test_raise_errors(self):
         yt.mkdir(TEST_DIR + "/raise_error", recursive=True)
         with pytest.raises(YtBatchRequestFailedError):
@@ -204,6 +212,7 @@ class TestBatchExecution(object):
             client.mkdir(TEST_DIR + "/raise_error/dir/dir")
             client.commit_batch()
 
+    @authors("ostyakov")
     def test_retries(self):
         yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = True
         try:
@@ -219,6 +228,7 @@ class TestBatchExecution(object):
         finally:
             yt.config._ENABLE_HEAVY_REQUEST_CHAOS_MONKEY = False
 
+    @authors("ostyakov")
     def test_batch_response(self):
         table = TEST_DIR + "/test_batch_response_table"
 
@@ -235,6 +245,7 @@ class TestBatchExecution(object):
             create_result.is_ok()
 
         result = []
+        @authors("ostyakov")
         def test_result_function(output, error):
             assert error is None
             result.append(output)

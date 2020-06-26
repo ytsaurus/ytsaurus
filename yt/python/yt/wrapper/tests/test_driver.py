@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import TEST_DIR, get_test_file_path, yatest_common, get_python, wait
 
 from yt.wrapper.common import update_inplace
@@ -16,6 +17,7 @@ import pytest
 import signal
 from copy import deepcopy
 
+@authors("ignat")
 def test_heavy_proxies():
     from yt.wrapper.http_driver import HeavyProxyProvider
     from socket import error as SocketError
@@ -48,6 +50,7 @@ def test_heavy_proxies():
         reload_module(yt.config)
         update_inplace(yt.config.config, config)
 
+@authors("ignat")
 @pytest.mark.usefixtures("yt_env")
 def test_sanitize_structure():
     schema = yson.YsonList([{"name": "k", "type": "int64", "sort_order": "ascending"}])
@@ -57,6 +60,7 @@ def test_sanitize_structure():
     yt.create("table", table, attributes={"schema": schema})
     assert yt.get(table + "/@schema/@unique_keys")
 
+@authors("asaitgalin")
 @pytest.mark.usefixtures("yt_env")
 def test_catching_sigint(yt_env):
     if yt.config["backend"] != "native":

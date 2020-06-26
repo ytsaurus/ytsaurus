@@ -12,6 +12,8 @@ from yt.wrapper.common import update, update_inplace, GB
 from yt.common import which, makedirp, format_error
 import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
+from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
+
 
 from yt.packages.six import itervalues
 
@@ -34,6 +36,9 @@ import warnings
 warnings.filterwarnings(action="ignore", module="cryptography.hazmat.primitives.*")
 
 yt.http_helpers.RECEIVE_TOKEN_FROM_SSH_SESSION = False
+
+def authors(*the_authors):
+    return pytest.mark.authors(the_authors)
 
 def pytest_ignore_collect(path, config):
     path = str(path)
@@ -579,3 +584,6 @@ def yt_env_with_increased_memory(request, test_environment_with_increased_memory
 @pytest.fixture(scope="function")
 def job_events(request):
     return create_job_events()
+
+
+# TODO(ignat): fix copy/paste from integration tests.

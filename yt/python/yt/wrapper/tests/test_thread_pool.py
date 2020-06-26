@@ -1,3 +1,5 @@
+from .conftest import authors
+
 from yt.wrapper.thread_pool import ThreadPool
 
 from yt.packages.six.moves import xrange
@@ -6,6 +8,7 @@ import pytest
 import threading
 import time
 
+@authors("ostyakov")
 def test_thread_pool():
     assert threading.active_count() == 1
 
@@ -72,6 +75,7 @@ def test_thread_pool():
     with pytest.raises(ValueError):
         pool = ThreadPool(0)
 
+@authors("ostyakov")
 def test_imap_unordered():
     pool = ThreadPool(5)
 
@@ -93,6 +97,7 @@ def test_imap_unordered():
     result = pool.imap_unordered(lambda item: -item, xrange(10 ** 5))
     assert set(result) == set(-item for item in xrange(10 ** 5))
 
+@authors("ostyakov")
 def test_imap():
     pool = ThreadPool(5)
 

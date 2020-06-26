@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import (TEST_DIR, get_tests_location, get_tests_sandbox, get_test_file_path,
                       get_environment_for_binary_test, set_config_option, get_python, yatest_common)
 
@@ -29,6 +30,7 @@ class TestYamrMode(object):
         columns = [string.digits, reversed(string.ascii_lowercase[:10]), string.ascii_uppercase[:10]]
         return list(imap(dumps_row, starmap(Record, imap(flatten, reduce(izip, columns)))))
 
+    @authors("ignat")
     def test_get_smart_format(self):
         from yt.wrapper.table_commands import _get_format_from_tables as get_format
 
@@ -57,6 +59,7 @@ class TestYamrMode(object):
 
         assert get_format([existing_table, not_existing_table], ignore_unexisting_tables=False) is None
 
+    @authors("ignat")
     def test_copy_move(self):
         move_table(TEST_DIR + "/a", TEST_DIR + "/b")
         assert not yt.exists(TEST_DIR + "/a")
@@ -106,6 +109,7 @@ class TestYamrMode(object):
         copy_table(table, embedded_path)
         assert not yt.exists(embedded_path)
 
+    @authors("ignat")
     @pytest.mark.timeout(1800)
     def test_mapreduce_binary(self, yt_env_for_yamr):
         env = get_environment_for_binary_test(yt_env_for_yamr)
@@ -127,12 +131,14 @@ class TestYamrMode(object):
         proc.communicate()
         assert proc.returncode == 0
 
+    @authors("ignat")
     def test_empty_write(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [b"x\ty\tz\n"])
         yt.write_table(table, [])
         assert not yt.exists(table)
 
+    @authors("ignat")
     def test_empty_output_table_deletion(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/subdir/other_table"
@@ -157,11 +163,13 @@ class TestYamrMode(object):
         yt.run_map_reduce("cat", "cat", TEST_DIR + "/unexisting", other_table)
         assert not yt.exists(other_table)
 
+    @authors("ignat")
     def test_treat_unexisting_as_empty(self):
         table = TEST_DIR + "/table"
         assert yt.row_count(table) == 0
         yt.run_erase(TablePath(table, start_index=0, end_index=5))
 
+    @authors("sandello", "ignat")
     def test_map_reduce_operation(self):
         input_table = TEST_DIR + "/input_table"
         output_table = TEST_DIR + "/output_table"
@@ -181,6 +189,7 @@ class TestYamrMode(object):
                           reduce_local_files=get_test_file_path("collect.py"))
         assert sorted(list(yt.read_table(output_table))) == sorted([b"a\t\t2\n", b"b\t\t1\n", b"c\t\t6\n"])
 
+    @authors("ignat")
     def test_many_output_tables(self):
         table = TEST_DIR + "/table"
         output_tables = []
@@ -199,6 +208,7 @@ class TestYamrMode(object):
             assert yt.row_count(table) == 1
         assert sorted(yt.read_table(append_table)) == [b"1\t1\t1\n", b"10\t10\t10\n"]
 
+    @authors("ignat")
     def test_reduce_unsorted(self):
         input_table = TEST_DIR + "/input_table"
         output_table = TEST_DIR + "/output_table"
@@ -209,6 +219,7 @@ class TestYamrMode(object):
         yt.run_reduce("cat", source_table=input_table, destination_table=output_table)
         assert list(yt.read_table(output_table)) == data[::-1]
 
+    @authors("sandello", "ignat")
     def test_run_operations(self):
         if yatest_common is None:
             pytest.skip("test is not supported in pytest environment")
@@ -231,6 +242,7 @@ class TestYamrMode(object):
         assert sorted(yt.read_table(other_table)) == \
                [b("key{0}\tsubkey\tvalue=value\n".format(i)) for i in xrange(5)]
 
+    @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
     def test_python_operations(self):
         def yamr_func(key, records):
@@ -261,6 +273,7 @@ class TestYamrMode(object):
         yt.run_map(inc_key_yamr, table, table)
         assert sorted(yt.read_table(table)) == [b"2\t2\t3\n", b"5\t5\t6\n"]
 
+    @authors("ignat")
     def test_lenval_python_operations(self):
         def foo(rec):
             yield rec
@@ -270,6 +283,7 @@ class TestYamrMode(object):
         yt.run_map(foo, table, table, format=yt.YamrFormat(has_subkey=True, lenval=True))
         assert list(yt.read_table(table)) == [b"1\t2\t3\n"]
 
+    @authors("ignat")
     def test_empty_input_tables(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/temp_other"
@@ -281,6 +295,7 @@ class TestYamrMode(object):
                    local_files=list(imap(get_test_file_path, ["my_op.py", "helpers.py"])))
         assert not yt.exists(other_table)
 
+    @authors("ignat")
     def test_reduce_unexisting_tables(self):
         with set_config_option("yamr_mode/run_map_reduce_if_source_is_not_sorted", False):
             table = TEST_DIR + "/table"
@@ -292,6 +307,7 @@ class TestYamrMode(object):
 
             yt.run_reduce("cat", [table, TEST_DIR + "/unexisting_table"], output_table)
 
+    @authors("ignat")
     def test_reduce_with_output_sorted(self):
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/output_table"
@@ -300,6 +316,7 @@ class TestYamrMode(object):
         assert list(yt.read_table(output_table)) == [b"1\t2\t4\n", b"3\t1\t3\n"]
         assert yt.get_attribute(output_table, "sorted", False)
 
+    @authors("ignat")
     def test_reduce_differently_sorted_table(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [b"1\t2\t3\n"])
@@ -309,6 +326,7 @@ class TestYamrMode(object):
         yt.run_reduce("cat", table, TEST_DIR + "/other_table", sort_by=["subkey"], reduce_by=["subkey"])
         assert list(yt.read_table(table)) == [b"1\t2\t3\n"]
 
+    @authors("ignat")
     def test_throw_on_missing_destination(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [b"1\t2\t3\n"])

@@ -1,8 +1,9 @@
-from .conftest import YtTestEnvironment
+from .conftest import YtTestEnvironment, authors
 
 import yt.wrapper as yt
 
 
+@authors("ignat")
 def test_cypress_authentication_using_rpc_proxy():
     config = {"api_version": "v3", "backend": "rpc"}
     environment = None

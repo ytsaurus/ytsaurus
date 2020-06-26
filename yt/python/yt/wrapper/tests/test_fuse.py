@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import TEST_DIR
 
 from yt.wrapper.cypress_fuse import CachedYtClient, Cypress
@@ -14,25 +15,30 @@ import json
 
 @pytest.mark.usefixtures("yt_env")
 class TestCachedYtClient(object):
+    @authors("acid")
     def test_list(self):
         client = CachedYtClient(config=yt.config.config)
         assert sorted(client.list("/")) == sorted(yt.list("/"))
 
+    @authors("acid")
     def test_list_nonexistent(self):
         client = CachedYtClient(config=yt.config.config)
         with pytest.raises(yt.YtError):
             client.list("//nonexistent")
 
+    @authors("acid")
     def test_get_attributes_empty(self):
         client = CachedYtClient(config=yt.config.config)
         assert client.get_attributes("//sys", []) == {}
 
+    @authors("acid")
     def test_get_attributes_nonexistent(self):
         client = CachedYtClient(config=yt.config.config)
         assert client.get_attributes("//sys", ["nonexistent"]) == {}
         # Get cached attribute again.
         assert client.get_attributes("//sys", ["nonexistent"]) == {}
 
+    @authors("acid")
     def test_get_attributes_list(self, yt_env):
         client = CachedYtClient(config=yt.config.config)
 
@@ -59,6 +65,7 @@ class TestCachedYtClient(object):
 
 @pytest.mark.usefixtures("yt_env")
 class TestCypress(object):
+    @authors("acid")
     def test_readdir(self):
         cypress = Cypress(
             CachedYtClient(config=yt.config.config),
@@ -66,6 +73,7 @@ class TestCypress(object):
 
         assert sorted(cypress.readdir("/", None)) == sorted(yt.list("/"))
 
+    @authors("acid")
     def test_read_file(self):
         cypress = Cypress(
             CachedYtClient(config=yt.config.config),
@@ -92,6 +100,7 @@ class TestCypress(object):
 
         cypress.release(fuse_filepath, fi)
 
+    @authors("acid")
     def test_read_table(self):
         cypress = Cypress(
             CachedYtClient(config=yt.config.config),
@@ -124,6 +133,7 @@ class TestCypress(object):
 
         cypress.release(fuse_filepath, fi)
 
+    @authors("acid")
     def test_create_file(self):
         cypress = Cypress(
             CachedYtClient(config=yt.config.config),
@@ -138,6 +148,7 @@ class TestCypress(object):
 
         assert yt.read_file(filepath).read() == b""
 
+    @authors("acid")
     def test_unlink_file(self):
         cypress = Cypress(
             CachedYtClient(config=yt.config.config),
@@ -153,6 +164,7 @@ class TestCypress(object):
         assert "file" not in yt.list(TEST_DIR)
         assert "file" not in cypress.readdir(fuse_test_dir, None)
 
+    @authors("acid")
     def test_truncate_file(self):
         cypress = Cypress(
             CachedYtClient(config=yt.config.config),
@@ -173,6 +185,7 @@ class TestCypress(object):
 
             assert yt.read_file(filepath).read() == content[:truncated_length]
 
+    @authors("acid")
     def test_write_file(self):
         cypress = Cypress(
             CachedYtClient(config=yt.config.config),
@@ -191,6 +204,7 @@ class TestCypress(object):
 
         assert yt.read_file(filepath).read() == content
 
+    @authors("acid")
     def test_write_multipart_file(self):
         cypress = Cypress(
             CachedYtClient(config=yt.config.config),
@@ -221,6 +235,7 @@ class TestCypress(object):
 
         assert yt.read_file(filepath).read() == content
 
+    @authors("acid")
     def test_create_directory(self):
         cypress = Cypress(
             CachedYtClient(config=yt.config.config),
@@ -238,6 +253,7 @@ class TestCypress(object):
         cypress.mkdir(fuse_dirpath, 0o755)
         assert "dir" in yt.list(TEST_DIR)
 
+    @authors("acid")
     def test_remove_directory(self):
         cypress = Cypress(
             CachedYtClient(config=yt.config.config),
@@ -262,6 +278,7 @@ class TestCypress(object):
         assert "dir" not in yt.list(TEST_DIR)
         assert "dir" not in cypress.readdir(fuse_test_dir, None)
 
+    @authors("acid")
     def test_write_access_guards(self):
         cypress = Cypress(
             CachedYtClient(config=yt.config.config),

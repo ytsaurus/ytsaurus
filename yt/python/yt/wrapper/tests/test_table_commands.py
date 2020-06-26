@@ -1,5 +1,6 @@
 from __future__ import with_statement, print_function
 
+from .conftest import authors
 from .helpers import (TEST_DIR, check, set_config_option, get_tests_sandbox, set_config_options,
                       wait, failing_heavy_request)
 
@@ -111,6 +112,7 @@ class TestTableCommands(object):
                         for _ in iterator:
                             pass
 
+    @authors("ignat")
     def test_table_path(self, yt_env_with_rpc):
         path = yt.TablePath("//path/to/table", attributes={"my_attr": 10})
         assert path.attributes["my_attr"] == 10
@@ -141,24 +143,29 @@ class TestTableCommands(object):
         assert path.ranges[0]["lower_limit"]["chunk_index"] == 1
         assert path.ranges[0]["upper_limit"]["chunk_index"] == 2
 
+    @authors("asaitgalin")
     def test_read_write_with_retries(self):
         with set_config_option("write_retries/enable", True):
             self._test_read_write()
 
+    @authors("asaitgalin", "ignat")
     def test_read_write_without_retries(self):
         with set_config_option("write_retries/enable", False):
             self._test_read_write()
 
+    @authors("ignat")
     def test_read_parallel(self, yt_env_with_rpc):
         with set_config_option("read_parallel/enable", True):
             self._test_read_write()
 
+    @authors("asaitgalin", "ignat")
     def test_parallel_write(self):
         with set_config_option("write_parallel/enable", True):
             with set_config_option("write_retries/chunk_size", 1):
                 with set_config_option("write_parallel/concatenate_size", 3):
                     self._test_read_write()
 
+    @authors("asaitgalin", "babenko")
     def test_schemaful_parallel_write(self):
         yt.create("table", "//tmp/table", recursive=True,
             attributes={
@@ -174,6 +181,7 @@ class TestTableCommands(object):
             with set_config_option("write_retries/chunk_size", 256):
                 yt.write_table("//tmp/table", data)
 
+    @authors("ostyakov", "ignat")
     def test_empty_table(self):
         dir = TEST_DIR + "/dir"
         table = dir + "/table"
@@ -194,6 +202,7 @@ class TestTableCommands(object):
         with pytest.raises(yt.YtError):
             yt.create("table", table)
 
+    @authors("asaitgalin", "ostyakov")
     def test_create_temp_table(self):
         table = yt.create_temp_table(path=TEST_DIR)
         assert table.startswith(TEST_DIR)
@@ -212,6 +221,7 @@ class TestTableCommands(object):
             assert client.exists(table)
             wait(lambda: not client.exists(table))
 
+    @authors("asaitgalin", "ignat")
     def test_write_many_chunks(self):
         with set_config_option("write_retries/chunk_size", 1):
             table = TEST_DIR + "/table"
@@ -219,6 +229,7 @@ class TestTableCommands(object):
                 yt.write_table("<append=%true>" + table, [{"x": 1}, {"y": 2}, {"z": 3}])
             assert yt.get(table + "/@chunk_count") == 9
 
+    @authors("ostyakov", "ignat")
     def test_binary_data_with_dsv(self):
         with set_config_option("tabular_data_format", yt.DsvFormat()):
             record = {"\tke\n\\\\y=": "\\x\\y\tz\n"}
@@ -226,6 +237,7 @@ class TestTableCommands(object):
             yt.write_table(table, [yt.dumps_row(record)], raw=True)
             assert [record] == list(yt.read_table(table))
 
+    @authors("ignat", "asaitgalin")
     def test_start_row_index(self):
         table = TEST_DIR + "/table"
 
@@ -248,10 +260,12 @@ class TestTableCommands(object):
             rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), raw=True)
             assert rsp.response_parameters["approximate_row_count"] == 0
 
+    @authors("ignat")
     def test_start_row_index_parallel(self, yt_env_with_rpc):
         with set_config_option("read_parallel/enable", True):
             self.test_start_row_index()
 
+    @authors("asaitgalin")
     def test_table_index(self):
         dsv = yt.format.DsvFormat(enable_table_index=True, table_index_column="TableIndex")
         schemaful_dsv = yt.format.SchemafulDsvFormat(columns=["1", "2", "3"],
@@ -295,6 +309,7 @@ class TestTableCommands(object):
             for field in ("@table_index", "TableIndex", "_table_index_"):
                 assert field not in row
 
+    @authors("ignat")
     def test_read_with_table_path(self, yt_env_with_rpc):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"y": "w3"}, {"x": "b", "y": "w1"}, {"x": "a", "y": "w2"}])
@@ -349,10 +364,12 @@ class TestTableCommands(object):
         with pytest.raises(yt.YtError):
             TablePath("abc")
 
+    @authors("ostyakov")
     def test_read_parallel_with_table_path(self, yt_env_with_rpc):
         with set_config_option("read_parallel/enable", True):
             self.test_read_with_table_path(yt_env_with_rpc)
 
+    @authors("ostyakov")
     def test_remove_locks(self):
         from yt.wrapper.table_helpers import _remove_locks
         table = TEST_DIR + "/table"
@@ -392,6 +409,7 @@ class TestTableCommands(object):
         time.sleep(0.5)
         wait(check)
 
+    @authors("ostyakov")
     def test_banned_proxy(self):
         if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
@@ -407,6 +425,7 @@ class TestTableCommands(object):
             except yt.YtProxyUnavailable as err:
                 assert "banned" in str(err)
 
+    @authors("ostyakov")
     def test_error_occured_after_starting_to_write_chunked_requests(self):
         if yt.config["api_version"] != "v3":
             pytest.skip()
@@ -425,6 +444,7 @@ class TestTableCommands(object):
             else:
                 assert False, "Failed to catch response error"
 
+    @authors("ostyakov")
     def test_reliable_remove_tempfiles_in_py_wrap(self):
         def foo(rec):
             yield rec
@@ -456,6 +476,7 @@ class TestTableCommands(object):
                                 client=client)
             assert os.listdir(client.config["local_temp_directory"]) == []
 
+    @authors("ignat", "ilpauzner")
     def test_write_compressed_table_data(self):
         fd, filename = tempfile.mkstemp()
         os.close(fd)
@@ -557,6 +578,7 @@ class TestTableCommands(object):
         stream = yt.read_blob_table(table, part_size=5)
         assert stream.read() == b"data0data1data2"
 
+    @authors("se4min")
     def test_read_blob_table_with_retries(self):
         with set_config_option("read_retries/enable", True):
             with set_config_option("read_buffer_size", 10):
@@ -568,10 +590,12 @@ class TestTableCommands(object):
                     yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
                     yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
 
+    @authors("se4min")
     def test_read_blob_table_without_retries(self):
         with set_config_option("read_retries/enable", False):
             self._test_read_blob_table()
 
+    @authors("ignat")
     def test_read_lost_chunk(self):
         mode = yt.config["backend"]
         if mode not in ("native", "rpc"):
@@ -615,6 +639,7 @@ class TestTableCommands(object):
             if instance is not None:
                 stop(instance.id, path=dir, remove_runtime_data=True)
 
+    @authors("ignat")
     def test_lazy_read(self):
         table = TEST_DIR + "/test_lazy_read_table"
         yt.write_table(table, [{"x": "abacaba", "y": 1}, {"z": 2}])
@@ -625,6 +650,7 @@ class TestTableCommands(object):
         assert result[0]["x"] == "abacaba"
         assert result[1]["z"] == 2
 
+    @authors("se4min")
     def test_get_table_columnar_statistics(self):
         table = TEST_DIR + "/test_table"
         yt.write_table(table, [{"x": "abacaba", "y": 1}, {"x": 2}])
@@ -633,6 +659,7 @@ class TestTableCommands(object):
         assert res
         assert res[0].get("column_data_weights", {}).get("x", 0) > 0
 
+    @authors("ignat")
     def test_unaligned_write(self):
         with set_config_option("write_retries/chunk_size", 3 * MB):
             with set_config_option("proxy/content_encoding", "identity"):
@@ -651,6 +678,7 @@ class TestTableCommands(object):
 
                 check(rows, yt.read_table(table_path))
 
+    @authors("ignat")
     def test_write_table_retries(self):
         rows = [
             {"x": "1"},
@@ -670,6 +698,7 @@ class TestTableCommands(object):
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTableCommandsOperations(object):
+    @authors("ignat")
     def test_transform(self):
         table = TEST_DIR + "/test_transform_table"
         other_table = TEST_DIR + "/test_transform_table2"
@@ -697,6 +726,7 @@ class TestTableCommandsOperations(object):
 
         assert not yt.transform(other_table, other_table, erasure_codec="none", check_codecs=True)
 
+    @authors("ignat")
     def test_erase(self):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"a": i} for i in xrange(10)])
@@ -711,6 +741,7 @@ class TestTableCommandsOperations(object):
 class TestTableCommandsHuge(object):
     @pytest.mark.parametrize("parallel,progress_bar", [(False, False), (True, False), (False, True),
                                                        (True, True)])
+    @authors("ignat")
     def test_write_big_table_retries(self, parallel, progress_bar):
         with set_config_option("write_parallel/enable", parallel):
             with set_config_option("write_progress_bar/enable", progress_bar):
@@ -739,6 +770,7 @@ class TestTableCommandsHuge(object):
 
                     check(rows, yt.read_table(table_path))
 
+    @authors("ignat")
     def test_huge_table(self):
         table = TEST_DIR + "/table"
         power = 3
@@ -755,11 +787,13 @@ class TestTableCommandsHuge(object):
             row_count += 1
         assert row_count == 10 ** power
 
+    @authors("ignat")
     def test_read_parallel_huge_table(self, yt_env_with_rpc):
         with set_config_option("read_parallel/enable", True):
             self.test_huge_table()
 
     @pytest.mark.parametrize("use_tmp_dir_for_intermediate_data", [True, False])
+    @authors("ignat")
     def test_write_parallel_huge_table(self, use_tmp_dir_for_intermediate_data):
         override_options = {
             "write_parallel/concatenate_size": 7,
@@ -823,6 +857,7 @@ class TestTableCommandsJsonFormat(object):
         with pytest.raises(yt.YtError):
             yt.read_table(table, format=self._create_format(encoding="utf-8", encode_utf8=False))
 
+    @authors("ignat")
     def test_json_encoding_read(self):
         try:
             yt_format.JSON_ENCODING_LEGACY_MODE = True
@@ -830,6 +865,7 @@ class TestTableCommandsJsonFormat(object):
         finally:
             yt_format.JSON_ENCODING_LEGACY_MODE = False
 
+    @authors("ignat")
     def test_json_encoding_write(self):
         table = TEST_DIR + "/table"
         yt.create("table", table)

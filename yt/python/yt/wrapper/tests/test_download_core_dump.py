@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import TEST_DIR, get_test_file_path, get_tests_sandbox, yatest_common
 
 from yt.common import makedirp
@@ -17,6 +18,7 @@ import time
 
 @pytest.mark.usefixtures("yt_env_with_porto")
 class TestDownloadCoreDump(object):
+    @authors("akinshchikov")
     def test_download_core_dump(self):
         if yatest_common is None:
             pytest.skip("test is not supported in pytest environment")
@@ -68,6 +70,7 @@ class TestDownloadCoreDump(object):
 
         os.remove(core_output_file)
 
+    @authors("akinshchikov")
     def test_error_core_dump(self):
         if yatest_common is None:
             pytest.skip("test is not supported in pytest environment")

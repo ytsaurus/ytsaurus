@@ -1,3 +1,4 @@
+from .conftest import authors
 from .helpers import TEST_DIR
 
 import yt.wrapper as yt
@@ -6,6 +7,7 @@ import pytest
 
 @pytest.mark.usefixtures("yt_env")
 class TestPrerequisite(object):
+    @authors("ostyakov")
     def test_prerequisite_transaction(self):
         transaction_id = None
         with yt.Transaction() as tx:
@@ -31,6 +33,7 @@ class TestPrerequisite(object):
                                                                                             another_tx.transaction_id])
                 client.mkdir(TEST_DIR + "/prerequisite/test", recursive=True)
 
+    @authors("ostyakov")
     def test_prerequisite_revision(self):
         yt.mkdir(TEST_DIR + "/prerequisite", recursive=True)
         revision = yt.create_revision_parameter(TEST_DIR + "/prerequisite")
@@ -65,6 +68,7 @@ class TestPrerequisite(object):
 
 @pytest.mark.usefixtures("yt_env")
 class TestTransactionsWithCommandParams(object):
+    @authors("ignat")
     def test_read_write(self):
         client = yt.create_client_with_command_params()
         client.write_table(TEST_DIR + "/test_table", [{"a": 10}])

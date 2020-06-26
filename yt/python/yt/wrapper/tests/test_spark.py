@@ -1,3 +1,5 @@
+from .conftest import authors
+
 import yt
 from yt.wrapper.cypress_commands import create, set
 from yt.wrapper.spark import build_spark_operation_spec, find_spark_cluster, SparkDiscovery, _read_launch_config, \
@@ -24,6 +26,7 @@ class TestSpark(object):
             }
         }
 
+    @authors("sashbel")
     def test_build_spark_operation_spec(self):
         if yt.wrapper.config["backend"] == "native" or yt.wrapper.config["backend"] == "rpc":
             return
@@ -102,6 +105,7 @@ class TestSpark(object):
         assert actual._spec == expected._spec
         assert actual._user_spec == expected._user_spec
 
+    @authors("sashbel")
     def test_find_spark_cluster(self):
         create("map_node", "//tmp/spark-discovery/discovery/spark_address/host1:1", recursive=True)
         create("map_node", "//tmp/spark-discovery/discovery/webui/host1:2", recursive=True)
@@ -116,12 +120,14 @@ class TestSpark(object):
         assert res.operation_id == "1234-5678"
         assert res.shs_url == "host2:4"
 
+    @authors("sashbel")
     def test_read_launch_config(self):
         path = "//tmp/spark-launch-conf"
         set(path, self.config)
         res = _read_launch_config(path)
         assert res == self.config
 
+    @authors("sashbel")
     def test_parse_memory(self):
         assert _parse_memory(128) == 128
         assert _parse_memory("128") == 128
@@ -146,6 +152,7 @@ class TestSpark(object):
         assert _parse_memory("256Gb") == 256 * 1024 * 1024 * 1024
         assert _parse_memory("256GB") == 256 * 1024 * 1024 * 1024
 
+    @authors("sashbel")
     def test_format_memory(self):
         assert _format_memory(128) == "128B"
         assert _format_memory(256) == "256B"
