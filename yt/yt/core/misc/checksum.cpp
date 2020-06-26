@@ -704,7 +704,7 @@ namespace {
 ui64 CrcImplOld(const void* data, size_t length, ui64 seed)
 {
 #ifdef YT_USE_SSE42
-    static const bool Native = NX86::HaveSSE42() && NX86::HavePCLMUL();
+    static const bool Native = NX86::CachedHaveSSE42() && NX86::CachedHavePCLMUL();
     if (Native) {
         return NCrcNative0xE543279765927881::Crc(data, length, seed);
     }
@@ -715,7 +715,7 @@ ui64 CrcImplOld(const void* data, size_t length, ui64 seed)
 ui64 CrcImpl(const void* data, size_t length, ui64 seed)
 {
 #ifdef YT_USE_SSE42
-    static const bool Native = NX86::HaveSSE42() && NX86::HavePCLMUL();
+    static const bool Native = NX86::CachedHaveSSE42() && NX86::CachedHavePCLMUL();
     if (Native) {
         return NIsaCrc64::CrcImplFast(data, length, 0);
     }
