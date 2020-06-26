@@ -338,9 +338,6 @@ TSimpleOperationIo CreateSimpleOperationIo(
     if (!HoldsAlternative<TVoidStructuredRowStream>(structuredJob.GetInputRowStreamDescription())) {
         VerifyHasElements(GetStructuredInputs(spec), "input");
     }
-    if (!HoldsAlternative<TVoidStructuredRowStream>(structuredJob.GetOutputRowStreamDescription())) {
-        VerifyHasElements(GetStructuredOutputs(spec), "output");
-    }
 
     auto structuredInputs = CanonizeStructuredTableList(preparer.GetAuth(),  GetStructuredInputs(spec));
     auto structuredOutputs = CanonizeStructuredTableList(preparer.GetAuth(), GetStructuredOutputs(spec));
@@ -1343,7 +1340,6 @@ void CreateOutputTables(
     const TOperationPreparer& preparer,
     const TVector<TRichYPath>& paths)
 {
-    Y_ENSURE(!paths.empty(), "Output tables are not set");
     for (auto& path : paths) {
         CreateOutputTable(preparer, path);
     }

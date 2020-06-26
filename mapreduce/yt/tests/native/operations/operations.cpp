@@ -2373,24 +2373,11 @@ Y_UNIT_TEST_SUITE(Operations)
             new TMapperThatChecksFile("path/in/job"));
     }
 
-    Y_UNIT_TEST(TestFailWithNoInputOutput)
+    Y_UNIT_TEST(TestFailWithNoInput)
     {
         TTestFixture fixture;
         auto client = fixture.GetClient();
         auto workingDir = fixture.GetWorkingDir();
-
-        {
-            auto writer = client->CreateTableWriter<TNode>(workingDir + "/input");
-            writer->AddRow(TNode()("foo", "baz"));
-            writer->Finish();
-        }
-
-        {
-            UNIT_ASSERT_EXCEPTION(client->Map(
-                TMapOperationSpec()
-                .AddInput<TNode>(workingDir + "/input"),
-                new TIdMapper), TApiUsageError);
-        }
 
         {
             UNIT_ASSERT_EXCEPTION(client->Map(
@@ -4751,6 +4738,30 @@ Y_UNIT_TEST_SUITE(Operations)
                 new TIdTRowVer2Mapper),
             {},
             {TNode()("String_1", "str")("Uint32_2", 1U)});
+    }
+
+
+    Y_UNIT_TEST(NoOutputOperation)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+
+        auto inputTable = workingDir + "/input";
+
+        TVector<TNode> data = {
+            TNode()("foo", "bar"),
+        };
+        {
+            auto writer = client->CreateTableWriter<TNode>(inputTable);
+            for (const auto& row : data) {
+                writer->AddRow(row);
+            }
+            writer->Finish();
+        }
+        auto operation = client->Map(new TMapperThatWritesStderr, {inputTable}, {});
+        auto jobStatistics = operation->GetJobStatistics();
+        UNIT_ASSERT(jobStatistics.GetStatistics("time/total").Max().Defined());
     }
 
 } // Y_UNIT_TEST_SUITE(Operations)
