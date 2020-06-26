@@ -138,9 +138,9 @@ def prepare_log_tailer_tables(log_file,
         if not exists(path, client=client):
             create_log_tailer_table(kind, path, client=client)
         else:
-            unmount_table(path, sync=True)
+            unmount_table(path, sync=True, client=client)
         set_log_tailer_table_attributes(kind, path, ttl, log_tailer_version=log_tailer_version, client=client,
                                         attribute_patch=attribute_patch)
         set_log_tailer_table_dynamic_attributes(kind, path, client=client)
         reshard_log_tailer_table(kind, path, tablet_count=tablet_count, client=client)
-        mount_table(path, sync=True)
+        mount_table(path, sync=True, client=client)
