@@ -147,8 +147,8 @@ TNodeId TClientBase::Link(
 }
 
 void TClientBase::Concatenate(
-    const TVector<TYPath>& sourcePaths,
-    const TYPath& destinationPath,
+    const TVector<TRichYPath>& sourcePaths,
+    const TRichYPath& destinationPath,
     const TConcatenateOptions& options)
 {
     std::function<void(ITransactionPtr)> lambda = [&sourcePaths, &destinationPath, &options, this](ITransactionPtr transaction) {

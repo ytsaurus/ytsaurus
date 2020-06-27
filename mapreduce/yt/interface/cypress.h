@@ -136,9 +136,18 @@ public:
     ///
     /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#concatenate)
     virtual void Concatenate(
+        const TVector<TRichYPath>& sourcePaths,
+        const TRichYPath& destinationPath,
+        const TConcatenateOptions& options = TConcatenateOptions()) = 0;
+
+    ///
+    /// @brief Concatenate several tables into one.
+    ///
+    /// @see [YT doc](https://yt.yandex-team.ru/docs//api/commands.html#concatenate)
+    virtual void Concatenate(
         const TVector<TYPath>& sourcePaths,
         const TYPath& destinationPath,
-        const TConcatenateOptions& options = TConcatenateOptions()) = 0;
+        const TConcatenateOptions& options = TConcatenateOptions());
 
     ///
     /// @brief Canonize YPath, moving all the complex YPath features to attributes.

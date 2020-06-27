@@ -268,20 +268,25 @@ TNode SerializeParamsForUnlock(
 
 TNode SerializeParamsForConcatenate(
     const TTransactionId& transactionId,
-    const TVector<TYPath>& sourcePaths,
-    const TYPath& destinationPath,
+    const TVector<TRichYPath>& sourcePaths,
+    const TRichYPath& destinationPath,
     const TConcatenateOptions& options)
 {
     TNode result;
     SetTransactionIdParam(&result, transactionId);
     {
-        TRichYPath path(AddPathPrefix(destinationPath));
-        path.Append(options.Append_);
-        result["destination_path"] = PathToNode(path);
+        auto actualDestination = destinationPath;
+        actualDestination.Path(AddPathPrefix(actualDestination.Path_));
+        if (options.Append_) {
+            actualDestination.Append(*options.Append_);
+        }
+        result["destination_path"] = PathToNode(actualDestination);
     }
     auto& sourcePathsNode = result["source_paths"];
     for (const auto& path : sourcePaths) {
-        sourcePathsNode.Add(PathToNode(AddPathPrefix(path)));
+        auto actualSource = path;
+        actualSource.Path(AddPathPrefix(actualSource.Path_));
+        sourcePathsNode.Add(PathToNode(actualSource));
     }
     return result;
 }
