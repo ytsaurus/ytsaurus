@@ -9,6 +9,8 @@ import yt.wrapper as yt
 
 from yt.packages.six.moves import xrange
 
+import datetime
+import tempfile
 import time
 import pytest
 
@@ -256,3 +258,46 @@ class TestBatchExecution(object):
 
         create_result.get_result()
         assert result[0] is not None
+
+
+@pytest.mark.usefixtures("yt_env_job_archive")
+class TestBatchExecutionOperationCommands(object):
+    def test_operation_commands(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1}, {"x": 2}])
+
+        with tempfile.NamedTemporaryFile("r") as f:
+            op1 = yt.run_map("echo $YT_JOB_ID > {} && cat".format(f.name), table, table, job_count=1, format="json")
+            job_id = f.read().strip()
+        after_op1 = datetime.datetime.utcnow()
+        op2 = yt.run_sort(table, table, sort_by=["x"])
+        op3 = yt.run_reduce("cat", table, table, reduce_by=["x"], format="json")
+
+        client = create_batch_client()
+        get_job_result = client.get_job(op1.id, job_id)
+        list_jobs_result = client.list_jobs(op1.id)
+        get_operation_result = client.get_operation(op1.id)
+        list_operations_result = client.list_operations(from_time=after_op1)
+
+        client.commit_batch()
+
+        assert get_job_result.is_ok(), get_job_result.get_error()
+        job = get_job_result.get_result()
+        assert job["job_id"] == job_id
+        assert job["type"] == "map"
+        assert job["state"] == "completed"
+
+        assert list_jobs_result.is_ok(), list_jobs_result.get_error()
+        jobs = list_jobs_result.get_result()["jobs"]
+        assert len(jobs) == 1
+        assert jobs[0]["type"] == "map"
+
+        assert get_operation_result.is_ok(), get_operation_result.get_error()
+        operation = get_operation_result.get_result()
+        assert operation["id"] == op1.id
+        assert operation["type"] == "map"
+
+        assert list_operations_result.is_ok(), list_operations_result.get_error()
+        operations = list_operations_result.get_result()["operations"]
+        assert [op["id"] for op in operations] == [op3.id, op2.id]
+

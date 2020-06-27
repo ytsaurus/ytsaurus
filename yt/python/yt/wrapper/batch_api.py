@@ -7,7 +7,9 @@ from .table_commands import create_table, row_count, is_sorted, is_empty, alter_
 from .dynamic_table_commands import (mount_table, unmount_table, remount_table,
                                      freeze_table, unfreeze_table, reshard_table, reshard_table_automatic, balance_tablet_cells,
                                      trim_rows, alter_table_replica, get_tablet_infos)
-from .operation_commands import suspend_operation, resume_operation, get_operation_attributes, update_operation_parameters
+from .operation_commands import (suspend_operation, resume_operation, get_operation_attributes, update_operation_parameters,
+                                 get_operation, list_operations)
+from .job_commands import get_job, list_jobs
 from .transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction
 from .job_commands import abort_job
 from .etc_commands import generate_timestamp, transfer_account_resources
