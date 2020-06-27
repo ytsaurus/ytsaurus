@@ -156,8 +156,15 @@ class TBlackboxTicketAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
+    THashSet<TString> Scopes;
+    bool EnableScopeCheck;
+
     TBlackboxTicketAuthenticatorConfig()
     {
+        RegisterParameter("scopes", Scopes)
+            .Optional();
+        RegisterParameter("enable_scope_check", EnableScopeCheck)
+            .Default(false);
     }
 };
 

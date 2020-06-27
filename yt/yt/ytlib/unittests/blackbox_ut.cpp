@@ -1,15 +1,15 @@
 #include "mock_http_server.h"
 #include "mock_tvm_service.h"
 
-#include <yt/ytlib/auth/token_authenticator.h>
-#include <yt/ytlib/auth/cookie_authenticator.h>
 #include <yt/ytlib/auth/blackbox_service.h>
-#include <yt/ytlib/auth/default_blackbox_service.h>
 #include <yt/ytlib/auth/config.h>
+#include <yt/ytlib/auth/cookie_authenticator.h>
+#include <yt/ytlib/auth/default_blackbox_service.h>
 #include <yt/ytlib/auth/helpers.h>
+#include <yt/ytlib/auth/ticket_authenticator.h>
+#include <yt/ytlib/auth/token_authenticator.h>
 
 #include <yt/core/concurrency/thread_pool_poller.h>
-
 #include <yt/core/test_framework/framework.h>
 
 namespace NYT::NAuth {
@@ -408,6 +408,114 @@ TEST_F(TCookieAuthenticatorTest, Success)
     ASSERT_TRUE(result.IsOK());
     EXPECT_EQ("sandello", result.Value().Login);
     EXPECT_EQ("blackbox:cookie", result.Value().Realm);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTicketAuthenticatorTest
+    : public ::testing::Test
+{
+protected:
+    void SetUp() override
+    {
+        Config_ = New<TBlackboxTicketAuthenticatorConfig>();
+        Blackbox_ = New<TMockBlackboxService>();
+        Tvm_ = New<TMockTvmService>();
+        Authenticator_ = CreateBlackboxTicketAuthenticator(Config_, Blackbox_, Tvm_);
+
+        Config_->EnableScopeCheck = true;
+        Config_->Scopes.insert("foo");
+        Config_->Scopes.insert("bar");
+
+        ON_CALL(*Tvm_, ParseUserTicket("good_ticket"))
+            .WillByDefault(Return(TParsedTicket{42, {"bar", "baz"}}));
+        ON_CALL(*Blackbox_, Call("user_ticket", TicketParam("good_ticket")))
+            .WillByDefault(Return(Response("{users=[{login=TheUser}]}")));
+
+        ON_CALL(*Tvm_, ParseUserTicket("bad_ticket"))
+            .WillByDefault(Return(TParsedTicket{43, {"bad", "scope"}}));
+        ON_CALL(*Blackbox_, Call("user_ticket", TicketParam("bad_ticket")))
+            .WillByDefault(Return(Response("{users=[{login=ScopelessUser}]}")));
+
+    }
+
+    THashMap<TString, TString> TicketParam(const TString& ticket)
+    {
+        return THashMap<TString, TString>{{"user_ticket", ticket}};
+    }
+
+    TFuture<INodePtr> Response(const TString& yson)
+    {
+        return MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(yson)));
+    }
+
+    TFuture<TAuthenticationResult> Invoke(const TString& ticket)
+    {
+        return Authenticator_->Authenticate(TTicketCredentials{ticket});
+    }
+
+    TBlackboxTicketAuthenticatorConfigPtr Config_;
+    TIntrusivePtr<TMockBlackboxService> Blackbox_;
+    TIntrusivePtr<TMockTvmService> Tvm_;
+    TIntrusivePtr<ITicketAuthenticator> Authenticator_;
+};
+
+TEST_F(TTicketAuthenticatorTest, Success)
+{
+    auto result = Invoke("good_ticket").Get();
+    ASSERT_TRUE(result.IsOK());
+    EXPECT_EQ("TheUser", result.Value().Login);
+    EXPECT_EQ("blackbox:user-ticket", result.Value().Realm);
+}
+
+TEST_F(TTicketAuthenticatorTest, ScopeFailure)
+{
+    auto result = Invoke("bad_ticket").Get();
+    ASSERT_FALSE(result.IsOK());
+}
+
+TEST_F(TTicketAuthenticatorTest, DisableScopeCheck)
+{
+    Config_->EnableScopeCheck = false;
+    EXPECT_CALL(*Tvm_, ParseUserTicket(_)).Times(0);
+    auto result = Invoke("bad_ticket").Get();
+    ASSERT_TRUE(result.IsOK());
+    EXPECT_EQ("ScopelessUser", result.Value().Login);
+}
+
+TEST_F(TTicketAuthenticatorTest, AllowAllScopes)
+{
+    Config_->Scopes.clear();
+    auto result = Invoke("bad_ticket").Get();
+    ASSERT_TRUE(result.IsOK());
+    EXPECT_EQ("ScopelessUser", result.Value().Login);
+}
+
+TEST_F(TTicketAuthenticatorTest, FailOnTvmFailure)
+{
+    EXPECT_CALL(*Tvm_, ParseUserTicket(_))
+        .WillOnce(Return(TError("Tvm failure")));
+    auto result = Invoke("good_ticket").Get();
+    ASSERT_TRUE(!result.IsOK());
+    EXPECT_THAT(CollectMessages(result), HasSubstr("Tvm failure"));
+}
+
+TEST_F(TTicketAuthenticatorTest, FailOnBlackboxFailure)
+{
+    EXPECT_CALL(*Blackbox_, Call("user_ticket", _))
+        .WillOnce(Return(MakeFuture<INodePtr>(TError("Blackbox failure"))));
+    auto result = Invoke("good_ticket").Get();
+    ASSERT_TRUE(!result.IsOK());
+    EXPECT_THAT(CollectMessages(result), HasSubstr("Blackbox failure"));
+}
+
+TEST_F(TTicketAuthenticatorTest, FailOnBlackboxError)
+{
+    EXPECT_CALL(*Blackbox_, Call("user_ticket", _))
+        .WillOnce(Return(Response("{error=unhappy}")));
+    auto result = Invoke("good_ticket").Get();
+    ASSERT_TRUE(!result.IsOK());
+    EXPECT_THAT(CollectMessages(result), HasSubstr("unhappy"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

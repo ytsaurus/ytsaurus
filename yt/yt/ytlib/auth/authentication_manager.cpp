@@ -84,7 +84,8 @@ public:
         if (blackboxService && config->BlackboxTicketAuthenticator) {
             TicketAuthenticator_ = CreateBlackboxTicketAuthenticator(
                 config->BlackboxTicketAuthenticator,
-                blackboxService);
+                blackboxService,
+                TvmService_);
             rpcAuthenticators.push_back(
                 CreateTicketAuthenticatorWrapper(TicketAuthenticator_));
         }
