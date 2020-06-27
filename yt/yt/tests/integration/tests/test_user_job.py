@@ -901,7 +901,7 @@ class TestJobStderr(YTEnvSetup):
                 return False
             progress = get(op.get_path() + "/@progress")
             if "jobs" in progress and "completed" in progress["jobs"]:
-                return progress["jobs"]["completed"]["total"] > 8
+                return progress["jobs"]["completed"]["total"] > 5
             return False
 
         wait(enough_jobs_completed)
