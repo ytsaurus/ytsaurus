@@ -1,8 +1,10 @@
 #include "ticket_authenticator.h"
+
 #include "blackbox_service.h"
-#include "helpers.h"
 #include "config.h"
+#include "helpers.h"
 #include "private.h"
+#include "tvm_service.h"
 
 #include <yt/core/rpc/authenticator.h>
 
@@ -22,9 +24,11 @@ class TBlackboxTicketAuthenticator
 public:
     TBlackboxTicketAuthenticator(
         TBlackboxTicketAuthenticatorConfigPtr config,
-        IBlackboxServicePtr blackboxService)
+        IBlackboxServicePtr blackboxService,
+        ITvmServicePtr tvmService)
         : Config_(std::move(config))
         , BlackboxService_(std::move(blackboxService))
+        , TvmService_(std::move(tvmService))
     { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(
@@ -32,6 +36,13 @@ public:
     {
         const auto& ticket = credentials.Ticket;
         auto ticketHash = GetCryptoHash(ticket);
+
+        if (Config_->EnableScopeCheck && TvmService_) {
+            auto result = CheckScope(ticket, ticketHash);
+            if (!result.IsOK()) {
+                return MakeFuture<TAuthenticationResult>(result);
+            }
+        }
 
         YT_LOG_DEBUG("Validating ticket via Blackbox (TicketHash: %v)",
             ticketHash);
@@ -46,8 +57,40 @@ public:
 private:
     const TBlackboxTicketAuthenticatorConfigPtr Config_;
     const IBlackboxServicePtr BlackboxService_;
+    const ITvmServicePtr TvmService_;
 
 private:
+    TError CheckScope(const TString& ticket, const TString& ticketHash)
+    {
+        YT_LOG_DEBUG("Validating ticket scopes (TicketHash: %v)",
+            ticketHash);
+        const auto result = TvmService_->ParseUserTicket(ticket);
+        if (!result.IsOK()) {
+            YT_LOG_DEBUG(result, "Parsing user ticket failed (TicketHash: %v)",
+                ticketHash);
+            return result
+                << TErrorAttribute("ticket_hash", ticketHash);
+        }
+        const auto& scopes = result.Value().Scopes;
+        YT_LOG_DEBUG("Got user ticket with scopes %v", scopes);
+
+        const auto& allowedScopes = Config_->Scopes;
+        if (allowedScopes.empty()) {
+            // This mode is to examine received scopes in prod logs.
+            return TError();
+        }
+        for (const auto& scope : scopes) {
+            if (allowedScopes.contains(scope)) {
+                return TError();
+            }
+        }
+
+        return TError(NRpc::EErrorCode::InvalidCredentials,
+            "Ticket does not provide an allowed scope")
+            << TErrorAttribute("scopes", scopes)
+            << TErrorAttribute("allowedScopes", allowedScopes);
+    }
+
     TAuthenticationResult OnBlackboxCallResult(const TString& ticketHash, const INodePtr& data)
     {
         auto result = OnCallResultImpl(data);
@@ -85,11 +128,13 @@ private:
 
 ITicketAuthenticatorPtr CreateBlackboxTicketAuthenticator(
     TBlackboxTicketAuthenticatorConfigPtr config,
-    IBlackboxServicePtr blackboxService)
+    IBlackboxServicePtr blackboxService,
+    ITvmServicePtr tvmService)
 {
     return New<TBlackboxTicketAuthenticator>(
         std::move(config),
-        std::move(blackboxService));
+        std::move(blackboxService),
+        std::move(tvmService));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
