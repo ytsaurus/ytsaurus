@@ -36,26 +36,24 @@ public:
         DB::PrewhereInfoPtr prewhereInfo);
 
     virtual std::string getName() const override;
-
     virtual DB::Block getHeader() const override;
 
     virtual void readPrefixImpl() override;
-
     virtual void readSuffixImpl() override;
 
 private:
-    NTableClient::TTableSchemaPtr ReadSchema_;
+    const NTableClient::TTableSchemaPtr ReadSchema_;
     NTracing::TTraceContextPtr TraceContext_;
+    THost* const Host_;
+    const NLogging::TLogger Logger;
+    const NTableClient::TRowBufferPtr RowBuffer_;
+    const DB::PrewhereInfoPtr PrewhereInfo_;
 
-    THost* Host_;
-    NLogging::TLogger Logger;
     DB::Block InputHeaderBlock_;
     DB::Block OutputHeaderBlock_;
     std::vector<int> IdToColumnIndex_;
-    NTableClient::TRowBufferPtr RowBuffer_;
-    DB::PrewhereInfoPtr PrewhereInfo_;
 
-    DB::Block readImpl() override;
+    virtual DB::Block readImpl() override;
     void Prepare();
 };
 

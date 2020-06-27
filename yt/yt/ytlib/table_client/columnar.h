@@ -18,14 +18,28 @@ void BuildValidityBitmapFromDictionaryIndexesWithZeroNull(
     TRange<ui32> dictionaryIndexes,
     TMutableRef dst);
 
-//! Same as #BuildValidityBitmapFromDictionaryIndexesWithZeroNull but for
-//! for RLE-encoded #dictionaryIndexes.
+//! Same as #BuildValidityBitmapFromDictionaryIndexesWithZeroNull but for RLE.
 void BuildValidityBitmapFromRleDictionaryIndexesWithZeroNull(
     TRange<ui32> dictionaryIndexes,
     TRange<ui64> rleIndexes,
     i64 startIndex,
     i64 endIndex,
     TMutableRef dst);
+
+//! Builds validity bitmap from #dictionaryIndexes by replacing each zero with
+//! 1-byte and each non-zero with 0-byte.
+//! The size of #dst must match the size of #dictionaryIndexes.
+void BuildNullBytemapFromDictionaryIndexesWithZeroNull(
+    TRange<ui32> dictionaryIndexes,
+    TMutableRange<ui8> dst);
+
+//! Same as #BuildNullBytmapFromDictionaryIndexesWithZeroNull but for RLE.
+void BuildNullBytemapFromRleDictionaryIndexesWithZeroNull(
+    TRange<ui32> dictionaryIndexes,
+    TRange<ui64> rleIndexes,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<ui8> dst);
 
 //! Copies dictionary indexes from #dictionaryIndexes to #dst subtracting one.
 //! Zeroes are replaced by unspecified values.
@@ -34,8 +48,7 @@ void BuildDictionaryIndexesFromDictionaryIndexesWithZeroNull(
     TRange<ui32> dictionaryIndexes,
     TMutableRange<ui32> dst);
 
-//! Same as #BuildDictionaryIndexesFromDictionaryIndexesWithZeroNull but
-//! for RLE-encoded #dictionaryIndexes.
+//! Same as #BuildDictionaryIndexesFromDictionaryIndexesWithZeroNull but for RLE.
 void BuildDictionaryIndexesFromRleDictionaryIndexesWithZeroNull(
     TRange<ui32> dictionaryIndexes,
     TRange<ui64> rleIndexes,
@@ -55,8 +68,7 @@ void BuildIotaDictionaryIndexesFromRleIndexes(
 //! Counts the number of #indexes equal to zero.
 i64 CountNullsInDictionaryIndexesWithZeroNull(TRange<ui32> indexes);
 
-//! Same as #CountNullsInDictionaryIndexesWithZeroNull but
-//! for RLE-encoded #dictionaryIndexes.
+//! Same as #CountNullsInDictionaryIndexesWithZeroNull but for RLE.
 i64 CountNullsInRleDictionaryIndexesWithZeroNull(
     TRange<ui32> dictionaryIndexes,
     TRange<ui64> rleIndexes,
@@ -69,31 +81,41 @@ i64 CountOnesInBitmap(
     i64 startIndex,
     i64 endIndex);
 
-//! Same as #CountOnesInBitmap but for RLE-encoded #bitmap.
+//! Same as #CountOnesInBitmap but for RLE.
 i64 CountOnesInRleBitmap(
     TRef bitmap,
     TRange<ui64> rleIndexes,
     i64 startIndex,
     i64 endIndex);
 
-//! Copies bits in range [#startIndex, #endIndex) from #bitmap to #dst.
+//! Copies bits in range [#startIndex, #endIndex) from #bitmap to #dst (representing another bitmap).
 //! #bitmap must be 8-byte aligned and its trailing qword must be readable.
 //! The byte size of #dst be be enough to store |endIndex - startIndex| bits.
-void CopyBitmapRange(
+void CopyBitmapRangeToBitmap(
     TRef bitmap,
     i64 startIndex,
     i64 endIndex,
     TMutableRef dst);
 
-//! Same as #CopyBitmapRange but inverts the bits.
-void CopyBitmapRangeNegated(
+//! Same as #CopyBitmapRangeToBitmap but inverts the bits.
+void CopyBitmapRangeToBitmapNegated(
     TRef bitmap,
     i64 startIndex,
     i64 endIndex,
     TMutableRef dst);
 
-//! Decodes RLE-encoded #bitmap and inverts the bits.
-//! The byte size of #dst be be enough to store |endIndex - startIndex| bits.
+//! Decodes bits in range [#startIndex, #endIndex) from #bitmap to #dst bytemap
+//! (0 indicates |false|, 1 indicates |true|).
+//! #bitmap must be 8-byte aligned and its trailing qword must be readable.
+//! The size of #dst must be |endIndex - startIndex|.
+void DecodeBytemapFromBitmap(
+    TRef bitmap,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<ui8> dst);
+
+//! Decodes RLE #bitmap and inverts the bits.
+//! The byte size of #dst be enough to store |endIndex - startIndex| bits.
 void BuildValidityBitmapFromRleNullBitmap(
     TRef bitmap,
     TRange<ui64> rleIndexes,
@@ -101,25 +123,30 @@ void BuildValidityBitmapFromRleNullBitmap(
     i64 endIndex,
     TMutableRef dst);
 
-//! Decodes a vector of integers from YT chunk representation into
-//! a raw sequence. The byte size of #dst must exactly match
-//! the byte size of #type times the number of elements in #values. 
-//! \seealso DecodeIntegerValue
-void DecodeIntegerVector(
-    TRange<ui64> values,
-    ESimpleLogicalValueType type,
-    ui64 baseValue,
-    bool zigzagEncoded,
-    TMutableRef dst);
+//! Decodes RLE #bitmap into #dst bytemap.
+//! The size of #dst be |endIndex - startIndex|.
+void BuildNullBytemapFromRleNullBitmap(
+    TRef bitmap,
+    TRange<ui64> rleIndexes,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<ui8> dst);
 
 //! Decodes the starting offset of the #index-th string.
 //! #index must be in range [0, N], where N is the size of #offsets.
 i64 DecodeStringOffset(
     TRange<ui32> offsets,
-    i64 index,
-    ui32 avgLength);
+    ui32 avgLength,
+    i64 index);
 
-//! Decodes the starting offsets of strings in [#startIndex, #endIndex)
+//! Decodes the starting offset and the ending offset of the #index-th string.
+//! #index must be in range [0, N), where N is the size of #offsets.
+std::pair<i64, i64> DecodeStringRange(
+    TRange<ui32> offsets,
+    ui32 avgLength,
+    i64 index);
+
+//! Decodes start offsets of strings in [#startIndex, #endIndex)
 //! range given by #offsets. The resulting array contains 32-bit offsets and
 //! must be of size |endIndex - startIndex + 1| (the last element will indicate the
 //! offset where the last string ends).
@@ -130,8 +157,26 @@ void DecodeStringOffsets(
     i64 endIndex,
     TMutableRange<ui32> dst);
 
+//! Decodes start pointers and lengths in [#startIndex, #endIndex) row range.
+//! The size of #strings and #lengths must be |endIndex - startIndex|.
+void DecodeStringPointersAndLengths(
+    TRange<ui32> offsets,
+    ui32 avgLength,
+    TRef stringData,
+    TMutableRange<const char*> strings,
+    TMutableRange<i32> lengths);
+
+//! Computes the total length of RLE and dictionary-encoded strings in
+//! a given row range [#startIndex, #endIndex).
+i64 CountTotalStringLengthInRleDictionaryIndexesWithZeroNull(
+    TRange<ui32> dictionaryIndexes,
+    TRange<ui64> rleIndexes,
+    TRange<i32> stringLengths,
+    i64 startIndex,
+    i64 endIndex);
+
 //! Given #rleIndexes, translates #index in actual rowspace to 
-//! to the index in RLE-compressed rowspace.
+//! to the index in RLE rowspace.
 i64 TranslateRleIndex(
     TRange<ui64> rleIndexes,
     i64 index); 
@@ -147,17 +192,39 @@ i64 TranslateRleEndIndex(
     TRange<ui64> rleIndexes,
     i64 index); 
 
-//! Decodes RLE-encoded in range [#startIndex, #endIndex).
-//! Results pass #valueDecoder before being written to #dst.
-//! The size of #dst must be |endIndex - startIndex|. 
-template <class S, class T, class F>
-void DecodeRleVector(
-    TRange<S> values,
-    TRange<ui64> rleIndexes,
+//! A unversal decoder for dictionary-encoded and RLE integer vectors.
+//! Values are first retrieved via #fetcher, then
+//! pass through #DecodeIntegerValue and finally are forwarded
+//! to #consumer.
+template <
+    class TFetcher,
+    class TConsumer
+>
+void DecodeIntegerVector(
     i64 startIndex,
     i64 endIndex,
-    F valueDecoder,
-    TMutableRange<T> dst);
+    ui64 baseValue,
+    bool zigZagEncoded,
+    TRange<ui32> dictionaryIndexes,
+    TRange<ui64> rleIndexes,
+    TFetcher fetcher,
+    TConsumer consumer);
+
+//! A unversal decoder for dictionary-encoded and RLE vectors of raw values.
+//! Values are first retrieved via #fetcher and then are forwarded
+//! to #consumer.
+template <
+    class T,
+    class TFetcher,
+    class TConsumer
+>
+void DecodeRawVector(
+    i64 startIndex,
+    i64 endIndex,
+    TRange<ui32> dictionaryIndexes,
+    TRange<ui64> rleIndexes,
+    TFetcher fetcher,
+    TConsumer consumer);
 
 //! Decodes a single integer from YT chunk representation.
 template <class T>

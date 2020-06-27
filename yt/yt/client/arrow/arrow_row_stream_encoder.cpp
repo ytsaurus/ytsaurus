@@ -51,13 +51,6 @@ i64 GetTotalValuesSize(const TBatchColumn& column, int count)
     return AlignUp<i64>(GetBytesPerValue(column) * count, ArrowAlignment);
 }
 
-TLogicalTypePtr DropOptional(TLogicalTypePtr type)
-{
-    return type->GetMetatype() == ELogicalMetatype::Optional
-        ? type->AsOptionalTypeRef().GetElement()
-        : type;
-}
-
 flatbuffers::Offset<flatbuffers::String> SerializeString(
     flatbuffers::FlatBufferBuilder* flatbufBuilder,
     const TString& str)
@@ -69,14 +62,7 @@ std::tuple<org::apache::arrow::flatbuf::Type, flatbuffers::Offset<void>> Seriali
     flatbuffers::FlatBufferBuilder* flatbufBuilder,
     const TColumnSchema& schema)
 {
-    auto type = DropOptional(schema.LogicalType());
-    if (type->GetMetatype() != ELogicalMetatype::Simple) {
-        THROW_ERROR_EXCEPTION("Column %Qv has metatype %Qlv that is not currently supported by Arrow encoder",
-            schema.Name(),
-            type->GetMetatype());
-    }
-
-    auto simpleType = type->AsSimpleTypeRef().GetElement();
+    auto simpleType = SimplifyLogicalType(schema.LogicalType()).first.value_or(ESimpleLogicalValueType::Any);
     switch (simpleType) {
         case ESimpleLogicalValueType::Null:
             return std::make_tuple(
@@ -126,6 +112,12 @@ std::tuple<org::apache::arrow::flatbuf::Type, flatbuffers::Offset<void>> Seriali
                 org::apache::arrow::flatbuf::CreateUtf8(*flatbufBuilder)
                     .Union());
 
+        // TODO(babenko): the following types are not supported:
+        //   Date
+        //   Datetime
+        //   Interval
+        //   Timestamp
+        
         default:
             THROW_ERROR_EXCEPTION("Column %Qv has type %Qlv that is not currently supported by Arrow encoder",
                 schema.Name(),
@@ -135,10 +127,9 @@ std::tuple<org::apache::arrow::flatbuf::Type, flatbuffers::Offset<void>> Seriali
 
 bool IsRleButNotDictionaryEncodedStringLikeColumn(const TBatchColumn& column)
 {
-    auto type = DropOptional(column.Type);
+    auto simpleType = SimplifyLogicalType(column.Type).first.value_or(ESimpleLogicalValueType::Any);
     return
-        type->GetMetatype() == ELogicalMetatype::Simple &&
-        IsStringLikeType(type->AsSimpleTypeRef().GetElement()) &&
+        IsStringLikeType(simpleType) &&
         column.Rle &&
         !column.Rle->ValueColumn->Dictionary;
 }
@@ -201,32 +192,11 @@ struct TRecordBatchSerializationContext final
 };
 
 template <class T>
-TRange<T> GetTypedValues(TRef ref)
-{
-    return MakeRange(
-        reinterpret_cast<const T*>(ref.Begin()),
-        reinterpret_cast<const T*>(ref.End()));
-}
-
-template <class T>
 TMutableRange<T> GetTypedValues(TMutableRef ref)
 {
     return MakeMutableRange(
         reinterpret_cast<T*>(ref.Begin()),
         reinterpret_cast<T*>(ref.End()));
-}
-
-template <class T>
-TRange<T> GetTypedValues(const TBatchColumn& column)
-{
-    return GetTypedValues<T>(column.Values->Data);
-}
-
-template <class T>
-TRange<T> GetRelevantTypedValues(const TBatchColumn& column)
-{
-    auto data = GetTypedValues<T>(column);
-    return data.Slice(column.StartIndex, column.StartIndex + column.ValueCount);
 }
 
 void SerializeColumnPrologue(
@@ -239,7 +209,7 @@ void SerializeColumnPrologue(
     {
         if (column->Rle) {
             const auto* valueColumn = column->Rle->ValueColumn;
-            auto rleIndexes = GetTypedValues<ui64>(*column);
+            auto rleIndexes = column->GetTypedValues<ui64>();
 
             context->AddFieldNode(
                 column->ValueCount,
@@ -270,7 +240,7 @@ void SerializeColumnPrologue(
             context->AddBuffer(
                 GetBitmapByteSize(column->ValueCount),
                 [=] (TMutableRef dstRef) {
-                    CopyBitmapRangeNegated(
+                    CopyBitmapRangeToBitmapNegated(
                         column->NullBitmap->Data,
                         column->StartIndex,
                         column->StartIndex + column->ValueCount,
@@ -298,14 +268,14 @@ void SerializeRleButNotDictionaryEncodedStringLikeColumn(
     YT_VERIFY(column->Values->BaseValue == 0);
     YT_VERIFY(!column->Values->ZigZagEncoded);
     
-    YT_LOG_DEBUG("Adding RLE- but not dictionary-encoded string-like column (ColumnId: %v, StartIndex: %v, ValueCount: %v)",
+    YT_LOG_DEBUG("Adding RLE but not dictionary-encoded string-like column (ColumnId: %v, StartIndex: %v, ValueCount: %v)",
         column->Id,
         column->StartIndex,
         column->ValueCount);
 
     SerializeColumnPrologue(typedColumn, context);
 
-    auto rleIndexes = GetTypedValues<ui64>(*column);
+    auto rleIndexes = column->GetTypedValues<ui64>();
 
     context->AddBuffer(
         sizeof (ui32) * column->ValueCount,
@@ -335,7 +305,7 @@ void SerializeDictionaryColumn(
         column->ValueCount,
         column->Rle.has_value());
 
-    auto relevantDictionaryIndexes = GetRelevantTypedValues<ui32>(*column);
+    auto relevantDictionaryIndexes = column->GetRelevantTypedValues<ui32>();
 
     context->AddFieldNode(
         column->ValueCount,
@@ -378,8 +348,8 @@ void SerializeRleDictionaryColumn(
         column->ValueCount,
         column->Rle.has_value());
 
-    auto dictionaryIndexes = GetTypedValues<ui32>(*column->Rle->ValueColumn);
-    auto rleIndexes = GetTypedValues<ui64>(*column);
+    auto dictionaryIndexes = column->Rle->ValueColumn->GetTypedValues<ui32>();
+    auto rleIndexes = column->GetTypedValues<ui64>();
 
     context->AddFieldNode(
         column->ValueCount,
@@ -428,51 +398,35 @@ void SerializeIntegerColumn(
 
     SerializeColumnPrologue(typedColumn, context);
 
-    if (column->Rle) {
-        YT_VERIFY(column->Values->BaseValue == 0);
-        YT_VERIFY(column->Values->BitWidth == 64);
-        YT_VERIFY(!column->Values->ZigZagEncoded);
-        YT_VERIFY(column->Rle->ValueColumn->Values);
-        YT_VERIFY(column->Rle->ValueColumn->Values->BitWidth == 64);
-        
-        context->AddBuffer(
-            column->ValueCount * GetIntegralTypeByteSize(simpleType),
-            [=] (TMutableRef dstRef) {
-                auto values = GetTypedValues<ui64>(*column->Rle->ValueColumn);
-                auto rleIndexes = GetTypedValues<ui64>(*column);
-                auto dstValues = GetTypedValues<ui64>(dstRef);
-                
-                // TODO(babenko): merge these two calls
-                DecodeRleVector(
-                    values,
-                    rleIndexes,
-                    column->StartIndex,
-                    column->StartIndex + column->ValueCount,
-                    [] (ui64 value) { return value; },
-                    dstValues);
-                
-                DecodeIntegerVector(
-                    dstValues,
-                    simpleType,
-                    column->Rle->ValueColumn->Values->BaseValue,
-                    column->Rle->ValueColumn->Values->ZigZagEncoded,
-                    dstRef);
-            });
-    } else {
-        YT_VERIFY(column->Values->BitWidth == 64);
-        
-        context->AddBuffer(
-            column->ValueCount * GetIntegralTypeByteSize(simpleType),
-            [=] (TMutableRef dstRef) {
-                auto relevantValues = GetRelevantTypedValues<ui64>(*column);
-                DecodeIntegerVector(
-                    relevantValues,
-                    simpleType,
-                    column->Values->BaseValue,
-                    column->Values->ZigZagEncoded,
-                    dstRef);
-            });
-    }
+    context->AddBuffer(
+        column->ValueCount * GetIntegralTypeByteSize(simpleType),
+        [=] (TMutableRef dstRef) {
+            const auto* valueColumn = column->Rle
+                ? column->Rle->ValueColumn
+                : column;
+            auto values = valueColumn->GetTypedValues<ui64>();
+
+            auto rleIndexes = column->Rle
+                ? column->GetTypedValues<ui64>()
+                : TRange<ui64>();
+
+            auto dstValues = GetTypedValues<ui64>(dstRef);
+            auto* currentOutput = dstValues.Begin();
+
+            DecodeIntegerVector(
+                column->StartIndex,
+                column->StartIndex + column->ValueCount,
+                valueColumn->Values->BaseValue,
+                valueColumn->Values->ZigZagEncoded,
+                TRange<ui32>(),
+                rleIndexes,
+                [&] (auto index) {
+                    return values[index];
+                },
+                [&] (auto value) {
+                    *currentOutput++ = value;
+                });
+        });
 }
 
 void SerializeDoubleColumn(
@@ -496,7 +450,7 @@ void SerializeDoubleColumn(
     context->AddBuffer(
         column->ValueCount * sizeof(double),
         [=] (TMutableRef dstRef) {
-            auto relevantValues = GetRelevantTypedValues<double>(*column);
+            auto relevantValues = column->GetRelevantTypedValues<double>();
             ::memcpy(
                 dstRef.Begin(),
                 relevantValues.Begin(),
@@ -522,7 +476,7 @@ void SerializeStringLikeColumn(
     auto stringData = column->Strings->Data;
     auto avgLength = *column->Strings->AvgLength;
 
-    auto offsets = GetTypedValues<ui32>(*column);
+    auto offsets = column->GetTypedValues<ui32>();
     auto startOffset = DecodeStringOffset(offsets, avgLength, startIndex);
     auto endOffset = DecodeStringOffset(offsets, avgLength, endIndex);
     auto stringsSize = endOffset - startOffset;
@@ -578,7 +532,7 @@ void SerializeBooleanColumn(
     context->AddBuffer(
         GetBitmapByteSize(column->ValueCount),
         [=] (TMutableRef dstRef) {
-            CopyBitmapRange(
+            CopyBitmapRangeToBitmap(
                 column->Values->Data,
                 column->StartIndex,
                 column->StartIndex + column->ValueCount,
@@ -607,10 +561,7 @@ void SerializeColumn(
         return;
     }
 
-    auto type = DropOptional(typedColumn.Type);
-    YT_VERIFY(type->GetMetatype() == ELogicalMetatype::Simple);
-    auto simpleType = type->AsSimpleTypeRef().GetElement();
-
+    auto simpleType = SimplifyLogicalType(typedColumn.Type).first.value_or(ESimpleLogicalValueType::Any);
     if (IsIntegralType(simpleType)) {
         SerializeIntegerColumn(typedColumn, simpleType, context);
     } else if (simpleType == ESimpleLogicalValueType::Double) {
@@ -972,14 +923,14 @@ private:
                     typedColumn.Column->Dictionary->DictionaryId,
                     typedColumn.Column->Dictionary->ValueColumn);
             } else if (IsRleButNotDictionaryEncodedStringLikeColumn(*typedColumn.Column)) {
-                YT_LOG_DEBUG("Adding dictionary batch for RLE- but not dictionary-encoded string-like column (ColumnId: %v)",
+                YT_LOG_DEBUG("Adding dictionary batch for RLE but not dictionary-encoded string-like column (ColumnId: %v)",
                     typedColumn.Column->Id);
                 prepareDictionaryBatch(
                     columnIndex,
                     IUnversionedColumnarRowBatch::GenerateDictionaryId(), // any unique one will do
                     typedColumn.Column->Rle->ValueColumn);
             } else if (IsRleAndDictionaryEncodedColumn(*typedColumn.Column)) {
-                YT_LOG_DEBUG("Adding dictionary batch for RLE- and dictionary-encoded column (ColumnId: %v)",
+                YT_LOG_DEBUG("Adding dictionary batch for RLE and dictionary-encoded column (ColumnId: %v)",
                     typedColumn.Column->Id);
                 prepareDictionaryBatch(
                     columnIndex,

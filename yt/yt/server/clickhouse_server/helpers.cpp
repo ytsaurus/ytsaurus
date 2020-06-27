@@ -19,10 +19,14 @@
 #include <yt/library/re2/re2.h>
 
 #include <Common/FieldVisitors.h>
+
 #include <Interpreters/ExpressionActions.h>
 #include <Interpreters/ProcessList.h>
+
 #include <Storages/MergeTree/KeyCondition.h>
+
 #include <Storages/ColumnsDescription.h>
+
 #include <Parsers/IAST.h>
 #include <Parsers/formatAST.h>
 
@@ -91,7 +95,7 @@ Field ConvertToField(const NTableClient::TUnversionedValue& value)
         case EValueType::Composite:
             return Field(value.Data.String, value.Length);
         default:
-            THROW_ERROR_EXCEPTION("Unexpected data type %v", value.Type);
+            THROW_ERROR_EXCEPTION("Unexpected data type %Qlv", value.Type);
     }
 }
 
@@ -118,7 +122,7 @@ void ConvertToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
             break;
         }
         default: {
-            THROW_ERROR_EXCEPTION("Unexpected data type %v", value->Type);
+            THROW_ERROR_EXCEPTION("Unexpected data type %Qlv", value->Type);
         }
     }
 }

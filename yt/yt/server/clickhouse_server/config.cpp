@@ -140,6 +140,9 @@ TYtConfig::TYtConfig()
     RegisterParameter("reader_memory_requirement", ReaderMemoryRequirement)
         .Default(500_MB);
 
+    RegisterParameter("enable_columnar_read", EnableColumnarRead)
+        .Default(false);
+
     RegisterParameter("health_checker", HealthChecker)
         .DefaultNew();
 

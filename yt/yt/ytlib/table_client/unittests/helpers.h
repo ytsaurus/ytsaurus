@@ -95,6 +95,17 @@ inline bool GetBit(const NTableClient::IUnversionedColumnarRowBatch::TBitmap& bi
     return GetBit(bitmap.Data, index);
 }
 
+inline void SetBit(TMutableRef data, int index, bool value)
+{
+    auto& byte = data[index / 8];
+    auto mask = 1ULL << (index % 8);
+    if (value) {
+        byte |= mask;
+    } else {
+        byte &= ~mask;
+    }
+}
+
 inline void ResolveRleEncoding(
     const NTableClient::IUnversionedColumnarRowBatch::TColumn*& column,
     i64& index)

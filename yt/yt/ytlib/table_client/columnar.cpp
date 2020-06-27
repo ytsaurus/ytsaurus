@@ -4,6 +4,10 @@
 
 #include <yt/core/misc/algorithm_helpers.h>
 
+#include <util/system/cpu_id.h>
+
+#include <immintrin.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -47,7 +51,7 @@ std::tuple<const T*, T*> MaybeNegaveAndCopyValues(
 }
 
 template <bool Negate>
-void CopyBitmapRangeImpl(
+void CopyBitmapRangeToBitmapImpl(
     TRef bitmap,
     i64 startIndex,
     i64 endIndex,
@@ -150,9 +154,9 @@ void BuildBitmapFromRleImpl(
     while (currentIndex < endIndex) {
         if (currentIndex >= thresholdIndex) {
             ++currentRleIndex;
-            thresholdIndex = std::min(
-                endIndex,
-                currentRleIndex < rleIndexes.Size() ? static_cast<i64>(rleIndexes[currentRleIndex]) : Max<i64>());
+            thresholdIndex = currentRleIndex < rleIndexes.Size()
+                ? std::min(static_cast<i64>(rleIndexes[currentRleIndex]), endIndex)
+                : endIndex;
             currentBoolValue = valueFetcher(currentInputIndex++);
         }
         if ((currentOutputIndex & 63) == 0 && currentIndex + 64 <= thresholdIndex) {
@@ -167,6 +171,89 @@ void BuildBitmapFromRleImpl(
             SetBit(dst, currentOutputIndex++, currentBoolValue);
             ++currentIndex;
         }
+    }
+}
+
+template <class F>
+void BuildBytemapFromRleImpl(
+    TRange<ui64> rleIndexes,
+    i64 startIndex,
+    i64 endIndex,
+    F valueFetcher,
+    TMutableRange<ui8> dst)
+{
+    YT_VERIFY(startIndex >= 0 && startIndex <= endIndex);
+    YT_VERIFY(dst.Size() == endIndex - startIndex);
+    YT_VERIFY(rleIndexes[0] == 0);
+
+    auto startRleIndex = TranslateRleStartIndex(rleIndexes, startIndex);
+    auto currentInputIndex = startRleIndex;
+    auto currentIndex = startIndex;
+    auto currentRleIndex = startRleIndex;
+    bool currentBoolValue;
+    i64 thresholdIndex = -1;
+    i64 currentOutputIndex = 0;
+    while (currentIndex < endIndex) {
+        if (currentIndex >= thresholdIndex) {
+            ++currentRleIndex;
+            thresholdIndex = std::min(
+                endIndex,
+                currentRleIndex < rleIndexes.Size() ? static_cast<i64>(rleIndexes[currentRleIndex]) : Max<i64>());
+            currentBoolValue = valueFetcher(currentInputIndex++);
+        }
+        if ((currentOutputIndex & 7) == 0 && currentIndex + 8 <= thresholdIndex) {
+            auto* currentQwordOutput = reinterpret_cast<ui64*>(dst.Begin()) + (currentOutputIndex >> 3);
+            auto currentQwordValue = currentBoolValue ? 0x0101010101010101ULL : 0ULL;
+            while (currentIndex + 8 <= thresholdIndex) {
+                *currentQwordOutput++ = currentQwordValue;
+                currentOutputIndex += 8;
+                currentIndex += 8;
+            }
+        } else {
+            dst[currentOutputIndex++] = static_cast<ui8>(currentBoolValue);
+            ++currentIndex;
+        }
+    }
+}
+
+#ifdef __clang__
+
+__attribute__((target("bmi2")))
+void DecodeBytemapFromBitmapImplBmi2(
+    TRef bitmap,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<ui8> dst)
+{
+    auto index = startIndex;
+    while (index < endIndex) {
+        if ((index & 7) == 0 && index + 8 <= endIndex) {
+            const auto* currentInput = bitmap.Begin() + (index >> 3);
+            const auto* endInput = bitmap.Begin() + (endIndex >> 3);
+            auto* currentOutput = reinterpret_cast<ui64*>(dst.Begin() + (index - startIndex));
+            while (currentInput < endInput) {
+                // Cf. https://stackoverflow.com/questions/52098873/how-to-efficiently-convert-an-8-bit-bitmap-to-array-of-0-1-integers-with-x86-sim
+                constexpr ui64 Mask = 0x0101010101010101;
+                *currentOutput++ = __builtin_ia32_pdep_di(*currentInput++, Mask);
+            }
+            index = (endIndex & ~7);
+        } else {
+            dst[index - startIndex] = GetBit(bitmap, index);
+            ++index;
+        }
+    }
+}
+
+#endif
+
+void DecodeBytemapFromBitmapImplNoBmi2(
+    TRef bitmap,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<ui8> dst)
+{
+    for (auto index = startIndex; index < endIndex; ++index) {
+        dst[index - startIndex] = GetBit(bitmap, index);
     }
 }
 
@@ -236,6 +323,38 @@ void BuildValidityBitmapFromRleDictionaryIndexesWithZeroNull(
         dst);
 }
 
+void BuildNullBytemapFromDictionaryIndexesWithZeroNull(
+    TRange<ui32> dictionaryIndexes,
+    TMutableRange<ui8> dst)
+{
+    YT_VERIFY(dst.Size() == dictionaryIndexes.Size());
+
+    const auto* beginInput = dictionaryIndexes.Begin();
+    const auto* endInput = dictionaryIndexes.End();
+    const auto* currentInput = beginInput;
+    auto* currentOutput = dst.Begin();
+    while (currentInput < endInput) {
+        *currentOutput++ = static_cast<ui8>(*currentInput++ == 0);
+    }
+}
+
+void BuildNullBytemapFromRleDictionaryIndexesWithZeroNull(
+    TRange<ui32> dictionaryIndexes,
+    TRange<ui64> rleIndexes,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<ui8> dst)
+{
+    YT_VERIFY(rleIndexes.size() == dictionaryIndexes.size());
+
+    BuildBytemapFromRleImpl(
+        rleIndexes,
+        startIndex,
+        endIndex,
+        [&] (i64 inputIndex) { return dictionaryIndexes[inputIndex] == 0; },
+        dst);
+}
+
 void BuildDictionaryIndexesFromDictionaryIndexesWithZeroNull(
     TRange<ui32> dictionaryIndexes,
     TMutableRange<ui32> dst)
@@ -259,13 +378,19 @@ void BuildDictionaryIndexesFromRleDictionaryIndexesWithZeroNull(
     i64 endIndex,
     TMutableRange<ui32> dst)
 {
-    DecodeRleVector(
-        dictionaryIndexes,
-        rleIndexes,
+    auto* currentOutput = dst.Begin();
+    DecodeRawVector<ui32>(
         startIndex,
         endIndex,
-        [] (ui32 value) { return value - 1; },
-        dst);
+        {},
+        rleIndexes,
+        [&] (auto index) {
+            return dictionaryIndexes[index];
+        },
+        [&] (auto value) {
+            *currentOutput++ = value - 1;
+        });
+    YT_VERIFY(currentOutput == dst.End());
 }
 
 void BuildIotaDictionaryIndexesFromRleIndexes(
@@ -418,30 +543,49 @@ i64 CountOnesInRleBitmap(
     return result;
 }
 
-void CopyBitmapRange(
+void CopyBitmapRangeToBitmap(
     TRef bitmap,
     i64 startIndex,
     i64 endIndex,
     TMutableRef dst)
 {
-    CopyBitmapRangeImpl<false>(
+    CopyBitmapRangeToBitmapImpl<false>(
         bitmap,
         startIndex,
         endIndex,
         dst);
 }
 
-void CopyBitmapRangeNegated(
+void CopyBitmapRangeToBitmapNegated(
     TRef bitmap,
     i64 startIndex,
     i64 endIndex,
     TMutableRef dst)
 {
-    CopyBitmapRangeImpl<true>(
+    CopyBitmapRangeToBitmapImpl<true>(
         bitmap,
         startIndex,
         endIndex,
         dst);
+}
+
+void DecodeBytemapFromBitmap(
+    TRef bitmap,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<ui8> dst)
+{
+    YT_VERIFY(startIndex >= 0 && startIndex <= endIndex);
+    YT_VERIFY(endIndex - startIndex == dst.Size());
+
+#ifdef __clang__
+    if (NX86::CachedHaveBMI2()) {
+        DecodeBytemapFromBitmapImplBmi2(bitmap, startIndex, endIndex, dst);
+        return;
+    }
+#endif
+    
+    DecodeBytemapFromBitmapImplNoBmi2(bitmap, startIndex, endIndex, dst);
 }
 
 void BuildValidityBitmapFromRleNullBitmap(
@@ -459,47 +603,19 @@ void BuildValidityBitmapFromRleNullBitmap(
         dst);
 }
 
-template <class T, bool ZigZagEncoded>
-void DecodeIntegerVectorImpl(
-    TRange<ui64> values,
-    ui64 baseValue,
-    TMutableRef dst)
+void BuildNullBytemapFromRleNullBitmap(
+    TRef bitmap,
+    TRange<ui64> rleIndexes,
+    i64 startIndex,
+    i64 endIndex,
+    TMutableRange<ui8> dst)
 {
-    const auto* beginInput = values.Begin();
-    const auto* endInput = values.End();
-    const auto* currentInput = beginInput;
-    auto* currentOutput = reinterpret_cast<T*>(dst.Begin());
-
-    while (currentInput < endInput) {
-        *currentOutput++ = DecodeIntegerValueImpl<T, ZigZagEncoded>(*currentInput++, baseValue);
-    }
-}
-
-void DecodeIntegerVector(
-    TRange<ui64> values,
-    ESimpleLogicalValueType type,
-    ui64 baseValue,
-    bool zigzagEncoded,
-    TMutableRef dst)
-{
-    YT_VERIFY(dst.Size() == GetIntegralTypeByteSize(type) * values.Size());
-    
-    #define XX(width) \
-        if (type == ESimpleLogicalValueType::Int ## width || \
-            type == ESimpleLogicalValueType::Uint ## width) \
-        { \
-            if (zigzagEncoded) { \
-                DecodeIntegerVectorImpl<ui ## width, true>(values, baseValue, dst); \
-            } else { \
-                DecodeIntegerVectorImpl<ui ## width, false>(values, baseValue, dst); \
-            } \
-        } else
-    XX(8)
-    XX(16)
-    XX(32)
-    XX(64)
-    YT_ABORT();
-    #undef XX
+    BuildBytemapFromRleImpl(
+        rleIndexes,
+        startIndex,
+        endIndex,
+        [&] (i64 inputIndex) { return GetBit(bitmap, inputIndex); },
+        dst);
 }
 
 void DecodeStringOffsets(
@@ -532,6 +648,57 @@ void DecodeStringOffsets(
         *currentOutput++ = avgLengthTimesIndex + ZigZagDecode64(*currentInput++) - startOffset;
         avgLengthTimesIndex += avgLength;
     }
+}
+
+void DecodeStringPointersAndLengths(
+    TRange<ui32> offsets,
+    ui32 avgLength,
+    TRef stringData,
+    TMutableRange<const char*> strings,
+    TMutableRange<i32> lengths)
+{
+    YT_VERIFY(offsets.Size() == strings.Size());
+    YT_VERIFY(offsets.Size() == lengths.Size());
+
+    i64 startOffset = 0;
+    i64 avgLengthTimesIndex = 0;
+    for (size_t index = 0; index < offsets.size(); ++index) {
+        strings[index] = stringData.Begin() + startOffset;
+        avgLengthTimesIndex += avgLength;
+        i64 endOffset = avgLengthTimesIndex + ZigZagDecode64(offsets[index]);
+        i32 length = endOffset - startOffset;
+        lengths[index] = length;
+        startOffset = endOffset;
+    }
+}
+
+
+i64 CountTotalStringLengthInRleDictionaryIndexesWithZeroNull(
+    TRange<ui32> dictionaryIndexes,
+    TRange<ui64> rleIndexes,
+    TRange<i32> stringLengths,
+    i64 startIndex,
+    i64 endIndex)
+{
+    YT_VERIFY(startIndex >= 0 && startIndex <= endIndex);
+    YT_VERIFY(rleIndexes[0] == 0);
+
+    auto startRleIndex = TranslateRleStartIndex(rleIndexes, startIndex);
+    const auto* currentInput = dictionaryIndexes.Begin() + startRleIndex;
+    auto currentIndex = startIndex;
+    auto currentRleIndex = startRleIndex;
+    i64 result = 0;
+    while (currentIndex < endIndex) {
+        ++currentRleIndex;
+        auto thresholdIndex = currentRleIndex < static_cast<i64>(rleIndexes.Size()) ? static_cast<i64>(rleIndexes[currentRleIndex]) : Max<i64>();
+        auto currentDictionaryIndex = *currentInput++;
+        auto newIndex = std::min(endIndex, thresholdIndex);
+        if (currentDictionaryIndex != 0) {
+            result += (newIndex - currentIndex) * stringLengths[currentDictionaryIndex - 1];
+        }
+        currentIndex = newIndex;
+    }
+    return result;
 }
 
 i64 TranslateRleIndex(
