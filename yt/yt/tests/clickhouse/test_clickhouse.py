@@ -3286,3 +3286,156 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
 
             sync_freeze_table("//tmp/t")
             assert clique.make_query("select * from `//tmp/t` order by key", verbose=False) == rows
+
+
+class TestColumnarRead(ClickHouseTestBase):
+    CONFIG_PATCH = {
+        "yt": {
+            "enable_columnar_read": True,
+            "table_attribute_cache": {
+                "read_from": "follower",
+                "expire_after_successful_update_time": 0,
+                "expire_after_failed_update_time": 0,
+                "refresh_time": 0,
+                "expire_after_access_time": 0
+            }
+        }
+    }
+
+    def setup(self):
+        self._setup()
+
+    def _check_single_column(self, clique, type, required, values):
+        create("table", "//tmp/t",
+            attributes={
+                "schema": [{"name": "x", "type": type, "required": required}], "optimize_for": "scan"
+            },
+            force=True)
+        write_table("//tmp/t", [{"x": value} for value in values])
+
+        data = [row["x"] for row in clique.make_query("select * from `//tmp/t`")]
+        assert data == values
+
+    @authors("babenko")
+    def test_integer(self):
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            for type in [
+                "int8",
+                "int16",
+                "int32",
+                "int64",
+                "uint8",
+                "uint16",
+                "uint32",
+                "uint64"
+            ]:
+                self._check_single_column(clique, type, True, [i for i in xrange(10)])
+                self._check_single_column(clique, type, True, [77] * 1000)
+                self._check_single_column(clique, type, True, [1, 2, 3] * 100)
+                self._check_single_column(clique, type, True, [11] * 1000 + [22] * 1000 + [33] * 1000)
+
+                self._check_single_column(clique, type, False, [i if i % 3 == 0 else None for i in xrange(10)])
+                self._check_single_column(clique, type, False, [None] * 1000)
+                self._check_single_column(clique, type, False, [1, 2, 3, None] * 100)
+                self._check_single_column(clique, type, False, [1] * 1000 + [None] * 1000 + [2] * 1000)
+
+    @authors("babenko")
+    def test_signed_integer(self):
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            for type in [
+                "int8",
+                "int16",
+                "int32",
+                "int64",
+            ]:
+                self._check_single_column(clique, type, True, [-i for i in xrange(10)])
+
+    @authors("babenko")
+    def test_boolean(self):
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            self._check_single_column(clique, "boolean", True, [i % 2 == 0 for i in xrange(10)])
+            self._check_single_column(clique, "boolean", True, [False] * 100 + [True] * 200 + [True] * 100)
+
+            self._check_single_column(clique, "boolean", False, [True, None, False, None, True, True, None, False])
+
+    @authors("babenko")
+    def test_floating_point(self):
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            for type in ["double", "float"]:
+                self._check_single_column(clique, type, True, [1.0, 2.0, 3.14, 2.7])
+                
+                self._check_single_column(clique, type, False, [1.0, 2.0, None, 3.14, 2.7, None])
+
+    @authors("babenko")
+    def test_string(self):
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            self._check_single_column(clique, "string", True, ["hello", "world"])
+            self._check_single_column(clique, "string", True, ["hello", "world"] * 100)
+            self._check_single_column(clique, "string", True, ["hello"] * 1000)
+            
+            self._check_single_column(clique, "string", True, ["\x00" * 10, "some\x00nulls\x00inside", ""])
+
+            self._check_single_column(clique, "string", False, ["hello", None, "world"])
+            self._check_single_column(clique, "string", False, ["hello", "world", None] * 100)
+            self._check_single_column(clique, "string", False, ["hello"] * 1000 + [None] * 1000 + ["world"] * 1000)
+
+    @authors("babenko")
+    def test_yson(self):
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            create("table", "//tmp/t",
+                attributes={
+                    "schema": [{"name": "x", "type": "any"}], "optimize_for": "scan"
+                },
+                force=True)
+            row = {"x": {"some": {"yson": True}}}
+            write_table("//tmp/t", [row])
+            assert yson.loads(clique.make_query("select * from `//tmp/t`")[0]["x"]) == row["x"]
+
+    @authors("babenko")
+    def test_int64_as_any(self):
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "int64"}]})
+            create("table", "//tmp/s2", attributes={"schema": [{"name": "a", "type": "any"}]})
+            write_table("//tmp/s1", [{"a": 123}])
+            merge(in_="//tmp/s1", out="//tmp/s2")
+            assert clique.make_query("select YPathInt64(a, '') as i from `//tmp/s2`")[0]["i"] == 123
+
+    @authors("babenko")
+    def test_missing_column_becomes_null(self):
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            create("table", "//tmp/s1", attributes={
+                "schema": [{"name": "a", "type": "int64"}],
+                "optimize_for": "scan"
+            })
+            create("table", "//tmp/s2", attributes={
+                "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}],
+                "optimize_for": "scan"
+            })
+            write_table("//tmp/s1", [{"a": 123}])
+            merge(in_="//tmp/s1", out="//tmp/s2")
+            assert clique.make_query("select * from `//tmp/s2`")[0] == {"a": 123, "b": None}
+    
+    @authors("babenko")
+    def test_date_types(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [
+                {"name": "datetime", "type": "datetime"},
+                {"name": "date", "type": "date"},
+                {"name": "timestamp", "type": "timestamp"},
+                {"name": "interval_", "type": "interval"},
+            ],
+            "optimize_for": "scan"})
+        write_table("//tmp/t1", [
+            {
+                "datetime": 1,
+                "date": 2,
+                "timestamp": 3,
+                "interval_": 4,
+            },
+        ])
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            assert clique.make_query('select toTimeZone(datetime, \'UTC\') as datetime, date, timestamp, interval_ from "//tmp/t1"') == [{
+                'datetime': '1970-01-01 00:00:01',
+                'date': '1970-01-03',
+                'timestamp': 3,
+                'interval_': 4,}]

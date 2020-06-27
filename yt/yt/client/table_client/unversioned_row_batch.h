@@ -172,6 +172,18 @@ struct IUnversionedColumnarRowBatch
         //! Contains string data and metadata for string-like values.
         //! Null for other types.
         std::optional<TStringBuffer> Strings;
+
+        //! A helper for accessing all #Values.
+        template <class T>
+        TRange<T> GetTypedValues() const;
+
+        //! Similar to #GetTypedValues but the returned range only covers the part
+        //! [#StartRowIndex, #StartRowIndex + #ValueCount). This is not applicable in RLE-encoded columns.
+        template <class T>
+        TRange<T> GetRelevantTypedValues() const;
+
+        //! Provides access to values as a bitmap.
+        TRef GetBitmapValues() const;
     };
 
     //! Returns the (root) columns representing the batch.
@@ -197,3 +209,7 @@ IUnversionedRowBatchPtr CreateEmptyUnversionedRowBatch();
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
+
+#define UNVERSIONED_ROW_BATCH_INL_H_
+#include "unversioned_row_batch-inl.h"
+#undef UNVERSIONED_ROW_BATCH_INL_H_

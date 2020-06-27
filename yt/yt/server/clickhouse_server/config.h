@@ -161,6 +161,8 @@ public:
     //! Initial memory reservation for reader.
     i64 ReaderMemoryRequirement;
 
+    bool EnableColumnarRead;
+
     TDuration ProfilingPeriod;
 
     THealthCheckerConfigPtr HealthChecker;

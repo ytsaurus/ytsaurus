@@ -5,6 +5,7 @@
 #include "helpers.h"
 #include "config.h"
 #include "subquery_spec.h"
+#include "batch_conversion.h"
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -12,11 +13,8 @@
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
-#include <yt/client/table_client/unversioned_reader.h>
-#include <yt/client/table_client/unversioned_row.h>
 #include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/name_table.h>
-#include <yt/client/table_client/helpers.h>
 
 #include <DataTypes/DataTypeNothing.h>
 
@@ -32,9 +30,7 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
+namespace {
 
 NTableClient::TTableSchemaPtr FilterColumnsInSchema(
     const NTableClient::TTableSchema& schema,
@@ -42,10 +38,7 @@ NTableClient::TTableSchemaPtr FilterColumnsInSchema(
 {
     std::vector<TString> columnNamesInString;
     for (const auto& columnName : columnNames) {
-        if (!schema.FindColumn(columnName)) {
-            THROW_ERROR_EXCEPTION("Column not found")
-                << TErrorAttribute("column", columnName);
-        }
+        schema.GetColumnOrThrow(columnName);
         columnNamesInString.emplace_back(columnName);
     }
     return schema.Filter(columnNamesInString);
@@ -67,67 +60,6 @@ TTableReaderConfigPtr CreateTableReaderConfig()
     config->GroupSize = 150_MB;
     config->WindowSize = 200_MB;
     return config;
-}
-
-DB::Block ConvertRowBatchToBlock(
-    const IUnversionedRowBatchPtr& batch,
-    const TTableSchema& readSchema,
-    const std::vector<int>& idToColumnIndex,
-    const TRowBufferPtr& rowBuffer,
-    DB::Block block)
-{
-    // NB(max42): CHYT-256.
-    // If chunk schema contains not all of the requested columns (which may happen
-    // when a non-required column was introduced after chunk creation), we are not
-    // going to receive some of the unversioned values with nulls. We still need
-    // to provide them to CH, though, so we keep track of present columns for each
-    // row we get and add nulls for all unpresent columns.
-    std::vector<bool> presentValueMask;
-
-    for (auto row : batch->MaterializeRows()) {
-        presentValueMask.assign(readSchema.GetColumnCount(), false);
-        for (int index = 0; index < static_cast<int>(row.GetCount()); ++index) {
-            auto value = row[index];
-            auto id = value.Id;
-            int columnIndex = (id < idToColumnIndex.size()) ? idToColumnIndex[id] : -1;
-            YT_VERIFY(columnIndex != -1);
-            presentValueMask[columnIndex] = true;
-            switch (value.Type) {
-                case EValueType::Null:
-                    // TODO(max42): consider transforming to Y_ASSERT.
-                    YT_VERIFY(!readSchema.Columns()[columnIndex].Required());
-                    block.getByPosition(columnIndex).column->assumeMutable()->insertDefault();
-                    break;
-
-                // NB(max42): When rewriting this properly, remember that Int64 may
-                // correspond to shorter integer columns.
-                case EValueType::String:
-                case EValueType::Any:
-                case EValueType::Composite:
-                case EValueType::Int64:
-                case EValueType::Uint64:
-                case EValueType::Double:
-                case EValueType::Boolean: {
-                    if (readSchema.Columns()[columnIndex].GetPhysicalType() == EValueType::Any) {
-                        ToAny(rowBuffer.Get(), &value, &value);
-                    }
-                    auto field = ConvertToField(value);
-                    block.getByPosition(columnIndex).column->assumeMutable()->insert(field);
-                    break;
-                }
-                default:
-                    Y_UNREACHABLE();
-            }
-        }
-        for (int columnIndex = 0; columnIndex < readSchema.GetColumnCount(); ++columnIndex) {
-            if (!presentValueMask[columnIndex]) {
-                YT_VERIFY(!readSchema.Columns()[columnIndex].Required());
-                block.getByPosition(columnIndex).column->assumeMutable()->insertDefault();
-            }
-        }
-    }
-
-    return block;
 }
 
 // Analog of the method from MergeTreeBaseSelectBlockInputStream::executePrewhereActions from CH.
@@ -168,12 +100,12 @@ DB::Block FilterRowsByPrewhereInfo(
     auto filteredBatch = CreateBatchFromUnversionedRows(
         MakeSharedRange(std::move(filteredRows), std::move(batch)));
     auto filteredBlock = WaitFor(BIND(
-        &NDetail::ConvertRowBatchToBlock,
+        &ConvertRowBatchToBlock,
         filteredBatch,
         schema,
         idToColumnIndex,
         rowBuffer,
-        headerBlock.cloneEmpty())
+        headerBlock)
         .AsyncVia(invoker)
         .Run())
         .ValueOrThrow();
@@ -184,9 +116,7 @@ DB::Block FilterRowsByPrewhereInfo(
     return filteredBlock;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-}  // namespace NDetail
+}  // namespace
 
 TBlockInputStream::TBlockInputStream(
     ISchemalessMultiChunkReaderPtr reader,
@@ -240,20 +170,18 @@ DB::Block TBlockInputStream::readImpl()
     TTraceContextGuard guard(TraceContext_);
 
     NProfiling::TWallTimer totalWallTimer;
-    YT_LOG_TRACE("Started reading one CH block");
+    YT_LOG_TRACE("Started reading ClickHouse block");
 
     DB::Block block;
     while (block.rows() == 0) {
-        // TODO(max42): consult with babenko@ about contract here.
-        IUnversionedRowBatchPtr batch;
-        while (true) {
-            batch = Reader_->Read();
-            if (!batch) {
-                return {};
-            }
-            if (!batch->IsEmpty()) {
-                break;
-            }
+        TRowBatchReadOptions options{
+            .Columnar = Host_->GetConfig()->EnableColumnarRead
+        };
+        auto batch = Reader_->Read(options);
+        if (!batch) {
+            return {};
+        }
+        if (batch->IsEmpty()) {
             NProfiling::TWallTimer wallTimer;
             WaitFor(Reader_->GetReadyEvent())
                 .ThrowOnError();
@@ -261,21 +189,22 @@ DB::Block TBlockInputStream::readImpl()
             if (elapsed > TDuration::Seconds(1)) {
                 YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
             }
+            continue;
         }
 
         block = WaitFor(BIND(
-            &NDetail::ConvertRowBatchToBlock,
+            &ConvertRowBatchToBlock,
             batch,
             *ReadSchema_,
             IdToColumnIndex_,
             RowBuffer_,
-            InputHeaderBlock_.cloneEmpty())
+            InputHeaderBlock_)
             .AsyncVia(Host_->GetClickHouseWorkerInvoker())
             .Run())
             .ValueOrThrow();
 
         if (PrewhereInfo_) {
-            block = NDetail::FilterRowsByPrewhereInfo(
+            block = FilterRowsByPrewhereInfo(
                 std::move(block),
                 batch,
                 PrewhereInfo_,
@@ -291,7 +220,7 @@ DB::Block TBlockInputStream::readImpl()
     }
 
     auto totalElapsed = totalWallTimer.GetElapsedTime();
-    YT_LOG_TRACE("Finished reading one CH block (WallTime: %v)", totalElapsed);
+    YT_LOG_TRACE("Finished reading ClickHouse block (WallTime: %v)", totalElapsed);
 
     return block;
 }
@@ -300,9 +229,10 @@ void TBlockInputStream::Prepare()
 {
     InputHeaderBlock_ = ToHeaderBlock(*ReadSchema_);
     OutputHeaderBlock_ = ToHeaderBlock(*ReadSchema_);
+    
     if (PrewhereInfo_) {
         // Create header with executed prewhere actions.
-        NDetail::ExecutePrewhereActions(OutputHeaderBlock_, PrewhereInfo_);
+        ExecutePrewhereActions(OutputHeaderBlock_, PrewhereInfo_);
     }
 
     for (int index = 0; index < static_cast<int>(ReadSchema_->Columns().size()); ++index) {
@@ -340,11 +270,13 @@ class TBlockInputStreamLoggingAdapter
     : public DB::IBlockInputStream
 {
 public:
-    TBlockInputStreamLoggingAdapter(DB::BlockInputStreamPtr stream, TLogger logger)
+    TBlockInputStreamLoggingAdapter(
+        DB::BlockInputStreamPtr stream,
+        TLogger logger)
         : UnderlyingStream_(std::move(stream))
-        , Logger(logger)
+        , Logger(TLogger(std::move(logger)
+            .AddTag("UnderlyingStream: %v", UnderlyingStream_.get())))
     {
-        Logger.AddTag("UnderlyingStream: %v", static_cast<void*>(UnderlyingStream_.get()));
         YT_LOG_DEBUG("Stream created");
         addChild(UnderlyingStream_);
     }
@@ -367,7 +299,7 @@ public:
         auto result = UnderlyingStream_->read();
         auto elapsed = wallTimer.GetElapsedTime();
         if (elapsed > TDuration::Seconds(1)) {
-            YT_LOG_DEBUG("Reading took significant time (WallTime: %v)", elapsed);
+            YT_LOG_DEBUG("Read took significant time (WallTime: %v)", elapsed);
         }
 
         YT_LOG_TRACE("Block read (Block: %v)", result);
@@ -419,15 +351,19 @@ public:
     }
 
 private:
-    DB::BlockInputStreamPtr UnderlyingStream_;
-    TLogger Logger;
+    const DB::BlockInputStreamPtr UnderlyingStream_;
+    const TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::BlockInputStreamPtr CreateBlockInputStreamLoggingAdapter(DB::BlockInputStreamPtr stream, TLogger logger)
+DB::BlockInputStreamPtr CreateBlockInputStreamLoggingAdapter(
+    DB::BlockInputStreamPtr stream,
+    TLogger logger)
 {
-    return std::make_shared<TBlockInputStreamLoggingAdapter>(std::move(stream), logger);
+    return std::make_shared<TBlockInputStreamLoggingAdapter>(
+        std::move(stream),
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -440,8 +376,8 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     DB::PrewhereInfoPtr prewhereInfo)
 {
-    auto schema = NDetail::FilterColumnsInSchema(*subquerySpec.ReadSchema, columnNames);
-    auto blockReadOptions = NDetail::CreateBlockReadOptions(queryContext->User);
+    auto schema = FilterColumnsInSchema(*subquerySpec.ReadSchema, columnNames);
+    auto blockReadOptions = CreateBlockReadOptions(queryContext->User);
 
     auto blockInputStreamTraceContext = NTracing::CreateChildTraceContext(
         traceContext,
@@ -466,7 +402,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         TDataSliceDescriptor dataSliceDescriptor(std::move(chunkSpecs));
 
         reader = CreateSchemalessMergingMultiChunkReader(
-            NDetail::CreateTableReaderConfig(),
+            CreateTableReaderConfig(),
             New<NTableClient::TTableReaderOptions>(),
             queryContext->Client(),
             /* localDescriptor */ {},
@@ -483,7 +419,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             GetUnlimitedThrottler());
     } else {
         reader = CreateSchemalessParallelMultiReader(
-            NDetail::CreateTableReaderConfig(),
+            CreateTableReaderConfig(),
             New<NTableClient::TTableReaderOptions>(),
             queryContext->Client(),
             /* localDescriptor =*/{},
@@ -508,7 +444,8 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         schema,
         blockInputStreamTraceContext,
         queryContext->Host,
-        TLogger(queryContext->Logger).AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId),
+        TLogger(queryContext->Logger)
+            .AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId),
         prewhereInfo);
 }
 

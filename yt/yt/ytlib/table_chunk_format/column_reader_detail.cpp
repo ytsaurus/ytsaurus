@@ -545,7 +545,9 @@ void ReadColumnarDictionary(
     primaryColumn->StartIndex = startIndex;
     primaryColumn->ValueCount = valueCount;
 
-    dictionaryColumn->Type = std::move(type);
+    dictionaryColumn->Type = type && type->GetMetatype() == ELogicalMetatype::Optional
+        ? type->AsOptionalTypeRef().GetElement()
+        : type;
    
     auto& primaryValues = primaryColumn->Values.emplace();
     primaryValues.BitWidth = 32;
