@@ -260,6 +260,7 @@ class TestBatchExecution(object):
         assert result[0] is not None
 
 
+@authors("levysotsky")
 @pytest.mark.usefixtures("yt_env_job_archive")
 class TestBatchExecutionOperationCommands(object):
     def test_operation_commands(self):
