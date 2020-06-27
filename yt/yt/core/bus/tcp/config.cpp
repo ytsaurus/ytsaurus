@@ -56,7 +56,7 @@ TTcpBusConfig::TTcpBusConfig()
         .Default(TDuration::Minutes(1));
     RegisterParameter("verify_checksums", VerifyChecksums)
         .Default(true);
-    RegisterParameter("generate_checksum", GenerateChecksums)
+    RegisterParameter("generate_checksums", GenerateChecksums)
         .Default(true);
 }
 
