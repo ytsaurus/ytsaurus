@@ -182,8 +182,8 @@ struct TConcatenateOptions
 {
     using TSelf = TConcatenateOptions;
 
-    /// Wether we should append to destination or rewrite it.
-    FLUENT_FIELD_DEFAULT(bool, Append, false);
+    /// Whether we should append to destination or rewrite it.
+    FLUENT_FIELD_OPTION(bool, Append);
 };
 
 /// https://yt.yandex-team.ru/docs/api/commands.html#read_blob_table

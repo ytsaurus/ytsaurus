@@ -20,6 +20,7 @@ namespace NTesting {
         MOCK_METHOD3(Copy, TNodeId(const TYPath&, const TYPath&, const TCopyOptions&));
         MOCK_METHOD3(Move, TNodeId(const TYPath&, const TYPath&, const TMoveOptions&));
         MOCK_METHOD3(Link, TNodeId(const TYPath&, const TYPath&, const TLinkOptions&));
+        MOCK_METHOD3(Concatenate, void(const TVector<TRichYPath>&, const TRichYPath&, const TConcatenateOptions&));
         MOCK_METHOD3(Concatenate, void(const TVector<TYPath>&, const TYPath&, const TConcatenateOptions&));
         MOCK_METHOD1(CanonizeYPath, TRichYPath(const TRichYPath&));
         MOCK_METHOD2(GetTableColumnarStatistics, TVector<TTableColumnarStatistics>(const TVector<TRichYPath>&, const TGetTableColumnarStatisticsOptions&));

@@ -68,8 +68,8 @@ TNode SerializeParamsForUnlock(
 
 TNode SerializeParamsForConcatenate(
     const TTransactionId& transactionId,
-    const TVector<TYPath>& sourcePaths,
-    const TYPath& destinationPath,
+    const TVector<TRichYPath>& sourcePaths,
+    const TRichYPath& destinationPath,
     const TConcatenateOptions& options);
 
 TNode SerializeParamsForPingTx(

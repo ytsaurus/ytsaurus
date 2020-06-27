@@ -72,8 +72,8 @@ public:
         const TLinkOptions& options) override;
 
     void Concatenate(
-        const TVector<TYPath>& sourcePaths,
-        const TYPath& destinationPath,
+        const TVector<TRichYPath>& sourcePaths,
+        const TRichYPath& destinationPath,
         const TConcatenateOptions& options) override;
 
     TRichYPath CanonizeYPath(const TRichYPath& path) override;

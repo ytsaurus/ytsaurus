@@ -554,14 +554,16 @@ class Generator(object):
 
         def get_signature(in_header):
             arguments = self.get_client_arguments(default_for_options=in_header)
+            arguments = list(map(add_nyt_namespace_qualifiers, arguments))
             if in_header:
                 name = self.method
             else:
                 name = "{}::{}".format(mock_class_name, self.method)
+                arguments = get_argument_types(arguments)
             return to_one_line(compose_signature(
                 return_type=add_nyt_namespace_qualifiers(self.return_type),
                 name=name,
-                arguments=list(map(add_nyt_namespace_qualifiers, arguments)),
+                arguments=arguments,
                 virtual=in_header,
                 final=in_header,
                 add_semicolon=in_header,
@@ -578,7 +580,7 @@ class Generator(object):
         insertion_pos = find_pos_after_method(cpp, self.after_method)
         cpp_code = ["", get_signature(False) + " {"]
         cpp_code.append(with_indent(
-            'Y_ENSURE(false, "{}Mock::{} is unimplemented!);"'.format(mock_class_name, self.method),
+            'Y_ENSURE(false, "{}Mock::{} is unimplemented!");'.format(mock_class_name, self.method),
             1,
         ))
         cpp_code.append("}")

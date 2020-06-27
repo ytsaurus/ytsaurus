@@ -133,9 +133,9 @@ void Unlock(
 void Concatenate(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    const TVector<TYPath>& sourcePaths,
-    const TYPath& destinationPath,
-    const TConcatenateOptions& options);
+    const TVector<TRichYPath>& sourcePaths,
+    const TRichYPath& destinationPath,
+    const TConcatenateOptions& options = TConcatenateOptions());
 
 //
 // Transactions
