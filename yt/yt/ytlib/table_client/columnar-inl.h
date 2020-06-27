@@ -76,8 +76,11 @@ void DecodeVectorRleImpl(
     auto currentRleIndex = startRleIndex;
     T currentDecodedValue;
     i64 thresholdIndex = -1;
-    while (currentIndex < endIndex) {
+    while (true) {
         if (currentIndex >= thresholdIndex) {
+            if (currentIndex >= endIndex) {
+                break;
+            }
             decltype(getter(0)) currentValue;
             if constexpr(WithDictionary) {
                 auto dictionaryIndex = dictionaryIndexes[currentRleIndex];

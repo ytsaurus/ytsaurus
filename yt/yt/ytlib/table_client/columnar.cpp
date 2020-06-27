@@ -148,29 +148,46 @@ void BuildBitmapFromRleImpl(
     auto currentInputIndex = startRleIndex;
     auto currentIndex = startIndex;
     auto currentRleIndex = startRleIndex;
-    bool currentBoolValue;
     i64 thresholdIndex = -1;
     i64 currentOutputIndex = 0;
+
     while (currentIndex < endIndex) {
-        if (currentIndex >= thresholdIndex) {
-            ++currentRleIndex;
-            thresholdIndex = currentRleIndex < rleIndexes.Size()
-                ? std::min(static_cast<i64>(rleIndexes[currentRleIndex]), endIndex)
-                : endIndex;
-            currentBoolValue = valueFetcher(currentInputIndex++);
-        }
-        if ((currentOutputIndex & 63) == 0 && currentIndex + 64 <= thresholdIndex) {
-            auto* currentQwordOutput = reinterpret_cast<ui64*>(dst.Begin()) + (currentOutputIndex >> 6);
-            auto currentQwordValue = currentBoolValue ? ~static_cast<ui64>(0) : 0;
-            while (currentIndex + 64 <= thresholdIndex) {
-                *currentQwordOutput++ = currentQwordValue;
-                currentOutputIndex += 64;
-                currentIndex += 64;
+        #define XX1(currentBoolValue, fastpastCheck) \
+            while (currentIndex < thresholdIndex) { \
+                if (fastpastCheck && (currentOutputIndex & 7) == 0 && currentIndex + 8 <= thresholdIndex) { \
+                    auto* currentByteOutput = reinterpret_cast<ui8*>(dst.Begin()) + (currentOutputIndex >> 3); \
+                    auto currentByteValue = currentBoolValue ? ~static_cast<ui8>(0) : 0; \
+                    while (currentIndex + 8 <= thresholdIndex) { \
+                        *currentByteOutput++ = currentByteValue; \
+                        currentOutputIndex += 8; \
+                        currentIndex += 8; \
+                    } \
+                } else { \
+                    SetBit(dst, currentOutputIndex, currentBoolValue); \
+                    ++currentIndex; \
+                    ++currentOutputIndex; \
+                } \
             }
+
+        #define XX2(currentBoolValue) \
+             if (thresholdIndex - currentIndex >= 16) { \
+                 XX1(currentBoolValue, true) \
+             } else { \
+                 XX1(currentBoolValue, false) \
+             }
+
+        ++currentRleIndex;
+        thresholdIndex = currentRleIndex < rleIndexes.Size()
+            ? std::min(static_cast<i64>(rleIndexes[currentRleIndex]), endIndex)
+            : endIndex;
+        if (valueFetcher(currentInputIndex++)) {
+            XX2(true)
         } else {
-            SetBit(dst, currentOutputIndex++, currentBoolValue);
-            ++currentIndex;
+            XX2(false)
         }
+
+        #undef XX1
+        #undef XX2
     }
 }
 
@@ -193,8 +210,11 @@ void BuildBytemapFromRleImpl(
     bool currentBoolValue;
     i64 thresholdIndex = -1;
     i64 currentOutputIndex = 0;
-    while (currentIndex < endIndex) {
+    while (true) {
         if (currentIndex >= thresholdIndex) {
+            if (currentIndex >= endIndex) {
+                break;
+            }
             ++currentRleIndex;
             thresholdIndex = std::min(
                 endIndex,
@@ -409,10 +429,15 @@ void BuildIotaDictionaryIndexesFromRleIndexes(
     auto currentRleIndex = startRleIndex;
     auto currentValue = static_cast<ui32>(-1);
     i64 thresholdIndex = -1;
-    while (currentIndex < endIndex) {
+    while (true) {
         if (currentIndex >= thresholdIndex) {
+            if (currentIndex >= endIndex) {
+                break;
+            }
             ++currentRleIndex;
-            thresholdIndex = currentRleIndex < rleIndexes.Size() ? static_cast<i64>(rleIndexes[currentRleIndex]) : Max<i64>();
+            thresholdIndex = currentRleIndex < static_cast<i64>(rleIndexes.Size())
+                ? std::min(static_cast<i64>(rleIndexes[currentRleIndex]), endIndex)
+                : endIndex;
             ++currentValue;
         }
         *currentOutput++ = currentValue;

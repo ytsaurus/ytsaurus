@@ -1097,6 +1097,7 @@ private:
             proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
 
             auto req = proxy.GetBlockSet();
+            req->SetHeavy(true);
             req->set_fetch_from_cache(false);
             req->set_fetch_from_disk(false);
             ToProto(req->mutable_chunk_id(), reader->ChunkId_);
@@ -1310,6 +1311,7 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
 
         auto req = proxy.GetBlockSet();
+        req->SetHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
         ToProto(req->mutable_block_indexes(), blockIndexes);
@@ -1585,6 +1587,7 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
 
         auto req = proxy.GetBlockRange();
+        req->SetHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
         req->set_first_block_index(FirstBlockIndex_);
@@ -1797,8 +1800,7 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->MetaRpcTimeout);
 
         auto req = proxy.GetChunkMeta();
-        // TODO(babenko): consider using light band instead when all metas become thin
-        // CC: psushin@
+        req->SetHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
@@ -2117,6 +2119,7 @@ private:
         proxy.SetDefaultTimeout(ReaderConfig_->LookupRpcTimeout);
 
         auto req = proxy.LookupRows();
+        req->SetHeavy(true);
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         ToProto(req->mutable_chunk_id(), reader->ChunkId_);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);

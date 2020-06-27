@@ -410,22 +410,41 @@ void SerializeIntegerColumn(
                 ? column->GetTypedValues<ui64>()
                 : TRange<ui64>();
 
-            auto dstValues = GetTypedValues<ui64>(dstRef);
-            auto* currentOutput = dstValues.Begin();
+            switch (simpleType) {
+                #define XX(cppType, ytType) \
+                    case ESimpleLogicalValueType::ytType: { \
+                        auto dstValues = GetTypedValues<cppType>(dstRef); \
+                        auto* currentOutput = dstValues.Begin(); \
+                        DecodeIntegerVector( \
+                            column->StartIndex, \
+                            column->StartIndex + column->ValueCount, \
+                            valueColumn->Values->BaseValue, \
+                            valueColumn->Values->ZigZagEncoded, \
+                            TRange<ui32>(), \
+                            rleIndexes, \
+                            [&] (auto index) { \
+                                return values[index]; \
+                            }, \
+                            [&] (auto value) { \
+                                *currentOutput++ = value; \
+                            }); \
+                        break; \
+                    }
+                
+                XX(  i8,   Int8)
+                XX( i16,  Int16)
+                XX( i32,  Int32)
+                XX( i64,  Int64)
+                XX( ui8,  Uint8)
+                XX(ui16, Uint16)
+                XX(ui32, Uint32)
+                XX(ui64, Uint64)
 
-            DecodeIntegerVector(
-                column->StartIndex,
-                column->StartIndex + column->ValueCount,
-                valueColumn->Values->BaseValue,
-                valueColumn->Values->ZigZagEncoded,
-                TRange<ui32>(),
-                rleIndexes,
-                [&] (auto index) {
-                    return values[index];
-                },
-                [&] (auto value) {
-                    *currentOutput++ = value;
-                });
+                #undef XX
+
+                default:
+                    YT_ABORT();
+            }
         });
 }
 
@@ -809,7 +828,7 @@ private:
 
     bool IsSchemaMessageNeeded()
     {
-        if (!StreamEncoder_->IsFirstBatch()) {
+        if (StreamEncoder_->IsFirstBatch()) {
             return true;
         }
         
