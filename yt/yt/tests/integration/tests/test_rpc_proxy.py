@@ -4,6 +4,7 @@ from yt_commands import *
 from yt.wrapper import JsonFormat
 
 from copy import deepcopy
+from flaky import flaky
 from random import shuffle
 
 import pytest
@@ -131,6 +132,8 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
         cls.native_driver = Driver(native_config)
 
     @authors("kiselyovp")
+    # TODO(kiselyovp): a temporary measure, see YT-13024.
+    @flaky
     def test_proxy_banned(self):
         rpc_proxy_addresses = ls("//sys/rpc_proxies")
         try:
@@ -144,6 +147,8 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
                 set("//sys/rpc_proxies/{0}/@banned".format(address), False, driver=self.native_driver)
 
     @authors("kiselyovp")
+    # TODO(kiselyovp): a temporary measure, see YT-13024.
+    @flaky
     def test_proxy_banned_sticky(self):
         rpc_proxy_addresses = ls("//sys/rpc_proxies")
         try:
