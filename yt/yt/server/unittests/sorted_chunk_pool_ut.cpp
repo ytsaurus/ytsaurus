@@ -181,8 +181,13 @@ protected:
         if (upperLimit) {
             inputChunk->UpperLimit() = std::make_unique<TReadLimit>(TOwningKey(upperLimit));
         }
-        if (!InputTables_[tableIndex].IsVersioned() && !InputTables_[tableIndex].IsForeign()) {
-            CreatedUnversionedPrimaryChunks_.insert(inputChunk);
+        const auto& inputTable = InputTables_[tableIndex];
+        if (!inputTable.IsVersioned()) {
+            if (inputTable.IsForeign()) {
+                CreatedUnversionedForeignChunks_.insert(inputChunk);
+            } else {
+                CreatedUnversionedPrimaryChunks_.insert(inputChunk);
+            }
         }
         inputChunk->SetTotalRowCount(rowCount);
         return inputChunk;
@@ -204,8 +209,13 @@ protected:
         if (chunk->UpperLimit()) {
             chunkCopy->UpperLimit() = std::make_unique<TReadLimit>(*chunk->UpperLimit());
         }
-        if (!InputTables_[tableIndex].IsVersioned() && !InputTables_[tableIndex].IsForeign()) {
-            CreatedUnversionedPrimaryChunks_.insert(chunkCopy);
+        const auto& inputTable = InputTables_[tableIndex];
+        if (!inputTable.IsVersioned()) {
+            if (inputTable.IsForeign()) {
+                CreatedUnversionedForeignChunks_.insert(chunkCopy);
+            } else {
+                CreatedUnversionedPrimaryChunks_.insert(chunkCopy);
+            }
         }
         return chunkCopy;
     }
@@ -619,6 +629,8 @@ protected:
 
     //! Set containing all unversioned primary input chunks that have ever been created.
     THashSet<TInputChunkPtr> CreatedUnversionedPrimaryChunks_;
+    //! Set containing all unversioned foreign input chunks that have ever been created.
+    THashSet<TInputChunkPtr> CreatedUnversionedForeignChunks_;
     //! Set containing all chunks that are added to the pool without being suspended.
     THashSet<TChunkId> ActiveChunks_;
 
@@ -1337,11 +1349,12 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
 {
     Options_.SortedJobOptions.EnableKeyGuarantee = true;
     InitTables(
-        {false, false} /* isForeign */,
-        {true, true} /* isTeleportable */,
-        {false, false} /* isVersioned */
+        {false, false, true} /* isForeign */,
+        {true, true, false} /* isTeleportable */,
+        {false, false, false} /* isVersioned */
     );
     Options_.SortedJobOptions.PrimaryPrefixLength = 3;
+    Options_.SortedJobOptions.ForeignPrefixLength = 3;
     Options_.MinTeleportChunkSize = 0;
     InitJobConstraints();
     PrepareNewMock();
@@ -1615,9 +1628,35 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     auto chunkB30 = CreateChunk(BuildRow({30, 2, 0}), BuildRow({30, 2, 0}), 1);
     CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA30);
 
+    // Yes (primary and foreign chunks are non-intersecting).
+    // [==]_____
+    // _____[==]
+    auto chunkA31 = CreateChunk(BuildRow({31, 1, 0}), BuildRow({31, 1, 2}), 0);
+    auto chunkC31 = CreateChunk(BuildRow({31, 1, 3}), BuildRow({31, 1, 5}), 2);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC31);
+
+    // No (primary and foreign chunk share only one boundary key).
+    // [==]___
+    // ___[==]
+    auto chunkA32 = CreateChunk(BuildRow({32, 1, 0}), BuildRow({32, 1, 2}), 0);
+    auto chunkC32 = CreateChunk(BuildRow({32, 1, 2}), BuildRow({32, 1, 4}), 2);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA32);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC32);
+
+    // No (single-key primary and foreign chunks coincide).
+    // _[]___
+    // _[]___
+    auto chunkA33 = CreateChunk(BuildRow({33, 1, 4}), BuildRow({33, 1, 4}), 0);
+    auto chunkC33 = CreateChunk(BuildRow({33, 1, 4}), BuildRow({33, 1, 4}), 2);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkA33);
+    CurrentMock().RegisterTriviallySliceableUnversionedChunk(chunkC33);
+
     CreateChunkPool();
 
     for (const auto& chunk : CreatedUnversionedPrimaryChunks_) {
+        AddChunk(chunk);
+    }
+    for (const auto& chunk : CreatedUnversionedForeignChunks_) {
         AddChunk(chunk);
     }
 
@@ -1634,6 +1673,7 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
         chunkA20,
         chunkA21, chunkB21,
         chunkB30,
+        chunkA31,
     }));
 
     CheckEverything(stripeLists);

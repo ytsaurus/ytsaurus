@@ -2001,6 +2001,62 @@ for line in sys.stdin:
             {"key": [2, 3], "value": -1, "key_start": False},
         ]
 
+    @authors("gritukan")
+    def test_teleport_and_foreign(self):
+        create("table", "//tmp/in_t1", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"},
+                       {"name": "value", "type": "int64"}]})
+        write_table(
+            "//tmp/in_t1",
+            [
+                {"key": 0, "value": 0},
+                {"key": 1, "value": 1},
+            ])
+
+        create("table", "//tmp/in_t2", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"},
+                       {"name": "value", "type": "int64"}]})
+        write_table(
+            "//tmp/in_t2",
+            [
+                {"key": 0, "value": 0},
+            ])
+
+        create("table", "//tmp/in_f", attributes={
+            "schema": [{"name": "key", "type": "int64", "sort_order": "ascending"},
+                       {"name": "value", "type": "int64"}]})
+        write_table(
+            "//tmp/in_f",
+            [
+                {"key": 1,"value": 2},
+            ],
+            sorted_by="key")
+
+        create("table", "//tmp/out")
+        
+        reduce(
+            in_=["<teleport=%true>//tmp/in_t1", "<foreign=%true>//tmp/in_f"],
+            out="<teleport=%true>//tmp/out",
+            reduce_by="key",
+            join_by="key",
+            command='cat; echo "key=2"',
+            spec={"reducer": {"format": "dsv"}})
+        assert read_table("//tmp/out") == [
+            {"key": "0", "value": "0"},
+            {"key": "1", "value": "1"},
+            {"key": "1", "value": "2"},
+            {"key": "2"},
+        ]
+
+        reduce(
+            in_=["<teleport=%true>//tmp/in_t2", "<foreign=%true>//tmp/in_f"],
+            out="<teleport=%true>//tmp/out",
+            reduce_by="key",
+            join_by="key",
+            command='cat; echo "key=2"',
+            spec={"reducer": {"format": "dsv"}})
+        assert read_table("//tmp/out") == [{"key": 0, "value": 0}]
+
 ##################################################################
 
 class TestSchedulerReduceCommandsSliceSize(YTEnvSetup):

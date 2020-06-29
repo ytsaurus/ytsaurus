@@ -471,26 +471,26 @@ private:
 
         for (int inputCookie = 0; inputCookie < Stripes_.size(); ++inputCookie) {
             const auto& stripe = Stripes_[inputCookie].GetStripe();
-            if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsPrimary()) {
-                for (const auto& dataSlice : stripe->DataSlices) {
-                    yielder.TryYield();
+            auto primary = InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsPrimary();
+            for (const auto& dataSlice : stripe->DataSlices) {
+                yielder.TryYield();
 
-                    if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsTeleportable() &&
-                        dataSlice->GetSingleUnversionedChunkOrThrow()->IsLargeCompleteChunk(MinTeleportChunkSize_))
-                    {
-                        teleportCandidates.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow(), inputCookie);
-                    }
+                if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsTeleportable() &&
+                    dataSlice->GetSingleUnversionedChunkOrThrow()->IsLargeCompleteChunk(MinTeleportChunkSize_) &&
+                    primary)
+                {
+                    teleportCandidates.emplace_back(dataSlice->GetSingleUnversionedChunkOrThrow(), inputCookie);
+                }
 
-                    lowerLimits.emplace_back(GetKeyPrefix(dataSlice->LowerLimit().Key, PrimaryPrefixLength_, RowBuffer_));
-                    if (dataSlice->UpperLimit().Key.GetCount() > PrimaryPrefixLength_) {
-                        upperLimits.emplace_back(GetKeySuccessor(GetKeyPrefix(dataSlice->UpperLimit().Key, PrimaryPrefixLength_, RowBuffer_), RowBuffer_));
-                    } else {
-                        upperLimits.emplace_back(dataSlice->UpperLimit().Key);
-                    }
+                lowerLimits.emplace_back(GetKeyPrefix(dataSlice->LowerLimit().Key, PrimaryPrefixLength_, RowBuffer_));
+                if (dataSlice->UpperLimit().Key.GetCount() > PrimaryPrefixLength_) {
+                    upperLimits.emplace_back(GetKeySuccessor(GetKeyPrefix(dataSlice->UpperLimit().Key, PrimaryPrefixLength_, RowBuffer_), RowBuffer_));
+                } else {
+                    upperLimits.emplace_back(dataSlice->UpperLimit().Key);
+                }
 
-                    if (CompareRows(dataSlice->LowerLimit().Key, dataSlice->UpperLimit().Key, PrimaryPrefixLength_) == 0) {
-                        ++singleKeySliceNumber[lowerLimits.back()];
-                    }
+                if (CompareRows(dataSlice->LowerLimit().Key, dataSlice->UpperLimit().Key, PrimaryPrefixLength_) == 0) {
+                    ++singleKeySliceNumber[lowerLimits.back()];
                 }
             }
         }
