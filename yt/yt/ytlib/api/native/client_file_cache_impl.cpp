@@ -71,7 +71,7 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto req = TYPathProxy::Get(destination + "/@");
     NCypressClient::SetTransactionId(req, options.TransactionId);
-    
+
     ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
         "md5"
     });
@@ -153,7 +153,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
     {
         TLockNodeOptions lockNodeOptions;
         lockNodeOptions.TransactionId = transaction->GetId();
-        auto lockResult = DoLockNode(path, ELockMode::Exclusive, lockNodeOptions);
+        auto lockResult = DoLockNode(path, ELockMode::Snapshot, lockNodeOptions);
         objectIdPath = FromObjectId(lockResult.NodeId);
 
         YT_LOG_DEBUG(
