@@ -77,6 +77,8 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, EnableDynamicStoreRead);
     Save(context, MountedWithEnabledDynamicStoreRead);
     Save(context, TabletStatistics);
+    Save(context, ProfilingMode);
+    Save(context, ProfilingTag);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -114,6 +116,11 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::AggregateTabletStatistics) {
         Load(context, TabletStatistics);
+    }
+    // COMPAT(akozhikhov)
+    if (context.GetVersion() >= EMasterReign::MakeProfilingModeAnInheritedAttribute) {
+        Load(context, ProfilingMode);
+        Load(context, ProfilingTag);
     }
 }
 
@@ -282,6 +289,48 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     Load(context, UnflushedTimestamp_);
     Load(context, TabletCellBundle_);
     TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
+
+    // COMPAT(akozhikhov)
+    if (context.GetVersion() < EMasterReign::MakeProfilingModeAnInheritedAttribute &&
+        Attributes_)
+    {
+        auto& attributes = Attributes_->Attributes();
+
+        auto processAttribute = [&] (
+            const TString& attributeName,
+            std::function<void(const TYsonString&)> functor)
+        {
+            auto it = attributes.find(attributeName);
+            if (it != attributes.end()) {
+                YT_LOG_DEBUG("Change attribute from custom to builtin (AttributeName: %Qv, AttributeValue: %v, TableId: %v)",
+                    attributeName,
+                    ConvertToYsonString(it->second, EYsonFormat::Text),
+                    Id_);
+
+                try {
+                    functor(it->second);
+                } catch (const std::exception& ex) {
+                    YT_LOG_ALERT(ex, "Exception was raised while changing attribute from custom to builtin (AttributeName: %Qv, AttributeValue: %v, TableId: %v)",
+                        attributeName,
+                        ConvertToYsonString(it->second, EYsonFormat::Text),
+                        Id_);
+                }
+
+                YT_VERIFY(Attributes_->Remove(attributeName));
+            }
+        };
+
+        processAttribute(EInternedAttributeKey::ProfilingMode.Unintern(), [&] (const TYsonString& val) {
+            SetProfilingMode(ConvertTo<NTabletNode::EDynamicTableProfilingMode>(val));
+        });
+        processAttribute(EInternedAttributeKey::ProfilingTag.Unintern(), [&] (const TYsonString& val) {
+            SetProfilingTag(ConvertTo<TString>(val));
+        });
+
+        if (attributes.empty()) {
+            Attributes_.reset();
+        }
+    }
 }
 
 void TTableNode::LoadTableSchema(NCellMaster::TLoadContext& context)

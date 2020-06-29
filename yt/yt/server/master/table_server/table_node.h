@@ -75,6 +75,9 @@ private:
         std::optional<bool> EnableDynamicStoreRead;
         bool MountedWithEnabledDynamicStoreRead = false;
         NTabletServer::TTabletStatisticsAggregate TabletStatistics;
+        // If ProfilingMode is nullopt, cluster-wise attribute will be used.
+        std::optional<NTabletNode::EDynamicTableProfilingMode> ProfilingMode = std::nullopt;
+        std::optional<TString> ProfilingTag = std::nullopt;
 
         TDynamicTableAttributes();
         void Save(NCellMaster::TSaveContext& context) const;
@@ -115,6 +118,8 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, UnconfirmedDynamicTableLockCount);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableDynamicStoreRead);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, MountedWithEnabledDynamicStoreRead);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ProfilingMode);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ProfilingTag);
     DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(DynamicTableAttributes, TabletStatistics);
 
     // COMPAT(ifsmirnov)

@@ -262,6 +262,8 @@
     XX(PrimaryCellTag, primary_cell_tag) \
     XX(PrimaryMedium, primary_medium) \
     XX(Priority, priority) \
+    XX(ProfilingMode, profiling_mode) \
+    XX(ProfilingTag, profiling_tag) \
     XX(ProjectId, project_id) \
     XX(QuorumRowCount, quorum_row_count) \
     XX(Rack, rack) \

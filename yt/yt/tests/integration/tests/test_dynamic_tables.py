@@ -529,6 +529,50 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         remount_table("//tmp/t")
         wait(lambda: _check("table_path", "//tmp/t", "table_tag"), sleep_backoff=0.1)
 
+    @authors("akozhikhov")
+    def test_inherited_profiling_mode_without_tag(self):
+        sync_create_cells(1)
+
+        set("//tmp/@profiling_mode", "tag")
+        self._create_sorted_table("//tmp/t1")
+        sync_mount_table("//tmp/t1")
+
+        assert not exists("//tmp/t1/@profiling_tag")
+
+    @authors("akozhikhov")
+    def test_profiling_mode_inheritance(self):
+        sync_create_cells(1)
+        set("//tmp/@profiling_mode", "tag")
+
+        self._create_sorted_table("//tmp/t0")
+        assert get("//tmp/t0/@profiling_mode") == "tag"
+        assert not exists("//tmp/t0/@profiling_tag")
+
+        create("map_node", "//tmp/d", attributes={"profiling_tag": "custom_tag0"})
+
+        self._create_sorted_table("//tmp/d/t0")
+        self._create_sorted_table("//tmp/d/t1", profiling_tag="custom_tag1")
+        assert get("//tmp/d/t0/@profiling_mode") == "tag" and get("//tmp/d/t1/@profiling_mode") == "tag"
+        assert get("//tmp/d/t0/@profiling_tag") ==  "custom_tag0" and get("//tmp/d/t1/@profiling_tag") == "custom_tag1"
+        sync_mount_table("//tmp/d/t0")
+        sync_mount_table("//tmp/d/t1")
+
+        def _check(table_profiling, expected_tag, expected_value):
+            latest_tags = table_profiling.get_latest_tags("commit/row_count")
+            if expected_tag not in latest_tags:
+                return False
+            if latest_tags[expected_tag] != expected_value:
+                return False
+            return True
+
+        table_profiling0 = self._get_table_profiling("//tmp/d/t0")
+        insert_rows("//tmp/d/t0", [{"key": 0, "value": "0"}])
+        wait(lambda: _check(table_profiling0, "table_tag", "custom_tag0"))
+    
+        table_profiling1 = self._get_table_profiling("//tmp/d/t1")
+        insert_rows("//tmp/d/t1", [{"key": 0, "value": "0"}])
+        wait(lambda: _check(table_profiling1, "table_tag", "custom_tag1"))
+
 ##################################################################
 
 class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):

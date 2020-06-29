@@ -1916,6 +1916,14 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
         .SetPresent(node->GetOptimizeFor().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ProfilingMode)
+        .SetPresent(node->GetProfilingMode().operator bool())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ProfilingTag)
+        .SetPresent(node->GetProfilingTag().operator bool())
+        .SetWritable(true)
+        .SetRemovable(true));
 }
 
 bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -2124,6 +2132,8 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
         XX(CommitOrdering, commit_ordering)
         XX(InMemoryMode, in_memory_mode)
         XX(OptimizeFor, optimize_for)
+        XX(ProfilingMode, profiling_mode)
+        XX(ProfilingTag, profiling_tag)
 #undef XX
 
         case EInternedAttributeKey::CompressionCodec: {
@@ -2289,6 +2299,8 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
     XX(CommitOrdering, commit_ordering)
     XX(InMemoryMode, in_memory_mode)
     XX(OptimizeFor, optimize_for)
+    XX(ProfilingMode, profiling_mode)
+    XX(ProfilingTag, profiling_tag)
 
 #undef XX
 
