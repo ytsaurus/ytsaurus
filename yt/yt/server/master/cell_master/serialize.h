@@ -113,6 +113,7 @@ DEFINE_ENUM(EMasterReign,
     ((SubjectAliases)                                               (1400))  // s-v-m
     ((OpaquePortalEntrances)                                        (1401))  // shakurov
     ((MultisetAttributes)                                           (1402))  // gritukan
+    ((MakeProfilingModeAnInheritedAttribute)                        (1403))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

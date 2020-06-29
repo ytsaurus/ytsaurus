@@ -20,6 +20,8 @@
 
 #include <yt/server/master/tablet_server/tablet_cell_bundle.h>
 
+#include <yt/server/lib/tablet_node/public.h>
+
 #include <yt/ytlib/table_client/public.h>
 
 #include <yt/core/misc/serialize.h>
@@ -640,6 +642,12 @@ public:
     std::optional<NTableClient::EOptimizeFor> GetOptimizeFor() const;
     void SetOptimizeFor(std::optional<NTableClient::EOptimizeFor> optimizeFor);
 
+    std::optional<NTabletNode::EDynamicTableProfilingMode> GetProfilingMode() const;
+    void SetProfilingMode(std::optional<NTabletNode::EDynamicTableProfilingMode> profilingMode);
+
+    std::optional<TString> GetProfilingTag() const;
+    void SetProfilingTag(std::optional<TString> profilingTag);
+    
     struct TAttributes
     {
         std::optional<NCompression::ECodec> CompressionCodec;
@@ -653,6 +661,8 @@ public:
         std::optional<NTransactionClient::ECommitOrdering> CommitOrdering;
         std::optional<NTabletClient::EInMemoryMode> InMemoryMode;
         std::optional<NTableClient::EOptimizeFor> OptimizeFor;
+        std::optional<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
+        std::optional<TString> ProfilingTag;
 
         bool operator==(const TAttributes& rhs) const;
         bool operator!=(const TAttributes& rhs) const;
@@ -689,10 +699,30 @@ private:
     process(Atomicity, atomicity) \
     process(CommitOrdering, commit_ordering) \
     process(InMemoryMode, in_memory_mode) \
-    process(OptimizeFor, optimize_for)
+    process(OptimizeFor, optimize_for) \
+    process(ProfilingMode, profiling_mode) \
+    process(ProfilingTag, profiling_tag)
 
 #define FOR_EACH_INHERITABLE_ATTRIBUTE(process) \
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
+    process(PrimaryMediumIndex, primary_medium) \
+    process(Media, media) \
+    process(TabletCellBundle, tablet_cell_bundle)
+
+// COMPAT(akozhikhov)
+#define FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE_BEFORE_1403(process) \
+    process(CompressionCodec, compression_codec) \
+    process(ErasureCodec, erasure_codec) \
+    process(ReplicationFactor, replication_factor) \
+    process(Vital, vital) \
+    process(Atomicity, atomicity) \
+    process(CommitOrdering, commit_ordering) \
+    process(InMemoryMode, in_memory_mode) \
+    process(OptimizeFor, optimize_for)
+
+// COMPAT(akozhikhov)
+#define FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1403(process) \
+    FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE_BEFORE_1403(process) \
     process(PrimaryMediumIndex, primary_medium) \
     process(Media, media) \
     process(TabletCellBundle, tablet_cell_bundle)

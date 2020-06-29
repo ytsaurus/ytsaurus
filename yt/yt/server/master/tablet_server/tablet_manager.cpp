@@ -5976,8 +5976,7 @@ private:
         // Parse and prepare mount config.
         try {
             *mountConfig = ConvertTo<TTableMountConfigPtr>(tableAttributes);
-            // TODO(akozhikhov): avoid explicit string, when ProfilingMode attribute will be interned.
-            if (!tableAttributes.Contains("profiling_mode")) {
+            if (!table->GetProfilingMode()) {
                 (*mountConfig)->ProfilingMode = dynamicConfig->DynamicTableProfilingMode;
             }
             (*mountConfig)->EnableDynamicStoreRead = IsDynamicStoreReadEnabled(table);

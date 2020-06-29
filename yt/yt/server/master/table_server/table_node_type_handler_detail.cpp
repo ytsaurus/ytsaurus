@@ -274,6 +274,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
         clonedTrunkNode->SetLastCommitTimestamp(trunkSourceNode->GetLastCommitTimestamp());
         clonedTrunkNode->MutableTabletBalancerConfig() = CloneYsonSerializable(trunkSourceNode->TabletBalancerConfig());
         clonedTrunkNode->SetEnableDynamicStoreRead(trunkSourceNode->GetEnableDynamicStoreRead());
+        clonedTrunkNode->SetProfilingMode(trunkSourceNode->GetProfilingMode());
+        clonedTrunkNode->SetProfilingTag(trunkSourceNode->GetProfilingTag());
     }
 
     tabletManager->SetTabletCellBundle(clonedTrunkNode, trunkSourceNode->GetTabletCellBundle());
@@ -317,6 +319,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
         Save(*context, trunkNode->GetLastCommitTimestamp());
         Save(*context, ConvertToYsonString(trunkNode->TabletBalancerConfig()));
         Save(*context, trunkNode->GetEnableDynamicStoreRead());
+        Save(*context, trunkNode->GetProfilingMode());
+        Save(*context, trunkNode->GetProfilingTag());
     }
 }
 
@@ -357,6 +361,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
         node->SetLastCommitTimestamp(Load<TTimestamp>(*context));
         node->MutableTabletBalancerConfig() = ConvertTo<TTabletBalancerConfigPtr>(Load<TYsonString>(*context));
         node->SetEnableDynamicStoreRead(Load<std::optional<bool>>(*context));
+        node->SetProfilingMode(Load<NTabletNode::EDynamicTableProfilingMode>(*context));
+        node->SetProfilingTag(Load<TString>(*context));
     }
 }
 
@@ -368,7 +374,9 @@ bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TSt
         "commit_ordering",
         "in_memory_mode",
         "optimize_for",
-        "tablet_cell_bundle"
+        "tablet_cell_bundle",
+        "profiling_mode",
+        "profiling_tag"
     };
 
     if (SupportedInheritableAttributes.contains(key)) {

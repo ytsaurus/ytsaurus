@@ -313,6 +313,17 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PreloadState)
         .SetExternal(isExternal)
         .SetPresent(isDynamic));
+    // XXX(akozhikhov): Is this set of options correct?
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ProfilingMode)
+        .SetWritable(true)
+        .SetReplicated(true)
+        .SetRemovable(true)
+        .SetPresent(isDynamic && static_cast<bool>(table->GetProfilingMode())));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ProfilingTag)
+        .SetWritable(true)
+        .SetReplicated(true)
+        .SetRemovable(true)
+        .SetPresent(isDynamic && static_cast<bool>(table->GetProfilingTag())));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -769,6 +780,22 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
         }
 
+        case EInternedAttributeKey::ProfilingMode:
+            if (!isDynamic || !trunkTable->GetProfilingMode()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*trunkTable->GetProfilingMode());
+            return true;
+
+        case EInternedAttributeKey::ProfilingTag:
+            if (!isDynamic || !trunkTable->GetProfilingTag()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*trunkTable->GetProfilingTag());
+            return true;
+
         default:
             break;
     }
@@ -876,6 +903,20 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             }
 
             lockedTable->SetEnableDynamicStoreRead(std::nullopt);
+            return true;
+        }
+
+        case EInternedAttributeKey::ProfilingMode: {
+            ValidateNoTransaction();
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetProfilingMode(std::nullopt);
+            return true;
+        }
+
+        case EInternedAttributeKey::ProfilingTag: {
+            ValidateNoTransaction();
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetProfilingTag(std::nullopt);
             return true;
         }
 
@@ -1034,6 +1075,32 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             }
 
             lockedTable->SetEnableDynamicStoreRead(ConvertTo<bool>(value));
+            return true;
+        }
+
+        case EInternedAttributeKey::ProfilingMode: {
+            if (!table->IsDynamic()) {
+                break;
+            }
+            ValidateNoTransaction();
+
+            auto* lockedTable = LockThisImpl();
+            auto profilingMode = ConvertTo<EDynamicTableProfilingMode>(value);
+            lockedTable->SetProfilingMode(profilingMode);
+
+            return true;
+        }
+
+        case EInternedAttributeKey::ProfilingTag: {
+            if (!table->IsDynamic()) {
+                break;
+            }
+            ValidateNoTransaction();
+
+            auto* lockedTable = LockThisImpl();
+            auto profilingTag = ConvertTo<TString>(value);
+            lockedTable->SetProfilingTag(profilingTag);
+
             return true;
         }
 
