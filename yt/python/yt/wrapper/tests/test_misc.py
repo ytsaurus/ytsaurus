@@ -313,7 +313,7 @@ class TestMutations(object):
 
         command_name = "start_operation" if get_api_version() == "v4" else "start_op"
         self.check_command(
-            lambda: yson.loads(yt.driver.make_request(command_name, params, decode_content=False)),
+            lambda: yson.loads(yt.driver.make_request(command_name, params)),
             None,
             lambda: get_operation_count() == operations_count + 1,
             abort)

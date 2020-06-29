@@ -5,6 +5,7 @@ from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectRespo
                      YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
                      YtRequestTimedOut, YtRetriableError, YtNoSuchTransaction, hide_auth_headers)
 from .command import parse_commands
+from .format import JsonFormat, YsonFormat
 
 import yt.logger as logger
 import yt.yson as yson
@@ -123,7 +124,16 @@ def get_error_from_headers(headers):
     return None
 
 def get_header_format(client):
-    return get_value(get_config(client)["proxy"]["header_format"], "yson")
+    if get_config(client)["proxy"]["header_format"] is not None:
+        return get_config(client)["proxy"]["header_format"]
+    if get_config(client)["structured_data_format"] is not None:
+        structured_data_format = get_config(client)["structured_data_format"]
+        if isinstance(structured_data_format, YsonFormat):
+            return "yson"
+        if isinstance(structured_data_format, JsonFormat):
+            return "json"
+        return structured_data_format
+    return "yson"
 
 def check_response_is_decodable(response, format):
     if format == "json":

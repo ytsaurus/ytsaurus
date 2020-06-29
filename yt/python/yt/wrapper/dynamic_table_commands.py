@@ -138,7 +138,6 @@ class DynamicTableRequestRetrier(Retrier):
             self.params,
             return_content=True,
             use_heavy_proxy=True,
-            decode_content=False,
             timeout=self.request_timeout,
             client=self.client,
             **kwargs)

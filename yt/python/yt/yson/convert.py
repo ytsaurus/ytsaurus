@@ -45,21 +45,38 @@ def to_yson_type(value, attributes=None, always_create_attributes=True):
 
     return result
 
-def json_to_yson(json_tree, encode_key=False, encoding=None):
+# TODO(ignat): Should we make auto-detection for use_byte_strings?
+def json_to_yson(json_tree, use_byte_strings=None):
     """Converts json representation to YSON representation."""
-    if encode_key:
-        if json_tree.startswith("$"):
-            if not json_tree.startswith("$$"):
+    def to_literal(string):
+        if use_byte_strings:
+            return string.encode("ascii")
+        else:
+            return string
+
+    def decode_key(string):
+        # In yt wrapper we expect here correct keys, but other usages in arcadia could not give this guarantee. 
+        # TODO(ignat): fix this usages.
+        if use_byte_strings:
+            if not isinstance(string, binary_type):
+                string = string.encode("ascii")
+        else:
+            if not isinstance(string, text_type):
+                string = string.decode("ascii")
+
+        if string.startswith(to_literal("$")):
+            if not string.startswith(to_literal("$$")):
                 raise YsonError("Keys should not start with single dollar sign")
-            json_tree = json_tree[1:]
-    has_attrs = isinstance(json_tree, dict) and "$value" in json_tree
-    value = json_tree["$value"] if has_attrs else json_tree
+            string = string[1:]
+        return string
+
+    if use_byte_strings is None:
+        use_byte_strings = not PY3
+
+    has_attrs = isinstance(json_tree, dict) and to_literal("$value") in json_tree
+    value = json_tree[to_literal("$value")] if has_attrs else json_tree
     if isinstance(value, text_type):
-        encoding = "utf-8" if encoding is None else encoding
-        if PY3:
-            result = YsonUnicode(value)
-        else:  # COMPAT
-            result = YsonString(value.encode(encoding))
+        result = YsonUnicode(value)
     elif isinstance(value, binary_type):
         result = YsonString(value)
     elif value is False or value is True:
@@ -73,26 +90,28 @@ def json_to_yson(json_tree, encode_key=False, encoding=None):
     elif isinstance(value, float):
         result = YsonDouble(value)
     elif isinstance(value, list):
-        result = YsonList(imap(lambda item: json_to_yson(item, encoding=encoding), value))
+        result = YsonList(imap(lambda item: json_to_yson(item, use_byte_strings=use_byte_strings), value))
     elif isinstance(value, dict):
-        result = YsonMap((json_to_yson(k, True, encoding=encoding), json_to_yson(v, encoding=encoding)) for k, v in iteritems(YsonMap(value)))
+        result = YsonMap((decode_key(k), json_to_yson(v, use_byte_strings=use_byte_strings)) for k, v in iteritems(YsonMap(value)))
     elif value is None:
         result = YsonEntity()
     else:
         raise YsonError("Unknown type:", type(value))
 
-    if has_attrs and json_tree.get("$attributes", {}):
-        result.attributes = json_to_yson(json_tree["$attributes"], encoding=encoding)
+    if has_attrs and json_tree.get(to_literal("$attributes"), {}):
+        result.attributes = json_to_yson(json_tree[to_literal("$attributes")], use_byte_strings=use_byte_strings)
     return result
 
-def yson_to_json(yson_tree, print_attributes=True, encoding=None):
-    def fix_key(key):
+def yson_to_json(yson_tree, print_attributes=True):
+    def encode_key(key):
+        if PY3 and isinstance(key, binary_type):
+            key = key.decode("ascii")
         if key and key[0] == "$":
             return "$" + key
         return key
 
     def process_dict(d):
-        return dict((fix_key(yson_to_json(k)), yson_to_json(v)) for k, v in iteritems(d))
+        return dict((encode_key(k), yson_to_json(v)) for k, v in iteritems(d))
 
     if hasattr(yson_tree, "attributes") and yson_tree.attributes and print_attributes:
         return {"$attributes": process_dict(yson_tree.attributes),
@@ -104,7 +123,7 @@ def yson_to_json(yson_tree, print_attributes=True, encoding=None):
     elif isinstance(yson_tree, YsonEntity):
         return None
     elif PY3 and (isinstance(yson_tree, YsonString) or isinstance(yson_tree, binary_type)):
-        return yson_tree.decode("utf-8" if encoding is None else encoding)
+        return yson_tree.decode("utf-8")
     elif isinstance(yson_tree, bool) or isinstance(yson_tree, YsonBoolean):
         return True if yson_tree else False
     else:

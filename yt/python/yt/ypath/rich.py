@@ -8,7 +8,7 @@ from yt.yson.common import StreamWrap
 from yt.yson import YsonEntity
 from yt.common import flatten, update_inplace
 
-from yt.packages.six import BytesIO, PY3
+from yt.packages.six import BytesIO, PY3, text_type
 
 from copy import deepcopy
 
@@ -157,6 +157,10 @@ class RichYPath(object):
     def parse(self, path):
         attributes = {}
         if PY3:
+            encoding = "utf-8"
+        else:
+            encoding = None
+        if isinstance(path, text_type) and PY3:
             path = bytes(path, "utf-8")
 
         str_without_attributes = self.parse_attributes(path, attributes)
@@ -177,7 +181,6 @@ class RichYPath(object):
             path = path.decode()
 
         if ypath_tokenizer.get_type() == TOKEN_RANGE:
-            encoding = "utf-8" if PY3 else None
             yson_tokenizer = YsonTokenizer(StreamWrap(BytesIO(range_str), "", ""), encoding)
             yson_tokenizer.parse_next()
             self.parse_channel(yson_tokenizer, attributes)

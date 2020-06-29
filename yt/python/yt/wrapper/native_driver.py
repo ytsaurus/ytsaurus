@@ -9,7 +9,7 @@ import yt.logger as logger
 import yt.logger_config as logger_config
 import yt.yson as yson
 
-from yt.packages.six import binary_type, PY3
+from yt.packages.six import binary_type
 
 try:
     from cStringIO import StringIO as BytesIO
@@ -234,7 +234,6 @@ def chunk_iter(stream, response, size):
 def make_request(command_name, params,
                  data=None,
                  return_content=True,
-                 decode_content=True,
                  client=None):
     driver = get_driver_instance(client)
 
@@ -301,8 +300,6 @@ def make_request(command_name, params,
             raise error
         if output_stream is not None and not isinstance(output_stream, NullStream):
             value = output_stream.getvalue()
-            if decode_content and PY3:
-                return value.decode("utf-8")
             return value
     else:
         def process_error(request):

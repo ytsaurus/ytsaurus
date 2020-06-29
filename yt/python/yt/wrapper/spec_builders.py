@@ -17,12 +17,22 @@ from .local_mode import is_local_mode, enable_local_files_usage_in_job
 
 import yt.logger as logger
 
+from yt.packages.six import PY3, binary_type, text_type
 from yt.packages.six.moves import xrange, zip as izip
 
 import functools
 import os
 import shutil
 from copy import deepcopy
+
+def _convert_to_bytes(value):
+    if not PY3:  # Fast path
+        return str(value)
+
+    if isinstance(value, text_type):
+        return value.encode("ascii")
+    else:
+        return value
 
 def _check_columns(columns, type):
     if len(columns) == 1 and "," in columns:
@@ -415,6 +425,9 @@ class UserJobSpecBuilder(object):
                 file_manager.add_files(file)
             else:
                 files.append(file)
+
+        if group_by is not None and input_format._encoding is None:
+            group_by = [_convert_to_bytes(key) for key in group_by]
 
         params = OperationParameters(
             input_format=input_format,

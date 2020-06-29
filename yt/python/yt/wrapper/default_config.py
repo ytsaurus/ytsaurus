@@ -104,8 +104,8 @@ default_config = {
         "force_ipv4": False,
         "force_ipv6": False,
 
-        # Format of header with yt parameters.
-        # In new versions YT supports also "yson", that useful for passing unsinged int values.
+        # Format of parameters serialization to HTTP header.
+        # By default we use specified structured_data_format, otherwise we use YSON.
         "header_format": None,
 
         # Enable using heavy proxies for heavy commands (write_*, read_*).
@@ -167,12 +167,6 @@ default_config = {
     # Version of api for requests through http, None for use latest.
     # For native driver version "v3" by default.
     "default_api_version_for_http": "v3",
-
-    # If this option disabled we use JSON for formatted requests
-    # if format is not specified and yson_bindings is not installed.
-    # It allows to build python structures much faster than using YSON.
-    # But in this case we loose type of integer nodes.
-    "force_using_yson_for_formatted_requests": False,
 
     # Enables generating request id and passing it to native driver.
     "enable_passing_request_id_to_driver": False,
@@ -326,6 +320,13 @@ default_config = {
     },
 
     "tabular_data_format": None,
+
+    # When structured format is not specified we use YSON if bindings presented, otherwise we use JSON.
+    # NB: JSON format loses typing for integer nodes.
+    "structured_data_format": None,
+
+    # This option forces using YSON as structured data format even if YSON bindings are missing. DEPRECATED.
+    "force_using_yson_for_formatted_requests": False,
 
     # Attributes of automatically created tables.
     "create_table_attributes": None,

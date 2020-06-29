@@ -5,6 +5,7 @@ from .common import require, generate_uuid, get_version, total_seconds, forbidde
 from .errors import (YtError, YtHttpResponseError, YtProxyUnavailable,
                      YtConcurrentOperationsLimitExceeded, YtRequestTimedOut,
                      hide_secure_vault)
+from .format import JsonFormat
 from .http_helpers import (make_request_with_retries, get_token, get_http_api_version, get_http_api_commands,
                            get_proxy_url, get_error_from_headers, get_header_format, ProxyProvider)
 from .response_stream import ResponseStream
@@ -13,7 +14,7 @@ import yt.logger as logger
 import yt.json_wrapper as json
 
 from yt.packages.requests.auth import AuthBase
-from yt.packages.six import iteritems, text_type, binary_type, iterbytes, int2byte, byte2int, PY3
+from yt.packages.six import iteritems, text_type, binary_type, iterbytes, int2byte, byte2int
 from yt.packages.six.moves import map as imap
 
 import random
@@ -22,36 +23,9 @@ from datetime import datetime
 
 import os
 
-def escape_utf8(obj):
-    def escape_symbol(sym):
-        # NOTE: This transformation is equivalent to converting byte char to unicode char
-        # with identity encoding (latin-1) and then encoding this unicode char
-        # to bytes with utf-8 encoding.
-        xC0 = byte2int(b"\xC0")
-        x80 = byte2int(b"\x80")
-        if sym < 128:
-            return int2byte(sym)
-        else:
-            return int2byte(xC0 | (sym >> 6)) + int2byte(x80 | (sym & ~xC0))
-
-    def escape_str(str):
-        return b"".join(imap(escape_symbol, iterbytes(str)))
-
-    if isinstance(obj, text_type):
-        # XXX(asaitgalin): Remove escape_str here since string after encode
-        # is already correct utf-8 string?
-        obj = escape_str(obj.encode("utf-8"))
-    elif isinstance(obj, binary_type):
-        obj = escape_str(obj)
-    elif isinstance(obj, list):
-        obj = list(imap(escape_utf8, obj))
-    elif isinstance(obj, dict):
-        obj = dict((escape_utf8(k), escape_utf8(v)) for k, v in iteritems(obj))
-    return obj
-
 def dump_params(obj, header_format):
     if header_format == "json":
-        return json.dumps(escape_utf8(yson.yson_to_json(obj)))
+        return JsonFormat().dumps_node(obj)
     elif header_format == "yson":
         return yson.dumps(obj, yson_format="text")
     else:
@@ -155,8 +129,7 @@ def make_request(command_name,
                  use_heavy_proxy=False,
                  timeout=None,
                  client=None,
-                 allow_retries=None,
-                 decode_content=True):
+                 allow_retries=None):
     """Makes request to yt proxy. Command name is the name of command in YT API."""
 
     if "master_cell_id" in params:
@@ -285,7 +258,7 @@ def make_request(command_name,
         proxy_provider=proxy_provider,
         client=client)
 
-    def process_error(response):
+    def process_trailers(response):
         trailers = response.trailers()
         if trailers is None:
             return
@@ -294,17 +267,16 @@ def make_request(command_name,
         if error is not None:
             raise YtHttpResponseError(error=json.loads(error), **response.request_info)
 
-    # Determine type of response data and return it
     if return_content:
-        response_content = response.text if (decode_content and PY3) else response.content
+        response_content = response.content
         # NOTE: Should be called after accessing "text" or "content" attribute
         # to ensure that all response is read and trailers are processed and can be accessed.
-        process_error(response)
+        process_trailers(response)
         return response_content
     else:
         return ResponseStream(
             lambda: response,
             response.iter_content(get_config(client)["read_buffer_size"]),
             lambda from_delete: response.close(),
-            process_error,
+            process_trailers,
             lambda: response.headers.get("X-YT-Response-Parameters", None))

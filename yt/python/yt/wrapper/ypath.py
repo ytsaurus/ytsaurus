@@ -2,13 +2,54 @@ from .etc_commands import parse_ypath
 from .common import flatten, parse_bool, update, require
 from .errors import YtError
 from .config import get_config
+from .format import _ENCODING_SENTINEL
 
 import yt.yson as yson
-from yt.packages.six import iteritems
+from yt.packages.six import iteritems, binary_type, text_type, PY3
 from yt.packages.six.moves import map as imap
 
 from copy import deepcopy
 import string
+
+
+class TokensByPath(object):
+    def __init__(self, path):
+        if isinstance(path, binary_type):
+            self.slash = b"/"
+            self.double_slash = b"//"
+            self.sharp = b"#"
+            self.raw_path = binary_type(path)
+            self.string_type = binary_type
+        else:
+            self.slash = "/"
+            self.double_slash = "//"
+            self.sharp = "#"
+            self.raw_path = text_type(path)
+            self.string_type = text_type
+
+    def to_path_type(self, text):
+        return text if self.string_type == text_type else text.encode("latin1")
+
+def _process_prefix(path, prefix):
+    tokens = TokensByPath(path)
+    if not PY3 and prefix is not None and isinstance(prefix, text_type):
+        try:
+            prefix = prefix.encode("ascii")
+        except UnicodeDecodeError:
+            pass
+    if prefix is not None and type(tokens.raw_path) != type(prefix):
+        raise YtError("Type mismatch of ypath %r and prefix %r" % (tokens.raw_path, prefix))
+
+    if tokens.raw_path == tokens.slash or tokens.raw_path.startswith(tokens.double_slash) or tokens.raw_path.startswith(tokens.sharp):
+        return path
+    else:
+        require(prefix,
+                lambda: YtError("Path %r should be absolute or you should specify a prefix" % tokens.raw_path))
+        require(prefix.startswith("//"),
+                lambda: YtError("PREFIX %r should start with //" % prefix))
+        require(prefix.endswith("/"),
+                lambda: YtError("PREFIX %r should end with /" % prefix))
+        return yson.to_yson_type(prefix + tokens.raw_path if tokens.raw_path else prefix[:-1], path.attributes)
 
 def ypath_join(*paths):
     """Joins parts of cypress paths."""
@@ -46,18 +87,19 @@ def ypath_split(path):
 
        Equivalent of os.path.split for YPath.
     """
-    # Dropping ranges and attributes.
-    # Also checking that path is not empty.
-    path = str(YPath(path))
+    parsed_ypath = YPath(path)
 
-    if path == "/":
-        return "/", ""
+    tokens = TokensByPath(parsed_ypath._path_object)
+    path = tokens.raw_path
 
-    path_type = {"/": "root", "#": "hash"}.get(path[:1])
+    if path == tokens.slash:
+        return tokens.slash, tokens.string_type()
+
+    path_type = {tokens.slash: "root", tokens.sharp: "sharp"}.get(path[0])
     if path_type is None:
         raise YtError('Correct YPath should start with "/" or "#"')
 
-    if path_type == "root" and not path.startswith("//"):
+    if path_type == "root" and not path.startswith(tokens.slash):
         raise YtError('Root YPath should start with "//"')
 
     slash_pos = None
@@ -67,12 +109,12 @@ def ypath_split(path):
     index_lower_bound = int(path_type == "root")
 
     while index >= index_lower_bound:
-        if path[index] == "/":
+        if path[index] == tokens.slash:
             if slash_pos is not None and not slash_escaped:
                 raise YtError('Unexpected "/" at position ' + str(index))
             slash_pos = index
             slash_escaped = False
-        elif path[index] == "\\":
+        elif path[index] == tokens.to_path_type("\\"):
             if slash_pos is not None:
                 slash_escaped = not slash_escaped
         else:
@@ -89,26 +131,41 @@ def ypath_split(path):
         index -= 1
 
     if slash_pos is None:
-        return "", path
+        return tokens.to_path_type(""), path
 
     if slash_pos == len(path) - 1 and not slash_escaped:
         raise YtError('Unexpected "/" at the end of YPath')
 
     return path[:slash_pos], path[slash_pos + 1:]
 
-def escape_ypath_literal(literal):
+def escape_ypath_literal(literal, encoding=_ENCODING_SENTINEL):
     """Escapes string to use it as key in ypath."""
     def escape_char(ch):
-        if ch in ["\\", "/", "@", "&", "[", "{"]:
-            return "\\" + ch
+        if PY3 and isinstance(ch, int):
+            ch = binary_type([ch])
+
+        if isinstance(ch, text_type) and not PY3:
+            ch = ch.encode("ascii")
+
+        assert isinstance(ch, binary_type)
+
+        if ch in [b"\\", b"/", b"@", b"&", b"[", b"{"]:
+            return b"\\" + ch
         num = ord(ch)
-        if num >= 256:
-            raise YtError("YPath literals should consist of bytes with code in [0, 255]")
-        if num < 32:  # or num >= 128:
-            return "\\x" + string.hexdigits[num // 16] + string.hexdigits[num % 16]
+        if num < 32 or num >= 128:
+            return b"\\x" + string.hexdigits[num // 16].encode("ascii") + string.hexdigits[num % 16].encode("ascii")
         return ch
 
-    return "".join(imap(escape_char, literal))
+    if isinstance(literal, binary_type):
+        return b"".join(imap(escape_char, literal))
+    else:
+        # NB: we suppose that cypress always has utf-8 representation for unicode strings.
+        if encoding is _ENCODING_SENTINEL:
+            encoding = "utf-8" if PY3 else None
+        if encoding is not None:
+            literal = literal.encode(encoding)
+        return "".join(imap(lambda ch: escape_char(ch).decode("ascii"), literal))
+
 
 # XXX(ignat): Inherit from YsonString?
 class YPath(object):
@@ -134,6 +191,8 @@ class YPath(object):
             self._path_object = deepcopy(path._path_object)
         else:
             if simplify and path:
+                if isinstance(path, binary_type):
+                    path = yson.YsonString(path)
                 self._path_object = parse_ypath(path, client=client)
                 for key, value in iteritems(self._path_object.attributes):
                     if "-" in key:
@@ -142,19 +201,7 @@ class YPath(object):
             else:
                 self._path_object = yson.to_yson_type(path)
 
-        if str(self._path_object) != "/" and not self._path_object.startswith("//") and not self._path_object.startswith("#"):
-            prefix = get_config(client)["prefix"]
-            require(prefix,
-                    lambda: YtError("Path '%s' should be absolute or you should specify a prefix" % self._path_object))
-            require(prefix.startswith("//"),
-                    lambda: YtError("PREFIX '%s' should start with //" % prefix))
-            require(prefix.endswith("/"),
-                    lambda: YtError("PREFIX '%s' should end with /" % prefix))
-            # TODO(ignat): refactor YsonString to fix this hack
-            copy_attributes = self._path_object.attributes
-            self._path_object = yson.to_yson_type(prefix + self._path_object if self._path_object else prefix[:-1])
-            self._path_object.attributes = copy_attributes
-
+        self._path_object = _process_prefix(self._path_object, get_config(client)["prefix"])
         if attributes is not None:
             self._path_object.attributes = update(self._path_object.attributes, attributes)
 
@@ -295,6 +342,8 @@ class TablePath(YPathSupportingAppend):
         .. seealso:: `usage example <https://yt.yandex-team.ru/docs/description/common/ypath.html#known_attributes>`_
         .. note:: don't specify lower_key (upper_key) and start_index (end_index) simultaneously.
         """
+        if PY3 and isinstance(name, binary_type):
+            raise YtError("TablePath does not support binary strings")
 
         super(TablePath, self).__init__(name, simplify=simplify, attributes=attributes, append=append, client=client)
 

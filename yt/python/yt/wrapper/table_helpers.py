@@ -46,10 +46,10 @@ def iter_by_chunks(iterable, count):
 def _to_chunk_stream(stream, format, raw, split_rows, chunk_size, rows_chunk_size):
     if isinstance(stream, (text_type, binary_type)):
         if isinstance(stream, text_type):
-            if not PY3:
-                stream = stream.encode("utf-8")
-            else:
-                raise YtError("Cannot split unicode string into chunks, consider encoding it first")
+            try:
+                stream = stream.encode("ascii")
+            except UnicodeDecodeError:
+                raise YtError("Cannot split unicode string into chunks, consider encoding it to bytes first")
         stream = BytesIO(stream)
 
     is_iterable = is_of_iterable_type(stream)

@@ -932,6 +932,21 @@ class TestOperationsFormat(object):
 
         assert list(yt.read_table(output_table)) == [{"x": 1, "res": 7}, {"x": 3, "res": 5}]
 
+    @authors("ignat")
+    def test_reduce_by_with_none_encoding(self):
+        def reducer(key, rows):
+            for row in rows:
+                pass
+            yield key
+
+        table = TEST_DIR + "/table"
+        output_table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": 1, "y": 2}, {"x": 1, "y": 3}, {"x": 3, "y": 4}])
+        yt.run_map_reduce(None, reducer, table, output_table,
+                          format=yt.YsonFormat(encoding=None), reduce_by=["x"])
+
+        assert list(yt.read_table(output_table)) == [{"x": 1}, {"x": 3}]
+
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestPythonOperations(object):

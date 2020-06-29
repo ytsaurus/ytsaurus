@@ -352,6 +352,14 @@ class Format(object):
         else:
             return rows
 
+    def loads_node(self, string):
+        """Load python object from byte string. Supported obly for structured format (JSON and YSON)."""
+        raise NotImplementedError("Implemented only for JsonFormat and YsonFormat")
+
+    def dumps_node(self):
+        """Load python object from byte string. Supported obly for structured format (JSON and YSON)."""
+        raise NotImplementedError("Implemented only for JsonFormat and YsonFormat")
+
 class SkiffFormat(Format):
     """Efficient schemaful format
 
@@ -729,6 +737,14 @@ class YsonFormat(Format):
             native_data = yson.loads(string)
             return yson.dumps(native_data, yson_format=self.attributes["format"], sort_keys=True)
         return string
+
+    def loads_node(self, string):
+        """Loads python object."""
+        return yson.loads(string, encoding=self._encoding)
+
+    def dumps_node(self, object):
+        """Dumps python object."""
+        return yson.dumps(object, yson_format=self.attributes["format"], encoding=self._encoding)
 
 class YamrFormat(Format):
     """YAMR legacy data format.
@@ -1177,6 +1193,19 @@ class JsonFormat(Format):
     def __setstate__(self, d):
         self.__dict__.update(d)
         self.json_module = JsonFormat._get_json_module(self.enable_ujson)
+
+    def loads_node(self, string):
+        """Loads python object."""
+        return yson.json_to_yson(self._decode(self.json_module.loads(string)), use_byte_strings=self._encoding is None)
+
+    def dumps_node(self, object):
+        """Dumps python object."""
+        value = self.json_module.dumps(self._encode(yson.yson_to_json(object)))
+        if PY3:
+            # NB: in python3 json writes unicode string as output,
+            # default encoding for standard json libraries is utf-8.
+            value = value.encode("utf-8")
+        return value
 
 class YamredDsvFormat(YamrFormat):
     """Hybrid of Yamr and DSV formats. It is used to support yamr representations of tabular data.
