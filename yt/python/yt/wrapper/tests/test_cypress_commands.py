@@ -10,6 +10,7 @@ import yt.yson as yson
 
 from yt.common import datetime_to_string
 import yt.wrapper as yt
+from yt.packages.six import PY3
 
 from flaky import flaky
 
@@ -644,3 +645,115 @@ class TestCypressCommands(object):
         yt.set(TEST_DIR + "/node/node2/node3/node4", 1, recursive=True)
         assert yt.get(TEST_DIR + "/node/node2/node3/node4") == 1
 
+    @authors("ignat")
+    def test_commands_with_json_format(self):
+        yt.set(TEST_DIR + "/some_node", {})
+        assert json.loads(yt.get(TEST_DIR, format=yt.format.JsonFormat())) == {"some_node": {}}
+        assert json.loads(yt.get(TEST_DIR, format="json")) == {"some_node": {}}
+
+        yt.set(TEST_DIR, b'{"other_node": {}}', format="json")
+        assert yt.get(TEST_DIR) == {"other_node": {}}
+        assert json.loads(yt.get(TEST_DIR, format="json")) == {"other_node": {}}
+
+        tables = ["{0}/{1}".format(TEST_DIR, name) for name in ("a", "b", "c")]
+        for table in tables:
+            yt.create("table", table)
+        with pytest.raises(yt.YtError):
+            yt.list(TEST_DIR + "/subdir", absolute=True, format="json")
+
+    @authors("ignat")
+    def test_create_with_utf8(self):
+        yt.create("table", TEST_DIR + "/table", attributes={"attr": u"капуста"})
+        if PY3:
+            assert u"капуста" == yt.get(TEST_DIR + "/table/@attr")
+        else:
+            assert u"капуста".encode("utf-8") == yt.get(TEST_DIR + "/table/@attr")
+
+    @authors("ignat")
+    def test_non_utf8_node(self):
+        value = {b"\xee": yson.to_yson_type(b"\xff", attributes={b"encoding": b"custom"})}
+
+        # Map Node case.
+        yt.set(TEST_DIR + "/some_node", value)
+
+        search_result = [
+            TEST_DIR.encode("ascii"),
+            (TEST_DIR + "/some_node").encode("ascii"),
+            # YPath escapes non-ascii symbols.
+            (TEST_DIR + "/some_node").encode("ascii") + b"/\\xee"
+        ]
+
+        # JSON applies encode_utf8 decoding on the server side.
+        assert yt.get(TEST_DIR + "/some_node", format="json") == b'{"\xc3\xae":"\xc3\xbf"}'
+
+        if PY3:
+            with pytest.raises(yt.YtFormatError):
+                yt.get(TEST_DIR + "/some_node", attributes=["encoding"])
+            with pytest.raises(yt.YtFormatError):
+                list(yt.search(TEST_DIR))
+        else:
+            assert yt.get(TEST_DIR + "/some_node", attributes=["encoding"]) == value
+            assert list(yt.search(TEST_DIR)) == search_result
+
+        with set_config_option("structured_data_format", yt.YsonFormat(encoding=None)):
+            assert yt.get(TEST_DIR + "/some_node", attributes=["encoding"]) == value
+            assert list(yt.search(TEST_DIR)) == search_result
+
+        with set_config_option("structured_data_format", yt.YsonFormat(encoding="utf-8")):
+            if PY3:
+                with pytest.raises(yt.YtFormatError):
+                    yt.get(TEST_DIR + "/some_node")
+            else:
+                with pytest.raises(yt.YtError):
+                    yt.get(TEST_DIR + "/some_node")
+
+        with set_config_option("structured_data_format", yt.JsonFormat(encoding=None)):
+            assert yt.get(TEST_DIR + "/some_node", attributes=["encoding"]) == value
+            assert list(yt.search(TEST_DIR)) == search_result
+
+        # Document case.
+        yt.create("document", TEST_DIR + "/some_document", attributes={"value": value})
+        if PY3:
+            with pytest.raises(yt.YtFormatError):
+                yt.get(TEST_DIR + "/some_node", attributes=["encoding"])
+        else:
+            assert yt.get(TEST_DIR + "/some_node", attributes=["encoding"]) == value
+
+        with set_config_option("structured_data_format", yt.YsonFormat(encoding=None)):
+            assert yt.get(TEST_DIR + "/some_node", attributes=["encoding"]) == value
+    
+    @authors("ignat")
+    def test_utf8_node(self):
+        unicode_symbol = json.loads('"\\u00A9"')
+        value = {unicode_symbol: unicode_symbol}
+        value_bytes = {unicode_symbol.encode("utf-8"): unicode_symbol.encode("utf-8")}
+
+        search_result = [
+            TEST_DIR,
+            yt.ypath_join(TEST_DIR, "some_node"),
+            yt.ypath_join(TEST_DIR, "some_node", yt.escape_ypath_literal(unicode_symbol, encoding="utf-8")),
+        ]
+
+        # Map Node case.
+        if PY3:
+            yt.set(TEST_DIR + "/some_node", value)
+            assert yt.get(TEST_DIR + "/some_node") == value
+        else:
+            with pytest.raises(yson.YsonError):
+                yt.set(TEST_DIR + "/some_node", value)
+            with set_config_option("structured_data_format", yt.YsonFormat(encoding="utf-8")):
+                yt.set(TEST_DIR + "/some_node", value)
+            assert yt.get(TEST_DIR + "/some_node") == value_bytes
+
+        # JSON applies encode_utf8 decoding on the server side.
+        assert yt.get(TEST_DIR + "/some_node", format="json") == b'{"\xc3\x82\xc2\xa9":"\xc3\x82\xc2\xa9"}'
+        
+        assert search_result == list(yt.search(TEST_DIR))
+
+        # NB: JsonFormat is used since 'Encoding parameter is not supported for Python 2'.
+        with set_config_option("structured_data_format", yt.JsonFormat(encoding="utf-8")):
+            assert search_result == list(yt.search(TEST_DIR))
+            assert yt.get(TEST_DIR + "/some_node") == value
+        with set_config_option("structured_data_format", yt.YsonFormat(encoding=None)):
+            assert [item.encode("ascii") for item in search_result] == list(yt.search(TEST_DIR))
+            assert yt.get(TEST_DIR + "/some_node") == value_bytes

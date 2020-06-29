@@ -7,6 +7,9 @@ from yt.wrapper.errors import YtOperationFailedError, YtError
 from yt.wrapper.operation_commands import format_operation_stderrs
 from yt.wrapper.common import get_binary_std_stream
 
+from yt.packages.six import binary_type
+from yt.packages.six.moves import map as imap
+
 import os
 import sys
 import traceback
@@ -44,6 +47,21 @@ def write_silently(strings, force_use_text_stdout=False):
                 sys.stderr.flush()
             finally:
                 pass
+
+def print_to_stdout(string_or_bytes, eoln=True):
+    def unicode_escape_non_ascii(string):
+        def escape(char):
+            if ord(char) < 128:
+                return char
+            else:
+                return char.encode("unicode-escape").decode("ascii")
+        return "".join(imap(escape, string))
+
+    if isinstance(string_or_bytes, binary_type):
+        string_or_bytes = string_or_bytes.decode("latin-1")
+    sys.stdout.write(unicode_escape_non_ascii(string_or_bytes))
+    if eoln:
+        sys.stdout.write("\n")
 
 def die(message=None, return_code=1):
     if message is not None:

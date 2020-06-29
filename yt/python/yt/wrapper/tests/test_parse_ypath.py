@@ -95,8 +95,8 @@ def make_parse_ypath_request(path, client=None):
     result = loads(make_request(
         "parse_ypath",
         {"path": path, "output_format": YsonFormat(require_yson_bindings=False).to_yson_type()},
-        client=client,
-        decode_content=False))
+        client=client)
+    )
     if get_api_version(client) == "v4":
         result = result["path"]
 

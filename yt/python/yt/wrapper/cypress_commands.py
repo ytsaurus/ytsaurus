@@ -2,19 +2,18 @@ from . import yson
 from .config import get_config, get_option, get_command_param
 from .common import flatten, get_value, YtError, set_param
 from .errors import YtResponseError
-from .driver import set_read_from_params, get_api_version
+from .driver import set_read_from_params, get_api_version, get_structured_format
 from .transaction_commands import (_make_transactional_request,
                                    _make_formatted_transactional_request)
 from .transaction import Transaction
 from .ypath import YPath, escape_ypath_literal, ypath_join, ypath_dirname
-from .format import create_format
 from .batch_response import apply_function_to_result
 from .retries import Retrier, default_chaos_monkey
 from .http_helpers import get_retriable_errors
 
 import yt.logger as logger
 
-from yt.packages.six import iteritems, string_types
+from yt.packages.six import iteritems, binary_type
 from yt.packages.six.moves import builtins, map as imap, filter as ifilter
 
 import string
@@ -75,12 +74,10 @@ def set(path, value, format=None, recursive=False, force=None, client=None):
 
     .. seealso:: `set in the docs <https://yt.yandex-team.ru/docs/api/commands.html#set>`_
     """
-    if format is None:
-        value = yson.dumps(value)
-        format = "yson"
-
-    if isinstance(format, string_types):
-        format = create_format(format)
+    is_format_specified = format is not None
+    format = get_structured_format(format, client=client)
+    if not is_format_specified:
+        value = format.dumps_node(value)
 
     params = {
         "path": YPath(path, client=client),
@@ -487,14 +484,25 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     # TODO(ostyakov): Remove local import
     from .batch_helpers import create_batch_client
 
+    encoding = get_structured_format(format=None, client=client)._encoding
+    def to_response_key_type(string):
+        if encoding is None:
+            return string.encode("ascii")
+        else:
+            return string
+
+    def to_native_string(string):
+        if isinstance(string, binary_type):
+            return string.decode("ascii")
+        else:
+            return string
+
     if not root and not get_config(client)["prefix"]:
         root = "/"
     root = str(YPath(root, client=client))
     attributes = get_value(attributes, [])
 
-    request_attributes = deepcopy(flatten(attributes))
-    request_attributes.append("type")
-    request_attributes.append("opaque")
+    request_attributes = deepcopy(flatten(attributes)) + ["type", "opaque"]
 
     exclude = flatten(get_value(exclude, []))
     if root != "//sys/operations":
@@ -528,8 +536,9 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     def is_opaque(content):
         # We have bug that get to document don't return attributes.
         return \
-            content.attributes.get("opaque", False) and content.attributes["type"] != "document" or \
-            content.attributes["type"] in ("account_map", "tablet_cell", "portal_entrance")
+            content.attributes.get(to_response_key_type("opaque"), False) and \
+            to_native_string(content.attributes[to_response_key_type("type")]) != "document" or \
+            to_native_string(content.attributes[to_response_key_type("type")]) in ("account_map", "tablet_cell", "portal_entrance")
 
     def safe_batch_get(nodes, batch_client):
         get_result = []
@@ -573,11 +582,11 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             logger.warning("Access to %s is denied", node.path)
             return
 
-        if "type" not in node.content.attributes:
+        try:
+            object_type = to_native_string(node.content.attributes[to_response_key_type("type")])
+        except KeyError:
             logger.warning("No attribute 'type' at %s", node.path)
-            node.content.attributes["type"] = "document"
-
-        object_type = node.content.attributes["type"]
+            object_type = "document"
 
         if node.followed_by_link and object_type == "link":
             return
@@ -610,7 +619,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
             else:
                 items_iter = iteritems(node.content)
             for key, value in items_iter:
-                path = "{0}/{1}".format(node.path, escape_ypath_literal(key))
+                path = to_response_key_type("/").join([node.path, escape_ypath_literal(key, encoding=encoding)])
                 for yson_path in process_node(CompositeNode(path, node.depth + 1, value), nodes_to_request):
                     yield yson_path
 
@@ -626,7 +635,7 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
                     yield yson_path
 
     nodes_to_request = []
-    nodes_to_request.append(CompositeNode(root, 0, ignore_opaque=True, ignore_resolve_error=ignore_root_path_resolve_error))
+    nodes_to_request.append(CompositeNode(to_response_key_type(root), 0, ignore_opaque=True, ignore_resolve_error=ignore_root_path_resolve_error))
 
     while nodes_to_request:
         if enable_batch_mode:

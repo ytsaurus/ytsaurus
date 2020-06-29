@@ -38,6 +38,8 @@ Py::Bytes EncodeStringObject(const Py::Object& obj, const std::optional<TString>
             PyObject* bytesString = PyUnicode_AsEncodedString(obj.ptr(), "ascii", "strict");
 #endif
             if (!bytesString) {
+                // TODO(ignat): use current python error as inner_error.
+                PyErr_Clear();
                 throw CreateYsonError(
                     Format(
                         "Cannot encode unicode object %v to bytes "

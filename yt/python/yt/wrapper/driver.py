@@ -4,17 +4,15 @@ from . import native_driver
 from .batch_response import apply_function_to_result
 from .common import YtError, update, simplify_structure, set_param
 from .config import get_option, set_option, get_config, get_backend_type
-from .format import create_format
+from .format import create_format, JsonFormat, YsonFormat, YtFormatError
 from .http_helpers import get_http_api_version, get_http_api_commands
 
 from yt.common import YT_NULL_TRANSACTION_ID
 
 import yt.logger as logger
 import yt.yson as yson
-import yt.json_wrapper as json
-from yt.yson.convert import json_to_yson
 
-from yt.packages.six import string_types
+from yt.packages.six import string_types, raise_from
 
 import os
 from copy import deepcopy
@@ -83,7 +81,6 @@ def make_request(command_name,
                  use_heavy_proxy=False,
                  timeout=None,
                  allow_retries=None,
-                 decode_content=True,
                  batch_yson_dumps=True,
                  client=None):
     backend = get_backend_type(client)
@@ -122,7 +119,6 @@ def make_request(command_name,
             params,
             data,
             return_content=return_content,
-            decode_content=decode_content,
             client=client)
     elif backend == "http":
         result = http_driver.make_request(
@@ -135,18 +131,19 @@ def make_request(command_name,
             use_heavy_proxy=use_heavy_proxy,
             timeout=timeout,
             allow_retries=allow_retries,
-            decode_content=decode_content,
             client=client)
     else:
         raise YtError("Incorrect backend type: " + backend)
 
+    # For testing purposes only.
     if enable_request_logging:
         result_string = ""
         try:
             if result:
-                debug_result = result
-                if "output_format" in params and str(params["output_format"]) == "yson" and isinstance(result, bytes):
-                    debug_result = yson.dumps(yson.loads(result), yson_format="text")
+                if "output_format" in params and str(params["output_format"]) == "yson":
+                    debug_result = yson.dumps(yson.loads(result), yson_format="text").decode("ascii")
+                else:
+                    debug_result = result.decode("ascii")
                 result_string = " (result: %r)" % debug_result
         except:
             result_string = ""
@@ -154,50 +151,54 @@ def make_request(command_name,
 
     return result
 
+def get_structured_format(format, client):
+    if format is None:
+        format = get_config(client)["structured_data_format"]
+    if format is None:
+        has_yson_bindings = (yson.TYPE == "BINARY")
+        use_yson = get_config(client)["force_using_yson_for_formatted_requests"] or has_yson_bindings
+        if use_yson:
+            format = YsonFormat()
+        else:
+            format = JsonFormat()
+    if isinstance(format, string_types):
+        format = create_format(format)
+    return format
 
 def make_formatted_request(command_name, params, format, **kwargs):
-    # None format means that we want parsed output (as YSON structure) instead of string.
-    # Yson parser is too slow, so we request result in JsonFormat and then convert it to YSON structure.
+    # None format means that we want to return parsed output (as YSON structure)
+    # instead of string.
 
     client = kwargs.get("client", None)
 
-    response_format = None
-
-    has_yson_bindings = (yson.TYPE == "BINARY")
-    use_yson = get_config(client)["force_using_yson_for_formatted_requests"] or has_yson_bindings
+    is_format_specified = format is not None
 
     is_batch = get_option("_client_type", client) == "batch"
     if is_batch:
         # NB: batch executor always use YSON format.
-        if format is not None:
+        if is_format_specified:
             raise YtError("Batch request is not supported for formatted requests")
     else:
-        if format is None:
-            if use_yson:
-                params["output_format"] = "yson"
-                response_format = "yson"
-            else:
-                params["output_format"] = "json"
-                response_format = "json"
-        else:
-            if isinstance(format, string_types):
-                format = create_format(format)
-            params["output_format"] = format.to_yson_type()
+        format = get_structured_format(format, client=client)
+        params["output_format"] = format.to_yson_type()
 
-    decode_content = format is not None
     result = make_request(command_name, params,
-                          response_format=response_format,
-                          decode_content=decode_content,
+                          response_format=format,
                           batch_yson_dumps=not is_batch,
                           **kwargs)
 
     if is_batch:
         return result
 
-    if format is None:
-        if use_yson:
-            return yson.loads(result)
-        else:
-            return json_to_yson(json.loads(result), encoding="latin-1")
+    if not is_format_specified:
+        try:
+            structured_result = format.loads_node(result)
+        except UnicodeDecodeError:
+            logger.exception("Failed to decode string")
+            error = YtFormatError("Failed to decode string, it usually means that "
+                                  "you are using python3 and non-unicode data in YT; "
+                                  "try to specify structured_data_format with none encoding")
+            raise_from(error, None)
+        return structured_result
     else:
         return format.postprocess(result)

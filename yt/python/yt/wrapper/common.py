@@ -209,7 +209,7 @@ def get_version():
                 VERSION = suffix
             else:
                 VERSION = '{0} ({1})'.format(VERSION, suffix)
-    except ImportError:
+    except (ImportError, AttributeError):
         pass
 
     if VERSION is None:

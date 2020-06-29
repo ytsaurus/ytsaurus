@@ -26,10 +26,7 @@ def test_convert_json_to_yson():
         }
     })
 
-    if not PY3:
-        z = str(bytearray(u"Брюссельская капуста", "utf-8"))
-    else:
-        z = u"Брюссельская капуста"
+    z = u"Брюссельская капуста"
     assert dict(x) == {"x": 10, "y": 11, "z": z}
     assert x.attributes == "abc"
 
