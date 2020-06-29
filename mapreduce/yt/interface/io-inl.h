@@ -146,13 +146,13 @@ struct IProtoReaderImpl
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// We don't include <mapreduce/yt/interface/logging/log.h> in this file
-// to avoid macro name clashes (specifically LOG_DEBUG)
 namespace NDetail {
-    void LogTableReaderStatistics(ui64 rowCount, TMaybe<size_t> byteCount);
-} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
+
+// We don't include <mapreduce/yt/interface/logging/log.h> in this file
+// to avoid macro name clashes (specifically LOG_DEBUG)
+void LogTableReaderStatistics(ui64 rowCount, TMaybe<size_t> byteCount);
 
 template <class T>
 class TTableReaderBase
@@ -162,7 +162,8 @@ public:
     using TRowType = T;
     using IReaderImpl = typename TRowTraits<T>::IReaderImpl;
 
-    TTableReaderBase()
+    explicit TTableReaderBase(::TIntrusivePtr<IReaderImpl> reader)
+        : Reader_(reader)
     { }
 
     ~TTableReaderBase()
@@ -170,28 +171,6 @@ public:
         NDetail::LogTableReaderStatistics(ReadRowCount_, Reader_->GetReadByteCount());
     }
 
-    explicit TTableReaderBase(::TIntrusivePtr<IReaderImpl> reader)
-        : Reader_(reader)
-    { }
-
-    const TRowType& GetRow() const
-    {
-        return Reader_->GetRow();
-    }
-
-    void MoveRow(TRowType* row)
-    {
-        Y_VERIFY(row);
-        return Reader_->MoveRow(row);
-    }
-
-    TRowType MoveRow()
-    {
-        TRowType result;
-        Reader_->MoveRow(&result);
-        return result;
-    }
-
     bool IsValid() const
     {
         return Reader_->IsValid();
@@ -201,6 +180,7 @@ public:
     {
         Reader_->Next();
         ++ReadRowCount_;
+        RowState_ = ERowState::None;
     }
 
     ui32 GetTableIndex() const
@@ -218,63 +198,139 @@ public:
         return Reader_->GetRowIndex();
     }
 
+protected:
+    template <typename TCacher, typename TCacheGetter>
+    const auto& DoGetRowCached(TCacher cacher, TCacheGetter cacheGetter) const
+    {
+        switch (RowState_) {
+            case ERowState::None:
+                cacher();
+                RowState_ = ERowState::Cached;
+                break;
+            case ERowState::Cached:
+                break;
+            case ERowState::MovedOut:
+                ythrow yexception() << "Row is already moved";
+        }
+        return *cacheGetter();
+    }
+
+    template <typename U, typename TMover, typename TCacheMover>
+    void DoMoveRowCached(U* result, TMover mover, TCacheMover cacheMover)
+    {
+        Y_VERIFY(result);
+        switch (RowState_) {
+            case ERowState::None:
+                mover(result);
+                break;
+            case ERowState::Cached:
+                cacheMover(result);
+                break;
+            case ERowState::MovedOut:
+                ythrow yexception() << "Row is already moved";
+        }
+        RowState_ = ERowState::MovedOut;
+    }
+
 private:
+    enum class ERowState
+    {
+        None,
+        Cached,
+        MovedOut,
+    };
+
+protected:
     ::TIntrusivePtr<IReaderImpl> Reader_;
+
+private:
     ui64 ReadRowCount_ = 0;
+    mutable ERowState RowState_ = ERowState::None;
 };
+
+template <class T>
+class TSimpleTableReader
+    : public TTableReaderBase<T>
+{
+public:
+    using TBase = TTableReaderBase<T>;
+    using typename TBase::TRowType;
+
+    using TBase::TBase;
+
+    const TRowType& GetRow() const
+    {
+        // Caching is implemented in underlying reader.
+        return TBase::DoGetRowCached(
+            /* cacher */ [&] {},
+            [&] {
+                return &Reader_->GetRow();
+            });
+    }
+
+    void MoveRow(TRowType* result)
+    {
+        // Caching is implemented in underlying reader.
+        TBase::DoMoveRowCached(
+            result,
+            [&] (TRowType* result) {
+                Reader_->MoveRow(result);
+            },
+            [&] (TRowType* result) {
+                Reader_->MoveRow(result);
+            });
+    }
+
+    TRowType MoveRow()
+    {
+        TRowType result;
+        MoveRow(&result);
+        return result;
+    }
+
+private:
+    using TBase::Reader_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
 
 template <>
 class TTableReader<TNode>
-    : public TTableReaderBase<TNode>
+    : public NDetail::TSimpleTableReader<TNode>
 {
-public:
-    using TBase = TTableReaderBase<TNode>;
-
-    explicit TTableReader(::TIntrusivePtr<IReaderImpl> reader)
-        : TBase(reader)
-    { }
+    using TSimpleTableReader<TNode>::TSimpleTableReader;
 };
 
 template <>
 class TTableReader<TYaMRRow>
-    : public TTableReaderBase<TYaMRRow>
+    : public NDetail::TSimpleTableReader<TYaMRRow>
 {
-public:
-    using TBase = TTableReaderBase<TYaMRRow>;
-
-    explicit TTableReader(::TIntrusivePtr<IReaderImpl> reader)
-        : TBase(reader)
-    { }
+    using TSimpleTableReader<TYaMRRow>::TSimpleTableReader;
 };
 
 template<class... TYdlRowTypes>
 class TTableReader<TYdlOneOf<TYdlRowTypes...>>
-    : public TThrRefBase
+    : public NDetail::TTableReaderBase<TYdlOneOf<TYdlRowTypes...>>
 {
 public:
-    using TRowType = TYdlOneOf<TYdlRowTypes...>;
+    using TBase = NDetail::TTableReaderBase<TYdlOneOf<TYdlRowTypes...>>;
 
-    explicit TTableReader(::TIntrusivePtr<IYdlReaderImpl> reader)
-        : Reader_(std::move(reader))
-    { }
-
-    ~TTableReader() override
-    {
-        NDetail::LogTableReaderStatistics(ReadRowCount_, Reader_->GetReadByteCount());
-    }
+    using TBase::TBase;
 
     template <class U>
     const U& GetRow() const
     {
         AssertIsOneOf<U>();
         Reader_->VerifyRowType(NYdl::TYdlTraits<U>::ReflectRaw()->GetHash());
-        if (RowState_ == None) {
-            std::get<U>(CachedRows_) = U::DeserializeFromYson(Reader_->GetRow());
-            RowState_ = Cached;
-        } else if (RowState_ == MovedOut) {
-            ythrow yexception() << "Row is already moved";
-        }
-        return std::get<U>(CachedRows_);
+        return TBase::DoGetRowCached(
+            [&] {
+                std::get<U>(CachedRows_) = U::DeserializeFromYson(Reader_->GetRow());
+            },
+            [&] {
+                return &std::get<U>(CachedRows_);
+            });
     }
 
     template <class U>
@@ -282,68 +338,29 @@ public:
     {
         AssertIsOneOf<U>();
         Reader_->VerifyRowType(NYdl::TYdlTraits<U>::ReflectRaw()->GetHash());
-        Y_VERIFY(result);
-        switch (RowState_) {
-            case None:
+        return TBase::DoMoveRowCached(
+            result,
+            [&] (U* result) {
                 *result = U::DeserializeFromYson(Reader_->GetRow());
-                break;
-            case Cached:
+            },
+            [&] (U* result) {
                 *result = std::move(std::get<U>(CachedRows_));
-                break;
-            case MovedOut:
-                ythrow yexception() << "Row is already moved";
-        }
-        RowState_ = MovedOut;
+            });
     }
 
     template <class U>
     U MoveRow()
     {
         U result;
-        MoveRow<U>(&result);
+        MoveRow(&result);
         return result;
     }
 
-    bool IsValid() const
-    {
-        return Reader_->IsValid();
-    }
-
-    void Next()
-    {
-        Reader_->Next();
-        RowState_ = None;
-        ++ReadRowCount_;
-    }
-
-    ui32 GetTableIndex() const
-    {
-        return Reader_->GetTableIndex();
-    }
-
-    ui32 GetRangeIndex() const
-    {
-        return Reader_->GetRangeIndex();
-    }
-
-    ui64 GetRowIndex() const
-    {
-        return Reader_->GetRowIndex();
-    }
-
 private:
-    ::TIntrusivePtr<IYdlReaderImpl> Reader_;
-    ui64 ReadRowCount_ = 0;
+    using TBase::Reader_;
     // std::variant could also be used here, but std::tuple leads to better performance
     // because of deallocations that std::variant has to do
     mutable std::tuple<TYdlRowTypes...> CachedRows_;
-
-    enum ERowState {
-        None,
-        Cached,
-        MovedOut,
-    };
-    mutable ERowState RowState_ = None;
 
     template <class U>
     static constexpr void AssertIsOneOf()
@@ -362,110 +379,75 @@ public:
     using TBase = TTableReader<TYdlOneOf<T>>;
     using TRowType = T;
 
-    explicit TTableReader(::TIntrusivePtr<IYdlReaderImpl> reader)
-        : TBase(std::move(reader))
-    { }
+    using TBase::TBase;
 
     const TRowType& GetRow() const
     {
-        return TBase::template GetRow<T>();
+        return TBase::template GetRow<TRowType>();
     }
 
     void MoveRow(TRowType* result)
     {
-        TBase::template MoveRow<T>(result);
+        TBase::template MoveRow<TRowType>(result);
     }
 
-    TRowType MoveRow()
+    T MoveRow()
     {
-        return TBase::template MoveRow<T>();
+        return TBase::template MoveRow<TRowType>();
     }
 };
 
 template <>
 class TTableReader<Message>
-    : public TThrRefBase
+    : public NDetail::TTableReaderBase<Message>
 {
 public:
-    using TRowType = Message;
+    using TBase = NDetail::TTableReaderBase<Message>;
 
-    explicit TTableReader(::TIntrusivePtr<IProtoReaderImpl> reader)
-        : Reader_(reader)
-    { }
+    using TBase::TBase;
 
-    ~TTableReader() override
-    {
-        NDetail::LogTableReaderStatistics(ReadRowCount_, Reader_->GetReadByteCount());
-    }
-
-    template <class U, std::enable_if_t<TIsBaseOf<Message, U>::Value>* = nullptr>
+    template <class U>
     const U& GetRow() const
     {
-        if (!CachedRow_) {
-            THolder<Message> row(new U);
-            ReadRow(row.Get());
-            CachedRow_.Swap(row);
-        }
-        return dynamic_cast<const U&>(*CachedRow_);
+        static_assert(TIsBaseOf<Message, U>::Value);
+
+        return TBase::DoGetRowCached(
+            [&] {
+                CachedRow_.Reset(new U);
+                Reader_->ReadRow(CachedRow_.Get());
+            },
+            [&] {
+                auto result = dynamic_cast<const U*>(CachedRow_.Get());
+                Y_VERIFY(result);
+                return result;
+            });
     }
 
-    template <class U, std::enable_if_t<TIsBaseOf<Message, U>::Value>* = nullptr>
+    template <class U>
     void MoveRow(U* result)
     {
-        Y_VERIFY(result != nullptr);
-        U row;
-        if (CachedRow_) {
-            row.Swap(&dynamic_cast<U&>(*CachedRow_));
-            CachedRow_.Reset();
-        } else {
-            ReadRow(&row);
-        }
-        result->Swap(&row);
+        static_assert(TIsBaseOf<Message, U>::Value);
+
+        TBase::DoMoveRowCached(
+            result,
+            [&] (U* result) {
+                Reader_->ReadRow(result);
+            },
+            [&] (U* result) {
+                auto cast = dynamic_cast<U*>(CachedRow_.Get());
+                Y_VERIFY(cast);
+                result->Swap(cast);
+            });
     }
 
-    template <class U, std::enable_if_t<TIsBaseOf<Message, U>::Value>* = nullptr>
+    template <class U>
     U MoveRow()
     {
+        static_assert(TIsBaseOf<Message, U>::Value);
+
         U result;
         MoveRow(&result);
         return result;
-    }
-
-    bool IsValid() const
-    {
-        return Reader_->IsValid();
-    }
-
-    void Next()
-    {
-        Reader_->Next();
-        CachedRow_.Reset(nullptr);
-        RowDone_ = false;
-        ++ReadRowCount_;
-    }
-
-    ui32 GetTableIndex() const
-    {
-        return Reader_->GetTableIndex();
-    }
-
-    ui32 GetRangeIndex() const
-    {
-        return Reader_->GetRangeIndex();
-    }
-
-    ui64 GetRowIndex() const
-    {
-        return Reader_->GetRowIndex();
-    }
-
-    void ReadRow(Message* row) const
-    {
-        //Not all the IProtoReaderImpl implementations support multiple ReadRow calls
-        //TODO: fix LSP violation
-        Y_ENSURE(!RowDone_, "Row is already moved");
-        Reader_->ReadRow(row);
-        RowDone_ = true;
     }
 
     ::TIntrusivePtr<IProtoReaderImpl> GetReaderImpl() const
@@ -474,59 +456,41 @@ public:
     }
 
 private:
-    ::TIntrusivePtr<IProtoReaderImpl> Reader_;
-    ui64 ReadRowCount_ = 0;
+    using TBase::Reader_;
     mutable THolder<Message> CachedRow_;
-    mutable bool RowDone_ = false;
 };
 
 template <class T>
 class TTableReader<T, std::enable_if_t<TIsBaseOf<Message, T>::Value>>
-    : public TThrRefBase
+    : public NDetail::TTableReaderBase<T>
 {
 public:
-    using TRowType = T;
+    using TBase = NDetail::TTableReaderBase<T>;
+    using typename TBase::TRowType;
 
-    explicit TTableReader(::TIntrusivePtr<IProtoReaderImpl> reader)
-        : Reader_(std::move(reader))
-    { }
-
-    ~TTableReader() override
-    {
-        NDetail::LogTableReaderStatistics(ReadRowCount_, Reader_->GetReadByteCount());
-    }
+    using TBase::TBase;
 
     const TRowType& GetRow() const
     {
-        switch (RowState_) {
-            case None:
+        return TBase::DoGetRowCached(
+            [&] {
                 Reader_->ReadRow(&CachedRow_);
-                RowState_ = Cached;
-                return CachedRow_;
-            case Cached:
-                return CachedRow_;
-            case MovedOut:
-                ythrow yexception() << "Row is already moved";
-        }
-        Y_FAIL();
+            },
+            [&] {
+                return &CachedRow_;
+            });
     }
 
     void MoveRow(TRowType* result)
     {
-        Y_VERIFY(result != nullptr);
-        switch (RowState_) {
-            case None:
+        TBase::DoMoveRowCached(
+            result,
+            [&] (TRowType* result) {
                 Reader_->ReadRow(result);
-                RowState_ = MovedOut;
-                return;
-            case Cached:
+            },
+            [&] (TRowType* result) {
                 result->Swap(&CachedRow_);
-                RowState_ = MovedOut;
-                return;
-            case MovedOut:
-                ythrow yexception() << "Row is already moved";
-        }
-        Y_FAIL();
+            });
     }
 
     TRowType MoveRow()
@@ -536,49 +500,14 @@ public:
         return result;
     }
 
-    bool IsValid() const
-    {
-        return Reader_->IsValid();
-    }
-
-    void Next()
-    {
-        Reader_->Next();
-        RowState_ = None;
-        ++ReadRowCount_;
-    }
-
-    ui32 GetTableIndex() const
-    {
-        return Reader_->GetTableIndex();
-    }
-
-    ui32 GetRangeIndex() const
-    {
-        return Reader_->GetRangeIndex();
-    }
-
-    ui64 GetRowIndex() const
-    {
-        return Reader_->GetRowIndex();
-    }
-
     ::TIntrusivePtr<IProtoReaderImpl> GetReaderImpl() const
     {
         return Reader_;
     }
 
 private:
-    ::TIntrusivePtr<IProtoReaderImpl> Reader_;
-    ui64 ReadRowCount_ = 0;
+    using TBase::Reader_;
     mutable TRowType CachedRow_;
-
-    enum ERowState {
-        None,
-        Cached,
-        MovedOut,
-    };
-    mutable ERowState RowState_ = None;
 };
 
 template <>
