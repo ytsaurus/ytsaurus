@@ -2033,7 +2033,7 @@ for line in sys.stdin:
             sorted_by="key")
 
         create("table", "//tmp/out")
-        
+
         reduce(
             in_=["<teleport=%true>//tmp/in_t1", "<foreign=%true>//tmp/in_f"],
             out="<teleport=%true>//tmp/out",
@@ -2056,6 +2056,60 @@ for line in sys.stdin:
             command='cat; echo "key=2"',
             spec={"reducer": {"format": "dsv"}})
         assert read_table("//tmp/out") == [{"key": 0, "value": 0}]
+
+    @authors("gritukan")
+    @unix_only
+    def test_foreign_table_and_barrier_jobs(self):
+        create("table", "//tmp/foreign")
+        write_table(
+            "//tmp/foreign",
+            [{"key": "%d" % i, "value": 20 + i} for i in range(10)],
+            sorted_by = ["key"])
+
+        create("table", "//tmp/primary")
+        write_table(
+            "//tmp/primary",
+            [
+                {"key":"2", "subkey":"1", "value":11},
+                {"key":"2", "subkey":"2", "value":12},
+                {"key":"5", "subkey":"3", "value":13},
+                {"key":"5", "subkey":"4", "value":14},
+
+            ],
+            sorted_by = ["key", "subkey"])
+
+        create("table", "//tmp/output")
+
+        # Explicit `pivot_keys' list adds barrier job after each real job.
+        op = reduce(
+            in_ = ["//tmp/primary", "<foreign=true>//tmp/foreign"],
+            out = ["//tmp/output"],
+            command = "cat",
+            reduce_by = ["key", "subkey"],
+            join_by = "key",
+            spec = {
+                "reducer": {
+                    "format": yson.loads("<enable_table_index=true>dsv")
+                },
+                "pivot_keys": [["2", "1"], ["2", "2"], ["5", "3"], ["5", "4"]]
+            })
+        assert get("//tmp/output/@chunk_count") == 4
+        chunk_ids = get("//tmp/output/@chunk_ids")
+        # Each chunk has two rows: one primary and one foreign.
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [2, 2, 2, 2]
+
+        expected = [
+            {"key":"2", "subkey":"1", "value": "11", "@table_index": "0"},
+            {"key":"2", "value":"22", "@table_index": "1"},
+            {"key":"2", "subkey":"2", "value": "12", "@table_index": "0"},
+            {"key":"2", "value":"22", "@table_index": "1"},
+            {"key":"5", "subkey":"3", "value": "13", "@table_index": "0"},
+            {"key":"5", "value":"25", "@table_index": "1"},
+            {"key":"5", "subkey":"4", "value": "14", "@table_index": "0"},
+            {"key":"5", "value":"25", "@table_index": "1"},
+        ]
+
+        assert sorted(list(read_table("//tmp/output"))) == sorted(expected)
 
 ##################################################################
 

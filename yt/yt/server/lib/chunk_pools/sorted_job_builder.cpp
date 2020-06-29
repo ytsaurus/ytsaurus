@@ -542,34 +542,53 @@ private:
             int startJobIndex = 0;
 
             for (const auto& foreignDataSlice : ForeignDataSlice) {
-                while (
-                    startJobIndex != Jobs_.size() &&
-                    CompareRows(Jobs_[startJobIndex]->UpperPrimaryKey(), foreignDataSlice->LowerLimit().Key, Options_.ForeignPrefixLength) < 0)
-                {
-                    ++startJobIndex;
+                // Skip jobs that are entirely to the left of foreign data slice.
+                while (startJobIndex < Jobs_.size()) {
+                    const auto& job = Jobs_[startJobIndex];
+                    if (job->GetIsBarrier()) {
+                        // Job is a barrier, ignore it.
+                        ++startJobIndex;
+                    } else if (CompareRows(job->UpperPrimaryKey(), foreignDataSlice->LowerLimit().Key, Options_.ForeignPrefixLength) < 0) {
+                        // Job's rightmost key is to the left of the slice's leftmost key.
+                        ++startJobIndex;
+                    } else {
+                        break;
+                    }
                 }
+
                 if (startJobIndex == Jobs_.size()) {
                     break;
                 }
-                for (
-                    int jobIndex = startJobIndex;
-                    jobIndex < Jobs_.size() &&
-                    CompareRows(Jobs_[jobIndex]->LowerPrimaryKey(), foreignDataSlice->UpperLimit().Key, Options_.ForeignPrefixLength) <= 0;
-                    ++jobIndex)
-                {
+
+                int jobIndex = startJobIndex;
+                while (jobIndex < Jobs_.size()) {
                     yielder.TryYield();
 
-                    auto exactForeignDataSlice = CreateInputDataSlice(
-                        foreignDataSlice,
-                        GetKeyPrefix(Jobs_[jobIndex]->LowerPrimaryKey(), Options_.ForeignPrefixLength, RowBuffer_),
-                        GetKeyPrefixSuccessor(Jobs_[jobIndex]->UpperPrimaryKey(), Options_.ForeignPrefixLength, RowBuffer_));
-                    auto inputCookie = DataSliceToInputCookie_.at(foreignDataSlice);
-                    exactForeignDataSlice->Tag = inputCookie;
-                    ++TotalSliceCount_;
-                    Jobs_[jobIndex]->AddDataSlice(
-                        exactForeignDataSlice,
-                        inputCookie,
-                        false /* isPrimary */);
+                    const auto& job = Jobs_[jobIndex];
+                    if (job->GetIsBarrier()) {
+                        // Job is a barrier, ignore it.
+                        ++jobIndex;
+                        continue;
+                    }
+
+                    if (CompareRows(job->LowerPrimaryKey(), foreignDataSlice->UpperLimit().Key, Options_.ForeignPrefixLength) <= 0) {
+                        // Job's key range intersects with foreign slice's key range, add foreign data slice into the job.
+                        auto exactForeignDataSlice = CreateInputDataSlice(
+                            foreignDataSlice,
+                            GetKeyPrefix(job->LowerPrimaryKey(), Options_.ForeignPrefixLength, RowBuffer_),
+                            GetKeyPrefixSuccessor(job->UpperPrimaryKey(), Options_.ForeignPrefixLength, RowBuffer_));
+                        auto inputCookie = DataSliceToInputCookie_.at(foreignDataSlice);
+                        exactForeignDataSlice->Tag = inputCookie;
+                        ++TotalSliceCount_;
+                        job->AddDataSlice(
+                            exactForeignDataSlice,
+                            inputCookie,
+                            /*isPrimary=*/false);
+                        ++jobIndex;
+                    } else {
+                        // This job and all the subsequent jobs are entirely to the right of foreign data slice.
+                        break;
+                    }
                 }
             }
             ValidateTotalSliceCountLimit();
