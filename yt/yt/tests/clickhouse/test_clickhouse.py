@@ -53,6 +53,7 @@ DEFAULTS = {
 
 QUERY_TYPES_WITH_OUTPUT = ("describe", "select", "show", "exists")
 
+UserJobFailed = 1205
 QueryFailedError = 2200
 InstanceUnavailableCode = 2201
 
@@ -478,6 +479,40 @@ class TestClickHouseCommon(ClickHouseTestBase):
             }
         }
     }
+
+    @authors("evgenstf")
+    def test_show_tables(self):
+        tables = ['/t11', '/t12', '/n1/t3', '/n1/t4']
+        def create_subtrees(root):
+            create('map_node', root)
+            create("map_node", root + "/n1")
+            for table in tables:
+                create("table", root + table, attributes={"schema": [{"name": "a", "type": "string"}]})
+
+        roots = ['//tmp/root1', '//tmp/root2']
+        for root in roots:
+            create_subtrees(root)
+
+        with Clique(1, config_patch={"yt": {"show_tables": {"roots": roots}}}) as clique:
+            shown_tables = {table["name"] for table in clique.make_query('show tables')}
+            for root in roots:
+                for table in tables:
+                    assert root + table in shown_tables
+                    shown_tables.remove(root + table)
+            assert len(shown_tables) == 0
+
+
+            shown_tables_like_t1 = {table["name"] for table in clique.make_query("show tables like '%t1%'")}
+            for root in roots:
+                assert root + '/t11' in shown_tables_like_t1
+                shown_tables_like_t1.remove(root + '/t11')
+
+                assert root + '/t12' in shown_tables_like_t1
+                shown_tables_like_t1.remove(root + '/t12')
+
+        with raises_yt_error(UserJobFailed):
+            with Clique(1, config_patch={"yt": {"show_tables": {"roots": ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11"]}}}) as clique:
+                pass
 
     @authors("evgenstf")
     def test_subquery_columnar_data_weight(self):
@@ -3363,7 +3398,7 @@ class TestColumnarRead(ClickHouseTestBase):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
             for type in ["double", "float"]:
                 self._check_single_column(clique, type, True, [1.0, 2.0, 3.14, 2.7])
-                
+
                 self._check_single_column(clique, type, False, [1.0, 2.0, None, 3.14, 2.7, None])
 
     @authors("babenko")
@@ -3372,7 +3407,7 @@ class TestColumnarRead(ClickHouseTestBase):
             self._check_single_column(clique, "string", True, ["hello", "world"])
             self._check_single_column(clique, "string", True, ["hello", "world"] * 100)
             self._check_single_column(clique, "string", True, ["hello"] * 1000)
-            
+
             self._check_single_column(clique, "string", True, ["\x00" * 10, "some\x00nulls\x00inside", ""])
 
             self._check_single_column(clique, "string", False, ["hello", None, "world"])
@@ -3414,7 +3449,7 @@ class TestColumnarRead(ClickHouseTestBase):
             write_table("//tmp/s1", [{"a": 123}])
             merge(in_="//tmp/s1", out="//tmp/s2")
             assert clique.make_query("select * from `//tmp/s2`")[0] == {"a": 123, "b": None}
-    
+
     @authors("babenko")
     def test_date_types(self):
         create("table", "//tmp/t1", attributes={

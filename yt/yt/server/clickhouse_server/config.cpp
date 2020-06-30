@@ -24,6 +24,21 @@ THealthCheckerConfig::THealthCheckerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TShowTablesConfig::TShowTablesConfig()
+{
+    RegisterParameter("roots", Roots)
+        .Default();
+
+    RegisterPostprocessor([&] {
+        const int MaxRootCount = 10;
+        if (Roots.size() > MaxRootCount) {
+            THROW_ERROR_EXCEPTION("Maximum number of roots for SHOW TABLES exceeded: %v > %v", Roots.size(), MaxRootCount);
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSubqueryConfig::TSubqueryConfig()
 {
     RegisterParameter("chunk_slice_fetcher", ChunkSliceFetcher)
@@ -91,6 +106,9 @@ TYtConfig::TYtConfig()
 
     RegisterParameter("user", User)
         .Default("yt-clickhouse");
+
+    RegisterParameter("show_tables", ShowTables)
+        .DefaultNew();
 
     RegisterParameter("profiling_period", ProfilingPeriod)
         .Default(TDuration::Seconds(1));

@@ -6,6 +6,7 @@
 #include "query_registry.h"
 #include "table.h"
 #include "host.h"
+#include "table_traverser.h"
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -43,7 +44,7 @@ public:
 
     std::string getEngineName() const override
     {
-        return "YT";
+        return "Lazy";
     }
 
     void createTable(
@@ -70,34 +71,50 @@ public:
         return DoGetTable(context, name);
     }
 
-    virtual DB::DatabaseTablesIteratorPtr getTablesIterator(const DB::Context& /* context */, const FilterByNameFunction& /* filter_by_table_name */) override
+    virtual DB::DatabaseTablesIteratorPtr getTablesIterator(
+        const DB::Context& context,
+        const FilterByNameFunction& filterByTableName) override
     {
-        class TDummyIterator
+        class TTableIterator
             : public DB::IDatabaseTablesIterator
         {
         public:
-            bool isValid() const override
+            TTableIterator(std::vector<String> paths)
+                : Paths_(std::move(paths))
+            { }
+
+            virtual bool isValid() const override
             {
-                return false;
+                return Index_ < Paths_.size();
             }
 
             virtual void next() override
             {
-                YT_ABORT();
+                ++Index_;
             }
 
             virtual const String& name() const override
             {
-                YT_ABORT();
+                return Paths_[Index_];
             }
 
             virtual DB::StoragePtr& table() const override
             {
-                YT_ABORT();
+                return Table_;
             }
+
+        private:
+            const std::vector<String> Paths_;
+
+            size_t Index_ = 0;
+            mutable DB::StoragePtr Table_ = nullptr;
         };
 
-        return std::make_unique<TDummyIterator>();
+        auto queryContext = GetQueryContext(context);
+
+        TTableTraverser traverser(queryContext->Client(), queryContext->Host->GetConfig()->ShowTables->Roots,  filterByTableName);
+
+        return std::make_unique<TTableIterator>(traverser.GetTables());
     }
 
     virtual bool empty() const override
