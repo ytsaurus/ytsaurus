@@ -2,7 +2,7 @@ import yt.logger as logger
 
 from yt.wrapper.dynamic_table_commands import mount_table, unmount_table, reshard_table
 from yt.packages.six import iteritems
-from yt.wrapper.cypress_commands import exists, create, set
+from yt.wrapper.cypress_commands import exists, create, set, get
 from yt.yson import YsonUint64
 
 from yt.wrapper.common import update_inplace
@@ -132,6 +132,10 @@ def prepare_log_tailer_tables(log_file,
     ]
 
     ttl = log_file["ttl"]
+
+    if get(artifact_path + "/@", attributes=["disable_logging"], client=client).get("disable_logging", False):
+        logger.warning("Logging disabled due to 'disable_logging' attribute")
+        return
 
     for kind, path in [("ordered_normally", ordered_normally_path), ("ordered_by_trace_id", ordered_by_trace_id_path)]:
         logger.debug("Preparing log table %s", path)
