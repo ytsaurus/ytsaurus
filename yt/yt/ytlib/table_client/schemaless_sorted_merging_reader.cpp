@@ -585,11 +585,18 @@ IUnversionedRowBatchPtr TSchemalessJoiningReader::Read(const TRowBatchReadOption
                 lastPrimaryRow,
                 (session == PrimarySession_) ? ReduceKeyColumnCount_ : SortKeyColumnCount_) > 0)
             {
-                // Immediately stop reader on key change.
-                SessionHeap_.clear();
-                return rows.empty()
-                    ? nullptr
-                    : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+                // Extract current session from session heap.
+                ExtractHeap(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_);
+                YT_VERIFY(SessionHeap_.back() == session);
+                SessionHeap_.pop_back();
+
+                if (!rows.empty()) {
+                    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
+                } else if (SessionHeap_.empty()) {
+                    return nullptr;
+                } else {
+                    return CreateEmptyUnversionedRowBatch();
+                }
             }
         }
 

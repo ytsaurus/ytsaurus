@@ -205,7 +205,7 @@ protected:
         TRowBatchReadOptions options{
             .MaxRowsPerRead = rowsPerRead
         };
-        
+
         int readRowCount = 0;
         TString lastReadRow;
 
@@ -601,8 +601,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         &resultStorage,
         rowsPerRead,
         interruptRowCount,
-        4,
-        rows[3],
+        5,
+        rows[5],
         {
             {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
             {8, TString("[0#\"ab\", 1#3, 2#3u, 3#1]")},
@@ -614,8 +614,8 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderMultiplePrimaryBef
         &resultStorage,
         rowsPerRead,
         interruptRowCount,
-        4,
-        rows[3],
+        5,
+        rows[5],
         {
             {4, TString("[0#\"bb\", 1#2, 2#23u, 3#0]")},
             {8, TString("[0#\"ab\", 1#3, 2#3u, 3#1]")},
@@ -1034,6 +1034,37 @@ TEST_F(TSchemalessSortedMergingReaderTest, SortedJoiningReaderPrimaryBeforeForei
         rows[7],
         {
             {2, TString("[0#\"cb\", 1#3, 2#25u, 3#0]")},
+        });
+}
+
+TEST_F(TSchemalessSortedMergingReaderTest, InterruptOnReduceKeyChange)
+{
+    auto createReader = [] (std::vector<TResultStorage>* resultStorage) -> ISchemalessMultiChunkReaderPtr {
+        resultStorage->clear();
+        resultStorage->resize(1);
+        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
+        primaryReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData3, 0, &(*resultStorage)[0]));
+
+        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
+        foreignReaders.emplace_back(New<TSchemalessMultiChunkFakeReader>(tableData4, 1));
+
+        return CreateSchemalessSortedJoiningReader(primaryReaders, 2, 2, foreignReaders, 1, true);
+    };
+
+    std::vector<TResultStorage> resultStorage;
+    auto rows = ReadAll(createReader, &resultStorage);
+
+    int interruptRowCount = 1;
+    int rowsPerRead = 1;
+    ReadAndCheckResult(
+        createReader,
+        &resultStorage,
+        rowsPerRead,
+        interruptRowCount,
+        4,
+        rows[5],
+        {
+            {2, TString("[0#\"a\", 1#3, 2#0]")},
         });
 }
 
