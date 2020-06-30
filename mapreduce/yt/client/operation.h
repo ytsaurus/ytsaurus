@@ -28,6 +28,7 @@ public:
 public:
     TOperation(TOperationId id, TClientPtr client);
     virtual const TOperationId& GetId() const override;
+    virtual TString GetWebInterfaceUrl() const override;
     virtual NThreading::TFuture<void> Watch() override;
     virtual TVector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) override;
     virtual EOperationBriefState GetBriefState() override;

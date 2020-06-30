@@ -32,12 +32,13 @@ int main(int argc, const char** argv) {
     // Выходная табличка у нас будет лежать в tmp и содержать имя текущего пользователя.
     const TString outputTable = "//tmp/" + GetUsername() + "-tutorial-emails";
 
-    client->Map(
+    auto op = client->Map(
         TMapOperationSpec()
             .AddInput<TNode>("//home/ermolovd/yt-tutorial/staff_unsorted")
             .AddOutput<TNode>(outputTable),
         new TComputeEmailsMapper);
 
+    Cout << "Operation: " << op->GetWebInterfaceUrl() << Endl;
     Cout << "Output table: https://yt.yandex-team.ru/freud/#page=navigation&offsetMode=row&path=" << outputTable << Endl;
 
     return 0;
