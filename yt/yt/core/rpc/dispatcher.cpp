@@ -24,7 +24,7 @@ public:
         : CompressionFairShareThreadPool_(BIND([] {
             return CreateFairShareThreadPool(
                 TDispatcherConfig::DefaultCompressionPoolSize,
-                "FSCompression");
+                "Compression");
         }))
         , CompressionPoolInvoker_(BIND([this] {
             return CreatePrioritizedInvoker(CompressionPool_->GetInvoker());

@@ -142,13 +142,12 @@ private:
         const TTableMountCachePtr Owner_;
         const TWeakPtr<IConnection> Connection_;
         const TTableMountCacheKey Key_;
+        const NLogging::TLogger Logger;
 
         TTableId TableId_;
         TCellTag CellTag_;
         NHydra::TRevision PrimaryRevision_ = NHydra::NullRevision;
         NHydra::TRevision SecondaryRevision_ = NHydra::NullRevision;
-
-        NLogging::TLogger Logger;
 
         TMasterReadOptions GetMasterReadOptions()
         {

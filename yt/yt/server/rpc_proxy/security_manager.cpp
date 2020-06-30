@@ -44,7 +44,7 @@ private:
 
     virtual TFuture<void> DoGet(const TString& user, bool isPeriodicUpdate) noexcept override
     {
-        YT_LOG_DEBUG("User check started (User: %v)",
+        YT_LOG_DEBUG("Getting user ban flag (User: %v)",
             user);
 
         auto client = Bootstrap_->GetNativeClient();
@@ -60,13 +60,13 @@ private:
                     THROW_ERROR wrappedError;
                 }
 
-                const auto& node = ConvertToNode(resultOrError.Value());
+                auto banned = ConvertTo<bool>(resultOrError.Value());
 
-                YT_LOG_DEBUG("Got banned info for user %Qv: %Qv",
+                YT_LOG_DEBUG("Got user ban flag (User: %v, Banned: %v)",
                     user,
-                    ConvertToYsonString(node, EYsonFormat::Text));
+                    banned);
 
-                if (node->AsBoolean()->GetValue()) {
+                if (banned) {
                     THROW_ERROR_EXCEPTION("User %Qv is banned",
                         user);
                 }
