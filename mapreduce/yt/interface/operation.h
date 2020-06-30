@@ -1708,6 +1708,10 @@ struct IOperation
     virtual const TOperationId& GetId() const = 0;
 
     //
+    // Get URL of the operation in YT Web UI.
+    virtual TString GetWebInterfaceUrl() const = 0;
+
+    //
     // Start watching operation. Return future that is set when operation is complete.
     //
     // NOTE: user should check value of returned future to ensure that operation completed successfully e.g.

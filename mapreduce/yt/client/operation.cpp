@@ -2422,6 +2422,7 @@ public:
     { }
 
     const TOperationId& GetId() const;
+    TString GetWebInterfaceUrl() const;
     NThreading::TFuture<void> Watch(TYtPoller& ytPoller);
 
     EOperationBriefState GetBriefState();
@@ -2523,6 +2524,19 @@ private:
 const TOperationId& TOperation::TOperationImpl::GetId() const
 {
     return Id_;
+}
+
+static TString GetOperationWebInterfaceUrl(TStringBuf serverName, TOperationId operationId)
+{
+    serverName.ChopSuffix(".yt.yandex-team.ru");
+    serverName.ChopSuffix(".yt.yandex.net");
+    return TStringBuilder() << "https://yt.yandex-team.ru/" << serverName <<
+        "/operations/" << GetGuidAsString(operationId);
+}
+
+TString TOperation::TOperationImpl::GetWebInterfaceUrl() const
+{
+    return GetOperationWebInterfaceUrl(Auth_.ServerName, Id_);
 }
 
 NThreading::TFuture<void> TOperation::TOperationImpl::Watch(TYtPoller& ytPoller)
@@ -2806,6 +2820,11 @@ const TOperationId& TOperation::GetId() const
     return Impl_->GetId();
 }
 
+TString TOperation::GetWebInterfaceUrl() const
+{
+    return Impl_->GetWebInterfaceUrl();
+}
+
 NThreading::TFuture<void> TOperation::Watch()
 {
     return Impl_->Watch(Client_->GetYtPoller());
@@ -3051,8 +3070,10 @@ TOperationId TOperationPreparer::StartOperation(
         GetGuidAsString(operationId).c_str(),
         GetPreparationId().c_str());
 
-    LOG_INFO("Operation %s started (%s): http://%s/#page=operation&mode=detail&id=%s&tab=details",
-        GetGuidAsString(operationId).data(), operationType.data(), GetAuth().ServerName.data(), GetGuidAsString(operationId).data());
+    LOG_INFO("Operation %s started (%s): %s",
+        GetGuidAsString(operationId).data(),
+        operationType.data(),
+        GetOperationWebInterfaceUrl(GetAuth().ServerName, operationId).data());
 
     TOperationExecutionTimeTracker::Get()->Start(operationId);
 
