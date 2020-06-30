@@ -8,14 +8,13 @@
 #include "sorted_merge_job.h"
 #include "user_job.h"
 #include "user_job_write_controller.h"
+#include "job_prober_service.h"
 #include "job_throttler.h"
 
 #include <yt/server/lib/containers/public.h>
 
 #include <yt/server/lib/exec_agent/config.h>
 #include <yt/server/lib/exec_agent/proto/supervisor_service.pb.h>
-
-#include <yt/server/lib/job_prober/job_prober_service.h>
 
 #include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
