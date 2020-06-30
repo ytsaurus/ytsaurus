@@ -23,4 +23,3 @@ class TestUserStatistics(object):
         op.wait()
         assert op.get_job_statistics()["custom"]["row_count"] == {"$": {"completed": {"map": {"count": 2, "max": 1, "sum": 2, "min": 1}}}}
         check(yt.read_table(table), [{"x": 1}, {"y": 2}], ordered=False)
-
