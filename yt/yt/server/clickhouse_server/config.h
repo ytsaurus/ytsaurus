@@ -41,6 +41,19 @@ DEFINE_REFCOUNTED_TYPE(THealthCheckerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TShowTablesConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    std::vector<TString> Roots;
+
+    TShowTablesConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TShowTablesConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSubqueryConfig
     : public NYTree::TYsonSerializable
 {
@@ -166,6 +179,8 @@ public:
     TDuration ProfilingPeriod;
 
     THealthCheckerConfigPtr HealthChecker;
+
+    TShowTablesConfigPtr ShowTables;
 
     bool EnableDynamicTables;
 
