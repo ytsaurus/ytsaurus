@@ -169,12 +169,17 @@ void TToken::ExpectTypes(const std::vector<ETokenType>& expectedTypes) const
         auto typeStrings = ConvertToStrings(expectedTypes, [] (TStringBuilderBase* builder, ETokenType type) {
             builder->AppendFormat("Qlv", type);
         });
-        auto typesString = JoinToString(expectedTypes.begin(), expectedTypes.end(), AsStringBuf(" or "));
+        auto typesString = JoinToString(
+            expectedTypes,
+            [] (TStringBuilderBase* builder, ETokenType type) {
+                builder->AppendFormat("%Qlv", type);
+            },
+            AsStringBuf(" or "));
         if (Type_ == ETokenType::EndOfStream) {
             THROW_ERROR_EXCEPTION("Unexpected end of stream; expected types are %v",
                 typesString);
         } else {
-            THROW_ERROR_EXCEPTION("Unexpected token %Qv of type %Qlv; expected types are %v)",
+            THROW_ERROR_EXCEPTION("Unexpected token %Qv of type %Qlv; expected types are %v",
                 *this,
                 Type_,
                 typesString);
