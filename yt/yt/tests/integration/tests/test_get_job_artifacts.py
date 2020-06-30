@@ -459,7 +459,7 @@ class TestGetJobInput(YTEnvSetup):
             spec={"mapper": {"format": "yamr"}, "max_failed_job_count": 1},
             track=False,
         )
-        with raises_yt_error("Failed jobs limit exceeded"):
+        with raises_yt_error("Job failed with fatal error"):
             op.track()
 
         job_info_list = list_jobs(op.id, state="failed")["jobs"]

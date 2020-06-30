@@ -1803,6 +1803,7 @@ private:
             error.FindMatching(NTableClient::EErrorCode::RowWeightLimitExceeded) ||
             error.FindMatching(NTableClient::EErrorCode::InvalidColumnFilter) ||
             error.FindMatching(NTableClient::EErrorCode::InvalidColumnRenaming) ||
+            error.FindMatching(NTableClient::EErrorCode::FormatCannotRepresentRow) ||
             error.FindMatching(EErrorCode::SetupCommandFailed) ||
             error.FindMatching(EErrorCode::GpuJobWithoutLayers);
     }
