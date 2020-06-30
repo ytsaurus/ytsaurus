@@ -1,5 +1,5 @@
 from .conftest import authors
-from .helpers import TEST_DIR, get_test_file_path, get_tests_sandbox, yatest_common
+from .helpers import TEST_DIR, get_tests_sandbox, yatest_common
 
 from yt.common import makedirp
 import yt.wrapper as yt

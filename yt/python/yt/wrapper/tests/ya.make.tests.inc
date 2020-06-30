@@ -93,28 +93,11 @@ RESOURCE_FILES(
 
 SIZE(LARGE)
 
-FORK_TESTS()
-SPLIT_FACTOR(6)
-
-
-
-# Sandbox version.
-# DATA(
-#     arcadia/yt/python/yt
-# )
-# REQUIREMENTS(
-#     ram_disk:56
-#     cpu:4
-# )
-# TAG(
-#     ya:fat
-#     ya:force_sandbox
-# )
-
-
-# Distbuild version.
+TIMEOUT(1800)
 
 FORK_TEST_FILES()
+FORK_TESTS()
+SPLIT_FACTOR(6)
 
 REQUIREMENTS(
     ram_disk:4
