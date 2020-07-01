@@ -1056,8 +1056,7 @@ private:
 
     void FinishScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
-        bool enableBackoff,
-        NProfiling::TCpuInstant now);
+        NProfiling::TCpuInstant backoffDeadline = 0);
 
     TControllerScheduleJobResultPtr DoScheduleJob(
         TFairShareContext* context,

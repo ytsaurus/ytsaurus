@@ -80,6 +80,9 @@ public:
     //! Backoff time after controller schedule job failure.
     TDuration ScheduleJobFailBackoffTime;
 
+    //! Backoff time after controller schedule job failure since controller if throttling.
+    TDuration ScheduleJobControllerThrottlingBackoffTime;
+
     //! Timeout after which "schedule job timed out" alert is expired and unset.
     TDuration ScheduleJobTimeoutAlertResetTime;
 
