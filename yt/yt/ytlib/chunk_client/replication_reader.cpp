@@ -821,9 +821,13 @@ protected:
         }
     }
 
-    void RegisterError(const TError& error)
+    void RegisterError(const TError& error, bool raiseAlert = false)
     {
-        YT_LOG_ERROR(error);
+        if (raiseAlert) {
+            YT_LOG_ALERT(error);
+        } else {
+            YT_LOG_ERROR(error);
+        }
         InnerErrors_.push_back(error);
     }
 
@@ -1378,7 +1382,8 @@ private:
                     << TErrorAttribute("block_id", ToString(blockId))
                     << TErrorAttribute("peer", respondedPeer.AddressWithNetwork)
                     << TErrorAttribute("actual", GetChecksum(block.Data))
-                    << TErrorAttribute("expected", block.Checksum));
+                    << TErrorAttribute("expected", block.Checksum),
+                    /* raiseAlert */ true);
 
                 ++invalidBlockCount;
                 continue;
@@ -1629,7 +1634,8 @@ private:
                     << TErrorAttribute("block_id", ToString(TBlockId(reader->ChunkId_, FirstBlockIndex_ + blocksReceived)))
                     << TErrorAttribute("peer", peerAddressWithNetwork)
                     << TErrorAttribute("actual", GetChecksum(block.Data))
-                    << TErrorAttribute("expected", block.Checksum));
+                    << TErrorAttribute("expected", block.Checksum),
+                    /* raiseAlert */ true);
 
                 BanPeer(peerAddressWithNetwork.Address, false);
                 FetchedBlocks_.clear();
