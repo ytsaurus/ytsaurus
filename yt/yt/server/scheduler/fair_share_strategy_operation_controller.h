@@ -16,7 +16,7 @@ public:
     void IncreaseConcurrentScheduleJobCalls(int nodeShardId);
     void IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId);
 
-    void SetLastScheduleJobFailTime(NProfiling::TCpuInstant now);
+    void SetScheduleJobBackoffDeadline(NProfiling::TCpuInstant deadline);
 
     TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
     TJobResources GetAggregatedMinNeededJobResources() const;
@@ -26,7 +26,7 @@ public:
     bool IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
         const ISchedulingContextPtr& schedulingContext,
         int maxConcurrentScheduleJobCallsPerNodeShard) const;
-    bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now, TDuration scheduleJobFailBackoffTime) const;
+    bool HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const;
 
     TControllerScheduleJobResultPtr ScheduleJob(
         const ISchedulingContextPtr& schedulingContext,
@@ -60,7 +60,7 @@ private:
 
     mutable int ScheduleJobCallsOverdraft_ = 0;
 
-    std::atomic<NProfiling::TCpuInstant> LastScheduleJobFailTime_ = ::Min<NProfiling::TCpuInstant>();
+    std::atomic<NProfiling::TCpuInstant> ScheduleJobBackoffDeadline_;
 
     NConcurrency::TReaderWriterSpinLock SaturatedTentativeTreesLock_;
     THashMap<TString, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;

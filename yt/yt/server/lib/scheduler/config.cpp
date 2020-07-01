@@ -23,10 +23,13 @@ TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControll
         .GreaterThan(0);
 
     RegisterParameter("schedule_job_time_limit", ScheduleJobTimeLimit)
-        .Default(TDuration::Seconds(60));
+        .Default(TDuration::Seconds(30));
 
     RegisterParameter("schedule_job_fail_backoff_time", ScheduleJobFailBackoffTime)
         .Default(TDuration::MilliSeconds(100));
+
+    RegisterParameter("schedule_job_controller_throttling_backoff_time", ScheduleJobControllerThrottlingBackoffTime)
+        .Default(TDuration::Seconds(10));
 
     RegisterParameter("schedule_job_timeout_alert_reset_time", ScheduleJobTimeoutAlertResetTime)
         .Default(TDuration::Minutes(15));

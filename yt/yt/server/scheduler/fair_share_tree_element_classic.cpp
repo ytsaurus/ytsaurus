@@ -2400,13 +2400,12 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
 
 void TOperationElement::FinishScheduleJob(
     const ISchedulingContextPtr& schedulingContext,
-    bool enableBackoff,
-    NProfiling::TCpuInstant now)
+    TCpuInstant backoffDeadline)
 {
     Controller_->DecreaseConcurrentScheduleJobCalls(schedulingContext->GetNodeShardId());
 
-    if (enableBackoff) {
-        Controller_->SetLastScheduleJobFailTime(now);
+    if (backoffDeadline > 0) {
+        Controller_->SetScheduleJobBackoffDeadline(backoffDeadline);
     }
 }
 
@@ -2790,7 +2789,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
             TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
             disableOperationElement(EDeactivationReason::BadPacking);
             context->BadPackingOperations().emplace_back(this);
-            FinishScheduleJob(context->SchedulingContext(), /* enableBackoff */ false, now);
+            FinishScheduleJob(context->SchedulingContext());
             return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
         }
     }
@@ -2812,12 +2811,19 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         ++context->StageState()->ScheduleJobFailureCount;
         disableOperationElement(EDeactivationReason::ScheduleJobFailed);
 
-        bool enableBackoff = scheduleJobResult->IsBackoffNeeded();
-        YT_LOG_DEBUG_IF(enableBackoff, "Failed to schedule job, backing off (Reasons: %v)",
-            scheduleJobResult->Failed);
+        TCpuInstant backoffDeadline = 0;
+        if (scheduleJobResult->Failed[EScheduleJobFailReason::ControllerThrottling] > 0) {
+            backoffDeadline = now + DurationToCpuDuration(ControllerConfig_->ScheduleJobControllerThrottlingBackoffTime);
+        } else if (scheduleJobResult->IsBackoffNeeded()) {
+            backoffDeadline = now + DurationToCpuDuration(ControllerConfig_->ScheduleJobFailBackoffTime);
+        }
+
+        if (backoffDeadline > 0) {
+            YT_LOG_DEBUG("Failed to schedule job, backing off (Reasons: %v)", scheduleJobResult->Failed);
+        }
 
         TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
-        FinishScheduleJob(context->SchedulingContext(), /* enableBackoff */ enableBackoff, now);
+        FinishScheduleJob(context->SchedulingContext(), backoffDeadline);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
@@ -2826,7 +2832,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         Controller_->AbortJob(startDescriptor.Id, EAbortReason::SchedulingOperationDisabled);
         disableOperationElement(EDeactivationReason::OperationDisabled);
         TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
-        FinishScheduleJob(context->SchedulingContext(), /* enableBackoff */ false, now);
+        FinishScheduleJob(context->SchedulingContext());
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
@@ -2844,7 +2850,7 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         recordHeartbeatWithTimer(*heartbeatSnapshot);
     }
 
-    FinishScheduleJob(context->SchedulingContext(), /* enableBackoff */ false, now);
+    FinishScheduleJob(context->SchedulingContext());
 
     OPERATION_LOG_DETAILED(this,
         "Scheduled a job (SatisfactionRatio: %v, NodeId: %v, JobId: %v, JobResourceLimits: %v)",
@@ -3115,7 +3121,7 @@ bool TOperationElement::IsMaxConcurrentScheduleJobCallsPerNodeShardViolated(
 
 bool TOperationElement::HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const
 {
-    return Controller_->HasRecentScheduleJobFailure(now, ControllerConfig_->ScheduleJobFailBackoffTime);
+    return Controller_->HasRecentScheduleJobFailure(now);
 }
 
 std::optional<EDeactivationReason> TOperationElement::CheckBlocked(

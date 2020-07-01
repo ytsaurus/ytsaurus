@@ -37,9 +37,9 @@ void TFairShareStrategyOperationController::IncreaseScheduleJobCallsSinceLastUpd
     ++shard.ScheduleJobCallsSinceLastUpdate;
 }
 
-void TFairShareStrategyOperationController::SetLastScheduleJobFailTime(NProfiling::TCpuInstant now)
+void TFairShareStrategyOperationController::SetScheduleJobBackoffDeadline(NProfiling::TCpuInstant deadline)
 {
-    LastScheduleJobFailTime_ = now;
+    ScheduleJobBackoffDeadline_ = deadline;
 }
 
 TJobResourcesWithQuotaList TFairShareStrategyOperationController::GetDetailedMinNeededJobResources() const
@@ -82,11 +82,9 @@ bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleJobCallsPerNo
     return shard.ConcurrentScheduleJobCalls >= maxConcurrentScheduleJobCallsPerNodeShard;
 }
 
-bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(
-    NProfiling::TCpuInstant now,
-    TDuration scheduleJobFailBackoffTime) const
+bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const
 {
-    return LastScheduleJobFailTime_ + NProfiling::DurationToCpuDuration(scheduleJobFailBackoffTime) > now;
+    return ScheduleJobBackoffDeadline_ > now;
 }
 
 void TFairShareStrategyOperationController::AbortJob(TJobId jobId, EAbortReason abortReason)
