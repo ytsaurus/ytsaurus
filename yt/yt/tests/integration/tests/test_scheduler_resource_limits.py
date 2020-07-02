@@ -226,6 +226,10 @@ class TestUpdateInstanceLimits(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "instance_limits_update_period": 200,
         "resource_limits_update_period": 200,
+        "dynamic_config_manager": {
+            "update_period": 50,
+            "enable_unrecognized_options_alert": True,
+        },
         "resource_limits": {
             "node_dedicated_cpu": 1,
             "user_jobs": {
@@ -276,6 +280,64 @@ class TestUpdateInstanceLimits(YTEnvSetup):
         wait(lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 5 * 10**8) <= precision)
         self.Env.set_nodes_memory_limit(10**9 - 1)
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node))) == 0)
+
+    @authors("gritukan")
+    def test_dynamic_resource_limits_config(self):
+        precision = 10**8
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        self.Env.set_nodes_memory_limit(15 * 10**8)
+        self.Env.set_nodes_cpu_limit(4)
+        wait(lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 25 * 10**7) <= precision)
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 3)
+
+        update_nodes_dynamic_config({
+            "resource_limits": {
+                "node_dedicated_cpu": 2,
+                "total_cpu": 5,
+                "cpu_per_tablet_slot": 1,
+                "free_memory_watermark": 100000,
+                "user_jobs": {
+                    "type": "static",
+                    "value": 12345678
+                },
+                "tablet_static": {
+                    "type": "static",
+                    "value": 10**9,
+                },
+                "tablet_dynamic": {
+                    "type": "dynamic",
+                },
+            }
+        })
+
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node))) == 12345678)
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 2)
+
+        update_nodes_dynamic_config({
+            "resource_limits": {
+                "node_dedicated_cpu": 1,
+                "total_cpu": 5,
+                "cpu_per_tablet_slot": 1,
+                "free_memory_watermark": 100000,
+                "user_jobs": {
+                    "type": "dynamic",
+                },
+                "tablet_static": {
+                    "type": "static",
+                    "value": 10**9,
+                },
+                "tablet_dynamic": {
+                    "type": "dynamic",
+                },
+            }
+        })
+
+        wait(lambda: abs(get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) - 25 * 10**7) <= precision)
+        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 3)
 
 ###############################################################################################
 

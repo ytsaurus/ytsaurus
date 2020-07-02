@@ -238,7 +238,7 @@ bool TBootstrap::IsReadOnly() const
 
 void TBootstrap::DoInitialize()
 {
-    auto localRpcAddresses = NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+    auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
     if (!Config_->ClusterConnection->Networks) {
         Config_->ClusterConnection->Networks = GetLocalNetworks();
@@ -378,6 +378,10 @@ void TBootstrap::DoInitialize()
     DynamicConfigManager_ = New<TDynamicConfigManager>(Config_->DynamicConfigManager, this);
     DynamicConfigManager_->SubscribeConfigUpdated(BIND(&TBootstrap::OnDynamicConfigUpdated, this));
     DynamicConfigManager_->Start();
+    if (!DynamicConfig_) {
+        YT_LOG_WARNING("Dynamic config was not loaded, using default one");
+        DynamicConfig_ = New<TClusterNodeDynamicConfig>();
+    }
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
@@ -694,7 +698,7 @@ void TBootstrap::DoInitialize()
 
 void TBootstrap::DoRun()
 {
-    auto localRpcAddresses = NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+    auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
     YT_LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
         GetValues(localRpcAddresses),
@@ -842,6 +846,11 @@ void TBootstrap::DoValidateSnapshot(const TString& fileName)
 const TClusterNodeConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
+}
+
+TClusterNodeDynamicConfigPtr TBootstrap::GetDynamicConfig() const
+{
+    return DynamicConfig_;
 }
 
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
@@ -1297,7 +1306,7 @@ void TBootstrap::OnMasterDisconnected()
 
 void TBootstrap::OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newConfig)
 {
-    Y_UNUSED(newConfig);
+    DynamicConfig_ = newConfig;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

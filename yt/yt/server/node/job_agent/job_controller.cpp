@@ -270,10 +270,6 @@ TJobController::TImpl::TImpl(
 
 void TJobController::TImpl::Initialize()
 {
-    Bootstrap_->GetMemoryUsageTracker()->SetCategoryLimit(
-        EMemoryCategory::UserJobs,
-        Config_->ResourceLimits->UserMemory);
-
     ProfilingExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
         BIND(&TImpl::OnProfiling, MakeWeak(this)),

@@ -56,6 +56,7 @@ public:
     ~TBootstrap();
 
     const TClusterNodeConfigPtr& GetConfig() const;
+    TClusterNodeDynamicConfigPtr GetDynamicConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetJobInvoker() const;
     IInvokerPtr GetQueryPoolInvoker(
@@ -141,6 +142,8 @@ public:
 private:
     const TClusterNodeConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
+
+    TClusterNodeDynamicConfigPtr DynamicConfig_;
 
     NConcurrency::TActionQueuePtr ControlActionQueue_;
     NConcurrency::TActionQueuePtr JobActionQueue_;
