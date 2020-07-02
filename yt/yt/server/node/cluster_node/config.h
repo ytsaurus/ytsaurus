@@ -53,6 +53,13 @@ public:
             }
         });
     }
+
+    void Validate()
+    {
+        if (!Type) {
+            THROW_ERROR_EXCEPTION("Memory limit type should be set");
+        }
+    }
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryLimit)
@@ -128,6 +135,26 @@ public:
             .GreaterThan(0)
             .LessThanOrEqual(1_GB)
             .Default(1_MB);
+    }
+
+    void Validate()
+    {
+        UserJobs->Validate();
+        TabletStatic->Validate();
+        TabletDynamic->Validate();
+
+        if (!FreeMemoryWatermark) {
+            THROW_ERROR_EXCEPTION("\'free_memory_watermark\' should be set");
+        }
+        if (!TotalCpu) {
+            THROW_ERROR_EXCEPTION("\'total_cpu\' should be set");
+        }
+        if (!NodeDedicatedCpu) {
+            THROW_ERROR_EXCEPTION("\'node_dedicated_cpu\' should be set");
+        }
+        if (!CpuPerTabletSlot) {
+            THROW_ERROR_EXCEPTION("\'cpu_per_tablet_slot\' should be set");
+        }
     }
 };
 
@@ -375,10 +402,21 @@ public:
     //! Dynamic config annotation.
     TString ConfigAnnotation;
 
+    //! Node resource limits.
+    TResourceLimitsConfigPtr ResourceLimits;
+
     TClusterNodeDynamicConfig()
     {
         RegisterParameter("config_annotation", ConfigAnnotation)
             .Optional();
+        RegisterParameter("resource_limits", ResourceLimits)
+            .Default();
+
+        RegisterPostprocessor([&] {
+            if (ResourceLimits) {
+                ResourceLimits->Validate();
+            }
+        });
     }
 };
 

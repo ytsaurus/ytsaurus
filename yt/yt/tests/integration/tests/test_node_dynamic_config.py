@@ -13,7 +13,6 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "dynamic_config_manager": {
-            "enabled": True,
             "update_period": 50,
             "enable_unrecognized_options_alert": True,
         },

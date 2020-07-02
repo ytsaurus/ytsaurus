@@ -45,13 +45,12 @@ TMemoryLimitPtr GetMemoryLimit(const TResourceLimitsConfigPtr& config, EMemoryCa
 
 TNodeResourceManager::TNodeResourceManager(TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
-    , Config_(Bootstrap_->GetConfig()->ResourceLimits)
     , UpdateExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
         BIND(&TNodeResourceManager::UpdateLimits, MakeWeak(this)),
         Bootstrap_->GetConfig()->ResourceLimitsUpdatePeriod))
-    , TotalCpu_(Config_->TotalCpu)
-    , TotalMemory_(Config_->TotalMemory)
+    , TotalCpu_(GetResourceLimitsConfig()->TotalCpu)
+    , TotalMemory_(GetResourceLimitsConfig()->TotalMemory)
 { }
 
 void TNodeResourceManager::Start()
@@ -80,6 +79,16 @@ double TNodeResourceManager::GetJobsCpuLimit() const
     return JobsCpuLimit_;
 }
 
+TResourceLimitsConfigPtr TNodeResourceManager::GetResourceLimitsConfig() const
+{
+    auto dynamicConfig = Bootstrap_->GetDynamicConfig();
+    if (dynamicConfig && dynamicConfig->ResourceLimits) {
+        return dynamicConfig->ResourceLimits;
+    }
+
+    return Bootstrap_->GetConfig()->ResourceLimits;
+}
+
 void TNodeResourceManager::SetResourceLimitsOverride(const TNodeResourceLimitsOverrides& resourceLimitsOverride)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -102,8 +111,10 @@ void TNodeResourceManager::UpdateMemoryLimits()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    auto config = GetResourceLimitsConfig();
+
     int dynamicCategoryCount = 0;
-    i64 totalDynamicMemory = TotalMemory_ - *Config_->FreeMemoryWatermark;
+    i64 totalDynamicMemory = TotalMemory_ - *config->FreeMemoryWatermark;
 
     const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
 
@@ -111,7 +122,7 @@ void TNodeResourceManager::UpdateMemoryLimits()
 
     TEnumIndexedVector<EMemoryCategory, i64> newLimits;
     for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-        auto memoryLimit = GetMemoryLimit(Config_, category);
+        auto memoryLimit = GetMemoryLimit(config, category);
         if (!memoryLimit || !memoryLimit->Type || memoryLimit->Type == EMemoryLimitType::None) {
             newLimits[category] = std::numeric_limits<i64>::max();
             totalDynamicMemory -= memoryUsageTracker->GetUsed(category);
@@ -126,7 +137,7 @@ void TNodeResourceManager::UpdateMemoryLimits()
     if (dynamicCategoryCount > 0) {
         auto dynamicMemoryPerCategory = std::max<i64>(totalDynamicMemory / dynamicCategoryCount, 0);
         for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
-            auto memoryLimit = GetMemoryLimit(Config_, category);
+            auto memoryLimit = GetMemoryLimit(config, category);
             if (memoryLimit && memoryLimit->Type == EMemoryLimitType::Dynamic) {
                 newLimits[category] = dynamicMemoryPerCategory;
             }
@@ -144,7 +155,7 @@ void TNodeResourceManager::UpdateMemoryLimits()
         auto oldLimit = memoryUsageTracker->GetLimit(category);
         auto newLimit = newLimits[category];
 
-        if (std::abs(oldLimit - newLimit) > Config_->MemoryAccountingTolerance) {
+        if (std::abs(oldLimit - newLimit) > config->MemoryAccountingTolerance) {
             YT_LOG_INFO("Updating memory category limit (Category: %v, OldLimit: %v, NewLimit: %v)",
                 category,
                 oldLimit,
@@ -157,7 +168,7 @@ void TNodeResourceManager::UpdateMemoryLimits()
         memoryUsageTracker->GetLimit(EMemoryCategory::UserJobs),
         memoryUsageTracker->GetUsed(EMemoryCategory::UserJobs));
     auto selfMemoryGuarantee = TotalMemory_ - externalMemory;
-    if (std::abs(selfMemoryGuarantee - SelfMemoryGuarantee_) > Config_->MemoryAccountingTolerance) {
+    if (std::abs(selfMemoryGuarantee - SelfMemoryGuarantee_) > config->MemoryAccountingTolerance) {
         SelfMemoryGuarantee_ = selfMemoryGuarantee;
         SelfMemoryGuaranteeUpdated_.Fire(SelfMemoryGuarantee_);
     }
@@ -201,6 +212,8 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
+    auto config = GetResourceLimitsConfig();
+
     double newJobsCpuLimit = 0;
 
     // COPMAT(gritukan)
@@ -208,13 +221,13 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
         newJobsCpuLimit = ResourceLimitsOverride_.cpu();
     } else {
         if (TotalCpu_) {
-            newJobsCpuLimit = *TotalCpu_ - *Config_->NodeDedicatedCpu;
+            newJobsCpuLimit = *TotalCpu_ - *config->NodeDedicatedCpu;
         } else {
             newJobsCpuLimit = Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->Cpu;
         }
 
         const auto& tabletSlotManager = Bootstrap_->GetTabletSlotManager();
-        newJobsCpuLimit -= tabletSlotManager->GetUsedCpu(*Config_->CpuPerTabletSlot);
+        newJobsCpuLimit -= tabletSlotManager->GetUsedCpu(*config->CpuPerTabletSlot);
     }
     newJobsCpuLimit = std::max<double>(newJobsCpuLimit, 0);
 
