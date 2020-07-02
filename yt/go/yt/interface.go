@@ -321,11 +321,6 @@ type StartTxOptions struct {
 	Timeout  *yson.Duration `http:"timeout,omitnil"`
 	Deadline *yson.Time     `http:"deadline,omitnil"`
 
-	ParentID *TxID `http:"parent_id,omitnil"`
-
-	Ping          bool `http:"ping"`
-	PingAncestors bool `http:"ping_ancestor_transactions"`
-
 	Type   *string `http:"type,omitnil"`
 	Sticky bool    `http:"sticky"`
 
@@ -336,6 +331,7 @@ type StartTxOptions struct {
 	// Internal option.
 	Atomicity *string `http:"atomicity,omitnil"`
 
+	*TransactionOptions
 	*MutatingOptions
 }
 

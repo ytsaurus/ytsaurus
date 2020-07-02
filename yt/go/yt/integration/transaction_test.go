@@ -5,15 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"a.yandex-team.ru/yt/go/yterrors"
+	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/go/yson"
-
-	"a.yandex-team.ru/yt/go/yttest"
-
 	"a.yandex-team.ru/yt/go/yt"
-
-	"github.com/stretchr/testify/require"
+	"a.yandex-team.ru/yt/go/yterrors"
+	"a.yandex-team.ru/yt/go/yttest"
 )
 
 func TestTransactions(t *testing.T) {
@@ -74,4 +71,34 @@ func TestTransactions(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, yterrors.ContainsErrorCode(err, yterrors.CodeNoSuchTransaction))
 	})
+}
+
+func TestNestedTransactions(t *testing.T) {
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	rootTx, err := env.YT.BeginTx(env.Ctx, nil)
+	require.NoError(t, err)
+
+	nestedTx, err := rootTx.BeginTx(env.Ctx, nil)
+	require.NoError(t, err)
+
+	p := env.TmpPath()
+
+	_, err = nestedTx.CreateNode(env.Ctx, p, yt.NodeMap, nil)
+	require.NoError(t, err)
+
+	ok, err := rootTx.NodeExists(env.Ctx, p, nil)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	require.NoError(t, nestedTx.Commit())
+
+	ok, err = rootTx.NodeExists(env.Ctx, p, nil)
+	require.NoError(t, err)
+	require.True(t, ok)
+
+	ok, err = env.YT.NodeExists(env.Ctx, p, nil)
+	require.NoError(t, err)
+	require.False(t, ok)
 }

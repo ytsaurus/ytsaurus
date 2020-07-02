@@ -13,7 +13,7 @@ import (
 
 type TxInterceptor struct {
 	Encoder
-	Client *Encoder
+	Client Encoder
 	pinger *Pinger
 }
 
@@ -39,7 +39,7 @@ func NewTx(ctx context.Context, e Encoder, stop *StopGroup, options *yt.StartTxO
 
 	tx := &TxInterceptor{
 		Encoder: e,
-		Client:  &e,
+		Client:  e,
 		pinger:  NewPinger(ctx, &e, txID, time.Duration(*updatedOptions.Timeout), stop),
 	}
 
@@ -75,9 +75,13 @@ func (t *TxInterceptor) BeginTx(ctx context.Context, options *yt.StartTxOptions)
 	if options == nil {
 		options = &yt.StartTxOptions{}
 	}
-	options.ParentID = &t.pinger.txID
+	if options.TransactionOptions == nil {
+		options.TransactionOptions = &yt.TransactionOptions{}
+	}
 
-	return NewTx(ctx, t.Encoder, t.pinger.stop, options)
+	options.TransactionID = t.ID()
+
+	return NewTx(ctx, t.Client, t.pinger.stop, options)
 }
 
 func (t *TxInterceptor) Abort() (err error) {
