@@ -1547,9 +1547,18 @@ private:
                     return;
                 }
 
+                auto requestDequeueInstant = TInstant::Now();
+
                 GuardedInvoke(
                     scheduleJobInvoker,
                     BIND([=, rsp = rsp, this_ = MakeStrong(this)] {
+                        auto controllerInvocationInstant = TInstant::Now();
+
+                        YT_LOG_DEBUG("Processing schedule job in controller invoker (OperationId: %v, JobId: %v, InvocationWaitDuration: %v)",
+                            operationId,
+                            jobId,
+                            controllerInvocationInstant - requestDequeueInstant);
+
                         auto nodeId = NodeIdFromJobId(jobId);
                         auto descriptorIt = execNodeDescriptors->find(nodeId);
                         if (descriptorIt == execNodeDescriptors->end()) {
@@ -1586,6 +1595,12 @@ private:
                             &context,
                             jobLimitsWithQuota,
                             treeId);
+                        auto scheduleJobFinishInstant = TInstant::Now();
+                        YT_LOG_DEBUG("Schedule job finished (OperationId: %v, JobId: %v, ScheduleJobDuration: %v)",
+                            operationId,
+                            jobId,
+                            scheduleJobFinishInstant - controllerInvocationInstant);
+
                         if (!response.Result) {
                             response.Result = New<TControllerScheduleJobResult>();
                         }
