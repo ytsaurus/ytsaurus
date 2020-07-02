@@ -894,17 +894,17 @@ class TestJobStderr(YTEnvSetup):
             in_="//tmp/t1",
             out="//tmp/t2",
             command=command,
-            spec={"job_count": 10, "max_stderr_count": 0})
+            spec={"job_count": 2, "max_stderr_count": 0})
 
         def enough_jobs_completed():
             if not exists(op.get_path() + "/@progress"):
                 return False
             progress = get(op.get_path() + "/@progress")
             if "jobs" in progress and "completed" in progress["jobs"]:
-                return progress["jobs"]["completed"]["total"] > 5
+                return progress["jobs"]["completed"]["total"] >= 1
             return False
 
-        wait(enough_jobs_completed)
+        wait(enough_jobs_completed, sleep_backoff=0.6)
 
         stderr_tx = get(op.get_path() + "/@async_scheduler_transaction_id")
         staged_objects = get("//sys/transactions/{0}/@staged_object_ids".format(stderr_tx))
