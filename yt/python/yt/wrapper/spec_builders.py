@@ -17,8 +17,8 @@ from .local_mode import is_local_mode, enable_local_files_usage_in_job
 
 import yt.logger as logger
 
-from yt.packages.six import PY3, binary_type, text_type
-from yt.packages.six.moves import xrange, zip as izip
+from yt.packages.six import PY3, text_type
+from yt.packages.six.moves import zip as izip
 
 import functools
 import os

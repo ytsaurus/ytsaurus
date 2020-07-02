@@ -5,8 +5,8 @@ from .conftest import authors
 
 from yt.common import update
 from yt.wrapper.driver import make_request, get_api_version
-from yt.yson import loads, YsonString, YsonUnicode, YsonError
-from yt.wrapper import YtHttpResponseError, YtError, YtResponseError, YsonFormat
+from yt.yson import loads, YsonString, YsonUnicode, YsonError, to_yson_type
+from yt.wrapper import YtHttpResponseError, YtError, YtResponseError, YsonFormat, YPath
 from yt.ypath import YPathError, parse_ypath
 
 from yt.packages.six.moves import xrange
@@ -133,3 +133,16 @@ class TestParseYpath(object):
             for path in TEST_PATHS:
                 make_parse_ypath_request(path)
         print("C++ YPath parser (local): {0}".format(time.time() - start_time), file=sys.stderr)
+
+    @authors("ignat")
+    def test_ypath_object(self):
+        path = YPath("//my/path")
+        assert str(path) == "//my/path"
+
+        path = YPath("<my_attr=10>//my/path")
+        assert path.attributes["my_attr"] == 10
+        assert str(path) == "//my/path"
+
+        path = YPath(to_yson_type("//my/path", attributes={"my_attr": 10}))
+        assert path.attributes["my_attr"] == 10
+        assert str(path) == "//my/path"
