@@ -191,8 +191,6 @@ class YPath(object):
             self._path_object = deepcopy(path._path_object)
         else:
             if simplify and path:
-                if isinstance(path, binary_type):
-                    path = yson.YsonString(path)
                 self._path_object = parse_ypath(path, client=client)
                 for key, value in iteritems(self._path_object.attributes):
                     if "-" in key:
