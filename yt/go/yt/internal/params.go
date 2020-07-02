@@ -283,14 +283,6 @@ func writeStartTxOptions(w *yson.Writer, o *yt.StartTxOptions) {
 		w.MapKeyString("deadline")
 		w.Any(o.Deadline)
 	}
-	if o.ParentID != nil {
-		w.MapKeyString("parent_id")
-		w.Any(o.ParentID)
-	}
-	w.MapKeyString("ping")
-	w.Any(o.Ping)
-	w.MapKeyString("ping_ancestor_transactions")
-	w.Any(o.PingAncestors)
 	if o.Type != nil {
 		w.MapKeyString("type")
 		w.Any(o.Type)
@@ -309,6 +301,7 @@ func writeStartTxOptions(w *yson.Writer, o *yt.StartTxOptions) {
 		w.MapKeyString("atomicity")
 		w.Any(o.Atomicity)
 	}
+	writeTransactionOptions(w, o.TransactionOptions)
 	writeMutatingOptions(w, o.MutatingOptions)
 }
 
@@ -1364,6 +1357,10 @@ func (p *StartTxParams) Log() []log.Field {
 
 func (p *StartTxParams) MarshalHTTP(w *yson.Writer) {
 	writeStartTxOptions(w, p.options)
+}
+
+func (p *StartTxParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
 }
 
 func (p *StartTxParams) MutatingOptions() **yt.MutatingOptions {
