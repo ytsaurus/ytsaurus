@@ -181,7 +181,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
                 "tmpfs_alert_min_unused_space_threshold": 200,
                 "tmpfs_alert_max_unused_space_ratio": 0.3,
                 "aborted_jobs_alert_max_aborted_time": 100,
-                "aborted_jobs_alert_aborted_time_ratio": 0.05,
+                "aborted_jobs_alert_max_aborted_time_ratio": 0.05,
                 "intermediate_data_skew_alert_min_interquartile_range": 50,
                 "intermediate_data_skew_alert_min_partition_size": 50,
                 "short_jobs_alert_min_job_count": 3,
