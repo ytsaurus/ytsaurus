@@ -60,7 +60,7 @@ private:
 
     mutable int ScheduleJobCallsOverdraft_ = 0;
 
-    std::atomic<NProfiling::TCpuInstant> ScheduleJobBackoffDeadline_;
+    std::atomic<NProfiling::TCpuInstant> ScheduleJobBackoffDeadline_ = ::Min<NProfiling::TCpuInstant>();
 
     NConcurrency::TReaderWriterSpinLock SaturatedTentativeTreesLock_;
     THashMap<TString, NProfiling::TCpuInstant> TentativeTreeIdToSaturationTime_;
