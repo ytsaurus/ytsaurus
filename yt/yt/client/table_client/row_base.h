@@ -40,11 +40,9 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ESimpleLogicalValueType, ui32,
     ((Uint64)      (0x04))
     ((Double)      (0x05))
     ((Boolean)     (0x06))
-    ((Float)       (0x07))
 
     ((String)      (0x10))
     ((Any)         (0x11))
-    ((Json)        (0x12))
 
     ((Int8)        (0x1000))
     ((Uint8)       (0x1001))
@@ -63,6 +61,9 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(ESimpleLogicalValueType, ui32,
     ((Interval)    (0x100b))
 
     ((Void)        (0x100c))
+
+    ((Float)       (0x100d))
+    ((Json)        (0x100e))
 );
 
 inline bool IsIntegralTypeSigned(ESimpleLogicalValueType type)
