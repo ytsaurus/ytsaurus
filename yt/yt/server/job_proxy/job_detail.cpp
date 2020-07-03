@@ -5,7 +5,9 @@
 #include <yt/server/lib/exec_agent/public.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
+#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 #include <yt/client/node_tracker_client/node_directory.h>
 
@@ -121,6 +123,21 @@ TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
     , JobSpec_(host->GetJobSpecHelper()->GetJobSpec())
     , SchedulerJobSpecExt_(host->GetJobSpecHelper()->GetSchedulerJobSpecExt())
 { }
+
+void TSimpleJobBase::Initialize()
+{
+    // Initialize parallel reader memory manager.
+    {
+        auto totalReaderMemoryLimit = GetTotalReaderMemoryLimit();
+        TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = totalReaderMemoryLimit,
+            .MaxInitialReaderReservedMemory = totalReaderMemoryLimit
+        };
+        MultiReaderMemoryManager_ = CreateParallelReaderMemoryManager(
+            parallelReaderMemoryManagerOptions,
+            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker()); 
+    }
+}
 
 TJobResult TSimpleJobBase::Run()
 {

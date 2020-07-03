@@ -2,26 +2,31 @@
 
 #include "job_spec_helper.h"
 #include "helpers.h"
+#include "yt/ytlib/chunk_client/public.h"
 
-#include <yt/client/api/public.h>
-
-#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 #include <yt/ytlib/job_tracker_client/proto/job.pb.h>
 #include <yt/ytlib/job_tracker_client/public.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
-#include <yt/client/table_client/name_table.h>
 #include <yt/ytlib/table_client/partitioner.h>
 #include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
 #include <yt/ytlib/table_client/schemaless_partition_sort_reader.h>
 #include <yt/ytlib/table_client/schemaless_sorted_merging_reader.h>
+
+#include <yt/client/api/public.h>
+
+#include <yt/client/chunk_client/proto/chunk_spec.pb.h>
+
+#include <yt/client/object_client/helpers.h>
+
+#include <yt/client/table_client/name_table.h>
 
 #include <yt/core/ytree/convert.h>
 
@@ -89,13 +94,15 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
     const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     auto createReader = isParallel
         ? CreateSchemalessParallelMultiReader
         : CreateSchemalessSequentialMultiReader;
+    const auto& tableReaderConfig = jobSpecHelper->GetJobIOConfig()->TableReader;
     return createReader(
-        jobSpecHelper->GetJobIOConfig()->TableReader,
+        tableReaderConfig,
         std::move(options),
         std::move(client),
         nodeDescriptor,
@@ -112,7 +119,7 @@ ISchemalessMultiChunkReaderPtr CreateTableReader(
         std::move(trafficMeter),
         std::move(bandwidthThrottler),
         std::move(rpsThrottler),
-        /* multiReaderMemoryManager */ nullptr);
+        multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
 }
 
 ISchemalessMultiChunkReaderPtr CreateRegularReader(
@@ -125,7 +132,8 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     const TClientBlockReadOptions& blockReadOptions,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    IMultiReaderMemoryManagerPtr multiReaderMemoryManager)
 {
     const auto& schedulerJobSpecExt = jobSpecHelper->GetSchedulerJobSpecExt();
     std::vector<TDataSliceDescriptor> dataSliceDescriptors;
@@ -151,7 +159,8 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         blockReadOptions,
         std::move(trafficMeter),
         std::move(bandwidthThrottler),
-        std::move(rpsThrottler));
+        std::move(rpsThrottler),
+        std::move(multiReaderMemoryManager));
 }
 
 } // namespace
@@ -175,6 +184,21 @@ struct TUserJobIOFactoryBase
         , OutBandwidthThrottler_(std::move(outBandwidthThrottler))
         , OutRpsThrottler_(std::move(outRpsThrottler))
     { }
+
+    void Initialize()
+    {
+        // Initialize parallel reader memory manager.
+        {
+            auto totalReaderMemoryLimit = GetTotalReaderMemoryLimit();
+            TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
+                .TotalReservedMemorySize = totalReaderMemoryLimit,
+                .MaxInitialReaderReservedMemory = totalReaderMemoryLimit
+            };
+            MultiReaderMemoryManager_ = CreateParallelReaderMemoryManager(
+                parallelReaderMemoryManagerOptions,
+                NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker()); 
+        }
+    }
 
     virtual ISchemalessMultiChunkWriterPtr CreateWriter(
         NApi::NNative::IClientPtr client,
@@ -205,6 +229,9 @@ protected:
     const IThroughputThrottlerPtr InBandwidthThrottler_;
     const IThroughputThrottlerPtr OutBandwidthThrottler_;
     const IThroughputThrottlerPtr OutRpsThrottler_;
+    IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
+
+    virtual i64 GetTotalReaderMemoryLimit() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,7 +256,9 @@ public:
             std::move(outBandwidthThrottler),
             std::move(outRpsThrottler))
         , UseParallelReader_(useParallelReader)
-    { }
+    {
+        TUserJobIOFactoryBase::Initialize(); 
+    }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr client,
@@ -248,7 +277,14 @@ public:
             BlockReadOptions_,
             TrafficMeter_,
             InBandwidthThrottler_,
-            OutRpsThrottler_);
+            OutRpsThrottler_,
+            MultiReaderMemoryManager_);
+    }
+
+protected:
+    virtual i64 GetTotalReaderMemoryLimit() const override
+    {
+        return JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
     }
 
 private:
@@ -277,7 +313,9 @@ public:
             std::move(outBandwidthThrottler),
             std::move(outRpsThrottler))
         , InterruptAtKeyEdge_(interruptAtKeyEdge)
-    { }
+    {
+        TUserJobIOFactoryBase::Initialize();
+    }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr client,
@@ -306,8 +344,9 @@ public:
             // ToDo(psushin): validate that input chunks are sorted.
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
+            const auto& tableReaderConfig = JobSpecHelper_->GetJobIOConfig()->TableReader;
             auto reader = CreateSchemalessSequentialMultiReader(
-                JobSpecHelper_->GetJobIOConfig()->TableReader,
+                tableReaderConfig,
                 options,
                 client,
                 nodeDescriptor,
@@ -323,7 +362,8 @@ public:
                 /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,
-                OutRpsThrottler_);
+                OutRpsThrottler_,
+                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
 
             primaryReaders.emplace_back(reader);
         }
@@ -335,8 +375,9 @@ public:
         for (const auto& inputSpec : schedulerJobSpecExt.foreign_input_table_specs()) {
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
+            const auto& tableReaderConfig = JobSpecHelper_->GetJobIOConfig()->TableReader;
             auto reader = CreateSchemalessSequentialMultiReader(
-                JobSpecHelper_->GetJobIOConfig()->TableReader,
+                tableReaderConfig,
                 options,
                 client,
                 nodeDescriptor,
@@ -352,7 +393,8 @@ public:
                 /* partitionTag */ std::nullopt,
                 TrafficMeter_,
                 InBandwidthThrottler_,
-                OutRpsThrottler_);
+                OutRpsThrottler_,
+                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
 
             foreignReaders.emplace_back(reader);
         }
@@ -366,6 +408,15 @@ public:
             foreignReaders,
             foreignKeyColumnCount,
             InterruptAtKeyEdge_);
+    }
+
+protected:
+    virtual i64 GetTotalReaderMemoryLimit() const override
+    {
+        auto readerMemoryLimit = JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
+        const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
+        auto readerCount = schedulerJobSpecExt.input_table_specs_size() + schedulerJobSpecExt.foreign_input_table_specs_size();
+        return readerMemoryLimit * readerCount;
     }
 
 private:
@@ -392,7 +443,9 @@ public:
             std::move(inBandwidthThrottler),
             std::move(outBandwidthThrottler),
             std::move(outRpsThrottler))
-    { }
+    {
+        TUserJobIOFactoryBase::Initialize();
+    }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr client,
@@ -413,7 +466,8 @@ public:
             BlockReadOptions_,
             TrafficMeter_,
             InBandwidthThrottler_,
-            OutRpsThrottler_);
+            OutRpsThrottler_,
+            MultiReaderMemoryManager_);
     }
 
     virtual ISchemalessMultiChunkWriterPtr CreateWriter(
@@ -467,6 +521,12 @@ public:
                 OutBandwidthThrottler_);
         }
     }
+
+protected:
+    virtual i64 GetTotalReaderMemoryLimit() const override
+    {
+        return JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -489,7 +549,9 @@ public:
             std::move(inBandwidthThrottler),
             std::move(outBandwidthThrottler),
             std::move(outRpsThrottler))
-    { }
+    {
+        TUserJobIOFactoryBase::Initialize();
+    }
 
     virtual ISchemalessMultiChunkReaderPtr CreateReader(
         NNative::IClientPtr client,
@@ -530,8 +592,16 @@ public:
             BlockReadOptions_,
             TrafficMeter_,
             InBandwidthThrottler_,
-            OutRpsThrottler_);
+            OutRpsThrottler_,
+            MultiReaderMemoryManager_);
     }
+
+protected:
+    virtual i64 GetTotalReaderMemoryLimit() const override
+    {
+        return JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
+    }
+
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -564,6 +634,12 @@ public:
         const TColumnFilter& /*columnFilter*/) override
     {
         return nullptr;
+    }
+
+protected:
+    virtual i64 GetTotalReaderMemoryLimit() const override
+    {
+        return 0;
     }
 };
 

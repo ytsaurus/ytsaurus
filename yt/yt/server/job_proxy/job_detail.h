@@ -55,6 +55,8 @@ class TSimpleJobBase
 public:
     explicit TSimpleJobBase(IJobHostPtr host);
 
+    virtual void Initialize() override;
+
     virtual NJobTrackerClient::NProto::TJobResult Run() override;
 
     virtual void Cleanup() override;
@@ -74,6 +76,8 @@ protected:
     const NJobTrackerClient::NProto::TJobSpec& JobSpec_;
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpecExt_;
 
+    NChunkClient::IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
+
     NTableClient::ISchemalessMultiChunkReaderPtr Reader_;
     NTableClient::ISchemalessMultiChunkWriterPtr Writer_;
     NTableClient::TSchemalessReaderFactory ReaderFactory_;
@@ -86,6 +90,8 @@ protected:
 
     virtual void CreateReader() = 0;
     virtual void CreateWriter() = 0;
+
+    virtual i64 GetTotalReaderMemoryLimit() const = 0;
 
     NTableClient::TTableWriterConfigPtr GetWriterConfig(const NScheduler::NProto::TTableOutputSpec& outputSpec);
 };

@@ -5,6 +5,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/job_spec_extensions.h>
+#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 #include <yt/ytlib/job_proxy/helpers.h>
 
@@ -46,6 +47,8 @@ public:
 
     virtual void Initialize() override
     {
+        TSimpleJobBase::Initialize();
+
         TKeyColumns keyColumns;
         std::optional<int> partitionTag;
         if (JobSpec_.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
@@ -78,8 +81,9 @@ public:
 
         ReaderFactory_ = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             YT_VERIFY(!Reader_);
+            const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
             Reader_ = readerFactory(
-                Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
+                tableReaderConfig,
                 readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
@@ -96,7 +100,7 @@ public:
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),
                 Host_->GetOutRpsThrottler(),
-                /* multiReaderMemoryManager */ nullptr);
+                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
             return Reader_;
         };
 
@@ -143,6 +147,11 @@ private:
     {
         // NB. WriterFactory_ ignores schema argument and uses schema of output table.
         WriterFactory_(NameTable_, nullptr);
+    }
+
+    virtual i64 GetTotalReaderMemoryLimit() const
+    {
+        return Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->MaxBufferSize;
     }
 };
 

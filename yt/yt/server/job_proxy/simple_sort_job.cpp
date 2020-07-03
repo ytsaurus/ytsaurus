@@ -5,6 +5,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/job_spec_extensions.h>
+#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 #include <yt/ytlib/job_proxy/helpers.h>
 
@@ -41,6 +42,8 @@ public:
 
     virtual void Initialize() override
     {
+        TSimpleJobBase::Initialize();
+
         auto keyColumns = FromProto<TKeyColumns>(SortJobSpecExt_.key_columns());
         auto nameTable = TNameTable::FromKeyColumns(keyColumns);
 
@@ -54,8 +57,9 @@ public:
 
         TotalRowCount_ = GetCumulativeRowCount(dataSliceDescriptors);
 
+        const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
         auto reader = CreateSchemalessParallelMultiReader(
-            Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
+            tableReaderConfig,
             readerOptions,
             Host_->GetClient(),
             Host_->LocalDescriptor(),
@@ -71,7 +75,8 @@ public:
             /* partitionTag */ std::nullopt,
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),
-            Host_->GetOutRpsThrottler());
+            Host_->GetOutRpsThrottler(),
+            MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
 
         Reader_ = CreateSchemalessSortingReader(reader, nameTable, keyColumns);
 
@@ -109,6 +114,11 @@ private:
 
     virtual void CreateWriter() override
     { }
+
+    virtual i64 GetTotalReaderMemoryLimit() const
+    {
+        return Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->MaxBufferSize;
+    }
 };
 
 IJobPtr CreateSimpleSortJob(IJobHostPtr host)
