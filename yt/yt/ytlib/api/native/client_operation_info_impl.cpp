@@ -507,7 +507,7 @@ TYsonString TClient::DoGetOperation(
         archiveOptions.Attributes->insert("state");
     }
 
-    TFuture<TYsonString> archiveFuture = MakeFuture<TYsonString>(TYsonString());
+    TFuture<TYsonString> archiveFuture;
     if (DoesOperationsArchiveExist()) {
         archiveFuture = BIND(&TClient::DoGetOperationFromArchive,
             MakeStrong(this),
@@ -517,14 +517,24 @@ TYsonString TClient::DoGetOperation(
             .AsyncVia(Connection_->GetInvoker())
             .Run()
             .WithTimeout(options.ArchiveTimeout);
+        getOperationFutures.push_back(archiveFuture.As<void>());
     }
-    getOperationFutures.push_back(archiveFuture.As<void>());
 
     WaitFor(AllSet<void>(getOperationFutures))
         .ValueOrThrow();
 
     auto [cypressResult, operationNodeModificationTime] = cypressFuture.Get()
         .ValueOrThrow();
+
+    if (!archiveFuture) {
+        if (!cypressResult) {
+            THROW_ERROR_EXCEPTION(
+                NApi::EErrorCode::NoSuchOperation,
+                "No such operation %v",
+                operationId);
+        }
+        return cypressResult;
+    }
 
     auto archiveResultOrError = archiveFuture.Get();
     TYsonString archiveResult;
@@ -598,8 +608,7 @@ TYsonString TClient::DoGetOperation(
             cypressProgressAge,
             options.MaximumCypressProgressAge);
         if (!archiveResultOrError.FindMatching(NYT::EErrorCode::Timeout)) {
-            THROW_ERROR_EXCEPTION("Operation progress in Cypress is outdated "
-                "while archive request failed")
+            THROW_ERROR_EXCEPTION("Operation progress in Cypress is outdated while archive request failed")
                 << archiveResultOrError;
         }
         archiveResult = DoGetOperationFromArchive(operationId, deadline, archiveOptions);

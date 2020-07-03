@@ -60,7 +60,7 @@ class TestGetOperation(YTEnvSetup):
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
 
     def teardown(self):
-        remove("//sys/operations_archive")
+        remove("//sys/operations_archive", force=True)
 
     def clean_build_time(self, operation_result):
         del operation_result["brief_progress"]["build_time"]
@@ -422,6 +422,31 @@ class TestGetOperation(YTEnvSetup):
         sync_unmount_table("//sys/operations_archive/ordered_by_id")
         with raises_yt_error(TabletNotMounted):
             get_operation(op.id)
+
+    @authors("levysotsky")
+    def test_get_operation_no_archive(self):
+        remove("//sys/operations_archive", force=True)
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        op = map(
+            track=False,
+            in_="//tmp/t1",
+            out="//tmp/t2",
+            command=with_breakpoint("cat ; BREAKPOINT"),
+        )
+
+        wait_breakpoint()
+        wait(lambda: _get_operation_from_cypress(op.id).get("brief_progress", {}).get("jobs", {}).get("running") == 1)
+
+        res_api = get_operation(op.id)
+        self.clean_build_time(res_api)
+        res_cypress = _get_operation_from_cypress(op.id)
+        self.clean_build_time(res_cypress)
+
+        assert res_api["brief_progress"] == res_cypress["brief_progress"]
+        assert res_api["progress"] == res_cypress["progress"]
 
 ##################################################################
 
