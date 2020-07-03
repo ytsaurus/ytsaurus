@@ -208,6 +208,10 @@ public:
     virtual TOperationControllerInitializeResult InitializeClean() override;
     virtual TOperationControllerInitializeResult InitializeReviving(const TControllerTransactionIds& transactions) override;
 
+    virtual bool IsThrottling() const noexcept override;
+
+    virtual void RecordScheduleJobFailure(EScheduleJobFailReason reason) noexcept override;
+
     virtual void OnTransactionsAborted(const std::vector<NTransactionClient::TTransactionId>& transactionIds) override;
 
     virtual void UpdateConfig(const TControllerAgentConfigPtr& config) override;
@@ -274,6 +278,8 @@ public:
     virtual void AddTaskLocalityHint(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
     virtual void AddTaskLocalityHint(NNodeTrackerClient::TNodeId nodeId, const TTaskPtr& task);
     virtual void AddTaskPendingHint(const TTaskPtr& task) override;
+
+    virtual void AccountBuildingJobSpecDelta(int countDelta, i64 sliceCountDelta) noexcept override;
 
     virtual ui64 NextJobIndex() override;
     virtual void InitUserJobSpecTemplate(
@@ -491,6 +497,12 @@ protected:
     NYTree::IYPathServicePtr Orchid_;
 
     std::vector<char> TestingAllocationVector_;
+
+    // NB: these values are accessed from BuildJobSpecProto invoker queue, ScheduleJob invoker queue and from control invoker.
+    // Slight discrepancy in their values due to concurrent modification and access is OK.
+    // These values are transient.
+    std::atomic<int> BuildingJobSpecCount_ = {0};
+    std::atomic<i64> TotalBuildingJobSpecSliceCount_ = {0};
 
     virtual bool IsTransactionNeeded(ETransactionType type) const;
 
@@ -1001,7 +1013,7 @@ private:
     NProfiling::TCpuInstant LastJobMetricsDeltaReportTime_ = 0;
 
     //! Aggregated schedule job statistics.
-    TScheduleJobStatisticsPtr ScheduleJobStatistics_;
+    mutable TScheduleJobStatisticsPtr ScheduleJobStatistics_;
 
     //! Deadline after which schedule job statistics can be logged.
     NProfiling::TCpuInstant ScheduleJobStatisticsLogDeadline_ = 0;
@@ -1099,6 +1111,8 @@ private:
     bool AvailableExecNodesObserved_ = false;
     TInstant LastAvailableExecNodesCheckTime_;
 
+    mutable std::atomic<TInstant> LastControllerThrottlingLogTime_ = TInstant::Zero();
+
     THashSet<NNodeTrackerClient::TNodeId> BannedNodeIds_;
 
     TSpinLock AlertsLock_;
@@ -1114,7 +1128,13 @@ private:
     // Used for testing purposes.
     bool CommitSleepStarted_ = false;
 
-    void InitializeOrchid();
+    //! Schedule job failures that happened outside of controller.
+    //! These values are added to corresponding values in ScheduleJobStatistics_
+    //! on each access in thread-safe manner.
+    mutable TEnumIndexedVector<EScheduleJobFailReason, std::atomic<int>> ExternalScheduleJobFailureCounts_;
+
+    using TControllerQueueStatistics = TEnumIndexedVector<EOperationControllerQueue, IDiagnosableInvokerPool::TInvokerStatistics>;
+    TControllerQueueStatistics LastControllerQueueStatistics_;
 
     struct TLivePreviewChunkDescriptor
     {
@@ -1126,8 +1146,9 @@ private:
 
     THashMap<NChunkClient::TInputChunkPtr, TLivePreviewChunkDescriptor> LivePreviewChunks_;
 
-    using TControllerQueueStatistics = TEnumIndexedVector<EOperationControllerQueue, IDiagnosableInvokerPool::TInvokerStatistics>;
-    TControllerQueueStatistics LastControllerQueueStatistics_;
+    void AccountExternalScheduleJobFailures() const;
+
+    void InitializeOrchid();
 
     ssize_t GetMemoryUsage() const;
 

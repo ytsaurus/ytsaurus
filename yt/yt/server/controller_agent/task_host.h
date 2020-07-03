@@ -42,6 +42,12 @@ struct ITaskHost
     virtual void AddTaskLocalityHint(NNodeTrackerClient::TNodeId nodeId, const TTaskPtr& task) = 0;
     virtual void AddTaskPendingHint(const TTaskPtr& task) = 0;
 
+    //! Account currently building job specs. This is used to implement IsThrottling() controller method.
+    /*!
+     * \note Invoker affinity: any
+     */
+    virtual void AccountBuildingJobSpecDelta(int countDelta, i64 totalSliceCountDelta) noexcept = 0;
+
     virtual ui64 NextJobIndex() = 0;
 
     // TODO(max42): split this function into purely controller part and task part.

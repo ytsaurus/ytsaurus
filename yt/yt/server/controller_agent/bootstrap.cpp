@@ -138,7 +138,7 @@ void TBootstrap::DoRun()
     Config_->MonitoringServer->ServerName = "monitoring";
     HttpServer_ = NHttp::CreateServer(Config_->MonitoringServer);
 
-    ControllerAgent_ = New<TControllerAgent>(Config_->ControllerAgent, this);
+    ControllerAgent_ = New<TControllerAgent>(Config_->ControllerAgent, ConfigNode_->AsMap()->FindChild("controller_agent"), this);
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);

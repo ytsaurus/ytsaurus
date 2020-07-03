@@ -222,6 +222,16 @@ public:
         Underlying_->Dispose();
     }
 
+    virtual bool IsThrottling() const noexcept
+    {
+        return Underlying_->IsThrottling();
+    }
+
+    virtual void RecordScheduleJobFailure(EScheduleJobFailReason reason) noexcept override
+    {
+        Underlying_->RecordScheduleJobFailure(reason);
+    }
+
     virtual void UpdateRuntimeParameters(const TOperationRuntimeParametersUpdatePtr& update) override
     {
         Underlying_->UpdateRuntimeParameters(update);

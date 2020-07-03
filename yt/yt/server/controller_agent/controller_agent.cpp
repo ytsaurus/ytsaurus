@@ -208,6 +208,7 @@ class TControllerAgent::TImpl
 public:
     TImpl(
         TControllerAgentConfigPtr config,
+        INodePtr configNode,
         TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
@@ -231,6 +232,7 @@ public:
             Bootstrap_->GetMasterClient()->GetNativeConnection()))
         , MasterConnector_(std::make_unique<TMasterConnector>(
             Config_,
+            std::move(configNode),
             Bootstrap_))
         , CachedExecNodeDescriptorsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TFilteredExecNodeDescriptors>>(
             BIND(&TImpl::FilterExecNodes, MakeStrong(this)),
@@ -1510,6 +1512,19 @@ private:
             outbox->Enqueue(std::move(response));
         };
 
+        // Some failures are handled in HandleScheduleJobRequests function, even though they are definitely related
+        // to controller. We want to see their statistics in operation progress, so we have to account them in controller's
+        // ScheduleJobStatistics.
+        auto replyWithFailureAndRecordInController = [=] (
+            TOperationId operationId,
+            TJobId jobId,
+            EScheduleJobFailReason reason,
+            IOperationControllerPtr controller)
+        {
+            replyWithFailure(operationId, jobId, reason);
+            controller->RecordScheduleJobFailure(reason);
+        };
+
         ScheduleJobRequestsInbox_->HandleIncoming(
             rsp->mutable_scheduler_to_agent_schedule_job_requests(),
             [&] (auto* protoRequest) {
@@ -1529,24 +1544,16 @@ private:
                 }
 
                 auto controller = operation->GetController();
-                auto scheduleJobInvoker = controller->GetCancelableInvoker(Config_->ScheduleJobControllerQueue);
-                auto scheduleJobInvokerStatistics = controller->GetInvokerStatistics(Config_->ScheduleJobControllerQueue);
-                auto buildJobSpecInvokerStatistics = controller->GetInvokerStatistics(Config_->BuildJobSpecControllerQueue);
-                auto scheduleJobWaitTime = scheduleJobInvokerStatistics.AverageWaitTime;
-                auto buildJobSpecWaitTime = buildJobSpecInvokerStatistics.AverageWaitTime;
-                if (scheduleJobWaitTime + buildJobSpecWaitTime > Config_->ScheduleJobWaitTimeThreshold) {
-                    replyWithFailure(operationId, jobId, EScheduleJobFailReason::ControllerThrottling);
-                    YT_LOG_DEBUG("Schedule job request skipped since average schedule job wait time is too large "
-                        "(OperationId: %v, JobId: %v, ScheduleJobWaitTime: %v, BuildJobSpecTime: %v, TotalWaitTime: %v, Threshold: %v)",
+
+                if (controller->IsThrottling()) {
+                    YT_LOG_DEBUG("Schedule job request skipped since controller is throttling (OperationId: %v, JobId: %v)",
                         operationId,
-                        jobId,
-                        scheduleJobWaitTime,
-                        buildJobSpecWaitTime,
-                        scheduleJobWaitTime + buildJobSpecWaitTime,
-                        Config_->ScheduleJobWaitTimeThreshold);
+                        jobId);
+                    replyWithFailureAndRecordInController(operationId, jobId, EScheduleJobFailReason::ControllerThrottling, controller);
                     return;
                 }
 
+                auto scheduleJobInvoker = controller->GetCancelableInvoker(Config_->ScheduleJobControllerQueue);
                 auto requestDequeueInstant = TInstant::Now();
 
                 GuardedInvoke(
@@ -1559,10 +1566,18 @@ private:
                             jobId,
                             controllerInvocationInstant - requestDequeueInstant);
 
+                        if (controller->IsThrottling()) {
+                            YT_LOG_DEBUG("Schedule job request skipped since controller is throttling (OperationId: %v, JobId: %v)",
+                                operationId,
+                                jobId);
+                            replyWithFailureAndRecordInController(operationId, jobId, EScheduleJobFailReason::ControllerThrottling, controller);
+                            return;
+                        }
+
                         auto nodeId = NodeIdFromJobId(jobId);
                         auto descriptorIt = execNodeDescriptors->find(nodeId);
                         if (descriptorIt == execNodeDescriptors->end()) {
-                            replyWithFailure(operationId, jobId, EScheduleJobFailReason::UnknownNode);
+                            replyWithFailureAndRecordInController(operationId, jobId, EScheduleJobFailReason::UnknownNode, controller);
                             YT_LOG_DEBUG("Failed to schedule job due to unknown node (OperationId: %v, JobId: %v, NodeId: %v)",
                                 operationId,
                                 jobId,
@@ -1572,7 +1587,7 @@ private:
 
                         const auto& execNodeDescriptor = descriptorIt->second;
                         if (!execNodeDescriptor.Online) {
-                            replyWithFailure(operationId, jobId, EScheduleJobFailReason::NodeOffline);
+                            replyWithFailureAndRecordInController(operationId, jobId, EScheduleJobFailReason::NodeOffline, controller);
                             YT_LOG_DEBUG("Failed to schedule job due to node is offline (OperationId: %v, JobId: %v, NodeId: %v)",
                                 operationId,
                                 jobId,
@@ -1768,8 +1783,9 @@ private:
 
 TControllerAgent::TControllerAgent(
     TControllerAgentConfigPtr config,
+    INodePtr configNode,
     TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
+    : Impl_(New<TImpl>(std::move(config), std::move(configNode), bootstrap))
 { }
 
 TControllerAgent::~TControllerAgent() = default;

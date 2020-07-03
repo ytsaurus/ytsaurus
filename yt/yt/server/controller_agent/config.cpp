@@ -2,6 +2,8 @@
 
 #include <yt/server/lib/chunk_pools/config.h>
 
+#include <yt/core/ytree/ephemeral_node_factory.h>
+
 #include <yt/library/re2/re2.h>
 
 namespace NYT::NControllerAgent {
@@ -244,6 +246,12 @@ TOperationOptions::TOperationOptions()
 
     RegisterParameter("set_container_cpu_limit", SetContainerCpuLimit)
         .Default(false);
+
+    // NB: defaults for these values are actually in preprocessor of TControllerAgentConfig::OperationOptions.
+    RegisterParameter("controller_building_job_spec_count_limit", ControllerBuildingJobSpecCountLimit)
+        .Default();
+    RegisterParameter("controller_total_building_job_spec_slice_count_limit", ControllerTotalBuildingJobSpecSliceCountLimit)
+        .Default();
 
     RegisterPostprocessor([&] () {
         if (MaxSliceDataWeight < MinSliceDataWeight) {
@@ -522,7 +530,7 @@ TControllerAgentConfig::TControllerAgentConfig()
         .Default(10000);
 
     RegisterParameter("operation_options", OperationOptions)
-        .Default()
+        .Default(NYTree::GetEphemeralNodeFactory()->CreateMap())
         .MergeBy(NYTree::EMergeStrategy::Combine);
 
     RegisterParameter("map_operation_options", MapOperationOptions)
@@ -639,6 +647,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("schedule_job_statistics_log_backoff", ScheduleJobStatisticsLogBackoff)
         .Default(TDuration::Seconds(1));
 
+    RegisterParameter("controller_throttling_log_backoff", ControllerThrottlingLogBackoff)
+        .Default(TDuration::Seconds(1));
+
     RegisterParameter("job_spec_slice_throttler", JobSpecSliceThrottler)
         .Default(New<NConcurrency::TThroughputThrottlerConfig>(500000));
 
@@ -727,6 +738,9 @@ TControllerAgentConfig::TControllerAgentConfig()
 
         UnorderedMergeOperationOptions->DataWeightPerJob = 20_GB;
         UnorderedMergeOperationOptions->MaxDataSlicesPerJob = 10000;
+
+        OperationOptions->AsMap()->AddChild("controller_building_job_spec_count_limit", NYTree::ConvertToNode(100));
+        OperationOptions->AsMap()->AddChild("controller_total_building_job_spec_slice_count_limit", NYTree::ConvertToNode(50'000));
     });
 
     RegisterPostprocessor([&] {

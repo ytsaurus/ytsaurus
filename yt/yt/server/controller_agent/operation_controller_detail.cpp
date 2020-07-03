@@ -288,6 +288,10 @@ TOperationControllerBase::TOperationControllerBase(
         ? Host->GetClient()->AttachTransaction(UserTransactionId, userAttachOptions)
         : nullptr;
 
+    for (const auto& reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+        ExternalScheduleJobFailureCounts_[reason] = 0;
+    }
+
     YT_LOG_INFO("Operation controller instantiated (OperationType: %v, Address: %v)",
         OperationType,
         static_cast<void*>(this));
@@ -3918,6 +3922,7 @@ TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
 
     auto now = NProfiling::GetCpuInstant();
     if (now > ScheduleJobStatisticsLogDeadline_) {
+        AccountExternalScheduleJobFailures();
         YT_LOG_DEBUG("Schedule job statistics (Count: %v, TotalDuration: %v, FailureReasons: %v)",
             ScheduleJobStatistics_->Count,
             ScheduleJobStatistics_->Duration,
@@ -3926,6 +3931,81 @@ TControllerScheduleJobResultPtr TOperationControllerBase::SafeScheduleJob(
     }
 
     return scheduleJobResult;
+}
+
+bool TOperationControllerBase::IsThrottling() const noexcept
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto now = TInstant::Now();
+
+    bool forceLogging = LastControllerThrottlingLogTime_ + Config->ControllerThrottlingLogBackoff < now;
+    if (forceLogging) {
+        LastControllerThrottlingLogTime_ = now;
+    }
+
+    // Check job spec limits.
+    bool jobSpecThrottling = false;
+    {
+        auto buildingJobSpecCount = BuildingJobSpecCount_.load();
+        auto totalBuildingJobSpecSliceCount = TotalBuildingJobSpecSliceCount_.load();
+        auto avgSliceCount = totalBuildingJobSpecSliceCount / std::max<double>(1.0, buildingJobSpecCount);
+        if (Options->ControllerBuildingJobSpecCountLimit) {
+            jobSpecThrottling |= buildingJobSpecCount > *Options->ControllerBuildingJobSpecCountLimit;
+        }
+        if (Options->ControllerTotalBuildingJobSpecSliceCountLimit) {
+            jobSpecThrottling |= totalBuildingJobSpecSliceCount > *Options->ControllerTotalBuildingJobSpecSliceCountLimit;
+        }
+
+        if (jobSpecThrottling || forceLogging) {
+            YT_LOG_DEBUG(
+                "Throttling statistics for building job specs (JobSpecCount: %v, JobSpecCountLimit: %v, TotalJobSpecSliceCount: %v, "
+                "TotalJobSpecSliceCountLimit: %v, AvgJobSpecSliceCount: %v, JobSpecThrottling: %v)",
+                buildingJobSpecCount,
+                Options->ControllerBuildingJobSpecCountLimit,
+                totalBuildingJobSpecSliceCount,
+                Options->ControllerTotalBuildingJobSpecSliceCountLimit,
+                avgSliceCount,
+                jobSpecThrottling);
+        }
+    }
+
+    // Check invoker wait time.
+    bool waitTimeThrottling = false;
+    {
+        auto scheduleJobInvokerStatistics = GetInvokerStatistics(Config->ScheduleJobControllerQueue);
+        auto buildJobSpecInvokerStatistics = GetInvokerStatistics(Config->BuildJobSpecControllerQueue);
+        auto scheduleJobWaitTime = scheduleJobInvokerStatistics.AverageWaitTime;
+        auto buildJobSpecWaitTime = buildJobSpecInvokerStatistics.AverageWaitTime;
+        waitTimeThrottling = scheduleJobWaitTime + buildJobSpecWaitTime > Config->ScheduleJobWaitTimeThreshold;
+
+        if (waitTimeThrottling || forceLogging) {
+            YT_LOG_DEBUG("Throttling statistics for wait time "
+                "(ScheduleJobWaitTime: %v, BuildJobSpecTime: %v, TotalWaitTime: %v, Threshold: %v, WaitTimeThrottling: %v)",
+                scheduleJobWaitTime,
+                buildJobSpecWaitTime,
+                scheduleJobWaitTime + buildJobSpecWaitTime,
+                Config->ScheduleJobWaitTimeThreshold,
+                waitTimeThrottling);
+        }
+    }
+
+    return jobSpecThrottling || waitTimeThrottling;
+}
+
+void TOperationControllerBase::RecordScheduleJobFailure(EScheduleJobFailReason reason) noexcept
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    ExternalScheduleJobFailureCounts_[reason].fetch_add(1);
+}
+
+void TOperationControllerBase::AccountBuildingJobSpecDelta(int countDelta, i64 totalSliceCountDelta) noexcept
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    BuildingJobSpecCount_.fetch_add(countDelta);
+    TotalBuildingJobSpecSliceCount_.fetch_add(totalSliceCountDelta);
 }
 
 void TOperationControllerBase::UpdateConfig(const TControllerAgentConfigPtr& config)
@@ -7410,6 +7490,8 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         return;
     }
 
+    AccountExternalScheduleJobFailures();
+
     fluent
         .Item("state").Value(State.load())
         .Item("build_time").Value(TInstant::Now())
@@ -7638,6 +7720,10 @@ void TOperationControllerBase::CheckTentativeTreeEligibility()
 
 TSharedRef TOperationControllerBase::SafeBuildJobSpecProto(const TJobletPtr& joblet)
 {
+    if (auto buildJobSpecProtoDelay = Spec_->TestingOperationOptions->BuildJobSpecProtoDelay) {
+        Sleep(*buildJobSpecProtoDelay);
+    }
+
     return joblet->Task->BuildJobSpecProto(joblet);
 }
 
@@ -8950,6 +9036,16 @@ std::vector<TTaskPtr> TOperationControllerBase::GetTopologicallyOrderedTasks() c
     });
 
     return tasks;
+}
+
+void TOperationControllerBase::AccountExternalScheduleJobFailures() const
+{
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+
+    for (const auto& reason : TEnumTraits<EScheduleJobFailReason>::GetDomainValues()) {
+        auto count = ExternalScheduleJobFailureCounts_[reason].exchange(0);
+        ScheduleJobStatistics_->Failed[reason] += count;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -88,9 +88,10 @@ class TMasterConnector::TImpl
 public:
     TImpl(
         TControllerAgentConfigPtr config,
+        INodePtr configNode,
         TBootstrap* bootstrap)
         : Config_(std::move(config))
-        , InitialConfig_(Config_)
+        , InitialConfigNode_(std::move(configNode))
         , Bootstrap_(bootstrap)
         , UpdateOperationProgressFailuresCounter_("/operation_archive/update_progress_failures")
     { }
@@ -223,7 +224,7 @@ public:
 
 private:
     TControllerAgentConfigPtr Config_;
-    TControllerAgentConfigPtr InitialConfig_;
+    INodePtr InitialConfigNode_;
     ui64 ConfigRevision_ = 0;
 
     TBootstrap* const Bootstrap_;
@@ -1345,8 +1346,8 @@ private:
             try {
                 const auto& rsp = rspOrError.ValueOrThrow();
 
-                newConfig = CloneYsonSerializable(InitialConfig_);
-                newConfig->Load(ConvertToNode(TYsonString(rsp->value())), /* validate */ true, /* setDefaults */ false);
+                auto newConfigNode = PatchNode(CloneNode(InitialConfigNode_), ConvertToNode(TYsonString(rsp->value())));
+                newConfig = ConvertTo<TControllerAgentConfigPtr>(newConfigNode);
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Error loading controller agent configuration")
                     << ex;
@@ -1415,8 +1416,9 @@ private:
 
 TMasterConnector::TMasterConnector(
     TControllerAgentConfigPtr config,
+    INodePtr configNode,
     TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(std::move(config), bootstrap))
+    : Impl_(New<TImpl>(std::move(config), std::move(configNode), bootstrap))
 { }
 
 TMasterConnector::~TMasterConnector() = default;

@@ -24,6 +24,8 @@
 
 #include <yt/core/concurrency/throughput_throttler.h>
 
+#include <yt/core/misc/finally.h>
+
 namespace NYT::NControllerAgent {
 
 using namespace NChunkClient;
@@ -382,8 +384,20 @@ void TTask::ScheduleJob(
     auto it = LostJobCookieMap.lower_bound(TCookieAndPool(joblet->OutputCookie, nullptr));
     bool restarted = it != LostJobCookieMap.end() && it->first.first == joblet->OutputCookie;
 
+    auto accountBuildingJobSpec = BIND(&ITaskHost::AccountBuildingJobSpecDelta, MakeWeak(TaskHost_));
+    accountBuildingJobSpec.Run(+1, +sliceCount);
+
+    // Finally guard allows us not to think about exceptions, cancellation, controller destruction, and other tricky cases.
+    auto discountBuildingJobSpecGuard = Finally([=, accountBuildingJobSpec = std::move(accountBuildingJobSpec)] {
+        accountBuildingJobSpec.Run(-1, -sliceCount);
+    });
+
     joblet->Account = TaskHost_->GetSpec()->JobNodeAccount;
-    joblet->JobSpecProtoFuture = BIND([weakTaskHost = MakeWeak(TaskHost_), joblet] {
+    joblet->JobSpecProtoFuture = BIND([
+        weakTaskHost = MakeWeak(TaskHost_),
+        joblet,
+        discountBuildingJobSpecGuard = std::move(discountBuildingJobSpecGuard)
+    ] {
         if (auto taskHost = weakTaskHost.Lock()) {
             return taskHost->BuildJobSpecProto(joblet);
         } else {

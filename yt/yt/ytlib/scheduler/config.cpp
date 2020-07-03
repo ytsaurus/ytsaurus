@@ -195,6 +195,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("cancellation_stage", CancelationStage)
         .Default();
+    RegisterParameter("build_job_spec_proto_delay", BuildJobSpecProtoDelay)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -43,6 +43,7 @@ class TControllerAgent
 public:
     TControllerAgent(
         TControllerAgentConfigPtr config,
+        NYTree::INodePtr configNode,
         TBootstrap* bootstrap);
     ~TControllerAgent();
 

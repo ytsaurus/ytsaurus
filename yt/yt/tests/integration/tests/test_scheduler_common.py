@@ -58,6 +58,7 @@ class TestSchedulerCommon(YTEnvSetup):
                     "max_jobs_per_split": 3,
                 },
             },
+            "controller_throttling_log_backoff": 0,
         }
     }
 
@@ -762,6 +763,57 @@ class TestSchedulerCommon(YTEnvSetup):
         new_timeout = get("#{}/@timeout".format(lock_tx)) + 1234
         set("//sys/scheduler/config/lock_transaction_timeout", new_timeout, recursive=True)
         wait(lambda: get("#{}/@timeout".format(lock_tx)) == new_timeout)
+
+    @authors("max42")
+    def test_controller_throttling(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        for i in xrange(25):
+            write_table("<append=%true>//tmp/t_in", [{"a": i}])
+
+        def get_controller_throttling_schedule_job_fail_count():
+            op = map(in_=["//tmp/t_in"],
+                     out=["//tmp/t_out"],
+                     command="cat",
+                     spec={
+                         "job_count": 5,
+                         "testing": {
+                             "build_job_spec_proto_delay": 1000,
+                         }
+                     })
+            schedule_job_statistics = get(op.get_path() + "/@progress/schedule_job_statistics")
+            return schedule_job_statistics.get("failed", {}).get("controller_throttling", 0)
+
+        if not exists("//sys/controller_agents/config/operation_options"):
+            set("//sys/controller_agents/config/operation_options", {})
+
+        job_spec_count_limit_path = "//sys/controller_agents/config/operation_options/controller_building_job_spec_count_limit"
+        total_job_spec_slice_count_limit_path = "//sys/controller_agents/config/operation_options/controller_total_building_job_spec_slice_count_limit"
+        controller_agent_config_revision_path = \
+            "//sys/controller_agents/instances/{}/orchid/controller_agent/config_revision".format(ls("//sys/controller_agents/instances")[0])
+
+        def wait_for_fresh_config():
+            config_revision = get(controller_agent_config_revision_path)
+            wait(lambda: get(controller_agent_config_revision_path) - config_revision >= 2)
+
+        assert get_controller_throttling_schedule_job_fail_count() == 0
+
+        try:
+            set(job_spec_count_limit_path, 1)
+            wait_for_fresh_config()
+            assert get_controller_throttling_schedule_job_fail_count() > 0
+        finally:
+            remove(job_spec_count_limit_path, force=True)
+
+        try:
+            set(total_job_spec_slice_count_limit_path, 5)
+            wait_for_fresh_config()
+            assert get_controller_throttling_schedule_job_fail_count() > 0
+        finally:
+            remove(total_job_spec_slice_count_limit_path, force=True)
+
+        wait_for_fresh_config()
+        assert get_controller_throttling_schedule_job_fail_count() == 0
 
 class TestSchedulerCommonMulticell(TestSchedulerCommon):
     NUM_SECONDARY_MASTER_CELLS = 2
