@@ -106,7 +106,7 @@ public:
         RegisterParameter("test_network", TestNetwork)
             .Default(false);
 
-        RegisterParameter("use_daemon_subcontainter", UseDaemonSubcontainer)
+        RegisterParameter("use_daemon_subcontainer", UseDaemonSubcontainer)
             .Default(false);
     }
 };
