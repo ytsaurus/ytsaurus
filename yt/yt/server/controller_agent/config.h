@@ -231,13 +231,18 @@ public:
 
     TJobSplitterConfigPtr JobSplitter;
 
-    //! This flags currently makes sense only for porto environment. 
+    //! This flags currently makes sense only for porto environment.
     //! It forces setting container cpu limit on slot container calculated as
     //! JobCpuLimit * CpuLimitOvercommitMultiplier + InitialCpuLimitOvercommit
     bool SetContainerCpuLimit;
 
     double CpuLimitOvercommitMultiplier;
     double InitialCpuLimitOvercommit;
+
+    //! Number of simultaneously building job specs after which controller starts throttling.
+    std::optional<int> ControllerBuildingJobSpecCountLimit;
+    //! Total slice count of currently building job specs after which controller starts throttling.
+    std::optional<i64> ControllerTotalBuildingJobSpecSliceCountLimit;
 
     TOperationOptions();
 };
@@ -748,6 +753,9 @@ public:
 
     //! Backoff between schedule job statistics logging.
     TDuration ScheduleJobStatisticsLogBackoff;
+
+    //! Backoff between controller throttling logging.
+    TDuration ControllerThrottlingLogBackoff;
 
     //! Controls the rate at which jobs are scheduled in termes of slices per second.
     NConcurrency::TThroughputThrottlerConfigPtr JobSpecSliceThrottler;

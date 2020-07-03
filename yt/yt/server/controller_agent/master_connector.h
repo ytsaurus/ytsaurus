@@ -23,6 +23,7 @@ class TMasterConnector
 public:
     TMasterConnector(
         TControllerAgentConfigPtr config,
+        NYTree::INodePtr configNode,
         TBootstrap* bootstrap);
     ~TMasterConnector();
 

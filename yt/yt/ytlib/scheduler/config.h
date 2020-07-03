@@ -506,6 +506,8 @@ public:
 
     std::optional<TDuration> GetJobSpecDelay;
 
+    std::optional<TDuration> BuildJobSpecProtoDelay;
+
     bool FailGetJobSpec;
 
     ETestingSpeculativeLaunchMode TestingSpeculativeLaunchMode;
@@ -804,7 +806,7 @@ public:
     //! Makes sense only with porto environment.
     bool UsePortoMemoryTracking;
 
-    //! This flag currently makes sense only for porto environment. 
+    //! This flag currently makes sense only for porto environment.
     //! It forces setting container cpu limit on slot container equal to CpuLimit provided in task spec
     //! and overrides setting in operation options.
     bool SetContainerCpuLimit;
@@ -1331,7 +1333,7 @@ public:
     NSecurityClient::TSerializableAccessControlList Acl;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
     NYTree::IMapNodePtr Annotations;
-    
+
     // Erased trees of operation, should be used only for information purposes.
     std::vector<TString> ErasedTrees;
 

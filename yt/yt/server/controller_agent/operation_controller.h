@@ -417,14 +417,30 @@ struct IOperationController
     virtual IDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
         EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
 
-    /*!
-     *  \note Invoker affinity: Cancellable controller invoker
-     */
     //! Called during heartbeat processing to request actions the node must perform.
+    /*!
+     *  \note Invoker affinity: cancelable controller invoker
+     */
     virtual NScheduler::TControllerScheduleJobResultPtr ScheduleJob(
         ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId) = 0;
+
+    //! Called during schedule job when failure happens even before calling #IOpertionController::ScheduleJob().
+    //! Used to account such failures in operation progress.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual void RecordScheduleJobFailure(EScheduleJobFailReason reason) = 0;
+
+    //! A mean for backpressuring #ScheduleJob requests.
+    //! Returns |true| iff amount of already ongoing work by controller is
+    //! enough not to schedule any more jobs (i.e. total size estimate of all job specs
+    //! to serialize reaches some limit).
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual bool IsThrottling() const noexcept = 0;
 
     //! Returns the total resources that are additionally needed.
     /*!
