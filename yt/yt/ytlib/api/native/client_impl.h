@@ -826,7 +826,13 @@ private:
     bool DoesOperationsArchiveExist();
     int DoGetOperationsArchiveVersion();
 
-    NYson::TYsonString DoGetOperationFromCypress(
+    struct TGetOperationFromCypressResult
+    {
+        NYson::TYsonString Operation;
+        TInstant NodeModificationTime;
+    };
+
+    TGetOperationFromCypressResult DoGetOperationFromCypress(
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TGetOperationOptions& options);
