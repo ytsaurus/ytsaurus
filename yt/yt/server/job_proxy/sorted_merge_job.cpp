@@ -4,6 +4,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/job_spec_extensions.h>
+#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 #include <yt/ytlib/job_proxy/helpers.h>
 
@@ -40,6 +41,8 @@ public:
 
     virtual void Initialize() override
     {
+        TSimpleJobBase::Initialize();
+
         YT_VERIFY(SchedulerJobSpecExt_.output_table_specs_size() == 1);
         const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
 
@@ -57,8 +60,9 @@ public:
 
             TotalRowCount_ += GetCumulativeRowCount(dataSliceDescriptors);
 
+            const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
             auto reader = CreateSchemalessSequentialMultiReader(
-                Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
+                tableReaderConfig,
                 readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
@@ -74,7 +78,8 @@ public:
                 /* partitionTag */ std::nullopt,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),
-                Host_->GetOutRpsThrottler());
+                Host_->GetOutRpsThrottler(),
+                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
 
             readers.push_back(reader);
         }
@@ -139,6 +144,12 @@ private:
 
     virtual void CreateWriter() override
     { }
+
+    virtual i64 GetTotalReaderMemoryLimit() const
+    {
+        auto readerMemoryLimit = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->MaxBufferSize;
+        return readerMemoryLimit * SchedulerJobSpecExt_.input_table_specs_size();
+    }
 };
 
 IJobPtr CreateSortedMergeJob(IJobHostPtr host)

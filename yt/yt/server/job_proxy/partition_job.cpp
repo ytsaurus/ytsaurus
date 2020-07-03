@@ -5,6 +5,7 @@
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/job_spec_extensions.h>
+#include <yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
 #include <yt/ytlib/job_proxy/helpers.h>
 
@@ -41,6 +42,8 @@ public:
 
     virtual void Initialize() override
     {
+        TSimpleJobBase::Initialize();
+
         YT_VERIFY(SchedulerJobSpecExt_.input_table_specs_size() == 1);
         const auto& inputSpec = SchedulerJobSpecExt_.input_table_specs(0);
 
@@ -61,8 +64,9 @@ public:
             YT_VERIFY(!Reader_);
             // NB: don't create parallel reader to eliminate non-deterministic behavior,
             // which is a nightmare for restarted (lost) jobs.
+            const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
             Reader_ = CreateSchemalessSequentialMultiReader(
-                Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader,
+                tableReaderConfig,
                 readerOptions,
                 Host_->GetClient(),
                 Host_->LocalDescriptor(),
@@ -78,7 +82,8 @@ public:
                 /* partitionTag */ std::nullopt,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),
-                Host_->GetOutRpsThrottler());
+                Host_->GetOutRpsThrottler(),
+                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->WindowSize));
             return Reader_;
         };
 
@@ -134,6 +139,11 @@ private:
     virtual bool ShouldSendBoundaryKeys() const override
     {
         return false;
+    }
+
+    virtual i64 GetTotalReaderMemoryLimit() const
+    {
+        return Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader->MaxBufferSize;
     }
 };
 
