@@ -955,6 +955,7 @@ struct TGetOperationOptions
 {
     std::optional<THashSet<TString>> Attributes;
     TDuration ArchiveTimeout = TDuration::Seconds(3);
+    TDuration MaximumCypressProgressAge = TDuration::Seconds(20);
     bool IncludeRuntime = false;
 };
 

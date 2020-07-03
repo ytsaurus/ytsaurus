@@ -154,7 +154,7 @@ static std::vector<TString> CreateArchiveOperationAttributes(const THashSet<TStr
     return result;
 }
 
-TYsonString TClient::DoGetOperationFromCypress(
+TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     NScheduler::TOperationId operationId,
     TInstant deadline,
     const TGetOperationOptions& options)
@@ -166,6 +166,7 @@ TYsonString TClient::DoGetOperationFromCypress(
         if (!options.Attributes->contains("controller_agent_address")) {
             cypressAttributes->push_back("controller_agent_address");
         }
+        cypressAttributes->push_back("modification_time");
     }
 
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
@@ -196,7 +197,7 @@ TYsonString TClient::DoGetOperationFromCypress(
     }
 
     if (!cypressNode) {
-        return TYsonString();
+        return {};
     }
 
     auto attrNode = cypressNode->AsMap();
@@ -227,6 +228,11 @@ TYsonString TClient::DoGetOperationFromCypress(
     if (options.Attributes && !options.Attributes->contains("state")) {
         attrNode->RemoveChild("state");
     }
+
+    auto modificationTimeNode = attrNode->FindChild("modification_time");
+    YT_VERIFY(modificationTimeNode);
+    auto modificationTime = ConvertTo<TInstant>(modificationTimeNode);
+    attrNode->RemoveChild(modificationTimeNode);
 
     if (!options.Attributes) {
         auto keysToKeep = ConvertTo<THashSet<TString>>(attrNode->GetChild("user_attribute_keys"));
@@ -312,7 +318,10 @@ TYsonString TClient::DoGetOperationFromCypress(
         }
     }
 
-    return ConvertToYsonString(attrNode);
+    return TGetOperationFromCypressResult{
+        .Operation = ConvertToYsonString(attrNode),
+        .NodeModificationTime = modificationTime,
+    };
 }
 
 TYsonString TClient::DoGetOperationFromArchive(
@@ -444,20 +453,21 @@ TOperationId TClient::ResolveOperationAlias(
         << TErrorAttribute("alias", alias);
 }
 
+static TInstant GetProgressBuildTime(const TYsonString& progressYson)
+{
+    if (!progressYson) {
+        return TInstant();
+    }
+    auto maybeTimeString = TryGetString(progressYson.GetData(), "/build_time");
+    if (!maybeTimeString) {
+        return TInstant();
+    }
+    return ConvertTo<TInstant>(*maybeTimeString);
+}
+
 static TYsonString GetLatestProgress(const TYsonString& cypressProgress, const TYsonString& archiveProgress)
 {
-    auto getBuildTime = [&] (const TYsonString& progress) {
-        if (!progress) {
-            return TInstant();
-        }
-        auto maybeTimeString = TryGetString(progress.GetData(), "/build_time");
-        if (!maybeTimeString) {
-            return TInstant();
-        }
-        return ConvertTo<TInstant>(*maybeTimeString);
-    };
-
-    return getBuildTime(cypressProgress) > getBuildTime(archiveProgress)
+    return GetProgressBuildTime(cypressProgress) > GetProgressBuildTime(archiveProgress)
         ? cypressProgress
         : archiveProgress;
 }
@@ -483,20 +493,21 @@ TYsonString TClient::DoGetOperation(
             operationId = ResolveOperationAlias(alias, options, deadline);
         });
 
-    std::vector<TFuture<TYsonString>> getOperationFutures;
+    std::vector<TFuture<void>> getOperationFutures;
 
     auto cypressFuture = BIND(&TClient::DoGetOperationFromCypress, MakeStrong(this), operationId, deadline, options)
         .AsyncVia(Connection_->GetInvoker())
         .Run();
-    getOperationFutures.push_back(cypressFuture);
+    getOperationFutures.push_back(cypressFuture.As<void>());
 
-    TFuture<TYsonString> archiveFuture = MakeFuture<TYsonString>(TYsonString());
     // We request state to distinguish controller agent's archive entries
     // from operation cleaner's ones (the latter must have "state" field).
     auto archiveOptions = options;
     if (archiveOptions.Attributes) {
         archiveOptions.Attributes->insert("state");
     }
+
+    TFuture<TYsonString> archiveFuture = MakeFuture<TYsonString>(TYsonString());
     if (DoesOperationsArchiveExist()) {
         archiveFuture = BIND(&TClient::DoGetOperationFromArchive,
             MakeStrong(this),
@@ -507,12 +518,12 @@ TYsonString TClient::DoGetOperation(
             .Run()
             .WithTimeout(options.ArchiveTimeout);
     }
-    getOperationFutures.push_back(archiveFuture);
+    getOperationFutures.push_back(archiveFuture.As<void>());
 
-    auto getOperationResponses = WaitFor(AllSet<TYsonString>(getOperationFutures))
+    WaitFor(AllSet<void>(getOperationFutures))
         .ValueOrThrow();
 
-    auto cypressResult = cypressFuture.Get()
+    auto [cypressResult, operationNodeModificationTime] = cypressFuture.Get()
         .ValueOrThrow();
 
     auto archiveResultOrError = archiveFuture.Get();
@@ -525,13 +536,14 @@ TYsonString TClient::DoGetOperation(
             archiveResultOrError);
     }
 
+    static const std::vector<TString> ProgressFieldNames = {"brief_progress", "progress"};
+
     auto mergeResults = [] (const TYsonString& cypressResult, const TYsonString& archiveResult) {
         auto cypressResultNode = ConvertToNode(cypressResult);
         YT_VERIFY(cypressResultNode->GetType() == ENodeType::Map);
         const auto& cypressResultMap = cypressResultNode->AsMap();
 
-        std::vector<TString> fieldNames = {"brief_progress", "progress"};
-        for (const auto& fieldName : fieldNames) {
+        for (const auto& fieldName : ProgressFieldNames) {
             auto cypressFieldNode = cypressResultMap->FindChild(fieldName);
             cypressResultMap->RemoveChild(fieldName);
 
@@ -556,8 +568,42 @@ TYsonString TClient::DoGetOperation(
 
     if (archiveResult && cypressResult) {
         return mergeResults(cypressResult, archiveResult);
-    } else if (cypressResult) {
-        return cypressResult;
+    }
+
+    auto getOldestBuildTime = [&] (const TYsonString& result) {
+        auto oldestBuildTime = TInstant::Max();
+        for (const auto& fieldName : ProgressFieldNames) {
+            if (options.Attributes && !options.Attributes->contains(fieldName)) {
+                continue;
+            }
+            TInstant buildTime;
+            if (auto maybeProgressYson = TryGetAny(result.GetData(), "/" + fieldName)) {
+                buildTime = GetProgressBuildTime(TYsonString(*maybeProgressYson));
+            }
+            oldestBuildTime = Min(oldestBuildTime, buildTime);
+        }
+        return oldestBuildTime;
+    };
+
+    if (cypressResult) {
+        auto cypressProgressAge = operationNodeModificationTime - getOldestBuildTime(cypressResult);
+        if (cypressProgressAge <= options.MaximumCypressProgressAge) {
+            return cypressResult;
+        }
+
+        YT_LOG_DEBUG(archiveResultOrError,
+            "Operation progress in Cypress is outdated, while archive request failed "
+            "(OperationId: %v, CypressProgressAge: %v, MaximumCypressProgressAge: %v)",
+            operationId,
+            cypressProgressAge,
+            options.MaximumCypressProgressAge);
+        if (!archiveResultOrError.FindMatching(NYT::EErrorCode::Timeout)) {
+            THROW_ERROR_EXCEPTION("Operation progress in Cypress is outdated "
+                "while archive request failed")
+                << archiveResultOrError;
+        }
+        archiveResult = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
+        return mergeResults(cypressResult, archiveResult);
     }
 
     // Check whether archive row was written by controller agent or operation cleaner.
