@@ -645,7 +645,10 @@ void TBootstrap::DoInitialize()
 
     RpcServer_->RegisterService(CreateQueryService(Config_->QueryAgent, this));
 
-    auto timestampProviderConfig = CreateRemoteTimestampProviderConfig(Config_->ClusterConnection->PrimaryMaster);
+    auto timestampProviderConfig = Config_->TimestampProvider;
+    if (!timestampProviderConfig) {
+        timestampProviderConfig = CreateRemoteTimestampProviderConfig(Config_->ClusterConnection->PrimaryMaster);
+    }
     auto timestampProvider = CreateBatchingRemoteTimestampProvider(
         timestampProviderConfig,
         CreateTimestampProviderChannel(timestampProviderConfig, MasterConnection_->GetChannelFactory()));
