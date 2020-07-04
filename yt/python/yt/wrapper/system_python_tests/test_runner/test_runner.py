@@ -86,7 +86,6 @@ def run_pytest(major_python_version):
 
     path = arcadia_interop.prepare_yt_environment(
         build_dir,
-        use_ytserver_all=True,
         copy_ytserver_all=True,
         need_suid=True)
     if "PATH" in os.environ:

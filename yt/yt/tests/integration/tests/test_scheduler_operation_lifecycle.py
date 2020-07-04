@@ -1181,7 +1181,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
         print_debug("=== stdout ===")
         print_debug(stdout)
         assert child.returncode == 0
-        assert "OperationControllerBase" in stdout
+        assert "Prepare" in stdout
 
     @authors("ignat")
     def test_unexpected_exception(self):

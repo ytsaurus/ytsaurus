@@ -70,7 +70,7 @@ def prepare_yatest_environment(need_suid):
 
     if not os.path.exists(destination):
         os.makedirs(destination)
-        path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False, use_ytserver_all=True, copy_ytserver_all=True, need_suid=need_suid)
+        path = arcadia_interop.prepare_yt_environment(destination, inside_arcadia=False, copy_ytserver_all=True, need_suid=need_suid)
         os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
 
     if ytrecipe:
