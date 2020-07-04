@@ -77,6 +77,7 @@ protected:
 
     NTransactionServer::TTransaction* const Transaction_;
     TCypressNode* const TrunkNode_;
+    const TVersionedNodeId VersionedId_;
 
     mutable TCypressNode* CachedNode_ = nullptr;
 
