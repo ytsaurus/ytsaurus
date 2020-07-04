@@ -210,8 +210,25 @@ void FromUnversionedRow(
 template <class... Ts>
 std::tuple<Ts...> FromUnversionedRow(TUnversionedRow row);
 
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Enables annotating values with explicit ids.
+template <class T>
+struct TValueWithId
+{
+    //! For an implicitly-generated deduction guide.
+    TValueWithId(const T& value, int id)
+        : Value(value)
+        , Id(id)
+    { }
+    
+    const T& Value;
+    int Id;
+};
+
 //! Constructs an owning row from arbitrarily-typed values.
-//! Values get sequential ids 0..N-1.
+//! Values get sequential ids 0..N-1 (unless wrapped into TValueWithId).
 template <class... Ts>
 TUnversionedOwningRow MakeUnversionedOwningRow(Ts&&... values);
 

@@ -71,6 +71,54 @@ struct TUnversionedValueConversionTraits<T, typename std::enable_if<TEnumTraits<
 };
 
 template <class T>
+struct TUnversionedValueConversionTraits<std::optional<T>, void>
+{
+    static constexpr bool Scalar = TUnversionedValueConversionTraits<T>::Scalar;
+    static constexpr bool Inline = TUnversionedValueConversionTraits<T>::Inline;
+};
+
+template <class T>
+struct TUnversionedValueConversionTraits<TValueWithId<T>, void>
+{
+    static constexpr bool Scalar = TUnversionedValueConversionTraits<T>::Scalar;
+    static constexpr bool Inline = TUnversionedValueConversionTraits<T>::Inline;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
+void ToUnversionedValue(
+    TUnversionedValue* unversionedValue,
+    const TValueWithId<T>& value,
+    const TRowBufferPtr& rowBuffer,
+    int /*id*/)
+{
+    ToUnversionedValue(unversionedValue, value.Value, rowBuffer, value.Id);
+}
+
+template <class T>
+struct TValueWithIdTrait
+{
+    static constexpr bool WithId = false;
+};
+
+template <class T>
+struct TValueWithIdTrait<TValueWithId<T>>
+{
+    static constexpr bool WithId = true;
+};
+
+template <class... Ts>
+struct TRowValueTypesChecker
+{
+    static constexpr bool AllWithIds = (... && TValueWithIdTrait<Ts>::WithId);
+    static constexpr bool AllWithoutIds = (... && !TValueWithIdTrait<Ts>::WithId);
+    static_assert(AllWithIds || AllWithoutIds, "All values must be wrapped into TValueWithId or none must be.");
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T>
 void ToUnversionedValue(
     TUnversionedValue* unversionedValue,
     T value,
@@ -154,13 +202,6 @@ void FromUnversionedValue(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-template <class T>
-struct TUnversionedValueConversionTraits<std::optional<T>, void>
-{
-    static constexpr bool Scalar = TUnversionedValueConversionTraits<T>::Scalar;
-    static constexpr bool Inline = TUnversionedValueConversionTraits<T>::Inline;
-};
 
 template <class T>
 void ToUnversionedValue(
@@ -358,9 +399,11 @@ auto ToUnversionedValues(
     Ts&&... values)
     -> std::array<TUnversionedValue, sizeof...(Ts)>
 {
+    TRowValueTypesChecker<Ts...>();
     std::array<TUnversionedValue, sizeof...(Ts)> array;
     auto* current = array.data();
-    (ToUnversionedValue(current++, std::forward<Ts>(values), rowBuffer), ...);
+    int id = 0;
+    (ToUnversionedValue(current++, std::forward<Ts>(values), rowBuffer, id++), ...);
     return array;
 }
 
@@ -427,16 +470,12 @@ T FromUnversionedValue(TUnversionedValue unversionedValue)
 template <class... Ts>
 TUnversionedOwningRow MakeUnversionedOwningRow(Ts&&... values)
 {
-    // TODO(babenko): optimize further
+    TRowValueTypesChecker<Ts...>();
     constexpr bool AllTypesInline = (... && TUnversionedValueConversionTraits<Ts>::Inline);
     auto rowBuffer = AllTypesInline ? TRowBufferPtr() : New<TRowBuffer>();
-    auto unversionedValues = ToUnversionedValues(rowBuffer, std::forward<Ts>(values)...);
-    TUnversionedOwningRowBuilder builder(sizeof...(values));
+    TUnversionedOwningRowBuilder builder(sizeof...(Ts));
     int id = 0;
-    for (auto& unversionedValue : unversionedValues) {
-        unversionedValue.Id = id++;
-        builder.AddValue(unversionedValue);
-    }
+    (builder.AddValue(ToUnversionedValue(std::forward<Ts>(values), rowBuffer, id++)), ...);
     return builder.FinishRow();
 }
 
@@ -445,6 +484,7 @@ TUnversionedOwningRow MakeUnversionedOwningRow(Ts&&... values)
 template <class... Ts>
 void TUnversionedRowsBuilder::AddRow(Ts&&... values)
 {
+    TRowValueTypesChecker<Ts...>();
     auto row = RowBuffer_->AllocateUnversioned(sizeof...(Ts));
     auto* current = row.Begin();
     int id = 0;

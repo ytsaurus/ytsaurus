@@ -86,6 +86,7 @@ static_assert(TUnversionedValueConversionTraits<std::optional<i64>>::Inline, "i6
 static_assert(TUnversionedValueConversionTraits<std::optional<i64>>::Scalar, "i64? must be scalar.");
 static_assert(!TUnversionedValueConversionTraits<TString>::Inline, "TString must not be inline.");
 static_assert(TUnversionedValueConversionTraits<TString>::Scalar, "TString must be scalar.");
+static_assert(TUnversionedValueConversionTraits<TValueWithId<i64>>::Scalar, "i64 must be scalar.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -171,6 +172,16 @@ TEST(TMakeUnversionedOwningRow, TupleFromUnversionedRow)
     EXPECT_EQ(123, c);
 }
 
+TEST(TMakeUnversionedOwningRow, ExplicitIds)
+{
+    auto row = MakeUnversionedOwningRow(
+        TValueWithId{TString("hello"), 10},
+        TValueWithId{TStringBuf("world"), 20});
+    EXPECT_EQ(2, row.GetCount());
+    EXPECT_EQ(10, row[0].Id);
+    EXPECT_EQ(20, row[1].Id);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TUnversionedRowsBuilder, Empty)
@@ -200,6 +211,29 @@ TEST(TUnversionedRowsBuilder, SomeValues)
         EXPECT_EQ("world", s);
         EXPECT_EQ(0, rows[1][0].Id);
         EXPECT_EQ(1, rows[1][1].Id);
+    }
+}
+
+TEST(TUnversionedRowsBuilder, ExplicitIds)
+{
+    TUnversionedRowsBuilder builder;
+    builder.AddRow(TValueWithId{1, 10}, TValueWithId{"hello", 20});
+    builder.AddRow(TValueWithId{2, 30}, TValueWithId{"world", 40});
+    auto rows = builder.Build();
+    EXPECT_EQ(2, rows.size());
+    {
+        auto [i, s] = FromUnversionedRow<int, TString>(rows[0]);
+        EXPECT_EQ(1, i);
+        EXPECT_EQ("hello", s);
+        EXPECT_EQ(10, rows[0][0].Id);
+        EXPECT_EQ(20, rows[0][1].Id);
+    }
+    {
+        auto [i, s] = FromUnversionedRow<int, TString>(rows[1]);
+        EXPECT_EQ(2, i);
+        EXPECT_EQ("world", s);
+        EXPECT_EQ(30, rows[1][0].Id);
+        EXPECT_EQ(40, rows[1][1].Id);
     }
 }
 
