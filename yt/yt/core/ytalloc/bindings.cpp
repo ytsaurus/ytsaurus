@@ -287,7 +287,7 @@ void ConfigureFromEnv()
         SetSmallArenaAllocationProfilingEnabled(rank, false);
     }
     for (auto rank : config->SmallArenasToProfile) {
-        if (rank < 1 || rank > SmallRankCount) {
+        if (rank < 1 || rank >= SmallRankCount) {
             YT_LOG_WARNING("Unable to enable allocation profiling for small arena %v since its rank is out of range",
                 rank);
             continue;
@@ -299,7 +299,7 @@ void ConfigureFromEnv()
         SetLargeArenaAllocationProfilingEnabled(rank, false);
     }
     for (auto rank : config->LargeArenasToProfile) {
-        if (rank < 1 || rank > LargeRankCount) {
+        if (rank < 1 || rank >= LargeRankCount) {
             YT_LOG_WARNING("Unable to enable allocation profiling for large arena %v since its rank is out of range",
                 rank);
             continue;
