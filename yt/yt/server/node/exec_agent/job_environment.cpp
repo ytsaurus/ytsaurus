@@ -354,12 +354,13 @@ public:
         const TString& user) override
     {
         return BIND([this_ = MakeStrong(this), slotIndex, jobId, commands, rootFS, user] {
-            for (const auto& command : commands) {
+            for (int index = 0; index < commands.size(); ++index) {
+                const auto& command = commands[index];
                 YT_LOG_DEBUG("Running setup command (JobId: %v, Path: %v, Args: %v)",
                     jobId,
                     command->Path,
                     command->Args);
-                auto instance = this_->CreateSetupInstance(slotIndex, jobId, rootFS, user);
+                auto instance = this_->CreateSetupInstance(slotIndex, jobId, rootFS, user, index);
                 try {
                     auto process = CreateSetupProcess(instance, command);
                     WaitFor(process->Spawn())
@@ -518,11 +519,12 @@ private:
         CpuLimit_ = cpuLimit;
     }
 
-    IInstancePtr CreateSetupInstance(int slotIndex, TJobId jobId, const TRootFS& rootFS, const TString& user)
+    IInstancePtr CreateSetupInstance(int slotIndex, TJobId jobId, const TRootFS& rootFS, const TString& user, int index)
     {
-        TString setupCommandContainerName = Config_->UseShortContainerNames
+        TString setupCommandContainerJobPart = Config_->UseShortContainerNames
             ? "/sc"
             : ("/sc_" + ToString(jobId));
+        auto setupCommandContainerName = setupCommandContainerJobPart + "_" + ToString(index);
 
         auto instance = CreatePortoInstance(
             GetFullSlotMetaContainerName(MetaInstance_->GetAbsoluteName(), slotIndex) + setupCommandContainerName,
