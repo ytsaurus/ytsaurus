@@ -22,19 +22,7 @@ if yatest_common is None:
 
 def pytest_configure(config):
     def scheduling_func(test_items, process_count):
-        if sys.version_info[0] == 2:
-            DEFAULT_SPLIT_FACTOR = 5
-        else:
-            DEFAULT_SPLIT_FACTOR = 3
-        TESTS_SPLIT_FACTOR = {
-            "TestYtBinary": 1,
-            "TestMapreduceBinary": 1,
-        }
-
-        NO_API_SPLIT_TESTS = set([
-            "TestTransferManager",
-            "TestYtBinary",
-        ])
+        DEFAULT_SPLIT_FACTOR = 10
 
         suites = defaultdict(list)
         for index, test in enumerate(test_items):
@@ -47,7 +35,7 @@ def pytest_configure(config):
             except AttributeError:
                 pass
 
-            if match and test_class_name not in NO_API_SPLIT_TESTS:
+            if match:
                 # py.test uses "-" as delimiter when
                 # it writes parameters for test.
                 parameters = match.group(1).split("-")
@@ -56,7 +44,7 @@ def pytest_configure(config):
                         suite_name = param
                         break
 
-            split_process_id = hash(test.name) % TESTS_SPLIT_FACTOR.get(test_class_name, DEFAULT_SPLIT_FACTOR)
+            split_process_id = hash(test.name) % DEFAULT_SPLIT_FACTOR
             suite_name = suite_name + "_" + test_class_name + "_" + str(split_process_id)
 
             suites[suite_name].append(index)

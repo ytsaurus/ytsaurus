@@ -9,7 +9,7 @@ from yt.wrapper.spec_builders import VanillaSpecBuilder, MapSpecBuilder
 import yt.subprocess_wrapper as subprocess
 
 # It is used in skipif expression.
-from yt.packages.six import PY3
+from yt.packages.six import PY3  # noqa
 from yt.packages.six.moves import xrange
 
 # Necessary for tests.

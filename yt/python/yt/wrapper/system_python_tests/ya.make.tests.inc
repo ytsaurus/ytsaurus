@@ -27,6 +27,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/python/yt/environment/ya_programs.make.inc)
 
 DEPENDS(
     tools/fix_elf
+    yt/yt/tools/yt_sudo_fixup
 )
 
 DATA(

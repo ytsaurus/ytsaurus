@@ -7,68 +7,109 @@ import yatest.common
 
 import imp
 import os
-
-YT_ROOT, PYTHON_ROOT, _ = arcadia_interop.get_root_paths()
+import shutil
 
 def build_bindings(build_dir, python_version):
     ya = yatest.common.source_path("ya")
     args = [
         "/usr/bin/python", ya, "make",
         "--source-root", yatest.common.source_path(),
-        "--results-root", build_dir,
-        "-DUSE_SYSTEM_PYTHON=" + python_version, "-DPYTHON_CONFIG=python{}-config".format(python_version), "-DPYTHON_BIN=python" + python_version,
+        "--install", build_dir,
+        "-DUSE_SYSTEM_PYTHON=" + python_version,
+        "-DPYTHON_CONFIG=python{}-config".format(python_version),
+        "-DPYTHON_BIN=python" + python_version,
         "-C", "tools/fix_elf",
-        "-C", "{}yt/python/yson_shared".format(YT_ROOT),
-        "-C", "{}yt/python/driver/native_shared".format(YT_ROOT),
-        "-C", "{}yt/python/driver/rpc_shared".format(YT_ROOT)
+        "-C", "yt/yt/python/yson_shared",
+        "-C", "yt/yt/python/driver/native_shared",
+        "-C", "yt/yt/python/driver/rpc_shared",
     ]
     yatest.common.execute(args, stdout="ya_make.out", stderr="ya_make.err")
 
-def prepare_python_packages():
-    prepare_source_tree = imp.load_source("prepare_source_tree", os.path.join(yatest.common.source_path(), PYTHON_ROOT, "prepare_source_tree/prepare_source_tree.py"))
-    prepare_source_tree.prepare_python_source_tree(
-        python_root=os.path.join(yatest.common.source_path(), PYTHON_ROOT),
-        # TODO(ignat): improve prepare_source_tree.
-        # yt_root is actually a root to yt repo (we use both bindings and contrib from it).
-        # os.path.join(yatest.common.source_path(), YT_ROOT),
-        yt_root=yatest.common.source_path(),
-        prepare_binary_symlinks=False,
-        prepare_bindings=False)
+def prepare_python_packages(destination):
+    source = os.path.join(yatest.common.source_path(), "yt/python")
 
-def run_pytest(python_version):
+    shutil.copytree(source, destination, symlinks=False)
+
+    # Cleanup python artifacts
+    for root, dirs, files in os.walk(destination):
+        for file in files:
+            if file.endswith(".pyc"):
+                os.remove(os.path.join(root, file))
+        for dir in dirs:
+            if dir == "__pycache__":
+                shutil.rmtree(os.path.join(root, dir))
+
+    prepare_source_tree = imp.load_source(
+        "prepare_source_tree",
+        os.path.join(destination, "prepare_source_tree/prepare_source_tree.py"))
+    prepare_source_tree.prepare_python_source_tree(
+        python_root=destination,
+        yt_root=os.path.join(yatest.common.source_path(), "yt"),
+        arcadia_root=yatest.common.source_path(),
+        prepare_binary_symlinks=False,
+        prepare_bindings=True)
+
+def run_pytest(major_python_version):
+    # Skip this test on teamcity.
+    if yatest.common.get_param("teamcity"):
+        return
+
+    system_python_test_param = None
+    if major_python_version == 2:
+        system_python_test_param = "system_python"
+        python_version = yatest.common.get_param("system_python", "2.7")
+        assert python_version.split(".")[0] == "2"
+    elif major_python_version == 3:
+        system_python_test_param = "system_python3"
+        python_version = yatest.common.get_param("system_python3", "3.5")
+        assert python_version.split(".")[0] == "3"
+    else:
+        raise Exception("Unknown major python version " + str(major_python_version))
+
+
+    python_binary = "/usr/bin/python" + python_version
+    if not os.path.exists(python_binary):
+        raise Exception("Python {} is not available on the host, try to specify "
+                        "another one by --test-param {}={{my_version}}"
+                        .format(python_binary, system_python_test_param))
+
     build_dir = os.path.join(yatest.common.work_path(), "build")
-    bindings_build_dir = os.path.join(build_dir, "bindings")
+
+    bindings_build_dir = os.path.join(build_dir, "python_bindings")
     os.makedirs(bindings_build_dir)
     build_bindings(bindings_build_dir, python_version)
 
-    prepare_python_packages()
+    prepared_python_dir = os.path.join(yatest.common.output_ram_drive_path(), "prepared_python")
+    prepare_python_packages(prepared_python_dir)
 
-    path = arcadia_interop.prepare_yt_environment(build_dir, use_ytserver_all=True, copy_ytserver_all=True)
+    sandbox_dir = os.path.join(yatest.common.output_ram_drive_path(), "sandbox")
+
+    path = arcadia_interop.prepare_yt_environment(
+        build_dir,
+        use_ytserver_all=True,
+        copy_ytserver_all=True,
+        need_suid=True)
     if "PATH" in os.environ:
         path = os.pathsep.join([path, os.environ["PATH"]])
 
-    sandbox_dir = os.path.join(yatest.common.output_ram_drive_path(), "sandbox")
     env = {
         "PATH": path,
         "PYTHONPATH": os.pathsep.join([
-            os.path.join(yatest.common.source_path(), PYTHON_ROOT),
-            os.path.join(yatest.common.source_path(), YT_ROOT, "yt", "python"),
-            os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "yson_shared"),
-            os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "driver", "native_shared"),
-            os.path.join(bindings_build_dir, YT_ROOT, "yt", "python", "driver", "rpc_shared")
+            bindings_build_dir,
+            prepared_python_dir,
         ]),
         "TESTS_SANDBOX": sandbox_dir,
         "YT_CAPTURE_STDERR_TO_FILE": "1",
         "YT_ENABLE_VERBOSE_LOGGING": "1",
     }
 
-    test_paths_file = os.path.join(yatest.common.source_path(), PYTHON_ROOT, "yt/wrapper/system_python_tests/test_paths.txt")
+    test_paths_file = os.path.join(
+        prepared_python_dir,
+        "yt/wrapper/system_python_tests/test_paths.txt")
     test_paths = open(test_paths_file).read().split()
     test_files = [
-        os.path.join(yatest.common.source_path(), PYTHON_ROOT, "yt/wrapper/tests", name)
+        os.path.join(prepared_python_dir, "yt/wrapper/tests", name)
         for name in test_paths
-        # Temporarily disable this test.
-        if "download_core_dump" not in name
     ]
 
     pytest_runner.run(
