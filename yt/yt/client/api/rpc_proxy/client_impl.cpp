@@ -768,6 +768,7 @@ TFuture<TYsonString> TClient::GetOperation(
         NYT::ToProto(req->mutable_attributes(), *options.Attributes);
     }
     req->set_include_runtime(options.IncludeRuntime);
+    req->set_maximum_cypress_progress_age(ToProto<i64>(options.MaximumCypressProgressAge));
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspGetOperationPtr& rsp) {
         return TYsonString(rsp->meta());

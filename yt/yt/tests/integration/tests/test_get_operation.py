@@ -410,6 +410,11 @@ class TestGetOperation(YTEnvSetup):
         # Progress in Cypress is obsolete as archive is up now.
         assert res_cypress["progress"]["jobs"]["running"] > 0
 
+        sync_unmount_table("//sys/operations_archive/ordered_by_id")
+        with raises_yt_error(OperationProgressOutdated):
+            get_operation(op.id, maximum_cypress_progress_age=0)
+        sync_mount_table("//sys/operations_archive/ordered_by_id")
+
         clean_operations()
 
         res_api = get_operation(op.id)

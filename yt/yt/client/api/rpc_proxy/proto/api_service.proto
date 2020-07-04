@@ -1473,6 +1473,7 @@ message TReqGetOperation
     // TODO(kiselyovp) change this to TAttributeKeys
     repeated string attributes = 2;
     optional bool include_runtime = 3 [default = false];
+    optional int64 maximum_cypress_progress_age = 5; // TDuration
 
     optional TMasterReadOptions master_read_options = 102;
 }

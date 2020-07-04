@@ -592,6 +592,8 @@ TGetOperationCommand::TGetOperationCommand()
     RegisterParameter("include_runtime", Options.IncludeRuntime)
         .Alias("include_scheduler")
         .Optional();
+    RegisterParameter("maximum_cypress_progress_age", Options.MaximumCypressProgressAge)
+        .Optional();
 }
 
 void TGetOperationCommand::DoExecute(ICommandContextPtr context)
