@@ -1964,8 +1964,9 @@ auto TFairShareTree<TFairShareImpl>::AllocateOperationSlotIndex(const TFairShare
         if (TryAllocatePoolSlotIndex(poolName, *slotIndex)) {
             return;
         }
-        YT_LOG_ERROR("Failed to reuse slot index during revive (OperationId: %v, SlotIndex: %v)",
+        YT_LOG_ERROR("Failed to reuse slot index during revive (OperationId: %v, Pool: %v, SlotIndex: %v)",
             state->GetHost()->GetId(),
+            poolName,
             *slotIndex);
     }
 
@@ -1983,8 +1984,9 @@ auto TFairShareTree<TFairShareImpl>::AllocateOperationSlotIndex(const TFairShare
 
     state->GetHost()->SetSlotIndex(TreeId_, *slotIndex);
 
-    YT_LOG_DEBUG("Operation slot index allocated (OperationId: %v, SlotIndex: %v)",
+    YT_LOG_DEBUG("Operation slot index allocated (OperationId: %v, Pool: %v, SlotIndex: %v)",
         state->GetHost()->GetId(),
+        poolName,
         *slotIndex);
 }
 
@@ -2001,8 +2003,9 @@ auto TFairShareTree<TFairShareImpl>::ReleaseOperationSlotIndex(const TFairShareS
         it->second.insert(*slotIndex);
     }
 
-    YT_LOG_DEBUG("Operation slot index released (OperationId: %v, SlotIndex: %v)",
+    YT_LOG_DEBUG("Operation slot index released (OperationId: %v, Pool: %v, SlotIndex: %v)",
         state->GetHost()->GetId(),
+        poolName,
         *slotIndex);
 }
 
