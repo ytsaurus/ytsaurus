@@ -507,7 +507,7 @@ TYsonString TClient::DoGetOperation(
         archiveOptions.Attributes->insert("state");
     }
 
-    TFuture<TYsonString> archiveFuture;
+    auto archiveFuture = MakeFuture(TYsonString());
     if (DoesOperationsArchiveExist()) {
         archiveFuture = BIND(&TClient::DoGetOperationFromArchive,
             MakeStrong(this),
@@ -517,24 +517,14 @@ TYsonString TClient::DoGetOperation(
             .AsyncVia(Connection_->GetInvoker())
             .Run()
             .WithTimeout(options.ArchiveTimeout);
-        getOperationFutures.push_back(archiveFuture.As<void>());
     }
+    getOperationFutures.push_back(archiveFuture.As<void>());
 
     WaitFor(AllSet<void>(getOperationFutures))
         .ValueOrThrow();
 
     auto [cypressResult, operationNodeModificationTime] = cypressFuture.Get()
         .ValueOrThrow();
-
-    if (!archiveFuture) {
-        if (!cypressResult) {
-            THROW_ERROR_EXCEPTION(
-                NApi::EErrorCode::NoSuchOperation,
-                "No such operation %v",
-                operationId);
-        }
-        return cypressResult;
-    }
 
     auto archiveResultOrError = archiveFuture.Get();
     TYsonString archiveResult;
@@ -549,6 +539,10 @@ TYsonString TClient::DoGetOperation(
     static const std::vector<TString> ProgressFieldNames = {"brief_progress", "progress"};
 
     auto mergeResults = [] (const TYsonString& cypressResult, const TYsonString& archiveResult) {
+        if (!archiveResult) {
+            return cypressResult;
+        }
+
         auto cypressResultNode = ConvertToNode(cypressResult);
         YT_VERIFY(cypressResultNode->GetType() == ENodeType::Map);
         const auto& cypressResultMap = cypressResultNode->AsMap();
@@ -576,7 +570,7 @@ TYsonString TClient::DoGetOperation(
         return ConvertToYsonString(cypressResultMap);
     };
 
-    if (archiveResult && cypressResult) {
+    if (cypressResult && archiveResultOrError.IsOK()) {
         return mergeResults(cypressResult, archiveResult);
     }
 
@@ -607,12 +601,20 @@ TYsonString TClient::DoGetOperation(
             operationId,
             cypressProgressAge,
             options.MaximumCypressProgressAge);
-        if (!archiveResultOrError.FindMatching(NYT::EErrorCode::Timeout)) {
-            THROW_ERROR_EXCEPTION("Operation progress in Cypress is outdated while archive request failed")
+        if (archiveResultOrError.FindMatching(NYT::EErrorCode::Timeout)) {
+            try {
+                archiveResultOrError = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
+            } catch (const TErrorException& error) {
+                archiveResultOrError = error;
+            }
+        }
+        if (!archiveResultOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION(
+                EErrorCode::OperationProgressOutdated,
+                "Operation progress in Cypress is outdated while archive request failed")
                 << archiveResultOrError;
         }
-        archiveResult = DoGetOperationFromArchive(operationId, deadline, archiveOptions);
-        return mergeResults(cypressResult, archiveResult);
+        return mergeResults(cypressResult, archiveResultOrError.Value());
     }
 
     // Check whether archive row was written by controller agent or operation cleaner.

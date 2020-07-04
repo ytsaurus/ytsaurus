@@ -2002,6 +2002,9 @@ private:
             NYT::CheckedHashSetFromProto(&(*options.Attributes), request->attributes());
         }
         options.IncludeRuntime = request->include_runtime();
+        if (request->has_maximum_cypress_progress_age()) {
+            options.MaximumCypressProgressAge = FromProto<TDuration>(request->maximum_cypress_progress_age());
+        }
 
         context->SetRequestInfo("OperationId: %v, IncludeRuntime: %v",
             operationIdOrAlias,

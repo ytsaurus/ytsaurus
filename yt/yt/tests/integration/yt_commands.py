@@ -49,6 +49,7 @@ ResolveErrorCode = 500
 AuthorizationErrorCode = 901
 UserJobProducedCoreFiles = 1206
 TabletNotMounted = 1702
+OperationProgressOutdated = 1911
 NoSuchOperation = 1915
 NoSuchJob = 1916
 NoSuchAttribute = 1920
