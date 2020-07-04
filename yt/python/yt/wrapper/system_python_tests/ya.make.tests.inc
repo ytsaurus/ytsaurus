@@ -23,9 +23,8 @@ PEERDIR(
     yt/python/yt/wrapper/system_python_tests/test_runner
 )
 
-INCLUDE(${ARCADIA_ROOT}/yt/python/yt/environment/ya_programs.make.inc)
-
 DEPENDS(
+    yt/yt/packages/tests_package
     tools/fix_elf
     yt/yt/tools/yt_sudo_fixup
 )

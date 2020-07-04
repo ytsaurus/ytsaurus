@@ -73,7 +73,7 @@ def insert_sudo_wrapper(bin_dir):
             os.chmod(bin_path, 0o755)
 
 
-def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=False, use_from_package=False, copy_ytserver_all=False, need_suid=False):
+def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=True, use_from_package=False, copy_ytserver_all=False, need_suid=False):
     def get_binary_path(path):
         if arcadia_root is None:
             return search_binary_path(path)

@@ -52,9 +52,8 @@ PEERDIR(
     contrib/python/flaky
 )
 
-INCLUDE(../../environment/ya_programs.make.inc)
-
 DEPENDS(
+    yt/yt/packages/tests_package
     yt/python/yt/local/bin/yt_local_make
     yt/python/yt/wrapper/bin/yt-job-tool_make
     yt/python/yt/wrapper/tests/yt_python

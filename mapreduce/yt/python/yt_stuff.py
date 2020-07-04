@@ -266,7 +266,7 @@ class YtStuff(object):
         os.makedirs(self.yt_bins_path)
 
         source_prefix = ""
-        prepare_yt_binaries(self.yt_bins_path, source_prefix, use_ytserver_all=True, use_from_package=True)
+        prepare_yt_binaries(self.yt_bins_path, source_prefix, use_from_package=True)
 
         self.yt_local_exec = [search_binary_path("yt_local")]
 
