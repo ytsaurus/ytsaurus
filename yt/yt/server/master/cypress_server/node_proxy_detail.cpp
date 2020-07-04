@@ -311,6 +311,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     , CustomAttributesImpl_(this)
     , Transaction_(transaction)
     , TrunkNode_(trunkNode)
+    , VersionedId_(Object_->GetId(), GetObjectId(Transaction_))
 {
     YT_ASSERT(TrunkNode_);
     YT_ASSERT(TrunkNode_->IsTrunk());
@@ -581,7 +582,7 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
 
 TVersionedObjectId TNontemplateCypressNodeProxyBase::GetVersionedId() const
 {
-    return TVersionedObjectId(Object_->GetId(), GetObjectId(Transaction_));
+    return VersionedId_;
 }
 
 TAccessControlDescriptor* TNontemplateCypressNodeProxyBase::FindThisAcd()
@@ -1026,7 +1027,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         Transaction_,
         std::move(attributeKeys));
     visitor.Run(TrunkNode_);
-    visitor.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+    visitor.Finish().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
         if (resultOrError.IsOK()) {
             response->set_value(resultOrError.Value().GetData());
             context->Reply();
@@ -2704,7 +2705,7 @@ void TMapNodeProxy::ListSelf(
     }
     writer.OnEndList();
 
-    writer.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
+    writer.Finish().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
         if (resultOrError.IsOK()) {
             response->set_value(resultOrError.Value().GetData());
             context->Reply();
