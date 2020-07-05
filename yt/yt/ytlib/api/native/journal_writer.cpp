@@ -263,10 +263,10 @@ private:
             i64 FirstPendingBlockIndex = 0;
             i64 FirstPendingRowIndex = 0;
 
-            TAggregateGauge LagTime;
-
             std::queue<TBatchPtr> PendingBatches;
             std::vector<TBatchPtr> InFlightBatches;
+
+            TCpuDuration LagTime = 0;
 
             TNode(
                 int index,
@@ -281,7 +281,6 @@ private:
                 , LightProxy(std::move(lightChannel))
                 , HeavyProxy(std::move(heavyChannel))
                 , FirstPendingRowIndex(firstPendingRowIndex)
-                , LagTime("/replica_lag", tagIds)
             {
                 LightProxy.SetDefaultTimeout(rpcTimeout);
                 HeavyProxy.SetDefaultTimeout(rpcTimeout);
@@ -301,7 +300,9 @@ private:
             i64 FlushedRowCount = 0;
             i64 FlushedDataSize = 0;
             bool SwitchScheduled = false;
-        };
+
+            TAggregateGauge MaxReplicaLag{"/max_replica_lag"};
+            TAggregateGauge WriteQuorumLag{"/write_quorum_lag"};        };
 
         using TChunkSessionPtr = TIntrusivePtr<TChunkSession>;
         using TChunkSessionWeakPtr = TWeakPtr<TChunkSession>;
@@ -354,8 +355,7 @@ private:
 
         void BanNode(const TString& address)
         {
-            if (BannedNodeToDeadline_.find(address) == BannedNodeToDeadline_.end()) {
-                BannedNodeToDeadline_.insert(std::make_pair(address, TInstant::Now() + Config_->NodeBanTimeout));
+            if (BannedNodeToDeadline_.emplace(address, TInstant::Now() + Config_->NodeBanTimeout).second) {
                 YT_LOG_DEBUG("Node banned (Address: %v)", address);
             }
         }
@@ -621,7 +621,7 @@ private:
                 : NErasure::GetCodec(ErasureCodec_)->GetTotalPartCount();
 
             TChunkReplicaWithMediumList replicas;
-            {
+            try {
                 TTimingGuard timingGuard(&Profiler, "/time/allocate_write_targets");
                 replicas = AllocateWriteTargets(
                     Client_,
@@ -633,6 +633,9 @@ private:
                     GetBannedNodes(),
                     NodeDirectory_,
                     Logger);
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(TError(ex));
+                return false;
             }
 
             YT_VERIFY(replicas.size() == replicaCount);
@@ -783,12 +786,11 @@ private:
 
         void OpenChunk()
         {
-            for (int attempt = 0; attempt < Config_->MaxChunkOpenAttempts; ++attempt) {
-                if (TryOpenChunk())
+            while (true) {
+                if (TryOpenChunk()) {
                     return;
+                }
             }
-            THROW_ERROR_EXCEPTION("All %v attempts to open a chunk were unsuccessful",
-                Config_->MaxChunkOpenAttempts);
         }
 
         void WriteChunk()
@@ -859,7 +861,7 @@ private:
 
             for (const auto& node : CurrentSession_->Nodes) {
                 node->PendingBatches.push(batch);
-                MaybeFlushBlocks(node);
+                MaybeFlushBlocks(CurrentSession_, node);
             }
         }
 
@@ -1101,7 +1103,7 @@ private:
                     node->Descriptor.GetDefaultAddress());
                 node->Started = true;
                 if (CurrentSession_ == session) {
-                    MaybeFlushBlocks(node);
+                    MaybeFlushBlocks(CurrentSession_, node);
                 }
             } else {
                 YT_LOG_WARNING(rspOrError, "Session has failed to start; requesting chunk switch (SessionId: %v, Address: %v)",
@@ -1130,7 +1132,7 @@ private:
         }
 
 
-        void MaybeFlushBlocks(const TNodePtr& node)
+        void MaybeFlushBlocks(const TChunkSessionPtr& session, const TNodePtr& node)
         {
             if (!node->Started) {
                 return;
@@ -1138,17 +1140,17 @@ private:
 
             if (!node->InFlightBatches.empty()) {
                 auto lagTime = GetCpuInstant() - node->InFlightBatches.front()->StartTime;
-                Profiler.Update(node->LagTime, CpuDurationToValue(lagTime));
+                UpdateReplicaLag(session, node, lagTime);
                 return;
             }
 
             if (node->PendingBatches.empty()) {
-                Profiler.Update(node->LagTime, 0);
+                UpdateReplicaLag(session, node, 0);
                 return;
             }
 
             auto lagTime = GetCpuInstant() - node->PendingBatches.front()->StartTime;
-            Profiler.Update(node->LagTime, CpuDurationToValue(lagTime));
+            UpdateReplicaLag(session, node, lagTime);
 
             i64 flushRowCount = 0;
             i64 flushDataSize = 0;
@@ -1240,7 +1242,7 @@ private:
                     front->FirstRowIndex + front->RowCount - 1);
             }
 
-            MaybeFlushBlocks(node);
+            MaybeFlushBlocks(CurrentSession_, node);
 
             for (const auto& promise : fulfilledPromises) {
                 promise.Set();
@@ -1296,6 +1298,28 @@ private:
             EnqueueCommand(TSwitchChunkCommand{session});
         }
 
+        void UpdateReplicaLag(const TChunkSessionPtr& session, const TNodePtr& node, TCpuDuration lagTime)
+        {
+            node->LagTime = lagTime;
+
+            std::vector<std::pair<NProfiling::TCpuDuration, int>> replicas;
+            for (int index = 0; index < session->Nodes.size(); ++index) {
+                replicas.emplace_back(session->Nodes[index]->LagTime, index);
+            }
+
+            std::sort(replicas.begin(), replicas.end());
+
+            Profiler.Update(session->WriteQuorumLag, CpuDurationToValue(replicas[WriteQuorum_ - 1].first));
+            Profiler.Update(session->MaxReplicaLag, CpuDurationToValue(replicas.back().first));
+
+            YT_LOG_DEBUG("Journal replicas lag updated (Replicas: %v)",
+                MakeFormattableView(replicas, [&] (auto* builder, const auto& replica) {
+                    builder->AppendFormat("%v=>%v",
+                        session->Nodes[replica.second]->Descriptor.GetDefaultAddress(),
+                        CpuDurationToDuration(replica.first));
+                }));
+        }
+        
         TSessionId GetSessionIdForNode(const TChunkSessionPtr& session, const TNodePtr& node)
         {
             auto chunkId = ErasureCodec_ == NErasure::ECodec::None
@@ -1307,7 +1331,6 @@ private:
 
 
     const TIntrusivePtr<TImpl> Impl_;
-
 };
 
 IJournalWriterPtr CreateJournalWriter(

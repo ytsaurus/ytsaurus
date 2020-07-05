@@ -183,7 +183,6 @@ public:
     TDuration NodePingPeriod;
     TDuration NodeBanTimeout;
 
-    int MaxChunkOpenAttempts;
     int MaxChunkRowCount;
     i64 MaxChunkDataSize;
     TDuration MaxChunkSessionDuration;
@@ -218,9 +217,6 @@ public:
         RegisterParameter("node_ban_timeout", NodeBanTimeout)
             .Default(TDuration::Seconds(60));
 
-        RegisterParameter("max_chunk_open_attempts", MaxChunkOpenAttempts)
-            .GreaterThan(0)
-            .Default(5);
         RegisterParameter("max_chunk_row_count", MaxChunkRowCount)
             .GreaterThan(0)
             .Default(1'000'000);
