@@ -5,6 +5,8 @@
 
 #include <yt/server/lib/scheduler/job_metrics.h>
 
+#include <yt/core/misc/lock_free.h>
+
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,19 +38,32 @@ public:
 
     void AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent);
     void ChangeParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent);
-    void DetachParent(const TResourceTreeElementPtr& element);
+    void ScheduleDetachParent(const TResourceTreeElementPtr& element);
     void ReleaseResources(const TResourceTreeElementPtr& element);
 
     void ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementPtr& element, const TJobMetrics& delta);
 
+    void PerformPostponedActions();
+
+    void IncrementResourceUsageLockReadCount();
+    void IncrementResourceUsageLockWriteCount();
+
 private:
+    void DetachParent(const TResourceTreeElementPtr& element);
+
+    TMultipleProducerSingleConsumerLockFreeStack<TResourceTreeElementPtr> ElementsToDetachQueue_;
     NConcurrency::TReaderWriterSpinLock TreeLock_;
+
+    NProfiling::TProfiler Profiler = {"/resource_tree"};
+    NProfiling::TMonotonicCounter TreeLockReadCount{"/tree_lock_read_count"};
+    NProfiling::TMonotonicCounter TreeLockWriteCount{"/tree_lock_write_count"};
+    NProfiling::TMonotonicCounter ResourceUsageLockReadCount{"/resource_usage_read_count"};
+    NProfiling::TMonotonicCounter ResourceUsageLockWriteCount{"/resource_usage_write_count"};
 
     void CheckCycleAbsence(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent);
     void DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta);
     void DoIncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta);
 };
-
 
 DEFINE_REFCOUNTED_TYPE(TResourceTree)
 

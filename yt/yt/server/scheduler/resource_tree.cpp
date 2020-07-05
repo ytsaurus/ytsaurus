@@ -1,8 +1,11 @@
 #include "resource_tree.h"
+#include "private.h"
 
 #include "resource_tree_element.h"
 
 namespace NYT::NScheduler {
+
+static const auto& Logger = SchedulerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,19 +13,24 @@ using namespace NConcurrency;
 
 void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent)
 {
-    TWriterGuard guard(TreeLock_);
+    // There is no necessity to acquire TreeLock_ since element is newly created and no concurrent operations are possible.
+    YT_VERIFY(!element->Initialized_);
     YT_VERIFY(!element->Parent_);
     YT_VERIFY(element != parent);
 
     element->Parent_ = parent;
+    element->Initialized_ = true;
 }
 
 void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent)
 {
     TWriterGuard guard(TreeLock_);
 
+    Profiler.Increment(TreeLockWriteCount, 1);
+
     TWriterGuard resourceUsageLock(element->ResourceUsageLock_);
     YT_VERIFY(element->Parent_);
+    YT_VERIFY(element->Initialized_);
 
     CheckCycleAbsence(element, newParent);
 
@@ -35,16 +43,16 @@ void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const T
     DoIncreaseHierarchicalResourceUsagePrecommit(newParent, element->ResourceUsagePrecommit_);
 }
 
-void TResourceTree::DetachParent(const TResourceTreeElementPtr& element)
+void TResourceTree::ScheduleDetachParent(const TResourceTreeElementPtr& element)
 {
-    TWriterGuard guard(TreeLock_);
-    YT_VERIFY(element->Parent_);
-    element->Parent_ = nullptr;
+    YT_VERIFY(element->Initialized_);
+    ElementsToDetachQueue_.Enqueue(element);
 }
 
 void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element)
 {
     YT_VERIFY(element->Parent_);
+    YT_VERIFY(element->Initialized_);
 
     IncreaseHierarchicalResourceUsagePrecommit(element, -element->GetResourceUsagePrecommit());
     IncreaseHierarchicalResourceUsage(element, -element->GetResourceUsage());
@@ -52,6 +60,7 @@ void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element)
 
 void TResourceTree::CheckCycleAbsence(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent)
 {
+    YT_VERIFY(element->Initialized_);
     auto current = newParent.Get();
     while (current != nullptr) {
         YT_VERIFY(current != element);
@@ -63,11 +72,21 @@ void TResourceTree::IncreaseHierarchicalResourceUsage(const TResourceTreeElement
 {
     TReaderGuard guard(TreeLock_);
 
+    Profiler.Increment(TreeLockReadCount, 1);
+
+    YT_VERIFY(element->Initialized_);
+
+    if (!element->GetAlive()) {
+        return;
+    }
+
     DoIncreaseHierarchicalResourceUsage(element, delta);
 }
 
 void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
+    YT_VERIFY(element->Initialized_);
+
     TResourceTreeElement* current = element.Get();
     while (current != nullptr) {
         current->IncreaseLocalResourceUsage(delta);
@@ -79,11 +98,23 @@ void TResourceTree::IncreaseHierarchicalResourceUsagePrecommit(const TResourceTr
 {
     TReaderGuard guard(TreeLock_);
 
+    Profiler.Increment(TreeLockReadCount, 1);
+
+    YT_VERIFY(element->Initialized_);
+
+    if (!element->GetAlive()) {
+        return;
+    }
+
     DoIncreaseHierarchicalResourceUsagePrecommit(element, delta);
 }
 
-void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta)
+void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
+    const TResourceTreeElementPtr& element,
+    const TJobResources& delta)
 {
+    YT_VERIFY(element->Initialized_);
+
     TResourceTreeElement* current = element.Get();
     while (current != nullptr) {
         current->IncreaseLocalResourceUsagePrecommit(delta);
@@ -97,6 +128,14 @@ bool TResourceTree::TryIncreaseHierarchicalResourceUsagePrecommit(
     TJobResources *availableResourceLimitsOutput)
 {
     TReaderGuard guard(TreeLock_);
+
+    Profiler.Increment(TreeLockReadCount, 1);
+
+    YT_VERIFY(element->Initialized_);
+
+    if (!element->GetAlive()) {
+        return false;
+    }
 
     auto availableResourceLimits = TJobResources::Infinite();
 
@@ -136,6 +175,10 @@ void TResourceTree::CommitHierarchicalResourceUsage(
 {
     TReaderGuard guard(TreeLock_);
 
+    Profiler.Increment(TreeLockReadCount, 1);
+
+    YT_VERIFY(element->Initialized_);
+
     TResourceTreeElement* current = element.Get();
     while (current != nullptr) {
         current->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
@@ -147,11 +190,45 @@ void TResourceTree::ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementP
 {
     TReaderGuard guard(TreeLock_);
 
+    Profiler.Increment(TreeLockReadCount, 1);
+
+    YT_VERIFY(element->Initialized_);
+
     TResourceTreeElement* current = element.Get();
     while (current != nullptr) {
         current->ApplyLocalJobMetricsDelta(delta);
         current = current->Parent_.Get();
     }
+}
+
+void TResourceTree::PerformPostponedActions()
+{
+    TWriterGuard guard(TreeLock_);
+
+    Profiler.Increment(TreeLockReadCount, 1);
+
+    auto elementsToDetach = ElementsToDetachQueue_.DequeueAll();
+    for (const auto& element : elementsToDetach) {
+        YT_VERIFY(element->Parent_);
+        YT_LOG_DEBUG_UNLESS(
+            element->GetResourceUsageWithPrecommit() == TJobResources(),
+            "Resource tree element has non-zero resources (Id: %v, ResourceUsage: %v, ResourceUsageWithPrecommit: %v)",
+            element->GetId(),
+            FormatResources(element->GetResourceUsage()),
+            FormatResources(element->GetResourceUsageWithPrecommit()));
+        YT_VERIFY(element->GetResourceUsageWithPrecommit() == TJobResources());
+        element->Parent_ = nullptr;
+    }
+}
+    
+void TResourceTree::IncrementResourceUsageLockReadCount()
+{
+    Profiler.Increment(ResourceUsageLockReadCount, 1);
+}
+
+void TResourceTree::IncrementResourceUsageLockWriteCount()
+{
+    Profiler.Increment(ResourceUsageLockWriteCount, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

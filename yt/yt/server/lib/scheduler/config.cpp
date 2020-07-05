@@ -160,6 +160,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("integral_guarantees", IntegralGuarantees)
         .DefaultNew();
 
+    RegisterParameter("use_recent_resource_usage_for_local_satisfaction", UseRecentResourceUsageForLocalSatisfaction)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
