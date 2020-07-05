@@ -301,6 +301,7 @@ class YTEnvSetup(object):
     ENABLE_BULK_INSERT = False
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
+    USE_LEGACY_CONTROLLERS = False
 
     NUM_REMOTE_CLUSTERS = 0
 
@@ -675,7 +676,12 @@ class YTEnvSetup(object):
                         type="document",
                         attributes={
                             "value": {
-                                "enable_bulk_insert_for_everyone": self.ENABLE_BULK_INSERT
+                                "enable_bulk_insert_for_everyone": self.ENABLE_BULK_INSERT,
+                                "operation_options": {
+                                    "spec_template": {
+                                        "legacy_controller_fraction": 256 if self.USE_LEGACY_CONTROLLERS else 0,
+                                    },
+                                },
                             }
                         },
                         force=True

@@ -916,12 +916,33 @@ print "x={0}\ty={1}".format(x, y)
                        sort_by=["key"],
                        spec={"pivot_keys": [["73"], ["37"]]})
 
+    @authors("gritukan")
+    def test_legacy_controller_flag(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t_in", [{"x": 1}])
+        op = map_reduce(in_="//tmp/t_in",
+                        out="//tmp/t_out",
+                        mapper_command="cat",
+                        reducer_command="cat",
+                        sort_by=["x"])
+
+        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
+
+##################################################################
+
+class TestSchedulerMapReduceCommandsLegacy(TestSchedulerMapReduceCommands):
+    USE_LEGACY_CONTROLLERS = True
+
 ##################################################################
 
 class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
 
+##################################################################
+
 class TestSchedulerMapReduceCommandsPortal(TestSchedulerMapReduceCommandsMulticell):
     ENABLE_TMP_PORTAL = True
 
 ##################################################################
+

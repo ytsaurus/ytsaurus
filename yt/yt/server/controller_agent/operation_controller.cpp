@@ -1,13 +1,21 @@
 #include "operation_controller.h"
+#include "operation_controller_host.h"
+#include "config.h"
 #include "helpers.h"
 #include "operation.h"
-#include "ordered_controller.h"
-#include "sort_controller.h"
-#include "sorted_controller.h"
-#include "unordered_controller.h"
-#include "operation_controller_host.h"
-#include "vanilla_controller.h"
 #include "memory_tag_queue.h"
+
+#include <yt/server/controller_agent/controllers/ordered_controller.h>
+#include <yt/server/controller_agent/controllers/sort_controller.h>
+#include <yt/server/controller_agent/controllers/sorted_controller.h>
+#include <yt/server/controller_agent/controllers/unordered_controller.h>
+#include <yt/server/controller_agent/controllers/vanilla_controller.h>
+
+#include <yt/server/controller_agent/legacy_controllers/ordered_controller.h>
+#include <yt/server/controller_agent/legacy_controllers/sort_controller.h>
+#include <yt/server/controller_agent/legacy_controllers/sorted_controller.h>
+#include <yt/server/controller_agent/legacy_controllers/unordered_controller.h>
+#include <yt/server/controller_agent/legacy_controllers/vanilla_controller.h>
 
 #include <yt/client/api/transaction.h>
 
@@ -34,6 +42,8 @@ using namespace NYTAlloc;
 using NScheduler::NProto::TSchedulerJobResultExt;
 using NYT::FromProto;
 using NYT::ToProto;
+
+static const auto& Logger = ControllerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -425,6 +435,11 @@ public:
         return Underlying_->LoadSnapshot(snapshot);
     }
 
+    virtual bool IsLegacy() const override
+    {
+        return Underlying_->IsLegacy();
+    }
+
 private:
     const TOperationId Id_;
     const IOperationControllerPtr Underlying_;
@@ -439,60 +454,173 @@ IOperationControllerPtr CreateControllerForOperation(
     TControllerAgentConfigPtr config,
     TOperation* operation)
 {
+    auto salt = operation->GetId().Parts64[1] & 255;
+
+    INodePtr specTemplate;
+    switch (operation->GetType()) {
+        case EOperationType::Map: {
+            specTemplate = config->MapOperationOptions->SpecTemplate;
+            break;
+        }
+        case EOperationType::Merge: {
+            auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(operation->GetSpec());
+            switch (baseSpec->Mode) {
+                case EMergeMode::Ordered:
+                    specTemplate = config->OrderedMergeOperationOptions->SpecTemplate;
+                    break;
+                case EMergeMode::Sorted:
+                    specTemplate = config->SortedMergeOperationOptions->SpecTemplate;
+                    break;
+                case EMergeMode::Unordered:
+                    specTemplate = config->UnorderedMergeOperationOptions->SpecTemplate;
+                    break;
+                }
+            break;
+        }
+        case EOperationType::Erase: {
+            specTemplate = config->EraseOperationOptions->SpecTemplate;
+            break;
+        }
+        case EOperationType::Sort: {
+            specTemplate = config->SortOperationOptions->SpecTemplate;
+            break;
+        }
+        case EOperationType::Reduce: {
+            specTemplate = config->ReduceOperationOptions->SpecTemplate;
+            break;
+        }
+        case EOperationType::JoinReduce: {
+            specTemplate = config->JoinReduceOperationOptions->SpecTemplate;
+            break;
+        }
+        case EOperationType::MapReduce: {
+            specTemplate = config->MapReduceOperationOptions->SpecTemplate;
+            break;
+        }
+        case EOperationType::RemoteCopy: {
+            specTemplate = config->RemoteCopyOperationOptions->SpecTemplate;
+            break;
+        }
+        case EOperationType::Vanilla: {
+            specTemplate = config->VanillaOperationOptions->SpecTemplate;
+            break;
+        }
+    }
+
+    int legacyControllerFraction = 256;
+    if (auto legacyControllerFractionNode = specTemplate->AsMap()->FindChild("legacy_controller_fraction")) {
+        legacyControllerFraction = legacyControllerFractionNode->AsInt64()->GetValue();
+    }    
+    if (auto legacyControllerFractionNode = operation->GetSpec()->FindChild("legacy_controller_fraction")) {
+        legacyControllerFraction = legacyControllerFractionNode->AsInt64()->GetValue();
+    }
+    bool useLegacyController = (salt < legacyControllerFraction);
+    if (useLegacyController) {
+        YT_LOG_INFO("Using legacy controller (Salt: %v, LegacyControllerFraction: %v)", salt, legacyControllerFraction);
+    } else {
+        YT_LOG_INFO("Using new controller (Salt: %v, LegacyControllerFraction: %v)", salt, legacyControllerFraction);
+    }
+
     IOperationControllerPtr controller;
     auto host = operation->GetHost();
     switch (operation->GetType()) {
         case EOperationType::Map: {
             auto baseSpec = ParseOperationSpec<TMapOperationSpec>(operation->GetSpec());
-            controller = baseSpec->Ordered
-                ? CreateOrderedMapController(config, host, operation)
-                : CreateUnorderedMapController(config, host, operation);
+            if (useLegacyController) {
+                controller = baseSpec->Ordered
+                    ? NLegacyControllers::CreateOrderedMapController(config, host, operation)
+                    : NLegacyControllers::CreateUnorderedMapController(config, host, operation);
+            } else {
+                controller = baseSpec->Ordered
+                    ? NControllers::CreateOrderedMapController(config, host, operation)
+                    : NControllers::CreateUnorderedMapController(config, host, operation);
+            }
             break;
         }
         case EOperationType::Merge: {
             auto baseSpec = ParseOperationSpec<TMergeOperationSpec>(operation->GetSpec());
             switch (baseSpec->Mode) {
                 case EMergeMode::Ordered: {
-                    controller = CreateOrderedMergeController(config, host, operation);
+                    if (useLegacyController) {
+                        controller = NLegacyControllers::CreateOrderedMergeController(config, host, operation);
+                    } else {
+                        controller = NControllers::CreateOrderedMergeController(config, host, operation);
+                    }
                     break;
                 }
                 case EMergeMode::Sorted: {
-                    controller = CreateSortedMergeController(config, host, operation);
+                    if (useLegacyController) {
+                        controller = NLegacyControllers::CreateSortedMergeController(config, host, operation);
+                    } else {
+                        controller = NControllers::CreateSortedMergeController(config, host, operation);
+                    }
                     break;
                 }
                 case EMergeMode::Unordered: {
-                    controller = CreateUnorderedMergeController(config, host, operation);
+                    if (useLegacyController) {
+                        controller = NLegacyControllers::CreateUnorderedMergeController(config, host, operation);
+                    } else {
+                        controller = NControllers::CreateUnorderedMergeController(config, host, operation);
+                    }
                     break;
                 }
             }
             break;
         }
         case EOperationType::Erase: {
-            controller = CreateEraseController(config, host, operation);
+            if (useLegacyController) {
+                controller = NLegacyControllers::CreateEraseController(config, host, operation);
+            } else {
+                controller = NControllers::CreateEraseController(config, host, operation);
+            }
             break;
         }
         case EOperationType::Sort: {
-            controller = CreateSortController(config, host, operation);
+            if (useLegacyController) {
+                controller = NLegacyControllers::CreateSortController(config, host, operation);
+            } else {
+                controller = NControllers::CreateSortController(config, host, operation);
+            }
             break;
         }
         case EOperationType::Reduce: {
-            controller = CreateReduceController(config, host, operation, /* isJoinReduce */ false);
+            if (useLegacyController) {
+                controller = NLegacyControllers::CreateReduceController(config, host, operation, /* isJoinReduce */ false);
+            } else {
+                controller = NControllers::CreateReduceController(config, host, operation, /* isJoinReduce */ false);
+            }
             break;
         }
         case EOperationType::JoinReduce: {
-            controller = CreateReduceController(config, host, operation, /* isJoinReduce */ true);
+            if (useLegacyController) {
+                controller = NLegacyControllers::CreateReduceController(config, host, operation, /* isJoinReduce */ true);
+            } else {
+                controller = NControllers::CreateReduceController(config, host, operation, /* isJoinReduce */ true);
+            }
             break;
         }
         case EOperationType::MapReduce: {
-            controller = CreateMapReduceController(config, host, operation);
+            if (useLegacyController) {
+                controller = NLegacyControllers::CreateMapReduceController(config, host, operation);
+            } else {
+                controller = NControllers::CreateMapReduceController(config, host, operation);
+            }
             break;
         }
         case EOperationType::RemoteCopy: {
-            controller = CreateRemoteCopyController(config, host, operation);
+            if (useLegacyController) {
+                controller = NLegacyControllers::CreateRemoteCopyController(config, host, operation);
+            } else {
+                controller = NControllers::CreateRemoteCopyController(config, host, operation);
+            }
             break;
         }
         case EOperationType::Vanilla: {
-            controller = CreateVanillaController(config, host, operation);
+            if (useLegacyController) {
+                controller = NLegacyControllers::CreateVanillaController(config, host, operation);
+            } else {
+                controller = NControllers::CreateVanillaController(config, host, operation);
+            }
             break;
         }
         default:

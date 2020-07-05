@@ -1,7 +1,5 @@
 #include "config.h"
 
-#include <yt/server/lib/chunk_pools/config.h>
-
 #include <yt/core/ytree/ephemeral_node_factory.h>
 
 #include <yt/library/re2/re2.h>

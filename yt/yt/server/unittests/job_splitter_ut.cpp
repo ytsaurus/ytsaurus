@@ -1,12 +1,15 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/server/controller_agent/config.h>
-#include <yt/server/controller_agent/job_splitter.h>
+
+#include <yt/server/controller_agent/controllers/job_splitter.h>
+
 #include <yt/server/lib/chunk_pools/public.h>
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
+
 #include <yt/server/lib/controller_agent/structs.h>
 
-namespace NYT::NControllerAgent {
+namespace NYT::NControllerAgent::NControllers {
 namespace {
 
 using namespace ::testing;
@@ -197,4 +200,4 @@ TEST(TJobSplitterTest, SpeculateWhenInterruptTimeoutExpired)
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NY::NChunkPools
+} // namespace NYT::NControllers

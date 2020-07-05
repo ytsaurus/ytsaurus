@@ -1,8 +1,8 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/server/controller_agent/auto_merge_director.h>
+#include <yt/server/controller_agent/controllers/auto_merge_director.h>
 
-namespace NYT::NControllerAgent {
+namespace NYT::NControllerAgent::NControllers {
 namespace {
 
 using namespace ::testing;
@@ -182,4 +182,4 @@ TEST(TAutoMergeTest, JobFailure)
 ///////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NY::NChunkPools
+} // namespace NYT::NControllerAgent::NControllers

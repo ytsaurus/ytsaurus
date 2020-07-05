@@ -2,13 +2,13 @@
 
 #include "public.h"
 
+#include <yt/server/lib/chunk_pools/config.h>
+
 #include <yt/server/lib/job_agent/config.h>
 
 #include <yt/server/lib/misc/config.h>
 
 #include <yt/server/lib/scheduler/job_metrics.h>
-
-#include <yt/server/lib/chunk_pools/config.h>
 
 #include <yt/ytlib/chunk_client/config.h>
 

@@ -416,6 +416,50 @@ class TestControllerAgentReconnection(YTEnvSetup):
         op.complete()
         self._wait_for_state(op, "completed")
 
+    @authors("gritukan")
+    @pytest.mark.parametrize("use_legacy_controllers", [False, True])
+    def test_legacy_controller_fraction_changed_during_revive(self, use_legacy_controllers):
+        set("//sys/controller_agents/config/map_operation_options/spec_template/legacy_controller_fraction",
+            256 if use_legacy_controllers else 0,
+            recursive=True)
+
+        self._create_table("//tmp/t_in")
+        self._create_table("//tmp/t_out")
+        write_table("//tmp/t_in", {"foo": "bar"})
+
+        op = map(
+            command="sleep 1000",
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            track=False)
+
+        def get_is_legacy():
+            while True:
+                try:
+                    return get(op.get_path() + "/@progress/legacy_controller")
+                except:
+                    time.sleep(0.5)
+
+        if use_legacy_controllers:
+            assert get_is_legacy()
+        else:
+            assert not get_is_legacy()
+
+        self._wait_for_state(op, "running")
+
+        snapshot_path = op.get_path() + "/snapshot"
+        wait(lambda: exists(snapshot_path))
+        assert get(snapshot_path + "/@is_legacy") == use_legacy_controllers
+
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            set("//sys/controller_agents/config/map_operation_options/spec_template/legacy_controller_fraction", 0 if use_legacy_controllers else 256)
+
+        wait(lambda: get_is_legacy() != use_legacy_controllers)
+        self._wait_for_state(op, "running")
+
+        op.complete()
+        self._wait_for_state(op, "completed")
+
     @authors("ignat")
     def test_complete_operation_on_controller_agent_connection(self):
         self._create_table("//tmp/t_in")

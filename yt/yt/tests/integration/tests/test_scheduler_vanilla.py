@@ -476,7 +476,26 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 })
             op.track()
 
+    @authors("gritukan")
+    def test_legacy_controller_flag(self):
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "x": {
+                        "job_count": 1,
+                        "command": "true",
+                    },
+                },
+            })
+
+        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
+
+##################################################################
+
+class TestSchedulerVanillaCommandsLegacy(TestSchedulerVanillaCommands):
+    USE_LEGACY_CONTROLLERS = 2
+
 ##################################################################
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
-    UM_SECONDARY_MASTER_CELLS = 2
+    NUM_SECONDARY_MASTER_CELLS = 2

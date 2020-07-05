@@ -732,6 +732,9 @@ public:
 
     TJobCpuMonitorConfigPtr JobCpuMonitor;
 
+    //! Operation will use legacy controller with probability x/256.
+    int LegacyControllerFraction;
+
     TOperationSpecBase();
 
 private:

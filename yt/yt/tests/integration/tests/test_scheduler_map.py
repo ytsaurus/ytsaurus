@@ -1402,11 +1402,25 @@ done
         assert edges[("map", "auto_merge")]["statistics"]["row_count"] == 1
         assert edges[("auto_merge", "sink")]["statistics"]["row_count"] == 1
 
+    @authors("gritukan")
+    def test_legacy_controller_flag(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        op = map(in_="//tmp/t1", out="//tmp/t2", command="cat")
+
+        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
+
 ##################################################################
 
 @patch_porto_env_only(TestSchedulerMapCommands)
 class TestSchedulerMapCommandsPorto(YTEnvSetup):
     USE_PORTO = True
+
+##################################################################
+
+@patch_porto_env_only(TestSchedulerMapCommands)
+class TestSchedulerMapCommandsLegacy(YTEnvSetup):
+    USE_LEGACY_CONTROLLERS = True
 
 ##################################################################
 

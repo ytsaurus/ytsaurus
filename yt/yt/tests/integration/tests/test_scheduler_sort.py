@@ -1242,7 +1242,22 @@ class TestSchedulerSortCommands(YTEnvSetup):
         create("table", "//tmp/out")
         sort_maniac("//tmp/in", "//tmp/out", sort_by="key")
 
+    @authors("gritukan")
+    def test_legacy_controller_flag(self):
+        v1 = {"key" : "aaa"}
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [v1])
+        create("table", "//tmp/t_out")
+        op = sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="key")
+
+        assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
+
 ##################################################################
 
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+##################################################################
+
+class TestSchedulerSortCommandsLegacy(TestSchedulerSortCommands):
+    USE_LEGACY_CONTROLLERS = True

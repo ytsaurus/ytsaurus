@@ -15,19 +15,12 @@ DEFINE_ENUM(EOperationControllerQueue,
     (JobEvents)
 );
 
-DECLARE_REFCOUNTED_CLASS(TDataFlowGraph)
-
-DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
-
-DECLARE_REFCOUNTED_STRUCT(TScheduleJobStatistics)
-
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerSchedulerHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerSnapshotBuilderHost)
 
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraper)
 DECLARE_REFCOUNTED_CLASS(TIntermediateChunkScraperConfig)
 
-DECLARE_REFCOUNTED_CLASS(TDataBalancer)
 DECLARE_REFCOUNTED_CLASS(TDataBalancerOptions)
 
 DECLARE_REFCOUNTED_CLASS(TOperationOptions)
