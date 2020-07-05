@@ -207,6 +207,8 @@ public:
 
     TSchedulerIntegralGuaranteesConfigPtr IntegralGuarantees;
 
+    bool UseRecentResourceUsageForLocalSatisfaction;
+
     TFairShareStrategyTreeConfig();
 };
 

@@ -1014,6 +1014,8 @@ auto TFairShareTree<TFairShareImpl>::DoFairShareUpdateAt(TInstant now) -> std::p
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
+    ResourceTree_->PerformPostponedActions();
+
     TUpdateFairShareContext updateContext;
     TDynamicAttributesList dynamicAttributes;
 

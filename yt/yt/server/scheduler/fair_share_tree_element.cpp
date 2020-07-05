@@ -529,11 +529,16 @@ TSchedulerElement::TSchedulerElement(
     IFairShareTreeHost* treeHost,
     TFairShareStrategyTreeConfigPtr treeConfig,
     TString treeId,
+    TString id,
     const NLogging::TLogger& logger)
     : TSchedulerElementFixedState(host, treeHost, std::move(treeConfig), std::move(treeId))
-    , ResourceTreeElement_(New<TResourceTreeElement>())
+    , ResourceTreeElement_(New<TResourceTreeElement>(TreeHost_->GetResourceTree(), id))
     , Logger(logger)
-{ }
+{
+    if (id == RootPoolName) {
+        ResourceTreeElement_->MarkInitialized();
+    }
+}
 
 TSchedulerElement::TSchedulerElement(
     const TSchedulerElement& other,
@@ -561,7 +566,12 @@ IFairShareTreeHost* TSchedulerElement::GetTreeHost() const
 double TSchedulerElement::ComputeLocalSatisfactionRatio() const
 {
     const TResourceVector& fairShare = Attributes_.FairShare;
-    TResourceVector usageShare = GetResourceUsageShare();
+
+    auto resourceUsage = TreeConfig_->UseRecentResourceUsageForLocalSatisfaction
+        ? ResourceTreeElement_->GetResourceUsage()
+        : ResourceUsageAtUpdate_;
+
+    auto usageShare = TResourceVector::FromJobResources(resourceUsage, TotalResourceLimits_, 0, 1);
 
     // Starvation is disabled for operations in FIFO pool.
     if (Attributes_.FifoIndex >= 0) {
@@ -924,8 +934,9 @@ TCompositeSchedulerElement::TCompositeSchedulerElement(
     TFairShareStrategyTreeConfigPtr treeConfig,
     NProfiling::TTagId profilingTag,
     const TString& treeId,
+    const TString& id,
     const NLogging::TLogger& logger)
-    : TSchedulerElement(host, treeHost, std::move(treeConfig), treeId, logger)
+    : TSchedulerElement(host, treeHost, std::move(treeConfig), treeId, id, logger)
     , ProfilingTag_(profilingTag)
 { }
 
@@ -1928,6 +1939,7 @@ TPool::TPool(
         std::move(treeConfig),
         profilingTag,
         treeId,
+        id,
         NLogging::TLogger(logger)
             .AddTag("PoolId: %v", id)
             .AddTag("SchedulingMode: %v", config->Mode))
@@ -2181,9 +2193,9 @@ void TPool::DetachParent()
 
     const auto& oldParentId = Parent_->GetId();
     Parent_->RemoveChild(this);
-    TreeHost_->GetResourceTree()->DetachParent(ResourceTreeElement_);
+    TreeHost_->GetResourceTree()->ScheduleDetachParent(ResourceTreeElement_);
 
-    YT_LOG_DEBUG("Pool %Qv is detached from pool %Qv",
+    YT_LOG_DEBUG("Pool is detached (Pool: %v, ParentPool: %v)",
         Id_,
         oldParentId);
 }
@@ -2765,6 +2777,7 @@ TOperationElement::TOperationElement(
         treeHost,
         std::move(treeConfig),
         treeId,
+        ToString(operation->GetId()),
         NLogging::TLogger(logger).AddTag("OperationId: %v", operation->GetId()))
     , TOperationElementFixedState(operation, std::move(controllerConfig))
     , RuntimeParameters_(std::move(runtimeParameters))
@@ -3676,7 +3689,7 @@ void TOperationElement::DetachParent()
     Parent_->RemoveChild(this);
 
     Parent_ = nullptr;
-    TreeHost_->GetResourceTree()->DetachParent(ResourceTreeElement_);
+    TreeHost_->GetResourceTree()->ScheduleDetachParent(ResourceTreeElement_);
 
     YT_LOG_DEBUG("Operation detached from pool (Pool: %v)", parentId);
 }
@@ -3726,6 +3739,7 @@ TRootElement::TRootElement(
         treeConfig,
         profilingTag,
         treeId,
+        RootPoolName,
         NLogging::TLogger(logger)
             .AddTag("PoolId: %v", RootPoolName)
             .AddTag("SchedulingMode: %v", ESchedulingMode::FairShare))

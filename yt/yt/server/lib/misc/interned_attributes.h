@@ -371,6 +371,7 @@
     XX(UpstreamReplicaId, upstream_replica_id) \
     XX(UsableAccounts, usable_accounts) \
     XX(UsableNetworkProjects, usable_network_projects) \
+    XX(UseRecentResourceUsageForLocalSatisfaction, use_recent_resource_usage_for_local_satisfaction) \
     XX(UsedSpace, used_space) \
     XX(UsedSpacePerMedium, used_space_per_medium) \
     XX(UserAttributes, user_attributes) \
