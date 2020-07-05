@@ -497,6 +497,10 @@ TOperationSpecBase::TOperationSpecBase()
     RegisterParameter("job_cpu_monitor", JobCpuMonitor)
         .DefaultNew();
 
+    RegisterParameter("legacy_controller_fraction", LegacyControllerFraction)
+        .Default(256)
+        .InRange(0, 256);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)

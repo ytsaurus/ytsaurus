@@ -1095,7 +1095,6 @@ private:
 
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_version");
 
-
         if (!rspOrError.IsOK()) {
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                 THROW_ERROR_EXCEPTION("Snapshot does not exist");
@@ -1118,6 +1117,22 @@ private:
 
         TOperationSnapshot snapshot;
         snapshot.Version = version;
+
+        {
+            auto batchReq = StartObjectBatchRequest();
+            auto req = TYPathProxy::Get(GetSnapshotPath(operationId) + "/@is_legacy");
+            batchReq->AddRequest(req, "get_is_legacy");
+            auto batchRspOrError = WaitFor(batchReq->Invoke());
+            const auto& batchRsp = batchRspOrError.ValueOrThrow();
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_is_legacy");
+            if (!rspOrError.IsOK()) {
+                THROW_ERROR_EXCEPTION("Error checking if snapshot is legacy")
+                    << rspOrError;
+            }
+            const auto& rsp = rspOrError.Value();
+            snapshot.IsLegacy = ConvertTo<bool>(TYsonString(rsp->value()));
+        }
+
         try {
             auto downloader = New<TSnapshotDownloader>(
                 Config_,

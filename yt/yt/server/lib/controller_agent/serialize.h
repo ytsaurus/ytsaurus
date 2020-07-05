@@ -39,6 +39,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JoinAutoMergeTasks)                   (300406))
     ((RefCountedChunkPools)                 (300407))
     ((DynamicMultiPool)                     (300408))
+    ((VintageControllerAgent)               (300409))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

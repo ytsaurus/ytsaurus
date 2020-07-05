@@ -2,10 +2,6 @@
 
 #include "private.h"
 
-#include "data_flow_graph.h"
-
-#include <yt/server/lib/chunk_pools/chunk_stripe_key.h>
-
 #include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -57,16 +53,10 @@ struct TUserFile
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NChunkPools::TBoundaryKeys BuildBoundaryKeysFromOutputResult(
-    const NScheduler::NProto::TOutputResult& boundaryKeys,
-    const TEdgeDescriptor& outputTable,
-    const NTableClient::TRowBufferPtr& rowBuffer);
-
 void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector<TUserFile>& files);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NChunkClient::TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vector<TInputTablePtr>& inputTables);
 NChunkClient::TDataSourceDirectoryPtr BuildIntermediateDataSourceDirectory();
 
 void SetDataSourceDirectory(NScheduler::NProto::TSchedulerJobSpecExt* jobSpec, const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory);
