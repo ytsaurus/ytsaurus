@@ -201,6 +201,10 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TStr
             TColumnarStatistics columnarStatistics;
             if (heavyColumnStatistics) {
                 columnarStatistics = GetColumnarStatistics(*heavyColumnStatistics, columnNames);
+            } else {
+                YT_VERIFY(Mode_ == EColumnarStatisticsFetcherMode::FromMaster);
+                columnarStatistics = TColumnarStatistics::MakeEmpty(columnNames.size());
+                columnarStatistics.LegacyChunkDataWeight = chunk->GetDataWeight();
             }
             Chunks_.emplace_back(std::move(chunk));
             if (StoreChunkStatistics_) {
