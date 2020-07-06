@@ -14,6 +14,29 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAuthCacheConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TDuration CacheTtl;
+    TDuration OptimisticCacheTtl;
+    TDuration ErrorTtl;
+
+    TAuthCacheConfig()
+    {
+        RegisterParameter("cache_ttl", CacheTtl)
+            .Default(TDuration::Minutes(5));
+        RegisterParameter("optimistic_cache_ttl", OptimisticCacheTtl)
+            .Default(TDuration::Hours(1));
+        RegisterParameter("error_ttl", ErrorTtl)
+            .Default(TDuration::Seconds(15));
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TAuthCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDefaultBlackboxServiceConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -176,7 +199,7 @@ class TCachingTokenAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TAsyncExpiringCacheConfigPtr Cache;
+    TAuthCacheConfigPtr Cache;
 
     TCachingTokenAuthenticatorConfig()
     {
@@ -263,7 +286,7 @@ class TCachingCookieAuthenticatorConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
-    TAsyncExpiringCacheConfigPtr Cache;
+    TAuthCacheConfigPtr Cache;
 
     TCachingCookieAuthenticatorConfig()
     {

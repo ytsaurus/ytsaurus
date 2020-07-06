@@ -325,6 +325,109 @@ TEST_F(TTokenAuthenticatorTest, Success)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCachingTokenAuthenticatorTest
+    : public TTokenAuthenticatorTest
+{
+public:
+    TCachingTokenAuthenticatorTest()
+    {
+        Config_->Scope = "yt:api";
+
+        auto config = New<TCachingTokenAuthenticatorConfig>();
+        config->Cache->CacheTtl = TDuration::Seconds(1);
+        config->Cache->ErrorTtl = TDuration::Seconds(1);
+        config->Cache->OptimisticCacheTtl = TDuration::Seconds(5);
+    
+        Authenticator_ = CreateCachingTokenAuthenticator(
+            config,
+            Authenticator_);
+
+        GoodResult = MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(R"yy({status={id=0};oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};login=sandello})yy")));
+        RejectResult = MakeFuture<INodePtr>(ConvertTo<INodePtr>(TYsonString(R"yy({status={id=5};oauth={scope="x:1 yt:api x:2";client_id="cid";client_name="nm"};login=sandello})yy")));
+        ErrorResult = MakeFuture<INodePtr>(TError("Internal Server Error"));
+    }
+
+    TFuture<INodePtr> GoodResult, RejectResult, ErrorResult;
+};
+
+TEST_F(TCachingTokenAuthenticatorTest, GoodCaching)
+{
+
+    EXPECT_CALL(*Blackbox_, Call("oauth", _))
+        .WillRepeatedly(Return(GoodResult));
+
+    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    result.ValueOrThrow();
+}
+
+TEST_F(TCachingTokenAuthenticatorTest, OptimisticCaching)
+{
+    {
+        testing::InSequence s;
+        EXPECT_CALL(*Blackbox_, Call("oauth", _))
+            .WillOnce(Return(GoodResult));
+        EXPECT_CALL(*Blackbox_, Call("oauth", _))
+            .WillRepeatedly(Return(ErrorResult));
+    }
+
+    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    result.ValueOrThrow();
+
+    Sleep(TDuration::Seconds(1));
+
+    result = Invoke("mytoken", "127.0.0.1").Get();
+    result.ValueOrThrow();
+
+    Sleep(TDuration::Seconds(1));
+
+    result = Invoke("mytoken", "127.0.0.1").Get();
+    result.ValueOrThrow();
+}
+
+TEST_F(TCachingTokenAuthenticatorTest, TokenInvalidation)
+{
+    {
+        testing::InSequence s;
+        EXPECT_CALL(*Blackbox_, Call("oauth", _))
+            .WillOnce(Return(GoodResult));
+        EXPECT_CALL(*Blackbox_, Call("oauth", _))
+            .WillRepeatedly(Return(RejectResult));
+    }
+
+    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    result.ValueOrThrow();
+
+    Sleep(TDuration::Seconds(2));
+
+    result = Invoke("mytoken", "127.0.0.1").Get();
+
+    Sleep(TDuration::Seconds(1));
+
+    result = Invoke("mytoken", "127.0.0.1").Get();
+    ASSERT_FALSE(result.IsOK());
+}
+
+TEST_F(TCachingTokenAuthenticatorTest, EntryCleanup)
+{
+    {
+        testing::InSequence s;
+        EXPECT_CALL(*Blackbox_, Call("oauth", _))
+            .WillOnce(Return(GoodResult));
+        EXPECT_CALL(*Blackbox_, Call("oauth", _))
+            .WillRepeatedly(Return(ErrorResult));
+    }
+
+    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    result.ValueOrThrow();
+
+    Sleep(TDuration::Seconds(15));
+
+    result = Invoke("mytoken", "127.0.0.1").Get();
+    ASSERT_FALSE(result.IsOK());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCookieAuthenticatorTest
     : public ::testing::Test
 {
