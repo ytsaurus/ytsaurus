@@ -22,13 +22,14 @@ class TestColumnarStatistics(YTEnvSetup):
         },
     }
 
-    def _expect_statistics(self, lower_row_index, upper_row_index, columns, expected_data_weights, expected_timestamp_weight=None, fetcher_mode="from_nodes", table="//tmp/t"):
+    def _expect_statistics(self, lower_row_index, upper_row_index, columns, expected_data_weights, 
+                           expected_timestamp_weight=None, expected_legacy_data_weight=0, fetcher_mode="from_nodes", table="//tmp/t"):
         path = '["{0}{{{1}}}[{2}:{3}]";]'.format(table,
                                                  columns,
                                                  "#" + str(lower_row_index) if lower_row_index is not None else "",
                                                  "#" + str(upper_row_index) if upper_row_index is not None else "")
         statistics = get_table_columnar_statistics(path, fetcher_mode=fetcher_mode)[0]
-        assert statistics["legacy_chunks_data_weight"] == 0
+        assert statistics["legacy_chunks_data_weight"] == expected_legacy_data_weight
         assert statistics["column_data_weights"] == dict(zip(columns.split(','), expected_data_weights))
         if expected_timestamp_weight is not None:
             assert statistics["timestamp_total_weight"] == expected_timestamp_weight
@@ -108,7 +109,7 @@ class TestColumnarStatistics(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/max_heavy_columns", 0)
         make_table([256, 42])
-        self._expect_statistics(0, 1, "x0,x1,zzz", [0, 0, 0], fetcher_mode="from_master")
+        self._expect_statistics(0, 1, "x0,x1,zzz", [0, 0, 0], fetcher_mode="from_master", expected_legacy_data_weight=299)
         self._expect_statistics(0, 1, "x0,x1,zzz", [256, 42, 0], fetcher_mode="fallback")
 
     @authors("dakovalkov")
