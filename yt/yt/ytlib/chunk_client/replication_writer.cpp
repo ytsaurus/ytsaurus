@@ -532,7 +532,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
 
-        if (!node->IsAlive()) {
+        // Finished flag may have been set in case of reordering of the responses.
+        if (!node->IsAlive() || node->Finished) {
             return;
         }
 
