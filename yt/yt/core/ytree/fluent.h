@@ -320,7 +320,7 @@ public:
         TFluentList<TParent> BeginList()
         {
             this->Consumer->OnBeginList();
-            return TFluentList<TParent>(this->Consumer, this->Parent);
+            return TFluentList<TParent>(this->Consumer, std::move(this->Parent));
         }
 
         template <class TFuncList>
@@ -357,7 +357,7 @@ public:
         TFluentMap<TParent> BeginMap()
         {
             this->Consumer->OnBeginMap();
-            return TFluentMap<TParent>(this->Consumer, this->Parent);
+            return TFluentMap<TParent>(this->Consumer, std::move(this->Parent));
         }
 
         template <class TFuncMap>
@@ -420,7 +420,7 @@ public:
             this->Consumer->OnBeginAttributes();
             return TFluentAttributes<TAnyWithoutAttributes<TParent>>(
                 this->Consumer,
-                TAnyWithoutAttributes<TParent>(this->Consumer, this->Parent));
+                TAnyWithoutAttributes<TParent>(this->Consumer, std::move(this->Parent)));
         }
     };
 
@@ -445,7 +445,7 @@ public:
         TAny<TThis> Item(TStringBuf key)
         {
             this->Consumer->OnKeyedItem(key);
-            return TAny<TThis>(this->Consumer, *this);
+            return TAny<TThis>(this->Consumer, std::move(*this));
         }
 
         TThis& Items(const IMapNodePtr& map)
@@ -505,7 +505,7 @@ public:
         TAny<TThis> Item()
         {
             this->Consumer->OnListItem();
-            return TAny<TThis>(this->Consumer, *this);
+            return TAny<TThis>(this->Consumer, std::move(*this));
         }
 
         TThis& Items(const IListNodePtr& list)
@@ -555,7 +555,7 @@ public:
         TAny<TThis> Item(TStringBuf key)
         {
             this->Consumer->OnKeyedItem(key);
-            return TAny<TThis>(this->Consumer, *this);
+            return TAny<TThis>(this->Consumer, std::move(*this));
         }
 
         TThis& Items(const IMapNodePtr& map)
