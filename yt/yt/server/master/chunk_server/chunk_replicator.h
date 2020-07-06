@@ -42,7 +42,11 @@ public:
 
     ~TChunkReplicator();
 
-    void Start(TChunk* frontChunk, int chunkCount);
+    void Start(
+        TChunk* blobFrontChunk,
+        int blobChunkCount,
+        TChunk* journalFrontChunk,
+        int journalChunkCount);
     void Stop();
 
     void OnNodeUnregistered(TNode* node);
@@ -89,7 +93,11 @@ public:
 
     void ScheduleChunkRefresh(TChunk* chunk);
     void ScheduleNodeRefresh(TNode* node);
-    void ScheduleGlobalChunkRefresh(TChunk* frontChunk, int chunkCount);
+    void ScheduleGlobalChunkRefresh(
+        TChunk* blobFrontChunk,
+        int blobChunkCount,
+        TChunk* journalFrontChunk,
+        int journalChunkCount);
 
     void ScheduleUnknownReplicaRemoval(
         TNode* node,
@@ -124,8 +132,10 @@ public:
 
     bool IsEnabled();
 
-    int GetRefreshQueueSize() const;
-    int GetRequisitionUpdateQueueSize() const;
+    int GetBlobRefreshQueueSize() const;
+    int GetJournalRefreshQueueSize() const;
+    int GetBlobRequisitionUpdateQueueSize() const;
+    int GetJournalRequisitionUpdateQueueSize() const;
 
 private:
     struct TPerMediumChunkStatistics
@@ -181,10 +191,12 @@ private:
     const TChunkPlacementPtr ChunkPlacement_;
 
     const NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
-    const std::unique_ptr<TChunkScanner> RefreshScanner_;
+    const std::unique_ptr<TChunkScanner> BlobRefreshScanner_;
+    const std::unique_ptr<TChunkScanner> JournalRefreshScanner_;
 
     const NConcurrency::TPeriodicExecutorPtr RequisitionUpdateExecutor_;
-    const std::unique_ptr<TChunkScanner> RequisitionUpdateScanner_;
+    const std::unique_ptr<TChunkScanner> BlobRequisitionUpdateScanner_;
+    const std::unique_ptr<TChunkScanner> JournalRequisitionUpdateScanner_;
 
     const NConcurrency::TPeriodicExecutorPtr FinishedRequisitionTraverseFlushExecutor_;
 
@@ -354,6 +366,9 @@ private:
     void OnCheckEnabledSecondary();
 
     TChunkRequisitionRegistry* GetChunkRequisitionRegistry();
+
+    const std::unique_ptr<TChunkScanner>& GetChunkRefreshScanner(TChunk* chunk) const;
+    const std::unique_ptr<TChunkScanner>& GetChunkRequisitionUpdateScanner(TChunk* chunk) const;
 
     int GetCappedSecondaryCellCount();
 

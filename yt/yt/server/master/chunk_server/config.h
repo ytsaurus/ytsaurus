@@ -233,10 +233,16 @@ public:
     TDuration ChunkRefreshDelay;
     //! Interval between consequent chunk refresh iterations.
     std::optional<TDuration> ChunkRefreshPeriod;
+
     //! Maximum number of chunks to process during a refresh iteration.
-    int MaxChunksPerRefresh;
+    int MaxBlobChunksPerRefresh;
     //! Maximum amount of time allowed to spend during a refresh iteration.
-    TDuration MaxTimePerRefresh;
+    TDuration MaxTimePerBlobChunkRefresh;
+
+    //! Maximum number of chunks to process during a refresh iteration.
+    int MaxJournalChunksPerRefresh;
+    //! Maximum amount of time allowed to spend during a refresh iteration.
+    TDuration MaxTimePerJournalChunkRefresh;
 
     //! If set to false, fully disables background chunk requisition updates;
     //! see #EnableChunkRefresh for a rationale.
@@ -244,9 +250,13 @@ public:
     //! Interval between consequent chunk requisition update iterations.
     std::optional<TDuration> ChunkRequisitionUpdatePeriod;
     //! Maximum number of chunks to process during a requisition update iteration.
-    int MaxChunksPerRequisitionUpdate;
+    int MaxBlobChunksPerRequisitionUpdate;
     //! Maximum amount of time allowed to spend during a requisition update iteration.
-    TDuration MaxTimePerRequisitionUpdate;
+    TDuration MaxTimePerBlobChunkRequisitionUpdate;
+    //! Maximum number of chunks to process during a requisition update iteration.
+    int MaxJournalChunksPerRequisitionUpdate;
+    //! Maximum amount of time allowed to spend during a requisition update iteration.
+    TDuration MaxTimePerJournalChunkRequisitionUpdate;
     //! Chunk requisition update finish mutations are batched within this period.
     TDuration FinishedChunkListsRequisitionTraverseFlushPeriod;
 
@@ -341,19 +351,34 @@ public:
             .Default(TDuration::Seconds(30));
         RegisterParameter("chunk_refresh_period", ChunkRefreshPeriod)
             .Default(TDuration::MilliSeconds(100));
-        RegisterParameter("max_chunks_per_refresh", MaxChunksPerRefresh)
-            .Default(10000);
-        RegisterParameter("max_time_per_refresh", MaxTimePerRefresh)
-            .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("max_blob_chunks_per_refresh", MaxBlobChunksPerRefresh)
+            .Default(8000)
+            .Alias("max_chunks_per_refresh");
+        RegisterParameter("max_time_per_blob_chunk_refresh", MaxTimePerBlobChunkRefresh)
+            .Default(TDuration::MilliSeconds(80))
+            .Alias("max_time_per_refresh");
+        RegisterParameter("max_journal_chunks_per_refresh", MaxJournalChunksPerRefresh)
+            .Default(6000);
+        RegisterParameter("max_time_per_journal_chunk_refresh", MaxTimePerJournalChunkRefresh)
+            .Default(TDuration::MilliSeconds(60));
 
         RegisterParameter("enable_chunk_requisition_update", EnableChunkRequisitionUpdate)
             .Default(true);
         RegisterParameter("chunk_requisition_update_period", ChunkRequisitionUpdatePeriod)
             .Default(TDuration::MilliSeconds(100));
-        RegisterParameter("max_chunks_per_requisition_update", MaxChunksPerRequisitionUpdate)
-            .Default(10000);
-        RegisterParameter("max_time_per_requisition_update", MaxTimePerRequisitionUpdate)
-            .Default(TDuration::MilliSeconds(100));
+
+        RegisterParameter("max_blob_chunks_per_requisition_update", MaxBlobChunksPerRequisitionUpdate)
+            .Default(8000)
+            .Alias("max_chunks_per_requisition_update");
+        RegisterParameter("max_time_per_blob_chunk_requisition_update", MaxTimePerBlobChunkRequisitionUpdate)
+            .Default(TDuration::MilliSeconds(80))
+            .Alias("max_time_per_requisition_update");
+        RegisterParameter("max_journal_chunks_per_requisition_update", MaxJournalChunksPerRequisitionUpdate)
+            .Default(6000);
+        RegisterParameter("max_time_per_journal_chunk_requisition_update", MaxTimePerJournalChunkRequisitionUpdate)
+            .Default(TDuration::MilliSeconds(60));
+
         RegisterParameter("finished_chunk_lists_requisition_traverse_flush_period", FinishedChunkListsRequisitionTraverseFlushPeriod)
             .Default(TDuration::Seconds(1));
 

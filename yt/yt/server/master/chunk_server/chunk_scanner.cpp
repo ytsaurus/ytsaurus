@@ -12,11 +12,14 @@ using namespace NObjectServer;
 
 TChunkScanner::TChunkScanner(
     TObjectManagerPtr objectManager,
-    EChunkScanKind kind)
+    EChunkScanKind kind,
+    bool journal)
     : ObjectManager_(std::move(objectManager))
     , Kind_(kind)
+    , Journal_(journal)
     , Logger(NLogging::TLogger(ChunkServerLogger)
-        .AddTag("Kind: %", Kind_))
+        .AddTag("Kind: %", Kind_)
+        .AddTag("Journal: %", Journal_))
 { }
 
 void TChunkScanner::Start(TChunk* frontChunk, int chunkCount)
@@ -31,6 +34,8 @@ void TChunkScanner::ScheduleGlobalScan(TChunk* frontChunk, int chunkCount)
 {
     GlobalIterator_ = frontChunk;
     GlobalCount_ = chunkCount;
+
+    YT_VERIFY(!IsObjectAlive(frontChunk) || frontChunk->IsJournal() == Journal_);
 
     YT_LOG_INFO("Global chunk scan started (ChunkCount: %v)",
         GlobalCount_);
@@ -104,7 +109,7 @@ void TChunkScanner::AdvanceGlobalIterator()
     YT_VERIFY(GlobalCount_ > 0);
     --GlobalCount_;
 
-    GlobalIterator_ = GlobalIterator_->GetNextScannedChunk(Kind_);
+    GlobalIterator_ = GlobalIterator_->GetNextScannedChunk();
     if (!GlobalIterator_) {
         // NB: Some chunks could vanish during the scan so this is not
         // necessary zero.

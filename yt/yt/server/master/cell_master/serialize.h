@@ -115,6 +115,7 @@ DEFINE_ENUM(EMasterReign,
     ((OpaquePortalEntrances)                                        (1401))  // shakurov
     ((MultisetAttributes)                                           (1402))  // gritukan
     ((MakeProfilingModeAnInheritedAttribute)                        (1403))  // akozhikhov
+    ((YT_13003_SeparateScannersForJournalAndBlobChunks)             (1404))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

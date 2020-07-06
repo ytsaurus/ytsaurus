@@ -68,7 +68,8 @@ public:
             BIND(&TImpl::OnRefresh, MakeWeak(this))))
         , SealScanner_(std::make_unique<TChunkScanner>(
             Bootstrap_->GetObjectManager(),
-            EChunkScanKind::Seal))
+            EChunkScanKind::Seal,
+            true /*isJournal*/))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Bootstrap_);

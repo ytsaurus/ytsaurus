@@ -18,10 +18,13 @@ namespace NYT::NChunkServer {
  *  chunks enqueued up to a certain deadline instant.
  *
  *  2. Handles "global chunk scan" on startup.
- *  For #EChunkScanKind::Refresh and #EChunkScanKind::RequisitionUpdate all
- *  chunks are scanned, for #EChunkScanKind::Seal only journal chunks are scanned.
- *  To this aim, all chunks are included into double-linked lists
- *  (cf. #TChunkDynamicData::AllLinkedListNode and #TChunkDynamicData::JournalLinkedListNode).
+ *  Blob and journal chunks are always scanned separately (because for some
+ *  scans, such as #EChunkScanKind::Seal, blob chunks are irrelevant, and for
+ *  other scans, such as #EChunkScanKind::Refresh, journal and blob chunks
+ *  should be scanned with different priorities).
+ *  To this aim, all chunks are included into two global disjoint double-linked
+ *  lists - one for blob and one for journal chunks
+ *  (cf. #TChunkDynamicData::LinkedListNode)
  *  Scheduling the scan only takes O(1).
  *  New chunks are added to the front of the lists.
  *  Dead chunks are extracted from anywhere.
@@ -40,7 +43,8 @@ class TChunkScanner
 public:
     TChunkScanner(
         NObjectServer::TObjectManagerPtr objectManager,
-        EChunkScanKind kind);
+        EChunkScanKind kind,
+        bool journal);
 
     //! Must be called exactly once upon initialization.
     //! Schedules #chunkCount chunks starting from #frontChunk for the global scan.
@@ -88,6 +92,7 @@ public:
 private:
     const NObjectServer::TObjectManagerPtr ObjectManager_;
     const EChunkScanKind Kind_;
+    const bool Journal_;
 
     TChunk* GlobalIterator_ = nullptr;
     int GlobalCount_ = -1;

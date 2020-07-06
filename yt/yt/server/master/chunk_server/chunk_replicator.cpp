@@ -108,15 +108,25 @@ TChunkReplicator::TChunkReplicator(
     , RefreshExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRefresh, MakeWeak(this))))
-    , RefreshScanner_(std::make_unique<TChunkScanner>(
+    , BlobRefreshScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
-        EChunkScanKind::Refresh))
+        EChunkScanKind::Refresh,
+        false /*journal*/))
+    , JournalRefreshScanner_(std::make_unique<TChunkScanner>(
+        Bootstrap_->GetObjectManager(),
+        EChunkScanKind::Refresh,
+        true /*journal*/))
     , RequisitionUpdateExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnRequisitionUpdate, MakeWeak(this))))
-    , RequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
+    , BlobRequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
         Bootstrap_->GetObjectManager(),
-        EChunkScanKind::RequisitionUpdate))
+        EChunkScanKind::RequisitionUpdate,
+        false /*journal*/))
+    , JournalRequisitionUpdateScanner_(std::make_unique<TChunkScanner>(
+        Bootstrap_->GetObjectManager(),
+        EChunkScanKind::RequisitionUpdate,
+        true /*journal*/))
     , FinishedRequisitionTraverseFlushExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkMaintenance),
         BIND(&TChunkReplicator::OnFinishedRequisitionTraverseFlush, MakeWeak(this))))
@@ -160,10 +170,16 @@ TChunkReplicator::TChunkReplicator(
 TChunkReplicator::~TChunkReplicator()
 { }
 
-void TChunkReplicator::Start(TChunk* frontChunk, int chunkCount)
+void TChunkReplicator::Start(
+    TChunk* blobFrontChunk,
+    int blobChunkCount,
+    TChunk* journalFrontChunk,
+    int journalChunkCount)
 {
-    RefreshScanner_->Start(frontChunk, chunkCount);
-    RequisitionUpdateScanner_->Start(frontChunk, chunkCount);
+    BlobRefreshScanner_->Start(blobFrontChunk, blobChunkCount);
+    JournalRefreshScanner_->Start(journalFrontChunk, journalChunkCount);
+    BlobRequisitionUpdateScanner_->Start(blobFrontChunk, blobChunkCount);
+    JournalRequisitionUpdateScanner_->Start(journalFrontChunk, journalChunkCount);
     RefreshExecutor_->Start();
     RequisitionUpdateExecutor_->Start();
     FinishedRequisitionTraverseFlushExecutor_->Start();
@@ -307,11 +323,11 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
             ++mediumStatistics.ReplicaCount[replicaIndex];
             ++totalReplicaCounts[mediumIndex];
         }
-        
+
         if (!Config_->AllowMultipleErasurePartsPerNode) {
             node->SetVisitMark(mediumIndex, mark);
         }
-        
+
         if (const auto* rack = node->GetRack()) {
             int rackIndex = rack->GetIndex();
             int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk);
@@ -621,7 +637,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             hasSealedReplica[mediumIndex] = true;
             hasSealedReplicas = true;
         }
-        
+
         if (IsReplicaDecommissioned(replica)) {
             ++decommissionedReplicaCount[mediumIndex];
             decommissionedReplicas[mediumIndex].push_back(replica);
@@ -630,7 +646,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
             ++replicaCount[mediumIndex];
             ++totalReplicaCount;
         }
-        
+
         if (const auto* rack = replica.GetPtr()->GetRack()) {
             int rackIndex = rack->GetIndex();
             int maxReplicasPerRack = ChunkPlacement_->GetMaxReplicasPerRack(mediumIndex, chunk, std::nullopt);
@@ -665,12 +681,12 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         auto mediumReplicationPolicy = entry.Policy();
         auto mediumReplicaCount = replicaCount[mediumIndex];
         auto mediumDecommissionedReplicaCount = decommissionedReplicaCount[mediumIndex];
-        
+
         // NB: some very counter-intuitive scenarios are possible here.
         // E.g. mediumReplicationFactor == 0, but mediumReplicaCount != 0.
         // This happens when chunk's requisition changes. One should be careful
         // with one's assumptions.
-        if (!mediumReplicationPolicy && 
+        if (!mediumReplicationPolicy &&
             mediumReplicaCount == 0 &&
             mediumDecommissionedReplicaCount == 0)
         {
@@ -795,7 +811,7 @@ void TChunkReplicator::ComputeRegularChunkStatisticsCrossMedia(
     if (!hasMediumOnWhichPresent) {
         result.Status |= ECrossMediumChunkStatus::Lost;
     }
-    
+
     if (precarious && !allMediaTransient) {
         result.Status |= ECrossMediumChunkStatus::Precarious;
     }
@@ -862,8 +878,8 @@ void TChunkReplicator::OnNodeDisposed(TNode* node)
 
 void TChunkReplicator::OnChunkDestroyed(TChunk* chunk)
 {
-    RefreshScanner_->OnChunkDestroyed(chunk);
-    RequisitionUpdateScanner_->OnChunkDestroyed(chunk);
+    GetChunkRefreshScanner(chunk)->OnChunkDestroyed(chunk);
+    GetChunkRequisitionUpdateScanner(chunk)->OnChunkDestroyed(chunk);
     ResetChunkStatus(chunk);
     RemoveChunkFromQueuesOnDestroy(chunk);
     CancelChunkJobs(chunk);
@@ -1679,7 +1695,7 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
                         if (replica.GetReplicaIndex() != replicaIndex) {
                             continue;
                         }
-                        
+
                         // If chunk is lost on some media, don't match dst medium with
                         // src medium: we want to be able to do cross-medium replication.
                         bool mediumMatches =
@@ -1900,7 +1916,7 @@ void TChunkReplicator::ScheduleChunkRefresh(TChunk* chunk)
         return;
     }
 
-    RefreshScanner_->EnqueueChunk(chunk);
+    GetChunkRefreshScanner(chunk)->EnqueueChunk(chunk);
 }
 
 void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
@@ -1918,9 +1934,14 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
     }
 }
 
-void TChunkReplicator::ScheduleGlobalChunkRefresh(TChunk* frontChunk, int chunkCount)
+void TChunkReplicator::ScheduleGlobalChunkRefresh(
+    TChunk* blobFrontChunk,
+    int blobChunkCount,
+    TChunk* journalFrontChunk,
+    int journalChunkCount)
 {
-    RefreshScanner_->ScheduleGlobalScan(frontChunk, chunkCount);
+    BlobRefreshScanner_->ScheduleGlobalScan(blobFrontChunk, blobChunkCount);
+    JournalRefreshScanner_->ScheduleGlobalScan(journalFrontChunk, journalChunkCount);
 }
 
 void TChunkReplicator::OnRefresh()
@@ -1930,35 +1951,60 @@ void TChunkReplicator::OnRefresh()
         return;
     }
 
-    int totalCount = 0;
-    int aliveCount = 0;
-    NProfiling::TWallTimer timer;
-
     YT_LOG_DEBUG("Chunk refresh iteration started");
 
     auto deadline = GetCpuInstant() - DurationToCpuDuration(GetDynamicConfig()->ChunkRefreshDelay);
-    PROFILE_AGGREGATED_TIMING (RefreshTimeCounter) {
-        while (totalCount < GetDynamicConfig()->MaxChunksPerRefresh &&
-               RefreshScanner_->HasUnscannedChunk(deadline))
-        {
-            if (timer.GetElapsedTime() > GetDynamicConfig()->MaxTimePerRefresh) {
+
+    auto doRefreshChunks = [&] (
+        const std::unique_ptr<TChunkScanner>& scanner,
+        int* const totalCount,
+        int* const aliveCount,
+        int maxChunksPerRefresh,
+        TDuration maxTimePerRefresh)
+    {
+        NProfiling::TWallTimer timer;
+
+        while (*totalCount < maxChunksPerRefresh && scanner->HasUnscannedChunk(deadline)) {
+            if (timer.GetElapsedTime() > maxTimePerRefresh) {
                 break;
             }
 
-            ++totalCount;
-            auto* chunk = RefreshScanner_->DequeueChunk();
+            ++(*totalCount);
+            auto* chunk = scanner->DequeueChunk();
             if (!chunk) {
                 continue;
             }
 
             RefreshChunk(chunk);
-            ++aliveCount;
+            ++(*aliveCount);
         }
+    };
+
+    int totalBlobCount = 0;
+    int totalJournalCount = 0;
+    int aliveBlobCount = 0;
+    int aliveJournalCount = 0;
+
+    PROFILE_AGGREGATED_TIMING (RefreshTimeCounter) {
+        doRefreshChunks(
+            BlobRefreshScanner_,
+            &totalBlobCount,
+            &aliveBlobCount,
+            GetDynamicConfig()->MaxBlobChunksPerRefresh,
+            GetDynamicConfig()->MaxTimePerBlobChunkRefresh);
+        doRefreshChunks(
+            JournalRefreshScanner_,
+            &totalJournalCount,
+            &aliveJournalCount,
+            GetDynamicConfig()->MaxJournalChunksPerRefresh,
+            GetDynamicConfig()->MaxTimePerJournalChunkRefresh);
     }
 
-    YT_LOG_DEBUG("Chunk refresh iteration completed (TotalCount: %v, AliveCount: %v)",
-        totalCount,
-        aliveCount);
+    YT_LOG_DEBUG("Chunk refresh iteration completed (TotalBlobCount: %v, AliveBlobCount: %v, TotalJournalCount: %v, AliveJournalCount: %v)",
+        totalBlobCount,
+        aliveBlobCount,
+        totalJournalCount,
+        aliveJournalCount);
 }
 
 bool TChunkReplicator::IsReplicatorEnabled()
@@ -2077,14 +2123,24 @@ void TChunkReplicator::OnCheckEnabledSecondary()
     }
 }
 
-int TChunkReplicator::GetRefreshQueueSize() const
+int TChunkReplicator::GetBlobRefreshQueueSize() const
 {
-    return RefreshScanner_->GetQueueSize();
+    return BlobRefreshScanner_->GetQueueSize();
 }
 
-int TChunkReplicator::GetRequisitionUpdateQueueSize() const
+int TChunkReplicator::GetJournalRefreshQueueSize() const
 {
-    return RequisitionUpdateScanner_->GetQueueSize();
+    return JournalRefreshScanner_->GetQueueSize();
+}
+
+int TChunkReplicator::GetBlobRequisitionUpdateQueueSize() const
+{
+    return BlobRequisitionUpdateScanner_->GetQueueSize();
+}
+
+int TChunkReplicator::GetJournalRequisitionUpdateQueueSize() const
+{
+    return JournalRequisitionUpdateScanner_->GetQueueSize();
 }
 
 void TChunkReplicator::ScheduleRequisitionUpdate(TChunkList* chunkList)
@@ -2161,7 +2217,7 @@ void TChunkReplicator::ScheduleRequisitionUpdate(TChunk* chunk)
         return;
     }
 
-    RequisitionUpdateScanner_->EnqueueChunk(chunk);
+    GetChunkRequisitionUpdateScanner(chunk)->EnqueueChunk(chunk);
 }
 
 void TChunkReplicator::OnRequisitionUpdate()
@@ -2176,42 +2232,66 @@ void TChunkReplicator::OnRequisitionUpdate()
     }
 
     TReqUpdateChunkRequisition request;
-
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     request.set_cell_tag(multicellManager->GetCellTag());
-
-    int totalCount = 0;
-    int aliveCount = 0;
-    NProfiling::TWallTimer timer;
 
     YT_LOG_DEBUG("Chunk requisition update iteration started");
 
     TmpRequisitionRegistry_.Clear();
-    PROFILE_AGGREGATED_TIMING (RequisitionUpdateTimeCounter) {
-        ClearChunkRequisitionCache();
-        while (totalCount < GetDynamicConfig()->MaxChunksPerRequisitionUpdate &&
-               RequisitionUpdateScanner_->HasUnscannedChunk())
-        {
-            if (timer.GetElapsedTime() > GetDynamicConfig()->MaxTimePerRequisitionUpdate) {
+
+    auto doUpdateChunkRequisition = [&] (
+        const std::unique_ptr<TChunkScanner>& scanner,
+        int* const totalCount,
+        int* const aliveCount,
+        int maxChunksPerRequisitionUpdate,
+        TDuration maxTimePerRequisitionUpdate)
+    {
+        NProfiling::TWallTimer timer;
+
+        while (*totalCount < maxChunksPerRequisitionUpdate && scanner->HasUnscannedChunk()) {
+            if (timer.GetElapsedTime() > maxTimePerRequisitionUpdate) {
                 break;
             }
 
-            ++totalCount;
-            auto* chunk = RequisitionUpdateScanner_->DequeueChunk();
+            ++(*totalCount);
+            auto* chunk = scanner->DequeueChunk();
             if (!chunk) {
                 continue;
             }
 
             ComputeChunkRequisitionUpdate(chunk, &request);
-            ++aliveCount;
+            ++(*aliveCount);
         }
+    };
+
+    int totalBlobCount = 0;
+    int aliveBlobCount = 0;
+    int totalJournalCount = 0;
+    int aliveJournalCount = 0;
+
+    PROFILE_AGGREGATED_TIMING (RequisitionUpdateTimeCounter) {
+        ClearChunkRequisitionCache();
+        doUpdateChunkRequisition(
+            BlobRequisitionUpdateScanner_,
+            &totalBlobCount,
+            &aliveBlobCount,
+            GetDynamicConfig()->MaxBlobChunksPerRequisitionUpdate,
+            GetDynamicConfig()->MaxTimePerBlobChunkRequisitionUpdate);
+        doUpdateChunkRequisition(
+            JournalRequisitionUpdateScanner_,
+            &totalJournalCount,
+            &aliveJournalCount,
+            GetDynamicConfig()->MaxJournalChunksPerRequisitionUpdate,
+            GetDynamicConfig()->MaxTimePerJournalChunkRequisitionUpdate);
     }
 
     FillChunkRequisitionDict(&request, TmpRequisitionRegistry_);
 
-    YT_LOG_DEBUG("Chunk requisition update iteration completed (TotalCount: %v, AliveCount: %v, UpdateCount: %v)",
-        totalCount,
-        aliveCount,
+    YT_LOG_DEBUG("Chunk requisition update iteration completed (TotalBlobCount: %v, AliveBlobCount: %v, TotalJournalCount: %v, AliveJournalCount: %v, UpdateCount: %v)",
+        totalBlobCount,
+        aliveBlobCount,
+        totalJournalCount,
+        aliveJournalCount,
         request.updates_size());
 
     if (request.updates_size() > 0) {
@@ -2687,6 +2767,16 @@ void TChunkReplicator::OnDataCenterDestroyed(const TDataCenter* dataCenter)
     for (auto& [srcDataCenter, dstDataCenterSet] : UnsaturatedInterDCEdges_) {
         dstDataCenterSet.erase(dataCenter); // may be no-op
     }
+}
+
+const std::unique_ptr<TChunkScanner>& TChunkReplicator::GetChunkRefreshScanner(TChunk* chunk) const
+{
+    return chunk->IsJournal() ? JournalRefreshScanner_ : BlobRefreshScanner_;
+}
+
+const std::unique_ptr<TChunkScanner>& TChunkReplicator::GetChunkRequisitionUpdateScanner(TChunk* chunk) const
+{
+    return chunk->IsJournal() ? JournalRequisitionUpdateScanner_ : BlobRequisitionUpdateScanner_;
 }
 
 TChunkRequisitionRegistry* TChunkReplicator::GetChunkRequisitionRegistry()

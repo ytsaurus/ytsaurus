@@ -74,10 +74,10 @@ inline void TChunk::ClearScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epo
     data->ScanFlags &= ~kind;
 }
 
-inline TChunk* TChunk::GetNextScannedChunk(EChunkScanKind kind) const
+inline TChunk* TChunk::GetNextScannedChunk() const
 {
     auto* data = GetDynamicData();
-    auto& node = kind == EChunkScanKind::Seal ? data->JournalLinkedListNode : data->AllLinkedListNode;
+    auto& node = data->LinkedListNode;
     return node.Next;
 }
 
