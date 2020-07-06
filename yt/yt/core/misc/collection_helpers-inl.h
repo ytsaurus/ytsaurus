@@ -11,19 +11,6 @@ namespace NYT {
 
 namespace {
 
-template <class C, class T>
-std::vector<typename T::const_iterator> GetSortedIterators(const T& set)
-{
-    std::vector<typename T::const_iterator> iterators;
-    iterators.reserve(set.size());
-    for (auto it = set.cbegin(); it != set.cend(); ++it) {
-        iterators.emplace_back(it);
-    }
-
-    std::sort(iterators.begin(), iterators.end(), C());
-    return iterators;
-}
-
 template <bool IsSet>
 struct TKeyLess;
 
@@ -33,7 +20,7 @@ struct TKeyLess<true>
     template<typename T>
     bool operator()(const T& lhs, const T& rhs) const
     {
-        return *lhs < *rhs;
+        return lhs < rhs;
     }
 };
 
@@ -43,7 +30,7 @@ struct TKeyLess<false>
     template<typename T>
     bool operator()(const T& lhs, const T& rhs) const
     {
-        return lhs->first < rhs->first;
+        return lhs.first < rhs.first;
     }
 };
 
@@ -62,11 +49,31 @@ std::vector<TItem> GetIthsImpl(const T& collection, size_t sizeLimit)
 
 } // namespace
 
+template <class T, class C>
+std::vector<typename T::const_iterator> GetSortedIterators(const T& set, C comp)
+{
+    using TIterator = typename T::const_iterator;
+    std::vector<TIterator> iterators;
+    iterators.reserve(set.size());
+    for (auto it = set.cbegin(); it != set.cend(); ++it) {
+        iterators.emplace_back(it);
+    }
+
+    std::sort(
+        iterators.begin(),
+        iterators.end(),
+        [comp=std::move(comp)] (TIterator a, TIterator b) {
+            return comp(*a, *b);
+        });
+
+    return iterators;
+}
+
 template <class T>
 std::vector<typename T::const_iterator> GetSortedIterators(const T& collection)
 {
     using TIsSet = std::is_same<typename T::key_type, typename T::value_type>;
-    return GetSortedIterators<TKeyLess<TIsSet::value>>(collection);
+    return GetSortedIterators(collection, TKeyLess<TIsSet::value>());
 }
 
 template <class T>
