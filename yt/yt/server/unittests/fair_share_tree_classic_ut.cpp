@@ -174,7 +174,11 @@ struct TSchedulerStrategyHostMock
         return NScheduler::FormatResourceUsage(usage, limits, diskResources, MediumDirectory_);
     }
 
-    virtual void LogResourceMetering(const TMeteringKey& /*key*/, const TMeteringStatistics& /*statistics*/, TInstant /*now*/) override
+    virtual void LogResourceMetering(
+        const TMeteringKey& /*key*/,
+        const TMeteringStatistics& /*statistics*/,
+        TInstant /*lastUpdateTime*/,
+        TInstant /*now*/) override
     { }
 
     virtual int GetDefaultAbcId() const override

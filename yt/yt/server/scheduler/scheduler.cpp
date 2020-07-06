@@ -226,6 +226,10 @@ public:
             BIND(&TImpl::RequestOperationArchiveVersion, Unretained(this)),
             BIND(&TImpl::HandleOperationArchiveVersion, Unretained(this)));
 
+        MasterConnector_->AddCommonWatcher(
+            BIND(&TImpl::RequestClusterName, Unretained(this)),
+            BIND(&TImpl::HandleClusterName, Unretained(this)));
+
         MasterConnector_->SubscribeMasterConnecting(BIND(
             &TImpl::OnMasterConnecting,
             Unretained(this)));
@@ -1265,16 +1269,34 @@ public:
         return &SchedulerEventLogger;
     }
 
-    virtual void LogResourceMetering(const TMeteringKey& key, const TMeteringStatistics& statistics, TInstant now) override
+    virtual void LogResourceMetering(
+        const TMeteringKey& key,
+        const TMeteringStatistics& statistics,
+        TInstant lastUpdateTime,
+        TInstant now) override
     {
-        // TODO(mrkastep): Add job metrics when the format is fixed
+        if (!ClusterName_) {
+            return;
+        }
+
         NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger, NLogging::ELogLevel::Info)
-            .Item("timestamp").Value(now)
-            .Item("abc_id").Value(key.AbcId)
-            .Item("tree_id").Value(key.TreeId)
-            .Item("pool").Value(key.PoolId)
-            .Item("min_share_resources").Value(statistics.MinShareResources())
-            .Item("allocated_resources").Value(statistics.AllocatedResources());
+            .Item("schema").Value("yt.scheduler.pools.compute.v1")
+            .Item("id").Value(key.AbcId)
+            .Item("usage").BeginMap()
+                .Item("quantity").Value((now - lastUpdateTime).MilliSeconds())
+                .Item("unit").Value("milliseconds")
+                .Item("start").Value(lastUpdateTime.MilliSeconds())
+                .Item("finish").Value(now.MilliSeconds())
+            .EndMap()
+            .Item("tags").BeginMap()
+                .Item("min_share_resources").Value(statistics.MinShareResources())
+                .Item("allocated_resources").Value(statistics.AllocatedResources())
+                .Item("pool_tree").Value(key.TreeId)
+                .Item("pool").Value(key.PoolId)
+                .Item("cluster").Value(ClusterName_)
+            .EndMap()
+            .Item("version").Value(1)
+            .Item("source_wt").Value(now);
     }
 
     virtual int GetDefaultAbcId() const override
@@ -1576,6 +1598,8 @@ private:
     const TActionQueuePtr FairShareLoggingActionQueue_ = New<TActionQueue>("FSLogging");
     const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
     const TThreadPoolPtr FairShareUpdatePool_;
+
+    std::optional<TString> ClusterName_;
 
     ISchedulerStrategyPtr Strategy_;
 
@@ -2396,6 +2420,25 @@ private:
                 << ex;
             SetSchedulerAlert(ESchedulerAlertType::UpdateArchiveVersion, error);
         }
+    }
+
+    void RequestClusterName(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
+    {
+        YT_LOG_INFO("Requesting cluster name");
+
+        auto req = TYPathProxy::Get(GetClusterNamePath());
+        batchReq->AddRequest(req, "get_cluster_name");
+    }
+
+    void HandleClusterName(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
+    {
+        auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_cluster_name");
+        if (!rspOrError.IsOK()) {
+            YT_LOG_INFO(rspOrError, "Error getting cluster name");
+            return;
+        }
+
+        ClusterName_ = ConvertTo<TString>(TYsonString(rspOrError.Value()->value()));
     }
 
     void UpdateExecNodeDescriptors()

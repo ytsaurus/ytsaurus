@@ -43,6 +43,9 @@ NYPath::TYPath GetJobPath(
     TJobId jobId,
     const TString& resourceName);
 
+// TODO(ignat): move it to proper place.
+const NYPath::TYPath& GetClusterNamePath();
+
 const NYPath::TYPath& GetOperationsArchiveOrderedByIdPath();
 const NYPath::TYPath& GetOperationsArchiveOperationAliasesPath();
 const NYPath::TYPath& GetOperationsArchiveOrderedByStartTimePath();

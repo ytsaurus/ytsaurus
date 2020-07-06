@@ -98,6 +98,7 @@ public:
         FairShareUpdateExecutor_->Start();
         MinNeededJobResourcesUpdateExecutor_->Start();
         ResourceMeteringExecutor_->Start();
+        LastMeteringStatisticsUpdateTime_ = TInstant::Now();
     }
 
     virtual void OnMasterDisconnected() override
@@ -1015,6 +1016,7 @@ private:
     // in the current |IdToTree_| map. Snapshots could be a little bit behind.
     TAtomicObject<THashMap<TString, IFairShareTreeSnapshotPtr>> TreeIdToSnapshot_;
 
+    TInstant LastMeteringStatisticsUpdateTime_;
     TMeteringMap MeteringStatistics_;
 
     struct TPoolTreeDescription
@@ -1496,12 +1498,13 @@ private:
                 const auto& metricsDelta = Dominates(newMetrics, oldMetrics) ? newMetrics - oldMetrics : newMetrics;
 
                 TMeteringStatistics delta(value.MinShareResources(), value.AllocatedResources(), metricsDelta);
-                Host->LogResourceMetering(key, delta, now);
+                Host->LogResourceMetering(key, delta, LastMeteringStatisticsUpdateTime_, now);
             } else {
-                Host->LogResourceMetering(key, value, now);
+                Host->LogResourceMetering(key, value, LastMeteringStatisticsUpdateTime_, now);
             }
         }
 
+        LastMeteringStatisticsUpdateTime_ = now;
         MeteringStatistics_.swap(newStatistics);
     }
 
