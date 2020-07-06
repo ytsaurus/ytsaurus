@@ -757,6 +757,7 @@ protected:
             }
             EdgeDescriptors_[0].RequiresRecoveryInfo = true;
             EdgeDescriptors_[0].IsFinalOutput = false;
+            EdgeDescriptors_[0].TargetDescriptor = Partition->SortedMergeTask->GetVertexDescriptor();
         }
 
         virtual void OnStripeRegistrationFailed(
@@ -1315,7 +1316,7 @@ protected:
 
         virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
-            auto result = TMergeTask::OnJobCompleted(joblet, jobSummary);
+            auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             Controller->SortedMergeJobCounter->Completed(1);
             YT_VERIFY(ActiveJoblets_.erase(joblet) == 1);
