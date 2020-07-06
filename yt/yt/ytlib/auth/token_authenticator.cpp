@@ -3,6 +3,7 @@
 #include "helpers.h"
 #include "config.h"
 #include "private.h"
+#include "auth_cache.h"
 
 #include <yt/client/api/client.h>
 
@@ -258,59 +259,30 @@ struct TTokenAuthenticatorCacheKey
 
 class TCachingTokenAuthenticator
     : public ITokenAuthenticator
-    , public TAsyncExpiringCache<TTokenAuthenticatorCacheKey, TAuthenticationResult>
+    , public TAuthCache<TString, TAuthenticationResult, NNet::TNetworkAddress>
 {
 public:
     TCachingTokenAuthenticator(
         TCachingTokenAuthenticatorConfigPtr config,
         ITokenAuthenticatorPtr tokenAuthenticator,
         NProfiling::TProfiler profiler)
-        : TAsyncExpiringCache(config->Cache, std::move(profiler))
+        : TAuthCache(config->Cache, std::move(profiler))
         , TokenAuthenticator_(std::move(tokenAuthenticator))
     { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(const TTokenCredentials& credentials) override
     {
-        return Get(TTokenAuthenticatorCacheKey{credentials});
+        return Get(credentials.Token, credentials.UserIP);
     }
 
 private:
     const ITokenAuthenticatorPtr TokenAuthenticator_;
 
-    TSpinLock LastUserIPLock_;
-    THashMap<TTokenAuthenticatorCacheKey, NNet::TNetworkAddress> LastUserIP_;
-
     virtual TFuture<TAuthenticationResult> DoGet(
-        const TTokenAuthenticatorCacheKey& key,
-        bool isPeriodicUpdate) noexcept override
+        const TString& token,
+        const NNet::TNetworkAddress& userIP) noexcept override
     {
-        auto credentials = key.Credentials;
-
-        if (isPeriodicUpdate) {
-            auto guard = Guard(LastUserIPLock_);
-            if (auto it = LastUserIP_.find(key); it != LastUserIP_.end()) {
-                credentials.UserIP = it->second;
-            }
-        }
-
-        return TokenAuthenticator_->Authenticate(credentials);
-    }
-
-    virtual void OnAdded(const TTokenAuthenticatorCacheKey& key) noexcept override
-    {
-        auto guard = Guard(LastUserIPLock_);
-        LastUserIP_[key] = key.Credentials.UserIP;
-    }
-
-    virtual void OnHit(const TTokenAuthenticatorCacheKey& key) noexcept override
-    {
-        OnAdded(key);
-    }
-
-    virtual void OnRemoved(const TTokenAuthenticatorCacheKey& key) noexcept override
-    {
-        auto guard = Guard(LastUserIPLock_);
-        LastUserIP_.erase(key);
+        return TokenAuthenticator_->Authenticate(TTokenCredentials{token, userIP});
     }
 };
 

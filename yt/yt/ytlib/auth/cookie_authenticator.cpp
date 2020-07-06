@@ -3,8 +3,7 @@
 #include "config.h"
 #include "helpers.h"
 #include "private.h"
-
-#include <yt/core/misc/async_expiring_cache.h>
+#include "auth_cache.h"
 
 #include <yt/core/crypto/crypto.h>
 
@@ -191,59 +190,32 @@ struct TCookieAuthenticatorCacheKey
 
 class TCachingCookieAuthenticator
     : public ICookieAuthenticator
-    , private TAsyncExpiringCache<TCookieAuthenticatorCacheKey, TAuthenticationResult>
+    , private TAuthCache<TCookieAuthenticatorCacheKey, TAuthenticationResult, NNet::TNetworkAddress>
 {
 public:
     TCachingCookieAuthenticator(
         TCachingCookieAuthenticatorConfigPtr config,
         ICookieAuthenticatorPtr underlying,
         NProfiling::TProfiler profiler)
-        : TAsyncExpiringCache(config->Cache, std::move(profiler))
+        : TAuthCache(config->Cache, std::move(profiler))
         , UnderlyingAuthenticator_(std::move(underlying))
     { }
 
     virtual TFuture<TAuthenticationResult> Authenticate(const TCookieCredentials& credentials) override
     {
-        return Get(TCookieAuthenticatorCacheKey{credentials});
+        return Get(TCookieAuthenticatorCacheKey{credentials}, credentials.UserIP);
     }
 
 private:
     const ICookieAuthenticatorPtr UnderlyingAuthenticator_;
 
-    TSpinLock LastUserIPLock_;
-    THashMap<TCookieAuthenticatorCacheKey, NNet::TNetworkAddress> LastUserIP_;
-
     virtual TFuture<TAuthenticationResult> DoGet(
         const TCookieAuthenticatorCacheKey& key,
-        bool isPeriodicUpdate) noexcept override
+        const NNet::TNetworkAddress& userIP) noexcept override
     {
         auto credentials = key.Credentials;
-
-        if (isPeriodicUpdate) {
-            auto guard = Guard(LastUserIPLock_);
-            if (auto it = LastUserIP_.find(key); it != LastUserIP_.end()) {
-                credentials.UserIP = it->second;
-            }
-        }
-
+        credentials.UserIP = userIP;
         return UnderlyingAuthenticator_->Authenticate(credentials);
-    }
-
-    virtual void OnAdded(const TCookieAuthenticatorCacheKey& key) noexcept override
-    {
-        auto guard = Guard(LastUserIPLock_);
-        LastUserIP_[key] = key.Credentials.UserIP;
-    }
-
-    virtual void OnHit(const TCookieAuthenticatorCacheKey& key) noexcept override
-    {
-        OnAdded(key);
-    }
-
-    virtual void OnRemoved(const TCookieAuthenticatorCacheKey& key) noexcept override
-    {
-        auto guard = Guard(LastUserIPLock_);
-        LastUserIP_.erase(key);
     }
 };
 
