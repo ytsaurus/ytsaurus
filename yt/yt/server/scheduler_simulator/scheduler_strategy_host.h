@@ -91,6 +91,7 @@ public:
     virtual void LogResourceMetering(
         const NScheduler::TMeteringKey& key,
         const NScheduler::TMeteringStatistics& statistics,
+        TInstant lastUpdateTime,
         TInstant now) override;
 
     virtual int GetDefaultAbcId() const override;

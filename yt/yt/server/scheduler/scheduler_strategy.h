@@ -73,7 +73,11 @@ struct ISchedulerStrategyHost
         const TError& alert,
         std::optional<TDuration> timeout = std::nullopt) = 0;
 
-    virtual void LogResourceMetering(const TMeteringKey& key, const TMeteringStatistics& statistics, TInstant now) = 0;
+    virtual void LogResourceMetering(
+        const TMeteringKey& key,
+        const TMeteringStatistics& statistics,
+        TInstant lastUpdateTime,
+        TInstant now) = 0;
     virtual int GetDefaultAbcId() const = 0;
 
     virtual void StoreStrategyStateAsync(TPersistentStrategyStatePtr strategyState) = 0;

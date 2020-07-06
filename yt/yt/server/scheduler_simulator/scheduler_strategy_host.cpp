@@ -227,6 +227,7 @@ TFuture<void> TSchedulerStrategyHost::SetOperationAlert(
 void TSchedulerStrategyHost::LogResourceMetering(
     const TMeteringKey& /*key*/,
     const TMeteringStatistics& statistics,
+    TInstant lastUpdateTime,
     TInstant now)
 {
     // Skip!

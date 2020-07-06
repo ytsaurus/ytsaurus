@@ -2019,6 +2019,11 @@ class TestResourceMetering(YTEnvSetup):
         }
     }
 
+    @classmethod
+    def setup_class(cls):
+        super(TestResourceMetering, cls).setup_class()
+        set("//sys/@cluster_name", "my_cluster")
+
     @authors("mrkastep")
     def test_resource_metering_log(self):
         create("table", "//tmp/t1")
@@ -2071,11 +2076,11 @@ class TestResourceMetering(YTEnvSetup):
             last_reports = {}
 
             for entry in structured_log:
-                if "abc_id" not in entry:
+                if "id" not in entry:
                     continue
 
-                key = (entry["abc_id"], entry["tree_id"], entry["pool"])
-                last_reports[key] = entry["min_share_resources"]["cpu"]
+                key = (entry["id"], entry["tags"]["pool_tree"], entry["tags"]["pool"])
+                last_reports[key] = entry["tags"]["min_share_resources"]["cpu"]
 
             if root_key not in last_reports:
                 return False

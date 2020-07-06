@@ -176,6 +176,12 @@ NYPath::TYPath GetJobPath(
     return GetJobPath(operationId, jobId) + suffix;
 }
 
+const TYPath& GetClusterNamePath()
+{
+    static TYPath path = "//sys/@cluster_name";
+    return path;
+}
+
 const TYPath& GetOperationsArchiveOrderedByIdPath()
 {
     static TYPath path = "//sys/operations_archive/ordered_by_id";
