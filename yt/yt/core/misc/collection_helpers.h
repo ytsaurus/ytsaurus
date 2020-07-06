@@ -9,6 +9,9 @@ namespace NYT {
 template <class T>
 std::vector<typename T::const_iterator> GetSortedIterators(const T& collection);
 
+template <class T, class C>
+std::vector<typename T::const_iterator> GetSortedIterators(const T& collection, C comp);
+
 template <class T>
 std::vector<typename T::key_type> GetKeys(
     const T& collection,

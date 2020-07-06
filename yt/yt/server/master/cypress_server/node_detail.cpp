@@ -905,16 +905,28 @@ void TMapNodeChildren::Unref() noexcept
 void TMapNodeChildren::RefChildren(const NObjectServer::TObjectManagerPtr& objectManager)
 {
     // Make sure we handle children in a stable order.
-    for (const auto& [childNode, key] : SortHashMapByKeys(ChildToKey_)) {
-        objectManager->RefObject(childNode);
+    auto sortedIterators = GetSortedIterators(
+        ChildToKey_,
+        [] (const TChildToKey::value_type& a, const TChildToKey::value_type& b) {
+            return TObjectRefComparer::Compare(a.first, b.first);
+        });
+
+    for (auto it : sortedIterators) {
+        objectManager->RefObject(it->first);
     }
 }
 
 void TMapNodeChildren::UnrefChildren(const NObjectServer::TObjectManagerPtr& objectManager)
 {
     // Make sure we handle children in a stable order.
-    for (const auto& [childNode, key] : SortHashMapByKeys(ChildToKey_)) {
-        objectManager->UnrefObject(childNode);
+    auto sortedIterators = GetSortedIterators(
+        ChildToKey_,
+        [] (const TChildToKey::value_type& a, const TChildToKey::value_type& b) {
+            return TObjectRefComparer::Compare(a.first, b.first);
+        });
+
+    for (auto it : sortedIterators) {
+        objectManager->UnrefObject(it->first);
     }
 }
 
