@@ -1116,6 +1116,7 @@ public:
 
 private:
     virtual void UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAttributesList, TUpdateFairShareContext* context) override;
+    virtual void UpdateStrongGuarantees(TUpdateFairShareContext* context) override;
     void ConsumeAndRefillIntegralPools(TUpdateFairShareContext* context);
     void ValidateAndAdjustSpecifiedGuarantees(TUpdateFairShareContext* context);
     void UpdateRelaxedIntegralShares(TUpdateFairShareContext* context, double availableShareRatio);
