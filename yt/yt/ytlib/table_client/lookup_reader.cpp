@@ -118,7 +118,8 @@ public:
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        YT_ABORT();
+        // TODO(akozhikhov): get chunk id here.
+        return {};
     }
 
 private:
