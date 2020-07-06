@@ -57,11 +57,9 @@ struct TChunkDynamicData
     //! The job that is currently scheduled for this chunk (at most one).
     TJobPtr Job;
 
-    //! All chunks are linked via this node.
-    TIntrusiveLinkedListNode<TChunk> AllLinkedListNode;
-
-    //! All journal chunks are linked via this node.
-    TIntrusiveLinkedListNode<TChunk> JournalLinkedListNode;
+    //! All blob chunks are linked via this node, as are all journal
+    //! chunks. (The two lists are separate.)
+    TIntrusiveLinkedListNode<TChunk> LinkedListNode;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,7 +143,7 @@ public:
     bool GetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch) const;
     void SetScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
     void ClearScanFlag(EChunkScanKind kind, NObjectServer::TEpoch epoch);
-    TChunk* GetNextScannedChunk(EChunkScanKind kind) const;
+    TChunk* GetNextScannedChunk() const;
 
     TChunkRepairQueueIterator GetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue) const;
     void SetRepairQueueIterator(int mediumIndex, EChunkRepairQueue queue, TChunkRepairQueueIterator value);
@@ -232,7 +230,7 @@ public:
     void Seal(const NChunkClient::NProto::TMiscExt& info);
 
     //! For journal chunks, returns true iff the chunk is sealed.
-    //! For non-journal chunks, return true iff the chunk is confirmed.
+    //! For blob chunks, return true iff the chunk is confirmed.
     bool IsDiskSizeFinal() const;
 
     //! Returns the maximum number of replicas that can be stored in the same

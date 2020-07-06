@@ -122,19 +122,11 @@ static NProfiling::TAggregateGauge ChunkTreeRebalanceTimeCounter("/chunk_tree_re
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TChunkToAllLinkedListNode
+struct TChunkToLinkedListNode
 {
     auto operator() (TChunk* chunk) const
     {
-        return &chunk->GetDynamicData()->AllLinkedListNode;
-    }
-};
-
-struct TChunkToJournalLinkedListNode
-{
-    auto operator() (TChunk* chunk) const
-    {
-        return &chunk->GetDynamicData()->JournalLinkedListNode;
+        return &chunk->GetDynamicData()->LinkedListNode;
     }
 };
 
@@ -1322,7 +1314,11 @@ public:
         auto oldMaxReplicationFactor = medium->Config()->MaxReplicationFactor;
         medium->Config() = std::move(newConfig);
         if (ChunkReplicator_ && medium->Config()->MaxReplicationFactor != oldMaxReplicationFactor) {
-            ChunkReplicator_->ScheduleGlobalChunkRefresh(AllChunks_.GetFront(), AllChunks_.GetSize());
+            ChunkReplicator_->ScheduleGlobalChunkRefresh(
+                BlobChunks_.GetFront(),
+                BlobChunks_.GetSize(),
+                JournalChunks_.GetFront(),
+                JournalChunks_.GetSize());
         }
     }
 
@@ -1490,8 +1486,8 @@ private:
     const TExpirationTrackerPtr ExpirationTracker_;
 
     // Global chunk lists; cf. TChunkDynamicData.
-    TIntrusiveLinkedList<TChunk, TChunkToAllLinkedListNode> AllChunks_;
-    TIntrusiveLinkedList<TChunk, TChunkToJournalLinkedListNode> JournalChunks_;
+    TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode> BlobChunks_;
+    TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode> JournalChunks_;
 
     NHydra::TEntityMap<TChunk> ChunkMap_;
     NHydra::TEntityMap<TChunkView> ChunkViewMap_;
@@ -2637,7 +2633,7 @@ private:
     {
         TMasterAutomatonPart::Clear();
 
-        AllChunks_.Clear();
+        BlobChunks_.Clear();
         JournalChunks_.Clear();
         ChunkMap_.Clear();
         ChunkListMap_.Clear();
@@ -2999,7 +2995,11 @@ private:
     {
         TMasterAutomatonPart::OnLeaderActive();
 
-        ChunkReplicator_->Start(AllChunks_.GetFront(), AllChunks_.GetSize());
+        ChunkReplicator_->Start(
+            BlobChunks_.GetFront(),
+            BlobChunks_.GetSize(),
+            JournalChunks_.GetFront(),
+            JournalChunks_.GetSize());
         ChunkSealer_->Start(JournalChunks_.GetFront(), JournalChunks_.GetSize());
 
         {
@@ -3039,20 +3039,18 @@ private:
 
     void RegisterChunk(TChunk* chunk)
     {
-        AllChunks_.PushFront(chunk);
-        if (chunk->IsJournal()) {
-            JournalChunks_.PushFront(chunk);
-        }
+        GetAllChunksLinkedList(chunk).PushFront(chunk);
     }
 
     void UnregisterChunk(TChunk* chunk)
     {
         CancelChunkExpiration(chunk);
+        GetAllChunksLinkedList(chunk).Remove(chunk);
+    }
 
-        AllChunks_.Remove(chunk);
-        if (chunk->IsJournal()) {
-            JournalChunks_.Remove(chunk);
-        }
+    TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode>& GetAllChunksLinkedList(TChunk* chunk)
+    {
+        return chunk->IsJournal() ? JournalChunks_ : BlobChunks_;
     }
 
 
@@ -3337,8 +3335,10 @@ private:
             return;
         }
 
-        Profiler.Enqueue("/refresh_queue_size", ChunkReplicator_->GetRefreshQueueSize(), EMetricType::Gauge);
-        Profiler.Enqueue("/requisition_update_queue_size", ChunkReplicator_->GetRequisitionUpdateQueueSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/blob_refresh_queue_size", ChunkReplicator_->GetBlobRefreshQueueSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/blob_requisition_update_queue_size", ChunkReplicator_->GetBlobRequisitionUpdateQueueSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/journal_refresh_queue_size", ChunkReplicator_->GetJournalRefreshQueueSize(), EMetricType::Gauge);
+        Profiler.Enqueue("/journal_requisition_update_queue_size", ChunkReplicator_->GetJournalRequisitionUpdateQueueSize(), EMetricType::Gauge);
         Profiler.Enqueue("/seal_queue_size", ChunkSealer_->GetQueueSize(), EMetricType::Gauge);
 
         Profiler.Enqueue("/chunk_count", ChunkMap_.GetSize(), EMetricType::Gauge);

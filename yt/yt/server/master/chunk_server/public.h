@@ -150,10 +150,10 @@ DEFINE_BIT_ENUM(ECrossMediumChunkStatus,
 );
 
 DEFINE_BIT_ENUM(EChunkScanKind,
-    ((None)             (0x0000))
-    ((Refresh)          (0x0001))
+    ((None)              (0x0000))
+    ((Refresh)           (0x0001))
     ((RequisitionUpdate) (0x0002))
-    ((Seal)             (0x0004))
+    ((Seal)              (0x0004))
 );
 
 DEFINE_ENUM(EChunkListKind,
