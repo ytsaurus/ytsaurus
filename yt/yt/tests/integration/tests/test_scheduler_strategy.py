@@ -2724,6 +2724,63 @@ class TestIntegralGuarantees(YTEnvSetup):
             integral=0.5,
             weight_proportional=0.0)
 
+    def test_relaxed_vs_empty_min_share(self):
+        create_pool("min_share_pool", attributes={
+            "min_share_resources": {"cpu": 5},
+        })
+
+        create_pool("relaxed_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 10},
+            }
+        })
+
+        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
+
+        self.wait_pool_fair_share("min_share_pool",
+            min_share=0.0,
+            integral=0.0,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("relaxed_pool",
+            min_share=0.0,
+            integral=1.0,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("<Root>",
+            min_share=0.0,
+            integral=1.0,
+            weight_proportional=0.0)
+
+    def test_relaxed_vs_no_guarantee(self):
+        create_pool("relaxed_pool", attributes={
+            "integral_guarantees": {
+                "guarantee_type": "relaxed",
+                "resource_flow": {"cpu": 10},
+            }
+        })
+
+        create_pool("no_guarantee_pool")
+
+        run_sleeping_vanilla(job_count=10, spec={"pool": "relaxed_pool"})
+        run_sleeping_vanilla(job_count=10, spec={"pool": "no_guarantee_pool"})
+
+        self.wait_pool_fair_share("relaxed_pool",
+            min_share=0.0,
+            integral=1.0,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("no_guarantee_pool",
+            min_share=0.0,
+            integral=0.0,
+            weight_proportional=0.0)
+
+        self.wait_pool_fair_share("<Root>",
+            min_share=0.0,
+            integral=1.0,
+            weight_proportional=0.0)
+
     def test_burst_gets_all_relaxed_none(self):
         create_pool("burst_pool", attributes={
             "integral_guarantees": {

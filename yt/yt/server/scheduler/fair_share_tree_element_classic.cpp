@@ -3635,6 +3635,15 @@ void TRootElement::UpdateCumulativeAttributes(TDynamicAttributesList* dynamicAtt
     }
 }
 
+void TRootElement::UpdateStrongGuarantees(TUpdateFairShareContext* context)
+{
+    TCompositeSchedulerElement::UpdateStrongGuarantees(context);
+    Attributes_.FairShare.MinShareGuaranteeRatio = 0;
+    for (const auto& child : EnabledChildren_) {
+        Attributes_.FairShare.MinShareGuaranteeRatio += child->Attributes().FairShare.MinShareGuaranteeRatio;
+    }
+}
+
 void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TUpdateFairShareContext* context)
 {
     auto totalBurstRatio = 0.0;
