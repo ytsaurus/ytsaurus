@@ -297,7 +297,7 @@ private:
         YT_LOG_DEBUG("Mutations are flushed locally (StartVersion: %v, MutationCount: %v, WallTime: %v)",
             GetStartVersion(),
             GetMutationCount(),
-            time);
+            CommitTimer_->GetElapsedTime());
 
         OnSuccessfulFlush(owner);
     }
