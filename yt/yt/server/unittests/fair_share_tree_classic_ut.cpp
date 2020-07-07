@@ -360,8 +360,8 @@ class TFairShareTreeHostMock
     : public IFairShareTreeHost
 {
 public:
-    TFairShareTreeHostMock()
-        : ResourceTree_(New<TResourceTree>())
+    explicit TFairShareTreeHostMock(const TFairShareStrategyTreeConfigPtr& treeConfig)
+        : ResourceTree_(New<TResourceTree>(treeConfig))
     { }
 
     virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) override
@@ -391,7 +391,7 @@ public:
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
-    TIntrusivePtr<TFairShareTreeHostMock> FairShareTreeHostMock_ = New<TFairShareTreeHostMock>();
+    TIntrusivePtr<TFairShareTreeHostMock> FairShareTreeHostMock_ = New<TFairShareTreeHostMock>(TreeConfig_);
     TFairShareSchedulingStage SchedulingStageMock_ = TFairShareSchedulingStage(
         /* nameInLogs */ "Test scheduling stage",
         TScheduleJobsProfilingCounters("/test_scheduling_stage", /* treeIdProfilingTags */ {}));

@@ -25,6 +25,10 @@ class TResourceTree
     : public TRefCounted
 {
 public:
+    explicit TResourceTree(const TFairShareStrategyTreeConfigPtr& config);
+
+    void UpdateConfig(const TFairShareStrategyTreeConfigPtr& config);
+
     void IncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta);
     void IncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta);
     bool TryIncreaseHierarchicalResourceUsagePrecommit(
@@ -49,7 +53,7 @@ public:
     void IncrementResourceUsageLockWriteCount();
 
 private:
-    void DetachParent(const TResourceTreeElementPtr& element);
+    TFairShareStrategyTreeConfigPtr Config_;
 
     TMultipleProducerSingleConsumerLockFreeStack<TResourceTreeElementPtr> ElementsToDetachQueue_;
     NConcurrency::TReaderWriterSpinLock TreeLock_;

@@ -209,6 +209,8 @@ public:
 
     bool UseRecentResourceUsageForLocalSatisfaction;
 
+    bool EnableResourceTreeProfiling;
+
     TFairShareStrategyTreeConfig();
 };
 
