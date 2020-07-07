@@ -301,7 +301,7 @@ public:
             .Default(false);
         RegisterParameter("return_boundary_keys", ReturnBoundaryKeys)
             .Default(true);
-        RegisterParameter("cast_any_to_composite", MaxHeavyColumns)
+        RegisterParameter("cast_any_to_composite", CastAnyToComposite)
             .Default(false);
         RegisterParameter("schema_modification", SchemaModification)
             .Default(ETableSchemaModification::None);
