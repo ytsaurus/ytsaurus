@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "timing_reader.h"
+
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
@@ -23,6 +25,8 @@ namespace NYT::NTableClient {
 
 struct ISchemalessChunkReader
     : public ISchemalessUnversionedReader
+    // TODO(max42): maybe move this base up to NChunkClient::IReaderBase?
+    , public virtual ITimingReader
 {
     //! Return the current row index (measured from the start of the table).
     //! Only makes sense if the read range is nonempty.

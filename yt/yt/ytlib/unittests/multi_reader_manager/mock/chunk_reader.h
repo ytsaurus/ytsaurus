@@ -33,7 +33,7 @@ public:
         return NTableClient::CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         if (Error_.load()) {
             return MakeFuture(TError("Mock error"));
@@ -56,6 +56,11 @@ public:
     {
         TCodecStatistics statistics;
         return statistics;
+    }
+
+    virtual NTableClient::TTimingStatistics GetTimingStatistics() const override
+    {
+        return {};
     }
 
     virtual bool IsFetchingCompleted() const override
@@ -96,7 +101,7 @@ public:
 protected:
     const std::vector<std::vector<NTableClient::TUnversionedOwningRow>> Data_;
     const TDuration Delay_;
-    
+
     int CurrentDataIndex_ = 0;
     std::atomic<bool> Error_ = false;
 };

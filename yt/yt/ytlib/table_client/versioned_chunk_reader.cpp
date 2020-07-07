@@ -144,7 +144,7 @@ public:
 
     virtual TFuture<void> Open() override
     {
-        return GetReadyEvent();
+        return ReadyEvent();
     }
 
     virtual TDataStatistics GetDataStatistics() const override
@@ -239,7 +239,7 @@ public:
         , Ranges_(std::move(ranges))
         , ClippingRange_(singletonClippingRange)
     {
-        ReadyEvent_ = DoOpen(GetBlockSequence(), ChunkMeta_->Misc());
+        SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc()));
     }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
@@ -472,11 +472,13 @@ public:
         , Keys_(keys)
         , KeyFilterTest_(Keys_.Size(), true)
     {
-        ReadyEvent_ = DoOpen(GetBlockSequence(), ChunkMeta_->Misc());
+        SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc()));
     }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
+        auto readGuard = AcquireReadGuard();
+
         YT_VERIFY(rows->capacity() > 0);
 
         MemoryPool_.Clear();
@@ -1036,7 +1038,7 @@ public:
 
         if (LowerRowIndex_ < HardUpperRowIndex_) {
             InitBlockFetcher();
-            ReadyEvent_ = RequestFirstBlocks();
+            SetReadyEvent(RequestFirstBlocks());
         } else {
             Initialized_ = true;
             Completed_ = true;
@@ -1045,11 +1047,13 @@ public:
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
+        auto readGuard = AcquireReadGuard();
+
         YT_VERIFY(rows->capacity() > 0);
         rows->clear();
         RowBuilder_.Clear();
 
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
             return true;
         }
 
@@ -1409,15 +1413,17 @@ public:
 
         Initialize();
 
-        ReadyEvent_ = RequestFirstBlocks();
+        SetReadyEvent(RequestFirstBlocks());
     }
 
     virtual bool Read(std::vector<TVersionedRow>* rows) override
     {
+        auto readGuard = AcquireReadGuard();
+
         rows->clear();
         RowBuilder_.Clear();
 
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
             return true;
         }
 
@@ -1517,7 +1523,7 @@ public:
         return UnderlyingReader_->Open();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return UnderlyingReader_->GetReadyEvent();
     }

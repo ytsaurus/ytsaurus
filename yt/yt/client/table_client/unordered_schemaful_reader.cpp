@@ -23,6 +23,7 @@ using namespace NChunkClient::NProto;
 //    - full concurrency and prefetch
 
 ////////////////////////////////////////////////////////////////////////////////
+
 class TUnorderedSchemafulReader
     : public ISchemafulUnversionedReader
 {
@@ -51,7 +52,7 @@ public:
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         bool hasPending = false;
-        
+
         for (auto& session : Sessions_) {
             if (session.Exhausted) {
                 continue;
@@ -72,7 +73,7 @@ public:
 
                 session.ReadyEvent->Reset();
             }
-            
+
             // TODO(babenko): consider adjusting options w.r.t. concurrency.
             auto batch = session.Reader->Read(options);
             if (!batch) {
@@ -113,7 +114,7 @@ public:
         return CreateEmptyUnversionedRowBatch();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return DoGetReadyEvent();
     }
@@ -168,13 +169,13 @@ public:
 
 private:
     const std::function<ISchemafulUnversionedReaderPtr()> GetNextReader_;
-    
+
     struct TSession
     {
         explicit TSession(ISchemafulUnversionedReaderPtr reader)
             : Reader(std::move(reader))
         { }
-        
+
         ISchemafulUnversionedReaderPtr Reader;
         TFutureHolder<void> ReadyEvent;
         bool Exhausted = false;
@@ -188,9 +189,9 @@ private:
 
     TPromise<void> ReadyEvent_ = MakePromise<void>(TError());
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
-    TReaderWriterSpinLock SpinLock_;
+    mutable TReaderWriterSpinLock SpinLock_;
 
-    TPromise<void> DoGetReadyEvent()
+    TPromise<void> DoGetReadyEvent() const
     {
         TReaderGuard guard(SpinLock_);
         return ReadyEvent_;

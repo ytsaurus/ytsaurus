@@ -81,7 +81,7 @@ public:
         NameTable_->RegisterName(TableIndexColumnName);
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return VoidFuture;
     }
@@ -94,6 +94,11 @@ public:
     virtual TCodecStatistics GetDecompressionStatistics() const override
     {
         YT_UNIMPLEMENTED();
+    }
+
+    virtual NTableClient::TTimingStatistics GetTimingStatistics() const override
+    {
+        return {};
     }
 
     virtual bool IsFetchingCompleted() const override
@@ -231,7 +236,7 @@ protected:
             readRowCount += rows.size();
             maybeInterrupt();
         }
-        
+
         reader->GetInterruptDescriptor(NYT::TRange<TUnversionedRow>());
         EXPECT_EQ(readRowCount, expectedReadRowCount);
         EXPECT_EQ(lastReadRow, expectedLastReadRow);

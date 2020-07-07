@@ -4,6 +4,8 @@
 
 #include <yt/ytlib/node_tracker_client/public.h>
 
+#include <yt/ytlib/table_client/timing_statistics.h>
+
 #include <yt/client/api/public.h>
 
 #include <yt/client/chunk_client/data_statistics.h>
@@ -43,15 +45,13 @@ struct TMultiReaderManagerUnreadState
 };
 
 struct IMultiReaderManager
-    : public virtual TRefCounted
+    : public virtual IReadyEventReaderBase
 {
     virtual void Open() = 0;
 
-    virtual TFuture<void> GetReadyEvent() = 0;
-
     virtual NProto::TDataStatistics GetDataStatistics() const = 0;
-
     virtual TCodecStatistics GetDecompressionStatistics() const = 0;
+    virtual NTableClient::TTimingStatistics GetTimingStatistics() const = 0;
 
     virtual bool IsFetchingCompleted() const = 0;
 

@@ -41,7 +41,7 @@ TMultiReaderManagerBase::TMultiReaderManagerBase(
 
     if (ReaderFactories_.empty()) {
         CompletionError_.Set();
-        ReadyEvent_ = UncancelableCompletionError_;
+        SetReadyEvent(UncancelableCompletionError_);
         return;
     }
 
@@ -54,18 +54,17 @@ TMultiReaderManagerBase::TMultiReaderManagerBase(
 TMultiReaderManagerBase::~TMultiReaderManagerBase()
 {
     MultiReaderMemoryManager_->Finalize();
+
+    YT_LOG_DEBUG("Multi reader manager data statistics (DataStatistics: %v)", TMultiReaderManagerBase::GetDataStatistics());
+    YT_LOG_DEBUG("Multi reader manager decompression codec statistics (CodecStatistics: %v)", TMultiReaderManagerBase::GetDecompressionStatistics());
+    YT_LOG_DEBUG("Multi reader manager timing statistics (TimingStatistics: %v)", TMultiReaderManagerBase::GetTimingStatistics());
 }
 
 void TMultiReaderManagerBase::Open()
 {
-    ReadyEvent_ = CombineCompletionError(BIND(&TMultiReaderManagerBase::DoOpen, MakeStrong(this))
+    SetReadyEvent(CombineCompletionError(BIND(&TMultiReaderManagerBase::DoOpen, MakeStrong(this))
         .AsyncVia(ReaderInvoker_)
-        .Run());
-}
-
-TFuture<void> TMultiReaderManagerBase::GetReadyEvent()
-{
-    return ReadyEvent_;
+        .Run()));
 }
 
 const NLogging::TLogger& TMultiReaderManagerBase::GetLogger() const
@@ -95,6 +94,16 @@ TCodecStatistics TMultiReaderManagerBase::GetDecompressionStatistics() const
     for (const auto& reader : ActiveReaders_) {
         result += reader->GetDecompressionStatistics();
     }
+    return result;
+}
+
+NTableClient::TTimingStatistics TMultiReaderManagerBase::GetTimingStatistics() const
+{
+    NTableClient::TTimingStatistics result;
+    result.WaitTime = GetWaitTime();
+    // Chunk readers do not provide Read().
+    result.ReadTime = TDuration::Zero();
+    result.IdleTime = TotalTimer_.GetElapsedTime() - result.WaitTime;
     return result;
 }
 
@@ -128,7 +137,7 @@ void TMultiReaderManagerBase::OpenNextReaders()
     if (CreatingReader_) {
         return;
     }
-    
+
     if (!ReaderFactories_[PrefetchIndex_]->CanCreateReader() &&
         ActiveReaderCount_ > 0 &&
         !Options_->KeepInMemory)
@@ -145,7 +154,7 @@ void TMultiReaderManagerBase::OpenNextReaders()
     YT_LOG_DEBUG("Scheduling next reader creation (Index: %v, ActiveReaderCount: %v)",
         PrefetchIndex_,
         ActiveReaderCount_.load());
-        
+
     ReaderInvoker_->Invoke(
         BIND(&TMultiReaderManagerBase::DoCreateReader, MakeWeak(this), PrefetchIndex_));
 
@@ -196,11 +205,11 @@ void TMultiReaderManagerBase::OnReaderCreated(
         for (const auto& chunkSpec : descriptor.ChunkSpecs) {
             chunkIds.push_back(FromProto<TChunkId>(chunkSpec.chunk_id()));
         }
-        
+
         YT_LOG_WARNING(readerOrError, "Failed to create reader (Index: %v, ChunkIds: %v)",
             index,
             chunkIds);
-        
+
         {
             TGuard<TSpinLock> guard(FailedChunksLock_);
             FailedChunks_.insert(chunkIds.begin(), chunkIds.end());

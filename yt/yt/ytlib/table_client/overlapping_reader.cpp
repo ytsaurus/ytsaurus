@@ -37,7 +37,7 @@ public:
         std::function<IVersionedReaderPtr()> readerFactory);
 
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
-    virtual TFuture<void> GetReadyEvent() override;
+    virtual TFuture<void> GetReadyEvent() const override;
 
     virtual TDataStatistics GetDataStatistics() const override;
     virtual TCodecStatistics GetDecompressionStatistics() const override;
@@ -107,7 +107,7 @@ ISchemafulUnversionedReaderPtr TSchemafulOverlappingLookupReader::Create(
     return this_;
 }
 
-TFuture<void> TSchemafulOverlappingLookupReader::GetReadyEvent()
+TFuture<void> TSchemafulOverlappingLookupReader::GetReadyEvent() const
 {
     return ReadyEvent_;
 }
@@ -161,7 +161,7 @@ IUnversionedRowBatchPtr TSchemafulOverlappingLookupReader::Read(const TRowBatchR
     std::vector<TUnversionedRow> rows;
     rows.reserve(options.MaxRowsPerRead);
     i64 dataWeight = 0;
-    
+
     auto readRow = [&] () {
         for (auto& session : Sessions_) {
             YT_ASSERT(session.CurrentRow >= session.Rows.begin() && session.CurrentRow < session.Rows.end());
@@ -280,7 +280,7 @@ protected:
         std::vector<typename TRowMerger::TResultingRow>* rows,
         const TRowBatchReadOptions& options);
 
-    TFuture<void> DoGetReadyEvent();
+    TFuture<void> DoGetReadyEvent() const;
 
     TDataStatistics DoGetDataStatistics() const;
 
@@ -571,7 +571,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
 }
 
 template <class TRowMerger>
-TFuture<void> TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetReadyEvent()
+TFuture<void> TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoGetReadyEvent() const
 {
     return ReadyEvent_;
 }
@@ -706,7 +706,7 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return DoGetReadyEvent();
     }
@@ -800,7 +800,7 @@ public:
         return DoRead(rows, options);
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return DoGetReadyEvent();
     }

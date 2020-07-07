@@ -75,7 +75,7 @@ public:
         auto rows = batch->MaterializeRows();
         std::vector<TUnversionedRow> updatedRows;
         updatedRows.reserve(rows.size());
-        
+
         Pool_.Clear();
         for (auto row : rows) {
             int updatedColumnCount =
@@ -107,7 +107,7 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(updatedRows), this));
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return UnderlyingReader_->GetReadyEvent();
     }

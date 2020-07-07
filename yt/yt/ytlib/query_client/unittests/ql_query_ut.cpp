@@ -929,7 +929,7 @@ class TReaderMock
 {
 public:
     MOCK_METHOD1(Read, IUnversionedRowBatchPtr(const TRowBatchReadOptions& options));
-    MOCK_METHOD0(GetReadyEvent, TFuture<void>());
+    MOCK_CONST_METHOD0(GetReadyEvent, TFuture<void>());
     MOCK_CONST_METHOD0(IsFetchingCompleted, bool());
     MOCK_CONST_METHOD0(GetFailedChunkIds, std::vector<NChunkClient::TChunkId>());
     MOCK_CONST_METHOD0(GetDataStatistics, TDataStatistics());

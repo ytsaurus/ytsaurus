@@ -1,6 +1,8 @@
 #include "schemaless_sorted_merging_reader.h"
+
 #include "private.h"
 #include "schemaless_multi_chunk_reader.h"
+#include "timing_reader.h"
 
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/client/chunk_client/data_statistics.h>
@@ -27,14 +29,13 @@ using NYT::TRange;
 
 class TSchemalessSortedMergingReaderBase
     : public ISchemalessMultiChunkReader
+    , public TTimingReaderBase
 {
 public:
     TSchemalessSortedMergingReaderBase(
         int sortKeyColumnCount,
         int reduceKeyColumnCount,
         bool interruptAtKeyEdge);
-
-    virtual TFuture<void> GetReadyEvent() override;
 
     virtual TDataStatistics GetDataStatistics() const override;
 
@@ -69,7 +70,7 @@ protected:
         const ISchemalessMultiChunkReaderPtr Reader;
         const int SessionIndex;
         const double Fraction;
-        
+
         IUnversionedRowBatchPtr Batch;
         TSharedRange<TUnversionedRow> Rows;
         int CurrentRowIndex = 0;
@@ -87,7 +88,6 @@ protected:
     i64 RowIndex_ = 0;
     i64 DataWeight_ = 0;
 
-    TFuture<void> ReadyEvent_;
     TPromise<void> CompletionError_ = NewPromise<void>();
     i64 TableRowIndex_ = 0;
 
@@ -139,9 +139,9 @@ bool TSchemalessSortedMergingReaderBase::EnsureOpen(const TRowBatchReadOptions& 
 
     // NB: we don't combine completion error here, because reader opening must not be interrupted.
     // Otherwise, race condition may occur between reading in DoOpen and GetInterruptDescriptor.
-    ReadyEvent_ = BIND(&TSchemalessSortedMergingReaderBase::DoOpen, MakeStrong(this), options)
+    SetReadyEvent(BIND(&TSchemalessSortedMergingReaderBase::DoOpen, MakeStrong(this), options)
         .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-        .Run();
+        .Run());
 
     Open_ = true;
     return false;
@@ -174,14 +174,14 @@ void TSchemalessSortedMergingReaderBase::DoOpen(const TRowBatchReadOptions& opti
                 if (!ReadSession(&session, options)) {
                     break;
                 }
-                
+
                 session.Rows = session.Batch->MaterializeRows();
                 if (!session.Rows.Empty()) {
                     session.TableIndex = getTableIndex(session.Rows[0], session.Reader->GetNameTable());
                     SessionHeap_.push_back(&session);
                     break;
                 }
-                
+
                 WaitFor(session.Reader->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -193,11 +193,6 @@ void TSchemalessSortedMergingReaderBase::DoOpen(const TRowBatchReadOptions& opti
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Failed to open schemaless merging reader") << ex;
     }
-}
-
-TFuture<void> TSchemalessSortedMergingReaderBase::GetReadyEvent()
-{
-    return ReadyEvent_;
 }
 
 const TDataSliceDescriptor& TSchemalessSortedMergingReaderBase::GetCurrentReaderDescriptor() const
@@ -362,7 +357,7 @@ IUnversionedRowBatchPtr TSchemalessSortedMergingReader::Read(const TRowBatchRead
 {
     LastReadRowSessionIndexes_.clear();
 
-    if (!EnsureOpen(options) || !ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+    if (!EnsureOpen(options) || !ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
         return CreateEmptyUnversionedRowBatch();
     }
 
@@ -375,7 +370,7 @@ IUnversionedRowBatchPtr TSchemalessSortedMergingReader::Read(const TRowBatchRead
         session->CurrentRowIndex = 0;
         if (ReadSession(session, options)) {
             if (session->Rows.Empty()) {
-                ReadyEvent_ = CombineCompletionError(session->Reader->GetReadyEvent());
+                SetReadyEvent(CombineCompletionError(session->Reader->GetReadyEvent()));
             } else {
                 AdjustHeapFront(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_);
             }
@@ -400,13 +395,13 @@ IUnversionedRowBatchPtr TSchemalessSortedMergingReader::Read(const TRowBatchRead
             YT_LOG_DEBUG("Sorted merging reader interrupted (LastKey: %v, NextKey: %v)",
                 LastKey_,
                 GetKeyPrefix(row, ReduceKeyColumnCount_));
-            ReadyEvent_ = VoidFuture;
+            SetReadyEvent(VoidFuture);
             SessionHeap_.clear();
             return rows.empty()
                 ? nullptr
                 : CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
         }
-        
+
         rows.push_back(row);
         LastReadRowSessionIndexes_.push_back(session->SessionIndex);
         dataWeight += GetDataWeight(row);
@@ -426,11 +421,11 @@ IUnversionedRowBatchPtr TSchemalessSortedMergingReader::Read(const TRowBatchRead
             TableRowIndex_ = session->Reader->GetTableRowIndex() - session->Rows.size() + session->CurrentRowIndex;
         }
     }
-    
+
     if (!rows.empty() && !interrupting) {
         LastKey_ = GetKeyPrefix(rows.back(), ReduceKeyColumnCount_);
     }
-    
+
     DataWeight_ += dataWeight;
 
     return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
@@ -533,7 +528,7 @@ TSchemalessJoiningReader::TSchemalessJoiningReader(
 
 IUnversionedRowBatchPtr TSchemalessJoiningReader::Read(const TRowBatchReadOptions& options)
 {
-    if (!EnsureOpen(options) || !ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+    if (!EnsureOpen(options) || !ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
         return CreateEmptyUnversionedRowBatch();
     }
 
@@ -557,7 +552,7 @@ IUnversionedRowBatchPtr TSchemalessJoiningReader::Read(const TRowBatchReadOption
         session->CurrentRowIndex = 0;
         if (ReadSession(session, options)) {
             if (session->Rows.Empty()) {
-                ReadyEvent_ = CombineCompletionError(session->Reader->GetReadyEvent());
+                SetReadyEvent(CombineCompletionError(session->Reader->GetReadyEvent()));
             } else {
                 AdjustHeapFront(SessionHeap_.begin(), SessionHeap_.end(), CompareSessions_);
             }
@@ -625,7 +620,7 @@ IUnversionedRowBatchPtr TSchemalessJoiningReader::Read(const TRowBatchReadOption
         } else {
             --RowCount_;
         }
-        
+
         ++session->CurrentRowIndex;
         ++TableRowIndex_;
 
@@ -641,13 +636,13 @@ IUnversionedRowBatchPtr TSchemalessJoiningReader::Read(const TRowBatchReadOption
             TableRowIndex_ = session->Reader->GetTableRowIndex() - session->Rows.size() + session->CurrentRowIndex;
         }
     }
-    
+
     if (lastPrimaryRow) {
         LastPrimaryKey_ = GetKeyPrefix(lastPrimaryRow, ReduceKeyColumnCount_);
     }
-    
+
     DataWeight_ += dataWeight;
-    
+
     return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
 }
 

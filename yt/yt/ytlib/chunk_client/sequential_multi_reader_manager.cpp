@@ -35,7 +35,7 @@ private:
 
     TFuture<void> WaitForNextReader();
     void OnGotNextReader(const IReaderBasePtr& reader);
-    
+
     TFuture<void> WaitForCurrentReader();
     void OnCurrentReaderReady(const TError& error);
 
@@ -93,9 +93,9 @@ void TSequentialMultiReaderManager::PropagateError(const TError& error)
 
 void TSequentialMultiReaderManager::OnReaderBlocked()
 {
-    ReadyEvent_ = CombineCompletionError(BIND(&TSequentialMultiReaderManager::WaitForCurrentReader, MakeStrong(this))
+    SetReadyEvent(CombineCompletionError(BIND(&TSequentialMultiReaderManager::WaitForCurrentReader, MakeStrong(this))
         .AsyncVia(ReaderInvoker_)
-        .Run());
+        .Run()));
 }
 
 void TSequentialMultiReaderManager::OnReaderFinished()
@@ -108,9 +108,9 @@ void TSequentialMultiReaderManager::OnReaderFinished()
         return;
     }
 
-    ReadyEvent_ = CombineCompletionError(BIND(&TSequentialMultiReaderManager::WaitForNextReader, MakeStrong(this))
+    SetReadyEvent(CombineCompletionError(BIND(&TSequentialMultiReaderManager::WaitForNextReader, MakeStrong(this))
         .AsyncVia(ReaderInvoker_)
-        .Run());
+        .Run()));
 }
 
 TFuture<void> TSequentialMultiReaderManager::WaitForNextReader()

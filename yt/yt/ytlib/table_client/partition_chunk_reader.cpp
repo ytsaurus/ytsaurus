@@ -56,9 +56,9 @@ TPartitionChunkReader::TPartitionChunkReader(
     , KeyColumns_(keyColumns)
     , PartitionTag_(partitionTag)
 {
-    ReadyEvent_ = BIND(&TPartitionChunkReader::InitializeBlockSequence, MakeStrong(this))
+    SetReadyEvent(BIND(&TPartitionChunkReader::InitializeBlockSequence, MakeStrong(this))
         .AsyncVia(NChunkClient::TDispatcher::Get()->GetReaderInvoker())
-        .Run();
+        .Run());
 }
 
 TFuture<void> TPartitionChunkReader::InitializeBlockSequence()

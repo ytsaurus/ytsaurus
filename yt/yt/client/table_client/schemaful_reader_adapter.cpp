@@ -86,7 +86,7 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(schemafulRows), this));
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         if (ErrorPromise_.IsSet()) {
             return ErrorPromise_.ToFuture();

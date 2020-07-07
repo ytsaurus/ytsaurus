@@ -195,7 +195,7 @@ public:
         return Underlying_->Read(options);
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return Underlying_->GetReadyEvent();
     }

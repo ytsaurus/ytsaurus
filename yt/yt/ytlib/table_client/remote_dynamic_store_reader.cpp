@@ -176,7 +176,7 @@ public:
         return true;
     }
 
-    virtual TFuture<void> GetReadyEvent()
+    virtual TFuture<void> GetReadyEvent() const
     {
         return ReadyEvent_;
     }
@@ -465,7 +465,7 @@ public:
         }
     }
 
-    virtual TFuture<void> GetReadyEvent()
+    virtual TFuture<void> GetReadyEvent() const
     {
         return ChunkReaderFallbackOccured_
             ? CurrentReader_->GetReadyEvent()

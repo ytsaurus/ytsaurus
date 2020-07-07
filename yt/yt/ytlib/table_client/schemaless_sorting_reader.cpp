@@ -1,5 +1,7 @@
 #include "schemaless_sorting_reader.h"
 
+#include "timing_reader.h"
+
 #include <yt/ytlib/chunk_client/dispatcher.h>
 
 #include <yt/client/chunk_client/proto/data_statistics.pb.h>
@@ -26,9 +28,10 @@ using NYT::TRange;
 
 struct TSchemalessSortingReaderTag
 { };
- 
+
 class TSchemalessSortingReader
     : public ISchemalessMultiChunkReader
+    , public TTimingReaderBase
 {
 public:
     TSchemalessSortingReader(
@@ -39,14 +42,15 @@ public:
         , KeyColumns_(std::move(keyColumns))
         , RowBuffer_(New<TRowBuffer>(TSchemalessSortingReaderTag()))
         , RowReorderer_(std::move(nameTable), RowBuffer_, /*deepCapture*/ true, KeyColumns_)
-        , ReadyEvent_(BIND(&TSchemalessSortingReader::DoOpen, MakeWeak(this))
+    {
+        SetReadyEvent(BIND(&TSchemalessSortingReader::DoOpen, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-            .Run())
-    { }
+            .Run());
+    }
 
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 
@@ -67,11 +71,6 @@ public:
         return CreateBatchFromUnversionedRows(TSharedRange<TUnversionedRow>(
             TRange<TUnversionedRow>(Rows_.data() + startRowCount, Rows_.data() + endRowCount),
             this));
-    }
-
-    virtual TFuture<void> GetReadyEvent() override
-    {
-        return ReadyEvent_;
     }
 
     virtual bool IsFetchingCompleted() const override
@@ -153,13 +152,11 @@ private:
 
     const TRowBufferPtr RowBuffer_;
     TSchemalessRowReorderer RowReorderer_;
-    
-    const TFuture<void> ReadyEvent_;
 
     std::vector<TUnversionedRow> Rows_;
     i64 ReadRowCount_ = 0;
     i64 ReadDataWeight_ = 0;
-    
+
     void DoOpen()
     {
         while (auto batch = UnderlyingReader_->Read()) {

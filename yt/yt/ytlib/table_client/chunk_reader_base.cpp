@@ -48,6 +48,11 @@ TChunkReaderBase::TChunkReaderBase(
     }
 }
 
+TChunkReaderBase::~TChunkReaderBase()
+{
+    YT_LOG_DEBUG("Chunk reader timing statistics (TimingStatistics: %v)", TTimingReaderBase::GetTimingStatistics());
+}
+
 TFuture<void> TChunkReaderBase::DoOpen(
     std::vector<TBlockFetcher::TBlockInfo> blockSequence,
     const TMiscExt& miscExt)
@@ -73,18 +78,13 @@ TFuture<void> TChunkReaderBase::DoOpen(
     return CurrentBlock_.As<void>();
 }
 
-TFuture<void> TChunkReaderBase::GetReadyEvent()
-{
-    return ReadyEvent_;
-}
-
 bool TChunkReaderBase::BeginRead()
 {
-    if (!ReadyEvent_.IsSet()) {
+    if (!ReadyEvent().IsSet()) {
         return false;
     }
 
-    if (!ReadyEvent_.Get().IsOK()) {
+    if (!ReadyEvent().Get().IsOK()) {
         return false;
     }
 
@@ -111,7 +111,7 @@ bool TChunkReaderBase::OnBlockEnded()
 
     MemoryManager_->SetRequiredMemorySize(SequentialBlockFetcher_->GetNextBlockSize());
     CurrentBlock_ = SequentialBlockFetcher_->FetchNextBlock();
-    ReadyEvent_ = CurrentBlock_.As<void>();
+    SetReadyEvent(CurrentBlock_.As<void>());
     InitNextBlockNeeded_ = true;
     return true;
 }
@@ -295,7 +295,7 @@ bool TChunkReaderBase::IsFetchingCompleted() const
 
 std::vector<TChunkId> TChunkReaderBase::GetFailedChunkIds() const
 {
-    if (ReadyEvent_.IsSet() && !ReadyEvent_.Get().IsOK()) {
+    if (ReadyEvent().IsSet() && !ReadyEvent().Get().IsOK()) {
         return std::vector<TChunkId>(1, UnderlyingReader_->GetChunkId());
     } else {
         return std::vector<TChunkId>();

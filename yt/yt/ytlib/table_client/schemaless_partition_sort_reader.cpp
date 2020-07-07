@@ -3,6 +3,7 @@
 #include "config.h"
 #include "partition_chunk_reader.h"
 #include "schemaless_block_reader.h"
+#include "timing_reader.h"
 
 #include <yt/client/api/client.h>
 
@@ -51,6 +52,7 @@ struct TSchemalessPartitionSortReaderTag
 
 class TSchemalessPartitionSortReader
     : public ISchemalessMultiChunkReader
+    , public TTimingReaderBase
 {
 public:
     TSchemalessPartitionSortReader(
@@ -109,16 +111,16 @@ public:
             std::move(rpsThrottler),
             std::move(multiReaderMemoryManager));
 
-        ReadyEvent_ = BIND(&TSchemalessPartitionSortReader::DoOpen, MakeWeak(this))
+        SetReadyEvent(BIND(&TSchemalessPartitionSortReader::DoOpen, MakeWeak(this))
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
-            .Run();
+            .Run());
     }
 
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
         MemoryPool_.Clear();
 
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 
@@ -133,7 +135,7 @@ public:
             if (sortedRowCount > ReadRowCount_ || mergeFinished) {
                 break;
             }
-            
+
             if (spinCounter % SpinsBetweenYield == 0) {
                 ThreadYield();
             } else {
@@ -145,7 +147,7 @@ public:
         }
 
         if (mergeFinished && !MergeError_.IsOK()) {
-            ReadyEvent_ = MakeFuture(MergeError_);
+            SetReadyEvent(MakeFuture(MergeError_));
             return CreateEmptyUnversionedRowBatch();
         }
 
@@ -175,11 +177,6 @@ public:
     virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override
     {
         YT_ABORT();
-    }
-
-    virtual TFuture<void> GetReadyEvent() override
-    {
-        return ReadyEvent_;
     }
 
     virtual i64 GetSessionRowIndex() const override
@@ -390,7 +387,6 @@ private:
 
     // Sort error may occur due to CompositeValues in keys.
     std::vector<TFuture<void>> SortErrors_;
-    TFuture<void> ReadyEvent_;
 
     TError MergeError_;
     std::atomic_bool MergeFinished_ = { false };

@@ -32,7 +32,7 @@ public:
         return nullptr;
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return CurrentReader_
             ? CurrentReader_->GetReadyEvent()
