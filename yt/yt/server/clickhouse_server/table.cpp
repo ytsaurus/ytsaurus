@@ -30,7 +30,7 @@ TTable::TTable(TRichYPath path, const TAttributeMap& attributes)
         ? attributes.at("external_cell_tag")->GetValue<ui64>()
         : CellTagFromId(ObjectId);
     ChunkCount = attributes.at("chunk_count")->GetValue<i64>();
-    Schema = New<TTableSchema>(ConvertTo<TTableSchema>(attributes.at("schema")));
+    Schema = ConvertTo<TTableSchemaPtr>(attributes.at("schema"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -75,6 +75,11 @@ std::vector<TTablePtr> FetchTables(
             if (attributes.at("dynamic")->GetValue<bool>() && !host->GetConfig()->EnableDynamicTables) {
                 THROW_ERROR_EXCEPTION(
                     "Table %Qv is dynamic; dynamic tables are not supported yet (CHYT-57)",
+                    path.GetPath());
+            }
+            if (attributes.at("dynamic")->GetValue<bool>() && !ConvertTo<TTableSchemaPtr>(attributes.at("schema"))->IsSorted()) {
+                THROW_ERROR_EXCEPTION(
+                    "Table %Qv is an ordered dynamic table; they are not supported yet (CHYT-419)",
                     path.GetPath());
             }
 
