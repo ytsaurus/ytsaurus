@@ -17,8 +17,8 @@ import (
 type clientReq struct {
 	id guid.GUID
 
-	reqHeader rpc.TRequestHeader
-	rspHeader rpc.TResponseHeader
+	reqHeader *rpc.TRequestHeader
+	rspHeader *rpc.TResponseHeader
 
 	request, reply proto.Message
 
@@ -101,7 +101,7 @@ func (c *ClientConn) runSender() {
 
 			var err error
 			var protoHeader []byte
-			if protoHeader, err = proto.Marshal(&req.reqHeader); err != nil {
+			if protoHeader, err = proto.Marshal(req.reqHeader); err != nil {
 				req.done <- err
 				continue
 			}
@@ -169,7 +169,7 @@ func (c *ClientConn) handleMsg(msg [][]byte) error {
 		return nil
 	}
 
-	req.rspHeader = rsp
+	req.rspHeader = &rsp
 	if replyErr := misc.NewErrorFromProto(req.rspHeader.Error); replyErr != nil {
 		req.done <- replyErr
 		return nil
@@ -238,7 +238,7 @@ func (c *ClientConn) Send(
 		request: request,
 		reply:   reply,
 
-		reqHeader: rpc.TRequestHeader{
+		reqHeader: &rpc.TRequestHeader{
 			RequestId: misc.NewProtoFromGUID(reqID),
 			Service:   &service,
 			Method:    &method,
