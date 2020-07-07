@@ -920,6 +920,7 @@ private:
         auto retainedTimestamp = request->has_retained_timestamp()
             ? FromProto<TTimestamp>(request->retained_timestamp())
             : MinTimestamp;
+        const auto& mountHint = request->mount_hint();
 
         auto tabletHolder = std::make_unique<TTablet>(
             mountConfig,
@@ -957,7 +958,8 @@ private:
             storeDescriptors,
             mutationContext->Request().Reign >= ToUnderlying(ETabletReign::DynamicStoreRead)
                 ? !freeze
-                : true);
+                : true,
+            mountHint);
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
@@ -1342,10 +1344,12 @@ private:
                     PostTableReplicaStatistics(tablet, replicaInfo);
                 }
 
-                TabletMap_.Remove(tabletId);
-
                 TRspUnmountTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
+                *response.mutable_mount_hint() = tablet->GetMountHint();
+
+                TabletMap_.Remove(tabletId);
+
                 PostMasterMutation(tabletId, response);
                 break;
             }
@@ -1374,6 +1378,7 @@ private:
 
                 TRspFreezeTablet response;
                 ToProto(response.mutable_tablet_id(), tabletId);
+                *response.mutable_mount_hint() = tablet->GetMountHint();
                 PostMasterMutation(tabletId, response);
                 break;
             }

@@ -26,6 +26,7 @@ namespace NProto {
 
 class TAddStoreDescriptor;
 class TRemoveStoreDescriptor;
+class TMountHint;
 
 } // namespace NProto
 

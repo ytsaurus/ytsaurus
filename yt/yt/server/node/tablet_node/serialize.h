@@ -21,6 +21,7 @@ DEFINE_ENUM(ETabletReign,
     ((ChunkViewWideRange_YT_12532)   (100017)) // ifsmirnov
     ((DynamicStoreRead)              (100100)) // ifsmirnov
     ((AuthenticationIdentity)        (100101)) // babenko
+    ((MountHint)                     (100102)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

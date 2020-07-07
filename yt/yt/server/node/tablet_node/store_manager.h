@@ -96,7 +96,8 @@ struct IStoreManager
 
     virtual void Mount(
         const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors,
-        bool createDynamicStore) = 0;
+        bool createDynamicStore,
+        const NTabletNode::NProto::TMountHint& mountHint) = 0;
     virtual void Remount(
         TTableMountConfigPtr mountConfig,
         TTabletChunkReaderConfigPtr readerConfig,

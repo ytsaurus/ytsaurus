@@ -95,6 +95,8 @@ extern const TTimeFormula DefaultTabletBalancerSchedule;
 constexpr int ReplicationErrorCountViewLimit = 3;
 constexpr int TabletErrorCountViewLimit = 10;
 
+constexpr i64 EdenStoreIdsSizeLimit = 100;
+
 constexpr auto DefaultSyncTabletActionKeepalivePeriod = TDuration::Minutes(1);
 
 using TTabletCellSet = SmallVector<std::pair<const TTabletCell*, int>, NTabletClient::TypicalTabletSlotCount>;

@@ -16,6 +16,9 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTabletClient::NProto;
 
+using NTabletNode::NProto::TAddStoreDescriptor;
+using NTabletNode::NProto::TMountHint;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TReplicatedStoreManager::TReplicatedStoreManager(
@@ -255,10 +258,11 @@ void TReplicatedStoreManager::BackoffStoreCompaction(IChunkStorePtr store)
 }
 
 void TReplicatedStoreManager::Mount(
-    const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors,
-    bool createDynamicStore)
+    const std::vector<TAddStoreDescriptor>& storeDescriptors,
+    bool createDynamicStore,
+    const TMountHint& mountHint)
 {
-    LogStoreManager_->Mount(storeDescriptors, createDynamicStore);
+    LogStoreManager_->Mount(storeDescriptors, createDynamicStore, mountHint);
 }
 
 void TReplicatedStoreManager::Remount(
