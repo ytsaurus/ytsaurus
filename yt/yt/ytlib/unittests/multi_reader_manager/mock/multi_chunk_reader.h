@@ -93,7 +93,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return MultiReaderManager_->GetReadyEvent();
     }
@@ -108,6 +108,11 @@ public:
         return MultiReaderManager_->GetDecompressionStatistics();
     }
 
+    virtual NTableClient::TTimingStatistics GetTimingStatistics() const override
+    {
+        return MultiReaderManager_->GetTimingStatistics();
+    }
+
     virtual bool IsFetchingCompleted() const override
     {
         return MultiReaderManager_->IsFetchingCompleted();
@@ -120,7 +125,7 @@ public:
 
 private:
     const IMultiReaderManagerPtr MultiReaderManager_;
-    
+
     NTableClient::ISchemalessChunkReaderPtr CurrentReader_;
     std::atomic<bool> Finished_ = false;
 

@@ -109,7 +109,7 @@ public:
         return Readers_[CurrentReaderIndex_]->GetReadyEvent();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         if (CurrentReaderIndex_ == Readers_.size()) {
             return VoidFuture;

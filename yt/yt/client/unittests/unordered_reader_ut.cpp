@@ -33,7 +33,7 @@ public:
         return ReadyEvent_.IsSet() ? nullptr : CreateEmptyUnversionedRowBatch();
     }
 
-    virtual TFuture<void> GetReadyEvent()
+    virtual TFuture<void> GetReadyEvent() const
     {
         return ReadyEvent_;
     }

@@ -88,7 +88,7 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return ReadyEvent_;
     }
@@ -354,7 +354,7 @@ public:
         MultiReaderManager_->Open();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return MultiReaderManager_->GetReadyEvent();
     }

@@ -83,7 +83,7 @@ public:
         std::vector<TUnversionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
         i64 dataWeight = 0;
-        
+
         {
             TGuard<TSpinLock> guard(Data_->SpinLock);
 
@@ -113,7 +113,7 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return ReadyEvent_;
     }

@@ -523,7 +523,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
     // Ready event must be set only when all initialization is finished and
     // RowIndex_ is set into proper value.
     // Must be called after the object is constructed and vtable initialized.
-    ReadyEvent_ = BIND(&THorizontalSchemalessRangeChunkReader::InitializeBlockSequence, MakeStrong(this))
+    SetReadyEvent(BIND(&THorizontalSchemalessRangeChunkReader::InitializeBlockSequence, MakeStrong(this))
         .AsyncVia(ReaderInvoker_)
         .Run()
         .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
@@ -537,7 +537,7 @@ THorizontalSchemalessRangeChunkReader::THorizontalSchemalessRangeChunkReader(
                 InitFirstBlock();
                 InitFirstBlockNeeded_ = false;
             }
-        }));
+        })));
 }
 
 void THorizontalSchemalessRangeChunkReader::DoInitializeBlockSequence()
@@ -647,6 +647,8 @@ void THorizontalSchemalessRangeChunkReader::InitNextBlock()
 
 IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBatchReadOptions& options)
 {
+    auto readGuard = AcquireReadGuard();
+
     MemoryPool_.Clear();
 
     if (!BeginRead()) {
@@ -806,7 +808,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     // Ready event must be set only when all initialization is finished and
     // RowIndex_ is set into proper value.
     // Must be called after the object is constructed and vtable initialized.
-    ReadyEvent_ = BIND(&THorizontalSchemalessLookupChunkReader::InitializeBlockSequence, MakeStrong(this))
+    SetReadyEvent(BIND(&THorizontalSchemalessLookupChunkReader::InitializeBlockSequence, MakeStrong(this))
         .AsyncVia(ReaderInvoker_)
         .Run()
         .Apply(BIND([this, this_ = MakeStrong(this)] () {
@@ -814,7 +816,7 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
                 InitFirstBlock();
                 InitFirstBlockNeeded_ = false;
             }
-        }));
+        })));
 }
 
 void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
@@ -854,6 +856,8 @@ void THorizontalSchemalessLookupChunkReader::DoInitializeBlockSequence()
 
 IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowBatchReadOptions& options)
 {
+    auto readGuard = AcquireReadGuard();
+
     MemoryPool_.Clear();
 
     std::vector<TUnversionedRow> rows;
@@ -1000,13 +1004,20 @@ public:
 
         RowIndex_ = LowerLimit_.HasRowIndex() ? LowerLimit_.GetRowIndex() : 0;
 
-        ReadyEvent_ = BIND(&TColumnarSchemalessRangeChunkReader::InitializeBlockSequence, MakeStrong(this))
+        SetReadyEvent(BIND(&TColumnarSchemalessRangeChunkReader::InitializeBlockSequence, MakeStrong(this))
             .AsyncVia(ReaderInvoker_)
-            .Run();
+            .Run());
+    }
+
+    ~TColumnarSchemalessRangeChunkReader()
+    {
+        YT_LOG_DEBUG("Columnar reader timing statistics (TimingStatistics: %v)", TTimingReaderBase::GetTimingStatistics());
     }
 
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
+        auto readGuard = AcquireReadGuard();
+
         if (PendingUnmaterializedRowCount_ > 0) {
             // Previous batch was not materialized, readers did not advance.
             // Perform a fake materialization.
@@ -1018,7 +1029,7 @@ public:
 
         Pool_.Clear();
 
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 
@@ -1106,7 +1117,7 @@ private:
 
             return MakeRange(*RootColumns_);
         }
-        
+
         virtual TRange<TDictionaryId> GetRetiringDictionaryIds() const override
         {
             return {};
@@ -1290,7 +1301,7 @@ private:
         std::vector<TUnversionedRow> rows;
         rows.reserve(options.MaxRowsPerRead);
         i64 dataWeightBefore = DataWeight_;
-        
+
         while (rows.size() < options.MaxRowsPerRead &&
                DataWeight_ - dataWeightBefore < options.MaxDataWeightPerRead)
         {
@@ -1479,7 +1490,7 @@ private:
         for (const auto& columnReader : KeyColumnReaders_) {
             columnReader->ReadValues(keyRange);
         }
-        
+
         return keys;
     }
 
@@ -1588,16 +1599,18 @@ public:
     {
         Keys_ = keys;
 
-        ReadyEvent_ = BIND(&TColumnarSchemalessLookupChunkReader::InitializeBlockSequence, MakeStrong(this))
+        SetReadyEvent(BIND(&TColumnarSchemalessLookupChunkReader::InitializeBlockSequence, MakeStrong(this))
             .AsyncVia(ReaderInvoker_)
-            .Run();
+            .Run());
     }
 
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
+        auto readGuard = AcquireReadGuard();
+
         Pool_.Clear();
 
-        if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
+        if (!ReadyEvent().IsSet() || !ReadyEvent().Get().IsOK()) {
             return CreateEmptyUnversionedRowBatch();
         }
 

@@ -617,7 +617,7 @@ public:
         return true;
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return VoidFuture;
     }
@@ -722,7 +722,7 @@ public:
         return VoidFuture;
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return VoidFuture;
     }

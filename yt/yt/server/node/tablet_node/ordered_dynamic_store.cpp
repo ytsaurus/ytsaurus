@@ -108,7 +108,7 @@ public:
         return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), this));
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         YT_ABORT();
     }

@@ -60,6 +60,7 @@ using namespace NChunkClient::NProto;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NProfiling;
 using namespace NTabletClient;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
@@ -288,7 +289,18 @@ public:
 
     virtual const TDataSliceDescriptor& GetCurrentReaderDescriptor() const override;
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TTimingStatistics GetTimingStatistics() const
+    {
+        // We take wait time from multi reader manager as all ready event bookkeeping is delegated to it.
+        // Read time is accounted from our own read timer (reacall that multi reader manager deals with chunk readers
+        // while Read() is a table reader level methdd).
+        auto statistics = MultiReaderManager_->GetTimingStatistics();
+        statistics.ReadTime = ReadTimer_.GetElapsedTime();
+        statistics.IdleTime -= statistics.ReadTime;
+        return statistics;
+    }
+
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return MultiReaderManager_->GetReadyEvent();
     }
@@ -326,6 +338,8 @@ private:
 
     std::atomic<bool> Finished_ = false;
 
+    TWallTimer ReadTimer_ = TWallTimer(false /*active */);
+
     void OnReaderSwitched();
 };
 
@@ -351,13 +365,13 @@ TSchemalessMultiChunkReader::TSchemalessMultiChunkReader(
 TSchemalessMultiChunkReader::~TSchemalessMultiChunkReader()
 {
     const auto& Logger = MultiReaderManager_->GetLogger();
-    // Log all statistics. NB:
-    YT_LOG_DEBUG("Reader data statistics (DataStatistics: %v)", MultiReaderManager_->GetDataStatistics());
-    YT_LOG_DEBUG("Reader decompression codec statistics (CodecStatistics: %v)", MultiReaderManager_->GetDecompressionStatistics());
+    YT_LOG_DEBUG("Multi chunk reader timing statistics (TimingStatistics: %v)", TSchemalessMultiChunkReader::GetTimingStatistics());
 }
 
 IUnversionedRowBatchPtr TSchemalessMultiChunkReader::Read(const TRowBatchReadOptions& options)
 {
+    auto readGuard = TTimerGuard<TWallTimer>(&ReadTimer_);
+
     if (!MultiReaderManager_->GetReadyEvent().IsSet() || !MultiReaderManager_->GetReadyEvent().Get().IsOK()) {
         return CreateEmptyUnversionedRowBatch();
     }
@@ -608,7 +622,7 @@ public:
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler);
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         return AnySet(
             std::vector{ErrorPromise_.ToFuture(), UnderlyingReader_->GetReadyEvent()},
@@ -623,6 +637,14 @@ public:
     virtual TCodecStatistics GetDecompressionStatistics() const override
     {
         return UnderlyingReader_->GetDecompressionStatistics();
+    }
+
+    virtual TTimingStatistics GetTimingStatistics() const override
+    {
+        // TODO(max42): one should make IReaderBase inherit from ITimingReader in order for this to work.
+        // return UnderlyingReader_->GetTimingStatistics();
+
+        return {};
     }
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override

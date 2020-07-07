@@ -1,18 +1,16 @@
 #pragma once
 
 #include "data_statistics.h"
-
-#include <yt/core/actions/future.h>
+#include "public.h"
+#include "ready_event_reader_base.h"
 
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IReaderBase
-    : public virtual TRefCounted
+    : public virtual IReadyEventReaderBase
 {
-    virtual TFuture<void> GetReadyEvent() = 0;
-
     virtual NProto::TDataStatistics GetDataStatistics() const = 0;
     virtual TCodecStatistics GetDecompressionStatistics() const = 0;
 

@@ -52,4 +52,19 @@ TCounterIncrementingTimingGuard<TTimer>::~TCounterIncrementingTimingGuard()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class TTimer>
+TTimerGuard<TTimer>::TTimerGuard(TTimer* timer)
+    : Timer_(timer)
+{
+    Timer_->Start();
+}
+
+template <class TTimer>
+TTimerGuard<TTimer>::~TTimerGuard()
+{
+    Timer_->Stop();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NProfiling

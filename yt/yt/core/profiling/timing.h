@@ -49,7 +49,7 @@ TValue CpuDurationToValue(TCpuDuration duration);
 class TWallTimer
 {
 public:
-    TWallTimer();
+    TWallTimer(bool start = true);
 
     TInstant GetStartTime() const;
     TDuration GetElapsedTime() const;
@@ -59,16 +59,16 @@ public:
     TCpuDuration GetElapsedCpuTime() const;
 
     void Start();
+    void StartIfNotActive();
     void Stop();
     void Restart();
 
 private:
     TCpuDuration GetCurrentDuration() const;
 
-    TCpuInstant StartTime_;
-    TCpuDuration Duration_;
-    bool Active_;
-
+    TCpuInstant StartTime_ = 0;
+    TCpuDuration Duration_ = 0;
+    bool Active_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,7 +88,6 @@ public:
 private:
     TDuration* const Value_;
     TTimer Timer_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +99,6 @@ class TFiberWallTimer
 {
 public:
     TFiberWallTimer();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,10 +121,21 @@ private:
     const TProfiler& Profiler_;
     TMonotonicCounter* const Counter_;
     TTimer Timer_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+//! Calls TTimer::Start() on construction and TTimer::Stop() on destruction.
+template <class TTimer>
+class TTimerGuard
+{
+public:
+    explicit TTimerGuard(TTimer* timer);
+    ~TTimerGuard();
+
+private:
+    TTimer* const Timer_;
+};
 
 } // namespace NYT::NProfiling
 

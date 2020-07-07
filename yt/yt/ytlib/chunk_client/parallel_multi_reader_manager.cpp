@@ -80,9 +80,9 @@ void TParallelMultiReaderManager::OnReaderBlocked()
     WaitForReader(CurrentSession_);
     CurrentSession_.Reset();
 
-    ReadyEvent_ = CombineCompletionError(BIND(&TParallelMultiReaderManager::WaitForReadySession, MakeStrong(this))
+    SetReadyEvent(CombineCompletionError(BIND(&TParallelMultiReaderManager::WaitForReadySession, MakeStrong(this))
         .AsyncVia(ReaderInvoker_)
-        .Run());
+        .Run()));
 }
 
 void TParallelMultiReaderManager::OnReaderFinished()
@@ -94,9 +94,9 @@ void TParallelMultiReaderManager::OnReaderFinished()
         ReadySessions_.Enqueue(TError(NYT::EErrorCode::Canceled, "Multi reader finished"));
         CompletionError_.TrySet();
     } else {
-        ReadyEvent_ = CombineCompletionError(BIND(&TParallelMultiReaderManager::WaitForReadySession, MakeStrong(this))
+        SetReadyEvent(CombineCompletionError(BIND(&TParallelMultiReaderManager::WaitForReadySession, MakeStrong(this))
             .AsyncVia(ReaderInvoker_)
-            .Run());
+            .Run()));
     }
 }
 

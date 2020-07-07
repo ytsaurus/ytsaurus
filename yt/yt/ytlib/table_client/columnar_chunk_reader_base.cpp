@@ -75,16 +75,11 @@ bool TColumnarChunkReaderBase::IsFetchingCompleted() const
 
 std::vector<TChunkId> TColumnarChunkReaderBase::GetFailedChunkIds() const
 {
-    if (ReadyEvent_.IsSet() && !ReadyEvent_.Get().IsOK()) {
+    if (ReadyEvent().IsSet() && !ReadyEvent().Get().IsOK()) {
         return { UnderlyingReader_->GetChunkId() };
     } else {
         return std::vector<TChunkId>();
     }
-}
-
-TFuture<void> TColumnarChunkReaderBase::GetReadyEvent()
-{
-    return ReadyEvent_;
 }
 
 void TColumnarChunkReaderBase::FeedBlocksToReaders()
@@ -95,7 +90,7 @@ void TColumnarChunkReaderBase::FeedBlocksToReaders()
         const auto& columnReader = column.ColumnReader;
         if (blockFuture) {
             YT_VERIFY(blockFuture.IsSet() && blockFuture.Get().IsOK());
-            
+
             if (columnReader->GetCurrentBlockIndex() != -1) {
                 RequiredMemorySize_ -= BlockFetcher_->GetBlockSize(columnReader->GetCurrentBlockIndex());
             }
@@ -349,7 +344,7 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
     }
 
     if (!blockFetchResult.empty()) {
-        ReadyEvent_ = AllSucceeded(blockFetchResult);
+        SetReadyEvent(AllSucceeded(blockFetchResult));
     }
 
     return PendingBlocks_.empty();
@@ -417,7 +412,7 @@ void TColumnarLookupChunkReaderBase::InitBlockFetcher()
 
 bool TColumnarLookupChunkReaderBase::TryFetchNextRow()
 {
-    ReadyEvent_ = RequestFirstBlocks();
+    SetReadyEvent(RequestFirstBlocks());
     return PendingBlocks_.empty();
 }
 

@@ -105,7 +105,7 @@ public:
             : CreateEmptyUnversionedRowBatch();
     }
 
-    virtual TFuture<void> GetReadyEvent() override
+    virtual TFuture<void> GetReadyEvent() const override
     {
         auto reader = RowsetReader_.Load();
         return reader

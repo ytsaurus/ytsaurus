@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk_meta_extensions.h"
+#include "timing_reader.h"
 
 #include <yt/ytlib/chunk_client/public.h>
 #include <yt/ytlib/chunk_client/block_fetcher.h>
@@ -19,6 +20,7 @@ namespace NYT::NTableClient {
 
 class TColumnarChunkReaderBase
     : public virtual NChunkClient::IReaderBase
+    , public TTimingReaderBase
 {
 public:
     TColumnarChunkReaderBase(
@@ -39,7 +41,6 @@ protected:
     NChunkClient::TChunkReaderMemoryManagerPtr MemoryManager_;
     NChunkClient::TBlockFetcherPtr BlockFetcher_;
 
-    TFuture<void> ReadyEvent_ = VoidFuture;
     std::vector<TFuture<NChunkClient::TBlock>> PendingBlocks_;
 
     i64 RequiredMemorySize_ = 0;
@@ -61,7 +62,6 @@ protected:
 
     std::vector<TColumn> Columns_;
 
-    virtual TFuture<void> GetReadyEvent() override;
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override;
     virtual NChunkClient::TCodecStatistics GetDecompressionStatistics() const override;
     virtual bool IsFetchingCompleted() const override;

@@ -17,6 +17,7 @@ namespace NYT::NChunkClient {
 
 class TMultiReaderManagerBase
     : public IMultiReaderManager
+    , public TReadyEventReaderBase
 {
 public:
     TMultiReaderManagerBase(
@@ -29,11 +30,9 @@ public:
 
     virtual void Open() override;
 
-    virtual TFuture<void> GetReadyEvent() override;
-
     virtual NProto::TDataStatistics GetDataStatistics() const override;
-
     virtual TCodecStatistics GetDecompressionStatistics() const override;
+    virtual NTableClient::TTimingStatistics GetTimingStatistics() const override;
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override;
 
@@ -67,8 +66,6 @@ protected:
 
     TMultiReaderManagerSession CurrentSession_;
 
-    TFuture<void> ReadyEvent_;
-
     TSpinLock PrefetchLock_;
     int PrefetchIndex_ = 0;
     bool CreatingReader_ = false;
@@ -79,8 +76,10 @@ protected:
     std::atomic<int> OpenedReaderCount_ = 0;
 
     TSpinLock ActiveReadersLock_;
+
     NProto::TDataStatistics DataStatistics_;
     TCodecStatistics DecompressionStatistics_;
+
     std::atomic<int> ActiveReaderCount_ = 0;
     THashSet<IReaderBasePtr> ActiveReaders_;
     THashSet<int> NonOpenedReaderIndexes_;
@@ -89,6 +88,8 @@ protected:
     std::vector<IReaderBasePtr> FinishedReaders_;
 
     TFuture<void> CombineCompletionError(TFuture<void> future);
+
+    NProfiling::TWallTimer TotalTimer_;
 
     void OpenNextReaders();
     void OnNextReaderCreated(const TError& error);

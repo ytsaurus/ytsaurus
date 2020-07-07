@@ -215,9 +215,11 @@ TValue CpuDurationToValue(TCpuDuration duration)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWallTimer::TWallTimer()
+TWallTimer::TWallTimer(bool start)
 {
-    Restart();
+    if (start) {
+        Start();
+    }
 }
 
 TInstant TWallTimer::GetStartTime() const
@@ -249,6 +251,13 @@ void TWallTimer::Start()
 {
     StartTime_ = GetCpuInstant();
     Active_ = true;
+}
+
+void TWallTimer::StartIfNotActive()
+{
+    if (!Active_) {
+        Start();
+    }
 }
 
 void TWallTimer::Stop()
