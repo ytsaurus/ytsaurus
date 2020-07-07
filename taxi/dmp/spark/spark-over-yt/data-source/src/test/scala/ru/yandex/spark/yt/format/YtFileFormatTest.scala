@@ -571,6 +571,22 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
       Row("4", "5", "6")
     )
   }
+
+  it should "accept schema hint for case-sensitive column name" in {
+    Seq(
+      Seq(1, 2, 3),
+      Seq(4, 5, 6)
+    ).toDF("EventValue").write.yt(tmpPath)
+
+    val res = spark.read
+      .schemaHint("EventValue" -> ArrayType(IntegerType))
+      .yt(tmpPath)
+      .schema
+      .find(_.name == "EventValue")
+      .get
+
+    res.dataType shouldEqual ArrayType(IntegerType)
+  }
 }
 
 object Counter {
