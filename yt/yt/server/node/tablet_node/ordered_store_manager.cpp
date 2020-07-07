@@ -54,6 +54,7 @@ using namespace NTransactionClient;
 using namespace NYTAlloc;
 
 using NTabletNode::NProto::TAddStoreDescriptor;
+using NTabletNode::NProto::TMountHint;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -83,9 +84,10 @@ TOrderedStoreManager::TOrderedStoreManager(
 
 void TOrderedStoreManager::Mount(
     const std::vector<TAddStoreDescriptor>& storeDescriptors,
-    bool createDynamicStore)
+    bool createDynamicStore,
+    const TMountHint& mountHint)
 {
-    TStoreManagerBase::Mount(storeDescriptors, createDynamicStore);
+    TStoreManagerBase::Mount(storeDescriptors, createDynamicStore, mountHint);
     Tablet_->UpdateTotalRowCount();
 }
 

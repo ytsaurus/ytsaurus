@@ -81,11 +81,13 @@ message TRspMountTablet
 message TRspUnmountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    optional NYT.NTabletNode.NProto.TMountHint mount_hint = 2;
 }
 
 message TRspFreezeTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
+    optional NYT.NTabletNode.NProto.TMountHint mount_hint = 2;
 }
 
 message TRspUnfreezeTablet

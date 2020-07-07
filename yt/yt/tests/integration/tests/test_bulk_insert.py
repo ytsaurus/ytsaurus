@@ -1035,6 +1035,51 @@ class TestBulkInsert(DynamicTablesBase):
                 mode="sorted",
                 merge_by=["k1", "k2", "value"])
 
+    @authors("ifsmirnov")
+    def test_partitions_after_remount(self):
+        sync_create_cells(1)
+
+        schema = make_schema([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"}],
+            unique_keys=True)
+        self._create_simple_dynamic_table("//tmp/t", dynamic=False, schema=schema, enable_dynamic_store_read=False)
+
+        write_table("<append=%true>//tmp/t", [{"key": i} for i in range(0, 3)])
+        write_table("<append=%true>//tmp/t", [{"key": i} for i in range(3, 6)])
+
+        alter_table("//tmp/t", dynamic=True)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        set("//tmp/t/@min_partition_data_size", 1)
+        sync_mount_table("//tmp/t")
+
+        def _get_partition_count(tablet_id):
+            address = get_tablet_leader_address(tablet_id)
+            orchid = self._find_tablet_orchid(address, tablet_id)
+            return len(orchid["partitions"])
+
+        assert _get_partition_count(get("//tmp/t/@tablets/0/tablet_id")) == 2
+
+        create("table", "//tmp/p")
+        write_table("//tmp/p", [{"key": 1}, {"key": 5}])
+        map(
+            in_="//tmp/p",
+            out="<append=%true>//tmp/t",
+            command="cat",
+            ordered=True)
+
+        sync_freeze_table("//tmp/t")
+
+        copy("//tmp/t", "//tmp/copy")
+        sync_reshard_table("//tmp/copy", [[], [2], [4]])
+        sync_reshard_table("//tmp/copy", 1)
+        sync_mount_table("//tmp/copy")
+        assert _get_partition_count(get("//tmp/copy/@tablets/0/tablet_id")) == 2
+
+        sync_unmount_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        assert _get_partition_count(get("//tmp/t/@tablets/0/tablet_id")) == 2
+
 ##################################################################
 
 @authors("ifsmirnov")

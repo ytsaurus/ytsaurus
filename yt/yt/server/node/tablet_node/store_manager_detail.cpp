@@ -389,7 +389,8 @@ EInMemoryMode TStoreManagerBase::GetInMemoryMode() const
 
 void TStoreManagerBase::Mount(
     const std::vector<TAddStoreDescriptor>& storeDescriptors,
-    bool createDynamicStore)
+    bool createDynamicStore,
+    const NTabletNode::NProto::TMountHint& /*mountHint*/)
 {
     for (const auto& descriptor : storeDescriptors) {
         auto type = EStoreType(descriptor.store_type());

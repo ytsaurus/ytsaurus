@@ -353,7 +353,8 @@ void TSortedStoreManager::BuildPivotKeys(
 
 void TSortedStoreManager::Mount(
     const std::vector<TAddStoreDescriptor>& storeDescriptors,
-    bool createDynamicStore)
+    bool createDynamicStore,
+    const TMountHint& mountHint)
 {
     Tablet_->CreateInitialPartition();
 
@@ -361,10 +362,26 @@ void TSortedStoreManager::Mount(
     int descriptorIndex = 0;
     const auto& schema = *Tablet_->GetPhysicalSchema();
     chunkBoundaries.reserve(storeDescriptors.size());
+
+    auto edenStoreIds = FromProto<THashSet<TStoreId>>(mountHint.eden_store_ids());
+
+    auto isEden = [&] (bool isEdenChunk, const TStoreId& storeId) {
+        // COMPAT(ifsmirnov)
+        if (GetCurrentMutationContext()->Request().Reign < ToUnderlying(ETabletReign::MountHint)) {
+            return isEdenChunk;
+        }
+
+        // NB: Old tablets may lack eden store ids on master.
+        return edenStoreIds.empty()
+            ? isEdenChunk
+            : edenStoreIds.contains(storeId);
+    };
+
     for (const auto& descriptor : storeDescriptors) {
         const auto& extensions = descriptor.chunk_meta().extensions();
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(extensions);
-        if (miscExt.eden()) {
+
+        if (isEden(miscExt.eden(), FromProto<TStoreId>(descriptor.store_id()))) {
             ++descriptorIndex;
             continue;
         }
@@ -468,7 +485,7 @@ void TSortedStoreManager::Mount(
         DoSplitPartition(0, pivotKeys);
     }
 
-    TStoreManagerBase::Mount(storeDescriptors, createDynamicStore);
+    TStoreManagerBase::Mount(storeDescriptors, createDynamicStore, mountHint);
 }
 
 void TSortedStoreManager::Remount(

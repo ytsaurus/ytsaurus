@@ -2597,6 +2597,11 @@ private:
         i64 totalSize = 0;
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            const auto& tablet = table->Tablets()[index];
+            THashSet<TStoreId> edenStoreIds(
+                tablet->EdenStoreIds().begin(),
+                tablet->EdenStoreIds().end());
+
             auto chunksOrViews = EnumerateStoresInChunkTree(
                 table->GetChunkList()->Children()[index]->AsChunkList());
 
@@ -2604,7 +2609,7 @@ private:
                 const auto* chunk = chunkOrView->GetType() == EObjectType::ChunkView
                     ? chunkOrView->AsChunkView()->GetUnderlyingChunk()
                     : chunkOrView->AsChunk();
-                if (chunk->MiscExt().eden()) {
+                if (chunk->MiscExt().eden() || edenStoreIds.contains(chunkOrView->GetId())) {
                     continue;
                 }
 
@@ -3235,6 +3240,9 @@ private:
                     preloadPendingStoreCount = chunksOrViews.size();
                 }
 
+                auto* mountHint = req.mutable_mount_hint();
+                ToProto(mountHint->mutable_eden_store_ids(), tablet->EdenStoreIds());
+
                 YT_LOG_DEBUG_UNLESS(IsRecovery(), "Mounting tablet (TableId: %v, TabletId: %v, CellId: %v, ChunkCount: %v, "
                     "Atomicity: %v, CommitOrdering: %v, Freeze: %v, UpstreamReplicaId: %v)",
                     table->GetId(),
@@ -3524,6 +3532,21 @@ private:
             retainedTimestamp = std::max(retainedTimestamp, tablets[index]->GetRetainedTimestamp());
         }
 
+        // Save eden stores of removed tablets.
+        // NB. Since new chunk views may be created over existing chunks, we mark underlying
+        // chunks themselves as eden. It gives different result only in rare cases when a chunk
+        // under a chunk view was in eden in some tablet but not in the adjacent tablet.
+        THashSet<TStoreId> oldEdenStoreIds;
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            for (const auto& storeId : tablets[index]->EdenStoreIds()) {
+                if (auto chunkView = chunkManager->FindChunkView(storeId)) {
+                    oldEdenStoreIds.insert(chunkView->GetUnderlyingChunk()->GetId());
+                } else {
+                    oldEdenStoreIds.insert(storeId);
+                }
+            }
+        }
+
         // Create new tablets.
         std::vector<TTablet*> newTablets;
         for (int index = 0; index < newTabletCount; ++index) {
@@ -3569,8 +3592,6 @@ private:
         // NB: Evaluation order is important here, consider the case lastTabletIndex == -1.
         tablets.erase(tablets.begin() + firstTabletIndex, tablets.begin() + (lastTabletIndex + 1));
         tablets.insert(tablets.begin() + firstTabletIndex, newTablets.begin(), newTablets.end());
-        table->RecomputeTabletMasterMemoryUsage();
-
         // Update all indexes.
         for (int index = 0; index < static_cast<int>(tablets.size()); ++index) {
             auto* tablet = tablets[index];
@@ -3656,6 +3677,7 @@ private:
 
             // Move chunks or views from the resharded tablets to appropriate chunk lists.
             std::vector<std::vector<NChunkServer::TChunkView*>> newTabletChildrenToBeMerged(newTablets.size());
+            std::vector<std::vector<TStoreId>> newEdenStoreIds(newTablets.size());
 
             for (TChunkTree* chunkOrView : chunksOrViews) {
                 NChunkClient::TReadRange readRange;
@@ -3693,6 +3715,9 @@ private:
                             chunkManager->AttachToChunkList(
                                 newTabletChunkTrees[relativeIndex]->AsChunkList(),
                                 chunkOrView);
+                            if (oldEdenStoreIds.contains(chunkOrView->GetId())) {
+                                newEdenStoreIds[relativeIndex].push_back(chunkOrView->GetId());
+                            }
                         } else {
                             // Chunk does not fit into the tablet, create chunk view.
                             NChunkClient::TReadRange newReadRange;
@@ -3706,24 +3731,37 @@ private:
                             chunkManager->AttachToChunkList(
                                 newTabletChunkTrees[relativeIndex]->AsChunkList(),
                                 newChunkView);
+                            if (oldEdenStoreIds.contains(chunkOrView->GetId())) {
+                                newEdenStoreIds[relativeIndex].push_back(newChunkView->GetId());
+                            }
                         }
                     }
                 }
             }
-            for (int i = 0; i < newTablets.size(); ++i) {
-                auto* tablet = newTablets[i];
+
+            for (int relativeIndex = 0; relativeIndex < newTablets.size(); ++relativeIndex) {
+                auto* tablet = newTablets[relativeIndex];
                 const auto& lowerPivot = tablet->GetPivotKey();
                 const auto& upperPivot = tablet->GetIndex() == tablets.size() - 1
                     ? MaxKey()
                     : tablets[tablet->GetIndex() + 1]->GetPivotKey();
                 std::vector<TChunkTree*> mergedChunkViews;
                 try {
-                    mergedChunkViews = MergeChunkViewRanges(newTabletChildrenToBeMerged[i], lowerPivot, upperPivot);
+                    mergedChunkViews = MergeChunkViewRanges(newTabletChildrenToBeMerged[relativeIndex], lowerPivot, upperPivot);
                 } catch (const std::exception& ex) {
                     YT_LOG_ALERT(ex, "Failed to merge chunk view ranges");
                     mergedChunkViews = {};
                 }
-                chunkManager->AttachToChunkList(newTabletChunkTrees[i]->AsChunkList(), mergedChunkViews);
+                chunkManager->AttachToChunkList(newTabletChunkTrees[relativeIndex]->AsChunkList(), mergedChunkViews);
+                for (auto* chunkView : mergedChunkViews) {
+                    if (oldEdenStoreIds.contains(chunkView->AsChunkView()->GetUnderlyingChunk()->GetId())) {
+                        newEdenStoreIds[relativeIndex].push_back(chunkView->GetId());
+                    }
+                }
+            }
+
+            for (int relativeIndex = 0; relativeIndex < newTablets.size(); ++relativeIndex) {
+                SetTabletEdenStoreIds(newTablets[relativeIndex], newEdenStoreIds[relativeIndex]);
             }
         } else {
             // If the number of tablets increases, just leave the new trailing ones empty.
@@ -3778,6 +3816,8 @@ private:
 
         // TODO(savrus) Looks like this is unnecessary. Need to check.
         table->SnapshotStatistics() = table->GetChunkList()->Statistics().ToDataStatistics();
+
+        table->RecomputeTabletMasterMemoryUsage();
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto resourceUsageDelta = table->GetTabletResourceUsage() - resourceUsageBefore;
@@ -4621,6 +4661,8 @@ private:
             return;
         }
 
+        SetTabletEdenStoreIds(tablet, FromProto<std::vector<TStoreId>>(response->mount_hint().eden_store_ids()));
+
         DiscardDynamicStores(tablet);
         DoTabletUnmounted(tablet);
         OnTabletActionStateChanged(tablet->GetAction());
@@ -4644,6 +4686,8 @@ private:
                 tabletId);
             return;
         }
+
+        SetTabletEdenStoreIds(tablet, FromProto<std::vector<TStoreId>>(response->mount_hint().eden_store_ids()));
 
         DiscardDynamicStores(tablet);
 
@@ -6130,6 +6174,25 @@ private:
         descriptor->mutable_chunk_meta()->CopyFrom(chunk->ChunkMeta());
         descriptor->set_starting_row_index(*startingRowIndex);
         *startingRowIndex += chunk->MiscExt().row_count();
+    }
+
+    void SetTabletEdenStoreIds(TTablet* tablet, std::vector<TStoreId> edenStoreIds)
+    {
+        i64 masterMemoryUsageDelta = -static_cast<i64>(tablet->EdenStoreIds().size() * sizeof(TStoreId));
+        if (edenStoreIds.size() <= EdenStoreIdsSizeLimit) {
+            tablet->EdenStoreIds() = std::move(edenStoreIds);
+            tablet->EdenStoreIds().shrink_to_fit();
+        } else {
+            tablet->EdenStoreIds() = {};
+        }
+        masterMemoryUsageDelta += tablet->EdenStoreIds().size() * sizeof(TStoreId);
+
+        auto* table = tablet->GetTable();
+        table->SetTabletMasterMemoryUsage(
+            table->GetTabletMasterMemoryUsage() + masterMemoryUsageDelta);
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->UpdateMasterMemoryUsage(table);
     }
 
     void ValidateNodeCloneMode(TTableNode* trunkNode, ENodeCloneMode mode)

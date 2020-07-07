@@ -111,6 +111,7 @@ DEFINE_ENUM(EMasterReign,
     ((RenameTransferQuota)                                          (1320))  // kiselyovp
     ((YT_13015_CorrectSrcTxForCrossShardCopy)                       (1321))  // shakurov
     ((AclCheckWorkaroundForMutatingRequests_20_2)                   (1322))  // shakurov
+    ((MountHint)                                                    (1323))  // ifsmirnov
     ((SubjectAliases)                                               (1400))  // s-v-m
     ((OpaquePortalEntrances)                                        (1401))  // shakurov
     ((MultisetAttributes)                                           (1402))  // gritukan

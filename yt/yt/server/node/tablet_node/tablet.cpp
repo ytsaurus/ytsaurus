@@ -53,6 +53,8 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYPath;
 
+using NProto::TMountHint;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
@@ -1569,6 +1571,24 @@ TDynamicStoreId TTablet::PopDynamicStoreIdFromPool()
 void TTablet::ClearDynamicStoreIdPool()
 {
     DynamicStoreIdPool_.clear();
+}
+
+TMountHint TTablet::GetMountHint() const
+{
+    TMountHint mountHint;
+
+    if (IsPhysicallySorted()) {
+        std::vector<TStoreId> edenStoreIds;
+        for (const auto& store : GetEden()->Stores()) {
+            if (store->IsChunk()) {
+                edenStoreIds.push_back(store->GetId());
+            }
+        }
+        std::sort(edenStoreIds.begin(), edenStoreIds.end());
+        ToProto(mountHint.mutable_eden_store_ids(), edenStoreIds);
+    }
+
+    return mountHint;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

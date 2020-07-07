@@ -41,6 +41,11 @@ message TLockDescriptor
     required int64 timestamp = 2;
 }
 
+message TMountHint
+{
+    repeated NYT.NProto.TGuid eden_store_ids = 1;
+}
+
 message TReqMountTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;
@@ -64,6 +69,7 @@ message TReqMountTablet
     repeated TLockDescriptor locks = 20;
     optional uint64 retained_timestamp = 21;
     repeated NYT.NProto.TGuid dynamic_store_ids = 22;
+    optional TMountHint mount_hint = 23;
 }
 
 message TReqUnmountTablet

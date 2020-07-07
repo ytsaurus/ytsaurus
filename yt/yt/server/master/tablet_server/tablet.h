@@ -12,6 +12,8 @@
 
 #include <yt/server/master/chunk_server/public.h>
 
+#include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
+
 #include <yt/ytlib/tablet_client/proto/heartbeat.pb.h>
 
 #include <yt/client/table_client/unversioned_row.h>
@@ -320,6 +322,8 @@ public:
 
     using TUnconfirmedDynamicTableLocksSet = THashSet<NTransactionClient::TTransactionId>;
     DEFINE_BYREF_RW_PROPERTY(TUnconfirmedDynamicTableLocksSet, UnconfirmedDynamicTableLocks);
+
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TStoreId>, EdenStoreIds);
 
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, State);
     DECLARE_BYVAL_RW_PROPERTY(ETabletState, ExpectedState);

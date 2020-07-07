@@ -23,6 +23,7 @@
 #include <yt/server/node/tablet_node/slot_manager.h>
 #include <yt/server/node/tablet_node/tablet.h>
 #include <yt/server/node/tablet_node/tablet_slot.h>
+#include <yt/server/node/tablet_node/sorted_chunk_store.h>
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>

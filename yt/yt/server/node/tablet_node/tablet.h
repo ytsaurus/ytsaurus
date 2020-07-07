@@ -520,6 +520,8 @@ public:
     TDynamicStoreId PopDynamicStoreIdFromPool();
     void ClearDynamicStoreIdPool();
 
+    NTabletNode::NProto::TMountHint GetMountHint() const;
+
 private:
     TTableMountConfigPtr Config_;
     TTabletChunkReaderConfigPtr ReaderConfig_;

@@ -53,7 +53,8 @@ public:
 
     virtual void Mount(
         const std::vector<NTabletNode::NProto::TAddStoreDescriptor>& storeDescriptors,
-        bool createDynamicStore);
+        bool createDynamicStore,
+        const NTabletNode::NProto::TMountHint& mountHint) override;
 
     virtual void Remount(
         TTableMountConfigPtr mountConfig,

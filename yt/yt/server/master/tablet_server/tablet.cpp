@@ -512,6 +512,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, ReplicationErrorCount_);
     Save(context, ExpectedState_);
     Save(context, UnconfirmedDynamicTableLocks_);
+    Save(context, EdenStoreIds_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -550,6 +551,10 @@ void TTablet::Load(TLoadContext& context)
     if (context.GetVersion() >= EMasterReign::BulkInsert) {
         Load(context, UnconfirmedDynamicTableLocks_);
     }
+    // COMPAT(ifsmirnov):
+    if (context.GetVersion() >= EMasterReign::MountHint) {
+        Load(context, EdenStoreIds_);
+    }
 }
 
 void TTablet::CopyFrom(const TTablet& other)
@@ -561,6 +566,7 @@ void TTablet::CopyFrom(const TTablet& other)
     PivotKey_ = other.PivotKey_;
     InMemoryMode_ = other.InMemoryMode_;
     TrimmedRowCount_ = other.TrimmedRowCount_;
+    EdenStoreIds_ = other.EdenStoreIds_;
 }
 
 void TTablet::ValidateMountRevision(NHydra::TRevision mountRevision)
@@ -646,7 +652,7 @@ i64 TTablet::GetTabletStaticMemorySize() const
 
 i64 TTablet::GetTabletMasterMemoryUsage() const
 {
-    return sizeof(TTablet) + GetDataWeight(GetPivotKey());
+    return sizeof(TTablet) + GetDataWeight(GetPivotKey()) + EdenStoreIds_.size() * sizeof(TStoreId);
 }
 
 ETabletState TTablet::GetState() const
