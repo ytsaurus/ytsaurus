@@ -137,8 +137,24 @@ private:
             tablet->GetLoggingId(),
             currentMaxOverlappingStoreCount);
 
+        int largestPartitionStoreCount = 0;
+        int secondLargestPartitionStoreCount = 0;
         for (const auto& partition : tablet->PartitionList()) {
-            ScanPartitionToSplit(slot, partition.get(), &estimatedMaxOverlappingStoreCount);
+            int storeCount = partition->Stores().size();
+            if (storeCount > largestPartitionStoreCount) {
+                secondLargestPartitionStoreCount = largestPartitionStoreCount;
+                largestPartitionStoreCount = storeCount;
+            } else if (storeCount > secondLargestPartitionStoreCount) {
+                secondLargestPartitionStoreCount = storeCount;
+            }
+        }
+
+        for (const auto& partition : tablet->PartitionList()) {
+            ScanPartitionToSplit(
+                slot,
+                partition.get(),
+                &estimatedMaxOverlappingStoreCount,
+                secondLargestPartitionStoreCount);
         }
 
         int maxAllowedOverlappingStoreCount = tablet->GetConfig()->MaxOverlappingStoreCount -
@@ -156,7 +172,11 @@ private:
         }
     }
 
-    void ScanPartitionToSplit(TTabletSlotPtr slot, TPartition* partition, int* estimatedMaxOverlappingStoreCount)
+    void ScanPartitionToSplit(
+        TTabletSlotPtr slot,
+        TPartition* partition,
+        int* estimatedMaxOverlappingStoreCount,
+        int secondLargestPartitionStoreCount)
     {
         auto* tablet = partition->GetTablet();
         const auto& config = tablet->GetConfig();
@@ -169,12 +189,13 @@ private:
         if (tablet->GetConfig()->EnableLsmVerboseLogging) {
             YT_LOG_DEBUG(
                 "Scanning partition to split (PartitionIndex: %v of %v, "
-                "EstimatedMosc: %v, DataSize: %v, StoreCount: %v)",
+                "EstimatedMosc: %v, DataSize: %v, StoreCount: %v, SecondLargestPartitionStoreCount: %v)",
                 partition->GetIndex(),
                 partitionCount,
                 *estimatedMaxOverlappingStoreCount,
                 actualDataSize,
-                partition->Stores().size());
+                partition->Stores().size(),
+                secondLargestPartitionStoreCount);
         }
 
         if (partition->GetState() != EPartitionState::Normal) {
@@ -197,7 +218,15 @@ private:
             return;
         }
 
-        if (estimatedStoresDelta + *estimatedMaxOverlappingStoreCount <= config->MaxOverlappingStoreCount &&
+        int maxOverlappingStoreCountAfterSplit = estimatedStoresDelta + *estimatedMaxOverlappingStoreCount;
+        // If the partition is the largest one, the estimate is incorrect since its stores will move to eden
+        // and the partition will no longer contribute to the first summand in (max_partition_size + eden_size).
+        // Instead, the second largest partition will.
+        if (partition->Stores().size() > secondLargestPartitionStoreCount) {
+            maxOverlappingStoreCountAfterSplit -= partition->Stores().size() - secondLargestPartitionStoreCount;
+        }
+
+        if (maxOverlappingStoreCountAfterSplit <= config->MaxOverlappingStoreCount &&
             actualDataSize > config->MaxPartitionDataSize)
         {
             int splitFactor = std::min({
@@ -219,7 +248,7 @@ private:
                     partition->GetId(),
                     tablet->GetId(),
                     Logger));
-                *estimatedMaxOverlappingStoreCount += estimatedStoresDelta;
+                *estimatedMaxOverlappingStoreCount = maxOverlappingStoreCountAfterSplit;
             }
         }
     }
