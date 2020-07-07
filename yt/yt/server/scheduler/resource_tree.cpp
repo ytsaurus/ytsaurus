@@ -10,6 +10,15 @@ static const auto& Logger = SchedulerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
+    
+TResourceTree::TResourceTree(const TFairShareStrategyTreeConfigPtr& config)
+    : Config_(config)
+{ }
+
+void TResourceTree::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
+{
+    Config_ = config;
+}
 
 void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent)
 {
@@ -26,7 +35,9 @@ void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const T
 {
     TWriterGuard guard(TreeLock_);
 
-    Profiler.Increment(TreeLockWriteCount, 1);
+    if (Config_->EnableResourceTreeProfiling) {
+        Profiler.Increment(TreeLockWriteCount, 1);
+    }
 
     TWriterGuard resourceUsageLock(element->ResourceUsageLock_);
     YT_VERIFY(element->Parent_);
@@ -72,7 +83,9 @@ void TResourceTree::IncreaseHierarchicalResourceUsage(const TResourceTreeElement
 {
     TReaderGuard guard(TreeLock_);
 
-    Profiler.Increment(TreeLockReadCount, 1);
+    if (Config_->EnableResourceTreeProfiling) {
+        Profiler.Increment(TreeLockReadCount, 1);
+    }
 
     YT_VERIFY(element->Initialized_);
 
@@ -98,7 +111,9 @@ void TResourceTree::IncreaseHierarchicalResourceUsagePrecommit(const TResourceTr
 {
     TReaderGuard guard(TreeLock_);
 
-    Profiler.Increment(TreeLockReadCount, 1);
+    if (Config_->EnableResourceTreeProfiling) {
+        Profiler.Increment(TreeLockReadCount, 1);
+    }
 
     YT_VERIFY(element->Initialized_);
 
@@ -129,7 +144,9 @@ bool TResourceTree::TryIncreaseHierarchicalResourceUsagePrecommit(
 {
     TReaderGuard guard(TreeLock_);
 
-    Profiler.Increment(TreeLockReadCount, 1);
+    if (Config_->EnableResourceTreeProfiling) {
+        Profiler.Increment(TreeLockReadCount, 1);
+    }
 
     YT_VERIFY(element->Initialized_);
 
@@ -175,7 +192,9 @@ void TResourceTree::CommitHierarchicalResourceUsage(
 {
     TReaderGuard guard(TreeLock_);
 
-    Profiler.Increment(TreeLockReadCount, 1);
+    if (Config_->EnableResourceTreeProfiling) {
+        Profiler.Increment(TreeLockReadCount, 1);
+    }
 
     YT_VERIFY(element->Initialized_);
 
@@ -190,7 +209,9 @@ void TResourceTree::ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementP
 {
     TReaderGuard guard(TreeLock_);
 
-    Profiler.Increment(TreeLockReadCount, 1);
+    if (Config_->EnableResourceTreeProfiling) {
+        Profiler.Increment(TreeLockReadCount, 1);
+    }
 
     YT_VERIFY(element->Initialized_);
 
@@ -205,7 +226,9 @@ void TResourceTree::PerformPostponedActions()
 {
     TWriterGuard guard(TreeLock_);
 
-    Profiler.Increment(TreeLockReadCount, 1);
+    if (Config_->EnableResourceTreeProfiling) {
+        Profiler.Increment(TreeLockReadCount, 1);
+    }
 
     auto elementsToDetach = ElementsToDetachQueue_.DequeueAll();
     for (const auto& element : elementsToDetach) {
@@ -223,12 +246,16 @@ void TResourceTree::PerformPostponedActions()
     
 void TResourceTree::IncrementResourceUsageLockReadCount()
 {
-    Profiler.Increment(ResourceUsageLockReadCount, 1);
+    if (Config_->EnableResourceTreeProfiling) {
+        Profiler.Increment(ResourceUsageLockReadCount, 1);
+    }
 }
 
 void TResourceTree::IncrementResourceUsageLockWriteCount()
 {
-    Profiler.Increment(ResourceUsageLockWriteCount, 1);
+    if (Config_->EnableResourceTreeProfiling) {
+        Profiler.Increment(ResourceUsageLockWriteCount, 1);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

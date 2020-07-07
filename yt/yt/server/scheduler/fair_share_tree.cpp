@@ -288,7 +288,7 @@ TFairShareTree<TFairShareImpl>::TFairShareTree(
     const TString& treeId)
     : Config_(std::move(config))
     , ControllerConfig_(std::move(controllerConfig))
-    , ResourceTree_(New<TResourceTree>())
+    , ResourceTree_(New<TResourceTree>(config))
     , StrategyHost_(strategyHost)
     , TreeHost_(treeHost)
     , FeasibleInvokers_(std::move(feasibleInvokers))
@@ -805,6 +805,7 @@ auto TFairShareTree<TFairShareImpl>::UpdateConfig(const TFairShareStrategyTreeCo
 
     Config_ = config;
     RootElement_->UpdateTreeConfig(Config_);
+    ResourceTree_->UpdateConfig(Config_);
 
     if (!FindPool(Config_->DefaultParentPool) && Config_->DefaultParentPool != RootPoolName) {
         auto error = TError("Default parent pool %Qv in tree %Qv is not registered", Config_->DefaultParentPool, TreeId_);

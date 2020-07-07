@@ -163,6 +163,9 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("use_recent_resource_usage_for_local_satisfaction", UseRecentResourceUsageForLocalSatisfaction)
         .Default(true);
 
+    RegisterParameter("enable_resource_tree_profiling", EnableResourceTreeProfiling)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")
