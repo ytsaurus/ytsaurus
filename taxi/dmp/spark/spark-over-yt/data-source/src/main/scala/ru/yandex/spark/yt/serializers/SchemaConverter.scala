@@ -48,7 +48,9 @@ object SchemaConverter {
                   schemaHint: Option[StructType],
                   metadata: Metadata): StructField = {
     schemaHint
-      .flatMap(_.find(_.name == fieldName).map(_.copy(metadata = metadata)))
+      .flatMap(_.find(_.name == fieldName.toLowerCase())
+        .map(_.copy(name = fieldName, metadata = metadata))
+      )
       .getOrElse(structField(fieldName, stringDataType, metadata))
   }
 
