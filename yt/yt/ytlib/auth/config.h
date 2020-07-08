@@ -114,7 +114,7 @@ public:
         RegisterParameter("http_client", HttpClient)
             .DefaultNew();
         RegisterParameter("host", Host)
-            .Default();
+            .Default("localhost");
         RegisterParameter("port", Port);
         RegisterParameter("token", Token);
         RegisterParameter("request_timeout", RequestTimeout)
