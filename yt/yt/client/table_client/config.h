@@ -268,7 +268,8 @@ public:
     bool EvaluateComputedColumns;
     bool EnableSkynetSharing;
     bool ReturnBoundaryKeys;
-    bool CastAnyToComposite;
+    bool CastAnyToComposite = false;
+    NYTree::INodePtr CastAnyToCompositeNode;
 
     ETableSchemaModification SchemaModification;
 
@@ -301,8 +302,8 @@ public:
             .Default(false);
         RegisterParameter("return_boundary_keys", ReturnBoundaryKeys)
             .Default(true);
-        RegisterParameter("cast_any_to_composite", CastAnyToComposite)
-            .Default(false);
+        RegisterParameter("cast_any_to_composite", CastAnyToCompositeNode)
+            .Default();
         RegisterParameter("schema_modification", SchemaModification)
             .Default(ETableSchemaModification::None);
         RegisterParameter("max_heavy_columns", MaxHeavyColumns)
@@ -311,6 +312,14 @@ public:
         RegisterPostprocessor([&] () {
             if (ValidateUniqueKeys && !ValidateSorted) {
                 THROW_ERROR_EXCEPTION("\"validate_unique_keys\" is allowed to be true only if \"validate_sorted\" is true");
+            }
+
+            if (CastAnyToCompositeNode) {
+                try {
+                    CastAnyToComposite = NYTree::ConvertTo<bool>(CastAnyToCompositeNode);
+                } catch (const TErrorException&) {
+                    // COMPAT: Do nothing for backward compatibility.
+                }
             }
 
             switch (SchemaModification) {
