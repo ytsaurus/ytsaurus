@@ -46,7 +46,6 @@ protected:
     TDefaultTvmServiceConfigPtr CreateDefaultTvmServiceConfig()
     {
         auto config = New<TDefaultTvmServiceConfig>();
-        config->Host = MockHttpServer_.IsStarted() ? MockHttpServer_.GetHost() : "localhost";
         config->Port = MockHttpServer_.IsStarted() ? MockHttpServer_.GetPort() : static_cast<ui16>(0);
         config->Token = "IAmATvmToken";
         config->Src = "TheSource";
