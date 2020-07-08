@@ -926,12 +926,11 @@ struct TListJobsOptions
     i64 Limit = 1000;
     i64 Offset = 0;
 
+    // All options below are deprecated.
     bool IncludeCypress = false;
     bool IncludeControllerAgent = false;
     bool IncludeArchive = false;
-
     EDataSource DataSource = EDataSource::Auto;
-
     TDuration RunningJobsLookbehindPeriod = TDuration::Max();
 };
 
