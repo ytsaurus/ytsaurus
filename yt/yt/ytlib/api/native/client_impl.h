@@ -981,21 +981,10 @@ private:
         TInstant deadline,
         const TListJobsOptions& options);
 
-    struct TListJobsFromArchiveResult
-    {
-        std::vector<TJob> FinishedJobs;
-        std::vector<TJob> InProgressJobs;
-    };
-
-    // Retrieves:
+    // Retrieve:
     // 1) Filtered finished jobs (with limit).
     // 2) All (non-filtered and without limit) in-progress jobs (if |includeInProgressJobs == true|).
-    TFuture<TListJobsFromArchiveResult> DoListJobsFromArchiveAsync(
-        NScheduler::TOperationId operationId,
-        TInstant deadline,
-        bool includeInProgressJobs,
-        const TListJobsOptions& options);
-    TFuture<std::pair<std::vector<TJob>, int>> DoListJobsFromCypressAsync(
+    TFuture<std::vector<TJob>> DoListJobsFromArchiveAsync(
         NScheduler::TOperationId operationId,
         TInstant deadline,
         const TListJobsOptions& options);

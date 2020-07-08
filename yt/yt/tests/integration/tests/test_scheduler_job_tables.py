@@ -950,7 +950,7 @@ class TestCoreTable(YTEnvSetup):
     @unix_only
     def test_core_when_user_job_was_killed(self):
         pytest.skip("This test is broken because sudo wrapper hides coredump status. Should be ported to porto.")
-        
+
         op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1)
 
         release_breakpoint()
@@ -1009,15 +1009,19 @@ class TestCoreTable(YTEnvSetup):
         assert self._get_core_infos(op) == {job_ids[0]: [ret_dict["core_info"]]}
         assert self._get_core_table_content() == {job_ids[0]: [ret_dict["core_data"]]}
 
-        jobs = list_jobs(op.id, attributes=["core_infos"])["jobs"]
-        assert len(jobs) == 1
-        assert jobs[0]["core_infos"] == [ret_dict["core_info"]]
+        def list_jobs_func():
+            return list_jobs(op.id, attributes=["core_infos"])["jobs"]
+
+        wait(lambda: len(list_jobs_func()) == 3)
+        jobs = list_jobs_func()
+
+        filtered_job_with_core = [job for job in jobs if job["id"] == job_ids[0]][0]
+        assert filtered_job_with_core["core_infos"] == [ret_dict["core_info"]]
 
         clean_operations()
 
-        list_jobs_func = lambda: list_jobs(op.id, attributes=["core_infos"])["jobs"]
-        wait(lambda: len(list_jobs_func()) == 3)
         jobs = list_jobs_func()
+        assert len(jobs) == 3
 
         filtered_job_with_core = [job for job in jobs if job["id"] == job_ids[0]][0]
         assert filtered_job_with_core["core_infos"] == [ret_dict["core_info"]]
