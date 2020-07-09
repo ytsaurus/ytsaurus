@@ -154,7 +154,7 @@ class YTInstance(object):
                  enable_structured_master_logging=False, enable_structured_scheduler_logging=False,
                  enable_rpc_driver_proxy_discovery=None,
                  use_native_client=False, run_watcher=True, capture_stderr_to_file=None,
-                 ytserver_all_path=None):
+                 ytserver_all_path=None, watcher_binary=None):
         _configure_logger()
 
         if use_porto_for_servers and not porto_avaliable():
@@ -163,6 +163,8 @@ class YTInstance(object):
         self._use_porto_for_servers = use_porto_for_servers
 
         self._subprocess_module = PortoSubprocess if use_porto_for_servers else subprocess
+
+        self._watcher_binary = watcher_binary
 
         self.path = os.path.realpath(os.path.abspath(path))
         self.bin_path = os.path.abspath(os.path.join(self.path, "bin"))
@@ -816,7 +818,7 @@ class YTInstance(object):
         if has_some_bind_failure:
             raise YtEnvRetriableError("Process failed to bind on some of ports")
 
-    def _run(self, args, name, number=None, timeout=0.1):
+    def _run(self, args, name, env=None, number=None, timeout=0.1):
         with self._lock:
             index = number if number is not None else 0
             name_with_number = name
@@ -839,9 +841,10 @@ class YTInstance(object):
                 args += ["--pdeathsig", str(int(signal.SIGTERM))]
             args += ["--setsid"]
 
-            env = copy.copy(os.environ)
-            if "YT_LOG_LEVEL" in env:
-                del env["YT_LOG_LEVEL"]
+            if env is None:
+                env = copy.copy(os.environ)
+                if "YT_LOG_LEVEL" in env:
+                    del env["YT_LOG_LEVEL"]
             env = update(env, {"YT_ALLOC_CONFIG": "{enable_eager_memory_release=%true}"})
 
             p = self._subprocess_module.Popen(args, shell=False, close_fds=True, cwd=self.runtime_data_path,
@@ -1482,13 +1485,14 @@ class YTInstance(object):
         self._service_processes["watcher"].append(None)
 
         self._watcher = ProcessWatcher(
+            self._watcher_binary,
             self._pid_to_process.keys(),
             log_paths,
             lock_path=os.path.join(self.path, "lock_file"),
             config_dir=self.configs_path,
             logs_dir=self.logs_path,
             runtime_dir=self.runtime_data_path,
-            process_runner=lambda args: self._run(args, "watcher"),
+            process_runner=lambda args, env=None: self._run(args, "watcher", env=env),
             config=self.watcher_config)
 
         self._watcher.start()

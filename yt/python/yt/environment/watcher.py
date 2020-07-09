@@ -8,12 +8,19 @@ import yt.subprocess_wrapper as subprocess
 import yt.wrapper as yt
 
 import os
+import sys
 import logging
+
+try:
+    import yt_env_watcher
+except ImportError:
+    yt_env_watcher = None
 
 logger = logging.getLogger("Yt.local")
 
 class ProcessWatcher(object):
     def __init__(self,
+                 watcher_binary,
                  process_pids, process_log_paths,
                  lock_path, config_dir, logs_dir, runtime_dir,
                  config=None, process_runner=None):
@@ -25,7 +32,13 @@ class ProcessWatcher(object):
         self._lock_path = lock_path
         self._log_path = os.path.join(logs_dir, "watcher.log")
         self._state_path = os.path.join(runtime_dir, "logs_rotator/state")
-        self._binary_path = self._get_binary_path()
+        if watcher_binary:
+            self._binary_path = watcher_binary
+        elif yt_env_watcher is None:
+            self._binary_path = self._get_binary_path()
+        else:
+            self._binary_path = None
+
         self._config_path = self._build_config(config_dir, process_pids, process_log_paths)
 
         if process_runner is None:
@@ -39,8 +52,13 @@ class ProcessWatcher(object):
         self._process = None
 
     def start(self):
-        watcher_cmd = [
-            self._binary_path,
+        env = None
+        if self._binary_path is None:
+            watcher_cmd = [sys.executable]
+            env = {"Y_PYTHON_ENTRY_POINT": "__yt_env_watcher_entry_point__"}
+        else:
+            watcher_cmd = [self._binary_path]
+        watcher_cmd += [
             "--lock-file-path", self._lock_path,
             "--logrotate-config-path", self._config_path,
             "--logrotate-state-file", self._state_path,
@@ -50,7 +68,7 @@ class ProcessWatcher(object):
         if self._config.get("disable_logrotate"):
             watcher_cmd += ["--disable-logrotate"]
 
-        self._process = self._process_runner(watcher_cmd)
+        self._process = self._process_runner(watcher_cmd, env=env)
 
         def watcher_lock_created():
             if self._process.poll() is not None:
