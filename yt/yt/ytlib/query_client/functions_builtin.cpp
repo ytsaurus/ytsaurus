@@ -472,6 +472,9 @@ public:
                                     case EValueType::Uint64:
                                         compareResult = builder->CreateICmpULT(newData, aggregateData);
                                         break;
+                                    case EValueType::Boolean:
+                                        compareResult = builder->CreateICmpULT(newData, aggregateData);
+                                        break;
                                     case EValueType::Double:
                                         compareResult = builder->CreateFCmpULT(newData, aggregateData);
                                         break;
@@ -528,6 +531,9 @@ public:
                                         compareResult = builder->CreateICmpSGT(newData, aggregateData);
                                         break;
                                     case EValueType::Uint64:
+                                        compareResult = builder->CreateICmpUGT(newData, aggregateData);
+                                        break;
+                                    case EValueType::Boolean:
                                         compareResult = builder->CreateICmpUGT(newData, aggregateData);
                                         break;
                                     case EValueType::Double:
@@ -899,6 +905,7 @@ void RegisterBuiltinFunctions(
     constraints[typeArg] = std::vector<EValueType>{
         EValueType::Int64,
         EValueType::Uint64,
+        EValueType::Boolean,
         EValueType::Double,
         EValueType::String};
     auto sumConstraints = std::unordered_map<TTypeArgument, TUnionType>();
