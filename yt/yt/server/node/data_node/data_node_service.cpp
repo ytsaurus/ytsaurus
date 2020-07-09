@@ -136,6 +136,7 @@ public:
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LookupRows)
+            .SetInvoker(Bootstrap_->GetStorageLookupInvoker())
             .SetCancelable(true)
             .SetQueueSizeLimit(5000)
             .SetConcurrencyLimit(5000));
