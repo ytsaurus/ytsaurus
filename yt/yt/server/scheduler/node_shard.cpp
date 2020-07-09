@@ -478,7 +478,8 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         // NB: Resource limits and usage of node should be updated even if
         // node is offline at master to avoid getting incorrect total limits
         // when node becomes online.
-        UpdateNodeResources(node,
+        UpdateNodeResources(
+            node,
             request->resource_limits(),
             request->resource_usage(),
             request->disk_resources());
@@ -1688,8 +1689,9 @@ void TNodeShard::ProcessHeartbeatJobs(
         }
     }
 
-    YT_LOG_DEBUG_UNLESS(recentlyFinishedJobIdsToLog.empty(),
-        "Jobs are skipped since they were recently finished and are currently being stored"
+    YT_LOG_DEBUG_UNLESS(
+        recentlyFinishedJobIdsToLog.empty(),
+        "Jobs are skipped since they were recently finished and are currently being stored "
         "(JobIds: %v)",
         recentlyFinishedJobIdsToLog);
 
