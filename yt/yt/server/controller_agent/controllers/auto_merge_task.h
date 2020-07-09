@@ -57,7 +57,7 @@ public:
         i64 chunkSizeThreshold,
         i64 dataWeightPerJob,
         i64 maxDataWeightPerJob,
-        std::vector<TEdgeDescriptor> edgeDescriptors);
+        std::vector<TStreamDescriptor> streamDescriptors);
 
     virtual TString GetTitle() const override;
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
@@ -97,7 +97,7 @@ protected:
 
     virtual void OnChunkTeleported(NChunkClient::TInputChunkPtr teleportChunk, std::any tag) override;
 
-    virtual void SetEdgeDescriptors(TJobletPtr joblet) const override;
+    virtual void SetStreamDescriptors(TJobletPtr joblet) const override;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask, 0x4ef99f1a);

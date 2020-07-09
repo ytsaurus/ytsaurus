@@ -121,7 +121,7 @@ public:
 
     std::optional<TDuration> JobSpeculationTimeout;
 
-    std::vector<TEdgeDescriptor> EdgeDescriptors;
+    std::vector<TStreamDescriptor> StreamDescriptors;
 
     virtual void Persist(const TPersistenceContext& context) override;
 

@@ -41,8 +41,8 @@ public:
 
         this->TaskHost_->GetAutoMergeDirector()->OnTaskCompleted();
 
-        for (const auto& edgeDescriptor : this->EdgeDescriptors_) {
-            edgeDescriptor.DestinationPool->Finish();
+        for (const auto& streamDescriptor : this->StreamDescriptors_) {
+            streamDescriptor.DestinationPool->Finish();
         }
     }
 

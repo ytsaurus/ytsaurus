@@ -72,9 +72,9 @@ DEFINE_REFCOUNTED_TYPE(TDataFlowGraph);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TEdgeDescriptor
+struct TStreamDescriptor
 {
-    TEdgeDescriptor() = default;
+    TStreamDescriptor() = default;
 
     // Keep fields below in sync with operator =.
     NChunkPools::IChunkPoolInputPtr DestinationPool;
@@ -90,7 +90,7 @@ struct TEdgeDescriptor
     bool ImmediatelyUnstageChunkLists = false;
     bool IsFinalOutput = false;
     bool IsOutputTableDynamic = false;
-    // In most situations coincides with the index of an edge descriptor,
+    // In most situations coincides with the index of a stream descriptor,
     // but in some situations may differ. For example, an auto merge task
     // may have the only output descriptor, but we would like to attach
     // its output chunks to the live preview with an index corresponding to the
@@ -102,7 +102,7 @@ struct TEdgeDescriptor
 
     void Persist(const TPersistenceContext& context);
 
-    TEdgeDescriptor& operator =(const TEdgeDescriptor& other);
+    TStreamDescriptor& operator =(const TStreamDescriptor& other);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

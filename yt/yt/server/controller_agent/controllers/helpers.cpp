@@ -16,18 +16,18 @@ using namespace NTableClient;
 
 TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     const NScheduler::NProto::TOutputResult& boundaryKeys,
-    const TEdgeDescriptor& edgeDescriptor,
+    const TStreamDescriptor& streamDescriptor,
     const TRowBufferPtr& rowBuffer)
 {
     YT_VERIFY(!boundaryKeys.empty());
     YT_VERIFY(boundaryKeys.sorted());
-    YT_VERIFY(!edgeDescriptor.TableWriterOptions->ValidateUniqueKeys || boundaryKeys.unique_keys());
+    YT_VERIFY(!streamDescriptor.TableWriterOptions->ValidateUniqueKeys || boundaryKeys.unique_keys());
 
     auto trimAndCaptureKey = [&] (const TOwningKey& key) {
-        int limit = edgeDescriptor.TableUploadOptions.TableSchema->GetKeyColumnCount();
+        int limit = streamDescriptor.TableUploadOptions.TableSchema->GetKeyColumnCount();
         if (key.GetCount() > limit) {
             // NB: This can happen for a teleported chunk from a table with a wider key in sorted (but not unique_keys) mode.
-            YT_VERIFY(!edgeDescriptor.TableWriterOptions->ValidateUniqueKeys);
+            YT_VERIFY(!streamDescriptor.TableWriterOptions->ValidateUniqueKeys);
             return rowBuffer->Capture(key.Begin(), limit);
         } else {
             return rowBuffer->Capture(key.Begin(), key.GetCount());

@@ -623,8 +623,8 @@ protected:
     //! If auto-merge is needed, init auto-merge tasks and auto-merge director and return true, otherwise return false.
     bool TryInitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio);
 
-    //! Return edge descriptors adjusted accroding to existing auto-merge tasks.
-    std::vector<TEdgeDescriptor> GetAutoMergeEdgeDescriptors();
+    //! Return stream descriptors adjusted accroding to existing auto-merge tasks.
+    std::vector<TStreamDescriptor> GetAutoMergeStreamDescriptors();
 
     void FillPrepareResult(TOperationControllerPrepareResult* result);
 
@@ -907,10 +907,10 @@ protected:
 
     void CheckFailedJobsStatusReceived();
 
-    virtual const std::vector<TEdgeDescriptor>& GetStandardEdgeDescriptors() const override;
+    virtual const std::vector<TStreamDescriptor>& GetStandardStreamDescriptors() const override;
 
     NTableClient::TTableWriterOptionsPtr GetIntermediateTableWriterOptions() const;
-    TEdgeDescriptor GetIntermediateEdgeDescriptorTemplate() const;
+    TStreamDescriptor GetIntermediateStreamDescriptorTemplate() const;
 
     virtual const TDataFlowGraphPtr& GetDataFlowGraph() const override;
 
@@ -1057,7 +1057,7 @@ private:
     NYson::TYsonString ProgressString_;
     NYson::TYsonString BriefProgressString_;
 
-    std::vector<TEdgeDescriptor> StandardEdgeDescriptors_;
+    std::vector<TStreamDescriptor> StandardStreamDescriptors_;
 
     TSpinLock ProgressLock_;
     const NConcurrency::TPeriodicExecutorPtr ProgressBuildExecutor_;
@@ -1177,7 +1177,7 @@ private:
 
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 
-    void InitializeStandardEdgeDescriptors();
+    void InitializeStandardStreamDescriptors();
 
     void AddChunksToUnstageList(std::vector<NChunkClient::TInputChunkPtr> chunks);
 

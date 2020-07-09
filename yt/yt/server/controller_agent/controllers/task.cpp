@@ -59,10 +59,10 @@ TTask::TTask()
         0)
 { }
 
-TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors)
+TTask::TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptor> streamDescriptors)
     : Logger(ControllerLogger)
     , TaskHost_(taskHost.Get())
-    , EdgeDescriptors_(std::move(edgeDescriptors))
+    , StreamDescriptors_(std::move(streamDescriptors))
     , TentativeTreeEligibility_(taskHost->GetSpec()->TentativeTreeEligibility)
     , CachedPendingJobCount_(0)
     , CachedTotalJobCount_(0)
@@ -75,7 +75,7 @@ TTask::TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors
 { }
 
 TTask::TTask(ITaskHostPtr taskHost)
-    : TTask(taskHost, taskHost->GetStandardEdgeDescriptors())
+    : TTask(taskHost, taskHost->GetStandardStreamDescriptors())
 { }
 
 void TTask::Initialize()
@@ -465,10 +465,10 @@ void TTask::ScheduleJob(
         joblet->Speculative,
         joblet->JobSpeculationTimeout);
 
-    SetEdgeDescriptors(joblet);
+    SetStreamDescriptors(joblet);
 
-    for (const auto& edgeDescriptor : joblet->EdgeDescriptors) {
-        joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(edgeDescriptor.CellTag));
+    for (const auto& streamDescriptor : joblet->StreamDescriptors) {
+        joblet->ChunkListIds.push_back(TaskHost_->ExtractOutputChunkList(streamDescriptor.CellTag));
     }
 
     if (TaskHost_->StderrTable() && IsStderrTableEnabled()) {
@@ -531,13 +531,13 @@ void TTask::BuildTaskYson(TFluentMap fluent) const
 }
 
 void TTask::PropagatePartitions(
-    const std::vector<TEdgeDescriptor>& edgeDescriptors,
+    const std::vector<TStreamDescriptor>& streamDescriptors,
     const TChunkStripeListPtr& /*inputStripeList*/,
     std::vector<TChunkStripePtr>* outputStripes)
 {
-    YT_VERIFY(outputStripes->size() == edgeDescriptors.size());
+    YT_VERIFY(outputStripes->size() == streamDescriptors.size());
     for (int stripeIndex = 0; stripeIndex < outputStripes->size(); ++stripeIndex) {
-        (*outputStripes)[stripeIndex]->PartitionTag = edgeDescriptors[stripeIndex].PartitionTag;
+        (*outputStripes)[stripeIndex]->PartitionTag = streamDescriptors[stripeIndex].PartitionTag;
     }
 }
 
@@ -602,7 +602,7 @@ void TTask::Persist(const TPersistenceContext& context)
         >
     >(context, LostJobCookieMap);
 
-    Persist(context, EdgeDescriptors_);
+    Persist(context, StreamDescriptors_);
     Persist(context, InputVertex_);
 
     Persist(context, TentativeTreeEligibility_);
@@ -675,7 +675,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
                 }
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
-            if (joblet->ChunkListIds[index] && EdgeDescriptors_[index].ImmediatelyUnstageChunkLists) {
+            if (joblet->ChunkListIds[index] && StreamDescriptors_[index].ImmediatelyUnstageChunkLists) {
                 this->TaskHost_->ReleaseChunkTrees({joblet->ChunkListIds[index]}, false /* unstageRecursively */);
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
@@ -702,8 +702,8 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
             TaskHost_->GetDataFlowGraph()->UpdateEdgeTeleportDataStatistics(InputVertex_, vertex, inputStatistics);
         }
 
-        for (int index = 0; index < EdgeDescriptors_.size(); ++index) {
-            const auto& targetVertex = EdgeDescriptors_[index].TargetDescriptor;
+        for (int index = 0; index < StreamDescriptors_.size(); ++index) {
+            const auto& targetVertex = StreamDescriptors_[index].TargetDescriptor;
             // If target vertex is unknown it is derived class' responsibility to update statistics.
             if (!targetVertex.empty()) {
                 TaskHost_->GetDataFlowGraph()->UpdateEdgeJobDataStatistics(
@@ -804,7 +804,7 @@ void TTask::OnStripeRegistrationFailed(
     TError error,
     IChunkPoolInput::TCookie /* cookie */,
     const TChunkStripePtr& /* stripe */,
-    const TEdgeDescriptor& /* edgeDescriptor */)
+    const TStreamDescriptor& /* streamDescriptor */)
 {
     TaskHost_->OnOperationFailed(error
         << TErrorAttribute("task_title", GetTitle()));
@@ -977,22 +977,22 @@ void TTask::AddOutputTableSpecs(
     TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    const auto& edgeDescriptors = joblet->EdgeDescriptors;
-    YT_VERIFY(joblet->ChunkListIds.size() == edgeDescriptors.size());
+    const auto& streamDescriptors = joblet->StreamDescriptors;
+    YT_VERIFY(joblet->ChunkListIds.size() == streamDescriptors.size());
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    for (int index = 0; index < edgeDescriptors.size(); ++index) {
-        const auto& edgeDescriptor = edgeDescriptors[index];
+    for (int index = 0; index < streamDescriptors.size(); ++index) {
+        const auto& streamDescriptor = streamDescriptors[index];
         auto* outputSpec = schedulerJobSpecExt->add_output_table_specs();
-        outputSpec->set_table_writer_options(ConvertToYsonString(edgeDescriptor.TableWriterOptions).GetData());
-        if (edgeDescriptor.TableWriterConfig) {
-            outputSpec->set_table_writer_config(edgeDescriptor.TableWriterConfig.GetData());
+        outputSpec->set_table_writer_options(ConvertToYsonString(streamDescriptor.TableWriterOptions).GetData());
+        if (streamDescriptor.TableWriterConfig) {
+            outputSpec->set_table_writer_config(streamDescriptor.TableWriterConfig.GetData());
         }
-        ToProto(outputSpec->mutable_table_schema(), edgeDescriptor.TableUploadOptions.TableSchema);
+        ToProto(outputSpec->mutable_table_schema(), streamDescriptor.TableUploadOptions.TableSchema);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
-        if (edgeDescriptor.Timestamp) {
-            outputSpec->set_timestamp(*edgeDescriptor.Timestamp);
+        if (streamDescriptor.Timestamp) {
+            outputSpec->set_timestamp(*streamDescriptor.Timestamp);
         }
-        outputSpec->set_dynamic(edgeDescriptor.IsOutputTableDynamic);
+        outputSpec->set_dynamic(streamDescriptor.IsOutputTableDynamic);
     }
 }
 
@@ -1056,9 +1056,9 @@ void TTask::FinishTaskInput(const TTaskPtr& task)
     task->FinishInput();
 }
 
-void TTask::SetEdgeDescriptors(TJobletPtr joblet) const
+void TTask::SetStreamDescriptors(TJobletPtr joblet) const
 {
-    joblet->EdgeDescriptors = EdgeDescriptors_;
+    joblet->StreamDescriptors = StreamDescriptors_;
 }
 
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet)
@@ -1132,24 +1132,24 @@ void TTask::RegisterOutput(
         chunkListIds,
         schedulerJobResultExt->output_boundary_keys());
     PropagatePartitions(
-        joblet->EdgeDescriptors,
+        joblet->StreamDescriptors,
         joblet->InputStripeList,
         &outputStripes);
 
-    const auto& edgeDescriptors = joblet->EdgeDescriptors;
-    for (int tableIndex = 0; tableIndex < edgeDescriptors.size(); ++tableIndex) {
+    const auto& streamDescriptors = joblet->StreamDescriptors;
+    for (int tableIndex = 0; tableIndex < streamDescriptors.size(); ++tableIndex) {
         if (outputStripes[tableIndex]) {
-            const auto& edgeDescriptor = edgeDescriptors[tableIndex];
+            const auto& streamDescriptor = streamDescriptors[tableIndex];
             for (const auto& dataSlice : outputStripes[tableIndex]->DataSlices) {
                 TaskHost_->RegisterLivePreviewChunk(
                     GetVertexDescriptor(),
-                    edgeDescriptor.LivePreviewIndex,
+                    streamDescriptor.LivePreviewIndex,
                     dataSlice->GetSingleUnversionedChunkOrThrow());
             }
 
             RegisterStripe(
                 std::move(outputStripes[tableIndex]),
-                edgeDescriptor,
+                streamDescriptor,
                 joblet,
                 key);
         }
@@ -1180,7 +1180,7 @@ TJobResourcesWithQuota TTask::GetMinNeededResources() const
 
 void TTask::RegisterStripe(
     TChunkStripePtr stripe,
-    const TEdgeDescriptor& edgeDescriptor,
+    const TStreamDescriptor& streamDescriptor,
     TJobletPtr joblet,
     TChunkStripeKey key)
 {
@@ -1188,11 +1188,11 @@ void TTask::RegisterStripe(
         return;
     }
 
-    const auto& destinationPool = edgeDescriptor.DestinationPool;
-    if (edgeDescriptor.RequiresRecoveryInfo) {
+    const auto& destinationPool = streamDescriptor.DestinationPool;
+    if (streamDescriptor.RequiresRecoveryInfo) {
         YT_VERIFY(joblet);
 
-        const auto& chunkMapping = edgeDescriptor.ChunkMapping;
+        const auto& chunkMapping = streamDescriptor.ChunkMapping;
         YT_VERIFY(chunkMapping);
 
         YT_LOG_DEBUG("Registering stripe in a direction that requires recovery info (JobId: %v, Restarted: %v, JobType: %v)",
@@ -1201,7 +1201,7 @@ void TTask::RegisterStripe(
             joblet->JobType);
 
         IChunkPoolInput::TCookie inputCookie = IChunkPoolInput::NullCookie;
-        auto lostIt = LostJobCookieMap.find(TCookieAndPool(joblet->OutputCookie, edgeDescriptor.DestinationPool));
+        auto lostIt = LostJobCookieMap.find(TCookieAndPool(joblet->OutputCookie, streamDescriptor.DestinationPool));
         if (lostIt == LostJobCookieMap.end()) {
             // NB: if job is not restarted, we should not add its output for the
             // second time to the destination pools that did not trigger the replay.
@@ -1225,7 +1225,7 @@ void TTask::RegisterStripe(
                     << ex
                     << TErrorAttribute("input_cookie", inputCookie);
                 YT_LOG_ERROR(error);
-                OnStripeRegistrationFailed(error, lostIt->second, stripe, edgeDescriptor);
+                OnStripeRegistrationFailed(error, lostIt->second, stripe, streamDescriptor);
             }
 
             destinationPool->Resume(inputCookie);
@@ -1303,12 +1303,12 @@ std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
     google::protobuf::RepeatedPtrField<NScheduler::NProto::TOutputResult> boundaryKeysPerTable)
 {
     auto stripes = BuildChunkStripes(schedulerJobResultExt->mutable_output_chunk_specs(), chunkTreeIds.size());
-    // Some edge descriptors do not require boundary keys to be returned,
+    // Some stream descriptors do not require boundary keys to be returned,
     // so they are skipped in `boundaryKeysPerTable`.
     int boundaryKeysIndex = 0;
     for (int tableIndex = 0; tableIndex < chunkTreeIds.size(); ++tableIndex) {
         stripes[tableIndex]->ChunkListId = chunkTreeIds[tableIndex];
-        if (EdgeDescriptors_[tableIndex].TableWriterOptions->ReturnBoundaryKeys) {
+        if (StreamDescriptors_[tableIndex].TableWriterOptions->ReturnBoundaryKeys) {
             // TODO(max42): do not send empty or unsorted boundary keys, this is meaningless.
             if (boundaryKeysIndex < boundaryKeysPerTable.size() &&
                 !boundaryKeysPerTable.Get(boundaryKeysIndex).empty() &&
@@ -1316,7 +1316,7 @@ std::vector<TChunkStripePtr> TTask::BuildOutputChunkStripes(
             {
                 stripes[tableIndex]->BoundaryKeys = BuildBoundaryKeysFromOutputResult(
                     boundaryKeysPerTable.Get(boundaryKeysIndex),
-                    EdgeDescriptors_[tableIndex],
+                    StreamDescriptors_[tableIndex],
                     TaskHost_->GetRowBuffer());
             }
             ++boundaryKeysIndex;

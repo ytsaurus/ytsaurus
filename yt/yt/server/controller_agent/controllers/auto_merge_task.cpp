@@ -75,12 +75,12 @@ TAutoMergeTask::TAutoMergeTask(
     i64 chunkSizeThreshold,
     i64 dataWeightPerJob,
     i64 maxDataWeightPerJob,
-    std::vector<TEdgeDescriptor> edgeDescriptors)
-    : TTask(taskHost, std::move(edgeDescriptors))
+    std::vector<TStreamDescriptor> streamDescriptors)
+    : TTask(taskHost, std::move(streamDescriptors))
 {
     std::vector<IChunkPoolPtr> underlyingPools;
-    underlyingPools.reserve(EdgeDescriptors_.size());
-    for (int poolIndex = 0; poolIndex < EdgeDescriptors_.size(); ++poolIndex) {
+    underlyingPools.reserve(StreamDescriptors_.size());
+    for (int poolIndex = 0; poolIndex < StreamDescriptors_.size(); ++poolIndex) {
         auto autoMergeJobSizeConstraints = CreateExplicitJobSizeConstraints(
             false /* canAdjustDataSizePerJob */,
             false /* isExplicitJobCount */,
@@ -283,15 +283,15 @@ void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any ta
     --CurrentChunkCount_;
 }
 
-void TAutoMergeTask::SetEdgeDescriptors(TJobletPtr joblet) const
+void TAutoMergeTask::SetStreamDescriptors(TJobletPtr joblet) const
 {
     auto poolIndex = *joblet->InputStripeList->PartitionTag;
-    joblet->EdgeDescriptors = {EdgeDescriptors_[poolIndex]};
+    joblet->StreamDescriptors = {StreamDescriptors_[poolIndex]};
 }
 
 int TAutoMergeTask::GetTableIndex(int poolIndex) const
 {
-    return *EdgeDescriptors_[poolIndex].PartitionTag;
+    return *StreamDescriptors_[poolIndex].PartitionTag;
 }
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask);
