@@ -41,7 +41,7 @@ DECLARE_REFCOUNTED_CLASS(TLivePreview)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TEdgeDescriptor::Persist(const TPersistenceContext& context)
+void TStreamDescriptor::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
@@ -64,7 +64,7 @@ void TEdgeDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, PartitionTag);
 }
 
-TEdgeDescriptor& TEdgeDescriptor::operator =(const TEdgeDescriptor& other)
+TStreamDescriptor& TStreamDescriptor::operator =(const TStreamDescriptor& other)
 {
     DestinationPool = other.DestinationPool;
     ChunkMapping = other.ChunkMapping;

@@ -105,7 +105,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, TreeIsTentative);
     Persist(context, Speculative);
     Persist(context, JobSpeculationTimeout);
-    Persist(context, EdgeDescriptors);
+    Persist(context, StreamDescriptors);
 
     if (context.IsLoad()) {
         Revived = true;

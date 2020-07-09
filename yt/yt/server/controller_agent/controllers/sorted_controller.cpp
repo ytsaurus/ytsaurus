@@ -124,8 +124,8 @@ protected:
             : Controller_(nullptr)
         { }
 
-        TSortedTaskBase(TSortedControllerBase* controller, std::vector<TEdgeDescriptor> edgeDescriptors)
-            : TTask(controller, std::move(edgeDescriptors))
+        TSortedTaskBase(TSortedControllerBase* controller, std::vector<TStreamDescriptor> streamDescriptors)
+            : TTask(controller, std::move(streamDescriptors))
             , Controller_(controller)
         {
             auto options = controller->GetSortedChunkPoolOptions();
@@ -507,9 +507,9 @@ protected:
         }
 
         if (autoMergeNeeded) {
-            SortedTask_ = New<TAutoMergeableSortedTask>(this, GetAutoMergeEdgeDescriptors());
+            SortedTask_ = New<TAutoMergeableSortedTask>(this, GetAutoMergeStreamDescriptors());
         } else {
-            SortedTask_ = New<TSortedTask>(this, GetStandardEdgeDescriptors());
+            SortedTask_ = New<TSortedTask>(this, GetStandardStreamDescriptors());
         }
         RegisterTask(SortedTask_);
 

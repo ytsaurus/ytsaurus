@@ -76,9 +76,9 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, TableIndex);
 }
 
-TEdgeDescriptor TOutputTable::GetEdgeDescriptorTemplate(int tableIndex)
+TStreamDescriptor TOutputTable::GetStreamDescriptorTemplate(int tableIndex)
 {
-    TEdgeDescriptor descriptor;
+    TStreamDescriptor descriptor;
     descriptor.TableUploadOptions = TableUploadOptions;
     descriptor.TableWriterOptions = CloneYsonSerializable(TableWriterOptions);
     descriptor.TableWriterOptions->TableIndex = tableIndex;

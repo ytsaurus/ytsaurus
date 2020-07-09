@@ -916,7 +916,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
         LockOutputTablesAndGetAttributes();
     }
 
-    InitializeStandardEdgeDescriptors();
+    InitializeStandardStreamDescriptors();
 
     YT_LOG_INFO("Operation prepared");
 
@@ -1491,10 +1491,10 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
 
     bool sortedOutputAutoMergeRequired = false;
 
-    auto standardEdgeDescriptors = GetStandardEdgeDescriptors();
+    auto standardStreamDescriptors = GetStandardStreamDescriptors();
 
-    std::vector<TEdgeDescriptor> edgeDescriptors;
-    edgeDescriptors.reserve(OutputTables_.size());
+    std::vector<TStreamDescriptor> streamDescriptors;
+    streamDescriptors.reserve(OutputTables_.size());
     AutoMergeEnabled_.resize(OutputTables_.size(), false);
     for (int index = 0; index < OutputTables_.size(); ++index) {
         const auto& outputTable = OutputTables_[index];
@@ -1502,18 +1502,18 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
             if (outputTable->TableUploadOptions.TableSchema->IsSorted()) {
                 sortedOutputAutoMergeRequired = true;
             } else {
-                auto edgeDescriptor = standardEdgeDescriptors[index];
+                auto streamDescriptor = standardStreamDescriptors[index];
                 // Auto-merge jobs produce single output, so we override the table
                 // index in writer options with 0.
-                edgeDescriptor.TableWriterOptions = CloneYsonSerializable(edgeDescriptor.TableWriterOptions);
-                edgeDescriptor.TableWriterOptions->TableIndex = 0;
-                edgeDescriptors.push_back(std::move(edgeDescriptor));
+                streamDescriptor.TableWriterOptions = CloneYsonSerializable(streamDescriptor.TableWriterOptions);
+                streamDescriptor.TableWriterOptions->TableIndex = 0;
+                streamDescriptors.push_back(std::move(streamDescriptor));
                 AutoMergeEnabled_[index] = true;
             }
         }
     }
 
-    bool autoMergeEnabled = !edgeDescriptors.empty();
+    bool autoMergeEnabled = !streamDescriptors.empty();
     if (autoMergeEnabled) {
         AutoMergeTask_ = New<TAutoMergeTask>(
             this /* taskHost */,
@@ -1521,7 +1521,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
             autoMergeSpec->ChunkSizeThreshold,
             dataWeightPerJob,
             Spec_->MaxDataWeightPerJob,
-            std::move(edgeDescriptors));
+            std::move(streamDescriptors));
         RegisterTask(AutoMergeTask_);
     }
 
@@ -1533,9 +1533,9 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, do
     return autoMergeEnabled;
 }
 
-std::vector<TEdgeDescriptor> TOperationControllerBase::GetAutoMergeEdgeDescriptors()
+std::vector<TStreamDescriptor> TOperationControllerBase::GetAutoMergeStreamDescriptors()
 {
-    auto edgeDescriptors = GetStandardEdgeDescriptors();
+    auto streamDescriptors = GetStandardStreamDescriptors();
     YT_VERIFY(GetAutoMergeDirector());
 
     std::optional<TString> intermediateDataAccount;
@@ -1545,21 +1545,21 @@ std::vector<TEdgeDescriptor> TOperationControllerBase::GetAutoMergeEdgeDescripto
     }
 
     int autoMergeTaskTableIndex = 0;
-    for (int index = 0; index < edgeDescriptors.size(); ++index) {
+    for (int index = 0; index < streamDescriptors.size(); ++index) {
         if (AutoMergeEnabled_[index]) {
-            edgeDescriptors[index].DestinationPool = AutoMergeTask_->GetChunkPoolInput();
-            edgeDescriptors[index].ChunkMapping = AutoMergeTask_->GetChunkMapping();
-            edgeDescriptors[index].ImmediatelyUnstageChunkLists = true;
-            edgeDescriptors[index].RequiresRecoveryInfo = true;
-            edgeDescriptors[index].IsFinalOutput = false;
-            edgeDescriptors[index].TargetDescriptor = AutoMergeTask_->GetVertexDescriptor();
-            edgeDescriptors[index].PartitionTag = autoMergeTaskTableIndex++;
+            streamDescriptors[index].DestinationPool = AutoMergeTask_->GetChunkPoolInput();
+            streamDescriptors[index].ChunkMapping = AutoMergeTask_->GetChunkMapping();
+            streamDescriptors[index].ImmediatelyUnstageChunkLists = true;
+            streamDescriptors[index].RequiresRecoveryInfo = true;
+            streamDescriptors[index].IsFinalOutput = false;
+            streamDescriptors[index].TargetDescriptor = AutoMergeTask_->GetVertexDescriptor();
+            streamDescriptors[index].PartitionTag = autoMergeTaskTableIndex++;
             if (intermediateDataAccount) {
-                edgeDescriptors[index].TableWriterOptions->Account = *intermediateDataAccount;
+                streamDescriptors[index].TableWriterOptions->Account = *intermediateDataAccount;
             }
         }
     }
-    return edgeDescriptors;
+    return streamDescriptors;
 }
 
 THashSet<TChunkId> TOperationControllerBase::GetAliveIntermediateChunks() const
@@ -4786,21 +4786,21 @@ void TOperationControllerBase::CheckFailedJobsStatusReceived()
     }
 }
 
-const std::vector<TEdgeDescriptor>& TOperationControllerBase::GetStandardEdgeDescriptors() const
+const std::vector<TStreamDescriptor>& TOperationControllerBase::GetStandardStreamDescriptors() const
 {
-    return StandardEdgeDescriptors_;
+    return StandardStreamDescriptors_;
 }
 
-void TOperationControllerBase::InitializeStandardEdgeDescriptors()
+void TOperationControllerBase::InitializeStandardStreamDescriptors()
 {
-    StandardEdgeDescriptors_.resize(OutputTables_.size());
+    StandardStreamDescriptors_.resize(OutputTables_.size());
     for (int index = 0; index < OutputTables_.size(); ++index) {
-        StandardEdgeDescriptors_[index] = OutputTables_[index]->GetEdgeDescriptorTemplate(index);
-        StandardEdgeDescriptors_[index].DestinationPool = GetSink();
-        StandardEdgeDescriptors_[index].IsFinalOutput = true;
-        StandardEdgeDescriptors_[index].LivePreviewIndex = index;
-        StandardEdgeDescriptors_[index].TargetDescriptor = TDataFlowGraph::SinkDescriptor;
-        StandardEdgeDescriptors_[index].PartitionTag = index;
+        StandardStreamDescriptors_[index] = OutputTables_[index]->GetStreamDescriptorTemplate(index);
+        StandardStreamDescriptors_[index].DestinationPool = GetSink();
+        StandardStreamDescriptors_[index].IsFinalOutput = true;
+        StandardStreamDescriptors_[index].LivePreviewIndex = index;
+        StandardStreamDescriptors_[index].TargetDescriptor = TDataFlowGraph::SinkDescriptor;
+        StandardStreamDescriptors_[index].PartitionTag = index;
     }
 }
 
@@ -6980,7 +6980,7 @@ void TOperationControllerBase::RegisterStderr(const TJobletPtr& joblet, const TJ
     if (boundaryKeys.empty()) {
         return;
     }
-    auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, StderrTable_->GetEdgeDescriptorTemplate(), RowBuffer);
+    auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, StderrTable_->GetStreamDescriptorTemplate(), RowBuffer);
     StderrTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
 
     YT_LOG_DEBUG("Stderr chunk tree registered (ChunkListId: %v)",
@@ -7019,7 +7019,7 @@ void TOperationControllerBase::RegisterCores(const TJobletPtr& joblet, const TJo
     if (boundaryKeys.empty()) {
         return;
     }
-    auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, CoreTable_->GetEdgeDescriptorTemplate(), RowBuffer);
+    auto key = BuildBoundaryKeysFromOutputResult(boundaryKeys, CoreTable_->GetStreamDescriptorTemplate(), RowBuffer);
     CoreTable_->OutputChunkTreeIds.emplace_back(key, chunkListId);
 }
 
@@ -7060,7 +7060,7 @@ void TOperationControllerBase::RegisterTeleportChunk(
         ToProto(resultBoundaryKeys.mutable_min(), chunk->BoundaryKeys()->MinKey);
         ToProto(resultBoundaryKeys.mutable_max(), chunk->BoundaryKeys()->MaxKey);
 
-        key = BuildBoundaryKeysFromOutputResult(resultBoundaryKeys, StandardEdgeDescriptors_[tableIndex], RowBuffer);
+        key = BuildBoundaryKeysFromOutputResult(resultBoundaryKeys, StandardStreamDescriptors_[tableIndex], RowBuffer);
     }
 
     table->OutputChunkTreeIds.emplace_back(key, chunk->ChunkId());
@@ -8690,9 +8690,9 @@ TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptio
     return options;
 }
 
-TEdgeDescriptor TOperationControllerBase::GetIntermediateEdgeDescriptorTemplate() const
+TStreamDescriptor TOperationControllerBase::GetIntermediateStreamDescriptorTemplate() const
 {
-    TEdgeDescriptor descriptor;
+    TStreamDescriptor descriptor;
     descriptor.CellTag = GetIntermediateOutputCellTag();
     descriptor.TableWriterOptions = GetIntermediateTableWriterOptions();
     descriptor.TableWriterConfig = BuildYsonStringFluently()

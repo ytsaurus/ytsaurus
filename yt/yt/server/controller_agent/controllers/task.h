@@ -36,7 +36,7 @@ public:
 public:
     //! For persistence only.
     TTask();
-    TTask(ITaskHostPtr taskHost, std::vector<TEdgeDescriptor> edgeDescriptors);
+    TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptor> streamDescriptors);
     explicit TTask(ITaskHostPtr taskHost);
 
     //! This method is called on task object creation (both at clean creation and at revival).
@@ -112,7 +112,7 @@ public:
         TError error,
         NChunkPools::IChunkPoolInput::TCookie cookie,
         const NChunkPools::TChunkStripePtr& stripe,
-        const TEdgeDescriptor& edgeDescriptor);
+        const TStreamDescriptor& streamDescriptor);
 
     // First checks against a given node, then against all nodes if needed.
     void CheckResourceDemandSanity(
@@ -172,7 +172,7 @@ public:
     void BuildTaskYson(NYTree::TFluentMap fluent) const;
 
     virtual void PropagatePartitions(
-        const std::vector<TEdgeDescriptor>& edgeDescriptors,
+        const std::vector<TStreamDescriptor>& streamDescriptors,
         const NChunkPools::TChunkStripeListPtr& inputStripeList,
         std::vector<NChunkPools::TChunkStripePtr>* outputStripes);
 
@@ -184,8 +184,8 @@ protected:
     //! Raw pointer here avoids cyclic reference; task cannot live longer than its host.
     ITaskHost* TaskHost_;
 
-    //! Outgoing edges in data flow graph.
-    std::vector<TEdgeDescriptor> EdgeDescriptors_;
+    //! Outgoing data stream descriptors.
+    std::vector<TStreamDescriptor> StreamDescriptors_;
 
     //! Increments each time a new job in this task is scheduled.
     TIdGenerator TaskJobIndexGenerator_;
@@ -232,7 +232,7 @@ protected:
     // Send stripe to the next chunk pool.
     void RegisterStripe(
         NChunkPools::TChunkStripePtr chunkStripe,
-        const TEdgeDescriptor& edgeDescriptor,
+        const TStreamDescriptor& streamDescriptor,
         TJobletPtr joblet,
         NChunkPools::TChunkStripeKey key = NChunkPools::TChunkStripeKey());
 
@@ -271,7 +271,7 @@ protected:
     virtual NScheduler::TExtendedJobResources GetMinNeededResourcesHeavy() const = 0;
     virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
 
-    virtual void SetEdgeDescriptors(TJobletPtr joblet) const;
+    virtual void SetStreamDescriptors(TJobletPtr joblet) const;
 
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TTask, 0x81ab3cd3);

@@ -37,8 +37,8 @@ public:
         TVanillaTaskSpecPtr spec,
         TString name, TTaskGroupPtr
         taskGroup,
-        std::vector<TEdgeDescriptor> edgeDescriptors)
-        : TTask(std::move(taskHost), std::move(edgeDescriptors))
+        std::vector<TStreamDescriptor> streamDescriptors)
+        : TTask(std::move(taskHost), std::move(streamDescriptors))
         , Spec_(std::move(spec))
         , Name_(std::move(name))
         , TaskGroup_(taskGroup.Get())
@@ -224,14 +224,14 @@ public:
         TaskGroup_ = New<TTaskGroup>();
         RegisterTaskGroup(TaskGroup_);
         for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
-            std::vector<TEdgeDescriptor> edgeDescriptors;
+            std::vector<TStreamDescriptor> streamDescriptors;
             int taskIndex = Tasks.size();
             for (int index = 0; index < TaskOutputTables_[taskIndex].size(); ++index) {
-                edgeDescriptors.emplace_back(TaskOutputTables_[taskIndex][index]->GetEdgeDescriptorTemplate(index));
-                edgeDescriptors.back().DestinationPool = GetSink();
-                edgeDescriptors.back().TargetDescriptor = TDataFlowGraph::SinkDescriptor;
+                streamDescriptors.emplace_back(TaskOutputTables_[taskIndex][index]->GetStreamDescriptorTemplate(index));
+                streamDescriptors.back().DestinationPool = GetSink();
+                streamDescriptors.back().TargetDescriptor = TDataFlowGraph::SinkDescriptor;
             }
-            auto task = New<TVanillaTask>(this, taskSpec, taskName, TaskGroup_, std::move(edgeDescriptors));
+            auto task = New<TVanillaTask>(this, taskSpec, taskName, TaskGroup_, std::move(streamDescriptors));
             RegisterTask(task);
             FinishTaskInput(task);
             Tasks_.emplace_back(std::move(task));

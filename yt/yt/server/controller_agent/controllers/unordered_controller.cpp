@@ -64,8 +64,8 @@ public:
             : Controller_(nullptr)
         { }
 
-        TUnorderedTaskBase(TUnorderedControllerBase* controller, std::vector<TEdgeDescriptor> edgeDescriptors)
-            : TTask(controller, std::move(edgeDescriptors))
+        TUnorderedTaskBase(TUnorderedControllerBase* controller, std::vector<TStreamDescriptor> streamDescriptors)
+            : TTask(controller, std::move(streamDescriptors))
             , Controller_(controller)
         {
             auto options = Controller_->GetUnorderedChunkPoolOptions();
@@ -356,9 +356,9 @@ protected:
         auto autoMergeEnabled = TryInitAutoMerge(JobSizeConstraints_->GetJobCount(), DataWeightRatio);
 
         if (autoMergeEnabled) {
-            UnorderedTask_ = New<TAutoMergeableUnorderedTask>(this, GetAutoMergeEdgeDescriptors());
+            UnorderedTask_ = New<TAutoMergeableUnorderedTask>(this, GetAutoMergeStreamDescriptors());
         } else {
-            UnorderedTask_ = New<TUnorderedTask>(this, GetStandardEdgeDescriptors());
+            UnorderedTask_ = New<TUnorderedTask>(this, GetStandardStreamDescriptors());
         }
 
         RegisterTask(UnorderedTask_);
