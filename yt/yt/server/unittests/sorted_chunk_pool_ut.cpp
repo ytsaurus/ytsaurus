@@ -346,7 +346,7 @@ protected:
 
     void ExtractOutputCookiesWhilePossible()
     {
-        while (ChunkPool_->GetPendingJobCount()) {
+        while (ChunkPool_->GetJobCounter()->GetPending()) {
             ExtractedCookies_.emplace_back(ExtractCookie(TNodeId(0)));
         }
     }
@@ -368,6 +368,7 @@ protected:
         saveContext.SetOutput(&output);
         Save(saveContext, ChunkPool_);
         Save(saveContext, MultiChunkPool_);
+        Save(saveContext, UnderlyingPools__);
         auto blob = output.Flush();
         ChunkPool_.Reset();
 
@@ -378,6 +379,7 @@ protected:
         loadContext.SetInput(&input);
         Load(loadContext, ChunkPool_);
         Load(loadContext, MultiChunkPool_);
+        Load(loadContext, UnderlyingPools__);
         ChunkPool_->SubscribeChunkTeleported(
             BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
                 TeleportChunks_.push_back(std::move(teleportChunk));
@@ -626,6 +628,8 @@ protected:
 
     IChunkPoolPtr ChunkPool_;
     IMultiChunkPoolPtr MultiChunkPool_;
+
+    std::vector<IChunkPoolPtr> UnderlyingPools__;
 
     //! Set containing all unversioned primary input chunks that have ever been created.
     THashSet<TInputChunkPtr> CreatedUnversionedPrimaryChunks_;
@@ -1780,7 +1784,7 @@ TEST_F(TSortedChunkPoolTest, ManiacIsSliced)
     AddChunk(chunkA);
 
     ChunkPool_->Finish();
-    EXPECT_GE(ChunkPool_->GetPendingJobCount(), 100 / 2);
+    EXPECT_GE(ChunkPool_->GetJobCounter()->GetPending(), 100 / 2);
 }
 
 TEST_F(TSortedChunkPoolTest, MaxTotalSliceCountExceeded)
@@ -2066,15 +2070,15 @@ TEST_F(TSortedChunkPoolTest, TestJobSplitStripeSuspension)
 
     OutputCookies_.clear();
 
-    int pendingJobCount = ChunkPool_->GetPendingJobCount();
+    int pendingJobCount = ChunkPool_->GetJobCounter()->GetPending();
     ASSERT_LE(8, pendingJobCount);
     ASSERT_LE(pendingJobCount, 12);
     SuspendChunk(0);
-    ASSERT_EQ(ChunkPool_->GetPendingJobCount(), pendingJobCount - 1);
+    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), pendingJobCount - 1);
     for (int cookie = chunkCount; cookie < chunkCount + foreignChunkCount; ++cookie) {
         SuspendChunk(cookie);
     }
-    ASSERT_EQ(0, ChunkPool_->GetPendingJobCount());
+    ASSERT_EQ(0, ChunkPool_->GetJobCounter()->GetPending());
 }
 
 TEST_F(TSortedChunkPoolTest, TestCorrectOrderInsideStripe)
@@ -2744,15 +2748,15 @@ TEST_F(TSortedChunkPoolTest, Sampling)
 
     ChunkPool_->Finish();
 
-    Cerr << "Pending job count: " << ChunkPool_->GetPendingJobCount() << Endl;
-    EXPECT_LE(40, ChunkPool_->GetPendingJobCount());
-    EXPECT_GE(60, ChunkPool_->GetPendingJobCount());
+    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    EXPECT_LE(40, ChunkPool_->GetJobCounter()->GetPending());
+    EXPECT_GE(60, ChunkPool_->GetJobCounter()->GetPending());
 
     ResetChunk(42, chunk42);
 
-    Cerr << "Pending job count: " << ChunkPool_->GetPendingJobCount() << Endl;
-    EXPECT_LE(40, ChunkPool_->GetPendingJobCount());
-    EXPECT_GE(60, ChunkPool_->GetPendingJobCount());
+    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    EXPECT_LE(40, ChunkPool_->GetJobCounter()->GetPending());
+    EXPECT_GE(60, ChunkPool_->GetJobCounter()->GetPending());
 }
 
 TEST_F(TSortedChunkPoolTest, SamplingWithEnlarging)
@@ -2782,15 +2786,15 @@ TEST_F(TSortedChunkPoolTest, SamplingWithEnlarging)
 
     ChunkPool_->Finish();
 
-    Cerr << "Pending job count: " << ChunkPool_->GetPendingJobCount() << Endl;
-    EXPECT_LE(3, ChunkPool_->GetPendingJobCount());
-    EXPECT_GE(7, ChunkPool_->GetPendingJobCount());
+    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    EXPECT_LE(3, ChunkPool_->GetJobCounter()->GetPending());
+    EXPECT_GE(7, ChunkPool_->GetJobCounter()->GetPending());
 
     ResetChunk(42, chunk42);
 
-    Cerr << "Pending job count: " << ChunkPool_->GetPendingJobCount() << Endl;
-    EXPECT_LE(3, ChunkPool_->GetPendingJobCount());
-    EXPECT_GE(7, ChunkPool_->GetPendingJobCount());
+    Cerr << "Pending job count: " << ChunkPool_->GetJobCounter()->GetPending() << Endl;
+    EXPECT_LE(3, ChunkPool_->GetJobCounter()->GetPending());
+    EXPECT_GE(7, ChunkPool_->GetJobCounter()->GetPending());
 }
 
 TEST_F(TSortedChunkPoolTest, EnlargingWithTeleportation)
@@ -2817,7 +2821,7 @@ TEST_F(TSortedChunkPoolTest, EnlargingWithTeleportation)
     ChunkPool_->Finish();
 
     EXPECT_EQ(1, TeleportChunks_.size());
-    EXPECT_EQ(2, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(2, ChunkPool_->GetJobCounter()->GetPending());
 }
 
 // YT-9791
@@ -2854,7 +2858,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder)
 
     ChunkPool_->Finish();
 
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     auto outputCookie = ChunkPool_->Extract(0);
     auto stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1, stripeList->Stripes.size());
@@ -2871,7 +2875,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder)
     jobSummary.UnreadInputDataSlices = unreadDataSlices;
     ChunkPool_->Completed(outputCookie, jobSummary);
 
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     outputCookie = ChunkPool_->Extract(0);
     stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1, stripeList->Stripes.size());
@@ -2913,7 +2917,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder2)
 
     ChunkPool_->Finish();
 
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     auto outputCookie = ChunkPool_->Extract(0);
     auto stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1, stripeList->Stripes.size());
@@ -2931,7 +2935,7 @@ TEST_F(TSortedChunkPoolTest, TrickySliceSortOrder2)
     jobSummary.UnreadInputDataSlices = unreadDataSlices;
     ChunkPool_->Completed(outputCookie, jobSummary);
 
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     outputCookie = ChunkPool_->Extract(0);
     stripeList = ChunkPool_->GetStripeList(outputCookie);
     EXPECT_EQ(1, stripeList->Stripes.size());
@@ -2994,7 +2998,7 @@ public:
     }
 };
 
-static constexpr int NumberOfRepeats = 15;
+static constexpr int NumberOfRepeats = 100;
 
 TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 {
@@ -3008,8 +3012,10 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     DataSizePerJob_ = 1_KB;
     InitJobConstraints();
 
-    constexpr int chunkCount = 50;
+    constexpr int maxChunkCount = 100;
     constexpr int maxUnderlyingPoolCount = 10;
+
+    int chunkCount = std::uniform_int_distribution<>(0, maxChunkCount)(Gen_);
 
     for (int index = 0; index < chunkCount; ++index) {
         auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
@@ -3017,22 +3023,24 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
     bool useMultiPool = get<1>(GetParam());
     int underlyingPoolCount = 0;
-    std::vector<IChunkPoolPtr> underlyingPools;
-    int addedUnderlyingPoolCount = 0;
+    std::vector<IChunkPoolPtr> UnderlyingPools_;
+    THashSet<int> pendingUnderlyingPoolIndexes;
 
     if (useMultiPool) {
         // Multi pool created of several sorted subpools.
-        underlyingPoolCount = std::uniform_int_distribution<>(1, maxUnderlyingPoolCount)(Gen_);
-        underlyingPools.reserve(underlyingPoolCount);
+        underlyingPoolCount = std::uniform_int_distribution<>(2, maxUnderlyingPoolCount)(Gen_);
+        UnderlyingPools_.reserve(underlyingPoolCount);
         for (int poolIndex = 0; poolIndex < underlyingPoolCount; ++poolIndex) {
-            underlyingPools.push_back(CreateSortedChunkPool(
+            UnderlyingPools_.push_back(CreateSortedChunkPool(
                 Options_,
                 nullptr,
                 TInputStreamDirectory(InputTables_)));
+            if (poolIndex != 0) {
+                pendingUnderlyingPoolIndexes.insert(poolIndex);
+            }
         }
-        MultiChunkPool_ = CreateMultiChunkPool({underlyingPools[0]});
+        MultiChunkPool_ = CreateMultiChunkPool({UnderlyingPools_[0]});
         ChunkPool_ = MultiChunkPool_;
-        addedUnderlyingPoolCount = 1;
         ChunkPool_->SubscribeChunkTeleported(
             BIND([this] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
                 TeleportChunks_.push_back(std::move(teleportChunk));
@@ -3109,14 +3117,14 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         ChunkPool_->Finish();
     }
 
-    ASSERT_EQ(ChunkPool_->GetPendingJobCount(), stripesByPoolIndex[0].size());
+    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), stripesByPoolIndex[0].size());
 
     // Set this to true when debugging locally. It helps a lot to understand what happens.
     constexpr bool EnableDebugOutput = false;
     IOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
 
     int invalidationCount = 0;
-    const int MaxInvalidationCount = 5;
+    const int MaxInvalidationCount = 10;
 
     auto invalidate = [&] (std::optional<int> underlyingPoolIndex) {
         std::vector<TChunkId> toDeleteInStarted;
@@ -3167,7 +3175,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
     };
 
     while (completedChunks.size() < chunkCount) {
-        YT_VERIFY(!ChunkPool_->IsCompleted());
+        EXPECT_FALSE(ChunkPool_->IsCompleted());
 
         // 0..0 - pool is persisted and restored;
         // 1..19 - chunk is suspended;
@@ -3180,8 +3188,8 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         // 98..99 - add new pool to multi pool if multi pool is used.
         int eventType = dice(Gen_);
         if (eventType <= 0) {
-            Cdebug << "Persisting and restoring the pool" << Endl;
-            PersistAndRestore();
+           Cdebug << "Persisting and restoring the pool" << Endl;
+           PersistAndRestore();
         } else if (eventType <= 19) {
             if (auto randomElement = chooseRandomElement(resumedCookies)) {
                 auto cookie = *randomElement;
@@ -3221,7 +3229,7 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 invalidate(useMultiPool ? std::make_optional(ChunkIdToUnderlyingPoolIndex_[chunkId]) : std::nullopt);
             }
         } else if (eventType <= 69) {
-            if (ChunkPool_->GetPendingJobCount()) {
+            if (ChunkPool_->GetJobCounter()->GetPending()) {
                 auto outputCookie = ExtractCookie(TNodeId(0));
                 Cdebug << Format("Extracted cookie %v...", outputCookie);
                 // TODO(max42): why the following line leads to the linkage error?
@@ -3271,23 +3279,32 @@ TEST_P(TSortedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ChunkPool_->Failed(outputCookie);
             }
         } else /* eventType <= 99 */ {
-            if (useMultiPool && addedUnderlyingPoolCount < underlyingPools.size()) {
-                auto poolIndex = addedUnderlyingPoolCount++;
+            if (useMultiPool && !pendingUnderlyingPoolIndexes.empty()) {
+                auto poolIndex = *chooseRandomElement(pendingUnderlyingPoolIndexes);
+                pendingUnderlyingPoolIndexes.erase(poolIndex);
                 Cdebug << Format("Adding pool %v to multi pool", poolIndex) << Endl;
-                MultiChunkPool_->AddPool(underlyingPools[poolIndex]);
+                MultiChunkPool_->AddPool(UnderlyingPools_[poolIndex], poolIndex);
                 for (const auto& stripe : stripesByPoolIndex[poolIndex]) {
                     registerStripe(stripe);
                 }
                 MultiChunkPool_->FinishPool(poolIndex);
-                if (addedUnderlyingPoolCount == underlyingPools.size()) {
-                    // Finilize output part.
-                    MultiChunkPool_->Finalize();
-                }
             }
         }
     }
+    if (useMultiPool) {
+        // Add empty underlying pools.
+        for (auto poolIndex : pendingUnderlyingPoolIndexes) {
+            MultiChunkPool_->AddPool(UnderlyingPools_[poolIndex], poolIndex);
+            MultiChunkPool_->FinishPool(poolIndex);
+        }
+        MultiChunkPool_->Finalize();
+    }
+
     ASSERT_TRUE(ChunkPool_->IsCompleted());
-    ASSERT_EQ(ChunkPool_->GetPendingJobCount(), 0);
+    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 0);
+    ASSERT_EQ(ChunkPool_->GetDataWeightCounter()->GetTotal(), 1024 * chunkCount);
+    ASSERT_EQ(ChunkPool_->GetRowCounter()->GetTotal(), 1000 * chunkCount);
+    ASSERT_EQ(ChunkPool_->GetDataSliceCounter()->GetTotal(), chunkCount);
     ASSERT_EQ(completedChunks.size(), chunkCount);
     ASSERT_EQ(pendingChunks.size(), 0);
     ASSERT_EQ(startedChunks.size(), 0);

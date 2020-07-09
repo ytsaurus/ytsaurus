@@ -36,7 +36,6 @@ public:
         YT_VERIFY(stripe->PartitionTag);
         auto poolIndex = *stripe->PartitionTag;
         auto* pool = Pool(poolIndex);
-        auto guard = MakeGuard(poolIndex);
         auto cookie = pool->Add(std::move(stripe));
 
         return AddCookie(poolIndex, cookie);
@@ -47,7 +46,6 @@ public:
         YT_VERIFY(stripe->PartitionTag);
         auto poolIndex = *stripe->PartitionTag;
         auto* pool = Pool(poolIndex);
-        auto guard = MakeGuard(poolIndex);
         auto cookie = pool->AddWithKey(std::move(stripe), key);
 
         return AddCookie(poolIndex, cookie);
@@ -57,7 +55,6 @@ public:
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
         auto* pool = Pool(poolIndex);
-        auto guard = MakeGuard(poolIndex);
         pool->Suspend(cookie);
     }
 
@@ -65,7 +62,6 @@ public:
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
         auto* pool = Pool(poolIndex);
-        auto guard = MakeGuard(poolIndex);
         pool->Resume(cookie);
     }
 
@@ -77,7 +73,6 @@ public:
         auto [poolIndex, cookie] = Cookie(externalCookie);
         stripe->PartitionTag = poolIndex;
         auto* cookiePool = Pool(poolIndex);
-        auto guard = MakeGuard(poolIndex);
 
         cookiePool->Reset(cookie, std::move(stripe), std::move(mapping));
     }
@@ -85,8 +80,9 @@ public:
     virtual void FinishPool(int poolIndex) override
     {
         auto* pool = Pool(poolIndex);
-        auto guard = MakeGuard(poolIndex);
-        pool->Finish();
+        if (pool) {
+            pool->Finish();
+        }
     }
 
     virtual void Finish() override
@@ -145,16 +141,14 @@ protected:
         return UnderlyingPools_[poolIndex].Get();
     }
 
-    void AddPoolInput(IChunkPoolInputPtr pool)
+    void AddPoolInput(IChunkPoolInputPtr pool, int poolIndex)
     {
-        UnderlyingPools_.emplace_back(std::move(pool));
-    }
+        if (poolIndex >= UnderlyingPools_.size()) {
+            UnderlyingPools_.resize(poolIndex + 1);
+        }
 
-    //! It's required to create such a guard before any mutating actions with underlying pools
-    //! to have cumulative statistics consistent with underlying pools' statistics.
-    virtual std::any MakeGuard(int /*poolIndex*/)
-    {
-        return std::any{};
+        YT_VERIFY(!UnderlyingPools_[poolIndex]);
+        UnderlyingPools_[poolIndex] = std::move(pool);
     }
 };
 
@@ -175,52 +169,20 @@ public:
     TMultiChunkPoolOutput() = default;
 
     explicit TMultiChunkPoolOutput(std::vector<IChunkPoolOutputPtr> underlyingPools)
-        : UnderlyingPools_(std::move(underlyingPools))
-        , PendingPoolIterators_(UnderlyingPools_.size(), PendingPools_.end())
     {
-        // AddPoolStatistics adds pool to the beginning of the pending pool queue, so we add pools here in reverse
-        // order to make order in queue more natural.
-        for (int poolIndex = static_cast<int>(UnderlyingPools_.size()) - 1; poolIndex >= 0; --poolIndex) {
-            auto* pool = Pool(poolIndex);
+        UnderlyingPools_.reserve(underlyingPools.size());
+        PendingPoolIterators_.reserve(underlyingPools.size());
+
+        for (int poolIndex = 0; poolIndex < underlyingPools.size(); ++poolIndex) {
+            const auto& pool = underlyingPools[poolIndex];
 
             // Chunk pools with output order are not supported.
             YT_VERIFY(!pool->GetOutputOrder());
 
-            if (const auto& jobCounter = pool->GetJobCounter()) {
-                jobCounter->SetParent(JobCounter_);
-            }
-
-            pool->SubscribeChunkTeleported(
-                BIND([this, poolIndex] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
-                    ChunkTeleported_.Fire(std::move(teleportChunk), poolIndex);
-                }));
-            AddPoolStatistics(poolIndex, +1);
+            AddPoolOutput(std::move(pool), poolIndex);
         }
-    }
 
-    virtual i64 GetTotalDataWeight() const override
-    {
-        return TotalDataWeight_;
-    }
-
-    virtual i64 GetRunningDataWeight() const override
-    {
-        return RunningDataWeight_;
-    }
-
-    virtual i64 GetCompletedDataWeight() const override
-    {
-        return CompletedDataWeight_;
-    }
-
-    virtual i64 GetPendingDataWeight() const override
-    {
-        return PendingDataWeight_;
-    }
-
-    virtual i64 GetTotalRowCount() const override
-    {
-        return TotalRowCount_;
+        CheckCompleted();
     }
 
     const TProgressCounterPtr& GetJobCounter() const override
@@ -228,9 +190,19 @@ public:
         return JobCounter_;
     }
 
-    virtual i64 GetDataSliceCount() const override
+    const TProgressCounterPtr& GetDataWeightCounter() const override
     {
-        return DataSliceCount_;
+        return DataWeightCounter_;
+    }
+
+    const TProgressCounterPtr& GetRowCounter() const override
+    {
+        return RowCounter_;
+    }
+
+    const TProgressCounterPtr& GetDataSliceCounter() const override
+    {
+        return DataSliceCounter_;
     }
 
     virtual TOutputOrderPtr GetOutputOrder() const override
@@ -260,8 +232,7 @@ public:
         }
 
         auto poolIndex = CurrentPoolIndex();
-        auto guard = MakeGuard(poolIndex);
-        auto cookie = Pool(poolIndex)->Extract();
+        auto cookie = Pool(poolIndex)->Extract(nodeId);
         YT_VERIFY(cookie != NullCookie);
 
         auto externalCookie = Cookies_.size();
@@ -270,10 +241,33 @@ public:
         return externalCookie;
     }
 
+    virtual TExternalCookie ExtractFromPool(int underlyingPoolIndexHint, TNodeId nodeId)
+    {
+        // NB(gritukan): SortedMerge task can try to extract cookie from partition
+        // that was not registered in its pool yet. Do not crash in this case.
+        if (underlyingPoolIndexHint >= UnderlyingPools_.size()) {
+            return Extract(nodeId);
+        }
+
+        auto* pool = Pool(underlyingPoolIndexHint);
+        if (!pool) {
+            return Extract(nodeId);
+        }
+
+        auto cookie = pool->Extract(nodeId);
+        if (cookie == NullCookie) {
+            return Extract(nodeId);
+        } else {
+            auto externalCookie = Cookies_.size();
+            Cookies_.emplace_back(underlyingPoolIndexHint, cookie);
+
+            return externalCookie;
+        }
+    }
+
     virtual TChunkStripeListPtr GetStripeList(TExternalCookie externalCookie) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
-        auto poolGuard = MakeGuard(poolIndex);
         auto stripeList = Pool(poolIndex)->GetStripeList(cookie);
         stripeList->PartitionTag = poolIndex;
 
@@ -282,17 +276,7 @@ public:
 
     virtual bool IsCompleted() const override
     {
-        return Finalized_ && ActivePoolCount_ == 0;
-    }
-
-    virtual int GetTotalJobCount() const override
-    {
-        return TotalJobCount_;
-    }
-
-    virtual int GetPendingJobCount() const override
-    {
-        return PendingJobCount_;
+        return IsCompleted_;
     }
 
     virtual int GetStripeListSliceCount(TExternalCookie externalCookie) const override
@@ -304,47 +288,56 @@ public:
     virtual void Completed(TExternalCookie externalCookie, const TCompletedJobSummary& jobSummary) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
-        auto guard = MakeGuard(poolIndex);
         Pool(poolIndex)->Completed(cookie, jobSummary);
     }
 
     virtual void Failed(TExternalCookie externalCookie) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
-        auto guard = MakeGuard(poolIndex);
         Pool(poolIndex)->Failed(cookie);
     }
 
     virtual void Aborted(TExternalCookie externalCookie, EAbortReason reason) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
-        auto guard = MakeGuard(poolIndex);
         Pool(poolIndex)->Aborted(cookie, reason);
     }
     
     virtual void Lost(TExternalCookie externalCookie) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
-        auto guard = MakeGuard(poolIndex);
         Pool(poolIndex)->Lost(cookie);
     }
 
     virtual void Finalize() override
     {
         Finalized_ = true;
+        CheckCompleted();
     }
 
-    virtual void AddPoolOutput(IChunkPoolOutputPtr pool) override
+    virtual void AddPoolOutput(IChunkPoolOutputPtr pool, int poolIndex) override
     {
-        auto poolIndex = UnderlyingPools_.size();
-        pool->SubscribeChunkTeleported(
-            BIND([this, poolIndex] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
-                ChunkTeleported_.Fire(std::move(teleportChunk), poolIndex);
-            }));
-        UnderlyingPools_.emplace_back(std::move(pool));
-        PendingPoolIterators_.push_back(PendingPools_.end());
-        YT_VERIFY(UnderlyingPools_.size() == PendingPoolIterators_.size());
-        AddPoolStatistics(poolIndex, +1);
+        if (poolIndex >= UnderlyingPools_.size()) {
+            UnderlyingPools_.resize(poolIndex + 1);
+            PendingPoolIterators_.resize(poolIndex + 1, PendingPools_.end());
+        }
+
+        YT_VERIFY(!UnderlyingPools_[poolIndex]);
+        YT_VERIFY(PendingPoolIterators_[poolIndex] == PendingPools_.end());
+
+        pool->GetJobCounter()->AddParent(JobCounter_);
+        pool->GetDataWeightCounter()->AddParent(DataWeightCounter_);
+        pool->GetRowCounter()->AddParent(RowCounter_);
+        pool->GetDataSliceCounter()->AddParent(DataSliceCounter_);
+
+        if (!pool->IsCompleted()) {
+            ++ActivePoolCount_;
+        }
+
+        UnderlyingPools_[poolIndex] = std::move(pool);
+
+        SetupCallbacks(poolIndex);
+        OnUnderlyingPoolPendingJobCountChanged(poolIndex);
     }
 
     virtual void Persist(const TPersistenceContext& context) override
@@ -352,22 +345,24 @@ public:
         using ::NYT::Persist;
 
         Persist(context, UnderlyingPools_);
+        Persist(context, ActivePoolCount_);
         Persist(context, JobCounter_);
+        Persist(context, DataWeightCounter_);
+        Persist(context, RowCounter_);
+        Persist(context, DataSliceCounter_);
         Persist<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>(context, Cookies_);
         Persist(context, Finalized_);
+        Persist(context, IsCompleted_);
 
         if (context.IsLoad()) {
             // NB(gritukan): It seems hard to persist list iterators, so we do not persist statistics
             // and restore them from scratch here using underlying pools statistics.
             PendingPoolIterators_ = std::vector<std::list<int>::iterator>(UnderlyingPools_.size(), PendingPools_.end());
             for (int poolIndex = static_cast<int>(UnderlyingPools_.size()) - 1; poolIndex >= 0; --poolIndex) {
-                auto* pool = Pool(poolIndex);
-                AddPoolStatistics(poolIndex, +1);
-
-                pool->SubscribeChunkTeleported(
-                    BIND([this, poolIndex] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
-                        ChunkTeleported_.Fire(std::move(teleportChunk), poolIndex);
-                    }));
+                if (Pool(poolIndex)) {
+                    SetupCallbacks(poolIndex);
+                    OnUnderlyingPoolPendingJobCountChanged(poolIndex);
+                }
             }
         }
     }
@@ -377,35 +372,20 @@ protected:
 
     std::vector<IChunkPoolOutputPtr> UnderlyingPools_;
 
-    //! Sum of total data weight over all underlying pools.
-    i64 TotalDataWeight_ = 0;
-
-    //! Sum of running data weight over all underlying pools.
-    i64 RunningDataWeight_ = 0;
-
-    //! Sum of completed data weight over all underlying pools.
-    i64 CompletedDataWeight_ = 0;
-
-    //! Sum of pending data weight over all underlying pools.
-    i64 PendingDataWeight_ = 0;
-
-    //! Sum of total row count over all underlying pools.
-    i64 TotalRowCount_ = 0;
+    //! Number of uncompleted pools.
+    int ActivePoolCount_ = 0;
 
     //! Parent of all underlying pool job counters.
-    TProgressCounterPtr JobCounter_ = New<TProgressCounter>(0);
+    TProgressCounterPtr JobCounter_ = New<TProgressCounter>();
 
-    //! Sum of data slice count over all underlying pools.
-    i64 DataSliceCount_ = 0;
+    //! Parent of all underlying pool data weight counters.
+    TProgressCounterPtr DataWeightCounter_ = New<TProgressCounter>();
 
-    //! Sum of total job count over all underlying pools.
-    int TotalJobCount_ = 0;
+    //! Parent of all underlying pool row counters.
+    TProgressCounterPtr RowCounter_ = New<TProgressCounter>();
 
-    //! Sum of pending job count over all underlying pools.
-    int PendingJobCount_ = 0;
-
-    //! Number of active (incomplete) chunk pools.
-    int ActivePoolCount_ = 0;
+    //! Parent of all underlying pool data slice counters.
+    TProgressCounterPtr DataSliceCounter_ = New<TProgressCounter>();
 
     std::vector<TCookieDescriptor> Cookies_;
 
@@ -417,6 +397,9 @@ protected:
 
     //! If true, no new underlying pool will be added.
     bool Finalized_ = false;
+
+    //! Whether pool is completed.
+    bool IsCompleted_ = false;
 
     const IChunkPoolOutput* Pool(int poolIndex) const
     {
@@ -451,63 +434,50 @@ protected:
         return Cookies_[externalCookie];
     }
 
-    //! Adds `pool' statistics multiplied by `multiplier' to cumulative pool statistics.
-    void AddPoolStatistics(int poolIndex, int multiplier)
+    void CheckCompleted()
     {
-        auto* pool = Pool(poolIndex);
+        bool completed = Finalized_ && (ActivePoolCount_ == 0);
 
-        TotalDataWeight_ += pool->GetTotalDataWeight() * multiplier;
-        RunningDataWeight_ += pool->GetRunningDataWeight() * multiplier;
-        CompletedDataWeight_ += pool->GetCompletedDataWeight() * multiplier;
-        PendingDataWeight_ += pool->GetPendingDataWeight() * multiplier;
-        TotalRowCount_ += pool->GetTotalRowCount() * multiplier;
-        DataSliceCount_ += pool->GetDataSliceCount() * multiplier;
-        TotalJobCount_ += pool->GetTotalJobCount() * multiplier;
-        PendingJobCount_ += pool->GetPendingJobCount() * multiplier;
-        ActivePoolCount_ += static_cast<int>(!pool->IsCompleted()) * multiplier;
-
-        if (!pool->IsCompleted() && pool->GetPendingJobCount() > 0) {
-            if (multiplier == 1) {
-                auto& poolIterator = PendingPoolIterators_[poolIndex];
-                YT_VERIFY(poolIterator == PendingPools_.end());
-                poolIterator = PendingPools_.insert(PendingPools_.begin(), poolIndex);
-            } else {
-                YT_VERIFY(multiplier == -1);
-                auto& poolIterator = PendingPoolIterators_[poolIndex];
-                YT_VERIFY(poolIterator != PendingPools_.end());
-                PendingPools_.erase(poolIterator);
-                poolIterator = PendingPools_.end();
-            }
+        if (!IsCompleted_ && completed) {
+            Completed_.Fire();
+        } else if (IsCompleted_ && !completed) {
+            Uncompleted_.Fire();
         }
+
+        IsCompleted_ = completed;
     }
 
-    class TPoolModificationGuard
+    void SetupCallbacks(int poolIndex)
     {
-    public:
-        TPoolModificationGuard(
-            TMultiChunkPoolOutput* owner,
-            int poolIndex)
-            : Owner_(owner)
-            , PoolIndex_(poolIndex)
-        {
-            Owner_->AddPoolStatistics(PoolIndex_, -1);
-        }
+        auto* pool = Pool(poolIndex);
+        pool->SubscribeChunkTeleported(
+            BIND([this, poolIndex] (TInputChunkPtr teleportChunk, std::any /*tag*/) {
+                ChunkTeleported_.Fire(std::move(teleportChunk), poolIndex);
+            }));
+        pool->SubscribeCompleted(BIND([this] {
+            --ActivePoolCount_;
+            YT_VERIFY(ActivePoolCount_ >= 0);
+            CheckCompleted();
+        }));
+        pool->SubscribeUncompleted(BIND([this] {
+            ++ActivePoolCount_;
+            CheckCompleted();
+        }));
+        pool->GetJobCounter()->SubscribePendingUpdated(
+            BIND(&TMultiChunkPoolOutput::OnUnderlyingPoolPendingJobCountChanged, Unretained(this), poolIndex));
+    }
 
-        ~TPoolModificationGuard()
-        {
-            Owner_->AddPoolStatistics(PoolIndex_, +1);
-        }
-
-    private:
-        TMultiChunkPoolOutput* Owner_;
-        const int PoolIndex_;
-    };
-
-    //! It's required to create such a guard before any mutating actions with underlying pools
-    //! to have cumulative statistics consistent with underlying pools' statistics.
-    std::any MakeGuard(int poolIndex)
+    void OnUnderlyingPoolPendingJobCountChanged(int poolIndex)
     {
-        return std::make_any<TPoolModificationGuard>(this, poolIndex);
+        auto* pool = Pool(poolIndex);
+        auto& poolIterator = PendingPoolIterators_[poolIndex];
+        bool hasPendingJobs = (pool->GetJobCounter()->GetPending() > 0);
+        if (poolIterator == PendingPools_.end() && hasPendingJobs) {
+            poolIterator = PendingPools_.insert(PendingPools_.begin(), poolIndex);
+        } else if (poolIterator != PendingPools_.end() && !hasPendingJobs) {
+            PendingPools_.erase(poolIterator);
+            poolIterator = PendingPools_.end();
+        }
     }
 };
 
@@ -533,10 +503,10 @@ public:
         YT_VERIFY(underlyingPoolsInput.size() == underlyingPoolsOutput.size());
     }
 
-    virtual void AddPool(IChunkPoolPtr pool) override
+    virtual void AddPool(IChunkPoolPtr pool, int poolIndex) override
     {
-        AddPoolInput(pool);
-        AddPoolOutput(std::move(pool));
+        AddPoolInput(pool, poolIndex);
+        AddPoolOutput(std::move(pool), poolIndex);
     }
 
     virtual void Persist(const TPersistenceContext& context)
@@ -547,11 +517,6 @@ public:
 
 protected:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPool, 0xf7e412a9);
-
-    virtual std::any MakeGuard(int poolIndex) override
-    {
-        return TMultiChunkPoolOutput::MakeGuard(poolIndex);
-    }
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TMultiChunkPool);

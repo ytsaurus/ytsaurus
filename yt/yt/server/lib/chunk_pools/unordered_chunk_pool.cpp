@@ -2,6 +2,7 @@
 
 #include "helpers.h"
 #include "job_size_adjuster.h"
+#include "job_manager.h"
 #include "config.h"
 
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
@@ -30,36 +31,6 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TExtractedStripeList
-    : public TIntrinsicRefCounted
-{
-    //! Used only for persistence.
-    TExtractedStripeList() = default;
-    explicit TExtractedStripeList(IChunkPoolOutput::TCookie cookie)
-        : StripeList(New<TChunkStripeList>())
-        , Cookie(cookie)
-    { }
-
-    int UnavailableStripeCount = 0;
-    std::vector<int> StripeIndexes;
-    TChunkStripeListPtr StripeList;
-    IChunkPoolOutput::TCookie Cookie;
-
-    void Persist(const TPersistenceContext& context)
-    {
-        using NYT::Persist;
-        Persist(context, UnavailableStripeCount);
-        Persist(context, StripeIndexes);
-        Persist(context, StripeList);
-        Persist(context, Cookie);
-    }
-};
-
-DECLARE_REFCOUNTED_TYPE(TExtractedStripeList)
-DEFINE_REFCOUNTED_TYPE(TExtractedStripeList)
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TUnorderedChunkPool
     : public TChunkPoolInputBase
     , public TChunkPoolOutputWithCountersBase
@@ -69,10 +40,7 @@ class TUnorderedChunkPool
 public:
     //! For persistence only.
     TUnorderedChunkPool()
-        : FreePendingDataWeight(-1)
-        , SuspendedDataWeight(-1)
-        , UnavailableLostCookieCount(-1)
-        , MaxBlockSize(-1)
+        : MaxBlockSize_(-1)
     { }
 
     TUnorderedChunkPool(
@@ -82,24 +50,36 @@ public:
         , Name_(options.Name)
         , JobSizeConstraints_(options.JobSizeConstraints)
         , Sampler_(JobSizeConstraints_->GetSamplingRate())
-        , Mode(options.Mode)
+        , Mode_(options.Mode)
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , MinTeleportChunkDataWeight_(options.MinTeleportChunkDataWeight)
         , SliceErasureChunksByParts_(options.SliceErasureChunksByParts)
         , InputStreamDirectory_(std::move(directory))
+        , JobManager_(New<TJobManager>())
+        , FreeJobCounter_(New<TProgressCounter>())
+        , FreeDataWeightCounter_(New<TProgressCounter>())
+        , FreeRowCounter_(New<TProgressCounter>())
     {
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
         Logger.AddTag("Name: %v", Name_);
 
-        if (Mode == EUnorderedChunkPoolMode::Normal) {
-            JobCounter->Set(JobSizeConstraints_->GetJobCount());
-        } else {
-            JobCounter->Set(0);
+        JobManager_->SetLogger(TLogger{Logger});
+
+        FreeJobCounter_->AddParent(JobCounter);
+        FreeDataWeightCounter_->AddParent(DataWeightCounter);
+        FreeRowCounter_->AddParent(RowCounter);
+
+        JobManager_->JobCounter()->AddParent(JobCounter);
+        JobManager_->DataWeightCounter()->AddParent(DataWeightCounter);
+        JobManager_->RowCounter()->AddParent(RowCounter);
+
+        if (Mode_ == EUnorderedChunkPoolMode::Normal) {
+            FreeJobCounter_->AddPending(JobSizeConstraints_->GetJobCount());
         }
 
         if (options.JobSizeAdjusterConfig && JobSizeConstraints_->CanAdjustDataWeightPerJob()) {
-            JobSizeAdjuster = CreateJobSizeAdjuster(
+            JobSizeAdjuster_ = CreateJobSizeAdjuster(
                 JobSizeConstraints_->GetDataWeightPerJob(),
                 options.JobSizeAdjusterConfig);
             // ToDo(psushin): add logging here.
@@ -113,12 +93,16 @@ public:
                 *JobSizeConstraints_->GetSamplingRate(),
                 JobSizeConstraints_->GetSamplingDataWeightPerJob());
         }
+
+        UpdateFreeJobCounter();
     }
 
     // IChunkPoolInput implementation.
 
     virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
+        YT_VERIFY(!Finished);
+
         auto cookie = InputCookieToInternalCookies_.size();
         InputCookieToInternalCookies_.emplace_back();
         InputCookieIsSuspended_.emplace_back(false);
@@ -127,16 +111,20 @@ public:
             AddDataSlice(dataSlice, cookie);
         }
 
+        UpdateFreeJobCounter();
+        CheckCompleted();
+
         return cookie;
     }
 
     virtual void Finish() override
     {
-        if (Finished) {
-            UpdateJobCounter();
-        } else {
+        if (!Finished) {
             TChunkPoolInputBase::Finish();
         }
+
+        UpdateFreeJobCounter();
+        CheckCompleted();
     }
 
     virtual void Suspend(IChunkPoolInput::TCookie inputCookie) override
@@ -146,29 +134,25 @@ public:
         for (auto cookie : InputCookieToInternalCookies_[inputCookie]) {
             DoSuspend(cookie);
         }
+
+        UpdateFreeJobCounter();
     }
 
     void DoSuspend(IChunkPoolInput::TCookie cookie)
     {
-        auto& suspendableStripe = Stripes[cookie];
+        auto& suspendableStripe = Stripes_[cookie];
         if (!suspendableStripe.Suspend()) {
             return;
         }
 
-        auto outputCookie = suspendableStripe.GetExtractedCookie();
-        if (outputCookie == IChunkPoolOutput::NullCookie) {
+        if (!ExtractedStripes_.contains(cookie)) {
             Unregister(cookie);
-            SuspendedDataWeight += suspendableStripe.GetStatistics().DataWeight;
-        } else {
-            const auto& extractedStripeList = GetOrCrash(ExtractedLists, outputCookie);
-
-            if (LostCookies.find(outputCookie) != LostCookies.end() &&
-                extractedStripeList->UnavailableStripeCount == 0)
-            {
-                ++UnavailableLostCookieCount;
-            }
-            ++extractedStripeList->UnavailableStripeCount;
+            const auto& statistics = suspendableStripe.GetStatistics();
+            FreeDataWeightCounter_->AddSuspended(statistics.DataWeight);
+            FreeRowCounter_->AddSuspended(statistics.RowCount);
         }
+
+        JobManager_->Suspend(cookie);
     }
 
     virtual void Resume(IChunkPoolInput::TCookie inputCookie) override
@@ -178,92 +162,40 @@ public:
         for (auto cookie : InputCookieToInternalCookies_[inputCookie]) {
             DoResume(cookie);
         }
+
+        UpdateFreeJobCounter();
     }
 
     void DoResume(IChunkPoolInput::TCookie cookie)
     {
-        auto& suspendableStripe = Stripes[cookie];
+        auto& suspendableStripe = Stripes_[cookie];
         if (!suspendableStripe.Resume()) {
             return;
         }
 
-        auto outputCookie = suspendableStripe.GetExtractedCookie();
-        if (outputCookie == IChunkPoolOutput::NullCookie) {
+        if (!ExtractedStripes_.contains(cookie)) {
             Register(cookie);
-            SuspendedDataWeight -= suspendableStripe.GetStatistics().DataWeight;
-            YT_VERIFY(SuspendedDataWeight >= 0);
-        } else {
-            const auto& extractedStripeList = GetOrCrash(ExtractedLists, outputCookie);
-            --extractedStripeList->UnavailableStripeCount;
-
-            if (LostCookies.find(outputCookie) != LostCookies.end() &&
-                extractedStripeList->UnavailableStripeCount == 0)
-            {
-                --UnavailableLostCookieCount;
-            }
+            const auto& statistics = suspendableStripe.GetStatistics();
+            FreeDataWeightCounter_->AddSuspended(-statistics.DataWeight);
+            YT_VERIFY(FreeDataWeightCounter_->GetSuspended() >= 0);
+            FreeRowCounter_->AddSuspended(-statistics.RowCount);
+            YT_VERIFY(FreeRowCounter_->GetSuspended() >= 0);
         }
+    
+        JobManager_->Resume(cookie);
     }
 
     // IChunkPoolOutput implementation.
 
     virtual bool IsCompleted() const override
     {
-        return
-            Finished &&
-            LostCookies.empty() &&
-            SuspendedDataWeight == 0 &&
-            PendingGlobalStripes.empty() &&
-            JobCounter->GetRunning() == 0;
-    }
-
-    virtual int GetTotalJobCount() const override
-    {
-        return Mode == EUnorderedChunkPoolMode::AutoMerge
-            ? GetPendingJobCount() + JobCounter->GetRunning() + JobCounter->GetCompletedTotal()
-            : JobCounter->GetTotal();
-    }
-
-    virtual i64 GetDataSliceCount() const override
-    {
-        return TotalDataSliceCount;
-    }
-
-    virtual int GetPendingJobCount() const override
-    {
-        if (Mode == EUnorderedChunkPoolMode::Normal) {
-            // TODO(babenko): refactor
-            bool hasAvailableLostJobs = LostCookies.size() > UnavailableLostCookieCount;
-            if (hasAvailableLostJobs) {
-                return JobCounter->GetPending() - UnavailableLostCookieCount;
-            }
-
-            int freePendingJobCount = GetFreePendingJobCount();
-            YT_VERIFY(freePendingJobCount >= 0);
-            YT_VERIFY(Mode == EUnorderedChunkPoolMode::AutoMerge ||
-                   !(FreePendingDataWeight > 0 && freePendingJobCount == 0 && JobCounter->GetInterruptedTotal() == 0));
-
-            if (freePendingJobCount == 0) {
-                return 0;
-            }
-
-            if (FreePendingDataWeight == 0) {
-                return 0;
-            }
-
-            return freePendingJobCount;
-        } else {
-            return PendingGlobalStripes.empty() ? 0 : 1;
-        }
+        return IsCompleted_;
     }
 
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
     {
-        if (!ExtractedLists.empty()) {
-            TChunkStripeStatisticsVector result;
-            for (const auto& index : ExtractedLists.begin()->second->StripeIndexes) {
-                result.push_back(Stripes[index].GetStripe()->GetStatistics());
-            }
-            return result;
+        if (JobManager_->JobCounter()->GetPending() > 0) {
+            return JobManager_->GetApproximateStripeStatistics();
         }
 
         TChunkStripeStatistics stat;
@@ -271,14 +203,14 @@ public:
         // NB: Cannot estimate MaxBlockSize to fill stat field here.
         stat.ChunkCount = std::max(
             static_cast<i64>(1),
-            static_cast<i64>(PendingGlobalStripes.size()) / GetPendingJobCount());
+            static_cast<i64>(FreeStripes_.size()) / GetJobCounter()->GetPending());
         stat.DataWeight = std::max(
             static_cast<i64>(1),
-            GetPendingDataWeight() / GetPendingJobCount());
+            GetDataWeightCounter()->GetPending() / GetJobCounter()->GetPending());
         stat.RowCount = std::max(
             static_cast<i64>(1),
-            GetTotalRowCount() / GetTotalJobCount());
-        stat.MaxBlockSize = MaxBlockSize;
+            GetDataWeightCounter()->GetTotal() / GetJobCounter()->GetTotal());
+        stat.MaxBlockSize = MaxBlockSize_;
 
         TChunkStripeStatisticsVector result;
         result.push_back(stat);
@@ -287,33 +219,30 @@ public:
 
     virtual i64 GetLocality(TNodeId nodeId) const override
     {
-        auto it = NodeIdToEntry.find(nodeId);
-        return it == NodeIdToEntry.end() ? 0 : it->second.Locality;
+        auto it = NodeIdToEntry_.find(nodeId);
+        return it == NodeIdToEntry_.end() ? 0 : it->second.Locality;
     }
 
     virtual IChunkPoolOutput::TCookie Extract(TNodeId nodeId) override
     {
-        if (GetPendingJobCount() == 0) {
+        const auto& jobCounter = GetJobCounter();
+        if (jobCounter->GetPending() == 0) {
             return IChunkPoolOutput::NullCookie;
         }
 
-        TChunkStripeListPtr list;
-        IChunkPoolOutput::TCookie cookie;
+        // There are no jobs in job manager, so we materialize a new one.
+        const auto& jobManagerJobCounter = JobManager_->JobCounter();
+        if (jobManagerJobCounter->GetPending() == 0) {
+            auto idealDataWeightPerJob = GetIdealDataWeightPerJob();
 
-        if (LostCookies.size() == UnavailableLostCookieCount) {
-            auto extractedStripeList = CreateAndRegisterExtractedStripeList();
-            list = extractedStripeList->StripeList;
-            cookie = extractedStripeList->Cookie;
-
-            i64 idealDataWeightPerJob = GetIdealDataWeightPerJob();
-
+            auto jobStub = std::make_unique<TJobStub>();
             // Take local chunks first.
             if (nodeId != InvalidNodeId) {
-                auto it = NodeIdToEntry.find(nodeId);
-                if (it != NodeIdToEntry.end()) {
+                auto it = NodeIdToEntry_.find(nodeId);
+                if (it != NodeIdToEntry_.end()) {
                     const auto& entry = it->second;
-                    AddAndUnregisterStripes(
-                        extractedStripeList,
+                    AddStripesToJob(
+                        jobStub.get(),
                         entry.StripeIndexes.begin(),
                         entry.StripeIndexes.end(),
                         nodeId,
@@ -322,85 +251,59 @@ public:
             }
 
             // Take non-local chunks.
-            AddAndUnregisterStripes(
-                extractedStripeList,
-                PendingGlobalStripes.begin(),
-                PendingGlobalStripes.end(),
+            AddStripesToJob(
+                jobStub.get(),
+                FreeStripes_.begin(),
+                FreeStripes_.end(),
                 nodeId,
                 idealDataWeightPerJob);
 
-        } else {
-            auto lostIt = LostCookies.begin();
-            while (true) {
-                cookie = *lostIt;
-                if (GetOrCrash(ExtractedLists, cookie)->UnavailableStripeCount == 0) {
-                    LostCookies.erase(lostIt);
-                    YT_VERIFY(ReplayCookies.insert(cookie).second);
-                    list = GetStripeList(cookie);
-                    break;
-                }
-                YT_VERIFY(++lostIt != LostCookies.end());
+            jobStub->Finalize(/*sortByPosition=*/false);
+            JobManager_->AddJob(std::move(jobStub));
+
+            if (Mode_ == EUnorderedChunkPoolMode::Normal) {
+                FreeJobCounter_->AddPending(-1);
+                YT_VERIFY(FreeJobCounter_->GetPending() >= 0);
             }
         }
 
-        if (Mode == EUnorderedChunkPoolMode::AutoMerge) {
-            JobCounter->Increment(1);
-        }
-        JobCounter->Start(1);
-        DataWeightCounter->Start(list->TotalDataWeight);
-        RowCounter->Start(list->TotalRowCount);
+        YT_VERIFY(jobManagerJobCounter->GetPending() > 0);
+        auto cookie = JobManager_->ExtractCookie();
 
-        UpdateJobCounter();
+        UpdateFreeJobCounter();
+        CheckCompleted();
 
         return cookie;
     }
 
-    TExtractedStripeListPtr GetExtractedStripeList(IChunkPoolOutput::TCookie cookie) const
-    {
-        return GetOrCrash(ExtractedLists, cookie);
-    }
-
     virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override
     {
-        const auto& stripeList = GetExtractedStripeList(cookie)->StripeList;
-        for (const auto& stripe : stripeList->Stripes) {
-            for (const auto& dataSlice : stripe->DataSlices) {
-                YT_VERIFY(dataSlice->Tag);
-            }
-        }
-        return stripeList;
+        return JobManager_->GetStripeList(cookie);
     }
 
     virtual int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override
     {
-        return GetExtractedStripeList(cookie)->StripeList->TotalChunkCount;
+        return JobManager_->GetStripeList(cookie)->TotalChunkCount;
     }
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
-        const auto& list = GetStripeList(cookie);
-
-        JobCounter->Completed(1, jobSummary.InterruptReason);
-        DataWeightCounter->Completed(list->TotalDataWeight);
-        RowCounter->Completed(list->TotalRowCount);
-
         if (jobSummary.InterruptReason != EInterruptReason::None) {
-            list->Stripes.clear();
-            list->Stripes.reserve(jobSummary.ReadInputDataSlices.size());
-            for (const auto& dataSlice : jobSummary.ReadInputDataSlices) {
-                list->Stripes.emplace_back(New<TChunkStripe>(dataSlice));
-            }
+            YT_LOG_DEBUG("Splitting job (OutputCookie: %v, InterruptReason: %v, SplitJobCount: %v)",
+                cookie,
+                jobSummary.InterruptReason,
+                jobSummary.SplitJobCount);
             SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount);
         }
 
         //! If we don't have enough pending jobs - don't adjust data size per job.
-        if (JobSizeAdjuster && JobCounter->GetPending() > JobCounter->GetRunning()) {
-            JobSizeAdjuster->UpdateStatistics(jobSummary);
-            UpdateJobCounter();
+        if (JobSizeAdjuster_ && JobCounter->GetPending() > JobCounter->GetRunning()) {
+            JobSizeAdjuster_->UpdateStatistics(jobSummary);
+            UpdateFreeJobCounter();
         }
 
-        // NB: may fail.
-        ReplayCookies.erase(cookie);
+        JobManager_->Completed(cookie, jobSummary.InterruptReason);
+        CheckCompleted();
     }
 
     void SplitJob(const std::vector<NChunkClient::TInputDataSlicePtr>& dataSlices, int jobCount)
@@ -445,45 +348,24 @@ public:
 
     virtual void Failed(IChunkPoolOutput::TCookie cookie) override
     {
-        const auto& extractedStripeList = GetExtractedStripeList(cookie);
-        const auto& list = extractedStripeList->StripeList;
-
-        JobCounter->Failed(1);
-        DataWeightCounter->Failed(list->TotalDataWeight);
-        RowCounter->Failed(list->TotalRowCount);
-
-        ReinstallStripeList(extractedStripeList, cookie);
+        JobManager_->Failed(cookie);
     }
 
     virtual void Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason) override
     {
-        const auto& extractedStripeList = GetExtractedStripeList(cookie);
-        const auto& list = extractedStripeList->StripeList;
-
-        JobCounter->Aborted(1, reason);
-        DataWeightCounter->Aborted(list->TotalDataWeight, reason);
-        RowCounter->Aborted(list->TotalRowCount, reason);
-
-        ReinstallStripeList(extractedStripeList, cookie);
+        JobManager_->Aborted(cookie, reason);
     }
 
     virtual void Lost(IChunkPoolOutput::TCookie cookie) override
     {
-        const auto& extractedStripeList = GetExtractedStripeList(cookie);
-        const auto& list = extractedStripeList->StripeList;
+        const auto& list = GetStripeList(cookie);
 
         // No need to respect locality for restarted jobs.
         list->LocalChunkCount = 0;
         list->LocalDataWeight = 0;
 
-        JobCounter->Lost(1);
-        DataWeightCounter->Lost(list->TotalDataWeight);
-        RowCounter->Lost(list->TotalRowCount);
-
-        YT_VERIFY(LostCookies.insert(cookie).second);
-        if (extractedStripeList->UnavailableStripeCount > 0) {
-            ++UnavailableLostCookieCount;
-        }
+        JobManager_->Lost(cookie);
+        CheckCompleted();
     }
 
     // IPersistent implementation.
@@ -498,32 +380,32 @@ public:
         Persist(context, OperationId_);
         Persist(context, Name_);
         Persist(context, InputCookieToInternalCookies_);
+        Persist(context, Stripes_);
         Persist(context, InputCookieIsSuspended_);
-        Persist(context, Stripes);
         Persist(context, JobSizeConstraints_);
         Persist(context, Sampler_);
-        Persist(context, JobSizeAdjuster);
-        Persist(context, PendingGlobalStripes);
-        Persist(context, FreePendingDataWeight);
-        Persist(context, SuspendedDataWeight);
-        Persist(context, UnavailableLostCookieCount);
-        Persist(context, PendingStripeCount);
-        Persist(context, MaxBlockSize);
-        Persist(context, NodeIdToEntry);
-        Persist(context, OutputCookieGenerator);
-        Persist(context, ExtractedLists);
-        Persist(context, LostCookies);
-        Persist(context, ReplayCookies);
-        Persist(context, Mode);
+        Persist(context, JobSizeAdjuster_);
+        Persist(context, FreeStripes_);
+        Persist(context, ExtractedStripes_);
+        Persist(context, MaxBlockSize_);
+        Persist(context, NodeIdToEntry_);
+        Persist(context, OutputCookieGenerator_);
+        Persist(context, Mode_);
         Persist(context, MinTeleportChunkSize_);
         Persist(context, MinTeleportChunkDataWeight_);
         Persist(context, SliceErasureChunksByParts_);
         Persist(context, InputStreamDirectory_);
+        Persist(context, JobManager_);
+        Persist(context, FreeJobCounter_);
+        Persist(context, FreeDataWeightCounter_);
+        Persist(context, FreeRowCounter_);
+        Persist(context, IsCompleted_);
 
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
             Logger.AddTag("OperationId: %v", OperationId_);
             Logger.AddTag("Name: %v", Name_);
+            JobManager_->SetLogger(TLogger{Logger});
         }
     }
 
@@ -538,7 +420,7 @@ private:
     //! A mappping between input cookies (that are returned and used by controllers) and internal smaller
     //! stripe cookies that are obtained by slicing the input stripes.
     std::vector<std::vector<int>> InputCookieToInternalCookies_;
-    std::vector<TSuspendableStripe> Stripes;
+    std::vector<TSuspendableStripe> Stripes_;
     // char is used instead of bool because std::vector<bool> is not currently persistable,
     // and I am too lazy to fix that.
     std::vector<char> InputCookieIsSuspended_;
@@ -546,28 +428,21 @@ private:
     IJobSizeConstraintsPtr JobSizeConstraints_;
     //! Used both for stripe sampling and teleport chunk sampling.
     TBernoulliSampler Sampler_;
-    std::unique_ptr<IJobSizeAdjuster> JobSizeAdjuster;
+    std::unique_ptr<IJobSizeAdjuster> JobSizeAdjuster_;
 
     //! Indexes in #Stripes.
-    THashSet<int> PendingGlobalStripes;
+    THashSet<int> FreeStripes_;
 
-    i64 FreePendingDataWeight = 0;
-    i64 SuspendedDataWeight = 0;
-    int UnavailableLostCookieCount = 0;
-    i64 PendingStripeCount = 0;
+    THashSet<int> ExtractedStripes_;
 
-    i64 MaxBlockSize = 0;
-
-    i64 TotalDataSliceCount  = 0;
+    i64 MaxBlockSize_ = 0;
 
     struct TLocalityEntry
     {
-        TLocalityEntry()
-            : Locality(0)
-        { }
+        TLocalityEntry() = default;
 
         //! The total locality associated with this node.
-        i64 Locality;
+        i64 Locality = 0;
 
         //! Indexes in #Stripes.
         THashSet<int> StripeIndexes;
@@ -580,16 +455,11 @@ private:
         }
     };
 
-    THashMap<TNodeId, TLocalityEntry> NodeIdToEntry;
+    THashMap<TNodeId, TLocalityEntry> NodeIdToEntry_;
 
-    TIdGenerator OutputCookieGenerator;
+    TIdGenerator OutputCookieGenerator_;
 
-    THashMap<IChunkPoolOutput::TCookie, TExtractedStripeListPtr> ExtractedLists;
-
-    THashSet<IChunkPoolOutput::TCookie> LostCookies;
-    THashSet<IChunkPoolOutput::TCookie> ReplayCookies;
-
-    EUnorderedChunkPoolMode Mode;
+    EUnorderedChunkPoolMode Mode_;
     i64 MinTeleportChunkSize_ = std::numeric_limits<i64>::max();
     i64 MinTeleportChunkDataWeight_ = std::numeric_limits<i64>::max();
     bool SliceErasureChunksByParts_ = false;
@@ -597,6 +467,14 @@ private:
     TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
 
     TInputStreamDirectory InputStreamDirectory_;
+
+    TJobManagerPtr JobManager_;
+
+    TProgressCounterPtr FreeJobCounter_;
+    TProgressCounterPtr FreeDataWeightCounter_;
+    TProgressCounterPtr FreeRowCounter_;
+
+    bool IsCompleted_ = false;
 
     // XXX(max42): looks like this comment became obsolete even
     // before I got into this company.
@@ -627,7 +505,7 @@ private:
                 return;
             }
 
-            int oldSize = Stripes.size();
+            int oldSize = Stripes_.size();
 
             bool hasNontrivialLimits = !chunk->IsCompleteChunk();
 
@@ -670,28 +548,25 @@ private:
                 chunk->GetDataWeight(),
                 JobSizeConstraints_->GetInputSliceDataWeight(),
                 JobSizeConstraints_->GetInputSliceRowCount(),
-                Stripes.size() - oldSize);
+                Stripes_.size() - oldSize);
         }
     }
 
     void AddStripe(const TChunkStripePtr& stripe)
     {
-        if (!Sampler_.Sample()) {
+        if (!stripe->Solid && !Sampler_.Sample()) {
             return;
         }
 
-        int internalCookie = Stripes.size();
+        int internalCookie = Stripes_.size();
 
-        ++PendingStripeCount;
         TSuspendableStripe suspendableStripe(stripe);
 
-        Stripes.push_back(suspendableStripe);
+        Stripes_.push_back(suspendableStripe);
 
-        DataWeightCounter->Increment(suspendableStripe.GetStatistics().DataWeight);
-        RowCounter->Increment(suspendableStripe.GetStatistics().RowCount);
-        MaxBlockSize = std::max(MaxBlockSize, suspendableStripe.GetStatistics().MaxBlockSize);
+        MaxBlockSize_ = std::max(MaxBlockSize_, suspendableStripe.GetStatistics().MaxBlockSize);
 
-        TotalDataSliceCount += stripe->DataSlices.size();
+        GetDataSliceCounter()->AddUncategorized(stripe->DataSlices.size());
 
         if (stripe->Solid) {
             AddSolid(internalCookie);
@@ -710,61 +585,69 @@ private:
         }
     }
 
-    int GetFreePendingJobCount() const
+    int GetFreeJobCount() const
     {
-        return Mode == EUnorderedChunkPoolMode::AutoMerge ? 1 : JobCounter->GetPending() - LostCookies.size();
+        return FreeJobCounter_->GetPending() + FreeJobCounter_->GetSuspended();
     }
 
     i64 GetIdealDataWeightPerJob() const
     {
-        if (Mode == EUnorderedChunkPoolMode::AutoMerge) {
+        if (Mode_ == EUnorderedChunkPoolMode::AutoMerge) {
             return JobSizeConstraints_->GetDataWeightPerJob();
         }
-        int freePendingJobCount = GetFreePendingJobCount();
+        int freePendingJobCount = GetFreeJobCount();
         YT_VERIFY(freePendingJobCount > 0);
         return std::max(
             static_cast<i64>(1),
-            DivCeil<i64>(FreePendingDataWeight + SuspendedDataWeight, freePendingJobCount));
+            DivCeil<i64>(FreeDataWeightCounter_->GetTotal(), freePendingJobCount));
     }
 
-    void UpdateJobCounter()
+    void UpdateFreeJobCounter()
     {
-        if (Mode == EUnorderedChunkPoolMode::AutoMerge) {
-            return;
+        // At first, reset both pending and suspended free job counters.
+        auto oldFreeJobCount = FreeJobCounter_->GetPending() + FreeJobCounter_->GetSuspended();
+        FreeJobCounter_->AddPending(-FreeJobCounter_->GetPending());
+        FreeJobCounter_->AddSuspended(-FreeJobCounter_->GetSuspended());
+
+        i64 newFreeJobCount = 0;
+        i64 dataWeightLeft = FreeDataWeightCounter_->GetTotal();
+        if (Mode_ == EUnorderedChunkPoolMode::AutoMerge) {
+            // If we have pending or suspended stripes there are more jobs, otherwise operation in completed.
+            if (dataWeightLeft > 0) {
+                newFreeJobCount = 1;
+            } else {
+                newFreeJobCount = 0;
+            }
+        } else {
+            if (JobSizeConstraints_->IsExplicitJobCount()) {
+                newFreeJobCount = oldFreeJobCount;
+            } else {
+                i64 dataWeightPerJob = JobSizeAdjuster_
+                    ? JobSizeAdjuster_->GetDataWeightPerJob()
+                    : JobSizeConstraints_->GetDataWeightPerJob();
+                dataWeightPerJob = std::min(dataWeightPerJob, JobSizeConstraints_->GetMaxDataWeightPerJob());
+                newFreeJobCount = DivCeil(dataWeightLeft, dataWeightPerJob);
+            }
+
+            if (newFreeJobCount == 0 && dataWeightLeft > 0) {
+                newFreeJobCount = 1;
+            }
+
+            if (Finished && dataWeightLeft == 0) {
+                newFreeJobCount = 0;
+            }
         }
 
-        i64 freePendingJobCount = GetFreePendingJobCount();
-        if (Finished && FreePendingDataWeight + SuspendedDataWeight == 0 && freePendingJobCount > 0) {
-            // Prune job count if all stripe lists are already extracted.
-            JobCounter->Increment(-freePendingJobCount);
-            return;
-        }
-
-        if (freePendingJobCount == 0 && FreePendingDataWeight + SuspendedDataWeight > 0) {
-            // Happens when we hit MaxDataSlicesPerJob or MaxDataWeightPerJob limit.
-            JobCounter->Increment(1);
-            return;
-        }
-
-        if (JobSizeConstraints_->IsExplicitJobCount()) {
-            return;
-        }
-
-        i64 dataWeightPerJob = JobSizeAdjuster
-            ? JobSizeAdjuster->GetDataWeightPerJob()
-            : JobSizeConstraints_->GetDataWeightPerJob();
-
-        dataWeightPerJob = std::min(dataWeightPerJob, JobSizeConstraints_->GetMaxDataWeightPerJob());
-        i64 newJobCount = DivCeil(FreePendingDataWeight + SuspendedDataWeight, dataWeightPerJob);
-        if (newJobCount != freePendingJobCount) {
-            JobCounter->Increment(newJobCount - freePendingJobCount);
+        if (FreeStripes_.empty()) {
+            FreeJobCounter_->AddSuspended(newFreeJobCount);
+        } else {
+            FreeJobCounter_->AddPending(newFreeJobCount);
         }
     }
 
     void Register(int stripeIndex)
     {
-        auto& suspendableStripe = Stripes[stripeIndex];
-        YT_VERIFY(suspendableStripe.GetExtractedCookie() == IChunkPoolOutput::NullCookie);
+        auto& suspendableStripe = Stripes_[stripeIndex];
 
         auto stripe = suspendableStripe.GetStripe();
         for (const auto& dataSlice : stripe->DataSlices) {
@@ -772,7 +655,7 @@ private:
                 for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
                     auto locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
-                        auto& entry = NodeIdToEntry[replica.GetNodeId()];
+                        auto& entry = NodeIdToEntry_[replica.GetNodeId()];
                         // NB: do not check that stripe is unique, it may have already been inserted,
                         // since different replicas may reside on the same node during rebalancing.
                         entry.StripeIndexes.insert(stripeIndex);
@@ -782,45 +665,32 @@ private:
             }
         }
 
-        FreePendingDataWeight += suspendableStripe.GetStatistics().DataWeight;
-        YT_VERIFY(PendingGlobalStripes.insert(stripeIndex).second);
-    }
+        const auto& statistics = suspendableStripe.GetStatistics();
+        FreeDataWeightCounter_->AddPending(statistics.DataWeight);
+        FreeRowCounter_->AddPending(statistics.RowCount);
 
-    TExtractedStripeListPtr CreateAndRegisterExtractedStripeList()
-    {
-        auto cookie = OutputCookieGenerator.Next();
-        auto pair = ExtractedLists.emplace(cookie, New<TExtractedStripeList>(cookie));
-        YT_VERIFY(pair.second);
-        const auto& extractedStripeList = pair.first->second;
-
-        return extractedStripeList;
+        YT_VERIFY(FreeStripes_.insert(stripeIndex).second);
     }
 
     void AddSolid(int stripeIndex)
     {
-        auto& suspendableStripe = Stripes[stripeIndex];
-        YT_VERIFY(suspendableStripe.GetExtractedCookie() == IChunkPoolOutput::NullCookie);
+        auto& suspendableStripe = Stripes_[stripeIndex];
+        YT_VERIFY(!FreeStripes_.contains(stripeIndex));
+        YT_VERIFY(ExtractedStripes_.insert(stripeIndex).second);
         YT_VERIFY(suspendableStripe.GetStripe()->Solid);
 
-        auto extractedStripeList = CreateAndRegisterExtractedStripeList();
+        auto jobStub = std::make_unique<TJobStub>();
+        for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
+            jobStub->AddDataSlice(dataSlice, stripeIndex, /*primary=*/true);
+        }
+        jobStub->Finalize(/*sortByPosition=*/false);
 
-        auto stat = suspendableStripe.GetStatistics();
-
-        suspendableStripe.SetExtractedCookie(extractedStripeList->Cookie);
-        AddStripeToList(
-            suspendableStripe.GetStripe(),
-            extractedStripeList->StripeList,
-            std::min(stat.DataWeight, JobSizeConstraints_->GetMaxDataWeightPerJob() - 1),
-            stat.RowCount);
-
-        JobCounter->Increment(1);
-
-        YT_VERIFY(LostCookies.insert(extractedStripeList->Cookie).second);
+        JobManager_->AddJob(std::move(jobStub));
     }
 
     void Unregister(int stripeIndex)
     {
-        auto& suspendableStripe = Stripes[stripeIndex];
+        auto& suspendableStripe = Stripes_[stripeIndex];
 
         auto stripe = suspendableStripe.GetStripe();
         for (const auto& dataSlice : stripe->DataSlices) {
@@ -828,7 +698,7 @@ private:
                 for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
                     auto locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
-                        auto& entry = NodeIdToEntry[replica.GetNodeId()];
+                        auto& entry = NodeIdToEntry_[replica.GetNodeId()];
                         auto it = entry.StripeIndexes.find(stripeIndex);
                         if (it != entry.StripeIndexes.end()) {
                             entry.StripeIndexes.erase(it);
@@ -839,89 +709,85 @@ private:
             }
         }
 
-        FreePendingDataWeight -= suspendableStripe.GetStatistics().DataWeight;
-        YT_VERIFY(PendingGlobalStripes.erase(stripeIndex) == 1);
+        const auto& statistics = suspendableStripe.GetStatistics();
+        FreeDataWeightCounter_->AddPending(-statistics.DataWeight);
+        YT_VERIFY(FreeDataWeightCounter_->GetPending() >= 0);
+        FreeRowCounter_->AddPending(-statistics.RowCount);
+        YT_VERIFY(FreeRowCounter_->GetPending() >= 0);
+
+        YT_VERIFY(FreeStripes_.erase(stripeIndex) == 1);
     }
 
     template <class TIterator>
-    void AddAndUnregisterStripes(
-        const TExtractedStripeListPtr& extractedStripeList,
+    void AddStripesToJob(
+        TJobStub* jobStub,
         const TIterator& begin,
         const TIterator& end,
         TNodeId nodeId,
         i64 idealDataWeightPerJob)
     {
-        auto& list = extractedStripeList->StripeList;
-        size_t oldSize = list->Stripes.size();
+        const auto& jobCounter = GetJobCounter();
+        auto pendingStripesCount = FreeStripes_.size();
+        std::vector<int> addedStripeIndexes;
         for (auto it = begin; it != end; ++it) {
-            if (list->TotalDataWeight >= idealDataWeightPerJob) {
+            if (jobStub->GetDataWeight() >= idealDataWeightPerJob) {
                 break;
             }
 
             // NB: We should ignore check of chunk stripe count in case of last job.
-            if (list->Stripes.size() >= JobSizeConstraints_->GetMaxDataSlicesPerJob() &&
-                (!JobSizeConstraints_->IsExplicitJobCount() || GetFreePendingJobCount() > 1))
+            if (jobStub->GetSliceCount() >= JobSizeConstraints_->GetMaxDataSlicesPerJob() &&
+                (!JobSizeConstraints_->IsExplicitJobCount() || jobCounter->GetPending() > 1))
             {
                 break;
             }
 
             auto stripeIndex = *it;
-            auto& suspendableStripe = Stripes[stripeIndex];
+            auto& suspendableStripe = Stripes_[stripeIndex];
             auto stat = suspendableStripe.GetStatistics();
 
             // We should always return at least one stripe, even we get MaxDataWeightPerJob overflow.
-            if (list->TotalDataWeight > 0 && list->TotalDataWeight + stat.DataWeight >
+            if (jobStub->GetDataWeight() > 0 && jobStub->GetDataWeight() + stat.DataWeight >
                 JobSizeConstraints_->GetMaxDataWeightPerJob() &&
-                (!JobSizeConstraints_->IsExplicitJobCount() || GetFreePendingJobCount() > 1))
+                (!JobSizeConstraints_->IsExplicitJobCount() || jobCounter->GetPending() > 1))
             {
                 break;
             }
 
             // Leave enough stripes if job count is explicitly given.
-            if (list->TotalDataWeight > 0 && PendingStripeCount < GetFreePendingJobCount() && JobSizeConstraints_->IsExplicitJobCount()) {
+            if (jobStub->GetDataWeight() > 0 && pendingStripesCount < jobCounter->GetPending() && JobSizeConstraints_->IsExplicitJobCount()) {
                 break;
             }
 
-            extractedStripeList->StripeIndexes.push_back(stripeIndex);
-            --PendingStripeCount;
+            --pendingStripesCount;
+            addedStripeIndexes.push_back(stripeIndex);
 
-            suspendableStripe.SetExtractedCookie(extractedStripeList->Cookie);
-            AddStripeToList(
-                suspendableStripe.GetStripe(),
-                list,
-                stat.DataWeight,
-                stat.RowCount,
-                nodeId);
+            for (const auto& dataSlice : suspendableStripe.GetStripe()->DataSlices) {
+                jobStub->AddDataSlice(dataSlice, stripeIndex, /*primary=*/true);
+            }
         }
-        size_t newSize = list->Stripes.size();
 
-        for (size_t index = oldSize; index < newSize; ++index) {
-            Unregister(extractedStripeList->StripeIndexes[index]);
+        for (auto stripeIndex : addedStripeIndexes) {
+            Unregister(stripeIndex);
+            YT_VERIFY(ExtractedStripes_.insert(stripeIndex).second);
         }
     }
 
-    void ReinstallStripeList(const TExtractedStripeListPtr& extractedStripeList, IChunkPoolOutput::TCookie cookie)
+    void CheckCompleted()
     {
-        auto replayIt = ReplayCookies.find(cookie);
-        if (replayIt == ReplayCookies.end()) {
-            for (int stripeIndex : extractedStripeList->StripeIndexes) {
-                auto& suspendableStripe = Stripes[stripeIndex];
-                suspendableStripe.SetExtractedCookie(IChunkPoolOutput::NullCookie);
-                ++PendingStripeCount;
-                if (suspendableStripe.IsSuspended()) {
-                    SuspendedDataWeight += suspendableStripe.GetStatistics().DataWeight;
-                } else {
-                    Register(stripeIndex);
-                }
-            }
-            YT_VERIFY(ExtractedLists.erase(cookie) == 1);
-        } else {
-            ReplayCookies.erase(replayIt);
-            YT_VERIFY(LostCookies.insert(cookie).second);
-            if (extractedStripeList->UnavailableStripeCount > 0) {
-                ++UnavailableLostCookieCount;
-            }
+        bool completed = 
+            Finished &&
+            FreeDataWeightCounter_->GetTotal() == 0 &&
+            JobCounter->GetRunning() == 0 &&
+            JobCounter->GetSuspended() == 0 &&
+            JobCounter->GetPending() == 0;
+
+        if (!IsCompleted_ && completed) {
+            Completed_.Fire();
+        } else if (IsCompleted_ && !completed) {
+            Uncompleted_.Fire();
         }
+
+        IsCompleted_ = completed;
     }
 };
 

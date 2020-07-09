@@ -89,11 +89,11 @@ class TJobManager
     : public TRefCounted
 {
 public:
-    // TODO(max42): Remove data size counter and row counter the hell outta here when YT-6673 is done.
     DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, DataWeightCounter, New<NControllerAgent::TProgressCounter>());
     DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, RowCounter, New<NControllerAgent::TProgressCounter>());
     DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, JobCounter, New<NControllerAgent::TProgressCounter>());
-    DEFINE_BYVAL_RO_PROPERTY(int, SuspendedJobCount);
+    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, DataSliceCounter, New<NControllerAgent::TProgressCounter>());
+
 public:
     TJobManager();
 
@@ -119,8 +119,6 @@ public:
     void Persist(const TPersistenceContext& context);
 
     TChunkStripeStatisticsVector GetApproximateStripeStatistics() const;
-
-    int GetPendingJobCount() const;
 
     const TChunkStripeListPtr& GetStripeList(IChunkPoolOutput::TCookie cookie);
 
@@ -178,10 +176,13 @@ private:
 
     public:
         //! Used only for persistence.
-        TJob();
+        TJob() = default;
+
         TJob(TJobManager* owner, std::unique_ptr<TJobStub> jobBuilder, IChunkPoolOutput::TCookie cookie);
 
         void SetState(EJobState state);
+
+        void SetInterruptReason(NScheduler::EInterruptReason reason);
 
         void ChangeSuspendedStripeCountBy(int delta);
 
@@ -189,11 +190,14 @@ private:
 
         bool IsInvalidated() const;
 
+        void Remove();
+
         void Persist(const TPersistenceContext& context);
 
-        //! A helper for accounting this job in all three progress counters of the owner simultaneously.
         template <class... TArgs>
-        void UpdateCounters(void (NControllerAgent::TProgressCounter::*Method)(i64, TArgs...), TArgs... args);
+        void CallProgressCounterGuards(void (NControllerAgent::TProgressCounterGuard::*Method)(TArgs...), TArgs... args);
+
+        void UpdateSelf();
 
     private:
         TJobManager* Owner_ = nullptr;
@@ -209,9 +213,14 @@ private:
         bool Suspended_ = false;
         //! Is true for a job that was invalidated (when pool was rebuilt from scratch).
         bool Invalidated_ = false;
+        //! If true, this job does not exists for job manager anymore.
+        bool Removed_ = false;
 
-        //! Adds or removes self from the job pool according to the job state and suspended stripe count.
-        void UpdateSelf();
+        NControllerAgent::TProgressCounterGuard DataWeightProgressCounterGuard_;
+        NControllerAgent::TProgressCounterGuard RowProgressCounterGuard_;
+        NControllerAgent::TProgressCounterGuard JobProgressCounterGuard_;
+
+        NScheduler::EInterruptReason InterruptReason_ = NScheduler::EInterruptReason::None;
 
         void RemoveSelf();
         void AddSelf();

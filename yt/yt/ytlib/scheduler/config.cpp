@@ -1047,7 +1047,7 @@ TSortOperationSpecBase::TSortOperationSpecBase()
         .Default(0.9)
         .InRange(0.0, 1.0);
     RegisterParameter("sort_locality_timeout", SortLocalityTimeout)
-        .Default(TDuration::Minutes(1));
+        .Default(TDuration::Seconds(5));
     RegisterParameter("sort_assignment_timeout", SortAssignmentTimeout)
         .Default(TDuration::Seconds(5));
     RegisterParameter("shuffle_network_limit", ShuffleNetworkLimit)

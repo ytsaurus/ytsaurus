@@ -2,8 +2,6 @@
 #include "chunk_pool.h"
 #include "chunk_stripe.h"
 
-#include <yt/server/lib/controller_agent/progress_counter.h>
-
 #include <util/generic/noncopyable.h>
 
 namespace NYT::NLegacyChunkPools {
@@ -223,7 +221,7 @@ public:
         return TotalRowCount_;
     }
 
-    const TProgressCounterPtr& GetJobCounter() const override
+    const TLegacyProgressCounterPtr& GetJobCounter() const override
     {
         return JobCounter_;
     }
@@ -393,7 +391,7 @@ protected:
     i64 TotalRowCount_ = 0;
 
     //! Parent of all underlying pool job counters.
-    TProgressCounterPtr JobCounter_ = New<TProgressCounter>(0);
+    TLegacyProgressCounterPtr JobCounter_ = New<TLegacyProgressCounter>(0);
 
     //! Sum of data slice count over all underlying pools.
     i64 DataSliceCount_ = 0;

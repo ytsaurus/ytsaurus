@@ -67,9 +67,9 @@ i64 TChunkPoolOutputBase::GetLocality(NNodeTrackerClient::TNodeId /* nodeId */) 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkPoolOutputWithCountersBase::TChunkPoolOutputWithCountersBase()
-    : DataWeightCounter(New<TProgressCounter>(0))
-    , RowCounter(New<TProgressCounter>(0))
-    , JobCounter(New<TProgressCounter>())
+    : DataWeightCounter(New<TLegacyProgressCounter>(0))
+    , RowCounter(New<TLegacyProgressCounter>(0))
+    , JobCounter(New<TLegacyProgressCounter>())
 { }
 
 i64 TChunkPoolOutputWithCountersBase::GetTotalDataWeight() const
@@ -97,7 +97,7 @@ i64 TChunkPoolOutputWithCountersBase::GetTotalRowCount() const
     return RowCounter->GetTotal();
 }
 
-const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetJobCounter() const
+const TLegacyProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetJobCounter() const
 {
     return JobCounter;
 }
@@ -193,7 +193,7 @@ i64 TChunkPoolOutputWithJobManagerBase::GetTotalRowCount() const
     return JobManager_->RowCounter()->GetTotal();
 }
 
-const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetJobCounter() const
+const TLegacyProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetJobCounter() const
 {
     return JobManager_->JobCounter();
 }

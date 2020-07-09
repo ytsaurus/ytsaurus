@@ -81,9 +81,11 @@ public:
     void AddInput(NChunkPools::TChunkStripePtr stripe);
     void AddInput(const std::vector<NChunkPools::TChunkStripePtr>& stripes);
 
-    // NB: This works well until there is no more than one input data flow vertex for any task.
-    void FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex);
     virtual void FinishInput();
+
+    // NB: This works well until there is no more than one input data flow vertex for any task.
+    void RegisterInGraph();
+    void RegisterInGraph(TDataFlowGraph::TVertexDescriptor inputVertex);
 
     void CheckCompleted();
     void ForceComplete();
@@ -173,6 +175,8 @@ public:
         const std::vector<TEdgeDescriptor>& edgeDescriptors,
         const NChunkPools::TChunkStripeListPtr& inputStripeList,
         std::vector<NChunkPools::TChunkStripePtr>* outputStripes);
+
+    virtual NChunkPools::IChunkPoolOutput::TCookie ExtractCookie(NNodeTrackerClient::TNodeId nodeId);
 
 protected:
     NLogging::TLogger Logger;

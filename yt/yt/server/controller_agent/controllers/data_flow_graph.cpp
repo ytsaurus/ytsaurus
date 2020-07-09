@@ -219,7 +219,7 @@ class TVertex
 public:
     DEFINE_BYREF_RW_PROPERTY(TVertexDescriptor, VertexDescriptor);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, Service);
-    DEFINE_BYREF_RW_PROPERTY(TProgressCounterPtr, JobCounter, New<TProgressCounter>(0));
+    DEFINE_BYREF_RW_PROPERTY(TProgressCounterPtr, JobCounter, New<TProgressCounter>());
     DEFINE_BYVAL_RW_PROPERTY(EJobType, JobType);
 
     using TLivePreviewList = std::vector<TLivePreviewPtr>;
@@ -381,7 +381,7 @@ public:
     {
         const auto& vertex = GetOrRegisterVertex(descriptor);
         vertex->SetJobType(jobType);
-        counter->SetParent(vertex->JobCounter());
+        counter->AddParent(vertex->JobCounter());
     }
 
     void RegisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, TInputChunkPtr chunk)
@@ -455,7 +455,7 @@ private:
     using TVertexMap = THashMap<TVertexDescriptor, TVertexPtr>;
     const std::shared_ptr<TVertexMap> Vertices_ = std::make_shared<TVertexMap>();
 
-    TProgressCounterPtr TotalJobCounter_ = New<TProgressCounter>(0);
+    TProgressCounterPtr TotalJobCounter_ = New<TProgressCounter>();
 
     TIncrementalTopologicalOrdering<TVertexDescriptor> TopologicalOrdering_;
 
@@ -487,7 +487,7 @@ private:
         if (it == Vertices_->end()) {
             auto& vertex = (*Vertices_)[descriptor];
             vertex = New<TVertex>(descriptor, NodeDirectory_);
-            vertex->JobCounter()->SetParent(TotalJobCounter_);
+            vertex->JobCounter()->AddParent(TotalJobCounter_);
             return vertex;
         } else {
             return it->second;

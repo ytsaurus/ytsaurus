@@ -166,7 +166,7 @@ protected:
 
     void ExtractOutputCookiesWhilePossible()
     {
-        while (ChunkPool_->GetPendingJobCount()) {
+        while (ChunkPool_->GetJobCounter()->GetPending()) {
             ExtractedCookies_.emplace_back(ExtractCookie(TNodeId(0)));
         }
     }
@@ -516,7 +516,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks1)
 
     ChunkPool_->Finish();
 
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_EQ(0, ChunkPool_->Extract(TNodeId()));
     auto stripeList = ChunkPool_->GetStripeList(0);
     EXPECT_EQ(1, stripeList->Stripes.size());
@@ -525,16 +525,16 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks1)
     ChunkPool_->Suspend(0);
     ChunkPool_->Aborted(0, EAbortReason::FailedChunks);
 
-    EXPECT_EQ(0, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(0, ChunkPool_->GetJobCounter()->GetPending());
     ChunkPool_->Resume(0);
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
-    EXPECT_EQ(1, ChunkPool_->Extract(TNodeId()));
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
+    EXPECT_EQ(0, ChunkPool_->Extract(TNodeId()));
     ChunkPool_->Suspend(0);
-    SplitJob(1 /* cookie */, 1 /* splitJobCount */);
-    EXPECT_EQ(0, ChunkPool_->GetPendingJobCount());
+    SplitJob(0 /* cookie */, 1 /* splitJobCount */);
+    EXPECT_EQ(0, ChunkPool_->GetJobCounter()->GetPending());
     ChunkPool_->Resume(0);
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
-    EXPECT_EQ(2, ChunkPool_->Extract(TNodeId()));
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
+    EXPECT_EQ(1, ChunkPool_->Extract(TNodeId()));
 }
 
 TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
@@ -554,15 +554,15 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
 
     CreateChunkPool();
 
-    AddChunk(chunkA);
-    AddChunk(chunkB);
+    EXPECT_EQ(0, AddChunk(chunkA));
+    EXPECT_EQ(1, AddChunk(chunkB));
 
     ChunkPool_->Finish();
 
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_EQ(0, ChunkPool_->Extract(TNodeId()));
     auto stripeList = ChunkPool_->GetStripeList(0);
-    EXPECT_EQ(2, stripeList->Stripes.size());
+    EXPECT_EQ(1, stripeList->Stripes.size());
     EXPECT_TRUE(TeleportChunks_.empty());
 
     ChunkPool_->Suspend(0);
@@ -571,7 +571,7 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks2)
     ChunkPool_->Resume(0);
     ChunkPool_->Resume(1);
 
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_EQ(1, ChunkPool_->Extract(TNodeId()));
     stripeList = ChunkPool_->GetStripeList(1);
     EXPECT_EQ(1, stripeList->Stripes.size());
@@ -598,14 +598,190 @@ TEST_F(TUnorderedChunkPoolTest, InterruptionWithSuspendedChunks3)
 
     ChunkPool_->Finish();
 
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
     EXPECT_EQ(0, ChunkPool_->Extract(TNodeId()));
     ChunkPool_->Suspend(0);
     SplitJob(0, 1);
-    EXPECT_EQ(0, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(0, ChunkPool_->GetJobCounter()->GetPending());
     ChunkPool_->Resume(0);
-    EXPECT_EQ(1, ChunkPool_->GetPendingJobCount());
+    EXPECT_EQ(1, ChunkPool_->GetJobCounter()->GetPending());
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUnorderedChunkPoolTestRandomized
+    : public WithParamInterface<int>
+    , public TUnorderedChunkPoolTest
+{
+public:
+    TUnorderedChunkPoolTestRandomized() = default;
+
+    virtual void SetUp() override final
+    {
+        TUnorderedChunkPoolTest::SetUp();
+        Gen_.seed(GetParam());
+    }
+};
+
+static constexpr int NumberOfRepeats = 15;
+
+TEST_P(TUnorderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
+{
+    InitTables(
+        {false} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+
+    const int chunkCount = 50;
+    DataSizePerJob_ = 1_KB;
+    IsExplicitJobCount_ = true;
+    JobCount_ = chunkCount;
+    InitJobConstraints();
+
+    for (int index = 0; index < chunkCount; ++index) {
+        auto chunk = CreateChunk(0);
+    }
+
+    CreateChunkPool();
+
+    std::uniform_int_distribution<> dice(0, 99);
+
+    auto chooseRandomElement = [&] (auto container) -> std::optional<typename decltype(container)::value_type> {
+        if (container.empty()) {
+            return std::nullopt;
+        } else {
+            auto it = container.begin();
+            std::advance(it, std::uniform_int_distribution<>(0, container.size() - 1)(Gen_));
+            return std::make_optional(*it);
+        }
+    };
+
+    // All chunks from the IChunkPoolInput point of view.
+    THashMap<TChunkId, IChunkPoolInput::TCookie> chunkIdToInputCookie;
+    THashSet<TChunkId> suspendedChunks;
+    THashSet<TChunkId> resumedChunks;
+    // All chunks from the IChunkPoolOutput point of view.
+    THashMap<TChunkId, IChunkPoolOutput::TCookie> chunkIdToOutputCookie;
+    THashSet<TChunkId> pendingChunks;
+    THashSet<TChunkId> startedChunks;
+    THashSet<TChunkId> completedChunks;
+    THashMap<TChunkId, TInputChunkPtr> chunkIdToChunk;
+
+    for (const auto& chunk : CreatedUnversionedChunks_) {
+        auto chunkId = chunk->ChunkId();
+        chunkIdToInputCookie[chunkId] = AddChunk(chunk);
+        chunkIdToChunk[chunkId] = chunk;
+        resumedChunks.insert(chunkId);
+        pendingChunks.insert(chunkId);
+    }
+
+    ChunkPool_->Finish();
+
+    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), chunkCount);
+
+    // Set this to true when debugging locally. It helps a lot to understand what happens.
+    constexpr bool EnableDebugOutput = false;
+    IOutputStream& Cdebug = EnableDebugOutput ? Cerr : Cnull;
+
+    while (completedChunks.size() < chunkCount) {
+        YT_VERIFY(!ChunkPool_->IsCompleted());
+
+        // 0..0 - pool is persisted and restored;
+        // 1..29 - chunk is suspended;
+        // 30..59 - chunk is resumed;
+        // 60..69 - chunk is extracted;
+        // 70..79 - chunk is completed;
+        // 80..89 - chunk is failed;
+        // 90..99 - chunk is aborted.
+        int eventType = dice(Gen_);
+        if (eventType <= 0) {
+            Cdebug << "Persisting and restoring the pool" << Endl;
+            PersistAndRestore();
+        } else if (eventType <= 29) {
+            if (auto randomElement = chooseRandomElement(resumedChunks)) {
+                auto chunkId = *randomElement;
+                Cdebug << Format("Suspending chunk %v", chunkId) << Endl;
+                ASSERT_TRUE(resumedChunks.erase(chunkId));
+                ASSERT_TRUE(suspendedChunks.insert(chunkId).second);
+                auto inputCookie = chunkIdToInputCookie.at(chunkId);
+                auto chunk = chunkIdToChunk.at(chunkId);
+                Cdebug << Format("Suspend cookie %v", inputCookie) << Endl;
+                SuspendChunk(inputCookie, chunk);
+            }
+        } else if (eventType <= 59) {
+            if (auto randomElement = chooseRandomElement(suspendedChunks)) {
+                auto chunkId = *randomElement;
+                Cdebug << Format("Resuming chunk %v", chunkId) << Endl;
+                ASSERT_TRUE(suspendedChunks.erase(chunkId));
+                ASSERT_TRUE(resumedChunks.insert(chunkId).second);
+                auto inputCookie = chunkIdToInputCookie.at(chunkId);
+                auto chunk = chunkIdToChunk.at(chunkId);
+                Cdebug << Format("Resume cookie %v", inputCookie) << Endl;
+                ResumeChunk(inputCookie, chunk);
+            }
+        } else if (eventType <= 69) {
+            if (ChunkPool_->GetJobCounter()->GetPending()) {
+                auto outputCookie = ExtractCookie(TNodeId(0));
+                Cdebug << Format("Extracted cookie %v...", outputCookie);
+                // TODO(max42): why the following line leads to the linkage error?
+                // ASSERT_NE(outputCookie, IChunkPoolOutput::NullCookie);
+                // error: undefined reference to 'NYT::NScheduler::IChunkPoolOutput::NullCookie'
+                auto stripeList = ChunkPool_->GetStripeList(outputCookie);
+                ASSERT_TRUE(stripeList->Stripes[0]);
+                const auto& stripe = stripeList->Stripes[0];
+                const auto& dataSlice = stripe->DataSlices.front();
+                const auto& chunk = dataSlice->GetSingleUnversionedChunkOrThrow();
+                auto chunkId = chunk->ChunkId();
+                Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
+                ASSERT_TRUE(resumedChunks.contains(chunkId));
+                ASSERT_TRUE(!suspendedChunks.contains(chunkId));
+                ASSERT_TRUE(pendingChunks.erase(chunkId));
+                ASSERT_TRUE(startedChunks.insert(chunkId).second);
+                ASSERT_TRUE(chunkIdToOutputCookie.insert(std::make_pair(chunkId, outputCookie)).second);
+            }
+        } else if (eventType <= 79) {
+            if (auto randomElement = chooseRandomElement(startedChunks)) {
+                auto chunkId = *randomElement;
+                Cdebug << Format("Completed chunk %v", chunkId) << Endl;
+                auto outputCookie = chunkIdToOutputCookie.at(chunkId);
+                ASSERT_TRUE(startedChunks.erase(chunkId));
+                ASSERT_TRUE(chunkIdToOutputCookie.erase(chunkId));
+                ASSERT_TRUE(completedChunks.insert(chunkId).second);
+                ChunkPool_->Completed(outputCookie, TCompletedJobSummary());
+            }
+        } else if (eventType <= 89) {
+            if (auto randomElement = chooseRandomElement(startedChunks)) {
+                auto chunkId = *randomElement;
+                Cdebug << Format("Aborted chunk %v", chunkId) << Endl;
+                auto outputCookie = chunkIdToOutputCookie.at(chunkId);
+                ASSERT_TRUE(startedChunks.erase(chunkId));
+                ASSERT_TRUE(chunkIdToOutputCookie.erase(chunkId));
+                ASSERT_TRUE(pendingChunks.insert(chunkId).second);
+                ChunkPool_->Aborted(outputCookie, EAbortReason::Unknown);
+            }
+        } else { // if (eventType <= 99)
+            if (auto randomElement = chooseRandomElement(startedChunks)) {
+                auto chunkId = *randomElement;
+                Cdebug << Format("Failed chunk %v", chunkId) << Endl;
+                auto outputCookie = chunkIdToOutputCookie.at(chunkId);
+                ASSERT_TRUE(startedChunks.erase(chunkId));
+                ASSERT_TRUE(chunkIdToOutputCookie.erase(chunkId));
+                ASSERT_TRUE(pendingChunks.insert(chunkId).second);
+                ChunkPool_->Failed(outputCookie);
+            }
+        }
+    }
+    ASSERT_TRUE(ChunkPool_->IsCompleted());
+    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 0);
+    ASSERT_EQ(completedChunks.size(), chunkCount);
+    ASSERT_EQ(pendingChunks.size(), 0);
+    ASSERT_EQ(startedChunks.size(), 0);
+    ASSERT_EQ(resumedChunks.size() + suspendedChunks.size(), chunkCount);
+}
+
+INSTANTIATE_TEST_SUITE_P(VariousOperationsWithPoolInstantiation,
+    TUnorderedChunkPoolTestRandomized,
+    ::testing::Range(0, NumberOfRepeats));
 
 ////////////////////////////////////////////////////////////////////////////////
 

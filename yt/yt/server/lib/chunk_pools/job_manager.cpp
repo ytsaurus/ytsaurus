@@ -1,5 +1,6 @@
 #include "job_manager.h"
 
+#include <yt/server/lib/controller_agent/progress_counter.h>
 #include <yt/server/lib/controller_agent/job_size_constraints.h>
 
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -200,10 +201,6 @@ const TChunkStripePtr& TJobStub::GetStripe(int streamIndex, int rangeIndex, bool
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! An internal representation of a finalized job.
-TJobManager::TJob::TJob()
-{ }
-
 TJobManager::TJob::TJob(TJobManager* owner, std::unique_ptr<TJobStub> jobStub, IChunkPoolOutput::TCookie cookie)
     : IsBarrier_(jobStub->GetIsBarrier())
     , DataWeight_(jobStub->GetDataWeight())
@@ -215,12 +212,20 @@ TJobManager::TJob::TJob(TJobManager* owner, std::unique_ptr<TJobStub> jobStub, I
     , Owner_(owner)
     , CookiePoolIterator_(Owner_->CookiePool_->end())
     , Cookie_(cookie)
+    , DataWeightProgressCounterGuard_(owner->DataWeightCounter(), jobStub->GetDataWeight())
+    , RowProgressCounterGuard_(owner->RowCounter(), jobStub->GetRowCount())
+    , JobProgressCounterGuard_(owner->JobCounter())
 { }
 
 void TJobManager::TJob::SetState(EJobState state)
 {
     State_ = state;
     UpdateSelf();
+}
+
+void TJobManager::TJob::SetInterruptReason(NScheduler::EInterruptReason reason)
+{
+    InterruptReason_ = reason;
 }
 
 void TJobManager::TJob::ChangeSuspendedStripeCountBy(int delta)
@@ -238,6 +243,14 @@ void TJobManager::TJob::Invalidate()
     UpdateSelf();
 }
 
+void TJobManager::TJob::Remove()
+{
+    YT_VERIFY(!Removed_);
+    Removed_ = true;
+    StripeList_.Reset();
+    UpdateSelf();
+}
+
 bool TJobManager::TJob::IsInvalidated() const
 {
     return Invalidated_;
@@ -246,14 +259,24 @@ bool TJobManager::TJob::IsInvalidated() const
 void TJobManager::TJob::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, Owner_);
-    Persist(context, SuspendedStripeCount_);
-    Persist(context, StripeList_);
-    Persist(context, Cookie_);
     Persist(context, State_);
+    Persist(context, IsBarrier_);
     Persist(context, DataWeight_);
     Persist(context, RowCount_);
+    Persist(context, LowerLimit_);
+    Persist(context, UpperLimit_);
+    Persist(context, StripeList_);
+    Persist(context, InputCookies_);
+    Persist(context, Owner_);
+    Persist(context, SuspendedStripeCount_);
+    Persist(context, Cookie_);
     Persist(context, Invalidated_);
+    Persist(context, Removed_);
+    Persist(context, DataWeightProgressCounterGuard_);
+    Persist(context, RowProgressCounterGuard_);
+    Persist(context, JobProgressCounterGuard_);
+    Persist(context, InterruptReason_);
+
     if (context.IsLoad()) {
         // We must add ourselves to the job pool.
         CookiePoolIterator_ = Owner_->CookiePool_->end();
@@ -263,24 +286,41 @@ void TJobManager::TJob::Persist(const TPersistenceContext& context)
 
 void TJobManager::TJob::UpdateSelf()
 {
-    bool inPoolDesired =
-        State_ == EJobState::Pending &&
-        SuspendedStripeCount_ == 0 &&
-        !Invalidated_;
+    EProgressCategory newProgressCategory;
+    if (IsBarrier_ || Removed_) {
+        newProgressCategory = EProgressCategory::None;
+    } else if (Invalidated_) {
+        newProgressCategory = EProgressCategory::Invalidated;
+    } else if (State_ == EJobState::Pending) {
+        if (SuspendedStripeCount_ == 0) {
+            newProgressCategory = EProgressCategory::Pending;
+        } else {
+            newProgressCategory = EProgressCategory::Suspended;
+        }
+    } else if (State_ == EJobState::Running) {
+        newProgressCategory = EProgressCategory::Running;
+    } else if (State_ == EJobState::Completed) {
+        newProgressCategory = EProgressCategory::Completed;
+    }
+
+    bool inPoolDesired = (newProgressCategory == EProgressCategory::Pending);
     if (InPool_ && !inPoolDesired) {
         RemoveSelf();
     } else if (!InPool_ && inPoolDesired) {
         AddSelf();
     }
 
-    bool suspendedDesired =
-        State_ == EJobState::Pending &&
-        SuspendedStripeCount_ > 0 &&
-        !Invalidated_;
+    bool suspendedDesired = (newProgressCategory == EProgressCategory::Suspended);
     if (Suspended_ && !suspendedDesired) {
         ResumeSelf();
     } else if (!Suspended_ && suspendedDesired) {
         SuspendSelf();
+    }
+
+    if (newProgressCategory == EProgressCategory::Completed) {
+        CallProgressCounterGuards(&TProgressCounterGuard::SetCompletedCategory, InterruptReason_);
+    } else {
+        CallProgressCounterGuards(&TProgressCounterGuard::SetCategory, newProgressCategory);
     }
 }
 
@@ -303,22 +343,20 @@ void TJobManager::TJob::SuspendSelf()
 {
     YT_VERIFY(!Suspended_);
     Suspended_ = true;
-    YT_VERIFY(++Owner_->SuspendedJobCount_ > 0);
 }
 
 void TJobManager::TJob::ResumeSelf()
 {
     YT_VERIFY(Suspended_);
-    YT_VERIFY(--Owner_->SuspendedJobCount_ >= 0);
     Suspended_ = false;
 }
 
 template <class... TArgs>
-void TJobManager::TJob::UpdateCounters(void (TProgressCounter::*Method)(i64, TArgs...), TArgs... args)
+void TJobManager::TJob::CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), TArgs... args)
 {
-    (Owner_->JobCounter_.Get()->*Method)(1, std::forward<TArgs>(args)...);
-    (Owner_->DataWeightCounter_.Get()->*Method)(DataWeight_, std::forward<TArgs>(args)...);
-    (Owner_->RowCounter_.Get()->*Method)(RowCount_, std::forward<TArgs>(args)...);
+    (DataWeightProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
+    (RowProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
+    (JobProgressCounterGuard_.*Method)(std::forward<TArgs>(args)...);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -341,11 +379,7 @@ bool TJobManager::TStripeListComparator::operator()(IChunkPoolOutput::TCookie lh
 
 TJobManager::TJobManager()
     : CookiePool_(std::make_unique<TCookiePool>(TJobManager::TStripeListComparator(this /* owner */)))
-{
-    DataWeightCounter_->Set(0);
-    RowCounter_->Set(0);
-    JobCounter_->Set(0);
-}
+{ }
 
 void TJobManager::AddJobs(std::vector<std::unique_ptr<TJobStub>> jobStubs)
 {
@@ -404,16 +438,16 @@ IChunkPoolOutput::TCookie TJobManager::AddJob(std::unique_ptr<TJobStub> jobStub)
     Jobs_.emplace_back(this /* owner */, std::move(jobStub), outputCookie);
     Jobs_.back().SetState(EJobState::Pending);
     Jobs_.back().ChangeSuspendedStripeCountBy(initialSuspendedStripeCount);
-    Jobs_.back().UpdateCounters(&TProgressCounter::Increment);
+
     return outputCookie;
 }
 
 void TJobManager::Completed(IChunkPoolOutput::TCookie cookie, EInterruptReason reason)
 {
-    Jobs_[cookie].UpdateCounters(&TProgressCounter::Completed, reason);
-    if (reason == EInterruptReason::None) {
-        Jobs_[cookie].SetState(EJobState::Completed);
-    }
+    auto& job = Jobs_[cookie];
+    YT_VERIFY(job.GetState() == EJobState::Running);
+    job.SetInterruptReason(reason);
+    job.SetState(EJobState::Completed);
 }
 
 IChunkPoolOutput::TCookie TJobManager::ExtractCookie()
@@ -423,31 +457,37 @@ IChunkPoolOutput::TCookie TJobManager::ExtractCookie()
     }
 
     auto cookie = *CookiePool_->begin();
+    auto& job = Jobs_[cookie];
+    YT_VERIFY(!job.GetIsBarrier());
+    YT_VERIFY(job.GetState() == EJobState::Pending);
 
-    Jobs_[cookie].UpdateCounters(&TProgressCounter::Start);
-    Jobs_[cookie].SetState(EJobState::Running);
-
-    YT_VERIFY(!Jobs_[cookie].GetIsBarrier());
+    job.SetState(EJobState::Running);
 
     return cookie;
 }
 
 void TJobManager::Failed(IChunkPoolOutput::TCookie cookie)
 {
-    Jobs_[cookie].UpdateCounters(&TProgressCounter::Failed);
-    Jobs_[cookie].SetState(EJobState::Pending);
+    auto& job = Jobs_[cookie];
+    YT_VERIFY(job.GetState() == EJobState::Running);
+    job.CallProgressCounterGuards(&TProgressCounterGuard::OnFailed);
+    job.SetState(EJobState::Pending);
 }
 
 void TJobManager::Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason)
 {
-    Jobs_[cookie].UpdateCounters(&TProgressCounter::Aborted, reason);
-    Jobs_[cookie].SetState(EJobState::Pending);
+    auto& job = Jobs_[cookie];
+    YT_VERIFY(job.GetState() == EJobState::Running);
+    job.CallProgressCounterGuards(&TProgressCounterGuard::OnAborted, reason);
+    job.SetState(EJobState::Pending);
 }
 
 void TJobManager::Lost(IChunkPoolOutput::TCookie cookie)
 {
-    Jobs_[cookie].UpdateCounters(&TProgressCounter::Lost);
-    Jobs_[cookie].SetState(EJobState::Pending);
+    auto& job = Jobs_[cookie];
+    YT_VERIFY(job.GetState() == EJobState::Completed);
+    job.CallProgressCounterGuards(&TProgressCounterGuard::OnLost);
+    job.SetState(EJobState::Pending);
 }
 
 void TJobManager::Suspend(IChunkPoolInput::TCookie inputCookie)
@@ -461,7 +501,8 @@ void TJobManager::Suspend(IChunkPoolInput::TCookie inputCookie)
     }
 
     for (auto outputCookie : InputCookieToAffectedOutputCookies_[inputCookie]) {
-        Jobs_[outputCookie].ChangeSuspendedStripeCountBy(+1);
+        auto& job = Jobs_[outputCookie];
+        job.ChangeSuspendedStripeCountBy(+1);
     }
 }
 
@@ -476,14 +517,16 @@ void TJobManager::Resume(IChunkPoolInput::TCookie inputCookie)
     }
 
     for (auto outputCookie : InputCookieToAffectedOutputCookies_[inputCookie]) {
-        Jobs_[outputCookie].ChangeSuspendedStripeCountBy(-1);
+        auto& job = Jobs_[outputCookie];
+        job.ChangeSuspendedStripeCountBy(-1);
     }
 }
 
 void TJobManager::Invalidate(IChunkPoolInput::TCookie inputCookie)
 {
     YT_VERIFY(0 <= inputCookie && inputCookie < Jobs_.size());
-    Jobs_[inputCookie].Invalidate();
+    auto& job = Jobs_[inputCookie];
+    job.Invalidate();
 }
 
 std::vector<TInputDataSlicePtr> TJobManager::ReleaseForeignSlices(IChunkPoolInput::TCookie inputCookie)
@@ -506,13 +549,14 @@ void TJobManager::Persist(const TPersistenceContext& context)
         CookiePool_ = std::make_unique<TCookiePool>(TStripeListComparator(this /* owner */));
     }
 
-    Persist(context, InputCookieToAffectedOutputCookies_);
     Persist(context, DataWeightCounter_);
     Persist(context, RowCounter_);
     Persist(context, JobCounter_);
-    Persist(context, Jobs_);
+    Persist(context, DataSliceCounter_);
+    Persist(context, InputCookieToAffectedOutputCookies_);
     Persist(context, FirstValidJobIndex_);
     Persist(context, SuspendedInputCookies_);
+    Persist(context, Jobs_);
 }
 
 TChunkStripeStatisticsVector TJobManager::GetApproximateStripeStatistics() const
@@ -525,23 +569,19 @@ TChunkStripeStatisticsVector TJobManager::GetApproximateStripeStatistics() const
     return job.StripeList()->GetStatistics();
 }
 
-int TJobManager::GetPendingJobCount() const
-{
-    return CookiePool_->size();
-}
-
 const TChunkStripeListPtr& TJobManager::GetStripeList(IChunkPoolOutput::TCookie cookie)
 {
     YT_VERIFY(cookie < Jobs_.size());
-    YT_VERIFY(Jobs_[cookie].GetState() == EJobState::Running);
-    return Jobs_[cookie].StripeList();
+    const auto& job = Jobs_[cookie];
+    return job.StripeList();
 }
 
 void TJobManager::InvalidateAllJobs()
 {
     while (FirstValidJobIndex_ < Jobs_.size()) {
-        if (!Jobs_[FirstValidJobIndex_].IsInvalidated()) {
-            Jobs_[FirstValidJobIndex_].Invalidate();
+        auto& job = Jobs_[FirstValidJobIndex_];
+        if (!job.IsInvalidated()) {
+            job.Invalidate();
         }
         FirstValidJobIndex_++;
     }
@@ -638,8 +678,8 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
                 currentJobStub->GetDataWeight(),
                 currentJobStub->GetPrimaryDataWeight());
             for (int index : joinedJobCookies) {
-                Jobs_[index].Invalidate();
-                Jobs_[index].UpdateCounters(&TProgressCounter::Decrement);
+                auto& job = Jobs_[index];
+                job.Remove();
             }
             currentJobStub->Finalize(false /* sortByPosition */);
             newJobs.emplace_back(std::move(currentJobStub));

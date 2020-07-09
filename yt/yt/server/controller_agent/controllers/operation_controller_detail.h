@@ -242,7 +242,6 @@ public:
     virtual void BuildJobSplitterInfo(NYTree::TFluentMap fluent) const;
     virtual void BuildJobsYson(NYTree::TFluentMap fluent) const;
     virtual void BuildRetainedFinishedJobsYson(NYTree::TFluentMap fluent) const;
-    virtual bool ShouldShowDataFlowSectionsInProgress() const;
 
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
@@ -546,6 +545,7 @@ protected:
     void AnalyzeOperationDuration();
     void AnalyzeScheduleJobStatistics();
     void AnalyzeControllerQueues();
+    void AnalyzeInvalidatedJobs();
 
     void AnalyzeOperationProgress();
 

@@ -17,10 +17,13 @@ DEFINE_ENUM(ECompetitionStatus,
 class TCompetitiveJobManager
 {
 public:
+    //! Used only for persistence.
+    TCompetitiveJobManager() = default;
+
     TCompetitiveJobManager(
         std::function<void(const TJobletPtr&)> onSpeculativeJobScheduled,
         std::function<void(TJobId, EAbortReason)> abortJobCallback,
-        const NLogging::TLogger& logger,
+        NLogging::TLogger logger,
         int maxSpeculativeJobCount);
 
     bool TryRegisterSpeculativeCandidate(const TJobletPtr& joblet);
@@ -51,11 +54,13 @@ public:
 
 private:
     struct TCompetition
+        : public TRefCounted
     {
         ECompetitionStatus Status = ECompetitionStatus::SingleJobOnly;
         std::vector<TJobId> Competitors;
         TJobId JobCompetitionId;
         i64 PendingDataWeight;
+        TProgressCounterGuard ProgressCounterGuard;
 
         void Persist(const TPersistenceContext& context)
         {
@@ -65,24 +70,27 @@ private:
             Persist(context, Competitors);
             Persist(context, JobCompetitionId);
             Persist(context, PendingDataWeight);
+            Persist(context, ProgressCounterGuard);
         }
     };
+    DEFINE_REFCOUNTED_TYPE(TCompetition)
 
     std::function<void(TJobId, EAbortReason)> AbortJobCallback_;
     std::function<void(const TJobletPtr&)> OnSpeculativeJobScheduled_;
     TProgressCounterPtr JobCounter_;
-    const NLogging::TLogger& Logger;
 
-    THashMap<NChunkPools::IChunkPoolOutput::TCookie, TCompetition> CookieToCompetition_;
+    THashMap<NChunkPools::IChunkPoolOutput::TCookie, TIntrusivePtr<TCompetition>> CookieToCompetition_;
     THashSet<NChunkPools::IChunkPoolOutput::TCookie> SpeculativeCandidates_;
 
     i64 PendingDataWeight_ = 0;
-    int MaxSpeculativeJobCount_;
+    int MaxSpeculativeJobCount_ = -1;
+
+    NLogging::TLogger Logger;
 
     void OnJobFinished(const TJobletPtr& joblet);
     bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,
-        const std::function<void(const TProgressCounterPtr&)>& updateJobCounter);
+        const std::function<void(TProgressCounterGuard*)>& updateJobCounter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

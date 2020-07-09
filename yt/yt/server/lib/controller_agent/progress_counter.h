@@ -2,26 +2,32 @@
 
 #include "persistence.h"
 
+#include <yt/core/actions/signal.h>
+
 #include <yt/core/yson/public.h>
 
 namespace NYT::NControllerAgent {
 
-////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EProgressCategory,
+    ((None)               (0))
+    ((Running)            (1))
+    ((Completed)          (2))
+    ((Pending)            (3))
+    ((Suspended)          (4))
+    ((Invalidated)        (5))
+    ((Uncategorized)      (6)));
+
+///////////////////////////////////////////////////////////////////////////////
 
 //! Represents an abstract numeric progress counter for jobs, chunks, weights etc.
-//! Can be a part of counter hierarchy: change in a counter affects its parent, grandparent and so on.
+//! Can be a part of counter hierarchy: change in a counter affects its parents, grandparents and so on.
 class TProgressCounter
     : public TRefCounted
 {
 public:
-    TProgressCounter();
-    explicit TProgressCounter(i64 total);
-
-    void Set(i64 total);
-    bool IsTotalEnabled() const;
-
-    void Decrement(i64 value);
-    void Increment(i64 value);
+    TProgressCounter() = default;
 
     i64 GetTotal() const;
     i64 GetRunning() const;
@@ -29,38 +35,56 @@ public:
     i64 GetCompleted(EInterruptReason reason) const;
     i64 GetInterruptedTotal() const;
     i64 GetPending() const;
+    i64 GetSuspended() const;
     i64 GetFailed() const;
     i64 GetAbortedTotal() const;
     i64 GetAbortedScheduled() const;
     i64 GetAbortedNonScheduled() const;
     i64 GetAborted(EAbortReason reason) const;
     i64 GetLost() const;
+    i64 GetInvalidated() const;
+    i64 GetUncategorized() const;
 
-    void Start(i64 count);
-    void Completed(i64 count, EInterruptReason reason = EInterruptReason::None);
-    void Failed(i64 count);
-    void Aborted(i64 count, EAbortReason reason = EAbortReason::Other);
-    void Lost(i64 count);
+    void AddRunning(i64 value);
+    void AddCompleted(i64 value, EInterruptReason reason = EInterruptReason::None);
+    void AddFailed(i64 value);
+    void AddPending(i64 value);
+    void AddSuspended(i64 value);
+    void AddAborted(i64 value, EAbortReason reason = EAbortReason::Other);
+    void AddLost(i64 value);
+    void AddInvalidated(i64 value);
+    void AddUncategorized(i64 value);
 
     // NB: this method does not check that counter hierarchy does not contain loops.
-    void SetParent(const TProgressCounterPtr& parent);
-    const TProgressCounterPtr& Parent() const;
+    void AddParent(TProgressCounterPtr parent);
+
+    // NB: removes at most one occurence of parent in parents list.
+    bool RemoveParent(TProgressCounterPtr parent);
 
     void Persist(const TPersistenceContext& context);
 
+    //! Raises when pending counter changes.
+    DEFINE_SIGNAL(void(), PendingUpdated);
+
 private:
-    bool TotalEnabled_;
-    i64 Total_;
-    i64 Running_;
+    i64 Running_ = 0;
     TEnumIndexedVector<EInterruptReason, i64> Completed_;
-    i64 Pending_;
-    i64 Failed_;
-    i64 Lost_;
+    i64 Failed_ = 0;
+    i64 Pending_ = 0;
+    i64 Suspended_ = 0;
     TEnumIndexedVector<EAbortReason, i64> Aborted_;
-    TProgressCounterPtr Parent_;
+    i64 Lost_ = 0;
+    i64 Invalidated_ = 0;
+    i64 Uncategorized_ = 0;
+
+    std::vector<TProgressCounterPtr> Parents_;
+
+    void Propagate(TProgressCounterPtr parent, int multiplier);
 };
 
 DEFINE_REFCOUNTED_TYPE(TProgressCounter)
+
+////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TProgressCounterPtr& counter);
 
@@ -69,6 +93,47 @@ void Serialize(const TProgressCounterPtr& counter, NYson::IYsonConsumer* consume
 void SerializeBriefVersion(const TProgressCounterPtr& counter, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TProgressCounterGuard
+{
+public:
+    TProgressCounterGuard() = default;
+
+    TProgressCounterGuard(TProgressCounterPtr progressCounter, i64 value = 1);
+
+    i64 GetValue() const;
+
+    void SetValue(i64 newValue);
+
+    void UpdateValue(i64 delta);
+
+    void SetCategory(EProgressCategory newState);
+
+    void SetCompletedCategory(EInterruptReason interruptReason);
+
+    void OnFailed();
+
+    void OnAborted(EAbortReason abortReason);
+
+    void OnLost();
+
+    void Unregister();
+
+    void Persist(const TPersistenceContext& context);
+
+private:
+    TProgressCounterPtr ProgressCounter_;
+
+    i64 Value_ = -1;
+
+    EProgressCategory Category_ = EProgressCategory::None;
+
+    EInterruptReason InterruptReason_ = EInterruptReason::None;
+
+    void UpdateProgressCounter(i64 multiplier);
+};
+
+///////////////////////////////////////////////////////////////////////////////
 
 extern const TProgressCounterPtr NullProgressCounter;
 

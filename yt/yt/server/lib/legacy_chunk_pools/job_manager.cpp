@@ -314,7 +314,7 @@ void TJobManager::TJob::ResumeSelf()
 }
 
 template <class... TArgs>
-void TJobManager::TJob::UpdateCounters(void (TProgressCounter::*Method)(i64, TArgs...), TArgs... args)
+void TJobManager::TJob::UpdateCounters(void (TLegacyProgressCounter::*Method)(i64, TArgs...), TArgs... args)
 {
     (Owner_->JobCounter_.Get()->*Method)(1, std::forward<TArgs>(args)...);
     (Owner_->DataWeightCounter_.Get()->*Method)(DataWeight_, std::forward<TArgs>(args)...);
@@ -404,13 +404,13 @@ IChunkPoolOutput::TCookie TJobManager::AddJob(std::unique_ptr<TJobStub> jobStub)
     Jobs_.emplace_back(this /* owner */, std::move(jobStub), outputCookie);
     Jobs_.back().SetState(EJobState::Pending);
     Jobs_.back().ChangeSuspendedStripeCountBy(initialSuspendedStripeCount);
-    Jobs_.back().UpdateCounters(&TProgressCounter::Increment);
+    Jobs_.back().UpdateCounters(&TLegacyProgressCounter::Increment);
     return outputCookie;
 }
 
 void TJobManager::Completed(IChunkPoolOutput::TCookie cookie, EInterruptReason reason)
 {
-    Jobs_[cookie].UpdateCounters(&TProgressCounter::Completed, reason);
+    Jobs_[cookie].UpdateCounters(&TLegacyProgressCounter::Completed, reason);
     if (reason == EInterruptReason::None) {
         Jobs_[cookie].SetState(EJobState::Completed);
     }
@@ -424,7 +424,7 @@ IChunkPoolOutput::TCookie TJobManager::ExtractCookie()
 
     auto cookie = *CookiePool_->begin();
 
-    Jobs_[cookie].UpdateCounters(&TProgressCounter::Start);
+    Jobs_[cookie].UpdateCounters(&TLegacyProgressCounter::Start);
     Jobs_[cookie].SetState(EJobState::Running);
 
     YT_VERIFY(!Jobs_[cookie].GetIsBarrier());
@@ -434,19 +434,19 @@ IChunkPoolOutput::TCookie TJobManager::ExtractCookie()
 
 void TJobManager::Failed(IChunkPoolOutput::TCookie cookie)
 {
-    Jobs_[cookie].UpdateCounters(&TProgressCounter::Failed);
+    Jobs_[cookie].UpdateCounters(&TLegacyProgressCounter::Failed);
     Jobs_[cookie].SetState(EJobState::Pending);
 }
 
 void TJobManager::Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason)
 {
-    Jobs_[cookie].UpdateCounters(&TProgressCounter::Aborted, reason);
+    Jobs_[cookie].UpdateCounters(&TLegacyProgressCounter::Aborted, reason);
     Jobs_[cookie].SetState(EJobState::Pending);
 }
 
 void TJobManager::Lost(IChunkPoolOutput::TCookie cookie)
 {
-    Jobs_[cookie].UpdateCounters(&TProgressCounter::Lost);
+    Jobs_[cookie].UpdateCounters(&TLegacyProgressCounter::Lost);
     Jobs_[cookie].SetState(EJobState::Pending);
 }
 
@@ -639,7 +639,7 @@ void TJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
                 currentJobStub->GetPrimaryDataWeight());
             for (int index : joinedJobCookies) {
                 Jobs_[index].Invalidate();
-                Jobs_[index].UpdateCounters(&TProgressCounter::Decrement);
+                Jobs_[index].UpdateCounters(&TLegacyProgressCounter::Decrement);
             }
             currentJobStub->Finalize(false /* sortByPosition */);
             newJobs.emplace_back(std::move(currentJobStub));

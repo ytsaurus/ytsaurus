@@ -109,7 +109,7 @@ public:
         , CompletedPartitionCount(0)
         // Cannot do similar for SortedMergeJobCounter and UnorderedMergeJobCounter since the number
         // of these jobs is hard to predict.
-        , SortDataWeightCounter(New<TProgressCounter>(0))
+        , SortDataWeightCounter(New<TLegacyProgressCounter>(0))
         , SortStartThresholdReached(false)
         , MergeStartThresholdReached(false)
         , TotalOutputRowCount(0)
@@ -174,13 +174,13 @@ protected:
 
     // Counters.
     int CompletedPartitionCount;
-    TProgressCounterPtr SortedMergeJobCounter = New<TProgressCounter>();
-    TProgressCounterPtr UnorderedMergeJobCounter = New<TProgressCounter>();
+    TLegacyProgressCounterPtr SortedMergeJobCounter = New<TLegacyProgressCounter>();
+    TLegacyProgressCounterPtr UnorderedMergeJobCounter = New<TLegacyProgressCounter>();
 
     // Sort job counters.
-    TProgressCounterPtr IntermediateSortJobCounter = New<TProgressCounter>();
-    TProgressCounterPtr FinalSortJobCounter = New<TProgressCounter>();
-    TProgressCounterPtr SortDataWeightCounter = New<TProgressCounter>();
+    TLegacyProgressCounterPtr IntermediateSortJobCounter = New<TLegacyProgressCounter>();
+    TLegacyProgressCounterPtr FinalSortJobCounter = New<TLegacyProgressCounter>();
+    TLegacyProgressCounterPtr SortDataWeightCounter = New<TLegacyProgressCounter>();
 
     // Start thresholds.
     bool SortStartThresholdReached;
@@ -2057,12 +2057,12 @@ protected:
         return result;
     }
 
-    const TProgressCounterPtr& GetPartitionJobCounter() const
+    const TLegacyProgressCounterPtr& GetPartitionJobCounter() const
     {
         if (PartitionPool) {
             return PartitionPool->GetJobCounter();
         }
-        return NullProgressCounter;
+        return NullLegacyProgressCounter;
     }
 
     // Partition sizes histogram.

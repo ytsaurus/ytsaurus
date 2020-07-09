@@ -32,11 +32,12 @@ std::vector<NChunkClient::TInputChunkPtr> GetStripeListChunks(const TChunkStripe
 class TSuspendableStripe
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(IChunkPoolOutput::TCookie, ExtractedCookie);
     DEFINE_BYVAL_RW_PROPERTY(bool, Teleport, false);
 
 public:
-    TSuspendableStripe();
+    //! Used only for persistence.
+    TSuspendableStripe() = default;
+
     explicit TSuspendableStripe(TChunkStripePtr stripe);
 
     const TChunkStripePtr& GetStripe() const;

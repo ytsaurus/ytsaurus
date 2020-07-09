@@ -12,63 +12,14 @@ using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TProgressCounter::TProgressCounter()
-    : TotalEnabled_(false)
-    , Total_(0)
-    , Running_(0)
-    , Pending_(0)
-    , Failed_(0)
-    , Lost_(0)
-{ }
-
-TProgressCounter::TProgressCounter(i64 total)
-    : TProgressCounter()
-{
-    Set(total);
-}
-
-void TProgressCounter::Set(i64 total)
-{
-    YT_VERIFY(!TotalEnabled_);
-    TotalEnabled_ = true;
-    Increment(total);
-}
-
-bool TProgressCounter::IsTotalEnabled() const
-{
-    return TotalEnabled_;
-}
-
-void TProgressCounter::Increment(i64 value)
-{
-    YT_VERIFY(TotalEnabled_);
-    Total_ += value;
-    YT_VERIFY(Total_ >= 0);
-    Pending_ += value;
-    YT_VERIFY(Pending_ >= 0);
-
-    if (Parent_) {
-        Parent_->Increment(value);
-    }
-}
-
-void TProgressCounter::Decrement(i64 value)
-{
-    YT_VERIFY(TotalEnabled_);
-    Total_ -= value;
-    YT_VERIFY(Total_ >= 0);
-    Pending_ -= value;
-    YT_VERIFY(Pending_ >= 0);
-
-    if (Parent_) {
-        Parent_->Decrement(value);
-    }
-}
-
 i64 TProgressCounter::GetTotal() const
 {
-    YT_VERIFY(TotalEnabled_);
-    return Total_;
+    return
+        GetRunning() +
+        GetCompletedTotal() +
+        GetPending() +
+        GetSuspended() +
+        GetUncategorized();
 }
 
 i64 TProgressCounter::GetRunning() const
@@ -93,8 +44,12 @@ i64 TProgressCounter::GetInterruptedTotal() const
 
 i64 TProgressCounter::GetPending() const
 {
-    YT_VERIFY(TotalEnabled_);
     return Pending_;
+}
+
+i64 TProgressCounter::GetSuspended() const
+{
+    return Suspended_;
 }
 
 i64 TProgressCounter::GetFailed() const
@@ -133,175 +88,162 @@ i64 TProgressCounter::GetLost() const
     return Lost_;
 }
 
-void TProgressCounter::Start(i64 count)
+i64 TProgressCounter::GetInvalidated() const
 {
-    if (TotalEnabled_) {
-        YT_VERIFY(Pending_ >= count);
-        Pending_ -= count;
-    }
-    Running_ += count;
+    return Invalidated_;
+}
 
-    if (Parent_) {
-        Parent_->Start(count);
+i64 TProgressCounter::GetUncategorized() const
+{
+    return Uncategorized_;
+}
+
+void TProgressCounter::AddRunning(i64 value)
+{
+    Running_ += value;
+    for (const auto& parent : Parents_) {
+        parent->AddRunning(value);
     }
 }
 
-void TProgressCounter::Completed(i64 count, EInterruptReason reason)
+void TProgressCounter::AddCompleted(i64 value, EInterruptReason reason)
 {
-    YT_VERIFY(Running_ >= count);
-    Running_ -= count;
-    Completed_[reason] += count;
-
-    if (Parent_) {
-        Parent_->Completed(count, reason);
+    Completed_[reason] += value;
+    for (const auto& parent : Parents_) {
+        parent->AddCompleted(value, reason);
     }
 }
 
-void TProgressCounter::Failed(i64 count)
+void TProgressCounter::AddFailed(i64 value)
 {
-    YT_VERIFY(Running_ >= count);
-    Running_ -= count;
-    Failed_ += count;
-    if (TotalEnabled_) {
-        Pending_ += count;
-    }
-
-    if (Parent_) {
-        Parent_->Failed(count);
+    Failed_ += value;
+    for (const auto& parent : Parents_) {
+        parent->AddFailed(value);
     }
 }
 
-void TProgressCounter::Aborted(i64 count, EAbortReason reason)
+void TProgressCounter::AddPending(i64 value)
 {
-    YT_VERIFY(!IsSentinelReason(reason));
-    YT_VERIFY(Running_ >= count);
-    Running_ -= count;
-    Aborted_[reason] += count;
-    if (TotalEnabled_) {
-        Pending_ += count;
+    Pending_ += value;
+    for (const auto& parent : Parents_) {
+        parent->AddPending(value);
     }
+    PendingUpdated_.Fire();
+}
 
-    if (Parent_) {
-        Parent_->Aborted(count, reason);
+void TProgressCounter::AddSuspended(i64 value)
+{
+    Suspended_ += value;
+    for (const auto& parent : Parents_) {
+        parent->AddSuspended(value);
     }
 }
 
-void TProgressCounter::Lost(i64 count)
+void TProgressCounter::AddAborted(i64 value, EAbortReason reason)
 {
-    YT_VERIFY(Completed_[EInterruptReason::None] >= count);
-    Completed_[EInterruptReason::None] -= count;
-    Lost_ += count;
-    if (TotalEnabled_) {
-        Pending_ += count;
-    }
-
-    if (Parent_) {
-        Parent_->Lost(count);
+    Aborted_[reason] += value;
+    for (const auto& parent : Parents_) {
+        parent->AddAborted(value, reason);
     }
 }
 
-void TProgressCounter::SetParent(const TProgressCounterPtr& parent)
+void TProgressCounter::AddLost(i64 value)
 {
-    YT_VERIFY(!Parent_);
-    Parent_ = parent;
-    if (TotalEnabled_) {
-        Parent_->Increment(Total_);
+    Lost_ += value;
+    for (const auto& parent : Parents_) {
+        parent->AddLost(value);
     }
-
-    // Running jobs.
-    Parent_->Start(Running_);
-
-    // NB: all modifications below require starting fictional jobs before accounting them in the proper category.
-    // This may lead to the situation when parent's Total_ is smaller than his Running_ (like if there were
-    // lots of aborted jobs, but total job count is relatively small). To overcome this issue we calculate total
-    // number of jobs we are going to start fictionally, increment parent's total job count by this value,
-    // performs all the modifications and finally decrement it back.
-    i64 totalDelta = GetCompletedTotal() + Failed_ + Lost_ + GetAbortedTotal();
-    Parent_->Increment(totalDelta);
-
-    // Completed jobs.
-    for (const auto& interruptReason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
-        if (auto value = Completed_[interruptReason]) {
-            Parent_->Start(value);
-            Parent_->Completed(value, interruptReason);
-        }
-    }
-
-    // Failed jobs.
-    Parent_->Start(Failed_);
-    Parent_->Failed(Failed_);
-
-    // Lost jobs (yes, job losing is a rather complicated process).
-    Parent_->Start(Lost_);
-    Parent_->Completed(Lost_, EInterruptReason::None);
-    Parent_->Lost(Lost_);
-
-    // Aborted jobs.
-    for (const auto& abortReason : TEnumTraits<EAbortReason>::GetDomainValues()) {
-        if (auto value = Aborted_[abortReason]) {
-            Parent_->Start(value);
-            Parent_->Aborted(value, abortReason);
-        }
-    }
-
-    Parent_->Increment(-totalDelta);
 }
 
-const TProgressCounterPtr& TProgressCounter::Parent() const
+void TProgressCounter::AddInvalidated(i64 value)
 {
-    return Parent_;
+    Invalidated_ += value;
+    for (const auto& parent : Parents_) {
+        parent->AddInvalidated(value);
+    }
+}
+
+void TProgressCounter::AddUncategorized(i64 value)
+{
+    Uncategorized_ += value;
+    for (const auto& parent : Parents_) {
+        parent->AddUncategorized(value);
+    }
+}
+
+void TProgressCounter::AddParent(TProgressCounterPtr parent)
+{
+    Propagate(parent, +1);
+
+    Parents_.push_back(std::move(parent));
+}
+
+bool TProgressCounter::RemoveParent(TProgressCounterPtr parent)
+{
+    auto parentIt = std::find(Parents_.begin(), Parents_.end(), parent);
+    if (parentIt == Parents_.end()) {
+        return false;
+    }
+
+    Propagate(parent, -1);
+
+    Parents_.erase(parentIt);
+
+    return true;
 }
 
 void TProgressCounter::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, TotalEnabled_);
-    Persist(context, Total_);
     Persist(context, Running_);
     Persist(context, Completed_);
-    Persist(context, Pending_);
     Persist(context, Failed_);
-    Persist(context, Lost_);
+    Persist(context, Pending_);
+    Persist(context, Suspended_);
     Persist(context, Aborted_);
-    Persist(context, Parent_);
+    Persist(context, Lost_);
+    Persist(context, Invalidated_);
+    Persist(context, Uncategorized_);
+    Persist(context, Parents_);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-const TProgressCounterPtr NullProgressCounter = New<TProgressCounter>();
+void TProgressCounter::Propagate(TProgressCounterPtr parent, int multiplier)
+{
+    parent->AddRunning(Running_ * multiplier);
+    for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
+        parent->AddCompleted(Completed_[reason] * multiplier, reason);
+    }
+    parent->AddFailed(Failed_ * multiplier);
+    parent->AddPending(Pending_ * multiplier);
+    parent->AddSuspended(Suspended_ * multiplier);
+    for (auto reason : TEnumTraits<EAbortReason>::GetDomainValues()) {
+        parent->AddAborted(Aborted_[reason] * multiplier, reason);
+    }
+    parent->AddLost(Lost_ * multiplier);
+    parent->AddInvalidated(Invalidated_ * multiplier);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ToString(const TProgressCounterPtr& counter)
 {
-    return counter->IsTotalEnabled()
-        ? Format("{T: %v, R: %v, C: %v, P: %v, F: %v, A: %v, L: %v, I: %v}",
-            counter->GetTotal(),
-            counter->GetRunning(),
-            counter->GetCompletedTotal(),
-            counter->GetPending(),
-            counter->GetFailed(),
-            counter->GetAbortedTotal(),
-            counter->GetLost(),
-            counter->GetInterruptedTotal())
-        : Format("{R: %v, C: %v, F: %v, A: %v, L: %v, I: %v}",
-            counter->GetRunning(),
-            counter->GetCompletedTotal(),
-            counter->GetFailed(),
-            counter->GetAbortedTotal(),
-            counter->GetLost(),
-            counter->GetInterruptedTotal());
+    return Format("{T: %v, R: %v, C: %v, F: %v, P: %v, S: %v, A: %v, L: %v, I: %v}",
+        counter->GetTotal(),
+        counter->GetRunning(),
+        counter->GetCompletedTotal(),
+        counter->GetFailed(),
+        counter->GetPending(),
+        counter->GetSuspended(),
+        counter->GetAbortedTotal(),
+        counter->GetLost(),
+        counter->GetInvalidated());
 }
 
 void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .DoIf(counter->IsTotalEnabled(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("total").Value(counter->GetTotal())
-                    .Item("pending").Value(counter->GetPending());
-            })
+            .Item("total").Value(counter->GetTotal())
             .Item("running").Value(counter->GetRunning())
             .Item("completed").BeginMap()
                 .Item("interrupted").BeginMap()
@@ -316,6 +258,8 @@ void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
                 .Item("total").Value(counter->GetCompletedTotal())
             .EndMap()
             .Item("failed").Value(counter->GetFailed())
+            .Item("pending").Value(counter->GetPending())
+            .Item("suspended").Value(counter->GetSuspended())
             .Item("aborted").BeginMap()
                 // NB(ignat): temporaly output total aborted job count as scheduled aborted jobs count.
                 // Fix it when UI will start using scheduled aborted job count.
@@ -337,6 +281,7 @@ void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
                 .EndMap()
             .EndMap()
             .Item("lost").Value(counter->GetLost())
+            .Item("invalidated").Value(counter->GetInvalidated())
         .EndMap();
 }
 
@@ -344,18 +289,117 @@ void SerializeBriefVersion(const TProgressCounterPtr& counter, IYsonConsumer* co
 {
     BuildYsonFluently(consumer)
         .BeginMap()
-            .DoIf(counter->IsTotalEnabled(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("total").Value(counter->GetTotal())
-                    .Item("pending").Value(counter->GetPending());
-            })
+            .Item("total").Value(counter->GetTotal())
             .Item("running").Value(counter->GetRunning())
             .Item("completed").Value(counter->GetCompletedTotal())
             .Item("failed").Value(counter->GetFailed())
+            .Item("pending").Value(counter->GetPending())
+            .Item("suspended").Value(counter->GetSuspended())
             .Item("aborted").Value(counter->GetAbortedScheduled())
             .Item("lost").Value(counter->GetLost())
+            .Item("invalidated").Value(counter->GetInvalidated())
         .EndMap();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TProgressCounterGuard::TProgressCounterGuard(TProgressCounterPtr progressCounter, i64 value)
+    : ProgressCounter_(std::move(progressCounter))
+    , Value_(value)
+{
+    UpdateProgressCounter(+1);
+}
+
+i64 TProgressCounterGuard::GetValue() const
+{
+    return Value_;
+}
+
+void TProgressCounterGuard::SetValue(i64 newValue)
+{
+    UpdateProgressCounter(-1);
+    Value_ = newValue;
+    UpdateProgressCounter(+1);
+}
+
+void TProgressCounterGuard::UpdateValue(i64 delta)
+{
+    auto newValue = Value_ + delta;
+    SetValue(newValue);
+}
+
+void TProgressCounterGuard::SetCategory(EProgressCategory newCategory)
+{
+    UpdateProgressCounter(-1);
+    Category_ = newCategory;
+    UpdateProgressCounter(+1);
+}
+
+void TProgressCounterGuard::SetCompletedCategory(EInterruptReason interruptReason)
+{
+    UpdateProgressCounter(-1);
+    Category_ = EProgressCategory::Completed;
+    InterruptReason_ = interruptReason;
+    UpdateProgressCounter(+1);
+}
+
+void TProgressCounterGuard::OnFailed()
+{
+    ProgressCounter_->AddFailed(+1);
+}
+
+void TProgressCounterGuard::OnAborted(EAbortReason abortReason)
+{
+    ProgressCounter_->AddAborted(+1, abortReason);
+}
+
+void TProgressCounterGuard::OnLost()
+{
+    ProgressCounter_->AddLost(+1);
+}
+
+void TProgressCounterGuard::Persist(const TPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, ProgressCounter_);
+    Persist(context, Value_);
+    Persist(context, Category_);
+    Persist(context, InterruptReason_);
+}
+
+void TProgressCounterGuard::UpdateProgressCounter(i64 multiplier)
+{
+    if (Category_ != EProgressCategory::None) {
+        YT_VERIFY(ProgressCounter_);
+    }
+
+    auto value = multiplier * Value_;
+    switch (Category_) {
+        case EProgressCategory::None:
+            break;
+        case EProgressCategory::Running:
+            ProgressCounter_->AddRunning(value);
+            break;
+        case EProgressCategory::Completed:
+            ProgressCounter_->AddCompleted(value, InterruptReason_);
+            break;
+        case EProgressCategory::Pending:
+            ProgressCounter_->AddPending(value);
+            break;
+        case EProgressCategory::Suspended:
+            ProgressCounter_->AddSuspended(value);
+            break;
+        case EProgressCategory::Invalidated:
+            ProgressCounter_->AddInvalidated(value);
+            break;
+        default:
+            YT_ABORT();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TProgressCounterPtr NullProgressCounter = New<TProgressCounter>();
 
 ////////////////////////////////////////////////////////////////////////////////
 

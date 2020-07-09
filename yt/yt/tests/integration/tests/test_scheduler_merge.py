@@ -1322,7 +1322,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get(op.get_path() + "/@progress/jobs/total") == \
                get(op.get_path() + "/@progress/jobs/completed/total")
 
-
         op = merge(in_="//tmp/t1",
                    out="//tmp/t2",
                    mode=mode,
@@ -1334,7 +1333,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
         assert get("//tmp/t2/@chunk_count") == 1
         assert get(op.get_path() + "/@progress/jobs/total") == \
             get(op.get_path() + "/@progress/jobs/completed/total")
-
 
         op = merge(in_="//tmp/t1",
                    out="//tmp/t2",

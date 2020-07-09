@@ -1147,9 +1147,11 @@ public:
     TDuration SimpleSortLocalityTimeout;
     TDuration SimpleMergeLocalityTimeout;
 
+    // Used in legacy controllers only.
+    TDuration SortAssignmentTimeout;
+
     TDuration PartitionLocalityTimeout;
     TDuration SortLocalityTimeout;
-    TDuration SortAssignmentTimeout;
     TDuration MergeLocalityTimeout;
 
     TJobIOConfigPtr PartitionJobIO;

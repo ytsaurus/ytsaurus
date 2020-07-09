@@ -219,7 +219,7 @@ class TVertex
 public:
     DEFINE_BYREF_RW_PROPERTY(TVertexDescriptor, VertexDescriptor);
     DEFINE_BYVAL_RO_PROPERTY(NYTree::IYPathServicePtr, Service);
-    DEFINE_BYREF_RW_PROPERTY(TProgressCounterPtr, JobCounter, New<TProgressCounter>(0));
+    DEFINE_BYREF_RW_PROPERTY(TLegacyProgressCounterPtr, JobCounter, New<TLegacyProgressCounter>(0));
     DEFINE_BYVAL_RW_PROPERTY(EJobType, JobType);
 
     using TLivePreviewList = std::vector<TLivePreviewPtr>;
@@ -335,7 +335,7 @@ public:
         return TopologicalOrdering_.GetOrdering();
     }
 
-    const TProgressCounterPtr& GetTotalJobCounter() const
+    const TLegacyProgressCounterPtr& GetTotalJobCounter() const
     {
         return TotalJobCounter_;
     }
@@ -376,7 +376,7 @@ public:
 
     void RegisterCounter(
         const TVertexDescriptor& descriptor,
-        const TProgressCounterPtr& counter,
+        const TLegacyProgressCounterPtr& counter,
         EJobType jobType)
     {
         const auto& vertex = GetOrRegisterVertex(descriptor);
@@ -455,7 +455,7 @@ private:
     using TVertexMap = THashMap<TVertexDescriptor, TVertexPtr>;
     const std::shared_ptr<TVertexMap> Vertices_ = std::make_shared<TVertexMap>();
 
-    TProgressCounterPtr TotalJobCounter_ = New<TProgressCounter>(0);
+    TLegacyProgressCounterPtr TotalJobCounter_ = New<TLegacyProgressCounter>(0);
 
     TIncrementalTopologicalOrdering<TVertexDescriptor> TopologicalOrdering_;
 
@@ -541,7 +541,7 @@ void TDataFlowGraph::UpdateEdgeTeleportDataStatistics(
 
 void TDataFlowGraph::RegisterCounter(
     const TVertexDescriptor& vertex,
-    const TProgressCounterPtr& counter,
+    const TLegacyProgressCounterPtr& counter,
     EJobType jobType)
 {
     Impl_->RegisterCounter(vertex, counter, jobType);
@@ -567,7 +567,7 @@ void TDataFlowGraph::BuildLegacyYson(TFluentMap fluent) const
     Impl_->BuildLegacyYson(fluent);
 }
 
-const TProgressCounterPtr& TDataFlowGraph::GetTotalJobCounter() const
+const TLegacyProgressCounterPtr& TDataFlowGraph::GetTotalJobCounter() const
 {
     return Impl_->GetTotalJobCounter();
 }
