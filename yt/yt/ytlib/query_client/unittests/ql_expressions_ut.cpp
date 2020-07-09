@@ -1438,7 +1438,19 @@ INSTANTIATE_TEST_SUITE_P(
             EValueType::Int64,
             MakeInt64(10),
             MakeInt64(20),
-            MakeInt64(10)}
+            MakeInt64(10)},
+        TEvaluateAggregationParam{
+            "max",
+            EValueType::Boolean,
+            MakeBoolean(true),
+            MakeBoolean(false),
+            MakeBoolean(true)},
+        TEvaluateAggregationParam{
+            "min",
+            EValueType::Boolean,
+            MakeBoolean(true),
+            MakeBoolean(false),
+            MakeBoolean(false)}
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
