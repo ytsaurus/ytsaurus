@@ -148,7 +148,9 @@ public:
             Logger))
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
-    { }
+    {
+        ColumnarStatisticsExt_.mutable_data_weights()->Resize(ChunkNameTable_->GetSize(), 0);
+    }
 
     virtual TFuture<void> Close() override
     {
@@ -454,7 +456,8 @@ private:
         // of heaviest column.
         constexpr int DataWeightGranularity = 256;
 
-        const auto& nameTable = GetNameTable();
+        auto columnCount = GetNameTable()->GetSize();
+        YT_VERIFY(columnCount == ColumnarStatisticsExt_.data_weights_size());
 
         auto salt = RandomNumber<ui32>();
 
@@ -464,16 +467,13 @@ private:
             TString Name; 
         };
         std::vector<TColumnStatistics> columnStatistics;
-        columnStatistics.reserve(nameTable->GetSize());
+        columnStatistics.reserve(columnCount);
 
-        auto heavyColumnCount = std::min<int>(nameTable->GetSize(), Options_->MaxHeavyColumns);
+        auto heavyColumnCount = std::min<int>(columnCount, Options_->MaxHeavyColumns);
         i64 maxColumnDataWeight = 0;
 
-        for (int columnIndex = 0; columnIndex < nameTable->GetSize(); ++columnIndex) {
-            YT_VERIFY(columnIndex < ColumnarStatisticsExt_.data_weights_size());
-            auto dataWeight = columnIndex < ColumnarStatisticsExt_.data_weights_size()
-                ? ColumnarStatisticsExt_.data_weights(columnIndex)
-                : 0;
+        for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
+            auto dataWeight = ColumnarStatisticsExt_.data_weights(columnIndex);
             maxColumnDataWeight = std::max<i64>(maxColumnDataWeight, dataWeight);
             columnStatistics.push_back(TColumnStatistics{
                 .DataWeight = dataWeight,
