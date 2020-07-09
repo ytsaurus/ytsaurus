@@ -86,8 +86,7 @@ class TSortedChunkPool
 {
 public:
     //! Used only for persistence.
-    TSortedChunkPool()
-    { }
+    TSortedChunkPool() = default;
 
     TSortedChunkPool(
         const TSortedChunkPoolOptions& options,
@@ -132,8 +131,6 @@ public:
 
     virtual IChunkPoolInput::TCookie Add(TChunkStripePtr stripe) override
     {
-        YT_VERIFY(!Finished);
-
         if (stripe->DataSlices.empty()) {
             return IChunkPoolInput::NullCookie;
         }
@@ -153,7 +150,6 @@ public:
 
     virtual void Finish() override
     {
-        YT_VERIFY(!Finished);
         TChunkPoolInputBase::Finish();
 
         // NB: this method accounts all the stripes that were suspended before
@@ -190,15 +186,13 @@ public:
             InvalidateCurrentJobs();
             DoFinish();
         }
+
+        CheckCompleted();
     }
 
     virtual bool IsCompleted() const override
     {
-        return
-            Finished &&
-            GetPendingJobCount() == 0 &&
-            JobManager_->JobCounter()->GetRunning() == 0 &&
-            JobManager_->GetSuspendedJobCount() == 0;
+        return IsCompleted_;
     }
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
@@ -209,15 +203,17 @@ public:
                 jobSummary.InterruptReason,
                 jobSummary.SplitJobCount);
             auto foreignSlices = JobManager_->ReleaseForeignSlices(cookie);
-            JobManager_->Invalidate(cookie);
             SplitJob(jobSummary.UnreadInputDataSlices, std::move(foreignSlices), jobSummary.SplitJobCount);
         }
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
+        CheckCompleted();
     }
 
-    virtual i64 GetDataSliceCount() const override
+    virtual void Lost(IChunkPoolOutput::TCookie cookie) override
     {
-        return TotalDataSliceCount_;
+        TChunkPoolOutputWithJobManagerBase::Lost(cookie);
+
+        CheckCompleted();
     }
 
     virtual void Persist(const TPersistenceContext& context) final override
@@ -226,25 +222,25 @@ public:
         TChunkPoolOutputWithJobManagerBase::Persist(context);
 
         using NYT::Persist;
-        Persist(context, ForeignDataSlicesByStreamIndex_);
-        Persist(context, Stripes_);
+        Persist(context, SortedJobOptions_);
+        Persist(context, ChunkSliceFetcherFactory_);
         Persist(context, EnableKeyGuarantee_);
         Persist(context, InputStreamDirectory_);
         Persist(context, PrimaryPrefixLength_);
         Persist(context, ForeignPrefixLength_);
         Persist(context, ShouldSlicePrimaryTableByKeys_);
         Persist(context, MinTeleportChunkSize_);
+        Persist(context, Stripes_);
+        Persist(context, ForeignDataSlicesByStreamIndex_);
         Persist(context, JobSizeConstraints_);
-        Persist(context, ChunkSliceFetcherFactory_);
+        Persist(context, TeleportChunkSampler_);
         Persist(context, SupportLocality_);
         Persist(context, OperationId_);
         Persist(context, Task_);
         Persist(context, ChunkPoolId_);
-        Persist(context, TeleportChunkSampler_);
-        Persist(context, SortedJobOptions_);
-        Persist(context, TotalDataSliceCount_);
         Persist(context, HasForeignData_);
-
+        Persist(context, TeleportChunks_);
+        Persist(context, IsCompleted_);
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
             Logger.AddTag("OperationId: %v", OperationId_);
@@ -309,11 +305,11 @@ private:
 
     TRowBufferPtr RowBuffer_;
 
-    i64 TotalDataSliceCount_ = 0;
-
     bool HasForeignData_ = false;
 
     std::vector<TInputChunkPtr> TeleportChunks_;
+
+    bool IsCompleted_ = false;
 
     //! This method processes all input stripes that do not correspond to teleported chunks
     //! and either slices them using ChunkSliceFetcher (for unversioned stripes) or leaves them as is
@@ -630,7 +626,7 @@ private:
 
     bool CanScheduleJob() const
     {
-        return Finished && JobManager_->GetPendingJobCount() != 0;
+        return Finished && GetJobCounter()->GetPending() != 0;
     }
 
     TPeriodicYielder CreatePeriodicYielder()
@@ -701,7 +697,10 @@ private:
                 JobSizeConstraints_->GetPrimaryDataWeightPerJob());
         }
 
-        TotalDataSliceCount_ += builder->GetTotalDataSliceCount();
+        auto oldDataSliceCount = GetDataSliceCounter()->GetTotal();
+        GetDataSliceCounter()->AddUncategorized(builder->GetTotalDataSliceCount() - oldDataSliceCount);
+
+        CheckCompleted();
     }
 
     void SplitJob(
@@ -777,6 +776,22 @@ private:
             stripe.SetTeleport(false);
         }
         JobManager_->InvalidateAllJobs();
+    }
+
+    void CheckCompleted() {
+        bool completed = 
+            Finished &&
+            JobManager_->JobCounter()->GetPending() == 0 &&
+            JobManager_->JobCounter()->GetRunning() == 0 &&
+            JobManager_->JobCounter()->GetSuspended() == 0;
+
+        if (!IsCompleted_ && completed) {
+            Completed_.Fire();
+        } else if (IsCompleted_ && !completed) {
+            Uncompleted_.Fire();
+        }
+
+        IsCompleted_ = completed;
     }
 };
 

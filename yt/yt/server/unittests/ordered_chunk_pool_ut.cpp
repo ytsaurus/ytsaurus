@@ -172,7 +172,7 @@ protected:
 
     void ExtractOutputCookiesWhilePossible()
     {
-        while (ChunkPool_->GetPendingJobCount()) {
+        while (ChunkPool_->GetJobCounter()->GetPending()) {
             ExtractedCookies_.emplace_back(ExtractCookie(TNodeId(0)));
         }
     }
@@ -571,7 +571,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
 
     ChunkPool_->Finish();
 
-    ASSERT_EQ(ChunkPool_->GetPendingJobCount(), chunkCount);
+    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), chunkCount);
 
     // Set this to true when debugging locally. It helps a lot to understand what happens.
     constexpr bool EnableDebugOutput = false;
@@ -612,7 +612,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
                 ResumeChunk(inputCookie, chunk);
             }
         } else if (eventType <= 69) {
-            if (ChunkPool_->GetPendingJobCount()) {
+            if (ChunkPool_->GetJobCounter()->GetPending()) {
                 auto outputCookie = ExtractCookie(TNodeId(0));
                 Cdebug << Format("Extracted cookie %v...", outputCookie);
                 // TODO(max42): why the following line leads to the linkage error?
@@ -664,7 +664,7 @@ TEST_P(TOrderedChunkPoolTestRandomized, VariousOperationsWithPoolTest)
         }
     }
     ASSERT_TRUE(ChunkPool_->IsCompleted());
-    ASSERT_EQ(ChunkPool_->GetPendingJobCount(), 0);
+    ASSERT_EQ(ChunkPool_->GetJobCounter()->GetPending(), 0);
     ASSERT_EQ(completedChunks.size(), chunkCount);
     ASSERT_EQ(pendingChunks.size(), 0);
     ASSERT_EQ(startedChunks.size(), 0);

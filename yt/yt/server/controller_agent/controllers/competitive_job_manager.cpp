@@ -1,6 +1,7 @@
 #include "competitive_job_manager.h"
 #include "job_info.h"
 
+#include <yt/server/lib/controller_agent/progress_counter.h>
 #include <yt/server/lib/controller_agent/serialize.h>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -10,31 +11,30 @@ namespace NYT::NControllerAgent::NControllers {
 TCompetitiveJobManager::TCompetitiveJobManager(
     std::function<void(const TJobletPtr&)> onSpeculativeJobScheduled,
     std::function<void(TJobId, EAbortReason)> abortJobCallback,
-    const NLogging::TLogger& logger,
+    NLogging::TLogger logger,
     int maxSpeculativeJobCount)
     : AbortJobCallback_(std::move(abortJobCallback))
     , OnSpeculativeJobScheduled_(std::move(onSpeculativeJobScheduled))
-    , JobCounter_(New<TProgressCounter>(0))
-    , Logger(logger)
+    , JobCounter_(New<TProgressCounter>())
     , MaxSpeculativeJobCount_(maxSpeculativeJobCount)
+    , Logger(logger)
 { }
 
 bool TCompetitiveJobManager::TryRegisterSpeculativeCandidate(const TJobletPtr& joblet)
 {
-    YT_VERIFY(CookieToCompetition_.contains(joblet->OutputCookie));
-    TCompetition& competition = CookieToCompetition_[joblet->OutputCookie];
+    auto competition = GetOrCrash(CookieToCompetition_, joblet->OutputCookie);
     std::optional<TString> rejectReason;
 
     if (JobCounter_->GetTotal() == MaxSpeculativeJobCount_) {
         rejectReason = Format("speculative job limit reached (Limit: %v)", MaxSpeculativeJobCount_);
     } else if (SpeculativeCandidates_.contains(joblet->OutputCookie)) {
         rejectReason = "speculative candidate is already in queue";
-    } else if (competition.Status == ECompetitionStatus::TwoCompetitiveJobs) {
+    } else if (competition->Status == ECompetitionStatus::TwoCompetitiveJobs) {
         rejectReason = "speculative job is already running";
-    } else if (competition.Status == ECompetitionStatus::CompetitionCompleted) {
+    } else if (competition->Status == ECompetitionStatus::CompetitionCompleted) {
         rejectReason = "competitive job has already completed";
     }
-    if (rejectReason.has_value()) {
+    if (rejectReason) {
         YT_LOG_DEBUG("Ignoring speculative request; %v (JobId: %v, Cookie: %v)",
             *rejectReason,
             joblet->JobId,
@@ -42,10 +42,10 @@ bool TCompetitiveJobManager::TryRegisterSpeculativeCandidate(const TJobletPtr& j
         return false;
     }
 
-    competition.PendingDataWeight = joblet->InputStripeList->TotalDataWeight;
+    competition->ProgressCounterGuard.SetCategory(EProgressCategory::Pending);
+    competition->PendingDataWeight = joblet->InputStripeList->TotalDataWeight;
     SpeculativeCandidates_.insert(joblet->OutputCookie);
     PendingDataWeight_ += joblet->InputStripeList->TotalDataWeight;
-    JobCounter_->Increment(1);
     YT_LOG_DEBUG("Speculative request is registered (JobId: %v, Cookie: %v)",
         joblet->JobId,
         joblet->OutputCookie);
@@ -75,20 +75,23 @@ void TCompetitiveJobManager::OnJobScheduled(const TJobletPtr& joblet)
         YT_LOG_DEBUG("Scheduling speculative job (JobId: %v, Cookie: %v)",
             joblet->JobId,
             joblet->OutputCookie);
-        auto& competition = GetOrCrash(CookieToCompetition_, joblet->OutputCookie);
-        YT_VERIFY(competition.Status == ECompetitionStatus::SingleJobOnly);
-        competition.Competitors.push_back(joblet->JobId);
-        competition.Status = ECompetitionStatus::TwoCompetitiveJobs;
-        PendingDataWeight_ -= competition.PendingDataWeight;
+        auto competition = GetOrCrash(CookieToCompetition_, joblet->OutputCookie);
+        YT_VERIFY(competition->Status == ECompetitionStatus::SingleJobOnly);
+        competition->Competitors.push_back(joblet->JobId);
+        competition->Status = ECompetitionStatus::TwoCompetitiveJobs;
+        competition->ProgressCounterGuard.SetCategory(EProgressCategory::Running);
+        PendingDataWeight_ -= competition->PendingDataWeight;
         SpeculativeCandidates_.erase(joblet->OutputCookie);
-        JobCounter_->Start(1);
-        joblet->JobCompetitionId = competition.JobCompetitionId;
+        joblet->JobCompetitionId = competition->JobCompetitionId;
         OnSpeculativeJobScheduled_(joblet);
     } else {
-        auto [it, inserted] = CookieToCompetition_.emplace(joblet->OutputCookie, TCompetition{ .JobCompetitionId = joblet->JobId });
+        auto [it, inserted] = CookieToCompetition_.emplace(joblet->OutputCookie, New<TCompetition>());
         YT_VERIFY(inserted);
-        it->second.Competitors.push_back(joblet->JobId);
-        joblet->JobCompetitionId = it->second.JobCompetitionId;
+        auto competition = it->second;
+        competition->JobCompetitionId = joblet->JobId;
+        competition->Competitors.push_back(joblet->JobId);
+        competition->ProgressCounterGuard = TProgressCounterGuard(JobCounter_);
+        joblet->JobCompetitionId = competition->JobCompetitionId;
     }
 }
 
@@ -100,13 +103,13 @@ void TCompetitiveJobManager::OnJobCompleted(const TJobletPtr& joblet)
             ? EAbortReason::SpeculativeRunWon
             : EAbortReason::SpeculativeRunLost;
 
-        auto& competition = CookieToCompetition_[joblet->OutputCookie];
-        competition.Status = ECompetitionStatus::CompetitionCompleted;
+        auto competition = CookieToCompetition_[joblet->OutputCookie];
+        competition->Status = ECompetitionStatus::CompetitionCompleted;
         YT_LOG_DEBUG("Job has won the competition; aborting other competitors (Cookie: %v, WinnerJobId: %v, LoserJobIds: %v)",
             joblet->OutputCookie,
             joblet->JobId,
-            competition.Competitors);
-        for (const auto& competitiveJobId : competition.Competitors) {
+            competition->Competitors);
+        for (const auto& competitiveJobId : competition->Competitors) {
             AbortJobCallback_(competitiveJobId, abortReason);
         }
     }
@@ -114,28 +117,27 @@ void TCompetitiveJobManager::OnJobCompleted(const TJobletPtr& joblet)
 
 bool TCompetitiveJobManager::OnJobFailed(const TJobletPtr& joblet)
 {
-    return OnUnsuccessfulJobFinish(joblet, [=] (const TProgressCounterPtr& counter) { counter->Failed(1); });
+    return OnUnsuccessfulJobFinish(joblet, [=] (TProgressCounterGuard* guard) { guard->OnFailed(); });
 }
 
 bool TCompetitiveJobManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason reason)
 {
-    return OnUnsuccessfulJobFinish(joblet, [=] (const TProgressCounterPtr& counter) { counter->Aborted(1, reason); });
+    return OnUnsuccessfulJobFinish(joblet, [=] (TProgressCounterGuard* guard) { guard->OnAborted(reason); });
 }
 
 bool TCompetitiveJobManager::OnUnsuccessfulJobFinish(
     const TJobletPtr& joblet,
-    const std::function<void(const TProgressCounterPtr&)>& updateJobCounter)
+    const std::function<void(TProgressCounterGuard*)>& updateJobCounter)
 {
-    YT_VERIFY(CookieToCompetition_.contains(joblet->OutputCookie));
-    auto& competition = CookieToCompetition_[joblet->OutputCookie];
-    bool jobIsLoser = competition.Status == ECompetitionStatus::CompetitionCompleted;
+    auto competition = GetOrCrash(CookieToCompetition_, joblet->OutputCookie);
+    bool jobIsLoser = (competition->Status == ECompetitionStatus::CompetitionCompleted);
 
     OnJobFinished(joblet);
 
     // We are updating our counter for job losers and for non-last jobs only.
     if (jobIsLoser || CookieToCompetition_.contains(joblet->OutputCookie)) {
-        updateJobCounter(JobCounter_);
-        JobCounter_->Decrement(1);
+        updateJobCounter(&competition->ProgressCounterGuard);
+        competition->ProgressCounterGuard.SetCategory(EProgressCategory::None);
         return false;
     }
     return true;
@@ -143,18 +145,17 @@ bool TCompetitiveJobManager::OnUnsuccessfulJobFinish(
 
 void TCompetitiveJobManager::OnJobFinished(const TJobletPtr& joblet)
 {
-    YT_VERIFY(CookieToCompetition_.contains(joblet->OutputCookie));
-    auto& competition = CookieToCompetition_[joblet->OutputCookie];
-    auto pendingDataWeight = competition.PendingDataWeight;
-    auto jobIt = Find(competition.Competitors, joblet->JobId);
-    YT_VERIFY(jobIt != competition.Competitors.end());
-    competition.Competitors.erase(jobIt);
+    auto competition = GetOrCrash(CookieToCompetition_, joblet->OutputCookie);
+    auto pendingDataWeight = competition->PendingDataWeight;
+    auto jobIt = Find(competition->Competitors, joblet->JobId);
+    YT_VERIFY(jobIt != competition->Competitors.end());
+    competition->Competitors.erase(jobIt);
 
-    if (competition.Competitors.empty()) {
+    if (competition->Competitors.empty()) {
         CookieToCompetition_.erase(joblet->OutputCookie);
     } else {
-        YT_VERIFY(competition.Status == ECompetitionStatus::TwoCompetitiveJobs);
-        competition.Status = ECompetitionStatus::SingleJobOnly;
+        YT_VERIFY(competition->Status == ECompetitionStatus::TwoCompetitiveJobs);
+        competition->Status = ECompetitionStatus::SingleJobOnly;
     }
 
     if (SpeculativeCandidates_.contains(joblet->OutputCookie)) {
@@ -163,14 +164,14 @@ void TCompetitiveJobManager::OnJobFinished(const TJobletPtr& joblet)
             joblet->OutputCookie);
         PendingDataWeight_ -= pendingDataWeight;
         SpeculativeCandidates_.erase(joblet->OutputCookie);
-        JobCounter_->Decrement(1);
+        competition->ProgressCounterGuard.SetCategory(EProgressCategory::None);
     }
 }
 
 std::optional<EAbortReason> TCompetitiveJobManager::ShouldAbortJob(const TJobletPtr& joblet) const
 {
-    const auto& competition = GetOrCrash(CookieToCompetition_, joblet->OutputCookie);
-    if (competition.Status == ECompetitionStatus::CompetitionCompleted) {
+    auto competition = GetOrCrash(CookieToCompetition_, joblet->OutputCookie);
+    if (competition->Status == ECompetitionStatus::CompetitionCompleted) {
         return joblet->Speculative
             ? EAbortReason::SpeculativeRunLost
             : EAbortReason::SpeculativeRunWon;

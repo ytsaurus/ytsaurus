@@ -4,7 +4,7 @@
 #include "chunk_stripe.h"
 #include "chunk_stripe_key.h"
 
-#include <yt/server/lib/controller_agent/progress_counter.h>
+#include <yt/server/lib/controller_agent/legacy_progress_counter.h>
 
 #include <yt/ytlib/chunk_client/public.h>
 
@@ -99,7 +99,7 @@ struct IChunkPoolOutput
 
     virtual i64 GetTotalRowCount() const = 0;
 
-    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const = 0;
+    virtual const NControllerAgent::TLegacyProgressCounterPtr& GetJobCounter() const = 0;
 
     virtual i64 GetDataSliceCount() const = 0;
 
@@ -175,12 +175,12 @@ public:
     virtual i64 GetCompletedDataWeight() const override;
     virtual i64 GetPendingDataWeight() const override;
     virtual i64 GetTotalRowCount() const override;
-    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
+    virtual const NControllerAgent::TLegacyProgressCounterPtr& GetJobCounter() const override;
 
 protected:
-    NControllerAgent::TProgressCounterPtr DataWeightCounter;
-    NControllerAgent::TProgressCounterPtr RowCounter;
-    NControllerAgent::TProgressCounterPtr JobCounter;
+    NControllerAgent::TLegacyProgressCounterPtr DataWeightCounter;
+    NControllerAgent::TLegacyProgressCounterPtr RowCounter;
+    NControllerAgent::TLegacyProgressCounterPtr JobCounter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,7 +207,7 @@ public:
     virtual i64 GetCompletedDataWeight() const override;
     virtual i64 GetPendingDataWeight() const override;
     virtual i64 GetTotalRowCount() const override;
-    virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
+    virtual const NControllerAgent::TLegacyProgressCounterPtr& GetJobCounter() const override;
     virtual void Persist(const TPersistenceContext& context) override;
 
 protected:

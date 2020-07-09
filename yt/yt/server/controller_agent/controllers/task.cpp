@@ -114,7 +114,11 @@ TDataFlowGraph::TVertexDescriptor TTask::GetVertexDescriptor() const
 
 int TTask::GetPendingJobCount() const
 {
-    return GetChunkPoolOutput()->GetPendingJobCount() + CompetitiveJobManager_.GetPendingSpeculativeJobCount();
+    if (!IsActive()) {
+        return 0;
+    }
+
+    return GetChunkPoolOutput()->GetJobCounter()->GetPending() + CompetitiveJobManager_.GetPendingSpeculativeJobCount();
 }
 
 int TTask::GetPendingJobCountDelta()
@@ -127,7 +131,11 @@ int TTask::GetPendingJobCountDelta()
 
 int TTask::GetTotalJobCount() const
 {
-    return GetChunkPoolOutput()->GetTotalJobCount() + CompetitiveJobManager_.GetTotalSpeculativeJobCount();
+    if (!IsActive()) {
+        return 0;
+    }
+
+    return GetChunkPoolOutput()->GetJobCounter()->GetTotal() + CompetitiveJobManager_.GetTotalSpeculativeJobCount();
 }
 
 int TTask::GetTotalJobCountDelta()
@@ -221,11 +229,13 @@ void TTask::FinishInput()
     if (const auto& chunkPoolInput = GetChunkPoolInput()) {
         chunkPoolInput->Finish();
     }
+}
+
+void TTask::RegisterInGraph()
+{
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
-    if (!progressCounter->Parent()) {
-        TaskHost_->GetDataFlowGraph()
-            ->RegisterCounter(GetVertexDescriptor(), progressCounter, GetJobType());
-    }
+    TaskHost_->GetDataFlowGraph()
+        ->RegisterCounter(GetVertexDescriptor(), progressCounter, GetJobType());
 
     TaskHost_->GetDataFlowGraph()->RegisterCounter(
         GetVertexDescriptor(),
@@ -235,11 +245,11 @@ void TTask::FinishInput()
     CheckCompleted();
 }
 
-void TTask::FinishInput(TDataFlowGraph::TVertexDescriptor inputVertex)
+void TTask::RegisterInGraph(TDataFlowGraph::TVertexDescriptor inputVertex)
 {
     SetInputVertex(inputVertex);
 
-    FinishInput();
+    RegisterInGraph();
 }
 
 void TTask::CheckCompleted()
@@ -297,7 +307,7 @@ void TTask::ScheduleJob(
     }
 
     auto chunkPoolOutput = GetChunkPoolOutput();
-    bool speculative = chunkPoolOutput->GetPendingJobCount() == 0;
+    bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
     if (speculative && treeIsTentative) {
         scheduleJobResult->RecordFail(EScheduleJobFailReason::TentativeSpeculativeForbidden);
         return;
@@ -317,7 +327,7 @@ void TTask::ScheduleJob(
         joblet->OutputCookie = CompetitiveJobManager_.PeekSpeculativeCandidate();
     } else {
         auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
-        joblet->OutputCookie = chunkPoolOutput->Extract(localityNodeId);
+        joblet->OutputCookie = ExtractCookie(localityNodeId);
         if (joblet->OutputCookie == IChunkPoolOutput::NullCookie) {
             YT_LOG_DEBUG("Job input is empty");
             scheduleJobResult->RecordFail(EScheduleJobFailReason::EmptyInput);
@@ -531,6 +541,11 @@ void TTask::PropagatePartitions(
     }
 }
 
+IChunkPoolOutput::TCookie TTask::ExtractCookie(TNodeId nodeId)
+{
+    return GetChunkPoolOutput()->Extract(nodeId);
+}
+
 std::optional<EAbortReason> TTask::ShouldAbortJob(const TJobletPtr& joblet)
 {
     return CompetitiveJobManager_.ShouldAbortJob(joblet);
@@ -548,22 +563,22 @@ bool TTask::IsActive() const
 
 i64 TTask::GetTotalDataWeight() const
 {
-    return GetChunkPoolOutput()->GetTotalDataWeight();
+    return GetChunkPoolOutput()->GetDataWeightCounter()->GetTotal();
 }
 
 i64 TTask::GetCompletedDataWeight() const
 {
-    return GetChunkPoolOutput()->GetCompletedDataWeight();
+    return GetChunkPoolOutput()->GetDataWeightCounter()->GetCompletedTotal();
 }
 
 i64 TTask::GetPendingDataWeight() const
 {
-    return GetChunkPoolOutput()->GetPendingDataWeight() + CompetitiveJobManager_.GetPendingCandidatesDataWeight();
+    return GetChunkPoolOutput()->GetDataWeightCounter()->GetPending() + CompetitiveJobManager_.GetPendingCandidatesDataWeight();
 }
 
 i64 TTask::GetInputDataSliceCount() const
 {
-    return GetChunkPoolOutput()->GetDataSliceCount();
+    return GetChunkPoolOutput()->GetDataSliceCounter()->GetTotal();
 }
 
 void TTask::Persist(const TPersistenceContext& context)
@@ -1037,7 +1052,8 @@ void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
 
 void TTask::FinishTaskInput(const TTaskPtr& task)
 {
-    task->FinishInput(GetVertexDescriptor() /* inputVertex */);
+    task->RegisterInGraph(GetVertexDescriptor());
+    task->FinishInput();
 }
 
 void TTask::SetEdgeDescriptors(TJobletPtr joblet) const

@@ -3838,6 +3838,20 @@ void TOperationControllerBase::AnalyzeControllerQueues()
     SetOperationAlert(EOperationAlertType::HighQueueAverageWaitTime, highQueueAverageWaitTimeError);
 }
 
+void TOperationControllerBase::AnalyzeInvalidatedJobs()
+{
+    i64 invalidatedJobCount = 0;
+    for (const auto& task : Tasks) {
+        invalidatedJobCount += task->GetJobCounter()->GetInvalidated();
+    }
+
+    if (invalidatedJobCount > 0) {
+        auto invalidatedJobCountError = TError("Operation has invalidated jobs")
+            << TErrorAttribute("invalidated_job_count", invalidatedJobCount);
+        SetOperationAlert(EOperationAlertType::InvalidatedJobsFound, invalidatedJobCountError);
+    }
+}
+
 void TOperationControllerBase::AnalyzeOperationProgress()
 {
     VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
@@ -3854,6 +3868,7 @@ void TOperationControllerBase::AnalyzeOperationProgress()
     AnalyzeOperationDuration();
     AnalyzeScheduleJobStatistics();
     AnalyzeControllerQueues();
+    AnalyzeInvalidatedJobs();
 }
 
 void TOperationControllerBase::UpdateCachedMaxAvailableExecNodeResources()
@@ -7545,20 +7560,17 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
         .Item("snapshot_index").Value(SnapshotIndex_)
         .Item("recent_snapshot_index").Value(RecentSnapshotIndex_)
         .Item("last_successful_snapshot_time").Value(LastSuccessfulSnapshotTime_)
-        .DoIf(ShouldShowDataFlowSectionsInProgress(), [=] (TFluentMap fluent) {
-            fluent
-                .Item("tasks").DoListFor(GetTopologicallyOrderedTasks(), [=] (TFluentList fluent, const TTaskPtr& task) {
-                    fluent.Item()
-                        .BeginMap()
-                            .Do(BIND(&TTask::BuildTaskYson, task))
-                        .EndMap();
-                })
-                .DoIf(static_cast<bool>(DataFlowGraph_), [=] (TFluentMap fluent) {
-                    fluent.Item("data_flow")
-                        .BeginList()
-                            .Do(BIND(&TDataFlowGraph::BuildDataFlowYson, DataFlowGraph_))
-                        .EndList();
-                });
+        .Item("tasks").DoListFor(GetTopologicallyOrderedTasks(), [=] (TFluentList fluent, const TTaskPtr& task) {
+            fluent.Item()
+                .BeginMap()
+                    .Do(BIND(&TTask::BuildTaskYson, task))
+                .EndMap();
+        })
+        .DoIf(static_cast<bool>(DataFlowGraph_), [=] (TFluentMap fluent) {
+            fluent.Item("data_flow")
+                .BeginList()
+                    .Do(BIND(&TDataFlowGraph::BuildDataFlowYson, DataFlowGraph_))
+                .EndList();
         })
         .Item("legacy_controller").Value(false);
 }
@@ -7705,11 +7717,6 @@ void TOperationControllerBase::BuildRetainedFinishedJobsYson(TFluentMap fluent) 
         fluent
             .Item(ToString(jobId)).Value(attributes);
     }
-}
-
-bool TOperationControllerBase::ShouldShowDataFlowSectionsInProgress() const
-{
-    return true;
 }
 
 void TOperationControllerBase::CheckTentativeTreeEligibility()
@@ -8752,9 +8759,11 @@ const IThroughputThrottlerPtr& TOperationControllerBase::GetJobSpecSliceThrottle
     return Host->GetJobSpecSliceThrottler();
 }
 
+// TODO(gritukan): Should this method exist?
 void TOperationControllerBase::FinishTaskInput(const TTaskPtr& task)
 {
-    task->FinishInput(TDataFlowGraph::SourceDescriptor);
+    task->FinishInput();
+    task->RegisterInGraph(TDataFlowGraph::SourceDescriptor);
 }
 
 void TOperationControllerBase::SetOperationAlert(EOperationAlertType alertType, const TError& alert)

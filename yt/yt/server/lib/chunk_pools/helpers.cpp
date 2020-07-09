@@ -61,13 +61,8 @@ std::vector<TInputChunkPtr> GetStripeListChunks(const TChunkStripeListPtr& strip
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSuspendableStripe::TSuspendableStripe()
-    : ExtractedCookie_(IChunkPoolOutput::NullCookie)
-{ }
-
 TSuspendableStripe::TSuspendableStripe(TChunkStripePtr stripe)
-    : ExtractedCookie_(IChunkPoolOutput::NullCookie)
-    , Stripe_(std::move(stripe))
+    : Stripe_(std::move(stripe))
     , Statistics_(Stripe_->GetStatistics())
 { }
 
@@ -108,7 +103,6 @@ void TSuspendableStripe::Reset(TChunkStripePtr stripe)
 void TSuspendableStripe::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
-    Persist(context, ExtractedCookie_);
     Persist(context, Stripe_);
     Persist(context, Teleport_);
     Persist(context, SuspendedStripeCount_);

@@ -63,20 +63,6 @@ class TChunkPoolOutputMock
     : public virtual IChunkPoolOutput
 {
 public:
-    MOCK_METHOD(i64, GetTotalDataWeight, (), (const, override));
-
-    MOCK_METHOD(i64, GetRunningDataWeight, (), (const, override));
-
-    MOCK_METHOD(i64, GetCompletedDataWeight, (), (const, override));
-
-    MOCK_METHOD(i64, GetPendingDataWeight, (), (const, override));
-
-    MOCK_METHOD(i64, GetTotalRowCount, (), (const, override));
-
-    MOCK_METHOD(const TProgressCounterPtr&, GetJobCounter, (), (const override));
-
-    MOCK_METHOD(i64, GetDataSliceCount, (), (const, override));
-
     MOCK_METHOD(TOutputOrderPtr, GetOutputOrder, (), (const override));
 
     MOCK_METHOD(i64, GetLocality, (TNodeId), (const override));
@@ -89,10 +75,6 @@ public:
 
     MOCK_METHOD(bool, IsCompleted, (), (const override));
 
-    MOCK_METHOD(int, GetTotalJobCount, (), (const override));
-
-    MOCK_METHOD(int, GetPendingJobCount, (), (const override));
-
     MOCK_METHOD(int, GetStripeListSliceCount, (TCookie), (const override));
 
     MOCK_METHOD(void, Completed, (TCookie, const TCompletedJobSummary&), (override));
@@ -103,15 +85,45 @@ public:
 
     MOCK_METHOD(void, Lost, (TCookie), (override));
 
+    const TProgressCounterPtr& GetJobCounter() const override
+    {
+        return JobCounter;
+    }
+
+    const TProgressCounterPtr& GetDataWeightCounter() const override
+    {
+        return DataWeightCounter;
+    }
+
+    const TProgressCounterPtr& GetRowCounter() const override
+    {
+        return RowCounter;
+    }
+
+    const TProgressCounterPtr& GetDataSliceCounter() const override
+    {
+        return DataSliceCounter;
+    }
+
     void TeleportChunk(TInputChunkPtr teleportChunk)
     {
         ChunkTeleported_.Fire(std::move(teleportChunk), /*tag=*/std::any{});
+    }
+
+    void Complete()
+    {
+        Completed_.Fire();
     }
 
     void Persist(const TPersistenceContext& /*context*/)
     {
         YT_UNIMPLEMENTED();
     }
+
+    TProgressCounterPtr JobCounter = New<TProgressCounter>();
+    TProgressCounterPtr DataWeightCounter = New<TProgressCounter>();
+    TProgressCounterPtr RowCounter = New<TProgressCounter>();
+    TProgressCounterPtr DataSliceCounter = New<TProgressCounter>();
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPoolOutputMock)
@@ -319,6 +331,8 @@ TEST_F(TMultiChunkPoolInputTest, TestCookieMapping)
 
 // This suite contains trivial scenarios for checking methods general correctness.
 // For advanced scenarios look into TSortedChunkPoolTestRandomized.
+// NB: Some tests here heavily rely on the order of underlying pools in multipool which is
+// not important in practice.
 class TMultiChunkPoolOutputTest
     : public TMultiChunkPoolTestBase
 {
@@ -333,73 +347,39 @@ protected:
         Mocks_.reserve(stripeCounts.size());
         for (int poolIndex = 0; poolIndex < stripeCounts.size(); ++poolIndex) {
             Mocks_.push_back(New<TChunkPoolOutputMock>());
+            Mocks_.back()->JobCounter->AddPending(stripeCounts[poolIndex]);
         }
+
         StripeCounts_ = stripeCounts;
 
-        MockCounters_ = std::vector<int>(Mocks_.size(), 0);
-        MutationCounters_ = std::vector<int>(Mocks_.size(), 0);
-
-        {
-            InSequence extractSequence;
-            for (int index = 0; index < Mocks_.size(); ++index) {
-                if (stripeCounts[index]) {
-                    EXPECT_CALL(*Mocks_[index], Extract(0))
-                        .Times(stripeCounts[index])
-                        .WillRepeatedly(InvokeWithoutArgs([this, index] {
-                            ++MutationCounters_[index];
-                            return MockCounters_[index]++;
-                        }));
-                }
+        for (int index = 0; index < Mocks_.size(); ++index) {
+            if (stripeCounts[index]) {
+                EXPECT_CALL(*Mocks_[index], Extract(0))
+                    .Times(stripeCounts[index])
+                    .WillRepeatedly(InvokeWithoutArgs([this, index] {
+                        auto& mock = Mocks_[index];
+                        auto& jobCounter = mock->JobCounter;
+                        auto cookie = StripeCounts_[index] - jobCounter->GetPending();
+                        jobCounter->AddPending(-1);
+                        if (jobCounter->GetPending() == 0) {
+                            Mocks_[index]->Complete();
+                        }
+                        return cookie;
+                    }));
             }
         }
 
         for (int index = 0; index < Mocks_.size(); ++index) {
             EXPECT_CALL(*Mocks_[index], IsCompleted())
                 .WillRepeatedly(InvokeWithoutArgs([this, index] {
-                    return MockCounters_[index] == StripeCounts_[index];
+                    return Mocks_[index]->JobCounter->GetPending() == 0;
                 }));
             EXPECT_CALL(*Mocks_[index], GetStripeList(_))
-                .WillRepeatedly(InvokeWithoutArgs([this, index] {
-                    MutationCounters_[index] += 10;
+                .WillRepeatedly(InvokeWithoutArgs([] {
                     return New<TChunkStripeList>();
-                }));
-            EXPECT_CALL(*Mocks_[index], GetPendingJobCount())
-                .WillRepeatedly(InvokeWithoutArgs([this, index] {
-                    // In this suite we assume that all jobs are created before first extract
-                    // and that jobs never fail. That's enough to test interface correctness.
-                    return StripeCounts_[index] - MockCounters_[index];
-                }));
-            EXPECT_CALL(*Mocks_[index], GetTotalJobCount())
-                .WillRepeatedly(InvokeWithoutArgs([this, index] {
-                    return (1 << 1) + MutationCounters_[index] * (index + 1);
-                }));
-            EXPECT_CALL(*Mocks_[index], GetDataSliceCount())
-                .WillRepeatedly(InvokeWithoutArgs([this, index] {
-                    return (1 << 2) + MutationCounters_[index] * (index + 1);
-                }));
-            EXPECT_CALL(*Mocks_[index], GetTotalRowCount())
-                .WillRepeatedly(InvokeWithoutArgs([this, index] {
-                    return (1 << 3) + MutationCounters_[index] * (index + 1);
-                }));
-            EXPECT_CALL(*Mocks_[index], GetPendingDataWeight())
-                .WillRepeatedly(InvokeWithoutArgs([this, index] {
-                    return (1 << 4) + MutationCounters_[index] * (index + 1);
-                }));
-            EXPECT_CALL(*Mocks_[index], GetCompletedDataWeight())
-                .WillRepeatedly(InvokeWithoutArgs([this, index] {
-                    return (1 << 5) + MutationCounters_[index] * (index + 1);
-                }));
-            EXPECT_CALL(*Mocks_[index], GetRunningDataWeight())
-                .WillRepeatedly(InvokeWithoutArgs([this, index] {
-                    return (1 << 6) + MutationCounters_[index] * (index + 1);
-                }));
-            EXPECT_CALL(*Mocks_[index], GetTotalDataWeight())
-                .WillRepeatedly(InvokeWithoutArgs([this, index] {
-                    return (1 << 7) + MutationCounters_[index] * (index + 1);
                 }));
         }
 
-        // NB: IsCompleted() is called during pool initialization.
         CreatePool(poolsToAdd.value_or(Mocks_.size()));
 
         if (finalize) {
@@ -416,10 +396,6 @@ protected:
             if (poolIndex < poolsToAdd) {
                 mockPtrs.push_back(mock);
             }
-            // Job counter is required once during initialization.
-            static TProgressCounterPtr nullCounter = nullptr;
-            EXPECT_CALL(*mock, GetJobCounter())
-                .WillOnce(ReturnRef(nullCounter));
             // Multi chunk pool checks that underlying pool does not have
             // output order during initialization.
             EXPECT_CALL(*mock, GetOutputOrder())
@@ -431,12 +407,7 @@ protected:
 
     std::vector<TIntrusivePtr<TChunkPoolOutputMock>> Mocks_;
     IMultiChunkPoolOutputPtr Pool_;
-    std::vector<int> MockCounters_;
     std::vector<int> StripeCounts_;
-
-    //! Each call of Extract() of underlying pool increases this value by 1.
-    //! Each call of GetStripeList() of underlying pool increases this value by 10.
-    std::vector<int> MutationCounters_;
 };
 
 TEST_F(TMultiChunkPoolOutputTest, TestExtract)
@@ -549,9 +520,9 @@ TEST_F(TMultiChunkPoolOutputTest, TestGetStripeList)
         EXPECT_EQ(Pool_->Extract(), i);
     }
 
-    EXPECT_EQ(Pool_->GetStripeList(2), stripeList10);
-    EXPECT_EQ(Pool_->GetStripeList(0), stripeList00);
-    EXPECT_EQ(Pool_->GetStripeList(1), stripeList01);
+    EXPECT_EQ(Pool_->GetStripeList(0), stripeList10);
+    EXPECT_EQ(Pool_->GetStripeList(1), stripeList00);
+    EXPECT_EQ(Pool_->GetStripeList(2), stripeList01);
 
     EXPECT_EQ(stripeList00->PartitionTag, 0);
     EXPECT_EQ(stripeList01->PartitionTag, 0);
@@ -566,17 +537,17 @@ TEST_F(TMultiChunkPoolOutputTest, TestGetStripeListSliceCount)
     EXPECT_CALL(*Mocks_[1], GetStripeListSliceCount(0))
         .WillOnce(Return(42));
     EXPECT_CALL(*Mocks_[0], GetStripeListSliceCount(0))
-        .WillOnce(Return(25));
-    EXPECT_CALL(*Mocks_[0], GetStripeListSliceCount(1))
         .WillOnce(Return(52));
+    EXPECT_CALL(*Mocks_[0], GetStripeListSliceCount(1))
+        .WillOnce(Return(25));
 
     for (int i = 0; i < 3; i++) {
         EXPECT_EQ(Pool_->Extract(), i);
     }
 
-    EXPECT_EQ(Pool_->GetStripeListSliceCount(2), 42);
-    EXPECT_EQ(Pool_->GetStripeListSliceCount(0), 25);
+    EXPECT_EQ(Pool_->GetStripeListSliceCount(0), 42);
     EXPECT_EQ(Pool_->GetStripeListSliceCount(1), 52);
+    EXPECT_EQ(Pool_->GetStripeListSliceCount(2), 25);
 }
 
 TEST_F(TMultiChunkPoolOutputTest, TestCompleted)
@@ -595,9 +566,9 @@ TEST_F(TMultiChunkPoolOutputTest, TestCompleted)
         EXPECT_EQ(Pool_->Extract(), i);
     }
 
-    Pool_->Completed(2, TCompletedJobSummary{});
     Pool_->Completed(0, TCompletedJobSummary{});
     Pool_->Completed(1, TCompletedJobSummary{});
+    Pool_->Completed(2, TCompletedJobSummary{});
 }
 
 TEST_F(TMultiChunkPoolOutputTest, TestFailed)
@@ -616,9 +587,9 @@ TEST_F(TMultiChunkPoolOutputTest, TestFailed)
         EXPECT_EQ(Pool_->Extract(), i);
     }
 
-    Pool_->Failed(2);
     Pool_->Failed(0);
-    Pool_->Failed(1);   
+    Pool_->Failed(1);
+    Pool_->Failed(2);   
 }
 
 TEST_F(TMultiChunkPoolOutputTest, TestAborted)
@@ -637,9 +608,9 @@ TEST_F(TMultiChunkPoolOutputTest, TestAborted)
         EXPECT_EQ(Pool_->Extract(), i);
     }
 
-    Pool_->Aborted(2, EAbortReason::AccountLimitExceeded);
-    Pool_->Aborted(0, EAbortReason::FailedChunks);
-    Pool_->Aborted(1, EAbortReason::Scheduler);
+    Pool_->Aborted(0, EAbortReason::AccountLimitExceeded);
+    Pool_->Aborted(1, EAbortReason::FailedChunks);
+    Pool_->Aborted(2, EAbortReason::Scheduler);
 }
 
 TEST_F(TMultiChunkPoolOutputTest, TestLost)
@@ -658,50 +629,9 @@ TEST_F(TMultiChunkPoolOutputTest, TestLost)
         EXPECT_EQ(Pool_->Extract(), i);
     }
 
-    Pool_->Lost(2);
     Pool_->Lost(0);
-    Pool_->Lost(1);   
-}
-
-TEST_F(TMultiChunkPoolOutputTest, TestStatistics)
-{
-    InitPools({2, 1});
-
-    constexpr int TotalStripes = 3;
-    int stripesExtracted = 0;
-
-    auto checkStatistics = [&] (int mutationCounter) {
-        EXPECT_EQ(Pool_->GetPendingJobCount(), TotalStripes - stripesExtracted);
-        EXPECT_EQ(Pool_->GetTotalJobCount(), (2 << 1) + mutationCounter);
-        EXPECT_EQ(Pool_->GetDataSliceCount(), (2 << 2) + mutationCounter);
-        EXPECT_EQ(Pool_->GetTotalRowCount(), (2 << 3) + mutationCounter);
-        EXPECT_EQ(Pool_->GetPendingDataWeight(), (2 << 4) + mutationCounter);
-        EXPECT_EQ(Pool_->GetCompletedDataWeight(), (2 << 5) + mutationCounter);
-        EXPECT_EQ(Pool_->GetRunningDataWeight(), (2 << 6) + mutationCounter);
-        EXPECT_EQ(Pool_->GetTotalDataWeight(), (2 << 7) + mutationCounter);
-    };
-    checkStatistics(0);
-
-    EXPECT_EQ(Pool_->Extract(), 0);
-    ++stripesExtracted;
-    checkStatistics(1);
-
-    EXPECT_EQ(Pool_->Extract(), 1);
-    ++stripesExtracted;
-    checkStatistics(2);
-
-    EXPECT_EQ(Pool_->Extract(), 2);
-    ++stripesExtracted;
-    checkStatistics(4);
-
-    Pool_->GetStripeList(2);
-    checkStatistics(24);
-
-    Pool_->GetStripeList(0);
-    checkStatistics(34);
-
-    Pool_->GetStripeList(1);
-    checkStatistics(44);
+    Pool_->Lost(1);
+    Pool_->Lost(2);   
 }
 
 TEST_F(TMultiChunkPoolOutputTest, TestCookieMapping)
@@ -712,7 +642,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestCookieMapping)
 
     // external_cookie -> (pool, cookie) mapping.
     std::vector<std::pair<int, int>> cookies;
-    for (int pool = 0; pool < poolSizes.size(); ++pool) {
+    for (int pool = static_cast<int>(poolSizes.size()) - 1; pool >= 0; --pool) {
         for (int cookie = 0; cookie < poolSizes[pool]; ++cookie) {
             cookies.emplace_back(pool, cookie);
         }
@@ -761,7 +691,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestAddPoolOutput)
         EXPECT_FALSE(Pool_->IsCompleted());
     }
 
-    Pool_->AddPoolOutput(Mocks_[2]);
+    Pool_->AddPoolOutput(Mocks_[2], 42);
     Pool_->Finalize();
 
     EXPECT_FALSE(Pool_->IsCompleted());

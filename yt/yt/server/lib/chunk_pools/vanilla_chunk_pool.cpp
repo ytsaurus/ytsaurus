@@ -67,11 +67,6 @@ public:
         return NullStripeList;
     }
 
-    virtual i64 GetDataSliceCount() const override
-    {
-        return 0;
-    }
-
 private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaChunkPool, 0x42439a0a);
     bool RestartCompletedJobs_;

@@ -90,9 +90,9 @@ class TJobManager
 {
 public:
     // TODO(max42): Remove data size counter and row counter the hell outta here when YT-6673 is done.
-    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, DataWeightCounter, New<NControllerAgent::TProgressCounter>());
-    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, RowCounter, New<NControllerAgent::TProgressCounter>());
-    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TProgressCounterPtr, JobCounter, New<NControllerAgent::TProgressCounter>());
+    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TLegacyProgressCounterPtr, DataWeightCounter, New<NControllerAgent::TLegacyProgressCounter>());
+    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TLegacyProgressCounterPtr, RowCounter, New<NControllerAgent::TLegacyProgressCounter>());
+    DEFINE_BYREF_RO_PROPERTY(NControllerAgent::TLegacyProgressCounterPtr, JobCounter, New<NControllerAgent::TLegacyProgressCounter>());
     DEFINE_BYVAL_RO_PROPERTY(int, SuspendedJobCount);
 public:
     TJobManager();
@@ -193,7 +193,7 @@ private:
 
         //! A helper for accounting this job in all three progress counters of the owner simultaneously.
         template <class... TArgs>
-        void UpdateCounters(void (NControllerAgent::TProgressCounter::*Method)(i64, TArgs...), TArgs... args);
+        void UpdateCounters(void (NControllerAgent::TLegacyProgressCounter::*Method)(i64, TArgs...), TArgs... args);
 
     private:
         TJobManager* Owner_ = nullptr;

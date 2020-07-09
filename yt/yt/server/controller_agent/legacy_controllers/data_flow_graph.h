@@ -49,7 +49,7 @@ public:
 
     void RegisterCounter(
         const TVertexDescriptor& vertex,
-        const TProgressCounterPtr& counter,
+        const TLegacyProgressCounterPtr& counter,
         EJobType jobType);
 
     void RegisterLivePreviewChunk(const TVertexDescriptor& descriptor, int index, NChunkClient::TInputChunkPtr chunk);
@@ -59,7 +59,7 @@ public:
 
     void BuildLegacyYson(NYTree::TFluentMap fluent) const;
 
-    const TProgressCounterPtr& GetTotalJobCounter() const;
+    const TLegacyProgressCounterPtr& GetTotalJobCounter() const;
 
     const std::vector<TVertexDescriptor>& GetTopologicalOrdering() const;
 

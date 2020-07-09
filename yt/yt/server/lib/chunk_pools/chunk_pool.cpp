@@ -67,47 +67,39 @@ i64 TChunkPoolOutputBase::GetLocality(NNodeTrackerClient::TNodeId /* nodeId */) 
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkPoolOutputWithCountersBase::TChunkPoolOutputWithCountersBase()
-    : DataWeightCounter(New<TProgressCounter>(0))
-    , RowCounter(New<TProgressCounter>(0))
+    : DataWeightCounter(New<TProgressCounter>())
+    , RowCounter(New<TProgressCounter>())
     , JobCounter(New<TProgressCounter>())
+    , DataSliceCounter(New<TProgressCounter>())
 { }
-
-i64 TChunkPoolOutputWithCountersBase::GetTotalDataWeight() const
-{
-    return DataWeightCounter->GetTotal();
-}
-
-i64 TChunkPoolOutputWithCountersBase::GetRunningDataWeight() const
-{
-    return DataWeightCounter->GetRunning();
-}
-
-i64 TChunkPoolOutputWithCountersBase::GetCompletedDataWeight() const
-{
-    return DataWeightCounter->GetCompletedTotal();
-}
-
-i64 TChunkPoolOutputWithCountersBase::GetPendingDataWeight() const
-{
-    return DataWeightCounter->GetPending();
-}
-
-i64 TChunkPoolOutputWithCountersBase::GetTotalRowCount() const
-{
-    return RowCounter->GetTotal();
-}
 
 const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetJobCounter() const
 {
     return JobCounter;
 }
 
+const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetDataWeightCounter() const
+{
+    return DataWeightCounter;
+}
+
+const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetRowCounter() const
+{
+    return RowCounter;
+}
+
+const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetDataSliceCounter() const
+{
+    return DataSliceCounter;
+}
+
 void TChunkPoolOutputWithCountersBase::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
+    Persist(context, JobCounter);
     Persist(context, DataWeightCounter);
     Persist(context, RowCounter);
-    Persist(context, JobCounter);
+    Persist(context, DataSliceCounter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -121,16 +113,6 @@ TChunkPoolOutputWithJobManagerBase::TChunkPoolOutputWithJobManagerBase()
 TChunkStripeStatisticsVector TChunkPoolOutputWithJobManagerBase::GetApproximateStripeStatistics() const
 {
     return JobManager_->GetApproximateStripeStatistics();
-}
-
-int TChunkPoolOutputWithJobManagerBase::GetTotalJobCount() const
-{
-    return JobManager_->JobCounter()->GetTotal();
-}
-
-int TChunkPoolOutputWithJobManagerBase::GetPendingJobCount() const
-{
-    return JobManager_->GetPendingJobCount();
 }
 
 IChunkPoolOutput::TCookie TChunkPoolOutputWithJobManagerBase::Extract(TNodeId /* nodeId */)
@@ -168,34 +150,24 @@ void TChunkPoolOutputWithJobManagerBase::Lost(IChunkPoolOutput::TCookie cookie)
     JobManager_->Lost(cookie);
 }
 
-i64 TChunkPoolOutputWithJobManagerBase::GetTotalDataWeight() const
-{
-    return JobManager_->DataWeightCounter()->GetTotal();
-}
-
-i64 TChunkPoolOutputWithJobManagerBase::GetRunningDataWeight() const
-{
-    return JobManager_->DataWeightCounter()->GetRunning();
-}
-
-i64 TChunkPoolOutputWithJobManagerBase::GetCompletedDataWeight() const
-{
-    return JobManager_->DataWeightCounter()->GetCompletedTotal();
-}
-
-i64 TChunkPoolOutputWithJobManagerBase::GetPendingDataWeight() const
-{
-    return JobManager_->DataWeightCounter()->GetPending();
-}
-
-i64 TChunkPoolOutputWithJobManagerBase::GetTotalRowCount() const
-{
-    return JobManager_->RowCounter()->GetTotal();
-}
-
 const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetJobCounter() const
 {
     return JobManager_->JobCounter();
+}
+
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetDataWeightCounter() const
+{
+    return JobManager_->DataWeightCounter();
+}
+
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetRowCounter() const
+{
+    return JobManager_->RowCounter();
+}
+
+const TProgressCounterPtr& TChunkPoolOutputWithJobManagerBase::GetDataSliceCounter() const
+{
+    return JobManager_->DataSliceCounter();
 }
 
 void TChunkPoolOutputWithJobManagerBase::Persist(const TPersistenceContext& context)

@@ -20,7 +20,7 @@ struct TUnorderedChunkPoolOptions
     NControllerAgent::IJobSizeConstraintsPtr JobSizeConstraints = nullptr;
     //! Minimum uncompressed size to be teleported.
     i64 MinTeleportChunkSize = std::numeric_limits<i64>::max();
-    //! Minimum data weight to be teleported/
+    //! Minimum data weight to be teleported.
     i64 MinTeleportChunkDataWeight = std::numeric_limits<i64>::max();
     bool SliceErasureChunksByParts = false;
     NScheduler::TOperationId OperationId;

@@ -143,7 +143,7 @@ std::vector<std::optional<i64>> TTask::GetMaximumUsedTmpfsSizes() const
     return MaximumUsedTmpfsSizes_;
 }
 
-const TProgressCounterPtr& TTask::GetJobCounter() const
+const TLegacyProgressCounterPtr& TTask::GetJobCounter() const
 {
     return GetChunkPoolOutput()->GetJobCounter();
 }

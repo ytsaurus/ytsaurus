@@ -24,6 +24,7 @@ struct TAbortedJobSummary;
 using TFailedJobSummary = TJobSummary;
 struct TRunningJobSummary;
 
+DECLARE_REFCOUNTED_CLASS(TLegacyProgressCounter)
 DECLARE_REFCOUNTED_CLASS(TProgressCounter)
 DECLARE_REFCOUNTED_STRUCT(IJobSizeConstraints)
 

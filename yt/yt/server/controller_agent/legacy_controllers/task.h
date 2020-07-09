@@ -11,7 +11,7 @@
 #include <yt/server/lib/legacy_chunk_pools/chunk_pool.h>
 #include <yt/server/lib/legacy_chunk_pools/input_chunk_mapping.h>
 
-#include <yt/server/lib/controller_agent/progress_counter.h>
+#include <yt/server/lib/controller_agent/legacy_progress_counter.h>
 #include <yt/server/lib/controller_agent/serialize.h>
 
 #include <yt/ytlib/scheduler/job_resources.h>
@@ -61,7 +61,7 @@ public:
     virtual int GetTotalJobCount() const;
     int GetTotalJobCountDelta();
 
-    const TProgressCounterPtr& GetJobCounter() const;
+    const TLegacyProgressCounterPtr& GetJobCounter() const;
 
     virtual TJobResources GetTotalNeededResources() const;
     TJobResources GetTotalNeededResourcesDelta();

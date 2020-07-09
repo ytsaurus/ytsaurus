@@ -1,5 +1,7 @@
 #include "shuffle_chunk_pool.h"
 
+#include <yt/server/lib/controller_agent/progress_counter.h>
+
 #include <yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -29,20 +31,18 @@ class TShuffleChunkPool
 {
 public:
     //! For persistence only.
-    TShuffleChunkPool()
-        : DataWeightThreshold(-1)
-    { }
+    TShuffleChunkPool() = default;
 
     TShuffleChunkPool(
         int partitionCount,
         i64 dataSizeThreshold,
         i64 chunkSliceThreshold)
-        : DataWeightThreshold(dataSizeThreshold)
-        , ChunkSliceThreshold(chunkSliceThreshold)
+        : DataWeightThreshold_(dataSizeThreshold)
+        , ChunkSliceThreshold_(chunkSliceThreshold)
     {
-        Outputs.reserve(partitionCount);
+        Outputs_.reserve(partitionCount);
         for (int index = 0; index < partitionCount; ++index) {
-            Outputs.push_back(New<TOutput>(this, index));
+            Outputs_.push_back(New<TOutput>(this, index));
         }
     }
 
@@ -55,7 +55,7 @@ public:
 
     virtual IChunkPoolOutputPtr GetOutput(int partitionIndex) override
     {
-        return Outputs[partitionIndex];
+        return Outputs_[partitionIndex];
     }
 
     // IChunkPoolInput implementation.
@@ -64,27 +64,27 @@ public:
     {
         YT_VERIFY(!Finished);
 
-        auto cookie = static_cast<int>(InputStripes.size());
+        auto cookie = static_cast<int>(InputStripes_.size());
 
         TInputStripe inputStripe;
-        inputStripe.ElementaryIndexBegin = static_cast<int>(ElementaryStripes.size());
+        inputStripe.ElementaryIndexBegin = static_cast<int>(ElementaryStripes_.size());
 
         for (const auto& dataSlice : stripe->DataSlices) {
             // NB: TShuffleChunkPool contains only chunks from unversioned tables.
             const auto& chunkSpec = dataSlice->GetSingleUnversionedChunkOrThrow();
 
-            int elementaryIndex = static_cast<int>(ElementaryStripes.size());
+            int elementaryIndex = static_cast<int>(ElementaryStripes_.size());
             auto elementaryStripe = New<TChunkStripe>(dataSlice);
-            ElementaryStripes.push_back(elementaryStripe);
+            ElementaryStripes_.push_back(elementaryStripe);
 
             const auto* partitionsExt = chunkSpec->PartitionsExt().get();
             YT_VERIFY(partitionsExt);
-            YT_VERIFY(partitionsExt->row_counts_size() == Outputs.size());
-            YT_VERIFY(partitionsExt->uncompressed_data_sizes_size() == Outputs.size());
+            YT_VERIFY(partitionsExt->row_counts_size() == Outputs_.size());
+            YT_VERIFY(partitionsExt->uncompressed_data_sizes_size() == Outputs_.size());
 
-            for (int index = 0; index < static_cast<int>(Outputs.size()); ++index) {
-                YT_VERIFY(partitionsExt->row_counts(index) <= RowCountThreshold);
-                Outputs[index]->AddStripe(
+            for (int index = 0; index < Outputs_.size(); ++index) {
+                YT_VERIFY(partitionsExt->row_counts(index) <= RowCountThreshold_);
+                Outputs_[index]->AddStripe(
                     elementaryIndex,
                     // NB: currently uncompressed data size and data weight for partition chunks are roughly
                     // equal, since we use horizontal chunk format.
@@ -96,17 +96,21 @@ public:
             chunkSpec->ReleasePartitionsExt();
         }
 
-        inputStripe.ElementaryIndexEnd = static_cast<int>(ElementaryStripes.size());
-        InputStripes.push_back(inputStripe);
+        for (auto& output : Outputs_) {
+            output->UpdateDataSliceCount();
+        }
+
+        inputStripe.ElementaryIndexEnd = static_cast<int>(ElementaryStripes_.size());
+        InputStripes_.push_back(inputStripe);
 
         return cookie;
     }
 
     virtual void Suspend(IChunkPoolInput::TCookie cookie) override
     {
-        const auto& inputStripe = InputStripes[cookie];
+        const auto& inputStripe = InputStripes_[cookie];
         for (int index = inputStripe.ElementaryIndexBegin; index < inputStripe.ElementaryIndexEnd; ++index) {
-            for (const auto& output : Outputs) {
+            for (const auto& output : Outputs_) {
                 output->SuspendStripe(index);
             }
         }
@@ -114,13 +118,13 @@ public:
 
     virtual void Resume(IChunkPoolInput::TCookie cookie) override
     {
-        const auto& inputStripe = InputStripes[cookie];
+        const auto& inputStripe = InputStripes_[cookie];
 
         for (int elementaryIndex = inputStripe.ElementaryIndexBegin;
              elementaryIndex < inputStripe.ElementaryIndexEnd;
              ++elementaryIndex)
         {
-            for (const auto& output : Outputs) {
+            for (const auto& output : Outputs_) {
                 output->ResumeStripe(elementaryIndex);
             }
         }
@@ -128,13 +132,15 @@ public:
 
     virtual void Finish() override
     {
-        if (Finished)
+        if (Finished) {
             return;
+        }
 
         TChunkPoolInputBase::Finish();
 
-        for (const auto& output : Outputs) {
+        for (const auto& output : Outputs_) {
             output->FinishInput();
+            output->CheckCompleted();
         }
     }
 
@@ -145,22 +151,22 @@ public:
         TChunkPoolInputBase::Persist(context);
 
         using NYT::Persist;
-        Persist(context, DataWeightThreshold);
-        Persist(context, Outputs);
-        Persist(context, InputStripes);
-        Persist(context, ElementaryStripes);
-        Persist(context, ChunkSliceThreshold);
-        Persist(context, TotalJobCount);
+        Persist(context, Outputs_);
+        Persist(context, InputStripes_);
+        Persist(context, ElementaryStripes_);
+        Persist(context, DataWeightThreshold_);
+        Persist(context, ChunkSliceThreshold_);
+        Persist(context, TotalJobCount_);
     }
 
     virtual i64 GetTotalDataSliceCount() const override
     {
-        return ElementaryStripes.size();
+        return ElementaryStripes_.size();
     }
 
     virtual i64 GetTotalJobCount() const override
     {
-        return TotalJobCount;
+        return TotalJobCount_;
     }
 
 private:
@@ -169,11 +175,7 @@ private:
     DECLARE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool, 0xbacd518a);
 
     // NB: sort job cannot handle more than numeric_limits<i32>::max() rows.
-    static const i64 RowCountThreshold = std::numeric_limits<i32>::max();
-
-    i64 DataWeightThreshold;
-    i64 ChunkSliceThreshold;
-    i64 TotalJobCount = 0;
+    static const i64 RowCountThreshold_ = std::numeric_limits<i32>::max();
 
     class TOutput
         : public TChunkPoolOutputWithCountersBase
@@ -181,42 +183,37 @@ private:
     {
     public:
         //! For persistence only.
-        TOutput()
-            : Owner(nullptr)
-            , PartitionIndex(-1)
-        { }
+        TOutput() = default;
 
         explicit TOutput(
             TShuffleChunkPool* owner,
             int partitionIndex)
-            : Owner(owner)
-            , PartitionIndex(partitionIndex)
+            : Owner_(owner)
+            , PartitionIndex_(partitionIndex)
         {
-            JobCounter->Set(0);
             AddNewRun();
         }
 
         void AddStripe(int elementaryIndex, i64 dataWeight, i64 rowCount)
         {
-            auto* run = &Runs.back();
-            if (run->TotalDataWeight > 0) {
-                if (run->TotalDataWeight + dataWeight > Owner->DataWeightThreshold ||
-                    run->TotalRowCount + rowCount > Owner->RowCountThreshold ||
-                    run->ElementaryIndexEnd - run->ElementaryIndexBegin >= Owner->ChunkSliceThreshold)
+            auto* run = &Runs_.back();
+            if (run->GetTotalDataWeight() > 0) {
+                if (run->GetTotalDataWeight() + dataWeight > Owner_->DataWeightThreshold_ ||
+                    run->GetTotalRowCount() + rowCount > Owner_->RowCountThreshold_ ||
+                    run->ElementaryIndexEnd - run->ElementaryIndexBegin >= Owner_->ChunkSliceThreshold_)
                 {
                     SealLastRun();
                     AddNewRun();
-                    run = &Runs.back();
+                    run = &Runs_.back();
                 }
             }
 
             YT_VERIFY(elementaryIndex == run->ElementaryIndexEnd);
             run->ElementaryIndexEnd = elementaryIndex + 1;
-            run->TotalDataWeight += dataWeight;
-            run->TotalRowCount += rowCount;
-
-            DataWeightCounter->Increment(dataWeight);
-            RowCounter->Increment(rowCount);
+            run->DataWeightProgressCounterGuard.UpdateValue(dataWeight);
+            run->RowProgressCounterGuard.UpdateValue(rowCount);
+            UpdateRun(run);
+            CheckCompleted();
         }
 
         void SuspendStripe(int elementaryIndex)
@@ -225,7 +222,7 @@ private:
             if (run) {
                 run->IsApproximate = true;
                 ++run->SuspendCount;
-                UpdatePendingRunSet(*run);
+                UpdateRun(run);
             }
         }
 
@@ -235,40 +232,43 @@ private:
             if (run) {
                 --run->SuspendCount;
                 YT_VERIFY(run->SuspendCount >= 0);
-                UpdatePendingRunSet(*run);
+                UpdateRun(run);
             }
         }
 
         void FinishInput()
         {
-            auto& lastRun = Runs.back();
-            if (lastRun.TotalDataWeight > 0) {
+            auto& lastRun = Runs_.back();
+            if (lastRun.GetTotalDataWeight() > 0) {
                 SealLastRun();
             } else {
-                Runs.pop_back();
+                // Remove last run from counters.
+                Runs_.back().CallProgressCounterGuards(&TProgressCounterGuard::SetCategory, EProgressCategory::None);
+                Runs_.pop_back();
             }
+            CheckCompleted();
         }
 
         // IChunkPoolOutput implementation.
 
         virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override
         {
-            YT_VERIFY(!Runs.empty());
-            YT_VERIFY(GetPendingJobCount() > 0);
+            YT_VERIFY(!Runs_.empty());
+            YT_VERIFY(JobCounter->GetPending() > 0);
 
             TChunkStripeStatisticsVector result(1);
 
             // This is the next run to be given by #Extract.
-            auto it = PendingRuns.begin();
+            auto it = PendingRuns_.begin();
             auto cookie = *it;
-            auto& run = Runs[cookie];
+            auto& run = Runs_[cookie];
 
             auto& stat = result.front();
 
             // NB: cannot estimate MaxBlockSize here.
             stat.ChunkCount = run.ElementaryIndexEnd - run.ElementaryIndexBegin;
-            stat.DataWeight = run.TotalDataWeight;
-            stat.RowCount = run.TotalRowCount;
+            stat.DataWeight = run.GetTotalDataWeight();
+            stat.RowCount = run.GetTotalRowCount();
 
             if (run.IsApproximate) {
                 stat.DataWeight *= ApproximateSizesBoostFactor;
@@ -280,63 +280,43 @@ private:
 
         virtual bool IsCompleted() const override
         {
-            return
-                Owner->Finished &&
-                JobCounter->GetCompletedTotal() == Runs.size();
-        }
-
-        virtual int GetTotalJobCount() const override
-        {
-            int result = static_cast<int>(Runs.size());
-            // Handle empty last run properly.
-            if (!Runs.empty() && Runs.back().TotalDataWeight == 0) {
-                --result;
-            }
-            return result;
-        }
-
-        virtual int GetPendingJobCount() const override
-        {
-            return static_cast<int>(PendingRuns.size());
+            return IsCompleted_;
         }
 
         virtual TCookie Extract(TNodeId /*nodeId*/) override
         {
-            if (GetPendingJobCount() == 0) {
+            if (JobCounter->GetPending() == 0) {
                 return NullCookie;
             }
 
-            auto it = PendingRuns.begin();
+            auto it = PendingRuns_.begin();
             auto cookie = *it;
-            PendingRuns.erase(it);
+            PendingRuns_.erase(it);
 
-            auto& run = Runs[cookie];
+            auto& run = Runs_[cookie];
             YT_VERIFY(run.State == ERunState::Pending);
             run.State = ERunState::Running;
-
-            JobCounter->Start(1);
-            DataWeightCounter->Start(run.TotalDataWeight);
-            RowCounter->Start(run.TotalRowCount);
+            UpdateRun(&run);
 
             return cookie;
         }
 
         virtual TChunkStripeListPtr GetStripeList(TCookie cookie) override
         {
-            const auto& run = Runs[cookie];
+            const auto& run = Runs_[cookie];
 
             auto list = New<TChunkStripeList>();
-            list->PartitionTag = PartitionIndex;
+            list->PartitionTag = PartitionIndex_;
             for (int index = run.ElementaryIndexBegin; index < run.ElementaryIndexEnd; ++index) {
-                auto stripe = Owner->ElementaryStripes[index];
+                auto stripe = Owner_->ElementaryStripes_[index];
                 list->Stripes.push_back(stripe);
                 list->TotalChunkCount += stripe->GetChunkCount();
             }
 
             // NB: never ever make TotalDataWeight and TotalBoostFactor approximate.
             // Otherwise sort data size and row counters will be severely corrupted
-            list->TotalDataWeight = run.TotalDataWeight;
-            list->TotalRowCount = run.TotalRowCount;
+            list->TotalDataWeight = run.GetTotalDataWeight();
+            list->TotalRowCount = run.GetTotalRowCount();
 
             list->IsApproximate = run.IsApproximate;
 
@@ -345,58 +325,48 @@ private:
 
         virtual int GetStripeListSliceCount(TCookie cookie) const override
         {
-            const auto& run = Runs[cookie];
+            const auto& run = Runs_[cookie];
             return run.ElementaryIndexEnd - run.ElementaryIndexBegin;
         }
 
         virtual void Completed(TCookie cookie, const TCompletedJobSummary& /* jobSummary */) override
         {
-            auto& run = Runs[cookie];
+            auto& run = Runs_[cookie];
             YT_VERIFY(run.State == ERunState::Running);
             run.State = ERunState::Completed;
-
-            JobCounter->Completed(1);
-            DataWeightCounter->Completed(run.TotalDataWeight);
-            RowCounter->Completed(run.TotalRowCount);
+            UpdateRun(&run);
+            CheckCompleted();
         }
 
         virtual void Failed(TCookie cookie) override
         {
-            auto& run = Runs[cookie];
+            auto& run = Runs_[cookie];
             YT_VERIFY(run.State == ERunState::Running);
             run.State = ERunState::Pending;
 
-            UpdatePendingRunSet(run);
-
-            JobCounter->Failed(1);
-            DataWeightCounter->Failed(run.TotalDataWeight);
-            RowCounter->Failed(run.TotalRowCount);
+            run.CallProgressCounterGuards(&TProgressCounterGuard::OnFailed);
+            UpdateRun(&run);
         }
 
         virtual void Aborted(TCookie cookie, EAbortReason reason) override
         {
-            auto& run = Runs[cookie];
+            auto& run = Runs_[cookie];
             YT_VERIFY(run.State == ERunState::Running);
             run.State = ERunState::Pending;
 
-            UpdatePendingRunSet(run);
-
-            JobCounter->Aborted(1, reason);
-            DataWeightCounter->Aborted(run.TotalDataWeight, reason);
-            RowCounter->Aborted(run.TotalRowCount, reason);
+            run.CallProgressCounterGuards(&TProgressCounterGuard::OnAborted, reason);
+            UpdateRun(&run);
         }
 
         virtual void Lost(TCookie cookie) override
         {
-            auto& run = Runs[cookie];
+            auto& run = Runs_[cookie];
             YT_VERIFY(run.State == ERunState::Completed);
             run.State = ERunState::Pending;
 
-            UpdatePendingRunSet(run);
-
-            JobCounter->Lost(1);
-            DataWeightCounter->Lost(run.TotalDataWeight);
-            RowCounter->Lost(run.TotalRowCount);
+            run.CallProgressCounterGuards(&TProgressCounterGuard::OnLost);
+            UpdateRun(&run);
+            CheckCompleted();
         }
 
         // IPersistent implementation.
@@ -406,17 +376,32 @@ private:
             TChunkPoolOutputWithCountersBase::Persist(context);
 
             using NYT::Persist;
-            Persist(context, Owner);
-            Persist(context, PartitionIndex);
-            Persist(context, Runs);
-            Persist(context, PendingRuns);
+            Persist(context, Owner_);
+            Persist(context, PartitionIndex_);
+            Persist(context, Runs_);
+            Persist(context, PendingRuns_);
+            Persist(context, IsCompleted_);
         }
 
-        virtual i64 GetDataSliceCount() const
+        void UpdateDataSliceCount()
         {
             // Pretend that each output pool has it's own fraction
             // of stripes to get proper estimated statistics.
-            return DivCeil<i64>(Owner->ElementaryStripes.size(), Owner->Outputs.size());
+            auto oldDataSliceCount = GetDataSliceCounter()->GetUncategorized();
+            auto newDataSliceCount = DivCeil<i64>(Owner_->ElementaryStripes_.size(), Owner_->Outputs_.size());
+            GetDataSliceCounter()->AddUncategorized(newDataSliceCount - oldDataSliceCount);
+        }
+
+        void CheckCompleted()
+        {
+            bool completed = Owner_->Finished && (JobCounter->GetCompletedTotal() == Runs_.size());
+            if (!IsCompleted_ && completed) {
+                Completed_.Fire();
+            } else if (IsCompleted_ && !completed) {
+                Uncompleted_.Fire();
+            }
+
+            IsCompleted_ = completed;
         }
 
     private:
@@ -424,66 +409,125 @@ private:
 
         friend class TShuffleChunkPool;
 
-        TShuffleChunkPool* Owner;
-        int PartitionIndex;
+        TShuffleChunkPool* Owner_ = nullptr;
+        int PartitionIndex_ = -1;
 
         struct TRun
         {
             int ElementaryIndexBegin = 0;
             int ElementaryIndexEnd = 0;
-            i64 TotalDataWeight = 0;
-            i64 TotalRowCount = 0;
             int SuspendCount = 0;
             ERunState State = ERunState::Initializing;
             bool IsApproximate = false;
+
+            TProgressCounterGuard DataWeightProgressCounterGuard;
+            TProgressCounterGuard RowProgressCounterGuard;
+            TProgressCounterGuard JobProgressCounterGuard;
 
             void Persist(const TPersistenceContext& context)
             {
                 using NYT::Persist;
                 Persist(context, ElementaryIndexBegin);
                 Persist(context, ElementaryIndexEnd);
-                Persist(context, TotalDataWeight);
-                Persist(context, TotalRowCount);
                 Persist(context, SuspendCount);
                 Persist(context, State);
                 Persist(context, IsApproximate);
+                Persist(context, DataWeightProgressCounterGuard);
+                Persist(context, RowProgressCounterGuard);
+                Persist(context, JobProgressCounterGuard);
+            }
+
+            template <class... TArgs>
+            void CallProgressCounterGuards(void (TProgressCounterGuard::*Method)(TArgs...), TArgs... args)
+            {
+                (DataWeightProgressCounterGuard.*Method)(std::forward<TArgs>(args)...);
+                (RowProgressCounterGuard.*Method)(std::forward<TArgs>(args)...);
+                (JobProgressCounterGuard.*Method)(std::forward<TArgs>(args)...);
+            }
+
+            i64 GetTotalDataWeight() const
+            {
+                return DataWeightProgressCounterGuard.GetValue();
+            }
+
+            i64 GetTotalRowCount() const
+            {
+                return RowProgressCounterGuard.GetValue();
+            }
+
+            bool IsPending() const
+            {
+                return State == ERunState::Pending && SuspendCount == 0;
+            }
+
+            void UpdateState()
+            {
+                EProgressCategory newProgressCategory;
+                switch (State) {
+                    case ERunState::Initializing:
+                        newProgressCategory = EProgressCategory::Suspended;
+                        break;
+                    case ERunState::Pending: {
+                        if (SuspendCount == 0) {
+                            newProgressCategory = EProgressCategory::Pending;
+                        } else {
+                            newProgressCategory = EProgressCategory::Suspended;
+                        }
+                        break;
+                    }
+                    case ERunState::Running:
+                        newProgressCategory = EProgressCategory::Running;
+                        break;
+                    case ERunState::Completed:
+                        newProgressCategory = EProgressCategory::Completed;
+                        break;
+                    default:
+                        YT_ABORT(); 
+                }
+
+                CallProgressCounterGuards(&TProgressCounterGuard::SetCategory, newProgressCategory);
             }
         };
 
-        std::vector<TRun> Runs;
-        THashSet<TCookie> PendingRuns;
+        std::vector<TRun> Runs_;
+        THashSet<TCookie> PendingRuns_;
 
+        bool IsCompleted_ = false;
 
-        void UpdatePendingRunSet(const TRun& run)
+        void UpdateRun(TRun* run)
         {
-            TCookie cookie = &run - Runs.data();
-            if (run.State == ERunState::Pending && run.SuspendCount == 0) {
-                PendingRuns.insert(cookie);
+            TCookie cookie = run - Runs_.data();
+            if (run->IsPending()) {
+                PendingRuns_.insert(cookie);
             } else {
-                PendingRuns.erase(cookie);
+                PendingRuns_.erase(cookie);
             }
+            run->UpdateState();
         }
 
         void AddNewRun()
         {
             TRun run;
-            run.ElementaryIndexBegin = Runs.empty() ? 0 : Runs.back().ElementaryIndexEnd;
+            run.ElementaryIndexBegin = Runs_.empty() ? 0 : Runs_.back().ElementaryIndexEnd;
             run.ElementaryIndexEnd = run.ElementaryIndexBegin;
-            Runs.push_back(run);
-            ++Owner->TotalJobCount;
+            run.DataWeightProgressCounterGuard = TProgressCounterGuard(DataWeightCounter, /*value=*/0);
+            run.RowProgressCounterGuard = TProgressCounterGuard(RowCounter, /*value=*/0);
+            run.JobProgressCounterGuard = TProgressCounterGuard(JobCounter, /*value=*/1);
+            Runs_.push_back(run);
+            ++Owner_->TotalJobCount_;
         }
 
         TRun* FindRun(int elementaryIndex)
         {
-            if (Runs.empty() || elementaryIndex >= Runs.back().ElementaryIndexEnd) {
+            if (Runs_.empty() || elementaryIndex >= Runs_.back().ElementaryIndexEnd) {
                 return nullptr;
             }
 
             int lo = 0;
-            int hi = static_cast<int>(Runs.size());
+            int hi = static_cast<int>(Runs_.size());
             while (lo + 1 < hi) {
                 int mid = (lo + hi) / 2;
-                const auto& run = Runs[mid];
+                const auto& run = Runs_[mid];
                 if (run.ElementaryIndexBegin <= elementaryIndex) {
                     lo = mid;
                 } else {
@@ -491,23 +535,22 @@ private:
                 }
             }
 
-            auto& run = Runs[lo];
+            auto& run = Runs_[lo];
             YT_VERIFY(run.ElementaryIndexBegin <= elementaryIndex && run.ElementaryIndexEnd > elementaryIndex);
             return &run;
         }
 
         void SealLastRun()
         {
-            auto& run = Runs.back();
-            YT_VERIFY(run.TotalDataWeight > 0);
+            auto& run = Runs_.back();
+            YT_VERIFY(run.GetTotalDataWeight() > 0);
             YT_VERIFY(run.State == ERunState::Initializing);
             run.State = ERunState::Pending;
-            UpdatePendingRunSet(run);
-            JobCounter->Increment(1);
+            UpdateRun(&run);
         }
     };
 
-    std::vector<TIntrusivePtr<TOutput>> Outputs;
+    std::vector<TIntrusivePtr<TOutput>> Outputs_;
 
     struct TInputStripe
     {
@@ -522,8 +565,12 @@ private:
         }
     };
 
-    std::vector<TInputStripe> InputStripes;
-    std::vector<TChunkStripePtr> ElementaryStripes;
+    std::vector<TInputStripe> InputStripes_;
+    std::vector<TChunkStripePtr> ElementaryStripes_;
+
+    i64 DataWeightThreshold_ = -1;
+    i64 ChunkSliceThreshold_ = -1;
+    i64 TotalJobCount_ = 0;
 };
 
 DEFINE_DYNAMIC_PHOENIX_TYPE(TShuffleChunkPool);

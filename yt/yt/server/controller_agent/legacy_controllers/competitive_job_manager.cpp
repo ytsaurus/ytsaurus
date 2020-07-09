@@ -14,7 +14,7 @@ TCompetitiveJobManager::TCompetitiveJobManager(
     int maxSpeculativeJobCount)
     : AbortJobCallback_(std::move(abortJobCallback))
     , OnSpeculativeJobScheduled_(std::move(onSpeculativeJobScheduled))
-    , JobCounter_(New<TProgressCounter>(0))
+    , JobCounter_(New<TLegacyProgressCounter>(0))
     , Logger(logger)
     , MaxSpeculativeJobCount_(maxSpeculativeJobCount)
 { }
@@ -114,17 +114,17 @@ void TCompetitiveJobManager::OnJobCompleted(const TJobletPtr& joblet)
 
 bool TCompetitiveJobManager::OnJobFailed(const TJobletPtr& joblet)
 {
-    return OnUnsuccessfulJobFinish(joblet, [=] (const TProgressCounterPtr& counter) { counter->Failed(1); });
+    return OnUnsuccessfulJobFinish(joblet, [=] (const TLegacyProgressCounterPtr& counter) { counter->Failed(1); });
 }
 
 bool TCompetitiveJobManager::OnJobAborted(const TJobletPtr& joblet, EAbortReason reason)
 {
-    return OnUnsuccessfulJobFinish(joblet, [=] (const TProgressCounterPtr& counter) { counter->Aborted(1, reason); });
+    return OnUnsuccessfulJobFinish(joblet, [=] (const TLegacyProgressCounterPtr& counter) { counter->Aborted(1, reason); });
 }
 
 bool TCompetitiveJobManager::OnUnsuccessfulJobFinish(
     const TJobletPtr& joblet,
-    const std::function<void(const TProgressCounterPtr&)>& updateJobCounter)
+    const std::function<void(const TLegacyProgressCounterPtr&)>& updateJobCounter)
 {
     YT_VERIFY(CookieToCompetition_.contains(joblet->OutputCookie));
     auto& competition = CookieToCompetition_[joblet->OutputCookie];
@@ -188,7 +188,7 @@ bool TCompetitiveJobManager::IsFinished() const
     return SpeculativeCandidates_.empty() && CookieToCompetition_.empty();
 }
 
-TProgressCounterPtr TCompetitiveJobManager::GetProgressCounter()
+TLegacyProgressCounterPtr TCompetitiveJobManager::GetProgressCounter()
 {
     return JobCounter_;
 }

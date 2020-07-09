@@ -135,6 +135,15 @@ public:
             return result;
         }
 
+        virtual void OnTaskCompleted() override
+        {
+            TTask::OnTaskCompleted();
+
+            if (Controller_->AutoMergeTask_) {
+                Controller_->AutoMergeTask_->FinishInput();
+            }
+        }
+
     private:
         TUnorderedControllerBase* Controller_;
 
@@ -358,7 +367,7 @@ protected:
 
         FinishTaskInput(UnorderedTask_);
         if (AutoMergeTask_) {
-            AutoMergeTask_->FinishInput(UnorderedTask_->GetVertexDescriptor());
+            AutoMergeTask_->RegisterInGraph(UnorderedTask_->GetVertexDescriptor());
         }
 
         InitJobIOConfig();

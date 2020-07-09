@@ -50,8 +50,7 @@ class TOrderedChunkPool
 {
 public:
     //! Used only for persistence.
-    TOrderedChunkPool()
-    { }
+    TOrderedChunkPool() = default;
 
     TOrderedChunkPool(
         const TOrderedChunkPoolOptions& options,
@@ -94,6 +93,8 @@ public:
         auto cookie = static_cast<int>(Stripes_.size());
         Stripes_.emplace_back(stripe);
 
+        CheckCompleted();
+
         return cookie;
     }
 
@@ -107,6 +108,7 @@ public:
         SetupSuspendedStripes();
 
         BuildJobsAndFindTeleportChunks();
+        CheckCompleted();
     }
 
     virtual void Suspend(IChunkPoolInput::TCookie cookie) override
@@ -128,11 +130,7 @@ public:
 
     virtual bool IsCompleted() const override
     {
-        return
-            Finished &&
-            GetPendingJobCount() == 0 &&
-            JobManager_->JobCounter()->GetRunning() == 0 &&
-            JobManager_->GetSuspendedJobCount() == 0;
+        return IsCompleted_;
     }
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
@@ -142,20 +140,22 @@ public:
                 cookie,
                 jobSummary.InterruptReason,
                 jobSummary.SplitJobCount);
-            JobManager_->Invalidate(cookie);
             SplitJob(jobSummary.UnreadInputDataSlices, jobSummary.SplitJobCount, cookie);
         }
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
+        CheckCompleted();
+    }
+
+    virtual void Lost(IChunkPoolOutput::TCookie cookie) override
+    {
+        TChunkPoolOutputWithJobManagerBase::Lost(cookie);
+
+        CheckCompleted();
     }
 
     virtual TOutputOrderPtr GetOutputOrder() const override
     {
         return OutputOrder_;
-    }
-
-    virtual i64 GetDataSliceCount() const override
-    {
-        return TotalSliceCount_;
     }
 
     virtual void Persist(const TPersistenceContext& context) final override
@@ -179,7 +179,8 @@ public:
         Persist(context, EnablePeriodicYielder_);
         Persist(context, OutputOrder_);
         Persist(context, JobIndex_);
-        Persist(context, TotalSliceCount_);
+        Persist(context, BuiltJobCount_);
+        Persist(context, IsCompleted_);
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
             Logger.AddTag("OperationId: %v", OperationId_);
@@ -227,8 +228,7 @@ private:
     int JobIndex_ = 0;
     int BuiltJobCount_ = 0;
 
-    i64 TotalSliceCount_ = 0;
-    i64 TotalDataWeight_ = 0;
+    bool IsCompleted_ = false;
 
     void SetupSuspendedStripes()
     {
@@ -321,7 +321,7 @@ private:
                 JobSizeConstraints_->GetPrimaryDataWeightPerJob());
         }
 
-        JobSizeConstraints_->UpdateInputDataWeight(TotalDataWeight_);
+        JobSizeConstraints_->UpdateInputDataWeight(JobManager_->DataWeightCounter()->GetTotal());
     }
 
     void SplitJob(
@@ -391,14 +391,13 @@ private:
                     CurrentJob()->GetPrimaryRowCount(),
                     CurrentJob()->GetPrimarySliceCount());
 
-                TotalSliceCount_ += CurrentJob()->GetSliceCount();
-                TotalDataWeight_ += CurrentJob()->GetDataWeight();
+                GetDataSliceCounter()->AddUncategorized(CurrentJob()->GetSliceCount());
 
                 ++BuiltJobCount_;
 
-                if (TotalSliceCount_ > MaxTotalSliceCount_) {
+                if (GetDataSliceCounter()->GetTotal() > MaxTotalSliceCount_) {
                     THROW_ERROR_EXCEPTION(EErrorCode::DataSliceLimitExceeded, "Total number of data slices in ordered pool is too large")
-                        << TErrorAttribute("actual_total_slice_count", TotalSliceCount_)
+                        << TErrorAttribute("actual_total_slice_count", GetDataSliceCounter()->GetTotal())
                         << TErrorAttribute("max_total_slice_count", MaxTotalSliceCount_)
                         << TErrorAttribute("current_job_count", JobIndex_);
                 }
@@ -433,6 +432,22 @@ private:
             CurrentJob_ = std::make_unique<TJobStub>();
         }
         return CurrentJob_;
+    }
+
+    void CheckCompleted() {
+        bool completed = 
+            Finished &&
+            JobManager_->JobCounter()->GetPending() == 0 &&
+            JobManager_->JobCounter()->GetRunning() == 0 &&
+            JobManager_->JobCounter()->GetSuspended() == 0;
+
+        if (!IsCompleted_ && completed) {
+            Completed_.Fire();
+        } else if (IsCompleted_ && !completed) {
+            Uncompleted_.Fire();
+        }
+
+        IsCompleted_ = completed;
     }
 };
 

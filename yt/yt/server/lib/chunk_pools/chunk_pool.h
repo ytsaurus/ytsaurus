@@ -92,16 +92,10 @@ struct IChunkPoolOutput
     using TCookie = TIntCookie;
     static constexpr TCookie NullCookie = -1;
 
-    virtual i64 GetTotalDataWeight() const = 0;
-    virtual i64 GetRunningDataWeight() const = 0;
-    virtual i64 GetCompletedDataWeight() const = 0;
-    virtual i64 GetPendingDataWeight() const = 0;
-
-    virtual i64 GetTotalRowCount() const = 0;
-
     virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const = 0;
-
-    virtual i64 GetDataSliceCount() const = 0;
+    virtual const NControllerAgent::TProgressCounterPtr& GetDataWeightCounter() const = 0;
+    virtual const NControllerAgent::TProgressCounterPtr& GetRowCounter() const = 0;
+    virtual const NControllerAgent::TProgressCounterPtr& GetDataSliceCounter() const = 0;
 
     virtual TOutputOrderPtr GetOutputOrder() const = 0;
 
@@ -116,9 +110,6 @@ struct IChunkPoolOutput
 
     virtual bool IsCompleted() const = 0;
 
-    virtual int GetTotalJobCount() const = 0;
-    virtual int GetPendingJobCount() const = 0;
-
     //! The main purpose of this method is to be much cheaper than #GetStripeList,
     //! and to eliminate creation/desctuction of a stripe list if we have already reached
     //! JobSpecSliceThrottler limit. This is particularly useful for a shuffle chunk pool.
@@ -129,8 +120,13 @@ struct IChunkPoolOutput
     virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) = 0;
     virtual void Lost(TCookie cookie) = 0;
 
-    //! Raises when dynamic config changes.
+    //! Raises when chunk teleports.
     DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
+
+    //! Raises when chunk pool completes.
+    DEFINE_SIGNAL(void(), Completed);
+    //! Raises when chunk pool uncompletes.
+    DEFINE_SIGNAL(void(), Uncompleted);
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkPoolOutput)
@@ -144,7 +140,10 @@ struct IMultiChunkPoolOutput
     virtual void Finalize() = 0;
 
     //! Adds new underlying chunk pool output to multi chunk pool.
-    virtual void AddPoolOutput(IChunkPoolOutputPtr pool) = 0;
+    virtual void AddPoolOutput(IChunkPoolOutputPtr pool, int poolIndex) = 0;
+
+    //! Extracts cookie from underlying pool `underlyingPoolIndexHint' if possible.
+    virtual TCookie ExtractFromPool(int underlyingPoolIndexHint, NNodeTrackerClient::TNodeId nodeId = NNodeTrackerClient::InvalidNodeId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMultiChunkPoolOutput)
@@ -170,17 +169,16 @@ public:
 
     virtual void Persist(const TPersistenceContext& context) override;
 
-    virtual i64 GetTotalDataWeight() const override;
-    virtual i64 GetRunningDataWeight() const override;
-    virtual i64 GetCompletedDataWeight() const override;
-    virtual i64 GetPendingDataWeight() const override;
-    virtual i64 GetTotalRowCount() const override;
     virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
+    virtual const NControllerAgent::TProgressCounterPtr& GetDataWeightCounter() const override;
+    virtual const NControllerAgent::TProgressCounterPtr& GetRowCounter() const override;
+    virtual const NControllerAgent::TProgressCounterPtr& GetDataSliceCounter() const override;
 
 protected:
     NControllerAgent::TProgressCounterPtr DataWeightCounter;
     NControllerAgent::TProgressCounterPtr RowCounter;
     NControllerAgent::TProgressCounterPtr JobCounter;
+    NControllerAgent::TProgressCounterPtr DataSliceCounter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -193,8 +191,6 @@ public:
     TChunkPoolOutputWithJobManagerBase();
 
     virtual TChunkStripeStatisticsVector GetApproximateStripeStatistics() const override;
-    virtual int GetTotalJobCount() const override;
-    virtual int GetPendingJobCount() const override;
     virtual IChunkPoolOutput::TCookie Extract(NNodeTrackerClient::TNodeId nodeId) override;
     virtual TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie cookie) override;
     virtual int GetStripeListSliceCount(IChunkPoolOutput::TCookie cookie) const override;
@@ -202,12 +198,11 @@ public:
     virtual void Failed(IChunkPoolOutput::TCookie cookie) override;
     virtual void Aborted(IChunkPoolOutput::TCookie cookie, NScheduler::EAbortReason reason) override;
     virtual void Lost(IChunkPoolOutput::TCookie cookie) override;
-    virtual i64 GetTotalDataWeight() const override;
-    virtual i64 GetRunningDataWeight() const override;
-    virtual i64 GetCompletedDataWeight() const override;
-    virtual i64 GetPendingDataWeight() const override;
-    virtual i64 GetTotalRowCount() const override;
     virtual const NControllerAgent::TProgressCounterPtr& GetJobCounter() const override;
+    virtual const NControllerAgent::TProgressCounterPtr& GetDataWeightCounter() const override;
+    virtual const NControllerAgent::TProgressCounterPtr& GetRowCounter() const override;
+    virtual const NControllerAgent::TProgressCounterPtr& GetDataSliceCounter() const override;
+
     virtual void Persist(const TPersistenceContext& context) override;
 
 protected:
@@ -231,7 +226,7 @@ struct IMultiChunkPool
     , public virtual IChunkPool
 {
     //! Adds new underlying chunk pool to multi chunk pool.
-    virtual void AddPool(IChunkPoolPtr pool) = 0;
+    virtual void AddPool(IChunkPoolPtr pool, int poolIndex) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMultiChunkPool)

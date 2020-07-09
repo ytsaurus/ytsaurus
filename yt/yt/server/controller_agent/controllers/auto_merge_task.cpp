@@ -195,7 +195,7 @@ bool TAutoMergeTask::IsJobInterruptible() const
 void TAutoMergeTask::UpdateSelf()
 {
     CanScheduleJob_ = TaskHost_->GetAutoMergeDirector()->CanScheduleMergeJob(CurrentChunkCount_) ||
-        ChunkPool_->GetPendingJobCount() > 1;
+        ChunkPool_->GetJobCounter()->GetPending() > 1;
 
     if (CanScheduleJob_) {
         TaskHost_->AddTaskPendingHint(this);

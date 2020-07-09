@@ -1346,6 +1346,7 @@ done
             command="cat",
             spec={"auto_merge": {"mode": "relaxed"}})
         op.track()
+        assert read_table("//tmp/t2") == [{"a": "b"}]
 
         directions = get_directions(op)
         assert len(directions) == 3

@@ -45,7 +45,7 @@ public:
 
     bool IsFinished() const;
 
-    TProgressCounterPtr GetProgressCounter();
+    TLegacyProgressCounterPtr GetProgressCounter();
 
     void Persist(const TPersistenceContext& context);
 
@@ -70,7 +70,7 @@ private:
 
     std::function<void(TJobId, EAbortReason)> AbortJobCallback_;
     std::function<void(const TJobletPtr&)> OnSpeculativeJobScheduled_;
-    TProgressCounterPtr JobCounter_;
+    TLegacyProgressCounterPtr JobCounter_;
     const NLogging::TLogger& Logger;
 
     THashMap<NLegacyChunkPools::IChunkPoolOutput::TCookie, TCompetition> CookieToCompetition_;
@@ -82,7 +82,7 @@ private:
     void OnJobFinished(const TJobletPtr& joblet);
     bool OnUnsuccessfulJobFinish(
         const TJobletPtr& joblet,
-        const std::function<void(const TProgressCounterPtr&)>& updateJobCounter);
+        const std::function<void(const TLegacyProgressCounterPtr&)>& updateJobCounter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

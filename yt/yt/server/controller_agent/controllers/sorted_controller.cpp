@@ -175,6 +175,15 @@ protected:
             ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
 
+        virtual void OnTaskCompleted() override
+        {
+            TTask::OnTaskCompleted();
+
+            if (Controller_->AutoMergeTask_) {
+                Controller_->AutoMergeTask_->FinishInput();
+            }
+        }
+
     protected:
         TSortedControllerBase* Controller_;
 
@@ -508,7 +517,7 @@ protected:
 
         FinishTaskInput(SortedTask_);
         if (AutoMergeTask_) {
-            AutoMergeTask_->FinishInput(SortedTask_->GetVertexDescriptor());
+            AutoMergeTask_->RegisterInGraph(SortedTask_->GetVertexDescriptor());
         }
 
         FinishPreparation();

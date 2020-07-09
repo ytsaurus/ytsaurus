@@ -66,6 +66,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((HighQueueAverageWaitTime)                    (20))
     ((AutoMergeDisabled)                           (21))
     ((InvalidAclInSpecIgnored)                     (22))
+    ((InvalidatedJobsFound)                        (23))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,
