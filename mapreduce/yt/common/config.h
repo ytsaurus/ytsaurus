@@ -114,6 +114,8 @@ struct TConfig
     // All tracing occurres as DEBUG level logging.
     ETraceHttpRequestsMode TraceHttpRequestsMode = ETraceHttpRequestsMode::Never;
 
+    TString SkynetApiHost;
+
     static bool GetBool(const char* var, bool defaultValue = false);
     static int GetInt(const char* var, int defaultValue);
     static TDuration GetDuration(const char* var, TDuration defaultValue);
