@@ -710,13 +710,16 @@ TNode::TListType SkyShareTable(
     const TSkyShareTableOptions& options)
 {
     THttpHeader header("POST", "api/v1/share", /*IsApi*/ false);
-    auto dotPos = auth.ServerName.find('.');
-    if (dotPos == TString::npos) {
-        ythrow yexception() << "Invalid server name";
+
+    auto proxyName = auth.ServerName.substr(0,  auth.ServerName.find('.'));
+
+    auto host = TConfig::Get()->SkynetApiHost;
+    if (host == "") {
+        host = "skynet." + proxyName + ".yt.yandex.net";
     }
-    const auto proxyName = auth.ServerName.substr(0, dotPos);
+
     header.MergeParameters(SerializeParamsForSkyShareTable(proxyName, tablePath, options));
-    TAuth skyApiHost({"skynet." + proxyName + ".yt.yandex.net", ""});
+    TAuth skyApiHost({host, ""});
     TResponseInfo response = {};
 
     // As documented at https://wiki.yandex-team.ru/yt/userdoc/blob_tables/#shag3.sozdajomrazdachu
