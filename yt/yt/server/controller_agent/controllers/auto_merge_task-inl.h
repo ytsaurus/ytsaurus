@@ -130,7 +130,7 @@ private:
         }
         CanScheduleJob_ = this->TaskHost_->GetAutoMergeDirector()->CanScheduleTaskJob(LastChunkCount_ /* intermediateChunkCount */);
         if (CanScheduleJob_) {
-            this->TaskHost_->AddTaskPendingHint(this);
+            this->TaskHost_->UpdateTask(this);
         }
     }
 };

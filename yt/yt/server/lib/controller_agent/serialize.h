@@ -41,6 +41,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((DynamicMultiPool)                     (300408))
     ((VintageControllerAgent)               (300409))
     ((JoinSortControllerTasks)              (300410))
+    ((RemoveTaskGroups)                     (300411))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

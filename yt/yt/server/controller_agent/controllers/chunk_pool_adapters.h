@@ -46,7 +46,7 @@ NChunkPools::IChunkPoolInputPtr CreateIntermediateLivePreviewAdapter(
     NChunkPools::IChunkPoolInputPtr chunkPoolInput,
     ITaskHost* taskHost);
 
-NChunkPools::IChunkPoolInputPtr CreateHintAddingAdapter(
+NChunkPools::IChunkPoolInputPtr CreateTaskUpdatingAdapter(
     NChunkPools::IChunkPoolInputPtr chunkPoolInput,
     TTask* task);
 

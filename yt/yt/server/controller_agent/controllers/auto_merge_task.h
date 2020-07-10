@@ -62,8 +62,6 @@ public:
     virtual TString GetTitle() const override;
     virtual TDataFlowGraph::TVertexDescriptor GetVertexDescriptor() const override;
 
-    virtual TTaskGroupPtr GetGroup() const override;
-
     virtual NScheduler::TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override;
 
     virtual NChunkPools::IChunkPoolInputPtr GetChunkPoolInput() const override;

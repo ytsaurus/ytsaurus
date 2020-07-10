@@ -99,7 +99,6 @@ public:
         Persist(context, JobSpecTemplate_);
         Persist(context, JobSizeConstraints_);
         Persist(context, InputSliceDataWeight_);
-        Persist(context, SortedTaskGroup_);
         Persist(context, SortedTask_);
         Persist(context, PrimaryKeyColumns_);
         Persist(context, ForeignKeyColumns_);
@@ -135,11 +134,6 @@ protected:
                 controller->CreateChunkSliceFetcherFactory(),
                 controller->GetInputStreamDirectory());
             ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this)));
-        }
-
-        virtual TTaskGroupPtr GetGroup() const override
-        {
-            return Controller_->SortedTaskGroup_;
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -257,8 +251,6 @@ protected:
 
     typedef TIntrusivePtr<TSortedTaskBase> TSortedTaskPtr;
 
-    TTaskGroupPtr SortedTaskGroup_;
-
     TSortedTaskPtr SortedTask_;
 
     //! The (adjusted) key columns that define the sort order inside sorted chunk pool.
@@ -287,16 +279,6 @@ protected:
 
         return TOperationControllerBase::GetUnavailableInputChunkCount();
     };
-
-    virtual void DoInitialize() override
-    {
-        TOperationControllerBase::DoInitialize();
-
-        SortedTaskGroup_ = New<TTaskGroup>();
-        SortedTaskGroup_->MinNeededResources.SetCpu(GetCpuLimit());
-
-        RegisterTaskGroup(SortedTaskGroup_);
-    }
 
     void CalculateSizes()
     {

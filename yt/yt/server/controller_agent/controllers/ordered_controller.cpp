@@ -107,7 +107,6 @@ public:
         Persist(context, JobSpecTemplate_);
         Persist(context, JobSizeConstraints_);
         Persist(context, InputSliceDataWeight_);
-        Persist(context, OrderedTaskGroup_);
         Persist(context, OrderedTask_);
         Persist(context, OrderedOutputRequired_);
         Persist(context, IsExplicitJobCount_);
@@ -169,11 +168,6 @@ protected:
         TOrderedControllerBase* Controller_;
 
         IChunkPoolPtr ChunkPool_;
-
-        virtual TTaskGroupPtr GetGroup() const override
-        {
-            return Controller_->OrderedTaskGroup_;
-        }
 
         virtual TDuration GetLocalityTimeout() const override
         {
@@ -258,8 +252,6 @@ protected:
 
     typedef TIntrusivePtr<TOrderedTask> TOrderedTaskPtr;
 
-    TTaskGroupPtr OrderedTaskGroup_;
-
     TOrderedTaskPtr OrderedTask_;
 
     IJobSizeConstraintsPtr JobSizeConstraints_;
@@ -294,16 +286,6 @@ protected:
     virtual bool IsCompleted() const override
     {
         return OrderedTask_ && OrderedTask_->IsCompleted();
-    }
-
-    virtual void DoInitialize() override
-    {
-        TOperationControllerBase::DoInitialize();
-
-        OrderedTaskGroup_ = New<TTaskGroup>();
-        OrderedTaskGroup_->MinNeededResources.SetCpu(GetCpuLimit());
-
-        RegisterTaskGroup(OrderedTaskGroup_);
     }
 
     void CalculateSizes()

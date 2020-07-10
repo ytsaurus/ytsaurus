@@ -972,7 +972,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
             }
         }
 
-        AddAllTaskPendingHints();
+        UpdateAllTasks();
 
         if (Config->TestingOptions->EnableSnapshotCycleAfterMaterialization) {
             TStringStream stringStream;
@@ -1091,7 +1091,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         return result;
     }
 
-    AddAllTaskPendingHints();
+    UpdateAllTasks();
 
     // Input chunk scraper initialization should be the last step to avoid races.
     InitInputChunkScraper();
@@ -1260,11 +1260,6 @@ TTransactionId TOperationControllerBase::GetOutputTransactionParentId()
     return UserTransactionId;
 }
 
-TTaskGroupPtr TOperationControllerBase::GetAutoMergeTaskGroup() const
-{
-    return AutoMergeTaskGroup;
-}
-
 TAutoMergeDirector* TOperationControllerBase::GetAutoMergeDirector()
 {
     return AutoMergeDirector_.get();
@@ -1417,11 +1412,6 @@ void TOperationControllerBase::InitIntermediateChunkScraper()
 bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate, double dataWeightRatio)
 {
     InitAutoMergeJobSpecTemplates();
-
-    AutoMergeTaskGroup = New<TTaskGroup>();
-    AutoMergeTaskGroup->MinNeededResources.SetCpu(1);
-
-    RegisterTaskGroup(AutoMergeTaskGroup);
 
     const auto& autoMergeSpec = Spec_->AutoMerge;
     auto mode = autoMergeSpec->Mode;
@@ -3024,10 +3014,7 @@ void TOperationControllerBase::OnInputChunkAvailable(
 
         auto task = inputStripe.Task;
         task->GetChunkPoolInput()->Resume(inputStripe.Cookie);
-        if (task->HasInputLocality()) {
-            AddTaskLocalityHint(inputStripe.Stripe, task);
-        }
-        AddTaskPendingHint(task);
+        UpdateTask(task);
     }
 }
 
@@ -3071,7 +3058,7 @@ void TOperationControllerBase::OnInputChunkUnavailable(TChunkId chunkId, TInputC
                     inputStripe.Task->GetChunkMapping()->OnChunkDisappeared(chunk);
                 }
 
-                AddTaskPendingHint(inputStripe.Task);
+                UpdateTask(inputStripe.Task);
             }
             InputChunkScraper->Start();
             break;
@@ -3133,7 +3120,7 @@ bool TOperationControllerBase::OnIntermediateChunkUnavailable(TChunkId chunkId)
     if (completedJob->Restartable) {
         completedJob->SourceTask->GetChunkPoolOutput()->Lost(completedJob->OutputCookie);
         completedJob->SourceTask->OnJobLost(completedJob);
-        AddTaskPendingHint(completedJob->SourceTask);
+        UpdateTask(completedJob->SourceTask);
     }
 
     return true;
@@ -3171,8 +3158,8 @@ void TOperationControllerBase::OnIntermediateChunkAvailable(TChunkId chunkId, co
 
             // TODO (psushin).
             // Unfortunately we don't know what task we are resuming, so
-            // add pending hints for all.
-            AddAllTaskPendingHints();
+            // we update them all.
+            UpdateAllTasks();
         }
     }
 }
@@ -4064,11 +4051,6 @@ void TOperationControllerBase::RegisterTask(TTaskPtr task)
     Tasks.emplace_back(std::move(task));
 }
 
-void TOperationControllerBase::RegisterTaskGroup(TTaskGroupPtr group)
-{
-    TaskGroups.push_back(std::move(group));
-}
-
 void TOperationControllerBase::UpdateTask(const TTaskPtr& task)
 {
     int oldPendingJobCount = CachedPendingJobCount;
@@ -4112,86 +4094,11 @@ void TOperationControllerBase::UpdateAllTasksIfNeeded()
     TaskUpdateDeadline_ = now + NProfiling::DurationToCpuDuration(Config->TaskUpdatePeriod);
 }
 
-void TOperationControllerBase::MoveTaskToCandidates(
-    const TTaskPtr& task,
-    std::multimap<i64, TTaskPtr>& candidateTasks)
-{
-    const auto& neededResources = task->GetMinNeededResources();
-    i64 minMemory = neededResources.GetMemory();
-    candidateTasks.insert(std::make_pair(minMemory, task));
-    YT_LOG_DEBUG("Task moved to candidates (Task: %v, MinMemory: %v)",
-        task->GetTitle(),
-        minMemory / 1_MB);
-
-}
-
-void TOperationControllerBase::AddTaskPendingHint(const TTaskPtr& task)
-{
-    auto pendingJobCount = task->GetPendingJobCount();
-    const auto& taskId = task->GetTitle();
-    YT_LOG_TRACE("Adding task pending hint (Task: %v, PendingJobCount: %v)", taskId, pendingJobCount);
-    if (pendingJobCount > 0) {
-        auto group = task->GetGroup();
-        if (group->NonLocalTasks.insert(task).second) {
-            YT_LOG_TRACE("Task pending hint added (Task: %v)", taskId);
-            MoveTaskToCandidates(task, group->CandidateTasks);
-        }
-    }
-    UpdateTask(task);
-}
-
-void TOperationControllerBase::AddAllTaskPendingHints()
-{
-    for (const auto& task : Tasks) {
-        AddTaskPendingHint(task);
-    }
-}
-
-void TOperationControllerBase::DoAddTaskLocalityHint(const TTaskPtr& task, TNodeId nodeId)
-{
-    auto group = task->GetGroup();
-    if (group->NodeIdToTasks[nodeId].insert(task).second) {
-        YT_LOG_TRACE("Task locality hint added (Task: %v, Address: %v)",
-            task->GetTitle(),
-            InputNodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress());
-    }
-}
-
-void TOperationControllerBase::AddTaskLocalityHint(TNodeId nodeId, const TTaskPtr& task)
-{
-    DoAddTaskLocalityHint(task, nodeId);
-    UpdateTask(task);
-}
-
-void TOperationControllerBase::AddTaskLocalityHint(const TChunkStripePtr& stripe, const TTaskPtr& task)
-{
-    for (const auto& dataSlice : stripe->DataSlices) {
-        for (const auto& chunkSlice : dataSlice->ChunkSlices) {
-            for (auto replica : chunkSlice->GetInputChunk()->GetReplicaList()) {
-                auto locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
-                if (locality > 0) {
-                    DoAddTaskLocalityHint(task, replica.GetNodeId());
-                }
-            }
-        }
-    }
-    UpdateTask(task);
-}
-
 void TOperationControllerBase::ResetTaskLocalityDelays()
 {
     YT_LOG_DEBUG("Task locality delays are reset");
-    for (const auto& group : TaskGroups) {
-        for (const auto& [time, task] : group->DelayedTasks) {
-            if (task->GetPendingJobCount() > 0) {
-                MoveTaskToCandidates(task, group->CandidateTasks);
-            } else {
-                YT_LOG_DEBUG("Task pending hint removed (Task: %v)",
-                    task->GetTitle());
-                YT_VERIFY(group->NonLocalTasks.erase(task) == 1);
-            }
-        }
-        group->DelayedTasks.clear();
+    for (const auto& task : Tasks) {
+        task->SetDelayedTime(std::nullopt);
     }
 }
 
@@ -4234,253 +4141,99 @@ void TOperationControllerBase::DoScheduleJob(
         return;
     }
 
-    DoScheduleLocalJob(context, jobLimits, treeId, scheduleJobResult);
+    TryScheduleJob(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob=*/true);
     if (!scheduleJobResult->StartDescriptor) {
-        DoScheduleNonLocalJob(context, jobLimits, treeId, scheduleJobResult);
+        TryScheduleJob(context, jobLimits, treeId, scheduleJobResult, /*scheduleLocalJob=*/false);
     }
 }
 
-void TOperationControllerBase::DoScheduleLocalJob(
+void TOperationControllerBase::TryScheduleJob(
     ISchedulingContext* context,
     const TJobResourcesWithQuota& jobLimits,
     const TString& treeId,
-    TControllerScheduleJobResult* scheduleJobResult)
+    TControllerScheduleJobResult* scheduleJobResult,
+    bool scheduleLocalJob)
 {
+    if (!IsRunning()) {
+        scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
+        return;
+    }
+
     const auto& nodeResourceLimits = context->ResourceLimits();
     const auto& address = context->GetNodeDescriptor().Address;
     auto nodeId = context->GetNodeDescriptor().Id;
+    auto now = NProfiling::CpuInstantToInstant(context->GetNow());
 
-    for (const auto& group : TaskGroups) {
+    for (const auto& task : Tasks) {
         if (scheduleJobResult->IsScheduleStopNeeded()) {
-            return;
-        }
-        if (!Dominates(jobLimits, group->MinNeededResources))
-        {
-            scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
-            continue;
-        }
-
-        auto localTasksIt = group->NodeIdToTasks.find(nodeId);
-        if (localTasksIt == group->NodeIdToTasks.end()) {
-            continue;
-        }
-
-        i64 bestLocality = 0;
-        TTaskPtr bestTask;
-
-        auto& localTasks = localTasksIt->second;
-        auto it = localTasks.begin();
-        while (it != localTasks.end()) {
-            auto jt = it++;
-            auto task = *jt;
-
-            // Make sure that the task has positive locality.
-            // Remove pending hint if not.
-            auto locality = task->GetLocality(nodeId);
-            if (locality <= 0) {
-                localTasks.erase(jt);
-                YT_LOG_TRACE("Task locality hint removed (Task: %v, Address: %v)",
-                    task->GetTitle(),
-                    address);
-                continue;
-            }
-
-            if (locality <= bestLocality) {
-                continue;
-            }
-
-            if (task->GetPendingJobCount() == 0) {
-                UpdateTask(task);
-                continue;
-            }
-
-            if (!CheckJobLimits(task, jobLimits, nodeResourceLimits)) {
-                scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
-                continue;
-            }
-
-            bestLocality = locality;
-            bestTask = task;
-        }
-
-        if (!IsRunning()) {
-            scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
             break;
         }
 
-        if (bestTask) {
-            YT_LOG_DEBUG(
-                "Attempting to schedule a local job (Task: %v, Address: %v, Locality: %v, JobLimits: %v, "
-                "PendingDataWeight: %v, PendingJobCount: %v)",
-                bestTask->GetTitle(),
-                address,
-                bestLocality,
-                FormatResources(jobLimits, GetMediumDirectory()),
-                bestTask->GetPendingDataWeight(),
-                bestTask->GetPendingJobCount());
-
-            if (!HasEnoughChunkLists(bestTask->IsStderrTableEnabled(), bestTask->IsCoreTableEnabled())) {
-                YT_LOG_DEBUG("Job chunk list demand is not met");
-                scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
-                break;
-            }
-
-            bestTask->ScheduleJob(context, jobLimits, treeId, IsTreeTentative(treeId), scheduleJobResult);
-            if (scheduleJobResult->StartDescriptor) {
-                RegisterTestingSpeculativeJobIfNeeded(bestTask, scheduleJobResult->StartDescriptor->Id);
-                UpdateTask(bestTask);
-                break;
-            }
-            if (scheduleJobResult->IsScheduleStopNeeded()) {
-                return;
-            }
-        } else {
-            // NB: This is one of the possible reasons, hopefully the most probable.
-            scheduleJobResult->RecordFail(EScheduleJobFailReason::NoLocalJobs);
-        }
-    }
-}
-
-void TOperationControllerBase::DoScheduleNonLocalJob(
-    ISchedulingContext* context,
-    const TJobResourcesWithQuota& jobLimits,
-    const TString& treeId,
-    TControllerScheduleJobResult* scheduleJobResult)
-{
-    auto now = NProfiling::CpuInstantToInstant(context->GetNow());
-    const auto& nodeResourceLimits = context->ResourceLimits();
-    const auto& address = context->GetNodeDescriptor().Address;
-
-    for (const auto& group : TaskGroups) {
-        if (scheduleJobResult->IsScheduleStopNeeded()) {
-            return;
-        }
-        if (!Dominates(jobLimits, group->MinNeededResources))
-        {
+        if (!Dominates(jobLimits, task->GetMinNeededResources())) {
             scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
             continue;
         }
 
-        auto& nonLocalTasks = group->NonLocalTasks;
-        auto& candidateTasks = group->CandidateTasks;
-        auto& delayedTasks = group->DelayedTasks;
+        auto locality = task->GetLocality(nodeId);
 
-        // Move tasks from delayed to candidates.
-        while (!delayedTasks.empty()) {
-            auto it = delayedTasks.begin();
-            auto deadline = it->first;
-            if (now < deadline) {
-                break;
+        if (scheduleLocalJob) {
+            // Make sure that the task has positive locality.
+            if (locality <= 0) {
+                // NB: This is one of the possible reasons, hopefully the most probable.
+                scheduleJobResult->RecordFail(EScheduleJobFailReason::NoLocalJobs);
+                continue;
             }
-            auto task = it->second;
-            delayedTasks.erase(it);
-            if (task->GetPendingJobCount() == 0) {
-                YT_LOG_DEBUG("Task pending hint removed (Task: %v)",
-                    task->GetTitle());
-                YT_VERIFY(nonLocalTasks.erase(task) == 1);
-                UpdateTask(task);
-            } else {
-                YT_LOG_DEBUG("Task delay deadline reached (Task: %v)", task->GetTitle());
-                MoveTaskToCandidates(task, candidateTasks);
+        } else {
+            if (!task->GetDelayedTime()) {
+                task->SetDelayedTime(now);
+            }
+
+            auto deadline = *task->GetDelayedTime() + task->GetLocalityTimeout();
+            if (deadline > now) {
+                YT_LOG_DEBUG("Task delayed (Task: %v, Deadline: %v)",
+                    task->GetTitle(),
+                    deadline);
+                scheduleJobResult->RecordFail(EScheduleJobFailReason::TaskDelayed);
+                continue;
             }
         }
 
-        // Consider candidates in the order of increasing memory demand.
-        {
-            int processedTaskCount = 0;
-            int noPendingJobsTaskCount = 0;
-            auto it = candidateTasks.begin();
-            while (it != candidateTasks.end()) {
-                ++processedTaskCount;
-                auto task = it->second;
+        if (task->GetPendingJobCount() == 0) {
+            UpdateTask(task);
+            continue;
+        }
 
-                // Make sure that the task is ready to launch jobs.
-                // Remove pending hint if not.
-                if (task->GetPendingJobCount() == 0) {
-                    YT_LOG_DEBUG("Task pending hint removed (Task: %v)", task->GetTitle());
-                    candidateTasks.erase(it++);
-                    YT_VERIFY(nonLocalTasks.erase(task) == 1);
-                    UpdateTask(task);
-                    ++noPendingJobsTaskCount;
-                    continue;
-                }
+        if (!CheckJobLimits(task, jobLimits, nodeResourceLimits)) {
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
+            continue;
+        }
 
-                // Check min memory demand for early exit.
-                if (task->GetMinNeededResources().GetMemory() > jobLimits.GetMemory()) {
-                    scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
-                    break;
-                }
+        YT_LOG_DEBUG(
+            "Attempting to schedule a %v job (Task: %v, Address: %v, Locality: %v, JobLimits: %v, "
+            "PendingDataWeight: %v, PendingJobCount: %v)",
+            scheduleLocalJob ? "local" : "non-local",
+            task->GetTitle(),
+            address,
+            locality,
+            FormatResources(jobLimits, GetMediumDirectory()),
+            task->GetPendingDataWeight(),
+            task->GetPendingJobCount());
 
-                if (!CheckJobLimits(task, jobLimits, nodeResourceLimits)) {
-                    ++it;
-                    scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughResources);
-                    continue;
-                }
+        if (!HasEnoughChunkLists(task->IsStderrTableEnabled(), task->IsCoreTableEnabled())) {
+            YT_LOG_DEBUG("Job chunk list demand is not met");
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
+            break;
+        }
 
-                if (!task->GetDelayedTime()) {
-                    task->SetDelayedTime(now);
-                }
-
-                auto deadline = *task->GetDelayedTime() + task->GetLocalityTimeout();
-                if (deadline > now) {
-                    YT_LOG_DEBUG("Task delayed (Task: %v, Deadline: %v)",
-                        task->GetTitle(),
-                        deadline);
-                    delayedTasks.insert(std::make_pair(deadline, task));
-                    candidateTasks.erase(it++);
-                    scheduleJobResult->RecordFail(EScheduleJobFailReason::TaskDelayed);
-                    continue;
-                }
-
-                if (!IsRunning()) {
-                    scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationNotRunning);
-                    break;
-                }
-
-                YT_LOG_DEBUG(
-                    "Attempting to schedule a non-local job (Task: %v, Address: %v, JobLimits: %v, "
-                    "PendingDataWeight: %v, PendingJobCount: %v)",
-                    task->GetTitle(),
-                    address,
-                    FormatResources(jobLimits, GetMediumDirectory()),
-                    task->GetPendingDataWeight(),
-                    task->GetPendingJobCount());
-
-                if (!HasEnoughChunkLists(task->IsStderrTableEnabled(), task->IsCoreTableEnabled())) {
-                    YT_LOG_DEBUG("Job chunk list demand is not met");
-                    scheduleJobResult->RecordFail(EScheduleJobFailReason::NotEnoughChunkLists);
-                    break;
-                }
-
-                task->ScheduleJob(context, jobLimits, treeId, IsTreeTentative(treeId), scheduleJobResult);
-                if (scheduleJobResult->StartDescriptor) {
-                    RegisterTestingSpeculativeJobIfNeeded(task, scheduleJobResult->StartDescriptor->Id);
-                    UpdateTask(task);
-                    return;
-                }
-                if (scheduleJobResult->IsScheduleStopNeeded()) {
-                    return;
-                }
-
-                // If task failed to schedule job, its min resources might have been updated.
-                auto minMemory = task->GetMinNeededResources().GetMemory();
-                if (it->first == minMemory) {
-                    ++it;
-                } else {
-                    it = candidateTasks.erase(it);
-                    candidateTasks.insert(std::make_pair(minMemory, task));
-                }
-            }
-
-            if (processedTaskCount == noPendingJobsTaskCount) {
-                scheduleJobResult->RecordFail(EScheduleJobFailReason::NoCandidateTasks);
-            }
-
-            YT_LOG_DEBUG("Non-local tasks processed (TotalCount: %v, NoPendingJobsCount: %v)",
-                processedTaskCount,
-                noPendingJobsTaskCount);
+        task->ScheduleJob(context, jobLimits, treeId, IsTreeTentative(treeId), scheduleJobResult);
+        if (scheduleJobResult->StartDescriptor) {
+            RegisterTestingSpeculativeJobIfNeeded(task, scheduleJobResult->StartDescriptor->Id);
+            UpdateTask(task);
+            break;
         }
     }
+
+    scheduleJobResult->RecordFail(EScheduleJobFailReason::NoCandidateTasks);
 }
 
 bool TOperationControllerBase::IsTreeTentative(const TString& treeId) const
@@ -8544,7 +8297,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, UserJobFiles_);
     Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, LivePreviewChunks_);
     Persist(context, Tasks);
-    Persist(context, TaskGroups);
     Persist(context, InputChunkMap);
     Persist(context, IntermediateOutputCellTag);
     Persist(context, CellTagToRequiredOutputChunkListCount_);
@@ -8567,7 +8319,6 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     Persist(context, JobSpecCompletedArchiveCount_);
     Persist(context, Sink_);
     Persist(context, AutoMergeTask_);
-    Persist(context, AutoMergeTaskGroup);
     Persist(context, AutoMergeJobSpecTemplates_);
     Persist<TUniquePtrSerializer<>>(context, AutoMergeDirector_);
     Persist(context, JobSplitter_);
