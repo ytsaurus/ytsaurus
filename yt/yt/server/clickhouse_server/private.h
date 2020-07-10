@@ -61,6 +61,7 @@ DECLARE_REFCOUNTED_CLASS(THost);
 DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig);
 DECLARE_REFCOUNTED_CLASS(TLauncherConfig);
 DECLARE_REFCOUNTED_CLASS(TMemoryConfig);
+DECLARE_REFCOUNTED_CLASS(TMemoryWatchdog);
 
 struct TValue;
 class TSubquerySpec;

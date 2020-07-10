@@ -12,6 +12,7 @@
 #include "table_functions.h"
 #include "table_functions_concat.h"
 #include "dictionary_source.h"
+#include "memory_watchdog.h"
 #include "health_checker.h"
 
 #include <yt/server/clickhouse_server/functions/public.h>
@@ -39,11 +40,7 @@
 
 #include <yt/core/profiling/profile_manager.h>
 
-#include <yt/core/misc/proc.h>
-#include <yt/core/misc/ref_counted_tracker.h>
 #include <yt/core/misc/crash_handler.h>
-
-#include <yt/core/logging/log_manager.h>
 
 #include <yt/core/net/local_address.h>
 
@@ -52,8 +49,6 @@
 
 #include <Common/Exception.h>
 #include <Common/StringUtils/StringUtils.h>
-#include <Common/MemoryTracker.h>
-#include <Common/CurrentMetrics.h>
 #include <IO/HTTPCommon.h>
 
 #include <common/DateLUT.h>
@@ -120,10 +115,6 @@ public:
         , Config_(std::move(config))
         , Ports_(ports)
         , ConnectionConfig_(std::move(connectionConfig))
-        , MemoryWatchdogExecutor_(New<TPeriodicExecutor>(
-            ControlInvoker_,
-            BIND(&TImpl::CheckMemoryUsage, MakeWeak(this)),
-            Config_->MemoryWatchdog->Period))
         , ProfilingExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
             BIND(&TImpl::OnProfiling, MakeWeak(this)),
@@ -135,10 +126,6 @@ public:
         , WorkerThreadPool_(New<TThreadPool>(Config_->WorkerThreadCount, "Worker"))
         , WorkerInvoker_(WorkerThreadPool_->GetInvoker())
         , ClickHouseWorkerInvoker_(CreateClickHouseInvoker(WorkerInvoker_))
-        , TotalMemoryTrackerUpdateExecutor_(New<TPeriodicExecutor>(
-            WorkerInvoker_,
-            BIND(&TImpl::UpdateTotalMemoryTracker, MakeWeak(this)),
-            Config_->TotalMemoryTrackerUpdatePeriod))
     {
         InitializeClients();
         InitializeCaches();
@@ -165,6 +152,9 @@ public:
             ControlInvoker_,
             Context_,
             Config_->ProcessListSnapshotUpdatePeriod);
+        MemoryWatchdog_ = New<TMemoryWatchdog>(
+            Config_->MemoryWatchdog,
+            BIND(&TQueryRegistry::WriteStateToStderr, QueryRegistry_));
         HealthChecker_ = New<THealthChecker>(
             Config_->HealthChecker,
             Config_->User,
@@ -179,12 +169,11 @@ public:
         YT_VERIFY(Context_);
 
         QueryRegistry_->Start();
+        MemoryWatchdog_->Start();
 
         ProfilingExecutor_->Start();
         GossipExecutor_->Start();
         HealthChecker_->Start();
-        TotalMemoryTrackerUpdateExecutor_->Start();
-        MemoryWatchdogExecutor_->Start();
         CreateOrchidNode();
         StartDiscovery();
     }
@@ -412,14 +401,13 @@ private:
     TPorts Ports_;
     const NApi::NNative::TConnectionConfigPtr ConnectionConfig_;
     THealthCheckerPtr HealthChecker_;
-    TPeriodicExecutorPtr MemoryWatchdogExecutor_;
+    TMemoryWatchdogPtr MemoryWatchdog_;
     TQueryRegistryPtr QueryRegistry_;
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr GossipExecutor_;
     NConcurrency::TThreadPoolPtr WorkerThreadPool_;
     IInvokerPtr WorkerInvoker_;
     IInvokerPtr ClickHouseWorkerInvoker_;
-    TPeriodicExecutorPtr TotalMemoryTrackerUpdateExecutor_;
 
     NApi::NNative::IClientPtr RootClient_;
     NApi::NNative::IClientPtr CacheClient_;
@@ -525,28 +513,6 @@ private:
         Discovery_->UpdateList();
     }
 
-    void CheckMemoryUsage()
-    {
-        auto usage = GetProcessMemoryUsage();
-        auto total = usage.Rss + usage.Shared;
-        YT_LOG_DEBUG(
-            "Checking memory usage "
-            "(Rss: %v, Shared: %v, Total: %v, MemoryLimit: %v, CodicilWatermark: %v)",
-            usage.Rss,
-            usage.Shared,
-            total,
-            Config_->MemoryWatchdog->MemoryLimit,
-            Config_->MemoryWatchdog->CodicilWatermark);
-        if (total + Config_->MemoryWatchdog->CodicilWatermark > Config_->MemoryWatchdog->MemoryLimit) {
-            YT_LOG_ERROR("We are close to OOM, printing query digest codicils and killing ourselves");
-            NYT::NLogging::TLogManager::Get()->Shutdown();
-            QueryRegistry_->WriteStateToStderr();
-            Cerr << "*** RefCountedTracker ***\n" << Endl;
-            Cerr << TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */) << Endl;
-            _exit(MemoryLimitExceededExitCode);
-        }
-    }
-
     void MakeGossip()
     {
         YT_LOG_DEBUG("Gossip started");
@@ -630,17 +596,6 @@ private:
         }
 
         Discovery_->UpdateList(Config_->UnknownInstanceAgeThreshold);
-    }
-
-    void UpdateTotalMemoryTracker()
-    {
-        // ClickHouse periodically snaphots current RSS and then tracks its
-        // allocations, changing presumed value of RSS accordingly. It does
-        // not work in our case as we have lots of our own allocations, so
-        // we have to reconcile RSS more frequently than once per minute.
-        auto rss = GetProcessMemoryUsage().Rss;
-        total_memory_tracker.set(rss);
-        CurrentMetrics::set(CurrentMetrics::MemoryTracking, rss);
     }
 
     void CreateOrchidNode()
