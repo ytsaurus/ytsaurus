@@ -315,14 +315,14 @@ protected:
     {
         int PartitionIndex;
 
-        i64 Locality;        
+        i64 Locality;
     };
 
     //! NodeId -> set of partitions assigned to it.
     THashMap<TNodeId, THashSet<int>> AssignedPartitionsByNodeId;
 
     //! NodeId -> map<partition_index, locality>.
-    THashMap<TNodeId, THashMap<int, int>> PartitionsLocalityByNodeId;
+    THashMap<TNodeId, THashMap<int, i64>> PartitionsLocalityByNodeId;
 
     //! Spec templates for starting new jobs.
     TJobSpec PartitionJobSpecTemplate;
