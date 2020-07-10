@@ -527,7 +527,6 @@ bool TPiecewiseLinearFunction<TValue>::IsTrimmed() const
 template <class TValue>
 bool TPiecewiseLinearFunction<TValue>::IsTrimmedLeft() const
 {
-    // Since we assume all functions to be left-continuous, only the last segment needs to be checked.
     return !Segments_.front().IsVertical();
 }
 

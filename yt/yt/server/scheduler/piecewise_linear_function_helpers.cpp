@@ -89,7 +89,13 @@ TVectorPiecewiseLinearFunction CompressFunction(const TVectorPiecewiseLinearFunc
     // We say that a segment is "feasible" if it is below the top bound and above the bottom bound for each resource.
     auto accumulatedBounds = GetBounds(UnpackVectorSegment(functionSegments.front()), epsilon);
 
+    bool isFirst = true;
     for (const auto& currentSegment : functionSegments) {
+        if (isFirst) {
+            isFirst = false;
+            continue;
+        }
+
         auto newAccumulatedSegment = ConnectSegments(accumulatedSegment, currentSegment);
         auto unpackedNewAccumulatedSegment = UnpackVectorSegment(newAccumulatedSegment);
         auto currentBounds = GetBounds(unpackedNewAccumulatedSegment, epsilon);

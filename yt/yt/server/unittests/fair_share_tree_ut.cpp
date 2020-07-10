@@ -1265,6 +1265,88 @@ TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShare)
     EXPECT_THAT(operationElement2->GetFairShare(), ResourceVectorNear(TResourceVector({0.0009, 0.9, 0.0, 0.9, 0.0}), 1e-7));
 }
 
+TEST_F(TFairShareTreeTest, TestVectorFairShareNonContinuousFairShareFunctionIsLeftContinuous)
+{
+    // Create a cluster with 1 large node.
+    const int nodeCount = 1;
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetUserSlots(100'000);
+    nodeResources.SetCpu(100);
+    nodeResources.SetMemory(100_GB);
+    nodeResources.SetNetwork(100);
+
+    auto host = New<TSchedulerStrategyHostMock>(TJobResourcesWithQuotaList(nodeCount, nodeResources));
+
+    // Create a tree with 2 pools.
+    auto rootElement = CreateTestRootElement(host.Get());
+    // Use fake root to be able to set a CPU limit.
+    auto fakeRootElement = CreateTestPool(host.Get(), "FakeRoot");
+    fakeRootElement->AttachParent(rootElement.Get());
+    auto poolA = CreateTestPool(host.Get(), "PoolA");
+    poolA->AttachParent(fakeRootElement.Get());
+    auto poolB = CreateTestPool(host.Get(), "PoolB");
+    poolB->AttachParent(fakeRootElement.Get());
+
+    // Set CPU limit for fake root.
+    auto rootConfig = fakeRootElement->GetConfig();
+    rootConfig->ResourceLimits->Cpu = 40;
+    fakeRootElement->SetConfig(rootConfig);
+
+    // Create an operation with resource demand proportion <1, 1, 4>, weight=10, and small jobCount in PoolA.
+    const int jobCount1 = 10;
+    TJobResourcesWithQuota jobResources1;
+    jobResources1.SetUserSlots(1);
+    jobResources1.SetCpu(1);
+    jobResources1.SetMemory(1_GB);
+    jobResources1.SetNetwork(4);
+
+    auto operationOptions1 = New<TOperationFairShareTreeRuntimeParameters>();
+    operationOptions1->Weight = 10.0;
+
+    auto operation1 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount1, jobResources1));
+    auto operationElement1 = CreateTestOperationElement(host.Get(), operationOptions1, operation1.Get());
+
+    operationElement1->AttachParent(poolA.Get(), true);
+    operationElement1->Enable();
+
+    // Create an operation with resource demand proportion <1, 1, 0>, weight=1, and large jobCount in PoolA.
+    const int jobCount2 = 1000;
+    TJobResourcesWithQuota jobResources2;
+    jobResources2.SetUserSlots(1);
+    jobResources2.SetCpu(1);
+    jobResources2.SetMemory(1_GB);
+    jobResources2.SetNetwork(0);
+
+    auto operationOptions2 = New<TOperationFairShareTreeRuntimeParameters>();
+    operationOptions2->Weight = 1.0;
+
+    auto operation2 = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(jobCount2, jobResources2));
+    auto operationElement2 = CreateTestOperationElement(host.Get(), operationOptions2, operation2.Get());
+
+    operationElement2->AttachParent(poolA.Get(), true);
+    operationElement2->Enable();
+
+    // Update tree.
+    TDynamicAttributesList dynamicAttributes = {};
+    TUpdateFairShareContext updateContext;
+    rootElement->PreUpdate(&dynamicAttributes, &updateContext);
+    rootElement->Update(&dynamicAttributes, &updateContext);
+
+    // Check the values.
+    // 0.4 is a discontinuity point of root's FSBS, so the amount of fair share given to poolA equals to
+    // the left limit of FSBS at 0.4, even though we have enough resources to allocate the right limit at 0.4.
+    // This is a fundamental property of our strategy.
+    EXPECT_THAT(rootElement->GetFairShare(), ResourceVectorNear(TResourceVector({0.00014, 0.14, 0.0, 0.14, 0.4}), 1e-7));
+    EXPECT_THAT(fakeRootElement->GetFairShare(), ResourceVectorNear(TResourceVector({0.00014, 0.14, 0.0, 0.14, 0.4}), 1e-7));
+    EXPECT_THAT(poolA->GetFairShare(), ResourceVectorNear(TResourceVector({0.00014, 0.14, 0.0, 0.14, 0.4}), 1e-7));
+    EXPECT_THAT(poolB->GetFairShare(), ResourceVectorNear(TResourceVector::Zero(), 1e-7));
+
+    // Operation 1 uses 0.1 CPU, 0.1 Memory, and 0.4 Network.
+    EXPECT_THAT(operationElement1->GetFairShare(), ResourceVectorNear(TResourceVector({0.0001, 0.1, 0.0, 0.1, 0.4}), 1e-7));
+    // Operation 2 uses 0.04 CPU, 0.04 Memory, and 0.0 Network.
+    EXPECT_THAT(operationElement2->GetFairShare(), ResourceVectorNear(TResourceVector({0.00004, 0.04, 0.0, 0.04, 0.0}), 1e-7));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TFairShareTreeTest, DoNotPreemptJobsIfFairShareRatioEqualToDemandRatio)
