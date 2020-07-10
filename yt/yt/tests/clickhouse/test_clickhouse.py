@@ -38,6 +38,7 @@ DEFAULTS = {
         "uncompressed_block_cache": 0,
         "log_tailer": 0,
         "watchdog_oom_watermark": 0,
+        "watchdog_window_oom_watermark": 0,
         "clickhouse_watermark": 1 * 1024**3,
         "memory_limit": int((1 + 2.5 + 1 + 1) * 1024**3),
         "max_server_memory_usage": int((1 + 2.5 + 1) * 1024**3),
@@ -313,8 +314,9 @@ class Clique(object):
                                  str(instance) + "/state", default=None) != "running")
                 print_debug("Instance {} has failed".format(str(instance)))
                 wait(lambda: exists(self.op.get_path() + "/jobs/" + str(instance) + "/stderr"))
-                stderr = read_file(self.op.get_path() + "/jobs/" + str(instance) + "/stderr")
-                print_debug("Stderr:\n" + stderr)
+                stderr = read_file(self.op.get_path() + "/jobs/" + str(instance) + "/stderr", verbose=False)
+                if verbose:
+                    print_debug("Stderr:\n" + stderr)
             except YtError as err2:
                 errors.append(err2)
             raise YtError("Instance unavailable, stderr:\n" + stderr, inner_errors=errors,
@@ -2400,14 +2402,26 @@ class TestQueryRegistry(ClickHouseTestBase):
         merge(in_=["//tmp/t"] * 200,
               out="//tmp/t",
               spec={"force_transform": True})  # 800 Mb.
-        clique = Clique(1, config_patch={"yt": {"memory_watchdog": {"memory_limit": 2 * 1024**3, "period": 50}}})
-        with pytest.raises(YtError):
-            clique.__enter__()
-            clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
-        clique.op.track(False, False)
-        assert "OOM" in str(clique.op.get_error())
-        with pytest.raises(YtError):
-            clique.__exit__(None, None, None)
+
+        def assert_in_error(config_patch=None, message=None):
+            print_debug("Checking config_patch={} for '{}' presense".format(config_patch, message))
+            clique = Clique(1, config_patch=config_patch)
+            with pytest.raises(YtError):
+                clique.__enter__()
+                clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
+            clique.op.track(False, False)
+            assert message in str(clique.op.get_error())
+            with pytest.raises(YtError):
+                clique.__exit__(None, None, None)
+
+        # Watchdog errors.
+        assert_in_error(config_patch={"yt": {"memory_watchdog": {"memory_limit": 10 * 1024**3, "period": 50,
+                                                                 "codicil_watermark": 8 * 1024**3}}},
+                        message="OOM")
+        assert_in_error(config_patch={"yt": {"memory_watchdog": {"memory_limit": 10 * 1024**3, "period": 50,
+                                                                 "window_codicil_watermark": 8 * 1024**3,
+                                                                 "window_width": 200}}},
+                        message="OOM")
 
     @authors("max42")
     @pytest.mark.skipif(True, reason="temporarily broken")

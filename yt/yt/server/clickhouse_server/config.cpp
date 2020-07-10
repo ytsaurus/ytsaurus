@@ -69,7 +69,11 @@ TMemoryWatchdogConfig::TMemoryWatchdogConfig()
     RegisterParameter("codicil_watermark", CodicilWatermark)
         .Default(0);
     RegisterParameter("period", Period)
-        .Default(TDuration::Seconds(1));
+        .Default(TDuration::MilliSeconds(300));
+    RegisterParameter("window_codicil_watermark", WindowCodicilWatermark)
+        .Default(0);
+    RegisterParameter("window_width", WindowWidth)
+        .Default(TDuration::Hours(1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -213,11 +217,18 @@ TLauncherConfig::TLauncherConfig()
 
 TMemoryConfig::TMemoryConfig()
 {
-    RegisterParameter("reader", Reader);
-    RegisterParameter("uncompressed_block_cache", UncompressedBlockCache);
-    RegisterParameter("memory_limit", MemoryLimit);
-    RegisterParameter("max_server_memory_usage", MaxServerMemoryUsage);
-    RegisterParameter("watchdog_oom_watermark", WatchdogOomWatermark);
+    RegisterParameter("reader", Reader)
+        .Default();
+    RegisterParameter("uncompressed_block_cache", UncompressedBlockCache)
+        .Default();
+    RegisterParameter("memory_limit", MemoryLimit)
+        .Default();
+    RegisterParameter("max_server_memory_usage", MaxServerMemoryUsage)
+        .Default();
+    RegisterParameter("watchdog_oom_watermark", WatchdogOomWatermark)
+        .Default();
+    RegisterParameter("watchdog_oom_window_watermark", WatchdogOomWatermark)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -251,11 +262,24 @@ TClickHouseServerBootstrapConfig::TClickHouseServerBootstrapConfig()
         }
 
         if (Memory) {
-            Yt->TotalReaderMemoryLimit = Memory->Reader;
-            Yt->MemoryWatchdog->MemoryLimit = Memory->MemoryLimit;
-            Yt->MemoryWatchdog->CodicilWatermark = Memory->WatchdogOomWatermark;
-            ClusterConnection->BlockCache->UncompressedData->Capacity = Memory->UncompressedBlockCache;
-            ClickHouse->MaxServerMemoryUsage = Memory->MaxServerMemoryUsage;
+            if (Memory->Reader) {
+                Yt->TotalReaderMemoryLimit = *Memory->Reader;
+            }
+            if (Memory->MemoryLimit) {
+                Yt->MemoryWatchdog->MemoryLimit = *Memory->MemoryLimit;
+            }
+            if (Memory->WatchdogOomWatermark) {
+                Yt->MemoryWatchdog->CodicilWatermark = *Memory->WatchdogOomWatermark;
+            }
+            if (Memory->WatchdogOomWindowWatermark) {
+                Yt->MemoryWatchdog->WindowCodicilWatermark = *Memory->WatchdogOomWindowWatermark;
+            }
+            if (Memory->UncompressedBlockCache) {
+                ClusterConnection->BlockCache->UncompressedData->Capacity = *Memory->UncompressedBlockCache;
+            }
+            if (Memory->MaxServerMemoryUsage) {
+                ClickHouse->MaxServerMemoryUsage = *Memory->MaxServerMemoryUsage;
+            }
         }
     });
 }

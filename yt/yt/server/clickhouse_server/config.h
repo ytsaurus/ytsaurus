@@ -89,6 +89,11 @@ public:
     //! to simplify the investigation of its inevitable^W possible death.
     size_t CodicilWatermark;
 
+    TDuration WindowWidth;
+    //! If remaining memory is does not exceed #WindowCodicilWatermark for #WindowWitdth time,
+    //! dump process query registry and die.
+    size_t WindowCodicilWatermark;
+
     //! Check period.
     TDuration Period;
 
@@ -210,11 +215,12 @@ class TMemoryConfig
     : public NYTree::TYsonSerializable
 {
 public:
-    i64 Reader;
-    i64 UncompressedBlockCache;
-    i64 MemoryLimit;
-    i64 MaxServerMemoryUsage;
-    i64 WatchdogOomWatermark;
+    std::optional<i64> Reader;
+    std::optional<i64> UncompressedBlockCache;
+    std::optional<i64> MemoryLimit;
+    std::optional<i64> MaxServerMemoryUsage;
+    std::optional<i64> WatchdogOomWatermark;
+    std::optional<i64> WatchdogOomWindowWatermark;
 
     TMemoryConfig();
 };

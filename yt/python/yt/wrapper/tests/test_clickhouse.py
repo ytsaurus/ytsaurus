@@ -30,6 +30,7 @@ DEFAULTS = {
         "uncompressed_block_cache": 0,
         "log_tailer": 0,
         "watchdog_oom_watermark": 0,
+        "watchdog_window_oom_watermark": 0,
         "clickhouse_watermark": 1 * 1024**3,
         "memory_limit": int((1 + 2.5 + 1 + 1) * 1024**3),
         "max_server_memory_usage": int((1 + 2.5 + 1) * 1024**3),
