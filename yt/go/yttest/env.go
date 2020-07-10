@@ -24,6 +24,12 @@ type Env struct {
 	L   log.Structured
 }
 
+func New(t testing.TB, opts ...Option) *Env {
+	env, cancel := NewEnv(t, opts...)
+	t.Cleanup(cancel)
+	return env
+}
+
 func NewEnv(t testing.TB, opts ...Option) (env *Env, cancel func()) {
 	config, err := yt.NewConfigFromEnv()
 	if err != nil {
