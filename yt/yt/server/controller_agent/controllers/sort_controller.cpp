@@ -981,7 +981,7 @@ protected:
         virtual void OnJobLost(TCompletedJobPtr completedJob) override
         {
             auto partitionIndex = *completedJob->InputStripe->PartitionTag;
-            auto& partition = Partitions_[partitionIndex];
+            auto& partition = Controller_->Partitions[partitionIndex];
             auto nodeId = completedJob->NodeDescriptor.Id;
             partition->AddLocality(nodeId, -completedJob->DataWeight);
 
