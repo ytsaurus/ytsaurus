@@ -76,6 +76,8 @@ public:
     static const TDuration DefaultLoggingSuppressionTimeout;
     TDuration LoggingSuppressionTimeout;
 
+    NConcurrency::TThroughputThrottlerConfigPtr RequestBytesThrottler;
+
     static const NConcurrency::TThroughputThrottlerConfigPtr DefaultLoggingSuppressionFailedRequestThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr LoggingSuppressionFailedRequestThrottler;
 
@@ -91,6 +93,8 @@ public:
             .Default(DefaultConcurrencyLimit);
         RegisterParameter("log_level", LogLevel)
             .Default(DefaultLogLevel);
+        RegisterParameter("request_bytes_throttler", RequestBytesThrottler)
+            .Default();
         RegisterParameter("logging_suppression_timeout", LoggingSuppressionTimeout)
             .Default(DefaultLoggingSuppressionTimeout);
         RegisterParameter("logging_suppression_failed_request_throttler", LoggingSuppressionFailedRequestThrottler)

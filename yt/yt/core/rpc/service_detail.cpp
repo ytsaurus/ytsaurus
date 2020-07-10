@@ -90,6 +90,13 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     , QueueSizeLimitCounter("/request_queue_size_limit", tagIds)
     , ConcurrencyCounter("/concurrency", tagIds)
     , ConcurrencyLimitCounter("/concurrency_limit", tagIds)
+    , RequestBytesThrottler(
+        CreateReconfigurableThroughputThrottler(
+            Descriptor.RequestBytesThrottlerConfig
+            ? Descriptor.RequestBytesThrottlerConfig
+            : New<TThroughputThrottlerConfig>()
+        ))
+    , RequestBytesThrottlerSpecified(static_cast<bool>(Descriptor.RequestBytesThrottlerConfig))
     , LoggingSuppressionFailedRequestThrottler(
         CreateReconfigurableThroughputThrottler(TMethodConfig::DefaultLoggingSuppressionFailedRequestThrottler))
 { }
@@ -1261,7 +1268,19 @@ void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
     TForbidContextSwitchGuard contextSwitchGuard;
 #endif
 
-    while (TryAcquireRequestSemaphore(runtimeInfo)) {
+    auto* requestBytesThrottler = runtimeInfo->RequestBytesThrottlerSpecified
+        ? runtimeInfo->RequestBytesThrottler.Get()
+        : nullptr;
+
+    while (true) {
+        if (requestBytesThrottler && requestBytesThrottler->IsOverdraft()) {
+            break;
+        }
+
+        if (!TryAcquireRequestSemaphore(runtimeInfo)) {
+            break;
+        }
+
         TServiceContextPtr context;
         if (!runtimeInfo->RequestQueue.Dequeue(&context)) {
             ReleaseRequestSemaphore(runtimeInfo);
@@ -1270,6 +1289,13 @@ void TServiceBase::ScheduleRequests(const TRuntimeMethodInfoPtr& runtimeInfo)
             }
             break;
         }
+
+        if (requestBytesThrottler) {
+            i64 requestSize = GetMessageBodySize(context->GetRequestMessage()) +
+                GetTotalMessageAttachmentSize(context->GetRequestMessage());
+            requestBytesThrottler->Acquire(requestSize);
+        }
+
         RunRequest(std::move(context));
     }
 }
@@ -1504,7 +1530,16 @@ void TServiceBase::Configure(TServiceConfigPtr config)
             descriptor.SetConcurrencyLimit(methodConfig->ConcurrencyLimit);
             descriptor.SetLogLevel(methodConfig->LogLevel);
             descriptor.SetLoggingSuppressionTimeout(methodConfig->LoggingSuppressionTimeout);
-
+            
+            if (methodConfig->RequestBytesThrottler) {
+                runtimeInfo->RequestBytesThrottler->Reconfigure(
+                    methodConfig->RequestBytesThrottler);
+                runtimeInfo->RequestBytesThrottlerSpecified.store(true);
+            } else {
+                runtimeInfo->RequestBytesThrottlerSpecified.store(false);
+                runtimeInfo->RequestBytesThrottler->Reconfigure(
+                    New<NConcurrency::TThroughputThrottlerConfig>());
+            }
             runtimeInfo->LoggingSuppressionFailedRequestThrottler->Reconfigure(
                 methodConfig->LoggingSuppressionFailedRequestThrottler);
         }
