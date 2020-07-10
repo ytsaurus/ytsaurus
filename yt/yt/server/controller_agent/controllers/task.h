@@ -53,8 +53,6 @@ public:
     //! Human-readable name of a particular task that appears in archive. Supported for vanilla tasks only for now.
     virtual TString GetName() const;
 
-    virtual TTaskGroupPtr GetGroup() const = 0;
-
     virtual int GetPendingJobCount() const;
     int GetPendingJobCountDelta();
 
@@ -82,6 +80,8 @@ public:
     void AddInput(const std::vector<NChunkPools::TChunkStripePtr>& stripes);
 
     virtual void FinishInput();
+
+    void UpdateTask();
 
     // NB: This works well until there is no more than one input data flow vertex for any task.
     void RegisterInGraph();
@@ -142,8 +142,6 @@ public:
     virtual bool IsSimpleTask() const;
 
     ITaskHost* GetTaskHost();
-    void AddLocalityHint(NNodeTrackerClient::TNodeId nodeId);
-    void AddPendingHint();
 
     IDigest* GetUserJobMemoryDigest() const;
     IDigest* GetJobProxyMemoryDigest() const;
@@ -206,7 +204,7 @@ protected:
 
     virtual void OnChunkTeleported(NChunkClient::TInputChunkPtr chunk, std::any tag);
 
-    void ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie);
+    void ReinstallJob(std::function<void()> releaseOutputCookie);
 
     void ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot);
 
@@ -314,37 +312,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Groups provide means:
-//! - to prioritize tasks
-//! - to skip a vast number of tasks whose resource requirements cannot be met
-struct TTaskGroup
-    : public TIntrinsicRefCounted
-{
-    //! No task from this group is considered for scheduling unless this requirement is met.
-    NScheduler::TJobResourcesWithQuota MinNeededResources;
-
-    //! All non-local tasks.
-    THashSet<TTaskPtr> NonLocalTasks;
-
-    //! Non-local tasks that may possibly be ready (but a delayed check is still needed)
-    //! keyed by min memory demand (as reported by TTask::GetMinNeededResources).
-    std::multimap<i64, TTaskPtr> CandidateTasks;
-
-    //! Non-local tasks keyed by deadline.
-    std::multimap<TInstant, TTaskPtr> DelayedTasks;
-
-    //! Local tasks keyed by node id.
-    THashMap<NNodeTrackerClient::TNodeId, THashSet<TTaskPtr>> NodeIdToTasks;
-
-    TTaskGroup();
-
-    void Persist(const TPersistenceContext& context);
-};
-
-DEFINE_REFCOUNTED_TYPE(TTaskGroup)
 
 ////////////////////////////////////////////////////////////////////////////////
 

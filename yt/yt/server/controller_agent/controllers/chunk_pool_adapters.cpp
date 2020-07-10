@@ -110,21 +110,20 @@ IChunkPoolInputPtr CreateIntermediateLivePreviewAdapter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THintAddingAdapter
+class TTaskUpdatingAdapter
     : public TChunkPoolInputAdapterBase
 {
 public:
-    THintAddingAdapter() = default;
+    TTaskUpdatingAdapter() = default;
 
-    THintAddingAdapter(IChunkPoolInputPtr chunkPoolInput, TTask* task)
+    TTaskUpdatingAdapter(IChunkPoolInputPtr chunkPoolInput, TTask* task)
         : TChunkPoolInputAdapterBase(std::move(chunkPoolInput))
         , Task_(task)
     { }
 
     virtual TCookie AddWithKey(TChunkStripePtr stripe, TChunkStripeKey key) override
     {
-        Task_->GetTaskHost()->AddTaskLocalityHint(stripe, Task_);
-        Task_->AddPendingHint();
+        Task_->GetTaskHost()->UpdateTask(Task_);
 
         return TChunkPoolInputAdapterBase::AddWithKey(std::move(stripe), key);
     }
@@ -144,18 +143,18 @@ public:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(THintAddingAdapter, 0x1fe32cba);
+    DECLARE_DYNAMIC_PHOENIX_TYPE(TTaskUpdatingAdapter, 0x1fe32cba);
 
     TTask* Task_ = nullptr;
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(THintAddingAdapter);
+DEFINE_DYNAMIC_PHOENIX_TYPE(TTaskUpdatingAdapter);
 
-IChunkPoolInputPtr CreateHintAddingAdapter(
+IChunkPoolInputPtr CreateTaskUpdatingAdapter(
     IChunkPoolInputPtr chunkPoolInput,
     TTask* task)
 {
-    return New<THintAddingAdapter>(std::move(chunkPoolInput), task);
+    return New<TTaskUpdatingAdapter>(std::move(chunkPoolInput), task);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

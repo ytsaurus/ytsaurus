@@ -35,13 +35,11 @@ public:
     TVanillaTask(
         ITaskHostPtr taskHost,
         TVanillaTaskSpecPtr spec,
-        TString name, TTaskGroupPtr
-        taskGroup,
+        TString name,
         std::vector<TStreamDescriptor> streamDescriptors)
         : TTask(std::move(taskHost), std::move(streamDescriptors))
         , Spec_(std::move(spec))
         , Name_(std::move(name))
-        , TaskGroup_(taskGroup.Get())
         , VanillaChunkPool_(CreateVanillaChunkPool({Spec_->JobCount, Spec_->RestartCompletedJobs}))
     { }
 
@@ -55,7 +53,6 @@ public:
         using NYT::Persist;
         Persist(context, Spec_);
         Persist(context, Name_);
-        Persist(context, TaskGroup_);
         Persist(context, VanillaChunkPool_);
         Persist(context, JobSpecTemplate_);
     }
@@ -73,11 +70,6 @@ public:
     virtual TString GetVertexDescriptor() const override
     {
         return Spec_->TaskTitle;
-    }
-
-    virtual TTaskGroupPtr GetGroup() const override
-    {
-        return TaskGroup_;
     }
 
     virtual IChunkPoolInputPtr GetChunkPoolInput() const override
@@ -136,8 +128,8 @@ public:
 
         RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 
-        // When restart_complteed_jobs = %true, job completion may create new pending jobs in same task.
-        AddPendingHint();
+        // When restart_completed_jobs = %true, job completion may create new pending jobs in same task.
+        UpdateTask();
 
         return result;
     }
@@ -154,7 +146,6 @@ private:
 
     TVanillaTaskSpecPtr Spec_;
     TString Name_;
-    TTaskGroup* TaskGroup_;
 
     TJobSpec JobSpecTemplate_;
 
@@ -213,7 +204,6 @@ public:
         Persist(context, Spec_);
         Persist(context, Options_);
         Persist(context, Tasks_);
-        Persist(context, TaskGroup_);
         Persist(context, TaskOutputTables_);
     }
 
@@ -221,8 +211,6 @@ public:
     {
         ValidateOperationLimits();
 
-        TaskGroup_ = New<TTaskGroup>();
-        RegisterTaskGroup(TaskGroup_);
         for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
             std::vector<TStreamDescriptor> streamDescriptors;
             int taskIndex = Tasks.size();
@@ -231,7 +219,7 @@ public:
                 streamDescriptors.back().DestinationPool = GetSink();
                 streamDescriptors.back().TargetDescriptor = TDataFlowGraph::SinkDescriptor;
             }
-            auto task = New<TVanillaTask>(this, taskSpec, taskName, TaskGroup_, std::move(streamDescriptors));
+            auto task = New<TVanillaTask>(this, taskSpec, taskName, std::move(streamDescriptors));
             RegisterTask(task);
             FinishTaskInput(task);
             Tasks_.emplace_back(std::move(task));
@@ -386,7 +374,6 @@ private:
 
     std::vector<TVanillaTaskPtr> Tasks_;
     std::vector<std::vector<TOutputTablePtr>> TaskOutputTables_;
-    TTaskGroupPtr TaskGroup_;
 
     void ValidateOperationLimits()
     {

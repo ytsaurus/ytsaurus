@@ -75,11 +75,6 @@ public:
             ChunkPool_->SubscribeChunkTeleported(BIND(&TUnorderedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
 
-        virtual TTaskGroupPtr GetGroup() const override
-        {
-            return Controller_->UnorderedTaskGroup;
-        }
-
         virtual TDuration GetLocalityTimeout() const override
         {
             return Controller_->IsLocalityEnabled()
@@ -204,7 +199,6 @@ public:
         Persist(context, JobSpecTemplate);
         Persist(context, JobSizeConstraints_);
         Persist(context, UnorderedTask_);
-        Persist(context, UnorderedTaskGroup);
     }
 
 protected:
@@ -220,21 +214,11 @@ protected:
     IJobSizeConstraintsPtr JobSizeConstraints_;
 
     TUnorderedTaskPtr UnorderedTask_;
-    TTaskGroupPtr UnorderedTaskGroup;
 
     // Custom bits of preparation pipeline.
     virtual std::vector<TRichYPath> GetInputTablePaths() const override
     {
         return Spec->InputTablePaths;
-    }
-
-    virtual void DoInitialize() override
-    {
-        TOperationControllerBase::DoInitialize();
-
-        UnorderedTaskGroup = New<TTaskGroup>();
-        UnorderedTaskGroup->MinNeededResources.SetCpu(GetCpuLimit());
-        RegisterTaskGroup(UnorderedTaskGroup);
     }
 
     virtual bool IsCompleted() const override

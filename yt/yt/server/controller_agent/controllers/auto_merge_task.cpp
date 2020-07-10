@@ -134,11 +134,6 @@ TDataFlowGraph::TVertexDescriptor TAutoMergeTask::GetVertexDescriptor() const
     return "auto_merge";
 }
 
-TTaskGroupPtr TAutoMergeTask::GetGroup() const
-{
-    return TaskHost_->GetAutoMergeTaskGroup();
-}
-
 TExtendedJobResources TAutoMergeTask::GetNeededResources(const TJobletPtr& joblet) const
 {
     auto result = TaskHost_->GetAutoMergeResources(joblet->InputStripeList->GetStatistics());
@@ -198,7 +193,7 @@ void TAutoMergeTask::UpdateSelf()
         ChunkPool_->GetJobCounter()->GetPending() > 1;
 
     if (CanScheduleJob_) {
-        TaskHost_->AddTaskPendingHint(this);
+        TaskHost_->UpdateTask(this);
     }
     YT_VERIFY(!(CanScheduleJob_ && GetPendingJobCount() == 0 && CurrentChunkCount_ > 0));
 }

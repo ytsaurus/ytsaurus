@@ -274,9 +274,6 @@ public:
     virtual bool GetEnableCudaGpuCoreDump() const override;
 
     virtual void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
-    virtual void AddTaskLocalityHint(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) override;
-    virtual void AddTaskLocalityHint(NNodeTrackerClient::TNodeId nodeId, const TTaskPtr& task);
-    virtual void AddTaskPendingHint(const TTaskPtr& task) override;
 
     virtual void AccountBuildingJobSpecDelta(int countDelta, i64 sliceCountDelta) noexcept override;
 
@@ -307,7 +304,6 @@ public:
     virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
         const NChunkPools::TChunkStripeStatisticsVector& statistics) const override;
     virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate(int tableIndex) const override;
-    virtual TTaskGroupPtr GetAutoMergeTaskGroup() const override;
     virtual TAutoMergeDirector* GetAutoMergeDirector() override;
 
     virtual NObjectClient::TCellTag GetIntermediateOutputCellTag() const override;
@@ -478,18 +474,13 @@ protected:
 
     std::optional<TInputQuery> InputQuery;
 
-    //! All tasks declared by calling #RegisterTask.
+    //! All tasks declared by calling #RegisterTask, in the order of decreasing priority.
     std::vector<TTaskPtr> Tasks;
-
-    //! All task groups declared by calling #RegisterTaskGroup, in the order of decreasing priority.
-    std::vector<TTaskGroupPtr> TaskGroups;
 
     TAutoMergeTaskPtr AutoMergeTask_;
 
     //! Whether auto-merge is enabled for particular output table.
     std::vector<bool> AutoMergeEnabled_;
-
-    TTaskGroupPtr AutoMergeTaskGroup;
 
     TDataFlowGraphPtr DataFlowGraph_;
 
@@ -514,15 +505,12 @@ protected:
         NTransactionClient::TTransactionId prerequisiteTransactionId = {});
 
     void RegisterTask(TTaskPtr task);
-    void RegisterTaskGroup(TTaskGroupPtr group);
 
-    void UpdateTask(const TTaskPtr& task);
+    virtual void UpdateTask(const TTaskPtr& task) override;
+
     void UpdateAllTasks();
 
-    void DoAddTaskLocalityHint(const TTaskPtr& task, NNodeTrackerClient::TNodeId nodeId);
     void ResetTaskLocalityDelays();
-
-    void MoveTaskToCandidates(const TTaskPtr& task, std::multimap<i64, TTaskPtr>& candidateTasks);
 
     bool CheckJobLimits(
         const TTaskPtr& task,
@@ -560,18 +548,12 @@ protected:
         const TString& treeId,
         NScheduler::TControllerScheduleJobResult* scheduleJobResult);
 
-    void DoScheduleLocalJob(
+    void TryScheduleJob(
         ISchedulingContext* context,
         const NScheduler::TJobResourcesWithQuota& jobLimits,
         const TString& treeId,
-        NScheduler::TControllerScheduleJobResult* scheduleJobResult);
-
-    void DoScheduleNonLocalJob(
-        ISchedulingContext* context,
-        const NScheduler::TJobResourcesWithQuota& jobLimits,
-        const TString& treeId,
-        NScheduler::TControllerScheduleJobResult* scheduleJobResult);
-
+        NScheduler::TControllerScheduleJobResult* scheduleJobResult,
+        bool scheduleLocalJob);
 
     TJobletPtr FindJoblet(TJobId jobId) const;
     TJobletPtr GetJoblet(TJobId jobId) const;
@@ -613,7 +595,6 @@ protected:
     void CreateLivePreviewTables();
     void CollectTotals();
     virtual void CustomPrepare();
-    void AddAllTaskPendingHints();
     void InitInputChunkScraper();
     void InitIntermediateChunkScraper();
 

@@ -160,10 +160,6 @@ public:
         Persist(context, SimpleSortPool);
         Persist(context, ShuffleChunkMapping_);
 
-        Persist(context, PartitionTaskGroup);
-        Persist(context, SortTaskGroup);
-        Persist(context, MergeTaskGroup);
-
         Persist(context, PartitionTask);
         Persist(context, SimpleSortTask);
         Persist(context, IntermediateSortTask);
@@ -348,10 +344,6 @@ protected:
     IChunkPoolPtr SimpleSortPool;
     TInputChunkMappingPtr ShuffleChunkMapping_;
 
-    TTaskGroupPtr PartitionTaskGroup;
-    TTaskGroupPtr SortTaskGroup;
-    TTaskGroupPtr MergeTaskGroup;
-
     TPartitionTaskPtr PartitionTask;
 
     TSimpleSortTaskPtr SimpleSortTask;
@@ -402,11 +394,6 @@ protected:
             if (DataBalancer_) {
                 DataBalancer_->SetLogger(Logger);
             }
-        }
-
-        virtual TTaskGroupPtr GetGroup() const override
-        {
-            return Controller->PartitionTaskGroup;
         }
 
         virtual TDuration GetLocalityTimeout() const override
@@ -524,14 +511,14 @@ protected:
             // Compute sort data size delta.
             for (auto partition : Controller->Partitions) {
                 if (partition->Maniac) {
-                    Controller->AddTaskPendingHint(Controller->UnorderedMergeTask);
+                    Controller->UpdateTask(Controller->UnorderedMergeTask);
                 } else {
                     if (Controller->SimpleSort) {
-                        Controller->AddTaskPendingHint(Controller->SimpleSortTask);
+                        Controller->UpdateTask(Controller->SimpleSortTask);
                     } else if (Controller->IsSortedMergeNeeded(partition)) {
-                        Controller->AddTaskPendingHint(Controller->IntermediateSortTask);
+                        Controller->UpdateTask(Controller->IntermediateSortTask);
                     } else {
-                        Controller->AddTaskPendingHint(Controller->FinalSortTask);
+                        Controller->UpdateTask(Controller->FinalSortTask);
                     }
                 }
             }
@@ -565,8 +552,8 @@ protected:
             }
 
             if (!Controller->IsShuffleCompleted()) {
-                // Add pending hint if shuffle is in progress and some partition jobs were lost.
-                Controller->AddTaskPendingHint(this);
+                // Update task if shuffle is in progress and some partition jobs were lost.
+                Controller->UpdateTask(this);
             }
         }
 
@@ -683,11 +670,6 @@ protected:
             } else {
                 GetJobCounter()->AddParent(Controller_->IntermediateSortJobCounter);
             }
-        }
-
-        virtual TTaskGroupPtr GetGroup() const override
-        {
-            return Controller_->SortTaskGroup;
         }
 
         virtual TExtendedJobResources GetNeededResources(const TJobletPtr& joblet) const override
@@ -826,7 +808,7 @@ protected:
             Controller_->CheckMergeStartThreshold();
 
             if (!IsFinalSort_) {
-                Controller_->AddTaskPendingHint(Controller_->SortedMergeTask);
+                Controller_->UpdateTask(Controller_->SortedMergeTask);
             }
 
             return result;
@@ -837,8 +819,8 @@ protected:
             TTask::OnJobLost(completedJob);
 
             if (Controller_->PartitionTask) {
-                Controller_->AddTaskPendingHint(this);
-                Controller_->AddTaskPendingHint(Controller_->PartitionTask);
+                Controller_->UpdateTask(this);
+                Controller_->UpdateTask(Controller_->PartitionTask);
             }
         }
 
@@ -848,7 +830,7 @@ protected:
 
             if (!IsFinalSort_) {
                 Controller_->SortedMergeTask->FinishInput();
-                Controller_->AddMergeTasksPendingHints();
+                Controller_->UpdateMergeTasks();
                 Controller_->ValidateMergeDataSliceLimit();
             }
         }
@@ -991,8 +973,7 @@ protected:
             // Don't rely on static assignment anymore.
             partition->SetAssignedNodeId(InvalidNodeId);
 
-            // Also add a hint to ensure that subsequent jobs are also scheduled here.
-            AddLocalityHint(nodeId);
+            UpdateTask();
 
             TSortTaskBase::OnJobStarted(joblet);
         }
@@ -1129,7 +1110,7 @@ protected:
             , Controller_(controller)
             , MultiChunkPool_(CreateMultiChunkPool({}))
         {
-            ChunkPoolInput_ = CreateHintAddingAdapter(MultiChunkPool_, this);
+            ChunkPoolInput_ = CreateTaskUpdatingAdapter(MultiChunkPool_, this);
 
             MultiChunkPool_->GetJobCounter()->AddParent(Controller_->SortedMergeJobCounter);
         }
@@ -1368,11 +1349,6 @@ protected:
             return result;
         }
 
-        virtual TTaskGroupPtr GetGroup() const override
-        {
-            return Controller_->MergeTaskGroup;
-        }
-
         virtual void OnTaskCompleted() override
         {
             TTask::OnTaskCompleted();
@@ -1519,11 +1495,6 @@ protected:
             return result;
         }
 
-        virtual TTaskGroupPtr GetGroup() const override
-        {
-            return Controller_->MergeTaskGroup;
-        }
-
         virtual void OnTaskCompleted() override
         {
             TTask::OnTaskCompleted();
@@ -1535,25 +1506,6 @@ protected:
     };
 
     // Custom bits of preparation pipeline.
-
-    virtual void DoInitialize() override
-    {
-        TOperationControllerBase::DoInitialize();
-
-        // NB: Register groups in the order of _descending_ priority.
-        MergeTaskGroup = New<TTaskGroup>();
-        MergeTaskGroup->MinNeededResources.SetCpu(GetMergeCpuLimit());
-        RegisterTaskGroup(MergeTaskGroup);
-
-        SortTaskGroup = New<TTaskGroup>();
-        SortTaskGroup->MinNeededResources.SetCpu(GetSortCpuLimit());
-        SortTaskGroup->MinNeededResources.SetNetwork(Spec->ShuffleNetworkLimit);
-        RegisterTaskGroup(SortTaskGroup);
-
-        PartitionTaskGroup = New<TTaskGroup>();
-        PartitionTaskGroup->MinNeededResources.SetCpu(GetPartitionCpuLimit());
-        RegisterTaskGroup(PartitionTaskGroup);
-    }
 
     void PrepareSortTasks()
     {
@@ -1572,9 +1524,13 @@ protected:
         RegisterTask(FinalSortTask);
     }
 
-    void PrepareSortedMergeTask()
+    void CreateSortedMergeTask()
     {
         SortedMergeTask = New<TSortedMergeTask>(this, GetFinalStreamDescriptors());
+    }
+
+    void PrepareSortedMergeTask()
+    {
         RegisterTask(SortedMergeTask);
         SortedMergeTask->SetInputVertex(FormatEnum(GetIntermediateSortJobType()));
         SortedMergeTask->RegisterInGraph();
@@ -1665,7 +1621,7 @@ protected:
                 task = FinalSortTask;
             }
 
-            AddTaskLocalityHint(nodeId, task);
+            UpdateTask(task);
 
             std::pop_heap(nodeHeap.begin(), nodeHeap.end(), compareNodes);
             node->AssignedDataWeight += partition->ChunkPoolOutput->GetDataWeightCounter()->GetTotal();
@@ -1860,7 +1816,7 @@ protected:
             SortStartThresholdReached = true;
         }
 
-        AddSortTasksPendingHints();
+        UpdateSortTasks();
     }
 
     bool IsShuffleCompleted() const
@@ -1921,31 +1877,31 @@ protected:
             MergeStartThresholdReached = true;
         }
 
-        AddMergeTasksPendingHints();
+        UpdateMergeTasks();
     }
 
-    void AddSortTasksPendingHints()
+    void UpdateSortTasks()
     {
         for (auto partition : Partitions) {
             if (!partition->Maniac) {
                 if (SimpleSort) {
-                    AddTaskPendingHint(SimpleSortTask);
+                    UpdateTask(SimpleSortTask);
                 } else if (IsSortedMergeNeeded(partition)) {
-                    AddTaskPendingHint(IntermediateSortTask);
+                    UpdateTask(IntermediateSortTask);
                 } else {
-                    AddTaskPendingHint(FinalSortTask);
+                    UpdateTask(FinalSortTask);
                 }
             }
         }
     }
 
-    void AddMergeTasksPendingHints()
+    void UpdateMergeTasks()
     {
-        for (auto partition : Partitions) {
-            auto taskToKick = partition->Maniac
-                ? TTaskPtr(UnorderedMergeTask)
-                : TTaskPtr(SortedMergeTask);
-            AddTaskPendingHint(taskToKick);
+        if (UnorderedMergeTask) {
+            UpdateTask(UnorderedMergeTask);
+        }
+        if (SortedMergeTask) {
+            UpdateTask(SortedMergeTask);
         }
     }
 
@@ -2560,15 +2516,18 @@ private:
 
         CreatePartitionsByPartitionKeys(partitionKeys);
 
-        PreparePartitionTask();
+        CreateSortedMergeTask();
 
-        PrepareSortedMergeTask();
+        // NB: Here we register tasks in order of descending priority.
+        PreparePartitionTask();
 
         PrepareSortTasks();
 
+        PrepareSimpleSortTask();
+
         PrepareUnorderedMergeTask();
 
-        PrepareSimpleSortTask();
+        PrepareSortedMergeTask();
 
         InitJobSpecTemplates();
     }
@@ -2647,7 +2606,7 @@ private:
 
         // Kick-start the sort task.
         SortStartThresholdReached = true;
-        AddSortTasksPendingHints();
+        UpdateSortTasks();
     }
 
     void PrepareUnorderedMergeTask()
@@ -3262,11 +3221,14 @@ private:
             }
         }
 
+        CreateSortedMergeTask();
+
+        // NB: Here we register tasks in order of descending priority.
         PreparePartitionTask(partitionJobSizeConstraints);
 
-        PrepareSortedMergeTask();
-
         PrepareSortTasks();
+
+        PrepareSortedMergeTask();
 
         InitJobSpecTemplates();
     }

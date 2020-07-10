@@ -40,9 +40,8 @@ struct ITaskHost
     virtual bool GetEnableCudaGpuCoreDump() const = 0;
 
     virtual void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) = 0;
-    virtual void AddTaskLocalityHint(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task) = 0;
-    virtual void AddTaskLocalityHint(NNodeTrackerClient::TNodeId nodeId, const TTaskPtr& task) = 0;
-    virtual void AddTaskPendingHint(const TTaskPtr& task) = 0;
+
+    virtual void UpdateTask(const TTaskPtr& task) = 0;
 
     //! Account currently building job specs. This is used to implement IsThrottling() controller method.
     /*!
@@ -114,7 +113,6 @@ struct ITaskHost
     virtual NScheduler::TExtendedJobResources GetAutoMergeResources(
         const NChunkPools::TChunkStripeStatisticsVector& statistics) const = 0;
     virtual const NJobTrackerClient::NProto::TJobSpec& GetAutoMergeJobSpecTemplate(int tableIndex) const = 0;
-    virtual TTaskGroupPtr GetAutoMergeTaskGroup() const = 0;
     virtual TAutoMergeDirector* GetAutoMergeDirector() = 0;
 
     virtual void Persist(const TPersistenceContext& context) = 0;

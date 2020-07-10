@@ -206,10 +206,7 @@ bool TTask::HasInputLocality() const
 void TTask::AddInput(TChunkStripePtr stripe)
 {
     TaskHost_->RegisterInputStripe(stripe, this);
-    if (HasInputLocality()) {
-        TaskHost_->AddTaskLocalityHint(stripe, this);
-    }
-    AddPendingHint();
+    UpdateTask();
 }
 
 void TTask::AddInput(const std::vector<TChunkStripePtr>& stripes)
@@ -231,6 +228,11 @@ void TTask::FinishInput()
     }
 }
 
+void TTask::UpdateTask()
+{
+    TaskHost_->UpdateTask(this);
+}
+
 void TTask::RegisterInGraph()
 {
     auto progressCounter = GetChunkPoolOutput()->GetJobCounter();
@@ -241,7 +243,7 @@ void TTask::RegisterInGraph()
         GetVertexDescriptor(),
         CompetitiveJobManager_.GetProgressCounter(),
         GetJobType());
-    AddPendingHint();
+    UpdateTask();
     CheckCompleted();
 }
 
@@ -730,16 +732,11 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
     return result;
 }
 
-void TTask::ReinstallJob(TJobletPtr joblet, std::function<void()> releaseOutputCookie)
+void TTask::ReinstallJob(std::function<void()> releaseOutputCookie)
 {
     releaseOutputCookie();
 
-    if (HasInputLocality()) {
-        for (const auto& stripe : joblet->InputStripeList->Stripes) {
-            TaskHost_->AddTaskLocalityHint(stripe, this);
-        }
-    }
-    AddPendingHint();
+    UpdateTask();
 }
 
 void TTask::ReleaseJobletResources(TJobletPtr joblet, bool waitForSnapshot)
@@ -761,7 +758,7 @@ TJobFinishedResult TTask::OnJobFailed(TJobletPtr joblet, const TFailedJobSummary
     ReleaseJobletResources(joblet, /* waitForSnapshot */ false);
     bool returnCookie = CompetitiveJobManager_.OnJobFailed(joblet);
     if (returnCookie) {
-        ReinstallJob(joblet, BIND([=] {GetChunkPoolOutput()->Failed(joblet->OutputCookie);}));
+        ReinstallJob(BIND([=] {GetChunkPoolOutput()->Failed(joblet->OutputCookie);}));
     }
 
     return result;
@@ -787,7 +784,7 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
 
     bool returnCookie = CompetitiveJobManager_.OnJobAborted(joblet, jobSummary.AbortReason);
     if (returnCookie) {
-        ReinstallJob(joblet, BIND([=] { GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason); }));
+        ReinstallJob(BIND([=] { GetChunkPoolOutput()->Aborted(joblet->OutputCookie, jobSummary.AbortReason); }));
     }
 
     return result;
@@ -861,11 +858,6 @@ void TTask::CheckResourceDemandSanity(
         neededResources));
 }
 
-void TTask::AddPendingHint()
-{
-    TaskHost_->AddTaskPendingHint(this);
-}
-
 IDigest* TTask::GetUserJobMemoryDigest() const
 {
     if (!UserJobMemoryDigest_) {
@@ -890,11 +882,6 @@ IDigest* TTask::GetJobProxyMemoryDigest() const
     }
 
     return JobProxyMemoryDigest_.get();
-}
-
-void TTask::AddLocalityHint(TNodeId nodeId)
-{
-    TaskHost_->AddTaskLocalityHint(nodeId, this);
 }
 
 std::unique_ptr<TNodeDirectoryBuilder> TTask::MakeNodeDirectoryBuilder(
@@ -1358,50 +1345,6 @@ double TTask::GetUserJobMemoryReserveFactor() const
     YT_VERIFY(HasUserJob());
 
     return GetUserJobMemoryDigest()->GetQuantile(TaskHost_->GetConfig()->UserJobMemoryReserveQuantile);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTaskGroup::TTaskGroup()
-{
-    MinNeededResources.SetUserSlots(1);
-}
-
-void TTaskGroup::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-    Persist(context, MinNeededResources);
-    // NB: Scheduler snapshots need not be stable.
-    Persist<
-        TSetSerializer<
-            TDefaultSerializer,
-            TUnsortedTag
-        >
-    >(context, NonLocalTasks);
-    Persist<
-        TMultiMapSerializer<
-            TDefaultSerializer,
-            TDefaultSerializer,
-            TUnsortedTag
-        >
-    >(context, CandidateTasks);
-    Persist<
-        TMultiMapSerializer<
-            TDefaultSerializer,
-            TDefaultSerializer,
-            TUnsortedTag
-        >
-    >(context, DelayedTasks);
-    Persist<
-        TMapSerializer<
-            TDefaultSerializer,
-            TSetSerializer<
-                TDefaultSerializer,
-                TUnsortedTag
-            >,
-            TUnsortedTag
-        >
-    >(context, NodeIdToTasks);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
