@@ -838,7 +838,7 @@ void TSchedulerElement::PrepareMaxFitFactorBySuggestion(TUpdateFairShareContext*
             .Transpose()
             .Narrow(guarantee, limit)
             .TrimLeft()
-            .Extend(/* newLeftBound */ 0, /* newRightBound */ 1.0)
+            .Extend(/* newLeftBound */ 0.0, /* newRightBound */ 1.0)
             .Trim();
         mffForComponents.push_back(std::move(mffForComponent));
     }
@@ -1555,10 +1555,9 @@ void TCompositeSchedulerElement::PrepareFairShareByFitFactor(TUpdateFairShareCon
 // The unambiguity of the definition of the fit factor follows the fact that the suggestion of
 // an unsatisfied child is, by definition, less than 1.
 //
-// The completeness of the definition of the fit factor (i.e. that it represents any
-// sensible allocation for a FIFO pool) follows from the fact that for any child:
-// |child->FairShareBySuggestion_(0.0) == TResourceVector::Zero()|, which, in turn, follows from the fact
-// that the children of a FIFO pool do not have resource guarantees.
+// Note that we assume all children have no guaranteed resources, so for any child:
+// |child->FairShareBySuggestion_(0.0) == TResourceVector::Zero()|, and 0.0 is not a discontinuity
+// point of |child->FairShareBySuggestion_|.
 void TCompositeSchedulerElement::PrepareFairShareByFitFactorFifo(TUpdateFairShareContext* context)
 {
     TWallTimer timer;
@@ -1578,9 +1577,8 @@ void TCompositeSchedulerElement::PrepareFairShareByFitFactorFifo(TUpdateFairShar
     for (const auto& child : SortedEnabledChildren_) {
         const auto& childFSBS = *child->FairShareBySuggestion_;
 
-        // NB(antonkikh): The resulting function must be continuous on borders between children (see the function comment).
+        // NB(eshcherbin): Children of FIFO pools don't have guaranteed resources. See the function comment.
         YT_VERIFY(childFSBS.IsTrimmedLeft() && childFSBS.IsTrimmedRight());
-        // Children of FIFO pools don't have guaranteed resources.
         YT_VERIFY(childFSBS.LeftFunctionValue() == TResourceVector::Zero());
 
         // TODO(antonkikh): This can be implemented much more efficiently by concatenating functions instead of adding.
@@ -1636,127 +1634,147 @@ void TCompositeSchedulerElement::PrepareFairShareByFitFactorNormal(TUpdateFairSh
     //     /* logLevel */ NLogging::ELogLevel::Fatal);
 }
 
+// Returns a vector of suggestions for children from |SortedEnabledChildren_| based on the given fit factor.
+auto TCompositeSchedulerElement::GetEnabledChildSuggestionsFifo(double fitFactor) -> TChildSuggestions
+{
+    YT_VERIFY(fitFactor <= SortedEnabledChildren_.size());
+
+    int satisfiedChildCount = static_cast<int>(fitFactor);
+    double unsatisfiedChildSuggestion = fitFactor - satisfiedChildCount;
+
+    TChildSuggestions childSuggestions(SortedEnabledChildren_.size(), 0.0);
+    for (int i = 0; i < satisfiedChildCount; i++) {
+        childSuggestions[i] = 1.0;
+    }
+
+    if (unsatisfiedChildSuggestion != 0.0) {
+        childSuggestions[satisfiedChildCount] = unsatisfiedChildSuggestion;
+    }
+
+    return childSuggestions;
+}
+
+// Returns a vector of suggestions for children from |EnabledChildren_| based on the given fit factor.
+auto TCompositeSchedulerElement::GetEnabledChildSuggestionsNormal(double fitFactor) -> TChildSuggestions
+{
+    const double minWeight = GetMinChildWeight(EnabledChildren_);
+
+    TChildSuggestions childSuggestions;
+    for (const auto& child : EnabledChildren_) {
+        childSuggestions.push_back(std::min(1.0, fitFactor * (child->GetWeight() / minWeight)));
+    }
+
+    return childSuggestions;
+}
+
+// Computes the actual total fair share allocated for all child operations. The total fair share is
+// guaranteed to be not greater than |FairShareBySuggestion_(suggestion)|.
+// This property is important as it allows us to pass suggestions to children and be sure that children
+// won't claim too much fair share.
+// Note that according to our mathematical model the total fair share should be exactly equal to
+// |FairShareBySuggestion_(suggestion)|, however, in reality this is not always satisfied due to
+// floating point precision errors and weights. Thus, we may end up allocating slightly less than predicted.
 TResourceVector TCompositeSchedulerElement::DoUpdateFairShare(double suggestion, TUpdateFairShareContext* context)
 {
     YT_VERIFY(Mutable_);
 
-    switch (Mode_) {
-        case ESchedulingMode::Fifo:
-            return DoUpdateFairShareFifo(suggestion, context);
+    auto suggestedFairShare = FairShareBySuggestion()->ValueAt(suggestion);
 
-        case ESchedulingMode::FairShare:
-            return DoUpdateFairShareNormal(suggestion, context);
+    // Find the right fit factor to use when computing suggestions for children.
 
-        default:
-            YT_ABORT();
-    }
-}
+    // NB(eshcherbin): Vector of suggestions returned by |getEnabledChildSuggestions| must be consistent
+    // with |enabledChildren|, i.e. i-th suggestion is meant to be given to i-th enabled child.
+    // This implicit correspondence between children and suggestions is done for optimization purposes.
+    auto& enabledChildren = (Mode_ == ESchedulingMode::Fifo)
+        ? SortedEnabledChildren_
+        : EnabledChildren_;
+    auto getEnabledChildSuggestions = (Mode_ == ESchedulingMode::Fifo)
+        ? std::bind(&TCompositeSchedulerElement::GetEnabledChildSuggestionsFifo, this, std::placeholders::_1)
+        : std::bind(&TCompositeSchedulerElement::GetEnabledChildSuggestionsNormal, this, std::placeholders::_1);
 
-TResourceVector TCompositeSchedulerElement::DoUpdateFairShareFifo(double suggestion, TUpdateFairShareContext* context)
-{
-    YT_VERIFY(Mutable_);
-
-    double fitFactor = MaxFitFactorBySuggestion_->ValueAt(suggestion);
-
-    TResourceVector usedFairShare;
-    if (!SortedEnabledChildren_.empty()) {
-        // See |TCompositeSchedulerElement::PrepareFairShareByFitFactorFifo| for the definition of fit factor for FIFO pools.
-        int satisfiedChildrenCount = static_cast<int>(fitFactor);
-        double notSatisfiedChildSuggestion = fitFactor - satisfiedChildrenCount;
-
-        usedFairShare = TResourceVector::Zero();
-
-        YT_VERIFY(satisfiedChildrenCount <= SortedEnabledChildren_.size());
-        for (int i = 0; i < satisfiedChildrenCount; i++) {
-            usedFairShare += SortedEnabledChildren_[i]->DoUpdateFairShare(1.0, context);
-        }
-
-        if (notSatisfiedChildSuggestion != 0) {
-            YT_VERIFY(satisfiedChildrenCount < SortedEnabledChildren_.size());
-            usedFairShare += SortedEnabledChildren_[satisfiedChildrenCount]
-                ->DoUpdateFairShare(notSatisfiedChildSuggestion, context);
-        }
-    } else {
-        // Fit factor is not well defined for an empty FIFO pool.
-        usedFairShare = TResourceVector::Zero();
+    if (enabledChildren.empty()) {
+        SetFairShare(TResourceVector::Zero());
+        return TResourceVector::Zero();
     }
 
-    YT_LOG_WARNING_UNLESS(
-        TResourceVector::Near(usedFairShare, FairShareBySuggestion()->ValueAt(suggestion), 1e-4 * MaxComponent(usedFairShare)),
-        "Fair share significantly differs from predicted in FIFO pool ("
-        "Suggestion: %.10v, "
-        "UsedFairShare: %.10v, "
-        "FSPredicted: %.10v, "
-        "FSBFFPredicted: %.10v, "
-        "FitFactor: %.10v, "
-        "ChildrenCount: %v, "
-        "OperationCount: %v, "
-        "RunningOperationCount: %v)",
-        suggestion,
-        usedFairShare,
-        FairShareBySuggestion()->ValueAt(suggestion),
-        FairShareByFitFactor()->ValueAt(fitFactor),
-        fitFactor,
-        EnabledChildren_.size(),
-        OperationCount(),
-        RunningOperationCount());
-    YT_LOG_WARNING_UNLESS(
-        Dominates(GetVectorSuggestion(suggestion) + TResourceVector::Epsilon(), usedFairShare),
-        "Used significantly more fair share than was suggested (Suggestion: %.6v, UsedFairShare: %.6v)",
-        GetVectorSuggestion(suggestion),
-        usedFairShare);
+    auto getChildrenSuggestedFairShare = [&] (double fitFactor) {
+        auto childSuggestions = getEnabledChildSuggestions(fitFactor);
+        YT_VERIFY(childSuggestions.size() == enabledChildren.size());
 
-    SetFairShare(usedFairShare);
-    return usedFairShare;
-}
+        TResourceVector childrenSuggestedFairShare = {};
+        for (int i = 0; i < enabledChildren.size(); ++i) {
+            const auto& child = enabledChildren[i];
+            auto childSuggestion = childSuggestions[i];
 
-TResourceVector TCompositeSchedulerElement::DoUpdateFairShareNormal(double suggestion, TUpdateFairShareContext* context)
-{
-    YT_VERIFY(Mutable_);
+            childrenSuggestedFairShare += child->FairShareBySuggestion()->ValueAt(childSuggestion);
+        }
 
-    double fitFactor = MaxFitFactorBySuggestion()->ValueAt(suggestion);
-    double minWeight = GetMinChildWeight(EnabledChildren_);
+        return childrenSuggestedFairShare;
+    };
+    auto checkFitFactor = [&] (double fitFactor) {
+        // Check that we can safely use the given fit factor to compute suggestions for children.
+        return Dominates(suggestedFairShare, getChildrenSuggestedFairShare(fitFactor));
+    };
+
+    // Usually MFFBS(suggestion) is the right fit factor to use for child suggestions.
+    auto fitFactor = MaxFitFactorBySuggestion()->ValueAt(suggestion);
+    if (!checkFitFactor(fitFactor)) {
+        // However, sometimes we need to tweak MFFBS(suggestion) in order not to suggest too much to children.
+        // NB(eshcherbin): Possible to optimize this by using galloping, as the target fit factor
+        // should be very, very close to our first estimate.
+        fitFactor = FloatingPointInverseLowerBound(
+            /* lo */ 0,
+            /* hi */ fitFactor,
+            /* predicate */ checkFitFactor);
+    }
+
+    // Propagate suggestions to children and collect the total used fair share.
+
+    auto childSuggestions = getEnabledChildSuggestions(fitFactor);
+    YT_VERIFY(childSuggestions.size() == enabledChildren.size());
 
     TResourceVector usedFairShare = {};
-    for (const auto& child : EnabledChildren_) {
-        double childSuggestion = std::min(1.0, fitFactor * (child->GetWeight() / minWeight));
+    for (int i = 0; i < enabledChildren.size(); ++i) {
+        const auto& child = enabledChildren[i];
+        auto childSuggestion = childSuggestions[i];
+
         usedFairShare += child->DoUpdateFairShare(childSuggestion, context);
     }
 
+    // Validate and set used fair share.
+
+    bool usedShareNearSuggestedShare =
+        TResourceVector::Near(usedFairShare, suggestedFairShare, 1e-4 * MaxComponent(usedFairShare));
+    bool suggestedShareDominatesUsedShare = Dominates(suggestedFairShare, usedFairShare);
     YT_LOG_WARNING_UNLESS(
-        TResourceVector::Near(usedFairShare, FairShareBySuggestion()->ValueAt(suggestion), 1e-4 * MaxComponent(usedFairShare)),
-        "Fair share significantly differs from predicted in normal pool ("
-        "Suggestion: %.10v, "
-        "UsedFairShare: %.10v, "
-        "FSPredicted: %.10v, "
-        "FSBFFPredicted: %.10v, "
-        "FSChildrenSumPredicted: %.10v, "
-        "FitFactor: %.10v, "
-        "MinWeight: %.10v, "
+        usedShareNearSuggestedShare && suggestedShareDominatesUsedShare,
+        "Fair share significantly differs from predicted in pool ("
+        "Mode: %v, "
+        "Suggestion: %.20v, "
+        "VectorSuggestion: %.20v, "
+        "SuggestedFairShare: %.20v, "
+        "UsedFairShare: %.20v, "
+        "Difference: %.20v, "
+        "FitFactor: %.20v, "
+        "FSBFFPredicted: %.20v, "
+        "ChildrenSuggestedFairShare: %.20v, "
         "ChildrenCount: %v, "
         "OperationCount: %v, "
         "RunningOperationCount: %v)",
+        GetMode(),
         suggestion,
+        GetVectorSuggestion(suggestion),
+        suggestedFairShare,
         usedFairShare,
-        FairShareBySuggestion()->ValueAt(suggestion),
-        FairShareByFitFactor()->ValueAt(fitFactor),
-        std::accumulate(
-            begin(EnabledChildren_),
-            end(EnabledChildren_),
-            TResourceVector::Zero(),
-            [&] (TResourceVector sum, const auto& child) {
-                return sum + child->FairShareBySuggestion()->ValueAt(std::min(1.0, fitFactor * (child->GetWeight() / minWeight)));
-            }),
+        suggestedFairShare - usedFairShare,
         fitFactor,
-        minWeight,
-        EnabledChildren_.size(),
+        FairShareByFitFactor()->ValueAt(fitFactor),
+        getChildrenSuggestedFairShare(fitFactor),
+        enabledChildren.size(),
         OperationCount(),
         RunningOperationCount());
-    YT_LOG_WARNING_UNLESS(
-        Dominates(GetVectorSuggestion(suggestion) + TResourceVector::Epsilon(), usedFairShare),
-        "Used significantly more fair share than was suggested (Suggestion: %.6v, UsedFairShare: %.6v)",
-        GetVectorSuggestion(suggestion),
-        usedFairShare);
+
+    YT_VERIFY(suggestedShareDominatesUsedShare);
 
     SetFairShare(usedFairShare);
     return usedFairShare;

@@ -617,8 +617,9 @@ protected:
     void UpdateMinShareFifo(TUpdateFairShareContext* context);
     void UpdateMinShareNormal(TUpdateFairShareContext* context);
 
-    TResourceVector DoUpdateFairShareFifo(double suggestion, TUpdateFairShareContext* context);
-    TResourceVector DoUpdateFairShareNormal(double suggestion, TUpdateFairShareContext* context);
+    using TChildSuggestions = std::vector<double>;
+    TChildSuggestions GetEnabledChildSuggestionsFifo(double fitFactor);
+    TChildSuggestions GetEnabledChildSuggestionsNormal(double fitFactor);
 
     TSchedulerElement* GetBestActiveChild(const TDynamicAttributesList& dynamicAttributesList) const;
     TSchedulerElement* GetBestActiveChildFifo(const TDynamicAttributesList& dynamicAttributesList) const;
