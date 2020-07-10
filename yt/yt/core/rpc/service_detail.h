@@ -499,6 +499,8 @@ protected:
         //! If |true| then requests and responses are pooled.
         bool Pooled = true;
 
+        NConcurrency::TThroughputThrottlerConfigPtr RequestBytesThrottlerConfig;
+
         TMethodDescriptor& SetInvoker(IInvokerPtr value)
         {
             Invoker = value;
@@ -568,6 +570,12 @@ protected:
         TMethodDescriptor& SetPooled(bool value)
         {
             Pooled = value;
+            return *this;
+        }
+
+        TMethodDescriptor& SetRequestBytesThrottler(const NConcurrency::TThroughputThrottlerConfigPtr& config)
+        {
+            RequestBytesThrottlerConfig = config;
             return *this;
         }
     };
@@ -642,6 +650,9 @@ protected:
 
         std::atomic<int> ConcurrencySemaphore = {0};
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
+
+        NConcurrency::IReconfigurableThroughputThrottlerPtr RequestBytesThrottler;
+        std::atomic<bool> RequestBytesThrottlerSpecified = false;
 
         NConcurrency::TReaderWriterSpinLock PerformanceCountersLock;
         THashMap<TString, TMethodPerformanceCountersPtr> UserTagToPerformanceCounters;
