@@ -262,10 +262,16 @@ public:
         auto cookie = Pool(poolIndex)->Extract();
         YT_VERIFY(cookie != NullCookie);
 
-        auto externalCookie = Cookies_.size();
-        Cookies_.emplace_back(poolIndex, cookie);
-
-        return externalCookie;
+        TCookieDescriptor cookieDescriptor(poolIndex, cookie);
+        auto cookieIt = CookieDescriptorToExternalCookie_.find(cookieDescriptor);
+        if (cookieIt == CookieDescriptorToExternalCookie_.end()) {
+            auto externalCookie = Cookies_.size();
+            Cookies_.emplace_back(poolIndex, cookie);
+            YT_VERIFY(CookieDescriptorToExternalCookie_.emplace(cookieDescriptor, externalCookie).second);
+            return externalCookie;
+        } else {
+            return cookieIt->second;
+        }
     }
 
     virtual TChunkStripeListPtr GetStripeList(TExternalCookie externalCookie) override
@@ -352,6 +358,7 @@ public:
         Persist(context, UnderlyingPools_);
         Persist(context, JobCounter_);
         Persist<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>(context, Cookies_);
+        Persist<TMapSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>, TDefaultSerializer, TUnsortedTag>>(context, CookieDescriptorToExternalCookie_);
         Persist(context, Finalized_);
 
         if (context.IsLoad()) {
@@ -405,7 +412,11 @@ protected:
     //! Number of active (incomplete) chunk pools.
     int ActivePoolCount_ = 0;
 
+    //! External cookie -> internal cookie.
     std::vector<TCookieDescriptor> Cookies_;
+
+    //! Internal cookie -> external cookie.
+    THashMap<TCookieDescriptor, TExternalCookie> CookieDescriptorToExternalCookie_;
 
     //! Queue of pools with pending jobs.
     std::list<int> PendingPools_;

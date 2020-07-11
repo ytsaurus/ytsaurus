@@ -3010,6 +3010,7 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
 
     constexpr int chunkCount = 50;
     constexpr int maxUnderlyingPoolCount = 10;
+    constexpr int maxJobLosts = 50;
 
     for (int index = 0; index < chunkCount; ++index) {
         auto chunk = CreateChunk(BuildRow({2 * index}), BuildRow({2 * index + 1}), 0);
@@ -3064,6 +3065,7 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
     THashSet<TChunkId> pendingChunks;
     THashSet<TChunkId> startedChunks;
     THashSet<TChunkId> completedChunks;
+    THashSet<TChunkId> lostChunks;
     THashMap<TChunkId, TInputChunkPtr> chunkIdToChunk;
 
     std::vector<std::vector<TChunkStripePtr>> stripesByPoolIndex;
@@ -3142,6 +3144,13 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
             }
         }
 
+        std::vector<TChunkId> toDeleteInChunkIdToOutputCookie;
+        for (const auto& [chunkId, cookie] : chunkIdToOutputCookie) {
+            if (!underlyingPoolIndex || GetOrCrash(ChunkIdToUnderlyingPoolIndex_, chunkId) == underlyingPoolIndex) {
+                toDeleteInChunkIdToOutputCookie.push_back(chunkId);
+            }
+        }
+
         for (const auto& chunkId : toDeleteInCompleted) {
             Cdebug << Format("Deleting chunk %v from completed", chunkId) << Endl;
             YT_VERIFY(completedChunks.erase(chunkId));
@@ -3157,14 +3166,21 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
         for (const auto& chunkId : toDeleteInStarted) {
             Cdebug << Format("Aborted chunk %v due to invalidation", chunkId) << Endl;
             auto outputCookie = chunkIdToOutputCookie.at(chunkId);
-            ASSERT_TRUE(chunkIdToOutputCookie.erase(chunkId));
             ChunkPool_->Aborted(outputCookie, EAbortReason::Unknown);
         }
+
         for (const auto& chunkId : toDeleteInStarted) {
             Cdebug << Format("Deleting chunk %v from started", chunkId) << Endl;
             YT_VERIFY(startedChunks.erase(chunkId));
         }
+
+        for (const auto& chunkId : toDeleteInChunkIdToOutputCookie) {
+            Cdebug << Format("Deleting chunk %v from chunk id to output cookie map", chunkId) << Endl;
+            YT_VERIFY(chunkIdToOutputCookie.erase(chunkId));
+        }
     };
+
+    int jobLosts = 0;
 
     while (completedChunks.size() < chunkCount) {
         YT_VERIFY(!ChunkPool_->IsCompleted());
@@ -3172,10 +3188,11 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
         // 0..0 - pool is persisted and restored;
         // 1..19 - chunk is suspended;
         // 20..39 - chunk is resumed;
-        // 40..59 - chunk is reset;
-        // 60..69 - chunk is extracted;
-        // 70..79 - chunk is completed;
-        // 80..89 - chunk is failed;
+        // 40..49 - chunk is reset;
+        // 50..59 - chunk is extracted;
+        // 60..69 - chunk is completed;
+        // 70..79 - chunk is failed;
+        // 80..89 - chunk is lost.
         // 90..97 - chunk is aborted.
         // 98..99 - add new pool to multi pool if multi pool is used.
         int eventType = dice(Gen_);
@@ -3208,7 +3225,7 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
                 ASSERT_TRUE(resumedChunks.insert(chunkId).second);
                 ResumeChunk(cookie);
             }
-        } else if (eventType <= 59 && invalidationCount < MaxInvalidationCount && completedChunks.size() > chunkCount / 2) {
+        } else if (eventType <= 49 && invalidationCount < MaxInvalidationCount && completedChunks.size() > chunkCount / 2) {
             if (auto randomElement = chooseRandomElement(suspendedCookies)) {
                 auto cookie = *randomElement;
                 Cdebug << Format("Resetting cookie %v", cookie);
@@ -3220,7 +3237,7 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
                 ResetChunk(cookie, chunk);
                 invalidate(useMultiPool ? std::make_optional(ChunkIdToUnderlyingPoolIndex_[chunkId]) : std::nullopt);
             }
-        } else if (eventType <= 69) {
+        } else if (eventType <= 59) {
             if (ChunkPool_->GetPendingJobCount()) {
                 auto outputCookie = ExtractCookie(TNodeId(0));
                 Cdebug << Format("Extracted cookie %v...", outputCookie);
@@ -3236,29 +3253,48 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
                 Cdebug << Format(" that corresponds to a chunk %v", chunkId) << Endl;
                 ASSERT_TRUE(resumedChunks.contains(chunkId));
                 ASSERT_TRUE(!suspendedChunks.contains(chunkId));
-                ASSERT_TRUE(pendingChunks.erase(chunkId));
+                if (chunkIdToOutputCookie.contains(chunkId)) {
+                    ASSERT_EQ(chunkIdToOutputCookie.at(chunkId), outputCookie);
+                } else {
+                    ASSERT_TRUE(chunkIdToOutputCookie.insert(std::make_pair(chunkId, outputCookie)).second);
+                }
+                if (lostChunks.contains(chunkId)) {
+                    ASSERT_TRUE(lostChunks.erase(chunkId));
+                } else {
+                    ASSERT_TRUE(pendingChunks.erase(chunkId));
+                }
                 ASSERT_TRUE(startedChunks.insert(chunkId).second);
-                ASSERT_TRUE(chunkIdToOutputCookie.insert(std::make_pair(chunkId, outputCookie)).second);
             }
-        } else if (eventType <= 79) {
+        } else if (eventType <= 69) {
             if (auto randomElement = chooseRandomElement(startedChunks)) {
                 auto chunkId = *randomElement;
                 Cdebug << Format("Completed chunk %v", chunkId) << Endl;
                 auto outputCookie = chunkIdToOutputCookie.at(chunkId);
                 ASSERT_TRUE(startedChunks.erase(chunkId));
-                ASSERT_TRUE(chunkIdToOutputCookie.erase(chunkId));
                 ASSERT_TRUE(completedChunks.insert(chunkId).second);
                 ChunkPool_->Completed(outputCookie, TCompletedJobSummary());
             }
-        } else if (eventType <= 89) {
+        } else if (eventType <= 79) {
             if (auto randomElement = chooseRandomElement(startedChunks)) {
                 auto chunkId = *randomElement;
                 Cdebug << Format("Aborted chunk %v", chunkId) << Endl;
                 auto outputCookie = chunkIdToOutputCookie.at(chunkId);
                 ASSERT_TRUE(startedChunks.erase(chunkId));
-                ASSERT_TRUE(chunkIdToOutputCookie.erase(chunkId));
                 ASSERT_TRUE(pendingChunks.insert(chunkId).second);
                 ChunkPool_->Aborted(outputCookie, EAbortReason::Unknown);
+            }
+        } else if (eventType <= 89) {
+            if (jobLosts >= maxJobLosts) {
+                continue;
+            }
+            if (auto randomElement = chooseRandomElement(completedChunks)) {
+                auto chunkId = *randomElement;
+                Cdebug << Format("Lost chunk %v", chunkId) << Endl;
+                auto outputCookie = chunkIdToOutputCookie.at(chunkId);
+                ASSERT_TRUE(completedChunks.erase(chunkId));
+                ASSERT_TRUE(lostChunks.insert(chunkId).second);
+                ChunkPool_->Lost(outputCookie);
+                ++jobLosts;
             }
         } else if (eventType <= 97) {
             if (auto randomElement = chooseRandomElement(startedChunks)) {
@@ -3266,7 +3302,6 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
                 Cdebug << Format("Failed chunk %v", chunkId) << Endl;
                 auto outputCookie = chunkIdToOutputCookie.at(chunkId);
                 ASSERT_TRUE(startedChunks.erase(chunkId));
-                ASSERT_TRUE(chunkIdToOutputCookie.erase(chunkId));
                 ASSERT_TRUE(pendingChunks.insert(chunkId).second);
                 ChunkPool_->Failed(outputCookie);
             }
@@ -3291,6 +3326,7 @@ TEST_P(TSortedChunkPoolLegacyTestRandomized, VariousOperationsWithPoolTest)
     ASSERT_EQ(completedChunks.size(), chunkCount);
     ASSERT_EQ(pendingChunks.size(), 0);
     ASSERT_EQ(startedChunks.size(), 0);
+    ASSERT_EQ(lostChunks.size(), 0);
     ASSERT_EQ(resumedChunks.size() + suspendedChunks.size(), chunkCount);
     ASSERT_EQ(resumedChunks.size(), resumedCookies.size());
     ASSERT_EQ(suspendedChunks.size(), suspendedCookies.size());
