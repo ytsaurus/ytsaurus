@@ -59,7 +59,8 @@ default_config = {
     # "http" | "native" | "rpc" | None
     # If backend equals "http", then all requests will be done through http proxy and http_config will be used.
     # If backend equals "native", then all requests will be done through c++ bindings and driver_config will be used.
-    # If backend equals "rpc", then all requests will be done through c++ bindings to rpc proxies, driver_config will be used.
+    # If backend equals "rpc", then all requests will be done through c++ bindings to rpc proxies,
+    # driver_config will be used.
     # If backend equals None, thenits value will be automatically detected.
     "backend": None,
 
@@ -121,7 +122,8 @@ default_config = {
         # Link to operation in web interface.
         "operation_link_pattern": "http://{proxy}/{cluster_path}?page=operation&mode=detail&id={id}&tab=details",
 
-        # Sometimes proxy can return incorrect or incomplete response. This option enables checking response format for light requests.
+        # Sometimes proxy can return incorrect or incomplete response.
+        # This option enables checking response format for light requests.
         "check_response_format": True,
     },
 
@@ -681,7 +683,8 @@ def get_config_from_env():
         try:
             return type(value)
         except ValueError:
-            raise common.YtError("Incorrect value of option '{0}': failed to apply type '{1}' to '{2}'".format(key, type, value))
+            raise common.YtError("Incorrect value of option '{0}': failed to apply type '{1}' to '{2}'"
+                                 .format(key, type, value))
 
     def _set(d, key, value):
         parts = key.split("/")

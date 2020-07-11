@@ -166,7 +166,9 @@ def get_driver_instance(client):
         specified_api_version = get_config(client)["api_version"]
         if "api_version" in driver_config:
             if specified_api_version is not None and "v" + str(driver_config["api_version"]) != specified_api_version:
-                raise YtError("Version specified in driver config and client config do not match (client_config: {}, driver_config: {})"
+                raise YtError(
+                    "Version specified in driver config and client config do not match "
+                    "(client_config: {}, driver_config: {})"
                     .format(specified_api_version, driver_config["api_version"]))
         else:
             if specified_api_version is not None:
@@ -192,10 +194,8 @@ def create_driver_for_cell(driver, cell_id):
         raise YtError("Cell id {0} is not found in driver config".format(cell_id))
 
     config["primary_master"] = new_primary_master_config
-    #config["master_cache"] = {"addresses": []}
     if "master_cache" in config:
         del config["master_cache"]
-    #config["timestamp_provider"] = {"addresses": []}
     if "timestamp_provider" in config:
         del config["timestamp_provider"]
 

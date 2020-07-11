@@ -75,13 +75,13 @@ class Transaction(object):
              ...
              yt.run_map(...)
 
-    Caution: if you use this class then do not use directly methods \*_transaction.
+    Caution: if you use this class then do not use directly methods \\*_transaction.
 
     .. seealso:: `transactions in the docs <https://yt.yandex-team.ru/docs/description/storage/transactions.html>`_
     """
 
-    def __init__(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True, transaction_id=None,
-                 ping_ancestor_transactions=None, type="master",
+    def __init__(self, timeout=None, deadline=None, attributes=None, ping=None, interrupt_on_failed=True,
+                 transaction_id=None, ping_ancestor_transactions=None, type="master",
                  client=None):
         timeout = get_value(timeout, get_total_request_timeout(client))
         if transaction_id == null_transaction_id:
@@ -179,7 +179,9 @@ class Transaction(object):
         self._stack.append(self.transaction_id, self._ping_ancestor_transactions)
         enable_params_logging = get_config(self._client)["enable_logging_for_params_changes"]
         if enable_params_logging:
-            logger.debug("Setting \"transaction_id\" and \"ping_ancestor_transactions\" to params (pid: %d)", os.getpid())
+            logger.debug(
+                "Setting \"transaction_id\" and \"ping_ancestor_transactions\" to params (pid: %d)",
+                os.getpid())
         if self.transaction_id is None:
             del_command_param("transaction_id", self._client)
         else:
@@ -233,7 +235,9 @@ class Transaction(object):
             transaction_id, ping_ancestor_transactions = self._stack.get()
             enable_params_logging = get_config(self._client)["enable_logging_for_params_changes"]
             if enable_params_logging:
-                logger.debug("Setting \"transaction_id\" and \"ping_ancestor_transactions\" to params (pid: %d)", os.getpid())
+                logger.debug(
+                    "Setting \"transaction_id\" and \"ping_ancestor_transactions\" to params (pid: %d)",
+                    os.getpid())
             if transaction_id is None:
                 del_command_param("transaction_id", self._client)
             else:

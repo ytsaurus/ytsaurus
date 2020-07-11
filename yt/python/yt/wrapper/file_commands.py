@@ -238,13 +238,11 @@ def write_file(destination, stream,
         enable_retries = False
 
     config_enable_parallel_write = get_config(client)["write_parallel"]["enable"]
-    enable_parallel_write = \
-        config_enable_parallel_write == to_yson_type(True) \
-        or (config_enable_parallel_write is None \
-            and size_hint is not None \
-            and size_hint >= 2 * (get_config(client)["write_retries"]["chunk_size"] \
-                                  or DEFAULT_WRITE_CHUNK_SIZE)
-        )
+
+    default_chunk_size = get_config(client)["write_retries"]["chunk_size"] or DEFAULT_WRITE_CHUNK_SIZE
+    input_size_is_large = size_hint is not None and size_hint >= 2 * default_chunk_size
+    enable_parallel_write = config_enable_parallel_write == to_yson_type(True) \
+        or (config_enable_parallel_write is None and input_size_is_large)
     if enable_parallel_write and get_config(client)["proxy"]["content_encoding"] == "gzip":
         enable_parallel_write = try_enable_parallel_write_gzip(config_enable_parallel_write)
 

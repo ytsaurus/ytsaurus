@@ -194,8 +194,8 @@ class CachedYtClient(yt.wrapper.client.Yt):
         if path != parent_path:
             parent_cache_entry = self._cache.get(parent_path)
             if parent_cache_entry is not None \
-                   and parent_cache_entry.children is not None \
-                   and os.path.basename(path) not in parent_cache_entry.children:
+                    and parent_cache_entry.children is not None \
+                    and os.path.basename(path) not in parent_cache_entry.children:
                 error = CachedYtClient._node_error(path)
                 self._cache[path] = CachedYtClient.CacheEntry(exists=False, error=error)
                 raise error

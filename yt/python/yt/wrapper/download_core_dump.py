@@ -83,16 +83,16 @@ class CoreDumpWriter(object):
         if self.sparse:
             buffer_ptr = 0
             while buffer_ptr + SPARSE_CORE_DUMP_PAGE_SIZE + 1 < len(self.buffer):
-                if self.buffer[buffer_ptr:buffer_ptr+1] == b("0"):
+                if self.buffer[buffer_ptr:buffer_ptr + 1] == b("0"):
                     zero_block_length = 0
                     for idx in xrange(buffer_ptr + 1 + UINT64_LENGTH, buffer_ptr, -1):
-                        zero_block_length = 256 * zero_block_length + ord(self.buffer[idx:idx+1])
+                        zero_block_length = 256 * zero_block_length + ord(self.buffer[idx:idx + 1])
                     self.current_file.seek(zero_block_length, 1)
                 else:
-                    if self.buffer[buffer_ptr:buffer_ptr+1] != b("1"):
+                    if self.buffer[buffer_ptr:buffer_ptr + 1] != b("1"):
                         logger.error("Sparse core dump is corrupted")
                         return
-                    self.current_file.write(self.buffer[buffer_ptr+1:buffer_ptr+1+SPARSE_CORE_DUMP_PAGE_SIZE])
+                    self.current_file.write(self.buffer[buffer_ptr + 1:buffer_ptr + 1 + SPARSE_CORE_DUMP_PAGE_SIZE])
                 buffer_ptr += SPARSE_CORE_DUMP_PAGE_SIZE + 1
 
             self.buffer = self.buffer[buffer_ptr:]

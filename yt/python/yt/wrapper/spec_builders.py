@@ -452,7 +452,8 @@ class UserJobSpecBuilder(object):
                     local_mode,
                     client=client)
                 if enable_local_files_usage_in_job(client):
-                    prepare_result.local_files_to_remove += tempfiles_manager._tempfiles_pool + [tempfiles_manager.tmp_dir]
+                    prepare_result.local_files_to_remove += \
+                        tempfiles_manager._tempfiles_pool + [tempfiles_manager.tmp_dir]
                 local_files = file_manager.upload_files()
         else:
             prepare_result = WrapResult(
@@ -493,7 +494,7 @@ class UserJobSpecBuilder(object):
         if "local_files" in spec:
             del spec["local_files"]
 
-        return spec, tmpfs_size #, file_manager.disk_size
+        return spec, tmpfs_size
 
     def _prepare_memory_limit(self, spec, client=None):
         memory_limit = get_value(spec.get("memory_limit"), get_config(client)["memory_limit"])
@@ -851,7 +852,8 @@ class SpecBuilder(object):
                 parent_spec_dict = parent_spec_dict[part]
 
             user_job_script_name = user_job_script_path[-1]
-            if skip_patch or user_job_script_name not in parent_spec_patches_dict or user_job_script_name not in parent_spec_dict:
+            if skip_patch or user_job_script_name not in parent_spec_patches_dict or \
+                    user_job_script_name not in parent_spec_dict:
                 continue
 
             user_job_spec = None

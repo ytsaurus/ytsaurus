@@ -53,7 +53,8 @@ def run_chaos_monkey(chaos_monkey):
 
 
 class Retrier(object):
-    def __init__(self, retry_config, timeout=None, exceptions=(YtError,), ignore_exceptions=tuple(), chaos_monkey=None, logger=None):
+    def __init__(self, retry_config,
+                 timeout=None, exceptions=(YtError,), ignore_exceptions=tuple(), chaos_monkey=None, logger=None):
         self.retry_config = copy.deepcopy(retry_config)
         if not self.retry_config["enable"]:
             self.retry_config["count"] = 1

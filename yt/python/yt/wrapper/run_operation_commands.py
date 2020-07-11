@@ -449,7 +449,11 @@ def _make_operation_request(operation_type, spec, sync,
         retrier = OperationRequestRetrier(operation_type=operation_type, spec=spec,
                                           retry_actions=retry_actions, client=client)
         operation_id = retrier.run()
-        operation = Operation(operation_id, type=operation_type, finalization_actions=finalization_actions, client=client)
+        operation = Operation(
+            operation_id,
+            type=operation_type,
+            finalization_actions=finalization_actions,
+            client=client)
 
         if operation.url:
             logger.info("Operation started: %s", operation.url)
@@ -490,7 +494,8 @@ def _make_operation_request(operation_type, spec, sync,
                     finalize_function(state)
 
         transaction.__enter__()
-        with KeyboardInterruptsCatcher(finish_transaction, enable=get_config(client)["operation_tracker"]["abort_on_sigint"]):
+        with KeyboardInterruptsCatcher(finish_transaction,
+                                       enable=get_config(client)["operation_tracker"]["abort_on_sigint"]):
             return _manage_operation(attached_mode_finalizer)
     else:
         return _manage_operation(finalization_actions)

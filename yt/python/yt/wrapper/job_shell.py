@@ -10,7 +10,7 @@ from .http_helpers import get_proxy_url, get_token, make_request_with_retries
 from yt.packages.six import b
 # yt.packages is imported here just to set sys.path for further loading of local tornado module
 from yt.packages import PackagesImporter
-with PackagesImporter():
+with PackagesImporter():  # noqa
     from tornado.httpclient import HTTPClient, AsyncHTTPClient, HTTPRequest, HTTPError
     from tornado.httputil import HTTPHeaders
     from tornado.ioloop import IOLoop

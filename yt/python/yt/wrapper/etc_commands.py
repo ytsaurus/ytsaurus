@@ -18,6 +18,7 @@ def execute_batch(requests, concurrency=None, client=None):
 def generate_timestamp(client=None):
     """Generates timestamp."""
     result = make_formatted_request("generate_timestamp", params={}, format=None, client=client)
+
     def _process_result(result):
         return result["timestamp"] if get_api_version(client) == "v4" else result
 

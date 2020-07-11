@@ -124,7 +124,6 @@ def make_read_parallel_request(command_name, path, ranges, params,
             close=lambda from_delete: reader.close(from_delete),
             process_error=lambda response: None,
             get_response_parameters=lambda: response_parameters)
-
     except:
         if transaction:
             transaction.abort()

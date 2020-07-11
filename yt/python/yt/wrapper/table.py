@@ -18,4 +18,3 @@ def TempTable(path=None, prefix=None, attributes=None, client=None):
         yield table
     finally:
         remove(table, force=True, client=client)
-

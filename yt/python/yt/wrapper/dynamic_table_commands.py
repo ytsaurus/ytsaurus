@@ -6,7 +6,9 @@ from .common import set_param, require, is_master_transaction, YtError, get_valu
 from .config import get_config, get_option, get_command_param, get_backend_type
 from .cypress_commands import get
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
-from .errors import YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict, YtNoSuchTablet, YtTabletNotMounted, YtResponseError
+from .errors import (
+    YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict,
+    YtNoSuchTablet, YtTabletNotMounted, YtResponseError)
 from .transaction_commands import _make_transactional_request
 from .ypath import TablePath
 from .http_helpers import get_retriable_errors
@@ -23,12 +25,11 @@ import yt.logger as logger
 
 from copy import deepcopy
 import time
-import sys
 
 SYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff01
 ASYNC_LAST_COMMITED_TIMESTAMP = 0x3fffffffffffff04
 
-TABLET_ACTION_KEEPALIVE_PERIOD = 55 # s
+TABLET_ACTION_KEEPALIVE_PERIOD = 55  # s
 
 def _waiting_for_condition(condition, error_message, check_interval=None, timeout=None, client=None):
     if check_interval is None:
@@ -76,8 +77,10 @@ def _waiting_for_sync_tablet_actions(tablet_action_ids, client=None):
             logger.debug("%s", attributes)
             if attributes["state"] in ("completed", "failed"):
                 action_id = attributes["id"]
-                logger.info("Tablet action %s out of %s finished",
-                    total_action_count - len(tablet_action_ids) + 1, total_action_count)
+                logger.info(
+                    "Tablet action %s out of %s finished",
+                    total_action_count - len(tablet_action_ids) + 1,
+                    total_action_count)
                 tablet_action_ids.remove(action_id)
                 if attributes["state"] == "failed":
                     logger.warning("Tablet action %s failed with error \"%s\"", action_id, attributes["error"])
@@ -110,7 +113,14 @@ def _check_transaction_type(client):
             lambda: YtError("Dynamic table commands can not be performed under master transaction"))
 
 def get_dynamic_table_retriable_errors():
-    return tuple(list(get_retriable_errors()) + [YtNoSuchService, YtTabletIsInIntermediateState, YtTabletTransactionLockConflict, YtNoSuchTablet, YtTabletNotMounted])
+    return tuple(
+        list(get_retriable_errors()) + [
+            YtNoSuchService,
+            YtTabletIsInIntermediateState,
+            YtTabletTransactionLockConflict,
+            YtNoSuchTablet,
+            YtTabletNotMounted
+        ])
 
 class DynamicTableRequestRetrier(Retrier):
     def __init__(self, retry_config, command, params, data=None, client=None):
@@ -157,7 +167,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
 
     .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
 
-    :param str query: for example \"<columns> [as <alias>], ... from \[<table>\] \
+    :param str query: for example \"<columns> [as <alias>], ... from \\[<table>\\] \
                   [where <predicate> [group by <columns> [as <alias>], ...]]\".
     :param int timestamp: timestamp.
     :param format: output format.
@@ -257,7 +267,7 @@ def explain_query(query, timestamp=None, input_row_limit=None, output_row_limit=
 
     .. seealso:: `supported features <https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language>`_
 
-    :param str query: for example \"<columns> [as <alias>], ... from \[<table>\] \
+    :param str query: for example \"<columns> [as <alias>], ... from \\[<table>\\] \
                   [where <predicate> [group by <columns> [as <alias>], ...]]\".
     :param int timestamp: timestamp.
     :param format: output format.
@@ -539,7 +549,9 @@ def unfreeze_table(path, first_tablet_index=None, last_tablet_index=None, sync=F
 
     return response
 
-def reshard_table(path, pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None, sync=False, client=None):
+def reshard_table(path,
+                  pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None,
+                  sync=False, client=None):
     """Changes pivot keys separating tablets of a given table.
 
     TODO

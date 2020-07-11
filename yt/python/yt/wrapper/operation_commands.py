@@ -157,7 +157,8 @@ def iterate_operations(user=None, state=None, type=None, filter=None, pool=None,
             # list_operations fetches (start_time; finish_time] from archive.
             cursor_time = operation["start_time"]
             yield operation
-        if (cursor_direction == "future" and cursor_time == to_time) or (cursor_direction == "past" and cursor_time == from_time):
+        if (cursor_direction == "future" and cursor_time == to_time) or \
+                (cursor_direction == "past" and cursor_time == from_time):
             break
         cursor_time = datetime_to_string(date_string_to_datetime(cursor_time) - timedelta(microseconds=step))
 
@@ -336,7 +337,10 @@ class PrintOperationInfo(object):
 
     def __call__(self, state):
         if (self.state is None or self.state.is_starting()) and not state.is_starting():
-            unrecognized_spec = get_operation_attributes(self.operation, fields=["unrecognized_spec"], client=self.client)
+            unrecognized_spec = get_operation_attributes(
+                self.operation,
+                fields=["unrecognized_spec"],
+                client=self.client)
             if unrecognized_spec and unrecognized_spec.get("unrecognized_spec"):
                 self.log("Unrecognized spec: %s", str(unrecognized_spec["unrecognized_spec"]))
         if state.is_running():
@@ -354,7 +358,10 @@ class PrintOperationInfo(object):
             if state.is_finished():
                 attribute_names = {"alerts": "Alerts"}
                 try:
-                    result = get_operation_attributes(self.operation, fields=builtins.list(iterkeys(attribute_names)), client=self.client)
+                    result = get_operation_attributes(
+                        self.operation,
+                        fields=builtins.list(iterkeys(attribute_names)),
+                        client=self.client)
                     for attribute, readable_name in iteritems(attribute_names):
                         attribute_value = result.get(attribute)
                         if attribute_value:

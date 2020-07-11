@@ -27,7 +27,7 @@ try:
 except ImportError:
     try:
         from distro import linux_distribution
-    except:
+    except ImportError:
         try:
             from platform import linux_distribution
         except ImportError:
@@ -181,15 +181,17 @@ def generate_int64(generator=None):
 def generate_uuid(generator=None):
     if generator is None:
         generator = random
+
     def get_int():
         return hex(generator.randint(0, 2**32 - 1))[2:].rstrip("L")
+
     return "-".join([get_int() for _ in xrange(4)])
 
 def get_version():
     """ Returns python wrapper version """
     try:
         from .version import VERSION
-    except:
+    except ImportError:
         VERSION = None
 
     # Add svn revision or git commit to version if any of them is present.
@@ -291,7 +293,7 @@ def round_up_to(num, divider):
     else:
         return (1 + (num // divider)) * divider
 
-def get_disk_size(filepath, round=4*1024):
+def get_disk_size(filepath, round=4 * 1024):
     stat = os.stat(filepath)
     if round:
         return round_up_to(stat.st_size, round)
@@ -375,14 +377,18 @@ def escape_c(string):
     def is_printable(symbol):
         num = ord(symbol)
         return 32 <= num and num <= 126
+
     def is_oct_digit(symbol):
         return "0" <= symbol and symbol <= "7"
+
     def is_hex_digit(symbol):
         return ("0" <= symbol and symbol <= "9") or \
             ("A" <= symbol and symbol <= "F") or \
             ("a" <= symbol and symbol <= "f")
+
     def oct_digit(num):
         return chr(ord("0") + num)
+
     def hex_digit(num):
         return chr(ord("0") + num) if num < 10 else chr(ord("A") + num - 10)
 
@@ -442,7 +448,7 @@ class NullContext(object):
         pass
 
 def format_disk_space(num, suffix="B"):
-    for unit in ("","Ki","Mi","Gi","Ti","Pi","Ei","Zi"):
+    for unit in ("", "Ki", "Mi", "Gi", "Ti", "Pi", "Ei", "Zi"):
         if abs(num) < 1024.0:
             return "%3.1f%s%s" % (num, unit, suffix)
         num /= 1024.0

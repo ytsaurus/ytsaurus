@@ -253,8 +253,13 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
     client = yt.YtClient(config=yt.config.config)
 
     if get_context_mode not in (INPUT_CONTEXT_MODE, FULL_INPUT_MODE):
-        raise YtError("Incorrect get_context_mode {}, expected one of ({}, {})",
-            repr(get_context_mode), repr(INPUT_CONTEXT_MODE), repr(FULL_INPUT_MODE))
+        raise YtError(
+            "Incorrect get_context_mode {}, expected one of ({}, {})"
+            .format(
+                repr(get_context_mode),
+                repr(INPUT_CONTEXT_MODE),
+                repr(FULL_INPUT_MODE)
+            ))
 
     # NB: we should explicitly reset this option to default value since CLI usually set True to it.
     client.config["default_value_of_raw_option"] = None

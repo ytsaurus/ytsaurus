@@ -20,11 +20,10 @@ from .progress_bar import CustomTqdm
 import yt.logger as logger
 import yt.yson as yson
 
-from yt.packages.six import text_type, binary_type, PY3, string_types
+from yt.packages.six import text_type, binary_type, string_types
 from yt.packages.six.moves import map as imap, zip as izip
 
 import os
-import sys
 import time
 import types
 from copy import deepcopy

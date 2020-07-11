@@ -44,6 +44,7 @@ def fix_argspec(argspec, is_init_method):
 
 def create_class_method(func):
     original_func = func
+
     def decorator(self, *args, **kwargs):
         return original_func(*args, client=self, **kwargs)
 
