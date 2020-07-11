@@ -5,6 +5,8 @@
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/retry_lib.h>
+#include <mapreduce/yt/common/wait_proxy.h>
 
 #include <mapreduce/yt/interface/logging/log.h>
 
@@ -390,12 +392,36 @@ TAddressCache* TAddressCache::Get()
     return Singleton<TAddressCache>();
 }
 
+bool ContainsAddressOfRequiredVersion(const TAddressCache::TAddressPtr& address)
+{
+    if (!TConfig::Get()->ForceIpV4 && !TConfig::Get()->ForceIpV6) {
+        return true;
+    }
+
+    for (auto i = address->Begin(); i != address->End(); ++i) {
+        const auto& addressInfo = *i;
+        if (TConfig::Get()->ForceIpV4 && addressInfo.ai_family == AF_INET) {
+            return true;
+        }
+        if (TConfig::Get()->ForceIpV6 && addressInfo.ai_family == AF_INET6) {
+            return true;
+        }
+    }
+    return false;
+}
+
 TAddressCache::TAddressPtr TAddressCache::Resolve(const TString& hostName)
 {
-    {
-        TReadGuard guard(Lock_);
-        if (auto* entry = Cache_.FindPtr(hostName)) {
-            return *entry;
+    TAddressPtr entry;
+    if (TReadGuard guard(Lock_); auto* entryPtr = Cache_.FindPtr(hostName)) {
+        entry = *entryPtr;
+    }
+    if (entry) {
+        if (ContainsAddressOfRequiredVersion(entry)) {
+            return entry;
+        } else {
+            LOG_DEBUG("Address of required version not found for host %s, will retry resolution",
+                hostName.data());
         }
     }
 
@@ -408,7 +434,23 @@ TAddressCache::TAddressPtr TAddressCache::Resolve(const TString& hostName)
         host = hostName.substr(0, colon);
     }
 
-    TAddressPtr entry = new TNetworkAddress(host, port);
+    auto retryPolicy = CreateDefaultRequestRetryPolicy();
+    auto error = yexception() << "can not resolve address of required version for host " << hostName;
+    while (true) {
+        entry = new TNetworkAddress(host, port);
+        if (ContainsAddressOfRequiredVersion(entry)) {
+            break;
+        }
+        retryPolicy->NotifyNewAttempt();
+        LOG_DEBUG("Failed to resolve address of required version for host %s, retrying: %s",
+            hostName.data(),
+            retryPolicy->GetAttemptDescription().data());
+        if (auto backoffDuration = retryPolicy->OnGenericError(error)) {
+            NDetail::TWaitProxy::Get()->Sleep(*backoffDuration);
+        } else {
+            ythrow error;
+        }
+    }
 
     TWriteGuard guard(Lock_);
     Cache_.insert({hostName, entry});
