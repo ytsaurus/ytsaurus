@@ -122,6 +122,10 @@ public:
     //! are allowed to use.
     i64 GetQuota() const;
 
+    //! Return the maximum number of bytes in the gap between two adjacent read locations
+    //! in order to join them together during read coalescing.
+    i64 GetCoalescedReadMaxGapSize() const;
+
     //! Returns an invoker for writing chunks.
     const IInvokerPtr& GetWritePoolInvoker();
 
