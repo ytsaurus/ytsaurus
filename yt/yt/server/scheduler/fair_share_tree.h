@@ -152,7 +152,8 @@ public:
         TOperationId operationId,
         TDuration safeTimeout,
         int minScheduleJobCallAttempts,
-        THashSet<EDeactivationReason> deactivationReasons);
+        const THashSet<EDeactivationReason>& deactivationReasons,
+        const TJobResources& minNeededResources);
 
     void UpdateOperationRuntimeParameters(
         TOperationId operationId,
@@ -398,6 +399,7 @@ private:
 
     TCompositeSchedulerElement* FindPoolViolatingMaxRunningOperationCount(TCompositeSchedulerElement* pool);
     const TCompositeSchedulerElement* FindPoolWithViolatedOperationCountLimit(const TCompositeSchedulerElementPtr& element);
+    const TSchedulerElement* FindAncestorWithInsufficientResourceLimits(const TSchedulerElement* element, const TJobResources& neededResources) const;
 
     void DoRegisterPool(const TPoolPtr& pool);
     void RegisterPool(const TPoolPtr& pool, const TCompositeSchedulerElementPtr& parent);

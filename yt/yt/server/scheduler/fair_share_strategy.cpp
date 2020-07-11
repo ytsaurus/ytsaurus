@@ -418,11 +418,10 @@ public:
 
     virtual std::vector<std::pair<TOperationId, TError>> GetUnschedulableOperations() override
     {
-        std::vector<std::pair<TOperationId, TError>> result;
-        for (const auto& operationStatePair : OperationIdToOperationState_) {
-            auto operationId = operationStatePair.first;
-            const auto& operationState = operationStatePair.second;
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
 
+        std::vector<std::pair<TOperationId, TError>> result;
+        for (const auto& [operationId, operationState] : OperationIdToOperationState_) {
             if (operationState->TreeIdToPoolNameMap().empty()) {
                 // This operation is orphaned and will be aborted.
                 continue;
@@ -437,7 +436,8 @@ public:
                     operationId,
                     Config->OperationUnschedulableSafeTimeout,
                     Config->OperationUnschedulableMinScheduleJobAttempts,
-                    Config->OperationUnschedulableDeactiovationReasons);
+                    Config->OperationUnschedulableDeactiovationReasons,
+                    operationState->GetController()->GetAggregatedMinNeededJobResources());
                 if (error.IsOK()) {
                     hasSchedulableTree = true;
                     break;
