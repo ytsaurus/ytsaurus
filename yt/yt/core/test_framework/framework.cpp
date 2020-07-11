@@ -11,7 +11,9 @@
 #include <yt/core/logging/config.h>
 #include <yt/core/logging/log_manager.h>
 
+#include <yt/core/misc/crash_handler.h>
 #include <yt/core/misc/format.h>
+#include <yt/core/misc/signal_registry.h>
 
 #include <yt/core/ytalloc/bindings.h>
 
@@ -106,23 +108,25 @@ class TYTEnvironment
 Y_GTEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
 {
 #ifdef _unix_
-	::signal(SIGPIPE, SIG_IGN);
+    ::signal(SIGPIPE, SIG_IGN);
 #endif
-	NYT::NYTAlloc::EnableYTLogging();
-	NYT::NYTAlloc::EnableYTProfiling();
-	NYT::NYTAlloc::InitializeLibunwindInterop();
-	NYT::NYTAlloc::ConfigureFromEnv();
-	NYT::NYTAlloc::EnableStockpile();
-	NYT::NLogging::TLogManager::Get()->ConfigureFromEnv();
-	NYT::NLogging::TLogManager::Get()->EnableReopenOnSighup();
+    NYT::TSignalRegistry::Get()->PushCallback(NYT::AllCrashSignals, NYT::CrashSignalHandler);
+    NYT::TSignalRegistry::Get()->PushDefaultSignalHandler(NYT::AllCrashSignals);
+    NYT::NYTAlloc::EnableYTLogging();
+    NYT::NYTAlloc::EnableYTProfiling();
+    NYT::NYTAlloc::InitializeLibunwindInterop();
+    NYT::NYTAlloc::ConfigureFromEnv();
+    NYT::NYTAlloc::EnableStockpile();
+    NYT::NLogging::TLogManager::Get()->ConfigureFromEnv();
+    NYT::NLogging::TLogManager::Get()->EnableReopenOnSighup();
 
-	::testing::AddGlobalTestEnvironment(new TYTEnvironment());
+    ::testing::AddGlobalTestEnvironment(new TYTEnvironment());
 
-	// TODO(ignat): support ram_drive_path when this feature would be supported in gtest machinery.
-	auto testSandboxPath = GetEnv("TESTS_SANDBOX");
-	if (!testSandboxPath.empty()) {
-		NFs::SetCurrentWorkingDirectory(testSandboxPath);
-	}
+    // TODO(ignat): support ram_drive_path when this feature would be supported in gtest machinery.
+    auto testSandboxPath = GetEnv("TESTS_SANDBOX");
+    if (!testSandboxPath.empty()) {
+        NFs::SetCurrentWorkingDirectory(testSandboxPath);
+    }
 }
 
 Y_GTEST_HOOK_AFTER_RUN(GTEST_YT_TEARDOWN)
