@@ -105,6 +105,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
             "sort_operation_options" : {
                 "min_uncompressed_block_size" : 1,
                 "min_partition_size" : 1,
+                "max_data_slices_per_job": 100,
             }
         }
     }
@@ -1294,6 +1295,29 @@ class TestSchedulerSortCommands(YTEnvSetup):
         op = sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="key")
 
         assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
+
+    @authors("gritukan")
+    def test_simple_sort_with_many_data_slices(self):
+        # N here is max_data_slices_per_job + 1.
+        N = 101
+        p = [x for x in range(N)]
+        random.shuffle(p)
+        create("table", "//tmp/t_in")
+        for x in p:
+            write_table("<append=%true>//tmp/t_in", [{"x": x}])
+        create("table", "//tmp/t_out")
+
+        # Despite of large data weight per sort job we can't create one
+        # sort job, since number of data slices is too large.
+        op = sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="x", spec={
+            "partition_count": 1,
+            "data_weight_per_sort_job": 10**8,
+        })
+        op.track()
+        assert __builtin__.set(get_operation_job_types(op.id)) == {"simple_sort", "sorted_merge"}
+
+        assert read_table("//tmp/t_out") == [{"x": x} for x in range(N)]
+        assert get("//tmp/t_out/@chunk_count") == 1
 
 ##################################################################
 

@@ -1080,6 +1080,20 @@ protected:
             StreamDescriptors_ = Controller_->GetSortedMergeStreamDescriptors();
         }
 
+        virtual IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId) override
+        {
+            auto cookie = TSortTaskBase::ExtractCookie(nodeId);
+
+            // NB(gritukan): In some weird cases unordered chunk pool can estimate total
+            // number of jobs as 1 after pool creation and >1 after first cookie extraction.
+            // For example, this might happen if there is a few data but many slices in the pool.
+            // That's why we can understand that simple sort required sorted merge only after first
+            // job start.
+            Controller_->IsSortedMergeNeeded(Partition_);
+
+            return cookie;
+        }
+
         void Persist(const TPersistenceContext& context)
         {
             TSortTaskBase::Persist(context);
