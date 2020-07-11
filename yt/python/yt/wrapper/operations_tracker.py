@@ -66,7 +66,8 @@ class _OperationsTrackingThread(Thread):
             # last added operation can be removed from cypress faster than
             # tracker checks it.
             with self._thread_lock:
-                coef = 1.0 / max(len(self._operations_to_track) + (2 * self.processing_operations_count / self.batch_size), 1)
+                coef = 1.0 / \
+                    max(1, len(self._operations_to_track) + (2 * self.processing_operations_count / self.batch_size))
             sleep(coef * self._poll_period / 1000.0)
 
     def _check_operations(self):
@@ -115,7 +116,9 @@ class _OperationsTrackingThread(Thread):
                     logger.exception("Failed to get operation states")
                     cluster_to_states[proxy] = [None for op in cluster_to_operations[proxy]]
                 else:
-                    cluster_to_states[proxy] = [OperationState(operation_state["state"]) for operation_state in op_states_raw]
+                    cluster_to_states[proxy] = [
+                        OperationState(operation_state["state"])
+                        for operation_state in op_states_raw]
 
         with self._thread_lock:
             for proxy in cluster_to_operations:
@@ -286,7 +289,10 @@ class _OperationsTrackingPoolThread(_OperationsTrackingThread):
                           "to add method, not {0}".format(repr(spec_task)))
 
         with self._thread_lock:
-            new_spec_task = SpecTask(spec_task.spec_builder, copy_client(spec_task.client), spec_task.enable_optimizations)
+            new_spec_task = SpecTask(
+                spec_task.spec_builder,
+                copy_client(spec_task.client),
+                spec_task.enable_optimizations)
             self._queue.append(new_spec_task)
 
     def _check_operations(self):

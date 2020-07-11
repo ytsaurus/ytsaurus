@@ -83,18 +83,19 @@ class Config(types.ModuleType, client_state.ClientState):
             elif config["driver_config"] is not None or config["driver_config_path"] is not None:
                 backend = "native"
             else:
-                raise self.common_module.YtError("Cannot determine backend type: either driver config or proxy url should be specified.")
+                raise self.common_module.YtError("Cannot determine backend type: either driver config or proxy url "
+                                                 "should be specified.")
         return backend
 
     def get_single_request_timeout(self, client):
         config = self.get_config(client)
-        #backend = self.get_backend_type(client)
+        # backend = self.get_backend_type(client)
         # TODO(ignat): support native backend.
         return config["proxy"]["request_timeout"]
 
     def get_request_retry_count(self, client):
         config = self.get_config(client)
-        #backend = self.get_backend_type(client)
+        # backend = self.get_backend_type(client)
         # TODO(ignat): support native backend.
         enable = config["proxy"]["retries"]["enable"]
         if enable:
@@ -185,4 +186,3 @@ else:
     sys.modules[special_module_name]._reload(ignore_env=False)
 
 sys.modules[__name__] = sys.modules[special_module_name]
-

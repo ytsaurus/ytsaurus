@@ -29,4 +29,3 @@ def parse_commands(description):
 
         commands[name] = Command(**elem)
     return commands
-

@@ -238,7 +238,9 @@ def link(target_path, link_path, recursive=False, ignore_existing=False, lock_ex
         client=client)
 
 
-def list(path, max_size=None, format=None, absolute=None, attributes=None, sort=True, read_from=None, cache_sticky_group_size=None, client=None):
+def list(path,
+         max_size=None, format=None, absolute=None, attributes=None, sort=True, read_from=None,
+         cache_sticky_group_size=None, client=None):
     """Lists directory (map_node) content. Node type must be "map_node".
 
     :param path: path.
@@ -543,7 +545,12 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     def safe_batch_get(nodes, batch_client):
         get_result = []
         for node in nodes:
-            get_result.append(batch_client.get(node.path, attributes=request_attributes, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size))
+            get_result.append(
+                batch_client.get(
+                    node.path,
+                    attributes=request_attributes,
+                    read_from=read_from,
+                    cache_sticky_group_size=cache_sticky_group_size))
         batch_client.commit_batch()
 
         for content, node in zip(get_result, nodes):
@@ -558,7 +565,12 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     def safe_get(nodes, client):
         for node in nodes:
             try:
-                node.content = get(node.path, attributes=request_attributes, client=client, read_from=read_from, cache_sticky_group_size=cache_sticky_group_size)
+                node.content = get(
+                    node.path,
+                    attributes=request_attributes,
+                    client=client,
+                    read_from=read_from,
+                    cache_sticky_group_size=cache_sticky_group_size)
             except YtResponseError as rsp:
                 process_response_error(rsp, node)
             yield node
@@ -635,7 +647,13 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
                     yield yson_path
 
     nodes_to_request = []
-    nodes_to_request.append(CompositeNode(to_response_key_type(root), 0, ignore_opaque=True, ignore_resolve_error=ignore_root_path_resolve_error))
+    nodes_to_request.append(
+        CompositeNode(
+            to_response_key_type(root),
+            0,
+            ignore_opaque=True,
+            ignore_resolve_error=ignore_root_path_resolve_error
+        ))
 
     while nodes_to_request:
         if enable_batch_mode:
@@ -668,7 +686,8 @@ def remove_with_empty_dirs(path, force=True, client=None):
 
         path = ypath_dirname(path)
         try:
-            if str(path) == "//" or not exists(path, client=client) or list(path, client=client) or get(path + "/@acl", client=client):
+            if str(path) == "//" or not exists(path, client=client) or \
+                    list(path, client=client) or get(path + "/@acl", client=client):
                 break
         except YtResponseError as err:
             if err.is_resolve_error():

@@ -131,7 +131,11 @@ def get_job_fail_context(operation_id, job_id, client=None):
         use_heavy_proxy=True,
         client=client)
 
-def get_job_spec(job_id, omit_node_directory=None, omit_input_table_specs=None, omit_output_table_specs=None, client=None):
+def get_job_spec(job_id,
+                 omit_node_directory=None,
+                 omit_input_table_specs=None,
+                 omit_output_table_specs=None,
+                 client=None):
     """Get spec of the specified job.
 
     :param str job_id: job id.

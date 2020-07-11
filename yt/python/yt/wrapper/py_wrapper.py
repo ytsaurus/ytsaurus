@@ -689,7 +689,8 @@ def with_context(func):
     """Decorates function to run with control attributes argument."""
     callable = _get_callable_func(func)
     if "context" not in inspect.getargspec(callable)[0]:
-        raise TypeError('Decorator "with_context" applied to function {0} that has no argument "context"'.format(func.__name__))
+        raise TypeError('Decorator "with_context" applied to function {0} that has no argument "context"'
+                        .format(func.__name__))
     return _set_attribute(func, "with_context", True)
 
 def with_skiff_schemas(func):
@@ -697,10 +698,12 @@ def with_skiff_schemas(func):
     callable = _get_callable_func(func)
     if "skiff_input_schemas" not in inspect.getargspec(callable)[0]:
         raise TypeError(
-            'Decorator "with_skiff_schemas" applied to function {0} that has no argument "skiff_input_schemas"'.format(func.__name__))
+            'Decorator "with_skiff_schemas" applied to function {0} that has no argument "skiff_input_schemas"'
+            .format(func.__name__))
     if "skiff_output_schemas" not in inspect.getargspec(callable)[0]:
         raise TypeError(
-            'Decorator "with_skiff_schemas" applied to function {0} that has no argument "skiff_output_schemas"'.format(func.__name__))
+            'Decorator "with_skiff_schemas" applied to function {0} that has no argument "skiff_output_schemas"'
+            .format(func.__name__))
     return _set_attribute(func, "with_skiff_schemas", True)
 
 def with_formats(func, input_format=None, output_format=None):

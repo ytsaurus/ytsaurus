@@ -512,7 +512,9 @@ def get_token(token=None, client=None):
     if not token:
         token = _get_token_from_file(client)
     if not token:
-        receive_token_by_ssh_session = get_config(client)["allow_receive_token_by_current_ssh_session"] and RECEIVE_TOKEN_FROM_SSH_SESSION
+        receive_token_by_ssh_session = \
+            get_config(client)["allow_receive_token_by_current_ssh_session"] and \
+            RECEIVE_TOKEN_FROM_SSH_SESSION
         if receive_token_by_ssh_session:
             token = _get_token_by_ssh_session(client)
             # Update token in default location.

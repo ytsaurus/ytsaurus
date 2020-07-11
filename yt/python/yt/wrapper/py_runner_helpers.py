@@ -167,7 +167,7 @@ def apply_stdout_fd_protection(output_streams, protection_type):
         return
 
     assert protection_type in ("redirect_to_stderr", "drop", "close"), \
-            "unknown stdout_fd_protection value: {}".format(protection_type)
+        "unknown stdout_fd_protection value: {}".format(protection_type)
 
     stdin_fd = 0
     stdout_fd = 1
@@ -228,11 +228,13 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
         try:
             import yt.wrapper.user_statistics
             if start_time is not None:
-                yt.wrapper.user_statistics.write_statistics({"python_job_preparation_time": int((time.time() - start_time) * 1000)})
+                yt.wrapper.user_statistics.write_statistics(
+                    {"python_job_preparation_time": int((time.time() - start_time) * 1000)})
         except ImportError:
             pass
 
-    if yt.wrapper.config["pickling"]["check_python_version"] and yt.wrapper.common.get_python_version() != params.python_version:
+    if yt.wrapper.config["pickling"]["check_python_version"] and \
+            yt.wrapper.common.get_python_version() != params.python_version:
         sys.stderr.write("Python version on cluster differs from local python version")
         sys.exit(1)
 
@@ -311,7 +313,8 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
             params.output_format.dump_rows(result, output_streams, raw=raw)
         else:
             # NB: we need to exhaust generator to run user code.
-            for _ in result: pass
+            for _ in result:
+                pass
 
     # Read out all input
     if rows is None:

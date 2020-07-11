@@ -788,7 +788,8 @@ def is_sorted(table, client=None):
     if get_config(client)["yamr_mode"]["use_yamr_sort_reduce_columns"]:
         return get_sorted_by(table, [], client=client) == ["key", "subkey"]
     else:
-        return get_attribute(TablePath(table, client=client),
+        return get_attribute(
+            TablePath(table, client=client),
             "sorted",
             default=False,
             client=client)

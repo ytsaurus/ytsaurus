@@ -1,4 +1,4 @@
-from yt.packages.argcomplete import *
+from yt.packages.argcomplete import autocomplete
 import yt.wrapper as yt
 
 if not yt.config["argcomplete_verbose"]:
@@ -33,8 +33,7 @@ def complete_attributes(path):
     suggestions = []
     for sub_attribute in attribute_list:
         suggestions.append(
-            path + "@" + attribute_path +
-            ("/" if add_slash_after_attribute_path else "") + sub_attribute)
+            path + "@" + attribute_path + ("/" if add_slash_after_attribute_path else "") + sub_attribute)
 
     # Try to find all children attributes of a current attribute
     # by treating it as a map atttribute.
@@ -58,6 +57,5 @@ def complete_ypath(prefix, parsed_args, **kwargs):
             return complete_attributes(path)
         else:
             return complete_map_node(path)
-    except Exception as e:
-        warn("Caught following exception during completion:\n" + str(e))
-
+    except Exception as err:
+        warn("Caught following exception during completion:\n" + str(err))

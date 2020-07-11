@@ -334,7 +334,7 @@ class Format(object):
     def _process_input_rows(rows, control_attributes_mode,
                             extract_control_attributes, table_index_column_name, transform_column_name):
         table_index_attribute_name, row_index_attribute_name, range_index_attribute_name,\
-        key_switch_attribute_name, tablet_index_attribute_name = \
+            key_switch_attribute_name, tablet_index_attribute_name = \
             list(imap(transform_column_name, [b"table_index", b"row_index", b"range_index", b"key_switch", b"tablet_index"]))
 
         table_index_column_name, range_index_column_name, row_index_column_name = \
@@ -984,7 +984,8 @@ class JsonFormat(Format):
         In "iterator" mode attributes rows object is iterator and control attributes are available \
         as fields of the iterator. \
         In "none" (or deprecated "generator") mode rows are unmodified.
-        :param str encoding: used to decode string from bytes to native python strings in load method. It has no effect for dump, since simplejson decodes byte as unicode number.
+        :param str encoding: used to decode string from bytes to native python strings in load method.
+                             It has no effect for dump, since simplejson decodes byte as unicode number.
         :param str encode_utf8: enables encoding bytes as unicode numbers.
         In case of True we request encoding and decode it back on client side [by default].
         In case of False we do nothing.
@@ -1056,11 +1057,13 @@ class JsonFormat(Format):
         is_encode_utf8_false = self.encode_utf8 is not None and not self.encode_utf8
         if isinstance(string, text_type):
             if self._encoding == "utf-8" and is_encode_utf8_false:
-                # In this case we can do nothing, unicode string would be correctly written without any additional encoding.
+                # In this case we can do nothing, unicode string would be correctly written
+                # without any additional encoding.
                 return string
             else:
                 if is_encode_utf8_false:
-                    raise YtFormatError("Cannot interpret unicode string by non-utf-8 encoding when 'encode_utf8' disabled")
+                    raise YtFormatError("Cannot interpret unicode string by non-utf-8 "
+                                        "encoding when 'encode_utf8' disabled")
                 if self._encoding is None:
                     # Just check that string consists only of ascii symbols.
                     string.encode("ascii")

@@ -42,7 +42,7 @@ def _get_object_id(path=None, account=None, pool=None, group=None, tablet_cell_b
         keys = [key for key, value in iteritems(exclusive_group) if value is not None]
         if len(keys) > 1:
             raise TypeError("mutually exclusive arguments: '{}'"
-                             .format("', '".join(keys)))
+                            .format("', '".join(keys)))
 
     for key, value in iteritems(no_pool):
         if value is not None:

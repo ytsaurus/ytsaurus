@@ -40,7 +40,8 @@ def _process_prefix(path, prefix):
     if prefix is not None and type(tokens.raw_path) != type(prefix):
         raise YtError("Type mismatch of ypath %r and prefix %r" % (tokens.raw_path, prefix))
 
-    if tokens.raw_path == tokens.slash or tokens.raw_path.startswith(tokens.double_slash) or tokens.raw_path.startswith(tokens.sharp):
+    if tokens.raw_path == tokens.slash or tokens.raw_path.startswith(tokens.double_slash) or \
+            tokens.raw_path.startswith(tokens.sharp):
         return path
     else:
         require(prefix,

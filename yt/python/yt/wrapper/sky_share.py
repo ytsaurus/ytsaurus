@@ -22,16 +22,15 @@ def sky_share(path, cluster=None, key_columns=[], client=None):
     params = {"path": TablePath(path).to_yson_string(), "cluster": cluster, "key_columns": key_columns}
     headers = {"X-YT-Parameters": yson.dumps(params, yson_format="text")}
 
-    make_request = lambda: make_request_with_retries(
-        method="POST",
-        url=get_config(client)["skynet_manager_url"].format(cluster_name=cluster) + "/share",
-        headers=headers,
-        response_format=None,
-        error_format="json",
-        client=client)
-
     while True:
-        rsp = make_request()
+        rsp = make_request_with_retries(
+            method="POST",
+            url=get_config(client)["skynet_manager_url"].format(cluster_name=cluster) + "/share",
+            headers=headers,
+            response_format=None,
+            error_format="json",
+            client=client)
+
         if rsp.status_code == 202:
             time.sleep(1.0)
         elif rsp.status_code == 200:
@@ -40,4 +39,3 @@ def sky_share(path, cluster=None, key_columns=[], client=None):
             if rsp.is_ok():
                 raise YtError("Unknown status code from sky share " + str(rsp.status_code))
             raise rsp.error()
-

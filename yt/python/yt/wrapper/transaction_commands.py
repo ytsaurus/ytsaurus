@@ -17,7 +17,8 @@ def _make_transactional_request(command_name, params, **kwargs):
 def _make_formatted_transactional_request(command_name, params, format, **kwargs):
     return make_formatted_request(command_name, params, format, **kwargs)
 
-def start_transaction(parent_transaction=None, timeout=None, deadline=None, attributes=None, type="master", sticky=False, prerequisite_transaction_ids=None, client=None):
+def start_transaction(parent_transaction=None, timeout=None, deadline=None, attributes=None, type="master",
+                      sticky=False, prerequisite_transaction_ids=None, client=None):
     """Starts transaction.
 
     :param str parent_transaction: parent transaction id.
