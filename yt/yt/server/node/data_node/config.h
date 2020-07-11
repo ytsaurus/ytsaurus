@@ -158,6 +158,10 @@ public:
 
     TDuration ThrottleCounterInterval;
 
+    //! Maximum number of bytes in the gap between two adjacent read locations
+    //! in order to join them together during read coalescing.
+    i64 CoalescedReadMaxGapSize;
+
     TStoreLocationConfigBase()
     {
         RegisterParameter("quota", Quota)
@@ -179,6 +183,9 @@ public:
             .Optional();
         RegisterParameter("throttle_counter_interval", ThrottleCounterInterval)
             .Default(TDuration::Seconds(30));
+        RegisterParameter("coalesced_read_max_gap_size", CoalescedReadMaxGapSize)
+            .GreaterThanOrEqual(0)
+            .Default(0);
     }
 };
 

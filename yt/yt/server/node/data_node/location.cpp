@@ -173,7 +173,7 @@ const NChunkClient::IIOEnginePtr& TLocation::GetIOEngine() const
 ELocationType TLocation::GetType() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    
+
     return Type_;
 }
 
@@ -238,6 +238,13 @@ i64 TLocation::GetQuota() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return Config_->Quota.value_or(std::numeric_limits<i64>::max());
+}
+
+i64 TLocation::GetCoalescedReadMaxGapSize() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Config_->CoalescedReadMaxGapSize;
 }
 
 const IInvokerPtr& TLocation::GetWritePoolInvoker()
@@ -1262,7 +1269,7 @@ TCacheLocation::TCacheLocation(
 const IThroughputThrottlerPtr& TCacheLocation::GetInThrottler() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
-    
+
     return InThrottler_;
 }
 

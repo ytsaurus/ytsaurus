@@ -60,9 +60,13 @@ private:
         struct TBlockEntry
         {
             int BlockIndex = -1;
+            //! Index of this entry before sorting by block index.
+            int EntryIndex = -1;
             bool Cached = false;
             TCachedBlockCookie Cookie;
             NChunkClient::TBlock Block;
+            i64 BeginOffset = -1;
+            i64 EndOffset = -1;
         };
 
         IInvokerPtr Invoker;
@@ -109,6 +113,7 @@ private:
     void OnBlocksRead(
         const TReadBlockSetSessionPtr& session,
         int firstBlockIndex,
+        int blocksToRead,
         int beginEntryIndex,
         int endEntryIndex,
         TPendingIOGuard&& pendingIOGuard,
