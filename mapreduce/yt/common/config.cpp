@@ -184,6 +184,8 @@ void TConfig::Reset()
         "//tmp/yt_wrapper/file_storage");
     RemoteTempTablesDirectory = GetEnv("YT_TEMP_TABLES_STORAGE",
         "//tmp/yt_wrapper/table_storage");
+    RemoteTempTablesDirectory = GetEnv("YT_TEMP_DIR",
+        RemoteTempTablesDirectory);
 
     InferTableSchema = false;
 
