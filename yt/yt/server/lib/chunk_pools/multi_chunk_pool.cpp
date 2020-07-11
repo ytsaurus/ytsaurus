@@ -235,10 +235,16 @@ public:
         auto cookie = Pool(poolIndex)->Extract(nodeId);
         YT_VERIFY(cookie != NullCookie);
 
-        auto externalCookie = Cookies_.size();
-        Cookies_.emplace_back(poolIndex, cookie);
-
-        return externalCookie;
+        TCookieDescriptor cookieDescriptor(poolIndex, cookie);
+        auto cookieIt = CookieDescriptorToExternalCookie_.find(cookieDescriptor);
+        if (cookieIt == CookieDescriptorToExternalCookie_.end()) {
+            auto externalCookie = Cookies_.size();
+            Cookies_.emplace_back(poolIndex, cookie);
+            YT_VERIFY(CookieDescriptorToExternalCookie_.emplace(cookieDescriptor, externalCookie).second);
+            return externalCookie;
+        } else {
+            return cookieIt->second;
+        }
     }
 
     virtual TExternalCookie ExtractFromPool(int underlyingPoolIndexHint, TNodeId nodeId)
@@ -351,6 +357,7 @@ public:
         Persist(context, RowCounter_);
         Persist(context, DataSliceCounter_);
         Persist<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>(context, Cookies_);
+        Persist<TMapSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>, TDefaultSerializer, TUnsortedTag>>(context, CookieDescriptorToExternalCookie_);
         Persist(context, Finalized_);
         Persist(context, IsCompleted_);
 
@@ -387,7 +394,11 @@ protected:
     //! Parent of all underlying pool data slice counters.
     TProgressCounterPtr DataSliceCounter_ = New<TProgressCounter>();
 
+    //! External cookie -> internal cookie.
     std::vector<TCookieDescriptor> Cookies_;
+
+    //! Internal cookie -> external cookie.
+    THashMap<TCookieDescriptor, TExternalCookie> CookieDescriptorToExternalCookie_;
 
     //! Queue of pools with pending jobs.
     std::list<int> PendingPools_;
