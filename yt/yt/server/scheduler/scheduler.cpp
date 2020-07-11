@@ -2503,14 +2503,12 @@ private:
 
     void CheckUnschedulableOperations()
     {
-        for (auto pair : Strategy_->GetUnschedulableOperations()) {
-            auto operationId = pair.first;
-            const auto& error = pair.second;
-            auto operation = FindOperation(operationId);
-            if (!operation) {
-                continue;
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& [operationId, error] : Strategy_->GetUnschedulableOperations()) {
+            if (auto operation = FindOperation(operationId)) {
+                OnOperationFailed(operation, error);
             }
-            OnOperationFailed(operation, error);
         }
     }
 

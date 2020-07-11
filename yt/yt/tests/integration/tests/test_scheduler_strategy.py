@@ -1439,8 +1439,23 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
 
         wait(lambda: op.get_state() == "failed")
 
-        assert "unschedulable" in str(get(op.get_path() + "/@result"))
+        result = str(get(op.get_path() + "/@result"))
+        assert "unschedulable" in result
+        assert "no successful scheduled jobs" in result
 
+    @authors("eshcherbin")
+    def test_limiting_ancestor(self):
+        create_pool("limiting_pool", attributes={"resource_limits": {"cpu": 1.0}})
+        create_pool("subpool", parent_name="limiting_pool")
+        wait(lambda: get(scheduler_orchid_pool_path("limiting_pool") + "/resource_limits/cpu") == 1.0)
+
+        op = run_sleeping_vanilla(job_count=10, spec={"pool": "subpool"}, task_patch={"cpu_limit": 2.0})
+
+        wait(lambda: op.get_state() == "failed")
+
+        result = str(get(op.get_path() + "/@result"))
+        assert "unschedulable" in result
+        assert "limiting_ancestor" in result and "limiting_pool" in result
 
 ##################################################################
 

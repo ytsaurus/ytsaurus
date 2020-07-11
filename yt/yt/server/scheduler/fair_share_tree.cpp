@@ -737,12 +737,24 @@ auto TFairShareTree<TFairShareImpl>::CheckOperationUnschedulable(
     TOperationId operationId,
     TDuration safeTimeout,
     int minScheduleJobCallAttempts,
-    THashSet<EDeactivationReason> deactivationReasons) -> TError
+    const THashSet<EDeactivationReason>& deactivationReasons,
+    const TJobResources& minNeededResources) -> TError
 {
+    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
     // TODO(ignat): Could we guarantee that operation must be in tree?
     auto element = FindRecentOperationElementSnapshot(operationId);
     if (!element) {
         return TError();
+    }
+
+    // NB(eshcherbin): Here we rely on the fact that |element->ResourceLimits_| is infinite
+    // if the element is not in the fair share tree snapshot yet.
+    if (auto* limitingAncestor = FindAncestorWithInsufficientResourceLimits(element, minNeededResources)) {
+        return TError("Operation has an ancestor whose resource limits are too small to satisfy operation's minimum job resource demand")
+            << TErrorAttribute("limiting_ancestor", limitingAncestor->GetId())
+            << TErrorAttribute("resource_limits", limitingAncestor->ResourceLimits())
+            << TErrorAttribute("min_needed_resources", minNeededResources);
     }
 
     auto now = TInstant::Now();
@@ -776,7 +788,7 @@ auto TFairShareTree<TFairShareImpl>::CheckOperationUnschedulable(
         element->GetRunningJobCount() == 0 &&
         deactivationCount > minScheduleJobCallAttempts)
     {
-        return TError("Operation has no successfull scheduled jobs for a long period")
+        return TError("Operation has no successful scheduled jobs for a long period")
             << TErrorAttribute("period", safeTimeout)
             << TErrorAttribute("deactivation_count", deactivationCount)
             << TErrorAttribute("last_schedule_job_success_time", element->GetLastScheduleJobSuccessTime())
@@ -1875,6 +1887,23 @@ auto TFairShareTree<TFairShareImpl>::FindPoolWithViolatedOperationCountLimit(con
         }
         current = current->GetParent();
     }
+    return nullptr;
+}
+
+// Finds the lowest ancestor of |element| whose resource limits are too small to satisfy |neededResources|.
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::FindAncestorWithInsufficientResourceLimits(
+    const TSchedulerElement* element,
+    const TJobResources& neededResources) const -> const TSchedulerElement*
+{
+    const TSchedulerElement* current = element;
+    while (current) {
+        if (!Dominates(current->ResourceLimits(), neededResources)) {
+            return current;
+        }
+        current = current->GetParent();
+    }
+
     return nullptr;
 }
 
