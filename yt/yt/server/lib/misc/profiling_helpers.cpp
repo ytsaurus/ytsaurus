@@ -32,9 +32,9 @@ struct TUserTagTrait
     }
 };
 
-TTagIdList AddUserTag(TTagIdList tags, const TString& userTag)
+TTagIdList AddUserTag(TTagIdList tags, const NRpc::TAuthenticationIdentity& identity)
 {
-    tags.push_back(GetLocallyCachedValue<TUserTagTrait>(userTag));
+    tags.push_back(GetLocallyCachedValue<TUserTagTrait>(identity.UserTag));
     return tags;
 }
 
@@ -44,7 +44,7 @@ TTagIdList AddCurrentUserTag(TTagIdList tags)
     if (&identity == &NRpc::GetRootAuthenticationIdentity()) {
         return tags;
     }
-    return AddUserTag(tags, identity.UserTag);
+    return AddUserTag(tags, identity);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

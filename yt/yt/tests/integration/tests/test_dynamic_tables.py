@@ -110,7 +110,7 @@ class DynamicTablesBase(YTEnvSetup):
             set_node_decommissioned(addr, True)
         return addresses
 
-    def _get_table_profiling(self, table):
+    def _get_table_profiling(self, table, user=None):
         tablets = get(table + "/@tablets")
         assert len(tablets) == 1
         tablet = tablets[0]
@@ -122,6 +122,8 @@ class DynamicTablesBase(YTEnvSetup):
                     counters = get("//sys/cluster_nodes/%s/orchid/profiling/tablet_node/%s" % (address, counter_name))
                     for counter in counters[::-1]:
                         tags = counter["tags"]
+                        if user is not None and tags.get("user", None) != user:
+                            continue
                         if tags.get("table_path", None) == table:
                             return counter["value"]
                 except YtResponseError as error:

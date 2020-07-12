@@ -4,12 +4,14 @@
 
 #include <yt/core/ypath/public.h>
 
+#include <yt/core/rpc/public.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Adds user tag to #tags and returns the resultant tag list.
-NProfiling::TTagIdList AddUserTag(NProfiling::TTagIdList tags, const TString& userTag);
+NProfiling::TTagIdList AddUserTag(NProfiling::TTagIdList tags, const NRpc::TAuthenticationIdentity& identity);
 
 //! Adds the current user tag (installed via TUserTagTag) to #tags and returns the resultant tag list.
 NProfiling::TTagIdList AddCurrentUserTag(NProfiling::TTagIdList tags);

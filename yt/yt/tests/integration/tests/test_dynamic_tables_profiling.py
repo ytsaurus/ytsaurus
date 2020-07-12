@@ -29,13 +29,14 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
     @authors("gridem")
     def test_sorted_tablet_node_profiling(self):
         sync_create_cells(1)
+        create_user("u")
 
         table_path = "//tmp/{}".format(generate_uuid())
         self._create_simple_table(table_path, dynamic_store_auto_flush_period=None)
         get(table_path + "/@dynamic_store_auto_flush_period")
         sync_mount_table(table_path)
 
-        tablet_profiling = self._get_table_profiling(table_path)
+        tablet_profiling = self._get_table_profiling(table_path, user="u")
 
         def get_all_counters(count_name):
             return (
@@ -53,14 +54,14 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
 
         rows = [{"key": 1, "value": "2"}]
         keys = [{"key": 1}]
-        insert_rows(table_path, rows)
+        insert_rows(table_path, rows, authenticated_user="u")
 
         wait(lambda: get_all_counters("row_count") == (0, 0, 0, 0, 1, 1) and \
                      get_all_counters("data_weight") == (0, 0, 0, 0, 10, 10) and \
                      tablet_profiling.get_counter("lookup/cpu_time") == 0 and \
                      tablet_profiling.get_counter("select/cpu_time") == 0)
 
-        actual = lookup_rows(table_path, keys)
+        actual = lookup_rows(table_path, keys, authenticated_user="u")
         assert_items_equal(actual, rows)
 
         wait(lambda: get_all_counters("row_count") == (1, 1, 0, 0, 1, 1) and \
@@ -68,7 +69,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
                      tablet_profiling.get_counter("lookup/cpu_time") > 0 and \
                      tablet_profiling.get_counter("select/cpu_time") == 0)
 
-        actual = select_rows("* from [{}]".format(table_path))
+        actual = select_rows("* from [{}]".format(table_path), authenticated_user="u")
         assert_items_equal(actual, rows)
 
         wait(lambda: get_all_counters("row_count") == (1, 1, 1, 1, 1, 1) and \
