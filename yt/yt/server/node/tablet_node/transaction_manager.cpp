@@ -124,6 +124,8 @@ public:
             Bootstrap_->GetTransactionTrackerInvoker(),
             Logger))
         , NativeCellTag_(Bootstrap_->GetMasterClient()->GetConnection()->GetCellTag())
+        , Profiler(TabletNodeProfiler
+            .AddTags(slot->GetProfilingTagIds()))
         , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
@@ -534,8 +536,8 @@ private:
     const TTransactionLeaseTrackerPtr LeaseTracker_;
     const TCellTag NativeCellTag_;
 
-    const NProfiling::TProfiler& Profiler = TabletNodeProfiler;
-    NProfiling::TAggregateGauge TransactionSerializationLagCounter_ = {"/transaction_serialization_lag"};
+    const NProfiling::TProfiler Profiler;
+    NProfiling::TAggregateGauge TransactionSerializationLagCounter_{"/transaction_serialization_lag"};
 
     TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;

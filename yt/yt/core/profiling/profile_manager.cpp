@@ -54,9 +54,6 @@ public:
             false))
         , Thread_(New<TThread>(this))
         , Root_(GetEphemeralNodeFactory(true)->CreateMap())
-        , EnqueuedCounter_("/enqueued")
-        , DequeuedCounter_("/dequeued")
-        , DroppedCounter_("/dropped")
     {
         ResourceTracker_ = New<TResourceTracker>(GetInvoker());
     }
@@ -458,10 +455,11 @@ private:
 
     TPeriodicExecutorPtr DequeueExecutor_;
 
-    IMapNodePtr Root_;
-    TMonotonicCounter EnqueuedCounter_;
-    TMonotonicCounter DequeuedCounter_;
-    TMonotonicCounter DroppedCounter_;
+    const IMapNodePtr Root_;
+    
+    TMonotonicCounter EnqueuedCounter_{"/enqueued"};
+    TMonotonicCounter DequeuedCounter_{"/dequeued"};
+    TMonotonicCounter DroppedCounter_{"/dropped"};
 
     TProfileManagerConfigPtr Config_;
 

@@ -456,7 +456,9 @@ public:
                 Config_->HydraManager->ResponseKeeper,
                 GetAutomatonInvoker(),
                 Logger,
-                TabletNodeProfiler.AppendPath("/response_keeper"));
+                TabletNodeProfiler
+                    .AppendPath("/response_keeper")
+                    .AddTags(ProfilingTagIds_));
 
             TDistributedHydraManagerOptions hydraManagerOptions;
             hydraManagerOptions.ResponseKeeper = ResponseKeeper_;
@@ -517,7 +519,8 @@ public:
                 GetCellId(),
                 GetAutomatonInvoker(),
                 hydraManager,
-                Automaton_);
+                Automaton_,
+                ProfilingTagIds_);
 
             // NB: Tablet Manager must register before Transaction Manager since the latter
             // will be writing and deleting rows during snapshot loading.

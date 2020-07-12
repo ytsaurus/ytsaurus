@@ -104,13 +104,8 @@ public:
         : Config_(config)
         , Bootstrap_(bootstrap)
         , ThreadPool_(New<TThreadPool>(Config_->StoreCompactor->ThreadPoolSize, "StoreCompact"))
-        , Profiler("/tablet_node/store_compactor")
         , PartitioningSemaphore_(New<TProfiledAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentPartitionings, Profiler, "/running_partitionings"))
         , CompactionSemaphore_(New<TProfiledAsyncSemaphore>(Config_->StoreCompactor->MaxConcurrentCompactions, Profiler, "/running_compactions"))
-        , FeasiblePartitioningsCounter_("/feasible_partitionings")
-        , FeasibleCompactionsCounter_("/feasible_compactions")
-        , ScheduledPartitioningsCounter_("/scheduled_partitionings")
-        , ScheduledCompactionsCounter_("/scheduled_compactions")
         , OrchidService_(CreateOrchidService())
     { }
 
@@ -131,15 +126,17 @@ private:
     const TTabletNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
-    TThreadPoolPtr ThreadPool_;
+    const NProfiling::TProfiler Profiler = TabletNodeProfiler.AppendPath("/store_compactor");
 
-    const NProfiling::TProfiler Profiler;
-    TAsyncSemaphorePtr PartitioningSemaphore_;
-    TAsyncSemaphorePtr CompactionSemaphore_;
-    NProfiling::TSimpleGauge FeasiblePartitioningsCounter_;
-    NProfiling::TSimpleGauge FeasibleCompactionsCounter_;
-    NProfiling::TMonotonicCounter ScheduledPartitioningsCounter_;
-    NProfiling::TMonotonicCounter ScheduledCompactionsCounter_;
+    const TThreadPoolPtr ThreadPool_;
+    const TAsyncSemaphorePtr PartitioningSemaphore_;
+    const TAsyncSemaphorePtr CompactionSemaphore_;
+
+    NProfiling::TSimpleGauge FeasiblePartitioningsCounter_{"/feasible_partitionings"};
+    NProfiling::TSimpleGauge FeasibleCompactionsCounter_{"/feasible_compactions"};
+    NProfiling::TMonotonicCounter ScheduledPartitioningsCounter_{"/scheduled_partitionings"};
+    NProfiling::TMonotonicCounter ScheduledCompactionsCounter_{"/scheduled_compactions"};
+    
     const NProfiling::TTagId CompactionTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction");
     const NProfiling::TTagId CompactionFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction_failed");
     const NProfiling::TTagId PartitioningTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "partitioning");

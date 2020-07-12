@@ -161,29 +161,33 @@ TProfiledAsyncSemaphore::TProfiledAsyncSemaphore(
     const NProfiling::TTagIdList& tagIds)
     : TAsyncSemaphore(totalSlots)
     , Profiler(profiler)
-    , Path_(path)
-    , TagIds_(tagIds)
+    , Gauge_(path, tagIds)
 { }
 
 void TProfiledAsyncSemaphore::Release(i64 slots /* = 1 */)
 {
     TAsyncSemaphore::Release(slots);
-    Profiler.Enqueue(Path_, GetUsed(), NProfiling::EMetricType::Gauge, TagIds_);
+    Profile();
 }
 
 void TProfiledAsyncSemaphore::Acquire(i64 slots /* = 1 */)
 {
     TAsyncSemaphore::Acquire(slots);
-    Profiler.Enqueue(Path_, GetUsed(), NProfiling::EMetricType::Gauge, TagIds_);
+    Profile();
 }
 
 bool TProfiledAsyncSemaphore::TryAcquire(i64 slots /* = 1 */)
 {
     if (TAsyncSemaphore::TryAcquire(slots)) {
-        Profiler.Enqueue(Path_, GetUsed(), NProfiling::EMetricType::Gauge, TagIds_);
+        Profile();
         return true;
     }
     return false;
+}
+
+void TProfiledAsyncSemaphore::Profile()
+{
+    Profiler.Update(Gauge_, GetUsed());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

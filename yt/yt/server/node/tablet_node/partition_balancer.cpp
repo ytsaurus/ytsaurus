@@ -72,23 +72,21 @@ public:
         , ThrottlerManager_(New<TThrottlerManager>(
             Config_->ChunkLocationThrottler,
             Logger))
-        , Profiler("/tablet_node/partition_balancer")
-        , PartitionSplitCounter_("/scheduled_splits")
-        , PartitionMergeCounter_("/scheduled_merges")
     {
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->SubscribeScanSlot(BIND(&TPartitionBalancer::OnScanSlot, MakeStrong(this)));
     }
 
 private:
-    TPartitionBalancerConfigPtr Config_;
-    NClusterNode::TBootstrap* Bootstrap_;
-    TAsyncSemaphorePtr Semaphore_;
-    TThrottlerManagerPtr ThrottlerManager_;
+    const TPartitionBalancerConfigPtr Config_;
+    NClusterNode::TBootstrap* const Bootstrap_;
+    
+    const TAsyncSemaphorePtr Semaphore_;
+    const TThrottlerManagerPtr ThrottlerManager_;
 
-    const NProfiling::TProfiler Profiler;
-    NProfiling::TMonotonicCounter PartitionSplitCounter_;
-    NProfiling::TMonotonicCounter PartitionMergeCounter_;
+    const NProfiling::TProfiler Profiler = TabletNodeProfiler.AppendPath("/partition_balancer");
+    NProfiling::TMonotonicCounter ScheduledSplitsCounter_{"/scheduled_splits"};
+    NProfiling::TMonotonicCounter ScheduledMergesCounter_{"/scheduled_merges"};
 
 
     void OnScanSlot(TTabletSlotPtr slot)
@@ -209,7 +207,7 @@ private:
         if (partition->IsImmediateSplitRequested()) {
             if (ValidateSplit(slot, partition, true)) {
                 partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
-                Profiler.Increment(PartitionSplitCounter_);
+                Profiler.Increment(ScheduledSplitsCounter_);
                 DoRunImmediateSplit(slot, partition, Logger);
                 // This is inexact to say the least: immediate split is called when we expect that
                 // most of the stores will stay intact after splitting by the provided pivots.
@@ -236,7 +234,7 @@ private:
 
             if (splitFactor > 1 && ValidateSplit(slot, partition, false)) {
                 partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Splitting);
-                Profiler.Increment(PartitionSplitCounter_);
+                Profiler.Increment(ScheduledSplitsCounter_);
                 YT_LOG_DEBUG("Partition is scheduled for split");
                 tablet->GetEpochAutomatonInvoker()->Invoke(BIND(
                     &TPartitionBalancer::DoRunSplit,
@@ -495,7 +493,7 @@ private:
         for (int index = firstPartitionIndex; index <= lastPartitionIndex; ++index) {
             tablet->PartitionList()[index]->CheckedSetState(EPartitionState::Normal, EPartitionState::Merging);
         }
-        Profiler.Increment(PartitionMergeCounter_);
+        Profiler.Increment(ScheduledMergesCounter_);
 
         auto Logger = TabletNodeLogger;
         Logger.AddTag("%v, CellId: %v, PartitionIds: %v",

@@ -53,10 +53,6 @@ using NHiveClient::NProto::TEncapsulatedMessage;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Profiler = HiveServerProfiler;
-
-////////////////////////////////////////////////////////////////////////////////
-
 static NConcurrency::TFls<bool> HiveMutation;
 
 bool IsHiveMutation()
@@ -93,7 +89,8 @@ public:
         TCellId selfCellId,
         IInvokerPtr automatonInvoker,
         IHydraManagerPtr hydraManager,
-        TCompositeAutomatonPtr automaton)
+        TCompositeAutomatonPtr automaton,
+        const NProfiling::TTagIdList& profilingTagIds)
         : THydraServiceBase(
             hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker),
             THiveServiceProxy::GetDescriptor(),
@@ -109,6 +106,7 @@ public:
         , AutomatonInvoker_(std::move(automatonInvoker))
         , GuardedAutomatonInvoker_(hydraManager->CreateGuardedAutomatonInvoker(AutomatonInvoker_))
         , HydraManager_(std::move(hydraManager))
+        , Profiler(HiveServerProfiler.AddTags(profilingTagIds))
     {
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(Ping));
         TServiceBase::RegisterMethod(RPC_SERVICE_METHOD_DESC(SyncCells));
@@ -301,6 +299,7 @@ private:
     TReaderWriterSpinLock CellToIdToBatcherLock_;
     THashMap<TCellId, TIntrusivePtr<TAsyncBatcher<void>>> CellToIdToBatcher_;
 
+    const NProfiling::TProfiler Profiler;
     TMonotonicCounter PostingTimeCounter_{"/posting_time"};
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
@@ -1502,14 +1501,16 @@ THiveManager::THiveManager(
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,
     IHydraManagerPtr hydraManager,
-    TCompositeAutomatonPtr automaton)
+    TCompositeAutomatonPtr automaton,
+    const NProfiling::TTagIdList& profilingTagIds)
     : Impl_(New<TImpl>(
         config,
         cellDirectory,
         selfCellId,
         automatonInvoker,
         hydraManager,
-        automaton))
+        automaton,
+        profilingTagIds))
 { }
 
 THiveManager::~THiveManager()
