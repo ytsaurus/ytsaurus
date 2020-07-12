@@ -221,7 +221,7 @@ public:
             }
         }
         if (!errors.empty()) {
-            THROW_ERROR_EXCEPTION("Error validating permissions for user %v", user) << errors;
+            THROW_ERROR_EXCEPTION("Error validating permissions for user %Qv", user) << errors;
         }
     }
 

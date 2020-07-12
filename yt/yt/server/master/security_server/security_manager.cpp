@@ -975,7 +975,7 @@ public:
         if (!IsObjectAlive(user)) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user %v",
+                "No such user %Qv",
                 id);
         }
         return user;

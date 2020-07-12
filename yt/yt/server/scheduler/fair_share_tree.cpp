@@ -2299,7 +2299,7 @@ auto TFairShareTree<TFairShareImpl>::ValidateEphemeralPoolLimit(const IOperation
         }
 
         if (it->second.size() + 1 > Config_->MaxEphemeralPoolsPerUser) {
-            THROW_ERROR_EXCEPTION("Limit for number of ephemeral pools %v for user %v in tree %Qv has been reached",
+            THROW_ERROR_EXCEPTION("Limit for number of ephemeral pools %v for user %Qv in tree %Qv has been reached",
                 Config_->MaxEphemeralPoolsPerUser,
                 userName,
                 TreeId_);

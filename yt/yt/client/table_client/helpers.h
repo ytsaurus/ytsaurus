@@ -173,6 +173,7 @@ void FromUnversionedValue(
     TUnversionedValue unversionedValue,
     typename std::enable_if<std::is_convertible<TValue*, ::google::protobuf::Message*>::value, void>::type* = nullptr);
 
+//! Values get sequential ids 0..N-1 (unless wrapped into TValueWithId).
 template <class... Ts>
 auto ToUnversionedValues(
     const TRowBufferPtr& rowBuffer,
@@ -210,7 +211,6 @@ void FromUnversionedRow(
 template <class... Ts>
 std::tuple<Ts...> FromUnversionedRow(TUnversionedRow row);
 
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Enables annotating values with explicit ids.
@@ -245,6 +245,8 @@ public:
 
     void AddRow(TUnversionedRow row);
     void AddRow(TMutableUnversionedRow row);
+
+    //! Values get sequential ids 0..N-1 (unless wrapped into TValueWithId).
     template <class... Ts>
     void AddRow(Ts&&... values);
 
