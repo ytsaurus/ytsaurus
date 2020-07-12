@@ -82,6 +82,10 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr double DefaultQLPoolWeight = 1.0;
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <>
 TRow GetPivotKey(const NTabletNode::TPartitionSnapshotPtr& shard)
 {
@@ -1071,13 +1075,13 @@ private:
         const TString& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
-        if (auto client = Client_.Lock()) {
-            return BIND(GetPoolWeight, std::move(client), key)
-                .AsyncVia(Invoker_)
-                .Run();
-        } else {
-            return MakeFuture<double>(TError("Client destroyed"));
+        auto client = Client_.Lock();
+        if (!client) {
+            return MakeFuture<double>(TError(NYT::EErrorCode::Canceled, "Client destroyed"));
         }
+        return BIND(GetPoolWeight, std::move(client), key)
+            .AsyncVia(Invoker_)
+            .Run();
     }
 
     static double GetPoolWeight(const NApi::NNative::IClientPtr& client, const TString& pool)
@@ -1088,6 +1092,9 @@ private:
         auto req = TYPathProxy::Get(path + "/@weight");
 
         auto rspOrError = WaitFor(proxy.Execute(req));
+        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            return DefaultQLPoolWeight;
+        }
 
         THROW_ERROR_EXCEPTION_IF_FAILED(
             rspOrError,
@@ -1128,7 +1135,7 @@ public:
         , PoolWeightCache_(New<TPoolWeightCache>(
             config->PoolWeightCache,
             Bootstrap_->GetMasterClient(),
-            Bootstrap_->GetQueryPoolInvoker({}, 1.0, {})))
+            Bootstrap_->GetQueryPoolInvoker({}, DefaultQLPoolWeight, {})))
     { }
 
     // IQuerySubexecutor implementation.
@@ -1143,18 +1150,10 @@ public:
     {
         ValidateReadTimestamp(options.Timestamp);
 
-        double weight = 1.0;
-
-        if (options.ExecutionPool) {
-            auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(*options.ExecutionPool);
-
-            auto weightOrError = WaitFor(PoolWeightCache_->Get(path));
-            if (weightOrError.IsOK()) {
-                weight = weightOrError.Value();
-            } else if (!weightOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                THROW_ERROR weightOrError;
-            }
-        }
+        double weight = options.ExecutionPool
+            ? WaitFor(PoolWeightCache_->Get(*options.ExecutionPool))
+                .ValueOrThrow()
+            : DefaultQLPoolWeight;
 
         auto queryInvoker = Bootstrap_->GetQueryPoolInvoker(
             options.ExecutionPool.value_or(""),
