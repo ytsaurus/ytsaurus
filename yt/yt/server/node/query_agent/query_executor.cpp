@@ -336,6 +336,7 @@ public:
         , Logger(MakeQueryLogger(Query_))
         , TabletSnapshots_(Bootstrap_->GetTabletSlotManager(), Logger)
         , Invoker_(std::move(invoker))
+        , Identity_(NRpc::GetCurrentAuthenticationIdentity())
     { }
 
     TFuture<TQueryStatistics> Execute(TServiceProfilerGuard& profilerGuard)
@@ -354,7 +355,7 @@ public:
         }
 
         if (profilerGuard.GetProfilerTags().empty() && !TabletSnapshots_.GetProfilerTags().empty()) {
-            profilerGuard.SetProfilerTags(AddCurrentUserTag(TabletSnapshots_.GetProfilerTags()));
+            profilerGuard.SetProfilerTags(AddUserTag(TabletSnapshots_.GetProfilerTags(), Identity_));
         }
 
         return BIND(&TQueryExecution::DoExecute, MakeStrong(this))
@@ -383,6 +384,8 @@ private:
     TTabletSnapshotCache TabletSnapshots_;
     const IInvokerPtr Invoker_;
 
+    const NRpc::TAuthenticationIdentity Identity_;
+
     typedef std::function<ISchemafulUnversionedReaderPtr()> TSubreaderCreator;
 
     void LogSplits(const std::vector<TDataRanges>& splits)
@@ -401,7 +404,7 @@ private:
         std::vector<TSubreaderCreator> subreaderCreators,
         std::vector<std::vector<TDataRanges>> readRanges)
     {
-        auto clientOptions = NApi::TClientOptions::FromAuthenticationIdentity(NRpc::GetCurrentAuthenticationIdentity());
+        auto clientOptions = NApi::TClientOptions::FromAuthenticationIdentity(Identity_);
         auto client = Bootstrap_
             ->GetMasterClient()
             ->GetNativeConnection()
@@ -664,7 +667,7 @@ private:
     {
         auto statistics = DoExecuteImpl();
 
-        auto profilerTags = AddCurrentUserTag(TabletSnapshots_.GetProfilerTags());
+        auto profilerTags = AddUserTag(TabletSnapshots_.GetProfilerTags(), Identity_);
         if (!profilerTags.empty()) {
             auto& counters = GetLocallyGloballyCachedValue<TSelectCpuProfilerTrait>(profilerTags);
             TabletNodeProfiler.Increment(counters.CpuTime, DurationToValue(statistics.SyncTime));
@@ -1021,7 +1024,7 @@ private:
                 BlockReadOptions_);
         }
 
-        return New<TProfilingReaderWrapper>(reader, AddCurrentUserTag(profilerTags));
+        return New<TProfilingReaderWrapper>(reader, AddUserTag(profilerTags, Identity_));
     }
 
     ISchemafulUnversionedReaderPtr GetTabletReader(
@@ -1039,7 +1042,7 @@ private:
             Options_.Timestamp,
             BlockReadOptions_);
 
-        return New<TProfilingReaderWrapper>(reader, AddCurrentUserTag(profilerTags));
+        return New<TProfilingReaderWrapper>(reader, AddUserTag(profilerTags, Identity_));
     }
 };
 
