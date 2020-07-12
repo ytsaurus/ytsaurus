@@ -360,11 +360,9 @@ class TBoundedConcurrencyInvoker
 public:
     TBoundedConcurrencyInvoker(
         IInvokerPtr underlyingInvoker,
-        int maxConcurrentInvocations,
-        const NProfiling::TTagIdList& tagIds)
+        int maxConcurrentInvocations)
         : TInvokerWrapper(std::move(underlyingInvoker))
         , MaxConcurrentInvocations_(maxConcurrentInvocations)
-        , SemaphoreCounter_("/semaphore", tagIds)
     { }
 
     virtual void Invoke(TClosure callback) override
@@ -382,9 +380,6 @@ public:
 
 private:
     const int MaxConcurrentInvocations_;
-
-    const NProfiling::TProfiler Profiler = {"/bounded_concurrency_invoker"};
-    NProfiling::TSimpleGauge SemaphoreCounter_;
 
     TSpinLock SpinLock_;
     TRingQueue<TClosure> Queue_;
@@ -417,8 +412,7 @@ private:
     void IncrementSemaphore(int delta)
     {
         Semaphore_ += delta;
-        YT_VERIFY(Semaphore_ >= 0 && Semaphore_ <= MaxConcurrentInvocations_);
-        Profiler.Update(SemaphoreCounter_, Semaphore_);
+        YT_ASSERT(Semaphore_ >= 0 && Semaphore_ <= MaxConcurrentInvocations_);
     }
 
     void RunCallback(TClosure callback)
@@ -430,14 +424,14 @@ private:
         UnderlyingInvoker_->Invoke(BIND(
             &TBoundedConcurrencyInvoker::DoRunCallback,
             MakeStrong(this),
-            Passed(std::move(callback)),
+            std::move(callback),
             Passed(TInvocationGuard(this))));
 
         // Don't leave a dangling pointer behind.
         CurrentSchedulingInvoker_ = nullptr;
     }
 
-    void DoRunCallback(TClosure callback, TInvocationGuard /*invocationGuard*/)
+    void DoRunCallback(const TClosure& callback, TInvocationGuard /*invocationGuard*/)
     {
         TCurrentInvokerGuard guard(UnderlyingInvoker_); // sic!
         callback.Run();
@@ -462,13 +456,11 @@ PER_THREAD TBoundedConcurrencyInvoker* TBoundedConcurrencyInvoker::CurrentSchedu
 
 IInvokerPtr CreateBoundedConcurrencyInvoker(
     IInvokerPtr underlyingInvoker,
-    int maxConcurrentInvocations,
-    const TString& invokerName)
+    int maxConcurrentInvocations)
 {
     return New<TBoundedConcurrencyInvoker>(
-        underlyingInvoker,
-        maxConcurrentInvocations,
-        GetInvokerTagIds(invokerName));
+        std::move(underlyingInvoker),
+        maxConcurrentInvocations);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

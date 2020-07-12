@@ -98,8 +98,10 @@ public:
 
 private:
     const NProfiling::TProfiler Profiler;
-    const NYPath::TYPath Path_;
-    const NProfiling::TTagIdList TagIds_;
+
+    NProfiling::TSimpleGauge Gauge_;
+
+    void Profile();
 };
 
 DEFINE_REFCOUNTED_TYPE(TProfiledAsyncSemaphore)
