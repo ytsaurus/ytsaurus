@@ -684,11 +684,20 @@ TNode SerializeParamsForPutFileToCache(
 
 TNode SerializeParamsForSkyShareTable(
     const TString& serverName,
-    const TYPath& tablePath,
+    const std::vector<TYPath>& tablePaths,
     const TSkyShareTableOptions& options)
 {
     TNode result;
-    SetPathParam(&result, tablePath);
+
+    if (tablePaths.size() == 1) {
+        SetPathParam(&result, tablePaths[0]);
+    } else {
+        auto pathList = TNode::CreateList();
+        for (const auto& p : tablePaths) {
+            pathList.Add(AddPathPrefix(p));
+        }
+        result["paths"] = pathList;
+    }
     result["cluster"] = serverName;
 
     if (options.KeyColumns_) {

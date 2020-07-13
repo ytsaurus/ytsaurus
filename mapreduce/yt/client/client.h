@@ -431,7 +431,7 @@ public:
         const TGetJobStderrOptions& options = TGetJobStderrOptions()) override;
 
     TNode::TListType SkyShareTable(
-        const TYPath& tablePath,
+        const std::vector<TYPath>& tablePaths,
         const TSkyShareTableOptions& options = TSkyShareTableOptions()) override;
 
     TCheckPermissionResponse CheckPermission(

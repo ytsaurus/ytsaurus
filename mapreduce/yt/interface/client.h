@@ -495,7 +495,7 @@ public:
     ///
     /// @see [More info.](https://docs.yandex-team.ru/docs/yt/description/storage/blobtables#sky_share)
     virtual TNode::TListType SkyShareTable(
-        const TYPath& tablePath,
+        const std::vector<TYPath>& tablePaths,
         const TSkyShareTableOptions& options) = 0;
 
     ///
