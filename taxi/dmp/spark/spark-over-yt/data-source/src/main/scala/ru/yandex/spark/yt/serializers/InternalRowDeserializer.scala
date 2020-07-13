@@ -57,6 +57,7 @@ class InternalRowDeserializer(schema: StructType) extends WireRowDeserializer[In
         case LongType => addValue(value)
         case IntegerType => addValue(value.toInt)
         case ShortType => addValue(value.toShort)
+        case ByteType => addValue(value.toByte)
       }
     }
   }

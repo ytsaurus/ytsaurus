@@ -8,11 +8,12 @@ import io.netty.channel.nio.NioEventLoopGroup
 import org.apache.log4j.Logger
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.inside.yt.kosher.impl.{YtUtils => InsideYtUtils}
-import ru.yandex.spark.yt.wrapper.YtJavaConverters._
-import ru.yandex.yt.ytclient.bus.DefaultBusConnector
+import ru.yandex.yt.ytclient.bus.{BusConnector, DefaultBusConnector}
 import ru.yandex.yt.ytclient.proxy.internal.{DiscoveryMethod, HostPort}
 import ru.yandex.yt.ytclient.proxy.{YtClient, YtCluster}
 import ru.yandex.yt.ytclient.rpc.RpcOptions
+import ru.yandex.spark.yt.wrapper.YtJavaConverters._
+import ru.yandex.spark.yt.wrapper.system.SystemUtils
 
 import scala.concurrent.duration.Duration
 import scala.util.{Failure, Success}
@@ -22,23 +23,39 @@ trait YtClientUtils {
 
   def createRpcClient(config: YtClientConfiguration): YtRpcClient = {
     log.info(s"Create RPC YT Client, configuration ${config.copy(token = "*****")}")
+
+    createYtClient(config.timeout) { case (connector, options) => createYtClient(config, connector, options) }
+  }
+
+  def createYtClient(proxy: String, timeout: Duration): YtRpcClient = {
+    createYtClient(timeout) { case (connector, options) =>
+      new SingleProxyYtClient(
+        connector,
+        DefaultRpcCredentials.credentials,
+        options,
+        HostPort.parse(proxy)
+      )
+    }
+  }
+
+  private def createYtClient(timeout: Duration)
+                            (client: (DefaultBusConnector, RpcOptions) => YtClient): YtRpcClient = {
     val connector = new DefaultBusConnector(new NioEventLoopGroup(1), true)
-      .setReadTimeout(toJavaDuration(config.timeout))
-      .setWriteTimeout(toJavaDuration(config.timeout))
+      .setReadTimeout(toJavaDuration(timeout))
+      .setWriteTimeout(toJavaDuration(timeout))
 
     try {
       val rpcOptions = new RpcOptions()
-      rpcOptions.setTimeouts(config.timeout)
+      rpcOptions.setTimeouts(timeout)
 
-      val client = createYtClient(config, connector, rpcOptions)
-
+      val yt = client(connector, rpcOptions)
       try {
-        client.waitProxies.join
+        yt.waitProxies.join
         log.info("YtClient created")
-        YtRpcClient(client, connector)
+        YtRpcClient(yt, connector)
       } catch {
         case e: Throwable =>
-          client.close()
+          yt.close()
           throw e
       }
     } catch {
@@ -68,10 +85,10 @@ trait YtClientUtils {
   }
 
   private def byopLocalEndpoint(config: YtClientConfiguration): Option[HostAndPort] = {
-    if (config.byop.enabled && sys.env.get("SPARK_YT_BYOP_ENABLED").exists(_.toBoolean)) {
+    if (config.byop.enabled && SystemUtils.isEnabled("byop")) {
       for {
-        host <- sys.env.get("SPARK_YT_BYOP_HOST")
-        port <- sys.env.get("SPARK_YT_BYOP_PORT").map(_.toInt)
+        host <- SystemUtils.envGet("byop_host")
+        port <- SystemUtils.envGet("byop_port").map(_.toInt)
       } yield HostAndPort.fromParts(host, port)
     } else None
   }

@@ -1,6 +1,6 @@
 package ru.yandex.spark.yt.format.conf
 
-import ru.yandex.spark.yt.fs.conf.{DurationSecondsConfigEntry, IntConfigEntry}
+import ru.yandex.spark.yt.fs.conf.{BooleanConfigEntry, DurationSecondsConfigEntry, IntConfigEntry}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -22,6 +22,8 @@ object SparkYtConfiguration {
     private val prefix = "read"
 
     case object VectorizedCapacity extends IntConfigEntry(s"$prefix.vectorized.capacity", Some(1000))
+
+    case object ArrowEnabled extends BooleanConfigEntry(s"$prefix.arrow.enabled", Some(false))
 
   }
 

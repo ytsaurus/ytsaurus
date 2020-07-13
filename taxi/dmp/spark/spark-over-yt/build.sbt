@@ -7,12 +7,26 @@ import DebianPackagePlugin.autoImport._
 import ZipPlugin.autoImport._
 import PythonPlugin.autoImport._
 
+val clientVersion = "0.4.6-SNAPSHOT"
+
 lazy val `yt-wrapper` = (project in file("yt-wrapper"))
   .settings(
     libraryDependencies ++= circe,
     libraryDependencies ++= sttp,
     libraryDependencies ++= yandexIceberg,
-    libraryDependencies ++= logging.map(_ % Provided)
+    libraryDependencies ++= logging.map(_ % Provided),
+    libraryDependencies ++= testDeps
+  )
+
+lazy val `proxy-test` = (project in file("proxy-test"))
+  .configs(IntegrationTest)
+  .dependsOn(`yt-wrapper`)
+  .settings(
+    libraryDependencies ++= scaldingArgs,
+    libraryDependencies ++= logging,
+    mainClass in assembly := Some("ru.yandex.spark.yt.arrow.test.ArrowTest"),
+    assemblyJarName in assembly := s"proxy-test.jar",
+    assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = true)
   )
 
 lazy val `spark-launcher` = (project in file("spark-launcher"))
@@ -28,18 +42,18 @@ lazy val `spark-launcher` = (project in file("spark-launcher"))
     assemblyOption in assembly := (assemblyOption in assembly).value.copy(includeScala = true)
   )
 
-lazy val commonDependencies = yandexIceberg ++ spark ++ circe ++ logging.map(_ % Provided)
+lazy val commonDependencies = yandexIceberg ++ spark ++ arrow ++ circe ++ logging.map(_ % Provided)
 
 lazy val `data-source` = (project in file("data-source"))
   .enablePlugins(PythonPlugin)
   .configs(IntegrationTest)
   .dependsOn(`yt-wrapper`, `file-system`, `yt-wrapper` % "test->test", `file-system` % "test->test")
   .settings(
-    version := "0.4.6-SNAPSHOT",
+    version := clientVersion,
     Defaults.itSettings,
     libraryDependencies ++= itTestDeps,
     libraryDependencies ++= commonDependencies,
-    libraryDependencies += organization.value %% "spark-yt-common-utils" % "0.0.1",
+    libraryDependencies += "ru.yandex" %% "spark-yt-common-utils" % "0.0.1",
     assemblyJarName in assembly := "spark-yt-data-source.jar",
     zipPath := Some(target.value / "spyt.zip"),
     zipMapping += sourceDirectory.value / "main" / "python" / "spyt" -> "",
@@ -70,11 +84,18 @@ lazy val `file-system` = (project in file("file-system"))
     libraryDependencies ++= commonDependencies
   )
   .settings(
+    assemblyMergeStrategy in assembly := {
+      case x if x endsWith "ahc-default.properties" => MergeStrategy.first
+      case x =>
+        val oldStrategy = (assemblyMergeStrategy in assembly).value
+        oldStrategy(x)
+    },
     assemblyShadeRules in assembly ++= Seq(
       ShadeRule.rename(
         "ru.yandex.spark.yt.fs.YtFileSystem" -> "ru.yandex.spark.yt.fs.YtFileSystem",
         "ru.yandex.misc.log.**" -> "ru.yandex.misc.log.@1",
-        "ru.yandex.**" -> "shadedyandex.@1"
+        "ru.yandex.**" -> "shadedyandex.ru.yandex.@1",
+        "org.asynchttpclient.**" -> "shadedyandex.org.asynchttpclient.@1"
       ).inAll
     ),
     test in assembly := {}
@@ -148,10 +169,13 @@ lazy val `common-logging` = (project in file("common-logging"))
 // benchmark and test ----
 
 lazy val benchmark = (project in file("benchmark"))
-  .dependsOn(`data-source`)
   .settings(
-    libraryDependencies ++= spark,
-    libraryDependencies ++= yandexIceberg
+    unmanagedJars in Compile ++= {
+      val spark = file("/Users/sashbel/Documents/repos/spark/dist/jars")
+      val dataSource = baseDirectory.value.getParentFile / "data-source"/ "target" / "scala-2.12" / "spark-yt-data-source.jar"
+      dataSource +: (spark.listFiles().toSeq)
+    },
+    libraryDependencies ++= sttp
   )
 
 lazy val `test-job` = (project in file("test-job"))
@@ -169,4 +193,4 @@ lazy val `test-job` = (project in file("test-job"))
 // -----
 
 lazy val root = (project in file("."))
-  .aggregate(`data-source`)
+  .aggregate(`data-source`, `benchmark`)

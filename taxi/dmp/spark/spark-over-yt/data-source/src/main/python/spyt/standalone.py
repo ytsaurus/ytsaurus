@@ -28,7 +28,7 @@ class SparkDefaultArguments(object):
     DYNAMIC_CONFIG_PATH = "//sys/spark/bin/releases/spark-launch-conf"
     SPARK_WORKER_TIMEOUT = "5m"
     SPARK_WORKER_CORES_OVERHEAD = 1
-    SPARK_WORKER_CORES_BYOP_OVERHEAD = 8
+    SPARK_WORKER_CORES_BYOP_OVERHEAD = 2
 
     @staticmethod
     def get_params():
@@ -220,7 +220,8 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
         "Spark over YT": {
             "discovery_path": spark_discovery.base_discovery_path,
             "version": config["cluster_version"],
-            "byop_enabled": enablers.enable_byop
+            "enable_byop": enablers.enable_byop,
+            "enable_arrow": enablers.enable_arrow
         }
     }
 
@@ -260,6 +261,9 @@ def build_spark_operation_spec(operation_alias, spark_discovery, config,
     if ytserver_proxy_path and enablers.enable_byop:
         worker_file_paths.append(ytserver_proxy_path)
         operation_spec["description"]["BYOP"] = ytserver_proxy_attributes(ytserver_proxy_path, client=client)
+
+    if enablers.enable_profiling:
+        worker_file_paths.append("//home/sashbel/profiler.zip")
 
     secure_vault = {"YT_USER": user, "YT_TOKEN": get_token(client=client)}
 

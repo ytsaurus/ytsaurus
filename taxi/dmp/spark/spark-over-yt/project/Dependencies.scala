@@ -9,6 +9,19 @@ object Dependencies {
   lazy val yandexBoltsVersion = "6663186"
   lazy val slf4jVersion = "1.7.28"
   lazy val scalatraVersion = "2.7.0"
+  lazy val mockitoVersion = "1.14.4"
+  lazy val arrowVersion = "0.17.1"
+
+  lazy val arrow = Seq(
+    "org.apache.arrow" % "arrow-format",
+    "org.apache.arrow" % "arrow-memory",
+    "org.apache.arrow" % "arrow-vector"
+  ).map(_ % arrowVersion excludeAll (
+    ExclusionRule(organization = "com.fasterxml.jackson.core"),
+    ExclusionRule(organization = "org.slf4j")
+  )) ++ Seq(
+    "io.netty" % "netty-all" % "4.1.27.Final"
+  )
 
   lazy val circe = ("io.circe" %% "circe-yaml" % circeYamlVersion) +: Seq(
     "io.circe" %% "circe-core",
@@ -16,11 +29,16 @@ object Dependencies {
     "io.circe" %% "circe-parser"
   ).map(_ % circeVersion)
 
+  lazy val mockito = Seq(
+    "org.mockito" %% "mockito-scala-scalatest" % mockitoVersion % Test,
+    "org.mockito" %% "mockito-scala" % mockitoVersion % Test
+  )
+
   lazy val testDeps = Seq(
     "org.scalacheck" %% "scalacheck" % "1.14.1" % Test,
     "org.scalactic" %% "scalactic" % scalatestVersion,
     "org.scalatest" %% "scalatest" % scalatestVersion % Test
-  )
+  ) ++ mockito
 
   lazy val itTestDeps = Seq(
     "org.scalacheck" %% "scalacheck" % "1.14.1" % "it,test",
@@ -40,8 +58,15 @@ object Dependencies {
   lazy val yandexIceberg = Seq(
     "ru.yandex" % "iceberg-inside-yt" % yandexIcebergVersion excludeAll (
       ExclusionRule(organization = "com.fasterxml.jackson.core"),
-      ExclusionRule(organization = "ru.yandex", name = "iceberg-bolts"),
+      ExclusionRule(organization = "ru.yandex", name = "java-ytclient"),
+      ExclusionRule(organization = "ru.yandex", name = "yt-client-protos"),
+      ExclusionRule(organization = "ru.yandex", name = "iceberg-bolts")
     ),
+    "ru.yandex" % "java-ytclient" % "custom" excludeAll (
+      ExclusionRule(organization = "ru.yandex", name = "yt-client-protos"),
+      ExclusionRule(organization = "ru.yandex", name = "iceberg-bolts")
+    ),
+    "ru.yandex" % "yt-client-protos" % "custom",
     "ru.yandex" % "iceberg-bolts" % yandexBoltsVersion
   ).excludeLogging
 

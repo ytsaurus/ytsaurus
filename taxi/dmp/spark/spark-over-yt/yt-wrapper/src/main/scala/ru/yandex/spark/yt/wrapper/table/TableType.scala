@@ -1,4 +1,4 @@
-package ru.yandex.spark.yt.wrapper.cypress
+package ru.yandex.spark.yt.wrapper.table
 
 sealed trait TableType
 

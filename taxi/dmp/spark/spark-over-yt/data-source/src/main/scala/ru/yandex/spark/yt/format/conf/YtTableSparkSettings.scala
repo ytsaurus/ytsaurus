@@ -26,6 +26,12 @@ case class YtTableSparkSettings(configuration: Configuration) extends YtTableSet
 }
 
 object YtTableSparkSettings {
+  // read
+  case object OptimizedForScan extends BooleanConfigEntry("is_scan")
+
+  case object ArrowEnabled extends BooleanConfigEntry("arrow_enabled", Some(true))
+
+  // write
   case object SortColumns extends StringListConfigEntry("sort_columns", Some(Nil))
 
   case object Schema extends StructTypeConfigEntry("schema")

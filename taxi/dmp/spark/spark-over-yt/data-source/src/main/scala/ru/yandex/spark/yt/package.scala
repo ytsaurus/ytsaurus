@@ -8,6 +8,7 @@ import ru.yandex.spark.yt.fs.{GlobalTableSettings, YtClientProvider}
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.yt.ytclient.proxy.YtClient
 import org.apache.spark.sql.functions._
+import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 
 package object yt {
   lazy val yt: YtClient = YtClientProvider.ytClient(ytClientConfiguration(SparkSession.getDefaultSession.get))
@@ -38,6 +39,18 @@ package object yt {
         fields.map { case (name, dataType) => StructField(name, dataType) }: _*
       )
     }
+
+    def enableArrow(enable: Boolean): DataFrameReader = {
+      reader.option(YtTableSparkSettings.ArrowEnabled.name, enable.toString)
+    }
+
+    def enableArrow: DataFrameReader = {
+      enableArrow(true)
+    }
+
+    def disableArrow: DataFrameReader = {
+      enableArrow(false)
+    }
   }
 
   implicit class YtWriter[T](writer: DataFrameWriter[T]) {
@@ -45,6 +58,10 @@ package object yt {
 
     def optimizeFor(optimizeMode: OptimizeMode): DataFrameWriter[T] = {
       writer.option(YtTableSparkSettings.OptimizeFor.name, optimizeMode.name)
+    }
+
+    def optimizeFor(optimizeMode: String): DataFrameWriter[T] = {
+      optimizeFor(OptimizeMode.fromName(optimizeMode))
     }
 
     def sortedBy(cols: String*): DataFrameWriter[T] = {

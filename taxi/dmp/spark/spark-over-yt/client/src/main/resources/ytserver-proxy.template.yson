@@ -1,4 +1,8 @@
 {
+    "bus_server" = {
+        "generate_checksums" = %false;
+        "verify_checksums" = %false;
+    };
     "address_resolver" = {
         "enable_ipv4" = "false";
         "enable_ipv6" = "true";
@@ -24,6 +28,10 @@
         "thread_pool_size" = 8;
         "udf_registry_path" = "//sys/udfs";
         "upload_transaction_timeout" = 30000;
+        "bus_client" = {
+            "generate_checksums" = %false;
+            "verify_checksums" = %false;
+        };
     };
     "cypress_token_authenticator" = {
         "secure" = %true;
@@ -39,6 +47,10 @@
             {
                 "exclude_categories" = [
                     "Bus";
+                    "Http";
+                    "Concurrency";
+                    "Profiling";
+                    "Arrow";
                 ];
                 "min_level" = "debug";
                 "writers" = [

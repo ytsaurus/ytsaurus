@@ -1,27 +1,25 @@
-package ru.yandex.spark.yt.format
+package org.apache.spark.sql
 
-import net.sf.saxon.`type`.AtomicType
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FileStatus, Path}
 import org.apache.hadoop.mapreduce.{Job, TaskAttemptContext}
 import org.apache.log4j.Logger
 import org.apache.spark.TaskContext
-import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.execution.datasources._
-import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
-import org.apache.spark.sql.types.StructType
-import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration, SparkYtWriteConfiguration, YtTableSparkSettings}
+import org.apache.spark.sql.types.{AtomicType, StructType}
+import org.apache.spark.sql.vectorized.ColumnVector
+import ru.yandex.spark.yt.format._
+import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read._
+import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.fs.{YtClientProvider, YtPath}
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.YtClient
-
-import scala.util.{Failure, Success, Try}
 
 class YtFileFormat extends FileFormat with DataSourceRegister with Serializable {
   override def inferSchema(sparkSession: SparkSession,
@@ -40,8 +38,10 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
   }
 
 
-  override def vectorTypes(requiredSchema: StructType, partitionSchema: StructType, sqlConf: SQLConf): Option[Seq[String]] = {
-    Option(Seq.fill(requiredSchema.length)(classOf[OnHeapColumnVector].getName))
+  override def vectorTypes(requiredSchema: StructType,
+                           partitionSchema: StructType,
+                           sqlConf: SQLConf): Option[Seq[String]] = {
+    Option(Seq.fill(requiredSchema.length)(classOf[ColumnVector].getName))
   }
 
   override def buildReaderWithPartitionValues(sparkSession: SparkSession,
@@ -53,21 +53,37 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
                                               hadoopConf: Configuration): PartitionedFile => Iterator[InternalRow] = {
     import ru.yandex.spark.yt.fs.conf._
     val ytClientConf = ytClientConfiguration(hadoopConf)
-    val readBatch = supportBatch(sparkSession, requiredSchema, options.get("is_dynamic").exists(_.toBoolean))
-    val vectorizedReaderCapacity = hadoopConf.ytConf(SparkYtConfiguration.Read.VectorizedCapacity)
+
+    val arrowEnabledValue = arrowEnabled(options, hadoopConf)
+    val readBatch = canReadBatch(requiredSchema, options, hadoopConf)
+    val returnBatch = supportBatch(sparkSession, requiredSchema, options)
+
+    val batchMaxSize = hadoopConf.ytConf(VectorizedCapacity)
+
+    val log = Logger.getLogger(getClass)
+    log.info(s"Batch read enabled: $readBatch")
+    log.info(s"Batch return enabled: $returnBatch")
+    log.info(s"Arrow enabled: $arrowEnabledValue")
 
     {
       case ypf: YtPartitionedFile =>
         val log = Logger.getLogger(getClass)
         implicit val yt: YtClient = YtClientProvider.ytClient(ytClientConf)
         val split = YtInputSplit(ypf, requiredSchema)
-        log.info(s"Read path: ${split.ytPath}")
+        log.info(s"Reading ${split.ytPath}")
+        log.info(s"Batch read enabled: $readBatch")
+        log.info(s"Batch return enabled: $returnBatch")
+        log.info(s"Arrow enabled: $arrowEnabledValue")
         if (readBatch) {
-          val ytVectorizedReader = new YtVectorizedReader(vectorizedReaderCapacity, ytClientConf.timeout)
+          val ytVectorizedReader = new YtVectorizedReader(
+            split = split,
+            batchMaxSize = batchMaxSize,
+            returnBatch = returnBatch,
+            arrowEnabled = arrowEnabledValue,
+            timeout = ytClientConf.timeout
+          )
           val iter = new RecordReaderIterator(ytVectorizedReader)
-          if (readBatch) ytVectorizedReader.enableBatch()
           Option(TaskContext.get()).foreach(_.addTaskCompletionListener[Unit](_ => iter.close()))
-          ytVectorizedReader.initialize(split, null)
           iter.asInstanceOf[Iterator[InternalRow]]
         } else {
           val tableIterator = YtWrapper.readTable(
@@ -109,7 +125,28 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
     false
   }
 
-  def supportBatch(sparkSession: SparkSession, dataSchema: StructType, isDynamic: Boolean): Boolean = {
-    !isDynamic && dataSchema.forall(f => f.dataType.isInstanceOf[AtomicType])
+  def canReadBatch(dataSchema: StructType, options: Map[String, String], hadoopConf: Configuration): Boolean = {
+    import ru.yandex.spark.yt.format.conf.{YtTableSparkSettings => TableSettings}
+    val optimizedForScan = options.get(TableSettings.OptimizedForScan.name).exists(_.toBoolean)
+    (optimizedForScan && arrowEnabled(options, hadoopConf) && arrowSchemaSupported(dataSchema)) || dataSchema.isEmpty
+  }
+
+  def arrowSchemaSupported(dataSchema: StructType): Boolean = {
+    dataSchema.forall(_.dataType.isInstanceOf[AtomicType])
+  }
+
+  def arrowEnabled(options: Map[String, String], hadoopConf: Configuration): Boolean = {
+    import ru.yandex.spark.yt.format.conf.{SparkYtConfiguration => SparkSettings, YtTableSparkSettings => TableSettings}
+    import ru.yandex.spark.yt.fs.conf._
+    options.ytConf(TableSettings.ArrowEnabled) && hadoopConf.ytConf(SparkSettings.Read.ArrowEnabled)
+  }
+
+  def supportBatch(sparkSession: SparkSession, dataSchema: StructType, options: Map[String, String]): Boolean = {
+    val conf = sparkSession.sessionState.conf
+    val hadoopConf = sparkSession.sparkContext.hadoopConfiguration
+
+    canReadBatch(dataSchema, options, hadoopConf) && conf.wholeStageEnabled &&
+      dataSchema.length <= conf.wholeStageMaxNumFields &&
+      dataSchema.forall(_.dataType.isInstanceOf[AtomicType])
   }
 }
