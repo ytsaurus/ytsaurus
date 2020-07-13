@@ -163,6 +163,8 @@ void Deserialize(NSkiff::TSkiffSchemaPtr& schema, const TNode& node)
                 return CreateVariant8Schema(std::move(children));
             case EWireType::Variant16:
                 return CreateVariant16Schema(std::move(children));
+            case EWireType::RepeatedVariant8:
+                return CreateRepeatedVariant8Schema(std::move(children));
             case EWireType::RepeatedVariant16:
                 return CreateRepeatedVariant16Schema(std::move(children));
             default:
