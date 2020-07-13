@@ -284,14 +284,19 @@ private:
                     transactionId = commit->GetTransactionId(),
                     generatePrepareTimestamp = commit->GetGeneratePrepareTimestamp(),
                     inheritCommitTimestamp = commit->GetInheritCommitTimestamp(),
-                    cellIdsToSyncWith = commit->CellIdsToSyncWithBeforePrepare()
+                    cellIdsToSyncWith = commit->CellIdsToSyncWithBeforePrepare(),
+                    identity = commit->AuthenticationIdentity()
                 ]
                 (const ITransactionParticipantPtr& participant) {
                     auto prepareTimestamp = GeneratePrepareTimestamp(
                         participant,
                         generatePrepareTimestamp,
                         inheritCommitTimestamp);
-                    return participant->PrepareTransaction(transactionId, prepareTimestamp, cellIdsToSyncWith);
+                    return participant->PrepareTransaction(
+                        transactionId,
+                        prepareTimestamp,
+                        cellIdsToSyncWith,
+                        identity);
                 });
         }
 
@@ -301,11 +306,18 @@ private:
                 true,
                 false,
                 commit,
-                [transactionId = commit->GetTransactionId(), commitTimestamps = commit->CommitTimestamps()]
+                [
+                    transactionId = commit->GetTransactionId(),
+                    commitTimestamps = commit->CommitTimestamps(),
+                    identity = commit->AuthenticationIdentity()
+                ]
                 (const ITransactionParticipantPtr& participant) {
                     auto cellTag = CellTagFromId(participant->GetCellId());
                     auto commitTimestamp = commitTimestamps.GetTimestamp(cellTag);
-                    return participant->CommitTransaction(transactionId, commitTimestamp);
+                    return participant->CommitTransaction(
+                        transactionId,
+                        commitTimestamp,
+                        identity);
                 });
         }
 
@@ -315,9 +327,14 @@ private:
                 true,
                 false,
                 commit,
-                [transactionId = commit->GetTransactionId()]
+                [
+                    transactionId = commit->GetTransactionId(),
+                    identity = commit->AuthenticationIdentity()
+                ]
                 (const ITransactionParticipantPtr& participant) {
-                    return participant->AbortTransaction(transactionId);
+                    return participant->AbortTransaction(
+                        transactionId,
+                        identity);
                 });
         }
 

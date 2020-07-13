@@ -64,41 +64,47 @@ public:
     virtual TFuture<void> PrepareTransaction(
         TTransactionId transactionId,
         TTimestamp prepareTimestamp,
-        const std::vector<TCellId>& cellIdsToSyncWith) override
+        const std::vector<TCellId>& cellIdsToSyncWith,
+        const NRpc::TAuthenticationIdentity& identity) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
                 auto req = proxy->PrepareTransaction();
                 PrepareRequest(req);
+                NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_prepare_timestamp(prepareTimestamp);
                 ToProto(req->mutable_cell_ids_to_sync_with(), cellIdsToSyncWith);
-                // req->SetUser(user); XXX
                 return req;
             });
     }
 
     virtual TFuture<void> CommitTransaction(
         TTransactionId transactionId,
-        TTimestamp commitTimestamp) override
+        TTimestamp commitTimestamp,
+        const NRpc::TAuthenticationIdentity& identity) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
                 auto req = proxy->CommitTransaction();
                 PrepareRequest(req);
+                NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_commit_timestamp(commitTimestamp);
                 return req;
             });
     }
 
-    virtual TFuture<void> AbortTransaction(TTransactionId transactionId) override
+    virtual TFuture<void> AbortTransaction(
+        TTransactionId transactionId,
+        const NRpc::TAuthenticationIdentity& identity) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqAbortTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
                 auto req = proxy->AbortTransaction();
                 req->SetHeavy(true);
                 PrepareRequest(req);
+                NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 return req;
             });

@@ -4,6 +4,8 @@
 
 #include <yt/client/transaction_client/public.h>
 
+#include <yt/core/rpc/public.h>
+
 namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,12 +32,15 @@ struct ITransactionParticipant
     virtual TFuture<void> PrepareTransaction(
         TTransactionId transactionId,
         TTimestamp prepareTimestamp,
-        const std::vector<TCellId>& cellIdsToSyncWith) = 0;
+        const std::vector<TCellId>& cellIdsToSyncWith,
+        const NRpc::TAuthenticationIdentity& identity) = 0;
     virtual TFuture<void> CommitTransaction(
         TTransactionId transactionId,
-        TTimestamp commitTimestamp) = 0;
+        TTimestamp commitTimestamp,
+        const NRpc::TAuthenticationIdentity& identity) = 0;
     virtual TFuture<void> AbortTransaction(
-        TTransactionId transactionId) = 0;
+        TTransactionId transactionId,
+        const NRpc::TAuthenticationIdentity& identity) = 0;
 
     virtual TFuture<void> CheckAvailability() = 0;
 };
