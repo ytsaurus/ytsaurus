@@ -62,7 +62,9 @@ case class SparkGlobalConfig(spark_conf: Map[String, String],
                              environment: Map[String, String] = Map(
                                "JAVA_HOME" -> "/opt/jdk8",
                                "IS_SPARK_CLUSTER" -> "true",
-                               "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB" -> "1"
+                               "YT_ALLOW_HTTP_REQUESTS_TO_YT_FROM_JOB" -> "1",
+                               "ARROW_ENABLE_NULL_CHECK_FOR_GET" -> "false",
+                               "ARROW_ENABLE_UNSAFE_MEMORY_ACCESS" -> "true"
                              ),
                              operation_spec: Map[String, String] = Map(),
                              ytserver_proxy_path: String = SparkLaunchConfig.defaultYtServerProxyPath) extends YsonableConfig
