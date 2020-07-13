@@ -3477,6 +3477,8 @@ void TRootElement::ConsumeAndRefillIntegralPools(TUpdateFairShareContext* contex
 void TRootElement::UpdateRelaxedIntegralShares(TUpdateFairShareContext* context, double availableShareRatio)
 {
     YT_VERIFY(Mutable_);
+    auto burstGuaranteeRatio = Attributes_.FairShare.IntegralGuaranteeRatio;
+
     ComputeByFitting<TPoolPtr>(
         context->RelaxedPools,
         [&] (double fitFactor, const TPoolPtr& pool) -> double {
@@ -3491,6 +3493,11 @@ void TRootElement::UpdateRelaxedIntegralShares(TUpdateFairShareContext* context,
             pool->IncreaseHierarchicalIntegralShareRatio(value);
         },
         availableShareRatio);
+
+    YT_LOG_DEBUG("Distributed guaranteed shares: {MinShareGuaranteeRatio: %v, BurstGuaranteeRatio: %v, RelaxedGuaranteeRatio: %v}",
+        Attributes_.FairShare.MinShareGuaranteeRatio,
+        burstGuaranteeRatio,
+        Attributes_.FairShare.IntegralGuaranteeRatio - burstGuaranteeRatio);
 }
 
 bool TRootElement::IsRoot() const
