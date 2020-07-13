@@ -27,13 +27,13 @@ object ConfigTypeConverter {
           case Boolean => BooleanType
           case String => StringType
           case Any => BinaryType
-          case Int8 => ShortType
+          case Int8 => ByteType
           case Uint8 => ShortType
-          case Int16 => IntegerType
+          case Int16 => ShortType
           case Uint16 => IntegerType
           case Int32 => IntegerType
-          case Uint32 => IntegerType
-//          case Utf8 => StringType
+          case Uint32 => LongType
+          case Utf8 => StringType
 //          case Date =>
 //          case Datetime => IntegerType
 //          case Timestamp => LongType
@@ -47,9 +47,11 @@ object ConfigTypeConverter {
   def stringType(sparkType: DataType): String = {
     sparkType match {
       case StringType => YtLogicalType.String.name
-      case ShortType => YtLogicalType.Int8.name
+      case ByteType => YtLogicalType.Int8.name
+      case ShortType => YtLogicalType.Int16.name
       case IntegerType => YtLogicalType.Int32.name
       case LongType => YtLogicalType.Int64.name
+      case FloatType => YtLogicalType.Double.name
       case DoubleType => YtLogicalType.Double.name
       case BooleanType => YtLogicalType.Boolean.name
       case BinaryType => YtLogicalType.Any.name

@@ -2,7 +2,6 @@ package org.apache.spark.sql.yt
 
 import org.apache.hadoop.fs.{BlockLocation, FileStatus, LocatedFileStatus, Path}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
 import org.apache.spark.sql.catalyst.catalog.BucketSpec
 import org.apache.spark.sql.catalyst.expressions.{Ascending, Attribute, Expression, SortOrder, UnsafeProjection}
 import org.apache.spark.sql.catalyst.plans.QueryPlan
@@ -13,9 +12,11 @@ import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.execution.datasources.parquet.{ParquetFileFormat => ParquetSource}
 import org.apache.spark.sql.execution.metric.SQLMetrics
 import org.apache.spark.sql.types.StructType
+import org.apache.spark.sql.{SparkSession, YtFileFormat}
 import org.apache.spark.util.collection.BitSet
-import ru.yandex.spark.yt.format.{YtFileFormat, YtPartitionedFile}
-import ru.yandex.spark.yt.fs.{YtDynamicPath, YtFileStatus, YtStaticPath}
+import ru.yandex.spark.yt.format.YtPartitionedFile
+import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
+import ru.yandex.spark.yt.fs.{YtDynamicPath, YtFileStatus, YtPath, YtStaticPath}
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -29,21 +30,28 @@ case class YtSourceScanExec(
                              override val tableIdentifier: Option[TableIdentifier])
   extends DataSourceScanExec with ColumnarBatchScan {
 
-  lazy val isDynamicTable: Boolean = relation.fileFormat match {
+  lazy val optimizedForScan: Boolean = relation.fileFormat match {
     case yf: YtFileFormat =>
       relation.location.asInstanceOf[InMemoryFileIndex]
-        .allFiles().exists{
-        case status: YtFileStatus => status.isDynamic
-        case _: FileStatus => false
+        .allFiles().forall { fileStatus =>
+        YtPath.fromPath(fileStatus.getPath) match {
+          case _: YtDynamicPath => false
+          case yp: YtStaticPath => yp.optimizedForScan
+          case _ => false
+        }
       }
     case _ => false
   }
+
+  lazy val relationOptions: Map[String, String] = relation.options + (
+    YtTableSparkSettings.OptimizedForScan.name -> optimizedForScan.toString
+  )
 
   // Note that some vals referring the file-based relation are lazy intentionally
   // so that this plan can be canonicalized on executor side too. See SPARK-23731.
   override lazy val supportsBatch: Boolean = relation.fileFormat match {
     case yf: YtFileFormat =>
-      yf.supportBatch(relation.sparkSession, StructType.fromAttributes(output), isDynamicTable)
+      yf.supportBatch(relation.sparkSession, StructType.fromAttributes(output), relationOptions)
     case f => f.supportBatch(relation.sparkSession, StructType.fromAttributes(output))
   }
 
@@ -181,7 +189,6 @@ case class YtSourceScanExec(
   private lazy val inputRDD: RDD[InternalRow] = {
     // Update metrics for taking effect in both code generation node and normal node.
     updateDriverMetrics()
-    val options = relation.options + ("is_dynamic" -> isDynamicTable.toString)
     val readFile: (PartitionedFile) => Iterator[InternalRow] =
       relation.fileFormat.buildReaderWithPartitionValues(
         sparkSession = relation.sparkSession,
@@ -189,8 +196,8 @@ case class YtSourceScanExec(
         partitionSchema = relation.partitionSchema,
         requiredSchema = requiredSchema,
         filters = pushedDownFilters,
-        options = options,
-        hadoopConf = relation.sparkSession.sessionState.newHadoopConfWithOptions(relation.options))
+        options = relationOptions,
+        hadoopConf = relation.sparkSession.sessionState.newHadoopConfWithOptions(relationOptions))
 
     relation.bucketSpec match {
       case Some(bucketing) if relation.sparkSession.sessionState.conf.bucketingEnabled =>
@@ -305,13 +312,16 @@ case class YtSourceScanExec(
     val bytesPerCore = totalBytes / defaultParallelism
 
     val maxSplitBytes = fsRelation.options.get("maxSplitRows").map(_.toLong)
-      .orElse(selectedPartitions.headOption.flatMap(_.files.headOption).flatMap {
-        case f: YtFileStatus => Some(f.avgChunkSize)
-        case _ => None
-      })
+      .orElse {
+        selectedPartitions.headOption.flatMap(_.files.headOption).flatMap {
+          case f: YtFileStatus => Some(f.avgChunkSize)
+          case f => YtStaticPath.fromPath(f.getPath).map(_.rowCount)
+        }
+      }
       .getOrElse {
         Math.min(defaultMaxSplitBytes, Math.max(openCostInBytes, bytesPerCore))
       }
+
     logInfo(s"Planning scan with bin packing, max size: $maxSplitBytes bytes, " +
       s"open cost is considered as scanning $openCostInBytes bytes.")
 
@@ -324,20 +334,13 @@ case class YtSourceScanExec(
             val remaining = file.getLen - offset
             val size = if (remaining > maxSplitBytes) maxSplitBytes else remaining
             val hosts = getBlockHosts(blockLocations, offset, size)
-            file.getPath match {
+            YtPath.fromPath(file.getPath) match {
               case yp: YtDynamicPath =>
                 new YtPartitionedFile(yp.stringPath, yp.beginKey, yp.endKey, 0, 1, isDynamic = true, yp.keyColumns)
               case yp: YtStaticPath =>
                 new YtPartitionedFile(yp.stringPath, Array.empty, Array.empty, yp.beginRow + offset,
                   yp.beginRow + offset + size, isDynamic = false, Nil)
-              case p =>
-                YtStaticPath.fromPath(p) match {
-                  case Some(yp) =>
-                    new YtPartitionedFile(yp.stringPath, Array.empty, Array.empty, yp.beginRow + offset,
-                      yp.beginRow + offset + size, isDynamic = false, Nil)
-                  case None =>
-                    PartitionedFile(partition.values, p.toUri.toString, 0, file.getLen, hosts)
-                }
+              case p => PartitionedFile(partition.values, p.toUri.toString, 0, file.getLen, hosts)
             }
           }
         } else {

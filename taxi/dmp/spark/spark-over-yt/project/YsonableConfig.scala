@@ -80,7 +80,7 @@ case class SparkLaunchConfig(spark_yt_base_path: String,
   }
 }
 
-case class SpytEnablers(enable_byop: Boolean = true) extends YsonableConfig
+case class SpytEnablers(enable_byop: Boolean = true, enable_arrow: Boolean = true) extends YsonableConfig
 
 object SparkLaunchConfig {
   val defaultYtServerProxyPath = "//sys/bin/ytserver-proxy/ytserver-proxy"

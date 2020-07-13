@@ -18,6 +18,8 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with B
 
   import workerArgs._
 
+  prepareProfiler()
+
   withDiscovery(ytConfig, discoveryPath) { discoveryService =>
     log.info("Waiting for master http address")
     val masterAddress = discoveryService.waitAddress(waitMasterTimeout)

@@ -76,11 +76,13 @@ class InternalRowSerializer(schema: StructType) extends WireRowSerializer[Intern
           case atomic =>
             writeHeader(writeable, idMapping, i, 0)
             atomic match {
+              case ByteType => writeable.onInteger(row.getByte(i))
+              case ShortType => writeable.onInteger(row.getShort(i))
+              case IntegerType => writeable.onInteger(row.getInt(i))
               case LongType => writeable.onInteger(row.getLong(i))
               case BooleanType => writeable.onBoolean(row.getBoolean(i))
-              case IntegerType => writeable.onInteger(row.getInt(i))
+              case FloatType => writeable.onDouble(row.getFloat(i))
               case DoubleType => writeable.onDouble(row.getDouble(i))
-              case ShortType => writeable.onInteger(row.getShort(i))
             }
         }
       }

@@ -55,8 +55,10 @@ class TableIterator[T](reader: TableReader[T], timeout: Duration) extends Iterat
   }
 
   override def close(): Unit = {
-    log.debugLazy("Close reader")
-    reader.close().get(timeout.toMillis, TimeUnit.MILLISECONDS)
-    log.debugLazy("Reader closed")
+    if (reader.canRead) {
+      reader.cancel()
+    } else {
+      reader.close().get(timeout.toMillis, TimeUnit.MILLISECONDS)
+    }
   }
 }

@@ -24,10 +24,12 @@ object SchemaConverter {
 
   def ytType(sparkType: DataType): ColumnValueType = {
     sparkType match {
-      case ShortType => ColumnValueType.INT64
       case StringType => ColumnValueType.STRING
+      case ByteType => ColumnValueType.INT64
+      case ShortType => ColumnValueType.INT64
       case IntegerType => ColumnValueType.INT64
       case LongType => ColumnValueType.INT64
+      case FloatType => ColumnValueType.DOUBLE
       case DoubleType => ColumnValueType.DOUBLE
       case BooleanType => ColumnValueType.BOOLEAN
       case _: ArrayType => ColumnValueType.ANY
@@ -89,10 +91,11 @@ object SchemaConverter {
   }
 
   def ytLogicalType(sparkType: DataType): YtLogicalType = sparkType match {
-    case ShortType => YtLogicalType.Int8
-    case StringType => YtLogicalType.String
+    case ByteType => YtLogicalType.Int8
+    case ShortType => YtLogicalType.Int16
     case IntegerType => YtLogicalType.Int32
     case LongType => YtLogicalType.Int64
+    case StringType => YtLogicalType.String
     case DoubleType => YtLogicalType.Double
     case BooleanType => YtLogicalType.Boolean
     case _: ArrayType => YtLogicalType.Any

@@ -3,9 +3,10 @@ package ru.yandex.spark.yt.wrapper.file
 import java.io.OutputStream
 import java.util.concurrent.CompletableFuture
 
+import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.client.{YtClientUtils, YtRpcClient}
-import ru.yandex.spark.yt.wrapper.cypress.YtCypressUtils
+import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl
 import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType, ReadFile, WriteFile}
@@ -54,7 +55,11 @@ trait YtFileUtils {
   }
 
   def fileSize(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Long = {
-    attribute(path, "compressed_data_size", transaction).longValue()
+    attribute(path, YtAttributes.compressedDataSize, transaction).longValue()
+  }
+
+  def fileSize(attrs: Map[String, YTreeNode]): Long = {
+    attrs(YtAttributes.compressedDataSize).longValue()
   }
 
   private def writeFileWithTimeout(req: WriteFile, timeout: Duration)

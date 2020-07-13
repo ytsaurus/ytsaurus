@@ -3,6 +3,7 @@ package ru.yandex.spark.yt.fs
 import org.apache.hadoop.conf.Configuration
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.SQLContext
+import org.apache.spark.sql.internal.SQLConf
 
 import scala.util.Try
 
@@ -28,6 +29,17 @@ package object conf {
     }
   }
 
+  implicit class SparkYtSqlConf(sqlConf: SQLConf) extends ConfProvider {
+    private val configurationPrefix = "spark.hadoop.yt"
+
+    override def getYtConf(name: String): Option[String] = {
+      val confName = s"$configurationPrefix.$name"
+      if (sqlConf.contains(confName)) {
+        Some(sqlConf.getConfString(confName))
+      } else None
+    }
+  }
+
   implicit class SparkYtSparkConf(sparkConf: SparkConf) extends ConfProvider {
     private val configurationPrefix = "spark.yt"
 
@@ -50,6 +62,10 @@ package object conf {
     def setYtConf[T](configEntry: ConfigEntry[T], value: T): Unit = {
       setYtConf(configEntry.name, configEntry.set(value))
     }
+  }
+
+  implicit class OptionsConf(options: Map[String, String]) extends ConfProvider {
+    override def getYtConf(name: String): Option[String] = options.get(name)
   }
 
 }

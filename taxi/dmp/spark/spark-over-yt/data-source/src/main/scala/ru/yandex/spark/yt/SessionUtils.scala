@@ -15,7 +15,8 @@ object SessionUtils {
   private val log = Logger.getLogger(getClass)
   private val sparkDefaults = Map(
     "spark.hadoop.yt.byop.enabled" -> "false",
-    "spark.yt.enablers" -> "spark.hadoop.yt.byop.enabled"
+    "spark.hadoop.yt.read.arrow.enabled" -> "false",
+    "spark.yt.enablers" -> "spark.hadoop.yt.byop.enabled,spark.hadoop.yt.read.arrow.enabled"
   )
 
   private def parseRemoteConfig(path: String, yt: YtClient): Map[String, String] = {

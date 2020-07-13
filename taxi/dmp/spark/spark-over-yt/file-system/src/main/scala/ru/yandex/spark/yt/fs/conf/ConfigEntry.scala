@@ -17,16 +17,16 @@ class IntConfigEntry(name: String, default: Option[Int] = None) extends ConfigEn
   override def get(value: String): Int = value.toInt
 }
 
+class BooleanConfigEntry(name: String, default: Option[Boolean] = None) extends ConfigEntry[Boolean](name, default) {
+  override def get(value: String): Boolean = value.toBoolean
+}
+
 class DurationSecondsConfigEntry(name: String, default: Option[Duration] = None) extends ConfigEntry[Duration](name, default) {
   override def get(value: String): Duration = value.toInt.seconds
 }
 
 class StringConfigEntry(name: String, default: Option[String] = None) extends ConfigEntry[String](name, default) {
   override def get(value: String): String = value
-}
-
-class BooleanConfigEntry(name: String, default: Option[Boolean] = None) extends ConfigEntry[Boolean](name, default) {
-  override def get(value: String): Boolean = value.toBoolean
 }
 
 class StringListConfigEntry(name: String, default: Option[Seq[String]] = None) extends ConfigEntry[Seq[String]](name, default) {

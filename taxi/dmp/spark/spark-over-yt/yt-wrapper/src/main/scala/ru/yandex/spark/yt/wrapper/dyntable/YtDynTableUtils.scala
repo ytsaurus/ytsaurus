@@ -7,7 +7,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerializer, YTreeTextSerializer}
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
-import ru.yandex.spark.yt.wrapper.cypress.YtCypressUtils
+import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.yt.ytclient.proxy.YtClient
 import ru.yandex.yt.ytclient.proxy.request.ReshardTable
 
@@ -46,8 +46,16 @@ trait YtDynTableUtils {
   }
 
   def keyColumns(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Seq[String] = {
+    keyColumns(attribute(path, YtAttributes.sortedBy, transaction))
+  }
+
+  def keyColumns(attr: YTreeNode): Seq[String] = {
     import scala.collection.JavaConverters._
-    attribute(path, "sorted_by", transaction).asList().asScala.map(_.stringValue())
+    attr.asList().asScala.map(_.stringValue())
+  }
+
+  def keyColumns(attrs: Map[String, YTreeNode]): Seq[String] = {
+    keyColumns(attrs(YtAttributes.sortedBy))
   }
 
   def mountTable(path: String)(implicit yt: YtClient): Unit = {

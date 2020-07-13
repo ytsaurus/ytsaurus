@@ -1,22 +1,22 @@
 package ru.yandex.spark.yt.wrapper.table
 
+import java.io.{BufferedInputStream, FileInputStream, InputStream}
 import java.nio.file.Paths
-import java.util.Optional
 
 import org.apache.log4j.Logger
 import ru.yandex.bolts.collection.impl.DefaultListF
 import ru.yandex.inside.yt.kosher.Yt
 import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.cypress.YPath
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.operations.specs.{MergeMode, MergeSpec}
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.cypress.YtCypressUtils
+import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
+import ru.yandex.yt.rpcproxy.ERowsetFormat
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
 import ru.yandex.yt.ytclient.proxy.YtClient
-import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType, ReadTable, TransactionalOptions}
-import ru.yandex.spark.yt.wrapper.YtJavaConverters._
-import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
+import ru.yandex.yt.ytclient.proxy.request._
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
@@ -56,6 +56,26 @@ trait YtTableUtils {
       .setUnordered(true)
     val reader = yt.readTable(request).join()
     new TableIterator(reader, timeout)
+  }
+
+  def readTableArrowStreamStub(path: YPath, bufferSize: Int = 65536, timeout: Duration = 1 minute)
+                          (implicit yt: YtClient): InputStream = {
+    val stubStream = new FileInputStream("/Users/sashbel/Documents/arrow2")
+    new BufferedInputStream(stubStream, bufferSize)
+  }
+
+  def readTableArrowStream(path: YPath, timeout: Duration = 1 minute)
+                          (implicit yt: YtClient): YtArrowInputStream = {
+    readTableArrowStream(path.toString, timeout)
+  }
+
+  def readTableArrowStream(path: String, timeout: Duration)
+                          (implicit yt: YtClient): YtArrowInputStream = {
+    val request = new ReadTableDirect(path)
+      .setDesiredRowsetFormat(ERowsetFormat.RF_ARROW)
+      .asInstanceOf[ReadTableDirect]
+    val reader = yt.readTableDirect(request, new TableAttachmentByteBufferReader).join()
+    new TableCopyByteStream(reader, timeout)
   }
 
   def mergeTables(srcDir: String, dstTable: String,

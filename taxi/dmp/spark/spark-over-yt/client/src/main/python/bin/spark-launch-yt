@@ -45,6 +45,11 @@ def main():
     group.add_argument('--disable-byop', dest='enable_byop', action='store_false')
     parser.set_defaults(enable_byop=default_enablers.enable_byop)
 
+    group = parser.add_mutually_exclusive_group(required=False)
+    group.add_argument('--enable-profiling', dest='enable_profiling', action='store_true')
+    group.add_argument('--disable-profiling', dest='enable_profiling', action='store_false')
+    parser.set_defaults(enable_profiling=default_enablers.enable_profiling)
+
     args, unknown_args = spark_utils.parse_args(parser)
 
     yt_client = YtClient(proxy=args.proxy, token=spark_utils.default_token())
@@ -62,7 +67,7 @@ def main():
                         history_server_memory_limit=args.history_server_memory_limit,
                         params=args.params,
                         spark_cluster_version=args.spark_cluster_version,
-                        enablers=SpytEnablers(enable_byop=args.enable_byop),
+                        enablers=SpytEnablers(enable_byop=args.enable_byop, enable_profiling=args.enable_profiling),
                         client=yt_client)
 
 

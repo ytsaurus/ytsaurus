@@ -5,20 +5,28 @@ import java.nio.file.{Files, Paths}
 
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.SparkException
+import org.apache.spark.sql.execution.aggregate.HashAggregateExec
+import org.apache.spark.sql.execution.exchange.ShuffleExchangeExec
+import org.apache.spark.sql.execution.{InputAdapter, WholeStageCodegenExec}
+import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types._
+import org.apache.spark.sql.yt.YtSourceScanExec
 import org.apache.spark.sql.{AnalysisException, Encoders, Row, SaveMode}
+import org.mockito.scalatest.MockitoSugar
+import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.fs.conf.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
+import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
+class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils with MockitoSugar with TableDrivenPropertyChecks {
 
   import YtFileFormatTest._
   import spark.implicits._
@@ -473,7 +481,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
     writeTableFromYson(Seq(
       """{a = 1}""",
       """{a = 2}"""
-    ), tmpPath, schema, physicalSchema)
+    ), tmpPath, schema, physicalSchema, OptimizeMode.Scan, Map.empty)
 
 
     val result = spark.read.yt(tmpPath)
@@ -544,7 +552,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
       ), s"$tmpPath/$i", atomicSchema)
     )
 
-    val res = spark.read.yt((1 to tableCount).map(i => s"$tmpPath/$i"):_*)
+    val res = spark.read.yt((1 to tableCount).map(i => s"$tmpPath/$i"): _*)
 
     res.columns should contain theSameElementsAs Seq("a", "b", "c")
     res.select("a", "b", "c").collect() should contain theSameElementsAs (1 to tableCount).flatMap(_ => Seq(
@@ -586,6 +594,107 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
       .get
 
     res.dataType shouldEqual ArrayType(IntegerType)
+  }
+
+  it should "enable/disable batch reading" in {
+    import OptimizeMode._
+    spark.conf.set(SQLConf.PARALLEL_PARTITION_DISCOVERY_THRESHOLD.key, "3")
+    val table = Table(
+      ("tables", "enableArrow", "expected"),
+      (Seq(s"$tmpPath/1" -> Lookup), true, false),
+      (Seq(s"$tmpPath/2" -> Scan), false, false),
+      (Seq(s"$tmpPath/3" -> Scan), true, true),
+      (Seq(s"$tmpPath/4" -> Scan, s"$tmpPath/5" -> Scan), true, true),
+      (Seq(s"$tmpPath/6" -> Scan, s"$tmpPath/7" -> Lookup), true, false),
+      (Seq(s"$tmpPath/8" -> Scan, s"$tmpPath/9" -> Scan, s"$tmpPath/10" -> Scan, s"$tmpPath/11" -> Scan), true, true),
+      (Seq(s"$tmpPath/12" -> Scan, s"$tmpPath/13" -> Scan, s"$tmpPath/14" -> Scan, s"$tmpPath/15" -> Lookup), true, false)
+    )
+
+    YtWrapper.createDir(tmpPath)
+    forAll(table) { (tables, enableArrow, expected) =>
+      tables.foreach{ case (path, optimizeFor) =>
+        writeTableFromYson(
+          Seq("""{a = 1; b = "a"; c = 0.3}"""),
+          path, atomicSchema,
+          optimizeFor
+        )
+      }
+      val res = spark.read.enableArrow(enableArrow).yt(tables.map(_._1):_*)
+      val batchEnabled = spark.sessionState.executePlan(res.queryExecution.logical)
+        .executedPlan.asInstanceOf[WholeStageCodegenExec]
+        .child.asInstanceOf[YtSourceScanExec]
+        .supportsBatch
+      batchEnabled shouldEqual expected
+    }
+  }
+
+  it should "disable batch for yson types" in {
+    writeTableFromYson(Seq(
+      """{value = {a = 1; b = "a"}}""",
+      """{value = {a = 2; b = "b"}}""",
+    ), tmpPath, anySchema)
+
+    val res = spark.read.enableArrow(true).schemaHint(
+      "value" -> StructType(Seq(StructField("a", LongType), StructField("b", StringType)))
+    ).yt(tmpPath)
+    val batchEnabled = spark.sessionState.executePlan(res.queryExecution.logical)
+      .executedPlan.asInstanceOf[WholeStageCodegenExec]
+      .child.asInstanceOf[YtSourceScanExec]
+      .supportsBatch
+    batchEnabled shouldEqual false
+
+  }
+
+  it should "enable batch for count" in {
+    writeTableFromYson(
+      Seq(
+        """{a = 1; b = "a"; c = 0.3}""",
+        """{a = 2; b = "b"; c = 0.5}"""
+      ),
+      tmpPath, atomicSchema,
+      OptimizeMode.Lookup
+    )
+
+    val res = spark.read.disableArrow.yt(tmpPath).groupBy().count()
+    val batchEnabled = spark.sessionState.executePlan(res.queryExecution.logical)
+      .executedPlan.asInstanceOf[WholeStageCodegenExec]
+        .child.asInstanceOf[HashAggregateExec]
+        .child.asInstanceOf[InputAdapter]
+        .child.asInstanceOf[ShuffleExchangeExec]
+        .child.asInstanceOf[WholeStageCodegenExec]
+        .child.asInstanceOf[HashAggregateExec]
+        .child.asInstanceOf[YtSourceScanExec]
+        .supportsBatch
+
+    batchEnabled shouldEqual true
+  }
+
+  it should "read arrow" in {
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}""",
+      """{a = 2; b = "b"; c = 0.5}"""
+    ), tmpPath, atomicSchema)
+
+    val df = spark.read.enableArrow.yt(tmpPath)
+    df.columns should contain theSameElementsAs Seq("a", "b", "c")
+    df.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
+      Row(1, "a", 0.3),
+      Row(2, "b", 0.5)
+    )
+  }
+
+  it should "read wire" in {
+    writeTableFromYson(Seq(
+      """{a = 1; b = "a"; c = 0.3}""",
+      """{a = 2; b = "b"; c = 0.5}"""
+    ), tmpPath, atomicSchema)
+
+    val df = spark.read.disableArrow.yt(tmpPath)
+    df.columns should contain theSameElementsAs Seq("a", "b", "c")
+    df.select("a", "b", "c").collect() should contain theSameElementsAs Seq(
+      Row(1, "a", 0.3),
+      Row(2, "b", 0.5)
+    )
   }
 }
 

@@ -57,18 +57,12 @@ trait YtCypressUtils {
   }
 
   def pathType(path: String, transaction: Option[String] = None)(implicit yt: YtClient): PathType = {
-    val objectType = attribute(path, "type", transaction).stringValue()
-    objectType match {
-      case "file" => PathType.File
-      case "table" => PathType.Table
-      case "map_node" => PathType.Directory
-      case _ => PathType.None
-    }
+    val objectType = attribute(path, YtAttributes.`type`, transaction).stringValue()
+    PathType.fromString(objectType)
   }
 
-  def tableType(path: String, transaction: Option[String] = None)(implicit yt: YtClient): TableType = {
-    val isDynamic = attribute(path, "dynamic", transaction).boolValue()
-    if (isDynamic) TableType.Dynamic else TableType.Static
+  def pathType(attrs: Map[String, YTreeNode]): PathType = {
+    PathType.fromString(attrs(YtAttributes.`type`).stringValue())
   }
 
   def exists(path: String, transaction: Option[String] = None)(implicit yt: YtClient): Boolean = {
@@ -80,6 +74,15 @@ trait YtCypressUtils {
                (implicit yt: YtClient): YTreeNode = {
     val request = new GetNode(s"${formatPath(path)}/@$attrName").optionalTransaction(transaction)
     yt.getNode(request).join()
+  }
+
+  def attributes(path: String, transaction: Option[String] = None, attrNames: Set[String] = Set.empty)
+               (implicit yt: YtClient): Map[String, YTreeNode] = {
+    import scala.collection.JavaConverters._
+    val request = new GetNode(s"${formatPath(path)}/@").optionalTransaction(transaction)
+    val map = yt.getNode(request).join().asMap().asScala
+    val filteredMap = if (attrNames.nonEmpty) map.filterKeys(attrNames.contains) else map
+    filteredMap.toMap
   }
 
   def rename(src: String, dst: String, transaction: Option[String] = None)(implicit yt: YtClient): Unit = {

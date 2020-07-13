@@ -7,8 +7,10 @@ logger = logging.getLogger(__name__)
 
 
 class SpytEnablers(object):
-    def __init__(self, enable_byop=False):
+    def __init__(self, enable_byop=False, enable_profiling=False, enable_arrow=None):
         self.enable_byop = enable_byop
+        self.enable_profiling = enable_profiling
+        self.enable_arrow = enable_byop if enable_arrow is None else enable_arrow
         self.config_enablers = {}
 
     def _get_enabler(self, enabler, enabler_name):
@@ -21,13 +23,17 @@ class SpytEnablers(object):
     def apply_config(self, config):
         self.config_enablers = config.get("enablers") or {}
         self.enable_byop = self._get_enabler(self.enable_byop, "enable_byop")
-
+        self.enable_arrow = self._get_enabler(self.enable_arrow, "enable_arrow")
 
     def get_spark_conf(self):
         enable_byop_conf_name = "spark.hadoop.yt.byop.enabled"
-        enablers = [enable_byop_conf_name]
+        enable_arrow_conf_name = "spark.hadoop.yt.read.arrow.enabled"
+        enable_profiling_conf_name = "spark.hadoop.yt.profiling.enabled"
+        enablers = [enable_byop_conf_name, enable_profiling_conf_name, enable_arrow_conf_name]
         return {
             enable_byop_conf_name: str(self.enable_byop),
+            enable_profiling_conf_name: str(self.enable_profiling),
+            enable_arrow_conf_name: str(self.enable_arrow),
             "spark.yt.enablers": ",".join(enablers)
         }
 

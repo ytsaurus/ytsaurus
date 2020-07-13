@@ -47,10 +47,13 @@ object YtClientProvider {
     log.info(s"Close all YT Clients")
     cachedClient.foreach(_.close())
     fsClient.foreach(_._2.close())
+    fsClient.clear()
+    this.client.set(None)
   }
 
   def close(id: String): Unit = {
     log.info(s"Close YT Client for id $id")
     fsClient.get(id).foreach(_.close())
+    fsClient.remove(id)
   }
 }

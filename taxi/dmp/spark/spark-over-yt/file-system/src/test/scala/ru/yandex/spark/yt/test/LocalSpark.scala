@@ -21,6 +21,7 @@ trait LocalSpark extends LocalYtClient {
     .set("spark.yt.write.batchSize", "10")
     .set("spark.sql.sources.commitProtocolClass", "ru.yandex.spark.yt.format.YtOutputCommitter")
     .set("spark.ui.enabled", "false")
+    .set("spark.hadoop.yt.read.arrow.enabled", "true")
 
   def plannerStrategy: SparkStrategy = {
     val plannerStrategyClass = "ru.yandex.spark.yt.format.YtSourceStrategy"
@@ -30,7 +31,7 @@ trait LocalSpark extends LocalYtClient {
   }
 
   lazy val spark: SparkSession = SparkSession.builder()
-    .master("local[2]")
+    .master("local[4]")
     .config(sparkConf)
     .withExtensions(_.injectPlannerStrategy(_ => plannerStrategy))
     .getOrCreate()
