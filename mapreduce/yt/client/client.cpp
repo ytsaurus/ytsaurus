@@ -1002,10 +1002,10 @@ IFileReaderPtr TClient::GetJobStderr(
 }
 
 TNode::TListType TClient::SkyShareTable(
-    const TYPath& tablePath,
+    const std::vector<TYPath>& tablePaths,
     const TSkyShareTableOptions& options)
 {
-    return NRawClient::SkyShareTable(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, tablePath, options);
+    return NRawClient::SkyShareTable(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, tablePaths, options);
 }
 
 TCheckPermissionResponse TClient::CheckPermission(

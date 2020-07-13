@@ -706,7 +706,7 @@ TYPath PutFileToCache(
 TNode::TListType SkyShareTable(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
-    const TYPath& tablePath,
+    const std::vector<TYPath>& tablePaths,
     const TSkyShareTableOptions& options)
 {
     THttpHeader header("POST", "api/v1/share", /*IsApi*/ false);
@@ -718,7 +718,7 @@ TNode::TListType SkyShareTable(
         host = "skynet." + proxyName + ".yt.yandex.net";
     }
 
-    header.MergeParameters(SerializeParamsForSkyShareTable(proxyName, tablePath, options));
+    header.MergeParameters(SerializeParamsForSkyShareTable(proxyName, tablePaths, options));
     TAuth skyApiHost({host, ""});
     TResponseInfo response = {};
 

@@ -258,7 +258,7 @@ TYPath PutFileToCache(
 TNode::TListType SkyShareTable(
     const IRequestRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
-    const TYPath& tablePath,
+    const std::vector<TYPath>& tablePaths,
     const TSkyShareTableOptions& options);
 
 //

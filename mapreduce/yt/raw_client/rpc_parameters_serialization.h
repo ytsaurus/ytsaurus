@@ -167,7 +167,7 @@ TNode SerializeParamsForPutFileToCache(
 
 TNode SerializeParamsForSkyShareTable(
     const TString& serverName,
-    const TYPath& tablePath,
+    const std::vector<TYPath>& tablePaths,
     const TSkyShareTableOptions& options);
 
 TNode SerializeParamsForCheckPermission(
