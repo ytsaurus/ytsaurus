@@ -3657,31 +3657,28 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TUpdateFairShareContext*
     for (const auto& burstPool : context->BurstPools) {
         totalBurstRatio += burstPool->Attributes().BurstRatio;
     }
+    if (Attributes_.MinShareRatio + Attributes_.TotalResourceFlowRatio > 1.0 + RatioComparisonPrecision) {
+        context->Errors.push_back(TError("Total min share guarantee and resource flow exceed total cluster resources")
+            << TErrorAttribute("TotalMinShareRatio", Attributes_.MinShareRatio)
+            << TErrorAttribute("TotalResourceFlowRatio", Attributes_.TotalResourceFlowRatio)
+            << TErrorAttribute("TotalMinShareResources", TotalResourceLimits_ * Attributes_.MinShareRatio)
+            << TErrorAttribute("TotalResourceFlow", TotalResourceLimits_ * Attributes_.TotalResourceFlowRatio)
+            << TErrorAttribute("TotalClusterResources", TotalResourceLimits_));
+    }
     if (Attributes_.MinShareRatio + totalBurstRatio > 1.0 + RatioComparisonPrecision) {
+        context->Errors.push_back(TError("Total min share guarantee and burst ratio exceed cluster capacity")
+            << TErrorAttribute("TotalMinShareRatio", Attributes_.MinShareRatio)
+            << TErrorAttribute("TotalBurstRatio", totalBurstRatio)
+            << TErrorAttribute("TotalMinShareResources", TotalResourceLimits_ * Attributes_.MinShareRatio)
+            << TErrorAttribute("TotalBurstResources", TotalResourceLimits_ * totalBurstRatio)
+            << TErrorAttribute("TotalClusterResources", TotalResourceLimits_));
+
         double fitFactor = 1.0 / (Attributes_.MinShareRatio + totalBurstRatio);
         Attributes_.MinShareRatio *= fitFactor;
         AdjustMinShareRatios();
         for (const auto& pool : context->BurstPools) {
             pool->Attributes().BurstRatio *= fitFactor;
         }
-        context->Errors.emplace_back(
-            "Total min share guarantee and burst ratio exceed cluster capacity "
-            "(TotalMinShareRatio: %v, TotalBurstRatio: %v, TotalMinShareCpu: %v, TotalBurstCpu: %v, TotalResources: %v)",
-            Attributes_.MinShareRatio,
-            totalBurstRatio,
-            TotalResourceLimits_.GetCpu() * Attributes_.MinShareRatio,
-            TotalResourceLimits_.GetCpu() * totalBurstRatio,
-            FormatResources(TotalResourceLimits_));
-    }
-    if (Attributes_.MinShareRatio + Attributes_.TotalResourceFlowRatio > 1.0 + RatioComparisonPrecision) {
-        context->Errors.emplace_back(
-            "Total min share guarantee and resource flow exceed total cluster resources "
-            "(TotalMinShareRatio: %v, TotalResourceFlowRatio: %v, TotalMinShareCpu: %v, TotalResourceFlowCpu: %v, TotalResources: %v)",
-            Attributes_.MinShareRatio,
-            Attributes_.TotalResourceFlowRatio,
-            TotalResourceLimits_.GetCpu() * Attributes_.MinShareRatio,
-            TotalResourceLimits_.GetCpu() * Attributes_.TotalResourceFlowRatio,
-            FormatResources(TotalResourceLimits_));
     }
 }
 
