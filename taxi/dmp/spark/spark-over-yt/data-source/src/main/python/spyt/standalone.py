@@ -27,8 +27,8 @@ class SparkDefaultArguments(object):
     SPARK_HISTORY_SERVER_MEMORY_LIMIT = "8G"
     DYNAMIC_CONFIG_PATH = "//sys/spark/bin/releases/spark-launch-conf"
     SPARK_WORKER_TIMEOUT = "5m"
-    SPARK_WORKER_CORES_OVERHEAD = 1
-    SPARK_WORKER_CORES_BYOP_OVERHEAD = 2
+    SPARK_WORKER_CORES_OVERHEAD = 0
+    SPARK_WORKER_CORES_BYOP_OVERHEAD = 0
 
     @staticmethod
     def get_params():
