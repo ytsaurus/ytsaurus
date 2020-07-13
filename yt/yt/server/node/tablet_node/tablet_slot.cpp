@@ -259,7 +259,7 @@ public:
         return TransactionManager_;
     }
 
-    const TTransactionSupervisorPtr& GetTransactionSupervisor() const
+    const ITransactionSupervisorPtr& GetTransactionSupervisor() const
     {
         return TransactionSupervisor_;
     }
@@ -539,7 +539,7 @@ public:
             if (GetCellId()) {
                 connection->GetClusterDirectorySynchronizer()->Start();
             }
-            TransactionSupervisor_ = New<TTransactionSupervisor>(
+            TransactionSupervisor_ = CreateTransactionSupervisor(
                 Config_->TransactionSupervisor,
                 GetAutomatonInvoker(),
                 Bootstrap_->GetTransactionTrackerInvoker(),
@@ -552,7 +552,8 @@ public:
                 std::vector<ITransactionParticipantProviderPtr>{
                     CreateTransactionParticipantProvider(connection),
                     CreateTransactionParticipantProvider(connection->GetClusterDirectory())
-                });
+                },
+                HiveManager_);
 
             TabletService_ = CreateTabletService(
                 Owner_,
@@ -684,7 +685,7 @@ private:
     TTabletManagerPtr TabletManager_;
 
     TTransactionManagerPtr TransactionManager_;
-    TTransactionSupervisorPtr TransactionSupervisor_;
+    ITransactionSupervisorPtr TransactionSupervisor_;
 
     NRpc::IServicePtr TabletService_;
 
@@ -983,7 +984,7 @@ const TTransactionManagerPtr& TTabletSlot::GetTransactionManager() const
     return Impl_->GetTransactionManager();
 }
 
-const TTransactionSupervisorPtr& TTabletSlot::GetTransactionSupervisor() const
+const ITransactionSupervisorPtr& TTabletSlot::GetTransactionSupervisor() const
 {
     return Impl_->GetTransactionSupervisor();
 }

@@ -8,6 +8,7 @@ message TReqPrepareTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
     required uint64 prepare_timestamp = 2;
+    repeated NYT.NProto.TGuid cell_ids_to_sync_with = 3;
 }
 
 message TRspPrepareTransaction

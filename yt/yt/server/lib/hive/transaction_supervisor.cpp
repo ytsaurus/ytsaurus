@@ -4,6 +4,7 @@
 #include "config.h"
 #include "transaction_manager.h"
 #include "transaction_participant_provider.h"
+#include "hive_manager.h"
 #include "private.h"
 
 #include <yt/server/lib/hive/proto/transaction_supervisor.pb.h>
@@ -61,11 +62,14 @@ static const auto ParticipantTtl = TDuration::Minutes(5);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionSupervisor::TImpl
+DECLARE_REFCOUNTED_CLASS(TTransactionSupervisor)
+
+class TTransactionSupervisor
     : public TCompositeAutomatonPart
+    , public ITransactionSupervisor
 {
 public:
-    TImpl(
+    TTransactionSupervisor(
         TTransactionSupervisorConfigPtr config,
         IInvokerPtr automatonInvoker,
         IInvokerPtr trackerInvoker,
@@ -75,19 +79,21 @@ public:
         ITransactionManagerPtr transactionManager,
         TCellId selfCellId,
         ITimestampProviderPtr timestampProvider,
-        const std::vector<ITransactionParticipantProviderPtr>& participantProviders)
+        std::vector<ITransactionParticipantProviderPtr> participantProviders,
+        THiveManagerPtr hiveManager)
         : TCompositeAutomatonPart(
             hydraManager,
             automaton,
             automatonInvoker)
-        , Config_(config)
-        , TrackerInvoker_(trackerInvoker)
-        , HydraManager_(hydraManager)
-        , ResponseKeeper_(responseKeeper)
-        , TransactionManager_(transactionManager)
+        , Config_(std::move(config))
+        , TrackerInvoker_(std::move(trackerInvoker))
+        , HydraManager_(std::move(hydraManager))
+        , ResponseKeeper_(std::move(responseKeeper))
+        , TransactionManager_(std::move(transactionManager))
         , SelfCellId_(selfCellId)
-        , TimestampProvider_(timestampProvider)
-        , ParticipantProviders_(participantProviders)
+        , TimestampProvider_(std::move(timestampProvider))
+        , ParticipantProviders_(std::move(participantProviders))
+        , HiveManager_(std::move(hiveManager))
         , Logger(NLogging::TLogger(HiveServerLogger)
             .AddTag("CellId: %v", SelfCellId_))
         , TransactionSupervisorService_(New<TTransactionSupervisorService>(this))
@@ -99,34 +105,34 @@ public:
         YT_VERIFY(TransactionManager_);
         YT_VERIFY(TimestampProvider_);
 
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorCommitSimpleTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorCommitDistributedTransactionPhaseOne, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorCommitDistributedTransactionPhaseTwo, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorAbortDistributedTransactionPhaseTwo, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorAbortTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCoordinatorFinishDistributedTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraParticipantPrepareTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraParticipantCommitTransaction, Unretained(this)));
-        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraParticipantAbortTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionSupervisor::HydraCoordinatorCommitSimpleTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseOne, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionSupervisor::HydraCoordinatorCommitDistributedTransactionPhaseTwo, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionSupervisor::HydraCoordinatorAbortDistributedTransactionPhaseTwo, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionSupervisor::HydraCoordinatorAbortTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionSupervisor::HydraCoordinatorFinishDistributedTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionSupervisor::HydraParticipantPrepareTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionSupervisor::HydraParticipantCommitTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TTransactionSupervisor::HydraParticipantAbortTransaction, Unretained(this)));
 
         RegisterLoader(
             "TransactionSupervisor.Keys",
-            BIND(&TImpl::LoadKeys, Unretained(this)));
+            BIND(&TTransactionSupervisor::LoadKeys, Unretained(this)));
         RegisterLoader(
             "TransactionSupervisor.Values",
-            BIND(&TImpl::LoadValues, Unretained(this)));
+            BIND(&TTransactionSupervisor::LoadValues, Unretained(this)));
 
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TransactionSupervisor.Keys",
-            BIND(&TImpl::SaveKeys, Unretained(this)));
+            BIND(&TTransactionSupervisor::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TransactionSupervisor.Values",
-            BIND(&TImpl::SaveValues, Unretained(this)));
+            BIND(&TTransactionSupervisor::SaveValues, Unretained(this)));
     }
 
-    std::vector<IServicePtr> GetRpcServices()
+    virtual std::vector<IServicePtr> GetRpcServices() override
     {
         return std::vector<IServicePtr>{
             TransactionSupervisorService_,
@@ -134,16 +140,14 @@ public:
         };
     }
 
-    TFuture<void> CommitTransaction(
-        TTransactionId transactionId,
-        const std::vector<TCellId>& participantCellIds,
-        const std::vector<TCellId>& prepareOnlyParticipantCellIds)
+    virtual TFuture<void> CommitTransaction(TTransactionId transactionId) override
     {
         return MessageToError(
             CoordinatorCommitTransaction(
                 transactionId,
-                participantCellIds,
-                prepareOnlyParticipantCellIds,
+                {},
+                {},
+                {},
                 false,
                 true,
                 false,
@@ -151,9 +155,9 @@ public:
                 NullMutationId));
     }
 
-    TFuture<void> AbortTransaction(
+    virtual TFuture<void> AbortTransaction(
         TTransactionId transactionId,
-        bool force)
+        bool force) override
     {
         return MessageToError(
             CoordinatorAbortTransaction(
@@ -162,14 +166,14 @@ public:
                 force));
     }
 
-    void Decommission()
+    virtual void Decommission() override
     {
-        YT_LOG_DEBUG("Decommission transaction supervisor");
+        YT_LOG_DEBUG("Decommissioning transaction supervisor");
 
         Decommissioned_ = true;
     }
 
-    bool IsDecommissioned() const
+    virtual bool IsDecommissioned() const override
     {
         return Decommissioned_ && PersistentCommitMap_.empty();
     }
@@ -183,6 +187,7 @@ private:
     const TCellId SelfCellId_;
     const ITimestampProviderPtr TimestampProvider_;
     const std::vector<ITransactionParticipantProviderPtr> ParticipantProviders_;
+    const THiveManagerPtr HiveManager_;
 
     const NLogging::TLogger Logger;
 
@@ -278,14 +283,15 @@ private:
                     this_ = MakeStrong(this),
                     transactionId = commit->GetTransactionId(),
                     generatePrepareTimestamp = commit->GetGeneratePrepareTimestamp(),
-                    inheritCommitTimestamp = commit->GetInheritCommitTimestamp()
+                    inheritCommitTimestamp = commit->GetInheritCommitTimestamp(),
+                    cellIdsToSyncWith = commit->CellIdsToSyncWithBeforePrepare()
                 ]
                 (const ITransactionParticipantPtr& participant) {
                     auto prepareTimestamp = GeneratePrepareTimestamp(
                         participant,
                         generatePrepareTimestamp,
                         inheritCommitTimestamp);
-                    return participant->PrepareTransaction(transactionId, prepareTimestamp);
+                    return participant->PrepareTransaction(transactionId, prepareTimestamp, cellIdsToSyncWith);
                 });
         }
 
@@ -567,7 +573,7 @@ private:
     {
     protected:
         explicit TOwnedServiceBase(
-            TImplPtr owner,
+            TTransactionSupervisorPtr owner,
             const TServiceDescriptor& descriptor)
             : THydraServiceBase(
                 owner->HydraManager_->CreateGuardedAutomatonInvoker(owner->AutomatonInvoker_),
@@ -578,7 +584,7 @@ private:
             , HydraManager_(owner->HydraManager_)
         { }
 
-        TImplPtr GetOwnerOrThrow()
+        TTransactionSupervisorPtr GetOwnerOrThrow()
         {
             auto owner = Owner_.Lock();
             if (!owner) {
@@ -588,7 +594,7 @@ private:
         }
 
     private:
-        const TWeakPtr<TImpl> Owner_;
+        const TWeakPtr<TTransactionSupervisor> Owner_;
         const IHydraManagerPtr HydraManager_;
 
         virtual IHydraManagerPtr GetHydraManager() override
@@ -602,7 +608,7 @@ private:
         : public TOwnedServiceBase
     {
     public:
-        explicit TTransactionSupervisorService(TImplPtr owner)
+        explicit TTransactionSupervisorService(TTransactionSupervisorPtr owner)
             : TOwnedServiceBase(
                 owner,
                 TTransactionSupervisorServiceProxy::GetDescriptor())
@@ -622,16 +628,18 @@ private:
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
             auto prepareOnlyParticipantCellIds = FromProto<std::vector<TCellId>>(request->prepare_only_participant_cell_ids());
+            auto cellIdsToSyncWithBeforePrepare = FromProto<std::vector<TCellId>>(request->cell_ids_to_sync_with_before_prepare());
             auto force2PC = request->force_2pc();
             auto generatePrepareTimestamp = request->generate_prepare_timestamp();
             auto inheritCommitTimestamp = request->inherit_commit_timestamp();
             auto coordinatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
 
-            context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, "
+            context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v, "
                 "Force2PC: %v, GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, CoordinatorCommitMode: %v",
                 transactionId,
                 participantCellIds,
                 prepareOnlyParticipantCellIds,
+                cellIdsToSyncWithBeforePrepare,
                 force2PC,
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
@@ -647,6 +655,7 @@ private:
                 transactionId,
                 participantCellIds,
                 prepareOnlyParticipantCellIds,
+                cellIdsToSyncWithBeforePrepare,
                 force2PC,
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
@@ -723,7 +732,7 @@ private:
         : public TOwnedServiceBase
     {
     public:
-        explicit TTransactionParticipantService(TImplPtr owner)
+        explicit TTransactionParticipantService(TTransactionSupervisorPtr owner)
             : TOwnedServiceBase(
                 owner,
                 TTransactionParticipantServiceProxy::GetDescriptor())
@@ -740,10 +749,12 @@ private:
 
             auto transactionId = FromProto<TTransactionId>(request->transaction_id());
             auto prepareTimestamp = request->prepare_timestamp();
+            auto cellIdsToSyncWith = FromProto<std::vector<TCellId>>(request->cell_ids_to_sync_with());
 
-            context->SetRequestInfo("TransactionId: %v, PrepareTimestamp: %llx",
+            context->SetRequestInfo("TransactionId: %v, PrepareTimestamp: %llx, CellIdsToSyncWith: %v",
                 transactionId,
-                prepareTimestamp);
+                prepareTimestamp,
+                cellIdsToSyncWith);
 
             NHiveServer::NProto::TReqParticipantPrepareTransaction hydraRequest;
             ToProto(hydraRequest.mutable_transaction_id(), transactionId);
@@ -751,8 +762,36 @@ private:
             NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
 
             auto owner = GetOwnerOrThrow();
-            CreateMutation(owner->HydraManager_, hydraRequest)
-                ->CommitAndReply(context);
+            auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
+
+            auto callback = [mutation = std::move(mutation), context] {
+                mutation->CommitAndReply(context);
+            };
+
+            if (cellIdsToSyncWith.empty()) {
+                callback();
+            } else {
+                const auto& hiveManager = owner->HiveManager_;
+                if (!hiveManager) {
+                    THROW_ERROR_EXCEPTION("Requested to sync with cells %v but no Hive Manager is available",
+                        cellIdsToSyncWith);
+                }
+                
+                std::vector<TFuture<void>> futures;
+                futures.reserve(cellIdsToSyncWith.size());
+                for (auto cellId : cellIdsToSyncWith) {
+                    futures.push_back(hiveManager->SyncWith(cellId, true));
+                }
+                
+                AllSucceeded(std::move(futures)).Subscribe(
+                    BIND([callback = BIND(std::move(callback)), context, invoker = owner->EpochAutomatonInvoker_] (const TError& error) {
+                        if (error.IsOK()) {
+                            invoker->Invoke(std::move(callback));
+                        } else {
+                            context->Reply(error);
+                        }
+                    }));
+            }
         }
 
         DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto::NTransactionParticipant, CommitTransaction)
@@ -802,8 +841,9 @@ private:
 
     TFuture<TSharedRefArray> CoordinatorCommitTransaction(
         TTransactionId transactionId,
-        const std::vector<TCellId>& participantCellIds,
-        const std::vector<TCellId>& prepareOnlyParticipantCellIds,
+        std::vector<TCellId> participantCellIds,
+        std::vector<TCellId> prepareOnlyParticipantCellIds,
+        std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
         bool force2PC,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
@@ -818,12 +858,16 @@ private:
             return commit->GetAsyncResponseMessage();
         }
 
+        bool distributed =
+            force2PC ||
+            !participantCellIds.empty();
         commit = CreateTransientCommit(
             transactionId,
             mutationId,
-            participantCellIds,
-            prepareOnlyParticipantCellIds,
-            force2PC || !participantCellIds.empty(),
+            std::move(participantCellIds),
+            std::move(prepareOnlyParticipantCellIds),
+            std::move(cellIdsToSyncWithBeforePrepare),
+            distributed,
             generatePrepareTimestamp,
             inheritCommitTimestamp,
             coordinatorCommitMode,
@@ -882,9 +926,10 @@ private:
         ToProto(request.mutable_mutation_id(), commit->GetMutationId());
         ToProto(request.mutable_participant_cell_ids(), commit->ParticipantCellIds());
         ToProto(request.mutable_prepare_only_participant_cell_ids(), commit->PrepareOnlyParticipantCellIds());
+        ToProto(request.mutable_cell_ids_to_sync_with_before_prepare(), commit->CellIdsToSyncWithBeforePrepare());
         request.set_generate_prepare_timestamp(commit->GetGeneratePrepareTimestamp());
         request.set_inherit_commit_timestamp(commit->GetInheritCommitTimestamp());
-        request.set_coordinator_commit_mode(static_cast<int>(commit->GetCoordinatorCommitMode()));
+        request.set_coordinator_commit_mode(ToProto<int>(commit->GetCoordinatorCommitMode()));
         request.set_prepare_timestamp(prepareTimestamp);
         WriteAuthenticationIdentityToProto(&request, commit->AuthenticationIdentity());
         CreateMutation(HydraManager_, request)
@@ -1017,6 +1062,7 @@ private:
                 mutationId,
                 /* participantCellIds */ {},
                 /* prepareOnlyParticipantCellIds */ {},
+                /* cellIdsToSyncWithBeforePrepare */ {},
                 /* distributed */ false,
                 /* generatePrepareTimestamp */ true,
                 /* inheritCommitTimestamp */ false,
@@ -1035,6 +1081,7 @@ private:
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto participantCellIds = FromProto<std::vector<TCellId>>(request->participant_cell_ids());
         auto prepareOnlyParticipantCellIds = FromProto<std::vector<TCellId>>(request->prepare_only_participant_cell_ids());
+        auto cellIdsToSyncWithBeforePrepare = FromProto<std::vector<TCellId>>(request->cell_ids_to_sync_with_before_prepare());
         auto generatePrepareTimestamp = request->generate_prepare_timestamp();
         auto inheritCommitTimestamp = request->inherit_commit_timestamp();
         auto coordindatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
@@ -1051,6 +1098,7 @@ private:
                 mutationId,
                 participantCellIds,
                 prepareOnlyParticipantCellIds,
+                cellIdsToSyncWithBeforePrepare,
                 true,
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
@@ -1357,37 +1405,40 @@ private:
     TCommit* CreateTransientCommit(
         TTransactionId transactionId,
         TMutationId mutationId,
-        const std::vector<TCellId>& participantCellIds,
-        const std::vector<TCellId>& prepareOnlyParticipantCellIds,
+        std::vector<TCellId> participantCellIds,
+        std::vector<TCellId> prepareOnlyParticipantCellIds,
+        std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
         bool distributed,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        const NRpc::TAuthenticationIdentity& identity)
+        NRpc::TAuthenticationIdentity identity)
     {
         auto commitHolder = std::make_unique<TCommit>(
             transactionId,
             mutationId,
-            participantCellIds,
-            prepareOnlyParticipantCellIds,
+            std::move(participantCellIds),
+            std::move(prepareOnlyParticipantCellIds),
+            std::move(cellIdsToSyncWithBeforePrepare),
             distributed,
             generatePrepareTimestamp,
             inheritCommitTimestamp,
             coordinatorCommitMode,
-            identity);
+            std::move(identity));
         return TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
     }
 
     TCommit* GetOrCreatePersistentCommit(
         TTransactionId transactionId,
         TMutationId mutationId,
-        const std::vector<TCellId>& participantCellIds,
-        const std::vector<TCellId>& prepareOnlyParticipantCellIds,
+        std::vector<TCellId> participantCellIds,
+        std::vector<TCellId> prepareOnlyParticipantCellIds,
+        std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
         bool distributed,
         bool generatePrepareTimstamp,
         bool inheritCommitTimstamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        const NRpc::TAuthenticationIdentity& identity)
+        NRpc::TAuthenticationIdentity identity)
     {
         if (Decommissioned_) {
             THROW_ERROR_EXCEPTION("Tablet cell %v is decommissioned",
@@ -1403,13 +1454,14 @@ private:
             commitHolder = std::make_unique<TCommit>(
                 transactionId,
                 mutationId,
-                participantCellIds,
-                prepareOnlyParticipantCellIds,
+                std::move(participantCellIds),
+                std::move(prepareOnlyParticipantCellIds),
+                std::move(cellIdsToSyncWithBeforePrepare),
                 distributed,
                 generatePrepareTimstamp,
                 inheritCommitTimstamp,
                 coordinatorCommitMode,
-                identity);
+                std::move(identity));
         }
         commitHolder->SetPersistent(true);
         return PersistentCommitMap_.Insert(transactionId, std::move(commitHolder));
@@ -1587,7 +1639,7 @@ private:
         }
 
         AllSucceeded(asyncTimestamps)
-            .Subscribe(BIND(&TImpl::OnCommitTimestampsGenerated, MakeStrong(this), transactionId)
+            .Subscribe(BIND(&TTransactionSupervisor::OnCommitTimestampsGenerated, MakeStrong(this), transactionId)
                 .Via(EpochAutomatonInvoker_));
     }
 
@@ -1779,7 +1831,7 @@ private:
                 YT_ABORT();
         }
         response.Subscribe(
-            BIND(&TImpl::OnParticipantResponse, MakeWeak(this), commit->GetTransactionId(), state, participant)
+            BIND(&TTransactionSupervisor::OnParticipantResponse, MakeWeak(this), commit->GetTransactionId(), state, participant)
                 .Via(EpochAutomatonInvoker_));
     }
 
@@ -1922,16 +1974,17 @@ private:
     virtual bool ValidateSnapshotVersion(int version) override
     {
         return
-            version == 5 || // babenko
-            version == 6 || // savrus: Add User to TCommit
-            version == 7 || // savrus: Add tablet cell life stage
-            version == 8 || // babenko: YT-12139: Add prepare only participants
-            version == 9;   // babenko: YT-10869: Authentication identity in commit
+            version ==  5 || // babenko
+            version ==  6 || // savrus: Add User to TCommit
+            version ==  7 || // savrus: Add tablet cell life stage
+            version ==  8 || // babenko: YT-12139: Add prepare only participants
+            version ==  9 || // babenko: YT-10869: Authentication identity in commit
+            version == 10;   // babenko: YTINCIDENTS-56: Add CellIdsToSyncWithBeforePrepare
     }
 
     virtual int GetCurrentSnapshotVersion() override
     {
-        return 9;
+        return 10;
     }
 
 
@@ -1941,7 +1994,7 @@ private:
 
         ParticipantCleanupExecutor_ = New<TPeriodicExecutor>(
             EpochAutomatonInvoker_,
-            BIND(&TImpl::OnParticipantCleanup, MakeWeak(this)),
+            BIND(&TTransactionSupervisor::OnParticipantCleanup, MakeWeak(this)),
             ParticipantCleanupPeriod);
         ParticipantCleanupExecutor_->Stop();
 
@@ -2017,9 +2070,11 @@ private:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TTransactionSupervisor)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TTransactionSupervisor::TTransactionSupervisor(
+ITransactionSupervisorPtr CreateTransactionSupervisor(
     TTransactionSupervisorConfigPtr config,
     IInvokerPtr automatonInvoker,
     IInvokerPtr trackerInvoker,
@@ -2029,55 +2084,21 @@ TTransactionSupervisor::TTransactionSupervisor(
     ITransactionManagerPtr transactionManager,
     TCellId selfCellId,
     ITimestampProviderPtr timestampProvider,
-    const std::vector<ITransactionParticipantProviderPtr>& participantProviders)
-    : Impl_(New<TImpl>(
-        config,
-        automatonInvoker,
-        trackerInvoker,
-        hydraManager,
-        automaton,
-        responseKeeper,
-        transactionManager,
+    std::vector<ITransactionParticipantProviderPtr> participantProviders,
+    THiveManagerPtr hiveManager)
+{
+    return New<TTransactionSupervisor>(
+        std::move(config),
+        std::move(automatonInvoker),
+        std::move(trackerInvoker),
+        std::move(hydraManager),
+        std::move(automaton),
+        std::move(responseKeeper),
+        std::move(transactionManager),
         selfCellId,
-        timestampProvider,
-        participantProviders))
-{ }
-
-TTransactionSupervisor::~TTransactionSupervisor() = default;
-
-std::vector<NRpc::IServicePtr> TTransactionSupervisor::GetRpcServices()
-{
-    return Impl_->GetRpcServices();
-}
-
-TFuture<void> TTransactionSupervisor::CommitTransaction(
-    TTransactionId transactionId,
-    const std::vector<TCellId>& participantCellIds,
-    const std::vector<TCellId>& prepareOnlyParticipantCellIds)
-{
-    return Impl_->CommitTransaction(
-        transactionId,
-        participantCellIds,
-        prepareOnlyParticipantCellIds);
-}
-
-TFuture<void> TTransactionSupervisor::AbortTransaction(
-    TTransactionId transactionId,
-    bool force)
-{
-    return Impl_->AbortTransaction(
-        transactionId,
-        force);
-}
-
-void TTransactionSupervisor::Decommission()
-{
-    Impl_->Decommission();
-}
-
-bool TTransactionSupervisor::IsDecommissioned() const
-{
-    return Impl_->IsDecommissioned();
+        std::move(timestampProvider),
+        std::move(participantProviders),
+        std::move(hiveManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

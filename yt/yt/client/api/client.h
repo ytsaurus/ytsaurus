@@ -391,8 +391,13 @@ struct TTransactionCommitOptions
     //! If |true| then two-phase-commit protocol is executed regardless of the number of participants.
     bool Force2PC = false;
 
-    //! For 2PC, controls is success is reported eagerly or lazyly.
+    //! Eager: coordinator is committed first, success is reported immediately; the participants are committed afterwards.
+    //! Lazy: all the participants must successfully commit before coordinator commits; only after this success is reported.
     ETransactionCoordinatorCommitMode CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Eager;
+
+    //! At non-coordinating participants, Transaction Manager will synchronize with
+    //! these cells before running prepare. 
+    std::vector<NObjectClient::TCellId> CellIdsToSyncWithBeforePrepare;
 
     //! If |true| then all participants will use the commit timestamp provided by the coordinator.
     //! If |false| then the participants will use individual commit timestamps based on their cell tag.

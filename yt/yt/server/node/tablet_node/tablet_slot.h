@@ -75,7 +75,7 @@ public:
     NHiveServer::TMailbox* GetMasterMailbox();
 
     const TTransactionManagerPtr& GetTransactionManager() const;
-    const NHiveServer::TTransactionSupervisorPtr& GetTransactionSupervisor() const;
+    const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
 
     const TTabletManagerPtr& GetTabletManager() const;
 

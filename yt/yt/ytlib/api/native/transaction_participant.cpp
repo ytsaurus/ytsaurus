@@ -61,7 +61,10 @@ public:
         return ETransactionParticipantState::Valid;
     }
 
-    virtual TFuture<void> PrepareTransaction(TTransactionId transactionId, TTimestamp prepareTimestamp) override
+    virtual TFuture<void> PrepareTransaction(
+        TTransactionId transactionId,
+        TTimestamp prepareTimestamp,
+        const std::vector<TCellId>& cellIdsToSyncWith) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {
@@ -69,12 +72,15 @@ public:
                 PrepareRequest(req);
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_prepare_timestamp(prepareTimestamp);
+                ToProto(req->mutable_cell_ids_to_sync_with(), cellIdsToSyncWith);
                 // req->SetUser(user); XXX
                 return req;
             });
     }
 
-    virtual TFuture<void> CommitTransaction(TTransactionId transactionId, TTimestamp commitTimestamp) override
+    virtual TFuture<void> CommitTransaction(
+        TTransactionId transactionId,
+        TTimestamp commitTimestamp) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
             [=] (TTransactionParticipantServiceProxy* proxy) {

@@ -1246,7 +1246,8 @@ void TClient::ExecuteTabletServiceRequest(
 
     WaitFor(transaction->Commit(TTransactionCommitOptions{
         .Force2PC = true,
-        .CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy
+        .CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Lazy,
+        .CellIdsToSyncWithBeforePrepare = {nativeCellId}
     }))
         .ThrowOnError();
 }

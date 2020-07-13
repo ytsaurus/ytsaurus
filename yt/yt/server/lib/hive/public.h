@@ -53,10 +53,10 @@ using TTransactionCommitActionHandlerDescriptor = TTransactionActionHandlerDescr
 template <class TTransaction>
 using TTransactionAbortActionHandlerDescriptor = TTransactionActionHandlerDescriptor<TTransactionAbortActionHandler<TTransaction>>;
 
+DECLARE_REFCOUNTED_STRUCT(ITransactionSupervisor)
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 DECLARE_REFCOUNTED_STRUCT(ITransactionParticipantProvider)
 
-DECLARE_REFCOUNTED_CLASS(TTransactionSupervisor)
 DECLARE_REFCOUNTED_CLASS(TTransactionLeaseTracker)
 DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
 DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizer)

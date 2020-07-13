@@ -20,7 +20,7 @@ public:
     explicit TMutation(IHydraManagerPtr hydraManager);
 
     TFuture<TMutationResponse> Commit();
-    TFuture<TMutationResponse> CommitAndLog(const NLogging::TLogger& logger);
+    TFuture<TMutationResponse> CommitAndLog(NLogging::TLogger logger);
     TFuture<TMutationResponse> CommitAndReply(NRpc::IServiceContextPtr context);
 
     void SetRequestData(TSharedRef data, TString type);

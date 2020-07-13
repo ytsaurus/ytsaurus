@@ -10,6 +10,7 @@ message TReqCommitTransaction
     required NYT.NProto.TGuid transaction_id = 1;
     repeated NYT.NProto.TGuid participant_cell_ids = 2;
     repeated NYT.NProto.TGuid prepare_only_participant_cell_ids = 7;
+    repeated NYT.NProto.TGuid cell_ids_to_sync_with_before_prepare = 8;
     required bool force_2pc = 3;
     optional bool generate_prepare_timestamp = 6 [default = true];
     required bool inherit_commit_timestamp = 4;
