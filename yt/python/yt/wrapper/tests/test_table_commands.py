@@ -8,14 +8,13 @@ import yt.wrapper.format as yt_format
 
 import yt.wrapper.py_wrapper as py_wrapper
 from yt.wrapper.py_wrapper import OperationParameters
-from yt.wrapper.table import TablePath, TempTable
+from yt.wrapper.table import TempTable
 from yt.wrapper.common import MB
 from yt.wrapper import heavy_commands, parallel_writer
 
 from yt.yson import YsonMap
 
 from yt.packages.six.moves import xrange, map as imap
-from yt.packages.six import PY3
 
 from yt.local import start, stop
 
@@ -317,7 +316,7 @@ class TestTableCommands(object):
 
         def read_table(**kwargs):
             kwargs["name"] = kwargs.get("name", table)
-            return list(yt.read_table(TablePath(**kwargs), raw=False))
+            return list(yt.read_table(yt.TablePath(**kwargs), raw=False))
 
         assert read_table(lower_key="a", upper_key="d") == [{"x": "a", "y": "w2"},
                                                             {"x": "b", "y": "w1"}]
@@ -330,39 +329,35 @@ class TestTableCommands(object):
         assert read_table(name=table + "{y}[:#2]") == [{"y": "w3"}, {"y": "w2"}]
         assert read_table(name=table + "[#1:]") == [{"x": "a", "y": "w2"}, {"x": "b", "y": "w1"}]
 
-        assert read_table(name=
-                          "<ranges=[{"
-                          "lower_limit={key=[b]}"
-                          "}]>" + table) == [{"x": "b", "y": "w1"}]
-        assert read_table(name=
-                          "<ranges=[{"
-                          "upper_limit={row_index=2}"
-                          "}]>" + table) == [{"x": None, "y": "w3"}, {"x": "a", "y": "w2"}]
+        assert read_table(name="<ranges=[{lower_limit={key=[b]}}]>" + table) == \
+            [{"x": "b", "y": "w1"}]
+        assert read_table(name="<ranges=[{upper_limit={row_index=2}}]>" + table) == \
+            [{"x": None, "y": "w3"}, {"x": "a", "y": "w2"}]
 
         with pytest.raises(yt.YtError):
             assert read_table(ranges=[{"lower_limit": {"index": 1}}], end_index=1)
         with pytest.raises(yt.YtError):
-            read_table(name=TablePath(table, lower_key="a", start_index=1))
+            read_table(name=yt.TablePath(table, lower_key="a", start_index=1))
         with pytest.raises(yt.YtError):
-            read_table(name=TablePath(table, upper_key="c", end_index=1))
+            read_table(name=yt.TablePath(table, upper_key="c", end_index=1))
 
-        table_path = TablePath(table, exact_index=1)
+        table_path = yt.TablePath(table, exact_index=1)
         assert list(yt.read_table(table_path.to_yson_string(), format=yt.DsvFormat())) == [{"x": "a", "y": "w2"}]
 
         yt.write_table(table, [{"x": "b"}, {"x": "a"}, {"x": "c"}])
         with pytest.raises(yt.YtError):
-            yt.read_table(TablePath(table, lower_key="a"))
+            yt.read_table(yt.TablePath(table, lower_key="a"))
         # No prefix
         with pytest.raises(yt.YtError):
-            TablePath("abc")
+            yt.TablePath("abc")
         # Prefix should start with //
         yt.config["prefix"] = "abc/"
         with pytest.raises(yt.YtError):
-            TablePath("abc")
+            yt.TablePath("abc")
         # Prefix should end with /
         yt.config["prefix"] = "//abc"
         with pytest.raises(yt.YtError):
-            TablePath("abc")
+            yt.TablePath("abc")
 
     @authors("ostyakov")
     def test_read_parallel_with_table_path(self, yt_env_with_rpc):
@@ -457,9 +452,16 @@ class TestTableCommands(object):
 
             assert os.listdir(client.config["local_temp_directory"]) == []
 
-            params = OperationParameters(input_format=None, output_format=None, operation_type="map", job_type="mapper", group_by=None)
+            params = OperationParameters(
+                input_format=None,
+                output_format=None,
+                operation_type="map",
+                job_type="mapper",
+                group_by=None)
             with pytest.raises(AttributeError):
-                with py_wrapper.TempfilesManager(remove_temp_files=True, directory=py_wrapper.get_local_temp_directory(client)) as tempfiles_manager:
+                with py_wrapper.TempfilesManager(
+                        remove_temp_files=True,
+                        directory=py_wrapper.get_local_temp_directory(client)) as tempfiles_manager:
                     py_wrapper.wrap(function=foo,
                                     file_manager=None,
                                     tempfiles_manager=tempfiles_manager,
@@ -467,7 +469,9 @@ class TestTableCommands(object):
                                     local_mode=False,
                                     client=client)
 
-            with py_wrapper.TempfilesManager(remove_temp_files=True, directory=py_wrapper.get_local_temp_directory(client)) as tempfiles_manager:
+            with py_wrapper.TempfilesManager(
+                    remove_temp_files=True,
+                    directory=py_wrapper.get_local_temp_directory(client)) as tempfiles_manager:
                 py_wrapper.wrap(function=foo,
                                 file_manager=FakeFileManager(client),
                                 tempfiles_manager=tempfiles_manager,
@@ -611,7 +615,7 @@ class TestTableCommands(object):
                 id=id,
                 node_count=10,
                 http_proxy_count=1 if (yt.config["backend"] != "native") else 0,
-                rpc_proxy_count=1 if  (yt.config["backend"] == "rpc") else 0,
+                rpc_proxy_count=1 if (yt.config["backend"] == "rpc") else 0,
                 enable_debug_logging=True)
             client = instance.create_client()
             client.config["driver_config"] = instance.configs["rpc_driver"] if yt.config["backend"] == "rpc" else instance.configs["driver"]
@@ -731,9 +735,9 @@ class TestTableCommandsOperations(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"a": i} for i in xrange(10)])
         assert yt.row_count(table) == 10
-        yt.run_erase(TablePath(table, start_index=0, end_index=5))
+        yt.run_erase(yt.TablePath(table, start_index=0, end_index=5))
         assert yt.row_count(table) == 5
-        yt.run_erase(TablePath(table, start_index=0, end_index=5))
+        yt.run_erase(yt.TablePath(table, start_index=0, end_index=5))
         assert yt.row_count(table) == 0
 
 
@@ -907,4 +911,3 @@ class TestTableCommandsJsonFormatUjson(TestTableCommandsJsonFormat):
     def setup_class(cls):
         super(TestTableCommandsJsonFormatUjson, cls).setup_class()
         cls._enable_ujson = True
-

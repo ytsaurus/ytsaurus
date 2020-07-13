@@ -3,9 +3,9 @@ from .errors import YtResponseError
 from .config import get_config
 from .cypress_commands import get, set, list, exists, create
 from .run_operation_commands import run_merge
-from .ypath import TablePath
 from .table import TempTable
 from .transaction import Transaction
+from .ypath import TablePath
 
 import yt.logger as logger
 

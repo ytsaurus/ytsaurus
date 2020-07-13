@@ -4,8 +4,9 @@ from .cypress_commands import get, copy
 from .errors import YtError
 from .run_operation_commands import run_merge
 from .shuffle import shuffle_table
-from .table import TempTable, TablePath
+from .table import TempTable
 from .table_commands import read_table, write_table
+from .ypath import TablePath
 
 import random
 

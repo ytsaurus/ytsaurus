@@ -13,8 +13,8 @@ except ImportError:
 
 from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManager, TMPFS_SIZE_MULTIPLIER
 from yt.wrapper.common import get_disk_size, MB
-from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message, get_jobs_with_error_or_stderr, get_operation_error
-from yt.wrapper.table import TablePath
+from yt.wrapper.operation_commands import (
+    add_failed_operation_stderrs_to_error_message, get_jobs_with_error_or_stderr, get_operation_error)
 from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
 from yt.wrapper.skiff import convert_to_skiff_schema
 
@@ -217,7 +217,7 @@ class TestOperations(object):
                            {"a": "x", "b": "name", "c": 0.5}
                        ])
         operation = yt.run_map("PYTHONPATH=. {} capitalize_b.py".format(get_python()),
-                               TablePath(table, columns=["b"]), other_table,
+                               yt.TablePath(table, columns=["b"]), other_table,
                                local_files=get_test_file_path("capitalize_b.py"),
                                format=yt.DsvFormat())
         records = yt.read_table(other_table, raw=False)
@@ -310,7 +310,7 @@ class TestOperations(object):
 
         yt.run_map("PYTHONPATH=. {} many_output.py yt".format(get_python()),
                    table,
-                   output_tables + [TablePath(append_table, append=True)],
+                   output_tables + [yt.TablePath(append_table, append=True)],
                    local_files=get_test_file_path("many_output.py"),
                    format=yt.DsvFormat())
 
@@ -643,7 +643,7 @@ class TestStderrTable(object):
     def test_stderr_table(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
-        yt.write_table(TablePath(table, sorted_by=["x"]), [{"x": 1}, {"x": 2}])
+        yt.write_table(yt.TablePath(table, sorted_by=["x"]), [{"x": 1}, {"x": 2}])
 
         stderr_table = TEST_DIR + "/stderr_table"
 
@@ -680,7 +680,7 @@ class TestStderrTable(object):
     def test_stderr_table_inside_transaction(self):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
-        yt.write_table(TablePath(table, sorted_by=["x"]), [{"x": 1}, {"x": 2}])
+        yt.write_table(yt.TablePath(table, sorted_by=["x"]), [{"x": 1}, {"x": 2}])
 
         stderr_table = TEST_DIR + "/stderr_table"
         try:
@@ -2214,6 +2214,6 @@ class TestOperationsSkiffFormat(object):
         yt.run_map(mapper, input_table, output_table2)
         assert list(yt.read_table(output_table2)) == [{"y": 9}, {"y": 25}, {"y": 0}]
 
-        yt.run_map(mapper2, TablePath(input_table, attributes={"rename_columns": {"x": "z"}}), output_table3)
+        yt.run_map(mapper2, yt.TablePath(input_table, attributes={"rename_columns": {"x": "z"}}), output_table3)
         assert list(yt.read_table(output_table3)) == [{"y": 9}, {"y": 25}, {"y": 0}]
 
