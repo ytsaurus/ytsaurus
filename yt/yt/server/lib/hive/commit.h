@@ -43,6 +43,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceId, TraceId);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, ParticipantCellIds);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, PrepareOnlyParticipantCellIds);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TCellId>, CellIdsToSyncWithBeforePrepare);
     DEFINE_BYVAL_RO_PROPERTY(bool, Distributed);
     DEFINE_BYVAL_RO_PROPERTY(bool, GeneratePrepareTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(bool, InheritCommitTimestamp);
@@ -61,6 +62,7 @@ public:
         NRpc::TMutationId mutationId,
         std::vector<TCellId> participantCellIds,
         std::vector<TCellId> prepareOnlyPrticipantCellIds,
+        std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
         bool distributed,
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,

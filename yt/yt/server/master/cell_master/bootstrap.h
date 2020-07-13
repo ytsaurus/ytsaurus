@@ -87,7 +87,7 @@ public:
     const NNodeTrackerServer::TNodeTrackerPtr& GetNodeTracker() const;
     const NTransactionServer::TTransactionManagerPtr& GetTransactionManager() const;
     const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() const;
-    const NHiveServer::TTransactionSupervisorPtr& GetTransactionSupervisor() const;
+    const NHiveServer::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
     const NCypressServer::TCypressManagerPtr& GetCypressManager() const;
     const NCypressServer::TPortalManagerPtr& GetPortalManager() const;
     const THydraFacadePtr& GetHydraFacade() const;
@@ -142,7 +142,7 @@ private:
     NTransactionServer::TTransactionManagerPtr TransactionManager_;
     NTimestampServer::TTimestampManagerPtr TimestampManager_;
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;
-    NHiveServer::TTransactionSupervisorPtr TransactionSupervisor_;
+    NHiveServer::ITransactionSupervisorPtr TransactionSupervisor_;
     NCypressServer::TCypressManagerPtr CypressManager_;
     NCypressServer::TPortalManagerPtr PortalManager_;
     THydraFacadePtr HydraFacade_;

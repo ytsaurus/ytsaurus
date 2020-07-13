@@ -117,6 +117,7 @@ DEFINE_ENUM(EMasterReign,
     ((MultisetAttributes)                                           (1402))  // gritukan
     ((MakeProfilingModeAnInheritedAttribute)                        (1403))  // akozhikhov
     ((YT_13003_SeparateScannersForJournalAndBlobChunks)             (1404))  // shakurov
+    ((YTINCIDENTS_56_SyncOnPrepare)                                 (1405))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

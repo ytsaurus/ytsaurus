@@ -17,10 +17,10 @@ TFuture<TMutationResponse> TMutation::Commit()
     return HydraManager_->CommitMutation(std::move(Request_));
 }
 
-TFuture<TMutationResponse> TMutation::CommitAndLog(const NLogging::TLogger& logger)
+TFuture<TMutationResponse> TMutation::CommitAndLog(NLogging::TLogger logger)
 {
     return Commit().Apply(
-        BIND([Logger = logger, type = Request_.Type] (const TErrorOr<TMutationResponse>& result) {
+        BIND([Logger = std::move(logger), type = Request_.Type] (const TErrorOr<TMutationResponse>& result) {
             if (result.IsOK()) {
                 YT_LOG_DEBUG("Mutation commit succeeded (MutationType: %v)", type);
             } else {

@@ -55,7 +55,7 @@ using NNative::IConnectionPtr;
 
 // Used as a part of transaction id. Random initialization prevents collisions
 // between different machines.
-static std::atomic<ui32> TabletTransactionHashCounter = {RandomNumber<ui32>()};
+static std::atomic<ui32> TabletTransactionHashCounter = RandomNumber<ui32>();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -774,11 +774,12 @@ private:
             auto supervisorParticipantCellIds = GetSupervisorParticipantIds();
             auto supervisorPrepareOnlyParticipantCellIds = GetSupervisorPrepareOnlyParticipantIds();
             YT_LOG_DEBUG("Committing transaction (TransactionId: %v, CoordinatorCellId: %v, "
-                "ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v)",
+                "ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v)",
                 Id_,
                 CoordinatorCellId_,
                 supervisorParticipantCellIds,
-                supervisorPrepareOnlyParticipantCellIds);
+                supervisorPrepareOnlyParticipantCellIds,
+                options.CellIdsToSyncWithBeforePrepare);
 
             auto coordinatorChannel = Owner_->CellDirectory_->GetChannelOrThrow(CoordinatorCellId_);
             auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCommitRetryChecker());
@@ -787,10 +788,12 @@ private:
             ToProto(req->mutable_transaction_id(), Id_);
             ToProto(req->mutable_participant_cell_ids(), supervisorParticipantCellIds);
             ToProto(req->mutable_prepare_only_participant_cell_ids(), supervisorPrepareOnlyParticipantCellIds);
+            ToProto(req->mutable_cell_ids_to_sync_with_before_prepare(), options.CellIdsToSyncWithBeforePrepare);
             req->set_force_2pc(options.Force2PC);
             req->set_generate_prepare_timestamp(options.GeneratePrepareTimestamp);
             req->set_inherit_commit_timestamp(options.InheritCommitTimestamp);
-            req->set_coordinator_commit_mode(static_cast<int>(options.CoordinatorCommitMode));
+            req->set_coordinator_commit_mode(ToProto<int>(options.CoordinatorCommitMode));
+            ToProto(req->mutable_cell_ids_to_sync_with_before_prepare(), options.CellIdsToSyncWithBeforePrepare);
             SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
             return req->Invoke().Apply(

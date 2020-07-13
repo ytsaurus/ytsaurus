@@ -289,7 +289,7 @@ const TTransactionManagerPtr& TBootstrap::GetTransactionManager() const
     return TransactionManager_;
 }
 
-const TTransactionSupervisorPtr& TBootstrap::GetTransactionSupervisor() const
+const ITransactionSupervisorPtr& TBootstrap::GetTransactionSupervisor() const
 {
     return TransactionSupervisor_;
 }
@@ -685,7 +685,7 @@ void TBootstrap::DoInitialize()
     // Initialize periodic latest timestamp update.
     TimestampProvider_->GetLatestTimestamp();
 
-    TransactionSupervisor_ = New<TTransactionSupervisor>(
+    TransactionSupervisor_ = CreateTransactionSupervisor(
         Config_->TransactionSupervisor,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor),
         HydraFacade_->GetTransactionTrackerInvoker(),
@@ -700,7 +700,8 @@ void TBootstrap::DoInitialize()
                 CellDirectory_,
                 TimestampProvider_,
                 GetKnownParticipantCellTags())
-        });
+        },
+        HiveManager_);
 
     fileSnapshotStore->Initialize();
     ConfigManager_->Initialize();

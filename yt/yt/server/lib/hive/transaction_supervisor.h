@@ -14,46 +14,36 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionSupervisor
-    : public TRefCounted
+struct ITransactionSupervisor
+    : public virtual TRefCounted
 {
-public:
-    TTransactionSupervisor(
-        TTransactionSupervisorConfigPtr config,
-        IInvokerPtr automatonInvoker,
-        IInvokerPtr trackerInvoker,
-        NHydra::IHydraManagerPtr hydraManager,
-        NHydra::TCompositeAutomatonPtr automaton,
-        NRpc::TResponseKeeperPtr responseKeeper,
-        ITransactionManagerPtr transactionManager,
-        TCellId selfCellId,
-        NTransactionClient::ITimestampProviderPtr timestampProvider,
-        const std::vector<ITransactionParticipantProviderPtr>& participantProviders);
+    virtual std::vector<NRpc::IServicePtr> GetRpcServices() = 0;
 
-    ~TTransactionSupervisor();
+    virtual TFuture<void> CommitTransaction(
+        TTransactionId transactionId) = 0;
 
-    std::vector<NRpc::IServicePtr> GetRpcServices();
-
-    TFuture<void> CommitTransaction(
+    virtual TFuture<void> AbortTransaction(
         TTransactionId transactionId,
-        const std::vector<NHydra::TCellId>& participantCellIds = {},
-        const std::vector<NHydra::TCellId>& prepareOnlyParticipantCellIds = {});
+        bool force = false) = 0;
 
-    TFuture<void> AbortTransaction(
-        TTransactionId transactionId,
-        bool force = false);
-
-    void Decommission();
-    bool IsDecommissioned() const;
-
-private:
-    class TImpl;
-    using TImplPtr = TIntrusivePtr<TImpl>;
-    const TImplPtr Impl_;
-
+    virtual void Decommission() = 0;
+    virtual bool IsDecommissioned() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTransactionSupervisor)
+DEFINE_REFCOUNTED_TYPE(ITransactionSupervisor)
+
+ITransactionSupervisorPtr CreateTransactionSupervisor(
+    TTransactionSupervisorConfigPtr config,
+    IInvokerPtr automatonInvoker,
+    IInvokerPtr trackerInvoker,
+    NHydra::IHydraManagerPtr hydraManager,
+    NHydra::TCompositeAutomatonPtr automaton,
+    NRpc::TResponseKeeperPtr responseKeeper,
+    ITransactionManagerPtr transactionManager,
+    TCellId selfCellId,
+    NTransactionClient::ITimestampProviderPtr timestampProvider,
+    std::vector<ITransactionParticipantProviderPtr> participantProviders,
+    THiveManagerPtr hiveManager = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

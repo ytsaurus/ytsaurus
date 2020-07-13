@@ -22,6 +22,7 @@ TCommit::TCommit(
     TMutationId mutationId,
     std::vector<TCellId> participantCellIds,
     std::vector<TCellId> prepareOnlyParticipantCellIds,
+    std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
     bool distributed,
     bool generatePrepareTimestamp,
     bool inheritCommitTimestamp,
@@ -31,6 +32,7 @@ TCommit::TCommit(
     , MutationId_(mutationId)
     , ParticipantCellIds_(std::move(participantCellIds))
     , PrepareOnlyParticipantCellIds_(std::move(prepareOnlyParticipantCellIds))
+    , CellIdsToSyncWithBeforePrepare_(std::move(cellIdsToSyncWithBeforePrepare))
     , Distributed_(distributed)
     , GeneratePrepareTimestamp_(generatePrepareTimestamp)
     , InheritCommitTimestamp_(inheritCommitTimestamp)
@@ -64,6 +66,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, MutationId_);
     Save(context, ParticipantCellIds_);
     Save(context, PrepareOnlyParticipantCellIds_);
+    Save(context, CellIdsToSyncWithBeforePrepare_);
     Save(context, Distributed_);
     Save(context, GeneratePrepareTimestamp_);
     Save(context, InheritCommitTimestamp_);
@@ -85,6 +88,10 @@ void TCommit::Load(TLoadContext& context)
     // COMPAT(babenko)
     if (context.GetVersion() >= 8) {
         Load(context, PrepareOnlyParticipantCellIds_);
+    }
+    // COMPAT(babenko)
+    if (context.GetVersion() >= 10) {
+        Load(context, CellIdsToSyncWithBeforePrepare_);
     }
     Load(context, Distributed_);
     // COMPAT(babenko)
