@@ -1148,11 +1148,12 @@ def start_op(op_type, **kwargs):
 
     kwargs["operation_type"] = op_type
 
-    operation.id = execute_command("start_op", kwargs, parse_yson=True)
+    if kwargs.get("return_response", False):
+        return execute_command("start_op", kwargs, parse_yson=True, return_response=True)
 
+    operation.id = execute_command("start_op", kwargs, parse_yson=True)
     if track:
         operation.track()
-
     return operation
 
 

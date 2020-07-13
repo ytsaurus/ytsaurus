@@ -591,6 +591,8 @@ public:
             spec->Alias,
             spec->ScheduleInSingleTree && Config_->EnableScheduleInSingleTree);
 
+        IdToStartingOperation_.insert(std::make_pair(operationId, operation));
+
         if (spec->AclNode) {
             try {
                 ConvertTo<TSerializableAccessControlList>(spec->AclNode);
@@ -629,7 +631,12 @@ public:
             auto wrappedError = TError("Operation has failed to start")
                 << ex;
             operation->SetStarted(wrappedError);
+            YT_VERIFY(IdToStartingOperation_.erase(operationId) == 1);
             THROW_ERROR(wrappedError);
+        }
+        
+        if (operation->Spec()->TestingOperationOptions->DelayBeforeStart) {
+            TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayBeforeStart);
         }
 
         operation->GetCancelableControlInvoker()->Invoke(
@@ -1616,6 +1623,8 @@ private:
     THashMap<TString, TOperationAlias> OperationAliases_;
     THashMap<TOperationId, IYPathServicePtr> IdToOperationService_;
 
+    THashMap<TOperationId, TOperationPtr> IdToStartingOperation_;
+
     mutable TReaderWriterSpinLock ExecNodeDescriptorsLock_;
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
@@ -2044,9 +2053,18 @@ private:
                 }
                 operation->Cancel(error);
             }
+            for (const auto& [operationId, operation] : IdToStartingOperation_) {
+                YT_VERIFY(!operation->IsFinishedState());
+                SetOperationFinalState(
+                    operation,
+                    EOperationState::Aborted,
+                    error);
+                operation->Cancel(error);
+            }
             OperationAliases_.clear();
             IdToOperation_.clear();
             IdToOperationService_.clear();
+            IdToStartingOperation_.clear();
         }
 
         for (auto& queue : StateToTransientOperations_) {
@@ -2598,11 +2616,15 @@ private:
                 OperationAliases_.erase(it);
             }
 
+            YT_VERIFY(IdToStartingOperation_.erase(operation->GetId()) == 1);
+
             auto wrappedError = TError("Operation has failed to start")
                 << ex;
             operation->SetStarted(wrappedError);
             return;
         }
+
+        YT_VERIFY(IdToStartingOperation_.erase(operation->GetId()) == 1);
 
         ValidateOperationState(operation, EOperationState::Starting);
 

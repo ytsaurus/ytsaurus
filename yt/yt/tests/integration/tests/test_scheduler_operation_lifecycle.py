@@ -556,6 +556,34 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
         write_table("//tmp/t_in", [{"x": "y"}])
         wait(lambda: op3.get_state() == "failed")
 
+    @authors("ignat")
+    def test_starting_operation(self):
+        self._prepare_tables()
+
+        op_response = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="<append=true>//tmp/t_in",
+            command="cat",
+            spec={
+                "testing": {
+                    "delay_before_start": 5000,
+                }
+            },
+            return_response=True)
+
+        time.sleep(2)
+
+        scheduler_locks = get("//sys/scheduler/lock/@locks", verbose=False)
+        assert len(scheduler_locks) > 0
+        scheduler_transaction = scheduler_locks[0]["transaction_id"]
+        abort_transaction(scheduler_transaction)
+
+        op_response.wait()
+        assert not op_response.is_ok()
+        error = yt.common.YtResponseError(op_response.error())
+        assert error.contains_text("Master disconnected")
+
 
 class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
     NUM_MASTERS = 1
