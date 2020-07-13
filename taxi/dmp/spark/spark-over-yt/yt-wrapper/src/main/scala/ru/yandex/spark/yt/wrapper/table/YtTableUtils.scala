@@ -1,6 +1,7 @@
 package ru.yandex.spark.yt.wrapper.table
 
 import java.io.{BufferedInputStream, FileInputStream, InputStream}
+import java.nio.ByteBuffer
 import java.nio.file.Paths
 
 import org.apache.log4j.Logger
@@ -71,10 +72,9 @@ trait YtTableUtils {
 
   def readTableArrowStream(path: String, timeout: Duration)
                           (implicit yt: YtClient): YtArrowInputStream = {
-    val request = new ReadTableDirect(path)
+    val request = new ReadTable[ByteBuffer](path, null.asInstanceOf[WireRowDeserializer[ByteBuffer]])
       .setDesiredRowsetFormat(ERowsetFormat.RF_ARROW)
-      .asInstanceOf[ReadTableDirect]
-    val reader = yt.readTableDirect(request, new TableAttachmentByteBufferReader).join()
+    val reader = yt.readTable(request, new TableAttachmentByteBufferReader).join()
     new TableCopyByteStream(reader, timeout)
   }
 
