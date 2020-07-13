@@ -159,6 +159,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("scheduling_delay_type", SchedulingDelayType)
         .Default(ESchedulingDelayType::Sync);
+    RegisterParameter("delay_before_start", DelayBeforeStart)
+        .Default();
     RegisterParameter("delay_inside_revive", DelayInsideRevive)
         .Default();
     RegisterParameter("delay_inside_initialize", DelayInsideInitialize)
