@@ -1,7 +1,6 @@
 from .conftest import authors
 from .helpers import TEST_DIR, set_config_option
 
-from yt.wrapper.table import TablePath
 import yt.wrapper.http_helpers as http
 
 from yt.packages.six.moves import xrange
@@ -92,7 +91,7 @@ class TestClient(object):
             client.run_sort(temp_table, sort_by=["x"])
             assert client.is_sorted(temp_table)
 
-            client.run_erase(TablePath(temp_table, start_index=0, end_index=5, client=client))
+            client.run_erase(yt.TablePath(temp_table, start_index=0, end_index=5, client=client))
             assert client.row_count(temp_table) == 5
 
             client.run_map("cat", other_table, TEST_DIR + "/map_output", format=yt.DsvFormat())

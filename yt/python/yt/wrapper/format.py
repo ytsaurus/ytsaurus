@@ -24,7 +24,6 @@ from yt.packages.six.moves import xrange, map as imap, zip as izip, filter as if
 from abc import ABCMeta, abstractmethod
 from codecs import getwriter
 import copy
-import sys
 import struct
 try:
     from cStringIO import StringIO as BytesIO
