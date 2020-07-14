@@ -24,7 +24,7 @@ TLazyDictProducer::TLazyDictProducer(const std::optional<TString>& encoding, boo
 
 void TLazyDictProducer::Reset()
 {
-    ResultObject_ = Py::Object(LazyYsonMapNew(TLazyYsonMapType, Py_None, Py_None));
+    ResultObject_ = Py::Object(LazyYsonMapNew(TLazyYsonMapType, Py_None, Py_None), /* owned */ true);
     LazyYsonMapInit(reinterpret_cast<TLazyYsonMap*>(ResultObject_.ptr()), ParserParams_.ptr(), Py::Dict().ptr());
 
     TLazyYsonMap* object = reinterpret_cast<TLazyYsonMap*>(ResultObject_.ptr());
@@ -63,7 +63,6 @@ void TLazyDictProducer::SetObject()
     }
 
     ResultObject_ = object;
-    ResultObject_.increment_reference_count();
 }
 
 void TLazyDictProducer::OnKeyValue(const Py::Object& key, const TSharedRef& value)

@@ -928,6 +928,7 @@ class TestOperationsFormat(object):
         table = TEST_DIR + "/table"
         output_table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1, "y": 2}, {"x": 1, "y": 3}, {"x": 3, "y": 4}])
+
         yt.run_map_reduce(mapper, reducer, table, output_table, format="<lazy=%true>yson", reduce_by="x")
 
         assert list(yt.read_table(output_table)) == [{"x": 1, "res": 7}, {"x": 3, "res": 5}]

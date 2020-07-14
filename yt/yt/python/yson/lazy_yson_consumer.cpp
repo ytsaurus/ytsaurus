@@ -177,7 +177,7 @@ bool TLazyYsonConsumer::HasObject() const
     return !Objects_.empty();
 }
 
-PyObject* TLazyYsonConsumer::ExtractObject()
+Py::Object TLazyYsonConsumer::ExtractObject()
 {
     auto object = Objects_.front();
     Objects_.pop();
@@ -206,7 +206,7 @@ void TLazyYsonConsumer::OnItemConsumed()
         if (!IsLazyDictObject_) {
             LazyDictConsumer_->SetObject();
         }
-        Objects_.push(LazyDictConsumer_->ExtractObject().ptr());
+        Objects_.push(LazyDictConsumer_->ExtractObject());
     }
 }
 

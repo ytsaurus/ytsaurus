@@ -18,7 +18,7 @@ public:
         TPythonStringCache* keyCacher)
         : InputStream_(TStreamReader(stream))
         , Consumer_(
-            BIND(&TImpl::ExtractPrefix, MakeStrong(this)),
+            BIND(&TImpl::ExtractPrefix, Unretained(this)),
             keyCacher,
             encoding,
             alwaysCreateAttributes)
@@ -47,7 +47,9 @@ public:
             return nullptr;
         }
 
-        return Consumer_.ExtractObject();
+        auto nextItem = Consumer_.ExtractObject();
+        nextItem.increment_reference_count();
+        return *nextItem;
     }
 
 private:

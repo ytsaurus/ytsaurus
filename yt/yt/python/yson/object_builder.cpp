@@ -171,6 +171,7 @@ PyObjectPtr TPythonObjectBuilder::Pop()
 
 Py::Object TPythonObjectBuilder::ExtractObject()
 {
+    YT_VERIFY(!Objects_.empty());
     auto obj = Objects_.front();
     Objects_.pop();
     return obj;
