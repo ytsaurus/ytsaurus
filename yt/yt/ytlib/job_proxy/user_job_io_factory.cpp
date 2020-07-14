@@ -574,7 +574,13 @@ public:
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
         nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-        YT_VERIFY(reduceJobSpecExt.has_partition_tag());
+        std::optional<int> partitionTag;
+        if (schedulerJobSpecExt.has_partition_tag()) {
+            partitionTag = schedulerJobSpecExt.partition_tag();
+        } else if (reduceJobSpecExt.has_partition_tag()) {
+            partitionTag = reduceJobSpecExt.partition_tag();
+        }
+        YT_VERIFY(partitionTag);
 
         return CreateSchemalessPartitionSortReader(
             JobSpecHelper_->GetJobIOConfig()->TableReader,
@@ -588,7 +594,7 @@ public:
             std::move(dataSliceDescriptors),
             schedulerJobSpecExt.input_row_count(),
             schedulerJobSpecExt.is_approximate(),
-            reduceJobSpecExt.partition_tag(),
+            *partitionTag,
             BlockReadOptions_,
             TrafficMeter_,
             InBandwidthThrottler_,

@@ -282,6 +282,10 @@ message TSchedulerJobSpecExt
     optional NYT.NProto.TGuid job_competition_id = 24;
 
     optional string task_name = 25;
+
+    // Index of partition job belongs to. This field is set only in
+    // Sort and MapReduce jobs.
+    optional int32 partition_tag = 26;
 }
 
 message TSchedulerJobResultExt
@@ -357,6 +361,7 @@ message TMergeJobSpecExt
     // For EJobType::SortedMerge, contains columns used for comparison.
     repeated string key_columns = 1;
 
+    // COMPAT(gritukan)
     optional int32 partition_tag = 2;
 }
 
@@ -420,6 +425,7 @@ message TSortJobSpecExt
     repeated string key_columns = 5;
 
     // Optional, because simple sort jobs don't require partition tag.
+    // COMPAT(gritukan)
     optional int32 partition_tag = 6;
 }
 
@@ -446,6 +452,7 @@ message TReduceJobSpecExt
     // Reduce by prefix length of key columns.
     required int32 reduce_key_column_count = 2;
 
+    // COMPAT(gritukan)
     optional int32 partition_tag = 3;
 
     // Join by prefix length of secondary key columns.
