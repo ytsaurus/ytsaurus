@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"math/rand"
+	"net"
 	"net/http"
 	"sync"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -45,6 +48,7 @@ type httpClient struct {
 	errorWrapper    *internal.ErrorWrapper
 
 	clusterURL yt.ClusterURL
+	netDialer  *net.Dialer
 	httpClient *http.Client
 	log        log.Structured
 	config     *yt.Config
@@ -447,6 +451,27 @@ func (c *httpClient) Stop() {
 	c.stop.Stop()
 }
 
+func (c *httpClient) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+	for i := 0; ; i++ {
+		conn, err := c.netDialer.DialContext(ctx, network, addr)
+		if err != nil {
+			var temporary interface{ Temporary() bool }
+			if errors.As(err, &temporary) && temporary.Temporary() && i < 3 {
+				continue
+			}
+
+			var timeout interface{ Timeout() bool }
+			if errors.As(err, &timeout) && timeout.Timeout() && i < 3 {
+				continue
+			}
+
+			return nil, err
+		}
+
+		return conn, nil
+	}
+}
+
 func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	var client httpClient
 
@@ -458,7 +483,20 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 
 	client.config = c
 	client.clusterURL = yt.NormalizeProxyURL(c.Proxy)
-	client.httpClient = http.DefaultClient
+	client.netDialer = &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+		DualStack: true,
+	}
+	client.httpClient = &http.Client{
+		Transport: &http.Transport{
+			DialContext:         client.dialContext,
+			ForceAttemptHTTP2:   true,
+			MaxIdleConns:        100,
+			IdleConnTimeout:     90 * time.Second,
+			TLSHandshakeTimeout: 10 * time.Second,
+		},
+	}
 	client.stop = internal.NewStopGroup()
 
 	client.Encoder.Invoke = client.do
