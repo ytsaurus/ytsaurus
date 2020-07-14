@@ -392,6 +392,8 @@ public:
 
     int AllocateWriteTargetsRetryCount;
 
+    std::optional<TDuration> TestingDelay;
+
     TReplicationWriterConfig()
     {
         RegisterParameter("send_window_size", SendWindowSize)
@@ -428,6 +430,9 @@ public:
             .Default(TDuration::Seconds(5));
         RegisterParameter("allocate_write_targets_retry_count", AllocateWriteTargetsRetryCount)
             .Default(10);
+
+        RegisterParameter("testing_delay", TestingDelay)
+            .Default();
 
         RegisterPreprocessor([&] () {
             NodeChannel->RetryBackoffTime = TDuration::Seconds(10);
