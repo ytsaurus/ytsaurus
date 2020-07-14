@@ -2942,7 +2942,7 @@ class TestIntegralGuarantees(YTEnvSetup):
             integral=0.7,
             weight_proportional=0.0)
 
-    def test_integral_resource_volume_consumption(self):
+    def test_accumulated_resource_volume_consumption(self):
         create_pool("test_pool", attributes={
             "integral_guarantees": {
                 "guarantee_type": "relaxed",
@@ -2952,13 +2952,13 @@ class TestIntegralGuarantees(YTEnvSetup):
         wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool"))
 
         # No operations -> volume is accumulating
-        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/integral_resource_volume") > 1)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/accumulated_resource_volume") > 1)
         run_sleeping_vanilla(job_count=10, spec={"pool": "test_pool"})
 
         # Minimum volume is 0.25 = 0.5 (period) * 0.5 (flow_ratio)
-        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/integral_resource_volume") < 0.3)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/accumulated_resource_volume") < 0.3)
 
-    def test_integral_resource_volume_survives_restart(self):
+    def test_accumulated_resource_volume_survives_restart(self):
         create_pool("test_pool", attributes={
             "integral_guarantees": {
                 "guarantee_type": "relaxed",
@@ -2967,16 +2967,16 @@ class TestIntegralGuarantees(YTEnvSetup):
         })
 
         wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool"))
-        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/integral_resource_volume") < 0.5
+        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/accumulated_resource_volume") < 0.5
 
         time.sleep(3)
-        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/integral_resource_volume") > 1)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/accumulated_resource_volume") > 1)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
         wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool"))
-        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/integral_resource_volume") > 1
+        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/accumulated_resource_volume") > 1
 
     def test_integral_pools_orchid(self):
         create_pool("burst_pool", attributes={

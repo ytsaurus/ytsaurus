@@ -101,14 +101,14 @@ struct TPersistentAttributes
     double BestAllocationRatio = 1.0;
     TInstant LastBestAllocationRatioUpdateTime;
 
-    double IntegralResourceVolume = 0.0;
+    double AccumulatedResourceVolume = 0.0;
     double LastIntegralShareRatio = 0.0;
 
     // NB: we don't want to reset all attributes.
     void ResetOnElementEnabled()
     {
         auto resetElement = TPersistentAttributes();
-        resetElement.IntegralResourceVolume = IntegralResourceVolume;
+        resetElement.AccumulatedResourceVolume = AccumulatedResourceVolume;
         *this = resetElement;
     }
 };
@@ -345,8 +345,8 @@ public:
 
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const;
     virtual TJobResources GetBurstGuaranteeResources() const;
-    double GetIntegralResourceVolume() const;
-    void InitIntegralResourceVolume(double resourceVolume);
+    double GetAccumulatedResourceVolume() const;
+    void InitAccumulatedResourceVolume(double resourceVolume);
     double GetIntegralShareRatioByVolume() const;
     double GetIntegralShareRatioLimitForRelaxedType() const;
     double GetIntegralPoolCapacity() const;

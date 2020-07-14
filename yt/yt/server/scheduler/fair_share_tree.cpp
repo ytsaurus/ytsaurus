@@ -1732,7 +1732,7 @@ auto TFairShareTree<TFairShareImpl>::DoBuildElementYson(
         .Item("detailed_fair_share").Value(attributes.GetDetailedFairShare())
         .Item("best_allocation_ratio").Value(element->GetBestAllocationRatio())
         .Item("satisfaction_ratio").Value(dynamicAttributes.SatisfactionRatio)
-        .Item("integral_resource_volume").Value(element->GetIntegralResourceVolume());
+        .Item("accumulated_resource_volume").Value(element->GetAccumulatedResourceVolume());
 }
 
 template <class TFairShareImpl>
@@ -2436,8 +2436,8 @@ auto TFairShareTree<TFairShareImpl>::ProfileSchedulerElement(
         EMetricType::Gauge,
         tags);
     accumulator.Add(
-        profilingPrefix + "/integral_resource_volume_x100000",
-        static_cast<i64>(element->GetIntegralResourceVolume() * 1e5),
+        profilingPrefix + "/accumulated_resource_volume_x100000",
+        static_cast<i64>(element->GetAccumulatedResourceVolume() * 1e5),
         EMetricType::Gauge,
         tags);
 
@@ -2474,7 +2474,7 @@ auto TFairShareTree<TFairShareImpl>::BuildPersistentTreeState() const -> TPersis
     for (const auto& [poolId, pool] : Pools_) {
         if (pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
             auto state = New<TPersistentPoolState>();
-            state->IntegralResourceVolume = pool->GetIntegralResourceVolume();
+            state->AccumulatedResourceVolume = pool->GetAccumulatedResourceVolume();
             result->PoolStates.emplace(poolId, std::move(state));
         }
     }
@@ -2488,7 +2488,7 @@ auto TFairShareTree<TFairShareImpl>::InitPersistentTreeState(const TPersistentTr
         auto poolIt = Pools_.find(poolName);
         if (poolIt != Pools_.end()) {
             if (poolIt->second->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
-                poolIt->second->InitIntegralResourceVolume(volume->IntegralResourceVolume);
+                poolIt->second->InitAccumulatedResourceVolume(volume->AccumulatedResourceVolume);
             } else {
                 YT_LOG_INFO("Pool is not integral and cannot accept integral resource volume (Pool: %v, PoolTree: %v, Volume: %v)",
                     poolName,

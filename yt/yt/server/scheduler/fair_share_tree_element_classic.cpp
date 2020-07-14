@@ -359,7 +359,7 @@ TString TSchedulerElement::GetLoggingAttributesString(const TDynamicAttributes& 
         Attributes_.DemandRatio,
         GetResourceUsageRatio(),
         Attributes_.FairShare,
-        GetIntegralResourceVolume(),
+        GetAccumulatedResourceVolume(),
         dynamicAttributes.SatisfactionRatio,
         Attributes_.UnlimitedDemandFairShare.Total(),
         Attributes_.PossibleUsageRatio,
@@ -430,10 +430,10 @@ double TSchedulerElement::GetIntegralPoolCapacity() const
 
 void TSchedulerElement::ConsumeAndRefillForPeriod(TDuration period)
 {
-    PersistentAttributes_.IntegralResourceVolume += Attributes_.ResourceFlowRatio * period.SecondsFloat();
-    PersistentAttributes_.IntegralResourceVolume -= PersistentAttributes_.LastIntegralShareRatio * period.SecondsFloat();
-    PersistentAttributes_.IntegralResourceVolume = std::max(PersistentAttributes_.IntegralResourceVolume, 0.0);
-    PersistentAttributes_.IntegralResourceVolume = std::min(PersistentAttributes_.IntegralResourceVolume, GetIntegralPoolCapacity());
+    PersistentAttributes_.AccumulatedResourceVolume += Attributes_.ResourceFlowRatio * period.SecondsFloat();
+    PersistentAttributes_.AccumulatedResourceVolume -= PersistentAttributes_.LastIntegralShareRatio * period.SecondsFloat();
+    PersistentAttributes_.AccumulatedResourceVolume = std::max(PersistentAttributes_.AccumulatedResourceVolume, 0.0);
+    PersistentAttributes_.AccumulatedResourceVolume = std::min(PersistentAttributes_.AccumulatedResourceVolume, GetIntegralPoolCapacity());
 }
 
 TJobResources TSchedulerElement::GetBurstGuaranteeResources() const
@@ -441,20 +441,20 @@ TJobResources TSchedulerElement::GetBurstGuaranteeResources() const
     return {};
 }
 
-double TSchedulerElement::GetIntegralResourceVolume() const
+double TSchedulerElement::GetAccumulatedResourceVolume() const
 {
-    return PersistentAttributes_.IntegralResourceVolume;
+    return PersistentAttributes_.AccumulatedResourceVolume;
 }
 
-void TSchedulerElement::InitIntegralResourceVolume(double resourceVolume)
+void TSchedulerElement::InitAccumulatedResourceVolume(double resourceVolume)
 {
-    YT_VERIFY(PersistentAttributes_.IntegralResourceVolume == 0.0);
-    PersistentAttributes_.IntegralResourceVolume = resourceVolume;
+    YT_VERIFY(PersistentAttributes_.AccumulatedResourceVolume == 0.0);
+    PersistentAttributes_.AccumulatedResourceVolume = resourceVolume;
 }
 
 double TSchedulerElement::GetIntegralShareRatioByVolume() const
 {
-    return GetIntegralResourceVolume() / TreeConfig_->IntegralGuarantees->SmoothPeriod.SecondsFloat();
+    return GetAccumulatedResourceVolume() / TreeConfig_->IntegralGuarantees->SmoothPeriod.SecondsFloat();
 }
 
 double TSchedulerElement::GetIntegralShareRatioLimitForRelaxedType() const

@@ -349,8 +349,8 @@ public:
     virtual double GetMaxShareRatio() const;
 
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const;
-    double GetIntegralResourceVolume() const;
-    void InitIntegralResourceVolume(double resourceVolume);
+    double GetAccumulatedResourceVolume() const;
+    void InitAccumulatedResourceVolume(double resourceVolume);
 
     virtual double GetFairShareStarvationTolerance() const = 0;
     virtual TDuration GetMinSharePreemptionTimeout() const = 0;
