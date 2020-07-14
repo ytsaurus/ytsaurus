@@ -43,7 +43,7 @@ public:
 
     bool HasObject() const;
 
-    PyObject* ExtractObject();
+    Py::Object ExtractObject();
 
 private:
     void OnItemConsumed();
@@ -51,7 +51,7 @@ private:
 
     int Balance_ = 0;
 
-    std::queue<PyObject*> Objects_;
+    std::queue<Py::Object> Objects_;
 
     TCallback<TSharedRef()> ExtractPrefixCallback_;
 
