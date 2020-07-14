@@ -393,7 +393,7 @@ public:
             std::move(channelFactory))
     { }
 
-    TFuture<void> Run()
+    TFuture<std::vector<TChunkReplicaDescriptor>> Run()
     {
         BIND(&TAbortSessionsQuorumSession::DoRun, MakeStrong(this))
             .AsyncVia(NRpc::TDispatcher::Get()->GetLightInvoker())
@@ -407,8 +407,9 @@ private:
     NErasure::TPartIndexSet SuccessPartIndexes_;
 
     std::vector<TError> InnerErrors_;
+    std::vector<TChunkReplicaDescriptor> AbortedReplicas_;
 
-    const TPromise<void> Promise_ = NewPromise<void>();
+    const TPromise<std::vector<TChunkReplicaDescriptor>> Promise_ = NewPromise<std::vector<TChunkReplicaDescriptor>>();
 
     void DoRun()
     {
@@ -450,6 +451,7 @@ private:
         // NB: Missing session is also OK.
         if (rspOrError.IsOK() || rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchSession) {
             ++SuccessCounter_;
+            AbortedReplicas_.push_back(replica);
             if (replica.ReplicaIndex != GenericChunkReplicaIndex) {
                 SuccessPartIndexes_.set(replica.ReplicaIndex);
             }
@@ -463,7 +465,7 @@ private:
         }
 
         if (IsSuccess()) {
-            if (Promise_.TrySet()) {
+            if (Promise_.TrySet(AbortedReplicas_)) {
                 YT_LOG_DEBUG("Journal chunk session quorum aborted successfully");
             }
         } else if (ResponseCounter_ == Replicas_.size()) {
@@ -482,7 +484,7 @@ private:
     }
 };
 
-TFuture<void> AbortSessionsQuorum(
+TFuture<std::vector<TChunkReplicaDescriptor>> AbortSessionsQuorum(
     TChunkId chunkId,
     std::vector<TChunkReplicaDescriptor> replicas,
     TDuration timeout,

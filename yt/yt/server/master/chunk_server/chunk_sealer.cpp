@@ -286,21 +286,22 @@ private:
         auto chunkId = chunk->GetId();
         auto codecId = chunk->GetErasureCodec();
         auto readQuorum = chunk->GetReadQuorum();
-        auto replicaDescriptors = GetChunkReplicaDescriptors(chunk);
+        auto replicas = GetChunkReplicaDescriptors(chunk);
         auto dynamicConfig = GetDynamicConfig();
 
         YT_LOG_DEBUG("Sealing journal chunk (ChunkId: %v)",
             chunkId);
 
+        std::vector<TChunkReplicaDescriptor> abortedReplicas;
         {
             auto future = AbortSessionsQuorum(
                 chunkId,
-                replicaDescriptors,
+                replicas,
                 dynamicConfig->JournalRpcTimeout,
                 readQuorum,
                 Bootstrap_->GetNodeChannelFactory());
-            WaitFor(future)
-                .ThrowOnError();
+            abortedReplicas = WaitFor(future)
+                .ValueOrThrow();
         }
 
         TMiscExt miscExt;
@@ -308,7 +309,7 @@ private:
             auto future = ComputeQuorumInfo(
                 chunkId,
                 codecId,
-                replicaDescriptors,
+                abortedReplicas,
                 dynamicConfig->JournalRpcTimeout,
                 readQuorum,
                 Bootstrap_->GetNodeChannelFactory());

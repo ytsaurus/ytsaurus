@@ -38,7 +38,7 @@ TString ToString(const TChunkReplicaDescriptor& replica);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<void> AbortSessionsQuorum(
+TFuture<std::vector<TChunkReplicaDescriptor>> AbortSessionsQuorum(
     NChunkClient::TChunkId chunkId,
     std::vector<TChunkReplicaDescriptor> replicas,
     TDuration timeout,
