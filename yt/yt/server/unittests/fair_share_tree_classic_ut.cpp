@@ -1605,8 +1605,8 @@ TEST_F(TClassicFairShareTreeTest, TestTwoRelaxedPoolsGetShareRatioProportionalTo
 
     auto volume1 = TDuration::Minutes(1).SecondsFloat() * 0.1;  // 10% of cluster for 1 minute
     auto volume2 = TDuration::Minutes(1).SecondsFloat() * 0.3;  // 30% of cluster for 1 minute
-    relaxedPool1->InitIntegralResourceVolume(volume1);
-    relaxedPool2->InitIntegralResourceVolume(volume2);
+    relaxedPool1->InitAccumulatedResourceVolume(volume1);
+    relaxedPool2->InitAccumulatedResourceVolume(volume2);
     {
         auto dynamicAttributes = TDynamicAttributesList(3);
 
