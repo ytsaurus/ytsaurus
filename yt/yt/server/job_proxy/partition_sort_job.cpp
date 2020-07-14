@@ -40,9 +40,7 @@ public:
     explicit TPartitionSortJob(IJobHostPtr host)
         : TSimpleJobBase(host)
         , SortJobSpecExt_(JobSpec_.GetExtension(TSortJobSpecExt::sort_job_spec_ext))
-    {
-        YT_VERIFY(SortJobSpecExt_.has_partition_tag());
-    }
+    { }
 
     virtual void Initialize() override
     {
@@ -60,6 +58,14 @@ public:
         auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(SchedulerJobSpecExt_.extensions());
         auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
 
+        std::optional<int> partitionTag;
+        if (SchedulerJobSpecExt_.has_partition_tag()) {
+            partitionTag = SchedulerJobSpecExt_.partition_tag();
+        } else if (SortJobSpecExt_.has_partition_tag()) {
+            partitionTag = SortJobSpecExt_.partition_tag();
+        }
+        YT_VERIFY(partitionTag);
+
         const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
         Reader_ = CreateSchemalessPartitionSortReader(
             tableReaderConfig,
@@ -73,7 +79,7 @@ public:
             std::move(dataSliceDescriptors),
             TotalRowCount_,
             SchedulerJobSpecExt_.is_approximate(),
-            SortJobSpecExt_.partition_tag(),
+            *partitionTag,
             BlockReadOptions_,
             Host_->GetTrafficMeter(),
             Host_->GetInBandwidthThrottler(),

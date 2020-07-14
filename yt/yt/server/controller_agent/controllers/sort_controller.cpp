@@ -764,9 +764,11 @@ protected:
                 auto jobType = GetJobType();
                 if (jobType == EJobType::PartitionReduce || jobType == EJobType::ReduceCombiner) {
                     auto* reduceJobSpecExt = jobSpec->MutableExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+                    schedulerJobSpecExt->set_partition_tag(*partitionIndex);
                     reduceJobSpecExt->set_partition_tag(*partitionIndex);
                 } else {
                     auto* sortJobSpecExt = jobSpec->MutableExtension(TSortJobSpecExt::sort_job_spec_ext);
+                    schedulerJobSpecExt->set_partition_tag(*partitionIndex);
                     sortJobSpecExt->set_partition_tag(*partitionIndex);
                 }
             }
@@ -1486,6 +1488,8 @@ protected:
             if (list->PartitionTag) {
                 auto* mergeJobSpecExt = jobSpec->MutableExtension(TMergeJobSpecExt::merge_job_spec_ext);
                 mergeJobSpecExt->set_partition_tag(*list->PartitionTag);
+                auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
+                schedulerJobSpecExt->set_partition_tag(*list->PartitionTag);
             }
         }
 

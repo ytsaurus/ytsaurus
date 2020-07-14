@@ -54,7 +54,9 @@ public:
         if (JobSpec_.HasExtension(TMergeJobSpecExt::merge_job_spec_ext)) {
             const auto& mergeJobSpec = JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext);
             keyColumns = FromProto<TKeyColumns>(mergeJobSpec.key_columns());
-            if (mergeJobSpec.has_partition_tag()) {
+            if (SchedulerJobSpecExt_.has_partition_tag()) {
+                partitionTag = SchedulerJobSpecExt_.partition_tag();
+            } else if (mergeJobSpec.has_partition_tag()) {
                 partitionTag = mergeJobSpec.partition_tag();
             }
             YT_LOG_INFO("Ordered merge produces sorted output");
