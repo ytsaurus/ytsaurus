@@ -418,6 +418,10 @@ private:
                 << TErrorAttribute("upload_replication_factor", UploadReplicationFactor_)
                 << ex;
         }
+
+        if (Config_->TestingDelay) {
+            TDelayedExecutor::WaitForDuration(*Config_->TestingDelay);
+        }
     }
 
     void DoClose()
