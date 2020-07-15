@@ -51,6 +51,10 @@ public:
     {
         RegisterParameter("user_cache", UserCache)
             .DefaultNew();
+
+        RegisterPreprocessor([&] {
+            UserCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(60);
+        });
     }
 };
 
