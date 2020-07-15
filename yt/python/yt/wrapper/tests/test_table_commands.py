@@ -236,134 +236,6 @@ class TestTableCommands(object):
             yt.write_table(table, [yt.dumps_row(record)], raw=True)
             assert [record] == list(yt.read_table(table))
 
-    @authors("ignat", "asaitgalin")
-    def test_start_row_index(self):
-        table = TEST_DIR + "/table"
-
-        yt.write_table(yt.TablePath(table, sorted_by=["a"]), [{"a": "b"}, {"a": "c"}, {"a": "d"}])
-
-        with set_config_option("tabular_data_format", yt.JsonFormat()):
-            rsp = yt.read_table(table, raw=True)
-            assert rsp.response_parameters["start_row_index"] == 0
-            assert rsp.response_parameters["approximate_row_count"] == 3
-
-            rsp = yt.read_table(yt.TablePath(table, start_index=1), raw=True)
-            assert rsp.response_parameters["start_row_index"] == 1
-            assert rsp.response_parameters["approximate_row_count"] == 2
-
-            rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]), raw=True)
-            assert rsp.response_parameters["start_row_index"] == 2
-            # When reading with key limits row count is estimated rounded up to the chunk row count.
-            assert rsp.response_parameters["approximate_row_count"] == 3
-
-            rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), raw=True)
-            assert rsp.response_parameters["approximate_row_count"] == 0
-
-    @authors("ignat")
-    def test_start_row_index_parallel(self, yt_env_with_rpc):
-        with set_config_option("read_parallel/enable", True):
-            self.test_start_row_index()
-
-    @authors("asaitgalin")
-    def test_table_index(self):
-        dsv = yt.format.DsvFormat(enable_table_index=True, table_index_column="TableIndex")
-        schemaful_dsv = yt.format.SchemafulDsvFormat(columns=["1", "2", "3"],
-                                                     enable_table_index=True,
-                                                     table_index_column="_table_index_")
-
-        src_table_a = TEST_DIR + "/in_table_a"
-        src_table_b = TEST_DIR + "/in_table_b"
-        dst_table_a = TEST_DIR + "/out_table_a"
-        dst_table_b = TEST_DIR + "/out_table_b"
-        dst_table_ab = TEST_DIR + "/out_table_ab"
-
-        len_a = 5
-        len_b = 3
-
-        yt.create("table", src_table_a, recursive=True, ignore_existing=True)
-        yt.create("table", src_table_b, recursive=True, ignore_existing=True)
-        yt.write_table(src_table_a, b"1=a\t2=a\t3=a\n" * len_a, format=dsv, raw=True)
-        yt.write_table(src_table_b, b"1=b\t2=b\t3=b\n" * len_b, format=dsv, raw=True)
-
-        assert yt.row_count(src_table_a) == len_a
-        assert yt.row_count(src_table_b) == len_b
-
-        def mix_table_indexes(row):
-            row["_table_index_"] = row["TableIndex"]
-            yield row
-            row["_table_index_"] = 2
-            yield row
-
-        yt.run_operation_commands.run_map(binary=mix_table_indexes,
-                                          source_table=[src_table_a, src_table_b],
-                                          destination_table=[dst_table_a, dst_table_b, dst_table_ab],
-                                          input_format=dsv,
-                                          output_format=schemaful_dsv)
-        assert yt.row_count(dst_table_b) == len_b
-        assert yt.row_count(dst_table_a) == len_a
-        assert yt.row_count(dst_table_ab) == len_a + len_b
-        for table in (dst_table_a, dst_table_b, dst_table_ab):
-            rsp = yt.read_table(table, raw=False)
-            row = next(rsp)
-            for field in ("@table_index", "TableIndex", "_table_index_"):
-                assert field not in row
-
-    @authors("ignat")
-    def test_read_with_table_path(self, yt_env_with_rpc):
-        table = TEST_DIR + "/table"
-        yt.write_table(table, [{"y": "w3"}, {"x": "b", "y": "w1"}, {"x": "a", "y": "w2"}])
-        yt.run_sort(table, sort_by=["x", "y"])
-
-        def read_table(**kwargs):
-            kwargs["name"] = kwargs.get("name", table)
-            return list(yt.read_table(yt.TablePath(**kwargs), raw=False))
-
-        assert read_table(lower_key="a", upper_key="d") == [{"x": "a", "y": "w2"},
-                                                            {"x": "b", "y": "w1"}]
-        assert read_table(columns=["y"]) == [{"y": "w" + str(i)} for i in [3, 2, 1]]
-        assert read_table(lower_key="a", end_index=2, columns=["x"]) == [{"x": "a"}]
-        assert read_table(start_index=0, upper_key="b") == [{"x": None, "y": "w3"}, {"x": "a", "y": "w2"}]
-        assert read_table(start_index=1, columns=["x"]) == [{"x": "a"}, {"x": "b"}]
-        assert read_table(ranges=[{"lower_limit": {"row_index": 1}}], columns=["x"]) == [{"x": "a"}, {"x": "b"}]
-
-        assert read_table(name=table + "{y}[:#2]") == [{"y": "w3"}, {"y": "w2"}]
-        assert read_table(name=table + "[#1:]") == [{"x": "a", "y": "w2"}, {"x": "b", "y": "w1"}]
-
-        assert read_table(name="<ranges=[{lower_limit={key=[b]}}]>" + table) == \
-            [{"x": "b", "y": "w1"}]
-        assert read_table(name="<ranges=[{upper_limit={row_index=2}}]>" + table) == \
-            [{"x": None, "y": "w3"}, {"x": "a", "y": "w2"}]
-
-        with pytest.raises(yt.YtError):
-            assert read_table(ranges=[{"lower_limit": {"index": 1}}], end_index=1)
-        with pytest.raises(yt.YtError):
-            read_table(name=yt.TablePath(table, lower_key="a", start_index=1))
-        with pytest.raises(yt.YtError):
-            read_table(name=yt.TablePath(table, upper_key="c", end_index=1))
-
-        table_path = yt.TablePath(table, exact_index=1)
-        assert list(yt.read_table(table_path.to_yson_string(), format=yt.DsvFormat())) == [{"x": "a", "y": "w2"}]
-
-        yt.write_table(table, [{"x": "b"}, {"x": "a"}, {"x": "c"}])
-        with pytest.raises(yt.YtError):
-            yt.read_table(yt.TablePath(table, lower_key="a"))
-        # No prefix
-        with pytest.raises(yt.YtError):
-            yt.TablePath("abc")
-        # Prefix should start with //
-        yt.config["prefix"] = "abc/"
-        with pytest.raises(yt.YtError):
-            yt.TablePath("abc")
-        # Prefix should end with /
-        yt.config["prefix"] = "//abc"
-        with pytest.raises(yt.YtError):
-            yt.TablePath("abc")
-
-    @authors("ostyakov")
-    def test_read_parallel_with_table_path(self, yt_env_with_rpc):
-        with set_config_option("read_parallel/enable", True):
-            self.test_read_with_table_path(yt_env_with_rpc)
-
     @authors("ostyakov")
     def test_remove_locks(self):
         from yt.wrapper.table_helpers import _remove_locks
@@ -497,107 +369,6 @@ class TestTableCommands(object):
                     yt.write_table(TEST_DIR + "/table", f, format="dsv", is_stream_compressed=True, raw=True)
                     check([{"x": "1"}, {"x": "2"}, {"x": "3"}], yt.read_table(TEST_DIR + "/table"))
 
-    def _test_read_blob_table(self):
-        table = TEST_DIR + "/test_blob_table"
-
-        yt.create("table", table, attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"},
-                                                         {"name": "part_index", "type": "int64",
-                                                          "sort_order": "ascending"},
-                                                         {"name": "data", "type": "string"}]})
-        yt.write_table(table, [{"key": "test" + str(i),
-                                "part_index": j,
-                                "data": "data" + str(j) + str(i)} for i in xrange(3) for j in xrange(3)])
-
-        stream = yt.read_blob_table(table + "[test0]", part_size=6)
-        assert stream.read() == b"data00data10data20"
-
-        stream = yt.read_blob_table(table + "[test0:test1]", part_size=6)
-        assert stream.read() == b"data00data10data20"
-
-        stream = yt.read_blob_table(table + "[test1]", part_size=6)
-        assert stream.read() == b"data01data11data21"
-
-        with pytest.raises(yt.YtError):
-            yt.read_blob_table(table, part_size=6)
-
-        with pytest.raises(yt.YtError):
-            stream = yt.read_blob_table(table + "[test0]", part_size=7)
-            stream.read()
-
-        with pytest.raises(yt.YtError):
-            yt.read_blob_table(table + "[test0]")
-
-        with pytest.raises(yt.YtError):
-            yt.read_blob_table(table + "[test0, test1]", part_size=6)
-
-        yt.set(table + "/@part_size", 6)
-        stream = yt.read_blob_table(table + "[test0:#1]")
-        assert stream.read() == b"data00"
-
-        with pytest.raises(yt.YtError):
-            yt.read_blob_table(table + "[#4:]")
-
-        with pytest.raises(yt.YtError):
-            yt.read_blob_table(table + "[#4]")
-
-        with pytest.raises(yt.YtError):
-            yt.read_blob_table(table + "[(test0,1)]")
-
-        yt.write_table(table, [{"key": "test",
-                                "part_index": j,
-                                "data": "data" + str(j)} for j in xrange(3)])
-
-        yt.set(table + "/@part_size", 5)
-        stream = yt.read_blob_table(table + "[test]")
-        assert stream.read() == b"data0data1data2"
-
-        stream = yt.read_blob_table(table + "[test5]")
-        assert stream.read() == b""
-
-        yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 3, "data": "ab"}])
-        stream = yt.read_blob_table(table + "[test]")
-        assert stream.read() == b"data0data1data2ab"
-
-        yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 4, "data": "data4"}])
-        with pytest.raises(yt.YtError):
-            stream = yt.read_blob_table(table + "[test]")
-            stream.read()
-
-        yt.write_table(table, [{"key": "test",
-                                "part_index": j,
-                                "data": "data" + str(j)} for j in xrange(3)])
-        yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 3, "data": "data03"}])
-        with pytest.raises(yt.YtError):
-            stream = yt.read_blob_table(table + "[test]")
-            stream.read()
-
-        yt.remove(table)
-        yt.create("table", table, attributes={"schema": [{"name": "part_index", "type": "int64",
-                                                          "sort_order": "ascending"},
-                                                         {"name": "data", "type": "string"}]})
-
-        yt.write_table(table, [{"part_index": i, "data": "data" + str(i)}
-                               for i in xrange(3)])
-
-        stream = yt.read_blob_table(table, part_size=5)
-        assert stream.read() == b"data0data1data2"
-
-    @authors("se4min")
-    def test_read_blob_table_with_retries(self):
-        with set_config_option("read_retries/enable", True):
-            with set_config_option("read_buffer_size", 10):
-                yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
-                yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
-                try:
-                    self._test_read_blob_table()
-                finally:
-                    yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
-                    yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
-
-    @authors("se4min")
-    def test_read_blob_table_without_retries(self):
-        with set_config_option("read_retries/enable", False):
-            self._test_read_blob_table()
 
     @authors("ignat")
     def test_read_lost_chunk(self):
@@ -699,6 +470,241 @@ class TestTableCommands(object):
             yt.write_table(table_path, rows_generator)
 
         check(rows, yt.read_table(table_path))
+
+
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestTableCommandsControlAttributes(object):
+    @authors("ignat", "asaitgalin")
+    def test_start_row_index(self):
+        table = TEST_DIR + "/table"
+
+        yt.write_table(yt.TablePath(table, sorted_by=["a"]), [{"a": "b"}, {"a": "c"}, {"a": "d"}])
+
+        with set_config_option("tabular_data_format", yt.JsonFormat()):
+            rsp = yt.read_table(table, raw=True)
+            assert rsp.response_parameters["start_row_index"] == 0
+            assert rsp.response_parameters["approximate_row_count"] == 3
+
+            rsp = yt.read_table(yt.TablePath(table, start_index=1), raw=True)
+            assert rsp.response_parameters["start_row_index"] == 1
+            assert rsp.response_parameters["approximate_row_count"] == 2
+
+            rsp = yt.read_table(yt.TablePath(table, lower_key=["d"]), raw=True)
+            assert rsp.response_parameters["start_row_index"] == 2
+            # When reading with key limits row count is estimated rounded up to the chunk row count.
+            assert rsp.response_parameters["approximate_row_count"] == 3
+
+            rsp = yt.read_table(yt.TablePath(table, lower_key=["x"]), raw=True)
+            assert rsp.response_parameters["approximate_row_count"] == 0
+
+    @authors("ignat")
+    def test_start_row_index_parallel(self, yt_env_with_rpc):
+        with set_config_option("read_parallel/enable", True):
+            self.test_start_row_index()
+
+    @authors("asaitgalin")
+    def test_table_index(self):
+        dsv = yt.format.DsvFormat(enable_table_index=True, table_index_column="TableIndex")
+        schemaful_dsv = yt.format.SchemafulDsvFormat(columns=["1", "2", "3"],
+                                                     enable_table_index=True,
+                                                     table_index_column="_table_index_")
+
+        src_table_a = TEST_DIR + "/in_table_a"
+        src_table_b = TEST_DIR + "/in_table_b"
+        dst_table_a = TEST_DIR + "/out_table_a"
+        dst_table_b = TEST_DIR + "/out_table_b"
+        dst_table_ab = TEST_DIR + "/out_table_ab"
+
+        len_a = 5
+        len_b = 3
+
+        yt.create("table", src_table_a, recursive=True, ignore_existing=True)
+        yt.create("table", src_table_b, recursive=True, ignore_existing=True)
+        yt.write_table(src_table_a, b"1=a\t2=a\t3=a\n" * len_a, format=dsv, raw=True)
+        yt.write_table(src_table_b, b"1=b\t2=b\t3=b\n" * len_b, format=dsv, raw=True)
+
+        assert yt.row_count(src_table_a) == len_a
+        assert yt.row_count(src_table_b) == len_b
+
+        def mix_table_indexes(row):
+            row["_table_index_"] = row["TableIndex"]
+            yield row
+            row["_table_index_"] = 2
+            yield row
+
+        yt.run_operation_commands.run_map(binary=mix_table_indexes,
+                                          source_table=[src_table_a, src_table_b],
+                                          destination_table=[dst_table_a, dst_table_b, dst_table_ab],
+                                          input_format=dsv,
+                                          output_format=schemaful_dsv)
+        assert yt.row_count(dst_table_b) == len_b
+        assert yt.row_count(dst_table_a) == len_a
+        assert yt.row_count(dst_table_ab) == len_a + len_b
+        for table in (dst_table_a, dst_table_b, dst_table_ab):
+            rsp = yt.read_table(table, raw=False)
+            row = next(rsp)
+            for field in ("@table_index", "TableIndex", "_table_index_"):
+                assert field not in row
+
+    @authors("ignat")
+    def test_read_with_table_path(self, yt_env_with_rpc):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"y": "w3"}, {"x": "b", "y": "w1"}, {"x": "a", "y": "w2"}])
+        yt.run_sort(table, sort_by=["x", "y"])
+
+        def read_table(**kwargs):
+            kwargs["name"] = kwargs.get("name", table)
+            return list(yt.read_table(yt.TablePath(**kwargs), raw=False))
+
+        assert read_table(lower_key="a", upper_key="d") == [{"x": "a", "y": "w2"},
+                                                            {"x": "b", "y": "w1"}]
+        assert read_table(columns=["y"]) == [{"y": "w" + str(i)} for i in [3, 2, 1]]
+        assert read_table(lower_key="a", end_index=2, columns=["x"]) == [{"x": "a"}]
+        assert read_table(start_index=0, upper_key="b") == [{"x": None, "y": "w3"}, {"x": "a", "y": "w2"}]
+        assert read_table(start_index=1, columns=["x"]) == [{"x": "a"}, {"x": "b"}]
+        assert read_table(ranges=[{"lower_limit": {"row_index": 1}}], columns=["x"]) == [{"x": "a"}, {"x": "b"}]
+
+        assert read_table(name=table + "{y}[:#2]") == [{"y": "w3"}, {"y": "w2"}]
+        assert read_table(name=table + "[#1:]") == [{"x": "a", "y": "w2"}, {"x": "b", "y": "w1"}]
+
+        assert read_table(name="<ranges=[{lower_limit={key=[b]}}]>" + table) == \
+            [{"x": "b", "y": "w1"}]
+        assert read_table(name="<ranges=[{upper_limit={row_index=2}}]>" + table) == \
+            [{"x": None, "y": "w3"}, {"x": "a", "y": "w2"}]
+
+        with pytest.raises(yt.YtError):
+            assert read_table(ranges=[{"lower_limit": {"index": 1}}], end_index=1)
+        with pytest.raises(yt.YtError):
+            read_table(name=yt.TablePath(table, lower_key="a", start_index=1))
+        with pytest.raises(yt.YtError):
+            read_table(name=yt.TablePath(table, upper_key="c", end_index=1))
+
+        table_path = yt.TablePath(table, exact_index=1)
+        assert list(yt.read_table(table_path.to_yson_string(), format=yt.DsvFormat())) == [{"x": "a", "y": "w2"}]
+
+        yt.write_table(table, [{"x": "b"}, {"x": "a"}, {"x": "c"}])
+        with pytest.raises(yt.YtError):
+            yt.read_table(yt.TablePath(table, lower_key="a"))
+        # No prefix
+        with pytest.raises(yt.YtError):
+            yt.TablePath("abc")
+        # Prefix should start with //
+        yt.config["prefix"] = "abc/"
+        with pytest.raises(yt.YtError):
+            yt.TablePath("abc")
+        # Prefix should end with /
+        yt.config["prefix"] = "//abc"
+        with pytest.raises(yt.YtError):
+            yt.TablePath("abc")
+
+    @authors("ostyakov")
+    def test_read_parallel_with_table_path(self, yt_env_with_rpc):
+        with set_config_option("read_parallel/enable", True):
+            self.test_read_with_table_path(yt_env_with_rpc)
+
+@pytest.mark.usefixtures("yt_env_with_rpc")
+class TestBlobTables(object):
+    def _test_read_blob_table(self):
+        table = TEST_DIR + "/test_blob_table"
+
+        yt.create("table", table, attributes={"schema": [{"name": "key", "type": "string", "sort_order": "ascending"},
+                                                         {"name": "part_index", "type": "int64",
+                                                          "sort_order": "ascending"},
+                                                         {"name": "data", "type": "string"}]})
+        yt.write_table(table, [{"key": "test" + str(i),
+                                "part_index": j,
+                                "data": "data" + str(j) + str(i)} for i in xrange(3) for j in xrange(3)])
+
+        stream = yt.read_blob_table(table + "[test0]", part_size=6)
+        assert stream.read() == b"data00data10data20"
+
+        stream = yt.read_blob_table(table + "[test0:test1]", part_size=6)
+        assert stream.read() == b"data00data10data20"
+
+        stream = yt.read_blob_table(table + "[test1]", part_size=6)
+        assert stream.read() == b"data01data11data21"
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table, part_size=6)
+
+        with pytest.raises(yt.YtError):
+            stream = yt.read_blob_table(table + "[test0]", part_size=7)
+            stream.read()
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table + "[test0]")
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table + "[test0, test1]", part_size=6)
+
+        yt.set(table + "/@part_size", 6)
+        stream = yt.read_blob_table(table + "[test0:#1]")
+        assert stream.read() == b"data00"
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table + "[#4:]")
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table + "[#4]")
+
+        with pytest.raises(yt.YtError):
+            yt.read_blob_table(table + "[(test0,1)]")
+
+        yt.write_table(table, [{"key": "test",
+                                "part_index": j,
+                                "data": "data" + str(j)} for j in xrange(3)])
+
+        yt.set(table + "/@part_size", 5)
+        stream = yt.read_blob_table(table + "[test]")
+        assert stream.read() == b"data0data1data2"
+
+        stream = yt.read_blob_table(table + "[test5]")
+        assert stream.read() == b""
+
+        yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 3, "data": "ab"}])
+        stream = yt.read_blob_table(table + "[test]")
+        assert stream.read() == b"data0data1data2ab"
+
+        yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 4, "data": "data4"}])
+        with pytest.raises(yt.YtError):
+            stream = yt.read_blob_table(table + "[test]")
+            stream.read()
+
+        yt.write_table(table, [{"key": "test",
+                                "part_index": j,
+                                "data": "data" + str(j)} for j in xrange(3)])
+        yt.write_table("<append=%true>" + table, [{"key": "test", "part_index": 3, "data": "data03"}])
+        with pytest.raises(yt.YtError):
+            stream = yt.read_blob_table(table + "[test]")
+            stream.read()
+
+        yt.remove(table)
+        yt.create("table", table, attributes={"schema": [{"name": "part_index", "type": "int64",
+                                                          "sort_order": "ascending"},
+                                                         {"name": "data", "type": "string"}]})
+
+        yt.write_table(table, [{"part_index": i, "data": "data" + str(i)}
+                               for i in xrange(3)])
+
+        stream = yt.read_blob_table(table, part_size=5)
+        assert stream.read() == b"data0data1data2"
+
+    @authors("se4min")
+    def test_read_blob_table_with_retries(self):
+        with set_config_option("read_retries/enable", True):
+            with set_config_option("read_buffer_size", 10):
+                yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
+                yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
+                try:
+                    self._test_read_blob_table()
+                finally:
+                    yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
+                    yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
+
+    @authors("se4min")
+    def test_read_blob_table_without_retries(self):
+        with set_config_option("read_retries/enable", False):
+            self._test_read_blob_table()
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestTableCommandsOperations(object):
