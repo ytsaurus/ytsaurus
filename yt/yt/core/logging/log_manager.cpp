@@ -506,9 +506,9 @@ public:
         ui64 backlogEvents = enqueuedEvents - writtenEvents;
 
         // NB: This is somewhat racy but should work fine as long as more messages keep coming.
-        if (Suspended_) {
+        if (Suspended_.load(std::memory_order_relaxed)) {
             if (backlogEvents < LowBacklogWatermark_) {
-                Suspended_ = false;
+                Suspended_.store(false, std::memory_order_relaxed);
                 YT_LOG_INFO("Backlog size has dropped below low watermark %v, logging resumed",
                     LowBacklogWatermark_);
             }
@@ -518,7 +518,7 @@ public:
             }
 
             if (backlogEvents >= HighBacklogWatermark_) {
-                Suspended_ = true;
+                Suspended_.store(true, std::memory_order_relaxed);
                 YT_LOG_WARNING("Backlog size has exceeded high watermark %v, logging suspended",
                     HighBacklogWatermark_);
             }
@@ -1250,7 +1250,7 @@ private:
     int HighBacklogWatermark_ = -1;
     int LowBacklogWatermark_ = -1;
 
-    bool Suspended_ = false;
+    std::atomic<bool> Suspended_ = false;
     std::once_flag Started_;
     std::atomic_flag ScheduledOutOfBand_ = false;
 
