@@ -310,8 +310,12 @@ def test_environment_multicell(request):
 
 @pytest.fixture(scope="class")
 def test_environment_job_archive(request):
+    if arcadia_interop.is_inside_distbuild():
+        pytest.skip("porto is not available inside distbuild")
+
     environment = init_environment_for_test_session(
         "job_archive",
+        env_options={"use_porto_for_servers": True},
         delta_node_config={
             "exec_agent": {
                 "statistics_reporter": {

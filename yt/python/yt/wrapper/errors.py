@@ -69,6 +69,8 @@ class YtResponseError(yt.common.YtResponseError):
         # Deprecated.
         elif self.contains_code(904):
             self.__class__ = YtRequestRateLimitExceeded
+        elif self.is_master_disconnected():
+            self.__class__ = YtMasterDisconnectedError
         elif self.is_concurrent_operations_limit_reached():
             self.__class__ = YtConcurrentOperationsLimitExceeded
         elif self.is_request_timed_out():
@@ -136,6 +138,11 @@ class YtRpcUnavailable(YtHttpResponseError):
 
 class YtConcurrentOperationsLimitExceeded(YtHttpResponseError):
     """Concurrent operations limit exceeded.
+       It is used in retries."""
+    pass
+
+class YtMasterDisconnectedError(YtHttpResponseError):
+    """Indicates that master has disconnected from scheduler.
        It is used in retries."""
     pass
 

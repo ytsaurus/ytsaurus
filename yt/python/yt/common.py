@@ -234,7 +234,7 @@ class YtResponseError(YtError):
         return self.contains_code(105)
 
     def is_master_communication_error(self):
-        """Chunk unavailable."""
+        """Master communication error."""
         return self.contains_code(712)
 
     def is_chunk_unavailable(self):
@@ -248,6 +248,10 @@ class YtResponseError(YtError):
     def is_concurrent_operations_limit_reached(self):
         """Too many concurrent operations."""
         return self.contains_code(202)
+    
+    def is_master_disconnected(self):
+        """Master disconnected error."""
+        return self.contains_code(218)
 
     def is_no_such_transaction(self):
         """No such transaction."""
