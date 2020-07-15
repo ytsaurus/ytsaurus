@@ -1245,7 +1245,7 @@ private:
         StopPeriodicActivities();
 
         if (CancelableContext_) {
-            CancelableContext_->Cancel(TError("Master disconnected"));
+            CancelableContext_->Cancel(TError(EErrorCode::MasterDisconnected, "Master disconnected"));
             CancelableContext_.Reset();
         }
 

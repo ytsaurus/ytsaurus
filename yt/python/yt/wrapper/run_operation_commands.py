@@ -39,7 +39,7 @@ from .common import is_prefix, forbidden_inside_job
 from .retries import Retrier
 from .config import get_config, get_command_param
 from .cypress_commands import get, remove, _make_formatted_transactional_request
-from .errors import YtError, YtConcurrentOperationsLimitExceeded
+from .errors import YtError, YtConcurrentOperationsLimitExceeded, YtMasterDisconnectedError
 from .exceptions_catcher import KeyboardInterruptsCatcher
 from .operation_commands import Operation
 from .spec_builders import (ReduceSpecBuilder, MergeSpecBuilder, SortSpecBuilder,
@@ -415,9 +415,13 @@ class OperationRequestRetrier(Retrier):
         retry_config = get_config(client)["start_operation_retries"]
         timeout = get_config(client)["start_operation_request_timeout"]
 
+        exceptions = (
+            YtConcurrentOperationsLimitExceeded,
+            YtMasterDisconnectedError)
+
         super(OperationRequestRetrier, self).__init__(retry_config=retry_config,
                                                       timeout=timeout,
-                                                      exceptions=(YtConcurrentOperationsLimitExceeded,))
+                                                      exceptions=exceptions)
 
     def action(self):
         result = _make_formatted_transactional_request(

@@ -57,6 +57,7 @@ DEFINE_ENUM(EErrorCode,
     ((MaxFailedJobsLimitExceeded)             (215))
     ((OperationFailedToPrepare)               (216))
     ((WatcherHandlerFailed)                   (217))
+    ((MasterDisconnected)                     (218))
 );
 
 DEFINE_ENUM(EUnavailableChunkAction,

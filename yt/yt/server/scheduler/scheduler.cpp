@@ -2042,7 +2042,7 @@ private:
         NodeIdToDescriptor_.clear();
 
         {
-            auto error = TError("Master disconnected");
+            auto error = TError(EErrorCode::MasterDisconnected, "Master disconnected");
             for (const auto& [operationId, operation] : IdToOperation_) {
                 if (!operation->IsFinishedState()) {
                     // This awakes those waiting for start promise.
