@@ -9,10 +9,12 @@ import yt.wrapper as yt
 
 from yt.packages.six.moves import xrange
 
+import pytest
+
 import datetime
 import tempfile
 import time
-import pytest
+import os
 
 @pytest.mark.usefixtures("yt_env")
 class TestBatchExecution(object):
@@ -268,6 +270,7 @@ class TestBatchExecutionOperationCommands(object):
         yt.write_table(table, [{"x": 1}, {"x": 2}])
 
         with tempfile.NamedTemporaryFile("r") as f:
+            os.chmod(f.name, 0x777)
             op1 = yt.run_map("echo $YT_JOB_ID > {} && cat".format(f.name), table, table, job_count=1, format="json")
             job_id = f.read().strip()
         after_op1 = datetime.datetime.utcnow()
@@ -301,4 +304,3 @@ class TestBatchExecutionOperationCommands(object):
         assert list_operations_result.is_ok(), list_operations_result.get_error()
         operations = list_operations_result.get_result()["operations"]
         assert [op["id"] for op in operations] == [op3.id, op2.id]
-
