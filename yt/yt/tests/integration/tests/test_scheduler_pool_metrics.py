@@ -211,6 +211,8 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: check_metrics(total_time_completed_delta))
         wait(lambda: check_metrics(total_time_aborted_delta))
 
+    # Temporarily flaky due to YT-12207.
+    @flaky(max_runs=3)
     @authors("eshcherbin")
     def test_total_time_operation_by_state(self):
         create_pool("parent")
