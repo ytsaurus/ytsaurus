@@ -727,39 +727,49 @@ void TClient::DoListOperationsFromCypress(
 
     auto requestedAttributes = DeduceActualAttributes(options.Attributes, RequiredAttributes, DefaultAttributes, IgnoredAttributes);
 
-    TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom));
-    auto listBatchReq = proxy.ExecuteBatch();
-    SetBalancingHeader(listBatchReq, options);
-
     auto filteringAttributes = LightAttributes;
     if (options.SubstrFilter) {
         filteringAttributes.emplace("annotations");
     }
     auto filteringCypressAttributes = CreateCypressOperationAttributes(filteringAttributes);
-    for (int hash = 0x0; hash <= 0xFF; ++hash) {
-        auto hashStr = Format("%02x", hash);
-        auto req = TYPathProxy::List("//sys/operations/" + hashStr);
-        SetCachingHeader(req, options);
-        auto attributes = LightAttributes;
-        if (options.SubstrFilter) {
-            attributes.emplace("annotations");
-        }
-        ToProto(req->mutable_attributes()->mutable_keys(), filteringCypressAttributes);
-        listBatchReq->AddRequest(req, "list_operations_" + hashStr);
-    }
 
-    auto listBatchRsp = WaitFor(listBatchReq->Invoke())
+    TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom));
+    auto requestOperations = [&] (int hashBegin, int hashEnd) {
+        auto listBatchReq = proxy.ExecuteBatch();
+        SetBalancingHeader(listBatchReq, options);
+        for (int hash = hashBegin; hash < hashEnd; ++hash) {
+            auto hashStr = Format("%02x", hash);
+            auto req = TYPathProxy::List("//sys/operations/" + hashStr);
+            SetCachingHeader(req, options);
+            ToProto(req->mutable_attributes()->mutable_keys(), filteringCypressAttributes);
+            listBatchReq->AddRequest(req, "list_operations_" + hashStr);
+        }
+        return listBatchReq->Invoke();
+    };
+
+    constexpr int HashCount = 256;
+    constexpr int BatchSize = 16;
+    static_assert(HashCount % BatchSize == 0);
+    std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> batchFutures;
+    for (int hashBegin = 0; hashBegin < HashCount; hashBegin += BatchSize) {
+        batchFutures.push_back(requestOperations(hashBegin, hashBegin + BatchSize));
+    }
+    auto responses = WaitFor(AllSucceeded<TObjectServiceProxy::TRspExecuteBatchPtr>(batchFutures))
         .ValueOrThrow();
 
     std::vector<TYsonString> operationsYson;
-    operationsYson.reserve(0xFF + 1);
-    for (int hash = 0x0; hash <= 0xFF; ++hash) {
-        auto rspOrError = listBatchRsp->GetResponse<TYPathProxy::TRspList>(Format("list_operations_%02x", hash));
-        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            continue;
+    operationsYson.reserve(HashCount);
+    for (int hashBegin = 0, responseIndex = 0; hashBegin < HashCount; hashBegin += BatchSize, ++responseIndex) {
+        YT_VERIFY(responseIndex < responses.size());
+        const auto& batchRsp = responses[responseIndex];
+        for (int hash = hashBegin; hash < hashBegin + BatchSize; ++hash) {
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(Format("list_operations_%02x", hash));
+            if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                continue;
+            }
+            auto rsp = rspOrError.ValueOrThrow();
+            operationsYson.emplace_back(std::move(*rsp->mutable_value()));
         }
-        auto rsp = rspOrError.ValueOrThrow();
-        operationsYson.emplace_back(rsp->value());
     }
 
     TListOperationsFilter filter(operationsYson, countingFilter, options);
