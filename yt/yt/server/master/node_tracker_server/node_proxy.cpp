@@ -17,6 +17,7 @@
 #include <yt/server/master/transaction_server/transaction.h>
 
 #include <yt/server/master/cell_server/cell_base.h>
+#include <yt/server/master/cell_server/cell_bundle.h>
 
 #include <yt/server/master/cell_master/bootstrap.h>
 
@@ -342,7 +343,8 @@ private:
                             .DoIf(slot.Cell, [&] (TFluentMap fluent) {
                                 fluent
                                     .Item("cell_id").Value(slot.Cell->GetId())
-                                    .Item("peer_id").Value(slot.PeerId);
+                                    .Item("peer_id").Value(slot.PeerId)
+                                    .Item("tablet_cell_bundle").Value(slot.Cell->GetCellBundle()->GetName());
                             })
                             .EndMap();
                     });
