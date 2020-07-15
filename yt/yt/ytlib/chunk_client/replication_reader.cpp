@@ -980,7 +980,8 @@ public:
         , BlockIndexes_(blockIndexes)
         , EstimatedSize_(estimatedSize)
     {
-        Logger.AddTag("Blocks: %v", blockIndexes);
+        YT_LOG_DEBUG("Will read block set (Blocks: %v)",
+            blockIndexes);
     }
 
     ~TReadBlockSetSession()
@@ -1494,7 +1495,7 @@ public:
         , BlockCount_(blockCount)
         , EstimatedSize_(estimatedSize)
     {
-        Logger.AddTag("Blocks: %v-%v",
+        YT_LOG_DEBUG("Will read block range (Blocks: %v-%v)",
             FirstBlockIndex_,
             FirstBlockIndex_ + BlockCount_ - 1);
     }
