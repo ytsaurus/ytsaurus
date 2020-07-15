@@ -2479,7 +2479,9 @@ private:
         for (const auto& protoChildId : subrequest->child_ids()) {
             auto childId = FromProto<TChunkTreeId>(protoChildId);
             auto* child = GetChunkTreeOrThrow(childId);
-            if (parent->GetKind() == EChunkListKind::SortedDynamicSubtablet) {
+            if (parent->GetKind() == EChunkListKind::SortedDynamicSubtablet ||
+                parent->GetKind() == EChunkListKind::SortedDynamicTablet)
+            {
                 YT_VERIFY(child->GetType() == EObjectType::Chunk);
 
                 auto chunkView = CreateChunkView(child->AsChunk(), NChunkClient::TReadRange(), transactionId);

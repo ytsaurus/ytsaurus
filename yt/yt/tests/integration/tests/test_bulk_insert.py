@@ -180,7 +180,8 @@ class TestBulkInsert(DynamicTablesBase):
         assert read_table("//tmp/t_output") == [{"key": 1, "value": "1"}, {"key": 2, "value": "2"}]
 
     @parametrize_external
-    def test_multiple_output_tables_get_same_timestamp(self, external):
+    @pytest.mark.parametrize("update_mode", ["append", "overwrite"])
+    def test_multiple_output_tables_get_same_timestamp(self, external, update_mode):
         cells = sync_create_cells(2)
         create("table", "//tmp/t_input")
         if external:
@@ -198,13 +199,17 @@ class TestBulkInsert(DynamicTablesBase):
 
         map(
             in_="//tmp/t_input",
-            out=["<append=%true>//tmp/t1", "<append=%true>//tmp/t2"],
+            out=[
+                self._ypath_with_update_mode("//tmp/t1", update_mode),
+                self._ypath_with_update_mode("//tmp/t2", update_mode)],
             command="echo '{key=1;value=\"1\"}'; echo '{key=2;value=\"2\"}' >&4")
 
         def _get_chunk_view(table):
             chunk_list_id = get("{}/@chunk_list_id".format(table))
             tree = get("#{}/@tree".format(chunk_list_id))
-            for child in tree[0]:
+            if update_mode == "append":
+                tree = tree[0]
+            for child in tree:
                 if child.attributes["type"] == "chunk_list":
                     chunk_view_id = child[0].attributes["id"]
                     return get("#{}/@".format(chunk_view_id))
