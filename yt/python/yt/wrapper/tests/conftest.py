@@ -318,6 +318,12 @@ def test_environment_job_archive(request):
         env_options={"use_porto_for_servers": True},
         delta_node_config={
             "exec_agent": {
+                "slot_manager": {
+                    "enforce_job_control": True,
+                    "job_environment": {
+                        "type": "porto",
+                    },
+                },
                 "statistics_reporter": {
                     "enabled": True,
                     "reporting_period": 10,
@@ -331,7 +337,8 @@ def test_environment_job_archive(request):
                 "enable_job_reporter": True,
                 "enable_job_spec_reporter": True,
             },
-        }
+        },
+        need_suid=True
     )
 
     sync_create_cell()
