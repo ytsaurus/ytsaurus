@@ -168,15 +168,15 @@ lazy val `common-logging` = (project in file("common-logging"))
 
 // benchmark and test ----
 
-lazy val benchmark = (project in file("benchmark"))
-  .settings(
-    unmanagedJars in Compile ++= {
-      val spark = file("/Users/sashbel/Documents/repos/spark/dist/jars")
-      val dataSource = baseDirectory.value.getParentFile / "data-source"/ "target" / "scala-2.12" / "spark-yt-data-source.jar"
-      dataSource +: (spark.listFiles().toSeq)
-    },
-    libraryDependencies ++= sttp
-  )
+//lazy val benchmark = (project in file("benchmark"))
+//  .settings(
+//    unmanagedJars in Compile ++= {
+//      val spark = file("/Users/sashbel/Documents/repos/spark/dist/jars")
+//      val dataSource = baseDirectory.value.getParentFile / "data-source"/ "target" / "scala-2.12" / "spark-yt-data-source.jar"
+//      dataSource +: (spark.listFiles().toSeq)
+//    },
+//    libraryDependencies ++= sttp
+//  )
 
 lazy val `test-job` = (project in file("test-job"))
   .settings(
@@ -193,4 +193,4 @@ lazy val `test-job` = (project in file("test-job"))
 // -----
 
 lazy val root = (project in file("."))
-  .aggregate(`data-source`, `benchmark`)
+  .aggregate(`data-source`)
