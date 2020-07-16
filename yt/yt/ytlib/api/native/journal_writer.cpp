@@ -577,6 +577,8 @@ private:
 
         bool TryOpenChunk()
         {
+            TTimingGuard timingGuard(&Profiler, "/time/open_chunk");
+            TWallTimer timer;
             auto session = New<TChunkSession>();
 
             YT_LOG_DEBUG("Creating chunk");
@@ -613,8 +615,9 @@ private:
                 session->Id = FromProto<TSessionId>(rsp.session_id());
             }
 
-            YT_LOG_DEBUG("Chunk created (SessionId: %v)",
-                session->Id);
+            YT_LOG_DEBUG("Chunk created (SessionId: %v, OpenChunkElapsedTime: %v)",
+                session->Id,
+                timer.GetElapsedValue());
 
             int replicaCount = ErasureCodec_ == NErasure::ECodec::None
                 ? ReplicationFactor_
@@ -666,7 +669,9 @@ private:
                 session->Nodes.push_back(node);
             }
 
-            YT_LOG_DEBUG("Starting chunk sessions");
+            YT_LOG_DEBUG("Starting chunk sessions (OpenChunkElapsedTime: %v)",
+                timer.GetElapsedValue());
+
             try {
                 TTimingGuard timingGuard(&Profiler, "/time/start_sessions");
 
@@ -690,7 +695,9 @@ private:
                 YT_LOG_WARNING(TError(ex));
                 return false;
             }
-            YT_LOG_DEBUG("Chunk sessions started");
+
+            YT_LOG_DEBUG("Chunk sessions started (OpenChunkElapsedTime: %v)",
+                timer.GetElapsedValue());
 
             for (const auto& node : session->Nodes) {
                 node->PingExecutor = New<TPeriodicExecutor>(
@@ -702,7 +709,9 @@ private:
 
             auto chunkId = session->Id.ChunkId;
 
-            YT_LOG_DEBUG("Confirming chunk");
+            YT_LOG_DEBUG("Confirming chunk (OpenChunkElapsedTime: %v)",
+                timer.GetElapsedValue());
+
             {
                 TTimingGuard timingGuard(&Profiler, "/time/confirm_chunk");
 
@@ -728,9 +737,11 @@ private:
                     "Error confirming chunk %v",
                     chunkId);
             }
-            YT_LOG_DEBUG("Chunk confirmed");
+            YT_LOG_DEBUG("Chunk confirmed (OpenChunkElapsedTime: %v)",
+                timer.GetElapsedValue());
 
-            YT_LOG_DEBUG("Attaching chunk");
+            YT_LOG_DEBUG("Attaching chunk (OpenChunkElapsedTime: %v)",
+                timer.GetElapsedValue());
             {
                 TTimingGuard timingGuard(&Profiler, "/time/attach_chunk");
 
@@ -749,7 +760,8 @@ private:
                     "Error attaching chunk %v",
                     chunkId);
             }
-            YT_LOG_DEBUG("Chunk attached");
+            YT_LOG_DEBUG("Chunk attached (OpenChunkElapsedTime: %v)",
+                timer.GetElapsedValue());
 
             CurrentSession_ = session;
 
@@ -1188,7 +1200,7 @@ private:
                 node->FirstPendingRowIndex,
                 node->FirstPendingRowIndex + flushRowCount - 1,
                 flushDataSize,
-                lagTime);
+                CpuDurationToValue(lagTime));
 
             req->Invoke().Subscribe(
                 BIND(&TImpl::OnBlocksFlushed, MakeWeak(this), CurrentSession_, node, flushRowCount)
