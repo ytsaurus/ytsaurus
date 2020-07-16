@@ -138,10 +138,6 @@ type RemoveNodeOptions struct {
 	Recursive bool `http:"recursive"`
 	Force     bool `http:"force"`
 
-	PreserveAccount        *bool `http:"preserve_account,omitnil"`
-	PreserveExpirationTime *bool `http:"preserve_expiration_time,omitnil"`
-	PessimisticQuotaCheck  *bool `http:"pessimistic_quota_check,omitnil"`
-
 	*TransactionOptions
 	*AccessTrackingOptions
 	*PrerequisiteOptions
