@@ -12,7 +12,7 @@ class TPersistentPoolState
     : public NYTree::TYsonSerializable  // TODO(renadeen): try make it lite
 {
 public:
-    double AccumulatedResourceVolume;
+    double AccumulatedResourceRatioVolume;
 
     TPersistentPoolState();
 };

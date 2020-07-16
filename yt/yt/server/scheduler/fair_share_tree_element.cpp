@@ -918,12 +918,12 @@ std::optional<TMeteringKey> TSchedulerElement::GetMeteringKey() const
 void TSchedulerElement::BuildResourceMetering(const std::optional<TMeteringKey>& /*key*/, TMeteringMap* /*statistics*/) const
 { }
 
-double TSchedulerElement::GetAccumulatedResourceVolume() const
+double TSchedulerElement::GetAccumulatedResourceRatioVolume() const
 {
     return 0.0;
 }
 
-void TSchedulerElement::InitAccumulatedResourceVolume(double resourceVolume)
+void TSchedulerElement::InitAccumulatedResourceRatioVolume(double resourceVolume)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
