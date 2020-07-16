@@ -206,8 +206,11 @@ TFairShareStrategyConfig::TFairShareStrategyConfig()
     RegisterParameter("operation_unschedulable_min_schedule_job_attempts", OperationUnschedulableMinScheduleJobAttempts)
         .Default(1000);
 
-    RegisterParameter("operation_unschedulable_deactivation_reasons", OperationUnschedulableDeactiovationReasons)
+    RegisterParameter("operation_unschedulable_deactivation_reasons", OperationUnschedulableDeactivationReasons)
         .Default({EDeactivationReason::ScheduleJobFailed, EDeactivationReason::MinNeededResourcesUnsatisfied});
+
+    RegisterParameter("operation_unschedulable_due_to_limiting_ancestor_safe_timeout", OperationUnschedulableDueToLimitingAncestorSafeTimeout)
+        .Default(TDuration::Minutes(5));
 
     RegisterParameter("max_operation_count", MaxOperationCount)
         .Default(5000)
