@@ -93,7 +93,7 @@ func NewRich(path string) *Rich {
 	return &Rich{Path: Path(path)}
 }
 
-// MarhsalYSON is implementation yson.StreamMarshaler interface.
+// MarshalYSON is implementation yson.StreamMarshaler interface.
 func (r Rich) MarshalYSON(w *yson.Writer) error {
 	type ClearPath Rich
 	clear := ClearPath(r)
