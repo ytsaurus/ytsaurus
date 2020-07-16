@@ -71,6 +71,7 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TabletServerLogger;
+static const auto& Profiler = TabletServerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -339,14 +340,20 @@ private:
         : public TRefCounted
     {
     public:
-        explicit TTable(TObjectId id, TReplicatedTableOptionsPtr config = nullptr)
+        TTable(TObjectId id, NProfiling::TTagId tabletCellBundleProfilingTag, TReplicatedTableOptionsPtr config = nullptr)
             : Id_(id)
+            , TabletCellBundleProfilingTag_(tabletCellBundleProfilingTag)
             , Config_(std::move(config))
         { }
 
         TObjectId GetId() const
         {
             return Id_;
+        }
+
+        NProfiling::TTagId GetTabletCellBundleProfilingTag() const
+        {
+            return TabletCellBundleProfilingTag_;
         }
 
         bool IsEnabled() const
@@ -374,7 +381,7 @@ private:
             }
         }
 
-        TFuture<void> Check(TBootstrap* bootstrap)
+        TFuture<int> Check(TBootstrap* bootstrap)
         {
             if (!CheckFuture_ || CheckFuture_.IsSet()) {
                 std::vector<TReplicaPtr> syncReplicas;
@@ -463,11 +470,13 @@ private:
                         std::vector<TFuture<void>> futures;
                         futures.reserve(syncReplicas.size() + asyncReplicas.size());
 
+                        int switchCount;
                         int totalSyncReplicas;
                         {
                             int index;
                             for (index = static_cast<int>(goodSyncReplicas.size()); index < maxSyncReplicas && !goodAsyncReplicas.empty(); ++index) {
                                 futures.push_back(goodAsyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
+                                switchCount++;
                                 goodAsyncReplicas.pop_back();
                             }
 
@@ -480,12 +489,17 @@ private:
 
                         for (int index = Max(0, minSyncReplicas - totalSyncReplicas); index < static_cast<int>(badSyncReplicas.size()); ++index) {
                             futures.push_back(badSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
+                            switchCount++;
                         }
                         for (int index = maxSyncReplicas; index < static_cast<int>(goodSyncReplicas.size()); ++index) {
                             futures.push_back(goodSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
+                            switchCount++;
                         }
 
-                        return AllSucceeded(futures);
+                        return AllSucceeded(futures)
+                            .Apply(BIND([switchCount] () {
+                                return switchCount;
+                            }));
                     }));
             }
 
@@ -494,12 +508,13 @@ private:
 
     private:
         const TObjectId Id_;
+        const NProfiling::TTagId TabletCellBundleProfilingTag_;
         NTableServer::TReplicatedTableOptionsPtr Config_;
 
         TSpinLock Lock_;
         std::vector<TReplicaPtr> Replicas_;
 
-        TFuture<void> CheckFuture_;
+        TFuture<int> CheckFuture_;
     };
 
     using TTablePtr = TIntrusivePtr<TTable>;
@@ -574,28 +589,48 @@ private:
     {
         VERIFY_THREAD_AFFINITY(CheckerThread);
 
-        std::vector<TFuture<void>> futures;
+        std::vector<TFuture<int>> futures;
+        std::vector<NProfiling::TTagId> profilingTags;
 
         {
             auto guard = Guard(Lock_);
             futures.reserve(Tables_.size());
+            profilingTags.reserve(Tables_.size());
+
             for (const auto& [id, table] : Tables_) {
                 if (!table->IsEnabled()) {
                     YT_LOG_DEBUG("Replicated Table Tracker is disabled (TableId: %v)",
                         id);
                     continue;
                 }
+
                 auto future = table->Check(Bootstrap_);
-                future.Subscribe(BIND([id = id] (const TErrorOr<void>& result) {
+                future.Subscribe(BIND([id = id] (const TErrorOr<int>& result) {
                     YT_LOG_DEBUG_UNLESS(result.IsOK(), result, "Error checking table (TableId: %v)",
                         id);
                 }));
                 futures.push_back(future);
+                profilingTags.push_back(table->GetTabletCellBundleProfilingTag());
             }
         }
 
-        WaitFor(AllSet(futures))
-            .ThrowOnError();
+        auto switchCountTables = WaitFor(AllSet(futures))
+            .ValueOrThrow();
+
+        THashMap<NProfiling::TTagId, int> switchCount;
+        for (int index = 0; index < switchCountTables.size(); index++) {
+            int switchCountTable = switchCountTables[index].Value();
+            switchCount[profilingTags[index]] += switchCountTable;
+        }
+
+        for (auto [profilingTag, switchMoves] : switchCount) {
+            Profiler.Enqueue(
+                "/switch_tablet_replica_mode",
+                switchMoves,
+                NProfiling::EMetricType::Counter,
+                {profilingTag}
+            );
+        }
     }
 
     void UpdateIteration()
@@ -695,6 +730,7 @@ private:
 
         auto id = object->GetId();
         const auto& config = object->GetReplicatedTableOptions();
+        auto tabletCellBundle = object->GetTabletCellBundle();
 
         TTablePtr table;
 
@@ -704,7 +740,7 @@ private:
             auto guard = Guard(Lock_);
             auto it = Tables_.find(id);
             if (it == Tables_.end()) {
-                table = New<TTable>(id, config);
+                table = New<TTable>(id, tabletCellBundle->GetProfilingTag(), config);
                 Tables_.insert(std::make_pair(id, table));
                 newTable = true;
             } else {
