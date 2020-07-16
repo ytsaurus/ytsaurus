@@ -230,6 +230,7 @@ private:
     TFuture<void> DoAbort(TGuard<TSpinLock>* guard, const TTransactionAbortOptions& options = {});
 
     void ValidateActive();
+    void DoValidateActive();
 
     TApiServiceProxy::TReqBatchModifyRowsPtr CreateBatchModifyRowsRequest();
     TFuture<void> InvokeBatchModifyRowsRequest();

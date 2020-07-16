@@ -368,7 +368,6 @@ void TTransaction::ModifyRows(
     TSharedRange<TRowModification> modifications,
     const TModifyRowsOptions& options)
 {
-    ValidateActive();
     ValidateTabletTransactionId(GetId());
 
     for (const auto& modification : modifications) {
@@ -427,6 +426,7 @@ void TTransaction::ModifyRows(
     TFuture<void> future;
     const auto& config = Connection_->GetConfig();
     if (config->ModifyRowsBatchCapacity == 0) {
+        ValidateActive();
         future = req->Invoke().As<void>();
     } else {
         YT_LOG_DEBUG("Pushing a subrequest into a BatchModifyRows rows request (SubrequestAttachmentCount: 1+%v)",
@@ -436,6 +436,8 @@ void TTransaction::ModifyRows(
 
         {
             auto guard = Guard(SpinLock_);
+
+            DoValidateActive();
             
             if (!BatchModifyRowsRequest_) {
                 BatchModifyRowsRequest_ = Proxy_.BatchModifyRows();
@@ -846,12 +848,12 @@ TFuture<void> TTransaction::SendPing()
                         State_ != ETransactionState::Detached)
                     {
                         State_ = ETransactionState::Aborted;
-                        AbortPromise_.TrySet();
                         fireAborted = true;
                     }
                 }
 
                 if (fireAborted) {
+                    AbortPromise_.TrySet();
                     Aborted_.Fire();
                 }
 
@@ -910,7 +912,12 @@ bool TTransaction::IsPingableState()
 void TTransaction::ValidateActive()
 {
     auto guard = Guard(SpinLock_);
+    DoValidateActive();
+}
 
+void TTransaction::DoValidateActive()
+{
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
     if (State_ != ETransactionState::Active) {
         THROW_ERROR_EXCEPTION(
             NTransactionClient::EErrorCode::InvalidTransactionState,
