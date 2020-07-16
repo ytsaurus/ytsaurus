@@ -684,6 +684,7 @@ private:
         auto columnFilter = FromProto<NTableClient::TColumnFilter>(request->column_filter());
         auto codecId = CheckedEnumCast<NCompression::ECodec>(request->compression_codec());
         auto produceAllVersions = FromProto<bool>(request->produce_all_versions());
+        auto chunkTimestamp = request->has_chunk_timestamp() ? request->chunk_timestamp() : NullTimestamp;
 
         TLookupSession lookupSession(
             Bootstrap_,
@@ -695,7 +696,8 @@ private:
             produceAllVersions,
             tableSchema,
             request->lookup_keys(),
-            codecId);
+            codecId,
+            chunkTimestamp);
         response->Attachments().push_back(lookupSession.Run());
 
         response->set_fetched_rows(true);

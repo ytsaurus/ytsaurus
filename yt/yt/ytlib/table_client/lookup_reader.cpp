@@ -40,7 +40,8 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         TColumnFilter columnFilter,
         TTimestamp timestamp,
-        bool produceAllVersions)
+        bool produceAllVersions,
+        TTimestamp chunkTimestamp)
         : UnderlyingReader_(std::move(underlyingReader))
         , RowsReadOptions_(std::move(blockReadOptions))
         , LookupKeys_(std::move(lookupKeys))
@@ -48,6 +49,7 @@ public:
         , ColumnFilter_(std::move(columnFilter))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
+        , ChunkTimestamp_(chunkTimestamp)
     {
         ReadyEvent_ = DoOpen();
     }
@@ -130,6 +132,7 @@ private:
     const TColumnFilter ColumnFilter_;
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
+    const TTimestamp ChunkTimestamp_;
     NCompression::ICodec* const Codec_ = NCompression::GetCodec(CompressionCodecId);
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TDataBufferTag());
@@ -160,7 +163,8 @@ private:
             ColumnFilter_,
             Timestamp_,
             CompressionCodecId,
-            ProduceAllVersions_)
+            ProduceAllVersions_,
+            ChunkTimestamp_)
             .Apply(BIND([=, this_ = MakeStrong(this)] (const TSharedRef& fetchedRowset) {
                 ProcessFetchedRowset(fetchedRowset);
                 return fetchedRowset;
@@ -225,7 +229,8 @@ IVersionedReaderPtr CreateRowLookupReader(
     TTabletSnapshotPtr tabletSnapshot,
     TColumnFilter columnFilter,
     TTimestamp timestamp,
-    bool produceAllVersions)
+    bool produceAllVersions,
+    TTimestamp chunkTimestamp)
 {
     return New<TRowLookupReader>(
         std::move(underlyingReader),
@@ -234,7 +239,8 @@ IVersionedReaderPtr CreateRowLookupReader(
         std::move(tabletSnapshot),
         std::move(columnFilter),
         timestamp,
-        produceAllVersions);
+        produceAllVersions,
+        chunkTimestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

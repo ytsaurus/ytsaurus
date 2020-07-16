@@ -1085,6 +1085,49 @@ class TestBulkInsert(DynamicTablesBase):
         sync_mount_table("//tmp/t")
         assert _get_partition_count(get("//tmp/t/@tablets/0/tablet_id")) == 2
 
+    @authors("akozhikhov")
+    def test_data_node_lookup(self):
+        nodes = ls("//sys/cluster_nodes")
+        set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(nodes[0]), True)
+        for node in nodes[1:]:
+            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
+        sync_create_cells(1)
+
+        self._create_simple_dynamic_table("//tmp/t_output")
+        sync_mount_table("//tmp/t_output")
+        create("table", "//tmp/t_input", attributes={"schema": get("//tmp/t_output/@schema")})
+
+        keys = [{"key": i} for i in range(2)]
+        rows = [{"key": i, "value": str(i)} for i in range(2)]
+        write_table("<append=%true>//tmp/t_input", rows[:1])
+        write_table("<append=%true>//tmp/t_input", rows[1:])
+
+        old_ts = generate_timestamp()
+        def _check(path, bulk_insert=False):
+            lookup_result = lookup_rows(path, keys, versioned=True)
+
+            set("{}/@enable_data_node_lookup".format(path), True)
+            sync_unmount_table(path)
+            sync_mount_table(path)
+            lookup_result_dnl = lookup_rows(path, keys, versioned=True)
+            
+            assert lookup_result == lookup_result_dnl
+            if bulk_insert:
+                new_ts = generate_timestamp()
+                assert lookup_result[0].attributes["write_timestamps"][0] > old_ts
+                assert lookup_result[0].attributes["write_timestamps"][0] < new_ts
+                assert lookup_result[0].attributes["write_timestamps"][0] == lookup_result[1].attributes["write_timestamps"][0]
+
+        merge(
+            in_="//tmp/t_input",
+            out="<append=%true>//tmp/t_output",
+            mode="ordered")
+        _check("//tmp/t_output", bulk_insert=True)
+
+        alter_table("//tmp/t_input", dynamic=True)
+        sync_mount_table("//tmp/t_input")
+        _check("//tmp/t_input")
+
 ##################################################################
 
 @authors("ifsmirnov")

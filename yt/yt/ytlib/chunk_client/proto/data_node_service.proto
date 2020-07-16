@@ -210,6 +210,7 @@ message TReqLookupRows
     optional NTableClient.NProto.TColumnFilter column_filter = 7;
     optional uint64 timestamp = 8;
     optional int32 compression_codec = 9;
+    optional uint64 chunk_timestamp = 10;
 
     required TTableSchemaData schema_data = 6;
 }
