@@ -121,6 +121,7 @@ void TTransaction::RegisterAlienTransaction(const ITransactionPtr& transaction)
 {
     {
         auto guard = Guard(SpinLock_);
+        SpinLockTag_ = 0;
 
         if (State_ != ETransactionState::Active) {
             THROW_ERROR_EXCEPTION(
@@ -162,6 +163,7 @@ void TTransaction::Detach()
 {
     {
         auto guard = Guard(SpinLock_);
+        SpinLockTag_ = 1;
         
         if (State_ == ETransactionState::Detached) {
             return;
@@ -203,6 +205,7 @@ TFuture<TTransactionFlushResult> TTransaction::Flush()
     std::vector<TFuture<void>> futures;
     {
         auto guard = Guard(SpinLock_);
+        SpinLockTag_ = 2;
 
         if (State_ != ETransactionState::Active) {
             return MakeFuture<TTransactionFlushResult>(TError(
@@ -237,6 +240,7 @@ TFuture<TTransactionFlushResult> TTransaction::Flush()
             BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspFlushTransactionPtr& rspOrError) -> TErrorOr<TTransactionFlushResult> {
                 {
                     auto guard = Guard(SpinLock_);
+                    SpinLockTag_ = 3;
                     if (rspOrError.IsOK() && State_ == ETransactionState::Flushing) {
                         State_ = ETransactionState::Flushed;
                     } else if (!rspOrError.IsOK()) {
@@ -266,6 +270,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
     std::vector<NApi::ITransactionPtr> alienTransactions;
     {
         auto guard = Guard(SpinLock_);
+        SpinLockTag_ = 4;
 
         if (State_ != ETransactionState::Active) {
             return MakeFuture<TTransactionCommitResult>(TError(
@@ -319,6 +324,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
             BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TApiServiceProxy::TRspCommitTransactionPtr>& rspOrError) {
                 {
                     auto guard = Guard(SpinLock_);
+                    SpinLockTag_ = 5;
                     if (rspOrError.IsOK() && State_ == ETransactionState::Committing) {
                         State_ = ETransactionState::Committed;
                     } else if (!rspOrError.IsOK()) {
@@ -350,6 +356,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 TFuture<void> TTransaction::Abort(const TTransactionAbortOptions& options)
 {
     auto guard = Guard(SpinLock_);
+    SpinLockTag_ = 6;
 
     if (State_ == ETransactionState::Committed || State_ == ETransactionState::Detached) {
         return MakeFuture<void>(TError(
@@ -436,6 +443,7 @@ void TTransaction::ModifyRows(
 
         {
             auto guard = Guard(SpinLock_);
+            SpinLockTag_ = 7;
 
             DoValidateActive();
             
@@ -468,6 +476,7 @@ void TTransaction::ModifyRows(
 
         {
             auto guard = Guard(SpinLock_);
+            SpinLockTag_ = 8;
             BatchModifyRowsFutures_.push_back(std::move(future));
         }
     }
@@ -791,7 +800,8 @@ TFuture<void> TTransaction::DoAbort(TGuard<TSpinLock>* guard, const TTransaction
         BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
             {
                 auto guard = Guard(SpinLock_);
-                
+                SpinLockTag_ = 9;
+
                 if (State_ != ETransactionState::Aborting) {
                     YT_LOG_DEBUG(rspOrError, "Transaction is no longer aborting, abort response ignored");
                     return;
@@ -842,6 +852,7 @@ TFuture<void> TTransaction::SendPing()
                 bool fireAborted = false;
                 {
                     auto guard = Guard(SpinLock_);
+                    SpinLockTag_ = 10;
                     if (State_ != ETransactionState::Committed &&
                         State_ != ETransactionState::Flushed &&
                         State_ != ETransactionState::Aborted &&
@@ -902,6 +913,7 @@ void TTransaction::RunPeriodicPings()
 bool TTransaction::IsPingableState()
 {
     auto guard = Guard(SpinLock_);
+    SpinLockTag_ = 11;
     return
         State_ == ETransactionState::Active ||
         State_ == ETransactionState::Flushing ||
@@ -912,6 +924,7 @@ bool TTransaction::IsPingableState()
 void TTransaction::ValidateActive()
 {
     auto guard = Guard(SpinLock_);
+    SpinLockTag_ = 12;
     DoValidateActive();
 }
 
