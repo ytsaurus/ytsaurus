@@ -173,6 +173,11 @@ class Metric(object):
         return Metric("//sys/cluster_nodes/{0}/orchid/profiling/tablet_node/{1}".format(address, path), *args, **kwargs)
 
     @staticmethod
+    def at_master(path, master_num=0, *args, **kwargs):
+        primary_masters = [key for key in get("//sys/primary_masters")]
+        return Metric("//sys/primary_masters/{0}/orchid/profiling/{1}".format(primary_masters[master_num], path), *args, **kwargs)
+
+    @staticmethod
     def at_proxy(proxy, path, *args, **kwargs):
         return Metric("//sys/proxies/{0}/orchid/profiling/{1}".format(proxy, path), *args, **kwargs)
 
