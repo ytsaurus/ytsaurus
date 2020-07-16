@@ -64,9 +64,10 @@ protected:
         NYTAlloc::EnableYTLogging();
         NYTAlloc::EnableYTProfiling();
         NYTAlloc::InitializeLibunwindInterop();
-        NYTAlloc::ConfigureFromEnv();
+        NYTAlloc::SetEnableEagerMemoryRelease(false);
         NYTAlloc::EnableStockpile();
         NYTAlloc::MlockallCurrentProcess();
+        NYTAlloc::ConfigureFromEnv();
 
         if (HandleSetsidOptions()) {
             return;

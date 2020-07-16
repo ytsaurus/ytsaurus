@@ -91,9 +91,9 @@ private:
         NYTAlloc::EnableYTLogging();
         NYTAlloc::EnableYTProfiling();
         NYTAlloc::InitializeLibunwindInterop();
-        NYTAlloc::ConfigureFromEnv();
         NYTAlloc::EnableStockpile();
         NYTAlloc::MlockallCurrentProcess();
+        NYTAlloc::ConfigureFromEnv();
 
         if (HandleSetsidOptions()) {
             return;
