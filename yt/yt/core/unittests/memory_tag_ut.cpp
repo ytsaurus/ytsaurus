@@ -1,12 +1,12 @@
 #include <yt/core/test_framework/framework.h>
 
-#include <yt/core/ytalloc/memory_tag.h>
-
 #include <yt/core/actions/invoker_util.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/thread_pool.h>
 #include <yt/core/concurrency/scheduler.h>
+
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <util/random/random.h>
 

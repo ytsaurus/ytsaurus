@@ -15,7 +15,7 @@
 
 #include <yt/core/ytree/public.h>
 
-#include <yt/core/ytalloc/memory_tag.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NControllerAgent {
 

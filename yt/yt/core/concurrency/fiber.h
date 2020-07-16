@@ -4,9 +4,9 @@
 #include "execution_stack.h"
 #include "fls.h"
 
-#include <yt/core/ytalloc/memory_tag.h>
-
 #include <yt/core/misc/small_vector.h>
+
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <util/system/context.h>
 

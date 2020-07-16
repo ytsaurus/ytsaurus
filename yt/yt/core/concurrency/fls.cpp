@@ -1,7 +1,7 @@
 #include "fls.h"
 #include "atomic_flag_spinlock.h"
 
-#include <yt/core/ytalloc/memory_tag.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NConcurrency::NDetail {
 
