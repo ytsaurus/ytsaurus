@@ -61,6 +61,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Config)
             .SetWritable(true)
             .SetOpaque(true));
+        descriptors->push_back(EInternedAttributeKey::HydraReadOnly);
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -128,6 +129,11 @@ private:
             case EInternedAttributeKey::Config:
                 BuildYsonFluently(consumer)
                     .Value(configManager->GetConfig());
+                return true;
+
+            case EInternedAttributeKey::HydraReadOnly:
+                BuildYsonFluently(consumer)
+                    .Value(hydraManager->GetReadOnly());
                 return true;
 
             default:
