@@ -453,7 +453,7 @@ func (e *Encoder) ReadTable(
 	return e.InvokeReadRow(ctx, call)
 }
 
-func marhsalKeys(keys []interface{}) ([]byte, error) {
+func marshalKeys(keys []interface{}) ([]byte, error) {
 	var rows bytes.Buffer
 
 	ys := yson.NewWriterConfig(&rows, yson.WriterConfig{Kind: yson.StreamListFragment, Format: yson.FormatBinary})
@@ -475,7 +475,7 @@ func (e *Encoder) LookupRows(
 ) (r yt.TableReader, err error) {
 	call := e.newCall(NewLookupRowsParams(path, options))
 
-	call.YSONValue, err = marhsalKeys(keys)
+	call.YSONValue, err = marshalKeys(keys)
 	if err != nil {
 		return nil, err
 	}

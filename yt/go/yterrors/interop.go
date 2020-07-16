@@ -102,7 +102,7 @@ func capitalize(msg string) string {
 	return string(runes)
 }
 
-// uncapitilize converts YT style error message to go style.
+// uncapitalize converts YT style error message to go style.
 func uncapitalize(msg string) string {
 	if len(msg) == 0 {
 		return msg

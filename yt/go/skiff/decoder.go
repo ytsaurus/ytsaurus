@@ -62,7 +62,7 @@ func NewDecoder(r io.Reader, format Format) (*Decoder, error) {
 		}
 
 		// System columns are decoded by hand.
-		// TODO(prime@): validate schema is statring with system columns.
+		// TODO(prime@): validate schema is starting with system columns.
 		s := *d.schemas[i]
 		sysCols := 0
 		for _, col := range s.Children {

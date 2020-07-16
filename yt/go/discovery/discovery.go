@@ -19,7 +19,7 @@
 //       go g.Update(context.Background())
 //
 //       // Join the group.
-//       member, err := g.Join(context.Backgrond(), "build01-myt.yt.yandex.net", &MemberMeta{Version: "1.1", Shard: 10})
+//       member, err := g.Join(context.Background(), "build01-myt.yt.yandex.net", &MemberMeta{Version: "1.1", Shard: 10})
 //       if err != nil {
 //           return err
 //       }
@@ -41,13 +41,11 @@ import (
 	"sync"
 	"time"
 
-	"a.yandex-team.ru/yt/go/yterrors"
-
 	"a.yandex-team.ru/library/go/core/log"
-
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 var (
