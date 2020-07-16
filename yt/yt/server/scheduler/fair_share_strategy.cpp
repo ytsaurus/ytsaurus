@@ -436,7 +436,8 @@ public:
                     operationId,
                     Config->OperationUnschedulableSafeTimeout,
                     Config->OperationUnschedulableMinScheduleJobAttempts,
-                    Config->OperationUnschedulableDeactiovationReasons,
+                    Config->OperationUnschedulableDeactivationReasons,
+                    Config->OperationUnschedulableDueToLimitingAncestorSafeTimeout,
                     operationState->GetController()->GetAggregatedMinNeededJobResources());
                 if (error.IsOK()) {
                     hasSchedulableTree = true;

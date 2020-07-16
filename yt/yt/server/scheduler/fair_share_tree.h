@@ -153,6 +153,7 @@ public:
         TDuration safeTimeout,
         int minScheduleJobCallAttempts,
         const THashSet<EDeactivationReason>& deactivationReasons,
+        TDuration limitingAncestorSafeTimeout,
         const TJobResources& minNeededResources);
 
     void UpdateOperationRuntimeParameters(

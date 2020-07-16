@@ -1408,6 +1408,7 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
             "operation_unschedulable_check_period": 100,
             "operation_unschedulable_safe_timeout": 5000,
             "operation_unschedulable_min_schedule_job_attempts": 10,
+            "operation_unschedulable_due_to_limiting_ancestor_safe_timeout": 5000,
         }
     }
 

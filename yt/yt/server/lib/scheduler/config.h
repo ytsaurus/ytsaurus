@@ -246,7 +246,10 @@ public:
     int OperationUnschedulableMinScheduleJobAttempts;
 
     //! Reasons that consider as unsuccessfull in schedule job attempts.
-    THashSet<EDeactivationReason> OperationUnschedulableDeactiovationReasons;
+    THashSet<EDeactivationReason> OperationUnschedulableDeactivationReasons;
+
+    //! During this timeout after activation operation can not be considered as unschedulable due to limiting ancestor.
+    TDuration OperationUnschedulableDueToLimitingAncestorSafeTimeout;
 
     //! List of operation types which should be disabled in tentative tree by default.
     THashSet<EOperationType> OperationsWithoutTentativePoolTrees;
