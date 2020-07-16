@@ -306,15 +306,20 @@ private:
             ranges = MakeSharedRange(std::move(prunedRanges), rowBuffer);
         }
 
-        YT_LOG_DEBUG("Splitting %v (RangeCount: %v, TabletsCount: %v, LowerCapBound: %v, UpperCapBound: %v, Pivots: %v)",
+        YT_LOG_DEBUG("Splitting %v (RangeCount: %v, TabletsCount: %v, LowerCapBound: %v, UpperCapBound: %v)",
             ranges ? "ranges" : "keys",
             ranges ? ranges.size() : keys.size(),
             tableInfo->Tablets.size(),
             tableInfo->LowerCapBound,
-            tableInfo->UpperCapBound,
-            MakeFormattableView(tableInfo->Tablets, [] (auto* builder, const auto& tablet) {
-                builder->AppendFormat("%v", tablet->PivotKey.Get());
-            }));
+            tableInfo->UpperCapBound);
+
+        if (options.VerboseLogging) {
+            YT_LOG_DEBUG("Splitting %v tablet pivot keys (Pivots: %v)",
+                ranges ? "ranges" : "keys",
+                MakeFormattableView(tableInfo->Tablets, [] (auto* builder, const auto& tablet) {
+                    builder->AppendFormat("%v", tablet->PivotKey.Get());
+                }));
+        }
 
         if (dataSource.Ranges) {
             YT_VERIFY(!dataSource.Keys);
