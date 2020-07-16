@@ -115,8 +115,8 @@ Y_GTEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
     NYT::NYTAlloc::EnableYTLogging();
     NYT::NYTAlloc::EnableYTProfiling();
     NYT::NYTAlloc::InitializeLibunwindInterop();
-    NYT::NYTAlloc::ConfigureFromEnv();
     NYT::NYTAlloc::EnableStockpile();
+    NYT::NYTAlloc::ConfigureFromEnv();
     NYT::NLogging::TLogManager::Get()->ConfigureFromEnv();
     NYT::NLogging::TLogManager::Get()->EnableReopenOnSighup();
 

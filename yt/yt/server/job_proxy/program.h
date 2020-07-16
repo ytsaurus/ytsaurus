@@ -62,11 +62,8 @@ protected:
         ConfigureCrashHandler();
         CloseAllDescriptors();
         NYTAlloc::EnableYTLogging();
-        NYTAlloc::ConfigureFromEnv();
         NYTAlloc::InitializeLibunwindInterop();
-
-        // Make RSS predictable.
-        NYTAlloc::SetEnableEagerMemoryRelease(true);
+        NYTAlloc::ConfigureFromEnv();
 
         try {
             SafeCreateStderrFile(StderrPath_);

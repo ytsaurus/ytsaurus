@@ -257,7 +257,7 @@ public:
             .GreaterThan(0)
             .Default();
         RegisterParameter("enable_eager_memory_release", EnableEagerMemoryRelease)
-            .Default();
+            .Default(true);
     }
 };
 

@@ -83,9 +83,6 @@ void TBootstrap::DoRun()
 
     ValidateLauncherCompatibility(Config_->Launcher);
 
-    // Make RSS predictable.
-    NYTAlloc::SetEnableEagerMemoryRelease(true);
-
     // Set up crash handlers.
     TSignalRegistry::Get()->PushCallback(AllCrashSignals, [this] { HandleCrashSignal(); });
     TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
