@@ -126,18 +126,6 @@ func writeRemoveNodeOptions(w *yson.Writer, o *yt.RemoveNodeOptions) {
 	w.Any(o.Recursive)
 	w.MapKeyString("force")
 	w.Any(o.Force)
-	if o.PreserveAccount != nil {
-		w.MapKeyString("preserve_account")
-		w.Any(o.PreserveAccount)
-	}
-	if o.PreserveExpirationTime != nil {
-		w.MapKeyString("preserve_expiration_time")
-		w.Any(o.PreserveExpirationTime)
-	}
-	if o.PessimisticQuotaCheck != nil {
-		w.MapKeyString("pessimistic_quota_check")
-		w.Any(o.PessimisticQuotaCheck)
-	}
 	writeTransactionOptions(w, o.TransactionOptions)
 	writeAccessTrackingOptions(w, o.AccessTrackingOptions)
 	writePrerequisiteOptions(w, o.PrerequisiteOptions)
