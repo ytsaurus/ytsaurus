@@ -35,7 +35,8 @@ public:
         bool produceAllVersions,
         TCachedTableSchemaPtr tableSchema,
         const TString& requestedKeysString,
-        NCompression::ECodec codecId);
+        NCompression::ECodec codecId,
+        NQueryClient::TTimestamp chunkTimestamp);
 
     TSharedRef Run();
 
@@ -60,6 +61,7 @@ private:
     const bool ProduceAllVersions_;
     const TCachedTableSchemaPtr TableSchema_;
     NCompression::ICodec* const Codec_;
+    const NQueryClient::TTimestamp ChunkTimestamp_;
 
     IChunkPtr Chunk_;
     TBlockReadOptions Options_;

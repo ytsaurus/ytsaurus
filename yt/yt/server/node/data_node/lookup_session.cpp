@@ -47,7 +47,8 @@ TLookupSession::TLookupSession(
     bool produceAllVersions,
     TCachedTableSchemaPtr tableSchema,
     const TString& requestedKeysString,
-    NCompression::ECodec codecId)
+    NCompression::ECodec codecId,
+    TTimestamp chunkTimestamp)
     : Bootstrap_(bootstrap)
     , ChunkId_(chunkId)
     , ReadSessionId_(readSessionId)
@@ -57,6 +58,7 @@ TLookupSession::TLookupSession(
     , ProduceAllVersions_(produceAllVersions)
     , TableSchema_(std::move(tableSchema))
     , Codec_(NCompression::GetCodec(codecId))
+    , ChunkTimestamp_(chunkTimestamp)
 {
     // NB: TableSchema is assumed to be set upon calling LookupSession.
     Chunk_ = Bootstrap_->GetChunkRegistry()->GetChunkOrThrow(chunkId);
@@ -210,7 +212,7 @@ TSharedRef TLookupSession::DoRun()
         Bootstrap_->GetBlockCache(),
         std::move(chunkSpec),
         versionedChunkMeta,
-        NullTimestamp,
+        ChunkTimestamp_,
         nullptr /* lookupHashTable */,
         New<TChunkReaderPerformanceCounters>(),
         TableSchema_->RowKeyComparer);

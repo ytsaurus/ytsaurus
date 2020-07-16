@@ -217,7 +217,8 @@ public:
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
         NCompression::ECodec codecId,
-        bool produceAllVersions) override;
+        bool produceAllVersions,
+        TTimestamp chunkTimestamp) override;
 
     virtual TChunkId GetChunkId() const override
     {
@@ -1911,7 +1912,8 @@ public:
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
         NCompression::ECodec codecId,
-        bool produceAllVersions)
+        bool produceAllVersions,
+        TTimestamp chunkTimestamp)
         : TSessionBase(reader, options)
         , LookupKeys_(std::move(lookupKeys))
         , TableId_(tableId)
@@ -1924,6 +1926,7 @@ public:
         , Timestamp_(timestamp)
         , CodecId_(codecId)
         , ProduceAllVersions_(produceAllVersions)
+        , ChunkTimestamp_(chunkTimestamp)
     {
         Logger.AddTag("TableId: %v, Revision: %llx",
             TableId_,
@@ -1958,6 +1961,7 @@ private:
     TTimestamp Timestamp_;
     const NCompression::ECodec CodecId_;
     const bool ProduceAllVersions_;
+    const TTimestamp ChunkTimestamp_;
 
     //! Promise representing the session.
     const TPromise<TSharedRef> Promise_ = NewPromise<TSharedRef>();
@@ -2140,6 +2144,7 @@ private:
         req->set_compression_codec(static_cast<int>(CodecId_));
         ToProto(req->mutable_column_filter(), ColumnFilter_);
         req->set_produce_all_versions(ProduceAllVersions_);
+        req->set_chunk_timestamp(ChunkTimestamp_);
 
         auto schemaData = req->mutable_schema_data();
         ToProto(schemaData->mutable_table_id(), TableId_);
@@ -2276,7 +2281,8 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     NCompression::ECodec codecId,
-    bool produceAllVersions)
+    bool produceAllVersions,
+    TTimestamp chunkTimestamp)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2292,7 +2298,8 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
         columnFilter,
         timestamp,
         codecId,
-        produceAllVersions);
+        produceAllVersions,
+        chunkTimestamp);
     return session->Run();
 }
 

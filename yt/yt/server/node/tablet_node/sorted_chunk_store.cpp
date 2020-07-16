@@ -387,7 +387,8 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             tabletSnapshot,
             columnFilter,
             timestamp,
-            produceAllVersions));
+            produceAllVersions,
+            ChunkTimestamp_));
     }
 
     auto chunkState = PrepareChunkState(readers.ChunkReader, blockReadOptions);

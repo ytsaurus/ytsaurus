@@ -33,7 +33,8 @@ struct ILookupReader
         const NTableClient::TColumnFilter& columnFilter,
         NTableClient::TTimestamp timestamp,
         NCompression::ECodec codecId,
-        bool produceAllVersions) = 0;
+        bool produceAllVersions,
+        TTimestamp chunkTimestamp) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ILookupReader)
@@ -47,7 +48,8 @@ IVersionedReaderPtr CreateRowLookupReader(
     TTabletSnapshotPtr tabletSnapshot,
     TColumnFilter columnFilter,
     TTimestamp timestamp,
-    bool produceAllVersions);
+    bool produceAllVersions,
+    TTimestamp chunkTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 
