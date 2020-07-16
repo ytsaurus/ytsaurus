@@ -7,7 +7,7 @@
 
 #include <yt/core/rpc/stream.h>
 
-#include <yt/core/ytalloc/memory_tag.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NRpc {
 

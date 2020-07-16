@@ -72,7 +72,7 @@
 
 #include <yt/core/yson/string.h>
 
-#include <yt/core/ytalloc/memory_tag.h>
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NControllerAgent::NLegacyControllers {
 

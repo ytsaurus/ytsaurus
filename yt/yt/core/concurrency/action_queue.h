@@ -4,9 +4,9 @@
 
 #include <yt/core/actions/callback.h>
 
-#include <yt/core/ytalloc/memory_tag.h>
-
 #include <yt/core/misc/shutdownable.h>
+
+#include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NConcurrency {
 
