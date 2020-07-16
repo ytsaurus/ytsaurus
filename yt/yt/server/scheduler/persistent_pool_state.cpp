@@ -6,7 +6,7 @@ namespace NYT::NScheduler {
 
 TPersistentPoolState::TPersistentPoolState()
 {
-    RegisterParameter("accumulated_resource_volume", AccumulatedResourceVolume)
+    RegisterParameter("accumulated_resource_ratio_volume", AccumulatedResourceRatioVolume)
         .Default(0.0);
 }
 
@@ -17,7 +17,7 @@ TString ToString(const TPersistentPoolStatePtr& state)
 
 void FormatValue(TStringBuilderBase* builder, const TPersistentPoolStatePtr& state, TStringBuf /* format */)
 {
-    builder->AppendFormat("{AccumulatedResourceVolume: %v}", state->AccumulatedResourceVolume);
+    builder->AppendFormat("{AccumulatedResourceRatioVolume: %v}", state->AccumulatedResourceRatioVolume);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
