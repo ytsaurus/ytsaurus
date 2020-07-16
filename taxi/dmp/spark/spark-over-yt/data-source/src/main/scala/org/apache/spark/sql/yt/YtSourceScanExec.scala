@@ -313,10 +313,12 @@ case class YtSourceScanExec(
 
     val maxSplitBytes = fsRelation.options.get("maxSplitRows").map(_.toLong)
       .orElse {
-        selectedPartitions.headOption.flatMap(_.files.headOption).flatMap {
-          case f: YtFileStatus => Some(f.avgChunkSize)
-          case f => YtStaticPath.fromPath(f.getPath).map(_.rowCount)
-        }
+        selectedPartitions.flatMap { part =>
+          part.files.flatMap{
+            case f: YtFileStatus => Some(f.avgChunkSize)
+            case f => YtStaticPath.fromPath(f.getPath).map(_.rowCount)
+          }.reduceOption(_ max _)
+        }.reduceOption(_ max _)
       }
       .getOrElse {
         Math.min(defaultMaxSplitBytes, Math.max(openCostInBytes, bytesPerCore))
