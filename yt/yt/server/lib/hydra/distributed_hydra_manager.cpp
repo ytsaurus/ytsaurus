@@ -475,6 +475,13 @@ public:
         return DecoratedAutomaton_->GetCurrentReign();
     }
 
+    virtual bool GetReadOnly() const override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return ReadOnly_;
+    }
+
     virtual TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -1923,13 +1930,6 @@ private:
             }));
     }
 
-
-    bool GetReadOnly() const
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        return ReadOnly_;
-    }
 
     void SetReadOnly(bool value)
     {

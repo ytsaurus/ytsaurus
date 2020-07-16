@@ -149,6 +149,7 @@
     XX(Health, health) \
     XX(HeartbeatTreeSchedulingInfoLogPeriod, heartbeat_tree_scheduling_info_log_period) \
     XX(HistoricUsageConfig, historic_usage_config) \
+    XX(HydraReadOnly, hydra_read_only) \
     XX(Id, id) \
     XX(Implicit, implicit) \
     XX(ImportRefCounter, import_ref_counter) \

@@ -193,7 +193,9 @@ private:
 
             return AllSucceeded(std::vector<TFuture<void>>{
                 CheckTableExists(),
-                CheckBundleHealth()
+                CheckBundleHealth(),
+                CheckClusterSafeMode(),
+                CheckHydraIsReadOnly()
             });
         }
 
@@ -307,6 +309,30 @@ private:
                 }));
         }
 
+        TFuture<void> CheckClusterSafeMode()
+        {
+            return Client_->GetNode("//sys/@config/enable_safe_mode")
+                .Apply(BIND([] (const TErrorOr<TYsonString>& error) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error getting enable_safe_mode attribute");
+                    auto isSafeModeEnabled = ConvertTo<bool>(error.Value());
+                    if (isSafeModeEnabled) {
+                        THROW_ERROR_EXCEPTION("Safe mode enabled");
+                    }
+                }));
+        }
+
+        TFuture<void> CheckHydraIsReadOnly()
+        {
+            return Client_->GetNode("//sys/@hydra_read_only")
+                .Apply(BIND([] (const TErrorOr<TYsonString>& error) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error getting hydra_read_only attribute");
+                    auto isHydraReadOnly = ConvertTo<bool>(error.Value());
+                    if (isHydraReadOnly) {
+                        THROW_ERROR_EXCEPTION("Hydra ReadOnly activated");
+                    }
+                }));
+        }
+
         TFuture<TString> GetAsyncTabletCellBundleName()
         {
             auto now = NProfiling::GetInstant();
@@ -319,7 +345,7 @@ private:
                 AsyncTabletCellBundleName_ = Client_->GetNode(Path_ + "/@tablet_cell_bundle")
                     .Apply(BIND([] (const TErrorOr<TYsonString>& bundleNameOrError) {
                         THROW_ERROR_EXCEPTION_IF_FAILED(bundleNameOrError, "Error getting table bundle name");
-                        return ConvertTo<TString>(bundleNameOrError.ValueOrThrow());
+                        return ConvertTo<TString>(bundleNameOrError.Value());
                     }));
             }
 

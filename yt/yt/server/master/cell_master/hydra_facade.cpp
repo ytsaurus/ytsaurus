@@ -177,7 +177,6 @@ public:
         return ResponseKeeper_;
     }
 
-
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
         return AutomatonQueue_->GetInvoker(static_cast<int>(queue));
