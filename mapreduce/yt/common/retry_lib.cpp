@@ -155,55 +155,81 @@ IRetryConfigProviderPtr CreateDefaultRetryConfigProvider()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::pair<bool,TDuration> GetRetryInfo(const TErrorResponse& errorResponse)
+static bool IsChunkError(int code)
 {
-    bool retriable = true;
-    TDuration retryInterval = TConfig::Get()->RetryInterval;
+    return code / 100 == 7;
+}
+
+// Check whether:
+// 1) codes contain at least one chunk error AND
+// 2) codes don't contain non-retriable chunk errors.
+static bool IsRetriableChunkError(const TSet<int>& codes)
+{
+    using namespace NClusterErrorCodes;
+    auto isChunkError = false;
+    for (auto code : codes) {
+        switch (code) {
+            case NChunkClient::SessionAlreadyExists:
+            case NChunkClient::ChunkAlreadyExists:
+            case NChunkClient::WindowError:
+            case NChunkClient::BlockContentMismatch:
+            case NChunkClient::InvalidBlockChecksum:
+            case NChunkClient::BlockOutOfRange:
+            case NChunkClient::MissingExtension:
+            case NChunkClient::NoSuchBlock:
+            case NChunkClient::NoSuchChunk:
+            case NChunkClient::NoSuchChunkList:
+            case NChunkClient::NoSuchChunkTree:
+            case NChunkClient::NoSuchChunkView:
+            case NChunkClient::NoSuchMedium:
+            case NChunkClient::NoSuchSession:
+                return false;
+            default:
+                isChunkError |= IsChunkError(code);
+                break;
+        }
+    }
+    return isChunkError;
+}
+
+static TMaybe<TDuration> TryGetBackoffDuration(const TErrorResponse& errorResponse)
+{
+    int httpCode = errorResponse.GetHttpCode();
+    if (httpCode / 100 != 4 && !errorResponse.IsFromTrailers()) {
+        return TConfig::Get()->RetryInterval;
+    }
 
     auto allCodes = errorResponse.GetError().GetAllErrorCodes();
-    int httpCode = errorResponse.GetHttpCode();
-
-    bool isChunkError = false;
-    for (const auto code : allCodes) {
-        if (code / 100 == 7) {
-            isChunkError = true;
-        }
-    }
-
     using namespace NClusterErrorCodes;
-    if (httpCode / 100 == 4 || errorResponse.IsFromTrailers()) {
-        if (httpCode == 429
-            || allCodes.count(NSecurityClient::RequestQueueSizeLimitExceeded)
-            || allCodes.count(NRpc::RequestQueueSizeLimitExceeded))
-        {
-            // request rate limit exceeded
-            retryInterval = TConfig::Get()->RateLimitExceededRetryInterval;
-        } else if (errorResponse.IsConcurrentOperationsLimitReached()) {
-            // limit for the number of concurrent operations exceeded
-            retryInterval = TConfig::Get()->StartOperationRetryInterval;
-        } else if (isChunkError) {
-            // chunk client errors
-            retryInterval = TConfig::Get()->ChunkErrorsRetryInterval;
-        } else if (
-            allCodes.count(NRpc::TransportError)
-            || allCodes.count(NRpc::Unavailable))
-        {
-            retriable = true;
-        } else {
-            retriable = false;
-        }
+    if (httpCode == 429
+        || allCodes.count(NSecurityClient::RequestQueueSizeLimitExceeded)
+        || allCodes.count(NRpc::RequestQueueSizeLimitExceeded))
+    {
+        // request rate limit exceeded
+        return TConfig::Get()->RateLimitExceededRetryInterval;
     }
-    return std::make_pair(retriable, retryInterval);
+    if (errorResponse.IsConcurrentOperationsLimitReached()) {
+        // limit for the number of concurrent operations exceeded
+        return TConfig::Get()->StartOperationRetryInterval;
+    }
+    if (IsRetriableChunkError(allCodes)) {
+        // chunk client errors
+        return TConfig::Get()->ChunkErrorsRetryInterval;
+    }
+    if (allCodes.count(NRpc::TransportError) || allCodes.count(NRpc::Unavailable)) {
+        return TConfig::Get()->RetryInterval;
+    }
+    return Nothing();
 }
 
 TDuration GetBackoffDuration(const TErrorResponse& errorResponse)
 {
-    return GetRetryInfo(errorResponse).second;
+    return TryGetBackoffDuration(errorResponse).GetOrElse(TConfig::Get()->RetryInterval);
 }
 
 bool IsRetriable(const TErrorResponse& errorResponse)
 {
-    return GetRetryInfo(errorResponse).first;
+    return TryGetBackoffDuration(errorResponse).Defined();
 }
 
 bool IsRetriable(const yexception& ex)
