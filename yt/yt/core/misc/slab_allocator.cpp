@@ -104,7 +104,7 @@ void* TSlabAllocator::Allocate(size_t size)
 
     TArenaPool* arena = nullptr;
     void* ptr = nullptr;
-    if (size < NYTAlloc::LargeSizeThreshold) {
+    if (size < NYTAlloc::LargeAllocationSizeThreshold) {
         auto rank = NYTAlloc::SizeToSmallRank(size);
         arena = SmallArenas_[rank].get();
         ptr = arena->Allocate();
