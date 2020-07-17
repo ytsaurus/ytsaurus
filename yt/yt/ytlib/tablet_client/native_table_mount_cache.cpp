@@ -88,7 +88,7 @@ private:
 
         auto mountInfoOrError = TAsyncExpiringCache::Find(key);
         if (mountInfoOrError && mountInfoOrError->IsOK()) {
-            auto& mountInfo = mountInfoOrError->Value();
+            const auto& mountInfo = mountInfoOrError->Value();
             tableId = mountInfo->TableId;
             cellTag = mountInfo->CellTag;
         }
