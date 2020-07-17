@@ -68,7 +68,9 @@ public:
         , Logger(NLogging::TLogger(logger)
             .AddTag("RealmId: %v", masterCellId))
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
+            .SetQueueSizeLimit(10000)
+            .SetConcurrencyLimit(10000));
     }
 
 private:
@@ -307,30 +309,37 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         masterRequest->Invoke();
     }
 
-    auto masterResponseMessages = WaitFor(AllSucceeded(asyncMasterResponseMessages))
-        .ValueOrThrow();
+    AllSucceeded(asyncMasterResponseMessages)
+        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TSubrequestResponse>>& masterResponseMessagesOrError) {
+            if (!masterResponseMessagesOrError.IsOK()) {
+                context->Reply(masterResponseMessagesOrError);
+                return;
+            }
 
-    auto& responseAttachments = response->Attachments();
-    for (const auto& subrequestResponse : masterResponseMessages) {
-        const auto& masterResponseMessage = subrequestResponse.Message;
-        response->add_part_counts(masterResponseMessage.Size());
-        responseAttachments.insert(
-            responseAttachments.end(),
-            masterResponseMessage.Begin(),
-            masterResponseMessage.End());
-    }
+            const auto& masterResponseMessages = masterResponseMessagesOrError.Value();
+            
+            auto& responseAttachments = response->Attachments();
+            for (const auto& subrequestResponse : masterResponseMessages) {
+                const auto& masterResponseMessage = subrequestResponse.Message;
+                response->add_part_counts(masterResponseMessage.Size());
+                responseAttachments.insert(
+                    responseAttachments.end(),
+                    masterResponseMessage.Begin(),
+                    masterResponseMessage.End());
+            }
 
-    for (const auto& [message, revision] : masterResponseMessages) {
-        if (revision == NHydra::NullRevision) {
-            response->clear_revisions();
-            break;
-        }
-        response->add_revisions(revision);
-    }
+            for (const auto& [message, revision] : masterResponseMessages) {
+                if (revision == NHydra::NullRevision) {
+                    response->clear_revisions();
+                    break;
+                }
+                response->add_revisions(revision);
+            }
 
-    response->set_caching_enabled(true);
+            response->set_caching_enabled(true);
 
-    context->Reply();
+            context->Reply();
+        }));
 }
 
 IServicePtr CreateCachingObjectService(
