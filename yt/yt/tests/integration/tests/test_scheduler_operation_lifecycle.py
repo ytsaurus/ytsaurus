@@ -1328,12 +1328,7 @@ class TestAsyncControllerActions(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_slow_revival_from_snapshot(self):
-        controller_agents = ls("//sys/controller_agents/instances")
-        assert len(controller_agents) == 1
-        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(controller_agents[0])
-
-        set("//sys/controller_agents/config/snapshot_period", 300)
-        wait(lambda: get(controller_agent_orchid + "/config/snapshot_period") == 300)
+        update_controller_agent_config("snapshot_period", 300)
 
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"testing": {"delay_inside_revive": 500}})
 
@@ -1360,12 +1355,7 @@ class TestAsyncControllerActions(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_slow_revival_from_snapshot_two_operations(self):
-        controller_agents = ls("//sys/controller_agents/instances")
-        assert len(controller_agents) == 1
-        controller_agent_orchid = "//sys/controller_agents/instances/{}/orchid/controller_agent".format(controller_agents[0])
-
-        set("//sys/controller_agents/config/snapshot_period", 300)
-        wait(lambda: get(controller_agent_orchid + "/config/snapshot_period") == 300)
+        update_controller_agent_config("snapshot_period", 300)
 
         op1 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"testing": {"delay_inside_revive": 500}})
         op2 = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"testing": {"delay_inside_revive": 500}})

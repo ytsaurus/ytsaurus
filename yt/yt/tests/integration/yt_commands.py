@@ -2030,3 +2030,9 @@ def update_nodes_dynamic_config(new_config):
 
     for node in ls("//sys/cluster_nodes"):
         wait(lambda: get_applied_node_dynamic_config(node) == current_config["%true"])
+
+def update_controller_agent_config(path, value):
+    set("//sys/controller_agents/config/" + path, value, recursive=True)
+    for agent in ls("//sys/controller_agents/instances"):
+        orchid_config_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(agent)
+        wait(lambda: get("{}/{}".format(orchid_config_path, path)) == value)

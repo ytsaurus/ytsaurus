@@ -563,7 +563,7 @@ class TestTentativePoolTrees(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestTentativePoolTrees, self).setup_method(method)
-        set("//sys/controller_agents/config/check_tentative_tree_eligibility_period", 100 * 1000)
+        update_controller_agent_config("check_tentative_tree_eligibility_period", 100 * 1000)
 
     # Creates and additional pool tree called "other", configures tag filters,
     # tags some nodes as "other" and returns a list of those nodes.
@@ -707,7 +707,7 @@ class TestTentativePoolTrees(YTEnvSetup):
 
         spec = self._create_spec()
 
-        set("//sys/controller_agents/config", {"check_tentative_tree_eligibility_period": 500})
+        update_controller_agent_config("check_tentative_tree_eligibility_period", 500)
 
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", [{"x": i} for i in xrange(30)])

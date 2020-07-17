@@ -230,7 +230,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "unused_tmpfs_space" not in op.get_alerts()
 
-        set("//sys/controller_agents/config/operation_alerts", {"tmpfs_alert_memory_usage_mute_ratio": 0.0})
+        update_controller_agent_config("operation_alerts/tmpfs_alert_memory_usage_mute_ratio", 0.0)
 
         op = map(
             command="echo abcdef >local_file; sleep 1.5; cat",
@@ -367,7 +367,9 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
     def test_short_jobs_alert(self):
         create_test_tables(row_count=4)
 
-        set("//sys/controller_agents/config/operation_alerts", {"short_jobs_alert_min_job_duration": 60000})
+        update_controller_agent_config(
+            "operation_alerts/short_jobs_alert_min_job_duration",
+            60000)
         op = map(
             command="cat",
             in_="//tmp/t_in",
@@ -378,7 +380,9 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
         assert "short_jobs_duration" in op.get_alerts()
 
-        set("//sys/controller_agents/config/operation_alerts", {"short_jobs_alert_min_job_duration": 5000})
+        update_controller_agent_config(
+            "operation_alerts/short_jobs_alert_min_job_duration",
+            5000)
         op = map(
             command="sleep 5; cat",
             in_="//tmp/t_in",
