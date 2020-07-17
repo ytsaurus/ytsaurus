@@ -120,7 +120,7 @@ private:
         Consumer->OnBeginList();
         for (int i = 0; i < node->GetChildCount(); ++i) {
             Consumer->OnListItem();
-            VisitAny(node->GetChild(i));
+            VisitAny(node->GetChildOrThrow(i));
         }
         Consumer->OnEndList();
     }

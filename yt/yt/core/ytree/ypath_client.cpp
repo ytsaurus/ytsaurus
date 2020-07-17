@@ -611,7 +611,7 @@ void SetNodeByYPath(
             case ENodeType::Map: {
                 const auto& key = currentLiteralValue;
                 auto currentMap = currentNode->AsMap();
-                currentNode = currentMap->GetChild(key);
+                currentNode = currentMap->GetChildOrThrow(key);
                 break;
             }
 
@@ -619,7 +619,7 @@ void SetNodeByYPath(
                 auto currentList = currentNode->AsList();
                 int index = ParseListIndex(currentToken);
                 int adjustedIndex = currentList->AdjustChildIndexOrThrow(index);
-                currentNode = currentList->GetChild(adjustedIndex);
+                currentNode = currentList->GetChildOrThrow(adjustedIndex);
                 break;
             }
 
@@ -648,7 +648,7 @@ void SetNodeByYPath(
             auto currentList = currentNode->AsList();
             int index = ParseListIndex(currentToken);
             int adjustedIndex = currentList->AdjustChildIndexOrThrow(index);
-            auto child = currentList->GetChild(adjustedIndex);
+            auto child = currentList->GetChildOrThrow(adjustedIndex);
             currentList->ReplaceChild(child, value);
             break;
         }
@@ -715,7 +715,7 @@ void ForceYPath(
                 auto currentList = currentNode->AsList();
                 int index = ParseListIndex(currentToken);
                 int adjustedIndex = currentList->AdjustChildIndexOrThrow(index);
-                child = currentList->GetChild(adjustedIndex);
+                child = currentList->GetChildOrThrow(adjustedIndex);
                 break;
             }
 
@@ -746,9 +746,9 @@ INodePtr PatchNode(const INodePtr& base, const INodePtr& patch)
         for (const auto& key : patchMap->GetKeys()) {
             if (baseMap->FindChild(key)) {
                 resultMap->RemoveChild(key);
-                YT_VERIFY(resultMap->AddChild(key, PatchNode(baseMap->GetChild(key), patchMap->GetChild(key))));
+                YT_VERIFY(resultMap->AddChild(key, PatchNode(baseMap->GetChildOrThrow(key), patchMap->GetChildOrThrow(key))));
             } else {
-                YT_VERIFY(resultMap->AddChild(key, CloneNode(patchMap->GetChild(key))));
+                YT_VERIFY(resultMap->AddChild(key, CloneNode(patchMap->GetChildOrThrow(key))));
             }
         }
         result->MutableAttributes()->MergeFrom(patch->Attributes());

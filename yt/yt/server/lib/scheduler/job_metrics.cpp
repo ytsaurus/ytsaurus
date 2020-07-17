@@ -66,8 +66,8 @@ void Serialize(const TCustomJobMetricDescription& customJobMetricDescription, NY
 void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
-    customJobMetricDescription.StatisticsPath = mapNode->GetChild("statistics_path")->GetValue<TString>();
-    customJobMetricDescription.ProfilingName = mapNode->GetChild("profiling_name")->GetValue<TString>();
+    customJobMetricDescription.StatisticsPath = mapNode->GetChildOrThrow("statistics_path")->GetValue<TString>();
+    customJobMetricDescription.ProfilingName = mapNode->GetChildOrThrow("profiling_name")->GetValue<TString>();
 
     auto aggregateTypeNode = mapNode->FindChild("aggregate_type");
     if (aggregateTypeNode) {

@@ -154,7 +154,7 @@ void LoadFromNode(
             for (int i = 0; i < size; ++i) {
                 LoadFromNode(
                     parameter[i],
-                    listNode->GetChild(i),
+                    listNode->GetChildOrThrow(i),
                     path + "/" + NYPath::ToYPathLiteral(i),
                     EMergeStrategy::Overwrite,
                     keepUnrecognizedRecursively);

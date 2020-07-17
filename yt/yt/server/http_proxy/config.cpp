@@ -26,7 +26,7 @@ INodePtr ConvertAuthFromLegacyConfig(const INodePtr& legacyConfig)
         return BuildYsonNodeFluently().BeginMap().EndMap();
     }
 
-    auto legacyAuthentication = legacyConfig->AsMap()->GetChild("authentication")->AsMap();
+    auto legacyAuthentication = legacyConfig->AsMap()->GetChildOrThrow("authentication")->AsMap();
     auto grant = legacyAuthentication->FindChild("grant");
     if (!grant) {
         grant = ConvertToNode("");
@@ -34,7 +34,7 @@ INodePtr ConvertAuthFromLegacyConfig(const INodePtr& legacyConfig)
 
     auto config = BuildYsonNodeFluently().BeginMap()
         .Item("auth").BeginMap()
-            .Item("enable_authentication").Value(legacyAuthentication->GetChild("enable"))
+            .Item("enable_authentication").Value(legacyAuthentication->GetChildOrThrow("enable"))
             .Item("blackbox_service").BeginMap().EndMap()
             .Item("cypress_token_authenticator").BeginMap().EndMap()
             .Item("blackbox_token_authenticator").BeginMap()
@@ -68,10 +68,10 @@ INodePtr ConvertHttpsFromLegacyConfig(const INodePtr& legacyConfig)
             .Item("credentials")
                 .BeginMap()
                     .Item("private_key").BeginMap()
-                        .Item("file_name").Value(legacyConfig->AsMap()->GetChild("ssl_key"))
+                        .Item("file_name").Value(legacyConfig->AsMap()->GetChildOrThrow("ssl_key"))
                     .EndMap()
                     .Item("cert_chain").BeginMap()
-                        .Item("file_name").Value(legacyConfig->AsMap()->GetChild("ssl_certificate"))
+                        .Item("file_name").Value(legacyConfig->AsMap()->GetChildOrThrow("ssl_certificate"))
                     .EndMap()
                 .EndMap()
             .EndMap()
@@ -82,17 +82,17 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
 {
     auto redirect = legacyConfig->AsMap()->FindChild("redirect");
     if (redirect) {
-        redirect = redirect->AsList()->GetChild(0)->AsList()->GetChild(1);
+        redirect = redirect->AsList()->GetChildOrThrow(0)->AsList()->GetChildOrThrow(1);
     }
 
-    auto proxy = legacyConfig->AsMap()->GetChild("proxy")->AsMap();
+    auto proxy = legacyConfig->AsMap()->GetChildOrThrow("proxy")->AsMap();
 
     auto config =  BuildYsonNodeFluently()
         .BeginMap()
-            .Item("port").Value(legacyConfig->AsMap()->GetChild("port"))
-            .Item("coordinator").Value(legacyConfig->AsMap()->GetChild("coordination"))
-            .Item("logging").Value(proxy->GetChild("logging"))
-            .Item("driver").Value(proxy->GetChild("driver"))
+            .Item("port").Value(legacyConfig->AsMap()->GetChildOrThrow("port"))
+            .Item("coordinator").Value(legacyConfig->AsMap()->GetChildOrThrow("coordination"))
+            .Item("logging").Value(proxy->GetChildOrThrow("logging"))
+            .Item("driver").Value(proxy->GetChildOrThrow("driver"))
             .Item("api").BeginMap().EndMap()
             .OptionalItem("ui_redirect_url", redirect)
         .EndMap();
@@ -106,12 +106,12 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
     }
 
     if (auto node = legacyConfig->AsMap()->FindChild("disable_cors_check")) {
-        config->AsMap()->GetChild("api")->AsMap()->AddChild("disable_cors_check", CloneNode(node));
+        config->AsMap()->GetChildOrThrow("api")->AsMap()->AddChild("disable_cors_check", CloneNode(node));
     }
 
     if (auto node = legacyConfig->AsMap()->FindChild("api")) {
         if (auto forceTracing = node->AsMap()->FindChild("force_tracing")) {
-            config->AsMap()->GetChild("api")->AsMap()->AddChild(
+            config->AsMap()->GetChildOrThrow("api")->AsMap()->AddChild(
                 "force_tracing",
                 CloneNode(forceTracing));
         }
@@ -126,7 +126,7 @@ INodePtr ConvertFromLegacyConfig(const INodePtr& legacyConfig)
     }
 
     if (auto node = legacyConfig->AsMap()->FindChild("show_ports")) {
-        config->AsMap()->GetChild("coordinator")->AsMap()->AddChild("show_ports", CloneNode(node));
+        config->AsMap()->GetChildOrThrow("coordinator")->AsMap()->AddChild("show_ports", CloneNode(node));
     }
 
     if (auto node = proxy->FindChild("clickhouse")) {

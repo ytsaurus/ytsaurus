@@ -266,7 +266,7 @@ TEST(TYsonSerializableTest, UnrecognizedRecursive)
             EXPECT_EQ(1, child->AsInt64()->GetValue());
         } else {
             EXPECT_EQ("sub", name);
-            EXPECT_EQ(42, child->AsMap()->GetChild("sub_option")->AsInt64()->GetValue());
+            EXPECT_EQ(42, child->AsMap()->GetChildOrThrow("sub_option")->AsInt64()->GetValue());
         }
     }
 
@@ -782,13 +782,13 @@ TEST(TYsonSerializableTest, NullableWithNonNullDefault)
     {
         auto config = ConvertTo<TIntrusivePtr<TConfig>>(TYsonString("{}"));
         EXPECT_EQ(123, *config->Value);
-        EXPECT_EQ(123, ConvertToNode(config)->AsMap()->GetChild("value")->GetValue<i64>());
+        EXPECT_EQ(123, ConvertToNode(config)->AsMap()->GetChildOrThrow("value")->GetValue<i64>());
     }
 
     {
         auto config = ConvertTo<TIntrusivePtr<TConfig>>(TYsonString("{value=#}"));
         EXPECT_FALSE(config->Value);
-        EXPECT_EQ(ENodeType::Entity, ConvertToNode(config)->AsMap()->GetChild("value")->GetType());
+        EXPECT_EQ(ENodeType::Entity, ConvertToNode(config)->AsMap()->GetChildOrThrow("value")->GetType());
     }
 }
 

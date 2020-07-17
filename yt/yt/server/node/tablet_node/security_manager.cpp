@@ -108,19 +108,19 @@ private:
                     key.Account,
                     ConvertToYsonString(node, EYsonFormat::Text));
 
-                if (node->AsMap()->GetChild("chunk_count")->GetValue<bool>()) {
+                if (node->AsMap()->GetChildOrThrow("chunk_count")->GetValue<bool>()) {
                     THROW_ERROR_EXCEPTION("Account %Qv violates chunk count limit",
                         key.Account);
                 }
 
                 if (key.InMemoryMode != EInMemoryMode::None) {
-                    if (node->AsMap()->GetChild("tablet_static_memory")->GetValue<bool>()) {
+                    if (node->AsMap()->GetChildOrThrow("tablet_static_memory")->GetValue<bool>()) {
                         THROW_ERROR_EXCEPTION("Account %Qv violates tablet static memory limit",
                             key.Account);
                     }
                 }
 
-                const auto& mediumLimit = node->AsMap()->GetChild("disk_space_per_medium")->AsMap()->FindChild(key.MediumName);
+                const auto& mediumLimit = node->AsMap()->GetChildOrThrow("disk_space_per_medium")->AsMap()->FindChild(key.MediumName);
 
                 if (!mediumLimit) {
                     THROW_ERROR_EXCEPTION("Unknown medium %Qv",

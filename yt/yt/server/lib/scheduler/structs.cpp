@@ -98,8 +98,8 @@ void Serialize(const TPreemptedFor& preemptedFor, NYson::IYsonConsumer* consumer
 
 void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node)
 {
-    Deserialize(preemptedFor.JobId, node->AsMap()->GetChild("job_id"));
-    Deserialize(preemptedFor.OperationId, node->AsMap()->GetChild("operation_id"));
+    Deserialize(preemptedFor.JobId, node->AsMap()->GetChildOrThrow("job_id"));
+    Deserialize(preemptedFor.OperationId, node->AsMap()->GetChildOrThrow("operation_id"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

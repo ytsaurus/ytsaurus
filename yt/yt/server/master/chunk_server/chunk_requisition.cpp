@@ -78,11 +78,11 @@ void Serialize(TReplicationPolicy policy, NYson::IYsonConsumer* consumer)
 void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node)
 {
     auto map = node->AsMap();
-    auto replicationFactor = map->GetChild("replication_factor")->GetValue<i64>();
+    auto replicationFactor = map->GetChildOrThrow("replication_factor")->GetValue<i64>();
     if (replicationFactor != 0) {
         ValidateReplicationFactor(replicationFactor);
     }
-    auto dataPartsOnly = map->GetChild("data_parts_only")->GetValue<bool>();
+    auto dataPartsOnly = map->GetChildOrThrow("data_parts_only")->GetValue<bool>();
 
     policy.SetReplicationFactor(replicationFactor);
     policy.SetDataPartsOnly(dataPartsOnly);
@@ -541,10 +541,10 @@ void Serialize(const TSerializableChunkRequisition::TEntry& entry, NYson::IYsonC
 void Deserialize(TSerializableChunkRequisition::TEntry& entry, NYTree::INodePtr node)
 {
     auto map = node->AsMap();
-    entry.Account = map->GetChild("account")->AsString()->GetValue();
-    entry.Medium = map->GetChild("medium")->AsString()->GetValue();
-    Deserialize(entry.ReplicationPolicy, map->GetChild("replication_policy"));
-    entry.Committed = map->GetChild("committed")->AsBoolean()->GetValue();
+    entry.Account = map->GetChildOrThrow("account")->AsString()->GetValue();
+    entry.Medium = map->GetChildOrThrow("medium")->AsString()->GetValue();
+    Deserialize(entry.ReplicationPolicy, map->GetChildOrThrow("replication_policy"));
+    entry.Committed = map->GetChildOrThrow("committed")->AsBoolean()->GetValue();
 }
 
 void Serialize(const TSerializableChunkRequisition& serializer, NYson::IYsonConsumer* consumer)

@@ -26,7 +26,7 @@ TYPED_TEST(TYsonTypedTest, GetYPath)
     TString yson = "{key=value; submap={ other_key=other_value; }}";
     auto node = NYT::NYTree::ConvertToNode(TypeParam(yson));
 
-    EXPECT_EQ("/submap/other_key", node->AsMap()->GetChild("submap")->AsMap()->GetChild("other_key")->GetPath());
+    EXPECT_EQ("/submap/other_key", node->AsMap()->GetChildOrThrow("submap")->AsMap()->GetChildOrThrow("other_key")->GetPath());
 }
 
 TYPED_TEST(TYsonTypedTest, SetNodeByYPath)
@@ -34,14 +34,14 @@ TYPED_TEST(TYsonTypedTest, SetNodeByYPath)
     auto node = NYT::NYTree::ConvertToNode(TypeParam("{}"));
     ForceYPath(node, "/submap/other_key");
 
-    auto submap = node->AsMap()->GetChild("submap")->AsMap();
+    auto submap = node->AsMap()->GetChildOrThrow("submap")->AsMap();
     EXPECT_EQ(0, submap->GetChildCount());
 
     auto value = NYT::NYTree::ConvertToNode(TypeParam("4"));
 
     SetNodeByYPath(node, "/submap/other_key", value);
-    submap = node->AsMap()->GetChild("submap")->AsMap();
-    EXPECT_EQ(4, ConvertTo<int>(submap->GetChild("other_key")));
+    submap = node->AsMap()->GetChildOrThrow("submap")->AsMap();
+    EXPECT_EQ(4, ConvertTo<int>(submap->GetChildOrThrow("other_key")));
 }
 
 TYPED_TEST(TYsonTypedTest, RemoveNodeByYPathMap)
@@ -49,7 +49,7 @@ TYPED_TEST(TYsonTypedTest, RemoveNodeByYPathMap)
     auto node = NYT::NYTree::ConvertToNode(TypeParam("{x={y={z=1}}}"));
     EXPECT_EQ(true, RemoveNodeByYPath(node, "/x/y/z"));
 
-    auto submap = node->AsMap()->GetChild("x")->AsMap()->GetChild("y")->AsMap();
+    auto submap = node->AsMap()->GetChildOrThrow("x")->AsMap()->GetChildOrThrow("y")->AsMap();
     EXPECT_EQ(0, submap->GetChildCount());
 }
 
@@ -58,7 +58,7 @@ TYPED_TEST(TYsonTypedTest, RemoveNodeByYPathList)
     auto node = NYT::NYTree::ConvertToNode(TypeParam("{x={y=[1]}}"));
     EXPECT_EQ(true, RemoveNodeByYPath(node, "/x/y/0"));
 
-    auto sublist = node->AsMap()->GetChild("x")->AsMap()->GetChild("y")->AsList();
+    auto sublist = node->AsMap()->GetChildOrThrow("x")->AsMap()->GetChildOrThrow("y")->AsList();
     EXPECT_EQ(0, sublist->GetChildCount());
 }
 

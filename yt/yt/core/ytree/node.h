@@ -287,7 +287,7 @@ struct IMapNode
     virtual bool RemoveChild(const TString& key) = 0;
 
     //! Similar to #FindChild but throws if no child is found.
-    INodePtr GetChild(const TString& key) const;
+    INodePtr GetChildOrThrow(const TString& key) const;
 
     //! Returns the key for a given child.
     /*!
@@ -344,7 +344,7 @@ struct IListNode
     virtual bool RemoveChild(int index) = 0;
 
     //! Similar to #FindChild but throws if the index is not valid.
-    INodePtr GetChild(int index) const;
+    INodePtr GetChildOrThrow(int index) const;
 
     //! Returns the index for a given child or null if the node is not a child.
     /*!

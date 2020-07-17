@@ -45,21 +45,21 @@ void TJobDescription::Persist(const TPersistenceContext& context)
 void Deserialize(TJobDescription& value, NYTree::INodePtr node)
 {
     auto listNode = node->AsList();
-    auto duration = listNode->GetChild(0)->AsDouble()->GetValue();
+    auto duration = listNode->GetChildOrThrow(0)->AsDouble()->GetValue();
     value.Duration = TDuration::MilliSeconds(i64(duration * 1000));
     value.ResourceLimits = {};
-    value.ResourceLimits.SetMemory(listNode->GetChild(1)->AsInt64()->GetValue());
-    value.ResourceLimits.SetCpu(TCpuResource(listNode->GetChild(2)->AsDouble()->GetValue()));
-    value.ResourceLimits.SetUserSlots(listNode->GetChild(3)->AsInt64()->GetValue());
-    value.ResourceLimits.SetNetwork(listNode->GetChild(4)->AsInt64()->GetValue());
+    value.ResourceLimits.SetMemory(listNode->GetChildOrThrow(1)->AsInt64()->GetValue());
+    value.ResourceLimits.SetCpu(TCpuResource(listNode->GetChildOrThrow(2)->AsDouble()->GetValue()));
+    value.ResourceLimits.SetUserSlots(listNode->GetChildOrThrow(3)->AsInt64()->GetValue());
+    value.ResourceLimits.SetNetwork(listNode->GetChildOrThrow(4)->AsInt64()->GetValue());
     value.ResourceLimits.SetGpu(0);
-    value.Id = ConvertTo<TGuid>(listNode->GetChild(5));
-    auto jobType = ConvertTo<TString>(listNode->GetChild(6));
+    value.Id = ConvertTo<TGuid>(listNode->GetChildOrThrow(5));
+    auto jobType = ConvertTo<TString>(listNode->GetChildOrThrow(6));
     if (jobType == "partition_sort") {
         jobType = "intermediate_sort";
     }
     value.Type = ConvertTo<NJobTrackerClient::EJobType>(jobType);
-    value.State = ConvertTo<TString>(listNode->GetChild(7));
+    value.State = ConvertTo<TString>(listNode->GetChildOrThrow(7));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,15 +81,15 @@ void TOperationDescription::Persist(const TPersistenceContext& context)
 void Deserialize(TOperationDescription& value, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
-    value.Id = ConvertTo<TGuid>(mapNode->GetChild("operation_id"));
-    value.JobDescriptions = ConvertTo<std::vector<TJobDescription>>(mapNode->GetChild("job_descriptions"));
-    value.StartTime = ConvertTo<TInstant>(mapNode->GetChild("start_time"));
-    value.Duration = ConvertTo<TInstant>(mapNode->GetChild("finish_time")) - value.StartTime;
-    value.AuthenticatedUser = ConvertTo<TString>(mapNode->GetChild("authenticated_user"));
-    value.Type = ConvertTo<NScheduler::EOperationType>(mapNode->GetChild("operation_type"));
-    value.State = ConvertTo<TString>(mapNode->GetChild("state"));
-    value.InTimeframe = ConvertTo<bool>(mapNode->GetChild("in_timeframe"));
-    value.Spec = ConvertToYsonString(mapNode->GetChild("spec"));
+    value.Id = ConvertTo<TGuid>(mapNode->GetChildOrThrow("operation_id"));
+    value.JobDescriptions = ConvertTo<std::vector<TJobDescription>>(mapNode->GetChildOrThrow("job_descriptions"));
+    value.StartTime = ConvertTo<TInstant>(mapNode->GetChildOrThrow("start_time"));
+    value.Duration = ConvertTo<TInstant>(mapNode->GetChildOrThrow("finish_time")) - value.StartTime;
+    value.AuthenticatedUser = ConvertTo<TString>(mapNode->GetChildOrThrow("authenticated_user"));
+    value.Type = ConvertTo<NScheduler::EOperationType>(mapNode->GetChildOrThrow("operation_type"));
+    value.State = ConvertTo<TString>(mapNode->GetChildOrThrow("state"));
+    value.InTimeframe = ConvertTo<bool>(mapNode->GetChildOrThrow("in_timeframe"));
+    value.Spec = ConvertToYsonString(mapNode->GetChildOrThrow("spec"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

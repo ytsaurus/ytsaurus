@@ -68,8 +68,8 @@ void Serialize(const TNestedMessageWithCustomConverter& message, NYson::IYsonCon
 void Deserialize(TNestedMessageWithCustomConverter& message, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
-    message.X = mapNode->GetChild("x")->AsInt64()->GetValue() - 1;
-    message.Y = mapNode->GetChild("y")->AsInt64()->GetValue() - 1;
+    message.X = mapNode->GetChildOrThrow("x")->AsInt64()->GetValue() - 1;
+    message.Y = mapNode->GetChildOrThrow("y")->AsInt64()->GetValue() - 1;
 }
 
 REGISTER_INTERMEDIATE_PROTO_INTEROP_REPRESENTATION(NYT::NProto::TNestedMessageWithCustomConverter, TNestedMessageWithCustomConverter)
@@ -101,7 +101,7 @@ void Serialize(const TBytesIntermediateRepresentation& value, IYsonConsumer* con
 void Deserialize(TBytesIntermediateRepresentation& value, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
-    value.X = mapNode->GetChild("x")->AsInt64()->GetValue() - 1;
+    value.X = mapNode->GetChildOrThrow("x")->AsInt64()->GetValue() - 1;
 }
 
 REGISTER_INTERMEDIATE_PROTO_INTEROP_BYTES_FIELD_REPRESENTATION(NYT::NProto::TMessage, 29, TBytesIntermediateRepresentation)

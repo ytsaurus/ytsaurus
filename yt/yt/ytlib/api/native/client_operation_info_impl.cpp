@@ -235,7 +235,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     attrNode->RemoveChild(modificationTimeNode);
 
     if (!options.Attributes) {
-        auto keysToKeep = ConvertTo<THashSet<TString>>(attrNode->GetChild("user_attribute_keys"));
+        auto keysToKeep = ConvertTo<THashSet<TString>>(attrNode->GetChildOrThrow("user_attribute_keys"));
         keysToKeep.insert("id");
         keysToKeep.insert("type");
         for (const auto& key : attrNode->GetKeys()) {

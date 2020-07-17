@@ -78,9 +78,9 @@ void Deserialize(TSerializableAccessControlEntry& ace, NYTree::INodePtr node)
 
     auto mapNode = node->AsMap();
 
-    Deserialize(ace.Action, mapNode->GetChild("action"));
-    Deserialize(ace.Subjects, mapNode->GetChild("subjects"));
-    Deserialize(ace.Permissions, mapNode->GetChild("permissions"));
+    Deserialize(ace.Action, mapNode->GetChildOrThrow("action"));
+    Deserialize(ace.Subjects, mapNode->GetChildOrThrow("subjects"));
+    Deserialize(ace.Permissions, mapNode->GetChildOrThrow("permissions"));
     if (auto inheritanceModeNode = mapNode->FindChild("inheritance_mode")) {
         Deserialize(ace.InheritanceMode, inheritanceModeNode);
     } else {

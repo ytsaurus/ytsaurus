@@ -125,7 +125,7 @@ bool TYsonParserAdapter::nextArrayElement(Iterator& it)
         return false;
     }
     ++it.IndexInParent;
-    it.Value = parent->GetChild(it.IndexInParent);
+    it.Value = parent->GetChildOrThrow(it.IndexInParent);
     return true;
 }
 
