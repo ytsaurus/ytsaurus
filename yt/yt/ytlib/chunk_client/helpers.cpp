@@ -115,7 +115,6 @@ void GetUserObjectBasicAttributes(
     TObjectServiceProxy proxy(channel);
 
     auto batchReq = proxy.ExecuteBatch();
-    NNative::SetCachingHeader(batchReq, client->GetNativeConnection()->GetConfig(), options);
 
     for (auto* userObject : objects) {
         auto req = TObjectYPathProxy::GetBasicAttributes(userObject->GetObjectIdPathIfAvailable());
@@ -129,6 +128,7 @@ void GetUserObjectBasicAttributes(
             }
         }
         req->Tag() = userObject;
+        NNative::SetCachingHeader(req, client->GetNativeConnection()->GetConfig(), options);
         NCypressClient::SetTransactionId(req, userObject->TransactionId.value_or(defaultTransactionId));
         NCypressClient::SetSuppressAccessTracking(req, options.SuppressAccessTracking);
         batchReq->AddRequest(req);
