@@ -11,6 +11,8 @@
 
 #include <mapreduce/yt/interface/logging/log.h>
 
+#include <mapreduce/yt/util/batch.h>
+
 #include <library/cpp/threading/blocking_queue/blocking_queue.h>
 
 #include <util/generic/maybe.h>
@@ -579,65 +581,51 @@ TTableReaderPtr<T> CreateParallelTableReader(
     const TVector<TRichYPath>& paths,
     const TParallelTableReaderOptions& options)
 {
-    auto canonizePaths = [&] (TVector<TRichYPath>* paths) {
-        auto batchRequest = client->CreateBatchRequest();
-        for (auto& path : *paths) {
-            batchRequest
-                ->CanonizeYPath(path)
-                .Subscribe([&] (const NThreading::TFuture<TRichYPath>& future) {
-                    path = future.GetValueSync();
-                });
-        }
-        batchRequest->ExecuteBatch();
+    auto canonizePaths = [&] (const TVector<TRichYPath>& paths) {
+        return BatchTransform(client, paths, std::mem_fn(&IBatchRequest::CanonizeYPath));
     };
 
-    auto lockPaths = [&] (const IClientBasePtr& client, TVector<TRichYPath>* paths) {
-        auto batchRequest = client->CreateBatchRequest();
-        for (auto& path : *paths) {
-            batchRequest
-                ->Lock(path.Path_, ELockMode::LM_SNAPSHOT)
-                .Subscribe([&] (const NThreading::TFuture<ILockPtr>& future) {
-                    path.Path("#" + GetGuidAsString(future.GetValueSync()->GetLockedNodeId()));
-                });
+    auto lockPaths = [&] (const IClientBasePtr& client, TVector<TRichYPath> paths) {
+        auto locks = BatchTransform(client, paths, [] (const TBatchRequestPtr& batch, const TRichYPath& path) {
+            return batch->Lock(path.Path_, ELockMode::LM_SNAPSHOT);
+        });
+        TVector<TRichYPath> result = std::move(paths);
+        for (int i = 0; i < static_cast<int>(paths.size()); ++i) {
+            result[i].Path("#" + GetGuidAsString(locks[i]->GetLockedNodeId()));
         }
-        batchRequest->ExecuteBatch();
+        return result;
     };
 
-    auto getMissingRanges = [&] (const IClientBasePtr& client, TVector<TRichYPath>* paths) {
-        auto batchRequest = client->CreateBatchRequest();
-        for (auto& path : *paths) {
+    auto getMissingRanges = [&] (const IClientBasePtr& client, TVector<TRichYPath> paths) {
+        auto rowCounts = BatchTransform(client, paths, [] (const TBatchRequestPtr& batch, const TRichYPath& path) {
             if (path.Ranges_.empty()) {
-                batchRequest
-                    ->Get(path.Path_ + "/@row_count")
-                    .Subscribe([&] (const NThreading::TFuture<TNode>& future) {
-                        auto rowCount = future.GetValueSync().AsInt64();
-                        path.Ranges_.push_back(
-                            TReadRange()
-                                .LowerLimit(TReadLimit().RowIndex(0))
-                                .UpperLimit(TReadLimit().RowIndex(rowCount)));
-                    });
-            } else {
-                for (const auto& range : path.Ranges_) {
-                    Y_ENSURE(range.LowerLimit_.RowIndex_.Defined(), "Lower limit must be specified as row index");
-                    Y_ENSURE(range.UpperLimit_.RowIndex_.Defined(), "Upper limit must be specified as row index");
-                }
+                return batch->Get(path.Path_ + "/@row_count");
+            }
+            for (const auto& range : path.Ranges_) {
+                Y_ENSURE(range.LowerLimit_.RowIndex_.Defined(), "Lower limit must be specified as row index");
+                Y_ENSURE(range.UpperLimit_.RowIndex_.Defined(), "Upper limit must be specified as row index");
+            }
+            return NThreading::MakeFuture(TNode());
+        });
+        for (int i = 0; i < static_cast<int>(paths.size()); ++i) {
+            if (paths[i].Ranges_.empty()) {
+                paths[i].Ranges_.push_back(TReadRange::FromRowIndices(0, rowCounts[i].AsInt64()));
             }
         }
-        batchRequest->ExecuteBatch();
+        return paths;
     };
 
-    auto rangeReaderPaths = paths;
-    canonizePaths(&rangeReaderPaths);
+    auto rangeReaderPaths = canonizePaths(paths);
 
     IClientBasePtr rangeReaderClient;
     if (options.CreateTransaction_) {
         rangeReaderClient = client->StartTransaction();
-        lockPaths(rangeReaderClient, &rangeReaderPaths);
+        rangeReaderPaths = lockPaths(rangeReaderClient, std::move(rangeReaderPaths));
     } else {
         rangeReaderClient = client;
     }
 
-    getMissingRanges(rangeReaderClient, &rangeReaderPaths);
+    rangeReaderPaths = getMissingRanges(rangeReaderClient, std::move(rangeReaderPaths));
 
     auto rangeReaderOptions = TTableReaderOptions()
         .CreateTransaction(false);
@@ -649,22 +637,25 @@ TTableReaderPtr<T> CreateParallelTableReader(
     i64 memoryPerRow = 1;
     TVector<TRichYPath> pathsForColumnStatistics;
 
-    auto batchRequest = client->CreateBatchRequest();
-    for (const auto& path : rangeReaderPaths) {
+    auto dataWeights = BatchTransform(client, rangeReaderPaths, [&] (const TBatchRequestPtr& batch, const TRichYPath& path) {
         if (path.Columns_) {
             pathsForColumnStatistics.push_back(path);
+            return NThreading::MakeFuture(TNode(0));
         } else {
-            batchRequest->Get(path.Path_ + "/@data_weight").Subscribe([&] (const NThreading::TFuture<TNode>& future) {
-                auto dataWeight = future.GetValueSync().AsInt64();
-                auto rowCount = 1;
-                for (const auto& range : path.Ranges_) {
-                    rowCount += *range.UpperLimit_.RowIndex_ - *range.LowerLimit_.RowIndex_;
-                }
-                memoryPerRow += dataWeight / rowCount;
-            });
+            return batch->Get(path.Path_ + "/@data_weight");
         }
+    });
+    for (int i = 0; i < static_cast<int>(rangeReaderPaths.size()); ++i) {
+        auto dataWeight = dataWeights[i].AsInt64();
+        if (dataWeight == 0) {
+            continue;
+        }
+        auto rowCount = 1;
+        for (const auto& range : rangeReaderPaths[i].Ranges_) {
+            rowCount += *range.UpperLimit_.RowIndex_ - *range.LowerLimit_.RowIndex_;
+        }
+        memoryPerRow += dataWeight / rowCount;
     }
-    batchRequest->ExecuteBatch();
 
     if (!pathsForColumnStatistics.empty()) {
         auto columnarStatistics = rangeReaderClient->GetTableColumnarStatistics(pathsForColumnStatistics);
