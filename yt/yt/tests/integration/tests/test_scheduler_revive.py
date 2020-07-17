@@ -419,9 +419,9 @@ class TestControllerAgentReconnection(YTEnvSetup):
     @authors("gritukan")
     @pytest.mark.parametrize("use_legacy_controllers", [False, True])
     def test_legacy_controller_fraction_changed_during_revive(self, use_legacy_controllers):
-        set("//sys/controller_agents/config/map_operation_options/spec_template/legacy_controller_fraction",
-            256 if use_legacy_controllers else 0,
-            recursive=True)
+        update_controller_agent_config(
+            "map_operation_options/spec_template/legacy_controller_fraction", 
+            256 if use_legacy_controllers else 0)
 
         self._create_table("//tmp/t_in")
         self._create_table("//tmp/t_out")
@@ -452,7 +452,8 @@ class TestControllerAgentReconnection(YTEnvSetup):
         assert get(snapshot_path + "/@is_legacy") == use_legacy_controllers
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
-            set("//sys/controller_agents/config/map_operation_options/spec_template/legacy_controller_fraction", 0 if use_legacy_controllers else 256)
+            set("//sys/controller_agents/config/map_operation_options/spec_template/legacy_controller_fraction",
+                0 if use_legacy_controllers else 256)
 
         wait(lambda: get_is_legacy() != use_legacy_controllers)
         self._wait_for_state(op, "running")

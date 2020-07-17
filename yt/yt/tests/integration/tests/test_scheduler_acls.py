@@ -395,11 +395,7 @@ class TestSchedulerAcls(YTEnvSetup):
     @authors("levysotsky")
     @pytest.mark.parametrize("allow_access", [False, True])
     def test_allow_users_group_access_to_intermediate_data(self, allow_access):
-        flag_path = "//sys/controller_agents/config/allow_users_group_read_intermediate_data"
-
-        set(flag_path, allow_access, recursive=True)
-        # Wait for controller agent config update.
-        time.sleep(0.5)
+        update_controller_agent_config("allow_users_group_read_intermediate_data", allow_access)
 
         input_path, output_path = self._create_tables()
         breakpoint_name = "breakpoint_" + self._random_string(10)
