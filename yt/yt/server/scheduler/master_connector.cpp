@@ -729,24 +729,28 @@ private:
 
         void SyncClusterDirectory()
         {
+            YT_LOG_INFO("Sync cluster directory started");
             WaitFor(Owner_
                 ->Bootstrap_
                 ->GetMasterClient()
                 ->GetNativeConnection()
                 ->GetClusterDirectorySynchronizer()
-                ->Sync())
+                ->Sync(/* force */ true))
                 .ThrowOnError();
+            YT_LOG_INFO("Sync cluster directory finished");
         }
 
         void SyncMediumDirectory()
         {
+            YT_LOG_INFO("Sync medium directory started");
             WaitFor(Owner_
                 ->Bootstrap_
                 ->GetMasterClient()
                 ->GetNativeConnection()
                 ->GetMediumDirectorySynchronizer()
-                ->Sync())
+                ->Sync(/* force */ true))
                 .ThrowOnError();
+            YT_LOG_INFO("Sync medium directory finished");
         }
 
         // - Request operations and their states.
@@ -955,6 +959,7 @@ private:
 
         void StrictUpdateWatchers()
         {
+            YT_LOG_INFO("Request watcher updates");
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
             for (const auto& watcher : Owner_->CommonWatcherRecords_) {
                 watcher.Requester.Run(batchReq);
@@ -963,7 +968,10 @@ private:
                 watcher.Requester.Run(batchReq);
             }
 
-            auto watcherResponses = WaitFor(batchReq->Invoke()).ValueOrThrow();
+            auto watcherResponses = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
+            
+            YT_LOG_INFO("Handling watcher update results");
 
             for (const auto& watcher : Owner_->CommonWatcherRecords_) {
                 Owner_->RunWatcherHandler(watcher, watcherResponses, /* strictMode */ true);
@@ -972,6 +980,8 @@ private:
             for (const auto& watcher : Owner_->CustomWatcherRecords_) {
                 Owner_->RunWatcherHandler(watcher, watcherResponses, /* strictMode */ true);
             }
+            
+            YT_LOG_INFO("Watchers update results handled");
         }
 
         void FireHandshake()
