@@ -98,10 +98,17 @@ private:
     const IDialerPtr Dialer_;
     const IInvokerPtr Invoker_;
 
+    static int GetDefaultPort(const TUrlRef& parsedUrl)
+    {
+        if (parsedUrl.Protocol == "https") {
+            return 443;
+        } else {
+            return 80;
+        }
+    }
+
     TNetworkAddress GetAddress(const TUrlRef& parsedUrl)
     {
-        constexpr int DefaultHttpPort = 80;
-
         auto host = parsedUrl.Host;
         TNetworkAddress address;
 
@@ -114,7 +121,7 @@ private:
                 .ValueOrThrow();
         }
 
-        return TNetworkAddress(address, parsedUrl.Port.value_or(DefaultHttpPort));
+        return TNetworkAddress(address, parsedUrl.Port.value_or(GetDefaultPort(parsedUrl)));
     }
 
     std::pair<THttpOutputPtr, THttpInputPtr> OpenHttp(const TNetworkAddress& address)
