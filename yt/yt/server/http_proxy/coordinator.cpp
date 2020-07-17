@@ -744,8 +744,8 @@ std::vector<TInstance> TDiscoverVersionsHandler::GetAttributes(
         result.Address = parts.back();
         if (ysonOrError.IsOK()) {
             auto rspMap = ConvertToNode(ysonOrError.Value())->AsMap();
-            auto version = ConvertTo<TString>(rspMap->GetChild("version"));
-            auto startTime = ConvertTo<TString>(rspMap->GetChild("start_time"));
+            auto version = ConvertTo<TString>(rspMap->GetChildOrThrow("version"));
+            auto startTime = ConvertTo<TString>(rspMap->GetChildOrThrow("start_time"));
 
             result.Version = version;
             result.StartTime = startTime;

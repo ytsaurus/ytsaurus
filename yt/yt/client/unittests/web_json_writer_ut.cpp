@@ -566,9 +566,9 @@ void CheckYqlTypeAndValue(
     ASSERT_TRUE(entry);
     ASSERT_EQ(entry->GetType(), ENodeType::List);
     ASSERT_EQ(entry->AsList()->GetChildCount(), 2);
-    auto valueNode = entry->AsList()->GetChild(0);
+    auto valueNode = entry->AsList()->GetChildOrThrow(0);
     CheckYqlValue(valueNode, expectedValue);
-    auto typeNode = entry->AsList()->GetChild(1);
+    auto typeNode = entry->AsList()->GetChildOrThrow(1);
     CheckYqlType(typeNode, expectedType, yqlTypes);
 }
 
@@ -647,9 +647,9 @@ TEST_F(TWriterForWebJson, YqlValueFormat_SimpleTypes)
     ASSERT_EQ(rows->GetType(), ENodeType::List);
     ASSERT_EQ(rows->AsList()->GetChildCount(), 3);
 
-    auto row1 = rows->AsList()->GetChild(0);
-    auto row2 = rows->AsList()->GetChild(1);
-    auto row3 = rows->AsList()->GetChild(2);
+    auto row1 = rows->AsList()->GetChildOrThrow(0);
+    auto row2 = rows->AsList()->GetChildOrThrow(1);
+    auto row3 = rows->AsList()->GetChildOrThrow(2);
 
     ASSERT_EQ(row1->GetType(), ENodeType::Map);
     EXPECT_EQ(row1->AsMap()->GetChildCount(), 3);
@@ -1029,12 +1029,12 @@ TEST_F(TWriterForWebJson, YqlValueFormat_ComplexTypes)
     ASSERT_EQ(rows->GetType(), ENodeType::List);
     ASSERT_EQ(rows->AsList()->GetChildCount(), 6);
 
-    auto row1 = rows->AsList()->GetChild(0);
-    auto row2 = rows->AsList()->GetChild(1);
-    auto row3 = rows->AsList()->GetChild(2);
-    auto row4 = rows->AsList()->GetChild(3);
-    auto row5 = rows->AsList()->GetChild(4);
-    auto row6 = rows->AsList()->GetChild(5);
+    auto row1 = rows->AsList()->GetChildOrThrow(0);
+    auto row2 = rows->AsList()->GetChildOrThrow(1);
+    auto row3 = rows->AsList()->GetChildOrThrow(2);
+    auto row4 = rows->AsList()->GetChildOrThrow(3);
+    auto row5 = rows->AsList()->GetChildOrThrow(4);
+    auto row6 = rows->AsList()->GetChildOrThrow(5);
 
     ASSERT_EQ(row1->GetType(), ENodeType::Map);
     EXPECT_EQ(row1->AsMap()->GetChildCount(), 4);
@@ -1323,7 +1323,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Incomplete)
     ASSERT_EQ(rows->GetType(), ENodeType::List);
     ASSERT_EQ(rows->AsList()->GetChildCount(), 1);
 
-    auto row = rows->AsList()->GetChild(0);
+    auto row = rows->AsList()->GetChildOrThrow(0);
     ASSERT_EQ(row->GetType(), ENodeType::Map);
     EXPECT_EQ(row->AsMap()->GetChildCount(), 3);
 
@@ -1424,7 +1424,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Any)
     ASSERT_EQ(rows->AsList()->GetChildCount(), 4);
 
     {
-        auto row = rows->AsList()->GetChild(0);
+        auto row = rows->AsList()->GetChildOrThrow(0);
         ASSERT_EQ(row->GetType(), ENodeType::Map);
         auto rowAValue = ConvertToNode(TYsonString(R"([
             {
@@ -1443,7 +1443,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Any)
         CHECK_YQL_TYPE_AND_VALUE(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
     }
     {
-        auto row = rows->AsList()->GetChild(1);
+        auto row = rows->AsList()->GetChildOrThrow(1);
         ASSERT_EQ(row->GetType(), ENodeType::Map);
         auto rowAValue = ConvertToNode(TYsonString(R"([
             {
@@ -1456,7 +1456,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Any)
         CHECK_YQL_TYPE_AND_VALUE(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
     }
     {
-        auto row = rows->AsList()->GetChild(2);
+        auto row = rows->AsList()->GetChildOrThrow(2);
         ASSERT_EQ(row->GetType(), ENodeType::Map);
         auto rowAValue = ConvertToNode(TYsonString(R"([
             {
@@ -1469,7 +1469,7 @@ TEST_F(TWriterForWebJson, YqlValueFormat_Any)
         CHECK_YQL_TYPE_AND_VALUE(row, "column_a", yqlTypeA, rowAValue, yqlTypes);
     }
     {
-        auto row = rows->AsList()->GetChild(3);
+        auto row = rows->AsList()->GetChildOrThrow(3);
         ASSERT_EQ(row->GetType(), ENodeType::Map);
         auto rowAValue = ConvertToNode(TYsonString(R"([
             {

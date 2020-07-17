@@ -694,13 +694,13 @@ void Deserialize(TError& error, const NYTree::INodePtr& node)
     auto mapNode = node->AsMap();
 
     static const TString CodeKey("code");
-    error.Code_ = mapNode->GetChild(CodeKey)->GetValue<i64>();
+    error.Code_ = mapNode->GetChildOrThrow(CodeKey)->GetValue<i64>();
 
     static const TString MessageKey("message");
-    error.Message_ = mapNode->GetChild(MessageKey)->GetValue<TString>();
+    error.Message_ = mapNode->GetChildOrThrow(MessageKey)->GetValue<TString>();
 
     static const TString AttributesKey("attributes");
-    error.Attributes_ = IAttributeDictionary::FromMap(mapNode->GetChild(AttributesKey)->AsMap());
+    error.Attributes_ = IAttributeDictionary::FromMap(mapNode->GetChildOrThrow(AttributesKey)->AsMap());
     error.ExtractOriginAttributes();
 
     error.InnerErrors_.clear();

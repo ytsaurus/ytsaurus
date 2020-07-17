@@ -129,7 +129,7 @@ void DeserializeVector(T& value, INodePtr node)
     auto size = listNode->GetChildCount();
     value.resize(size);
     for (int i = 0; i < size; ++i) {
-        Deserialize(value[i], listNode->GetChild(i));
+        Deserialize(value[i], listNode->GetChildOrThrow(i));
     }
 }
 
@@ -140,7 +140,7 @@ void DeserializeSet(T& value, INodePtr node)
     auto size = listNode->GetChildCount();
     for (int i = 0; i < size; ++i) {
         typename T::value_type item;
-        Deserialize(item, listNode->GetChild(i));
+        Deserialize(item, listNode->GetChildOrThrow(i));
         value.insert(std::move(item));
     }
 }
@@ -226,7 +226,7 @@ struct TTupleHelper
     {
         TTupleHelper<T, Size - 1U>::DeserializeItem(value, list);
         if (list->GetChildCount() >= Size) {
-            Deserialize(std::get<Size - 1U>(value), list->GetChild(Size - 1U));
+            Deserialize(std::get<Size - 1U>(value), list->GetChildOrThrow(Size - 1U));
         }
     }
 };

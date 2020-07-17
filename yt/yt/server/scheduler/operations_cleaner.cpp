@@ -161,7 +161,7 @@ std::vector<TString> GetPools(const IMapNodePtr& runtimeParameters)
 
     std::vector<TString> pools;
     for (const auto& [key, value] : schedulingOptionsNode->AsMap()->GetChildren()) {
-        pools.push_back(value->AsMap()->GetChild("pool")->GetValue<TString>());
+        pools.push_back(value->AsMap()->GetChildOrThrow("pool")->GetValue<TString>());
     }
 
     return pools;

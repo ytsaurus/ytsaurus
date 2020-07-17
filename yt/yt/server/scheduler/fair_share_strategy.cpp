@@ -1281,7 +1281,7 @@ private:
         for (const auto& treeId : treesToAdd) {
             TFairShareStrategyTreeConfigPtr treeConfig;
             try {
-                auto configMap = poolsMap->GetChild(treeId)->Attributes().ToMap();
+                auto configMap = poolsMap->GetChildOrThrow(treeId)->Attributes().ToMap();
                 treeConfig = ConvertTo<TFairShareStrategyTreeConfigPtr>(configMap);
             } catch (const std::exception& ex) {
                 auto error = TError("Error parsing configuration of tree %Qv", treeId)
@@ -1337,7 +1337,7 @@ private:
         std::vector<TString>* updatedTreeIds) const
     {
         for (const auto& [treeId, tree] : trees) {
-            auto child = poolsMap->GetChild(treeId);
+            auto child = poolsMap->GetChildOrThrow(treeId);
 
             try {
                 auto configMap = child->Attributes().ToMap();

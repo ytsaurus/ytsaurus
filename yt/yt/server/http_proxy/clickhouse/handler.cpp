@@ -599,13 +599,13 @@ private:
             auto operationNode = ConvertTo<IMapNodePtr>(operationYson);
 
             if (OperationAlias_) {
-                OperationId_ = ConvertTo<TOperationId>(operationNode->GetChild("id")->GetValue<TString>());
+                OperationId_ = ConvertTo<TOperationId>(operationNode->GetChildOrThrow("id")->GetValue<TString>());
                 YT_LOG_DEBUG("Operation id resolved (OperationAlias: %v, OperationId: %v)", OperationAlias_, OperationId_);
             } else {
-                YT_ASSERT(OperationId_ == ConvertTo<TOperationId>(operationNode->GetChild("id")->GetValue<TString>()));
+                YT_ASSERT(OperationId_ == ConvertTo<TOperationId>(operationNode->GetChildOrThrow("id")->GetValue<TString>()));
             }
 
-            if (auto state = ConvertTo<EOperationState>(operationNode->GetChild("state")->GetValue<TString>()); state != EOperationState::Running) {
+            if (auto state = ConvertTo<EOperationState>(operationNode->GetChildOrThrow("state")->GetValue<TString>()); state != EOperationState::Running) {
                 ReplyWithError(
                     EStatusCode::BadRequest,
                     TError("Clique %v is not running; actual state = %lv", OperationIdOrAlias_, state)
@@ -613,7 +613,7 @@ private:
                 return false;
             }
 
-            if (operationNode->GetChild("suspended")->GetValue<bool>()) {
+            if (operationNode->GetChildOrThrow("suspended")->GetValue<bool>()) {
                 ReplyWithError(
                     EStatusCode::BadRequest,
                     TError("Clique %v is suspended; resume it to make queries", OperationIdOrAlias_));
@@ -621,9 +621,9 @@ private:
             }
 
             OperationAcl_ = ConvertToYsonString(operationNode
-                ->GetChild("runtime_parameters")
+                ->GetChildOrThrow("runtime_parameters")
                 ->AsMap()
-                ->GetChild("acl"));
+                ->GetChildOrThrow("acl"));
 
             return true;
         } catch (const std::exception& ex) {

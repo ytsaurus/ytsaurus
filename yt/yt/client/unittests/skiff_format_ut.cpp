@@ -659,10 +659,10 @@ TEST(TSkiffWriter, TestYsonWireType)
 
     // Row 6 (Any)
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
-    ASSERT_EQ(parseYson(&checkedSkiffParser)->AsMap()->GetChild("foo")->AsString()->GetValue(), "bar");
+    ASSERT_EQ(parseYson(&checkedSkiffParser)->AsMap()->GetChildOrThrow("foo")->AsString()->GetValue(), "bar");
 
     ASSERT_EQ(checkedSkiffParser.ParseVariant8Tag(), 1);
-    ASSERT_EQ(parseYson(&checkedSkiffParser)->AsMap()->GetChild("bar")->AsString()->GetValue(), "baz");
+    ASSERT_EQ(parseYson(&checkedSkiffParser)->AsMap()->GetChildOrThrow("bar")->AsString()->GetValue(), "baz");
 
     // Row 7 (Null)
     ASSERT_EQ(checkedSkiffParser.ParseVariant16Tag(), 0);
@@ -1806,7 +1806,7 @@ TEST(TSkiffParser, TestYsonWireType)
     ASSERT_EQ(GetUint64(collectedRows.GetRowValue(1, "yson")), 42);
     ASSERT_EQ(GetString(collectedRows.GetRowValue(2, "yson")), "foobar");
     ASSERT_EQ(GetBoolean(collectedRows.GetRowValue(3, "yson")), true);
-    ASSERT_EQ(GetAny(collectedRows.GetRowValue(4, "yson"))->AsMap()->GetChild("foo")->AsString()->GetValue(), "bar");
+    ASSERT_EQ(GetAny(collectedRows.GetRowValue(4, "yson"))->AsMap()->GetChildOrThrow("foo")->AsString()->GetValue(), "bar");
     ASSERT_EQ(IsNull(collectedRows.GetRowValue(5, "yson")), true);
 }
 

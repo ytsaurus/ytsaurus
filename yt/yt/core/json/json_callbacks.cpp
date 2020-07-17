@@ -308,7 +308,7 @@ void TJsonCallbacksBuildingNodesImpl::ConsumeNode(IListNodePtr list)
     Consumer_->OnBeginList();
     for (int i = 0; i < list->GetChildCount(); ++i) {
         Consumer_->OnListItem();
-        ConsumeNode(list->GetChild(i));
+        ConsumeNode(list->GetChildOrThrow(i));
     }
     Consumer_->OnEndList();
 }

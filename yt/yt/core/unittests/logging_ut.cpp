@@ -287,14 +287,14 @@ TEST_F(TLoggingTest, StructuredJsonLogging)
     auto log = ReadFile("test.log");
 
     auto logStartedJson = DeserializeJson(log[0]);
-    EXPECT_EQ(logStartedJson->GetChild("message")->AsString()->GetValue(), "Logging started");
-    EXPECT_EQ(logStartedJson->GetChild("level")->AsString()->GetValue(), "info");
-    EXPECT_EQ(logStartedJson->GetChild("category")->AsString()->GetValue(), "Logging");
+    EXPECT_EQ(logStartedJson->GetChildOrThrow("message")->AsString()->GetValue(), "Logging started");
+    EXPECT_EQ(logStartedJson->GetChildOrThrow("level")->AsString()->GetValue(), "info");
+    EXPECT_EQ(logStartedJson->GetChildOrThrow("category")->AsString()->GetValue(), "Logging");
 
     auto contentJson = DeserializeJson(log[1]);
-    EXPECT_EQ(contentJson->GetChild("message")->AsString()->GetValue(), "test_message");
-    EXPECT_EQ(contentJson->GetChild("level")->AsString()->GetValue(), "debug");
-    EXPECT_EQ(contentJson->GetChild("category")->AsString()->GetValue(), "category");
+    EXPECT_EQ(contentJson->GetChildOrThrow("message")->AsString()->GetValue(), "test_message");
+    EXPECT_EQ(contentJson->GetChildOrThrow("level")->AsString()->GetValue(), "debug");
+    EXPECT_EQ(contentJson->GetChildOrThrow("category")->AsString()->GetValue(), "category");
 
     NFs::Remove("test.log");
 }

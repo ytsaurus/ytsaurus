@@ -1733,7 +1733,7 @@ void TOperationControllerBase::SleepInCommitStage(EDelayInsideOperationCommitSta
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (rspOrError.IsOK()) {
             auto rspNode = ConvertToNode(NYson::TYsonString(rspOrError.ValueOrThrow()->value()));
-            CommitSleepStarted_ = rspNode->AsMap()->GetChild("commit_sleep_started")->GetValue<bool>();
+            CommitSleepStarted_ = rspNode->AsMap()->GetChildOrThrow("commit_sleep_started")->GetValue<bool>();
         }
     }
 

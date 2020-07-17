@@ -182,7 +182,7 @@ private:
         std::vector<TErrorOrSecretSubresponse> subresponses;
         try {
             static const TString SecretsKey("secrets");
-            auto secretsNode = rootNode->GetChild(SecretsKey)->AsList();
+            auto secretsNode = rootNode->GetChildOrThrow(SecretsKey)->AsList();
 
             int successCount = 0;
             int warningCount = 0;
@@ -218,14 +218,14 @@ private:
 
                 TSecretSubresponse subresponse;
                 static const TString SecretsValueKey("value");
-                auto valueNode = secretMapNode->GetChild(SecretsValueKey)->AsList();
+                auto valueNode = secretMapNode->GetChildOrThrow(SecretsValueKey)->AsList();
                 for (const auto& fieldNode : valueNode->GetChildren()) {
                     auto fieldMapNode = fieldNode->AsMap();
                     static const TString SecretKeyKey("key");
                     static const TString SecretValueKey("value");
                     subresponse.Payload.emplace(
-                        fieldMapNode->GetChild(SecretKeyKey)->GetValue<TString>(),
-                        fieldMapNode->GetChild(SecretsValueKey)->GetValue<TString>());
+                        fieldMapNode->GetChildOrThrow(SecretKeyKey)->GetValue<TString>(),
+                        fieldMapNode->GetChildOrThrow(SecretsValueKey)->GetValue<TString>());
                 }
 
                 subresponses.push_back(subresponse);
@@ -267,7 +267,7 @@ private:
     static TString GetStatusStringFromResponse(const IMapNodePtr& node)
     {
         static const TString StatusKey("status");
-        return node->GetChild(StatusKey)->GetValue<TString>();
+        return node->GetChildOrThrow(StatusKey)->GetValue<TString>();
     }
 
     static TError MakeUnexpectedStatusError(const TString& statusString)
@@ -301,7 +301,7 @@ private:
     static TError GetErrorFromResponse(const IMapNodePtr& node, const TString& statusString)
     {
         static const TString CodeKey("code");
-        auto codeString = node->GetChild(CodeKey)->GetValue<TString>();
+        auto codeString = node->GetChildOrThrow(CodeKey)->GetValue<TString>();
         auto code = ParseErrorCode(codeString);
 
         static const TString MessageKey("message");

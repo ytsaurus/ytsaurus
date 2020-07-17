@@ -1897,7 +1897,7 @@ TEST_P(TProtobufFormatStructuredMessage, Write)
                 YT_ABORT();
             })();
 
-            EXPECT_NODES_EQUAL(expected, otherColumns->GetChild("other_complex_field"));
+            EXPECT_NODES_EQUAL(expected, otherColumns->GetChildOrThrow("other_complex_field"));
         }
 
         std::vector<i64> actualPackedRepeatedInt64Field(
@@ -2047,50 +2047,50 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         const auto& firstList = firstNode->AsList();
         ASSERT_EQ(firstList->GetChildCount(), 15);
 
-        EXPECT_EQ(firstList->GetChild(0)->GetType(), ENodeType::Entity);
-        EXPECT_EQ(firstList->GetChild(1)->GetValue<TString>(), "Two");
-        EXPECT_EQ(firstList->GetChild(2)->GetValue<i64>(), 44);
+        EXPECT_EQ(firstList->GetChildOrThrow(0)->GetType(), ENodeType::Entity);
+        EXPECT_EQ(firstList->GetChildOrThrow(1)->GetValue<TString>(), "Two");
+        EXPECT_EQ(firstList->GetChildOrThrow(2)->GetValue<i64>(), 44);
 
-        ASSERT_EQ(firstList->GetChild(3)->GetType(), ENodeType::List);
-        EXPECT_EQ(ConvertTo<std::vector<i64>>(firstList->GetChild(3)), (std::vector<i64>{55, 56, 57}));
+        ASSERT_EQ(firstList->GetChildOrThrow(3)->GetType(), ENodeType::List);
+        EXPECT_EQ(ConvertTo<std::vector<i64>>(firstList->GetChildOrThrow(3)), (std::vector<i64>{55, 56, 57}));
 
-        ASSERT_EQ(firstList->GetChild(4)->GetType(), ENodeType::List);
-        EXPECT_EQ(ConvertTo<std::vector<i64>>(firstList->GetChild(4)), (std::vector<i64>{}));
+        ASSERT_EQ(firstList->GetChildOrThrow(4)->GetType(), ENodeType::List);
+        EXPECT_EQ(ConvertTo<std::vector<i64>>(firstList->GetChildOrThrow(4)), (std::vector<i64>{}));
 
-        ASSERT_EQ(firstList->GetChild(5)->GetType(), ENodeType::List);
-        EXPECT_EQ(firstList->GetChild(5)->AsList()->GetChild(0)->GetValue<TString>(), "key");
-        EXPECT_EQ(firstList->GetChild(5)->AsList()->GetChild(1)->GetValue<TString>(), "value");
+        ASSERT_EQ(firstList->GetChildOrThrow(5)->GetType(), ENodeType::List);
+        EXPECT_EQ(firstList->GetChildOrThrow(5)->AsList()->GetChildOrThrow(0)->GetValue<TString>(), "key");
+        EXPECT_EQ(firstList->GetChildOrThrow(5)->AsList()->GetChildOrThrow(1)->GetValue<TString>(), "value");
 
-        ASSERT_EQ(firstList->GetChild(6)->GetType(), ENodeType::List);
-        ASSERT_EQ(firstList->GetChild(6)->AsList()->GetChildCount(), 2);
+        ASSERT_EQ(firstList->GetChildOrThrow(6)->GetType(), ENodeType::List);
+        ASSERT_EQ(firstList->GetChildOrThrow(6)->AsList()->GetChildCount(), 2);
 
-        const auto& firstSubNode1 = firstList->GetChild(6)->AsList()->GetChild(0);
+        const auto& firstSubNode1 = firstList->GetChildOrThrow(6)->AsList()->GetChildOrThrow(0);
         ASSERT_EQ(firstSubNode1->GetType(), ENodeType::List);
         ASSERT_EQ(firstSubNode1->AsList()->GetChildCount(), 2);
-        EXPECT_EQ(firstSubNode1->AsList()->GetChild(0)->GetValue<TString>(), "key1");
-        EXPECT_EQ(firstSubNode1->AsList()->GetChild(1)->GetValue<TString>(), "value1");
+        EXPECT_EQ(firstSubNode1->AsList()->GetChildOrThrow(0)->GetValue<TString>(), "key1");
+        EXPECT_EQ(firstSubNode1->AsList()->GetChildOrThrow(1)->GetValue<TString>(), "value1");
 
-        const auto& firstSubNode2 = firstList->GetChild(6)->AsList()->GetChild(1);
+        const auto& firstSubNode2 = firstList->GetChildOrThrow(6)->AsList()->GetChildOrThrow(1);
         ASSERT_EQ(firstSubNode2->GetType(), ENodeType::List);
         ASSERT_EQ(firstSubNode2->AsList()->GetChildCount(), 2);
-        EXPECT_EQ(firstSubNode2->AsList()->GetChild(0)->GetValue<TString>(), "key2");
-        EXPECT_EQ(firstSubNode2->AsList()->GetChild(1)->GetValue<TString>(), "value2");
+        EXPECT_EQ(firstSubNode2->AsList()->GetChildOrThrow(0)->GetValue<TString>(), "key2");
+        EXPECT_EQ(firstSubNode2->AsList()->GetChildOrThrow(1)->GetValue<TString>(), "value2");
 
-        ASSERT_EQ(firstList->GetChild(7)->GetType(), ENodeType::Int64);
-        EXPECT_EQ(firstList->GetChild(7)->GetValue<i64>(), 4422);
+        ASSERT_EQ(firstList->GetChildOrThrow(7)->GetType(), ENodeType::Int64);
+        EXPECT_EQ(firstList->GetChildOrThrow(7)->GetValue<i64>(), 4422);
 
-        ASSERT_EQ(firstList->GetChild(8)->GetType(), ENodeType::Map);
+        ASSERT_EQ(firstList->GetChildOrThrow(8)->GetType(), ENodeType::Map);
         EXPECT_NODES_EQUAL(
-            firstList->GetChild(8),
+            firstList->GetChildOrThrow(8),
             BuildYsonNodeFluently()
                 .BeginMap()
                     .Item("key").Value("value")
                 .EndMap());
 
-        ASSERT_EQ(firstList->GetChild(9)->GetType(), ENodeType::Entity);
+        ASSERT_EQ(firstList->GetChildOrThrow(9)->GetType(), ENodeType::Entity);
 
         EXPECT_NODES_EQUAL(
-            firstList->GetChild(10),
+            firstList->GetChildOrThrow(10),
             BuildYsonNodeFluently()
                 .BeginList()
                     .Item().Value(false)
@@ -2099,7 +2099,7 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
                 .EndList());
 
         EXPECT_NODES_EQUAL(
-            firstList->GetChild(11),
+            firstList->GetChildOrThrow(11),
             BuildYsonNodeFluently()
                 .BeginList()
                     .Item().Value("MaxInt32")
@@ -2107,11 +2107,11 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
                 .EndList());
 
         // optional_repeated_bool_field.
-        ASSERT_EQ(firstList->GetChild(12)->GetType(), ENodeType::Entity);
+        ASSERT_EQ(firstList->GetChildOrThrow(12)->GetType(), ENodeType::Entity);
 
         // oneof_field
         EXPECT_NODES_EQUAL(
-            firstList->GetChild(13),
+            firstList->GetChildOrThrow(13),
             BuildYsonNodeFluently()
                 .BeginList()
                     .Item().Value(2)
@@ -2122,7 +2122,7 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
                 .EndList());
 
         // field_missing_from_proto2.
-        ASSERT_EQ(firstList->GetChild(14)->GetType(), ENodeType::Entity);
+        ASSERT_EQ(firstList->GetChildOrThrow(14)->GetType(), ENodeType::Entity);
 
         auto secondNode = GetComposite(rowCollector.GetRowValue(rowIndex, "second"));
         ASSERT_EQ(secondNode->GetType(), ENodeType::List);
@@ -2132,17 +2132,17 @@ TEST_P(TProtobufFormatStructuredMessage, Parse)
         ASSERT_EQ(repeatedMessageNode->GetType(), ENodeType::List);
         ASSERT_EQ(repeatedMessageNode->AsList()->GetChildCount(), 2);
 
-        const auto& subNode1 = repeatedMessageNode->AsList()->GetChild(0);
+        const auto& subNode1 = repeatedMessageNode->AsList()->GetChildOrThrow(0);
         ASSERT_EQ(subNode1->GetType(), ENodeType::List);
         ASSERT_EQ(subNode1->AsList()->GetChildCount(), 2);
-        EXPECT_EQ(subNode1->AsList()->GetChild(0)->GetValue<TString>(), "key11");
-        EXPECT_EQ(subNode1->AsList()->GetChild(1)->GetValue<TString>(), "value11");
+        EXPECT_EQ(subNode1->AsList()->GetChildOrThrow(0)->GetValue<TString>(), "key11");
+        EXPECT_EQ(subNode1->AsList()->GetChildOrThrow(1)->GetValue<TString>(), "value11");
 
-        const auto& subNode2 = repeatedMessageNode->AsList()->GetChild(1);
+        const auto& subNode2 = repeatedMessageNode->AsList()->GetChildOrThrow(1);
         ASSERT_EQ(subNode2->GetType(), ENodeType::List);
         ASSERT_EQ(subNode2->AsList()->GetChildCount(), 2);
-        EXPECT_EQ(subNode2->AsList()->GetChild(0)->GetValue<TString>(), "key21");
-        EXPECT_EQ(subNode2->AsList()->GetChild(1)->GetValue<TString>(), "value21");
+        EXPECT_EQ(subNode2->AsList()->GetChildOrThrow(0)->GetValue<TString>(), "key21");
+        EXPECT_EQ(subNode2->AsList()->GetChildOrThrow(1)->GetValue<TString>(), "value21");
 
         auto repeatedInt64Node = GetComposite(rowCollector.GetRowValue(rowIndex, "repeated_int64_field"));
         EXPECT_EQ(ConvertTo<std::vector<i64>>(repeatedInt64Node), (std::vector<i64>{31, 32, 33}));
@@ -3065,12 +3065,12 @@ TEST_P(TProtobufFormatAllFields, Writer)
                 BuildYsonNodeFluently().Value("some_string")));
 
             auto otherColumnsMap = ConvertToNode(TYsonString(message.other_columns_field()))->AsMap();
-            EXPECT_EQ(otherColumnsMap->GetChild("OtherInt64Column")->GetValue<i64>(), -123);
-            EXPECT_DOUBLE_EQ(otherColumnsMap->GetChild("OtherDoubleColumn")->GetValue<double>(), -123.456);
-            EXPECT_EQ(otherColumnsMap->GetChild("OtherStringColumn")->GetValue<TString>(), "some_string");
-            EXPECT_EQ(otherColumnsMap->GetChild("OtherBooleanColumn")->GetValue<bool>(), true);
-            EXPECT_TRUE(AreNodesEqual(otherColumnsMap->GetChild("OtherAnyColumn"), mapNode));
-            EXPECT_EQ(otherColumnsMap->GetChild("OtherNullColumn")->GetType(), ENodeType::Entity);
+            EXPECT_EQ(otherColumnsMap->GetChildOrThrow("OtherInt64Column")->GetValue<i64>(), -123);
+            EXPECT_DOUBLE_EQ(otherColumnsMap->GetChildOrThrow("OtherDoubleColumn")->GetValue<double>(), -123.456);
+            EXPECT_EQ(otherColumnsMap->GetChildOrThrow("OtherStringColumn")->GetValue<TString>(), "some_string");
+            EXPECT_EQ(otherColumnsMap->GetChildOrThrow("OtherBooleanColumn")->GetValue<bool>(), true);
+            EXPECT_TRUE(AreNodesEqual(otherColumnsMap->GetChildOrThrow("OtherAnyColumn"), mapNode));
+            EXPECT_EQ(otherColumnsMap->GetChildOrThrow("OtherNullColumn")->GetType(), ENodeType::Entity);
 
             auto keys = otherColumnsMap->GetKeys();
             std::sort(keys.begin(), keys.end());

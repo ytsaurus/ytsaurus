@@ -749,11 +749,11 @@ void Deserialize(TDescriptorType& value, NYTree::INodePtr node)
 
     auto mapNode = node->AsMap();
 
-    auto tagNode = mapNode->GetChild("tag");
+    auto tagNode = mapNode->GetChildOrThrow("tag");
     ETypeCategory tag;
     Deserialize(tag, tagNode);
 
-    auto valueNode = mapNode->GetChild("value");
+    auto valueNode = mapNode->GetChildOrThrow("value");
     switch (tag) {
         case ETypeCategory::TypeArgument: {
             TTypeArgument type;

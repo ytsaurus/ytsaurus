@@ -1051,8 +1051,8 @@ void Serialize(const TStructField& structElement, NYson::IYsonConsumer* consumer
 void Deserialize(TStructField& structElement, NYTree::INodePtr node)
 {
     const auto& mapNode = node->AsMap();
-    structElement.Name = NYTree::ConvertTo<TString>(mapNode->GetChild("name"));
-    structElement.Type = NYTree::ConvertTo<TLogicalTypePtr>(mapNode->GetChild("type"));
+    structElement.Name = NYTree::ConvertTo<TString>(mapNode->GetChildOrThrow("name"));
+    structElement.Type = NYTree::ConvertTo<TLogicalTypePtr>(mapNode->GetChildOrThrow("type"));
 }
 
 void Serialize(const TLogicalTypePtr& logicalType, NYson::IYsonConsumer* consumer)
@@ -1146,7 +1146,7 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
 
     ELogicalMetatype metatype;
     {
-        auto metatypeNode = mapNode->GetChild("metatype");
+        auto metatypeNode = mapNode->GetChildOrThrow("metatype");
         metatype = NYTree::ConvertTo<ELogicalMetatype>(metatypeNode);
     }
     switch (metatype) {
@@ -1155,53 +1155,53 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
                 NYTree::ENodeType::Map);
         }
         case ELogicalMetatype::Optional: {
-            auto elementNode = mapNode->GetChild("element");
+            auto elementNode = mapNode->GetChildOrThrow("element");
             auto element = NYTree::ConvertTo<TLogicalTypePtr>(elementNode);
             logicalType = OptionalLogicalType(std::move(element));
             return;
         }
         case ELogicalMetatype::List: {
-            auto elementNode = mapNode->GetChild("element");
+            auto elementNode = mapNode->GetChildOrThrow("element");
             auto element = NYTree::ConvertTo<TLogicalTypePtr>(elementNode);
             logicalType = ListLogicalType(std::move(element));
             return;
         }
         case ELogicalMetatype::Struct: {
-            auto fieldsNode = mapNode->GetChild("fields");
+            auto fieldsNode = mapNode->GetChildOrThrow("fields");
             auto fields = NYTree::ConvertTo<std::vector<TStructField>>(fieldsNode);
             logicalType = StructLogicalType(std::move(fields));
             return;
         }
         case ELogicalMetatype::Tuple: {
-            auto elementsNode = mapNode->GetChild("elements");
+            auto elementsNode = mapNode->GetChildOrThrow("elements");
             auto elements = NYTree::ConvertTo<std::vector<TLogicalTypePtr>>(elementsNode);
             logicalType = TupleLogicalType(std::move(elements));
             return;
         }
         case ELogicalMetatype::VariantStruct: {
-            auto fieldsNode = mapNode->GetChild("fields");
+            auto fieldsNode = mapNode->GetChildOrThrow("fields");
             auto fields = NYTree::ConvertTo<std::vector<TStructField>>(fieldsNode);
             logicalType = VariantStructLogicalType(std::move(fields));
             return;
         }
         case ELogicalMetatype::VariantTuple: {
-            auto elementsNode = mapNode->GetChild("elements");
+            auto elementsNode = mapNode->GetChildOrThrow("elements");
             auto elements = NYTree::ConvertTo<std::vector<TLogicalTypePtr>>(elementsNode);
             logicalType = VariantTupleLogicalType(std::move(elements));
             return;
         }
         case ELogicalMetatype::Dict: {
-            auto keyNode = mapNode->GetChild("key");
+            auto keyNode = mapNode->GetChildOrThrow("key");
             auto key = NYTree::ConvertTo<TLogicalTypePtr>(keyNode);
-            auto valueNode = mapNode->GetChild("value");
+            auto valueNode = mapNode->GetChildOrThrow("value");
             auto value = NYTree::ConvertTo<TLogicalTypePtr>(valueNode);
             logicalType = DictLogicalType(std::move(key), std::move(value));
             return;
         }
         case ELogicalMetatype::Tagged: {
-            auto tagNode = mapNode->GetChild("tag");
+            auto tagNode = mapNode->GetChildOrThrow("tag");
             auto tag = NYTree::ConvertTo<TString>(tagNode);
-            auto elementNode = mapNode->GetChild("element");
+            auto elementNode = mapNode->GetChildOrThrow("element");
             auto element = NYTree::ConvertTo<TLogicalTypePtr>(elementNode);
             logicalType = TaggedLogicalType(std::move(tag), std::move(element));
             return;
@@ -1386,9 +1386,9 @@ void Serialize(const TTypeV3MemberWrapper& wrapper, NYson::IYsonConsumer* consum
 void Deserialize(TTypeV3MemberWrapper& wrapper, NYTree::INodePtr node)
 {
     const auto& mapNode = node->AsMap();
-    auto wrappedType = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(mapNode->GetChild("type"));
+    auto wrappedType = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(mapNode->GetChildOrThrow("type"));
     wrapper.Member.Type = wrappedType.LogicalType;
-    wrapper.Member.Name = NYTree::ConvertTo<TString>(mapNode->GetChild("name"));
+    wrapper.Member.Name = NYTree::ConvertTo<TString>(mapNode->GetChildOrThrow("name"));
 }
 
 struct TTypeV3ElementWrapper
@@ -1406,7 +1406,7 @@ void Serialize(const TTypeV3ElementWrapper& wrapper, NYson::IYsonConsumer* consu
 void Deserialize(TTypeV3ElementWrapper& wrapper, NYTree::INodePtr node)
 {
     const auto& mapNode = node->AsMap();
-    auto wrappedElement = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(mapNode->GetChild("type"));
+    auto wrappedElement = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(mapNode->GetChildOrThrow("type"));
     wrapper.Element = wrappedElement.LogicalType;
 }
 
@@ -1519,7 +1519,7 @@ void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
     }
 
     auto mapNode = node->AsMap();
-    auto typeNameString = mapNode->GetChild("type_name")->GetValue<TString>();
+    auto typeNameString = mapNode->GetChildOrThrow("type_name")->GetValue<TString>();
     auto typeName = FromTypeV3(typeNameString);
     std::visit([&](const auto& typeName) {
         using T = std::decay_t<decltype(typeName)>;
@@ -1547,20 +1547,20 @@ void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
                     // NB. FromTypeV3 never returns this value.
                     YT_ABORT();
                 case ELogicalMetatype::Optional: {
-                    auto itemNode = mapNode->GetChild("item");
+                    auto itemNode = mapNode->GetChildOrThrow("item");
                     auto item = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(itemNode);
                     wrapper.LogicalType = OptionalLogicalType(std::move(item.LogicalType));
                     return;
                 }
                 case ELogicalMetatype::List: {
-                    auto itemNode = mapNode->GetChild("item");
+                    auto itemNode = mapNode->GetChildOrThrow("item");
                     auto wrappedItem = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(itemNode);
                     wrapper.LogicalType = ListLogicalType(std::move(wrappedItem.LogicalType));
                     return;
                 }
                 case ELogicalMetatype::Struct:
                 case ELogicalMetatype::VariantStruct: {
-                    auto membersNode = mapNode->GetChild("members");
+                    auto membersNode = mapNode->GetChildOrThrow("members");
                     auto wrappedMembers = NYTree::ConvertTo<std::vector<TTypeV3MemberWrapper>>(membersNode);
 
                     std::vector<TStructField> members;
@@ -1578,7 +1578,7 @@ void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
                 }
                 case ELogicalMetatype::Tuple:
                 case ELogicalMetatype::VariantTuple: {
-                    auto elementsNode = mapNode->GetChild("elements");
+                    auto elementsNode = mapNode->GetChildOrThrow("elements");
                     auto elementsV3 = NYTree::ConvertTo<std::vector<TTypeV3ElementWrapper>>(elementsNode);
 
                     std::vector<TLogicalTypePtr> elements;
@@ -1594,17 +1594,17 @@ void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
                     return;
                 }
                 case ELogicalMetatype::Dict: {
-                    auto keyNode = mapNode->GetChild("key");
+                    auto keyNode = mapNode->GetChildOrThrow("key");
                     auto key = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(keyNode);
-                    auto valueNode = mapNode->GetChild("value");
+                    auto valueNode = mapNode->GetChildOrThrow("value");
                     auto value = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(valueNode);
                     wrapper.LogicalType = DictLogicalType(std::move(key.LogicalType), std::move(value.LogicalType));
                     return;
                 }
                 case ELogicalMetatype::Tagged: {
-                    auto tagNode = mapNode->GetChild("tag");
+                    auto tagNode = mapNode->GetChildOrThrow("tag");
                     auto tag = NYTree::ConvertTo<TString>(tagNode);
-                    auto elementNode = mapNode->GetChild("item");
+                    auto elementNode = mapNode->GetChildOrThrow("item");
                     auto element = NYTree::ConvertTo<TTypeV3LogicalTypeWrapper>(elementNode);
                     wrapper.LogicalType = TaggedLogicalType(std::move(tag), std::move(element.LogicalType));
                     return;

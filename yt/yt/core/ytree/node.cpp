@@ -227,7 +227,7 @@ void TScalarTypeTraits<bool>::SetValue(const INodePtr& node, bool value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodePtr IMapNode::GetChild(const TString& key) const
+INodePtr IMapNode::GetChildOrThrow(const TString& key) const
 {
     auto child = FindChild(key);
     if (!child) {
@@ -247,7 +247,7 @@ TString IMapNode::GetChildKeyOrThrow(const IConstNodePtr& child)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodePtr IListNode::GetChild(int index) const
+INodePtr IListNode::GetChildOrThrow(int index) const
 {
     auto child = FindChild(index);
     if (!child) {
