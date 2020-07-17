@@ -26,8 +26,6 @@
 
 #include <mapreduce/yt/interface/logging/log.h>
 
-#include <library/cpp/yson/node/serialize.h>
-
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
 
@@ -48,8 +46,12 @@
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
+#include <mapreduce/yt/util/batch.h>
+
 #include <library/cpp/yson/writer.h>
 #include <library/cpp/yson/json_writer.h>
+
+#include <library/cpp/yson/node/serialize.h>
 
 #include <util/folder/path.h>
 
@@ -287,21 +289,18 @@ TStructuredJobTableList ApplyProtobufColumnFilters(
         return tableList;
     }
 
-    TVector<bool> isDynamic(tableList.size());
-    TRawBatchRequest batchRequest;
-    for (size_t tableIndex = 0; tableIndex < tableList.size(); ++tableIndex) {
-        const auto& table = tableList[tableIndex];
-        batchRequest.Get(preparer.GetTransactionId(), table.RichYPath->Path_ + "/@dynamic", TGetOptions())
-            .Subscribe([&, tableIndex] (const NThreading::TFuture<TNode>& node) {
-                isDynamic[tableIndex] = node.GetValueSync().AsBool();
-            });
-    }
-    ExecuteBatch(CreateDefaultRequestRetryPolicy(), preparer.GetAuth(), batchRequest);
+    auto isDynamic = BatchTransform(
+        CreateDefaultRequestRetryPolicy(),
+        preparer.GetAuth(),
+        tableList,
+        [&] (TRawBatchRequest& batch, const auto& table) {
+            return batch.Get(preparer.GetTransactionId(), table.RichYPath->Path_ + "/@dynamic", TGetOptions());
+        });
 
     auto newTableList = tableList;
     auto columnsUsedInOperations = GetColumnsUsedInOperation(spec);
     for (size_t tableIndex = 0; tableIndex < tableList.size(); ++tableIndex) {
-        if (isDynamic[tableIndex]) {
+        if (isDynamic[tableIndex].AsBool()) {
             continue;
         }
         auto& table = newTableList[tableIndex];

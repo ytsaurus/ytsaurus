@@ -259,18 +259,19 @@ NSkiff::TSkiffSchemaPtr CreateSkiffSchemaIfNecessary(
         }
     }
 
-    TRawBatchRequest batchRequest;
-    TVector<NThreading::TFuture<TNode>> tables;
-    for (const auto& path : NRawClient::CanonizeYPaths(/* retryPolicy */ nullptr, auth, tablePaths)) {
-        auto getOptions = TGetOptions().AttributeFilter(TAttributeFilter().AddAttribute("schema").AddAttribute("dynamic"));
-        tables.push_back(batchRequest.Get(transactionId, path.Path_, getOptions));
-    }
-    ExecuteBatch(clientRetryPolicy->CreatePolicyForGenericRequest(), auth, batchRequest, TExecuteBatchOptions());
+    auto nodes = NRawClient::BatchTransform(
+        clientRetryPolicy->CreatePolicyForGenericRequest(),
+        auth,
+        NRawClient::CanonizeYPaths(clientRetryPolicy->CreatePolicyForGenericRequest(), auth, tablePaths),
+        [&] (TRawBatchRequest& batch, const TRichYPath& path) {
+            auto getOptions = TGetOptions().AttributeFilter(TAttributeFilter().AddAttribute("schema").AddAttribute("dynamic"));
+            return batch.Get(transactionId, path.Path_, getOptions);
+        });
 
     TVector<NSkiff::TSkiffSchemaPtr> schemas;
-    for (size_t tableIndex = 0; tableIndex < tables.size(); ++tableIndex) {
+    for (size_t tableIndex = 0; tableIndex < nodes.size(); ++tableIndex) {
         const auto& tablePath = tablePaths[tableIndex].Path_;
-        const auto& attributes = tables[tableIndex].GetValue().GetAttributes();
+        const auto& attributes = nodes[tableIndex].GetAttributes();
         bool dynamic = attributes["dynamic"].AsBool();
         bool strict = attributes["schema"].GetAttributes()["strict"].AsBool();
         switch (nodeReaderFormat) {

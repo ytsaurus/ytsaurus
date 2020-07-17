@@ -1,5 +1,7 @@
 #pragma once
 
+#include "raw_batch_request.h"
+
 #include <mapreduce/yt/interface/fwd.h>
 #include <mapreduce/yt/interface/client_method_options.h>
 #include <mapreduce/yt/interface/operation.h>
@@ -16,10 +18,6 @@ struct TExecuteBatchOptions;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail::NRawClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TRawBatchRequest;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -350,6 +348,32 @@ TTransactionId StartTransaction(
     const TAuth& auth,
     const TTransactionId& parentId,
     const TStartTransactionOptions& options);
+
+////////////////////////////////////////////////////////////////////////////////
+
+template<typename TSrc, typename TBatchAdder>
+auto BatchTransform(
+    const IRequestRetryPolicyPtr& retryPolicy,
+    const TAuth& auth,
+    const TSrc& src,
+    TBatchAdder batchAdder,
+    const TExecuteBatchOptions& executeBatchOptions = {})
+{
+    TRawBatchRequest batch;
+    using TFuture = decltype(batchAdder(batch, *std::begin(src)));
+    TVector<TFuture> futures;
+    for (const auto& el : src) {
+        futures.push_back(batchAdder(batch, el));
+    }
+    ExecuteBatch(retryPolicy, auth, batch, executeBatchOptions);
+    using TDst = decltype(futures[0].ExtractValueSync());
+    TVector<TDst> result;
+    result.reserve(std::size(src));
+    for (auto& future : futures) {
+        result.push_back(future.ExtractValueSync());
+    }
+    return result;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

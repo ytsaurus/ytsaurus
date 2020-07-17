@@ -5,6 +5,8 @@
 #include <mapreduce/yt/raw_client/raw_requests.h>
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 
+#include <library/cpp/iterator/functools.h>
+
 namespace NYT::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,24 +38,28 @@ int TOperationPreparationContext::GetOutputCount() const
 
 const TVector<TTableSchema>& TOperationPreparationContext::GetInputSchemas() const
 {
-    NRawClient::TRawBatchRequest batchRequest;
+    TVector<NThreading::TFuture<TNode>> schemaFutures;
+    NRawClient::TRawBatchRequest batch;
     for (int tableIndex = 0; tableIndex < static_cast<int>(InputSchemas_.size()); ++tableIndex) {
         if (InputSchemasLoaded_[tableIndex]) {
+            schemaFutures.emplace_back();
             continue;
         }
         const auto& maybePath = Inputs_[tableIndex].RichYPath;
         Y_VERIFY(maybePath);
-        batchRequest.Get(TransactionId_, maybePath->Path_ + "/@schema", TGetOptions{})
-            .Subscribe([this, tableIndex] (auto& schemaFuture) {
-                Deserialize(InputSchemas_[tableIndex], schemaFuture.GetValue());
-            });
+        schemaFutures.push_back(batch.Get(TransactionId_, maybePath->Path_ + "/@schema", TGetOptions{}));
     }
 
     NRawClient::ExecuteBatch(
         RetryPolicy_->CreatePolicyForGenericRequest(),
         Auth_,
-        batchRequest,
-        TExecuteBatchOptions());
+        batch);
+
+    for (int tableIndex = 0; tableIndex < static_cast<int>(InputSchemas_.size()); ++tableIndex) {
+        if (schemaFutures[tableIndex].Initialized()) {
+            Deserialize(InputSchemas_[tableIndex], schemaFutures[tableIndex].ExtractValueSync());
+        }
+    }
 
     return InputSchemas_;
 }
