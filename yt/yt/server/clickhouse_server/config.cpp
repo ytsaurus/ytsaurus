@@ -175,11 +175,6 @@ TYtConfig::TYtConfig()
         .Default(TDuration::MilliSeconds(300));
 
     RegisterPreprocessor([&] {
-        PermissionCache->ExpireAfterAccessTime = TDuration::Minutes(2);
-        PermissionCache->ExpireAfterSuccessfulUpdateTime = TDuration::Seconds(20);
-        PermissionCache->ExpireAfterFailedUpdateTime = TDuration::Zero();
-        PermissionCache->RefreshTime = TDuration::Seconds(15);
-        PermissionCache->BatchUpdate = true;
         PermissionCache->RefreshUser = CacheUserName;
         PermissionCache->AlwaysUseRefreshUser = false;
     });

@@ -27,6 +27,13 @@ struct TPermissionCacheConfig
         RegisterParameter("always_use_refresh_user", AlwaysUseRefreshUser)
             // COMPAT(babenko): turn this off and remove the feature flag
             .Default(true);
+
+        RegisterPreprocessor([&] {
+            ExpireAfterAccessTime = TDuration::Minutes(5);
+            ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(3);
+            RefreshTime = TDuration::Minutes(1);
+            BatchUpdate = true;
+        });
     }
 };
 
