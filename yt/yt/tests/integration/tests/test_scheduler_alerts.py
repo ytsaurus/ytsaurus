@@ -94,7 +94,8 @@ class TestSchedulerAlerts(YTEnvSetup):
 
 ##################################################################
 
-class TestLowCpuUsageSchedulerAlert(YTEnvSetup):
+
+class LowCpuUsageSchedulerAlertBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
@@ -114,13 +115,15 @@ class TestLowCpuUsageSchedulerAlert(YTEnvSetup):
         }
     }
 
+
+class TestLowCpuUsageSchedulerAlertPresence(LowCpuUsageSchedulerAlertBase):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operations_update_period": 100,
             "operation_alerts": {
                 "low_cpu_usage_alert_min_execution_time": 1,
                 "low_cpu_usage_alert_min_average_job_time": 1,
-                "low_cpu_usage_alert_cpu_usage_threshold": 0.5,
+                "low_cpu_usage_alert_cpu_usage_threshold": 0.6,
             },
         }
     }
@@ -132,9 +135,22 @@ class TestLowCpuUsageSchedulerAlert(YTEnvSetup):
 
         assert "low_cpu_usage" in op.get_alerts()
 
+
+class TestLowCpuUsageSchedulerAlertAbsence(LowCpuUsageSchedulerAlertBase):
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 100,
+            "operation_alerts": {
+                "low_cpu_usage_alert_min_execution_time": 1,
+                "low_cpu_usage_alert_min_average_job_time": 1,
+                "low_cpu_usage_alert_cpu_usage_threshold": 0.4,
+            },
+        }
+    }
+
     @authors("renadeen")
     def test_low_cpu_alert_absence(self):
-        op = run_test_vanilla(command='pids=""; for i in 1 2; do while : ; do : ; done & pids="$pids $!"; done; sleep 2; for p in $pids; do kill $p; done')
+        op = run_test_vanilla(command='pids=""; for i in 1 2; do while : ; do : ; done & pids="$pids $!"; done; sleep 5; for p in $pids; do kill $p; done')
         op.track()
 
         assert "low_cpu_usage" not in op.get_alerts()
