@@ -612,6 +612,37 @@ TYsonString TClient::DoGetJobSpec(
     return ConvertToYsonString(jobSpecNode);
 }
 
+template <typename TFun>
+auto RetryJobIsNotRunning(TOperationId operationId, TJobId jobId, TFun invokeRequest, NLogging::TLogger Logger)
+{
+    constexpr int RetryCount = 10;
+    constexpr TDuration RetryBackoff = TDuration::MilliSeconds(100);
+
+    auto needRetry = [] (auto rspOrError) {
+        auto jobIsNotRunning = rspOrError.FindMatching(NJobProberClient::EErrorCode::JobIsNotRunning);
+        if (!jobIsNotRunning) {
+            return false;
+        }
+        auto jobState = jobIsNotRunning->Attributes().template Find<EJobState>("job_state");
+        return jobState && *jobState == EJobState::Running;
+    };
+
+    auto rspOrError = invokeRequest();
+    for (int retry = 0; needRetry(rspOrError) && retry < RetryCount; ++retry) {
+        YT_LOG_DEBUG("Job state is \"running\" but job phase is not, retrying "
+            "(OperationId: %v, JobId: %v, Retry: %d, RetryCount: %d, RetryBackoff: %v, Error: %v)",
+            operationId,
+            jobId,
+            retry,
+            RetryCount,
+            RetryBackoff,
+            rspOrError);
+        TDelayedExecutor::WaitForDuration(RetryBackoff);
+        rspOrError = invokeRequest();
+    }
+    return rspOrError;
+}
+
 TSharedRef TClient::DoGetJobStderrFromNode(
     TOperationId operationId,
     TJobId jobId)
@@ -624,10 +655,17 @@ TSharedRef TClient::DoGetJobStderrFromNode(
     NJobProberClient::TJobProberServiceProxy jobProberServiceProxy(std::move(nodeChannel));
     jobProberServiceProxy.SetDefaultTimeout(Connection_->GetConfig()->JobProberRpcTimeout);
 
-    auto req = jobProberServiceProxy.GetStderr();
-    req->SetMultiplexingBand(EMultiplexingBand::Heavy);
-    ToProto(req->mutable_job_id(), jobId);
-    auto rspOrError = WaitFor(req->Invoke());
+    auto rspOrError = RetryJobIsNotRunning(
+        operationId,
+        jobId,
+        [&] {
+            auto req = jobProberServiceProxy.GetStderr();
+            req->SetMultiplexingBand(EMultiplexingBand::Heavy);
+            ToProto(req->mutable_job_id(), jobId);
+            return WaitFor(req->Invoke());
+        },
+        Logger);
+
     if (!rspOrError.IsOK()) {
         if (IsNoSuchJobOrOperationError(rspOrError) ||
             rspOrError.FindMatching(NJobProberClient::EErrorCode::JobIsNotRunning))
