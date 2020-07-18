@@ -5,7 +5,7 @@
 #include <mapreduce/yt/interface/protos/extension.pb.h>
 
 #include <contrib/libs/protobuf/descriptor.h>
-#include <contrib/libs/protobuf/google/protobuf/descriptor.pb.h>
+#include <google/protobuf/descriptor.pb.h>
 #include <contrib/libs/protobuf/messagext.h>
 #include <contrib/libs/protobuf/io/coded_stream.h>
 

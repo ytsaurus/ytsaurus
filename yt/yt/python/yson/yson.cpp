@@ -31,7 +31,7 @@
 #include <contrib/libs/protobuf/io/coded_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 
-#include <contrib/libs/protobuf/google/protobuf/descriptor.pb.h>
+#include <google/protobuf/descriptor.pb.h>
 
 namespace NYT::NPython {
 
