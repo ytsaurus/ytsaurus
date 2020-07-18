@@ -968,7 +968,7 @@ void FromProto(TLogicalTypePtr* logicalType, const NProto::TLogicalType& protoLo
 {
     switch (protoLogicalType.type_case()) {
         case NProto::TLogicalType::TypeCase::kSimple:
-            *logicalType = SimpleLogicalType(static_cast<ESimpleLogicalValueType>(protoLogicalType.simple()));
+            *logicalType = SimpleLogicalType(CheckedEnumCast<ESimpleLogicalValueType>(protoLogicalType.simple()));
             return;
         case NProto::TLogicalType::TypeCase::kOptional: {
             TLogicalTypePtr element;
