@@ -13,7 +13,7 @@ class TSecurityManager
 public:
     TSecurityManager(
         TSecurityManagerConfigPtr config,
-        const TBootstrap* bootstrap);
+        TBootstrap* bootstrap);
     ~TSecurityManager();
 
     void ValidateUser(const TString& user);

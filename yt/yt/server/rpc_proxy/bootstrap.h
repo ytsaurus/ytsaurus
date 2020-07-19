@@ -35,10 +35,10 @@ namespace NYT::NRpcProxy {
 class TBootstrap
 {
 public:
-    TBootstrap(TRpcProxyConfigPtr config, NYTree::INodePtr configNode);
+    TBootstrap(TProxyConfigPtr config, NYTree::INodePtr configNode);
     ~TBootstrap();
 
-    const TRpcProxyConfigPtr& GetConfig() const;
+    const TProxyConfigPtr& GetConfig() const;
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetWorkerInvoker() const;
     const NApi::NNative::IConnectionPtr& GetNativeConnection() const;
@@ -50,7 +50,7 @@ public:
     void Run();
 
 private:
-    const TRpcProxyConfigPtr Config_;
+    const TProxyConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
     const NConcurrency::TActionQueuePtr ControlQueue_;

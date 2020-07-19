@@ -28,7 +28,7 @@ public:
     }
 
 private:
-    const TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
     virtual std::vector<TString> GetKeys(i64 sizeLimit) const override
     {

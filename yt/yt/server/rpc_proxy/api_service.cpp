@@ -456,7 +456,7 @@ public:
     }
 
 private:
-    const TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
     const TApiServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
     TSecurityManager SecurityManager_;

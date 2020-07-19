@@ -9,6 +9,8 @@
 
 #include <yt/core/ytree/ypath_proxy.h>
 
+#include <yt/core/misc/atomic_object.h>
+
 #include <atomic>
 
 namespace NYT::NRpcProxy {
@@ -36,35 +38,34 @@ public:
 
     virtual void ValidateOperable() const override;
 
-    virtual void SetDynamicConfig(TDynamicConfigPtr config) override;
-    virtual TDynamicConfigPtr GetDynamicConfig() const override;
+    virtual void SetDynamicConfig(TDynamicProxyConfigPtr config) override;
+    virtual TDynamicProxyConfigPtr GetDynamicConfig() const override;
     virtual TSampler* GetTraceSampler() override;
 
     virtual NYTree::IYPathServicePtr CreateOrchidService() override;
 
 private:
-    std::atomic<bool> IsBanned_ = {false};
-    std::atomic<bool> IsAvailable_ = {false};
+    std::atomic<bool> Banned_ = false;
+    std::atomic<bool> Available_ = false;
 
     TSpinLock BanSpinLock_;
     TString BanMessage_;
 
     NTracing::TSampler Sampler_;
 
-    TReaderWriterSpinLock ConfigLock_;
-    TDynamicConfigPtr Config_ = New<TDynamicConfig>();
+    TAtomicObject<TDynamicProxyConfigPtr> Config_{New<TDynamicProxyConfig>()};
 
     void BuildOrchid(IYsonConsumer* consumer);
 };
 
 bool TProxyCoordinator::SetBannedState(bool banned)
 {
-    return IsBanned_.exchange(banned, std::memory_order_relaxed) != banned;
+    return Banned_.exchange(banned, std::memory_order_relaxed) != banned;
 }
 
 bool TProxyCoordinator::GetBannedState() const
 {
-    return IsBanned_.load(std::memory_order_relaxed);
+    return Banned_.load(std::memory_order_relaxed);
 }
 
 void TProxyCoordinator::SetBanMessage(const TString& message)
@@ -81,12 +82,12 @@ TString TProxyCoordinator::GetBanMessage() const
 
 bool TProxyCoordinator::SetAvailableState(bool available)
 {
-    return IsAvailable_.exchange(available, std::memory_order_relaxed) != available;
+    return Available_.exchange(available, std::memory_order_relaxed) != available;
 }
 
 bool TProxyCoordinator::GetAvailableState() const
 {
-    return IsAvailable_.load(std::memory_order_relaxed);
+    return Available_.load(std::memory_order_relaxed);
 }
 
 void TProxyCoordinator::ValidateOperable() const
@@ -100,21 +101,19 @@ void TProxyCoordinator::ValidateOperable() const
     }
 }
 
-void TProxyCoordinator::SetDynamicConfig(TDynamicConfigPtr config)
+void TProxyCoordinator::SetDynamicConfig(TDynamicProxyConfigPtr config)
 {
     if (config->Tracing) {
         Sampler_.UpdateConfig(config->Tracing);
         Sampler_.ResetPerUserLimits();
     }
 
-    TWriterGuard guard(ConfigLock_);
-    std::swap(Config_, config);
+    Config_.Store(std::move(config));
 }
 
-TDynamicConfigPtr TProxyCoordinator::GetDynamicConfig() const
+TDynamicProxyConfigPtr TProxyCoordinator::GetDynamicConfig() const
 {
-    TReaderGuard guard(ConfigLock_);
-    return Config_;
+    return Config_.Load();
 }
 
 TSampler* TProxyCoordinator::GetTraceSampler()

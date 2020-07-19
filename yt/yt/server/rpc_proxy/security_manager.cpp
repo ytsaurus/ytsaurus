@@ -34,13 +34,13 @@ class TUserCache
 public:
     TUserCache(
         TAsyncExpiringCacheConfigPtr config,
-        const TBootstrap* bootstrap)
+        TBootstrap* bootstrap)
         : TAsyncExpiringCache(std::move(config))
         , Bootstrap_(bootstrap)
     { }
 
 private:
-    const TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
     virtual TFuture<void> DoGet(const TString& user, bool isPeriodicUpdate) noexcept override
     {
@@ -84,7 +84,7 @@ class TSecurityManager::TImpl
 public:
     TImpl(
         TSecurityManagerConfigPtr config,
-        const TBootstrap* bootstrap)
+        TBootstrap* bootstrap)
         : Config_(std::move(config))
         , Bootstrap_(bootstrap)
         , UserCache_(New<TUserCache>(Config_->UserCache, Bootstrap_))
@@ -98,7 +98,7 @@ public:
 
 private:
     const TSecurityManagerConfigPtr Config_;
-    const TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
     const TUserCachePtr UserCache_;
 };
 
@@ -106,7 +106,7 @@ private:
 
 TSecurityManager::TSecurityManager(
     TSecurityManagerConfigPtr config,
-    const TBootstrap* bootstrap)
+    TBootstrap* bootstrap)
     : Impl_(New<TImpl>(
         std::move(config),
         bootstrap))

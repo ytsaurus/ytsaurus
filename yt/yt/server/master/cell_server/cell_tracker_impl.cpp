@@ -48,7 +48,7 @@ class TCellBalancerProvider
     : public ICellBalancerProvider
 {
 public:
-    explicit TCellBalancerProvider(const TBootstrap* bootstrap)
+    explicit TCellBalancerProvider(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , BalanceRequestTime_(Now())
     {
@@ -126,7 +126,8 @@ public:
     }
 
 private:
-    const TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
+    
     std::optional<TInstant> BalanceRequestTime_;
 
     void OnBundleNodesChanged(const TCellBundle* /*bundle*/)

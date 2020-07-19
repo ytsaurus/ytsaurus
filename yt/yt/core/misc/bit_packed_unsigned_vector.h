@@ -1,10 +1,9 @@
 #pragma once
 
-#include <yt/core/misc/range.h>
+#include "range.h"
+#include "ref.h"
 
-#include <yt/core/misc/ref.h>
-
-namespace NYT::NTableChunkFormat {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,7 +62,7 @@ void PrepareDiffFromExpected(std::vector<ui32>* values, ui32* expected, ui32* ma
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableChunkFormat
+} // namespace NYT
 
 #define BIT_PACKED_UNSIGNED_VECTOR_INL_H_
 #include "bit_packed_unsigned_vector-inl.h"

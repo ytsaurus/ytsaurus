@@ -63,7 +63,6 @@ TTransaction::TTransaction(
    // TODO(babenko): "started" is only correct as long as we do not support attaching to existing transactions
     YT_LOG_DEBUG("Transaction started (Type: %v, StartTimestamp: %llx, Atomicity: %v, "
         "Durability: %v, Timeout: %v, PingAncestors: %v, PingPeriod: %v, Sticky: %v)",
-        GetId(),
         GetType(),
         GetStartTimestamp(),
         GetAtomicity(),

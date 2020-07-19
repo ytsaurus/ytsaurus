@@ -79,7 +79,7 @@ static const auto& Logger = RpcProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(TRpcProxyConfigPtr config, INodePtr configNode)
+TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
     , ControlQueue_(New<TActionQueue>("Control"))
@@ -196,7 +196,7 @@ void TBootstrap::DoRun()
     }
 }
 
-const TRpcProxyConfigPtr& TBootstrap::GetConfig() const
+const TProxyConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
 }

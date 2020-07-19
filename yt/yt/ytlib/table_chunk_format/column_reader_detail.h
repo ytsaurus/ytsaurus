@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include "column_reader.h"
-#include "bit_packed_unsigned_vector.h"
 #include "helpers.h"
 
 #include <yt/client/table_chunk_format/proto/column_meta.pb.h>
@@ -14,6 +13,7 @@
 #include <yt/core/misc/bitmap.h>
 #include <yt/core/misc/zigzag.h>
 #include <yt/core/misc/algorithm_helpers.h>
+#include <yt/core/misc/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {
 

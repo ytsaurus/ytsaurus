@@ -23,7 +23,7 @@ class TRpcProxyProgram
     , public TProgramCgroupMixin
     , public TProgramPdeathsigMixin
     , public TProgramSetsidMixin
-    , public TProgramConfigMixin<NRpcProxy::TRpcProxyConfig>
+    , public TProgramConfigMixin<NRpcProxy::TProxyConfig>
 {
 public:
     TRpcProxyProgram()

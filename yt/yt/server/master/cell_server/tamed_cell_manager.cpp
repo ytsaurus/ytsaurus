@@ -736,7 +736,7 @@ private:
         }
 
     private:
-        const TBootstrap* Bootstrap_;
+        TBootstrap* const Bootstrap_;
     };
 
     const TCellTrackerPtr CellTracker_;

@@ -44,8 +44,8 @@ struct IProxyCoordinator
 
     virtual void ValidateOperable() const = 0;
 
-    virtual void SetDynamicConfig(TDynamicConfigPtr config) = 0;
-    virtual TDynamicConfigPtr GetDynamicConfig() const = 0;
+    virtual void SetDynamicConfig(TDynamicProxyConfigPtr config) = 0;
+    virtual TDynamicProxyConfigPtr GetDynamicConfig() const = 0;
     virtual NTracing::TSampler* GetTraceSampler() = 0;
 
     virtual NYTree::IYPathServicePtr CreateOrchidService() = 0;

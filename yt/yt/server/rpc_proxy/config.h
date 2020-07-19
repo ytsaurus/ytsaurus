@@ -24,20 +24,20 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicConfig
+class TDynamicProxyConfig
     : public virtual NYTree::TYsonSerializable
 {
 public:
     NTracing::TSamplingConfigPtr Tracing;
 
-    TDynamicConfig()
+    TDynamicProxyConfig()
     {
         RegisterParameter("tracing", Tracing)
             .DefaultNew();
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -131,7 +131,7 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcProxyConfig
+class TProxyConfig
     : public TServerConfig
     , public NAuth::TAuthenticationManagerConfig
 {
@@ -153,7 +153,7 @@ public:
     //! For testing purposes.
     bool RetryRequestQueueSizeLimitExceeded;
 
-    TRpcProxyConfig()
+    TProxyConfig()
     {
         RegisterParameter("cluster_connection", ClusterConnection);
 
@@ -191,7 +191,7 @@ public:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyConfig)
+DEFINE_REFCOUNTED_TYPE(TProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

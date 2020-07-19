@@ -116,8 +116,7 @@ public:
     }
 
 private:
-    const TBootstrap* Bootstrap_;
-
+    TBootstrap* const Bootstrap_;
     const TDiscoveryServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
     const NNative::IClientPtr RootClient_;
@@ -332,7 +331,7 @@ private:
             auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_proxies").Value();
             auto nodeResult = ConvertToNode(TYsonString(rsp->value()));
 
-            if (auto dynamicConfig = nodeResult->Attributes().Find<TDynamicConfigPtr>(ConfigAttributeName)) {
+            if (auto dynamicConfig = nodeResult->Attributes().Find<TDynamicProxyConfigPtr>(ConfigAttributeName)) {
                 Coordinator_->SetDynamicConfig(dynamicConfig);
             }
 

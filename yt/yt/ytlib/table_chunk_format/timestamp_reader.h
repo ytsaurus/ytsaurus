@@ -1,7 +1,6 @@
 #pragma once
 
 #include "column_reader.h"
-#include "bit_packed_unsigned_vector.h"
 
 #include "column_reader_detail.h"
 
@@ -10,6 +9,7 @@
 #include <yt/ytlib/table_client/public.h>
 
 #include <yt/core/misc/ref.h>
+#include <yt/core/misc/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {
 
