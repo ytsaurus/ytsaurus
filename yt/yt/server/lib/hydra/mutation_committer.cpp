@@ -261,7 +261,7 @@ private:
                 followerId,
                 GetStartVersion(),
                 GetMutationCount(),
-                time,
+                CommitTimer_->GetElapsedTime(),
                 voting);
             if (voting) {
                 OnSuccessfulFlush(owner);
@@ -271,7 +271,7 @@ private:
                 followerId,
                 GetStartVersion(),
                 GetMutationCount(),
-                time);
+                CommitTimer_->GetElapsedTime());
         }
     }
 
