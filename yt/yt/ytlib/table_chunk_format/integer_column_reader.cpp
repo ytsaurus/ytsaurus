@@ -1,8 +1,9 @@
 #include "integer_column_reader.h"
 
-#include "bit_packed_unsigned_vector.h"
 #include "column_reader_detail.h"
 #include "private.h"
+
+#include <yt/core/misc/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {
 

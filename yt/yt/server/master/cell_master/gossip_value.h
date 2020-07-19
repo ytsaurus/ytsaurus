@@ -22,7 +22,7 @@ public:
     TGossipValue();
 
     TValue* Remote(NObjectClient::TCellTag cellTag);
-    void Initialize(const TBootstrap* bootstrap);
+    void Initialize(TBootstrap* bootstrap);
 
     void Persist(TPersistenceContext& context);
 };

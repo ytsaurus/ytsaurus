@@ -515,7 +515,7 @@ public:
 
 private:
     TOperationsCleanerConfigPtr Config_;
-    const TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
     IOperationsCleanerHost* const Host_;
 
     TPeriodicExecutorPtr AnalysisExecutor_;

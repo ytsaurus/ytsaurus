@@ -93,7 +93,7 @@ public:
     }
 
 private:
-    const TBootstrap* Bootstrap_;
+    TBootstrap* const Bootstrap_;
 
     virtual i64 GetWeight(const TVersionedChunkMetaCacheEntryPtr& entry) const override
     {

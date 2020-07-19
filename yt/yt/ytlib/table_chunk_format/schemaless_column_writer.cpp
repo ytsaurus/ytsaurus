@@ -1,18 +1,20 @@
 #include "schemaless_column_writer.h"
 
 #include "column_writer_detail.h"
-#include "bit_packed_unsigned_vector.h"
 #include "helpers.h"
 
 #include <yt/client/table_client/unversioned_row.h>
+#include <yt/core/misc/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {
 
 using namespace NProto;
 using namespace NTableClient;
 
-const int MaxRowCount = 128 * 1024;
-const int MaxBufferSize = 32 * 1024 * 1024;
+////////////////////////////////////////////////////////////////////////////////
+
+static const int MaxRowCount = 128 * 1024;
+static const int MaxBufferSize = 32 * 1024 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 

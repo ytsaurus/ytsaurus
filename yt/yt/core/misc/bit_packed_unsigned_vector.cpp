@@ -1,8 +1,7 @@
 #include "bit_packed_unsigned_vector.h"
+#include "zigzag.h"
 
-#include <yt/core/misc/zigzag.h>
-
-namespace NYT::NTableChunkFormat {
+namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,4 +27,4 @@ void PrepareDiffFromExpected(std::vector<ui32>* values, ui32* expected, ui32* ma
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableChunkFormat
+} // namespace NYT

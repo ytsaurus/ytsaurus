@@ -792,7 +792,7 @@ private:
             requestControl->ProfileRequest(requestMessage);
 
             YT_LOG_DEBUG("Request sent (RequestId: %v, Method: %v.%v, Timeout: %v, TrackingLevel: %v, "
-                "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v, BodySize: %v, AttachmentSize: %v)",
+                "ChecksummedPartCount: %v, MultiplexingBand: %v, Endpoint: %v, BodySize: %v, AttachmentsSize: %v)",
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),

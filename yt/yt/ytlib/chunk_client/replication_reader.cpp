@@ -946,7 +946,7 @@ private:
         }
 
         if (StartTime_ + ReaderConfig_->SessionTimeout < TInstant::Now()) {
-            RegisterError(TError(EErrorCode::ReaderTimeout, "Replication reader session timed out)")
+            RegisterError(TError(EErrorCode::ReaderTimeout, "Replication reader session timed out")
                  << TErrorAttribute("session_start_time", StartTime_)
                  << TErrorAttribute("session_timeout", ReaderConfig_->SessionTimeout));
             OnSessionFailed(/* fatal */ false);

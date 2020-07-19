@@ -76,7 +76,8 @@ public:
     DEFINE_SIGNAL(void(const TCellBundle* bundle), BundleNodesChanged);
 
 private:
-    const TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
+    
     THashMap<const TCellBundle*, TNodeSet> NodeMap_;
     static const TNodeSet EmptyNodeSet;
 

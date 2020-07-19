@@ -2,16 +2,18 @@
 #include "column_writer_detail.h"
 #include "helpers.h"
 
-#include "bit_packed_unsigned_vector.h"
-
 #include <yt/client/table_client/versioned_row.h>
+
+#include <yt/core/misc/bit_packed_unsigned_vector.h>
 
 namespace NYT::NTableChunkFormat {
 
 using namespace NProto;
 using namespace NTableClient;
 
-const int MaxValueCount = 128 * 1024;
+////////////////////////////////////////////////////////////////////////////////
+
+static const int MaxValueCount = 128 * 1024;
 
 ////////////////////////////////////////////////////////////////////////////////
 

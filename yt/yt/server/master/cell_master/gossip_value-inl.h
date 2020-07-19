@@ -33,7 +33,7 @@ TValue* TGossipValue<TValue>::Remote(NObjectClient::TCellTag cellTag)
 }
 
 template <class TValue>
-void TGossipValue<TValue>::Initialize(const TBootstrap* bootstrap)
+void TGossipValue<TValue>::Initialize(TBootstrap* bootstrap)
 {
     auto cellTag = bootstrap->GetCellTag();
     const auto& secondaryCellTags = bootstrap->GetSecondaryCellTags();
