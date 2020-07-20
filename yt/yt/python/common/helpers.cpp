@@ -182,6 +182,11 @@ TGilGuard::TGilGuard()
 
 TGilGuard::~TGilGuard()
 {
+    // See comment for TReleaseAcquireGilGuard destrructor.
+    if (!Py_IsInitialized()) {
+        return;
+    }
+
     YT_VERIFY(ThreadId_ == GetCurrentThreadId());
     PyGILState_Release(State_);
 }
@@ -195,6 +200,16 @@ TReleaseAcquireGilGuard::TReleaseAcquireGilGuard()
 
 TReleaseAcquireGilGuard::~TReleaseAcquireGilGuard()
 {
+    // See YT-13246 for details.
+    // Suppose the following situation:
+    // 1. Some thread has acquired TReleaseAcquireGilGuard and then tries to acquire GIL,
+    // 2. At the same time finalization has started;
+    // In this case c-python runtime tries to exit the thread on attempt to acquire GIL;
+    // this causes unwind of the stack, that executes this destructor,
+    // but PyEval_RestoreThread checks existance of GIL that can be already destroyed.
+    if (!Py_IsInitialized()) {
+        return;
+    }
     YT_VERIFY(ThreadId_ == GetCurrentThreadId());
     PyEval_RestoreThread(State_);
 }
