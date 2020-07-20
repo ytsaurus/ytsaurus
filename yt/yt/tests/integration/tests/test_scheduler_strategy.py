@@ -2985,7 +2985,7 @@ class TestIntegralGuarantees(YTEnvSetup):
             "integral_guarantees": {
                 "guarantee_type": "burst",
                 "resource_flow": {"cpu": 3},
-                "burst_guarantee_resources": {"cpu": 8}
+                "burst_guarantee_resources": {"cpu": 7}
             }
         })
 
@@ -2996,13 +2996,17 @@ class TestIntegralGuarantees(YTEnvSetup):
             }
         })
 
+        root_pool_path = scheduler_orchid_default_pool_tree_path() + "/pools/<Root>"
         burst_pool_path = scheduler_orchid_default_pool_tree_path() + "/pools/burst_pool"
         relaxed_pool_path = scheduler_orchid_default_pool_tree_path() + "/pools/relaxed_pool"
         wait(lambda: exists(relaxed_pool_path))
 
         assert get(burst_pool_path + "/integral_guarantee_type") == "burst"
-        assert get(burst_pool_path + "/resource_flow_ratio") == 0.3
-        assert get(burst_pool_path + "/burst_ratio") == 0.8
+        assert get(burst_pool_path + "/specified_resource_flow_ratio") == 0.3
+        assert get(burst_pool_path + "/specified_burst_ratio") == 0.7
 
         assert get(relaxed_pool_path + "/integral_guarantee_type") == "relaxed"
-        assert get(relaxed_pool_path + "/resource_flow_ratio") == 0.5
+        assert get(relaxed_pool_path + "/specified_resource_flow_ratio") == 0.5
+
+        assert get(root_pool_path + "/total_resource_flow_ratio") == 0.8
+        assert get(root_pool_path + "/total_burst_ratio") == 0.7

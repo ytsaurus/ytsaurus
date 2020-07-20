@@ -854,6 +854,7 @@ void TCompositeSchedulerElement::UpdateCumulativeAttributes(TDynamicAttributesLi
     Attributes_.UnlimitedDemandFairShare.Reset();
 
     Attributes_.BurstRatio = GetSpecifiedBurstRatio();
+    Attributes_.TotalBurstRatio = Attributes_.BurstRatio;
     Attributes_.ResourceFlowRatio = GetSpecifiedResourceFlowRatio();
     Attributes_.TotalResourceFlowRatio = Attributes_.ResourceFlowRatio;
 
@@ -880,6 +881,7 @@ void TCompositeSchedulerElement::UpdateCumulativeAttributes(TDynamicAttributesLi
 
         child->Attributes_.MinShareRatio = GetMaxResourceRatio(child->GetMinShareResources(), TotalResourceLimits_);
         Attributes_.TotalResourceFlowRatio += child->Attributes().TotalResourceFlowRatio;
+        Attributes_.TotalBurstRatio += child->Attributes().TotalBurstRatio;
 
         if (child->IsSchedulable()) {
             SchedulableChildren_.push_back(child);
@@ -3640,27 +3642,23 @@ void TRootElement::UpdateStrongGuarantees(TUpdateFairShareContext* context)
 
 void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TUpdateFairShareContext* context)
 {
-    auto totalBurstRatio = 0.0;
-    for (const auto& burstPool : context->BurstPools) {
-        totalBurstRatio += burstPool->Attributes().BurstRatio;
-    }
     if (Attributes_.MinShareRatio + Attributes_.TotalResourceFlowRatio > 1.0 + RatioComparisonPrecision) {
         context->Errors.push_back(TError("Total min share guarantee and resource flow exceed total cluster resources")
-            << TErrorAttribute("TotalMinShareRatio", Attributes_.MinShareRatio)
-            << TErrorAttribute("TotalResourceFlowRatio", Attributes_.TotalResourceFlowRatio)
-            << TErrorAttribute("TotalMinShareResources", TotalResourceLimits_ * Attributes_.MinShareRatio)
-            << TErrorAttribute("TotalResourceFlow", TotalResourceLimits_ * Attributes_.TotalResourceFlowRatio)
-            << TErrorAttribute("TotalClusterResources", TotalResourceLimits_));
+            << TErrorAttribute("total_min_share_ratio", Attributes_.MinShareRatio)
+            << TErrorAttribute("total_resource_flow_ratio", Attributes_.TotalResourceFlowRatio)
+            << TErrorAttribute("total_min_share_resources", TotalResourceLimits_ * Attributes_.MinShareRatio)
+            << TErrorAttribute("total_resource_flow", TotalResourceLimits_ * Attributes_.TotalResourceFlowRatio)
+            << TErrorAttribute("total_cluster_resources", TotalResourceLimits_));
     }
-    if (Attributes_.MinShareRatio + totalBurstRatio > 1.0 + RatioComparisonPrecision) {
+    if (Attributes_.MinShareRatio + Attributes_.TotalBurstRatio > 1.0 + RatioComparisonPrecision) {
         context->Errors.push_back(TError("Total min share guarantee and burst ratio exceed cluster capacity")
-            << TErrorAttribute("TotalMinShareRatio", Attributes_.MinShareRatio)
-            << TErrorAttribute("TotalBurstRatio", totalBurstRatio)
-            << TErrorAttribute("TotalMinShareResources", TotalResourceLimits_ * Attributes_.MinShareRatio)
-            << TErrorAttribute("TotalBurstResources", TotalResourceLimits_ * totalBurstRatio)
-            << TErrorAttribute("TotalClusterResources", TotalResourceLimits_));
+            << TErrorAttribute("total_min_share_ratio", Attributes_.MinShareRatio)
+            << TErrorAttribute("total_burst_ratio", Attributes_.TotalBurstRatio)
+            << TErrorAttribute("total_min_share_resources", TotalResourceLimits_ * Attributes_.MinShareRatio)
+            << TErrorAttribute("total_burst_resources", TotalResourceLimits_ * Attributes_.TotalBurstRatio)
+            << TErrorAttribute("total_cluster_resources", TotalResourceLimits_));
 
-        double fitFactor = 1.0 / (Attributes_.MinShareRatio + totalBurstRatio);
+        double fitFactor = 1.0 / (Attributes_.MinShareRatio + Attributes_.TotalBurstRatio);
         Attributes_.MinShareRatio *= fitFactor;
         AdjustMinShareRatios();
         for (const auto& pool : context->BurstPools) {

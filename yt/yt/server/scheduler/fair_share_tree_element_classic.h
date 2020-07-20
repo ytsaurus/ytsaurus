@@ -42,6 +42,7 @@ struct TSchedulableAttributes
     double MinShareRatio = 0.0;
     double PossibleUsageRatio = 1.0;
     double BurstRatio = 0.0;
+    double TotalBurstRatio = 0.0;
     double ResourceFlowRatio = 0.0;
     double TotalResourceFlowRatio = 0.0;
     int FifoIndex = -1;
@@ -82,6 +83,16 @@ struct TSchedulableAttributes
     double GetPossibleUsageRatio() const
     {
         return PossibleUsageRatio;
+    }
+
+    double GetTotalResourceFlowRatio() const
+    {
+        return TotalResourceFlowRatio;
+    }
+
+    double GetTotalBurstRatio() const
+    {
+        return TotalBurstRatio;
     }
 
     TResourceVector GetUnlimitedDemandFairShare() const
