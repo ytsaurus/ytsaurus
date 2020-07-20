@@ -205,20 +205,24 @@ def _process_request_backoff(current_time, client):
             time.sleep(float(backoff) / 1000.0 - diff)
         _get_session(client=client).last_request_time = now_seconds
 
-def raise_for_token(request_id=None, proxy=None):
-    request_id = request_id or "missing"
+def raise_for_token(response, request_info):
+    request_id = response.headers.get("X-YT-Request-ID", "missing")
+    proxy = response.headers.get("X-YT-Proxy")
+
+    response_error = YtHttpResponseError(error=response.error(), **request_info)
     raise YtTokenError(
         "Your authentication token was rejected by the server (X-YT-Request-ID: {0}, X-YT-Proxy: {1})\n"
         "Please refer to oauth.yt.yandex.net for obtaining a valid token\n"
         "if it will not fix error please kindly submit a request to "
         "https://st.yandex-team.ru/createTicket?queue=YTADMINREQ"
-        .format(request_id, proxy))
+        .format(request_id, proxy),
+        inner_errors=[response_error])
 
 def _raise_for_status(response, request_info):
     if response.status_code in (500, 503):
         raise YtProxyUnavailable(response)
     if response.status_code == 401:
-        raise_for_token(response.headers.get("X-YT-Request-ID"), response.headers.get("X-YT-Proxy"))
+        raise_for_token(response, request_info)
     if not response.is_ok():
         raise YtHttpResponseError(error=response.error(), **request_info)
 
