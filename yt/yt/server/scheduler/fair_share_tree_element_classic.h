@@ -1027,9 +1027,7 @@ private:
         TJobResources* precommittedResourcesOutput,
         TJobResources* availableResourcesOutput);
 
-    void FinishScheduleJob(
-        const ISchedulingContextPtr& schedulingContext,
-        NProfiling::TCpuInstant backoffDeadline = 0);
+    void FinishScheduleJob(const ISchedulingContextPtr& schedulingContext);
 
     TControllerScheduleJobResultPtr DoScheduleJob(
         TFairShareContext* context,

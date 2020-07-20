@@ -2,19 +2,26 @@
 
 #include "operation_controller.h"
 
+#include <yt/server/lib/scheduler/config.h>
+
 namespace NYT::NScheduler {
 
 using namespace NConcurrency;
+using namespace NProfiling;
 using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFairShareStrategyOperationController::TFairShareStrategyOperationController(
-    IOperationStrategyHost* operation)
+    IOperationStrategyHost* operation,
+    const TFairShareStrategyOperationControllerConfigPtr& config)
     : Controller_(operation->GetControllerStrategyHost())
     , OperationId_(operation->GetId())
     , Logger(NLogging::TLogger(SchedulerLogger)
         .AddTag("OperationId: %v", OperationId_))
+    , Config_(config)
+    , ScheduleJobControllerThrottlingBackoff_(
+        DurationToCpuDuration(Config_->ControllerThrottling->ScheduleJobStartBackoffTime))
 {
     YT_VERIFY(Controller_);
 }
@@ -35,11 +42,6 @@ void TFairShareStrategyOperationController::IncreaseScheduleJobCallsSinceLastUpd
 {
     auto& shard = StateShards_[nodeShardId];
     ++shard.ScheduleJobCallsSinceLastUpdate;
-}
-
-void TFairShareStrategyOperationController::SetScheduleJobBackoffDeadline(NProfiling::TCpuInstant deadline)
-{
-    ScheduleJobBackoffDeadline_ = deadline;
 }
 
 TJobResourcesWithQuotaList TFairShareStrategyOperationController::GetDetailedMinNeededJobResources() const
@@ -82,7 +84,7 @@ bool TFairShareStrategyOperationController::IsMaxConcurrentScheduleJobCallsPerNo
     return shard.ConcurrentScheduleJobCalls >= maxConcurrentScheduleJobCallsPerNodeShard;
 }
 
-bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(NProfiling::TCpuInstant now) const
+bool TFairShareStrategyOperationController::HasRecentScheduleJobFailure(TCpuInstant now) const
 {
     return ScheduleJobBackoffDeadline_ > now;
 }
@@ -132,6 +134,46 @@ TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJ
     return scheduleJobResultWithTimeoutOrError.Value();
 }
 
+void TFairShareStrategyOperationController::OnScheduleJobFailed(
+    TCpuInstant now,
+    const TString& treeId,
+    const TControllerScheduleJobResultPtr& scheduleJobResult)
+{
+    auto config = GetConfig();
+
+    TCpuInstant backoffDeadline = 0;
+    if (scheduleJobResult->Failed[EScheduleJobFailReason::ControllerThrottling] > 0) {
+        auto value = ScheduleJobControllerThrottlingBackoff_.load();
+        backoffDeadline = now + value;
+
+        {
+            auto newValue = std::min(
+                DurationToCpuDuration(config->ControllerThrottling->ScheduleJobMaxBackoffTime),
+                TCpuDuration(value * config->ControllerThrottling->ScheduleJobBackoffMultiplier));
+            // Nobody cares if some of concurrent updates fail.
+            ScheduleJobControllerThrottlingBackoff_.compare_exchange_weak(value, newValue);
+        }
+
+    } else {
+        ScheduleJobControllerThrottlingBackoff_.store(
+            DurationToCpuDuration(config->ControllerThrottling->ScheduleJobStartBackoffTime));
+
+        if (scheduleJobResult->IsBackoffNeeded()) {
+            backoffDeadline = now + DurationToCpuDuration(config->ScheduleJobFailBackoffTime);
+        }
+    }
+
+    if (backoffDeadline > 0) {
+        YT_LOG_DEBUG("Failed to schedule job, backing off (Reasons: %v)", scheduleJobResult->Failed);
+        ScheduleJobBackoffDeadline_.store(backoffDeadline);
+    }
+
+    if (scheduleJobResult->Failed[EScheduleJobFailReason::TentativeTreeDeclined] > 0) {
+        TWriterGuard guard(SaturatedTentativeTreesLock_);
+        TentativeTreeIdToSaturationTime_[treeId] = now;
+    }
+}
+
 int TFairShareStrategyOperationController::GetPendingJobCount() const
 {
     return Controller_->GetPendingJobCount();
@@ -142,14 +184,7 @@ TJobResources TFairShareStrategyOperationController::GetNeededResources() const
     return Controller_->GetNeededResources();
 }
 
-void TFairShareStrategyOperationController::OnTentativeTreeScheduleJobFailed(NProfiling::TCpuInstant now, const TString& treeId)
-{
-    TWriterGuard guard(SaturatedTentativeTreesLock_);
-
-    TentativeTreeIdToSaturationTime_[treeId] = now;
-}
-
-bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(NProfiling::TCpuInstant now, const TString& treeId, TDuration saturationDeactivationTimeout) const
+bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(TCpuInstant now, const TString& treeId, TDuration saturationDeactivationTimeout) const
 {
     TReaderGuard guard(SaturatedTentativeTreesLock_);
 
@@ -159,7 +194,21 @@ bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(NProfilin
     }
 
     auto saturationTime = it->second;
-    return saturationTime + NProfiling::DurationToCpuDuration(saturationDeactivationTimeout) > now;
+    return saturationTime + DurationToCpuDuration(saturationDeactivationTimeout) > now;
+}
+
+void TFairShareStrategyOperationController::UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
+{
+    TWriterGuard guard(ConfigLock_);
+
+    Config_ = config;
+}
+
+TFairShareStrategyOperationControllerConfigPtr TFairShareStrategyOperationController::GetConfig()
+{
+    TReaderGuard guard(ConfigLock_);
+
+    return Config_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

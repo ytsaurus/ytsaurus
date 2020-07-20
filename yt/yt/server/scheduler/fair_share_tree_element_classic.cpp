@@ -2405,15 +2405,9 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
     return std::nullopt;
 }
 
-void TOperationElement::FinishScheduleJob(
-    const ISchedulingContextPtr& schedulingContext,
-    TCpuInstant backoffDeadline)
+void TOperationElement::FinishScheduleJob(const ISchedulingContextPtr& schedulingContext)
 {
     Controller_->DecreaseConcurrentScheduleJobCalls(schedulingContext->GetNodeShardId());
-
-    if (backoffDeadline > 0) {
-        Controller_->SetScheduleJobBackoffDeadline(backoffDeadline);
-    }
 }
 
 void TOperationElementSharedState::IncreaseJobResourceUsage(
@@ -2780,7 +2774,6 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
-    auto now = context->SchedulingContext()->GetNow();
     std::optional<TPackingHeartbeatSnapshot> heartbeatSnapshot;
     if (GetPackingConfig()->Enable && !ignorePacking) {
         heartbeatSnapshot = CreateHeartbeatSnapshot(context->SchedulingContext());
@@ -2819,19 +2812,15 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
         ++context->StageState()->ScheduleJobFailureCount;
         disableOperationElement(EDeactivationReason::ScheduleJobFailed);
 
-        TCpuInstant backoffDeadline = 0;
-        if (scheduleJobResult->Failed[EScheduleJobFailReason::ControllerThrottling] > 0) {
-            backoffDeadline = now + DurationToCpuDuration(ControllerConfig_->ScheduleJobControllerThrottlingBackoffTime);
-        } else if (scheduleJobResult->IsBackoffNeeded()) {
-            backoffDeadline = now + DurationToCpuDuration(ControllerConfig_->ScheduleJobFailBackoffTime);
-        }
-
-        if (backoffDeadline > 0) {
-            YT_LOG_DEBUG("Failed to schedule job, backing off (Reasons: %v)", scheduleJobResult->Failed);
-        }
+        Controller_->OnScheduleJobFailed(
+            context->SchedulingContext()->GetNow(),
+            TreeId_,
+            scheduleJobResult);
 
         TreeHost_->GetResourceTree()->IncreaseHierarchicalResourceUsagePrecommit(ResourceTreeElement_, -precommittedResources);
-        FinishScheduleJob(context->SchedulingContext(), backoffDeadline);
+
+        FinishScheduleJob(context->SchedulingContext());
+
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
 
@@ -3204,8 +3193,6 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
             EOperationAlertType::ScheduleJobTimedOut,
             TError("Job scheduling timed out: either scheduler is under heavy load or operation is too heavy"),
             ControllerConfig_->ScheduleJobTimeoutAlertResetTime);
-    } else if (scheduleJobResult->Failed[EScheduleJobFailReason::TentativeTreeDeclined] > 0) {
-        Controller_->OnTentativeTreeScheduleJobFailed(context->SchedulingContext()->GetNow(), TreeId_);
     }
 
     return scheduleJobResult;

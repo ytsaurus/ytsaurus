@@ -188,7 +188,7 @@ public:
         for (const auto& treeId : *unknownTreeIds) {
             treeIdToPoolNameMap.erase(treeId);
         }
-        auto state = New<TFairShareStrategyOperationState>(operation);
+        auto state = New<TFairShareStrategyOperationState>(operation, Config);
         state->TreeIdToPoolNameMap() = std::move(treeIdToPoolNameMap);
 
         YT_VERIFY(OperationIdToOperationState_.insert(
@@ -461,7 +461,11 @@ public:
         Config = config;
 
         for (const auto& [treeId, tree] : IdToTree_) {
-            tree->UpdateControllerConfig(config);
+            tree->UpdateControllerConfig(Config);
+        }
+
+        for (const auto& [operationId, operationState] : OperationIdToOperationState_) {
+            operationState->UpdateConfig(Config);
         }
 
         FairShareProfilingExecutor_->SetPeriod(Config->FairShareProfilingPeriod);

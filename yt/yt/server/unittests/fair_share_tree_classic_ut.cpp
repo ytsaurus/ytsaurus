@@ -460,7 +460,7 @@ protected:
         IOperationStrategyHost* operation,
         TOperationFairShareTreeRuntimeParametersPtr operationOptions = nullptr)
     {
-        auto operationController = New<TFairShareStrategyOperationController>(operation);
+        auto operationController = New<TFairShareStrategyOperationController>(operation, SchedulerConfig_);
         if (!operationOptions) {
             operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
             operationOptions->Weight = 1.0;

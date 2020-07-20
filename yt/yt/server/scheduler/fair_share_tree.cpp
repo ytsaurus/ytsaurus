@@ -44,14 +44,21 @@ static const auto& Profiler = SchedulerProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFairShareStrategyOperationState::TFairShareStrategyOperationState(IOperationStrategyHost* host)
+TFairShareStrategyOperationState::TFairShareStrategyOperationState(
+    IOperationStrategyHost* host,
+    const TFairShareStrategyOperationControllerConfigPtr& config)
     : Host_(host)
-    , Controller_(New<TFairShareStrategyOperationController>(host))
+    , Controller_(New<TFairShareStrategyOperationController>(host, config))
 { }
 
 TPoolName TFairShareStrategyOperationState::GetPoolNameByTreeId(const TString& treeId) const
 {
     return GetOrCrash(TreeIdToPoolNameMap_, treeId);
+}
+    
+void TFairShareStrategyOperationState::UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
+{
+    Controller_->UpdateConfig(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
