@@ -12,6 +12,18 @@ TStrategyTestingOptions::TStrategyTestingOptions()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFairShareStrategyControllerThrottling::TFairShareStrategyControllerThrottling()
+{
+    RegisterParameter("schedule_job_start_backoff_time", ScheduleJobStartBackoffTime)
+        .Default(TDuration::MilliSeconds(100));
+    RegisterParameter("schedule_job_max_backoff_time", ScheduleJobMaxBackoffTime)
+        .Default(TDuration::Seconds(10));
+    RegisterParameter("schedule_job_backoff_multiplier", ScheduleJobBackoffMultiplier)
+        .Default(1.1);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControllerConfig()
 {
     RegisterParameter("max_concurrent_controller_schedule_job_calls", MaxConcurrentControllerScheduleJobCalls)
@@ -28,8 +40,8 @@ TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControll
     RegisterParameter("schedule_job_fail_backoff_time", ScheduleJobFailBackoffTime)
         .Default(TDuration::MilliSeconds(100));
 
-    RegisterParameter("schedule_job_controller_throttling_backoff_time", ScheduleJobControllerThrottlingBackoffTime)
-        .Default(TDuration::Seconds(10));
+    RegisterParameter("controller_throttling", ControllerThrottling)
+        .DefaultNew();
 
     RegisterParameter("schedule_job_timeout_alert_reset_time", ScheduleJobTimeoutAlertResetTime)
         .Default(TDuration::Minutes(15));

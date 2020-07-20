@@ -62,6 +62,22 @@ DEFINE_REFCOUNTED_TYPE(TStrategyTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFairShareStrategyControllerThrottling
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    TFairShareStrategyControllerThrottling();
+
+    TDuration ScheduleJobStartBackoffTime;
+    TDuration ScheduleJobMaxBackoffTime;
+    double ScheduleJobBackoffMultiplier;
+};
+
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategyControllerThrottling)
+
+////////////////////////////////////////////////////////////////////////////////
+
+// TODO(ignat): move it to subconfig.
 class TFairShareStrategyOperationControllerConfig
     : public virtual NYTree::TYsonSerializable
 {
@@ -80,8 +96,8 @@ public:
     //! Backoff time after controller schedule job failure.
     TDuration ScheduleJobFailBackoffTime;
 
-    //! Backoff time after controller schedule job failure since controller if throttling.
-    TDuration ScheduleJobControllerThrottlingBackoffTime;
+    //! Configuration of schedule job backoffs in case of throttling from controller.
+    TFairShareStrategyControllerThrottlingPtr ControllerThrottling;
 
     //! Timeout after which "schedule job timed out" alert is expired and unset.
     TDuration ScheduleJobTimeoutAlertResetTime;

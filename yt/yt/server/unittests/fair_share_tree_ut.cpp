@@ -432,7 +432,7 @@ protected:
         const TOperationFairShareTreeRuntimeParametersPtr& operationOptions,
         IOperationStrategyHost* operation)
     {
-        auto operationController = New<TFairShareStrategyOperationController>(operation);
+        auto operationController = New<TFairShareStrategyOperationController>(operation, SchedulerConfig_);
         return New<TOperationElement>(
             TreeConfig_,
             New<TStrategyOperationSpec>(),

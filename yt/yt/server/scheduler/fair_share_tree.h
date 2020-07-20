@@ -25,7 +25,11 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Enabled);
 
 public:
-    explicit TFairShareStrategyOperationState(IOperationStrategyHost* host);
+    TFairShareStrategyOperationState(
+        IOperationStrategyHost* host,
+        const TFairShareStrategyOperationControllerConfigPtr& config);
+
+    void UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
 
     TPoolName GetPoolNameByTreeId(const TString& treeId) const;
 };

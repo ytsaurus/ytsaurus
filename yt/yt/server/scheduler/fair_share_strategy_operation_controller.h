@@ -10,13 +10,13 @@ class TFairShareStrategyOperationController
     : public TIntrinsicRefCounted
 {
 public:
-    explicit TFairShareStrategyOperationController(IOperationStrategyHost* operation);
+    TFairShareStrategyOperationController(
+        IOperationStrategyHost* operation,
+        const TFairShareStrategyOperationControllerConfigPtr& config);
 
     void DecreaseConcurrentScheduleJobCalls(int nodeShardId);
     void IncreaseConcurrentScheduleJobCalls(int nodeShardId);
     void IncreaseScheduleJobCallsSinceLastUpdate(int nodeShardId);
-
-    void SetScheduleJobBackoffDeadline(NProfiling::TCpuInstant deadline);
 
     TJobResourcesWithQuotaList GetDetailedMinNeededJobResources() const;
     TJobResources GetAggregatedMinNeededJobResources() const;
@@ -38,17 +38,30 @@ public:
         TJobId jobId,
         EAbortReason abortReason);
 
+    void OnScheduleJobFailed(
+        NProfiling::TCpuInstant now,
+        const TString& treeId,
+        const TControllerScheduleJobResultPtr& scheduleJobResult);
+
     int GetPendingJobCount() const;
     TJobResources GetNeededResources() const;
 
-    void OnTentativeTreeScheduleJobFailed(NProfiling::TCpuInstant now, const TString& treeId);
-    bool IsSaturatedInTentativeTree(NProfiling::TCpuInstant now, const TString& treeId, TDuration saturationDeactivationTimeout) const;
+    bool IsSaturatedInTentativeTree(
+        NProfiling::TCpuInstant now,
+        const TString& treeId,
+        TDuration saturationDeactivationTimeout) const;
+
+    void UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config);
+    TFairShareStrategyOperationControllerConfigPtr GetConfig();
 
 private:
     const IOperationControllerStrategyHostPtr Controller_;
     const TOperationId OperationId_;
 
     const NLogging::TLogger Logger;
+
+    NConcurrency::TReaderWriterSpinLock ConfigLock_;
+    TFairShareStrategyOperationControllerConfigPtr Config_;
 
     struct TStateShard
     {
@@ -60,6 +73,7 @@ private:
 
     mutable int ScheduleJobCallsOverdraft_ = 0;
 
+    std::atomic<NProfiling::TCpuDuration> ScheduleJobControllerThrottlingBackoff_;
     std::atomic<NProfiling::TCpuInstant> ScheduleJobBackoffDeadline_ = ::Min<NProfiling::TCpuInstant>();
 
     NConcurrency::TReaderWriterSpinLock SaturatedTentativeTreesLock_;
