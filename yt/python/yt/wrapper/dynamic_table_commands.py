@@ -403,6 +403,7 @@ def lock_rows(table, input_stream, locks=[], lock_type=None, durability=None, fo
         client=client).run()
 
 def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_missing_rows=None,
+                enable_partial_result=None, use_lookup_cache=None,
                 format=None, raw=None, versioned=None, client=None):
     """Lookups rows in dynamic table.
 
@@ -426,6 +427,8 @@ def lookup_rows(table, input_stream, timestamp=None, column_names=None, keep_mis
     set_param(params, "timestamp", timestamp)
     set_param(params, "column_names", column_names)
     set_param(params, "keep_missing_rows", keep_missing_rows)
+    set_param(params, "enable_partial_result", enable_partial_result)
+    set_param(params, "use_lookup_cache", use_lookup_cache)
     set_param(params, "versioned", versioned)
 
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
