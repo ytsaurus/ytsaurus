@@ -92,6 +92,16 @@ struct TSchedulableAttributes
         return MaxComponent(DemandShare);
     }
 
+    double GetTotalResourceFlowRatio() const
+    {
+        return 0.0;
+    }
+
+    double GetTotalBurstRatio() const
+    {
+        return 0.0;
+    }
+
     TResourceVector GetUnlimitedDemandFairShare() const
     {
         return UnlimitedDemandFairShare;

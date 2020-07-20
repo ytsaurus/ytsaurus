@@ -1649,7 +1649,8 @@ auto TFairShareTree<TFairShareImpl>::DoBuildPoolsInformation(
 {
     auto buildPoolInfo = [&] (const TCompositeSchedulerElement* pool, TFluentMap fluent) {
         const auto& id = pool->GetId();
-        auto accumulatedResourceRatioVolume = pool->GetTotalResourceLimits() * pool->GetAccumulatedResourceRatioVolume();
+        const auto& attributes = pool->Attributes();
+        auto accumulatedResourceVolume = pool->GetTotalResourceLimits() * pool->GetAccumulatedResourceRatioVolume();
         fluent
             .Item(id).BeginMap()
                 .Item("mode").Value(pool->GetMode())
@@ -1661,10 +1662,19 @@ auto TFairShareTree<TFairShareImpl>::DoBuildPoolsInformation(
                 .Item("forbid_immediate_operations").Value(pool->AreImmediateOperationsForbidden())
                 .Item("is_ephemeral").Value(pool->IsDefaultConfigured())
                 .Item("integral_guarantee_type").Value(pool->GetIntegralGuaranteeType())
-                .Item("resource_flow_ratio").Value(pool->GetSpecifiedResourceFlowRatio())
-                .Item("burst_ratio").Value(pool->GetSpecifiedBurstRatio())
-                .Item("accumulated_resource_ratio_volume").Value(pool->GetAccumulatedResourceRatioVolume())
-                .Item("accumulated_resource_volume").Value(accumulatedResourceRatioVolume)
+                .Item("total_resource_flow_ratio").Value(attributes.GetTotalResourceFlowRatio())
+                .Item("total_burst_ratio").Value(attributes.GetTotalBurstRatio())
+                .DoIf(pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None, [&] (TFluentMap fluent) {
+                    auto burstRatio = pool->GetSpecifiedBurstRatio();
+                    fluent
+                        .Item("specified_burst_ratio").Value(burstRatio)
+                        .Item("specified_resource_flow_ratio").Value(pool->GetSpecifiedResourceFlowRatio())
+                        .Item("accumulated_resource_ratio_volume").Value(pool->GetAccumulatedResourceRatioVolume())
+                        .Item("accumulated_resource_volume").Value(accumulatedResourceVolume);
+                    if (burstRatio > RatioComparisonPrecision) {
+                        fluent.Item("estimated_burst_usage_duration_sec").Value(pool->GetAccumulatedResourceRatioVolume() / burstRatio);
+                    }
+                })
                 .DoIf(pool->GetMode() == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
                     fluent
                         .Item("fifo_sort_parameters").Value(pool->GetFifoSortParameters());
