@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 class SpytEnablers(object):
-    def __init__(self, enable_byop=False, enable_profiling=False, enable_arrow=None):
+    def __init__(self, enable_byop=True, enable_profiling=False, enable_arrow=None):
         self.enable_byop = enable_byop
         self.enable_profiling = enable_profiling
         self.enable_arrow = enable_byop if enable_arrow is None else enable_arrow

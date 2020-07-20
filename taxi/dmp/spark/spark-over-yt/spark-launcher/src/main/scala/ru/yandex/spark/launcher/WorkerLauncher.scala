@@ -9,7 +9,6 @@ import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.Try
 
 object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with ByopLauncher {
   private val log = Logger.getLogger(getClass)
@@ -20,14 +19,15 @@ object WorkerLauncher extends App with VanillaLauncher with SparkLauncher with B
 
   prepareProfiler()
 
-  withDiscovery(ytConfig, discoveryPath) { discoveryService =>
-    log.info("Waiting for master http address")
-    val masterAddress = discoveryService.waitAddress(waitMasterTimeout)
-      .getOrElse(throw new IllegalStateException(s"Empty discovery path $discoveryPath, master is not started"))
 
-    withOptionService(byopConfig.map(startByop(_, ytConfig, waitMasterTimeout))) { byop =>
+  withOptionService(byopConfig.map(startByop(_, ytConfig, waitMasterTimeout))) { byop =>
+    withDiscovery(ytConfig, discoveryPath) { discoveryService =>
+      log.info("Waiting for master http address")
+      val masterAddress = discoveryService.waitAddress(waitMasterTimeout)
+        .getOrElse(throw new IllegalStateException(s"Empty discovery path $discoveryPath, master is not started"))
+
       log.info(s"Starting worker for master $masterAddress")
-      withService(startWorker(masterAddress, cores, memory)) {worker =>
+      withService(startWorker(masterAddress, cores, memory)) { worker =>
         def isAlive: Boolean = {
           val isMasterAlive = DiscoveryService.isAlive(masterAddress.hostAndPort, 3)
           val isWorkerAlive = worker.isAlive(3)
