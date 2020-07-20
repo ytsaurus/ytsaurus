@@ -23,7 +23,7 @@ object SparkYtConfiguration {
 
     case object VectorizedCapacity extends IntConfigEntry(s"$prefix.vectorized.capacity", Some(1000))
 
-    case object ArrowEnabled extends BooleanConfigEntry(s"$prefix.arrow.enabled", Some(false))
+    case object ArrowEnabled extends BooleanConfigEntry(s"$prefix.arrow.enabled", Some(true))
 
   }
 

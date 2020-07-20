@@ -13,7 +13,7 @@ import ru.yandex.spark.discovery.DiscoveryService
 import ru.yandex.spark.launcher.ByopLauncher.ByopConfig
 import ru.yandex.spark.launcher.Service.BasicService
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
+import ru.yandex.spark.yt.wrapper.client.{ByopConfiguration, YtClientConfiguration}
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -38,7 +38,7 @@ trait ByopLauncher {
                 timeout: Duration): BasicService = {
     log.info(s"Start RPC proxy with config: $config")
 
-    val ytRpc = YtWrapper.createRpcClient(ytConf)
+    val ytRpc = YtWrapper.createRpcClient(ytConf.copy(byop = ByopConfiguration.DISABLED))
 
     try {
       val binaryAbsolutePath = path(config.binaryPath)

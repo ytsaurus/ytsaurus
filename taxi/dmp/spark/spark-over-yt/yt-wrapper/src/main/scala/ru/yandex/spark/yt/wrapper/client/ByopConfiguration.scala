@@ -10,6 +10,11 @@ import scala.util.{Failure, Success}
 case class ByopConfiguration(enabled: Boolean,
                              remote: ByopRemoteConfiguration)
 
+object ByopConfiguration {
+  val DISABLED = ByopConfiguration(enabled = false,
+    ByopRemoteConfiguration(enabled = false, emptyWorkersListStrategy = EmptyWorkersListStrategy.Default))
+}
+
 case class ByopRemoteConfiguration(enabled: Boolean,
                                    emptyWorkersListStrategy: EmptyWorkersListStrategy)
 

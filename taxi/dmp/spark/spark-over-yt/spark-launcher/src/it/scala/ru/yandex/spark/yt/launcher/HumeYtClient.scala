@@ -16,13 +16,7 @@ trait HumeYtClient extends LocalYtClient {
     token = DefaultRpcCredentials.token,
     timeout = 5 minutes,
     proxyRole = None,
-    byop = ByopConfiguration(
-      enabled = false,
-      ByopRemoteConfiguration(
-        enabled = false,
-        EmptyWorkersListStrategy.Default
-      )
-    ),
+    byop = ByopConfiguration.DISABLED,
     masterWrapperUrl = None
   )
 }

@@ -14,8 +14,8 @@ import ru.yandex.yt.ytclient.proxy.YtClient
 object SessionUtils {
   private val log = Logger.getLogger(getClass)
   private val sparkDefaults = Map(
-    "spark.hadoop.yt.byop.enabled" -> "false",
-    "spark.hadoop.yt.read.arrow.enabled" -> "false",
+    "spark.hadoop.yt.byop.enabled" -> "true",
+    "spark.hadoop.yt.read.arrow.enabled" -> "true",
     "spark.yt.enablers" -> "spark.hadoop.yt.byop.enabled,spark.hadoop.yt.read.arrow.enabled"
   )
 
