@@ -192,9 +192,9 @@ void ExecJob(int argc, const char** argv, const TInitializeOptions& options)
 
     THolder<IInputStream> jobStateStream;
     if (hasState) {
-        jobStateStream = new TIFStream("jobstate");
+        jobStateStream = MakeHolder<TIFStream>("jobstate");
     } else {
-        jobStateStream = new TBufferStream(0);
+        jobStateStream = MakeHolder<TBufferStream>(0);
     }
 
     int ret = TJobFactory::Get()->GetJobFunction(jobName.data())(outputTableCount, *jobStateStream);
