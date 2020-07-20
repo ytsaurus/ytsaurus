@@ -4588,14 +4588,17 @@ void TOperationControllerBase::ProcessSafeException(const TAssertionFailedExcept
 {
     TControllerAgentCounterManager::Get()->IncrementAssertionsFailed(OperationType);
 
-    OnOperationFailed(
-        TError(
-            NScheduler::EErrorCode::OperationControllerCrashed,
-            "Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
-            << TErrorAttribute("failed_condition", ex.GetExpression())
-            << TErrorAttribute("stack_trace", ex.GetStackTrace())
-            << TErrorAttribute("core_path", ex.GetCorePath())
-            << TErrorAttribute("operation_id", OperationId));
+    auto error = TError(
+        NScheduler::EErrorCode::OperationControllerCrashed,
+        "Operation controller crashed; please file a ticket at YTADMINREQ and attach a link to this operation")
+        << TErrorAttribute("failed_condition", ex.GetExpression())
+        << TErrorAttribute("stack_trace", ex.GetStackTrace())
+        << TErrorAttribute("core_path", ex.GetCorePath())
+        << TErrorAttribute("operation_id", OperationId);
+
+    YT_LOG_ERROR(error);
+
+    OnOperationFailed(error);
 }
 
 EJobState TOperationControllerBase::GetStatisticsJobState(const TJobletPtr& joblet, const EJobState& state)
