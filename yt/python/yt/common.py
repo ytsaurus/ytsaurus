@@ -203,7 +203,7 @@ class YtResponseError(YtError):
     def is_access_denied(self):
         """Access denied."""
         return self.contains_code(901)
-    
+
     def is_account_limit_exceeded(self):
         """Access denied."""
         return self.contains_code(902)
@@ -248,7 +248,7 @@ class YtResponseError(YtError):
     def is_concurrent_operations_limit_reached(self):
         """Too many concurrent operations."""
         return self.contains_code(202)
-    
+
     def is_master_disconnected(self):
         """Master disconnected error."""
         return self.contains_code(218)
