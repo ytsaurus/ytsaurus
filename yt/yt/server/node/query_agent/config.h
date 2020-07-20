@@ -35,7 +35,7 @@ public:
             .Default(4);
         RegisterParameter("max_subsplits_per_tablet", MaxSubsplitsPerTablet)
             .GreaterThan(0)
-            .Default(64);
+            .Default(4096);
         RegisterParameter("max_subqueries", MaxSubqueries)
             .GreaterThan(0)
             .Default(16);
