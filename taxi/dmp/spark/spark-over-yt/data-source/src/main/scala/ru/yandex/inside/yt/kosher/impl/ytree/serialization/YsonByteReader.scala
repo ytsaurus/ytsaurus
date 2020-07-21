@@ -1,12 +1,8 @@
 package ru.yandex.inside.yt.kosher.impl.ytree.serialization
 
-import java.io.ByteArrayInputStream
-
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer.CodedInputStream
-
 class YsonByteReader(bytes: Array[Byte]) {
   private var _position: Int = 0
-//  private val input = new CodedInputStream(new ByteArrayInputStream(bytes), 65536)
+  //  private val input = new CodedInputStream(new ByteArrayInputStream(bytes), 65536)
 
   def isAtEnd: Boolean = _position >= bytes.length
 
@@ -14,8 +10,8 @@ class YsonByteReader(bytes: Array[Byte]) {
     val res = bytes(_position)
     _position += 1
 
-//    val expected = input.readRawByte()
-//    assert(res == expected)
+    //    val expected = input.readRawByte()
+    //    assert(res == expected)
 
     res
   }
@@ -23,14 +19,13 @@ class YsonByteReader(bytes: Array[Byte]) {
   private def readRawByteInner: Byte = {
     val res = bytes(_position)
     _position += 1
-
     res
   }
 
   def readSInt64: Long = {
     val res = decodeZigZag64(readRawVarint64)
-//    val expected = input.readSInt64()
-//    assert(res == expected)
+    //    val expected = input.readSInt64()
+    //    assert(res == expected)
     res
   }
 
@@ -163,15 +158,15 @@ class YsonByteReader(bytes: Array[Byte]) {
 
   def readSInt32: Int = {
     val res = decodeZigZag32(readRawVarint32)
-//    val expected = input.readSInt32()
-//    assert(res == expected)
+    //    val expected = input.readSInt32()
+    //    assert(res == expected)
     res
   }
 
   def readDouble: Double = {
     val res = java.lang.Double.longBitsToDouble(readRawLittleEndian64)
-//    val expected = input.readDouble()
-//    assert(res == expected)
+    //    val expected = input.readDouble()
+    //    assert(res == expected)
     res
   }
 
@@ -198,11 +193,10 @@ class YsonByteReader(bytes: Array[Byte]) {
 
   def readRawBytes(size: Int): Array[Byte] = {
     val result = new Array[Byte](size)
-    for (i <- 0 until size) {
-      result(i) = readRawByteInner
-    }
-//    val expected = input.readRawBytes(size)
-//    assert(result.length == expected.length && result.zip(expected).forall{ case (x, y) => x == y})
+    System.arraycopy(bytes, _position, result, 0, size)
+    _position += size
+    //    val expected = input.readRawBytes(size)
+    //    assert(result.length == expected.length && result.zip(expected).forall{ case (x, y) => x == y})
     result
   }
 }

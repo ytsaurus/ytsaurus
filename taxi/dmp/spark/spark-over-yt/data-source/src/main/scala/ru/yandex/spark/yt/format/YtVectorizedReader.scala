@@ -39,10 +39,15 @@ class YtVectorizedReader(split: YtInputSplit,
     if (returnBatch) {
       nextBatch
     } else {
-      if (_batchIdx >= batchReader.currentBatchSize && !nextBatch) {
-        false
+      _batchIdx += 1
+      if (_batchIdx >= batchReader.currentBatchSize) {
+        if (nextBatch) {
+          _batchIdx = 0
+          true
+        } else {
+          false
+        }
       } else {
-        _batchIdx += 1
         true
       }
     }
@@ -54,9 +59,7 @@ class YtVectorizedReader(split: YtInputSplit,
     if (returnBatch) {
       batchReader.currentBatch
     } else {
-      val res = batchReader.currentBatch.getRow(_batchIdx)
-      _batchIdx += 1
-      res
+      batchReader.currentBatch.getRow(_batchIdx)
     }
   }
 

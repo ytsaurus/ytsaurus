@@ -6,9 +6,8 @@ import org.apache.arrow.vector.complex.{BaseRepeatedValueVector, ListVector, Str
 import org.apache.arrow.vector.dictionary.Dictionary
 import org.apache.arrow.vector.holders.NullableVarCharHolder
 import org.apache.log4j.Logger
-import org.apache.spark.sql.catalyst.util.GenericArrayData
-import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector
-import org.apache.spark.sql.types.{BinaryType, DataType, Decimal, LongType, StringType}
+import org.apache.spark.sql.catalyst.util.{ArrayData, GenericArrayData}
+import org.apache.spark.sql.types.{BinaryType, DataType, Decimal, StringType}
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarArray, ColumnarMap}
 import org.apache.spark.unsafe.types.UTF8String
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType.{ArrayType => IArrayType, AtomicType => IAtomicType}
@@ -47,7 +46,8 @@ class ArrowColumnVector(dataType: IndexedDataType,
           dataType match {
             case IAtomicType(_: BinaryType) => BinaryAccessor(keys, v)
             case IAtomicType(_: StringType) => StringBinaryAccessor(keys, v)
-            case t: IArrayType => YsonArrayAccessor(t, keys, v)
+            case _ => YsonAccessor(keys, v)
+
           }
         case v: DateDayVector => DateAccessor(keys, v)
         case v: TimeStampMicroTZVector => TimestampAccessor(keys, v)
@@ -58,40 +58,7 @@ class ArrowColumnVector(dataType: IndexedDataType,
     }
   }
 
-  private var arrayOffsets: Array[Int] = _
-  private var arrayLengths: Array[Int] = _
-
-
-  private var childColumns: Array[ColumnVector] = dataType match {
-    //    case v: StructVector =>
-    //      val cols = new Array[ArrowColumnVector](v.size)
-    //      val structType = dataType.asInstanceOf[IStructType]
-    //      cols.indices.foreach { i =>
-    //        cols(i) = new ArrowColumnVector(structType(i), v.getVectorById(i), None)
-    //      }
-    //      cols
-    case at@IArrayType(element, _) =>
-      vector match {
-        case v: VarBinaryVector =>
-          element match {
-            case IAtomicType(_: LongType) =>
-              val child = new OnHeapColumnVector(v.getValueCount, element.sparkDataType)
-              arrayOffsets = new Array[Int](v.getValueCount)
-              arrayLengths = new Array[Int](v.getValueCount)
-              var offset = 0
-              for (i <- 0 until v.getValueCount) {
-                val bytes = v.getObject(i)
-                val arrayData = YsonDecoder.decode(bytes, at).asInstanceOf[GenericArrayData].array.asInstanceOf[Array[Long]]
-                arrayOffsets(i) = offset
-                arrayLengths(i) = arrayData.length
-                offset += arrayData.length
-                child.putLongs(offset, arrayData.length, arrayData, 0)
-              }
-              Array(child)
-          }
-      }
-    case _ => null
-  }
+  private var childColumns: Array[ColumnVector] = _
 
   override def hasNull: Boolean = accessor.getNullCount > 0
 
@@ -326,12 +293,9 @@ class ArrowColumnVector(dataType: IndexedDataType,
     if (keys.nonEmpty) throw new UnsupportedOperationException
   }
 
-  private case class YsonArrayAccessor(dataType: IndexedDataType, keys: Option[IntVector], values: VarBinaryVector) extends ArrowVectorAccessor {
-    override def getArray(rowId: Int): ColumnarArray = {
-      val bytes = values.getObject(id(rowId))
-      val res = YsonDecoder.decode(bytes, dataType)
-      println("!!!!")
-      ???
+  private case class YsonAccessor(keys: Option[IntVector], values: VarBinaryVector) extends ArrowVectorAccessor {
+    override def getBinary(rowId: Int): Array[Byte] = {
+      values.getObject(id(rowId))
     }
   }
 
