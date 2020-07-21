@@ -31,34 +31,34 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
     try {
         ValidateAlterType(oldColumn.LogicalType(), newColumn.LogicalType());
     } catch (const std::exception& ex) {
-        THROW_ERROR_EXCEPTION("Type mismatch for column %Qv",
+        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Type mismatch for column %Qv",
             oldColumn.Name())
             << ex;
     }
 
     if (newColumn.SortOrder().operator bool() && newColumn.SortOrder() != oldColumn.SortOrder()) {
-        THROW_ERROR_EXCEPTION("Sort order mismatch for column %Qv: old %Qlv, new %Qlv",
+        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Sort order mismatch for column %Qv: old %Qlv, new %Qlv",
             oldColumn.Name(),
             oldColumn.SortOrder(),
             newColumn.SortOrder());
     }
 
     if (newColumn.Expression() != oldColumn.Expression()) {
-        THROW_ERROR_EXCEPTION("Expression mismatch for column %Qv: old %Qv, new %Qv",
+        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Expression mismatch for column %Qv: old %Qv, new %Qv",
             oldColumn.Name(),
             oldColumn.Expression(),
             newColumn.Expression());
     }
 
     if (oldColumn.Aggregate() && oldColumn.Aggregate() != newColumn.Aggregate()) {
-        THROW_ERROR_EXCEPTION("Aggregate mode mismatch for column %Qv: old %Qv, new %Qv",
+        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Aggregate mode mismatch for column %Qv: old %Qv, new %Qv",
             oldColumn.Name(),
             oldColumn.Aggregate(),
             newColumn.Aggregate());
     }
 
     if (oldColumn.SortOrder() && oldColumn.Lock() != newColumn.Lock()) {
-        THROW_ERROR_EXCEPTION("Lock mismatch for key column %Qv: old %Qv, new %Qv",
+        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Lock mismatch for key column %Qv: old %Qv, new %Qv",
             oldColumn.Name(),
             oldColumn.Lock(),
             newColumn.Lock());
@@ -266,54 +266,61 @@ void ValidateTableSchemaUpdate(
     bool isTableDynamic,
     bool isTableEmpty)
 {
-    ValidateTableSchemaHeavy(newSchema, isTableDynamic);
+    try {
+        ValidateTableSchemaHeavy(newSchema, isTableDynamic);
 
-    if (isTableEmpty) {
-        // Any valid schema is allowed to be set for an empty table.
-        return;
-    }
-
-    if (isTableDynamic && oldSchema.IsSorted() != newSchema.IsSorted()) {
-        THROW_ERROR_EXCEPTION("Cannot change dynamic table type from sorted to ordered or vice versa");
-    }
-
-    if (oldSchema.GetKeyColumnCount() == 0 && newSchema.GetKeyColumnCount() > 0) {
-        THROW_ERROR_EXCEPTION("Cannot change schema from unsorted to sorted");
-    }
-    if (!oldSchema.GetStrict() && newSchema.GetStrict()) {
-        THROW_ERROR_EXCEPTION("Changing \"strict\" from \"false\" to \"true\" is not allowed");
-    }
-    if (!oldSchema.GetUniqueKeys() && newSchema.GetUniqueKeys()) {
-        THROW_ERROR_EXCEPTION("Changing \"unique_keys\" from \"false\" to \"true\" is not allowed");
-    }
-
-    if (oldSchema.GetStrict() && !newSchema.GetStrict()) {
-        if (oldSchema.Columns() != newSchema.Columns()) {
-            THROW_ERROR_EXCEPTION("Changing columns is not allowed while changing \"strict\" from \"true\" to \"false\"");
+        if (isTableEmpty) {
+            // Any valid schema is allowed to be set for an empty table.
+            return;
         }
-        return;
-    }
 
-    if (oldSchema.GetStrict()) {
-        ValidateColumnsNotRemoved(oldSchema, newSchema);
-    } else {
-        ValidateColumnsNotInserted(oldSchema, newSchema);
-    }
-    ValidateColumnsMatch(oldSchema, newSchema);
+        if (isTableDynamic && oldSchema.IsSorted() != newSchema.IsSorted()) {
+            THROW_ERROR_EXCEPTION("Cannot change dynamic table type from sorted to ordered or vice versa");
+        }
 
-    // We allow adding computed columns only on creation of the table.
-    if (!oldSchema.Columns().empty() || !isTableEmpty) {
-        for (const auto& newColumn : newSchema.Columns()) {
-            if (!oldSchema.FindColumn(newColumn.Name())) {
-                if (newColumn.Expression()) {
-                    THROW_ERROR_EXCEPTION("Cannot introduce a new computed column %Qv after creation",
-                        newColumn.Name());
+        if (oldSchema.GetKeyColumnCount() == 0 && newSchema.GetKeyColumnCount() > 0) {
+            THROW_ERROR_EXCEPTION("Cannot change schema from unsorted to sorted");
+        }
+        if (!oldSchema.GetStrict() && newSchema.GetStrict()) {
+            THROW_ERROR_EXCEPTION("Changing \"strict\" from \"false\" to \"true\" is not allowed");
+        }
+        if (!oldSchema.GetUniqueKeys() && newSchema.GetUniqueKeys()) {
+            THROW_ERROR_EXCEPTION("Changing \"unique_keys\" from \"false\" to \"true\" is not allowed");
+        }
+
+        if (oldSchema.GetStrict() && !newSchema.GetStrict()) {
+            if (oldSchema.Columns() != newSchema.Columns()) {
+                THROW_ERROR_EXCEPTION("Changing columns is not allowed while changing \"strict\" from \"true\" to \"false\"");
+            }
+            return;
+        }
+
+        if (oldSchema.GetStrict()) {
+            ValidateColumnsNotRemoved(oldSchema, newSchema);
+        } else {
+            ValidateColumnsNotInserted(oldSchema, newSchema);
+        }
+        ValidateColumnsMatch(oldSchema, newSchema);
+
+        // We allow adding computed columns only on creation of the table.
+        if (!oldSchema.Columns().empty() || !isTableEmpty) {
+            for (const auto& newColumn : newSchema.Columns()) {
+                if (!oldSchema.FindColumn(newColumn.Name())) {
+                    if (newColumn.Expression()) {
+                        THROW_ERROR_EXCEPTION("Cannot introduce a new computed column %Qv after creation",
+                            newColumn.Name());
+                    }
                 }
             }
         }
-    }
 
-    ValidateNoRequiredColumnsAdded(oldSchema, newSchema);
+        ValidateNoRequiredColumnsAdded(oldSchema, newSchema);
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION(EErrorCode::IncompatibleSchemas, "Table schemas are incompatible")
+            << TErrorAttribute("old_schema", oldSchema)
+            << TErrorAttribute("new_schema", newSchema)
+            << ex;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -415,8 +422,9 @@ TError ValidateTableSchemaCompatibility(
     bool ignoreSortOrder,
     bool allowSimpleTypeDeoptionalize)
 {
-    auto addAttributes = [&] (TError error) {
-        return error
+    auto wrapError = [&] (TError error) {
+        return TError(EErrorCode::IncompatibleSchemas, "Table schemas are incompatible")
+            << error
             << TErrorAttribute("input_table_schema", inputSchema)
             << TErrorAttribute("output_table_schema", outputSchema);
     };
@@ -434,12 +442,12 @@ TError ValidateTableSchemaCompatibility(
     // If output schema is strict, check that input columns are subset of output columns.
     if (outputSchema.GetStrict()) {
         if (!inputSchema.GetStrict()) {
-            return addAttributes(TError("Incompatible strictness: input schema is not strict while output schema is"));
+            return wrapError(TError("Incompatible strictness: input schema is not strict while output schema is"));
         }
 
         for (const auto& inputColumn : inputSchema.Columns()) {
             if (!outputSchemaIndex.contains(inputColumn.Name())) {
-                return addAttributes(TError("Column %Qv is found in input schema but is missing in output schema",
+                return wrapError(TError("Column %Qv is found in input schema but is missing in output schema",
                     inputColumn.Name()));
             }
         }
@@ -461,27 +469,27 @@ TError ValidateTableSchemaCompatibility(
                 typeIsOk = IsSubtypeOf(inputColumn->LogicalType()->AsOptionalTypeRef().GetElement(), outputColumn.LogicalType());
             }
             if (!typeIsOk) {
-                return addAttributes(TError("Column %Qv input type %Qlv is incompatible with the output type %Qlv",
+                return wrapError(TError("Column %Qv input type %Qlv is incompatible with the output type %Qlv",
                     inputColumn->Name(),
                     *inputColumn->LogicalType(),
                     *outputColumn.LogicalType()));
             }
             if (outputColumn.Expression() && inputColumn->Expression() != outputColumn.Expression()) {
-                return addAttributes(TError("Column %Qv expression mismatch",
+                return wrapError(TError("Column %Qv expression mismatch",
                     inputColumn->Name()));
             }
             if (outputColumn.Aggregate() && inputColumn->Aggregate() != outputColumn.Aggregate()) {
-                return addAttributes(TError("Column %Qv aggregate mismatch",
+                return wrapError(TError("Column %Qv aggregate mismatch",
                     inputColumn->Name()));
             }
         } else if (outputColumn.Expression()) {
-            return addAttributes(TError("Unexpected computed column %Qv in output schema",
+            return wrapError(TError("Unexpected computed column %Qv in output schema",
                 outputColumn.Name()));
         } else if (!inputSchema.GetStrict()) {
-            return addAttributes(TError("Column %Qv is present in output schema and is missing in nonstrict input schema",
+            return wrapError(TError("Column %Qv is present in output schema and is missing in nonstrict input schema",
                     outputColumn.Name()));
         } else if (outputColumn.Required()) {
-            return addAttributes(TError("Required column %Qv is present in output schema and is missing in input schema",
+            return wrapError(TError("Required column %Qv is present in output schema and is missing in input schema",
                     outputColumn.Name()));
         }
     }
@@ -495,9 +503,9 @@ TError ValidateTableSchemaCompatibility(
                 continue;
             }
             if (!outputSchemaIndex.contains(inputColumn.Name())) {
-                return TError("Column %Qv of input schema with complex type %Qv is missing in strict part of output schema",
+                return wrapError(TError("Column %Qv of input schema with complex type %Qv is missing in strict part of output schema",
                     inputColumn.Name(),
-                    *inputColumn.LogicalType());
+                    *inputColumn.LogicalType()));
             }
         }
     }
@@ -509,15 +517,15 @@ TError ValidateTableSchemaCompatibility(
     // Check that output key columns form a proper prefix of input key columns.
     int cmp = outputSchema.GetKeyColumnCount() - inputSchema.GetKeyColumnCount();
     if (cmp > 0) {
-        return addAttributes(TError("Output key columns are wider than input key columns"));
+        return wrapError(TError("Output key columns are wider than input key columns"));
     }
 
     if (outputSchema.GetUniqueKeys()) {
         if (!inputSchema.GetUniqueKeys()) {
-            return addAttributes(TError("Input schema \"unique_keys\" attribute is false"));
+            return wrapError(TError("Input schema \"unique_keys\" attribute is false"));
         }
         if (cmp != 0) {
-            return addAttributes(TError("Input key columns are wider than output key columns"));
+            return wrapError(TError("Input key columns are wider than output key columns"));
         }
     }
 
@@ -526,7 +534,7 @@ TError ValidateTableSchemaCompatibility(
 
     for (int index = 0; index < outputKeyColumns.size(); ++index) {
         if (inputKeyColumns[index] != outputKeyColumns[index]) {
-            return addAttributes(TError("Input sorting order is incompatible with the output"));
+            return wrapError(TError("Input sorting order is incompatible with the output"));
         }
     }
 
