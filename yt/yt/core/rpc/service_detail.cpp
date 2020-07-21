@@ -1021,8 +1021,8 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    auto traceContext = CreateHandlerTraceContext(*header);
-    if (traceContext) {
+    auto traceContext = GetOrCreateHandlerTraceContext(*header);
+    if (traceContext->IsSampled()) {
         traceContext->AddTag(EndpointAnnotation, replyBus->GetEndpointDescription());
     }
 
