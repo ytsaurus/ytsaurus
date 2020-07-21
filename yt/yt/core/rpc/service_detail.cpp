@@ -519,6 +519,10 @@ private:
         }
         FinalizeLatch_ = true;
 
+        if (TraceContext_) {
+            TraceContext_->Finish();
+        }
+
         if (IsRegistrable()) {
             Service_->UnregisterRequest(this);
         }
@@ -640,10 +644,6 @@ private:
 
     virtual void DoReply() override
     {
-        if (TraceContext_) {
-            TraceContext_->Finish();
-        }
-
         auto responseMessage = GetResponseMessage();
 
         NBus::TSendOptions busOptions;
