@@ -220,10 +220,12 @@ TFileLogWriter::TFileLogWriter(
     std::unique_ptr<ILogFormatter> formatter,
     TString writerName,
     TString fileName,
-    bool enableCompression)
+    bool enableCompression,
+    size_t compressionLevel)
     : TStreamLogWriterBase(std::move(formatter), std::move(writerName))
     , FileName_(std::move(fileName))
     , EnableCompression_(enableCompression)
+    , CompressionLevel_(compressionLevel)
 {
     Open();
 }
@@ -296,7 +298,7 @@ void TFileLogWriter::Open()
         File_.reset(new TFile(FileName_, openMode));
 
         if (EnableCompression_) {
-            CompressedOutput_.reset(new TRandomAccessGZipFile(File_.get()));
+            CompressedOutput_.reset(new TRandomAccessGZipFile(File_.get(), CompressionLevel_));
         } else {
             FileOutput_.reset(new TFixedBufferFileOutput(*File_, BufferSize));
             FileOutput_->SetFinishPropagateMode(true);

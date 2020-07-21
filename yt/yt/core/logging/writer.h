@@ -139,7 +139,8 @@ public:
         std::unique_ptr<ILogFormatter> formatter,
         TString writerName,
         TString fileName,
-        bool enableCompression = false);
+        bool enableCompression = false,
+        size_t compressionLevel = 6);
     ~TFileLogWriter();
 
     virtual void Reload() override;
@@ -152,6 +153,7 @@ protected:
 private:
     const TString FileName_;
     const bool EnableCompression_;
+    const size_t CompressionLevel_;
 
     std::atomic<bool> Disabled_ = {false};
 

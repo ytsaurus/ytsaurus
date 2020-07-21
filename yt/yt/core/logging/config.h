@@ -18,6 +18,7 @@ public:
     ELogMessageFormat AcceptedMessageFormat;
     std::optional<size_t> RateLimit;
     bool EnableCompression;
+    size_t CompressionLevel;
     THashMap<TString, NYTree::INodePtr> CommonFields;
 
     TWriterConfig()
@@ -31,6 +32,9 @@ public:
             .Default();
         RegisterParameter("enable_compression", EnableCompression)
             .Default(false);
+        RegisterParameter("compression_level", CompressionLevel)
+            .LessThanOrEqual(9)
+            .Default(6);
         RegisterParameter("common_fields", CommonFields)
             .Default();
 
