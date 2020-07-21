@@ -595,6 +595,28 @@ std::vector<TSharedRef> DecompressAttachments(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<TError> TryEnrichClientRequestErrorWithFeatureName(
+    const TError& error,
+    TFeatureIdFormatter featureIdFormatter)
+{
+    if (error.GetCode() == NRpc::EErrorCode::UnsupportedServerFeature &&
+        error.Attributes().Contains(FeatureIdAttributeKey) &&
+        !error.Attributes().Contains(FeatureNameAttributeKey) &&
+        featureIdFormatter)
+    {
+        auto featureId = error.Attributes().Get<int>(FeatureIdAttributeKey);
+        auto featureName = (*featureIdFormatter)(featureId);
+        if (featureName) {
+            auto enrichedError = error;
+            enrichedError.Attributes().Set(FeatureNameAttributeKey, featureName);
+            return enrichedError;
+        }
+    }
+    return std::nullopt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NRpc
 
 ////////////////////////////////////////////////////////////////////////////////

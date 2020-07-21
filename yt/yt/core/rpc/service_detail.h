@@ -425,7 +425,6 @@ public:
         std::unique_ptr<NProto::TRequestHeader> header,
         TSharedRefArray message,
         NYT::NBus::IBusPtr replyBus) override;
-
     virtual void HandleRequestCancelation(TRequestId requestId) override;
     virtual void HandleStreamingPayload(
         TRequestId requestId,
@@ -642,13 +641,13 @@ protected:
         TMethodDescriptor Descriptor;
         const NProfiling::TTagIdList TagIds;
 
-        std::atomic<int> QueueSize = {0};
+        std::atomic<int> QueueSize = 0;
         NProfiling::TSimpleGauge QueueSizeCounter;
         NProfiling::TSimpleGauge QueueSizeLimitCounter;
         NProfiling::TSimpleGauge ConcurrencyCounter;
         NProfiling::TSimpleGauge ConcurrencyLimitCounter;
 
-        std::atomic<int> ConcurrencySemaphore = {0};
+        std::atomic<int> ConcurrencySemaphore = 0;
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
 
         NConcurrency::IReconfigurableThroughputThrottlerPtr RequestBytesThrottler;
@@ -685,8 +684,18 @@ protected:
         TRealmId realmId = NullRealmId,
         IAuthenticatorPtr authenticator = nullptr);
 
-    //! Registers a method.
+    //! Registers a method handler.
+    //! This call is must be performed prior to service registration.
     TRuntimeMethodInfoPtr RegisterMethod(const TMethodDescriptor& descriptor);
+
+    //! Register a feature as being supported by server.
+    //! This call is must be performed prior to service registration.
+    template <class E>
+    void DeclareServerFeature(E featureId);
+
+    //! Validates the required server features against the set of supported ones.
+    //! Throws on failure.
+    void ValidateRequestFeatures(const IServiceContextPtr& context);
 
     //! Returns a reference to TRuntimeMethodInfo for a given method's name
     //! or |nullptr| if no such method is registered.
@@ -723,8 +732,8 @@ protected:
 private:
     const IInvokerPtr DefaultInvoker_;
     const IAuthenticatorPtr Authenticator_;
+    const TServiceDescriptor ServiceDescriptor_;
     const TServiceId ServiceId_;
-    const TProtocolVersion ProtocolVersion_;
 
     const NProfiling::TTagId ServiceTagId_;
 
@@ -736,8 +745,11 @@ private:
         NConcurrency::TLease Lease;
     };
 
-    NConcurrency::TReaderWriterSpinLock MethodMapLock_;
+    std::atomic<bool> Active_ = false;
+
     THashMap<TString, TRuntimeMethodInfoPtr> MethodMap_;
+
+    THashSet<int> SupportedServerFeatureIds_;
 
     TSpinLock RequestMapLock_;
     THashMap<TRequestId, TServiceContext*> RequestIdToContext_;
@@ -745,11 +757,11 @@ private:
     THashMap<TRequestId, TPendingPayloadsEntry> RequestIdToPendingPayloads_;
     TDuration PendingPayloadsTimeout_ = TServiceConfig::DefaultPendingPayloadsTimeout;
 
-    std::atomic<bool> Stopped_ = {false};
+    std::atomic<bool> Stopped_ = false;
     TPromise<void> StopResult_ = NewPromise<void>();
-    std::atomic<int> ActiveRequestCount_ = {0};
+    std::atomic<int> ActiveRequestCount_ = 0;
 
-    std::atomic<int> AuthenticationQueueSize_ = {0};
+    std::atomic<int> AuthenticationQueueSize_ = 0;
     NProfiling::TSimpleGauge AuthenticationQueueSizeCounter_;
     NProfiling::TAggregateGauge AuthenticationTimeCounter_;
     int AuthenticationQueueSizeLimit_ = TServiceConfig::DefaultAuthenticationQueueSizeLimit;
@@ -765,8 +777,13 @@ private:
         TSharedRefArray Message;
     };
 
+    void DoDeclareServerFeature(int featureId);
+    TError DoCheckRequestCompatibility(const NRpc::NProto::TRequestHeader& header);
+    TError DoCheckRequestProtocol(const NRpc::NProto::TRequestHeader& header);
+    TError DoCheckRequestFeatures(const NRpc::NProto::TRequestHeader& header);
+
     void OnRequestTimeout(TRequestId requestId, bool aborted);
-    void OnReplyBusTerminated(NYT::NBus::IBusPtr bus, const TError& error);
+    void OnReplyBusTerminated(const NYT::NBus::IBusPtr& bus, const TError& error);
 
     void ReplyError(
         TError error,
@@ -800,6 +817,9 @@ private:
         const TString& userTag);
 
     void OnProfiling();
+
+    void SetActive();
+    void ValidateInactive();
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceBase)
@@ -847,3 +867,7 @@ struct TPooledObjectTraits<
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+
+#define SERVICE_DETAIL_INL_H_
+#include "service_detail-inl.h"
+#undef SERVICE_DETAIL_INL_H_

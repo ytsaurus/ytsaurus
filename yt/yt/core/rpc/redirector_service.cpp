@@ -120,6 +120,16 @@ public:
         return Header_->method();
     }
 
+    virtual void DeclareClientFeature(int /*featureId*/) override
+    {
+        YT_ABORT();
+    }
+
+    virtual void RequireServerFeature(int /*featureId*/) override
+    {
+        YT_ABORT();
+    }
+
     virtual const TString& GetUser() const override
     {
         return Header_->has_user() ? Header_->user() : RootUserName;

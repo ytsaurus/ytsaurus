@@ -5,6 +5,8 @@
 #include "service.h"
 #endif
 
+#include "helpers.h"
+
 #include <yt/core/misc/format.h>
 
 namespace NYT::NRpc {
@@ -40,6 +42,28 @@ void IServiceContext::SetIncrementalResponseInfo(const char* format, TArgs&&... 
 {
     if (GetLogger().IsLevelEnabled(NLogging::ELogLevel::Debug)) {
         SetRawResponseInfo(Format(format, std::forward<TArgs>(args)...), true);
+    }
+}
+
+namespace NDetail {
+
+bool IsClientFeatureSupported(const IServiceContext* context, int featureId);
+void ThrowUnsupportedClientFeature(int featureId, TStringBuf featureName);
+
+} // namespace NDetail
+
+template <class E>
+bool IServiceContext::IsClientFeatureSupported(E featureId) const
+{
+    return NDetail::IsClientFeatureSupported(this, FeatureIdToInt(featureId));
+}
+
+template <class E>
+void IServiceContext::ValidateClientFeature(E featureId) const
+{
+    auto intFeatureId = FeatureIdToInt(featureId);
+    if (!NDetail::IsClientFeatureSupported(this, intFeatureId)) {
+        NDetail::ThrowUnsupportedClientFeature(intFeatureId, *TEnumTraits<E>::FindLiteralByValue(featureId));
     }
 }
 

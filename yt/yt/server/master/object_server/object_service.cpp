@@ -782,6 +782,10 @@ private:
         // Re-check remote requests to see if the cache resolve is still OK.
         DecideSubrequestTypes();
 
+        if (!ValidateRequestsFeatures()) {
+            return;
+        }
+
         ForwardRemoteRequests();
 
         RunSyncPhaseTwo();
@@ -923,6 +927,22 @@ private:
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
             DecideSubrequestType(&subrequest);
+        }
+    }
+
+    bool ValidateRequestsFeatures()
+    {
+        try {
+            for (int index = 0; index < TotalSubrequestCount_; ++index) {
+                const auto& subrequest = Subrequests_[index];
+                if (subrequest.RpcContext) {
+                    Owner_->ValidateRequestFeatures(subrequest.RpcContext);
+                }
+            }
+            return true;
+        } catch (const std::exception& ex) {
+            Reply(ex);
+            return false;
         }
     }
 

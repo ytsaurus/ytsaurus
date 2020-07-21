@@ -36,6 +36,12 @@ public:
     virtual NRpc::TRealmId GetRealmId() const override;
     virtual const TString& GetMethod() const override;
     virtual const TString& GetService() const override;
+    
+    using NRpc::IClientRequest::DeclareClientFeature;
+    using NRpc::IClientRequest::RequireServerFeature;
+
+    virtual void DeclareClientFeature(int featureId) override;
+    virtual void RequireServerFeature(int featureId) override;
 
     virtual const TString& GetUser() const override;
     virtual void SetUser(const TString& user) override;

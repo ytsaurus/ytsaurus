@@ -53,6 +53,9 @@ struct IClientRequest
     virtual const TString& GetService() const = 0;
     virtual const TString& GetMethod() const = 0;
 
+    virtual void DeclareClientFeature(int featureId) = 0;
+    virtual void RequireServerFeature(int featureId) = 0;
+
     virtual const TString& GetUser() const = 0;
     virtual void SetUser(const TString& user) = 0;
 
@@ -71,6 +74,12 @@ struct IClientRequest
     virtual void SetMultiplexingBand(EMultiplexingBand band) = 0;
 
     virtual size_t GetHash() const = 0;
+
+    // Extension methods.
+    template <class E>
+    void DeclareClientFeature(E featureId);
+    template <class E>
+    void RequireServerFeature(E featureId);
 };
 
 DEFINE_REFCOUNTED_TYPE(IClientRequest)
@@ -85,6 +94,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(NTracing::TTraceContextPtr, TraceContext);
     DEFINE_BYVAL_RO_PROPERTY(TString, Service);
     DEFINE_BYVAL_RO_PROPERTY(TString, Method);
+    DEFINE_BYVAL_RO_PROPERTY(TFeatureIdFormatter, FeatureIdFormatter);
     DEFINE_BYVAL_RO_PROPERTY(bool, Heavy);
     DEFINE_BYVAL_RO_PROPERTY(NYTAlloc::EMemoryZone, MemoryZone);
     DEFINE_BYVAL_RO_PROPERTY(TAttachmentsOutputStreamPtr, RequestAttachmentsStream);
@@ -97,6 +107,7 @@ public:
         NTracing::TTraceContextPtr traceContext,
         const TString& service,
         const TString& method,
+        TFeatureIdFormatter featureIdFormatter,
         bool heavy,
         NYTAlloc::EMemoryZone memoryZone,
         TAttachmentsOutputStreamPtr requestAttachmentsStream,
@@ -147,6 +158,12 @@ public:
     virtual const TString& GetService() const override;
     virtual const TString& GetMethod() const override;
 
+    using NRpc::IClientRequest::DeclareClientFeature;
+    using NRpc::IClientRequest::RequireServerFeature;
+
+    virtual void DeclareClientFeature(int featureId) override;
+    virtual void RequireServerFeature(int featureId) override;
+
     virtual const TString& GetUser() const override;
     virtual void SetUser(const TString& user) override;
 
@@ -169,6 +186,7 @@ public:
 protected:
     const IChannelPtr Channel_;
     const bool StreamingEnabled_;
+    const TFeatureIdFormatter FeatureIdFormatter_;
 
     mutable NProto::TRequestHeader Header_;
     mutable TSharedRefArray SerializedData_;
@@ -361,12 +379,15 @@ struct TServiceDescriptor
     TString ServiceName;
     TString Namespace;
     TProtocolVersion ProtocolVersion = DefaultProtocolVersion;
+    TFeatureIdFormatter FeatureIdFormatter = nullptr;
 
     explicit TServiceDescriptor(const TString& serviceName);
 
     TServiceDescriptor& SetProtocolVersion(int majorVersion);
     TServiceDescriptor& SetProtocolVersion(TProtocolVersion version);
     TServiceDescriptor& SetNamespace(const TString& value);
+    template <class E>
+    TServiceDescriptor& SetFeaturesType();
 
     TString GetFullServiceName() const;
 };

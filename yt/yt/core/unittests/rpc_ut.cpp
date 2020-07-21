@@ -57,12 +57,18 @@ using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EMyFeature,
+    ((Cool) (0))
+    ((Great)(1))
+);
+
 class TMyProxy
     : public TProxyBase
 {
 public:
     DEFINE_RPC_PROXY(TMyProxy, MyService,
-        .SetProtocolVersion(1));
+        .SetProtocolVersion(1)
+        .SetFeaturesType<EMyFeature>());
 
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SomeCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, PassCall);
@@ -76,6 +82,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NMyRpc, SlowCanceledCall);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, NoReply);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, FlakyCall);
+    DEFINE_RPC_PROXY_METHOD(NMyRpc, RequireCoolFeature);
     DEFINE_RPC_PROXY_METHOD(NMyRpc, StreamingEcho,
         .SetStreamingEnabled(true));
     DEFINE_RPC_PROXY_METHOD(NMyRpc, ServerStreamsAborted,
@@ -143,6 +150,7 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(NoReply));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FlakyCall));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RequireCoolFeature));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StreamingEcho)
             .SetStreamingEnabled(true)
             .SetCancelable(true));
@@ -156,6 +164,8 @@ public:
             .SetStreamingEnabled(true)
             .SetCancelable(true));
         // NB: NotRegisteredCall is not registered intentionally
+
+        DeclareServerFeature(EMyFeature::Great);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, SomeCall)
@@ -371,7 +381,7 @@ public:
 
     DECLARE_RPC_SERVICE_METHOD(NMyRpc, FlakyCall)
     {
-        static std::atomic<int> callCount(0);
+        static std::atomic<int> callCount;
 
         context->SetRequestInfo();
 
@@ -380,6 +390,13 @@ public:
         } else {
             context->Reply(TError(EErrorCode::TransportError, "Flaky call iteration"));
         }
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NMyRpc, RequireCoolFeature)
+    {
+        context->SetRequestInfo();
+        context->ValidateClientFeature(EMyFeature::Cool);
+        context->Reply();
     }
 
     TFuture<void> GetServerStreamsAborted()
@@ -1373,6 +1390,46 @@ TYPED_TEST(TNotGrpcTest, ProtocolVersionMismatch)
     req->set_a(42);
     auto rspOrError = req->Invoke().Get();
     EXPECT_EQ(NRpc::EErrorCode::ProtocolError, rspOrError.GetCode());
+}
+
+TYPED_TEST(TNotGrpcTest, RequiredServerFeatureSupported)
+{
+    TMyProxy proxy(this->CreateChannel());
+    auto req = proxy.PassCall();
+    req->RequireServerFeature(EMyFeature::Great);
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+}
+
+TYPED_TEST(TNotGrpcTest, RequiredServerFeatureNotSupported)
+{
+    TMyProxy proxy(this->CreateChannel());
+    auto req = proxy.PassCall();
+    req->RequireServerFeature(EMyFeature::Cool);
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_EQ(NRpc::EErrorCode::UnsupportedServerFeature, rspOrError.GetCode());
+    EXPECT_EQ(static_cast<int>(EMyFeature::Cool), rspOrError.Attributes().Get<int>(FeatureIdAttributeKey));
+    EXPECT_EQ(ToString(EMyFeature::Cool), rspOrError.Attributes().Get<TString>(FeatureNameAttributeKey));
+}
+
+TYPED_TEST(TNotGrpcTest, RequiredClientFeatureSupported)
+{
+    TMyProxy proxy(this->CreateChannel());
+    auto req = proxy.RequireCoolFeature();
+    req->DeclareClientFeature(EMyFeature::Cool);
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
+}
+
+TYPED_TEST(TNotGrpcTest, RequiredClientFeatureNotSupported)
+{
+    TMyProxy proxy(this->CreateChannel());
+    auto req = proxy.RequireCoolFeature();
+    req->DeclareClientFeature(EMyFeature::Great);
+    auto rspOrError = req->Invoke().Get();
+    EXPECT_EQ(NRpc::EErrorCode::UnsupportedClientFeature, rspOrError.GetCode());
+    EXPECT_EQ(static_cast<int>(EMyFeature::Cool), rspOrError.Attributes().Get<int>(FeatureIdAttributeKey));
+    EXPECT_EQ(ToString(EMyFeature::Cool), rspOrError.Attributes().Get<TString>(FeatureNameAttributeKey));
 }
 
 TYPED_TEST(TRpcTest, StopWithoutActiveRequests)

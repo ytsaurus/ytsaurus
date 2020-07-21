@@ -219,6 +219,11 @@ struct IServiceContext
 
     //! Replies with a given error when the latter is set.
     void ReplyFrom(TFuture<void> asyncError);
+
+    template <class E>
+    bool IsClientFeatureSupported(E featureId) const;
+    template <class E>
+    void ValidateClientFeature(E featureId) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(IServiceContext)

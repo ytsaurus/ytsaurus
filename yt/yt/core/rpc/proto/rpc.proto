@@ -64,6 +64,9 @@ message TRequestHeader
     optional bytes request_format_options = 34; // TYsonString
     optional bytes response_format_options = 35; // TYsonString
 
+    repeated int32 declared_client_feature_ids = 36;
+    repeated int32 required_server_feature_ids = 37;
+
     extensions 100 to max;
     extend NRpc.NProto.TRequestHeader
     {
