@@ -8,11 +8,14 @@ import org.apache.spark.TaskContext
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.apache.spark.sql.execution.datasources._
+import org.apache.spark.sql.execution.vectorized.MutableColumnarRow
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.sources.{DataSourceRegister, Filter}
-import org.apache.spark.sql.types.{AtomicType, StructType}
+import org.apache.spark.sql.types.{ArrayType, AtomicType, LongType, StructType}
 import org.apache.spark.sql.vectorized.ColumnVector
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType
 import ru.yandex.spark.yt.format._
+import ru.yandex.spark.yt.format.batch.MutableColumnarRowUtils
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read._
 import ru.yandex.spark.yt.format.conf.{SparkYtWriteConfiguration, YtTableSparkSettings}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
@@ -84,7 +87,16 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
           )
           val iter = new RecordReaderIterator(ytVectorizedReader)
           Option(TaskContext.get()).foreach(_.addTaskCompletionListener[Unit](_ => iter.close()))
-          iter.asInstanceOf[Iterator[InternalRow]]
+          if (!returnBatch) {
+            val unsafeProjection = if (arrowEnabledValue) {
+              MutableColumnarRowUtils.unsafeProjection(requiredSchema)
+            } else {
+              UnsafeProjection.create(requiredSchema)
+            }
+            iter.asInstanceOf[Iterator[MutableColumnarRow]].map(unsafeProjection)
+          } else {
+            iter.asInstanceOf[Iterator[InternalRow]]
+          }
         } else {
           val tableIterator = YtWrapper.readTable(
             split.ytPath,
@@ -132,7 +144,7 @@ class YtFileFormat extends FileFormat with DataSourceRegister with Serializable 
   }
 
   def arrowSchemaSupported(dataSchema: StructType): Boolean = {
-    dataSchema.forall(_.dataType.isInstanceOf[AtomicType])
+    true
   }
 
   def arrowEnabled(options: Map[String, String], hadoopConf: Configuration): Boolean = {
