@@ -11,6 +11,7 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkReaderPtr CreateRepairingReader(
+    TChunkId chunkId,
     NErasure::ICodec* codec,
     TErasureReaderConfigPtr config,
     const std::vector<IChunkReaderAllowingRepairPtr>& dataBlocksReaders,

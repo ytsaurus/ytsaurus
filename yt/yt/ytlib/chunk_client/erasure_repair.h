@@ -27,6 +27,7 @@ TFuture<void> RepairErasedParts(
     const TClientBlockReadOptions& options);
 
 IChunkReaderPtr CreateRepairingErasureReader(
+    TChunkId chunkId,
     NErasure::ICodec* codec,
     const NErasure::TPartIndexList& erasedIndices,
     // This list must consist of readers for all data parts and repair parts sorted by part index.

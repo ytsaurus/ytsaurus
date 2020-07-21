@@ -555,10 +555,11 @@ class TRepairReader
 {
 public:
     TRepairReader(
+        TChunkId chunkId,
         ICodec* codec,
         const TPartIndexList& erasedIndices,
         const std::vector<IChunkReaderAllowingRepairPtr>& readers)
-        : TErasureChunkReaderBase(codec, readers)
+        : TErasureChunkReaderBase(chunkId, codec, readers)
         , ErasedIndices_(erasedIndices)
         , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
     { }
@@ -610,11 +611,13 @@ private:
 };
 
 IChunkReaderPtr CreateRepairingErasureReader(
+    TChunkId chunkId,
     ICodec* codec,
     const TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderAllowingRepairPtr>& readers)
 {
     return New<TRepairReader>(
+        chunkId,
         codec,
         erasedIndices,
         readers);
