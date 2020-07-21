@@ -72,7 +72,7 @@ IChannelPtr CreateFailureDetectingChannel(
     TCallback<void(const IChannelPtr&, const TError& error)> onFailure,
     TCallback<bool(const TError&)> isError = BIND(IsChannelFailureError));
 
-NTracing::TTraceContextPtr CreateHandlerTraceContext(const NProto::TRequestHeader& header);
+NTracing::TTraceContextPtr GetOrCreateHandlerTraceContext(const NProto::TRequestHeader& header);
 NTracing::TTraceContextPtr CreateCallTraceContext(const TString& service, const TString& method);
 
 //! Generates a random mutation id.
