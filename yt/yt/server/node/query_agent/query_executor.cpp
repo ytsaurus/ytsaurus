@@ -673,8 +673,12 @@ private:
 
         auto profilerTags = AddUserTag(TabletSnapshots_.GetProfilerTags(), Identity_);
         if (!profilerTags.empty()) {
+            auto cpuTime = DurationToValue(statistics.SyncTime);
+            for (const auto& innerStatistics : statistics.InnerStatistics) {
+                cpuTime += DurationToValue(innerStatistics.SyncTime);
+            }
             auto& counters = GetLocallyGloballyCachedValue<TSelectCpuProfilerTrait>(profilerTags);
-            TabletNodeProfiler.Increment(counters.CpuTime, DurationToValue(statistics.SyncTime));
+            TabletNodeProfiler.Increment(counters.CpuTime, cpuTime);
             counters.ChunkReaderStatisticsCounters.Increment(TabletNodeProfiler, BlockReadOptions_.ChunkReaderStatistics);
         }
 
