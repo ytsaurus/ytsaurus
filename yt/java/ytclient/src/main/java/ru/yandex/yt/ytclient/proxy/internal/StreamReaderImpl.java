@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.internal;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -21,18 +22,20 @@ class Stash {
     private CompletableFuture<Void> readyEvent = new CompletableFuture<>();
     private Throwable ex = null;
     private boolean eof = false;
+    private long offset = 0;
 
     private final LinkedList<Tuple2<byte[], Long>> attachments = new LinkedList<>();
 
-    void push(byte[] attachment, long offset) throws Throwable {
+    void push(Attachment attachment) throws Throwable {
         synchronized (attachments) {
             if (ex != null) {
                 throw ex;
             }
 
             boolean needWakeup = attachments.isEmpty() && !eof;
+            offset += attachment.getCompressedSize();
 
-            attachments.addLast(new Tuple2<>(attachment, offset));
+            attachments.addLast(new Tuple2<>(attachment.getDecompressedBytes(), offset));
 
             if (needWakeup) {
                 this.readyEvent.complete(null);
@@ -78,11 +81,55 @@ class Stash {
     }
 }
 
+class Attachment {
+    private long compressedSize;
+    private byte[] decompressedBytes;
+
+    public Attachment(long compressedSize, byte[] decompressedBytes) {
+        this.compressedSize = compressedSize;
+        this.decompressedBytes = decompressedBytes;
+    }
+
+    public long getCompressedSize() {
+        return compressedSize;
+    }
+
+    public byte[] getDecompressedBytes() {
+        return decompressedBytes;
+    }
+}
+
+class Payload {
+    private List<Attachment> attachments;
+    private RpcClient sender;
+
+    public Payload(List<Attachment> attachments, RpcClient sender) {
+        this.attachments = attachments;
+        this.sender = sender;
+    }
+
+    public List<Attachment> getAttachments() {
+        return attachments;
+    }
+
+    public RpcClient getSender() {
+        return sender;
+    }
+}
+
 public abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspType> {
     private Stash stash = new Stash();
     private boolean started = false;
-    private long offset = 0;
-    private int currentSequenceNumber = -1;
+    private final int MAX_WINDOW_SIZE = 16384;
+    private SlidingWindow<Payload> window = new SlidingWindow<>(MAX_WINDOW_SIZE, payload -> {
+        for (Attachment attachment : payload.getAttachments()) {
+            try {
+                stash.push(attachment);
+            } catch (Throwable ex) {
+                onError(payload.getSender(), ex);
+            }
+        }
+    });
 
     StreamReaderImpl(RpcClientStreamControl control) {
         super(control);
@@ -115,30 +162,21 @@ public abstract class StreamReaderImpl<RspType extends Message> extends StreamBa
         }
 
         int sequenceNumber = header.getSequenceNumber();
-        if (currentSequenceNumber >= 0 && sequenceNumber - currentSequenceNumber != 1) {
-            throw new IllegalArgumentException("protocol error");
-        }
-        currentSequenceNumber = sequenceNumber;
-
         maybeReinitCodec(header.getCodec());
 
-        try {
-            for (byte[] attachment : attachments) {
-                long size = attachment == null
-                        ? 1
-                        : attachment.length;
+        List<Attachment> attachmentList = new ArrayList<>(attachments.size());
+        for (byte[] attachment : attachments) {
+            long size = attachment == null
+                    ? 1
+                    : attachment.length;
 
-                offset += size;
+            byte[] attachmentDecompressed = attachment != null
+                    ? codec.decompress(attachment)
+                    : null;
 
-                byte[] attachmentDecompressed = attachment != null
-                        ? codec.decompress(attachment)
-                        : null;
-
-                stash.push(attachmentDecompressed, offset);
-            }
-        } catch (Throwable ex) {
-            onError(sender, ex);
+            attachmentList.add(new Attachment(size, attachmentDecompressed));
         }
+        window.add(sequenceNumber, new Payload(attachmentList, sender));
     }
 
     CompletableFuture<byte[]> readHead() {
