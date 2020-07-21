@@ -599,6 +599,7 @@ public:
     // COMPAT(renadeen): for compatibility with classic.
     double GetSpecifiedBurstRatio() const;
     double GetSpecifiedResourceFlowRatio() const;
+    double GetIntegralPoolCapacity() const;
 
 protected:
     const NProfiling::TTagId ProfilingTag_;

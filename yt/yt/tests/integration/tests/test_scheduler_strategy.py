@@ -3002,11 +3002,13 @@ class TestIntegralGuarantees(YTEnvSetup):
         wait(lambda: exists(relaxed_pool_path))
 
         assert get(burst_pool_path + "/integral_guarantee_type") == "burst"
-        assert get(burst_pool_path + "/specified_resource_flow_ratio") == 0.3
         assert get(burst_pool_path + "/specified_burst_ratio") == 0.7
+        assert get(burst_pool_path + "/specified_resource_flow_ratio") == 0.3
+        assert get(burst_pool_path + "/integral_pool_capacity") == 0.3*86400
 
         assert get(relaxed_pool_path + "/integral_guarantee_type") == "relaxed"
         assert get(relaxed_pool_path + "/specified_resource_flow_ratio") == 0.5
+        assert get(relaxed_pool_path + "/integral_pool_capacity") == 0.5*86400
 
         assert get(root_pool_path + "/total_resource_flow_ratio") == 0.8
         assert get(root_pool_path + "/total_burst_ratio") == 0.7

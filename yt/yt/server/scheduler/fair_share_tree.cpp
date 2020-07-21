@@ -1667,6 +1667,7 @@ auto TFairShareTree<TFairShareImpl>::DoBuildPoolsInformation(
                 .DoIf(pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None, [&] (TFluentMap fluent) {
                     auto burstRatio = pool->GetSpecifiedBurstRatio();
                     fluent
+                        .Item("integral_pool_capacity").Value(pool->GetIntegralPoolCapacity())
                         .Item("specified_burst_ratio").Value(burstRatio)
                         .Item("specified_resource_flow_ratio").Value(pool->GetSpecifiedResourceFlowRatio())
                         .Item("accumulated_resource_ratio_volume").Value(pool->GetAccumulatedResourceRatioVolume())
