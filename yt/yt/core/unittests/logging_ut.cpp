@@ -102,6 +102,31 @@ protected:
         auto config = ConvertTo<TLogManagerConfigPtr>(configNode);
         TLogManager::Get()->Configure(config);
     }
+
+    void DoTestCompression(size_t compressionLevel)
+    {
+        NFs::Remove("test.log.gz");
+
+        auto writer = New<TFileLogWriter>(
+            std::make_unique<TPlainTextLogFormatter>(),
+            "test_writer",
+            "test.log.gz",
+            /* enableCompression */ true,
+            compressionLevel);
+        WritePlainTextEvent(writer.Get());
+
+        writer->Reload();
+        WritePlainTextEvent(writer.Get());
+
+        {
+            auto lines = ReadFile("test.log.gz", true);
+            EXPECT_EQ(5, lines.size());
+            EXPECT_TRUE(lines[0].find("Logging started") != -1);
+            EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
+        }
+
+        NFs::Remove("test.log.gz");
+    }
 };
 
 #ifdef _unix_
@@ -175,22 +200,14 @@ TEST_F(TLoggingTest, FileWriter)
 
 TEST_F(TLoggingTest, Compression)
 {
-    NFs::Remove("test.log.gz");
+    // No compression.
+    DoTestCompression(/* compressionLevel */ 0);
 
-    auto writer = New<TFileLogWriter>(std::make_unique<TPlainTextLogFormatter>(), "test_writer", "test.log.gz", true);
-    WritePlainTextEvent(writer.Get());
+    // Default compression.
+    DoTestCompression(/* compressionLevel */ 6);
 
-    writer->Reload();
-    WritePlainTextEvent(writer.Get());
-
-    {
-        auto lines = ReadFile("test.log.gz", true);
-        EXPECT_EQ(5, lines.size());
-        EXPECT_TRUE(lines[0].find("Logging started") != -1);
-        EXPECT_EQ("\tD\tcategory\tmessage\tba\t\t\n", lines[1].substr(DateLength, lines[1].size()));
-    }
-
-    NFs::Remove("test.log.gz");
+    // Maximum compression.
+    DoTestCompression(/* compressionLevel */ 9);
 }
 
 TEST_F(TLoggingTest, StreamWriter)

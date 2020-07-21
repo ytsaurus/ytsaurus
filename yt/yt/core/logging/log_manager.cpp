@@ -805,7 +805,12 @@ private:
                     writer = New<TStderrLogWriter>(std::move(formatter), name);
                     break;
                 case EWriterType::File:
-                    writer = New<TFileLogWriter>(std::move(formatter), name, config->FileName, config->EnableCompression);
+                    writer = New<TFileLogWriter>(
+                        std::move(formatter),
+                        name,
+                        config->FileName,
+                        config->EnableCompression,
+                        config->CompressionLevel);
                     watch = CreateNotificationWatch(writer, config->FileName);
                     break;
                 default:

@@ -33,8 +33,9 @@ constexpr int ExtraFlag = 1 << 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRandomAccessGZipFile::TRandomAccessGZipFile(TFile* file, size_t /*blockSize*/)
-    : File_(file)
+TRandomAccessGZipFile::TRandomAccessGZipFile(TFile* file, size_t compressionLevel, size_t /*blockSize*/)
+    : CompressionLevel_(compressionLevel)
+    , File_(file)
 {
     Repair();
     Reset();
@@ -74,7 +75,7 @@ void TRandomAccessGZipFile::Repair()
 void TRandomAccessGZipFile::Reset()
 {
     Output_.Buffer().Resize(HeaderGrowth);
-    Compressor_.reset(new TZLibCompress(&Output_, ZLib::GZip));
+    Compressor_.reset(new TZLibCompress(&Output_, ZLib::GZip, CompressionLevel_));
 }
 
 void TRandomAccessGZipFile::DoWrite(const void* buf, size_t len)

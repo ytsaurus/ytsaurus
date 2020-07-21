@@ -18,9 +18,11 @@ class TRandomAccessGZipFile
     : public IOutputStream
 {
 public:
-    explicit TRandomAccessGZipFile(TFile* file, size_t blockSize = 256_KB);
+    explicit TRandomAccessGZipFile(TFile* file, size_t compressionLevel = 6, size_t blockSize = 256_KB);
 
 private:
+    const size_t CompressionLevel_;
+
     TFile* const File_;
 
     i64 OutputPosition_ = 0;
