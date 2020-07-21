@@ -29,6 +29,7 @@
   #include <unistd.h>
   #include <errno.h>
   #include <sys/wait.h>
+  #include <sys/resource.h>
 #endif
 
 #ifdef _darwin_
@@ -144,32 +145,30 @@ bool TryKill(int pid, int signal)
 
 bool TryWaitid(idtype_t idtype, id_t id, siginfo_t *infop, int options)
 {
-    while (true) {
-        if (infop != nullptr) {
-            // See comment below.
-            infop->si_pid = 0;
-        }
-
-        siginfo_t info;
-        ::memset(&info, 0, sizeof(info));
-        auto res = HandleEintr(::waitid, idtype, id, infop != nullptr ? infop : &info, options);
-
-        if (res == 0) {
-            // According to man wait.
-            // If WNOHANG was specified in options and there were
-            // no children in a waitable state, then waitid() returns 0 immediately.
-            // To distinguish this case from that where a child
-            // was in a waitable state, zero out the si_pid field
-            // before the call and check for a nonzero value in this field after
-            // the call returns.
-            if (infop && infop->si_pid == 0) {
-                return false;
-            }
-            return true;
-        }
-
-        return false;
+    if (infop != nullptr) {
+        // See comment below.
+        infop->si_pid = 0;
     }
+
+    siginfo_t info;
+    ::memset(&info, 0, sizeof(info));
+    auto res = HandleEintr(::waitid, idtype, id, infop != nullptr ? infop : &info, options);
+
+    if (res == 0) {
+        // According to man wait.
+        // If WNOHANG was specified in options and there were
+        // no children in a waitable state, then waitid() returns 0 immediately.
+        // To distinguish this case from that where a child
+        // was in a waitable state, zero out the si_pid field
+        // before the call and check for a nonzero value in this field after
+        // the call returns.
+        if (infop && infop->si_pid == 0) {
+            return false;
+        }
+        return true;
+    }
+
+    return false;
 }
 
 void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
@@ -185,6 +184,14 @@ void WaitidOrDie(idtype_t idtype, id_t id, siginfo_t *infop, int options)
     }
 
     YT_VERIFY(infop->si_pid == id);
+}
+
+void Wait4OrDie(pid_t id, int* status, int options, rusage* rusage)
+{
+    auto res = HandleEintr(::wait4, id, status, options, rusage);
+    if (res == -1) {
+        YT_LOG_FATAL(TError::FromSystem(), "Wait4 failed");
+    }
 }
 
 void Cleanup(int pid)
@@ -544,11 +551,12 @@ void TSimpleProcess::AsyncPeriodicTryWait()
 
     // This call just should return immediately
     // because we have already waited for this process with WNOHANG
-    WaitidOrDie(P_PID, ProcessId_, &processInfo, WEXITED | WNOHANG);
+    rusage rusage;
+    Wait4OrDie(ProcessId_, nullptr, WNOHANG, &rusage);
 
     Finished_ = true;
     auto error = ProcessInfoToError(processInfo);
-    YT_LOG_DEBUG("Process finished (Pid: %v, Error: %v)", ProcessId_, error);
+    YT_LOG_DEBUG("Process finished (Pid: %v, MajFaults: %d, Error: %v)", ProcessId_, rusage.ru_majflt, error);
 
     FinishedPromise_.Set(error);
 #else
