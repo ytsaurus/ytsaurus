@@ -1933,6 +1933,12 @@ double TCompositeSchedulerElement::GetSpecifiedResourceFlowRatio() const
     return 0;
 }
 
+double TCompositeSchedulerElement::GetIntegralPoolCapacity() const
+{
+    // TODO(renadeen): fix when integral share come to vector scheduler.
+    return 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TPoolFixedState::TPoolFixedState(TString id)

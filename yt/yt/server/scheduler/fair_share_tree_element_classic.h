@@ -321,8 +321,6 @@ public:
     virtual void PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled);
     virtual TFairShareScheduleJobResult ScheduleJob(TFairShareContext* context, bool ignorePacking) = 0;
 
-    void ConsumeAndRefillForPeriod(TDuration period);
-
     virtual bool HasAggressivelyStarvingElements(TFairShareContext* context, bool aggressiveStarvationEnabled) const = 0;
 
     virtual const TSchedulingTagFilter& GetSchedulingTagFilter() const;
@@ -359,8 +357,6 @@ public:
     double GetAccumulatedResourceRatioVolume() const;
     void InitAccumulatedResourceRatioVolume(double resourceVolume);
     double GetIntegralShareRatioByVolume() const;
-    double GetIntegralShareRatioLimitForRelaxedType() const;
-    double GetIntegralPoolCapacity() const;
 
     virtual double GetFairShareStarvationTolerance() const = 0;
     virtual TDuration GetMinSharePreemptionTimeout() const = 0;
@@ -580,6 +576,8 @@ public:
     virtual double GetSpecifiedBurstRatio() const = 0;
     virtual double GetSpecifiedResourceFlowRatio() const = 0;
 
+    double GetIntegralPoolCapacity() const;
+
 protected:
     const NProfiling::TTagId ProfilingTag_;
 
@@ -720,6 +718,10 @@ public:
 
     virtual double GetSpecifiedBurstRatio() const override;
     virtual double GetSpecifiedResourceFlowRatio() const override;
+
+    void ConsumeAndRefillForPeriod(TDuration period);
+
+    double GetIntegralShareRatioLimitForRelaxedType() const;
 
 private:
     TPoolConfigPtr Config_;
