@@ -33,7 +33,12 @@ _ADMISSIBLE_ENV_VARS = [
 
 _YT_PREFIX = "//"
 _YT_MAX_START_RETRIES = 3
+
+# Default size of listen port pool allocated to local YT
 _YT_LISTEN_PORT_POOL_SIZE = 50
+
+# If user specified node count we add this additional ports for each node to our port pool.
+_YT_LISTEN_PORT_PER_NODE = 3
 
 MB = 1024 * 1024
 GB = MB * 1024
@@ -382,10 +387,12 @@ class YtStuff(object):
             if local_cypress_dir:
                 args += ["--local-cypress-dir", local_cypress_dir]
 
-            # TODO: uncomment once `--listen-port-pool` option is available in local_yt from sandbox resource
-            # args += ["--listen-port-pool"]
-            # for _ in range(_YT_LISTEN_PORT_POOL_SIZE):
-            #     args += [str(self._port_manager.get_port())]
+            port_pool_size = _YT_LISTEN_PORT_POOL_SIZE
+            if self.config.node_count:
+                port_pool_size += _YT_LISTEN_PORT_PER_NODE * self.config.node_count
+            args += ["--listen-port-pool"]
+            for _ in range(port_pool_size):
+                args += [str(self._port_manager.get_port())]
 
             cmd = [str(s) for s in self.yt_local_exec + list(args)]
             self._log(" ".join([os.path.basename(cmd[0])] + cmd[1:]))
