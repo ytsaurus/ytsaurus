@@ -186,6 +186,7 @@ class TErasureChunkReaderBase
 {
 public:
     TErasureChunkReaderBase(
+        TChunkId chunkId,
         NErasure::ICodec* codec,
         const std::vector<IChunkReaderAllowingRepairPtr>& readers);
 
@@ -200,6 +201,7 @@ protected:
     TFuture<void> PreparePlacementMeta(const TClientBlockReadOptions& options);
     void OnGotPlacementMeta(const NProto::TErasurePlacementExt& placementExt);
 
+    const TChunkId ChunkId_;
     NErasure::ICodec* const Codec_;
     const std::vector<IChunkReaderAllowingRepairPtr> Readers_;
 

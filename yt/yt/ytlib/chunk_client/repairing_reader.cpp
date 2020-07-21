@@ -35,6 +35,7 @@ class TRepairingReader
 {
 public:
     TRepairingReader(
+        TChunkId chunkId,
         ICodec* codec,
         TErasureReaderConfigPtr config,
         const std::vector<IChunkReaderAllowingRepairPtr>& readers,
@@ -59,8 +60,7 @@ public:
     virtual bool IsValid() const override;
 
     void UpdateBannedPartIndices();
-
-    TPartIndexSet GetBannedIndices();
+    TPartIndexSet GetBannedPartIndices();
 
     TError CheckPartReaderIsSlow(int partIndex, i64 bytesReceived, TDuration timePassed);
 
@@ -81,7 +81,6 @@ private:
     TReaderWriterSpinLock IndicesLock_;
     std::vector<TCpuInstant> SlowReaderBanTimes_;
     TPeriodicExecutorPtr ExpirationTimesExecutor_;
-    
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -141,40 +140,45 @@ private:
 
     std::vector<TBlock> DoRun()
     {
+        auto reader = Reader_.Lock();
+        if (!reader) {
+            return std::vector<TBlock>();
+        }
+
         if (!Config_->EnableAutoRepair) {
-            auto reader = CreateRepairingErasureReader(Codec_, TPartIndexList(), Readers_);
-            return WaitFor(reader->ReadBlocks(BlockReadOptions_, BlockIndexes_))
+            auto repairingReader = CreateRepairingErasureReader(reader->GetChunkId(), Codec_, TPartIndexList(), Readers_);
+            return WaitFor(repairingReader->ReadBlocks(BlockReadOptions_, BlockIndexes_))
                 .ValueOrThrow();
         }
 
         std::optional<TPartIndexSet> erasedIndicesOnPreviousIteration;
         std::vector<TError> innerErrors;
         while (true) {
-            auto reader = Reader_.Lock();
-            if (!reader) {
-                return std::vector<TBlock>();
-            }
-
             reader->UpdateBannedPartIndices();
 
+            auto bannedPartIndices = reader->GetBannedPartIndices();
+
             TPartIndexList bannedPartIndicesList;
-            auto bannedPartIndices = reader->GetBannedIndices();
-
-            if (erasedIndicesOnPreviousIteration && bannedPartIndices == *erasedIndicesOnPreviousIteration) {
-                THROW_ERROR_EXCEPTION("Read with repair failed, but list of valid underlying part readers did not change")
-                    << innerErrors;
-            }
-
             for (size_t i = 0; i < Readers_.size(); ++i) {
                 if (bannedPartIndices.test(i)) {
                     bannedPartIndicesList.push_back(i);
                 }
             }
+
+            if (erasedIndicesOnPreviousIteration && bannedPartIndices == *erasedIndicesOnPreviousIteration) {
+                THROW_ERROR_EXCEPTION("Error reading chunk %v with repair; cannot proceed since the list of valid underlying part readers did not change",
+                    reader->GetChunkId())
+                    << TErrorAttribute("banned_part_indexes", bannedPartIndicesList)
+                    << innerErrors;
+            }
+
             erasedIndicesOnPreviousIteration = bannedPartIndices;
 
             auto optionalRepairIndices = Codec_->GetRepairIndices(bannedPartIndicesList);
             if (!optionalRepairIndices) {
-                THROW_ERROR_EXCEPTION("Not enough parts to read with repair")
+                THROW_ERROR_EXCEPTION("Not enough parts to read chunk %v with repair",
+                    reader->GetChunkId())
+                    << TErrorAttribute("banned_part_indexes", bannedPartIndicesList)
                     << innerErrors;
             }
             auto repairIndices = *optionalRepairIndices;
@@ -197,7 +201,7 @@ private:
                     bannedPartIndicesList);
             }
 
-            auto repairingReader = CreateRepairingErasureReader(Codec_, bannedPartIndicesList, readers);
+            auto repairingReader = CreateRepairingErasureReader(reader->GetChunkId(), Codec_, bannedPartIndicesList, readers);
             auto result = WaitFor(repairingReader->ReadBlocks(BlockReadOptions_, BlockIndexes_, EstimatedSize_));
 
             if (result.IsOK()) {
@@ -212,11 +216,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TRepairingReader::TRepairingReader(
+    TChunkId chunkId,
     ICodec* codec,
     TErasureReaderConfigPtr config,
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     const TLogger& logger)
-    : TErasureChunkReaderBase(codec, readers)
+    : TErasureChunkReaderBase(chunkId, codec, readers)
     , Config_(config)
     , Logger(logger)
     , SlowReaderBanTimes_(codec->GetTotalPartCount(), TCpuInstant())
@@ -288,12 +293,12 @@ TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
 }
 
 TFuture<std::vector<TBlock>> TRepairingReader::ReadBlocks(
-    const TClientBlockReadOptions& options,
-    int firstBlockIndex,
-    int blockCount,
-    std::optional<i64> estimatedSize)
+    const TClientBlockReadOptions& /*options*/,
+    int /*firstBlockIndex*/,
+    int /*blockCount*/,
+    std::optional<i64> /*estimatedSize*/)
 {
-    YT_UNIMPLEMENTED();
+    YT_ABORT();
 }
 
 bool TRepairingReader::IsValid() const
@@ -325,7 +330,7 @@ void TRepairingReader::UpdateBannedPartIndices()
     }
 }
 
-TPartIndexSet TRepairingReader::GetBannedIndices()
+TPartIndexSet TRepairingReader::GetBannedPartIndices()
 {
     TReaderGuard guard(IndicesLock_);
     return BannedPartIndices_;
@@ -398,19 +403,22 @@ TRefCountedChunkMetaPtr TRepairingReader::DoGetMeta(
         errors.push_back(result);
     }
     
-    THROW_ERROR_EXCEPTION("Failed to get chunk meta")
+    THROW_ERROR_EXCEPTION("Failed to get chunk meta of chunk %v from any of valid part readers",
+        GetChunkId())
         << errors;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IChunkReaderPtr CreateRepairingReader(
+    TChunkId chunkId,
     ICodec* codec,
     TErasureReaderConfigPtr config,
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     const TLogger& logger)
 {
     return New<TRepairingReader>(
+        chunkId,
         codec,
         config,
         readers,

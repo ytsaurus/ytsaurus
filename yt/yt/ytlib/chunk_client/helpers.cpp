@@ -553,7 +553,7 @@ IChunkReaderPtr CreateRemoteReader(
             readers.push_back(reader);
         }
 
-        return CreateRepairingReader(erasureCodec, config, readers, Logger);
+        return CreateRepairingReader(chunkId, erasureCodec, config, readers, Logger);
     } else {
         YT_LOG_DEBUG("Creating regular remote reader");
 

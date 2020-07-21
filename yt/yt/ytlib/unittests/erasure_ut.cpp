@@ -303,7 +303,7 @@ public:
     {
         auto config = CreateErasureConfig();
         config->EnableAutoRepair = false;
-        return CreateRepairingReader(codec, config, GetFileReaders(codec->GetDataPartCount()));
+        return CreateRepairingReader(NullChunkId, codec, config, GetFileReaders(codec->GetDataPartCount()));
     }
 
     static TErasureReaderConfigPtr CreateErasureConfig()
@@ -313,17 +313,17 @@ public:
 
     static IChunkReaderPtr CreateOkRepairingReader(ICodec *codec)
     {
-        return CreateRepairingReader(codec, CreateErasureConfig(), GetFileReaders(codec->GetTotalPartCount()));
+        return CreateRepairingReader(NullChunkId, codec, CreateErasureConfig(), GetFileReaders(codec->GetTotalPartCount()));
     }
 
     static void CheckRepairReader(
-        IChunkReaderPtr repairReader,
+        IChunkReaderPtr reparingReader,
         const std::vector<TSharedRef>& dataRefs,
         std::optional<int> maskCount)
     {
         auto check = [&] (std::vector<int> indexes) {
             Shuffle(indexes.begin(), indexes.end());
-            auto result = WaitFor(repairReader->ReadBlocks(GetBlockReadOptions(), indexes))
+            auto result = WaitFor(reparingReader->ReadBlocks(GetBlockReadOptions(), indexes))
                 .ValueOrThrow();
             EXPECT_EQ(result.size(), indexes.size());
             for (int i = 0; i < indexes.size(); ++i) {
@@ -534,8 +534,8 @@ TEST_F(TErasureMixture, RepairTest1)
     std::vector<IChunkWriterPtr> writers;
     PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
 
-    auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
-    CheckRepairReader(repairReader, dataRefs, std::nullopt);
+    auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
+    CheckRepairReader(reparingReader, dataRefs, std::nullopt);
 
     auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, GetBlockReadOptions()).Get();
     EXPECT_TRUE(repairResult.IsOK());
@@ -572,8 +572,8 @@ TEST_F(TErasureMixture, RepairTest2)
     std::vector<IChunkWriterPtr> writers;
     PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
 
-    auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
-    CheckRepairReader(repairReader, dataRefs, std::nullopt);
+    auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
+    CheckRepairReader(reparingReader, dataRefs, std::nullopt);
 
     auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, GetBlockReadOptions()).Get();
     ASSERT_TRUE(repairResult.IsOK());
@@ -618,8 +618,8 @@ TEST_F(TErasureMixture, RepairTest3)
     std::vector<IChunkWriterPtr> writers;
     PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
 
-    auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
-    CheckRepairReader(repairReader, dataRefs, 100);
+    auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
+    CheckRepairReader(reparingReader, dataRefs, 100);
 
     RepairErasedParts(codec, erasedIndices, readers, writers, GetBlockReadOptions()).Get();
     {
@@ -663,8 +663,8 @@ TEST_F(TErasureMixture, RepairTest4)
     std::vector<IChunkWriterPtr> writers;
     PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
 
-    auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
-    CheckRepairReader(repairReader, dataRefs, 100);
+    auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
+    CheckRepairReader(reparingReader, dataRefs, 100);
 
     RepairErasedParts(codec, erasedIndices, readers, writers, GetBlockReadOptions()).Get();
     {
@@ -709,8 +709,8 @@ TEST_F(TErasureMixture, RepairTest5)
     std::vector<IChunkWriterPtr> writers;
     PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
 
-    auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
-    CheckRepairReader(repairReader, dataRefs, 40);
+    auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
+    CheckRepairReader(reparingReader, dataRefs, 40);
 
     RepairErasedParts(codec, erasedIndices, readers, writers, GetBlockReadOptions()).Get();
     {
@@ -755,8 +755,8 @@ TEST_F(TErasureMixture, RepairTest6)
     std::vector<IChunkWriterPtr> writers;
     PrepareReadersAndWriters(codec, erasedIndices, &allReaders, &readers, &writers);
 
-    auto repairReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
-    CheckRepairReader(repairReader, dataRefs, 40);
+    auto reparingReader = CreateRepairingErasureReader(NullChunkId, codec, erasedIndices, allReaders);
+    CheckRepairReader(reparingReader, dataRefs, 40);
 
     RepairErasedParts(codec, erasedIndices, readers, writers, GetBlockReadOptions()).Get();
     {
@@ -798,7 +798,7 @@ TEST_F(TErasureMixture, RepairingReaderSimultaneousFail)
         failingTimes[0] = failingTimes[1] = failingTimes[2] = 1;
         std::shuffle(failingTimes.begin(), failingTimes.end(), Gen_);
         auto readers = CreateFailingReaders(codec, codecId, dataRefs, failingTimes);
-        auto reader = CreateRepairingReader(codec, config, readers);
+        auto reader = CreateRepairingReader(NullChunkId, codec, config, readers);
 
         CheckRepairResult(reader, dataRefs);
     }
@@ -820,7 +820,7 @@ TEST_F(TErasureMixture, RepairingReaderSequenceFail)
     failingTimes[12] = 3;
 
     auto readers = CreateFailingReaders(codec, codecId, dataRefs, failingTimes);
-    auto reader = CreateRepairingReader(codec, CreateErasureConfig(), readers);
+    auto reader = CreateRepairingReader(NullChunkId, codec, CreateErasureConfig(), readers);
 
     CheckRepairResult(reader, dataRefs);
 
@@ -842,7 +842,7 @@ TEST_F(TErasureMixture, RepairingReaderUnrecoverable)
     failingTimes[4] = 4;
 
     auto readers = CreateFailingReaders(codec, codecId, dataRefs, failingTimes);
-    auto reader = CreateRepairingReader(codec, CreateErasureConfig(), readers);
+    auto reader = CreateRepairingReader(NullChunkId, codec, CreateErasureConfig(), readers);
 
     std::vector<int> indexes(dataRefs.size());
     std::iota(indexes.begin(), indexes.end(), 0);

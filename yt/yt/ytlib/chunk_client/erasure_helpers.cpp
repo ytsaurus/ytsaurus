@@ -607,9 +607,11 @@ TDataBlocksPlacementInParts BuildDataBlocksPlacementInParts(
 ////////////////////////////////////////////////////////////////////////////////
 
 TErasureChunkReaderBase::TErasureChunkReaderBase(
+    TChunkId chunkId,
     NErasure::ICodec* codec,
     const std::vector<IChunkReaderAllowingRepairPtr>& readers)
-    : Codec_(codec)
+    : ChunkId_(chunkId)
+    , Codec_(codec)
     , Readers_(readers)
 { }
 
@@ -632,7 +634,7 @@ TFuture<TRefCountedChunkMetaPtr> TErasureChunkReaderBase::GetMeta(
 
 TChunkId TErasureChunkReaderBase::GetChunkId() const
 {
-    return Readers_.front()->GetChunkId();
+    return ChunkId_;
 }
 
 TFuture<void> TErasureChunkReaderBase::PreparePlacementMeta(const TClientBlockReadOptions& options)
