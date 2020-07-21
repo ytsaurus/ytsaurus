@@ -102,10 +102,15 @@ constexpr TNetworkId DefaultNetworkId = 0;
 
 constexpr int TypicalMessagePartCount = 8;
 
+using TFeatureIdFormatter = const std::function<const TStringBuf*(int featureId)>*;
+
 extern const TString RequestIdAnnotation;
 extern const TString EndpointAnnotation;
 extern const TString RequestInfoAnnotation;
 extern const TString ResponseInfoAnnotation;
+
+extern const TString FeatureIdAttributeKey;
+extern const TString FeatureNameAttributeKey;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -127,6 +132,8 @@ DEFINE_ENUM(EErrorCode,
     ((InvalidCsrfToken)             (110))
     ((InvalidCredentials)           (111))
     ((StreamingNotSupported)        (112))
+    ((UnsupportedClientFeature)     (113))
+    ((UnsupportedServerFeature)     (114))
 );
 
 DEFINE_ENUM(EMessageFormat,

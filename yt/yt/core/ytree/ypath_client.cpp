@@ -81,6 +81,16 @@ const TString& TYPathRequest::GetService() const
     return Header_.service();
 }
 
+void TYPathRequest::DeclareClientFeature(int featureId)
+{
+    Header_.add_declared_client_feature_ids(featureId);
+}
+
+void TYPathRequest::RequireServerFeature(int featureId)
+{
+    Header_.add_required_server_feature_ids(featureId);
+}
+
 const TString& TYPathRequest::GetUser() const
 {
     YT_ABORT();

@@ -5,11 +5,38 @@
 #include "client.h"
 #endif
 
-#include <yt/core/rpc/stream.h>
+#include "helpers.h"
+#include "stream.h"
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NRpc {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class E>
+TServiceDescriptor& TServiceDescriptor::SetFeaturesType()
+{
+    static const std::function<const TStringBuf*(int featureId)> Formatter = [] (int featureId) {
+        return TEnumTraits<E>::FindLiteralByValue(static_cast<E>(featureId));
+    };
+    FeatureIdFormatter = &Formatter;
+    return *this;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class E>
+void IClientRequest::DeclareClientFeature(E featureId)
+{
+    DeclareClientFeature(FeatureIdToInt(featureId));
+}
+
+template <class E>
+void IClientRequest::RequireServerFeature(E featureId)
+{
+    RequireServerFeature(FeatureIdToInt(featureId));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

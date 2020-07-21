@@ -31,6 +31,7 @@ TClientContext::TClientContext(
     NTracing::TTraceContextPtr traceContext,
     const TString& service,
     const TString& method,
+    TFeatureIdFormatter featureIdFormatter,
     bool heavy,
     EMemoryZone memoryZone,
     TAttachmentsOutputStreamPtr requestAttachmentsStream,
@@ -40,6 +41,7 @@ TClientContext::TClientContext(
     , TraceContext_(std::move(traceContext))
     , Service_(service)
     , Method_(method)
+    , FeatureIdFormatter_(featureIdFormatter)
     , Heavy_(heavy)
     , MemoryZone_(memoryZone)
     , RequestAttachmentsStream_(std::move(requestAttachmentsStream))
@@ -55,6 +57,7 @@ TClientRequest::TClientRequest(
     const TMethodDescriptor& methodDescriptor)
     : Channel_(std::move(channel))
     , StreamingEnabled_(methodDescriptor.StreamingEnabled)
+    , FeatureIdFormatter_(serviceDescriptor.FeatureIdFormatter)
 {
     YT_ASSERT(Channel_);
 
@@ -77,6 +80,7 @@ TClientRequest::TClientRequest(const TClientRequest& other)
     , MemoryZone_(other.MemoryZone_)
     , Channel_(other.Channel_)
     , StreamingEnabled_(other.StreamingEnabled_)
+    , FeatureIdFormatter_(other.FeatureIdFormatter_)
     , Header_(other.Header_)
     , SerializedData_(other.SerializedData_)
     , Hash_(other.Hash_)
@@ -194,6 +198,16 @@ const TString& TClientRequest::GetMethod() const
     return Header_.method();
 }
 
+void TClientRequest::DeclareClientFeature(int featureId)
+{
+    Header_.add_declared_client_feature_ids(featureId);
+}
+
+void TClientRequest::RequireServerFeature(int featureId)
+{
+    Header_.add_required_server_feature_ids(featureId);
+}
+
 const TString& TClientRequest::GetUser() const
 {
     return User_;
@@ -296,6 +310,7 @@ TClientContextPtr TClientRequest::CreateClientContext()
         std::move(traceContext),
         GetService(),
         GetMethod(),
+        FeatureIdFormatter_,
         Heavy_,
         MemoryZone_,
         RequestAttachmentsStream_,
@@ -455,8 +470,19 @@ void TClientResponse::HandleError(const TError& error)
         return;
     }
 
-    GetInvoker()->Invoke(
-        BIND(&TClientResponse::DoHandleError, MakeStrong(this), error));
+    auto invokeHandler = [&] (const TError& error) {
+        GetInvoker()->Invoke(
+            BIND(&TClientResponse::DoHandleError, MakeStrong(this), error));
+    };
+
+    auto optionalEnrichedError = TryEnrichClientRequestErrorWithFeatureName(
+        error,
+        ClientContext_->GetFeatureIdFormatter());
+    if (optionalEnrichedError) {
+        invokeHandler(*optionalEnrichedError);
+    } else {
+        invokeHandler(error);
+    }
 }
 
 void TClientResponse::DoHandleError(const TError& error)

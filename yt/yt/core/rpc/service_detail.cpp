@@ -932,8 +932,8 @@ TServiceBase::TServiceBase(
     : Logger(logger)
     , DefaultInvoker_(std::move(defaultInvoker))
     , Authenticator_(std::move(authenticator))
+    , ServiceDescriptor_(descriptor)
     , ServiceId_(descriptor.GetFullServiceName(), realmId)
-    , ProtocolVersion_(descriptor.ProtocolVersion)
     , ServiceTagId_(NProfiling::TProfileManager::Get()->RegisterTag("service", ServiceId_.ServiceName))
     , ProfilingExecutor_(New<TPeriodicExecutor>(
         GetSyncInvoker(),
@@ -947,8 +947,6 @@ TServiceBase::TServiceBase(
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
         .SetInvoker(GetSyncInvoker())
         .SetSystem(true));
-
-    ProfilingExecutor_->Start();
 }
 
 const TServiceId& TServiceBase::GetServiceId() const
@@ -961,15 +959,11 @@ void TServiceBase::HandleRequest(
     TSharedRefArray message,
     IBusPtr replyBus)
 {
+    SetActive();
+
     const auto& method = header->method();
     auto requestId = FromProto<TRequestId>(header->request_id());
 
-    TProtocolVersion requestProtocolVersion{
-        header->protocol_version_major(),
-        header->protocol_version_minor()
-    };
-
-    TRuntimeMethodInfoPtr runtimeInfo;
     auto replyError = [&] (TError error) {
         ReplyError(std::move(error), *header, replyBus);
     };
@@ -981,29 +975,12 @@ void TServiceBase::HandleRequest(
         return;
     }
 
-    if (requestProtocolVersion.Major != GenericProtocolVersion.Major) {
-        if (ProtocolVersion_.Major != requestProtocolVersion.Major) {
-            auto error = TError(
-                EErrorCode::ProtocolError,
-                "Server major protocol version differs from client major protocol version: %v != %v",
-                requestProtocolVersion.Major,
-                ProtocolVersion_.Major);
-            replyError(std::move(error));
-            return;
-        }
-
-        if (ProtocolVersion_.Minor < requestProtocolVersion.Minor) {
-            auto error = TError(
-                EErrorCode::ProtocolError,
-                "Server minor protocol version is less than minor protocol version required by client: %v < %v",
-                ProtocolVersion_.Minor,
-                requestProtocolVersion.Minor);
-            replyError(std::move(error));
-            return;
-        }
+    if (auto error = DoCheckRequestCompatibility(*header); !error.IsOK()) {
+        replyError(std::move(error));
+        return;
     }
 
-    runtimeInfo = FindMethodInfo(method);
+    auto runtimeInfo = FindMethodInfo(method);
     if (!runtimeInfo) {
         replyError(TError(
             EErrorCode::NoSuchMethod,
@@ -1075,6 +1052,8 @@ void TServiceBase::ReplyError(
     const NProto::TRequestHeader& header,
     const IBusPtr& replyBus)
 {
+    NTracing::AddErrorTag();
+
     auto requestId = FromProto<TRequestId>(header.request_id());
     auto richError = std::move(error)
         << TErrorAttribute("request_id", requestId)
@@ -1082,8 +1061,6 @@ void TServiceBase::ReplyError(
         << TErrorAttribute("service", ServiceId_.ServiceName)
         << TErrorAttribute("method", header.method())
         << TErrorAttribute("endpoint", replyBus->GetEndpointDescription());
-
-    NTracing::AddErrorTag();
 
     auto code = richError.GetCode();
     auto logLevel =
@@ -1152,6 +1129,8 @@ void TServiceBase::HandleAuthenticatedRequest(
 
 void TServiceBase::HandleRequestCancelation(TRequestId requestId)
 {
+    SetActive();
+    
     auto context = FindRequest(requestId);
     if (!context) {
         YT_LOG_DEBUG("Received cancelation for an unknown request, ignored (RequestId: %v)",
@@ -1166,6 +1145,8 @@ void TServiceBase::HandleStreamingPayload(
     TRequestId requestId,
     const TStreamingPayload& payload)
 {
+    SetActive();
+
     TGuard<TSpinLock> guard(RequestMapLock_);
     auto context = DoFindRequest(requestId);
     if (context) {
@@ -1194,6 +1175,65 @@ void TServiceBase::HandleStreamingFeedback(
     context->HandleStreamingFeedback(feedback);
 }
 
+void TServiceBase::DoDeclareServerFeature(int featureId)
+{
+    ValidateInactive();
+
+    // Failure here means that such feature is already registered.
+    YT_VERIFY(SupportedServerFeatureIds_.insert(featureId).second);
+}
+
+TError TServiceBase::DoCheckRequestCompatibility(const NRpc::NProto::TRequestHeader& header)
+{
+    if (auto error = DoCheckRequestProtocol(header); !error.IsOK()) {
+        return error;
+    }
+    if (auto error = DoCheckRequestFeatures(header); !error.IsOK()) {
+        return error;
+    }
+    return {};
+}
+
+TError TServiceBase::DoCheckRequestProtocol(const NRpc::NProto::TRequestHeader& header)
+{
+    TProtocolVersion requestProtocolVersion{
+        header.protocol_version_major(),
+        header.protocol_version_minor()
+    };
+
+    if (requestProtocolVersion.Major != GenericProtocolVersion.Major) {
+        if (ServiceDescriptor_.ProtocolVersion.Major != requestProtocolVersion.Major) {
+            return TError(
+                EErrorCode::ProtocolError,
+                "Server major protocol version differs from client major protocol version: %v != %v",
+                requestProtocolVersion.Major,
+                ServiceDescriptor_.ProtocolVersion.Major);
+        }
+
+        if (ServiceDescriptor_.ProtocolVersion.Minor < requestProtocolVersion.Minor) {
+            return TError(
+                EErrorCode::ProtocolError,
+                "Server minor protocol version is less than minor protocol version required by client: %v < %v",
+                ServiceDescriptor_.ProtocolVersion.Minor,
+                requestProtocolVersion.Minor);
+        }
+    }
+    return {};
+}
+
+TError TServiceBase::DoCheckRequestFeatures(const NRpc::NProto::TRequestHeader& header)
+{
+    for (auto featureId : header.required_server_feature_ids()) {
+        if (!SupportedServerFeatureIds_.contains(featureId)) {
+            return TError(
+                EErrorCode::UnsupportedServerFeature,
+                "Server does not support the feature requested by client")
+                << TErrorAttribute("feature_id", featureId);
+        }
+    }
+    return {};
+}
+
 void TServiceBase::OnRequestTimeout(TRequestId requestId, bool /*aborted*/)
 {
     auto context = FindRequest(requestId);
@@ -1204,7 +1244,7 @@ void TServiceBase::OnRequestTimeout(TRequestId requestId, bool /*aborted*/)
     context->HandleTimeout();
 }
 
-void TServiceBase::OnReplyBusTerminated(IBusPtr bus, const TError& error)
+void TServiceBase::OnReplyBusTerminated(const IBusPtr& bus, const TError& error)
 {
     std::vector<TServiceContextPtr> contexts;
     {
@@ -1477,19 +1517,38 @@ void TServiceBase::OnProfiling()
 {
     Profiler.Update(AuthenticationQueueSizeCounter_, AuthenticationQueueSize_.load());
 
-    {
-        TReaderGuard guard(MethodMapLock_);
-        for (const auto& [methodName, runtimeInfo] : MethodMap_) {
-            Profiler.Update(runtimeInfo->QueueSizeCounter, runtimeInfo->QueueSize.load(std::memory_order_relaxed));
-            Profiler.Update(runtimeInfo->QueueSizeLimitCounter, runtimeInfo->Descriptor.QueueSizeLimit);
-            Profiler.Update(runtimeInfo->ConcurrencyCounter, runtimeInfo->ConcurrencySemaphore.load(std::memory_order_relaxed));
-            Profiler.Update(runtimeInfo->ConcurrencyLimitCounter, runtimeInfo->Descriptor.ConcurrencyLimit);
-        }
+    for (const auto& [methodName, runtimeInfo] : MethodMap_) {
+        Profiler.Update(runtimeInfo->QueueSizeCounter, runtimeInfo->QueueSize.load(std::memory_order_relaxed));
+        Profiler.Update(runtimeInfo->QueueSizeLimitCounter, runtimeInfo->Descriptor.QueueSizeLimit);
+        Profiler.Update(runtimeInfo->ConcurrencyCounter, runtimeInfo->ConcurrencySemaphore.load(std::memory_order_relaxed));
+        Profiler.Update(runtimeInfo->ConcurrencyLimitCounter, runtimeInfo->Descriptor.ConcurrencyLimit);
     }
+}
+
+void TServiceBase::SetActive()
+{
+    if (Active_.load(std::memory_order_relaxed)) {
+        return;
+    }
+
+    if (Active_.exchange(true)) {
+        return;
+    }
+
+    ProfilingExecutor_->Start();
+}
+
+void TServiceBase::ValidateInactive()
+{
+    // Failure here means that some service metadata (e.g. registered methods or supported
+    // features) are changing after the service has started serving requests.
+    YT_VERIFY(!Active_.load());
 }
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDescriptor& descriptor)
 {
+    ValidateInactive();
+
     auto* profileManager = NProfiling::TProfileManager::Get();
     NProfiling::TTagIdList tagIds{
         ServiceTagId_,
@@ -1499,11 +1558,20 @@ TServiceBase::TRuntimeMethodInfoPtr TServiceBase::RegisterMethod(const TMethodDe
     auto runtimeInfo = New<TRuntimeMethodInfo>(descriptor, tagIds);
     runtimeInfo->RootPerformanceCounters = CreateMethodPerformanceCounters(runtimeInfo, RootUserName);
 
-    {
-        TWriterGuard guard(MethodMapLock_);
-        // Failure here means that such method is already registered.
-        YT_VERIFY(MethodMap_.emplace(descriptor.Method, runtimeInfo).second);
-        return runtimeInfo;
+    // Failure here means that such method is already registered.
+    YT_VERIFY(MethodMap_.emplace(descriptor.Method, runtimeInfo).second);
+    return runtimeInfo;
+}
+
+void TServiceBase::ValidateRequestFeatures(const IServiceContextPtr& context)
+{
+    const auto& header = context->RequestHeader();
+    if (auto error = DoCheckRequestFeatures(header); !error.IsOK()) {
+        auto requestId = FromProto<TRequestId>(header.request_id());
+        THROW_ERROR std::move(error)
+            << TErrorAttribute("request_id", requestId)
+            << TErrorAttribute("service", header.service())
+            << TErrorAttribute("method", header.method());
     }
 }
 
@@ -1576,8 +1644,6 @@ TFuture<void> TServiceBase::Stop()
 
 TServiceBase::TRuntimeMethodInfoPtr TServiceBase::FindMethodInfo(const TString& method)
 {
-    TReaderGuard guard(MethodMapLock_);
-
     auto it = MethodMap_.find(method);
     return it == MethodMap_.end() ? nullptr : it->second;
 }
@@ -1610,6 +1676,8 @@ std::vector<TString> TServiceBase::SuggestAddresses()
 
     return std::vector<TString>();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_RPC_SERVICE_METHOD(TServiceBase, Discover)
 {

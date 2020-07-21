@@ -49,6 +49,27 @@ void IServiceContext::ReplyFrom(TFuture<void> asyncError)
     }));
 }
 
+namespace NDetail {
+
+bool IsClientFeatureSupported(const IServiceContext* context, int featureId)
+{
+    const auto& header = context->RequestHeader();
+    return
+        std::find(header.declared_client_feature_ids().begin(), header.declared_client_feature_ids().end(), featureId) !=
+        header.declared_client_feature_ids().end();
+}
+
+void ThrowUnsupportedClientFeature(int featureId, TStringBuf featureName)
+{
+    THROW_ERROR_EXCEPTION(
+        NRpc::EErrorCode::UnsupportedClientFeature,
+        "Client does not support the feature requested by server")
+        << TErrorAttribute("feature_id", featureId)
+        << TErrorAttribute("feature_name", featureName);
+}
+
+} // namespace NDetail
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TServiceId::TServiceId(const TString& serviceName, TRealmId realmId)
