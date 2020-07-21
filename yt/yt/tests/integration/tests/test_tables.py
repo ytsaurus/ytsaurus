@@ -1633,10 +1633,10 @@ class TestTables(YTEnvSetup):
         write_table("<append=true>//tmp/t", [{"key": 2, "value": 2}])
         assert get("//tmp/t/@chunk_count") == 2
 
-        with pytest.raises(YtError):
+        with raises_yt_error(IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema_1)
 
-        with pytest.raises(YtError):
+        with raises_yt_error(IncompatibleSchemas):
             alter_table("//tmp/t", schema=bad_schema_2)
 
         alter_table("//tmp/t", schema=new_schema)
@@ -1653,7 +1653,7 @@ class TestTables(YTEnvSetup):
                                              {"key": 2, "value": 2, "x": yson.YsonEntity()}]
         assert get("//tmp/t_out/@chunk_count") == 1
 
-        with pytest.raises(YtError):
+        with raises_yt_error(IncompatibleSchemas):
             alter_table("//tmp/t", schema=old_schema)
 
     @authors("akozhikhov")

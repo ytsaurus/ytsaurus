@@ -120,6 +120,7 @@ DEFINE_ENUM(EErrorCode,
     ((TimestampOutOfRange)        (313))
     ((InvalidSchemaValue)         (314))
     ((FormatCannotRepresentRow)   (315))
+    ((IncompatibleSchemas)        (316))
 );
 
 DEFINE_ENUM(EControlAttribute,
