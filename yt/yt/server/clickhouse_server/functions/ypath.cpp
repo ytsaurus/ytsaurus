@@ -469,7 +469,6 @@ public:
 
         auto returnType = block.getByPosition(result).type;
 
-        using Iterator = TYsonParserAdapter::Iterator;
         auto extractTree = JSONExtractTree<TYsonParserAdapter>::build(name, returnType);
 
         auto columnTo = returnType->createColumn();
@@ -494,7 +493,7 @@ public:
                 subNode = FindNodeByYPath(node, TString(path.data, path.size));
             }
 
-            if (!subNode || !extractTree->addValueToColumn(*columnTo, Iterator{subNode})) {
+            if (!subNode || !extractTree->insertResultToColumn(*columnTo, subNode)) {
                 columnTo->insertDefault();
             }
         }
