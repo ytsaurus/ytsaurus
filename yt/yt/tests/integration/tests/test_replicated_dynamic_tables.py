@@ -1608,10 +1608,11 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
         sync_enable_table_replica(replica_id1)
         sync_enable_table_replica(replica_id2)
 
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "tablet_cell_bundle_name_failure_interval": 1000})
-        remove("//tmp/r1", driver=self.replica_driver)
-
         switch_metric = Metric.at_master("tablet_server/switch_tablet_replica_mode")
+
+        remove("//tmp/r1", driver=self.replica_driver)
+        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "tablet_cell_bundle_name_failure_interval": 1000})
+
         wait(lambda: switch_metric.update().get(verbose=True) > 0)
 
         wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
