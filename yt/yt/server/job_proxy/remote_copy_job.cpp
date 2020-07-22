@@ -17,6 +17,7 @@
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/erasure_reader.h>
+#include <yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/ytlib/chunk_client/erasure_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
@@ -31,6 +32,8 @@
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/library/erasure/codec.h>
+
+#include <yt/core/actions/cancelable_context.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/async_semaphore.h>
@@ -196,9 +199,7 @@ public:
 
     virtual std::vector<TChunkId> GetFailedChunkIds() const override
     {
-        return FailedChunkId_
-            ? std::vector<TChunkId>(1, *FailedChunkId_)
-            : std::vector<TChunkId>();
+        return FailedChunkIds_;
     }
 
     virtual TInterruptDescriptor GetInterruptDescriptor() const override
@@ -246,7 +247,7 @@ private:
 
     TDataStatistics DataStatistics_;
 
-    std::optional<TChunkId> FailedChunkId_;
+    std::vector<TChunkId> FailedChunkIds_;
 
     const TActionQueuePtr RemoteCopyQueue_;
     TAsyncSemaphorePtr CopySemaphore_;
@@ -272,167 +273,302 @@ private:
 
     void CopyChunk(const TChunkSpec& inputChunkSpec, NChunkClient::TSessionId outputSessionId)
     {
+        // Delay for testing purposes.
+        // COMPAT(gritukan)
+        if (RemoteCopyJobSpecExt_.has_delay_in_copy_chunk()) {
+            auto delayInCopyChunk = FromProto<TDuration>(RemoteCopyJobSpecExt_.delay_in_copy_chunk());
+            if (delayInCopyChunk > TDuration::Zero()) {
+                YT_LOG_DEBUG("Sleeping in CopyChunk (DelayInCopyChunk: %v)", delayInCopyChunk);
+                Sleep(delayInCopyChunk);
+            }
+        }
+
         auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
 
         YT_LOG_INFO("Copying chunk (InputChunkId: %v, OutputChunkId: %v)",
             inputChunkId, outputSessionId);
 
         auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
-
-        auto inputReplicas = NYT::FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
-
-        // Copy chunk.
-        TRefCountedChunkMetaPtr chunkMeta;
-        i64 totalChunkSize;
-
         if (erasureCodecId != NErasure::ECodec::None) {
-            auto erasureCodec = NErasure::GetCodec(erasureCodecId);
-            auto readers = CreateErasureAllPartsReaders(
-                ReaderConfig_,
-                New<TRemoteReaderOptions>(),
-                RemoteClient_,
-                Host_->GetInputNodeDirectory(),
-                inputChunkId,
-                inputReplicas,
-                erasureCodec,
-                Host_->GetBlockCache(),
-                Host_->GetTrafficMeter(),
-                Host_->GetInBandwidthThrottler(),
-                Host_->GetOutRpsThrottler());
-
-            chunkMeta = GetChunkMeta(readers.front());
-
-            // We do not support node reallocation for erasure chunks.
-            auto options = New<TRemoteWriterOptions>();
-            options->AllowAllocatingNewTargetNodes = false;
-            auto writers = CreateErasurePartWriters(
-                WriterConfig_,
-                New<TRemoteWriterOptions>(),
-                outputSessionId,
-                erasureCodec,
-                New<TNodeDirectory>(),
-                Host_->GetClient(),
-                Host_->GetTrafficMeter(),
-                Host_->GetOutBandwidthThrottler());
-
-            YT_VERIFY(readers.size() == writers.size());
-
-            auto erasurePlacementExt = GetProtoExtension<TErasurePlacementExt>(chunkMeta->extensions());
-
-            // Compute an upper bound for total size.
-            totalChunkSize =
-                GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size() +
-                erasurePlacementExt.parity_block_count() * erasurePlacementExt.parity_block_size() * erasurePlacementExt.parity_part_count();
-
-            TotalSize_ += totalChunkSize;
-
-            std::vector<TFuture<void>> copyResults;
-            for (int index = 0; index < static_cast<int>(readers.size()); ++index) {
-                std::vector<i64> blockSizes;
-                int blockCount;
-                if (index < erasureCodec->GetDataPartCount()) {
-                    blockCount = erasurePlacementExt.part_infos(index).block_sizes_size();
-                    for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
-                        blockSizes.push_back(
-                            erasurePlacementExt.part_infos(index).block_sizes(blockIndex));
-                    }
-                } else {
-                    blockCount = erasurePlacementExt.parity_block_count();
-                    blockSizes.resize(blockCount, erasurePlacementExt.parity_block_size());
-                    blockSizes.back() = erasurePlacementExt.parity_last_block_size();
-                }
-
-                auto resultFuture = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
-                    .AsyncVia(GetRemoteCopyInvoker())
-                    .Run(readers[index], writers[index], blockSizes, chunkMeta);
-
-                copyResults.push_back(resultFuture);
-            }
-
-            YT_LOG_INFO("Waiting for erasure parts data to be copied");
-
-            WaitFor(AllSucceeded(copyResults))
-                .ThrowOnError();
-
-            ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeErasureChunk, MakeStrong(this))
-                .AsyncVia(GetRemoteCopyInvoker())
-                .Run(writers, chunkMeta, outputSessionId));
-
+            CopyErasureChunk(inputChunkSpec, outputSessionId);
         } else {
-            auto reader = CreateReplicationReader(
-                ReaderConfig_,
-                New<TRemoteReaderOptions>(),
-                RemoteClient_,
-                Host_->GetInputNodeDirectory(),
-                Host_->LocalDescriptor(),
-                std::nullopt,
-                inputChunkId,
-                inputReplicas,
-                Host_->GetBlockCache(),
-                Host_->GetTrafficMeter(),
-                Host_->GetInBandwidthThrottler(),
-                Host_->GetOutRpsThrottler());
-
-            chunkMeta = GetChunkMeta(reader);
-
-            auto writer = CreateReplicationWriter(
-                WriterConfig_,
-                New<TRemoteWriterOptions>(),
-                outputSessionId,
-                TChunkReplicaWithMediumList(),
-                New<TNodeDirectory>(),
-                Host_->GetClient(),
-                GetNullBlockCache(),
-                Host_->GetTrafficMeter(),
-                Host_->GetOutBandwidthThrottler());
-
-            auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta->extensions());
-
-            std::vector<i64> blockSizes;
-            for (const auto& block : blocksExt.blocks()) {
-                blockSizes.push_back(block.size());
-            }
-
-            totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size();
-
-            auto result = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
-                .AsyncVia(GetRemoteCopyInvoker())
-                .Run(reader, writer, blockSizes, chunkMeta);
-
-            YT_LOG_INFO("Waiting for chunk data to be copied");
-
-            WaitFor(result)
-                .ThrowOnError();
-
-            ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeRegularChunk, MakeStrong(this))
-                .AsyncVia(GetRemoteCopyInvoker())
-                .Run(writer, chunkMeta, outputSessionId));
+            CopyRegularChunk(inputChunkSpec, outputSessionId);
         }
 
         // Update data statistics.
         DataStatistics_.set_chunk_count(DataStatistics_.chunk_count() + 1);
+    }    
+
+    void CopyErasureChunk(const TChunkSpec& inputChunkSpec, NChunkClient::TSessionId outputSessionId)
+    {
+        auto cancelableContext = New<TCancelableContext>();
+        auto suspendableInvoker = CreateSuspendableInvoker(GetRemoteCopyInvoker());
+        auto cancelableInvoker = cancelableContext->CreateInvoker(suspendableInvoker);
+
+        auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
+        auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
+        auto inputReplicas = NYT::FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
+
+        TRefCountedChunkMetaPtr chunkMeta;
+
+        auto erasureCodec = NErasure::GetCodec(erasureCodecId);
+        auto readers = CreateErasureAllPartsReaders(
+            ReaderConfig_,
+            New<TRemoteReaderOptions>(),
+            RemoteClient_,
+            Host_->GetInputNodeDirectory(),
+            inputChunkId,
+            inputReplicas,
+            erasureCodec,
+            Host_->GetBlockCache(),
+            Host_->GetTrafficMeter(),
+            Host_->GetInBandwidthThrottler(),
+            Host_->GetOutRpsThrottler());
+
+        chunkMeta = GetChunkMeta(readers);
+
+        // We do not support node reallocation for erasure chunks.
+        auto options = New<TRemoteWriterOptions>();
+        options->AllowAllocatingNewTargetNodes = false;
+        auto writers = CreateErasurePartWriters(
+            WriterConfig_,
+            New<TRemoteWriterOptions>(),
+            outputSessionId,
+            erasureCodec,
+            New<TNodeDirectory>(),
+            Host_->GetClient(),
+            Host_->GetTrafficMeter(),
+            Host_->GetOutBandwidthThrottler());
+        YT_VERIFY(readers.size() == writers.size());
+
+        auto erasurePlacementExt = GetProtoExtension<TErasurePlacementExt>(chunkMeta->extensions());
+
+        // Compute an upper bound for total size.
+        i64 totalChunkSize =
+            GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size() +
+            erasurePlacementExt.parity_block_count() * erasurePlacementExt.parity_block_size() * erasurePlacementExt.parity_part_count();
+
+        TotalSize_ += totalChunkSize;
+
+        std::vector<TFuture<void>> copyFutures;
+        copyFutures.reserve(readers.size());
+        for (int index = 0; index < static_cast<int>(readers.size()); ++index) {
+            std::vector<i64> blockSizes;
+            int blockCount;
+            if (index < erasureCodec->GetDataPartCount()) {
+                blockCount = erasurePlacementExt.part_infos(index).block_sizes_size();
+                for (int blockIndex = 0; blockIndex < blockCount; ++blockIndex) {
+                    blockSizes.push_back(
+                        erasurePlacementExt.part_infos(index).block_sizes(blockIndex));
+                }
+            } else {
+                blockCount = erasurePlacementExt.parity_block_count();
+                blockSizes.resize(blockCount, erasurePlacementExt.parity_block_size());
+                blockSizes.back() = erasurePlacementExt.parity_last_block_size();
+            }
+
+            auto copyFuture = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
+                .AsyncVia(cancelableInvoker)
+                .Run(readers[index], writers[index], blockSizes, chunkMeta);
+
+            copyFutures.push_back(copyFuture);
+        }
+
+        YT_LOG_INFO("Waiting for erasure parts data to be copied");
+
+        auto copyStarted = TInstant::Now();
+
+        WaitUntilErasureChunkCanBeRepaired(erasureCodec, &copyFutures);
+
+        // COMPAT(gritukan)
+        TDuration erasureChunkRepairDelay;
+        if (RemoteCopyJobSpecExt_.has_erasure_chunk_repair_delay()) {
+            erasureChunkRepairDelay = FromProto<TDuration>(RemoteCopyJobSpecExt_.erasure_chunk_repair_delay());
+        } else {
+            erasureChunkRepairDelay = TDuration::Max() / 2;
+        }
+
+        auto copyTimeElapsed = TInstant::Now();
+
+        // copyTimeElapsed - copyStarted <= erasureChunkRepairDelay.
+        if (copyTimeElapsed <= copyStarted + erasureChunkRepairDelay) {
+            erasureChunkRepairDelay -= (copyTimeElapsed - copyStarted);
+        } else {
+            erasureChunkRepairDelay = TDuration::Zero();
+        }
+
+        std::vector<TFuture<void>> copyFutureWithTimeouts;
+        copyFutureWithTimeouts.reserve(copyFutures.size());
+        for (const auto& copyFuture : copyFutures) {
+            copyFutureWithTimeouts.push_back(copyFuture.WithTimeout(erasureChunkRepairDelay));
+        }
+
+        // Wait for all parts were copied within timeout.
+        auto copyResults = WaitFor(AllSet(copyFutureWithTimeouts))
+            .ValueOrThrow();
+
+        cancelableContext->Cancel(TError("Erasure part repair started"));
+
+        // Wait until all part copyings terminated.
+        WaitFor(suspendableInvoker->Suspend())
+            .ThrowOnError();
+
+        TPartIndexList erasedPartIndicies;
+        std::vector<TFuture<void>> closeReplicaWriterResults;
+        for (int partIndex = 0; partIndex < copyFutures.size(); ++partIndex) {
+            auto copyResult = copyResults[partIndex];
+            if (!copyResult.IsOK()) {
+                erasedPartIndicies.push_back(partIndex);
+                // NB: We should destroy replication writer to cancel it.
+                writers[partIndex].Reset();
+            } else {
+                const auto& writer = writers[partIndex];
+                closeReplicaWriterResults.push_back(writer->Close(chunkMeta));
+            }
+        }
+
+        WaitFor(AllSucceeded(closeReplicaWriterResults))
+            .ThrowOnError();
+
+        if (!erasedPartIndicies.empty()) {
+            RepairErasureChunk(
+                outputSessionId,
+                erasureCodec,
+                erasedPartIndicies,
+                &writers);
+        } else {
+            YT_LOG_DEBUG("All the parts were copied successfully");
+        }
+
+        ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeErasureChunk, MakeStrong(this))
+            .AsyncVia(GetRemoteCopyInvoker())
+            .Run(writers, erasedPartIndicies, chunkMeta, outputSessionId));
 
         TotalSize_ -= totalChunkSize;
         CopiedChunkCount_ += 1;
     }
 
+    //! Waits until enough parts were copied to perform repair.
+    void WaitUntilErasureChunkCanBeRepaired(
+        NErasure::ICodec* erasureCodec,
+        std::vector<TFuture<void>>* copyFutures)
+    {
+        // This promise is set when repair can be started.
+        TPromise<void> canStartRepair = NewPromise<void>();
+
+        // Set of parts that were not copied yet.
+        TPartIndexSet erasedPartSet;
+
+        // Set of parts that were copied unsuccessfully.
+        TPartIndexSet failedPartSet;
+
+        std::vector<TError> copyErrors;
+
+        std::vector<TFutureCallbackCookie> callbackCookies;
+        callbackCookies.reserve(copyFutures->size());
+
+        for (int partIndex = 0; partIndex < copyFutures->size(); ++partIndex) {
+            erasedPartSet.set(partIndex);
+
+            auto& copyFuture = (*copyFutures)[partIndex];
+            auto cookie = copyFuture.Subscribe(BIND([&, partIndex, Logger=Logger] (const TErrorOr<void>& error) {
+                if (error.IsOK()) {
+                    erasedPartSet.reset(partIndex);
+                    if (erasureCodec->CanRepair(erasedPartSet)) {
+                        canStartRepair.TrySet();
+                    }
+                } else {
+                    failedPartSet.set(partIndex);
+                    copyErrors.push_back(error);
+
+                    // Chunk cannot be repaired, this situation is unrecoverable.
+                    if (!erasureCodec->CanRepair(failedPartSet)) {
+                        TError copyError("Cannot repair erasure chunk");
+                        copyError.InnerErrors() = copyErrors;
+                        canStartRepair.TrySet(copyError);
+                    }
+                }
+            }));
+            callbackCookies.push_back(cookie);
+        }
+
+        WaitFor(canStartRepair.ToFuture())
+            .ThrowOnError();
+
+        for (int partIndex = 0; partIndex < copyFutures->size(); ++partIndex) {
+            auto& copyFuture = (*copyFutures)[partIndex];
+            auto callbackCookie = callbackCookies[partIndex];
+            copyFuture.Unsubscribe(callbackCookie);
+        }
+    }
+
+    void RepairErasureChunk(
+        NChunkClient::TSessionId outputSessionId,
+        NErasure::ICodec* erasureCodec,
+        const TPartIndexList& erasedPartIndicies,
+        std::vector<IChunkWriterPtr>* partWriters)
+    {
+        auto repairPartIndicies = *erasureCodec->GetRepairIndices(erasedPartIndicies);
+
+        YT_LOG_INFO("Failed to copy some of the chunk parts, starting repair (ErasedPartIndicies: %v, RepairPartIndicies: %v)",
+            erasedPartIndicies,
+            repairPartIndicies);
+
+        TChunkReplicaList localChunkReplicas;
+        localChunkReplicas.resize(repairPartIndicies.size());
+        for (auto repairPartIndex : repairPartIndicies) {
+            auto replicas = (*partWriters)[repairPartIndex]->GetWrittenChunkReplicas();
+            YT_VERIFY(replicas.size() == 1);
+            auto replica = TChunkReplica(replicas.front().GetNodeId(), repairPartIndex);
+            localChunkReplicas.push_back(replica);
+        }
+
+        auto repairPartReaders = CreateErasurePartsReaders(
+            ReaderConfig_,
+            New<TRemoteReaderOptions>(),
+            Host_->GetClient(),
+            Host_->GetInputNodeDirectory(),
+            outputSessionId.ChunkId,
+            localChunkReplicas,
+            erasureCodec,
+            repairPartIndicies,
+            Host_->GetBlockCache(),
+            Host_->GetTrafficMeter(),
+            Host_->GetInBandwidthThrottler(),
+            Host_->GetOutRpsThrottler());
+        YT_VERIFY(repairPartReaders.size() == repairPartIndicies.size());
+
+        auto erasedPartWriters = CreateErasurePartWriters(
+            WriterConfig_,
+            New<TRemoteWriterOptions>(),
+            outputSessionId,
+            erasureCodec,
+            New<TNodeDirectory>(),
+            Host_->GetClient(),
+            erasedPartIndicies,
+            Host_->GetTrafficMeter(),
+            Host_->GetOutBandwidthThrottler());
+        YT_VERIFY(erasedPartWriters.size() == erasedPartIndicies.size());
+
+        TClientBlockReadOptions repairBlockReadOptions;
+        repairBlockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+
+        WaitFor(RepairErasedParts(erasureCodec, erasedPartIndicies, repairPartReaders, erasedPartWriters, repairBlockReadOptions))
+            .ThrowOnError();
+
+        for (int index = 0; index < erasedPartIndicies.size(); ++index) {
+            (*partWriters)[erasedPartIndicies[index]] = erasedPartWriters[index];
+        }
+    }
+
     void FinalizeErasureChunk(
         const std::vector<IChunkWriterPtr>& writers,
+        const TPartIndexList& erasedPartIndicies,
         const TRefCountedChunkMetaPtr& chunkMeta,
         NChunkClient::TSessionId outputSessionId)
     {
         TChunkInfo chunkInfo;
         TChunkReplicaWithMediumList writtenReplicas;
-
-        std::vector<TFuture<void>> closeReplicaWriterResults;
-        closeReplicaWriterResults.reserve(writers.size());
-
-        for (const auto& writer : writers) {
-            closeReplicaWriterResults.push_back(writer->Close(chunkMeta));
-        }
-
-        WaitFor(AllSucceeded(closeReplicaWriterResults))
-            .ThrowOnError();
 
         i64 diskSpace = 0;
         for (int index = 0; index < static_cast<int>(writers.size()); ++index) {
@@ -451,6 +587,66 @@ private:
         chunkInfo.set_disk_space(diskSpace);
 
         ConfirmChunkReplicas(outputSessionId, chunkInfo, writtenReplicas, chunkMeta);
+    }
+
+    void CopyRegularChunk(const TChunkSpec& inputChunkSpec, NChunkClient::TSessionId outputSessionId)
+    {
+        auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
+        auto inputReplicas = NYT::FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
+
+        TRefCountedChunkMetaPtr chunkMeta;
+
+        auto reader = CreateReplicationReader(
+            ReaderConfig_,
+            New<TRemoteReaderOptions>(),
+            RemoteClient_,
+            Host_->GetInputNodeDirectory(),
+            Host_->LocalDescriptor(),
+            std::nullopt,
+            inputChunkId,
+            inputReplicas,
+            Host_->GetBlockCache(),
+            Host_->GetTrafficMeter(),
+            Host_->GetInBandwidthThrottler(),
+            Host_->GetOutRpsThrottler());
+
+        chunkMeta = GetChunkMeta({reader});
+
+        auto writer = CreateReplicationWriter(
+            WriterConfig_,
+            New<TRemoteWriterOptions>(),
+            outputSessionId,
+            TChunkReplicaWithMediumList(),
+            New<TNodeDirectory>(),
+            Host_->GetClient(),
+            GetNullBlockCache(),
+            Host_->GetTrafficMeter(),
+            Host_->GetOutBandwidthThrottler());
+
+        auto blocksExt = GetProtoExtension<TBlocksExt>(chunkMeta->extensions());
+
+        std::vector<i64> blockSizes;
+        for (const auto& block : blocksExt.blocks()) {
+            blockSizes.push_back(block.size());
+        }
+
+        i64 totalChunkSize = GetProtoExtension<TMiscExt>(chunkMeta->extensions()).compressed_data_size();
+
+        auto result = BIND(&TRemoteCopyJob::DoCopy, MakeStrong(this))
+            .AsyncVia(GetRemoteCopyInvoker())
+            .Run(reader, writer, blockSizes, chunkMeta);
+
+        YT_LOG_INFO("Waiting for chunk data to be copied");
+
+        WaitFor(result)
+            .ThrowOnError();
+
+        ChunkFinalizationResults_.push_back(BIND(&TRemoteCopyJob::FinalizeRegularChunk, MakeStrong(this))
+            .AsyncVia(GetRemoteCopyInvoker())
+            .Run(writer, chunkMeta, outputSessionId));
+
+        TotalSize_ -= totalChunkSize;
+        CopiedChunkCount_ += 1;
     }
 
     void FinalizeRegularChunk(
@@ -558,7 +754,7 @@ private:
             auto result = WaitFor(asyncResult);
 
             if (!result.IsOK()) {
-                FailedChunkId_ = reader->GetChunkId();
+                FailedChunkIds_.push_back(reader->GetChunkId());
                 THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error reading blocks");
             }
 
@@ -583,12 +779,22 @@ private:
     }
 
     // Request input chunk meta. Input and output chunk metas are the same.
-    TRefCountedChunkMetaPtr GetChunkMeta(const IChunkReaderPtr& reader)
+    TRefCountedChunkMetaPtr GetChunkMeta(const std::vector<IChunkReaderPtr>& readers)
     {
-        auto asyncResult = reader->GetMeta(BlockReadOptions_);
-        auto result = WaitFor(asyncResult);
+        // In erasure chunks some of the parts might be unavailable, but they all have the same meta,
+        // so we try to get meta from all of the readers simultaneously.
+        std::vector<TFuture<TRefCountedChunkMetaPtr>> asyncResults;
+        asyncResults.reserve(readers.size());
+        for (const auto& reader : readers) {
+            asyncResults.push_back(reader->GetMeta(BlockReadOptions_));
+        }
+
+        auto result = WaitFor(AnySucceeded(asyncResults));
         if (!result.IsOK()) {
-            FailedChunkId_ = reader->GetChunkId();
+            FailedChunkIds_.reserve(readers.size());
+            for (const auto& reader : readers) {
+                FailedChunkIds_.push_back(reader->GetChunkId());
+            }
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to get chunk meta");
         }
         return result.Value();

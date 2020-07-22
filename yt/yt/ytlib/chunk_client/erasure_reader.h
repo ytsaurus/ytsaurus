@@ -19,6 +19,20 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
+    TReplicationReaderConfigPtr config,
+    TRemoteReaderOptionsPtr options,
+    NApi::NNative::IClientPtr client,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    TChunkId chunkId,
+    const TChunkReplicaList& seedReplicas,
+    const NErasure::ICodec* codec,
+    const NErasure::TPartIndexList& partIndexList,
+    IBlockCachePtr blockCache = GetNullBlockCache(),
+    TTrafficMeterPtr trafficMeter = nullptr,
+    NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
+    NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,

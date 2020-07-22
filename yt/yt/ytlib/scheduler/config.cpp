@@ -1326,6 +1326,10 @@ TRemoteCopyOperationSpec::TRemoteCopyOperationSpec()
         .Default(64_MB);
     RegisterParameter("schema_inference_mode", SchemaInferenceMode)
         .Default(ESchemaInferenceMode::Auto);
+    RegisterParameter("delay_in_copy_chunk", DelayInCopyChunk)
+        .Default(TDuration::Zero());
+    RegisterParameter("erasure_chunk_repair_delay", ErasureChunkRepairDelay)
+        .Default(TDuration::Minutes(15));
 
     RegisterPreprocessor([&] {
         // NB: in remote copy operation chunks are never decompressed,

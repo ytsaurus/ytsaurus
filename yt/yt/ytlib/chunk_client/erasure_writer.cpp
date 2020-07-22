@@ -473,6 +473,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     ICodec* codec,
     TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
+    const TPartIndexList& partIndexList,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
@@ -498,15 +499,15 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     YT_VERIFY(replicas.size() == codec->GetTotalPartCount());
 
     std::vector<IChunkWriterPtr> writers;
-    for (int index = 0; index < codec->GetTotalPartCount(); ++index) {
+    for (auto partIndex : partIndexList) {
         auto partSessionId = TSessionId(
-            ErasurePartIdFromChunkId(sessionId.ChunkId, index),
+            ErasurePartIdFromChunkId(sessionId.ChunkId, partIndex),
             sessionId.MediumIndex);
         writers.push_back(CreateReplicationWriter(
             partConfig,
             options,
             partSessionId,
-            TChunkReplicaWithMediumList(1, replicas[index]),
+            TChunkReplicaWithMediumList(1, replicas[partIndex]),
             nodeDirectory,
             client,
             blockCache,
@@ -515,6 +516,34 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     }
 
     return writers;
+}
+
+std::vector<IChunkWriterPtr> CreateErasurePartWriters(
+    TReplicationWriterConfigPtr config,
+    TRemoteWriterOptionsPtr options,
+    TSessionId sessionId,
+    ICodec* codec,
+    TNodeDirectoryPtr nodeDirectory,
+    NApi::NNative::IClientPtr client,
+    TTrafficMeterPtr trafficMeter,
+    IThroughputThrottlerPtr throttler,
+    IBlockCachePtr blockCache)
+{
+    auto totalPartCount = codec->GetTotalPartCount();
+    TPartIndexList partIndexList(totalPartCount);
+    std::iota(partIndexList.begin(), partIndexList.end(), 0);
+
+    return CreateErasurePartWriters(
+        config,
+        options,
+        sessionId,
+        codec,
+        nodeDirectory,
+        client,
+        partIndexList,
+        trafficMeter,
+        throttler,
+        blockCache);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

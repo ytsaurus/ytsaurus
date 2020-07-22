@@ -475,6 +475,10 @@ message TRemoteCopyJobSpecExt
     required int32 concurrency = 2;
 
     required int64 block_buffer_size = 3;
+
+    optional int64 delay_in_copy_chunk = 4;
+
+    optional int64 erasure_chunk_repair_delay = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

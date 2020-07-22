@@ -32,6 +32,18 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     NErasure::ICodec* codec,
     NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
     NApi::NNative::IClientPtr client,
+    const NErasure::TPartIndexList& partIndexList,
+    TTrafficMeterPtr trafficMeter = nullptr,
+    NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
+    IBlockCachePtr blockCache = GetNullBlockCache());
+
+std::vector<IChunkWriterPtr> CreateErasurePartWriters(
+    TReplicationWriterConfigPtr config,
+    TRemoteWriterOptionsPtr options,
+    TSessionId sessionId,
+    NErasure::ICodec* codec,
+    NNodeTrackerClient::TNodeDirectoryPtr nodeDirectory,
+    NApi::NNative::IClientPtr client,
     TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     IBlockCachePtr blockCache = GetNullBlockCache());

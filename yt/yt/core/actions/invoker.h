@@ -71,7 +71,7 @@ struct ISuspendableInvoker
      */
     virtual void Resume() = 0;
 
-    //! Returns true when invoker is suspended (i.e. no callbacks are submitted
+    //! Returns true when invoker is suspended (i.e. no callbacks are submitted).
     virtual bool IsSuspended() = 0;
 };
 
