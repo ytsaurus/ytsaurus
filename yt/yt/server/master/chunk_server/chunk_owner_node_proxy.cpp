@@ -264,7 +264,7 @@ void BuildDynamicStoreSpec(
     auto* tablet = dynamicStore->GetTablet();
 
     ToProto(chunkSpec->mutable_chunk_id(), dynamicStore->GetId());
-    ToProto(chunkSpec->mutable_tablet_id(), tablet->GetId());
+    ToProto(chunkSpec->mutable_tablet_id(), GetObjectId(tablet));
 
     // Something non-zero.
     chunkSpec->set_row_count_override(1);

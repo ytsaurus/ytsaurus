@@ -38,6 +38,11 @@ public:
     void SetFlushedChunk(TChunk* chunk);
     bool IsFlushed() const;
 
+    // Dynamic store is abandoned if it was removed without flush if
+    // the tablet was forcefully removed or experienced overwrite bulk insert.
+    void Abandon();
+    bool IsAbandoned() const;
+
     void AddParent(TChunkList* parent);
     void RemoveParent(TChunkList* parent);
 
