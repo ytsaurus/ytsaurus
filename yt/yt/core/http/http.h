@@ -193,6 +193,8 @@ public:
 
     void MergeFrom(const THeadersPtr& headers);
 
+    std::vector<std::pair<TString, TString>> Dump() const;
+
 private:
     struct TEntry
     {

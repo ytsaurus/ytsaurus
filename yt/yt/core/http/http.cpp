@@ -168,6 +168,19 @@ void THeaders::MergeFrom(const THeadersPtr& headers)
     }
 }
 
+std::vector<std::pair<TString, TString>> THeaders::Dump() const
+{
+    std::vector<std::pair<TString, TString>> result;
+
+    for (const auto& pair : NameToEntry_) {
+        for (const auto& value : pair.second.Values) {
+            result.emplace_back(pair.second.OriginalHeaderName, value);
+        }
+    }
+
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString EscapeHeaderValue(TStringBuf value)
