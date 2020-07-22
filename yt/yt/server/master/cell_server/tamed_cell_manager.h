@@ -34,8 +34,8 @@ public:
     const TBundleNodeTrackerPtr& GetBundleNodeTracker();
 
     DECLARE_ENTITY_MAP_ACCESSORS(CellBundle, TCellBundle);
-    TCellBundle* FindCellBundleByName(const TString& name);
-    TCellBundle* GetCellBundleByNameOrThrow(const TString& name);
+    TCellBundle* FindCellBundleByName(const TString& name, bool activeLifeStageOnly);
+    TCellBundle* GetCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly);
     void RenameCellBundle(TCellBundle* cellBundle, const TString& newName);
     void SetCellBundleNodeTagFilter(TCellBundle* bundle, const TString& formula);
     void SetCellBundleOptions(TCellBundle* cellBundle, TTabletCellOptionsPtr options);

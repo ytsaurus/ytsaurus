@@ -260,9 +260,6 @@ class TNonversionedObjectBase
 {
 public:
     explicit TNonversionedObjectBase(TObjectId id);
-
-    //! Throws if the current life stage is not #EObjectLifeStage::CreationCommitted.
-    void ValidateActiveLifeStage() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -125,10 +125,10 @@ private:
     {
         DeclareNonMutating();
 
-        auto securityManager = Bootstrap_->GetSecurityManager();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         auto* user = request->has_user()
-            ? securityManager->GetUserByNameOrThrow(request->user())
+            ? securityManager->GetUserByNameOrThrow(request->user(), true /*activeLifeStageOnly*/)
             : securityManager->GetAuthenticatedUser();
         auto permission = EPermission(request->permission());
 

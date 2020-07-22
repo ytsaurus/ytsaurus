@@ -188,7 +188,7 @@ private:
             ObjectManager_->EphemeralUnrefObject(Transaction_);
         }
 
-        auto* user = SecurityManager_->FindUserByName(UserName_);
+        auto* user = SecurityManager_->FindUserByName(UserName_, true /*activeLifeStageOnly*/);
         SecurityManager_->ChargeUser(user, {EUserWorkloadType::Read, 0, TotalTime_});
 
         while (!Stack_.empty()) {

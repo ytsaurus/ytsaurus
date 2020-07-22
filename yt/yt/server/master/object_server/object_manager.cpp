@@ -31,6 +31,8 @@
 
 #include <yt/server/lib/election/election_manager.h>
 
+#include <yt/server/lib/hive/hive_manager.h>
+
 #include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/master/security_server/group.h>
@@ -204,6 +206,9 @@ public:
         TObjectId hintId,
         EObjectType type,
         IAttributeDictionary* attributes);
+
+    bool IsObjectLifeStageValid(const TObject* object) const;
+    void ValidateObjectLifeStage(const TObject* object) const;
 
     TObject* ResolvePathToObject(
         const TYPath& path,
@@ -1162,7 +1167,7 @@ std::unique_ptr<TMutation> TObjectManager::TImpl::CreateExecuteMutation(
 {
     NProto::TReqExecute request;
     WriteAuthenticationIdentityToProto(&request, identity);
-    
+
     auto requestMessage = context->GetRequestMessage();
     for (const auto& part : requestMessage) {
         request.add_request_parts(part.Begin(), part.Size());
@@ -1312,6 +1317,40 @@ TObject* TObjectManager::TImpl::CreateObject(
     }
 
     return object;
+}
+
+bool TObjectManager::TImpl::IsObjectLifeStageValid(const TObject* object) const
+{
+    YT_VERIFY(IsObjectAlive(object));
+
+    if (NHiveServer::IsHiveMutation()) {
+        return true;
+    }
+
+    if (object->GetLifeStage() == EObjectLifeStage::CreationCommitted) {
+        return true;
+    }
+
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+    if (multicellManager->IsSecondaryMaster() &&
+        object->GetLifeStage() == EObjectLifeStage::CreationPreCommitted)
+    {
+        return true;
+    }
+
+    return false;
+}
+
+void TObjectManager::TImpl::ValidateObjectLifeStage(const TObject* object) const
+{
+    if (!IsObjectLifeStageValid(object)) {
+        THROW_ERROR_EXCEPTION(
+            NObjectClient::EErrorCode::InvalidObjectLifeStage,
+            "%v cannot be used since it is in %Qlv life stage",
+            object->GetCapitalizedObjectName(),
+            object->GetLifeStage());
+    }
 }
 
 std::optional<TObject*> TObjectManager::TImpl::FindObjectByAttributes(
@@ -2221,6 +2260,16 @@ TFuture<void> TObjectManager::GCCollect()
 TObject* TObjectManager::CreateObject(TObjectId hintId, EObjectType type, IAttributeDictionary* attributes)
 {
     return Impl_->CreateObject(hintId, type, attributes);
+}
+
+bool TObjectManager::IsObjectLifeStageValid(const TObject* object) const
+{
+    return Impl_->IsObjectLifeStageValid(object);
+}
+
+void TObjectManager::ValidateObjectLifeStage(const TObject* object) const
+{
+    return Impl_->ValidateObjectLifeStage(object);
 }
 
 std::optional<TObject*> TObjectManager::FindObjectByAttributes(

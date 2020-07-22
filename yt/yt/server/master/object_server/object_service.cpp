@@ -1182,7 +1182,7 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
         if (!User_) {
-            User_ = securityManager->GetUserByNameOrThrow(UserName_);
+            User_ = securityManager->GetUserByNameOrThrow(UserName_, true /*activeLifeStageOnly*/);
             objectManager->EphemeralRefObject(User_);
         }
 

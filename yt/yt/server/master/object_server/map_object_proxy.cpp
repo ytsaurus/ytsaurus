@@ -213,7 +213,10 @@ void TNonversionedMapObjectProxyBase<TObject>::ValidateBeforeAttachChild(
     const TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>>& childProxy)
 {
     auto* impl = TBase::GetThisImpl();
-    impl->ValidateActiveLifeStage();
+
+    const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
+    objectManager->ValidateObjectLifeStage(impl);
+
     auto* childImpl = childProxy->GetThisImpl();
     if (childImpl->IsRoot()) {
         THROW_ERROR_EXCEPTION("Root object cannot have a parent")

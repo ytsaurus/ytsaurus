@@ -208,7 +208,7 @@ public:
 
         ValidateCellBundleName(name);
 
-        if (FindCellBundleByName(name)) {
+        if (FindCellBundleByName(name, false /*activeLifeStageOnly*/)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "Cell bundle %Qv already exists",
@@ -257,11 +257,11 @@ public:
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         if (currentOptions->SnapshotAccount != options->SnapshotAccount) {
-            auto* account = securityManager->GetAccountByNameOrThrow(options->SnapshotAccount);
+            auto* account = securityManager->GetAccountByNameOrThrow(options->SnapshotAccount, true /*activeLifeStageOnly*/);
             securityManager->ValidatePermission(account, EPermission::Use);
         }
         if (currentOptions->ChangelogAccount != options->ChangelogAccount) {
-            auto* account = securityManager->GetAccountByNameOrThrow(options->ChangelogAccount);
+            auto* account = securityManager->GetAccountByNameOrThrow(options->ChangelogAccount, true /*activeLifeStageOnly*/);
             securityManager->ValidatePermission(account, EPermission::Use);
         }
 
@@ -668,21 +668,44 @@ public:
             cell->GetId());
     }
 
-    TCellBundle* FindCellBundleByName(const TString& name)
+    TCellBundle* DoFindCellBundleByName(const TString& name)
     {
         auto it = NameToCellBundleMap_.find(name);
         return it == NameToCellBundleMap_.end() ? nullptr : it->second;
     }
 
-    TCellBundle* GetCellBundleByNameOrThrow(const TString& name)
+    TCellBundle* FindCellBundleByName(const TString& name, bool activeLifeStageOnly)
     {
-        auto* cellBundle = FindCellBundleByName(name);
+        auto* cellBundle = DoFindCellBundleByName(name);
+        if (!cellBundle) {
+            return cellBundle;
+        }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            return objectManager->IsObjectLifeStageValid(cellBundle)
+                ? cellBundle
+                : nullptr;
+        } else {
+            return cellBundle;
+        }
+    }
+
+    TCellBundle* GetCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly)
+    {
+        auto* cellBundle = DoFindCellBundleByName(name);
         if (!cellBundle) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
                 "No such tablet cell bundle %Qv",
                 name);
         }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(cellBundle);
+        }
+
         return cellBundle;
     }
 
@@ -694,7 +717,7 @@ public:
 
         ValidateCellBundleName(newName);
 
-        if (FindCellBundleByName(newName)) {
+        if (FindCellBundleByName(newName, false)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "Tablet cell bundle %Qv already exists",
@@ -1735,9 +1758,9 @@ private:
         if (peer.Node) {
             peer.Node->DetachTabletCell(cell);
         }
-        
+
         RemoveFromAddressToCellMap(descriptor, cell);
-        
+
         cell->RevokePeer(peerId, reason);
     }
 
@@ -1885,14 +1908,14 @@ void TTamedCellManager::RemoveCell(TCellBase* cell, bool force)
     return Impl_->RemoveCell(cell, force);
 }
 
-TCellBundle* TTamedCellManager::FindCellBundleByName(const TString& name)
+TCellBundle* TTamedCellManager::FindCellBundleByName(const TString& name, bool activeLifeStageOnly)
 {
-    return Impl_->FindCellBundleByName(name);
+    return Impl_->FindCellBundleByName(name, activeLifeStageOnly);
 }
 
-TCellBundle* TTamedCellManager::GetCellBundleByNameOrThrow(const TString& name)
+TCellBundle* TTamedCellManager::GetCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly)
 {
-    return Impl_->GetCellBundleByNameOrThrow(name);
+    return Impl_->GetCellBundleByNameOrThrow(name, activeLifeStageOnly);
 }
 
 void TTamedCellManager::RenameCellBundle(TCellBundle* cellBundle, const TString& newName)

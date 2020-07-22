@@ -1855,7 +1855,8 @@ public:
         ValidateNodeCloneMode(trunkSourceTable, mode);
 
         if (auto* cellBundle = trunkSourceTable->GetTabletCellBundle()) {
-            cellBundle->ValidateActiveLifeStage();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(cellBundle);
         }
     }
 
@@ -1870,7 +1871,8 @@ public:
 
         auto* cellBundle = trunkSourceTable->GetTabletCellBundle();
         if (cellBundle) {
-            cellBundle->ValidateActiveLifeStage();
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(cellBundle);
         }
     }
 
@@ -2280,15 +2282,21 @@ public:
         return cellBundle;
     }
 
-    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name)
+    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly)
     {
-        auto* cellBundle = FindTabletCellBundleByName(name);
+        auto* cellBundle = DoFindTabletCellBundleByName(name);
         if (!cellBundle) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
                 "No such tablet cell bundle %Qv",
                 name);
         }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(cellBundle);
+        }
+
         return cellBundle;
     }
 
@@ -2467,16 +2475,33 @@ private:
         }
     }
 
-    TTabletCellBundle* FindTabletCellBundleByName(const TString& name)
+    TTabletCellBundle* DoFindTabletCellBundleByName(const TString& name)
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        auto* bundle = cellManager->FindCellBundleByName(name);
+        auto* bundle = cellManager->FindCellBundleByName(name, false);
         if (!bundle) {
             return nullptr;
         }
         return bundle->GetType() == EObjectType::TabletCellBundle
             ? bundle->As<TTabletCellBundle>()
             : nullptr;
+    }
+
+    TTabletCellBundle* FindTabletCellBundleByName(const TString& name, bool activeLifeStageOnly)
+    {
+        auto* bundle = DoFindTabletCellBundleByName(name);
+        if (!bundle) {
+            return bundle;
+        }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            return objectManager->IsObjectLifeStageValid(bundle)
+                ? bundle
+                : nullptr;
+        } else {
+            return bundle;
+        }
     }
 
 
@@ -6545,9 +6570,9 @@ TTabletCellBundle* TTabletManager::FindTabletCellBundle(TTabletCellBundleId id)
     return Impl_->FindTabletCellBundle(id);
 }
 
-TTabletCellBundle* TTabletManager::GetTabletCellBundleByNameOrThrow(const TString& name)
+TTabletCellBundle* TTabletManager::GetTabletCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly)
 {
-    return Impl_->GetTabletCellBundleByNameOrThrow(name);
+    return Impl_->GetTabletCellBundleByNameOrThrow(name, activeLifeStageOnly);
 }
 
 TTabletCellBundle* TTabletManager::GetDefaultTabletCellBundle()

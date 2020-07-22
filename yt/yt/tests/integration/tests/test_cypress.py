@@ -1005,10 +1005,10 @@ class TestCypress(YTEnvSetup):
         create_user("u")
         with pytest.raises(YtError): remove("//sys/users/*")
         assert exists("//sys/users/u")
-        remove("//sys/users/u")
+        remove_user("u")
         assert not exists("//sys/users/u")
-        with pytest.raises(YtError): remove("//sys/users/u")
-        remove("//sys/users/u", force=True)
+        with pytest.raises(YtError): remove_user("u", sync_deletion=False)
+        remove_user("u", force=True)
 
     @authors("babenko")
     def test_link1(self):
