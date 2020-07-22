@@ -226,7 +226,7 @@ void FromUnversionedValue(
         *value = std::nullopt;
     } else {
         value->emplace();
-        FromUnversionedValue(&*value, unversionedValue);
+        FromUnversionedValue(&**value, unversionedValue);
     }
 }
 
