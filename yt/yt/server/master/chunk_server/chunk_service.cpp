@@ -174,7 +174,7 @@ private:
             auto* subresponse = response->add_subresponses();
 
             auto* dynamicStore = chunkManager->FindDynamicStore(storeId);
-            if (!IsObjectAlive(dynamicStore)) {
+            if (!IsObjectAlive(dynamicStore) || dynamicStore->IsAbandoned()) {
                 subresponse->set_missing(true);
                 continue;
             }

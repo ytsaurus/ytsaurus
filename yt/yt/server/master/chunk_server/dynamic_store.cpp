@@ -107,6 +107,16 @@ bool TDynamicStore::IsFlushed() const
     return Flushed_;
 }
 
+void TDynamicStore::Abandon()
+{
+    Tablet_ = nullptr;
+}
+
+bool TDynamicStore::IsAbandoned() const
+{
+    return Tablet_ == nullptr && !Flushed_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

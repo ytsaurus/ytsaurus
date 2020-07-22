@@ -1599,6 +1599,10 @@ public:
             auto* tabletChunkList = originatingChunkList->Children()[index]->AsChunkList();
             auto* tablet = originatingNode->Tablets()[index];
 
+            if (updateMode == EUpdateMode::Overwrite) {
+                AbandonDynamicStores(tablet);
+            }
+
             if (updateMode == EUpdateMode::Append) {
                 if (!appendChunkList->AsChunkList()->Children().empty()) {
                     chunkManager->AttachToChunkList(tabletChunkList, appendChunkList);
@@ -2242,6 +2246,10 @@ public:
 
     TNode* FindTabletLeaderNode(const TTablet* tablet) const
     {
+        if (!tablet) {
+            return nullptr;
+        }
+
         auto* cell = tablet->GetCell();
         if (!cell) {
             return nullptr;
@@ -4938,6 +4946,18 @@ private:
         table->AccountTabletStatisticsDelta(statisticsDelta);
     }
 
+    void AbandonDynamicStores(TTablet* tablet)
+    {
+        auto stores = EnumerateStoresInChunkTree(tablet->GetChunkList());
+        std::vector<TChunkTree*> dynamicStores;
+        for (auto* store : stores) {
+            if (IsDynamicTabletStoreType(store->GetType())) {
+                dynamicStores.push_back(store);
+                store->AsDynamicStore()->Abandon();
+            }
+        }
+    }
+
     void DoTabletUnmounted(TTablet* tablet)
     {
         auto* table = tablet->GetTable();
@@ -5959,6 +5979,7 @@ private:
         }
 
         if (force) {
+            AbandonDynamicStores(tablet);
             // NB: CopyChunkListIfShared may be called. It expects the table to be the owning node
             // of the root chunk list, which is not the case upon destruction.
             if (!onDestroy) {
