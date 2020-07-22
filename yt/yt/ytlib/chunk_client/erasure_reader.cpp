@@ -34,8 +34,6 @@ using namespace NErasureHelpers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
@@ -44,13 +42,18 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     TChunkId chunkId,
     const TChunkReplicaList& replicas,
     const ICodec* codec,
-    int partCount,
+    const TPartIndexList& partIndexList,
     IBlockCachePtr blockCache,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
 {
     YT_VERIFY(IsErasureChunkId(chunkId));
+    YT_VERIFY(std::is_sorted(partIndexList.begin(), partIndexList.end()));
+
+    auto totalPartCount = codec->GetTotalPartCount();
+    THashSet<int> partIndexSet(partIndexList.begin(), partIndexList.end());
+    YT_VERIFY(partIndexSet.size() == partIndexList.size());
 
     auto sortedReplicas = replicas;
     std::sort(
@@ -61,11 +64,12 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
         });
 
     std::vector<IChunkReaderPtr> readers;
-    readers.reserve(partCount);
+    readers.reserve(partIndexSet.size());
 
     {
+        int partIndex = 0;
         auto it = sortedReplicas.begin();
-        while (it != sortedReplicas.end() && it->GetReplicaIndex() < partCount) {
+        while (it != sortedReplicas.end() && it->GetReplicaIndex() < totalPartCount) {
             auto jt = it;
             while (jt != sortedReplicas.end() &&
                    it->GetReplicaIndex() == jt->GetReplicaIndex())
@@ -73,33 +77,34 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
                 ++jt;
             }
 
-            TChunkReplicaList partReplicas(it, jt);
-            auto partChunkId = ErasurePartIdFromChunkId(chunkId, it->GetReplicaIndex());
-            auto reader = CreateReplicationReader(
-                config,
-                options,
-                client,
-                nodeDirectory,
-                // Locality doesn't matter, since we typically have only one replica.
-                /* localDescriptor */ {},
-                /* partitionTag */ std::nullopt,
-                partChunkId,
-                partReplicas,
-                blockCache,
-                trafficMeter,
-                bandwidthThrottler,
-                rpsThrottler);
-            readers.push_back(reader);
+            if (partIndexSet.contains(partIndex)) {
+                TChunkReplicaList partReplicas(it, jt);
+                auto partChunkId = ErasurePartIdFromChunkId(chunkId, it->GetReplicaIndex());
+                auto reader = CreateReplicationReader(
+                    config,
+                    options,
+                    client,
+                    nodeDirectory,
+                    // Locality doesn't matter, since we typically have only one replica.
+                    /* localDescriptor */ {},
+                    /* partitionTag */ std::nullopt,
+                    partChunkId,
+                    partReplicas,
+                    blockCache,
+                    trafficMeter,
+                    bandwidthThrottler,
+                    rpsThrottler);
+                readers.push_back(reader);
+            }
 
             it = jt;
+            ++partIndex;
         }
     }
-    YT_VERIFY(readers.size() == partCount);
+    YT_VERIFY(readers.size() == partIndexSet.size());
 
     return readers;
 }
-
-} // namespace
 
 std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TReplicationReaderConfigPtr config,
@@ -114,6 +119,10 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler)
 {
+    auto partCount = codec->GetTotalPartCount();
+    TPartIndexList partIndexList(partCount);
+    std::iota(partIndexList.begin(), partIndexList.end(), 0);
+
     return CreateErasurePartsReaders(
         config,
         options,
@@ -122,7 +131,7 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
         chunkId,
         seedReplicas,
         codec,
-        codec->GetTotalPartCount(),
+        partIndexList,
         blockCache,
         std::move(trafficMeter),
         std::move(bandwidthThrottler),

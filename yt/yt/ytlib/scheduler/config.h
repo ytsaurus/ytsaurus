@@ -1283,6 +1283,12 @@ public:
 
     ESchemaInferenceMode SchemaInferenceMode;
 
+    //! For testing purposes only.
+    TDuration DelayInCopyChunk;
+
+    //! If a part of erasure chunk was not read within this timeout, repair starts.
+    TDuration ErasureChunkRepairDelay;
+
     TRemoteCopyOperationSpec();
 
 private:

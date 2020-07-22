@@ -421,6 +421,76 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         
         assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
+    @authors("gritukan")
+    def test_erasure_repair(self):
+        create("table", "//tmp/t1", driver=self.remote_driver)
+        create("table", "//tmp/t2")
+        set("//tmp/t1/@erasure_codec", "reed_solomon_6_3", driver=self.remote_driver)
+        write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
+
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False, driver=self.remote_driver)
+        multicell_sleep()
+
+        chunk_id = get("//tmp/t1/@chunk_ids/0", driver=self.remote_driver)
+        chunk_replicas = get("#{}/@stored_replicas".format(chunk_id), driver=self.remote_driver)
+
+        def run_operation():
+            op = remote_copy(track=False, in_="//tmp/t1", out="//tmp/t2",
+                             spec={"cluster_name": self.REMOTE_CLUSTER_NAME,
+                                   "max_failed_job_count": 1,
+                                   "delay_in_copy_chunk": 5000,
+                                   "erasure_chunk_repair_delay": 2000})
+            wait(lambda: len(op.get_running_jobs()) == 1)
+            return op
+
+        def check_everything():
+            assert get("//tmp/t2/@chunk_count") == 1
+            assert read_table("//tmp/t2") == [{"a": "b"}]
+
+        def set_banned_flag_for_part_nodes(part_indicies, banned_flag):
+            nodes_to_ban = []
+            for part_index in part_indicies:
+                nodes = list(str(r) for r in chunk_replicas if r.attributes["index"] == part_index)
+                nodes_to_ban += nodes
+            set_banned_flag(banned_flag, nodes_to_ban, driver=self.remote_driver)
+
+        def unban_all_nodes():
+            set_banned_flag_for_part_nodes(list(range(9)), False)        
+            wait(lambda: get("#{}/@available".format(chunk_id), driver=self.remote_driver))
+
+        op = run_operation()
+        # Some 3 parts are unavailable.
+        # NB(gritukan): Cannot ban node before job started because CA will not start job until
+        # all the parts were found.
+        set_banned_flag_for_part_nodes([0, 2, 5], True)
+        op.track()
+        check_everything()
+        unban_all_nodes()
+
+        op = run_operation()
+        # Some 4 parts are unavailable, repair is impossible.
+        set_banned_flag_for_part_nodes([0, 1, 3, 8], True)
+        time.sleep(8)
+        # Job freezes.
+        assert(len(op.get_running_jobs()) == 1)
+        # Unban one part, job should complete.
+        set_banned_flag_for_part_nodes([1], False)
+        op.track()
+        check_everything()
+        unban_all_nodes()
+
+        op = run_operation()
+        # All parts are unavailable, even chunk meta cannot be loaded.
+        set_banned_flag_for_part_nodes(list(range(9)), True)
+        time.sleep(8)
+        # Job freezes.
+        assert(len(op.get_running_jobs()) == 1)
+        # Unban first six parts, job should complete.
+        set_banned_flag_for_part_nodes(list(range(6)), False)
+        op.track()
+        check_everything()
+        unban_all_nodes()
+
 ##################################################################
 
 class TestSchedulerRemoteCopyNetworks(YTEnvSetup):

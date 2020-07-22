@@ -1228,6 +1228,8 @@ private:
         remoteCopyJobSpecExt->set_connection_config(ConvertToYsonString(connectionConfig).GetData());
         remoteCopyJobSpecExt->set_concurrency(Spec_->Concurrency);
         remoteCopyJobSpecExt->set_block_buffer_size(Spec_->BlockBufferSize);
+        remoteCopyJobSpecExt->set_delay_in_copy_chunk(ToProto<i64>(Spec_->DelayInCopyChunk));
+        remoteCopyJobSpecExt->set_erasure_chunk_repair_delay(ToProto<i64>(Spec_->ErasureChunkRepairDelay));
     }
 
     NNative::IConnectionPtr GetRemoteConnection() const
