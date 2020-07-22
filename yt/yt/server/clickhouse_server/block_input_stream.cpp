@@ -325,16 +325,6 @@ public:
         return UnderlyingStream_->getMissingValues();
     }
 
-    virtual bool isSortedOutput() const override
-    {
-        return UnderlyingStream_->isSortedOutput();
-    }
-
-    virtual const DB::SortDescription& getSortDescription() const override
-    {
-        return UnderlyingStream_->getSortDescription();
-    }
-
     virtual DB::Block getTotals() override
     {
         return UnderlyingStream_->getTotals();
