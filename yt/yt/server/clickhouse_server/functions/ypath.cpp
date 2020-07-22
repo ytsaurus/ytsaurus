@@ -90,7 +90,7 @@ public:
         return true;
     }
 
-    void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) override
+    void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) const override
     {
         const IColumn* columnYsonOrNull = block.getByPosition(arguments[0]).column.get();
         const IColumn* columnYson = columnYsonOrNull;
@@ -331,7 +331,7 @@ public:
         return true;
     }
 
-    void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) override
+    void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) const override
     {
         const IColumn* columnYsonOrNull = block.getByPosition(arguments[0]).column.get();
         const IColumn* columnYson = columnYsonOrNull;
@@ -453,7 +453,7 @@ public:
         return true;
     }
 
-    void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) override
+    void executeImpl(Block& block, const ColumnNumbers& arguments, size_t result, size_t inputRowCount) const override
     {
         const IColumn* columnYsonOrNull = block.getByPosition(arguments[0]).column.get();
         const IColumn* columnYson = columnYsonOrNull;
