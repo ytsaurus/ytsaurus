@@ -258,7 +258,7 @@ TEST_F(TTicketParserTvmTest, FetchesServiceTicket)
     auto service = CreateDefaultTvmService();
     auto result = service->GetTicket("TheDestination").Get();
     ASSERT_TRUE(result.IsOK());
-    EXPECT_EQ("service_ticket_1", result.ValueOrThrow());
+    EXPECT_EQ("3:serv:CBAQ__________9_IgYIKhCUkQY:CX", result.ValueOrThrow());
 
     result = service->GetTicket("AnotherDestination").Get();
     ASSERT_FALSE(result.IsOK());
