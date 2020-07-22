@@ -326,7 +326,7 @@ void ToUnversionedValue(TUnversionedValue* unversionedValue, TStringBuf value, c
 void FromUnversionedValue(TStringBuf* value, TUnversionedValue unversionedValue)
 {
     if (unversionedValue.Type == EValueType::Null) {
-        *value = TString();
+        *value = TStringBuf{};
         return;
     }
     if (unversionedValue.Type != EValueType::String) {
