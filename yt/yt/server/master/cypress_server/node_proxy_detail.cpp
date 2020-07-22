@@ -458,8 +458,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             const auto& securityManager = Bootstrap_->GetSecurityManager();
 
             auto name = ConvertTo<TString>(value);
-            auto* account = securityManager->GetAccountByNameOrThrow(name);
-            account->ValidateActiveLifeStage();
+            auto* account = securityManager->GetAccountByNameOrThrow(name, true /*activeLifeStageOnly*/);
 
             ValidateStorageParametersUpdate();
             ValidatePermission(account, EPermission::Use);
@@ -1513,8 +1512,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         auto optionalAccount = explicitAttributes->FindAndRemove<TString>("account");
         if (optionalAccount) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            account = securityManager->GetAccountByNameOrThrow(*optionalAccount);
-            account->ValidateActiveLifeStage();
+            account = securityManager->GetAccountByNameOrThrow(*optionalAccount, true /*activeLifeStageOnly*/);
         }
     }
 
@@ -2110,9 +2108,7 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
             auto name = ConvertTo<TString>(value);
 
             const auto& tabletManager = Bootstrap_->GetTabletManager();
-            auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name);
-            newBundle->ValidateActiveLifeStage();
-
+            auto* newBundle = tabletManager->GetTabletCellBundleByNameOrThrow(name, true /*activeLifeStageOnly*/);
             tabletManager->SetTabletCellBundle(node, newBundle);
 
             return true;
@@ -2336,8 +2332,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
     if (key == "tablet_cell_bundle") {
         auto bundleName = ConvertTo<TString>(value);
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName);
-        bundle->ValidateActiveLifeStage();
+        auto* bundle = tabletManager->GetTabletCellBundleByNameOrThrow(bundleName, true /*activeLifeStageOnly*/);
         InheritedAttributes_.TabletCellBundle = bundle;
         return;
     }

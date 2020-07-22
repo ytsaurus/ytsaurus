@@ -135,9 +135,8 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     const auto& tabletManager = this->Bootstrap_->GetTabletManager();
     auto* tabletCellBundle = optionalTabletCellBundleName
-        ? tabletManager->GetTabletCellBundleByNameOrThrow(*optionalTabletCellBundleName)
+        ? tabletManager->GetTabletCellBundleByNameOrThrow(*optionalTabletCellBundleName, true /*activeLifeStageOnly*/)
         : tabletManager->GetDefaultTabletCellBundle();
-    tabletCellBundle->ValidateActiveLifeStage();
 
     auto nodeHolder = this->DoCreateImpl(
         id,
@@ -339,7 +338,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
 
     auto* bundle = Load<TTabletCellBundle*>(*context);
     if (bundle) {
-        bundle->ValidateActiveLifeStage();
+        const auto& objectManager = this->Bootstrap_->GetObjectManager();
+        objectManager->ValidateObjectLifeStage(bundle);
         tabletManager->SetTabletCellBundle(node, bundle);
     }
 

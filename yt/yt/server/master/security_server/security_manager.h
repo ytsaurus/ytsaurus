@@ -130,10 +130,10 @@ public:
     TAccount* GetAccountOrThrow(TAccountId id);
 
     //! Returns account with a given name (|nullptr| if none).
-    TAccount* FindAccountByName(const TString& name);
+    TAccount* FindAccountByName(const TString& name, bool activeLifeStageOnly);
 
     //! Returns account with a given name (throws if none).
-    TAccount* GetAccountByNameOrThrow(const TString& name);
+    TAccount* GetAccountByNameOrThrow(const TString& name, bool activeLifeStageOnly);
 
     //! Returns "root" built-in account.
     TAccount* GetRootAccount();
@@ -214,13 +214,13 @@ public:
 
 
     //! Returns user with a given name (|nullptr| if none).
-    TUser* FindUserByName(const TString& name);
+    TUser* FindUserByName(const TString& name, bool activeLifeStageOnly);
 
     //! Returns user with a given name or alias (|nullptr| if none).
-    TUser* FindUserByNameOrAlias(const TString& name);
+    TUser* FindUserByNameOrAlias(const TString& name, bool activeLifeStageOnly);
 
     //! Returns user with a given name (throws if none).
-    TUser* GetUserByNameOrThrow(const TString& name);
+    TUser* GetUserByNameOrThrow(const TString& name, bool activeLifeStageOnly);
 
     //! Finds user by id, throws if nothing is found.
     TUser* GetUserOrThrow(TUserId id);
@@ -255,10 +255,10 @@ public:
     TSubject* GetSubjectOrThrow(TSubjectId id);
 
     //! Returns subject (a user or a group) with a given name or alias (|nullptr| if none).
-    TSubject* FindSubjectByNameOrAlias(const TString& name);
+    TSubject* FindSubjectByNameOrAlias(const TString& name, bool activeLifeStageOnly);
 
     //! Returns subject (a user or a group) with a given name or alias (throws if none).
-    TSubject* GetSubjectByNameOrAliasOrThrow(const TString& name);
+    TSubject* GetSubjectByNameOrAliasOrThrow(const TString& name, bool activeLifeStageOnly);
 
     //! Adds a new member into the group. Throws on failure.
     void AddMember(TGroup* group, TSubject* member, bool ignoreExisting);

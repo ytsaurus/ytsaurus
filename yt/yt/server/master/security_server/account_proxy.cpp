@@ -56,7 +56,7 @@ protected:
     virtual TBasePtr ResolveNameOrThrow(const TString& name) override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = securityManager->GetAccountByNameOrThrow(name);
+        auto* account = securityManager->GetAccountByNameOrThrow(name, true /*activeLifeStageOnly*/);
         return GetProxy(account);
     }
 
@@ -106,7 +106,7 @@ private:
     {
         TNonversionedMapObjectProxyBase::ValidateChildNameAvailability(childName);
 
-        if (Bootstrap_->GetSecurityManager()->FindAccountByName(childName)) {
+        if (Bootstrap_->GetSecurityManager()->FindAccountByName(childName, false /*activeLifeStageOnly*/)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "Account %Qv already exists",
@@ -330,7 +330,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         auto* impl = GetThisImpl();
-        auto* srcAccount = securityManager->GetAccountByNameOrThrow(request->src_account());
+        auto* srcAccount = securityManager->GetAccountByNameOrThrow(request->src_account(), true /*activeLifeStageOnly*/);
         auto serializableResourceDelta = ConvertTo<TSerializableClusterResourcesPtr>(
             TYsonString(request->resource_delta()));
         auto resourceDelta = serializableResourceDelta->ToClusterResources(chunkManager);

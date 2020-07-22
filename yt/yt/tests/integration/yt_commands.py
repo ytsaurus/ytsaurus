@@ -1284,19 +1284,22 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
     else:
         set_master_memory = True
 
+    driver = kwargs.get("driver")
+
     execute_command("create", kwargs)
     if sync:
-        wait(lambda: get("//sys/accounts/{0}/@life_stage".format(name)) == 'creation_committed')
+        wait(lambda: exists("//sys/accounts/{0}".format(name), driver=driver) and get("//sys/accounts/{0}/@life_stage".format(name), driver=driver) == 'creation_committed')
     if set_master_memory:
-        set("//sys/accounts/{0}/@resource_limits/master_memory".format(name), 100000)
+        set("//sys/accounts/{0}/@resource_limits/master_memory".format(name), 100000, driver=driver)
 
 def remove_account(name, **kwargs):
-    gc_collect(kwargs.get("driver"))
+    driver = kwargs.get("driver")
+    gc_collect(driver)
     sync = kwargs.pop('sync_deletion', True)
     account_path = "//sys/accounts/" + name
     remove(account_path, **kwargs)
     if sync:
-        wait(lambda: not exists(account_path))
+        wait(lambda: not exists(account_path, driver=driver))
 
 def create_pool_tree(name, wait_for_orchid=True, **kwargs):
     kwargs["type"] = "scheduler_pool_tree"
@@ -1329,8 +1332,18 @@ def create_user(name, **kwargs):
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
+    driver = kwargs.get("driver")
     execute_command("create", kwargs)
-    wait(lambda: get("//sys/users/{0}/@life_stage".format(name)) == "creation_committed")
+    wait(lambda: exists("//sys/users/{0}".format(name), driver=driver) and get("//sys/users/{0}/@life_stage".format(name), driver=driver) == "creation_committed")
+
+def remove_user(name, **kwargs):
+    driver = kwargs.get("driver")
+    gc_collect(driver)
+    sync = kwargs.pop("sync_deletion", True)
+    user_path = "//sys/users/" + name
+    remove(user_path, **kwargs)
+    if sync:
+        wait(lambda: not exists(user_path, driver=driver))
 
 def make_random_string(length=10):
     return "".join(random.choice(string.letters) for _ in xrange(length))
@@ -1359,16 +1372,12 @@ def enable_op_detailed_logs(op):
         }
     })
 
-def remove_user(name, **kwargs):
-    remove("//sys/users/" + name, **kwargs)
-
 def create_group(name, **kwargs):
     kwargs["type"] = "group"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
     execute_command("create", kwargs)
-    wait(lambda: get("//sys/groups/{0}/@life_stage".format(name)) == "creation_committed")
 
 def remove_group(name, **kwargs):
     remove("//sys/groups/" + name, **kwargs)
@@ -1411,7 +1420,7 @@ def create_tablet_cell_bundle(name, initialize_options=True, **kwargs):
             if option not in kwargs["attributes"]["options"]:
                 kwargs["attributes"]["options"][option] = "sys"
     execute_command("create", kwargs)
-    wait(lambda: get("//sys/tablet_cell_bundles/{0}/@life_stage".format(name)) == "creation_committed")
+    wait(lambda: exists("//sys/tablet_cell_bundles/{0}".format(name)) and get("//sys/tablet_cell_bundles/{0}/@life_stage".format(name)) == "creation_committed")
 
 def remove_tablet_cell_bundle(name, driver=None):
     remove("//sys/tablet_cell_bundles/" + name, driver=driver)

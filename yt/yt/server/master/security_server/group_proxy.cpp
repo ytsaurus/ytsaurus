@@ -76,7 +76,7 @@ private:
     TSubject* GetSubject(const TString& name)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* subject = securityManager->FindSubjectByNameOrAlias(name);
+        auto* subject = securityManager->FindSubjectByNameOrAlias(name, false /*activeLifeStageOnly*/);
         if (!IsObjectAlive(subject)) {
             THROW_ERROR_EXCEPTION("No such user or group %Qv",
                 name);

@@ -1102,7 +1102,7 @@ public:
     virtual void OnTimeSpent(TDuration time) override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->FindUserByName(UserName_);
+        auto* user = securityManager->FindUserByName(UserName_, true /*activeLifeStageOnly*/);
         securityManager->ChargeUser(user, {EUserWorkloadType::Read, 0, time});
     }
 

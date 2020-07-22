@@ -3128,13 +3128,8 @@ class TestAccountTree(AccountsTestSuiteBase):
         create("map_node", "//tmp/test", attributes={"account": "yt-dev"})
         remove_account("yt-dev", sync_deletion=False)
 
-        transfer_account_resources("yt-dev", "yt-prod", {"node_count": 4})
-        assert self._get_account_node_count_limit("yt-dev") == 1
-        assert self._get_account_node_count_limit("yt-prod") == 9
-
-        transfer_account_resources("yt-prod", "yt-dev", {"node_count": 6})
-        assert self._get_account_node_count_limit("yt-dev") == 7
-        assert self._get_account_node_count_limit("yt-prod") == 3
+        with pytest.raises(YtError):
+            transfer_account_resources("yt-dev", "yt-prod", {"node_count": 4})
 
         remove("//tmp/test")
         wait(lambda: not exists("//sys/accounts/yt-dev"))

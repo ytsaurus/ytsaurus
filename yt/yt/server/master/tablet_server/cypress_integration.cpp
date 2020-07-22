@@ -202,7 +202,7 @@ private:
     virtual IYPathServicePtr FindItemService(TStringBuf key) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        auto* cellBundle = cellManager->FindCellBundleByName(TString(key));
+        auto* cellBundle = cellManager->FindCellBundleByName(TString(key), false /*activeLifeStageOnly*/);
         if (!IsObjectAlive(cellBundle)) {
             return nullptr;
         }

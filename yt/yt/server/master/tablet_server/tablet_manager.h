@@ -163,7 +163,7 @@ public:
 
     TTabletCellBundle* FindTabletCellBundle(TTabletCellBundleId id);
     TTabletCellBundle* GetTabletCellBundleOrThrow(TTabletCellBundleId id);
-    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name);
+    TTabletCellBundle* GetTabletCellBundleByNameOrThrow(const TString& name, bool activeLifeStageOnly);
     TTabletCellBundle* GetDefaultTabletCellBundle();
     void SetTabletCellBundle(NTableServer::TTableNode* table, TTabletCellBundle* cellBundle);
     void SetTabletCellBundle(NCypressServer::TCompositeNodeBase* node, TTabletCellBundle* cellBundle);

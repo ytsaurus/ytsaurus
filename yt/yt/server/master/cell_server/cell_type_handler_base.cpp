@@ -49,8 +49,10 @@ NObjectServer::TObject* TCellTypeHandlerBase<TImpl>::DoCreateObject(
     auto cellBundleName = attributes->GetAndRemove("tablet_cell_bundle", DefaultCellBundleName);
 
     const auto& cellManager = TBase::Bootstrap_->GetTamedCellManager();
-    auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(cellBundleName);
-    cellBundle->ValidateActiveLifeStage();
+    auto* cellBundle = cellManager->GetCellBundleByNameOrThrow(cellBundleName, true /*activeLifeStageOnly*/);
+
+    const auto& objectManager = TBase::Bootstrap_->GetObjectManager();
+    objectManager->ValidateObjectLifeStage(cellBundle);
 
     return cellManager->CreateCell(cellBundle, std::move(holder));
 }

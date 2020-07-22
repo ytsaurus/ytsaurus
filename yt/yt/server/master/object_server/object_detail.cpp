@@ -192,7 +192,7 @@ DEFINE_YPATH_SERVICE_METHOD(TObjectProxyBase, CheckPermission)
             "check for announces at https://infra.yandex-team.ru before reporting any issues");
     }
 
-    auto* user = securityManager->GetUserByNameOrThrow(userName);
+    auto* user = securityManager->GetUserByNameOrThrow(userName, true /*activeLifeStageOnly*/);
 
     auto checkResponse = securityManager->CheckPermission(Object_, user, permission, std::move(checkOptions));
 
@@ -680,7 +680,7 @@ bool TObjectProxyBase::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
             ValidateNoTransaction();
 
             auto name = ConvertTo<TString>(value);
-            auto* owner = securityManager->GetSubjectByNameOrAliasOrThrow(name);
+            auto* owner = securityManager->GetSubjectByNameOrAliasOrThrow(name, true /*activeLifeStageOnly*/);
             auto* user = securityManager->GetAuthenticatedUser();
             auto* superusers = securityManager->GetSuperusersGroup();
             if (user != owner && user->RecursiveMemberOf().find(superusers) == user->RecursiveMemberOf().end()) {

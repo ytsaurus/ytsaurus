@@ -118,7 +118,7 @@ TAuthenticatedUserGuard::TAuthenticatedUserGuard(
     TSecurityManagerPtr securityManager,
     NRpc::TAuthenticationIdentity identity)
 {
-    User_ = securityManager->GetUserByNameOrThrow(identity.User);
+    User_ = securityManager->GetUserByNameOrThrow(identity.User, true /*activeLifeStageOnly*/);
 
     securityManager->SetAuthenticatedUser(User_);
     SecurityManager_ = std::move(securityManager);
@@ -220,7 +220,9 @@ public:
             ETypeFlags::ReplicateDestroy |
             ETypeFlags::ReplicateAttributes |
             ETypeFlags::Creatable |
-            ETypeFlags::Removable;
+            ETypeFlags::Removable |
+            ETypeFlags::TwoPhaseCreation |
+            ETypeFlags::TwoPhaseRemoval;
     }
 
     virtual TCellTagList DoGetReplicationCellTags(const TUser* /*object*/) override
@@ -439,7 +441,7 @@ public:
         return account;
     }
 
-    TAccount* FindAccountByName(const TString& name)
+    TAccount* DoFindAccountByName(const TString& name)
     {
         // Access buggy parentless accounts by id.
         if (name.StartsWith(NObjectClient::ObjectIdPathPrefix)) {
@@ -457,15 +459,38 @@ public:
         return IsObjectAlive(account) ? account : nullptr;
     }
 
-    TAccount* GetAccountByNameOrThrow(const TString& name)
+    TAccount* FindAccountByName(const TString& name, bool activeLifeStageOnly)
     {
-        auto* account = FindAccountByName(name);
+        auto* account = DoFindAccountByName(name);
+        if (!account) {
+            return account;
+        }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            return objectManager->IsObjectLifeStageValid(account)
+                ? account
+                : nullptr;
+        } else {
+            return account;
+        }
+    }
+
+    TAccount* GetAccountByNameOrThrow(const TString& name, bool activeLifeStageOnly)
+    {
+        auto* account = DoFindAccountByName(name);
         if (!account) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::NoSuchAccount,
                 "No such account %Qv",
                 name);
         }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(account);
+        }
+
         return account;
     }
 
@@ -942,30 +967,54 @@ public:
             .Item("name").Value(user->GetName());
     }
 
-    TUser* FindUserByName(const TString& name)
+    TUser* DoFindUserByName(const TString& name)
     {
         auto it = UserNameMap_.find(name);
         return it == UserNameMap_.end() ? nullptr : it->second;
     }
 
-    TUser* FindUserByNameOrAlias(const TString& name)
+    TUser* FindUserByName(const TString& name, bool activeLifeStageOnly)
     {
-        auto* subjectByAlias = FindSubjectByAlias(name);
+        auto* user = DoFindUserByName(name);
+        if (!user) {
+            return user;
+        }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            return objectManager->IsObjectLifeStageValid(user)
+                ? user
+                : nullptr;
+        } else {
+            return user;
+        }
+    }
+
+    TUser* FindUserByNameOrAlias(const TString& name, bool activeLifeStageOnly)
+    {
+        auto* subjectByAlias = FindSubjectByAlias(name, activeLifeStageOnly);
         if (subjectByAlias && subjectByAlias->IsUser()) {
             return subjectByAlias->AsUser();
         }
-        return FindUserByName(name);
+        return FindUserByName(name, activeLifeStageOnly);
     }
 
-    TUser* GetUserByNameOrThrow(const TString& name)
+    TUser* GetUserByNameOrThrow(const TString& name, bool activeLifeStageOnly)
     {
-        auto* user = FindUserByName(name);
+        auto* user = DoFindUserByName(name);
+
         if (!IsObjectAlive(user)) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
                 "No such user %Qv; create user by requesting any IDM role on this cluster",
                 name);
         }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(user);
+        }
+
         return user;
     }
 
@@ -1036,19 +1085,25 @@ public:
             .Item("name").Value(group->GetName());
     }
 
-    TGroup* FindGroupByName(const TString& name)
+    // This is here just for the sake of symmetry with user and account counterparts.
+    TGroup* DoFindGroupByName(const TString& name)
     {
         auto it = GroupNameMap_.find(name);
         return it == GroupNameMap_.end() ? nullptr : it->second;
     }
 
+    TGroup* FindGroupByName(const TString& name)
+    {
+        return DoFindGroupByName(name);
+    }
+
     TGroup* FindGroupByNameOrAlias(const TString& name)
     {
-        auto* subjectByAlias = FindSubjectByAlias(name);
+        auto* subjectByAlias = DoFindSubjectByAlias(name);
         if (subjectByAlias && subjectByAlias->IsGroup()) {
             return subjectByAlias->AsGroup();
         }
-        return FindGroupByName(name);
+        return DoFindGroupByName(name);
     }
 
     TGroup* GetEveryoneGroup()
@@ -1122,36 +1177,79 @@ public:
             .Item("name").Value(networkProject->GetName());
     }
 
-    TSubject* FindSubjectByAlias(const TString& alias)
+    TSubject* DoFindSubjectByAlias(const TString& alias)
     {
         auto it = SubjectAliasMap_.find(alias);
         return it == SubjectAliasMap_.end() ? nullptr : it->second;
     }
 
-    TSubject* FindSubjectByNameOrAlias(const TString& name)
+    TSubject* FindSubjectByAlias(const TString& alias, bool activeLifeStageOnly)
     {
-        auto* user = FindUserByName(name);
+        auto* subject = DoFindSubjectByAlias(alias);
+        if (!subject) {
+            return subject;
+        }
+
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            return objectManager->IsObjectLifeStageValid(subject)
+                ? subject
+                : nullptr;
+        } else {
+            return subject;
+        }
+    }
+
+    TSubject* FindSubjectByNameOrAlias(const TString& name, bool activeLifeStageOnly)
+    {
+        auto* user = FindUserByName(name, activeLifeStageOnly);
         if (user) {
             return user;
         }
+
         auto* group = FindGroupByName(name);
         if (group) {
             return group;
         }
-        auto* subjectByAlias = FindSubjectByAlias(name);
+
+        auto* subjectByAlias = FindSubjectByAlias(name, activeLifeStageOnly);
         if (subjectByAlias) {
             return subjectByAlias;
         }
+
         return nullptr;
     }
 
-    TSubject* GetSubjectByNameOrAliasOrThrow(const TString& name)
+    TSubject* GetSubjectByNameOrAliasOrThrow(const TString& name, bool activeLifeStageOnly)
     {
-        auto* subject = FindSubjectByNameOrAlias(name);
-        if (!IsObjectAlive(subject)) {
-            THROW_ERROR_EXCEPTION("No such subject %Qv", name);
+        auto validateLifeStage = [&] (TSubject* subject) {
+            if (activeLifeStageOnly) {
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                objectManager->ValidateObjectLifeStage(subject);
+            }
+        };
+
+        auto* user = DoFindUserByName(name);
+        if (user) {
+            validateLifeStage(user);
+            return user;
         }
-        return subject;
+
+        auto* group = DoFindGroupByName(name);
+        if (group) {
+            return group;
+        }
+
+        auto* subjectByAlias = DoFindSubjectByAlias(name);
+        if (subjectByAlias) {
+            validateLifeStage(subjectByAlias);
+            return subjectByAlias;
+        }
+
+        THROW_ERROR_EXCEPTION(
+            NSecurityClient::EErrorCode::NoSuchSubject,
+            "No such subject %Qv",
+            name);
     }
 
     TNetworkProject* FindNetworkProjectByName(const TString& name)
@@ -1577,7 +1675,8 @@ public:
             return;
         }
 
-        account->ValidateActiveLifeStage();
+        const auto& objectManager = this->Bootstrap_->GetObjectManager();
+        objectManager->ValidateObjectLifeStage(account);
 
         if (!allowRootAccount && account == GetRootAccount()) {
             THROW_ERROR_EXCEPTION("Root account cannot be used");
@@ -3077,14 +3176,14 @@ private:
         if (name.empty()) {
             THROW_ERROR_EXCEPTION("Subject name cannot be empty");
         }
-        auto* subjectByAlias = FindSubjectByAlias(name);
+        auto* subjectByAlias = FindSubjectByAlias(name, false /*activeLifeStageOnly*/);
         if (subjectByAlias) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "Alias %Qv already exists and points to %Qv",
                 name, subjectByAlias->GetName());
         }
-        if (FindUserByName(name)) {
+        if (FindUserByName(name, false /*activeLifeStageOnly*/)) {
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::AlreadyExists,
                 "User %Qv already exists",
@@ -3483,7 +3582,7 @@ TObject* TSecurityManager::TAccountTypeHandler::CreateObject(
 {
     auto name = attributes->GetAndRemove<TString>("name");
     auto parentName = attributes->GetAndRemove<TString>("parent_name", NSecurityClient::RootAccountName);
-    auto* parent = Owner_->GetAccountByNameOrThrow(parentName);
+    auto* parent = Owner_->GetAccountByNameOrThrow(parentName, true /*activeLifeStageOnly*/);
     attributes->Set("hint_id", hintId);
 
     auto* account = CreateObjectImpl(name, parent, attributes);
@@ -3500,7 +3599,7 @@ std::optional<TObject*> TSecurityManager::TAccountTypeHandler::FindObjectByAttri
 {
     auto name = attributes->Get<TString>("name");
     auto parentName = attributes->Get<TString>("parent_name", RootAccountName);
-    auto* parent = Owner_->GetAccountByNameOrThrow(parentName);
+    auto* parent = Owner_->GetAccountByNameOrThrow(parentName, true /*activeLifeStageOnly*/);
 
     return parent->FindChild(name);
 }
@@ -3643,14 +3742,14 @@ TAccount* TSecurityManager::GetAccountOrThrow(TAccountId id)
     return Impl_->GetAccountOrThrow(id);
 }
 
-TAccount* TSecurityManager::FindAccountByName(const TString& name)
+TAccount* TSecurityManager::FindAccountByName(const TString& name, bool activeLifeStageOnly)
 {
-    return Impl_->FindAccountByName(name);
+    return Impl_->FindAccountByName(name, activeLifeStageOnly);
 }
 
-TAccount* TSecurityManager::GetAccountByNameOrThrow(const TString& name)
+TAccount* TSecurityManager::GetAccountByNameOrThrow(const TString& name, bool activeLifeStageOnly)
 {
-    return Impl_->GetAccountByNameOrThrow(name);
+    return Impl_->GetAccountByNameOrThrow(name, activeLifeStageOnly);
 }
 
 TAccount* TSecurityManager::GetRootAccount()
@@ -3739,19 +3838,19 @@ void TSecurityManager::ResetAccount(TCypressNode* node)
     Impl_->ResetAccount(node);
 }
 
-TUser* TSecurityManager::FindUserByName(const TString& name)
+TUser* TSecurityManager::FindUserByName(const TString& name, bool activeLifeStageOnly)
 {
-    return Impl_->FindUserByName(name);
+    return Impl_->FindUserByName(name, activeLifeStageOnly);
 }
 
-TUser* TSecurityManager::FindUserByNameOrAlias(const TString& name)
+TUser* TSecurityManager::FindUserByNameOrAlias(const TString& name, bool activeLifeStageOnly)
 {
-    return Impl_->FindUserByNameOrAlias(name);
+    return Impl_->FindUserByNameOrAlias(name, activeLifeStageOnly);
 }
 
-TUser* TSecurityManager::GetUserByNameOrThrow(const TString& name)
+TUser* TSecurityManager::GetUserByNameOrThrow(const TString& name, bool activeLifeStageOnly)
 {
-    return Impl_->GetUserByNameOrThrow(name);
+    return Impl_->GetUserByNameOrThrow(name, activeLifeStageOnly);
 }
 
 TUser* TSecurityManager::GetUserOrThrow(TUserId id)
@@ -3804,14 +3903,14 @@ TSubject* TSecurityManager::GetSubjectOrThrow(TSubjectId id)
     return Impl_->GetSubjectOrThrow(id);
 }
 
-TSubject* TSecurityManager::FindSubjectByNameOrAlias(const TString& name)
+TSubject* TSecurityManager::FindSubjectByNameOrAlias(const TString& name, bool activeLifeStageOnly)
 {
-    return Impl_->FindSubjectByNameOrAlias(name);
+    return Impl_->FindSubjectByNameOrAlias(name, activeLifeStageOnly);
 }
 
-TSubject* TSecurityManager::GetSubjectByNameOrAliasOrThrow(const TString& name)
+TSubject* TSecurityManager::GetSubjectByNameOrAliasOrThrow(const TString& name, bool activeLifeStageOnly)
 {
-    return Impl_->GetSubjectByNameOrAliasOrThrow(name);
+    return Impl_->GetSubjectByNameOrAliasOrThrow(name, activeLifeStageOnly);
 }
 
 TNetworkProject* TSecurityManager::FindNetworkProjectByName(const TString& name)

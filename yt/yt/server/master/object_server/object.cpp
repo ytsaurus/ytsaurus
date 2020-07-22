@@ -5,8 +5,6 @@
 
 #include <yt/server/master/cypress_server/node.h>
 
-#include <yt/server/lib/hive/hive_manager.h>
-
 #include <yt/client/object_client/helpers.h>
 
 namespace NYT::NObjectServer {
@@ -124,19 +122,6 @@ void TObject::Load(NCellMaster::TLoadContext& context)
     }
     if (Load<bool>(context)) {
         SetForeign();
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TNonversionedObjectBase::ValidateActiveLifeStage() const
-{
-    if (LifeStage_ != EObjectLifeStage::CreationCommitted && !NHiveServer::IsHiveMutation()) {
-        THROW_ERROR_EXCEPTION(
-            NObjectClient::EErrorCode::InvalidObjectLifeStage,
-            "%v cannot be used since it is in %Qlv life stage",
-            GetCapitalizedObjectName(),
-            LifeStage_);
     }
 }
 
