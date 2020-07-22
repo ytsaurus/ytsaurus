@@ -670,6 +670,26 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTabletNodeDynamicConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Maximum number of Tablet Managers to run.
+    //! If set, overrides corresponding value in TResourceLimitsConfig.
+    // COMPAT(gritukan): Drop optional.
+    std::optional<int> Slots;
+
+    TTabletNodeDynamicConfig()
+    {
+        RegisterParameter("slots", Slots)
+            .Default();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletNodeDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeConfig
     : public NYTree::TYsonSerializable
 {

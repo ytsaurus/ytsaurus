@@ -33,11 +33,20 @@ public:
     bool IsOutOfMemory() const;
     bool IsRotationForced(i64 passiveUsage) const;
 
+    //! Sets the total number of tablet slots.
+    void SetTabletSlotCount(int slotCount);
+
+    //! Returns the total number of tablet slots.
+    int GetTotalTabletSlotCount() const;
+
     //! Returns the number of available (not used) slots.
     int GetAvailableTabletSlotCount() const;
 
     //! Returns the number of currently used slots.
     int GetUsedTabletSlotCount() const;
+
+    //! Returns |true| if there are free tablet slots and |false| otherwise.
+    bool HasFreeTabletSlots() const;
 
     //! Returns fraction of cpu used by tablet slots (in terms of resource limits).
     double GetUsedCpu(double cpuPerTabletSlot) const;

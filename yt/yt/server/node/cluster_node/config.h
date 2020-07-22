@@ -405,12 +405,19 @@ public:
     //! Node resource limits.
     TResourceLimitsConfigPtr ResourceLimits;
 
+    //! Tablet node configuration part.
+    NTabletNode::TTabletNodeDynamicConfigPtr TabletNode;
+
     TClusterNodeDynamicConfig()
     {
         RegisterParameter("config_annotation", ConfigAnnotation)
             .Optional();
+
         RegisterParameter("resource_limits", ResourceLimits)
             .Default();
+
+        RegisterParameter("tablet_node", TabletNode)
+            .DefaultNew();
 
         RegisterPostprocessor([&] {
             if (ResourceLimits) {
