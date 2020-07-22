@@ -1,5 +1,5 @@
 from .config import get_config, get_option, set_option, get_backend_type
-from .common import require, get_value, total_seconds, generate_uuid, forbidden_inside_job
+from .common import require, get_value, total_seconds, generate_uuid, generate_traceparent, forbidden_inside_job
 from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
@@ -265,6 +265,10 @@ class RequestRetrier(Retrier):
 
         headers = get_value(kwargs.get("headers", {}), {})
         headers["X-YT-Correlation-Id"] = generate_uuid(get_option("_random_generator", client))
+
+        if get_config(client)["proxy"]["force_tracing"]:
+            headers["traceparent"] = generate_traceparent(get_option("_random_generator", client))
+
         self.headers = headers
 
         chaos_monkey_enable = get_option("_ENABLE_HTTP_CHAOS_MONKEY", client)

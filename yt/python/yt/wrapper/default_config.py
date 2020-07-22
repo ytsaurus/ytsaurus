@@ -109,6 +109,8 @@ default_config = {
         # By default we use specified structured_data_format, otherwise we use YSON.
         "header_format": None,
 
+        "force_tracing": False,
+
         # Enable using heavy proxies for heavy commands (write_*, read_*).
         "enable_proxy_discovery": True,
         # Number of top unbanned proxies that would be used to choose random
