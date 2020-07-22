@@ -771,8 +771,6 @@ def get_config_from_env():
                 value = int(value)
             _set(config, name, _apply_type(var_type, key, value))
         # Some shortcuts cannot be backported one-to-one so they are processed manually.
-        elif key == "MERGE_INSTEAD_WARNING":
-            _set(config, "auto_merge_output/action", "merge" if int(value) else "log")
         elif key == "CREATE_TABLES_UNDER_TRANSACTION":
             print(value, bool(int(value)), file=sys.stderr)
             _set(config, "yamr_mode/create_tables_outside_of_transaction", not bool(int(value)))

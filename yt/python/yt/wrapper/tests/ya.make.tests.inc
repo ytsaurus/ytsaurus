@@ -12,7 +12,6 @@ SET(YT_TEST_SRCS
     test_client.py
     test_command_params.py
     test_common.py
-    test_config.py
     test_cypress_commands.py
     test_driver.py
     test_download_core_dump.py
