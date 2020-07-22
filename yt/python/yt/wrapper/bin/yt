@@ -1606,8 +1606,8 @@ def main():
                                                         "supported only for native driver and testing purposes ")
     config_parser.add_argument("--ping-ancestor-txs", action="store_true",
                                help="turn on pinging ancestor transactions")
-    config_parser.add_argument("--trace", action="store_true")
-
+    config_parser.add_argument("--trace", action="store_true",
+                               help="trace execution of request using jaeger")
 
     parser = ArgumentParser(parents=[config_parser],
                             formatter_class=RawDescriptionHelpFormatter,
@@ -1754,7 +1754,6 @@ def main():
         yt.config["proxy"]["url"] = config_args.proxy
     if config_args.prefix is not None:
         yt.config["prefix"] = config_args.prefix
-    yt.config.COMMAND_PARAMS["trace"] = config_args.trace
 
     if "read_progress_bar" not in config_args.config:
         config_args.config["read_progress_bar"] = {}
@@ -1762,6 +1761,11 @@ def main():
         config_args.config["read_progress_bar"]["enable"] = True
 
     yt.config.update_config(config_args.config)
+
+    if config_args.trace:
+        if yt.config["driver_config"] is not None:
+            yt.config["driver_config"]["force_tracing"] = True
+        yt.config["proxy"]["force_tracing"] = True
 
     yt.config["default_value_of_raw_option"] = True
 

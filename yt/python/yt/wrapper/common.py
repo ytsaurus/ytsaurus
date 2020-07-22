@@ -187,6 +187,15 @@ def generate_uuid(generator=None):
 
     return "-".join([get_int() for _ in xrange(4)])
 
+def generate_traceparent(generator=None):
+    if generator is None:
+        generator = random
+
+    def get_int():
+        return generator.randint(0, 2**64 - 1)
+
+    return "00-%016x%016x-%016x-01" % (get_int(), get_int(), get_int())
+
 def get_version():
     """ Returns python wrapper version """
     try:
