@@ -375,6 +375,9 @@ void TBootstrap::DoInitialize()
     MasterConnector_->SubscribeMasterConnected(BIND(&TBootstrap::OnMasterConnected, this));
     MasterConnector_->SubscribeMasterDisconnected(BIND(&TBootstrap::OnMasterDisconnected, this));
 
+    TabletSlotManager_ = New<NTabletNode::TSlotManager>(Config_->TabletNode, this);
+    MasterConnector_->SubscribePopulateAlerts(BIND(&NTabletNode::TSlotManager::PopulateAlerts, TabletSlotManager_));
+
     DynamicConfigManager_ = New<TDynamicConfigManager>(Config_->DynamicConfigManager, this);
     DynamicConfigManager_->SubscribeConfigUpdated(BIND(&TBootstrap::OnDynamicConfigUpdated, this));
     DynamicConfigManager_->Start();
@@ -631,9 +634,6 @@ void TBootstrap::DoInitialize()
 
     ColumnEvaluatorCache_ = New<NQueryClient::TColumnEvaluatorCache>(
         New<NQueryClient::TColumnEvaluatorCacheConfig>());
-
-    TabletSlotManager_ = New<NTabletNode::TSlotManager>(Config_->TabletNode, this);
-    MasterConnector_->SubscribePopulateAlerts(BIND(&NTabletNode::TSlotManager::PopulateAlerts, TabletSlotManager_));
 
     SecurityManager_ = New<TSecurityManager>(Config_->TabletNode->SecurityManager, this);
 
@@ -1310,6 +1310,20 @@ void TBootstrap::OnMasterDisconnected()
 void TBootstrap::OnDynamicConfigUpdated(const TClusterNodeDynamicConfigPtr& newConfig)
 {
     DynamicConfig_ = newConfig;
+
+    // Update tablet slot count.
+    {
+        auto tabletSlotCount = newConfig->TabletNode->Slots.value_or(Config_->TabletNode->ResourceLimits->Slots);
+        if (TabletSlotManager_->GetTotalTabletSlotCount() == 0 && tabletSlotCount > 0) {
+            // Node became tablet node.
+            // Requesting latest timestamp enables periodic background time synchronization.
+            // For tablet nodes, it is crucial because of non-atomic transactions that require
+            // in-sync time for clients.
+            GetLatestTimestamp();
+        }
+
+        TabletSlotManager_->SetTabletSlotCount(tabletSlotCount);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

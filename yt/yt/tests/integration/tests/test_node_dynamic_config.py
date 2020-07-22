@@ -343,3 +343,47 @@ class TestNodeDynamicConfig(YTEnvSetup):
             # Default dynamic config has no annotation.
             assert self.get_dynamic_config_annotation(node) == ""
             assert len(get("//sys/cluster_nodes/{0}/@alerts".format(node))) == 0
+
+    @authors("gritukan")
+    def test_dynamic_tablet_slot_count(self):
+        set("//sys/@config/tablet_manager/tablet_cell_balancer/rebalance_wait_time", 100)
+        set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_tablet_cell_balancer", True)
+        set("//sys/@config/tablet_manager/tablet_cell_balancer/enable_verbose_logging", True)
+        set("//sys/@config/tablet_manager/peer_revocation_timeout", 3000)
+
+        def healthy_cell_count():
+            result = 0
+            for cell in ls("//sys/tablet_cells", attributes=["health"]):
+                if cell.attributes["health"] == "good":
+                    result += 1
+            return result
+
+        sync_create_cells(5)
+        assert healthy_cell_count() == 5
+
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["nodeA"])
+
+        # All nodes are non-tablet.
+        config = {
+            "nodeA": {
+                "config_annotation": "nodeA",
+                "tablet_node": {
+                    "slots": 0,
+                },
+            },
+            "!nodeA": {
+                "config_annotation": "notNodeA",
+                "tablet_node": {
+                    "slots": 0,
+                },
+            }
+        }
+        set("//sys/cluster_nodes/@config", config)
+
+        wait(lambda: healthy_cell_count() == 0)
+
+        for slot_count in [2, 0, 7, 3, 1, 0, 2, 4]:
+            config["nodeA"]["tablet_node"]["slots"] = slot_count
+            set("//sys/cluster_nodes/@config", config)
+            wait(lambda: healthy_cell_count() == min(5, slot_count))

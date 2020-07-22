@@ -188,6 +188,7 @@ DECLARE_REFCOUNTED_CLASS(TPartitionBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletChunkReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletNodeConfig)
 
 using TTabletChunkWriterConfig = NTableClient::TTableWriterConfig;

@@ -67,10 +67,75 @@ public:
 
     void Initialize()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         Slots_.resize(Config_->ResourceLimits->Slots);
         SlotScanExecutor_->Start();
     }
 
+    void SetTabletSlotCount(int slotCount)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (Slots_.size() == slotCount) {
+            return;
+        }
+
+        YT_LOG_INFO("Updating tablet slot count (OldTabletSlotCount: %v, NewTabletSlotCount: %v)",
+            Slots_.size(),
+            slotCount);
+
+        if (slotCount < Slots_.size()) {
+            std::vector<TFuture<void>> asyncFinalizations;
+            asyncFinalizations.reserve(Slots_.size() - slotCount);
+            for (int slotIndex = slotCount; slotIndex < Slots_.size(); ++slotIndex) {
+                const auto& slot = Slots_[slotIndex];
+                if (slot) {
+                    asyncFinalizations.push_back(slot->Finalize());
+                }
+            }
+
+            auto error = WaitFor(AllSet(asyncFinalizations));
+            YT_LOG_WARNING_UNLESS(error.IsOK(), error, "Failed to finalize tablet slot during slot manager reconfiguration");
+        }
+
+        Slots_.resize(slotCount);
+    }
+
+    int GetTotalTabletSlotCount() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return Slots_.size();
+    }
+
+    int GetAvailableTabletSlotCount() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        int availableSlotCount = 0;
+        for (const auto& slot : Slots_) {
+            if (!slot) {
+                ++availableSlotCount;
+            }
+        }
+
+        return availableSlotCount;
+    }
+
+    int GetUsedTabletSlotConut() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return Slots_.size() - GetAvailableTabletSlotCount();
+    }
+
+    bool HasFreeTabletSlots() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        return GetAvailableTabletSlotCount() > 0;
+    }
 
     bool IsOutOfMemory() const
     {
@@ -84,21 +149,6 @@ public:
         return
             tracker->GetUsed(EMemoryCategory::TabletDynamic) - passiveUsage >
             tracker->GetLimit(EMemoryCategory::TabletDynamic) * Config_->ForcedRotationsMemoryRatio;
-    }
-
-
-    int GetAvailableTabletSlotCount() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return Config_->ResourceLimits->Slots - UsedSlotCount_;
-    }
-
-    int GetUsedTabletSlotCount() const
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        return UsedSlotCount_;
     }
 
     double GetUsedCpu(double cpuPerTabletSlot) const
@@ -143,7 +193,6 @@ public:
         int index = GetFreeSlotIndex();
         Slots_[index] = New<TTabletSlot>(index, Config_, createInfo, Bootstrap_);
         Slots_[index]->Initialize();
-        ++UsedSlotCount_;
     }
 
     void ConfigureSlot(TTabletSlotPtr slot, const TConfigureTabletSlotInfo& configureInfo)
@@ -162,7 +211,6 @@ public:
 
             if (Slots_[slot->GetIndex()] == slot) {
                 Slots_[slot->GetIndex()].Reset();
-                --UsedSlotCount_;
             }
         }).Via(Bootstrap_->GetControlInvoker()));
     }
@@ -297,7 +345,7 @@ public:
             // NB: It's fine not to find anything.
         }
 
-        // This is were deadSnapshots die. It's also nice to have logging moved outside
+        // This is where deadSnapshots die. It's also nice to have logging moved outside
         // of a critical section.
         for (const auto& snapshot : deadSnapshots) {
             YT_LOG_DEBUG("Tablet snapshot unregistered (TabletId: %v, CellId: %v)",
@@ -422,7 +470,7 @@ private:
         virtual i64 GetSize() const override
         {
             if (auto owner = Owner_.Lock()) {
-                return owner->GetUsedTabletSlotCount();
+                return owner->GetUsedTabletSlotConut();
             }
             return 0;
         }
@@ -450,7 +498,6 @@ private:
     const TTabletNodeConfigPtr Config_;
     NClusterNode::TBootstrap* const Bootstrap_;
 
-    int UsedSlotCount_ = 0;
     std::vector<TTabletSlotPtr> Slots_;
 
     TPeriodicExecutorPtr SlotScanExecutor_;
@@ -536,6 +583,16 @@ bool TSlotManager::IsRotationForced(i64 passiveUsage) const
     return Impl_->IsRotationForced(passiveUsage);
 }
 
+void TSlotManager::SetTabletSlotCount(int slotCount)
+{
+    return Impl_->SetTabletSlotCount(slotCount);
+}
+
+int TSlotManager::GetTotalTabletSlotCount() const
+{
+    return Impl_->GetTotalTabletSlotCount();
+}
+
 int TSlotManager::GetAvailableTabletSlotCount() const
 {
     return Impl_->GetAvailableTabletSlotCount();
@@ -543,7 +600,12 @@ int TSlotManager::GetAvailableTabletSlotCount() const
 
 int TSlotManager::GetUsedTabletSlotCount() const
 {
-    return Impl_->GetUsedTabletSlotCount();
+    return Impl_->GetUsedTabletSlotConut();
+}
+
+bool TSlotManager::HasFreeTabletSlots() const
+{
+    return Impl_->HasFreeTabletSlots();
 }
 
 double TSlotManager::GetUsedCpu(double cpuPerTabletSlot) const

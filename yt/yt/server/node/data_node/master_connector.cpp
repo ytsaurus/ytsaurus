@@ -515,8 +515,14 @@ void TMasterConnector::ComputeTotalStatistics(TNodeStatistics* result)
     result->set_total_repair_session_count(sessionManager->GetSessionCount(ESessionType::Repair));
 
     auto slotManager = Bootstrap_->GetTabletSlotManager();
-    result->set_available_tablet_slots(slotManager->GetAvailableTabletSlotCount());
-    result->set_used_tablet_slots(slotManager->GetUsedTabletSlotCount());
+    auto availableTabletSlotCount = slotManager->GetAvailableTabletSlotCount();
+    auto usedTabletSlotCount = slotManager->GetUsedTabletSlotCount();
+    if (Bootstrap_->IsReadOnly()) {
+        availableTabletSlotCount = 0;
+        usedTabletSlotCount = 0;
+    }
+    result->set_available_tablet_slots(availableTabletSlotCount);
+    result->set_used_tablet_slots(usedTabletSlotCount);
 
     const auto& tracker = Bootstrap_->GetMemoryUsageTracker();
     auto* protoMemory = result->mutable_memory();
@@ -817,12 +823,18 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
 
     auto slotManager = Bootstrap_->GetTabletSlotManager();
     auto slots = slotManager->Slots();
-
+    auto availableTabletSlotCount = slotManager->GetAvailableTabletSlotCount();
+    auto usedTabletSlotCount = slotManager->GetUsedTabletSlotCount();
     if (Bootstrap_->IsReadOnly()) {
         slots.clear();
-        request->mutable_statistics()->set_available_tablet_slots(0);
-        request->mutable_statistics()->set_used_tablet_slots(0);
+        availableTabletSlotCount = 0;
+        usedTabletSlotCount = 0;
     }
+
+    // TODO(gritukan): Should we really send this statistics to master? This values can be evaluated
+    // by tablet slot infos in heartbeat at master.
+    request->mutable_statistics()->set_available_tablet_slots(availableTabletSlotCount);
+    request->mutable_statistics()->set_used_tablet_slots(usedTabletSlotCount);
 
     for (int slotId = 0; slotId < slots.size(); ++slotId) {
         const auto& slot = slots[slotId];
@@ -1034,7 +1046,7 @@ void TMasterConnector::ReportIncrementalNodeHeartbeat(TCellTag cellTag)
         for (const auto& info : rsp->tablet_slots_to_create()) {
             auto cellId = FromProto<TCellId>(info.cell_id());
             YT_VERIFY(cellId);
-            if (slotManager->GetAvailableTabletSlotCount() == 0) {
+            if (!slotManager->HasFreeTabletSlots()) {
                 YT_LOG_WARNING("Requested to start cell when all slots are used, ignored (CellId: %v)",
                     cellId);
                 continue;
