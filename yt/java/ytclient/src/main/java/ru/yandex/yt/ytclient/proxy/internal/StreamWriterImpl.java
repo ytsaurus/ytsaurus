@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy.internal;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 
@@ -262,6 +263,15 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
     @Override
     public void onError(RpcClient sender, Throwable error) {
         super.onError(sender, error);
+
+        synchronized (lock) {
+            reinitReadyEvent();
+        }
+    }
+
+    @Override
+    public void onCancel(RpcClient sender, CancellationException cancel) {
+        super.onCancel(sender, cancel);
 
         synchronized (lock) {
             reinitReadyEvent();

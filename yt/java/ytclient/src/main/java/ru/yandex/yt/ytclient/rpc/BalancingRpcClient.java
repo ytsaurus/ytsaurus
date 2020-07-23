@@ -6,7 +6,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -15,11 +14,9 @@ import com.google.common.collect.ImmutableMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.bolts.collection.Tuple3;
-import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.proxy.internal.BalancingResponseHandler;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
+import ru.yandex.yt.ytclient.proxy.internal.FailoverRpcExecutor;
 import ru.yandex.yt.ytclient.proxy.internal.Manifold;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolder;
 import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingDestinationMetricsHolderImpl;
@@ -176,25 +173,8 @@ public class BalancingRpcClient implements RpcClient {
     @Override
     public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
         List<RpcClient> destinations = Manifold.selectDestinations(dataCenters, 3, localDataCenter != null, rnd, !failoverPolicy.randomizeDcs());
-
-        CompletableFuture<Tuple3<RpcClient, TResponseHeader, List<byte[]>>> f = new CompletableFuture<>();
-
-        BalancingResponseHandler h = new BalancingResponseHandler(
-            executorService,
-            f,
-            request,
-            destinations);
-
-        f.whenComplete((result, error) -> {
-            h.cancel();
-            if (error == null) {
-                handler.onResponse(result.get1(), result.get2(), result.get3());
-            } else {
-                handler.onError(error);
-            }
-        });
-
-        return () -> f.cancel(true);
+        FailoverRpcExecutor executor = new FailoverRpcExecutor(executorService, destinations, request, handler);
+        return executor.execute();
     }
 
     public String destinationName() {

@@ -7,10 +7,8 @@ import java.util.concurrent.CompletableFuture;
 import com.google.protobuf.MessageLite;
 
 import ru.yandex.bolts.collection.Option;
-import ru.yandex.bolts.collection.Tuple3;
 import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.rpc.TResponseHeader;
-import ru.yandex.yt.ytclient.proxy.internal.BalancingResponseHandler;
+import ru.yandex.yt.ytclient.proxy.internal.FailoverRpcExecutor;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
@@ -102,8 +100,7 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     }
 
     @Override
-    public RpcClientStreamControl startStream()
-    {
+    public RpcClientStreamControl startStream() {
         if (clientOpt.isPresent()) {
             return clientOpt.get().startStream(this);
         } else {
@@ -112,8 +109,7 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     }
 
     @Override
-    public RpcClientStreamControl startStream(List<RpcClient> clients)
-    {
+    public RpcClientStreamControl startStream(List<RpcClient> clients) {
         if (!clients.isEmpty()) {
             return clients.get(0).startStream(this);
         } else {
@@ -121,34 +117,9 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
         }
     }
 
-    private RpcClientRequestControl sendVia(RpcClientResponseHandler handler, List<RpcClient> clients)
-    {
-        CompletableFuture<Tuple3<RpcClient, TResponseHeader, List<byte[]>>> f = new CompletableFuture<>();
-
-        try {
-            if (clients.isEmpty()) {
-                throw new IllegalStateException("empty client list");
-            }
-
-            BalancingResponseHandler h = new BalancingResponseHandler(
-                    clients.get(0).executor(),
-                    f,
-                    this,
-                    clients);
-
-            f.whenComplete((result, error) -> {
-                h.cancel();
-                if (error == null) {
-                    handler.onResponse(result.get1(), result.get2(), result.get3());
-                } else {
-                    handler.onError(error);
-                }
-            });
-        } catch (Throwable e) {
-            handler.onError(e);
-        }
-
-        return () -> f.cancel(true);
+    private RpcClientRequestControl sendVia(RpcClientResponseHandler handler, List<RpcClient> clients) {
+        FailoverRpcExecutor executor = new FailoverRpcExecutor(clients.get(0).executor(), clients, this, handler);
+        return executor.execute();
     }
 
     protected abstract RpcClientResponseHandler createHandler(CompletableFuture<ResponseType> result);

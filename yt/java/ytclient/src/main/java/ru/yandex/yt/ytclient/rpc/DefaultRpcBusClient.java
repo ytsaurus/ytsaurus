@@ -307,6 +307,10 @@ public class DefaultRpcBusClient implements RpcClient {
             throw new IllegalArgumentException();
         }
 
+        void handleCancellation(CancellationException cancel) {
+            throw new IllegalArgumentException();
+        }
+
         /**
          * Запускает выполнение запроса
          */
@@ -416,8 +420,8 @@ public class DefaultRpcBusClient implements RpcClient {
                 lock.unlock();
             }
             try {
-                // Вызываем обработчик onError, сигнализируя завершение обработки
-                handleError(new CancellationException());
+                // Вызываем обработчик onCancel, сигнализируя завершение обработки
+                handleCancellation(new CancellationException());
             } finally {
                 if (session.unregister(this)) {
                     // Отправляем сообщение на сервер, но только если пользователь ещё не успел
@@ -490,6 +494,11 @@ public class DefaultRpcBusClient implements RpcClient {
             handler.onAcknowledgement(sender);
         }
 
+        @Override
+        void handleCancellation(CancellationException cancel) {
+            handler.onCancel(cancel);
+        }
+
         /**
          * Вызывается при получении ответа за запрос
          */
@@ -533,6 +542,7 @@ public class DefaultRpcBusClient implements RpcClient {
         TResponseHeader responseHeader = null;
         List<byte[]> attachments = null;
         Throwable cause = null;
+        CancellationException cancel = null;
     }
 
     private static class Stash implements RpcStreamConsumer {
@@ -570,6 +580,13 @@ public class DefaultRpcBusClient implements RpcClient {
             stashedMessages.add(message);
         }
 
+        @Override
+        public void onCancel(RpcClient sender, CancellationException cancel) {
+            StashedMessage message = new StashedMessage();
+            message.cancel = cancel;
+            stashedMessages.add(message);
+        }
+
         void unstash(RpcClient sender, RpcStreamConsumer consumer) {
             while (nextStashedMessageIndex < stashedMessages.size()) {
                 StashedMessage message = stashedMessages.get(nextStashedMessageIndex++);
@@ -582,6 +599,8 @@ public class DefaultRpcBusClient implements RpcClient {
                     consumer.onResponse(sender, message.responseHeader, message.attachments);
                 } else if (message.cause != null) {
                     consumer.onError(sender, message.cause);
+                } else if (message.cancel != null) {
+                    consumer.onCancel(sender, message.cancel);
                 }
             }
         }
@@ -642,6 +661,18 @@ public class DefaultRpcBusClient implements RpcClient {
             lock.lock();
             try {
                 consumer.onError(sender, cause);
+            } catch (Throwable e) {
+                logger.error("Error", e);
+            } finally {
+                lock.unlock();
+            }
+        }
+
+        @Override
+        void handleCancellation(CancellationException cancel) {
+            lock.lock();
+            try {
+                consumer.onCancel(sender, cancel);
             } catch (Throwable e) {
                 logger.error("Error", e);
             } finally {

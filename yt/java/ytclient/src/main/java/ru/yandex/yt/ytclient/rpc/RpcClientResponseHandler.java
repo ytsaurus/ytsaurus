@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.rpc;
 
 import java.util.List;
+import java.util.concurrent.CancellationException;
 
 import ru.yandex.yt.rpc.TResponseHeader;
 
@@ -26,4 +27,9 @@ public interface RpcClientResponseHandler {
      * Вызывается в случае ошибок
      */
     void onError(Throwable error);
+
+    /**
+     * Вызывается в случае отмены запроса
+     */
+    void onCancel(CancellationException cancel);
 }

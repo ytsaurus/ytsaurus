@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.rpc.internal;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
 import com.google.protobuf.MessageLite;
@@ -49,6 +50,11 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
             @Override
             public void onError(Throwable error) {
                 result.completeExceptionally(error);
+            }
+
+            @Override
+            public void onCancel(CancellationException cancel) {
+                result.completeExceptionally(cancel);
             }
         };
     }
