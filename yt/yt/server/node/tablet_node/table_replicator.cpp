@@ -257,6 +257,7 @@ private:
             std::vector<TRowModification> replicationRows;
 
             i64 startRowIndex = lastReplicationRowIndex;
+            bool checkPrevReplicationRowIndex = true;
             i64 newReplicationRowIndex;
             TTimestamp newReplicationTimestamp;
 
@@ -282,6 +283,7 @@ private:
                 };
 
                 if (!readReplicationBatch()) {
+                    checkPrevReplicationRowIndex = false;
                     startRowIndex = ComputeStartRowIndex(
                         MountConfig_,
                         tabletSnapshot,
@@ -305,6 +307,9 @@ private:
                 NProto::TReqReplicateRows req;
                 ToProto(req.mutable_tablet_id(), TabletId_);
                 ToProto(req.mutable_replica_id(), ReplicaId_);
+                if (checkPrevReplicationRowIndex) {
+                    req.set_prev_replication_row_index(startRowIndex);
+                }
                 req.set_new_replication_row_index(newReplicationRowIndex);
                 req.set_new_replication_timestamp(newReplicationTimestamp);
                 localTransaction->AddAction(Slot_->GetCellId(), MakeTransactionActionData(req));

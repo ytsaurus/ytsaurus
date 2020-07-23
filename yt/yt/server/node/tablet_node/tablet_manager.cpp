@@ -2146,13 +2146,37 @@ private:
                 replicaInfo->GetPreparedReplicationTransactionId());
         }
 
-        auto newCurrentReplicationRowIndex = request->new_replication_row_index();
+        auto newReplicationRowIndex = request->new_replication_row_index();
         auto newReplicationTimestamp = request->new_replication_timestamp();
 
-        YT_VERIFY(newCurrentReplicationRowIndex <= tablet->GetTotalRowCount());
+        if (request->has_prev_replication_row_index()) {
+            auto prevReplicationRowIndex = request->prev_replication_row_index();
+            if (replicaInfo->GetCurrentReplicationRowIndex() != prevReplicationRowIndex) {
+                THROW_ERROR_EXCEPTION("Cannot prepare rows for replica %v of tablet %v by transaction %v due to current replication row index "
+                    "mismatch: %v != %v",
+                    transaction->GetId(),
+                    replicaId,
+                    tabletId,
+                    replicaInfo->GetCurrentReplicationRowIndex(),
+                    prevReplicationRowIndex);
+            }
+            YT_VERIFY(newReplicationRowIndex >= prevReplicationRowIndex);
+        }
+
+        if (newReplicationRowIndex < replicaInfo->GetCurrentReplicationRowIndex()) {
+            THROW_ERROR_EXCEPTION("Cannot prepare rows for replica %v of tablet %v by transaction %v since current replication row index "
+                "is already too high: %v > %v",
+                transaction->GetId(),
+                replicaId,
+                tabletId,
+                replicaInfo->GetCurrentReplicationRowIndex(),
+                newReplicationRowIndex);
+        }
+
+        YT_VERIFY(newReplicationRowIndex <= tablet->GetTotalRowCount());
         YT_VERIFY(replicaInfo->GetPreparedReplicationRowIndex() == -1);
 
-        replicaInfo->SetPreparedReplicationRowIndex(newCurrentReplicationRowIndex);
+        replicaInfo->SetPreparedReplicationRowIndex(newReplicationRowIndex);
         replicaInfo->SetPreparedReplicationTransactionId(transaction->GetId());
 
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Async replicated rows prepared (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
@@ -2161,7 +2185,7 @@ private:
             replicaId,
             transaction->GetId(),
             replicaInfo->GetCurrentReplicationRowIndex(),
-            newCurrentReplicationRowIndex,
+            newReplicationRowIndex,
             tablet->GetTotalRowCount(),
             replicaInfo->GetCurrentReplicationTimestamp(),
             newReplicationTimestamp);
@@ -2182,6 +2206,10 @@ private:
             return;
         }
 
+        // COMPAT(babenko)
+        if (request->has_prev_replication_row_index()) {
+            YT_VERIFY(replicaInfo->GetCurrentReplicationRowIndex() == request->prev_replication_row_index());
+        }
         YT_VERIFY(replicaInfo->GetPreparedReplicationRowIndex() == request->new_replication_row_index());
         YT_VERIFY(replicaInfo->GetPreparedReplicationTransactionId() == transaction->GetId());
         replicaInfo->SetPreparedReplicationRowIndex(-1);
