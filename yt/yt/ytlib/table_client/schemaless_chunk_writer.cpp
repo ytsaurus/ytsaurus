@@ -60,6 +60,7 @@
 #include <yt/core/ytree/helpers.h>
 
 #include <util/generic/cast.h>
+#include <util/generic/ylimits.h>
 
 namespace NYT::NTableClient {
 
@@ -147,7 +148,7 @@ public:
             std::move(blockCache),
             Logger))
         , RandomGenerator_(RandomNumber<ui64>())
-        , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
+        , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
     {
         ColumnarStatisticsExt_.mutable_data_weights()->Resize(ChunkNameTable_->GetSize(), 0);
     }
@@ -464,7 +465,7 @@ private:
         struct TColumnStatistics
         {
             i64 DataWeight;
-            TString Name; 
+            TString Name;
         };
         std::vector<TColumnStatistics> columnStatistics;
         columnStatistics.reserve(columnCount);
