@@ -113,7 +113,9 @@ class TSecurityManager
     : public TRefCounted
 {
 public:
-    explicit TSecurityManager(NCellMaster::TBootstrap* bootstrap);
+    TSecurityManager(
+        const TSecurityManagerConfigPtr& config,
+        NCellMaster::TBootstrap* bootstrap);
     virtual ~TSecurityManager() override;
 
     void Initialize();

@@ -6,8 +6,7 @@ namespace NYT::NDiscoveryClient {
 
 TMemberClientConfig::TMemberClientConfig()
 {
-    RegisterParameter("server_addresses", ServerAddresses)
-        .NonEmpty();
+    RegisterParameter("server_addresses", ServerAddresses);
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(5));
     RegisterParameter("heartbeat_period", HeartbeatPeriod)
@@ -27,8 +26,7 @@ TMemberClientConfig::TMemberClientConfig()
 
 TDiscoveryClientConfig::TDiscoveryClientConfig()
 {
-    RegisterParameter("server_addresses", ServerAddresses)
-        .NonEmpty();
+    RegisterParameter("server_addresses", ServerAddresses);
     RegisterParameter("rpc_timeout", RpcTimeout)
         .Default(TDuration::Seconds(5));
 

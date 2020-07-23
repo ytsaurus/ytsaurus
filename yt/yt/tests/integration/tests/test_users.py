@@ -369,6 +369,16 @@ class TestUsers(YTEnvSetup):
         with pytest.raises(YtError):
             create("table", "//tmp/t4", attributes={"external": False}, authenticated_user="u")
 
+    @authors("aleksandra-zh")
+    def test_distributed_throttler(self):
+        create_user("u")
+
+        set("//sys/@config/security_manager/enable_distributed_throttler", True)
+        get("//tmp", authenticated_user="u")
+
+        set("//sys/@config/security_manager/enable_distributed_throttler", False)
+        get("//tmp", authenticated_user="u")
+
 ##################################################################
 
 class TestUsersRpcProxy(TestUsers):

@@ -54,6 +54,8 @@ TCellMasterConfig::TCellMasterConfig()
         .DefaultNew();
     RegisterParameter("world_initializer", WorldInitializer)
         .DefaultNew();
+    RegisterParameter("security_manager", SecurityManager)
+        .DefaultNew();
     RegisterParameter("enable_provision_lock", EnableProvisionLock)
         .Default(true);
     RegisterParameter("bus_client", BusClient)
@@ -65,7 +67,7 @@ TCellMasterConfig::TCellMasterConfig()
         ->AsMap());
     RegisterParameter("abort_on_unrecognized_options", AbortOnUnrecognizedOptions)
         .Default(false);
-
+    
     RegisterPostprocessor([&] () {
         if (SecondaryMasters.size() > MaxSecondaryMasterCells) {
             THROW_ERROR_EXCEPTION("Too many secondary master cells");

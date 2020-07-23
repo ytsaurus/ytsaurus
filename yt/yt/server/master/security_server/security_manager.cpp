@@ -336,9 +336,11 @@ class TSecurityManager::TImpl
     : public TMasterAutomatonPart
 {
 public:
-    explicit TImpl(NCellMaster::TBootstrap* bootstrap)
+    TImpl(
+        const TSecurityManagerConfigPtr& config, 
+        NCellMaster::TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::SecurityManager)
-        , RequestTracker_(New<TRequestTracker>(bootstrap))
+        , RequestTracker_(New<TRequestTracker>(config->UserThrottler, bootstrap))
     {
         RegisterLoader(
             "SecurityManager.Keys",
@@ -3721,8 +3723,12 @@ void TSecurityManager::TNetworkProjectTypeHandler::DoZombifyObject(TNetworkProje
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSecurityManager::TSecurityManager(NCellMaster::TBootstrap* bootstrap)
-    : Impl_(New<TImpl>(bootstrap))
+TSecurityManager::TSecurityManager(
+    const TSecurityManagerConfigPtr& config,
+    NCellMaster::TBootstrap* bootstrap)
+    : Impl_(New<TImpl>(
+        config,
+        bootstrap))
 { }
 
 TSecurityManager::~TSecurityManager() = default;

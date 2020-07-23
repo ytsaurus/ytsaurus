@@ -16,20 +16,33 @@
 
 #include <yt/core/profiling/timing.h>
 
+#include <yt/core/rpc/dispatcher.h>
+
 #include <yt/core/concurrency/throughput_throttler.h>
 #include <yt/core/concurrency/config.h>
 
 #include <yt/ytlib/election/cell_manager.h>
 
+#include <yt/ytlib/distributed_throttler/distributed_throttler.h>
+
 namespace NYT::NSecurityServer {
 
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NDistributedThrottler;
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRequestTracker::TRequestTracker(NCellMaster::TBootstrap* bootstrap)
+TRequestTracker::TRequestTracker(
+    const NDistributedThrottler::TDistributedThrottlerConfigPtr& userThrottlerConfig,
+    NCellMaster::TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
+    , ThrottlerFactory_(Bootstrap_->CreateDistributedThrottlerFactory(
+        userThrottlerConfig,
+        NRpc::TDispatcher::Get()->GetHeavyInvoker(),
+        "/security/master_cells",
+        SecurityServerLogger))
 { }
 
 void TRequestTracker::Start()
@@ -121,9 +134,16 @@ void TRequestTracker::SetUserRequestLimits(TUser* user, TUserRequestLimitsConfig
 
 void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
 {
+    auto enableDistributedThrottler = GetDynamicConfig()->EnableDistributedThrottler;
     for (auto workloadType : {EUserWorkloadType::Read, EUserWorkloadType::Write}) {
         if (!user->GetRequestRateThrottler(workloadType)) {
-            user->SetRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()), workloadType);
+            if (enableDistributedThrottler && workloadType == EUserWorkloadType::Read) {
+                auto throttlerId = Format("%v:request_count:%v", user->GetName(), workloadType);
+                auto throttler = ThrottlerFactory_->GetOrCreateThrottler(std::move(throttlerId), New<TThroughputThrottlerConfig>());
+                user->SetRequestRateThrottler(std::move(throttler), workloadType);
+            } else {
+                user->SetRequestRateThrottler(CreateReconfigurableThroughputThrottler(New<TThroughputThrottlerConfig>()), workloadType);
+            }
         }
 
         auto config = New<TThroughputThrottlerConfig>();
@@ -131,12 +151,11 @@ void TRequestTracker::ReconfigureUserRequestRateThrottler(TUser* user)
 
         auto cellTag = Bootstrap_->GetMulticellManager()->GetCellTag();
         auto requestRateLimit = user->GetRequestRateLimit(workloadType, cellTag);
-
         // If there're three or more peers, divide user limits by the number of
         // followers (because it's they who handle read requests).
         // If there're two peers, there's only one follower - no division necessary.
         // If there's only one peer, its certainly being read from - no division necessary.
-        if (workloadType == EUserWorkloadType::Read && AlivePeerCount_ > 2) {
+        if (!enableDistributedThrottler && workloadType == EUserWorkloadType::Read && AlivePeerCount_ > 2) {
             requestRateLimit /= AlivePeerCount_ - 1;
         }
 
@@ -199,7 +218,9 @@ void TRequestTracker::OnAlivePeerSetChanged(const THashSet<NElection::TPeerId>& 
     auto peerCount = static_cast<int>(alivePeers.size());
     if (peerCount != AlivePeerCount_) {
         AlivePeerCount_ = peerCount;
-        ReconfigureUserThrottlers();
+        if (!GetDynamicConfig()->EnableDistributedThrottler) {
+            ReconfigureUserThrottlers();
+        }
     }
 }
 

@@ -11,6 +11,8 @@
 
 #include <yt/core/misc/error.h>
 
+#include <yt/ytlib/distributed_throttler/public.h>
+
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -19,7 +21,9 @@ class TRequestTracker
     : public TRefCounted
 {
 public:
-    explicit TRequestTracker(NCellMaster::TBootstrap* bootstrap);
+    TRequestTracker(
+        const NDistributedThrottler::TDistributedThrottlerConfigPtr& userThrottlerConfig,
+        NCellMaster::TBootstrap* bootstrap);
 
     void Start();
     void Stop();
@@ -53,6 +57,7 @@ public:
 
 private:
     const NCellMaster::TBootstrap* Bootstrap_;
+    const NDistributedThrottler::TDistributedThrottlerFactoryPtr ThrottlerFactory_;
 
     const TClosure DynamicConfigChangedCallback_ = BIND(&TRequestTracker::OnDynamicConfigChanged, MakeWeak(this));
 
