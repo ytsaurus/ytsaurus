@@ -488,18 +488,19 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
     auto replicas = AllocateWriteTargets(
         client,
         sessionId,
-        codec->GetTotalPartCount(),
-        codec->GetTotalPartCount(),
+        partIndexList.size(),
+        partIndexList.size(),
         std::nullopt,
         partConfig->PreferLocalHost,
         std::vector<TString>(),
         nodeDirectory,
         ChunkClientLogger);
 
-    YT_VERIFY(replicas.size() == codec->GetTotalPartCount());
+    YT_VERIFY(replicas.size() == partIndexList.size());
 
     std::vector<IChunkWriterPtr> writers;
-    for (auto partIndex : partIndexList) {
+    for (int index = 0; index < partIndexList.size(); ++index) {
+        auto partIndex = partIndexList[index];
         auto partSessionId = TSessionId(
             ErasurePartIdFromChunkId(sessionId.ChunkId, partIndex),
             sessionId.MediumIndex);
@@ -507,7 +508,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
             partConfig,
             options,
             partSessionId,
-            TChunkReplicaWithMediumList(1, replicas[partIndex]),
+            TChunkReplicaWithMediumList(1, replicas[index]),
             nodeDirectory,
             client,
             blockCache,
