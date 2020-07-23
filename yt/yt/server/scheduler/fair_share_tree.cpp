@@ -1666,14 +1666,15 @@ auto TFairShareTree<TFairShareImpl>::DoBuildPoolsInformation(
                 .Item("total_burst_ratio").Value(attributes.GetTotalBurstRatio())
                 .DoIf(pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None, [&] (TFluentMap fluent) {
                     auto burstRatio = pool->GetSpecifiedBurstRatio();
+                    auto resourceFlowRatio = pool->GetSpecifiedResourceFlowRatio();
                     fluent
                         .Item("integral_pool_capacity").Value(pool->GetIntegralPoolCapacity())
                         .Item("specified_burst_ratio").Value(burstRatio)
-                        .Item("specified_resource_flow_ratio").Value(pool->GetSpecifiedResourceFlowRatio())
+                        .Item("specified_resource_flow_ratio").Value(resourceFlowRatio)
                         .Item("accumulated_resource_ratio_volume").Value(pool->GetAccumulatedResourceRatioVolume())
                         .Item("accumulated_resource_volume").Value(accumulatedResourceVolume);
                     if (burstRatio > RatioComparisonPrecision) {
-                        fluent.Item("estimated_burst_usage_duration_sec").Value(pool->GetAccumulatedResourceRatioVolume() / burstRatio);
+                        fluent.Item("estimated_burst_usage_duration_sec").Value(pool->GetAccumulatedResourceRatioVolume() / (burstRatio - resourceFlowRatio));
                     }
                 })
                 .DoIf(pool->GetMode() == ESchedulingMode::Fifo, [&] (TFluentMap fluent) {
