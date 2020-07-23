@@ -316,54 +316,82 @@ TTypePair MatchListTypes(const TComplexTypeFieldDescriptor& descriptor, const TS
     return {descriptor.ListElement(), skiffSchema->GetChildren()[0]};
 }
 
-std::vector<TTypePair> MatchStructTypes(const TComplexTypeFieldDescriptor& descriptor, const TSkiffSchemaPtr& skiffSchema)
+std::vector<std::optional<TTypePair>> MatchStructTypes(
+    const TComplexTypeFieldDescriptor& descriptor,
+    const TSkiffSchemaPtr& skiffSchema,
+    bool allowUnknownSkiffFields)
 {
     try {
         if (skiffSchema->GetWireType() != EWireType::Tuple) {
             ThrowBadWireType(EWireType::Tuple, skiffSchema->GetWireType());
         }
 
+        THashMap<TString, int> skiffNameToIndex;
         std::vector<TSkiffStructField> skiffFields;
         {
             const auto& children = skiffSchema->GetChildren();
             for (size_t i = 0; i < children.size(); ++i) {
                 const auto& child = children[i];
+                const auto& name = child->GetName();
                 if (child->GetName().empty()) {
                     THROW_ERROR_EXCEPTION("%Qv child #%v has empty name",
                         EWireType::Tuple,
                         i);
                 }
                 skiffFields.push_back({child->GetName(), child});
+                if (skiffNameToIndex.find(name) != skiffNameToIndex.end()) {
+                    THROW_ERROR_EXCEPTION("%Qv has mutiple children with name %Qv",
+                        EWireType::Tuple,
+                        name);
+                }
+                skiffNameToIndex[name] = i;
             }
         }
 
-        size_t skiffFieldIndex = 0;
+        std::vector<std::optional<TTypePair>> result;
+        auto addEmptyResult = [&result, &skiffFields, allowUnknownSkiffFields] (int index) {
+            if (!allowUnknownSkiffFields) {
+                THROW_ERROR_EXCEPTION("Skiff %Qv child %Qv is not found in logical type",
+                    EWireType::Tuple,
+                    skiffFields[index].Name);
+            }
+            if (!GetOptionalChild(skiffFields[index].Type)) {
+                THROW_ERROR_EXCEPTION("Non optional skiff field %Qv is missing corresponding logical struct field",
+                    skiffFields[index].Name);
+            }
+            result.emplace_back(std::nullopt);
 
-        std::vector<TTypePair> result;
+        };
+
+        size_t nextSkiffFieldIndex = 0;
         const auto& fields = descriptor.GetType()->AsStructTypeRef().GetFields();
         for (size_t i = 0; i < fields.size(); ++i) {
             auto logicalField = fields[i];
-            TSkiffSchemaPtr skiffFieldSchema = nullptr;
-            if (skiffFieldIndex < skiffFields.size() && skiffFields[skiffFieldIndex].Name == logicalField.Name) {
-                skiffFieldSchema = skiffFields[skiffFieldIndex].Type;
-                ++skiffFieldIndex;
+            auto skiffIndexIt = skiffNameToIndex.find(logicalField.Name);
+            if (skiffIndexIt == skiffNameToIndex.end()) {
+                result.emplace_back(TTypePair{descriptor.StructField(i), nullptr});
+                continue;
             }
-            result.push_back({descriptor.StructField(i), skiffFieldSchema});
+            const auto skiffFieldIndex = skiffIndexIt->second;
+            if (skiffFieldIndex < nextSkiffFieldIndex) {
+                THROW_ERROR_EXCEPTION("%Qv child %Qv is out of order",
+                    EWireType::Tuple,
+                    logicalField.Name);
+            }
+
+            for (; nextSkiffFieldIndex < skiffFieldIndex; ++nextSkiffFieldIndex) {
+                addEmptyResult(nextSkiffFieldIndex);
+            }
+            auto skiffFieldSchema = skiffFields[nextSkiffFieldIndex].Type;
+            ++nextSkiffFieldIndex;
+
+            result.emplace_back(TTypePair{descriptor.StructField(i), skiffFieldSchema});
         }
 
-        if (skiffFieldIndex < skiffFields.size()) {
-            auto skiffName = skiffFields[skiffFieldIndex].Name;
-            for (const auto& ysonField : fields) {
-                if (ysonField.Name == skiffName) {
-                    THROW_ERROR_EXCEPTION("%Qv child %Qv is out of order",
-                        EWireType::Tuple,
-                        skiffName);
-                }
-            }
-            THROW_ERROR_EXCEPTION("%Qv child %Qv is not found in logical type",
-                EWireType::Tuple,
-                skiffName);
+        for (; nextSkiffFieldIndex < skiffFields.size(); ++nextSkiffFieldIndex) {
+            addEmptyResult(nextSkiffFieldIndex);
         }
+
         return result;
     } catch (const std::exception& ex) {
         RethrowCannotMatchField(descriptor, skiffSchema, ex);
@@ -864,14 +892,23 @@ TYsonToSkiffConverter CreateStructYsonToSkiffConverter(
         cursor->SkipComplexValue();
     };
 
-    auto fieldMatchList = MatchStructTypes(descriptor, skiffSchema);
+    TYsonToSkiffConverter writeNullUnknownField = [](TYsonPullParserCursor*, TCheckedInDebugSkiffWriter* writer) {
+        writer->WriteVariant8Tag(0);
+    };
+
+    auto fieldMatchList = MatchStructTypes(descriptor, skiffSchema, /*allowUnknownSkiffFields*/ true);
     std::vector<TYsonToSkiffConverter> converterList;
-    for (const auto&[fieldDescriptor, fieldSkiffSchema] : fieldMatchList) {
-        if (fieldSkiffSchema) {
-            auto converter = CreateYsonToSkiffConverterImpl(fieldDescriptor, fieldSkiffSchema, context, config);
-            converterList.emplace_back(converter);
+    for (const auto& match : fieldMatchList) {
+        if (match) {
+            auto [fieldDescriptor, fieldSkiffSchema] = *match;
+            if (fieldSkiffSchema) {
+                auto converter = CreateYsonToSkiffConverterImpl(fieldDescriptor, fieldSkiffSchema, context, config);
+                converterList.emplace_back(converter);
+            } else {
+                converterList.emplace_back(skipYsonValue);
+            }
         } else {
-            converterList.emplace_back(skipYsonValue);
+            converterList.emplace_back(writeNullUnknownField);
         }
     }
 
@@ -1358,9 +1395,10 @@ TSkiffToYsonConverter CreateStructSkiffToYsonConverter(
         writer->WriteEntity();
     };
 
-    auto structMatch = MatchStructTypes(descriptor, skiffSchema);
+    auto structMatch = MatchStructTypes(descriptor, skiffSchema, /*allowUnknownSkiffFields*/false);
     std::vector<TSkiffToYsonConverter> converterList;
-    for (const auto& [fieldDescriptor, fieldSkiffSchema] : structMatch) {
+    for (const auto& match : structMatch) {
+        const auto& [fieldDescriptor, fieldSkiffSchema] = *match;
         if (fieldSkiffSchema) {
             converterList.emplace_back(CreateSkiffToYsonConverterImpl(fieldDescriptor, fieldSkiffSchema, context, config));
         } else if (fieldDescriptor.GetType()->GetMetatype() == ELogicalMetatype::Optional) {
