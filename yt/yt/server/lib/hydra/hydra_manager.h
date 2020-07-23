@@ -174,6 +174,7 @@ struct IHydraManager
     //! On leader, it's raised when pinging one of the followers fails.
     //! On followers, it's raised when a ping from the leader brings news about
     //! a peer going away (or coming back).
+    //! TODO(aleksandra-zh): remove this signal
     DECLARE_INTERFACE_SIGNAL(void (const NElection::TPeerIdSet&), AlivePeerSetChanged);
 
     // Extension methods.

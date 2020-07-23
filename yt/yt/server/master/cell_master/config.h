@@ -197,6 +197,8 @@ public:
 
     TWorldInitializerConfigPtr WorldInitializer;
 
+    NSecurityServer::TSecurityManagerConfigPtr SecurityManager;
+
     //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
     bool EnableProvisionLock;
 

@@ -4,7 +4,25 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/ytlib/distributed_throttler/config.h>
+
 namespace NYT::NSecurityServer {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSecurityManagerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    NDistributedThrottler::TDistributedThrottlerConfigPtr UserThrottler;
+    TSecurityManagerConfig()
+    {
+        RegisterParameter("user_throttler", UserThrottler)
+            .DefaultNew();
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,6 +39,8 @@ public:
     TDuration MembershipClosureRecomputePeriod;
     bool EnableMasterMemoryUsageValidation;
     bool EnableMasterMemoryUsageAccountOvercommitValidation;
+
+    bool EnableDistributedThrottler;
 
     TDynamicSecurityManagerConfig()
     {
@@ -40,6 +60,9 @@ public:
         RegisterParameter("enable_master_memory_usage_validation", EnableMasterMemoryUsageValidation)
             .Default(false);
         RegisterParameter("enable_master_memory_usage_account_overcommit_validation", EnableMasterMemoryUsageAccountOvercommitValidation)
+            .Default(false);
+
+        RegisterParameter("enable_distributed_throttler", EnableDistributedThrottler)
             .Default(false);
     }
 };

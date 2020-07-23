@@ -99,6 +99,10 @@
 
 #include <yt/ytlib/orchid/orchid_service.h>
 
+#include <yt/ytlib/discovery_client/config.h>
+
+#include <yt/ytlib/distributed_throttler/distributed_throttler.h>
+
 #include <yt/client/transaction_client/remote_timestamp_provider.h>
 #include <yt/client/transaction_client/timestamp_provider.h>
 
@@ -170,6 +174,7 @@ using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NCellServer;
 using namespace NDiscoveryServer;
+using namespace NDistributedThrottler;
 
 using NTransactionServer::TTransactionManager;
 using NTransactionServer::TTransactionManagerPtr;
@@ -389,6 +394,23 @@ const INodeChannelFactoryPtr& TBootstrap::GetNodeChannelFactory() const
     return NodeChannelFactory_;
 }
 
+NDistributedThrottler::TDistributedThrottlerFactoryPtr TBootstrap::CreateDistributedThrottlerFactory(
+    TDistributedThrottlerConfigPtr config,
+    IInvokerPtr invoker,
+    const TString& groupIdPrefix,
+    NLogging::TLogger logger) const
+{
+    return New<TDistributedThrottlerFactory>(
+        std::move(config),
+        ChannelFactory_,
+        std::move(invoker),
+        Format("%v/%v", groupIdPrefix, CellTag_),
+        ToString(GetCellManager()->GetSelfPeerId()),
+        RpcServer_,
+        BuildServiceAddress(GetLocalHostName(), Config_->RpcPort),
+        std::move(logger));
+}
+
 void TBootstrap::Initialize()
 {
     srand(time(nullptr));
@@ -561,15 +583,15 @@ void TBootstrap::DoInitialize()
             localPeerId);
     }
 
-    auto channelFactory = CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient));
+    ChannelFactory_ = CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient));
 
     const auto& networks = Config_->Networks;
 
-    NodeChannelFactory_ = CreateNodeChannelFactory(channelFactory, networks);
+    NodeChannelFactory_ = CreateNodeChannelFactory(ChannelFactory_, networks);
 
     CellDirectory_ = New<TCellDirectory>(
         Config_->CellDirectory,
-        channelFactory,
+        ChannelFactory_,
         networks,
         Logger);
 
@@ -599,7 +621,7 @@ void TBootstrap::DoInitialize()
 
     CellManager_ = New<TCellManager>(
         localCellConfig,
-        channelFactory,
+        ChannelFactory_,
         localPeerId);
 
     ChangelogStoreFactory_ = CreateLocalChangelogStoreFactory(
@@ -633,13 +655,23 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetHydraManager(),
         HydraFacade_->GetAutomaton());
 
+    std::vector<TString> addresses;
+    addresses.reserve(localCellConfig->Peers.size());
+    for (const auto& peer : localCellConfig->Peers) {
+        if (peer.Address) {
+            addresses.push_back(*peer.Address);
+        }
+    }
+    Config_->SecurityManager->UserThrottler->MemberClient->ServerAddresses = addresses;
+    Config_->SecurityManager->UserThrottler->DiscoveryClient->ServerAddresses = addresses;
+
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.
     ObjectManager_ = New<TObjectManager>(this);
 
     RequestProfilingManager_ = New<TRequestProfilingManager>();
 
-    SecurityManager_ = New<TSecurityManager>(this);
+    SecurityManager_ = New<TSecurityManager>(Config_->SecurityManager, this);
 
     TransactionManager_ = New<TTransactionManager>(this);
 
@@ -663,7 +695,7 @@ void TBootstrap::DoInitialize()
 
     SchedulerPoolManager_ = New<TSchedulerPoolManager>(this);
 
-    auto timestampProviderChannel = CreateTimestampProviderChannel(Config_->TimestampProvider, channelFactory);
+    auto timestampProviderChannel = CreateTimestampProviderChannel(Config_->TimestampProvider, ChannelFactory_);
     if (MulticellManager_->IsPrimaryMaster() && !Config_->EnableTimestampManager) {
         TimestampProvider_ = CreateBatchingRemoteTimestampProvider(
             Config_->TimestampProvider,
@@ -727,17 +759,12 @@ void TBootstrap::DoInitialize()
 
     DiscoveryQueue_ = New<TActionQueue>("Discovery");
     auto discoveryServerConfig = New<TDiscoveryServerConfig>();
-    discoveryServerConfig->ServerAddresses.reserve(localCellConfig->Peers.size());
-    for (const auto& peer : localCellConfig->Peers) {
-        if (peer.Address) {
-            discoveryServerConfig->ServerAddresses.push_back(*peer.Address);
-        }
-    }
+    discoveryServerConfig->ServerAddresses = std::move(addresses);
     DiscoveryServer_ = New<TDiscoveryServer>(
         RpcServer_,
         localAddress,
         discoveryServerConfig,
-        channelFactory,
+        ChannelFactory_,
         DiscoveryQueue_->GetInvoker(),
         DiscoveryQueue_->GetInvoker());
     DiscoveryServer_->Initialize();

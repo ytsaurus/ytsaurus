@@ -818,7 +818,7 @@ private:
         if (optionalCurrentLeaderId == MemberId_) {
             THashMap<TString, double> throttlerIdToUsageRate;
             for (const auto& [throttlerId, throttler] : throttlers) {
-                const auto& config = throttler->GetConfig();
+                auto config = throttler->GetConfig();
                 DistributedThrottlerService_->SetTotalLimit(throttlerId, config->Limit);
 
                 auto usageRate = throttler->GetUsageRate();

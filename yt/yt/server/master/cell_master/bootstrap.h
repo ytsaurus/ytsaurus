@@ -42,6 +42,8 @@
 
 #include <yt/ytlib/hive/public.h>
 
+#include <yt/ytlib/distributed_throttler/public.h>
+
 #include <yt/core/concurrency/action_queue.h>
 
 #include <yt/core/rpc/public.h>
@@ -107,6 +109,12 @@ public:
     const IInvokerPtr& GetProfilerInvoker() const;
     const NNodeTrackerClient::INodeChannelFactoryPtr& GetNodeChannelFactory() const;
 
+    NDistributedThrottler::TDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
+        NDistributedThrottler::TDistributedThrottlerConfigPtr config,
+        IInvokerPtr invoker,
+        const TString& groupIdPrefix,
+        NLogging::TLogger logger) const;
+
     void Initialize();
     void Run();
     void TryLoadSnapshot(
@@ -166,6 +174,7 @@ private:
     ICoreDumperPtr CoreDumper_;
     NConcurrency::TActionQueuePtr DiscoveryQueue_;
     NDiscoveryServer::TDiscoveryServerPtr DiscoveryServer_;
+    NRpc::IChannelFactoryPtr ChannelFactory_;
 
     NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
 
