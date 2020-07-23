@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -59,6 +60,12 @@ public class FailureDetectingRpcClient implements RpcClient {
                     errorHandler.accept(error);
                 }
                 handler.onError(error);
+            }
+
+            @Override
+            public void onCancel(CancellationException cancel) {
+                logger.debug("RPC request cancelled");
+                handler.onCancel(cancel);
             }
         };
     }

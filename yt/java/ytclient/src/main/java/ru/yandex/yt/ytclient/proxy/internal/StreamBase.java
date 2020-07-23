@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 
 import com.google.protobuf.Message;
@@ -84,6 +85,11 @@ public abstract class StreamBase<RspType extends Message> implements RpcStreamCo
     public void onError(RpcClient sender, Throwable error) {
         logger.error("Error", error);
         result.completeExceptionally(error);
+    }
+
+    @Override
+    public void onCancel(RpcClient sender, CancellationException cancel) {
+        result.completeExceptionally(cancel);
     }
 
     protected CompletableFuture<Void> waitResult() {

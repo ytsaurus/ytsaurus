@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
@@ -17,7 +18,9 @@ import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetric
 
 /**
  * @author aozeritsky
+ * BalancingResponseHandler is deprecated, use FailoverRpcExecutor instead
  */
+@Deprecated
 public class BalancingResponseHandler implements RpcClientResponseHandler {
     private final BalancingResponseHandlerMetricsHolder metricsHolder;
 
@@ -74,7 +77,7 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
         clients = clients.subList(1, clients.size());
 
         if (step > 0) {
-           metricsHolder.failoverInc();
+            metricsHolder.failoverInc();
         }
 
         step ++;
@@ -140,6 +143,15 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
                 } else {
                     f.completeExceptionally(error);
                 }
+            }
+        }
+    }
+
+    @Override
+    public void onCancel(CancellationException cancel) {
+        synchronized (f) {
+            if (!f.isDone()) {
+                f.completeExceptionally(cancel);
             }
         }
     }
