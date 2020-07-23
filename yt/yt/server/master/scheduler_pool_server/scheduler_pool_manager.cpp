@@ -215,6 +215,7 @@ public:
             case EInternedAttributeKey::ResourceLimits:
             case EInternedAttributeKey::CreateEphemeralSubpools:
             case EInternedAttributeKey::EphemeralSubpoolConfig:
+            case EInternedAttributeKey::Abc:
                 return true;
             default:
                 return false;
