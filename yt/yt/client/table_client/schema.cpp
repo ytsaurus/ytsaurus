@@ -352,7 +352,6 @@ void FromProto(TColumnSchema* schema, const NProto::TColumnSchema& protoSchema)
         auto physicalType = CheckedEnumCast<EValueType>(protoSchema.type());
         schema->SetLogicalType(MakeLogicalType(GetLogicalType(physicalType), protoSchema.required()));
     }
-    YT_VERIFY(schema->GetPhysicalType() == CheckedEnumCast<EValueType>(protoSchema.type()));
 
     schema->SetLock(protoSchema.has_lock() ? std::make_optional(protoSchema.lock()) : std::nullopt);
     schema->SetExpression(protoSchema.has_expression() ? std::make_optional(protoSchema.expression()) : std::nullopt);

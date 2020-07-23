@@ -16,11 +16,13 @@
 #include <yt/ytlib/api/native/connection.h>
 
 #include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/ytlib/object_client/public.h>
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/table_client/config.h>
+#include <yt/ytlib/table_client/table_ypath_proxy.h>
 
 #include <yt/client/table_client/helpers.h>
 #include <yt/client/table_client/row_buffer.h>
@@ -653,6 +655,136 @@ TEST_F(TModifyRowsTest, TestNegativeSeqNumbers)
     EXPECT_THROW(SyncCommit(), TErrorException);
 
     CheckTableContents({});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAlterTableTest
+    : public TApiTestBase
+{
+protected:
+    void AlterTable(TYPath path, const NTableClient::NProto::TTableSchemaExt& schema)
+    {
+        auto req = NTableClient::TTableYPathProxy::Alter(path);
+        NCypressClient::SetTransactionId(req, TGuid{});
+        NRpc::SetMutationId(req, NRpc::GenerateMutationId(), false);
+
+        req->mutable_schema()->CopyFrom(schema);
+
+        auto channel = static_cast<NApi::NNative::IClient*>(Client_.Get())->
+            GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+        TObjectServiceProxy proxy(channel);
+
+        WaitFor(proxy.Execute(req))
+            .ThrowOnError();
+    }
+};
+
+TEST_F(TAlterTableTest, TestUnknownType)
+{
+    auto createRes = Client_->CreateNode("//tmp/t1", EObjectType::Table);
+    WaitFor(createRes)
+        .ThrowOnError();
+
+    {
+        // Type not set.
+        NTableClient::NProto::TTableSchemaExt schema;
+        auto* column = schema.add_columns();
+        column->set_name("foo");
+
+        EXPECT_THROW_THAT(
+            AlterTable("//tmp/t1", schema),
+            testing::HasSubstr("does not have corresponding logical type"));
+    }
+
+    {
+        // Type is bad.
+        NTableClient::NProto::TTableSchemaExt schema;
+        auto* column = schema.add_columns();
+        column->set_name("foo");
+        column->set_type(static_cast<int>(EValueType::Min));
+
+        EXPECT_THROW_THAT(
+            AlterTable("//tmp/t1", schema),
+            testing::HasSubstr("does not have corresponding logical type"));
+    }
+
+    {
+        // Type is unknown.
+        NTableClient::NProto::TTableSchemaExt schema;
+        auto* column = schema.add_columns();
+        column->set_name("foo");
+        column->set_type(-1);
+
+        EXPECT_THROW_THAT(
+            AlterTable("//tmp/t1", schema),
+            testing::HasSubstr("Invalid value"));
+    }
+
+    {
+        // Simple type is unknown.
+        NTableClient::NProto::TTableSchemaExt schema;
+        auto* column = schema.add_columns();
+        column->set_name("foo");
+        column->set_type(static_cast<int>(EValueType::Any));
+        column->set_simple_logical_type(-1);
+
+        EXPECT_THROW_THAT(
+            AlterTable("//tmp/t1", schema),
+            testing::HasSubstr("Invalid value"));
+    }
+
+    {
+        // Mismatch of type and simple logical type.
+        NTableClient::NProto::TTableSchemaExt schema;
+        auto* column = schema.add_columns();
+        column->set_name("foo");
+        column->set_type(static_cast<int>(EValueType::Any));
+        column->set_simple_logical_type(static_cast<int>(ESimpleLogicalValueType::Int64));
+
+        EXPECT_NO_THROW(AlterTable("//tmp/t1", schema));
+    }
+
+    {
+        // Unknown simple type in type_v3
+        NTableClient::NProto::TTableSchemaExt schema;
+        auto* column = schema.add_columns();
+        column->set_name("foo");
+        column->set_type(static_cast<int>(EValueType::Int64));
+        column->mutable_logical_type()->set_simple(-1);
+
+        EXPECT_THROW_THAT(
+            AlterTable("//tmp/t1", schema),
+            testing::HasSubstr("Invalid value"));
+    }
+
+    {
+        // Unset type in type_v3
+        NTableClient::NProto::TTableSchemaExt schema;
+        auto* column = schema.add_columns();
+        column->set_name("foo");
+        column->set_type(static_cast<int>(EValueType::Int64));
+        column->mutable_logical_type();
+
+        EXPECT_THROW_THAT(
+            AlterTable("//tmp/t1", schema),
+            testing::HasSubstr("Cannot parse unknown logical type from proto"));
+    }
+
+    {
+        // Unknown type in type_v3
+        NTableClient::NProto::TTableSchemaExt schema;
+        auto* column = schema.add_columns();
+        column->set_name("foo");
+        column->set_type(static_cast<int>(EValueType::Int64));
+        column->mutable_logical_type();
+        auto unknownFields = column->GetReflection()->MutableUnknownFields(column);
+        unknownFields->AddVarint(100500, 0);
+
+        EXPECT_THROW_THAT(
+            AlterTable("//tmp/t1", schema),
+            testing::HasSubstr("Cannot parse unknown logical type from proto"));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -4,6 +4,7 @@
 
 #include <yt/core/misc/dense_map.h>
 #include <yt/core/misc/optional.h>
+#include <yt/core/misc/error.h>
 
 namespace NYT::NTableClient {
 
@@ -198,7 +199,7 @@ inline constexpr EValueType GetPhysicalType(ESimpleLogicalValueType type)
     }
 }
 
-inline constexpr ESimpleLogicalValueType GetLogicalType(EValueType type)
+inline ESimpleLogicalValueType GetLogicalType(EValueType type)
 {
     switch (type) {
         case EValueType::Null:
@@ -209,10 +210,14 @@ inline constexpr ESimpleLogicalValueType GetLogicalType(EValueType type)
         case EValueType::String:
         case EValueType::Any:
             return static_cast<ESimpleLogicalValueType>(type);
-
-        default:
-            YT_ABORT();
+        case EValueType::Composite:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            THROW_ERROR_EXCEPTION("EValueType %Qlv does not have corresponding logical type",
+                type);
     }
+    YT_ABORT();
 }
 
 inline constexpr bool IsIntegralType(EValueType type)
