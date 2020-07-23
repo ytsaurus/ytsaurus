@@ -114,10 +114,10 @@ private:
 
     void DoWatchCores();
 
-    NCoreDump::NProto::TCoreInfo DoProcessLinuxCore(const TString& coreName, int coreIndex);
-    NCoreDump::NProto::TCoreInfo DoProcessGpuCore(NConcurrency::IAsyncInputStreamPtr coreStream, int coreIndex);
+    void DoProcessLinuxCore(const TString& coreName, int coreIndex);
+    void DoProcessGpuCore(NConcurrency::IAsyncInputStreamPtr coreStream, int coreIndex);
     i64 DoReadCore(const NConcurrency::IAsyncInputStreamPtr& coreStream, const TString& coreName, int coreIndex);
-    void DoAddCoreInfo(const TErrorOr<NCoreDump::NProto::TCoreInfo>& coreInfo);
+    void DoAddCoreInfo(const NCoreDump::NProto::TCoreInfo& coreInfo);
 };
 
 

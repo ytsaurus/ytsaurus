@@ -148,7 +148,7 @@ TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
         YT_LOG_INFO("Cores processing did not finish within timeout");
     }
 
-    YT_LOG_FATAL_IF(CoreInfosLock_.IsLocked(), "Core infos are still locked, something went very wrong");
+    TGuard<TSpinLock> guard(CoreInfosLock_);
 
     auto& coreInfos = CoreResult_.CoreInfos;
     if (expectedCoreCount > coreInfos.size()) {
@@ -201,9 +201,7 @@ void TCoreWatcher::DoWatchCores()
                 auto coreInfoFuture = BIND(&TCoreWatcher::DoProcessLinuxCore, MakeStrong(this), name, coreIndex)
                     .AsyncVia(IOInvoker_)
                     .Run();
-                CoreFutures_.push_back(coreInfoFuture
-                    .Apply(BIND(&TCoreWatcher::DoAddCoreInfo, MakeStrong(this))
-                        .Via(ControlInvoker_)));
+                CoreFutures_.push_back(coreInfoFuture);
             }
         } else if (fileName == CudaGpuCoreDumpPipeName) {
             if (!SeenCoreNames_.contains(fileName)) {
@@ -234,16 +232,14 @@ void TCoreWatcher::DoWatchCores()
                         coreIndex)
                         .AsyncVia(IOInvoker_)
                         .Run();
-                    CoreFutures_.push_back(coreInfoFuture
-                        .Apply(BIND(&TCoreWatcher::DoAddCoreInfo, MakeStrong(this))
-                            .Via(ControlInvoker_)));
+                    CoreFutures_.push_back(coreInfoFuture);
                 }
             }
         }
     }
 }
 
-TCoreInfo TCoreWatcher::DoProcessLinuxCore(const TString& coreName, int coreIndex)
+void TCoreWatcher::DoProcessLinuxCore(const TString& coreName, int coreIndex)
 {
     VERIFY_INVOKER_AFFINITY(IOInvoker_);
 
@@ -308,10 +304,10 @@ TCoreInfo TCoreWatcher::DoProcessLinuxCore(const TString& coreName, int coreInde
         }
     }
 
-    return coreInfo;
+    DoAddCoreInfo(coreInfo);
 }
 
-TCoreInfo TCoreWatcher::DoProcessGpuCore(IAsyncInputStreamPtr coreStream, int coreIndex)
+void TCoreWatcher::DoProcessGpuCore(IAsyncInputStreamPtr coreStream, int coreIndex)
 {
     VERIFY_INVOKER_AFFINITY(IOInvoker_);
 
@@ -343,7 +339,7 @@ TCoreInfo TCoreWatcher::DoProcessGpuCore(IAsyncInputStreamPtr coreStream, int co
         ToProto(coreInfo.mutable_error(), error);
     }
 
-    return coreInfo;
+    DoAddCoreInfo(coreInfo);
 }
 
 i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const TString& coreName, int coreIndex)
@@ -395,21 +391,15 @@ i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const TStri
     return coreSize;
 }
 
-void TCoreWatcher::DoAddCoreInfo(const TErrorOr<TCoreInfo>& coreInfo)
+void TCoreWatcher::DoAddCoreInfo(const TCoreInfo& coreInfo)
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
     TGuard<TSpinLock> guard(CoreInfosLock_);
-    if (coreInfo.IsOK()) {
-        auto coreIndex = coreInfo.Value().core_index();
-        if (coreIndex >= CoreResult_.CoreInfos.size()) {
-            CoreResult_.CoreInfos.resize(coreIndex + 1);
-        }
-        CoreResult_.CoreInfos[coreIndex] = coreInfo.Value();
-        YT_LOG_DEBUG("Core info added (CoreIndex: %v)", coreIndex);
-    } else {
-        YT_LOG_INFO(coreInfo, "Failed to get core info");
+
+    auto coreIndex = coreInfo.core_index();
+    if (coreIndex >= CoreResult_.CoreInfos.size()) {
+        CoreResult_.CoreInfos.resize(coreIndex + 1);
     }
+    CoreResult_.CoreInfos[coreIndex] = coreInfo;
 }
 
 TFuture<void> TCoreWatcher::GetCoreAppearedEvent() const
