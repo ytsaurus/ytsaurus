@@ -29,6 +29,8 @@
 #include <yt/core/misc/range.h>
 #include <yt/core/misc/random.h>
 
+#include <util/generic/ylimits.h>
+
 namespace NYT::NTableClient {
 
 using namespace NTableChunkFormat;
@@ -73,7 +75,7 @@ public:
         , MinTimestamp_(MaxTimestamp)
         , MaxTimestamp_(MinTimestamp)
         , RandomGenerator_(RandomNumber<ui64>())
-        , SamplingThreshold_(static_cast<ui64>(std::numeric_limits<ui64>::max() * Config_->SampleRate))
+        , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
         , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
 #if 0
         , KeyFilter_(Config_->MaxKeyFilterSize, Config_->KeyFilterFalsePositiveRate)
