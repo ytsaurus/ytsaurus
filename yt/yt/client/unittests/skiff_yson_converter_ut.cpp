@@ -386,6 +386,75 @@ TEST(TYsonSkiffConverterTest, TestSkippedFields)
         "0f000000" "00000000");
 }
 
+TEST(TYsonSkiffConverterTest, TestUnknownSkiffFields)
+{
+    TString skiffString;
+    skiffString = ConvertYsonHex(
+        StructLogicalType({
+            {"key",    SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"subkey", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"value",  SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+        }),
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
+            SkiffOptional(CreateSimpleTypeSchema(EWireType::String32))->SetName("key2"),
+            CreateSimpleTypeSchema(EWireType::Boolean)->SetName("value"),
+        }),
+        " [ true ; 1; %true ] ");
+    EXPECT_EQ(skiffString, AsStringBuf("04000000" "74727565" "00" "01"));
+
+    skiffString = ConvertYsonHex(
+        StructLogicalType({
+            {"key",    SimpleLogicalType(ESimpleLogicalValueType::String)},
+            {"subkey", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+            {"value",  SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+        }),
+        CreateTupleSchema({
+            CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
+            CreateSimpleTypeSchema(EWireType::Boolean)->SetName("value"),
+            SkiffOptional(CreateSimpleTypeSchema(EWireType::Yson32))->SetName("value2"),
+        }),
+        " [ true ; 1; %true ] ");
+    EXPECT_EQ(skiffString, AsStringBuf("04000000" "74727565" "01" "00"));
+
+
+    try {
+        skiffString = ConvertYsonHex(
+            StructLogicalType({
+                {"key",    SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"subkey", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"value",  SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+            }),
+            CreateTupleSchema({
+                CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
+                CreateSimpleTypeSchema(EWireType::Boolean)->SetName("value"),
+                CreateSimpleTypeSchema(EWireType::Yson32)->SetName("value2"),
+            }),
+            " [ true ; 1; %true ] ");
+        GTEST_FAIL() << "exception expected";
+    } catch (const std::exception& e) {
+        EXPECT_THAT(e.what(), testing::ContainsRegex("Non optional skiff field .* is missing corresponding logical struct field"));
+    }
+
+    try {
+        ConvertHexToTextYson(
+            StructLogicalType({
+                {"key",    SimpleLogicalType(ESimpleLogicalValueType::String)},
+                {"subkey", SimpleLogicalType(ESimpleLogicalValueType::Int64)},
+                {"value",  SimpleLogicalType(ESimpleLogicalValueType::Boolean)},
+            }),
+            CreateTupleSchema({
+                CreateSimpleTypeSchema(EWireType::String32)->SetName("key"),
+                SkiffOptional(CreateSimpleTypeSchema(EWireType::String32))->SetName("key2"),
+                CreateSimpleTypeSchema(EWireType::Boolean)->SetName("value"),
+            }),
+            AsStringBuf("04000000" "74727565" "00" "01"));
+        GTEST_FAIL() << "expected_exception";
+    } catch (const std::exception& e) {
+        EXPECT_THAT(e.what(), testing::ContainsRegex("is not found in logical type"));
+    }
+}
+
 TEST(TYsonSkiffConverterTest, TestTuple)
 {
     CHECK_BIDIRECTIONAL_CONVERSION(
