@@ -157,7 +157,7 @@ import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
 import ru.yandex.yt.ytclient.proxy.internal.FileReaderImpl;
 import ru.yandex.yt.ytclient.proxy.internal.FileWriterImpl;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
-import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReaderImpl;
+import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableReaderImpl;
 import ru.yandex.yt.ytclient.proxy.internal.TableWriterImpl;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
@@ -1601,28 +1601,22 @@ public class ApiServiceClient implements TransactionalClient {
 
     @Override
     public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req) {
-        RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
-                builder = service.readTable();
-
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
-        req.writeTo(builder.body());
-
-        return new TableReaderImpl<>(startStream(builder),
-                new TableAttachmentReaderImpl<>(req.getDeserializer())).waitMetadata();
+        return readTable(req, new TableAttachmentWireProtocolReader<>(req.getDeserializer()));
     }
 
     public CompletableFuture<TableReader<byte[]>> readTableDirect(ReadTableDirect req) {
+        return readTable(req, TableAttachmentReader.BYPASS);
+    }
+
+    public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
+                                                           TableAttachmentReader<T> reader) {
         RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
                 builder = service.readTable();
 
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.getTimeout().ifPresent(builder::setTimeout);
         req.writeTo(builder.body());
 
-        return new TableReaderImpl<>(startStream(builder), TableAttachmentReader.BYPASS).waitMetadata();
+        return new TableReaderImpl<>(startStream(builder), reader).waitMetadata();
     }
 
     @Override
