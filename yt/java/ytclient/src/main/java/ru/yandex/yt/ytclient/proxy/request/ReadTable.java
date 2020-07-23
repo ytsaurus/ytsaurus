@@ -9,6 +9,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.misc.io.IoUtils;
+import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.object.MappedRowsetDeserializer;
@@ -22,6 +23,7 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
     private boolean unordered = false;
     private boolean omitInaccessibleColumns = false;
     private YTreeNode config = null;
+    private ERowsetFormat desiredRowsetFormat = ERowsetFormat.RF_YT_WIRE;
 
     private TransactionalOptions transactionalOptions = null;
 
@@ -68,6 +70,11 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
         return this;
     }
 
+    public ReadTable<T> setDesiredRowsetFormat(ERowsetFormat desiredRowsetFormat) {
+        this.desiredRowsetFormat = desiredRowsetFormat;
+        return this;
+    }
+
     public TReqReadTable.Builder writeTo(TReqReadTable.Builder builder) {
         builder.setUnordered(unordered);
         builder.setOmitInaccessibleColumns(omitInaccessibleColumns);
@@ -85,6 +92,7 @@ public class ReadTable<T> extends RequestBase<ReadTable<T>> {
         if (additionalData != null) {
             builder.mergeFrom(additionalData);
         }
+        builder.setDesiredRowsetFormat(desiredRowsetFormat);
         return builder;
     }
 }
