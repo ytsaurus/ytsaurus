@@ -54,8 +54,8 @@ THashMap<TString, int> GetGpuIds(TDuration checkTimeout)
         }),
         checkTimeout);
 
-    auto cookieGuard = Finally([&] () {
-        TDelayedExecutor::CancelAndClear(killCookie);
+    auto cookieGuard = Finally([&] {
+        TDelayedExecutor::Cancel(killCookie);
     });
 
     auto nvidiaSmiResult = subprocess.Execute();
@@ -148,8 +148,8 @@ std::vector<TGpuInfo> GetGpuInfos(TDuration checkTimeout)
         }),
         remainingTimeout);
 
-    auto cookieGuard = Finally([&] () {
-        TDelayedExecutor::CancelAndClear(killCookie);
+    auto cookieGuard = Finally([&] {
+        TDelayedExecutor::Cancel(killCookie);
     });
 
     auto nvidiaSmiResult = subprocess.Execute();
