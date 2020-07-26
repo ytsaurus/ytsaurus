@@ -54,7 +54,7 @@ public:
         }
     }
 
-    TFuture<IConnectionPtr> ToFuture() const
+    TFuture<IConnectionPtr> GetFuture() const
     {
         return Promise_.ToFuture();
     }
@@ -65,7 +65,7 @@ private:
     const IPollerPtr Poller_;
     const IAsyncDialerSessionPtr Session_;
 
-    TPromise<IConnectionPtr> Promise_ = NewPromise<IConnectionPtr>();
+    const TPromise<IConnectionPtr> Promise_ = NewPromise<IConnectionPtr>();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,7 +78,8 @@ public:
         TDialerConfigPtr config,
         IPollerPtr poller,
         const NLogging::TLogger& logger)
-        : AsyncDialer_(CreateAsyncDialer(std::move(config),
+        : AsyncDialer_(CreateAsyncDialer(
+            std::move(config),
             poller,
             logger))
         , Poller_(std::move(poller))
@@ -90,12 +91,12 @@ public:
             remote,
             AsyncDialer_,
             Poller_);
-        return session->ToFuture();
+        return session->GetFuture();
     }
 
 private:
-    IAsyncDialerPtr AsyncDialer_;
-    IPollerPtr Poller_;
+    const IAsyncDialerPtr AsyncDialer_;
+    const IPollerPtr Poller_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDialer);
@@ -138,6 +139,7 @@ public:
     ~TAsyncDialerSession()
     {
         TGuard<TSpinLock> guard(SpinLock_);
+        
         Finished_ = true;
         CloseSocket();
     }
@@ -150,6 +152,7 @@ public:
         Dialed_ = true;
 
         Connect();
+        
         if (Finished_) {
             guard.Release();
             Finish();
@@ -228,6 +231,8 @@ private:
 
     void Connect()
     {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
         try {
             int family = Address_.GetSockAddr()->sa_family;
 
@@ -271,7 +276,8 @@ private:
 
     void Finish()
     {
-        YT_ASSERT(Finished_);
+        YT_VERIFY(Finished_);
+
         if (Socket_ == INVALID_SOCKET) {
             OnFinished_(Error_);
         } else {
@@ -304,6 +310,7 @@ private:
             }
 
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+            
             Finished_ = true;
             Finish();
         }
