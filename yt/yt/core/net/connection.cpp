@@ -383,7 +383,11 @@ public:
             }
 
             ShutdownRequested_ = true;
-            if (SynchronousIOCount_) {
+
+            TDelayedExecutor::CancelAndClear(WriteTimeoutCookie_);
+            TDelayedExecutor::CancelAndClear(ReadTimeoutCookie_);
+
+            if (SynchronousIOCount_ > 0) {
                 return;
             }
         }
@@ -401,9 +405,6 @@ public:
         FD_ = -1;
 
         ShutdownPromise_.Set();
-
-        TDelayedExecutor::CancelAndClear(WriteTimeoutCookie_);
-        TDelayedExecutor::CancelAndClear(ReadTimeoutCookie_);
     }
 
     TFuture<size_t> Read(const TSharedMutableRef& data)
@@ -477,7 +478,11 @@ public:
     bool IsIdle()
     {
         auto guard = Guard(Lock_);
-        return Error_.IsOK() && !WriteDirection_.Operation && !ReadDirection_.Operation && SynchronousIOCount_ == 0;
+        return
+            Error_.IsOK() &&
+            !WriteDirection_.Operation &&
+            !ReadDirection_.Operation &&
+            SynchronousIOCount_ == 0;
     }
 
     TFuture<void> Abort(const TError& error)
@@ -538,25 +543,33 @@ public:
         return WriteDirection_.GetStatistics();
     }
 
-    void SetReadDeadline(TInstant deadline)
+    void SetReadDeadline(std::optional<TInstant> deadline)
     {
-        if (ReadTimeoutCookie_) {
-            TDelayedExecutor::CancelAndClear(ReadTimeoutCookie_);
+        auto guard = Guard(Lock_);
+
+        if (ShutdownRequested_) {
+            return;
         }
 
+        TDelayedExecutor::CancelAndClear(ReadTimeoutCookie_);
+
         if (deadline) {
-            ReadTimeoutCookie_ = TDelayedExecutor::Submit(AbortFromReadTimeout_, deadline);
+            ReadTimeoutCookie_ = TDelayedExecutor::Submit(AbortFromReadTimeout_, *deadline);
         }
     }
 
-    void SetWriteDeadline(TInstant deadline)
+    void SetWriteDeadline(std::optional<TInstant> deadline)
     {
-        if (WriteTimeoutCookie_) {
-            TDelayedExecutor::CancelAndClear(WriteTimeoutCookie_);
+        auto guard = Guard(Lock_);
+
+        if (ShutdownRequested_) {
+            return;
         }
 
+        TDelayedExecutor::CancelAndClear(WriteTimeoutCookie_);
+
         if (deadline) {
-            WriteTimeoutCookie_ = TDelayedExecutor::Submit(AbortFromWriteTimeout_, deadline);
+            WriteTimeoutCookie_ = TDelayedExecutor::Submit(AbortFromWriteTimeout_, *deadline);
         }
     }
 
@@ -566,6 +579,8 @@ private:
     const TNetworkAddress LocalAddress_;
     const TNetworkAddress RemoteAddress_;
     int FD_ = -1;
+    const IPollerPtr Poller_;
+
 
     TFDConnectionImpl(
         int fd,
@@ -594,7 +609,7 @@ private:
     class TSynchronousIOGuard
     {
     public:
-        TSynchronousIOGuard(TFDConnectionImplPtr owner)
+        explicit TSynchronousIOGuard(TFDConnectionImplPtr owner)
             : Owner_(std::move(owner))
         {
             auto guard = Guard(Owner_->Lock_);
@@ -606,7 +621,7 @@ private:
         {
             if (Owner_) {
                 auto guard = Guard(Owner_->Lock_);
-                YT_VERIFY(Owner_->SynchronousIOCount_);
+                YT_VERIFY(Owner_->SynchronousIOCount_ > 0);
                 if (--Owner_->SynchronousIOCount_ == 0 &&
                     Owner_->ShutdownRequested_)
                 {
@@ -623,7 +638,7 @@ private:
         TSynchronousIOGuard& operator=(TSynchronousIOGuard&&) = default;
 
     private:
-        TFDConnectionImplPtr Owner_;
+        const TFDConnectionImplPtr Owner_;
     };
 
     struct TIODirection
@@ -662,11 +677,9 @@ private:
     TIODirection ReadDirection_;
     TIODirection WriteDirection_;
     bool ShutdownRequested_ = false;
-    unsigned int SynchronousIOCount_ = 0;
+    int SynchronousIOCount_ = 0;
     TError Error_;
-    TPromise<void> ShutdownPromise_ = NewPromise<void>();
-
-    IPollerPtr Poller_;
+    const TPromise<void> ShutdownPromise_ = NewPromise<void>();
 
     TClosure AbortFromReadTimeout_;
     TClosure AbortFromWriteTimeout_;
@@ -925,12 +938,12 @@ public:
         return Impl_->GetWriteStatistics();
     }
 
-    virtual void SetReadDeadline(TInstant deadline) override
+    virtual void SetReadDeadline(std::optional<TInstant> deadline) override
     {
         Impl_->SetReadDeadline(deadline);
     }
 
-    virtual void SetWriteDeadline(TInstant deadline) override
+    virtual void SetWriteDeadline(std::optional<TInstant> deadline) override
     {
         Impl_->SetWriteDeadline(deadline);
     }

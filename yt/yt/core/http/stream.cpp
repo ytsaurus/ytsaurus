@@ -391,7 +391,7 @@ bool THttpInput::ReceiveHeaders()
             if (Parser_.GetState() == EParserState::MessageFinished) {
                 FinishMessage();
             }
-            Connection_->SetReadDeadline({});
+            Connection_->SetReadDeadline(std::nullopt);
             return true;
         }
 
@@ -456,7 +456,7 @@ TSharedRef THttpInput::DoRead()
 
         auto chunk = Parser_.GetLastBodyChunk();
         if (!chunk.Empty()) {
-            Connection_->SetReadDeadline({});
+            Connection_->SetReadDeadline(std::nullopt);
             return chunk;
         }
 
@@ -471,7 +471,7 @@ TSharedRef THttpInput::DoRead()
         if (Parser_.GetState() == EParserState::MessageFinished) {
             FinishMessage();
 
-            Connection_->SetReadDeadline({});
+            Connection_->SetReadDeadline(std::nullopt);
             return EmptySharedRef;
         }
 

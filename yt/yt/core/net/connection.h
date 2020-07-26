@@ -31,7 +31,7 @@ struct IConnectionReader
 
     virtual i64 GetReadByteCount() const = 0;
 
-    virtual void SetReadDeadline(TInstant deadline) = 0;
+    virtual void SetReadDeadline(std::optional<TInstant> deadline) = 0;
 
     virtual TConnectionStatistics GetReadStatistics() const = 0;
 };
@@ -53,7 +53,7 @@ struct IConnectionWriter
 
     virtual i64 GetWriteByteCount() const = 0;
 
-    virtual void SetWriteDeadline(TInstant deadline) = 0;
+    virtual void SetWriteDeadline(std::optional<TInstant> deadline) = 0;
 
     virtual TConnectionStatistics GetWriteStatistics() const = 0;
 };

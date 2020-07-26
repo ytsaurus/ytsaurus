@@ -180,12 +180,12 @@ public:
         return Underlying_->GetWriteStatistics();
     }
 
-    virtual void SetReadDeadline(TInstant deadline) override
+    virtual void SetReadDeadline(std::optional<TInstant> deadline) override
     {
         Underlying_->SetReadDeadline(deadline);
     }
 
-    virtual void SetWriteDeadline(TInstant deadline) override
+    virtual void SetWriteDeadline(std::optional<TInstant> deadline) override
     {
         Underlying_->SetWriteDeadline(deadline);
     }
