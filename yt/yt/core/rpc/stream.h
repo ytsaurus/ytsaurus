@@ -175,9 +175,8 @@ public:
 
 private:
     const IClientRequestPtr Request_;
-
-    NConcurrency::IAsyncZeroCopyInputStreamPtr Underlying_;
-    TFuture<void> InvokeResult_;
+    const NConcurrency::IAsyncZeroCopyInputStreamPtr Underlying_;
+    const TFuture<void> InvokeResult_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,7 +219,7 @@ private:
 
     NConcurrency::IAsyncZeroCopyOutputStreamPtr Underlying_;
     TFuture<void> InvokeResult_;
-    TPromise<void> CloseResult_;
+    const TPromise<void> CloseResult_ = NewPromise<void>();
 
     NConcurrency::IAsyncZeroCopyInputStreamPtr FeedbackStream_;
     bool FeedbackEnabled_;
