@@ -107,53 +107,60 @@ private:
 
     void DoSync()
     {
-        // NB: here, we count on the directory being able to provide us with a
-        // channel to primary cell even before the first sync happens.
+        try {
+            YT_LOG_DEBUG("Started synchronizing master cell directory");
 
-        auto primaryMasterChannel = Directory_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
-        TObjectServiceProxy proxy(primaryMasterChannel);
+            // NB: here, we count on the directory being able to provide us with a
+            // channel to primary cell even before the first sync happens.
 
-        auto batchReq = proxy.ExecuteBatch();
+            auto primaryMasterChannel = Directory_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
+            TObjectServiceProxy proxy(primaryMasterChannel);
 
-        auto req = TMasterYPathProxy::GetClusterMeta();
-        req->set_populate_cell_directory(true);
+            auto batchReq = proxy.ExecuteBatch();
 
-        auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
-        cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->SuccessExpirationTime));
-        cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->FailureExpirationTime));
+            auto req = TMasterYPathProxy::GetClusterMeta();
+            req->set_populate_cell_directory(true);
 
-        batchReq->AddRequest(req);
+            auto* cachingHeaderExt = req->Header().MutableExtension(NYTree::NProto::TCachingHeaderExt::caching_header_ext);
+            cachingHeaderExt->set_success_expiration_time(ToProto<i64>(Config_->SuccessExpirationTime));
+            cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(Config_->FailureExpirationTime));
 
-        auto batchRsp = WaitFor(batchReq->Invoke())
-            .ValueOrThrow();
+            batchReq->AddRequest(req);
 
-        // TODO(shakurov): Should we have a weak pointer to Directory_?
+            auto batchRsp = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
 
-        auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspGetClusterMeta>(0)
-            .Value();
+            // TODO(shakurov): Should we have a weak pointer to Directory_?
 
-        // COMPAT(shakurov): support old masters' empty responses.
-        if (rsp->has_cell_directory()) {
-            Directory_->Update(rsp->cell_directory());
-        } else {
-            Directory_->UpdateDefault();
+            auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspGetClusterMeta>(0)
+                .Value();
+
+            // COMPAT(shakurov): support old masters' empty responses.
+            if (rsp->has_cell_directory()) {
+                Directory_->Update(rsp->cell_directory());
+            } else {
+                Directory_->UpdateDefault();
+            }
+
+            YT_LOG_DEBUG("Finished synchronizing master cell directory");
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error synchronizing cell directory")
+                << ex;
         }
     }
 
     void OnSync()
     {
         TError error;
-        std::optional<TDuration> period;
+        auto period = Config_->SyncPeriod;
         try {
             DoSync();
-
-            period = Config_->SyncPeriod;
-            YT_LOG_DEBUG("Synchronizing master cell directory succeeded, next sync in %v", period);
         } catch (const std::exception& ex) {
-            error = TError("Synchronizing master cell directory failed") << ex;
-
-            period = Config_->RetryPeriod ? Config_->RetryPeriod : Config_->SyncPeriod;
-            YT_LOG_WARNING(error, "Synchronizing master cell directory failed, next sync in %v", period);
+            error = ex;
+            YT_LOG_WARNING(error);
+            if (Config_->RetryPeriod) {
+                period = Config_->RetryPeriod;
+            }
         }
 
         SyncExecutor_->SetPeriod(period);

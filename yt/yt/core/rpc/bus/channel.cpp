@@ -1116,13 +1116,13 @@ private:
             return static_cast<bool>(ResponseHandler_);
         }
 
-        void SetTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorEntryPtr cookie)
+        void SetTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorCookie cookie)
         {
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
             TimeoutCookie_ = std::move(cookie);
         }
 
-        void SetAcknowledgementTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorEntryPtr cookie)
+        void SetAcknowledgementTimeoutCookie(const TGuard<TSpinLock>&, TDelayedExecutorCookie cookie)
         {
             TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
             AcknowledgementTimeoutCookie_ = std::move(cookie);

@@ -335,11 +335,10 @@ public:
         , Coordinator_(bootstrap->GetProxyCoordinator())
         , SecurityManager_(Config_->SecurityManager, Bootstrap_)
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
-    {
-        AuthenticatedClientCache_ = New<NApi::NNative::TClientCache>(
+        , AuthenticatedClientCache_(New<NApi::NNative::TClientCache>(
             Config_->ClientCache,
-            Bootstrap_->GetNativeConnection());
-
+            Bootstrap_->GetNativeConnection()))
+    {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
@@ -459,11 +458,11 @@ private:
     TBootstrap* const Bootstrap_;
     const TApiServiceConfigPtr Config_;
     const IProxyCoordinatorPtr Coordinator_;
+    
     TSecurityManager SecurityManager_;
-
-    TSpinLock SpinLock_;
-    NNative::TClientCachePtr AuthenticatedClientCache_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
+    const NNative::TClientCachePtr AuthenticatedClientCache_;
+
 
     NNative::IClientPtr GetOrCreateClient(const TString& user)
     {
@@ -474,20 +473,25 @@ private:
 
     void SetupTracing(const IServiceContextPtr& context)
     {
-        if (auto traceContext = NTracing::GetCurrentTraceContext()) {
-            const auto& identity = context->GetAuthenticationIdentity();
+        auto traceContext = NTracing::GetCurrentTraceContext();
+        if (!traceContext) {
+            return;
+        }
+        
+        if (Config_->ForceTracing) {
+            traceContext->SetSampled();
+        }
+
+        const auto& identity = context->GetAuthenticationIdentity();
+        auto* sampler = Coordinator_->GetTraceSampler();
+        if (sampler->IsTraceSampled(identity.User)) {
+            traceContext->SetSampled();
+        }
+
+        if (traceContext->IsSampled()) {
             traceContext->AddTag("user", identity.User);
             if (identity.UserTag != identity.User) {
                 traceContext->AddTag("user_tag", identity.UserTag);
-            }
-
-            if (Config_->ForceTracing) {
-                traceContext->SetSampled();
-            }
-
-            auto sampler = Coordinator_->GetTraceSampler();
-            if (sampler->IsTraceSampled(identity.User)) {
-                traceContext->SetSampled();
             }
         }
     }
