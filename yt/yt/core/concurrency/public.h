@@ -13,8 +13,13 @@ DECLARE_REFCOUNTED_CLASS(TPeriodicExecutor)
 DECLARE_REFCOUNTED_CLASS(TAsyncSemaphore)
 DECLARE_REFCOUNTED_CLASS(TProfiledAsyncSemaphore)
 
+namespace NDetail {
+
 DECLARE_REFCOUNTED_STRUCT(TDelayedExecutorEntry)
-typedef TDelayedExecutorEntryPtr TDelayedExecutorCookie;
+
+} // namespace NDetail
+
+using TDelayedExecutorCookie = NDetail::TDelayedExecutorEntryPtr;
 
 DECLARE_REFCOUNTED_CLASS(TThroughputThrottlerConfig)
 DECLARE_REFCOUNTED_STRUCT(IThroughputThrottler)

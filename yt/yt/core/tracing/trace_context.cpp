@@ -43,7 +43,9 @@ TSpanContext TSpanContext::CreateChild()
 
 void AddErrorTag()
 {
-    AddTag("error", TString("true"));
+    static const TString ErrorAnnotationName("error");
+    static const TString ErrorAnnotationValue("true");
+    AddTag(ErrorAnnotationName, ErrorAnnotationValue);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

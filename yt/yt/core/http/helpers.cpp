@@ -386,8 +386,9 @@ NTracing::TTraceContextPtr GetOrCreateTraceContext(const IRequestPtr& req)
         // Generate new trace context from scratch.
         traceContext = NTracing::CreateRootTraceContext("HttpServer");
     }
-
-    traceContext->AddTag("path", TString(req->GetUrl().Path));
+    if (traceContext->IsSampled()) {
+        traceContext->AddTag("path", TString(req->GetUrl().Path));
+    }
     return traceContext;
 }
 

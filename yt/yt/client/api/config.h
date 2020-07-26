@@ -36,7 +36,7 @@ public:
             .GreaterThanOrEqual(0)
             .Default(5);
         RegisterParameter("on_error_retry_slack_period", OnErrorSlackPeriod)
-            .GreaterThan(TDuration::MicroSeconds(0))
+            .GreaterThan(TDuration::Zero())
             .Default(TDuration::Seconds(1));
     }
 };

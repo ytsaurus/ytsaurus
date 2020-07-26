@@ -590,7 +590,7 @@ protected:
             return;
         }
 
-        BanPeer(peerAddress, rspOrError.GetCode() == NChunkClient::EErrorCode::NoSuchChunk);
+        BanPeer(peerAddress, code == NChunkClient::EErrorCode::NoSuchChunk);
         RegisterError(error);
     }
 

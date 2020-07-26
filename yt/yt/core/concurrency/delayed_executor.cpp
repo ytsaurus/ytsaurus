@@ -31,6 +31,8 @@ const TDelayedExecutorCookie NullDelayedExecutorCookie;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
 struct TDelayedExecutorEntry
     : public TIntrinsicRefCounted
 {
@@ -64,6 +66,11 @@ struct TDelayedExecutorEntry
 };
 
 DEFINE_REFCOUNTED_TYPE(TDelayedExecutorEntry)
+
+} // namespace NDetail
+
+using NDetail::TDelayedExecutorEntry;
+using NDetail::TDelayedExecutorEntryPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 

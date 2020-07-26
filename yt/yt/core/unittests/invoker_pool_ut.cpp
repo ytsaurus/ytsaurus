@@ -18,7 +18,7 @@ IInvokerPoolPtr CreateDummyInvokerPool(IInvokerPtr underlyingInvoker, int invoke
 {
     YT_VERIFY(invokerCount > 0);
     std::vector<IInvokerPtr> underlyingInvokers(invokerCount, underlyingInvoker);
-    return New<NDetail::TInvokerPoolWrapper<IInvoker>>(std::move(underlyingInvokers));
+    return New<NYT::NDetail::TInvokerPoolWrapper<IInvoker>>(std::move(underlyingInvokers));
 }
 
 IInvokerPtr CreateIdenticalInvoker(IInvokerPtr invoker)
