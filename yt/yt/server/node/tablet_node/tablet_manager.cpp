@@ -2028,7 +2028,7 @@ private:
             return;
         }
 
-        if (IsLeader()) {
+        if (!IsRecovery()) {
             StartTableReplicaEpoch(tablet, replicaInfo);
         }
     }
@@ -3105,18 +3105,23 @@ private:
     void StartTableReplicaEpoch(TTablet* tablet, TTableReplicaInfo* replicaInfo)
     {
         YT_VERIFY(!replicaInfo->GetReplicator());
-        replicaInfo->SetReplicator(New<TTableReplicator>(
-            Config_,
-            tablet,
-            replicaInfo,
-            Bootstrap_->GetMasterClient()->GetNativeConnection(),
-            Slot_,
-            Bootstrap_->GetTabletSlotManager(),
-            CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
-            Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletReplication),
-            Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletReplication)));
-        if (replicaInfo->GetState() == ETableReplicaState::Enabled) {
-            replicaInfo->GetReplicator()->Enable();
+
+        if (IsLeader()) {
+            auto replicator = New<TTableReplicator>(
+                Config_,
+                tablet,
+                replicaInfo,
+                Bootstrap_->GetMasterClient()->GetNativeConnection(),
+                Slot_,
+                Bootstrap_->GetTabletSlotManager(),
+                CreateSerializedInvoker(Bootstrap_->GetTableReplicatorPoolInvoker()),
+                Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletReplication),
+                Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletReplication));
+            replicaInfo->SetReplicator(replicator);
+            
+            if (replicaInfo->GetState() == ETableReplicaState::Enabled) {
+                replicator->Enable();
+            }
         }
     }
 
@@ -3656,7 +3661,7 @@ private:
 
         auto& replicaInfo = it->second;
 
-        if (IsLeader()) {
+        if (!IsRecovery()) {
             StopTableReplicaEpoch(&replicaInfo);
         }
 
