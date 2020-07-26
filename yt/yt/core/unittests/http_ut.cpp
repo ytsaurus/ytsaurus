@@ -248,10 +248,10 @@ struct TFakeConnection
         return 0;
     }
 
-    virtual void SetReadDeadline(TInstant deadline) override
+    virtual void SetReadDeadline(std::optional<TInstant> /*deadline*/) override
     { }
 
-    virtual void SetWriteDeadline(TInstant deadline) override
+    virtual void SetWriteDeadline(std::optional<TInstant> /*deadline*/) override
     { }
 };
 
