@@ -1083,13 +1083,13 @@ TFuture<T> TFutureBase<T>::WithTimeout(TDuration timeout, IInvokerPtr invoker) c
         timeout,
         std::move(invoker));
 
-    Subscribe(BIND([=] (const TErrorOr<T>& value) mutable {
-        NConcurrency::TDelayedExecutor::CancelAndClear(cookie);
+    Subscribe(BIND([=] (const TErrorOr<T>& value) {
+        NConcurrency::TDelayedExecutor::Cancel(cookie);
         promise.TrySet(value);
     }));
 
-    promise.OnCanceled(BIND([=, cancelable = AsCancelable()] (const TError& error) mutable {
-        NConcurrency::TDelayedExecutor::CancelAndClear(cookie);
+    promise.OnCanceled(BIND([=, cancelable = AsCancelable()] (const TError& error) {
+        NConcurrency::TDelayedExecutor::Cancel(cookie);
         cancelable.Cancel(error);
     }));
 

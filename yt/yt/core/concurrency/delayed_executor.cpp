@@ -519,8 +519,7 @@ void TDelayedExecutor::Cancel(const TDelayedExecutorCookie& cookie)
 
 void TDelayedExecutor::CancelAndClear(TDelayedExecutorCookie& cookie)
 {
-    Cancel(cookie);
-    cookie.Reset();
+    GetImpl()->Cancel(std::move(cookie));
 }
 
 void TDelayedExecutor::StaticShutdown()

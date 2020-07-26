@@ -51,16 +51,20 @@ public:
         YT_ASSERT(lease);
 
         TGuard<TSpinLock> guard(lease->SpinLock);
-        if (!lease->IsValid)
+        
+        if (!lease->IsValid) {
             return false;
+        }
 
-        TDelayedExecutor::CancelAndClear(lease->Cookie);
         if (timeout) {
             lease->Timeout = *timeout;
         }
+
+        TDelayedExecutor::Cancel(lease->Cookie);
         lease->Cookie = TDelayedExecutor::Submit(
             BIND(&TImpl::OnLeaseExpired, lease),
             lease->Timeout);
+
         return true;
     }
 
@@ -73,6 +77,7 @@ public:
         }
 
         TGuard<TSpinLock> guard(lease->SpinLock);
+        
         if (!lease->IsValid) {
             return false;
         }
@@ -85,6 +90,7 @@ private:
     static void OnLeaseExpired(TLease lease, bool /*aborted*/)
     {
         TGuard<TSpinLock> guard(lease->SpinLock);
+        
         if (!lease->IsValid) {
             return;
         }

@@ -287,7 +287,7 @@ public:
 
             DoJobIO();
 
-            TDelayedExecutor::CancelAndClear(timeLimitCookie);
+            TDelayedExecutor::Cancel(timeLimitCookie);
             WaitFor(InputPipeBlinker_->Stop())
                 .ThrowOnError();
 
