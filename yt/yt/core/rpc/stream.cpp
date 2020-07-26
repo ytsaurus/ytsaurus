@@ -124,17 +124,20 @@ void TAttachmentsInputStream::DoEnqueuePayload(
     if (Promise_ && !Queue_.empty()) {
         auto entry = std::move(Queue_.front());
         Queue_.pop();
+
         auto promise = std::move(Promise_);
-        Promise_.Reset();
+
         ReadPosition_ += entry.CompressedSize;
+        
         if (!entry.Attachment) {
             YT_VERIFY(!Closed_);
             Closed_ = true;
         }
 
+        TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+
         guard.Release();
 
-        TDelayedExecutor::CancelAndClear(TimeoutCookie_);
         promise.Set(std::move(entry.Attachment));
         ReadCallback_();
     }
@@ -291,7 +294,7 @@ void TAttachmentsOutputStream::OnWindowPacketsReady(TMutableRange<TWindowPacket>
 
     guard.Release();
 
-    for (auto& promise : promisesToSet) {
+    for (const auto& promise : promisesToSet) {
         promise.Set();
     }
 }
@@ -375,7 +378,7 @@ void TAttachmentsOutputStream::DoAbort(TGuard<TSpinLock>& guard, const TError& e
 
     guard.Release();
 
-    for (auto& promise : promises) {
+    for (const auto& promise : promises) {
         if (promise) {
             promise.Set(error);
         }
@@ -414,6 +417,7 @@ void TAttachmentsOutputStream::HandleFeedback(const TStreamingFeedback& feedback
 
     std::vector<TPromise<void>> promises;
     promises.reserve(ConfirmationQueue_.size());
+    
     while (!ConfirmationQueue_.empty() &&
             ConfirmationQueue_.front().Position <= ReadPosition_ + WindowSize_)
     {
@@ -433,7 +437,7 @@ void TAttachmentsOutputStream::HandleFeedback(const TStreamingFeedback& feedback
 
     guard.Release();
 
-    for (auto& promise : promises) {
+    for (const auto& promise : promises) {
         if (promise) {
             promise.Set();
         }
@@ -501,11 +505,11 @@ TRpcClientInputStream::TRpcClientInputStream(
     IClientRequestPtr request,
     TFuture<void> invokeResult)
     : Request_(std::move(request))
+    , Underlying_(Request_->GetResponseAttachmentsStream())
     , InvokeResult_(std::move(invokeResult))
 {
-    YT_VERIFY(Request_);
-    Underlying_ = Request_->GetResponseAttachmentsStream();
     YT_VERIFY(Underlying_);
+    YT_VERIFY(InvokeResult_);
 }
 
 TFuture<TSharedRef> TRpcClientInputStream::Read()
@@ -582,12 +586,13 @@ TRpcClientOutputStream::TRpcClientOutputStream(
     bool feedbackEnabled)
     : Request_(std::move(request))
     , InvokeResult_(std::move(invokeResult))
-    , CloseResult_(NewPromise<void>())
     , FeedbackEnabled_(feedbackEnabled)
 {
     YT_VERIFY(Request_);
+    
     Underlying_ = Request_->GetRequestAttachmentsStream();
     YT_VERIFY(Underlying_);
+    
     FeedbackStream_ = Request_->GetResponseAttachmentsStream();
     YT_VERIFY(FeedbackStream_);
 
@@ -648,6 +653,7 @@ void TRpcClientOutputStream::AbortOnError(const TError& error)
 
     std::vector<TPromise<void>> promises;
     promises.reserve(ConfirmationQueue_.size());
+    
     while (!ConfirmationQueue_.empty()) {
         promises.push_back(std::move(ConfirmationQueue_.front()));
         ConfirmationQueue_.pop();
@@ -655,7 +661,7 @@ void TRpcClientOutputStream::AbortOnError(const TError& error)
 
     guard.Release();
 
-    for (auto& promise : promises) {
+    for (const auto& promise : promises) {
         if (promise) {
             promise.Set(error);
         }
