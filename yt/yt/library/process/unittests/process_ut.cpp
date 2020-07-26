@@ -215,15 +215,15 @@ TEST(TProcessTest, KillZombie)
     auto finished = p->Spawn();
 
     siginfo_t infop;
-
     auto res = HandleEintr(::waitid, P_PID, p->GetProcessId(), &infop, WEXITED | WNOWAIT);
-    EXPECT_EQ(0, res);
-
+    EXPECT_EQ(0, res)
+        << "errno = " << errno;
     EXPECT_EQ(p->GetProcessId(), infop.si_pid);
 
     p->Kill(SIGKILL);
     auto error = WaitFor(finished);
-    EXPECT_TRUE(error.IsOK());
+    EXPECT_TRUE(error.IsOK())
+        << ToString(error);
 }
 
 #endif
