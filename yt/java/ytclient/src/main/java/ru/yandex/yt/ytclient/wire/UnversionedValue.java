@@ -20,7 +20,6 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeEntityNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeIntegerNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeStringNode;
-import ru.yandex.misc.lang.number.UnsignedLong;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.ytree.YTreeConvertible;
 
@@ -323,7 +322,7 @@ public class UnversionedValue implements YTreeConvertible {
                 consumer.onInteger(longValue());
                 break;
             case UINT64:
-                consumer.onUnsignedInteger(UnsignedLong.valueOf(longValue()));
+                consumer.onUnsignedInteger(longValue());
                 break;
             case DOUBLE:
                 consumer.onDouble(doubleValue());
