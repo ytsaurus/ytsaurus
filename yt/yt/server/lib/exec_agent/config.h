@@ -83,6 +83,9 @@ public:
     //! Used by ytcfgen, when it creates "yt_daemon" subcontainer inside iss_hook_start.
     bool UseDaemonSubcontainer;
 
+    //! For testing purposes only.
+    bool UseExecFromLayer;
+
     TPortoJobEnvironmentConfig()
     {
         RegisterParameter("porto_executor", PortoExecutor)
@@ -107,6 +110,9 @@ public:
             .Default(false);
 
         RegisterParameter("use_daemon_subcontainer", UseDaemonSubcontainer)
+            .Default(false);
+
+        RegisterParameter("use_exec_from_layer", UseExecFromLayer)
             .Default(false);
     }
 };
@@ -307,6 +313,10 @@ public:
     //! It runs job shell under root user instead of slot user.
     bool TestPollJobShell;
 
+    //! If set, user job will not receive uid.
+    //! For testing purposes only.
+    bool DoNotSetUserId;
+
     TExecAgentConfig()
     {
         RegisterParameter("slot_manager", SlotManager)
@@ -360,6 +370,9 @@ public:
             .DefaultNew();
 
         RegisterParameter("test_poll_job_shell", TestPollJobShell)
+            .Default(false);
+
+        RegisterParameter("do_not_set_user_id", DoNotSetUserId)
             .Default(false);
     }
 };

@@ -1231,7 +1231,7 @@ private:
 
     void RegisterTestingSpeculativeJobIfNeeded(const TTaskPtr& task, TJobId jobId);
 
-    std::vector<NYPath::TRichYPath> GetLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec);
+    std::vector<NYPath::TRichYPath> GetLayerPaths(const NScheduler::TUserJobSpecPtr& userJobSpec) const;
 
     void AnalyzeProcessingUnitUsage(
         const std::vector<TString>& usageStatistics,

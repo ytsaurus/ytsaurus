@@ -564,7 +564,7 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 bool TOperationControllerBase::HasUserJobFiles() const
 {
     for (const auto& userJobSpec : GetUserJobSpecs()) {
-        if (!userJobSpec->FilePaths.empty() || !userJobSpec->LayerPaths.empty()) {
+        if (!userJobSpec->FilePaths.empty() || !GetLayerPaths(userJobSpec).empty()) {
             return true;
         }
     }
@@ -7920,7 +7920,11 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_fail_job_on_core_dump(config->FailJobOnCoreDump);
     jobSpec->set_enable_cuda_gpu_core_dump(GetEnableCudaGpuCoreDump());
 
-    jobSpec->set_make_rootfs_writable(config->MakeRootFSWritable);
+    bool makeRootFSWritable = config->MakeRootFSWritable;
+    if (!Config->TestingOptions->RootfsTestLayers.empty()) {
+        makeRootFSWritable = true;
+    }
+    jobSpec->set_make_rootfs_writable(makeRootFSWritable);
 
     auto fillEnvironment = [&] (THashMap<TString, TString>& env) {
         for (const auto& [key, value] : env) {
@@ -8665,8 +8669,11 @@ void TOperationControllerBase::RegisterTestingSpeculativeJobIfNeeded(const TTask
 }
 
 std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
-    const NYT::NScheduler::TUserJobSpecPtr& userJobSpec)
+    const NYT::NScheduler::TUserJobSpecPtr& userJobSpec) const
 {
+    if (!Config->TestingOptions->RootfsTestLayers.empty()) {
+        return Config->TestingOptions->RootfsTestLayers;
+    }
     auto layerPaths = userJobSpec->LayerPaths;
     if (Config->DefaultLayerPath && layerPaths.empty()) {
         // If no layers were specified, we insert the default one.

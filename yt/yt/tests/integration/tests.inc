@@ -9,7 +9,8 @@ FORK_SUBTESTS()
 SPLIT_FACTOR(5)
 
 DATA(
-    sbr://1367627547
+    sbr://1367627547 # Layers.
+    sbr://1627943154 # Rootfs.
 )
 
 PEERDIR(

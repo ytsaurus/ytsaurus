@@ -544,8 +544,11 @@ class TestCoreTable(YTEnvSetup):
                 os.remove(os.path.join(core_path, file))
 
     def _start_operation(self, job_count, max_failed_job_count=5, kill_self=False,
-                         fail_job_on_core_dump=True, core_table_path=None, enable_cuda_gpu_core_dump=False):
-        command = with_breakpoint("BREAKPOINT ; ")
+                         fail_job_on_core_dump=True, core_table_path=None, enable_cuda_gpu_core_dump=False, get_job_id=True):
+        if get_job_id:
+            command = with_breakpoint("BREAKPOINT ; ")
+        else:
+            command = ""
 
         if kill_self:
             command += "kill -ABRT $$ ;"
@@ -565,7 +568,10 @@ class TestCoreTable(YTEnvSetup):
                 "max_failed_job_count": max_failed_job_count
             })
 
-        job_ids = wait_breakpoint(job_count=job_count)
+        if get_job_id:
+            job_ids = wait_breakpoint(job_count=job_count)
+        else:
+            job_ids = []
         return op, job_ids
 
     # This method simulates core dump in `job_id' job.
@@ -1093,16 +1099,14 @@ class TestCoreTablePorto(YTEnvSetup):
     @authors("dcherednik", "gritukan")
     @unix_only
     def test_core_when_user_job_was_killed_porto(self):
-        op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1)
-
-        release_breakpoint()
-
-        time.sleep(2)
+        # Breakpoints are not supported in tests with rootfs.
+        op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1, get_job_id=False)
 
         with pytest.raises(YtError):
             op.track()
 
-        core_info = self._get_core_infos(op)[job_ids[0]][0]
+        core_infos = list(self._get_core_infos(op).values())
+        core_info = core_infos[0][0]
         assert core_info["executable_name"] == "bash"
         assert int(core_info["size"]) > 100000
         assert int(core_info["process_id"]) != -1
@@ -1110,3 +1114,7 @@ class TestCoreTablePorto(YTEnvSetup):
         assert int(core_info["signal"]) == 6
         assert "container" in core_info
         assert "datetime" in core_info
+
+@pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
+class TestCoreTablePortoRootfs(TestCoreTablePorto):
+    USE_CUSTOM_ROOTFS = True

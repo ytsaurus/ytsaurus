@@ -22,6 +22,8 @@
 
 #include <yt/ytlib/scheduler/job_resources.h>
 
+#include <yt/client/ypath/rich.h>
+
 #include <yt/core/concurrency/config.h>
 
 #include <yt/core/ytree/yson_serializable.h>
@@ -52,8 +54,12 @@ class TTestingOptions
     : public NYTree::TYsonSerializable
 {
 public:
-    // Testing option that enables snapshot build/load cycle after operation materialization.
+    //! Testing option that enables snapshot build/load cycle after operation materialization.
     bool EnableSnapshotCycleAfterMaterialization;
+
+    //! If this option is set, these layers are used in all the user jobs
+    //! and all the rootfs's become writable.
+    std::vector<NYPath::TRichYPath> RootfsTestLayers;
 
     TTestingOptions();
 };

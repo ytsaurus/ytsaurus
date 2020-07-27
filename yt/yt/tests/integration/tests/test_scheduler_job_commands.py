@@ -336,4 +336,3 @@ class TestJobProberRpcProxy(TestJobProber):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
-

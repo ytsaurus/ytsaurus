@@ -713,6 +713,9 @@ class ConfigsProvider_19(ConfigsProvider):
             set_at(config, "exec_agent/slot_manager/locations", [
                 {"path": os.path.join(node_dirs[index], "slots"), "disk_usage_watermark": 0}
             ])
+            set_at(config, "exec_agent/root_fs_binds", [
+                {"external_path": node_dirs[index], "internal_path": node_dirs[index]}
+            ])
 
             store_location_config = {
                 "low_watermark": 0,

@@ -10,6 +10,8 @@ from functools import partial
 
 from flaky import flaky
 
+from collections import Counter
+
 class TestLayers(YTEnvSetup):
     NUM_SCHEDULERS = 1
     DELTA_NODE_CONFIG = {
@@ -818,3 +820,54 @@ class TestSetupUser(YTEnvSetup):
 
         res = op.read_stderr(job_id)
         assert res == "2019\n"
+
+class TestRootFS(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 3
+
+    USE_PORTO = True
+    USE_CUSTOM_ROOTFS = True
+
+    @authors("gritukan")
+    def test_map(self):
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        write_table("//tmp/t_in", [{"x": 1}])
+
+        op = map(
+            track=False,
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            command="static_cat")
+        op.track()
+
+        assert read_table("//tmp/t_out") == [{"x": 1}]
+
+    @authors("gritukan")
+    def test_vanilla(self):
+        create("table", "//tmp/stderr")
+
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "task_a": {
+                        "job_count": 3,
+                        "command": 'echo "task_a" >&2',
+                    },
+                    "task_b": {
+                        "job_count": 2,
+                        "command": 'echo "task_b" >&2',
+                    },
+                },
+                "stderr_table_path": "//tmp/stderr"
+            })
+
+        table_stderrs = read_table("//tmp/stderr")
+        table_stderrs_per_task = Counter(row["data"] for row in table_stderrs)
+
+        job_ids = ls(op.get_path() + "/jobs")
+        cypress_stderrs_per_task = Counter(read_file(op.get_path() + "/jobs/{0}/stderr".format(job_id)) for job_id in job_ids)
+
+        assert dict(table_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}
+        assert dict(cypress_stderrs_per_task) == {"task_a\n": 3, "task_b\n": 2}

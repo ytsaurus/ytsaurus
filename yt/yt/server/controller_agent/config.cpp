@@ -18,6 +18,9 @@ TTestingOptions::TTestingOptions()
 {
     RegisterParameter("enable_snapshot_cycle_after_materialization", EnableSnapshotCycleAfterMaterialization)
         .Default(false);
+
+    RegisterParameter("rootfs_test_layers", RootfsTestLayers)
+        .Default();
 }
 
 TOperationAlertsConfig::TOperationAlertsConfig()

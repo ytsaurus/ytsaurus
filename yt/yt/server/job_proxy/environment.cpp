@@ -501,10 +501,14 @@ public:
             auto volumePath = WaitFor(PortoExecutor_->CreateVolume(newPath, properties))
                 .ValueOrThrow();
 
-            RootFS_->Binds.emplace_back(TBind {
-                ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
-                RootFSBinaryDirectory + ExecProgramName,
-                true});
+            // TODO(gritukan): ytserver-exec can be resolved into something strange in tests,
+            // so let's live with exec in layer for a while.
+            if (!Config_->UseExecFromLayer) {
+                RootFS_->Binds.emplace_back(TBind {
+                    ResolveBinaryPath(ExecProgramName).ValueOrThrow(),
+                    RootFSBinaryDirectory + ExecProgramName,
+                    true});
+            }
 
             instance->SetRoot(*RootFS_);
         }
