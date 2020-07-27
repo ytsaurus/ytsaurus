@@ -31,7 +31,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeCloseableConsumer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
-import ru.yandex.misc.lang.number.UnsignedLong;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
@@ -180,7 +179,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onUnsignedInteger(UnsignedLong value) {
+        public void onUnsignedInteger(long value) {
             current.onUnsignedInteger(value);
         }
 
@@ -319,9 +318,9 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onUnsignedInteger(UnsignedLong value) {
+        public void onUnsignedInteger(long value) {
             if (currentColumn != null) {
-                this.onInteger(value.longValue());
+                this.onInteger(value);
             }
         }
 

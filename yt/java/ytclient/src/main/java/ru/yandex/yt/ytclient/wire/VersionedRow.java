@@ -8,7 +8,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
-import ru.yandex.misc.lang.number.UnsignedLong;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class VersionedRow {
@@ -90,14 +89,14 @@ public class VersionedRow {
         consumer.onBeginList();
         for (long writeTimestamp : writeTimestamps) {
             consumer.onListItem();
-            consumer.onUnsignedInteger(UnsignedLong.valueOf(writeTimestamp));
+            consumer.onUnsignedInteger(writeTimestamp);
         }
         consumer.onEndList();
         consumer.onKeyedItem("delete_timestamps");
         consumer.onBeginList();
         for (long deleteTimestamp : deleteTimestamps) {
             consumer.onListItem();
-            consumer.onUnsignedInteger(UnsignedLong.valueOf(deleteTimestamp));
+            consumer.onUnsignedInteger(deleteTimestamp);
         }
         consumer.onEndList();
         consumer.onEndAttributes();
