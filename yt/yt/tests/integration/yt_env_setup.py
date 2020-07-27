@@ -296,6 +296,7 @@ class YTEnvSetup(object):
     DELTA_RPC_PROXY_CONFIG = {}
 
     USE_PORTO = False
+    USE_CUSTOM_ROOTFS = False
     USE_DYNAMIC_TABLES = False
     USE_MASTER_CACHE = False
     USE_PERMISSION_CACHE = True
@@ -537,6 +538,14 @@ class YTEnvSetup(object):
                 yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_count", 10000, driver=driver)
                 yt_commands.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 1024 * 1024 * 1024, driver=driver)
 
+        if cls.USE_CUSTOM_ROOTFS:
+            yt_commands.create("map_node", "//layers")
+
+            yt_commands.create("file", "//layers/exec.tar.gz", attributes={"replication_factor": 1})
+            yt_commands.write_file("//layers/exec.tar.gz", open("rootfs/exec.tar.gz").read())
+            yt_commands.create("file", "//layers/rootfs.tar.gz", attributes={"replication_factor": 1})
+            yt_commands.write_file("//layers/rootfs.tar.gz", open("rootfs/rootfs.tar.gz").read())
+
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index):
         for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
@@ -557,6 +566,8 @@ class YTEnvSetup(object):
             config = update_inplace(config, cls.get_param("DELTA_NODE_CONFIG", cluster_index))
             if cls.USE_PORTO:
                 config = update_inplace(config, get_porto_delta_node_config())
+            if cls.USE_CUSTOM_ROOTFS:
+                config = update_inplace(config, get_custom_rootfs_delta_node_config())
 
             configs["node"][index] = config
             cls.modify_node_config(configs["node"][index])
@@ -682,6 +693,9 @@ class YTEnvSetup(object):
                                     "spec_template": {
                                         "legacy_controller_fraction": 256 if self.USE_LEGACY_CONTROLLERS else 0,
                                     },
+                                },
+                                "testing_options": {
+                                    "rootfs_test_layers": ["//layers/exec.tar.gz", "//layers/rootfs.tar.gz"] if self.USE_CUSTOM_ROOTFS else [],
                                 },
                             }
                         },
@@ -1024,6 +1038,18 @@ def get_porto_delta_node_config():
             "slot_manager": {
                 "job_environment": {
                     "type": "porto",
+                },
+            }
+        }
+    }
+
+def get_custom_rootfs_delta_node_config():
+    return {
+        "exec_agent": {
+            "do_not_set_user_id": True,
+            "slot_manager": {
+                "job_environment" : {
+                    "use_exec_from_layer": True,
                 },
             }
         }

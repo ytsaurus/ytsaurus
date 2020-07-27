@@ -202,6 +202,12 @@ public:
             UserId_ = jobEnvironmentConfig->StartUid + Config_->SlotIndex;
         }
 
+        // TODO(gritukan): Why can't we set it even to 19500?
+        if (Config_->DoNotSetUserId) {
+            // TODO(gritukan): Make user id optional in exec.
+            UserId_ = 0;
+        }
+
         if (UserJobEnvironment_) {
             if (!host->GetConfig()->BusServer->UnixDomainSocketPath) {
                 THROW_ERROR_EXCEPTION("Unix domain socket path is not configured");
@@ -1253,7 +1259,8 @@ private:
     void PrepareExecutorConfig()
     {
         auto executorConfig = New<TUserJobSynchronizerConnectionConfig>();
-        executorConfig->BusClientConfig->UnixDomainSocketPath = Host_->GetConfig()->BusServer->UnixDomainSocketPath;
+        auto processWorkingDirectory = NFS::CombinePaths(Host_->GetPreparationPath(), SandboxDirectoryNames[ESandboxKind::User]);
+        executorConfig->BusClientConfig->UnixDomainSocketPath = GetRelativePath(processWorkingDirectory, *Host_->GetConfig()->BusServer->UnixDomainSocketPath);
 
         auto executorConfigPath = GetExecutorConfigPath();
         try {

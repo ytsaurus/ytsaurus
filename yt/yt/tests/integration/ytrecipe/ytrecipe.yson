@@ -23,6 +23,7 @@
 
     upload_workdir=[
         "layers";
+        "rootfs";
     ];
 
     resource_limits={

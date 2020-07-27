@@ -166,6 +166,10 @@ public:
 
     bool TestPollJobShell;
 
+    //! If set, user job will not receive uid.
+    //! For testing purposes only.
+    bool DoNotSetUserId;
+
     TJobProxyConfig()
     {
         RegisterParameter("slot_index", SlotIndex);
@@ -234,6 +238,9 @@ public:
             .DefaultNew();
 
         RegisterParameter("test_poll_job_shell", TestPollJobShell)
+            .Default(false);
+
+        RegisterParameter("do_not_set_user_id", DoNotSetUserId)
             .Default(false);
     }
 };

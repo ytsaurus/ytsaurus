@@ -566,6 +566,8 @@ void TBootstrap::DoInitialize()
 
     JobProxyConfigTemplate_->TestPollJobShell = Config_->ExecAgent->TestPollJobShell;
 
+    JobProxyConfigTemplate_->DoNotSetUserId = Config_->ExecAgent->DoNotSetUserId;
+
     ExecSlotManager_ = New<NExecAgent::TSlotManager>(Config_->ExecAgent->SlotManager, this);
     GpuManager_ = New<TGpuManager>(this, Config_->ExecAgent->JobController->GpuManager);
 
