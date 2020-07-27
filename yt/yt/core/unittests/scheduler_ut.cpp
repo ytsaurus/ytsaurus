@@ -1069,6 +1069,15 @@ using NProfiling::CpuDurationToDuration;
 const auto FSSleepQuantum = SleepQuantum * 3;
 const auto FSWorkTime = FSSleepQuantum * 5;
 
+TDuration DoSleep(TDuration duration)
+{
+    NProfiling::TWallTimer timer;
+    Sleep(duration);
+    auto elapsedTime = timer.GetElapsedTime();
+    EXPECT_LE(elapsedTime, duration * 1.5);
+    return elapsedTime;
+}
+
 TEST_P(TFairShareSchedulerTest, Test)
 {
     size_t numThreads = std::get<0>(GetParam());
@@ -1100,22 +1109,19 @@ TEST_P(TFairShareSchedulerTest, Test)
         auto invoker = threadPool->GetInvoker(Format("pool%v", id % numPools), 1.0, Format("worker%v", id));
         auto worker = [&, id] () mutable {
 
-            auto instant = GetCpuInstant();
-
             auto initialShift = getShift(id);
+            auto sleepDuration = DoSleep(initialShift);
             {
                 TGuard<TSpinLock> guard(lock);
 
-                pools[id % numPools] += initialShift;
-                progresses[id] += initialShift;
+                pools[id % numPools] += sleepDuration;
+                progresses[id] += sleepDuration;
             }
 
-            Sleep(initialShift - CpuDurationToDuration(GetCpuInstant() - instant));
-            EXPECT_LE(CpuDurationToDuration(GetCpuInstant() - instant), initialShift * 1.1);
             Yield();
 
             while (progresses[id] < work + initialShift) {
-                auto instant = GetCpuInstant();
+                NProfiling::TWallTimer timer;
                 {
                     TGuard<TSpinLock> guard(lock);
 
@@ -1176,8 +1182,13 @@ TEST_P(TFairShareSchedulerTest, Test)
                     progresses[id] += FSSleepQuantum;
                 }
 
-                Sleep(FSSleepQuantum - CpuDurationToDuration(GetCpuInstant() - instant));
-                EXPECT_LE(CpuDurationToDuration(GetCpuInstant() - instant), FSSleepQuantum * 1.1);
+                auto sleepDuration = DoSleep(FSSleepQuantum - timer.GetElapsedTime());
+                {
+                    TGuard<TSpinLock> guard(lock);
+                    pools[id % numPools] += sleepDuration;
+                    progresses[id] += sleepDuration;
+                }
+
                 Yield();
             }
         };
@@ -1227,20 +1238,16 @@ TEST_P(TFairShareSchedulerTest, Test2)
         auto invoker = threadPool->GetInvoker(Format("worker%v", id));
         auto worker = [&, id] () mutable {
 
-            auto instant = GetCpuInstant();
-
             auto initialShift = getShift(id);
+            auto sleepDuration = DoSleep(initialShift);
             {
                 TGuard<TSpinLock> guard(lock);
-                progresses[id] += initialShift;
+                progresses[id] += sleepDuration;
             }
-
-            Sleep(initialShift - CpuDurationToDuration(GetCpuInstant() - instant));
-            EXPECT_LE(CpuDurationToDuration(GetCpuInstant() - instant), initialShift * 1.1);
             Yield();
 
             while (progresses[id] < work + initialShift) {
-                auto instant = GetCpuInstant();
+                NProfiling::TWallTimer timer;
                 {
                     TGuard<TSpinLock> guard(lock);
 
@@ -1267,8 +1274,11 @@ TEST_P(TFairShareSchedulerTest, Test2)
                     progresses[id] += FSSleepQuantum;
                 }
 
-                Sleep(FSSleepQuantum - CpuDurationToDuration(GetCpuInstant() - instant));
-                EXPECT_LE(CpuDurationToDuration(GetCpuInstant() - instant), FSSleepQuantum * 1.1);
+                auto sleepDuration = DoSleep(FSSleepQuantum - timer.GetElapsedTime());
+                {
+                    TGuard<TSpinLock> guard(lock);
+                    progresses[id] += sleepDuration;
+                }
 
                 Yield();
             }
