@@ -318,12 +318,12 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetReplicated(true)
         .SetRemovable(true)
-        .SetPresent(isDynamic && static_cast<bool>(table->GetProfilingMode())));
+        .SetPresent(static_cast<bool>(table->GetProfilingMode())));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ProfilingTag)
         .SetWritable(true)
         .SetReplicated(true)
         .SetRemovable(true)
-        .SetPresent(isDynamic && static_cast<bool>(table->GetProfilingTag())));
+        .SetPresent(static_cast<bool>(table->GetProfilingTag())));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -781,7 +781,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         }
 
         case EInternedAttributeKey::ProfilingMode:
-            if (!isDynamic || !trunkTable->GetProfilingMode()) {
+            if (!trunkTable->GetProfilingMode()) {
                 break;
             }
             BuildYsonFluently(consumer)
@@ -789,7 +789,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::ProfilingTag:
-            if (!isDynamic || !trunkTable->GetProfilingTag()) {
+            if (!trunkTable->GetProfilingTag()) {
                 break;
             }
             BuildYsonFluently(consumer)
@@ -1078,9 +1078,6 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         }
 
         case EInternedAttributeKey::ProfilingMode: {
-            if (!table->IsDynamic()) {
-                break;
-            }
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();
@@ -1091,9 +1088,6 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         }
 
         case EInternedAttributeKey::ProfilingTag: {
-            if (!table->IsDynamic()) {
-                break;
-            }
             ValidateNoTransaction();
 
             auto* lockedTable = LockThisImpl();

@@ -119,6 +119,7 @@ DEFINE_ENUM(EMasterReign,
     ((MakeProfilingModeAnInheritedAttribute_20_3)                   (1403))  // akozhikhov
     ((YT_13003_SeparateScannersForJournalAndBlobChunks)             (1404))  // shakurov
     ((YTINCIDENTS_56_SyncOnPrepare)                                 (1405))  // babenko
+    ((FixInheritanceOfProfilingMode)                                (1406))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
