@@ -166,13 +166,13 @@ public:
         }
 
         auto cellId = ExtractArgument(args, kwargs, "cell_id");
-        if (!cellId.isNone()) {
-            options.CellId = TTabletCellId::FromString(ConvertStringObjectToString(cellId));
-        }
-
         ValidateArgumentsEmpty(args, kwargs);
 
         try {
+            if (!cellId.isNone()) {
+                options.CellId = TTabletCellId::FromString(ConvertStringObjectToString(cellId));
+            }
+
             auto admin = UnderlyingDriver_->GetConnection()->CreateAdmin();
             int snapshotId = WaitFor(admin->BuildSnapshot(options)).ValueOrThrow();
             return Py::Long(snapshotId);
