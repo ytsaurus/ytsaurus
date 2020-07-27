@@ -118,7 +118,9 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
         Load(context, TabletStatistics);
     }
     // COMPAT(akozhikhov)
-    if (context.GetVersion() >= EMasterReign::MakeProfilingModeAnInheritedAttribute) {
+    if ((context.GetVersion() >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_2 && context.GetVersion() < EMasterReign::SubjectAliases) ||
+        context.GetVersion() >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3)
+    {
         Load(context, ProfilingMode);
         Load(context, ProfilingTag);
     }
@@ -291,8 +293,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     TUniquePtrSerializer<>::Load(context, DynamicTableAttributes_);
 
     // COMPAT(akozhikhov)
-    if (context.GetVersion() < EMasterReign::MakeProfilingModeAnInheritedAttribute &&
-        Attributes_)
+    if (context.GetVersion() < EMasterReign::MakeProfilingModeAnInheritedAttribute_20_2 && Attributes_)
     {
         auto& attributes = Attributes_->Attributes();
 
