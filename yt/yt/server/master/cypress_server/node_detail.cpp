@@ -477,7 +477,10 @@ void TCompositeNodeBase::TAttributes::Persist(NCellMaster::TPersistenceContext& 
 
     using NYT::Persist;
     // COMPAT(akozhikhov)
-    if (static_cast<EMasterReign>(context.GetVersion()) >= EMasterReign::MakeProfilingModeAnInheritedAttribute) {
+    auto reign = static_cast<EMasterReign>(context.GetVersion());
+    if ((reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_2 && reign < EMasterReign::SubjectAliases) ||
+        reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3)
+    {
         FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
     } else {
         FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1403(XX)
@@ -493,7 +496,10 @@ void TCompositeNodeBase::TAttributes::Persist(NCypressServer::TCopyPersistenceCo
 
     using NYT::Persist;
     // COMPAT(akozhikhov)
-    if (static_cast<EMasterReign>(context.GetVersion()) >= EMasterReign::MakeProfilingModeAnInheritedAttribute) {
+    auto reign = static_cast<EMasterReign>(context.GetVersion());
+    if ((reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_2 && reign < EMasterReign::SubjectAliases) ||
+        reign >= EMasterReign::MakeProfilingModeAnInheritedAttribute_20_3)
+    {
         FOR_EACH_INHERITABLE_ATTRIBUTE(XX)
     } else {
         FOR_EACH_INHERITABLE_ATTRIBUTE_BEFORE_1403(XX)

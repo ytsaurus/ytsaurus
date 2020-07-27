@@ -112,10 +112,11 @@ DEFINE_ENUM(EMasterReign,
     ((YT_13015_CorrectSrcTxForCrossShardCopy)                       (1321))  // shakurov
     ((AclCheckWorkaroundForMutatingRequests_20_2)                   (1322))  // shakurov
     ((MountHint)                                                    (1323))  // ifsmirnov
+    ((MakeProfilingModeAnInheritedAttribute_20_2)                   (1325))  // akozhikhov
     ((SubjectAliases)                                               (1400))  // s-v-m
     ((OpaquePortalEntrances)                                        (1401))  // shakurov
     ((MultisetAttributes)                                           (1402))  // gritukan
-    ((MakeProfilingModeAnInheritedAttribute)                        (1403))  // akozhikhov
+    ((MakeProfilingModeAnInheritedAttribute_20_3)                   (1403))  // akozhikhov
     ((YT_13003_SeparateScannersForJournalAndBlobChunks)             (1404))  // shakurov
     ((YTINCIDENTS_56_SyncOnPrepare)                                 (1405))  // babenko
 );
