@@ -532,6 +532,30 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         wait(lambda: _check("table_path", "//tmp/t", "table_tag"), sleep_backoff=0.1)
 
     @authors("akozhikhov")
+    def test_simple_profiling_mode_inheritance(self):
+        sync_create_cells(1)
+
+        set("//tmp/@profiling_mode", "path")
+        set("//tmp/@profiling_tag", "tag")
+
+        self._create_sorted_table("//tmp/t1")
+        create("table", "//tmp/t2")
+        create("document", "//tmp/d")
+        create("file", "//tmp/f")
+
+        assert get("//tmp/t1/@profiling_mode") == "path"
+        assert get("//tmp/t1/@profiling_tag") == "tag"
+        assert get("//tmp/t2/@profiling_mode") == "path"
+        assert get("//tmp/t2/@profiling_tag") == "tag"
+        assert not exists("//tmp/d/@profiling_mode")
+        assert not exists("//tmp/d/@profiling_tag")
+        assert not exists("//tmp/f/@profiling_mode")
+        assert not exists("//tmp/f/@profiling_tag")
+
+        set("//tmp/t2/@profiling_mode", "tag")
+        assert get("//tmp/t2/@profiling_mode") == "tag"
+
+    @authors("akozhikhov")
     def test_inherited_profiling_mode_without_tag(self):
         sync_create_cells(1)
 
@@ -539,6 +563,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         self._create_sorted_table("//tmp/t1")
         sync_mount_table("//tmp/t1")
 
+        assert exists("//tmp/t1/@profiling_mode")
         assert not exists("//tmp/t1/@profiling_tag")
 
     @authors("akozhikhov")
