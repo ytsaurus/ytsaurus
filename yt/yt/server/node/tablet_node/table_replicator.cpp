@@ -498,8 +498,10 @@ private:
         auto prevTimestamp = replicaSnapshot->RuntimeData->CurrentReplicationTimestamp.load();
 
         // Throttling control.
-        auto acquireThrottler = [&] (i64 dataWeight) {
-            Throttler_->Acquire(dataWeight);
+        i64 dataWeightToThrottle = 0;
+        auto acquireThrottler = [&] () {
+            Throttler_->Acquire(dataWeightToThrottle);
+            dataWeightToThrottle = 0;
         };
         auto isThrottlerOverdraft = [&] {
             if (!Throttler_->IsOverdraft()) {
@@ -566,6 +568,8 @@ private:
                 }
 
                 if (timestamp != prevTimestamp) {
+                    acquireThrottler();
+
                     if (rowCount >= mountConfig->MaxRowsPerReplicationCommit ||
                         dataWeight >= mountConfig->MaxDataWeightPerReplicationCommit ||
                         timestampCount >= mountConfig->MaxTimestampsPerReplicationCommit ||
@@ -582,12 +586,13 @@ private:
                 ++rowCount;
 
                 auto rowDataWeight = GetDataWeight(row);
-                acquireThrottler(rowDataWeight);
                 dataWeight += rowDataWeight;
+                dataWeightToThrottle += rowDataWeight;
                 replicationRows->push_back({modificationType, replicationRow, TLockMask()});
                 prevTimestamp = timestamp;
             }
         }
+        acquireThrottler();
 
         *newReplicationRowIndex = startRowIndex + rowCount;
         *newReplicationTimestamp = prevTimestamp;
