@@ -198,6 +198,10 @@ public:
             return JobManager_->GetApproximateStripeStatistics();
         }
 
+        if (GetJobCounter()->GetPending() == 0) {
+            return {};
+        }
+
         TChunkStripeStatistics stat;
         // Typically unordered pool has one chunk per stripe.
         // NB: Cannot estimate MaxBlockSize to fill stat field here.

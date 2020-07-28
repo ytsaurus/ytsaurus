@@ -175,10 +175,6 @@ public:
 
         for (int poolIndex = 0; poolIndex < underlyingPools.size(); ++poolIndex) {
             const auto& pool = underlyingPools[poolIndex];
-
-            // Chunk pools with output order are not supported.
-            YT_VERIFY(!pool->GetOutputOrder());
-
             AddPoolOutput(std::move(pool), poolIndex);
         }
 
@@ -207,7 +203,6 @@ public:
 
     virtual TOutputOrderPtr GetOutputOrder() const override
     {
-        // Not supported for now.
         return nullptr;
     }
 
@@ -323,6 +318,9 @@ public:
 
     virtual void AddPoolOutput(IChunkPoolOutputPtr pool, int poolIndex) override
     {
+        YT_VERIFY(pool);
+        YT_VERIFY(!pool->GetOutputOrder());
+
         if (poolIndex >= UnderlyingPools_.size()) {
             UnderlyingPools_.resize(poolIndex + 1);
             PendingPoolIterators_.resize(poolIndex + 1, PendingPools_.end());

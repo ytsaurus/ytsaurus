@@ -754,7 +754,8 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
             out="//tmp/t_out",
             sort_by="key",
             mapper_command="cat",
-            reducer_command="cat")
+            reducer_command="cat",
+            spec={"max_failed_job_count": 1})
 
         assert_items_equal(read_table("//tmp/t_out"), rows)
 

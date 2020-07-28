@@ -43,6 +43,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((JoinSortControllerTasks)              (300410))
     ((RemoveTaskGroups)                     (300411))
     ((FixLostInMultiPool)                   (300412))
+    ((HierarchicalPartitions)               (300413))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -116,6 +116,16 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Describes shape of a partition tree.
+struct TPartitionTreeSkeleton
+{
+    std::vector<std::unique_ptr<TPartitionTreeSkeleton>> Children;
+};
+
+std::unique_ptr<TPartitionTreeSkeleton> BuildPartitionTreeSkeleton(int partitionCount, int maxPartitionFactor);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Returns a future that is either set to an actual value (if the original one is set in timely manner)
 //! or to |std::nullopt| (in case of timeout).
 //! Moreover, in case of timeout |onFinishedAfterTimeout| callback will be subscribed to the original future.
