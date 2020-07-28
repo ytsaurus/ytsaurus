@@ -342,7 +342,7 @@ case class YtSourceScanExec(
               case yp: YtStaticPath =>
                 new YtPartitionedFile(yp.stringPath, Array.empty, Array.empty, yp.beginRow + offset,
                   yp.beginRow + offset + size, isDynamic = false, Nil)
-              case p => PartitionedFile(partition.values, p.toUri.toString, 0, file.getLen, hosts)
+              case p => PartitionedFile(partition.values, p.toUri.toString, offset, size, hosts)
             }
           }
         } else {

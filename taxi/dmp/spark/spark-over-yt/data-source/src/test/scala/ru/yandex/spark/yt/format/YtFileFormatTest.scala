@@ -696,6 +696,11 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark with TmpDi
       Row(2, "b", 0.5)
     )
   }
+
+  it should "read big csv" in {
+    writeFileFromResource("test.csv", tmpPath)
+    spark.read.csv(s"yt:/$tmpPath").count() shouldEqual 100000
+  }
 }
 
 object Counter {

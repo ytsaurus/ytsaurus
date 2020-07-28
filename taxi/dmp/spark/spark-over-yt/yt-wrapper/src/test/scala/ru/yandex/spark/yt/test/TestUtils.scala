@@ -1,6 +1,6 @@
 package ru.yandex.spark.yt.test
 
-import java.io.ByteArrayInputStream
+import java.io.{ByteArrayInputStream, InputStream}
 import java.nio.charset.StandardCharsets
 
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils
@@ -96,6 +96,28 @@ trait TestUtils {
 
     write()
     writer.close().join()
+  }
+
+  def writeFileFromStream(input: InputStream, path: String)
+                         (implicit yt: YtClient): Unit = {
+    YtWrapper.createFile(path)
+    val out = YtWrapper.writeFile(path, 1 minute, None)
+    try {
+      val b = new Array[Byte](65536)
+      Stream.continually(input.read(b)).takeWhile(_ > 0).foreach(out.write(b, 0, _))
+    } finally {
+      out.close()
+    }
+  }
+
+  def writeFileFromResource(inputPath: String, path: String)
+                           (implicit yt: YtClient): Unit = {
+    val in = getClass.getResourceAsStream(inputPath)
+    try {
+      writeFileFromStream(in, path)
+    } finally {
+      in.close()
+    }
   }
 
 }

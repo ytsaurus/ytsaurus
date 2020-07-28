@@ -13,6 +13,7 @@ trait LocalSpark extends LocalYtClient {
 
   def sparkConf: SparkConf = new SparkConf()
     .set("fs.ytTable.impl", "ru.yandex.spark.yt.fs.YtTableFileSystem")
+    .set("fs.yt.impl", "ru.yandex.spark.yt.fs.YtFileSystem")
     .set("fs.defaultFS", "ytTable:///")
     .set("spark.hadoop.yt.proxy", "localhost:8000")
     .set("spark.hadoop.yt.user", "root")
