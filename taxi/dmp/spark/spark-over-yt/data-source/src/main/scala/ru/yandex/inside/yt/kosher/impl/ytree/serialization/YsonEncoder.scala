@@ -11,9 +11,6 @@ import ru.yandex.misc.lang.number.UnsignedLong
 import ru.yandex.spark.yt.serializers.YsonRowConverter
 
 class YsonEncoder(stream: ByteArrayOutputStream) {
-
-  import YsonEncoder._
-
   private val output = CodedOutputStream.newInstance(stream, 8192)
   private var firstItem = false
 
@@ -39,87 +36,87 @@ class YsonEncoder(stream: ByteArrayOutputStream) {
   }
 
   def onInteger(value: Long): Unit = translateException {
-    output.writeRawByte(INTEGER)
+    output.writeRawByte(YsonTags.BINARY_INT)
     output.writeSInt64NoTag(value)
   }
 
   def onUnsignedInteger(value: UnsignedLong): Unit = translateException {
-    output.writeRawByte(UNSIGNED_INTEGER)
+    output.writeRawByte(YsonTags.BINARY_UINT)
     output.writeUInt64NoTag(value.longValue)
   }
 
   def onBoolean(value: Boolean): Unit = translateException {
-    output.writeRawByte(if (value) TRUE else FALSE)
+    output.writeRawByte(if (value) YsonTags.BINARY_TRUE else YsonTags.BINARY_FALSE)
   }
 
   def onDouble(value: Double): Unit = translateException {
-    output.writeRawByte(DOUBLE)
+    output.writeRawByte(YsonTags.BINARY_DOUBLE)
     output.writeDoubleNoTag(value)
   }
 
   def onBytes(bytes: Array[Byte]): Unit = translateException {
-    output.writeRawByte(STRING)
+    output.writeRawByte(YsonTags.BINARY_STRING)
     writeBytes(bytes)
   }
 
   def onString(value: UTF8String): Unit = translateException {
-    output.writeRawByte(STRING)
+    output.writeRawByte(YsonTags.BINARY_STRING)
     writeString(value)
   }
 
   def onEntity(): Unit = translateException {
-    output.writeRawByte(YTreeSerializationUtils.ENTITY)
+    output.writeRawByte(YsonTags.ENTITY)
   }
 
   def onListItem(): Unit = translateException {
     if (firstItem) firstItem = false
-    else output.writeRawByte(YTreeSerializationUtils.ITEM_SEPARATOR)
+    else output.writeRawByte(YsonTags.ITEM_SEPARATOR)
   }
 
   def onBeginList(): Unit = translateException {
     firstItem = true
-    output.writeRawByte(YTreeSerializationUtils.BEGIN_LIST)
+    output.writeRawByte(YsonTags.BEGIN_LIST)
   }
 
   def onEndList(): Unit = translateException {
     firstItem = false
-    output.writeRawByte(YTreeSerializationUtils.END_LIST)
+    output.writeRawByte(YsonTags.END_LIST)
   }
 
   def onBeginAttributes(): Unit = translateException {
     firstItem = true
-    output.writeRawByte(YTreeSerializationUtils.BEGIN_ATTRIBUTES)
+    output.writeRawByte(YsonTags.BEGIN_ATTRIBUTES)
   }
 
   def onEndAttributes(): Unit = translateException {
     firstItem = false
-    output.writeRawByte(YTreeSerializationUtils.END_ATTRIBUTES)
+    output.writeRawByte(YsonTags.END_ATTRIBUTES)
   }
 
   def onBeginMap(): Unit = translateException {
     firstItem = true
-    output.writeRawByte(YTreeSerializationUtils.BEGIN_MAP)
+    output.writeRawByte(YsonTags.BEGIN_MAP)
   }
 
   def onEndMap(): Unit = translateException {
     firstItem = false
-    output.writeRawByte(YTreeSerializationUtils.END_MAP)
+    output.writeRawByte(YsonTags.END_MAP)
   }
 
   def onKeyedItem(key: UTF8String): Unit = translateException {
     if (firstItem) firstItem = false
-    else output.writeRawByte(YTreeSerializationUtils.ITEM_SEPARATOR)
-    output.writeRawByte(STRING)
+    else output.writeRawByte(YsonTags.ITEM_SEPARATOR)
+    output.writeRawByte(YsonTags.BINARY_STRING)
     writeString(key)
-    output.writeRawByte(YTreeSerializationUtils.KEY_VALUE_SEPARATOR)
+    output.writeRawByte(YsonTags.KEY_VALUE_SEPARATOR)
   }
 
   def onKeyedItem(key: String): Unit = translateException {
     if (firstItem) firstItem = false
-    else output.writeRawByte(YTreeSerializationUtils.ITEM_SEPARATOR)
-    output.writeRawByte(STRING)
+    else output.writeRawByte(YsonTags.ITEM_SEPARATOR)
+    output.writeRawByte(YsonTags.BINARY_STRING)
     writeString(key)
-    output.writeRawByte(YTreeSerializationUtils.KEY_VALUE_SEPARATOR)
+    output.writeRawByte(YsonTags.KEY_VALUE_SEPARATOR)
   }
 
   def close(): Unit = translateException {
@@ -129,13 +126,6 @@ class YsonEncoder(stream: ByteArrayOutputStream) {
 
 
 object YsonEncoder {
-  private val STRING = 0x1
-  private val INTEGER = 0x2
-  private val DOUBLE = 0x3
-  private val FALSE = 0x4
-  private val TRUE = 0x5
-  private val UNSIGNED_INTEGER = 0x6
-
   def encode(value: Any, dataType: DataType, skipNulls: Boolean): Array[Byte] = {
     val output = new ByteArrayOutputStream(200)
     val writer = new YsonEncoder(output)
