@@ -23,8 +23,6 @@ import com.google.protobuf.MessageLite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.bolts.collection.ListF;
-import ru.yandex.bolts.collection.Option;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
@@ -208,28 +206,33 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
 public class ApiServiceClient implements TransactionalClient {
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceClient.class);
 
-    private final ApiService service;
-    private final Executor heavyExecutor;
-    private final Option<RpcClient> rpcClient;
-    private final RpcOptions rpcOptions;
+    @Nonnull private final ApiService service;
+    @Nonnull private final Executor heavyExecutor;
+    @Nullable private final RpcClient rpcClient;
+    @Nonnull private final RpcOptions rpcOptions;
 
-    private ApiServiceClient(Option<RpcClient> client, RpcOptions options, ApiService service, Executor heavyExecutor) {
+    private ApiServiceClient(
+            @Nullable RpcClient client,
+            @Nonnull RpcOptions options,
+            @Nonnull ApiService service,
+            @Nonnull Executor heavyExecutor)
+    {
         this.service = Objects.requireNonNull(service);
         this.heavyExecutor = Objects.requireNonNull(heavyExecutor);
-        this.rpcClient = Objects.requireNonNull(client);
+        this.rpcClient = client;
         this.rpcOptions = options;
     }
 
-    private ApiServiceClient(Option<RpcClient> client, RpcOptions options, ApiService service) {
+    private ApiServiceClient(RpcClient client, RpcOptions options, ApiService service) {
         this(client, options, service, ForkJoinPool.commonPool());
     }
 
     public ApiServiceClient(RpcClient client, RpcOptions options) {
-        this(Option.of(client), options, client.getService(ApiService.class, options));
+        this(client, options, client.getService(ApiService.class, options));
     }
 
     public ApiServiceClient(RpcOptions options) {
-        this(Option.empty(), options, RpcServiceClient.create(ApiService.class, options));
+        this(null, options, RpcServiceClient.create(ApiService.class, options));
     }
 
     public ApiServiceClient(RpcClient client) {
@@ -293,7 +296,7 @@ public class ApiServiceClient implements TransactionalClient {
             GUID id = RpcUtil.fromProto(response.body().getId());
             YtTimestamp startTimestamp = YtTimestamp.valueOf(response.body().getStartTimestamp());
             RpcClient sender = response.sender();
-            if (rpcClient.isSome(sender)) {
+            if (rpcClient != null && rpcClient.equals(sender)) {
                 return new ApiServiceTransaction(this, id, startTimestamp, ping, pingAncestors, sticky, pingPeriod,
                         sender.executor());
             } else {
@@ -946,7 +949,7 @@ public class ApiServiceClient implements TransactionalClient {
     /* tables */
     private void runTabletsMountedChecker(String tablePath, CompletableFuture<Void> futureToComplete, ScheduledExecutorService executorService) {
         getNode(tablePath + "/@tablets").thenAccept(tablets -> {
-            ListF<YTreeNode> tabletPaths = tablets.asList();
+            List<YTreeNode> tabletPaths = tablets.asList();
             Stream<Boolean> tabletsMounted = tabletPaths.stream()
                     .map(node -> node.asMap().getOrThrow("state").stringValue().equals("mounted"));
             if (tabletsMounted.allMatch(mounted -> mounted)) {
