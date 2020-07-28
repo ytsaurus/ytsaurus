@@ -355,9 +355,7 @@ public class ApiServiceClient implements TransactionalClient {
     @Override
     public CompletableFuture<YTreeNode> getNode(GetNode req) {
         RpcClientRequestBuilder<TReqGetNode.Builder, RpcClientResponse<TRspGetNode>> builder = service.getNode();
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getValue()));
     }
@@ -373,9 +371,7 @@ public class ApiServiceClient implements TransactionalClient {
     @Override
     public CompletableFuture<YTreeNode> listNode(ListNode req) {
         RpcClientRequestBuilder<TReqListNode.Builder, RpcClientResponse<TRspListNode>> builder = service.listNode();
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> parseByteString(response.body().getValue()));
     }
@@ -391,9 +387,7 @@ public class ApiServiceClient implements TransactionalClient {
     @Override
     public CompletableFuture<Void> setNode(SetNode req) {
         RpcClientRequestBuilder<TReqSetNode.Builder, RpcClientResponse<TRspSetNode>> builder = service.setNode();
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> null);
     }
@@ -418,9 +412,7 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<Boolean> existsNode(ExistsNode req) {
         RpcClientRequestBuilder<TReqExistsNode.Builder, RpcClientResponse<TRspExistsNode>> builder =
                 service.existsNode();
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder),
                 response -> response.body().getExists());
@@ -496,9 +488,7 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<GUID> createNode(CreateNode req) {
         RpcClientRequestBuilder<TReqCreateNode.Builder, RpcClientResponse<TRspCreateNode>> builder =
                 service.createNode();
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder),
@@ -529,9 +519,7 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<Void> removeNode(RemoveNode req) {
         RpcClientRequestBuilder<TReqRemoveNode.Builder, RpcClientResponse<TRspRemoveNode>> builder =
                 service.removeNode();
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> null);
     }
@@ -542,9 +530,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<LockNodeResult> lockNode(LockNode req) {
         RpcClientRequestBuilder<TReqLockNode.Builder, RpcClientResponse<TRspLockNode>> builder = service.lockNode();
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> new LockNodeResult(
                 RpcUtil.fromProto(response.body().getNodeId()),
@@ -561,9 +547,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<GUID> copyNode(CopyNode req) {
         RpcClientRequestBuilder<TReqCopyNode.Builder, RpcClientResponse<TRspCopyNode>> builder = service.copyNode();
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder),
@@ -582,9 +566,7 @@ public class ApiServiceClient implements TransactionalClient {
     @Override
     public CompletableFuture<GUID> moveNode(MoveNode req) {
         RpcClientRequestBuilder<TReqMoveNode.Builder, RpcClientResponse<TRspMoveNode>> builder = service.moveNode();
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder),
@@ -602,9 +584,7 @@ public class ApiServiceClient implements TransactionalClient {
 
     public CompletableFuture<GUID> linkNode(LinkNode req) {
         RpcClientRequestBuilder<TReqLinkNode.Builder, RpcClientResponse<TRspLinkNode>> builder = service.linkNode();
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder),
@@ -620,9 +600,7 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<Void> concatenateNodes(ConcatenateNodes req) {
         RpcClientRequestBuilder<TReqConcatenateNodes.Builder, RpcClientResponse<TRspConcatenateNodes>> builder =
                 service.concatenateNodes();
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> null);
     }
@@ -670,9 +648,7 @@ public class ApiServiceClient implements TransactionalClient {
                                                     Function<RpcClientResponse<TRspLookupRows>, T> responseReader) {
         RpcClientRequestBuilder<TReqLookupRows.Builder, RpcClientResponse<TRspLookupRows>> builder =
                 service.lookupRows();
-        if (request.getTimeout().isPresent()) {
-            builder.setTimeout(request.getTimeout().get());
-        }
+        request.writeHeaderTo(builder.header());
         builder.body().setPath(request.getPath());
         builder.body().addAllColumns(request.getLookupColumns());
         if (request.getKeepMissingRows().isPresent()) {
@@ -724,9 +700,7 @@ public class ApiServiceClient implements TransactionalClient {
                                                              Function<RpcClientResponse<TRspVersionedLookupRows>, T> responseReader) {
         RpcClientRequestBuilder<TReqVersionedLookupRows.Builder, RpcClientResponse<TRspVersionedLookupRows>> builder =
                 service.versionedLookupRows();
-        if (request.getTimeout().isPresent()) {
-            builder.setTimeout(request.getTimeout().get());
-        }
+        request.writeHeaderTo(builder.header());
         builder.body().setPath(request.getPath());
         builder.body().addAllColumns(request.getLookupColumns());
         if (request.getKeepMissingRows().isPresent()) {
@@ -786,9 +760,7 @@ public class ApiServiceClient implements TransactionalClient {
                                                     Function<RpcClientResponse<TRspSelectRows>, T> responseReader) {
         RpcClientRequestBuilder<TReqSelectRows.Builder, RpcClientResponse<TRspSelectRows>> builder =
                 service.selectRows();
-        if (request.getTimeout().isPresent()) {
-            builder.setTimeout(request.getTimeout().get());
-        }
+        request.writeHeaderTo(builder.header());
         builder.body().setQuery(request.getQuery());
         if (request.getTimestamp().isPresent()) {
             builder.body().setTimestamp(request.getTimestamp().get().getValue());
@@ -824,9 +796,7 @@ public class ApiServiceClient implements TransactionalClient {
     public CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest request) {
         RpcClientRequestBuilder<TReqModifyRows.Builder, RpcClientResponse<TRspModifyRows>> builder =
                 service.modifyRows();
-        if (request.getTimeout().isPresent()) {
-            builder.setTimeout(request.getTimeout().get());
-        }
+        request.writeHeaderTo(builder.header());
         builder.body().setTransactionId(RpcUtil.toProto(transactionId));
         builder.body().setPath(request.getPath());
         if (request.getRequireSyncReplica().isPresent()) {
@@ -875,9 +845,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqGetInSyncReplicas.Builder, RpcClientResponse<TRspGetInSyncReplicas>> builder =
                 service.getInSyncReplicas();
 
-        if (request.getTimeout().isPresent()) {
-            builder.setTimeout(request.getTimeout().get());
-        }
+        request.writeHeaderTo(builder.header());
         builder.body().setPath(request.getPath());
         builder.body().setTimestamp(timestamp.getValue());
         builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
@@ -910,6 +878,7 @@ public class ApiServiceClient implements TransactionalClient {
         if (requestTimeout != null) {
             builder.setTimeout(requestTimeout);
         }
+
         builder.body().setPath(path);
         builder.body().addAllTabletIndexes(tabletIndices);
 
@@ -1148,9 +1117,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqAlterTable.Builder, RpcClientResponse<TRspAlterTable>> builder =
                 service.alterTable();
 
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
         return RpcUtil.apply(invoke(builder), response -> null);
     }
@@ -1257,9 +1224,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqStartOperation.Builder, RpcClientResponse<TRspStartOperation>>
                 builder = service.startOperation();
 
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder), response -> RpcUtil.fromProto(response.body().getOperationId()));
@@ -1594,9 +1559,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqCheckPermission.Builder, RpcClientResponse<TRspCheckPermission>>
                 builder = service.checkPermission();
 
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
         return RpcUtil.apply(invoke(builder), response -> response.body().getResult());
@@ -1616,7 +1579,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqReadTable.Builder, RpcClientResponse<TRspReadTable>>
                 builder = service.readTable();
 
-        req.getTimeout().ifPresent(builder::setTimeout);
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
         return new TableReaderImpl<>(startStream(builder), reader).waitMetadata();
@@ -1627,9 +1590,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqWriteTable.Builder, RpcClientResponse<TRspWriteTable>>
                 builder = service.writeTable();
 
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
         return new TableWriterImpl<>(startStream(builder), req.getWindowSize(), req.getPacketSize(), req.getSerializer()).startUpload();
@@ -1640,9 +1601,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqReadFile.Builder, RpcClientResponse<TRspReadFile>>
                 builder = service.readFile();
 
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
         FileReaderImpl impl = new FileReaderImpl(startStream(builder));
@@ -1654,9 +1613,7 @@ public class ApiServiceClient implements TransactionalClient {
         RpcClientRequestBuilder<TReqWriteFile.Builder, RpcClientResponse<TRspWriteFile>>
                 builder = service.writeFile();
 
-        if (req.getTimeout().isPresent()) {
-            builder.setTimeout(req.getTimeout().get());
-        }
+        req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
         return new FileWriterImpl(startStream(builder), req.getWindowSize(), req.getPacketSize()).startUpload();
