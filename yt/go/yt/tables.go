@@ -88,6 +88,12 @@ func WithRecursive() CreateTableOption {
 	}
 }
 
+func WithAttributes(attrs map[string]interface{}) CreateTableOption {
+	return func(options *CreateNodeOptions) {
+		options.Attributes = attrs
+	}
+}
+
 func CreateTable(ctx context.Context, yc CypressClient, path ypath.Path, opts ...CreateTableOption) (id NodeID, err error) {
 	var createOptions CreateNodeOptions
 	for _, opt := range opts {
