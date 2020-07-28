@@ -1131,6 +1131,9 @@ public:
     std::optional<i64> PartitionDataWeight;
     std::optional<int> PartitionCount;
 
+    //! Maximum number of child partitions of a partition.
+    std::optional<int> MaxPartitionFactor;
+
     //! Amount of (uncompressed) data to be given to a single partition job.
     //! It used only to determine partition job count.
     std::optional<i64> DataWeightPerPartitionJob;

@@ -403,6 +403,10 @@ message TPartitionJobSpecExt
     // If empty then THashPartitioner is used.
     // Otherwise TOrderedPartitioner is used.
     optional bytes wire_partition_keys = 8;
+
+    // Level of the partition task job belongs to.
+    // Refer to sort_controller.cpp for level description.
+    optional int32 partition_task_level = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

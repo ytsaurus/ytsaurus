@@ -30,7 +30,7 @@ class TestSchedulerMapReduceCommands(YTEnvSetup):
     }
 
     @pytest.mark.parametrize("method", ["map_sort_reduce", "map_reduce", "map_reduce_1p", "reduce_combiner_dev_null",
-                                        "force_reduce_combiners", "ordered_map_reduce"])
+                                        "force_reduce_combiners", "ordered_map_reduce", "map_reduce_with_hierarchical_partitions"])
     @authors("ignat")
     def test_simple(self, method):
         text = \
@@ -197,6 +197,24 @@ for key, rows in groupby(read_table(), lambda row: row["word"]):
                              "data_size_per_sort_job": 10,
                              "ordered": True},
                        tx=tx)
+        elif method == "map_reduce_with_hierarchical_partitions":
+            map_reduce(in_="//tmp/t_in",
+                       out="//tmp/t_out",
+                       sort_by="word",
+                       mapper_command="python mapper.py",
+                       mapper_file=["//tmp/mapper.py", "//tmp/yt_streaming.py"],
+                       reduce_combiner_command="python reducer.py",
+                       reduce_combiner_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
+                       reducer_command="python reducer.py",
+                       reducer_file=["//tmp/reducer.py", "//tmp/yt_streaming.py"],
+                       spec={"partition_count": 7,
+                             "max_partition_factor": 2,
+                             "map_job_count": 2,
+                             "mapper": {"format": "dsv"},
+                             "reduce_combiner": {"format": "dsv"},
+                             "reducer": {"format": "dsv"},
+                             "data_size_per_sort_job": 10},
+                       tx=tx)
         else:
             assert False
 
@@ -362,6 +380,8 @@ print "x={0}\ty={1}".format(x, y)
 
     @authors("levysotsky")
     def test_intermediate_new_live_preview(self):
+        partition_map_vertex = "partition_map" if self.USE_LEGACY_CONTROLLERS else "partition_map(0)"
+
         create_user("admin")
         set("//sys/operations/@acl/end", make_ace("allow", "admin", ["read", "write", "manage"]))
         try:
@@ -386,7 +406,7 @@ print "x={0}\ty={1}".format(x, y)
 
             operation_path = op.get_path()
             get(operation_path + "/controller_orchid/data_flow_graph/vertices")
-            intermediate_live_data = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/partition_map/live_previews/0")
+            intermediate_live_data = read_table(operation_path + "/controller_orchid/data_flow_graph/vertices/{}/live_previews/0".format(partition_map_vertex))
 
             release_breakpoint()
             op.track()
@@ -868,6 +888,19 @@ print "x={0}\ty={1}".format(x, y)
         assert get("//tmp/t2/@row_count") > 1
         assert 0.25 * 10000 <= get("//tmp/t3/@row_count") <= 0.75 * 10000
 
+        map_reduce(in_="//tmp/t1",
+                   out=["//tmp/t2", "//tmp/t3"],
+                   mapper_command="cat; echo '{a=1}' >&4",
+                   reducer_command="cat",
+                   sort_by=["key"],
+                   spec={"sampling": {"sampling_rate": 0.5, "io_block_size": 10**5},
+                         "partition_count": 7,
+                         "max_partition_factor": 2,
+                         "map_job_count": 10,
+                         "mapper_output_table_count": 1})
+        assert get("//tmp/t2/@row_count") > 1
+        assert 0.25 * 10000 <= get("//tmp/t3/@row_count") <= 0.75 * 10000
+
     @authors("gritukan")
     def test_pivot_keys(self):
         create("table", "//tmp/t1")
@@ -915,6 +948,27 @@ print "x={0}\ty={1}".format(x, y)
                        reducer_command="cat",
                        sort_by=["key"],
                        spec={"pivot_keys": [["73"], ["37"]]})
+
+    @authors("gritukan")
+    def test_pivot_keys_with_hierarchical_partitions(self):
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+
+        rows = [{"key": "%02d" % key} for key in range(50)]
+        shuffle(rows)
+        write_table("//tmp/t1", rows)
+
+        map_reduce(in_="//tmp/t1",
+                   out="//tmp/t2",
+                   mapper_command="cat",
+                   reducer_command="cat",
+                   sort_by=["key"],
+                   spec={
+                       "pivot_keys": [["01"], ["22"], ["43"]],
+                       "max_partition_factor": 2})
+        assert_items_equal(read_table("//tmp/t2"), sorted(rows))
+        chunk_ids = get("//tmp/t2/@chunk_ids")
+        assert sorted([get("#" + chunk_id + "/@row_count") for chunk_id in chunk_ids]) == [1, 7, 21, 21]
 
     @authors("gritukan")
     def test_legacy_controller_flag(self):

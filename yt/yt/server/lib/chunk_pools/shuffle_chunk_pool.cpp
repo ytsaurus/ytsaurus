@@ -503,6 +503,7 @@ private:
                 PendingRuns_.erase(cookie);
             }
             run->UpdateState();
+            CheckCompleted();
         }
 
         void AddNewRun()

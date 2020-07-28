@@ -294,11 +294,11 @@ TReduceOperationOptions::TReduceOperationOptions()
 TSortOperationOptionsBase::TSortOperationOptionsBase()
 {
     RegisterParameter("max_partition_job_count", MaxPartitionJobCount)
-        .Default(100000)
+        .Default(500000)
         .GreaterThan(0);
 
     RegisterParameter("max_partition_count", MaxPartitionCount)
-        .Default(10000)
+        .Default(200000)
         .GreaterThan(0);
 
     RegisterParameter("max_sample_size", MaxSampleSize)

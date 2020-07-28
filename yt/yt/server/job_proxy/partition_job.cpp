@@ -60,6 +60,11 @@ public:
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 
+        std::optional<int> partitionTag;
+        if (SchedulerJobSpecExt_.has_partition_tag()) {
+            partitionTag = SchedulerJobSpecExt_.partition_tag();
+        }
+
         ReaderFactory_ = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             YT_VERIFY(!Reader_);
             // NB: don't create parallel reader to eliminate non-deterministic behavior,
@@ -79,7 +84,7 @@ public:
                 BlockReadOptions_,
                 columnFilter,
                 /* keyColumns */ {},
-                /* partitionTag */ std::nullopt,
+                partitionTag,
                 Host_->GetTrafficMeter(),
                 Host_->GetInBandwidthThrottler(),
                 Host_->GetOutRpsThrottler(),

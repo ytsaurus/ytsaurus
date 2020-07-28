@@ -20,7 +20,7 @@ struct IPartitioner
 DEFINE_REFCOUNTED_TYPE(IPartitioner)
 
 IPartitionerPtr CreateOrderedPartitioner(const TSharedRef& wirePartitionKeys);
-IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount);
+IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount, int salt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

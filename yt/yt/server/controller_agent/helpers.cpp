@@ -24,6 +24,8 @@
 
 #include <yt/client/transaction_client/public.h>
 
+#include <yt/core/misc/numeric_helpers.h>
+
 #include <yt/core/ytree/helpers.h>
 
 namespace NYT::NControllerAgent {
@@ -287,6 +289,51 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+std::unique_ptr<TPartitionTreeSkeleton> BuildPartitionTreeSkeleton(int partitionCount, int maxPartitionFactor)
+{
+    YT_VERIFY(partitionCount > 0);
+    YT_VERIFY(maxPartitionFactor > 0);
+
+    maxPartitionFactor = Clamp(maxPartitionFactor, 2, partitionCount);
+
+    int partitionTreeDepth = 0;
+    i64 maxPartitionFactorPower = 1;
+    while (maxPartitionFactorPower < partitionCount) {
+        ++partitionTreeDepth;
+        maxPartitionFactorPower *= maxPartitionFactor;
+    }
+
+    partitionTreeDepth = std::max(partitionTreeDepth, 1);
+
+    auto buildPartitionTreeSkeleton = [&] (int partitionCount, int depth, auto buildPartitionTreeSkeleton) {
+        YT_VERIFY(partitionCount > 0);
+
+        if (partitionCount == 1 && depth == 0) {
+            return std::make_unique<TPartitionTreeSkeleton>();
+        }
+
+        auto partitionTreeSkeleton = std::make_unique<TPartitionTreeSkeleton>();
+
+        int subtreeCount = std::min(maxPartitionFactor, partitionCount);
+        int subtreeSize = partitionCount / subtreeCount;
+        int largeSubtreeCount = partitionCount % subtreeCount;
+
+        for (int subtreeIndex = 0; subtreeIndex < subtreeCount; ++subtreeIndex) {
+            int currentSubtreeSize = subtreeSize;
+            if (subtreeIndex < largeSubtreeCount) {
+                ++currentSubtreeSize;
+            }
+
+            partitionTreeSkeleton->Children.emplace_back(buildPartitionTreeSkeleton(currentSubtreeSize, depth - 1, buildPartitionTreeSkeleton));
+        }
+        return partitionTreeSkeleton;
+    };
+    return buildPartitionTreeSkeleton(partitionCount, partitionTreeDepth, buildPartitionTreeSkeleton);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 
 TDiskQuota CreateDiskQuota(
     const TDiskRequestConfigPtr& diskRequestConfig,

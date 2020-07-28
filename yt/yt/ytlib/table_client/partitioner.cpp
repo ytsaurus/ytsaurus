@@ -52,9 +52,10 @@ class THashPartitioner
     : public IPartitioner
 {
 public:
-    THashPartitioner(int partitionCount, int keyColumnCount)
+    THashPartitioner(int partitionCount, int keyColumnCount, int salt)
         : PartitionCount_(partitionCount)
         , KeyColumnCount_(keyColumnCount)
+        , Salt_(FarmHash(salt))
     { }
 
     virtual int GetPartitionCount() override
@@ -64,17 +65,25 @@ public:
 
     virtual int GetPartitionIndex(TUnversionedRow row) override
     {
-        return GetHash(row, KeyColumnCount_) % PartitionCount_;
+        auto rowHash = GetHash(row, KeyColumnCount_);
+        // TODO(gritukan): Seems like many map-reduce tests rely on distribution keys by partitions,
+        // so I'll keep the old hash function for root partition task for a while.
+        // NB: This relies on the fact that FarmHash(0) = 0.
+        if (Salt_ != 0) {
+            rowHash = FarmHash(rowHash ^ Salt_);
+        }
+        return rowHash % PartitionCount_;
     }
 
 private:
     const int PartitionCount_;
     const int KeyColumnCount_;
+    const TFingerprint Salt_;
 };
 
-IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount)
+IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount, int salt)
 {
-    return New<THashPartitioner>(partitionCount, keyColumnCount);
+    return New<THashPartitioner>(partitionCount, keyColumnCount, salt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

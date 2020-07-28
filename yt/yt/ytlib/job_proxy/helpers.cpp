@@ -96,7 +96,8 @@ IPartitionerPtr CreatePartitioner(const TPartitionJobSpecExt& partitionJobSpecEx
     } else {
         return CreateHashPartitioner(
             partitionJobSpecExt.partition_count(),
-            partitionJobSpecExt.reduce_key_column_count());
+            partitionJobSpecExt.reduce_key_column_count(),
+            partitionJobSpecExt.partition_task_level());
     }
 }
 

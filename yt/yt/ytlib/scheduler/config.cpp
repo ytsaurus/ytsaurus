@@ -1034,6 +1034,9 @@ TSortOperationSpecBase::TSortOperationSpecBase()
     RegisterParameter("partition_count", PartitionCount)
         .Default()
         .GreaterThan(0);
+    RegisterParameter("max_partition_factor", MaxPartitionFactor)
+        .Default()
+        .GreaterThan(1);
     RegisterParameter("partition_data_weight", PartitionDataWeight)
         .Alias("partition_data_size")
         .Default()

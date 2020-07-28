@@ -1686,7 +1686,7 @@ class TestNewLivePreview(YTEnvSetup):
 
         assert exists(op.get_path() + "/controller_orchid")
 
-        live_preview_path = op.get_path() + "/controller_orchid/data_flow_graph/vertices/partition_map/live_previews/0"
+        live_preview_path = op.get_path() + "/controller_orchid/data_flow_graph/vertices/partition_map(0)/live_previews/0"
         live_preview_data = read_table(live_preview_path)
 
         assert len(live_preview_data) == 9
