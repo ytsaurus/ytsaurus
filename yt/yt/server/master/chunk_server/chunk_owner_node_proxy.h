@@ -61,6 +61,7 @@ protected:
     {
         NNodeTrackerClient::EAddressType AddressType = NNodeTrackerClient::EAddressType::InternalRpc;
         bool FetchParityReplicas = false;
+        bool OmitDynamicStores = false;
         std::vector<NChunkClient::TReadRange> Ranges;
     };
 

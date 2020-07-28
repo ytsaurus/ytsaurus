@@ -461,6 +461,10 @@ private:
         const TReadLimit& lowerLimit,
         const TReadLimit& upperLimit) override
     {
+        if (FetchContext_.OmitDynamicStores) {
+            return true;
+        }
+
         if (dynamicStore->IsFlushed()) {
             if (auto* chunk = dynamicStore->GetFlushedChunk()) {
                 return OnChunk(
@@ -1021,7 +1025,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 {
     DeclareNonMutating();
 
-    context->SetRequestInfo();
+    context->SetRequestInfo("OmitDynamicStores: %v", request->omit_dynamic_stores());
 
     // NB: No need for a permission check;
     // the client must have invoked GetBasicAttributes.
@@ -1030,6 +1034,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, Fetch)
 
     TFetchContext fetchContext;
     fetchContext.FetchParityReplicas = request->fetch_parity_replicas();
+    fetchContext.OmitDynamicStores = request->omit_dynamic_stores();
     fetchContext.AddressType = request->has_address_type()
         ? CheckedEnumCast<EAddressType>(request->address_type())
         : EAddressType::InternalRpc;

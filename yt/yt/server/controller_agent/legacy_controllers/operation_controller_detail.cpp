@@ -5205,6 +5205,9 @@ void TOperationControllerBase::FetchInputTables()
             if (table->Dynamic || IsBoundaryKeysFetchEnabled()) {
                 req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
             }
+            if (table->Dynamic && Spec_->DisableDynamicStoreRead) {
+                req->set_omit_dynamic_stores(true);
+            }
             // NB: we always fetch parity replicas since
             // erasure reader can repair data on flight.
             req->set_fetch_parity_replicas(true);
@@ -5258,11 +5261,13 @@ void TOperationControllerBase::FetchInputTables()
                 << TErrorAttribute("table_path", table->Path);
         }
 
-        YT_LOG_INFO("Adding input table for fetch (Path: %v, RangeCount: %v, InferredRangeCount: %v, HasColumnSelectors: %v)",
+        YT_LOG_INFO("Adding input table for fetch (Path: %v, RangeCount: %v, InferredRangeCount: %v, "
+            "HasColumnSelectors: %v, DisableDynamicStoreRead: %v)",
             table->GetPath(),
             originalRangeCount,
             ranges.size(),
-            hasColumnSelectors);
+            hasColumnSelectors,
+            Spec_->DisableDynamicStoreRead);
 
         chunkSpecFetcher->Add(
             table->ObjectId,
@@ -5960,6 +5965,9 @@ void TOperationControllerBase::FetchUserFiles()
             }
             if (file.Dynamic || IsBoundaryKeysFetchEnabled()) {
                 req->add_extension_tags(TProtoExtensionTag<TBoundaryKeysExt>::Value);
+            }
+            if (file.Dynamic && Spec_->DisableDynamicStoreRead) {
+                req->set_omit_dynamic_stores(true);
             }
             // NB: we always fetch parity replicas since
             // erasure reader can repair data on flight.
