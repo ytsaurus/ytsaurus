@@ -55,6 +55,8 @@ public:
         FinishCurrentSegment();
 
         for (auto& meta : CurrentBlockSegments_) {
+            // TODO(max42): this block index should be mapped in deferred callback
+            // when verisoned writers are able to reorder blocks.
             meta.set_block_index(blockIndex);
             ColumnMeta_.add_segments()->Swap(&meta);
         }

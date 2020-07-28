@@ -38,7 +38,7 @@ struct IChunkWriter
     /*!
      *  For journal chunks, #chunkMeta is not used.
      */
-    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta = nullptr) = 0;
+    virtual TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta = nullptr) = 0;
 
     //! Returns the chunk info.
     /*!

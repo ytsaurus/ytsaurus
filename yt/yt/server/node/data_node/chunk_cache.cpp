@@ -20,6 +20,7 @@
 #include <yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/ytlib/chunk_client/data_source.h>
+#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/ytlib/chunk_client/chunk_reader_memory_manager.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
@@ -184,7 +185,7 @@ public:
         return Check(Underlying_->GetReadyEvent());
     }
 
-    virtual TFuture<void> Close(const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta) override
+    virtual TFuture<void> Close(const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override
     {
         return Check(Underlying_->Close(chunkMeta));
     }
@@ -921,7 +922,10 @@ private:
 
             YT_LOG_DEBUG("Closing chunk");
 
-            WaitFor(checkedChunkWriter->Close(chunkMeta))
+            auto deferredChunkMeta = New<TDeferredChunkMeta>();
+            deferredChunkMeta->CopyFrom(*chunkMeta);
+
+            WaitFor(checkedChunkWriter->Close(deferredChunkMeta))
                 .ThrowOnError();
 
             YT_LOG_INFO("Chunk is downloaded into cache");

@@ -1,6 +1,8 @@
 #include "encoding_chunk_writer.h"
+
 #include "chunk_writer.h"
 #include "config.h"
+#include "deferred_chunk_meta.h"
 #include "encoding_writer.h"
 
 #include <yt/core/concurrency/scheduler.h>
@@ -30,22 +32,22 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     MiscExt_.set_eden(options->ChunksEden);
 }
 
-void TEncodingChunkWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock)
+void TEncodingChunkWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::optional<int> groupIndex)
 {
     ++CurrentBlockIndex_;
 
     i64 blockSize = GetByteSize(vectorizedBlock);
     LargestBlockSize_ = std::max(LargestBlockSize_, blockSize);
 
-    EncodingWriter_->WriteBlock(std::move(vectorizedBlock));
+    EncodingWriter_->WriteBlock(std::move(vectorizedBlock), groupIndex);
 }
 
-void TEncodingChunkWriter::WriteBlock(TSharedRef block)
+void TEncodingChunkWriter::WriteBlock(TSharedRef block, std::optional<int> groupIndex)
 {
     ++CurrentBlockIndex_;
 
     LargestBlockSize_ = std::max(LargestBlockSize_, static_cast<i64>(block.Size()));
-    EncodingWriter_->WriteBlock(std::move(block));
+    EncodingWriter_->WriteBlock(std::move(block), groupIndex);
 }
 
 void TEncodingChunkWriter::Close()
@@ -56,11 +58,11 @@ void TEncodingChunkWriter::Close()
     MiscExt_.set_uncompressed_data_size(EncodingWriter_->GetUncompressedSize());
     MiscExt_.set_compressed_data_size(EncodingWriter_->GetCompressedSize());
     MiscExt_.set_max_block_size(LargestBlockSize_);
-    MiscExt_.set_meta_size(Meta_.ByteSize());
+    MiscExt_.set_meta_size(Meta_->ByteSize());
     MiscExt_.set_creation_time(TInstant::Now().GetValue());
-    SetProtoExtension(Meta_.mutable_extensions(), MiscExt_);
+    SetProtoExtension(Meta_->mutable_extensions(), MiscExt_);
 
-    WaitFor(ChunkWriter_->Close(New<TRefCountedChunkMeta>(Meta_)))
+    WaitFor(ChunkWriter_->Close(Meta_))
         .ThrowOnError();
 
     Closed_ = true;

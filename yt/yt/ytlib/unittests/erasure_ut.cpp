@@ -2,6 +2,7 @@
 #include <yt/core/test_framework/framework.h>
 
 #include <yt/ytlib/chunk_client/config.h>
+#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/ytlib/chunk_client/erasure_writer.h>
 #include <yt/ytlib/chunk_client/repairing_reader.h>
@@ -223,7 +224,7 @@ public:
             writers.push_back(NYT::New<TFileWriter>(ioEngine, NullChunkId, filename));
         }
 
-        auto meta = New<TRefCountedChunkMeta>();
+        auto meta = New<TDeferredChunkMeta>();
         meta->set_type(1);
         meta->set_version(1);
 

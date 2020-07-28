@@ -43,6 +43,7 @@ TBlock TDataBlockWriter::DumpBlock(int blockIndex, i64 currentRowCount)
     block.Meta.set_row_count(currentRowCount - LastRowCount_);
     block.Meta.set_chunk_row_count(currentRowCount);
     block.Meta.set_uncompressed_size(size);
+    block.GroupIndex = GroupIndex_;
 
     LastRowCount_ = currentRowCount;
     CurrentOffset_ = 0;

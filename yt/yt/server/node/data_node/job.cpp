@@ -23,6 +23,7 @@
 #include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/ytlib/chunk_client/replication_reader.h>
 #include <yt/ytlib/chunk_client/replication_writer.h>
@@ -670,7 +671,10 @@ private:
         {
             YT_LOG_DEBUG("Started closing writer");
 
-            WaitFor(writer->Close(meta))
+            auto deferredMeta = New<TDeferredChunkMeta>();
+            deferredMeta->MergeFrom(*meta);
+
+            WaitFor(writer->Close(deferredMeta))
                 .ThrowOnError();
 
             YT_LOG_DEBUG("Writer closed");
@@ -863,7 +867,7 @@ private:
                     if (!repairPartIndexes) {
                         THROW_ERROR_EXCEPTION("Codec is unable to repair the chunk");
                     }
-                    
+
                     std::vector<IChunkReaderPtr> readers;
                     for (int partIndex : *repairPartIndexes) {
                         readers.push_back(CreateReader(partIndex));
@@ -878,7 +882,7 @@ private:
                         // XXX(babenko): pass logger
                     break;
                 }
-                
+
                 case EObjectType::ErasureJournalChunk: {
                     std::vector<IChunkReaderPtr> readers;
                     for (int partIndex : sourcePartIndexes) {
@@ -896,7 +900,7 @@ private:
                         Logger);
                     break;
                 }
-                
+
                 default:
                     THROW_ERROR_EXCEPTION("Unsupported chunk type %Qlv",
                         chunkType);

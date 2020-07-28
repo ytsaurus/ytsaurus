@@ -1,5 +1,7 @@
 #include "memory_writer.h"
 
+#include "deferred_chunk_meta.h"
+
 #include <yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/core/actions/future.h>
@@ -48,10 +50,17 @@ TFuture<void> TMemoryWriter::GetReadyEvent()
     return VoidFuture;
 }
 
-TFuture<void> TMemoryWriter::Close(const TRefCountedChunkMetaPtr& chunkMeta)
+TFuture<void> TMemoryWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
 {
     YT_VERIFY(Open_);
     YT_VERIFY(!Closed_);
+
+    if (!chunkMeta->IsFinalized()) {
+        auto& mapping = chunkMeta->BlockIndexMapping();
+        mapping = std::vector<int>(Blocks_.size());
+        std::iota(mapping->begin(), mapping->end(), 0);
+        chunkMeta->Finalize();
+    }
 
     ChunkMeta_ = chunkMeta;
     Closed_ = true;

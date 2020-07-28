@@ -5,6 +5,7 @@
 #include <yt/client/table_chunk_format/proto/column_meta.pb.h>
 #include <yt/ytlib/table_client/block_writer.h>
 
+#include <yt/core/misc/property.h>
 #include <yt/core/misc/ref.h>
 
 namespace NYT::NTableChunkFormat {
@@ -14,6 +15,9 @@ namespace NYT::NTableChunkFormat {
 class TDataBlockWriter
     : public TNonCopyable
 {
+public:
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<int>, GroupIndex);
+
 public:
     void WriteSegment(TRange<TSharedRef> segment);
 

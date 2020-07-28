@@ -218,7 +218,7 @@ protected:
 
         ToProto(ChunkSpec_.mutable_chunk_id(), NullChunkId);
         ChunkSpec_.set_table_row_index(42);
-        
+
         ChunkMeta_ = New<TColumnarChunkMeta>(*memoryWriter->GetChunkMeta());
     }
 
@@ -438,7 +438,7 @@ protected:
         }
 
         Rows_ = builder.Build();
-       
+
         chunkWriter->Write(Rows_);
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
@@ -448,7 +448,7 @@ protected:
 
         ToProto(ChunkSpec_.mutable_chunk_id(), NullChunkId);
         ChunkSpec_.set_table_row_index(42);
-        
+
         ChunkMeta_ = New<TColumnarChunkMeta>(*memoryWriter->GetChunkMeta());
 
         ChunkState_ = New<TChunkState>(

@@ -16,6 +16,7 @@
 #include <yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/ytlib/chunk_client/client_block_cache.h>
+#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/ytlib/chunk_client/erasure_reader.h>
 #include <yt/ytlib/chunk_client/erasure_repair.h>
 #include <yt/ytlib/chunk_client/erasure_writer.h>
@@ -93,6 +94,8 @@ public:
         BlockReadOptions_.WorkloadDescriptor = ReaderConfig_->WorkloadDescriptor;
         BlockReadOptions_.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         BlockReadOptions_.ReadSessionId = TReadSessionId::Create();
+        // We are not ready for reordering here.
+        WriterConfig_->EnableBlockReordering = false;
     }
 
     virtual void Initialize() override
@@ -297,7 +300,7 @@ private:
 
         // Update data statistics.
         DataStatistics_.set_chunk_count(DataStatistics_.chunk_count() + 1);
-    }    
+    }
 
     void CopyErasureChunk(const TChunkSpec& inputChunkSpec, NChunkClient::TSessionId outputSessionId)
     {
@@ -309,7 +312,7 @@ private:
         auto erasureCodecId = NErasure::ECodec(inputChunkSpec.erasure_codec());
         auto inputReplicas = NYT::FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
 
-        TRefCountedChunkMetaPtr chunkMeta;
+        TDeferredChunkMetaPtr chunkMeta;
 
         auto erasureCodec = NErasure::GetCodec(erasureCodecId);
         auto readers = CreateErasureAllPartsReaders(
@@ -564,7 +567,7 @@ private:
     void FinalizeErasureChunk(
         const std::vector<IChunkWriterPtr>& writers,
         const TPartIndexList& erasedPartIndicies,
-        const TRefCountedChunkMetaPtr& chunkMeta,
+        const TDeferredChunkMetaPtr& chunkMeta,
         NChunkClient::TSessionId outputSessionId)
     {
         TChunkInfo chunkInfo;
@@ -594,7 +597,7 @@ private:
         auto inputChunkId = NYT::FromProto<TChunkId>(inputChunkSpec.chunk_id());
         auto inputReplicas = NYT::FromProto<TChunkReplicaList>(inputChunkSpec.replicas());
 
-        TRefCountedChunkMetaPtr chunkMeta;
+        TDeferredChunkMetaPtr chunkMeta;
 
         auto reader = CreateReplicationReader(
             ReaderConfig_,
@@ -651,7 +654,7 @@ private:
 
     void FinalizeRegularChunk(
         const IChunkWriterPtr& writer,
-        const TRefCountedChunkMetaPtr& chunkMeta,
+        const TDeferredChunkMetaPtr& chunkMeta,
         NChunkClient::TSessionId outputSessionId)
     {
         WaitFor(writer->Close(chunkMeta))
@@ -779,7 +782,7 @@ private:
     }
 
     // Request input chunk meta. Input and output chunk metas are the same.
-    TRefCountedChunkMetaPtr GetChunkMeta(const std::vector<IChunkReaderPtr>& readers)
+    TDeferredChunkMetaPtr GetChunkMeta(const std::vector<IChunkReaderPtr>& readers)
     {
         // In erasure chunks some of the parts might be unavailable, but they all have the same meta,
         // so we try to get meta from all of the readers simultaneously.
@@ -797,7 +800,9 @@ private:
             }
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Failed to get chunk meta");
         }
-        return result.Value();
+        auto deferredChunkMeta = New<TDeferredChunkMeta>();
+        deferredChunkMeta->CopyFrom(*result.Value());
+        return deferredChunkMeta;
     }
 };
 

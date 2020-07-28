@@ -36,6 +36,9 @@ struct TBlock
     //! NB: This field is not used for uncompressed blocks nor it is
     //! used when writing blocks.
     EBlockOrigin BlockOrigin = EBlockOrigin::Unknown;
+    //! For columnar table chunks, index of the group. This field is used
+    //! for block reordering (see TBlockReorderer).
+    std::optional<int> GroupIndex;
 
     operator bool() const;
 

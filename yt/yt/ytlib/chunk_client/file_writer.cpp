@@ -1,5 +1,7 @@
 #include "file_writer.h"
+
 #include "chunk_meta_extensions.h"
+#include "deferred_chunk_meta.h"
 #include "format.h"
 #include "block.h"
 
@@ -248,7 +250,7 @@ TFuture<void> TFileWriter::WriteMeta(const TRefCountedChunkMetaPtr& chunkMeta)
         }));
 }
 
-TFuture<void> TFileWriter::Close(const TRefCountedChunkMetaPtr& chunkMeta)
+TFuture<void> TFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
 {
     if (!Open_ || !Error_.IsOK()) {
         return MakeFuture(Error_);
@@ -256,6 +258,10 @@ TFuture<void> TFileWriter::Close(const TRefCountedChunkMetaPtr& chunkMeta)
 
     Open_ = false;
     Closed_ = true;
+
+    if (!chunkMeta->IsFinalized()) {
+        chunkMeta->Finalize();
+    }
 
     return IOEngine_->Close(DataFile_, DataSize_, SyncOnClose_)
         .Apply(BIND(&TFileWriter::WriteMeta, MakeStrong(this), chunkMeta));

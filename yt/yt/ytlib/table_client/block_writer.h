@@ -14,6 +14,7 @@ struct TBlock
 {
     std::vector<TSharedRef> Data;
     NProto::TBlockMeta Meta;
+    std::optional<int> GroupIndex;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

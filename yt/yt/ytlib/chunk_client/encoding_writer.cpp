@@ -49,7 +49,7 @@ TEncodingWriter::TEncodingWriter(
     , CodecTime_({Options_->CompressionCodec, TDuration::MicroSeconds(0)})
 { }
 
-void TEncodingWriter::WriteBlock(TSharedRef block)
+void TEncodingWriter::WriteBlock(TSharedRef block, std::optional<int> groupIndex)
 {
     EnsureOpen();
 
@@ -59,10 +59,11 @@ void TEncodingWriter::WriteBlock(TSharedRef block)
     CompressionInvoker_->Invoke(BIND(
         &TEncodingWriter::DoCompressBlock,
         MakeWeak(this),
-        std::move(block)));
+        std::move(block),
+        groupIndex));
 }
 
-void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock)
+void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::optional<int> groupIndex)
 {
     EnsureOpen();
 
@@ -74,7 +75,8 @@ void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock)
     CompressionInvoker_->Invoke(BIND(
         &TEncodingWriter::DoCompressVector,
         MakeWeak(this),
-        std::move(vectorizedBlock)));
+        std::move(vectorizedBlock),
+        groupIndex));
 }
 
 void TEncodingWriter::EnsureOpen()
@@ -102,13 +104,14 @@ void TEncodingWriter::CacheUncompressedBlock(const TSharedRef& block, int blockI
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
+void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock, std::optional<int> groupIndex)
 {
     YT_LOG_DEBUG("Started compressing block (Block: %v, Codec: %v)",
         AddedBlockIndex_,
         Codec_->GetId());
 
     TBlock compressedBlock;
+    compressedBlock.GroupIndex = groupIndex;
     {
         TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
         TValueIncrementingTimingGuard<TFiberWallTimer> guard(&CodecTime_.CpuDuration);
@@ -140,13 +143,14 @@ void TEncodingWriter::DoCompressBlock(const TSharedRef& uncompressedBlock)
 }
 
 // Serialized compression invoker affinity (don't use thread affinity because of thread pool).
-void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock)
+void TEncodingWriter::DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock, std::optional<int> groupIndex)
 {
     YT_LOG_DEBUG("Started compressing block (Block: %v, Codec: %v)",
         AddedBlockIndex_,
         Codec_->GetId());
 
     TBlock compressedBlock;
+    compressedBlock.GroupIndex = groupIndex;
     {
         TMemoryZoneGuard memoryZoneGuard(EMemoryZone::Undumpable);
         TValueIncrementingTimingGuard<TFiberWallTimer> guard(&CodecTime_.CpuDuration);

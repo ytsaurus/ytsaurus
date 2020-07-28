@@ -1,8 +1,10 @@
 #include "erasure_writer.h"
-#include "public.h"
+
+#include "block_reorderer.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_writer.h"
 #include "config.h"
+#include "deferred_chunk_meta.h"
 #include "dispatcher.h"
 #include "replication_writer.h"
 #include "helpers.h"
@@ -129,6 +131,7 @@ public:
         , Codec_(codec)
         , WorkloadDescriptor_(workloadDescriptor)
         , Writers_(writers)
+        , BlockReorderer_(config)
     {
         YT_VERIFY(writers.size() == codec->GetTotalPartCount());
         VERIFY_INVOKER_THREAD_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
@@ -202,7 +205,7 @@ public:
         return isCloseDemanded;
     }
 
-    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override;
+    virtual TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override;
 
     virtual TChunkId GetChunkId() const override
     {
@@ -227,15 +230,17 @@ private:
     TParityPartSplitInfo ParityPartSplitInfo_;
 
     // Chunk meta with information about block placement
-    const TRefCountedChunkMetaPtr ChunkMeta_ = New<TRefCountedChunkMeta>();
+    TDeferredChunkMetaPtr ChunkMeta_ = New<TDeferredChunkMeta>();
     NProto::TErasurePlacementExt PlacementExt_;
     NProto::TChunkInfo ChunkInfo_;
+
+    TBlockReorderer BlockReorderer_;
 
     DECLARE_THREAD_AFFINITY_SLOT(WriterThread);
 
     void PrepareBlocks();
 
-    void PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta);
+    void PrepareChunkMeta(const TDeferredChunkMetaPtr& chunkMeta);
 
     void DoOpen();
 
@@ -252,6 +257,8 @@ private:
 
 void TErasureWriter::PrepareBlocks()
 {
+    BlockReorderer_.ReorderBlocks(Blocks_);
+
     Groups_ = SplitBlocks(Blocks_, Codec_->GetDataPartCount());
 
     i64 partSize = 0;
@@ -267,11 +274,13 @@ void TErasureWriter::PrepareBlocks()
     ParityPartSplitInfo_ = TParityPartSplitInfo::Build(Config_->ErasureWindowSize, partSize);
 }
 
-void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
+void TErasureWriter::PrepareChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
 {
     int start = 0;
     for (const auto& group : Groups_) {
         auto* info = PlacementExt_.add_part_infos();
+        // NB: these block indexes are calculated after the reordering,
+        // so we will set them here and not in the deferred callback.
         info->set_first_block_index(start);
         for (const auto& block : group) {
             info->add_block_sizes(block.Size());
@@ -284,7 +293,11 @@ void TErasureWriter::PrepareChunkMeta(const NProto::TChunkMeta& chunkMeta)
     PlacementExt_.set_parity_last_block_size(ParityPartSplitInfo_.LastBlockSize);
     PlacementExt_.mutable_part_checksums()->Resize(Codec_->GetTotalPartCount(), NullChecksum);
 
-    ChunkMeta_->CopyFrom(chunkMeta);
+    ChunkMeta_ = chunkMeta;
+
+    ChunkMeta_->BlockIndexMapping() = BlockReorderer_.BlockIndexMapping();
+    YT_VERIFY(!ChunkMeta_->IsFinalized());
+    ChunkMeta_->Finalize();
 }
 
 void TErasureWriter::DoOpen()
@@ -396,12 +409,12 @@ TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks()
     .Run();
 }
 
-TFuture<void> TErasureWriter::Close(const TRefCountedChunkMetaPtr& chunkMeta)
+TFuture<void> TErasureWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
 {
     YT_VERIFY(IsOpen_);
 
     PrepareBlocks();
-    PrepareChunkMeta(*chunkMeta);
+    PrepareChunkMeta(chunkMeta);
 
     auto compressionInvoker = CreateFixedPriorityInvoker(
         NRpc::TDispatcher::Get()->GetPrioritizedCompressionPoolInvoker(),

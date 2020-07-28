@@ -9,14 +9,16 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 
-#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
+#include <yt/ytlib/api/native/client.h>
+#include <yt/ytlib/api/native/connection.h>
+
+#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/client/node_tracker_client/node_directory.h>
+#include <yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-#include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/connection.h>
+#include <yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/core/misc/checksum.h>
 #include <yt/core/misc/fs.h>
@@ -478,7 +480,9 @@ TChunkInfo TBlobSession::CloseWriter(const TRefCountedChunkMetaPtr& chunkMeta)
 
         PROFILE_TIMING ("/blob_chunk_close_time") {
             try {
-                WaitFor(Writer_->Close(chunkMeta))
+                auto deferredChunkMeta = New<TDeferredChunkMeta>();
+                deferredChunkMeta->MergeFrom(*chunkMeta);
+                WaitFor(Writer_->Close(deferredChunkMeta))
                     .ThrowOnError();
             } catch (const TSystemError& ex) {
                 if (ex.Status() == ENOSPC) {
@@ -512,7 +516,7 @@ TChunkInfo TBlobSession::CloseWriter(const TRefCountedChunkMetaPtr& chunkMeta)
     TChunkDescriptor descriptor;
     descriptor.Id = GetChunkId();
     descriptor.DiskSpace = Writer_->GetChunkInfo().disk_space();
-    
+
     auto chunk = New<TStoredBlobChunk>(
         Bootstrap_,
         Location_,

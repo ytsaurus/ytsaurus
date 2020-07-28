@@ -1,9 +1,10 @@
 #include "versioned_chunk_writer.h"
-#include "private.h"
+
 #include "chunk_meta_extensions.h"
 #include "config.h"
-#include "versioned_block_writer.h"
+#include "private.h"
 #include "row_merger.h"
+#include "versioned_block_writer.h"
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
@@ -14,9 +15,12 @@
 #include <yt/ytlib/table_chunk_format/data_block_writer.h>
 #include <yt/ytlib/table_chunk_format/timestamp_writer.h>
 
+#include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/config.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
+#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/ytlib/chunk_client/encoding_chunk_writer.h>
 #include <yt/ytlib/chunk_client/encoding_writer.h>
 #include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
@@ -144,7 +148,7 @@ public:
 
     virtual TChunkMeta GetNodeMeta() const override
     {
-        return EncodingChunkWriter_->Meta();
+        return *EncodingChunkWriter_->Meta();
     }
 
     virtual TChunkId GetChunkId() const override
@@ -222,7 +226,7 @@ protected:
 
         ToProto(BoundaryKeysExt_.mutable_max(), LastKey_);
 
-        auto& meta = EncodingChunkWriter_->Meta();
+        auto& meta = *EncodingChunkWriter_->Meta();
         FillCommonMeta(&meta);
 
         SetProtoExtension(meta.mutable_extensions(), ToProto<TTableSchemaExt>(Schema_));
@@ -636,7 +640,7 @@ private:
         miscExt.set_min_timestamp(static_cast<i64>(TimestampWriter_->GetMinTimestamp()));
         miscExt.set_max_timestamp(static_cast<i64>(TimestampWriter_->GetMaxTimestamp()));
 
-        auto& meta = EncodingChunkWriter_->Meta();
+        auto& meta = *EncodingChunkWriter_->Meta();
 
         NProto::TColumnMetaExt columnMetaExt;
         for (const auto& valueColumnWriter : ValueColumnWriters_) {
@@ -664,6 +668,14 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     IChunkWriterPtr chunkWriter,
     IBlockCachePtr blockCache)
 {
+    if (blockCache->GetSupportedBlockTypes() != EBlockType::None) {
+        // It is hard to support both reordering and uncompressed block caching
+        // since get cached significantly before we know the final permutation.
+        // Supporting reordering for compressed block cache is not hard
+        // to implement, but is not done for now.
+        config->EnableBlockReordering = false;
+    }
+
     if (options->OptimizeFor == EOptimizeFor::Scan) {
         return New<TColumnVersionedChunkWriter>(
             std::move(config),
