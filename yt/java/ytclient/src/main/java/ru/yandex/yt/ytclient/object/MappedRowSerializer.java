@@ -271,8 +271,8 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onBytes(byte[] bytes) {
-            current.onBytes(bytes);
+        public void onString(byte[] bytes) {
+            current.onString(bytes);
         }
     }
 
@@ -412,7 +412,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onBytes(byte[] bytes) {
+        public void onString(byte[] bytes) {
             if (currentColumn != null) {
                 if (currentColumn.columnType == ColumnValueType.STRING) {
                     this.onBytesDirect(bytes);
@@ -425,7 +425,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
                     final ByteArrayOutputStream output = new ByteArrayOutputStream();
 
                     try (YTreeCloseableConsumer binarySerializer = YTreeBinarySerializer.getSerializer(output)) {
-                        binarySerializer.onBytes(bytes); // TODO: improve performance
+                        binarySerializer.onString(bytes); // TODO: improve performance
                     }
                     this.onBytesDirect(output.toByteArray());
                 }
