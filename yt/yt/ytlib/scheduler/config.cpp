@@ -503,6 +503,9 @@ TOperationSpecBase::TOperationSpecBase()
         .Default(256)
         .InRange(0, 256);
 
+    RegisterParameter("disable_dynamic_store_read", DisableDynamicStoreRead)
+        .Default(false);
+
     RegisterPostprocessor([&] () {
         if (UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             UnavailableChunkTactics == EUnavailableChunkAction::Skip)

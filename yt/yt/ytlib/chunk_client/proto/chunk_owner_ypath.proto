@@ -94,6 +94,8 @@ message TReqFetch
     repeated TReadRange ranges = 11;
 
     optional int32 address_type = 12; // EAddressType
+
+    optional bool omit_dynamic_stores = 13 [default = false];
 }
 
 message TRspFetch

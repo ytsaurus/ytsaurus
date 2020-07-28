@@ -22,8 +22,8 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
 
     simple_rows = [{"key": i, "value": str(i)} for i in range(10)]
 
-    def _prepare_simple_table(self, path):
-        self._create_simple_table(path)
+    def _prepare_simple_table(self, path, **attributes):
+        self._create_simple_table(path, **attributes)
         set(path + "/@enable_dynamic_store_read", True)
         sync_mount_table(path)
         insert_rows(path, self.simple_rows[::2])
@@ -422,6 +422,17 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = [row["key"] for row in read_table("//tmp/out", verbose=False)]
         expected = range(50, 49950)
         assert actual == expected
+
+    @pytest.mark.parametrize("use_legacy_controller", [True, False])
+    def test_map_without_dynamic_stores(self, use_legacy_controller):
+        sync_create_cells(1)
+        self._prepare_simple_table("//tmp/t", enable_store_rotation=False)
+        create("table", "//tmp/p")
+        map(in_="//tmp/t", out="//tmp/p", command="cat", ordered=True, spec={
+            "legacy_controller_fraction": 256 if use_legacy_controller else 0,
+            "disable_dynamic_store_read": True})
+        assert read_table("//tmp/p") == self.simple_rows[::2]
+
 
 class TestReadSortedDynamicTablesMulticell(TestReadSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2

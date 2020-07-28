@@ -737,6 +737,9 @@ public:
     //! Operation will use legacy controller with probability x/256.
     int LegacyControllerFraction;
 
+    //! If true, then data from dynamic stores of dynamic tables should not be read.
+    bool DisableDynamicStoreRead;
+
     TOperationSpecBase();
 
 private:
