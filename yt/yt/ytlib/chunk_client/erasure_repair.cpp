@@ -1,8 +1,10 @@
 #include "erasure_repair.h"
+
 #include "chunk_meta_extensions.h"
 #include "chunk_reader.h"
 #include "chunk_writer.h"
 #include "config.h"
+#include "deferred_chunk_meta.h"
 #include "dispatcher.h"
 #include "erasure_helpers.h"
 #include "private.h"
@@ -232,6 +234,9 @@ private:
         auto reader = Readers_.front(); // an arbitrary one will do
         auto meta = WaitFor(reader->GetMeta(BlockReadOptions_))
             .ValueOrThrow();
+        auto deferredMeta = New<TDeferredChunkMeta>();
+        deferredMeta->CopyFrom(*meta);
+        deferredMeta->Finalize();
 
         // Validate repaired parts checksums.
         if (placementExt.part_checksums_size() != 0) {
@@ -249,7 +254,7 @@ private:
         {
             std::vector<TFuture<void>> asyncResults;
             for (auto writer : Writers_) {
-                asyncResults.push_back(writer->Close(meta));
+                asyncResults.push_back(writer->Close(deferredMeta));
             }
             WaitFor(AllSucceeded(asyncResults))
                 .ThrowOnError();

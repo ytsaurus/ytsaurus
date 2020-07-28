@@ -1,14 +1,15 @@
 #include "confirming_writer.h"
-#include "private.h"
+
+#include "block.h"
 #include "chunk_meta_extensions.h"
+#include "chunk_service_proxy.h"
 #include "config.h"
+#include "deferred_chunk_meta.h"
 #include "dispatcher.h"
 #include "erasure_writer.h"
 #include "helpers.h"
-#include "block.h"
+#include "private.h"
 #include "replication_writer.h"
-#include "chunk_service_proxy.h"
-#include "helpers.h"
 #include "session_id.h"
 
 #include <yt/ytlib/api/native/client.h>
@@ -117,7 +118,7 @@ public:
         }
     }
 
-    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override
+    virtual TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(Initialized_);
         YT_VERIFY(OpenFuture_.IsSet());
@@ -187,7 +188,7 @@ private:
     TSessionId SessionId_;
     TFuture<void> OpenFuture_;
 
-    TRefCountedChunkMetaPtr ChunkMeta_;
+    TDeferredChunkMetaPtr ChunkMeta_;
     NProto::TDataStatistics DataStatistics_;
 
     NLogging::TLogger Logger;
@@ -236,8 +237,11 @@ private:
         // because we cannot guarantee proper replica placement.
         auto options = CloneYsonSerializable(Options_);
         options->AllowAllocatingNewTargetNodes = Config_->EnableErasureTargetNodeReallocation;
+        auto config = CloneYsonSerializable(Config_);
+        // Block reordering is done in erasure writer.
+        config->EnableBlockReordering = false;
         auto writers = CreateErasurePartWriters(
-            Config_,
+            config,
             options,
             SessionId_,
             erasureCodec,
@@ -274,6 +278,9 @@ private:
             TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value,
             TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value
         };
+
+        // Underlying writer should have called ChunkMeta_->Finalize().
+        YT_VERIFY(ChunkMeta_->IsFinalized());
 
         NChunkClient::NProto::TChunkMeta masterChunkMeta(*ChunkMeta_);
         FilterProtoExtensions(

@@ -34,8 +34,8 @@ public:
     bool IsReady() const;
     TFuture<void> GetReadyEvent();
 
-    void WriteBlock(TSharedRef block);
-    void WriteBlock(std::vector<TSharedRef> vectorizedBlock);
+    void WriteBlock(TSharedRef block, std::optional<int> groupIndex = std::nullopt);
+    void WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::optional<int> groupIndex = std::nullopt);
 
     // Future is set when all block get written to underlying writer.
     TFuture<void> Flush();
@@ -74,8 +74,12 @@ private:
     void EnsureOpen();
     void CacheUncompressedBlock(const TSharedRef& block, int blockIndex);
 
-    void DoCompressBlock(const TSharedRef& uncompressedBlock);
-    void DoCompressVector(const std::vector<TSharedRef>& uncompressedVectorizedBlock);
+    void DoCompressBlock(
+        const TSharedRef& uncompressedBlock,
+        std::optional<int> groupIndex = std::nullopt);
+    void DoCompressVector(
+        const std::vector<TSharedRef>& uncompressedVectorizedBlock,
+        std::optional<int> groupIndex = std::nullopt);
 
     void ProcessCompressedBlock(const TBlock& block, i64 delta);
 

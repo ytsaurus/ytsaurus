@@ -1,4 +1,5 @@
 #include "schemaless_chunk_writer.h"
+
 #include "chunk_meta_extensions.h"
 #include "config.h"
 #include "partitioner.h"
@@ -12,7 +13,9 @@
 #include <yt/ytlib/table_chunk_format/schemaless_column_writer.h>
 #include <yt/ytlib/table_chunk_format/data_block_writer.h>
 
+#include <yt/ytlib/chunk_client/block_cache.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/encoding_chunk_writer.h>
 #include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
@@ -210,7 +213,7 @@ public:
 
     virtual NChunkClient::NProto::TChunkMeta GetNodeMeta() const override
     {
-        return EncodingChunkWriter_->Meta();
+        return *EncodingChunkWriter_->Meta();
     }
 
     virtual TChunkId GetChunkId() const override
@@ -289,7 +292,7 @@ protected:
         BlockMetaExtSize_ += block.Meta.ByteSize();
         BlockMetaExt_.add_blocks()->Swap(&block.Meta);
 
-        EncodingChunkWriter_->WriteBlock(std::move(block.Data));
+        EncodingChunkWriter_->WriteBlock(std::move(block.Data), block.GroupIndex);
     }
 
     void ProcessRowset(TRange<TUnversionedRow> rows)
@@ -324,7 +327,7 @@ protected:
             miscExt.set_shared_to_skynet(true);
         }
 
-        auto& meta = EncodingChunkWriter_->Meta();
+        auto& meta = *EncodingChunkWriter_->Meta();
         FillCommonMeta(&meta);
 
         auto nameTableExt = ToProto<TNameTableExt>(ChunkNameTable_);
@@ -333,7 +336,26 @@ protected:
         auto schemaExt = ToProto<TTableSchemaExt>(*Schema_);
         SetProtoExtension(meta.mutable_extensions(), schemaExt);
 
-        SetProtoExtension(meta.mutable_extensions(), BlockMetaExt_);
+        meta.PushCallback([blockMetaExt = std::move(BlockMetaExt_)] (TDeferredChunkMeta* meta) mutable {
+            YT_VERIFY(meta->BlockIndexMapping());
+            const auto& mapping = *meta->BlockIndexMapping();
+            // Note that simply mapping each block's block_index is not enough.
+            // Currently, our code assumes that blocks follow in ascending order
+            // of block indexes (which is quite natural assumption).
+            NProto::TBlockMetaExt reorderedBlockMetaExt;
+            reorderedBlockMetaExt.mutable_blocks()->Reserve(blockMetaExt.blocks().size());
+            for (size_t index = 0; index < blockMetaExt.blocks_size(); ++index) {
+                reorderedBlockMetaExt.add_blocks();
+            }
+            for (auto& block : *blockMetaExt.mutable_blocks()) {
+                auto index = block.block_index();
+                YT_VERIFY(index < mapping.size());
+                auto mappedIndex = mapping[index];
+                reorderedBlockMetaExt.mutable_blocks(mappedIndex)->Swap(&block);
+                reorderedBlockMetaExt.mutable_blocks(mappedIndex)->set_block_index(mappedIndex);
+            }
+            SetProtoExtension(meta->mutable_extensions(), reorderedBlockMetaExt);
+        });
 
         SetProtoExtension(meta.mutable_extensions(), SamplesExt_);
 
@@ -622,7 +644,10 @@ public:
             if (column.Group() && groupBlockWriters.find(*column.Group()) == groupBlockWriters.end()) {
                 auto blockWriter = std::make_unique<TDataBlockWriter>();
                 groupBlockWriters[*column.Group()] = blockWriter.get();
+                auto groupIndex = BlockWriters_.size();
+                blockWriter->SetGroupIndex(groupIndex);
                 BlockWriters_.emplace_back(std::move(blockWriter));
+
             }
         }
 
@@ -630,7 +655,10 @@ public:
             if (columnSchema.Group()) {
                 return groupBlockWriters[*columnSchema.Group()];
             } else {
-                BlockWriters_.emplace_back(std::make_unique<TDataBlockWriter>());
+                auto blockWriter = std::make_unique<TDataBlockWriter>();
+                auto groupIndex = BlockWriters_.size();
+                blockWriter->SetGroupIndex(groupIndex);
+                BlockWriters_.emplace_back(std::move(blockWriter));
                 return BlockWriters_.back().get();
             }
         };
@@ -775,14 +803,24 @@ private:
     {
         TUnversionedChunkWriterBase::PrepareChunkMeta();
 
-        auto& meta = EncodingChunkWriter_->Meta();
-
         NProto::TColumnMetaExt columnMetaExt;
         for (const auto& valueColumnWriter : ValueColumnWriters_) {
             *columnMetaExt.add_columns() = valueColumnWriter->ColumnMeta();
         }
 
-        SetProtoExtension(meta.mutable_extensions(), columnMetaExt);
+        auto& meta = *EncodingChunkWriter_->Meta();
+        meta.PushCallback([columnMetaExt = std::move(columnMetaExt)] (NChunkClient::TDeferredChunkMeta* meta) mutable {
+            YT_VERIFY(meta->BlockIndexMapping());
+            const auto& mapping = *meta->BlockIndexMapping();
+            for (auto& column : *columnMetaExt.mutable_columns()) {
+                for (auto& segment : *column.mutable_segments()) {
+                    auto blockIndex = segment.block_index();
+                    YT_VERIFY(blockIndex < mapping.size());
+                    segment.set_block_index(mapping[blockIndex]);
+                }
+            }
+            SetProtoExtension(meta->mutable_extensions(), columnMetaExt);
+        });
     }
 };
 
@@ -920,7 +958,7 @@ private:
 
         YT_LOG_DEBUG("Partition totals: %v", PartitionsExt_.DebugString());
 
-        auto& meta = EncodingChunkWriter_->Meta();
+        auto& meta = *EncodingChunkWriter_->Meta();
 
         SetProtoExtension(meta.mutable_extensions(), PartitionsExt_);
     }
@@ -2281,6 +2319,14 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
+    if (blockCache->GetSupportedBlockTypes() != EBlockType::None) {
+        // It is hard to support both reordering and uncompressed block caching
+        // since block becomes cached significantly before we know the final permutation.
+        // Supporting reordering for compressed block cache is not hard
+        // to implement, but is not done for now.
+        config->EnableBlockReordering = false;
+    }
+
     auto writer = New<TSchemalessTableWriter>(
         std::move(config),
         std::move(options),

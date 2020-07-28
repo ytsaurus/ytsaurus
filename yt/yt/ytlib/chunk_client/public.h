@@ -178,6 +178,8 @@ struct TUserObject;
 using TRefCountedChunkMeta = TRefCountedProto<NChunkClient::NProto::TChunkMeta>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedChunkMeta)
 
+DECLARE_REFCOUNTED_CLASS(TDeferredChunkMeta)
+
 // NB: TRefCountedBlocksExt needs weak pointers support.
 using TRefCountedBlocksExt = TRefCountedProto<NChunkClient::NProto::TBlocksExt>;
 DECLARE_REFCOUNTED_TYPE(TRefCountedBlocksExt)

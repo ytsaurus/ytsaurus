@@ -7,6 +7,7 @@
 
 #include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/chunk_writer.h>
+#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/encoding_chunk_writer.h>
 #include <yt/ytlib/chunk_client/multi_chunk_writer_base.h>
@@ -146,7 +147,7 @@ TFuture<void> TFileChunkWriter::Close()
         FlushBlock();
     }
 
-    auto& meta = EncodingChunkWriter_->Meta();
+    auto& meta = *EncodingChunkWriter_->Meta();
     meta.set_type(static_cast<int>(EChunkType::File));
     meta.set_version(FormatVersion);
 

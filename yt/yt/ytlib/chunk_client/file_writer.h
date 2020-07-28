@@ -34,7 +34,7 @@ public:
 
     virtual TFuture<void> GetReadyEvent() override;
 
-    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override;
+    virtual TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override;
 
     virtual const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     virtual const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;

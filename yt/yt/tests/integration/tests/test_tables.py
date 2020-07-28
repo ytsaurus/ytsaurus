@@ -5,6 +5,7 @@ from yt.yson import to_yson_type, loads
 from yt.environment.helpers import assert_items_equal
 
 import math
+import random
 
 import pytest
 
@@ -14,6 +15,13 @@ class TestTables(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
+
+    DELTA_MASTER_CONFIG = {
+        "chunk_manager": {
+            "allow_multiple_erasure_parts_per_node": True
+        }
+    }
+
 
 
     def _wait_until_unlocked(self, path):
@@ -1746,6 +1754,29 @@ class TestTables(YTEnvSetup):
                 "cancel_primary_block_rpc_request_on_hedging": True
             })
             assert rows == ROWS
+
+    @authors("max42")
+    def test_block_reordering(self):
+        col_count = 100
+        row_count = 100
+
+        r = random.Random()
+        def random_str():
+            return hex(r.randint(0, 16**50 - 1))[2:]
+
+        schema = [{"name": "col{:2d}".format(i), "type": "string"} for i in xrange(col_count)]
+        for reordering_config in ({"enable_block_reordering": False}, {"enable_block_reordering": True},
+                                  {"enable_block_reordering": True, "shuffle_blocks": True}):
+            for optimize_for in ("scan", "lookup"):
+                for erasure_codec in ("lrc_12_2_2", "none"):
+                    print_debug("Checking combination of reodering_config = {}, optimize_for = {}, "
+                                "erasure_codec = {}".format(reordering_config, optimize_for, erasure_codec))
+                    create("table", "//tmp/t", attributes={"optimize_for": optimize_for, "erasure_codec": erasure_codec,
+                                                           "schema": schema}, verbose=False)
+                    content = [{schema[i]["name"]: random_str() for i in xrange(col_count)} for j in xrange(row_count)]
+                    write_table("//tmp/t", content, verbose=False, table_writer=reordering_config)
+                    assert read_table("//tmp/t", verbose=False) == content
+                    remove("//tmp/t")
 
 ##################################################################
 

@@ -19,7 +19,7 @@ public:
     virtual bool WriteBlock(const TBlock& block) override;
     virtual bool WriteBlocks(const std::vector<TBlock>& blocks) override;
     virtual TFuture<void> GetReadyEvent() override;
-    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override;
+    virtual TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override;
 
     //! Unimplemented.
     virtual const NProto::TChunkInfo& GetChunkInfo() const override;
@@ -44,7 +44,6 @@ private:
 
     std::vector<TBlock> Blocks_;
     TRefCountedChunkMetaPtr ChunkMeta_;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryWriter)

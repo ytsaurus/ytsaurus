@@ -51,8 +51,33 @@ DEFINE_REFCOUNTED_TYPE(TFetcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBlockReordererConfig
+    : public virtual NYTree::TYsonSerializable
+{
+public:
+    bool EnableBlockReordering;
+
+    //! Instead of grouping blocks by column groups, shuffle them.
+    //! Used only for testing purposes.
+    bool ShuffleBlocks;
+
+    TBlockReordererConfig()
+    {
+        RegisterParameter("enable_block_reordering", EnableBlockReordering)
+            .Default(true);
+
+        RegisterParameter("shuffle_blocks", ShuffleBlocks)
+            .Default(false);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TBlockReordererConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TEncodingWriterConfig
     : public virtual TWorkloadConfig
+    , public virtual TBlockReordererConfig
 {
 public:
     i64 EncodeWindowSize;
@@ -349,6 +374,7 @@ DEFINE_REFCOUNTED_TYPE(TMultiChunkReaderConfig)
 
 class TReplicationWriterConfig
     : public virtual TWorkloadConfig
+    , public virtual TBlockReordererConfig
 {
 public:
     //! Maximum window size (in bytes).
@@ -453,6 +479,7 @@ DEFINE_REFCOUNTED_TYPE(TReplicationWriterConfig)
 
 class TErasureWriterConfig
     : public virtual NYTree::TYsonSerializable
+    , public virtual TBlockReordererConfig
 {
 public:
     i64 ErasureWindowSize;

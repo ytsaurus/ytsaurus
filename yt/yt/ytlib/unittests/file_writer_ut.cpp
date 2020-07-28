@@ -3,9 +3,10 @@
 #include <yt/core/ytree/public.h>
 #include <yt/core/ytree/convert.h>
 
-#include <yt/ytlib/chunk_client/io_engine.h>
-#include <yt/ytlib/chunk_client/file_writer.h>
 #include <yt/ytlib/chunk_client/block.h>
+#include <yt/ytlib/chunk_client/deferred_chunk_meta.h>
+#include <yt/ytlib/chunk_client/file_writer.h>
+#include <yt/ytlib/chunk_client/io_engine.h>
 
 #include <yt/core/misc/fs.h>
 
@@ -80,7 +81,7 @@ TEST_P(TWriteFileChunkTest, Simple)
     EXPECT_TRUE(CheckBlock(tmpFile, block4));
     EXPECT_TRUE(CheckBlock(tmpFile, block5));
 
-    writer->Close(New<NChunkClient::TRefCountedChunkMeta>())
+    writer->Close(New<NChunkClient::TDeferredChunkMeta>())
         .Get()
         .ThrowOnError();
 

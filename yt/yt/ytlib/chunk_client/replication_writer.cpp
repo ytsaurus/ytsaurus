@@ -1,14 +1,17 @@
 #include "replication_writer.h"
-#include "private.h"
-#include "traffic_meter.h"
+
 #include "block_cache.h"
+#include "block_reorderer.h"
 #include "chunk_meta_extensions.h"
 #include "chunk_service_proxy.h"
 #include "chunk_writer.h"
 #include "config.h"
 #include "data_node_service_proxy.h"
+#include "deferred_chunk_meta.h"
 #include "dispatcher.h"
 #include "helpers.h"
+#include "private.h"
+#include "traffic_meter.h"
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
@@ -118,6 +121,8 @@ public:
 
     void AddBlock(const TBlock& block);
 
+    void ReorderBlocks(TBlockReorderer* blockReorderer);
+
     void ScheduleProcess();
 
     void SetFlushing();
@@ -184,6 +189,7 @@ public:
         , UploadReplicationFactor_(Config_->UploadReplicationFactor)
         , MinUploadReplicationFactor_(std::min(Config_->UploadReplicationFactor, Config_->MinUploadReplicationFactor))
         , UncancelableStateError_(StateError_.ToFuture().ToUncancelable())
+        , BlockReorderer_(config)
     {
         ClosePromise_.TrySetFrom(UncancelableStateError_);
     }
@@ -241,7 +247,7 @@ public:
         return promise.ToFuture();
     }
 
-    virtual TFuture<void> Close(const TRefCountedChunkMetaPtr& chunkMeta) override
+    virtual TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(State_.load() == EReplicationWriterState::Open);
         YT_VERIFY(chunkMeta || IsJournalChunkId(DecodeChunkId(SessionId_.ChunkId).Id));
@@ -252,7 +258,7 @@ public:
             ChunkMeta_ = chunkMeta;
         } else {
             // This is a journal chunk; let's synthesize some meta.
-            ChunkMeta_ = New<TRefCountedChunkMeta>();
+            ChunkMeta_ = New<TDeferredChunkMeta>();
             ChunkMeta_->set_type(ToProto<int>(EChunkType::Journal));
             ChunkMeta_->set_version(0);
             ChunkMeta_->mutable_extensions();
@@ -342,7 +348,7 @@ private:
     //! This flag is raised whenever #Close is invoked.
     //! All access to this flag happens from #WriterThread.
     bool CloseRequested_ = false;
-    TRefCountedChunkMetaPtr ChunkMeta_;
+    TDeferredChunkMetaPtr ChunkMeta_;
 
     std::deque<TGroupPtr> Window_;
     std::vector<TNodePtr> Nodes_;
@@ -373,6 +379,7 @@ private:
     //! Used to avoid leaving dangling sessions behind on writer cancelation.
     THashSet<IChannelPtr> CandidateNodes_;
 
+    TBlockReorderer BlockReorderer_;
 
     void RegisterCandidateNode(const IChannelPtr& channel)
     {
@@ -527,6 +534,7 @@ private:
             CurrentGroup_->GetEndBlockIndex());
 
         Window_.push_back(CurrentGroup_);
+        CurrentGroup_->ReorderBlocks(&BlockReorderer_);
         CurrentGroup_->ScheduleProcess();
         CurrentGroup_.Reset();
     }
@@ -806,6 +814,18 @@ private:
         auto req = proxy.FinishChunk();
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
+
+        // NB: if we are under erasure writer, he already have called #Finalize() on chunkMeta.
+        // In particular, there might be parallel part writers, so in this case we should
+        // not modify chunk meta in any way to avoid races.
+        // But if we are immediately under confirming writer, we should finalize meta in order
+        // to be able to apply block index permutation.
+        if (!ChunkMeta_->IsFinalized()) {
+            YT_VERIFY(!ChunkMeta_->BlockIndexMapping());
+            ChunkMeta_->BlockIndexMapping() = BlockReorderer_.BlockIndexMapping();
+            ChunkMeta_->Finalize();
+        }
+
         *req->mutable_chunk_meta() = *ChunkMeta_;
         req->set_block_count(BlockCount_);
 
@@ -1136,6 +1156,11 @@ void TGroup::SetFlushing()
     VERIFY_THREAD_AFFINITY(writer->WriterThread);
 
     Flushing_ = true;
+}
+
+void TGroup::ReorderBlocks(TBlockReorderer* blockReorderer)
+{
+    blockReorderer->ReorderBlocks(Blocks_);
 }
 
 void TGroup::ScheduleProcess()
