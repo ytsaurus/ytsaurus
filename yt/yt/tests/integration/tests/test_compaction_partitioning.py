@@ -337,7 +337,11 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         for deadline in (0, 18, 23):
             _sleep_until(deadline)
-            _check(expected_partitions, [len(x["stores"]) for x in _get_partitions()])
+            # We may encounter an empty partition if its chunks were dropped
+            # but the partition itself has not yet been split.
+            _check(
+                expected_partitions,
+                [len(x["stores"]) for x in _get_partitions() if x["stores"]])
             _check(expected_values, sorted(list(select_rows("* from [//tmp/t]"))))
 
 ################################################################################
