@@ -174,6 +174,7 @@ def shell(discovery_path, spark_home, spark_args, spyt_version=None, client=None
     discovery = SparkDiscovery(discovery_path=discovery_path, spark_id=spark_id)
     _add_master(discovery, spark_base_args, rest=False, client=client)
     _add_base_spark_conf(client, discovery, spark_base_args)
+    _add_conf({"spark.ui.showConsoleProgress": "true"}, spark_base_args)
     _add_spyt_deps(spyt_version, spark_base_args, discovery, client)
     spark_env = _create_spark_env(client, spark_home)
 
