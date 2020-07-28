@@ -167,7 +167,7 @@ public class ObjectsGenerators {
     private static class YTreeBytesGenerator implements NodeGenerator {
         @Override
         public void generateNext(YTreeBuilder builder) {
-            builder.onBytes(RandomUtils.nextBytes(64));
+            builder.onString(RandomUtils.nextBytes(64));
         }
     }
 

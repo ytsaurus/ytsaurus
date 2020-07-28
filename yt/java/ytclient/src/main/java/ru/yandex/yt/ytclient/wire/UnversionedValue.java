@@ -331,7 +331,7 @@ public class UnversionedValue implements YTreeConvertible {
                 consumer.onBoolean(booleanValue());
                 break;
             case STRING:
-                consumer.onBytes(bytesValue());
+                consumer.onString(bytesValue());
                 break;
             case ANY: {
                 try {
