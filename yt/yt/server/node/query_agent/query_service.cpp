@@ -3,8 +3,6 @@
 #include "public.h"
 #include "private.h"
 
-#include <yt/server/lib/misc/profiling_helpers.h>
-
 #include <yt/server/node/cluster_node/bootstrap.h>
 
 #include <yt/server/node/query_agent/config.h>
@@ -18,6 +16,10 @@
 #include <yt/server/node/tablet_node/tablet_manager.h>
 #include <yt/server/node/tablet_node/lookup.h>
 #include <yt/server/node/tablet_node/transaction_manager.h>
+
+#include <yt/server/lib/misc/profiling_helpers.h>
+
+#include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -39,6 +41,11 @@
 
 #include <yt/core/concurrency/scheduler.h>
 
+#include <yt/core/misc/finally.h>
+#include <yt/core/misc/tls_cache.h>
+
+#include <yt/core/profiling/profile_manager.h>
+
 #include <yt/core/rpc/service_detail.h>
 #include <yt/core/rpc/authentication_identity.h>
 
@@ -49,6 +56,7 @@ using namespace NChunkClient;
 using namespace NCompression;
 using namespace NConcurrency;
 using namespace NHydra;
+using namespace NProfiling;
 using namespace NQueryClient;
 using namespace NRpc;
 using namespace NTableClient;
@@ -66,6 +74,29 @@ static const auto& Profiler = QueryAgentProfiler;
 // TODO(ifsmirnov): YT_12491 - move this to reader config and dynamically choose
 // row count based on desired streaming window data size.
 static constexpr size_t MaxRowsPerRemoteDynamicStoreRead = 1024;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRemoteDynamicStoreReadCounters
+{
+    explicit TRemoteDynamicStoreReadCounters(const TTagIdList& list)
+        : RowCount("/dynamic_store_read/row_count", list)
+        , DataWeight("/dynamic_store_read/data_weight", list)
+        , CpuTime("/dynamic_store_read/cpu_time", list)
+        , SessionRowCount("/dynamic_store_read/session_row_count", list)
+        , SessionDataWeight("/dynamic_store_read/session_data_weight", list)
+        , SessionWallTime("/dynamic_store_read/session_wall_time", list)
+    { }
+
+    TMonotonicCounter RowCount;
+    TMonotonicCounter DataWeight;
+    TMonotonicCounter CpuTime;
+    TAggregateGauge SessionRowCount;
+    TAggregateGauge SessionDataWeight;
+    TAggregateGauge SessionWallTime;
+};
+
+using TRemoteDynamicStoreReadProfilerTrait = TTagListProfilerTrait<TRemoteDynamicStoreReadCounters>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -472,6 +503,16 @@ private:
             return;
         }
 
+        TTagIdList tags;
+        if (tabletSnapshot->IsProfilingEnabled()) {
+            tags = AddCurrentUserTag(tabletSnapshot->ProfilerTags);
+        }
+        auto& profilingCounters = GetLocallyGloballyCachedValue<TRemoteDynamicStoreReadProfilerTrait>(tags);
+
+        TWallTimer wallTimer;
+        i64 sessionRowCount = 0;
+        i64 sessionDataWeight = 0;
+
         auto dynamicStore = tabletSnapshot->GetDynamicStoreOrThrow(storeId);
 
         TColumnFilter columnFilter;
@@ -524,13 +565,26 @@ private:
                 columnFilter,
                 context->GetRequestId());
 
-            return HandleInputStreamingRequest(context, [&] {
+            HandleInputStreamingRequest(context, [&] {
+                TFiberWallTimer timer;
+                i64 rowCount = 0;
+                i64 dataWeight = 0;
+                auto finallyGuard = Finally([&] {
+                    Profiler.Increment(profilingCounters.RowCount, rowCount);
+                    Profiler.Increment(profilingCounters.DataWeight, dataWeight);
+                    Profiler.Increment(profilingCounters.CpuTime, timer.GetElapsedValue());
+
+                    sessionRowCount += rowCount;
+                    sessionDataWeight += dataWeight;
+                });
+
                 // NB: Dynamic store reader is non-blocking in the sense of ready event.
                 // However, waiting on blocked row may occur. See YT-12492.
                 reader->Read(&rows);
                 if (rows.empty()) {
                     return TSharedRef();
                 }
+                rowCount += rows.size();
 
                 TWireProtocolWriter writer;
                 writer.WriteVersionedRowset(rows);
@@ -538,12 +592,17 @@ private:
 
                 struct TReadDynamicStoreTag { };
                 auto mergedRef = MergeRefsToRef<TReadDynamicStoreTag>(data);
+                dataWeight += mergedRef.size();
 
                 auto throttleResult = WaitFor(bandwidthThrottler->Throttle(mergedRef.size()));
                 THROW_ERROR_EXCEPTION_IF_FAILED(throttleResult, "Failed to throttle out bandwidth in dynamic store reader");
 
                 return mergedRef;
             });
+
+            Profiler.Update(profilingCounters.SessionRowCount, sessionRowCount);
+            Profiler.Update(profilingCounters.SessionDataWeight, sessionDataWeight);
+            Profiler.Update(profilingCounters.SessionWallTime, wallTimer.GetElapsedValue());
         } else {
             THROW_ERROR_EXCEPTION("Remote reader for ordered dynamic stores is not implemented");
         }
