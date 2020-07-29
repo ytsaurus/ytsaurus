@@ -88,7 +88,7 @@ private:
         return TError(NRpc::EErrorCode::InvalidCredentials,
             "Ticket does not provide an allowed scope")
             << TErrorAttribute("scopes", scopes)
-            << TErrorAttribute("allowedScopes", allowedScopes);
+            << TErrorAttribute("allowed_scopes", allowedScopes);
     }
 
     TAuthenticationResult OnBlackboxCallResult(const TString& ticketHash, const INodePtr& data)
