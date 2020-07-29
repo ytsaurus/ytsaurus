@@ -1,5 +1,4 @@
 #include <yt/core/test_framework/framework.h>
-#include <yt/core/test_framework/probe.h>
 
 #include <yt/core/actions/bind.h>
 #include <yt/core/actions/callback.h>
@@ -13,6 +12,12 @@ using ::testing::Mock;
 using ::testing::Return;
 using ::testing::AllOf;
 using ::testing::StrictMock;
+using ::testing::TProbe;
+using ::testing::TProbeState;
+using ::testing::TCoercibleToProbe;
+using ::testing::HasCopyMoveCounts;
+using ::testing::NoCopies;
+using ::testing::NoAssignments;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Auxiliary types and functions.
@@ -252,6 +257,10 @@ int FunctionWithWeakParam(TWeakPtr<T> ptr, int n)
 void InvokeClosure(const TClosure& callback)
 {
     callback.Run();
+}
+
+void Touch(const TProbe& probe) {
+    probe.Touch();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -765,7 +774,7 @@ TEST_F(TBindTest, ConstRefWrapper)
     TProbe probe(&state);
 
     TClosure everywhereConstRef =
-        BIND(&Tackle, ConstRef(probe));
+        BIND(&Touch, ConstRef(probe));
     everywhereConstRef.Run();
 
     EXPECT_THAT(probe, HasCopyMoveCounts(0, 0));
@@ -795,7 +804,7 @@ TEST_F(TBindTest, OwnedWrapper)
     state.Reset();
     probe = new TProbe(&state);
     TCallback<void()> capturedTarget =
-        BIND(&TProbe::Tackle, Owned(probe));
+        BIND(&TProbe::Touch, Owned(probe));
 
     capturedTarget.Run();
     EXPECT_EQ(0, state.Destructors);
