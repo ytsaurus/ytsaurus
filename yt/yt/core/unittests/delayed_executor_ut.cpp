@@ -1,5 +1,4 @@
 #include <yt/core/test_framework/framework.h>
-#include <yt/core/test_framework/probe.h>
 
 #include <yt/core/concurrency/delayed_executor.h>
 
@@ -7,6 +6,9 @@ namespace NYT {
 namespace {
 
 using namespace NConcurrency;
+
+using ::testing::TProbeState;
+using ::testing::TProbe;
 
 ////////////////////////////////////////////////////////////////////////////////
 
