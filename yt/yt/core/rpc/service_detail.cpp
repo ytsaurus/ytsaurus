@@ -680,11 +680,6 @@ private:
 
     void HandleLoggingSuppression()
     {
-        auto context = GetCurrentTraceContext();
-        if (!context) {
-            return;
-        }
-
         auto timeout = RuntimeInfo_->Descriptor.LoggingSuppressionTimeout;
         if (RequestHeader_->has_logging_suppression_timeout()) {
             timeout = FromProto<TDuration>(RequestHeader_->logging_suppression_timeout());
@@ -692,7 +687,6 @@ private:
 
         if (TotalTime_ >= timeout) {
             return;
-
         }
 
         if (!Error_.IsOK() &&
@@ -702,7 +696,7 @@ private:
             return;
         }
 
-        NLogging::TLogManager::Get()->SuppressTrace(context->GetTraceId());
+        NLogging::TLogManager::Get()->SuppressRequest(GetRequestId());
     }
 
     void DoSetComplete()

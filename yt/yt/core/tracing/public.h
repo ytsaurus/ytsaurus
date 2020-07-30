@@ -25,6 +25,11 @@ constexpr TTraceId InvalidTraceId = {};
 using TSpanId = ui64;
 constexpr TSpanId InvalidSpanId = 0;
 
+// Request ids come from RPC infrastructure but
+// we should avoid include-dependencies here.
+using TRequestId = TGuid;
+constexpr TRequestId InvalidRequestId = {};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTracing

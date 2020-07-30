@@ -53,7 +53,7 @@ public:
     void Reopen();
     void EnableReopenOnSighup();
 
-    void SuppressTrace(NTracing::TTraceId traceId);
+    void SuppressRequest(NTracing::TRequestId requestId);
 
     void Synchronize(TInstant deadline = TInstant::Max());
 

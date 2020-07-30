@@ -73,6 +73,14 @@ TTraceContext::TTraceContext(TSpanContext parentSpanContext, TString spanName, T
     , SpanContext_(parentSpanContext.CreateChild())
 { }
 
+TTraceContext::TTraceContext(TSpanContext parentSpanContext, TString spanName, TRequestId requestId)
+    : ParentSpanId_(parentSpanContext.SpanId)
+    , RequestId_(requestId)
+    , SpanName_(std::move(spanName))
+    , StartTime_(GetCpuInstant())
+    , SpanContext_(parentSpanContext.CreateChild())
+{ }
+
 TTraceContext::TTraceContext(TFollowsFrom, TSpanContext parent, TString spanName, TTraceContextPtr parentTraceContext)
     : FollowsFromSpanId_(parent.SpanId)
     , ParentContext_(std::move(parentTraceContext))
@@ -180,14 +188,20 @@ void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context)
     ext->set_debug(context->IsDebug());
 }
 
-TTraceContextPtr CreateRootTraceContext(const TString& spanName)
+TTraceContextPtr CreateRootTraceContext(
+    const TString& spanName,
+    TRequestId requestId)
 {
     return New<TTraceContext>(
         TSpanContext{TTraceId::Create(), InvalidSpanId, false, false},
-        spanName);
+        spanName,
+        requestId);
 }
 
-TTraceContextPtr CreateChildTraceContext(const TTraceContextPtr& parentContext, const TString& spanName, bool forceTracing)
+TTraceContextPtr CreateChildTraceContext(
+    const TTraceContextPtr& parentContext,
+    const TString& spanName,
+    bool forceTracing)
 {
     if (parentContext) {
         return parentContext->CreateChild(spanName);
@@ -202,14 +216,18 @@ TTraceContextPtr CreateChildTraceContext(const TTraceContextPtr& parentContext, 
     return newContext;
 }
 
-TTraceContextPtr CreateChildTraceContext(const NProto::TTracingExt& ext, const TString& spanName, bool forceTracing)
+TTraceContextPtr CreateChildTraceContext(
+    const NProto::TTracingExt& ext,
+    const TString& spanName,
+    TRequestId requestId,
+    bool forceTracing)
 {
     auto traceId = FromProto<TTraceId>(ext.trace_id());
     if (!traceId) {
         if (!forceTracing) {
             return nullptr;
         }
-        return CreateRootTraceContext(spanName);
+        return CreateRootTraceContext(spanName, requestId);
     }
 
     TSpanContext spanContext{
@@ -219,7 +237,7 @@ TTraceContextPtr CreateChildTraceContext(const NProto::TTracingExt& ext, const T
         ext.debug()
     };
 
-    return New<TTraceContext>(spanContext, spanName);
+    return New<TTraceContext>(spanContext, spanName, requestId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -236,7 +254,6 @@ struct TCurrentTraceContextReclaimer
 };
 
 thread_local TTraceContext* CurrentTraceContext;
-thread_local TTraceId CurrentTraceId;
 thread_local TCpuInstant TraceContextTimingCheckpoint;
 static thread_local TCurrentTraceContextReclaimer CurrentTraceContextReclaimer;
 
@@ -250,7 +267,6 @@ TTraceContextPtr SwitchTraceContext(TTraceContextPtr newContext)
         newContext,
         NProfiling::CpuDurationToDuration(delta));
     CurrentTraceContext = newContext.Release();
-    CurrentTraceId = CurrentTraceContext ? CurrentTraceContext->GetTraceId() : InvalidTraceId;
     TraceContextTimingCheckpoint = now;
     if (oldContext) {
         oldContext->IncrementElapsedCpuTime(delta);
@@ -264,7 +280,6 @@ void InstallTraceContext(NProfiling::TCpuInstant now, TTraceContextPtr context)
         context);
     YT_ASSERT(!CurrentTraceContext);
     CurrentTraceContext = context.Release();
-    CurrentTraceId = CurrentTraceContext ? CurrentTraceContext->GetTraceId() : InvalidTraceId;
     TraceContextTimingCheckpoint = now;
 }
 
@@ -276,7 +291,6 @@ TTraceContextPtr UninstallTraceContext(NProfiling::TCpuInstant now)
         context,
         NProfiling::CpuDurationToDuration(delta));
     CurrentTraceContext = nullptr;
-    CurrentTraceId = InvalidTraceId;
     if (context) {
         context->IncrementElapsedCpuTime(delta);
     }

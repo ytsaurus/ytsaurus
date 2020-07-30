@@ -571,6 +571,7 @@ void TContext::LogStructuredRequest() {
         correlationId = *correlationHeader;
     }
     auto path = DriverRequest_.Parameters->AsMap()->FindChild("path");
+    auto traceContext = NTracing::GetCurrentTraceContext();
     LogStructuredEventFluently(HttpStructuredProxyLogger, ELogLevel::Info)
         .Item("request_id").Value(Request_->GetRequestId())
         .Item("command").Value(Descriptor_->CommandName)
@@ -579,7 +580,10 @@ void TContext::LogStructuredRequest() {
         .Item("token_hash").Value(Auth_->TokenHash)
         .Item("parameters").Value(Parameters_)
         .Item("correlation_id").Value(correlationId)
-        .Item("trace_id").Value(NTracing::GetCurrentTraceId())
+        .DoIf(traceContext, [&] (auto fluent) {
+            fluent
+                .Item("trace_id").Value(traceContext->GetTraceId());
+        })
         .Item("user_agent").Value(GetUserAgent(Request_))
         .Item("path").Value(path)
         .Item("http_path").Value(Request_->GetUrl().Path)

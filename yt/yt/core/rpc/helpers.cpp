@@ -423,13 +423,16 @@ IChannelPtr CreateFailureDetectingChannel(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTraceContextPtr GetOrCreateHandlerTraceContext(const NProto::TRequestHeader& header)
+TTraceContextPtr GetOrCreateHandlerTraceContext(
+    const NProto::TRequestHeader& header)
 {
+    auto requestId = FromProto<TRequestId>(header.request_id());
     const auto& ext = header.GetExtension(NProto::TRequestHeader::tracing_ext);
     return NTracing::CreateChildTraceContext(
         ext,
         ConcatToString(AsStringBuf("RpcServer:"), header.service(), AsStringBuf("."), header.method()),
-        true);
+        requestId,
+        /* forceTracing */ true);
 }
 
 TTraceContextPtr CreateCallTraceContext(const TString& service, const TString& method)
