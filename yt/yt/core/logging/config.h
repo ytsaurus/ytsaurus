@@ -82,8 +82,8 @@ public:
             .NonEmpty();
     }
 
-    bool IsApplicable(const TString& category, ELogMessageFormat format) const;
-    bool IsApplicable(const TString& category, ELogLevel level, ELogMessageFormat format) const;
+    bool IsApplicable(TStringBuf category, ELogMessageFormat format) const;
+    bool IsApplicable(TStringBuf category, ELogLevel level, ELogMessageFormat format) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuleConfig)

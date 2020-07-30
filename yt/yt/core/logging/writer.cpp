@@ -88,13 +88,12 @@ i64 TRateLimitCounter::GetAndResetLastSkippedEventsCount()
 ////////////////////////////////////////////////////////////////////////////////
 
 TStreamLogWriterBase::TStreamLogWriterBase(std::unique_ptr<ILogFormatter> formatter, TString name)
-    : LogFormatter(std::move(formatter))
+    : LogFormatter_(std::move(formatter))
     , Name_(std::move(name))
     , RateLimit_(
         std::nullopt,
         TMonotonicCounter(),
-        TMonotonicCounter("/log_events_skipped", {TProfileManager::Get()->RegisterTag("skipped_by", Name_)})
-    )
+        TMonotonicCounter("/log_events_skipped", {TProfileManager::Get()->RegisterTag("skipped_by", Name_)}))
 { }
 
 TStreamLogWriterBase::~TStreamLogWriterBase() = default;
@@ -105,22 +104,23 @@ void TStreamLogWriterBase::Write(const TLogEvent& event)
     if (!stream) {
         return;
     }
+    
     try {
         auto* categoryRateLimit = GetCategoryRateLimitCounter(event.Category->Name);
         if (RateLimit_.IsIntervalPassed()) {
             auto eventsSkipped = RateLimit_.GetAndResetLastSkippedEventsCount();
             if (eventsSkipped > 0) {
-                LogFormatter->WriteLogSkippedEvent(stream, eventsSkipped, Name_);
+                LogFormatter_->WriteLogSkippedEvent(stream, eventsSkipped, Name_);
             }
         }
         if (categoryRateLimit->IsIntervalPassed()) {
             auto eventsSkipped = categoryRateLimit->GetAndResetLastSkippedEventsCount();
             if (eventsSkipped > 0) {
-                LogFormatter->WriteLogSkippedEvent(stream, eventsSkipped, event.Category->Name);
+                LogFormatter_->WriteLogSkippedEvent(stream, eventsSkipped, event.Category->Name);
             }
         }
         if (!RateLimit_.IsLimitReached() && !categoryRateLimit->IsLimitReached()) {
-            size_t bytesWritten = LogFormatter->WriteFormatted(stream, event);
+            auto bytesWritten = LogFormatter_->WriteFormatted(stream, event);
             RateLimit_.UpdateCounter(bytesWritten);
             categoryRateLimit->UpdateCounter(bytesWritten);
         }
@@ -176,7 +176,7 @@ void TStreamLogWriterBase::SetCategoryRateLimits(const THashMap<TString, size_t>
     }
 }
 
-TRateLimitCounter* TStreamLogWriterBase::GetCategoryRateLimitCounter(const TString& category)
+TRateLimitCounter* TStreamLogWriterBase::GetCategoryRateLimitCounter(TStringBuf category)
 {
     auto it = CategoryToRateLimit_.find(category);
     if (it == CategoryToRateLimit_.end()) {
@@ -191,6 +191,11 @@ TRateLimitCounter* TStreamLogWriterBase::GetCategoryRateLimitCounter(const TStri
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStreamLogWriter::TStreamLogWriter(IOutputStream* stream, std::unique_ptr<ILogFormatter> formatter, TString name)
+    : TStreamLogWriterBase::TStreamLogWriterBase(std::move(formatter), std::move(name))
+    , Stream_(stream)
+{ }
+
 IOutputStream* TStreamLogWriter::GetOutputStream() const noexcept
 {
     return Stream_;
@@ -198,14 +203,14 @@ IOutputStream* TStreamLogWriter::GetOutputStream() const noexcept
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStderrLogWriter::TStderrLogWriter()
+    : TStreamLogWriterBase::TStreamLogWriterBase(std::make_unique<TPlainTextLogFormatter>(), TString("stderr"))
+{ }
+
 IOutputStream* TStderrLogWriter::GetOutputStream() const noexcept
 {
     return &Cerr;
 }
-
-TStderrLogWriter::TStderrLogWriter()
-    : TStreamLogWriterBase::TStreamLogWriterBase(std::make_unique<TPlainTextLogFormatter>(), TString("stderr"))
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -306,10 +311,10 @@ void TFileLogWriter::Open()
 
         // Emit a delimiter for ease of navigation.
         if (File_->GetLength() > 0) {
-            LogFormatter->WriteLogReopenSeparator(GetOutputStream());
+            LogFormatter_->WriteLogReopenSeparator(GetOutputStream());
         }
 
-        LogFormatter->WriteLogStartEvent(GetOutputStream());
+        LogFormatter_->WriteLogStartEvent(GetOutputStream());
     } catch (const std::exception& ex) {
         Disabled_ = true;
         YT_LOG_ERROR(ex, "Failed to open log file (FileName: %v)", FileName_);

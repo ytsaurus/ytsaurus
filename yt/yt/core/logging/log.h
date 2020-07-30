@@ -22,7 +22,7 @@ namespace NYT::NLogging {
 
 struct TLoggingCategory
 {
-    const char* Name;
+    TStringBuf Name;
     std::atomic<ELogLevel> MinLevel;
     std::atomic<int> CurrentVersion;
     std::atomic<int>* ActualVersion;
@@ -57,7 +57,7 @@ class TLogger
 {
 public:
     TLogger();
-    explicit TLogger(const char* categoryName);
+    explicit TLogger(TStringBuf categoryName);
     TLogger(const TLogger& other) = default;
 
     explicit operator bool() const;

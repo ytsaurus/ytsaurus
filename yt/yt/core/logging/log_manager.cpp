@@ -432,7 +432,7 @@ public:
         return AbortOnAlert_.load();
     }
 
-    const TLoggingCategory* GetCategory(const char* categoryName)
+    const TLoggingCategory* GetCategory(TStringBuf categoryName)
     {
         if (!categoryName) {
             return nullptr;
@@ -576,7 +576,7 @@ private:
         explicit TThread(TImpl* owner)
             : TSchedulerThread(
                 owner->EventCount_,
-                SystemLoggingCategoryName,
+                "Logging",
                 NProfiling::EmptyTagIds,
                 false,
                 false)
@@ -842,7 +842,10 @@ private:
             ReopenRequested_ = false;
             ReloadWriters();
         }
-        LoggingProfiler.Increment(*GetCategoryEventsCounter(event.Category->Name), 1);
+        
+        auto* counter = GetWrittenEventsCounter(event);
+        LoggingProfiler.Increment(*counter, 1);
+
         for (const auto& writer : GetWriters(event)) {
             writer->Write(event);
         }
@@ -850,23 +853,23 @@ private:
 
     void FlushWriters()
     {
-        for (auto& pair : Writers_) {
-            pair.second->Flush();
+        for (const auto& [name, writer] : Writers_) {
+            writer->Flush();
         }
     }
 
     void ReloadWriters()
     {
         Version_++;
-        for (auto& pair : Writers_) {
-            pair.second->Reload();
+        for (const auto& [name, writer] : Writers_) {
+            writer->Reload();
         }
     }
 
     void CheckSpace()
     {
-        for (auto& pair : Writers_) {
-            pair.second->CheckSpace(Config_->MinDiskSpace);
+        for (const auto& [name, writer] : Writers_) {
+            writer->CheckSpace(Config_->MinDiskSpace);
         }
     }
 
@@ -920,6 +923,22 @@ private:
         }
     }
 
+    TMonotonicCounter* GetWrittenEventsCounter(const TLogEvent& event)
+    {
+        auto key = std::make_pair(event.Category->Name, event.Level);
+        auto it = WrittenEventsCounters_.find(key);
+        if (it == WrittenEventsCounters_.end()) {
+            TTagIdList tagIds{
+                TProfileManager::Get()->RegisterTag("category", event.Category->Name),
+                TProfileManager::Get()->RegisterTag("level", FormatEnum(event.Level))
+            };
+            it = WrittenEventsCounters_.emplace(
+                key,
+                TMonotonicCounter("/written_events", tagIds)).first;
+        }
+        return &it->second;
+    }
+
     void OnProfiling()
     {
         VERIFY_THREAD_AFFINITY(LoggingThread);
@@ -931,7 +950,6 @@ private:
         auto messageBuffersSize = TRefCountedTracker::Get()->GetBytesAlive(GetRefCountedTypeKey<NDetail::TMessageBufferTag>());
 
         Profiler.Enqueue("/enqueued_events", enqueuedEvents, EMetricType::Counter);
-        Profiler.Enqueue("/written_events", writtenEvents, EMetricType::Counter);
         Profiler.Enqueue("/backlog_events", enqueuedEvents - writtenEvents, EMetricType::Gauge);
         Profiler.Enqueue("/dropped_events", droppedEvents, EMetricType::Counter);
         Profiler.Enqueue("/suppressed_events", suppressedEvents, EMetricType::Counter);
@@ -1160,17 +1178,6 @@ private:
         position->CurrentVersion.store(GetVersion(), std::memory_order_relaxed);
     }
 
-    TMonotonicCounter* GetCategoryEventsCounter(const TString& category)
-    {
-        auto it = CategoryToEvents_.find(category);
-        if (it == CategoryToEvents_.end()) {
-            auto tagId = TProfileManager::Get()->RegisterTag("category", category);
-            TMonotonicCounter counter("/log_events_enqueued", {tagId});
-            it = CategoryToEvents_.insert({category, counter}).first;
-        }
-        return &it->second;
-    }
-
     void DoConfigureFromEnv(
         const char* logLevelStr,
         const char* logExcludeCategoriesStr,
@@ -1247,7 +1254,7 @@ private:
     std::atomic<int> Version_ = 0;
     std::atomic<bool> AbortOnAlert_ = 0;
     TLogManagerConfigPtr Config_;
-    THashMap<const char*, std::unique_ptr<TLoggingCategory>> NameToCategory_;
+    THashMap<TStringBuf, std::unique_ptr<TLoggingCategory>> NameToCategory_;
     const TLoggingCategory* SystemCategory_;
 
     // These are just copies from _Config.
@@ -1269,7 +1276,8 @@ private:
     std::deque<TLoggerQueueItem> TimeOrderedBuffer_;
     TExpiringSet<TTraceId> SuppressedTraceIdSet_;
 
-    THashMap<TString, TMonotonicCounter> CategoryToEvents_;
+    using TEventProfilingKey = std::pair<TStringBuf, ELogLevel>;
+    THashMap<TEventProfilingKey, TMonotonicCounter> WrittenEventsCounters_;
 
     std::atomic<ui64> EnqueuedEvents_ = 0;
     std::atomic<ui64> WrittenEvents_ = 0;
@@ -1356,7 +1364,7 @@ bool TLogManager::GetAbortOnAlert() const
     return Impl_->GetAbortOnAlert();
 }
 
-const TLoggingCategory* TLogManager::GetCategory(const char* categoryName)
+const TLoggingCategory* TLogManager::GetCategory(TStringBuf categoryName)
 {
     return Impl_->GetCategory(categoryName);
 }
