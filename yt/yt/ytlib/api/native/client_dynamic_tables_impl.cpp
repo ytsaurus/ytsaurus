@@ -1123,7 +1123,7 @@ NYson::TYsonString TClient::DoExplainQuery(
         fetchFunctions,
         options.Timestamp);
 
-    return BuildExplainQueryYson(queryString, fragment, udfRegistryPath);
+    return BuildExplainQueryYson(GetNativeConnection(), queryString, fragment, udfRegistryPath);
 }
 
 std::unique_ptr<IAttributeDictionary> TClient::ResolveExternalTable(

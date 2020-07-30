@@ -161,3 +161,29 @@ class TestExplainQuery(YTEnvSetup):
 
         assert(response["query"]["ranges"] == expected_ranges)
         assert(response["query"]["key_trie"] == expected_key_trie)
+
+    @authors("lexolordan")
+    def test_explain_group_by_node(self):
+        sync_create_cells(1)
+
+        test_schema = make_schema(
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64", "sort_order": "ascending"},
+                {"name": "c", "type": "int64"},
+            ])
+
+        create_dynamic_table("//tmp/t", schema=test_schema)
+        sync_mount_table("//tmp/t")
+
+        response = explain_query("* from [//tmp/t] where a IN (1, 2, 10) AND b BETWEEN (1 and 9)")
+
+        expected_ranges = [[['[0#1, 1#1]', '[0#1, 1#9, 0#<Max>]'],
+                            ['[0#2, 1#1]', '[0#2, 1#9, 0#<Max>]'],
+                            ['[0#10, 1#1]', '[0#10, 1#9, 0#<Max>]']]]
+
+        grouped_ranges = response["query"]["grouped_ranges"]
+
+        assert len(grouped_ranges) == 1
+        assert grouped_ranges.values()[0] == expected_ranges
+
