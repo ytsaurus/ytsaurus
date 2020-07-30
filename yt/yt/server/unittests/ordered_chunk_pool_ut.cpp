@@ -63,8 +63,8 @@ protected:
     {
         Options_.JobSizeConstraints = CreateExplicitJobSizeConstraints(
             false /* canAdjustDataSizePerJob */,
-            false /* isExplicitJobCount */,
-            0 /* jobCount */,
+            static_cast<bool>(ExplicitJobCount_) /* isExplicitJobCount */,
+            ExplicitJobCount_.value_or(0) /* jobCount */,
             DataSizePerJob_,
             Inf64,
             MaxDataSlicesPerJob_,
@@ -341,6 +341,8 @@ protected:
 
     i64 InputSliceRowCount_;
 
+    std::optional<i32> ExplicitJobCount_;
+
     std::optional<double> SamplingRate_;
 
     std::vector<IChunkPoolOutput::TCookie> ExtractedCookies_;
@@ -499,6 +501,44 @@ TEST_F(TOrderedChunkPoolTest, OrderedMergeSliceLargeChunks)
     EXPECT_THAT(TeleportChunks_, IsEmpty());
     EXPECT_LE(9, stripeLists.size());
     EXPECT_LE(stripeLists.size(), 11);
+
+    CheckEverything(stripeLists);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TOrderedChunkPoolTest, ExplicitSingleJob)
+{
+    InitTables(
+        {true} /* isTeleportable */,
+        {false} /* isVersioned */
+    );
+
+    ExplicitJobCount_ = 1;
+    DataSizePerJob_ = 1_KB;
+    MaxDataSlicesPerJob_ = 1;
+    InputSliceDataSize_ = 2_KB;
+    InputSliceRowCount_ = 100;
+
+    InitJobConstraints();
+
+    // We have many data slices, large data weight and teleportable chunks.
+    // So many reasons to create two jobs.
+    auto chunkA = CreateChunk(0, 10_KB, 1000 /* rowCount */);
+    auto chunkB = CreateChunk(0, 10_KB, 1000 /* rowCount */);
+
+    CreateChunkPool();
+
+    AddChunk(chunkA);
+    AddChunk(chunkB);
+
+    ChunkPool_->Finish();
+
+    ExtractOutputCookiesWhilePossible();
+    auto stripeLists = GetAllStripeLists();
+
+    EXPECT_THAT(TeleportChunks_, IsEmpty());
+    EXPECT_EQ(stripeLists.size(), 1);
 
     CheckEverything(stripeLists);
 }

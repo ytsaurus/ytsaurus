@@ -44,6 +44,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((RemoveTaskGroups)                     (300411))
     ((FixLostInMultiPool)                   (300412))
     ((HierarchicalPartitions)               (300413))
+    ((SingleJobOrderedPool)                 (300414))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
