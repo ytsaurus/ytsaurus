@@ -657,6 +657,7 @@ void AppendFunctionImplementation(
             name,
             impl,
             function.CallingConvention,
+            false,
             GetImplFingerprint(function.ChunkSpecs)));
     } else {
         functionProfilers->emplace(name, New<TExternalFunctionCodegen>(

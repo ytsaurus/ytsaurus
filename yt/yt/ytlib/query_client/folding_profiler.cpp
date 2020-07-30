@@ -837,12 +837,17 @@ void TQueryProfiler::Profile(
             keyTypes.push_back(groupItem.Expression->Type);
         }
 
+        bool allAggregatesFirst = true;
         for (const auto& aggregateItem : groupClause->AggregateItems) {
             Fold(static_cast<int>(EFoldingObjectType::AggregateItem));
             Fold(aggregateItem.AggregateFunction.c_str());
             Fold(aggregateItem.Name.c_str());
 
             const auto& aggregate = AggregateProfilers_->GetAggregate(aggregateItem.AggregateFunction);
+
+            if (!aggregate->IsFirst()) {
+                allAggregatesFirst = false;
+            }
 
             if (!isMerge) {
                 aggregateExprIds.push_back(Profile(aggregateItem, schema, &expressionFragments));
@@ -877,6 +882,7 @@ void TQueryProfiler::Profile(
             codegenAggregates,
             keyTypes,
             stateTypes,
+            allAggregatesFirst,
             isMerge,
             groupClause->TotalsMode != ETotalsMode::None,
             groupClause->CommonPrefixWithPrimaryKey,

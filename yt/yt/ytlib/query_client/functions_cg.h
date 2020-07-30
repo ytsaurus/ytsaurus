@@ -39,6 +39,8 @@ struct IAggregateCodegen
         const TString& name,
         llvm::FoldingSetNodeID* id = nullptr) const = 0;
 
+    virtual bool IsFirst() const = 0;
+
 };
 
 DEFINE_REFCOUNTED_TYPE(IAggregateCodegen)
@@ -179,10 +181,12 @@ public:
         const TString& aggregateName,
         TSharedRef implementationFile,
         ECallingConvention callingConvention,
+        bool isFirst,
         TSharedRef fingerprint)
         : AggregateName_(aggregateName)
         , ImplementationFile_(implementationFile)
         , CallingConvention_(GetCallingConvention(callingConvention))
+        , IsFirst_(isFirst)
         , Fingerprint_(fingerprint)
     { }
 
@@ -193,10 +197,13 @@ public:
         const TString& name,
         llvm::FoldingSetNodeID* id) const override;
 
+    virtual bool IsFirst() const override;
+
 private:
     const TString AggregateName_;
     const TSharedRef ImplementationFile_;
     const ICallingConventionPtr CallingConvention_;
+    const bool IsFirst_;
     const TSharedRef Fingerprint_;
 
 };

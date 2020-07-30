@@ -2594,6 +2594,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
     std::vector<TCodegenAggregate> codegenAggregates,
     std::vector<EValueType> keyTypes,
     std::vector<EValueType> stateTypes,
+    bool allAggregatesFirst,
     bool isMerge,
     bool checkNulls,
     size_t commonPrefixWithPrimaryKey,
@@ -2675,7 +2676,8 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                     {
                         builder.GetExecutionContext(),
                         groupByClosureRef,
-                        newValuesRef
+                        newValuesRef,
+                        builder->getInt8(allAggregatesFirst)
                     });
 
                 auto inserted = builder->CreateICmpEQ(
@@ -2730,7 +2732,7 @@ std::pair<size_t, size_t> MakeCodegenGroupOp(
                     }
                 });
 
-                return stateTypes.empty() ? builder->CreateIsNull(groupValues) : builder->getFalse();
+                return allAggregatesFirst ? builder->CreateIsNull(groupValues) : builder->getFalse();
             };
 
             codegenSource(builder);

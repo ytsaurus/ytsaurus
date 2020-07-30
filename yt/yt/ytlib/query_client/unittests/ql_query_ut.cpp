@@ -1166,7 +1166,7 @@ protected:
         ActionQueue_->Shutdown();
     }
 
-    TQueryPtr Evaluate(
+    std::pair<TQueryPtr, TQueryStatistics> EvaluateWithQueryStatistics(
         const TString& query,
         const std::map<TString, TDataSplit>& dataSplits,
         const std::vector<std::vector<TString>>& owningSources,
@@ -1190,6 +1190,23 @@ protected:
 
     TQueryPtr Evaluate(
         const TString& query,
+        const std::map<TString, TDataSplit>& dataSplits,
+        const std::vector<std::vector<TString>>& owningSources,
+        const TResultMatcher& resultMatcher,
+        i64 inputRowLimit = std::numeric_limits<i64>::max(),
+        i64 outputRowLimit = std::numeric_limits<i64>::max())
+    {
+        return EvaluateWithQueryStatistics(
+            query,
+            dataSplits,
+            owningSources,
+            resultMatcher,
+            inputRowLimit,
+            outputRowLimit).first;
+    }
+
+    std::pair<TQueryPtr, TQueryStatistics> EvaluateWithQueryStatistics(
+        const TString& query,
         const TDataSplit& dataSplit,
         const std::vector<TString>& owningSourceRows,
         const TResultMatcher& resultMatcher,
@@ -1203,13 +1220,30 @@ protected:
             {"//t", dataSplit}
         };
 
-        return Evaluate(
+        return EvaluateWithQueryStatistics(
             query,
             dataSplits,
             owningSources,
             resultMatcher,
             inputRowLimit,
             outputRowLimit);
+    }
+
+    TQueryPtr Evaluate(
+        const TString& query,
+        const TDataSplit& dataSplit,
+        const std::vector<TString>& owningSourceRows,
+        const TResultMatcher& resultMatcher,
+        i64 inputRowLimit = std::numeric_limits<i64>::max(),
+        i64 outputRowLimit = std::numeric_limits<i64>::max())
+    {
+        return EvaluateWithQueryStatistics(
+            query,
+            dataSplit,
+            owningSourceRows,
+            resultMatcher,
+            inputRowLimit,
+            outputRowLimit).first;
     }
 
     TQueryPtr EvaluateExpectingError(
@@ -1239,7 +1273,7 @@ protected:
                 outputRowLimit,
                 true)
             .Get()
-            .ValueOrThrow();
+            .ValueOrThrow().first;
     }
 
 
@@ -1262,7 +1296,7 @@ protected:
         return fragment->Query;
     }
 
-    TQueryPtr DoEvaluate(
+    std::pair<TQueryPtr, TQueryStatistics> DoEvaluate(
         const TString& query,
         const std::map<TString, TDataSplit>& dataSplits,
         const std::vector<std::vector<TString>>& owningSources,
@@ -1315,7 +1349,7 @@ protected:
 
             std::tie(writer, asyncResultRowset) = CreateSchemafulRowsetWriter(primaryQuery->GetTableSchema());
 
-            DoExecuteQuery(
+            auto queryStatistics = DoExecuteQuery(
                 Evaluator_,
                 owningSources.front(),
                 FunctionProfilers_,
@@ -1330,12 +1364,12 @@ protected:
 
             resultMatcher(resultRowset->GetRows(), *primaryQuery->GetTableSchema());
 
-            return primaryQuery;
+            return std::make_pair(primaryQuery, queryStatistics);
         };
 
         if (failure) {
             EXPECT_THROW(prepareAndExecute(), TErrorException);
-            return nullptr;
+            return {nullptr, TQueryStatistics{}};
         } else {
             return prepareAndExecute();
         }
@@ -2243,6 +2277,32 @@ TEST_F(TQueryEvaluateTest, GroupWithTotalsEmpty)
 
     Evaluate("x, sum(b) as t FROM [//t] group by a % 2 as x with totals", split,
         source, ResultMatcher(resultWithTotals));
+
+    SUCCEED();
+}
+
+TEST_F(TQueryEvaluateTest, GroupWithLimitFirst)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::Int64, ESortOrder::Ascending},
+        {"b", EValueType::Int64}
+    });
+
+    std::vector<TString> source;
+    for (int i = 0; i < 10; i++) {
+        source.push_back(Format("a=%v;b=%v", 1, i));
+    }
+
+    auto resultSplit = MakeSplit({
+        {"f", EValueType::Int64}
+    });
+
+    auto result = YsonToRows({
+        "f=0"
+    }, resultSplit);
+
+    auto queryStatistics = EvaluateWithQueryStatistics("first(b) as f FROM [//t] group by a limit 1", split, source, ResultMatcher(result)).second;
+    EXPECT_EQ(queryStatistics.RowsRead, 3);
 
     SUCCEED();
 }
