@@ -57,6 +57,10 @@ inline bool operator != (TErrorCode lhs, TErrorCode rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr int ErrorSerializationDepthLimit = 30;
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <>
 class [[nodiscard]] TErrorOr<void>
 {
@@ -150,7 +154,8 @@ private:
     friend void Serialize(
         const TError& error,
         NYson::IYsonConsumer* consumer,
-        const std::function<void(NYson::IYsonConsumer*)>* valueProducer);
+        const std::function<void(NYson::IYsonConsumer*)>* valueProducer,
+        int depth);
     friend void Deserialize(TError& error, const NYTree::INodePtr& node);
 
 };
@@ -161,10 +166,16 @@ bool operator != (const TErrorOr<void>& lhs, const TErrorOr<void>& rhs);
 void ToProto(NProto::TError* protoError, const TError& error);
 void FromProto(TError* error, const NProto::TError& protoError);
 
+using TErrorVisitor = std::function<void(const TError&, int depth)>;
+
+//! Traverse the error tree in DFS order.
+void TraverseError(const TError& error, const TErrorVisitor& visitor, int depth = 0);
+
 void Serialize(
     const TError& error,
     NYson::IYsonConsumer* consumer,
-    const std::function<void(NYson::IYsonConsumer*)>* valueProducer = nullptr);
+    const std::function<void(NYson::IYsonConsumer*)>* valueProducer = nullptr,
+    int depth = 0);
 void Deserialize(
     TError& error,
     const NYTree::INodePtr& node);

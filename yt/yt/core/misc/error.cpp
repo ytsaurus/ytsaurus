@@ -642,10 +642,51 @@ void FromProto(TError* error, const NYT::NProto::TError& protoError)
     error->InnerErrors_ = FromProto<std::vector<TError>>(protoError.inner_errors());
 }
 
+void TraverseError(const TError& error, const TErrorVisitor& visitor, int depth)
+{
+    visitor(error, depth);
+    for (const auto& inner : error.InnerErrors()) {
+        TraverseError(inner, visitor, depth + 1);
+    }
+}
+
+// Errors whose depth exceeds |ErrorSerializationDepthLimit| are serialized
+// as children of their ancestor on depth |ErrorSerializationDepthLimit - 1|.
+static void SerializeInnerErrors(TFluentMap fluent, const TError& error, int depth)
+{
+    if (depth >= ErrorSerializationDepthLimit) {
+        // Ignore deep inner errors.
+        return;
+    }
+
+    auto visit = [&] (auto fluent, const TError& error, int depth) {
+        fluent
+            .Item().Do([&] (auto fluent) {
+                Serialize(error, fluent.GetConsumer(), /* valueProduce */ nullptr, depth);
+            });
+    };
+
+    fluent
+        .Item("inner_errors").DoListFor(error.InnerErrors(), [&] (auto fluent, const TError& innerError) {
+            if (depth < ErrorSerializationDepthLimit - 1) {
+                visit(fluent, innerError, depth + 1);
+            } else {
+                YT_VERIFY(depth == ErrorSerializationDepthLimit - 1);
+                TraverseError(
+                    innerError,
+                    [&] (const TError& e, int depth) {
+                        visit(fluent, e, depth);
+                    },
+                    depth + 1);
+            }
+        });
+}
+
 void Serialize(
     const TError& error,
     IYsonConsumer* consumer,
-    const std::function<void(IYsonConsumer*)>* valueProducer)
+    const std::function<void(IYsonConsumer*)>* valueProducer,
+    int depth)
 {
     BuildYsonFluently(consumer)
         .BeginMap()
@@ -665,17 +706,17 @@ void Serialize(
                         .Item("trace_id").Value(error.GetTraceId())
                         .Item("span_id").Value(error.GetSpanId());
                 }
+                if (depth > ErrorSerializationDepthLimit) {
+                    fluent
+                        .Item("original_error_depth").Value(depth);
+                }
                 for (const auto& [key, value] : error.Attributes().ListPairs()) {
                     fluent
                         .Item(key).Value(value);
                 }
             })
             .DoIf(!error.InnerErrors().empty(), [&] (auto fluent) {
-                fluent
-                    .Item("inner_errors").DoListFor(error.InnerErrors(), [=] (auto fluent, const auto& innerError) {
-                        fluent
-                            .Item().Value(innerError);
-                    });
+                SerializeInnerErrors(fluent, error, depth);
             })
             .DoIf(valueProducer != nullptr, [&] (auto fluent) {
                 auto* consumer = fluent.GetConsumer();
@@ -687,6 +728,7 @@ void Serialize(
                 (*valueProducer)(consumer);
             })
         .EndMap();
+
 }
 
 void Deserialize(TError& error, const NYTree::INodePtr& node)
