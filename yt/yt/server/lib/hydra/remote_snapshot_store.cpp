@@ -279,6 +279,7 @@ private:
                     attributes->Set("compression_codec", Store_->Options_->SnapshotCompressionCodec);
                     attributes->Set("account", Store_->Options_->SnapshotAccount);
                     attributes->Set("primary_medium", Store_->Options_->SnapshotPrimaryMedium);
+                    attributes->Set("erasure_codec", Store_->Options_->SnapshotErasureCodec);
                     attributes->Set("sequence_number", Meta_.sequence_number());
                     attributes->Set("random_seed", Meta_.random_seed());
                     options.Attributes = std::move(attributes);
