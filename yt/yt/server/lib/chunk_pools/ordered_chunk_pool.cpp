@@ -67,17 +67,22 @@ public:
         , EnablePeriodicYielder_(options.EnablePeriodicYielder)
         , OutputOrder_(options.KeepOutputOrder ? New<TOutputOrder>() : nullptr)
     {
+        if (JobSizeConstraints_->IsExplicitJobCount() && JobSizeConstraints_->GetJobCount() == 1) {
+            SingleJob_ = true;
+        }
+
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
         Logger.AddTag("Task: %v", Task_);
         JobManager_->SetLogger(Logger);
 
         YT_LOG_DEBUG("Ordered chunk pool created (DataWeightPerJob: %v, MaxDataSlicesPerJob: %v, "
-            "InputSliceDataWeight: %v, InputSliceRowCount: %v)",
+            "InputSliceDataWeight: %v, InputSliceRowCount: %v, SingleJob: %v)",
             JobSizeConstraints_->GetDataWeightPerJob(),
             JobSizeConstraints_->GetMaxDataSlicesPerJob(),
             JobSizeConstraints_->GetInputSliceDataWeight(),
-            JobSizeConstraints_->GetInputSliceRowCount());
+            JobSizeConstraints_->GetInputSliceRowCount(),
+            SingleJob_);
     }
 
     // IChunkPoolInput implementation.
@@ -180,6 +185,7 @@ public:
         Persist(context, OutputOrder_);
         Persist(context, JobIndex_);
         Persist(context, BuiltJobCount_);
+        Persist(context, SingleJob_);
         Persist(context, IsCompleted_);
         if (context.IsLoad()) {
             Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
@@ -228,6 +234,8 @@ private:
     int JobIndex_ = 0;
     int BuiltJobCount_ = 0;
 
+    bool SingleJob_ = false;
+
     bool IsCompleted_ = false;
 
     void SetupSuspendedStripes()
@@ -271,7 +279,8 @@ private:
                 if (dataSlice->Type == EDataSourceType::UnversionedTable) {
                     auto inputChunk = dataSlice->GetSingleUnversionedChunkOrThrow();
                     if (InputStreamDirectory_.GetDescriptor(stripe->GetInputStreamIndex()).IsTeleportable() &&
-                        inputChunk->IsLargeCompleteChunk(MinTeleportChunkSize_))
+                        inputChunk->IsLargeCompleteChunk(MinTeleportChunkSize_) &&
+                        !SingleJob_)
                     {
                         if (Sampler_.Sample()) {
                             EndJob();
@@ -372,7 +381,7 @@ private:
         bool jobIsLargeEnough =
             CurrentJob()->GetPreliminarySliceCount() + 1 > JobSizeConstraints_->GetMaxDataSlicesPerJob() ||
             CurrentJob()->GetDataWeight() >= dataSizePerJob;
-        if (jobIsLargeEnough) {
+        if (jobIsLargeEnough && !SingleJob_) {
             EndJob();
         }
         auto dataSliceCopy = CreateInputDataSlice(dataSlice);

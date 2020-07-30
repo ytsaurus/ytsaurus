@@ -14,7 +14,7 @@ ESnapshotVersion GetCurrentSnapshotVersion()
 bool ValidateSnapshotVersion(int version)
 {
     // NB: Version can be not valid enum value, so we do not cast version to enum here.
-    return version >= ToUnderlying(ESnapshotVersion::HierarchicalPartitions) &&
+    return version >= ToUnderlying(ESnapshotVersion::SingleJobOrderedPool) &&
         version <= ToUnderlying(GetCurrentSnapshotVersion());
 }
 
