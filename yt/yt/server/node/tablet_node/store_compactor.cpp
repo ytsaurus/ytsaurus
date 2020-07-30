@@ -1487,42 +1487,57 @@ private:
         partition->CheckedSetState(EPartitionState::Normal, EPartitionState::Compacting);
 
         auto* tablet = partition->GetTablet();
-
         const auto& storeManager = tablet->GetStoreManager();
-        for (const auto& store : stores) {
-            storeManager->BeginStoreCompaction(store);
-        }
 
-        auto transaction = StartCompactionTransaction(tabletSnapshot, Logger);
-        Logger.AddTag("TransactionId: %v", transaction->GetId());
+        try {
+            for (const auto& store : stores) {
+                storeManager->BeginStoreCompaction(store);
+            }
 
-        auto retainedTimestamp = NullTimestamp;
-        for (const auto& store : stores) {
-            retainedTimestamp = std::max(retainedTimestamp, store->GetMaxTimestamp());
-        }
-        ++retainedTimestamp;
+            auto transaction = StartCompactionTransaction(tabletSnapshot, Logger);
+            Logger.AddTag("TransactionId: %v", transaction->GetId());
 
-        NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
-        actionRequest.set_retained_timestamp(retainedTimestamp);
-        actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
+            auto retainedTimestamp = NullTimestamp;
+            for (const auto& store : stores) {
+                retainedTimestamp = std::max(retainedTimestamp, store->GetMaxTimestamp());
+            }
+            ++retainedTimestamp;
 
-        TStoreIdList storeIdsToRemove;
-        for (const auto& store : stores) {
-            auto* descriptor = actionRequest.add_stores_to_remove();
-            auto storeId = store->GetId();
-            ToProto(descriptor->mutable_store_id(), storeId);
-            storeIdsToRemove.push_back(storeId);
-        }
+            NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
+            actionRequest.set_retained_timestamp(retainedTimestamp);
+            actionRequest.set_update_reason(ToProto<int>(ETabletStoresUpdateReason::Compaction));
 
-        YT_LOG_INFO("Partition stores discarded by TTL (UnmergedRowCount: %v, CompressedDataSize: %v, StoreIdsToRemove: %v)",
-            partition->GetUnmergedRowCount(),
-            partition->GetCompressedDataSize(),
-            storeIdsToRemove);
+            TStoreIdList storeIdsToRemove;
+            for (const auto& store : stores) {
+                auto* descriptor = actionRequest.add_stores_to_remove();
+                auto storeId = store->GetId();
+                ToProto(descriptor->mutable_store_id(), storeId);
+                storeIdsToRemove.push_back(storeId);
+            }
 
-        FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction));
+            YT_LOG_INFO("Partition stores discarded by TTL (UnmergedRowCount: %v, CompressedDataSize: %v, StoreIdsToRemove: %v)",
+                partition->GetUnmergedRowCount(),
+                partition->GetCompressedDataSize(),
+                storeIdsToRemove);
 
-        for (const auto& store : stores) {
-            storeManager->EndStoreCompaction(store);
+            FinishTabletStoresUpdateTransaction(tablet, slot, std::move(actionRequest), std::move(transaction));
+
+            for (const auto& store : stores) {
+                storeManager->EndStoreCompaction(store);
+            }
+
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(TError());
+        } catch (const std::exception& ex) {
+            auto error = TError(ex)
+                << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
+                << TErrorAttribute("background_activity", ETabletBackgroundActivity::Compaction);
+
+            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(error);
+            YT_LOG_ERROR(error, "Error discarding expired partition stores, backing off");
+
+            for (const auto& store : stores) {
+                storeManager->BackoffStoreCompaction(store);
+            }
         }
 
         partition->CheckedSetState(EPartitionState::Compacting, EPartitionState::Normal);
