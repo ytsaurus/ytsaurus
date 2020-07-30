@@ -15,7 +15,7 @@ namespace NYT::NLogging {
 
 struct TLogWritersCacheKey
 {
-    TString Category;
+    TStringBuf Category;
     ELogLevel LogLevel;
     ELogMessageFormat MessageFormat;
 };
@@ -41,7 +41,7 @@ public:
 
     virtual void Shutdown() override;
 
-    const TLoggingCategory* GetCategory(const char* categoryName);
+    const TLoggingCategory* GetCategory(TStringBuf categoryName);
     void UpdateCategory(TLoggingCategory* category);
     void UpdatePosition(TLoggingPosition* position, TStringBuf message);
 

@@ -64,7 +64,7 @@ class TStreamLogWriterBase
     : public ILogWriter
 {
 public:
-    explicit TStreamLogWriterBase(std::unique_ptr<ILogFormatter> formatter, TString name);
+    TStreamLogWriterBase(std::unique_ptr<ILogFormatter> formatter, TString name);
     ~TStreamLogWriterBase();
 
     virtual void Write(const TLogEvent& event) override;
@@ -79,12 +79,13 @@ protected:
     virtual IOutputStream* GetOutputStream() const noexcept = 0;
     virtual void OnException(const std::exception& ex);
 
-    TRateLimitCounter* GetCategoryRateLimitCounter(const TString& category);
+    TRateLimitCounter* GetCategoryRateLimitCounter(TStringBuf category);
 
-    std::unique_ptr<ILogFormatter> LogFormatter;
-    TString Name_;
+    const std::unique_ptr<ILogFormatter> LogFormatter_;
+    const TString Name_;
+    
     TRateLimitCounter RateLimit_;
-    THashMap<TString, TRateLimitCounter> CategoryToRateLimit_;
+    THashMap<TStringBuf, TRateLimitCounter> CategoryToRateLimit_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,15 +94,12 @@ class TStreamLogWriter
     : public TStreamLogWriterBase
 {
 public:
-    explicit TStreamLogWriter(IOutputStream* stream, std::unique_ptr<ILogFormatter> formatter, TString name)
-        : TStreamLogWriterBase::TStreamLogWriterBase(std::move(formatter), std::move(name))
-        , Stream_(stream)
-    { }
+    TStreamLogWriter(IOutputStream* stream, std::unique_ptr<ILogFormatter> formatter, TString name);
 
 private:
     virtual IOutputStream* GetOutputStream() const noexcept override;
 
-    IOutputStream* Stream_;
+    IOutputStream* const Stream_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,7 +153,7 @@ private:
     const bool EnableCompression_;
     const size_t CompressionLevel_;
 
-    std::atomic<bool> Disabled_ = {false};
+    std::atomic<bool> Disabled_ = false;
 
     std::unique_ptr<TFile> File_;
     std::unique_ptr<TFixedBufferFileOutput> FileOutput_;

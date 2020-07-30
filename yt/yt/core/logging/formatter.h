@@ -29,10 +29,10 @@ private:
 struct ILogFormatter
 {
     virtual ~ILogFormatter() = default;
-    virtual size_t WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const = 0;
+    virtual i64 WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const = 0;
     virtual void WriteLogReopenSeparator(IOutputStream* outputStream) const = 0;
     virtual void WriteLogStartEvent(IOutputStream* outputStream) const = 0;
-    virtual void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, const TString& skippedBy) const = 0;
+    virtual void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,18 +42,15 @@ class TPlainTextLogFormatter
 {
 public:
     TPlainTextLogFormatter();
-    virtual size_t WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
 
+    virtual i64  WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
     virtual void WriteLogReopenSeparator(IOutputStream* outputStream) const override;
-
     virtual void WriteLogStartEvent(IOutputStream* outputStream) const override;
-
-    virtual void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, const TString& skippedBy) const override;
+    virtual void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const override;
 
 private:
-
-    std::unique_ptr<TMessageBuffer> Buffer_;
-    std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
+    const std::unique_ptr<TMessageBuffer> Buffer_;
+    const std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -64,16 +61,13 @@ class TJsonLogFormatter
 public:
     TJsonLogFormatter(const THashMap<TString, NYTree::INodePtr>& commonFields);
 
-    virtual size_t WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
-
+    virtual i64 WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const override;
     virtual void WriteLogReopenSeparator(IOutputStream* outputStream) const override;
-
     virtual void WriteLogStartEvent(IOutputStream* outputStream) const override;
-
-    virtual void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, const TString& skippedBy) const override;
+    virtual void WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const override;
 
 private:
-    std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
+    const std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
     const THashMap<TString, NYTree::INodePtr> CommonFields_;
 };
 

@@ -89,7 +89,7 @@ TLogger::TLogger()
     , Category_(nullptr)
 { }
 
-TLogger::TLogger(const char* categoryName)
+TLogger::TLogger(TStringBuf categoryName)
     : LogManager_(TLogManager::Get())
     , Category_(LogManager_->GetCategory(categoryName))
 { }

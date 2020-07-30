@@ -8,10 +8,11 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const char* const SystemLoggingCategoryName;
-extern const char* const DefaultStderrWriterName;
-extern const ELogLevel DefaultStderrMinLevel;
-extern const ELogLevel DefaultStderrQuietLevel;
+constexpr TStringBuf SystemLoggingCategoryName = AsStringBuf("Logging");
+constexpr TStringBuf DefaultStderrWriterName = AsStringBuf("Stderr");
+constexpr ELogLevel DefaultStderrMinLevel = ELogLevel::Info;
+constexpr ELogLevel DefaultStderrQuietLevel = ELogLevel::Error;
+
 extern const NProfiling::TProfiler LoggingProfiler;
 
 ////////////////////////////////////////////////////////////////////////////////

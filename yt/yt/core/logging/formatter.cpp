@@ -49,7 +49,7 @@ TLogEvent GetStartLogStructuredEvent()
     return event;
 }
 
-TLogEvent GetSkippedLogEvent(i64 count, const TString& skippedBy)
+TLogEvent GetSkippedLogEvent(i64 count, TStringBuf skippedBy)
 {
     TLogEvent event;
     event.Instant = GetCpuInstant();
@@ -61,7 +61,7 @@ TLogEvent GetSkippedLogEvent(i64 count, const TString& skippedBy)
     return event;
 }
 
-TLogEvent GetSkippedLogStructuredEvent(i64 count, const TString& skippedBy)
+TLogEvent GetSkippedLogStructuredEvent(i64 count, TStringBuf skippedBy)
 {
     TLogEvent event;
     event.Instant = GetCpuInstant();
@@ -108,7 +108,7 @@ TPlainTextLogFormatter::TPlainTextLogFormatter()
     , CachingDateFormatter_(new TCachingDateFormatter())
 { }
 
-size_t TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const
+i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const
 {
     if (!outputStream) {
         return 0;
@@ -163,7 +163,7 @@ void TPlainTextLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) con
     WriteFormatted(outputStream, GetStartLogEvent());
 }
 
-void TPlainTextLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, const TString& skippedBy) const
+void TPlainTextLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const
 {
     WriteFormatted(outputStream, GetSkippedLogEvent(count, skippedBy));
 }
@@ -175,15 +175,15 @@ TJsonLogFormatter::TJsonLogFormatter(const THashMap<TString, NYTree::INodePtr>& 
     , CommonFields_(commonFields)
 { }
 
-size_t TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& event) const
+i64 TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& event) const
 {
     if (!stream) {
         return 0;
     }
 
-    auto counterStream = TCountingOutput(stream);
+    auto countingStream = TCountingOutput(stream);
 
-    auto jsonConsumer = NJson::CreateJsonConsumer(&counterStream);
+    auto jsonConsumer = NJson::CreateJsonConsumer(&countingStream);
     NYTree::BuildYsonFluently(jsonConsumer.get())
         .BeginMap()
             .DoFor(CommonFields_, [] (auto fluent, auto item) {
@@ -196,9 +196,9 @@ size_t TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent&
         .EndMap();
     jsonConsumer->Flush();
 
-    counterStream.Write('\n');
+    countingStream.Write('\n');
 
-    return counterStream.Counter();
+    return countingStream.Counter();
 }
 
 void TJsonLogFormatter::WriteLogReopenSeparator(IOutputStream* outputStream) const
@@ -209,7 +209,7 @@ void TJsonLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) const
     WriteFormatted(outputStream, GetStartLogStructuredEvent());
 }
 
-void TJsonLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, const TString& skippedBy) const
+void TJsonLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const
 {
     WriteFormatted(outputStream, GetSkippedLogStructuredEvent(count, skippedBy));
 }

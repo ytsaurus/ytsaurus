@@ -5,20 +5,19 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TRuleConfig::IsApplicable(const TString& category, ELogMessageFormat format) const
+bool TRuleConfig::IsApplicable(TStringBuf category, ELogMessageFormat format) const
 {
-    return MessageFormat == format
-           && ExcludeCategories.find(category) == ExcludeCategories.end()
-           && (!IncludeCategories || IncludeCategories->find(category) != IncludeCategories->end());
+    return
+        MessageFormat == format &&
+        ExcludeCategories.find(category) == ExcludeCategories.end() &&
+        (!IncludeCategories || IncludeCategories->find(category) != IncludeCategories->end());
 }
 
-bool TRuleConfig::IsApplicable(const TString& category, ELogLevel level, ELogMessageFormat format) const
+bool TRuleConfig::IsApplicable(TStringBuf category, ELogLevel level, ELogMessageFormat format) const
 {
-    if (!IsApplicable(category, format)) {
-        return false;
-    }
-
-    return MinLevel <= level && level <= MaxLevel;
+    return
+        IsApplicable(category, format) &&
+        MinLevel <= level && level <= MaxLevel;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,14 +47,14 @@ TLogManagerConfigPtr TLogManagerConfig::CreateStderrLogger(ELogLevel logLevel)
 {
     auto rule = New<TRuleConfig>();
     rule->MinLevel = logLevel;
-    rule->Writers.push_back(DefaultStderrWriterName);
+    rule->Writers.push_back(TString(DefaultStderrWriterName));
 
     auto stderrWriterConfig = New<TWriterConfig>();
     stderrWriterConfig->Type = EWriterType::Stderr;
 
     auto config = New<TLogManagerConfig>();
     config->Rules.push_back(rule);
-    config->WriterConfigs.insert(std::make_pair(DefaultStderrWriterName, stderrWriterConfig));
+    config->WriterConfigs.emplace(TString(DefaultStderrWriterName), stderrWriterConfig);
 
     config->MinDiskSpace = 0;
     config->HighBacklogWatermark = 100000;
