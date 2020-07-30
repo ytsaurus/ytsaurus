@@ -75,6 +75,7 @@ def spark_session(num_executors=None,
                   local_conf_path=Defaults.LOCAL_CONF_PATH,
                   spark_id=None,
                   client=None):
+    spark_session_already_existed = _spark_session_exists()
     spark = connect(
         num_executors=num_executors,
         yt_proxy=yt_proxy,
@@ -95,20 +96,10 @@ def spark_session(num_executors=None,
     except Exception as e:
         exception = e
     finally:
-        try:
-            spark.stop()
-        except Exception as e:
-            logger.error("Unexpected error while closing SparkSession, {}".format(e.message))
-            exception = exception or e
-        finally:
-            try:
-                spark._jvm.ru.yandex.spark.yt.fs.YtClientProvider.close()
-            except Exception as e:
-                logger.error("Unexpected error while closing YtClientProvider, {}".format(e.message))
-                exception = exception or e
-            finally:
-                if exception:
-                    raise exception
+        if spark_session_already_existed:
+            _raise_first(exception)
+        else:
+            stop(spark, exception)
 
 
 def get_spark_discovery(discovery_path, spark_id, conf):
@@ -282,6 +273,9 @@ def connect(num_executors=5,
         spark_id=spark_id,
         client=client
     )
+    if _spark_session_exists():
+        logger.warning("SparkSession already exists and will be reused. Some configurations may not be applied. "
+                       "You can use spyt.stop(spark) method to close previous session")
 
     spark = SparkSession.builder.config(conf=conf).getOrCreate()
 
@@ -289,3 +283,57 @@ def connect(num_executors=5,
     logger.info("SPYT library version: {}".format(spark.conf.get("spark.yt.version", default=None)))
 
     return spark
+
+
+def stop(spark, exception=None):
+    is_client_mode = spark.conf.get("spark.submit.deployMode") == "client"
+    _try_with_safe_finally(
+        lambda:  spark.stop(),
+        lambda e1: _try_with_safe_finally(
+            lambda: _shutdown_jvm(spark) if is_client_mode else _close_yt_client(spark),
+            lambda e2: _raise_first(exception, e1, e2),
+        )
+    )
+
+
+def _close_yt_client(spark):
+    spark._jvm.ru.yandex.spark.yt.fs.YtClientProvider.close()
+
+
+def _try_with_safe_finally(try_func, finally_func):
+    exception = None
+    try:
+        try_func()
+    except Exception as e:
+        logger.error("Unexpected error {}".format(e.message))
+        exception = e
+    finally:
+        finally_func(exception)
+
+
+def _raise_first(*exceptions):
+    exception = None
+    for e in exceptions:
+        exception = exception or e
+    if exception:
+        raise exception
+
+
+def _shutdown_jvm(spark):
+    from pyspark import SparkContext
+    from pyspark.sql import SparkSession
+    from subprocess import Popen
+    if not isinstance(SparkContext._gateway.proc, Popen):
+        logger.warning("SparkSession cannot be closed properly, please update yandex-spyt and Spark cluster")
+        return
+    SparkContext._gateway.proc.stdin.close()
+    SparkContext._gateway.shutdown()
+    SparkContext._gateway = None
+    SparkContext._jvm = None
+    spark._jvm = None
+    SparkSession.builder._options = {}
+
+
+def _spark_session_exists():
+    from pyspark.sql import SparkSession
+    return SparkSession._instantiatedSession is not None
