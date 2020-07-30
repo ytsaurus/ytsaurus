@@ -113,6 +113,7 @@ DEFINE_ENUM(EMasterReign,
     ((AclCheckWorkaroundForMutatingRequests_20_2)                   (1322))  // shakurov
     ((MountHint)                                                    (1323))  // ifsmirnov
     ((MakeProfilingModeAnInheritedAttribute_20_2)                   (1325))  // akozhikhov
+    ((AddSnapshotErasureCodec)                                      (1326))  // babenko
     ((SubjectAliases)                                               (1400))  // s-v-m
     ((OpaquePortalEntrances)                                        (1401))  // shakurov
     ((MultisetAttributes)                                           (1402))  // gritukan

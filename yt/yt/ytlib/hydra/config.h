@@ -12,6 +12,8 @@
 
 #include <yt/core/ytree/yson_serializable.h>
 
+#include <yt/library/erasure/public.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +29,8 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TPeerConnectionConfig)
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TRemoteSnapshotStoreOptions
     : public virtual NYTree::TYsonSerializable
 {
@@ -35,12 +39,15 @@ public:
     NCompression::ECodec SnapshotCompressionCodec;
     TString SnapshotAccount;
     TString SnapshotPrimaryMedium;
+    NErasure::ECodec SnapshotErasureCodec;
     NYTree::IListNodePtr SnapshotAcl;
 
     TRemoteSnapshotStoreOptions();
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStoreOptions)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TRemoteChangelogStoreOptions
     : public virtual NYTree::TYsonSerializable

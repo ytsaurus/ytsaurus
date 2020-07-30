@@ -1860,6 +1860,29 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                     assert read_table(read_ranges[12 + l]) == all_rows[i+1:j]
                 assert read_table(read_ranges[15]) == all_rows[i+1:j+1]
 
+    @authors("babenko")
+    def test_erasure_snapshots(self):
+        create_tablet_cell_bundle("b", attributes={"options": {"snapshot_erasure_codec" : "isa_lrc_12_2_2"}})
+        cell_id =  sync_create_cells(1, tablet_cell_bundle="b")[0]
+
+        def _try_build_snapshot():
+            try:
+                build_snapshot(cell_id=cell_id)
+                return True
+            except:
+                return False
+        wait(_try_build_snapshot)
+
+        def _check_snapshot():
+            files = ls("//sys/tablet_cells/{}/snapshots".format(cell_id))
+            assert len(files) <= 1
+            if len(files) == 0:
+                return False
+            file = files[0]
+            assert get("//sys/tablet_cells/{}/snapshots/{}/@erasure_codec".format(cell_id, file)) == "isa_lrc_12_2_2"
+            return True
+        wait(_check_snapshot)
+
 ##################################################################
 
 class TestDynamicTablesSafeMode(DynamicTablesBase):
