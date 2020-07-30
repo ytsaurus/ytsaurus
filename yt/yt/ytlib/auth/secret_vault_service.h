@@ -38,9 +38,16 @@ struct ISecretVaultService
         }
     };
 
+    struct TSecretValue
+    {
+        TString Key;
+        TString Value;
+        TString Encoding;
+    };
+
     struct TSecretSubresponse
     {
-        THashMap<TString, TString> Payload;
+        std::vector<TSecretValue> Values;
     };
 
     using TErrorOrSecretSubresponse = TErrorOr<TSecretSubresponse>;
@@ -54,4 +61,3 @@ DEFINE_REFCOUNTED_TYPE(ISecretVaultService)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NAuth
-
