@@ -849,6 +849,11 @@ TCodegenAggregate TExternalAggregateCodegen::Profile(
     return codegenAggregate;
 }
 
+bool TExternalAggregateCodegen::IsFirst() const
+{
+    return IsFirst_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient

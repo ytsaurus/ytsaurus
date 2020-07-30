@@ -655,7 +655,8 @@ void MultiJoinOpHelper(
 const TValue* InsertGroupRow(
     TExecutionContext* context,
     TGroupByClosure* closure,
-    TValue* row)
+    TValue* row,
+    bool allAggregatesFirst)
 {
     CHECK_STACK();
 
@@ -665,7 +666,7 @@ const TValue* InsertGroupRow(
 
     // Any prefix but ordered scan.
     if (context->Ordered && closure->GroupedRowCount >= context->Offset + context->Limit) {
-        if (closure->ValuesCount == 0) {
+        if (allAggregatesFirst) {
             return nullptr;
         }
 

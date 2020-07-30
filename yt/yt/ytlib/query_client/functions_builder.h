@@ -60,7 +60,8 @@ struct TFunctionRegistryBuilder
         TType resultType,
         TType stateType,
         TSharedRef implementationFile,
-        ECallingConvention callingConvention);
+        ECallingConvention callingConvention,
+        bool isFirst = false);
 
 };
 

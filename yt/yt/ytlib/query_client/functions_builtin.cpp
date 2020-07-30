@@ -623,6 +623,11 @@ public:
 
         return codegenAggregate;
     }
+
+    virtual bool IsFirst() const override
+    {
+        return false;
+    }
 };
 
 } // namespace NBuiltins
@@ -929,7 +934,8 @@ void RegisterBuiltinFunctions(
         typeArg,
         typeArg,
         UDF_BC(first),
-        ECallingConvention::UnversionedValue);
+        ECallingConvention::UnversionedValue,
+        true);
 
     if (typeInferrers) {
         typeInferrers->emplace("sum", New<TAggregateTypeInferrer>(

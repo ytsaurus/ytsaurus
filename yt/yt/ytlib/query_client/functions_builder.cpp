@@ -79,7 +79,8 @@ void TFunctionRegistryBuilder::RegisterAggregate(
     TType resultType,
     TType stateType,
     TSharedRef implementationFile,
-    ECallingConvention callingConvention)
+    ECallingConvention callingConvention,
+    bool isFirst)
 {
     if (TypeInferrers_) {
         TypeInferrers_->emplace(aggregateName, New<TAggregateTypeInferrer>(
@@ -91,7 +92,7 @@ void TFunctionRegistryBuilder::RegisterAggregate(
 
     if (AggregateProfilers_) {
         AggregateProfilers_->emplace(aggregateName, New<TExternalAggregateCodegen>(
-            aggregateName, implementationFile, callingConvention, TSharedRef()));
+            aggregateName, implementationFile, callingConvention, isFirst, TSharedRef()));
     }
 }
 
