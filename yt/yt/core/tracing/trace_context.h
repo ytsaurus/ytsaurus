@@ -43,6 +43,10 @@ public:
         TString spanName,
         TTraceContextPtr parentTraceContext = nullptr);
     TTraceContext(
+        TSpanContext parentSpanContext,
+        TString spanName,
+        TRequestId requestId);
+    TTraceContext(
         TFollowsFrom,
         TSpanContext parent,
         TString spanName,
@@ -58,6 +62,7 @@ public:
     TSpanId GetSpanId() const;
     TSpanId GetParentSpanId() const;
     TSpanId GetFollowsFromSpanId() const;
+    TRequestId GetRequestId() const;
 
     const TString& GetSpanName() const;
 
@@ -81,6 +86,7 @@ public:
 private:
     const TSpanId ParentSpanId_ = InvalidSpanId;
     const TSpanId FollowsFromSpanId_ = InvalidSpanId;
+    const TRequestId RequestId_;
     const TTraceContextPtr ParentContext_;
     const TString SpanName_;
 
@@ -91,7 +97,7 @@ private:
     TTagList Tags_;
     bool Finished_ = false;
 
-    std::atomic<NProfiling::TCpuDuration> ElapsedCpuTime_ = {0};
+    std::atomic<NProfiling::TCpuDuration> ElapsedCpuTime_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTraceContext)
@@ -102,14 +108,22 @@ TString ToString(const TTraceContextPtr& context);
 ////////////////////////////////////////////////////////////////////////////////
 
 TTraceContext* GetCurrentTraceContext();
-TTraceId GetCurrentTraceId();
 void FlushCurrentTraceContextTime();
 
 void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context);
 
-TTraceContextPtr CreateRootTraceContext(const TString& spanName);
-TTraceContextPtr CreateChildTraceContext(const TTraceContextPtr& parentContext, const TString& spanName, bool forceTracing = false);
-TTraceContextPtr CreateChildTraceContext(const NProto::TTracingExt& ext, const TString& spanName, bool forceTracing = false);
+TTraceContextPtr CreateRootTraceContext(
+    const TString& spanName,
+    TRequestId requestId = {});
+TTraceContextPtr CreateChildTraceContext(
+    const TTraceContextPtr& parentContext,
+    const TString& spanName,
+    bool forceTracing = false);
+TTraceContextPtr CreateChildTraceContext(
+    const NProto::TTracingExt& ext,
+    const TString& spanName,
+    TRequestId requestId = {},
+    bool forceTracing = false);
 
 template <class T>
 void AddTag(const TString& tagName, const T& tagValue);

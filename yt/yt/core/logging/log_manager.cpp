@@ -547,17 +547,13 @@ public:
 #endif
     }
 
-    void SuppressTrace(TTraceId traceId)
+    void SuppressRequest(TRequestId requestId)
     {
-        if (traceId == InvalidTraceId) {
+        if (!RequestSuppressionEnabled_) {
             return;
         }
 
-        if (!TraceSuppressionEnabled_) {
-            return;
-        }
-
-        SuppressedTraceIdQueue_.Enqueue(traceId);
+        SuppressedRequestIdQueue_.Enqueue(requestId);
     }
 
     void Synchronize(TInstant deadline = TInstant::Max())
@@ -763,7 +759,7 @@ private:
             Config_ = logConfig;
             HighBacklogWatermark_ = Config_->HighBacklogWatermark;
             LowBacklogWatermark_ = Config_->LowBacklogWatermark;
-            TraceSuppressionEnabled_ = Config_->TraceSuppressionTimeout != TDuration::Zero();
+            RequestSuppressionEnabled_ = Config_->RequestSuppressionTimeout != TDuration::Zero();
 
             guard.Release();
 
@@ -771,11 +767,11 @@ private:
             // hold the spinlock anymore.
         }
 
-        if (TraceSuppressionEnabled_) {
-            SuppressedTraceIdSet_.Reconfigure((Config_->TraceSuppressionTimeout + DequeuePeriod) * 2);
+        if (RequestSuppressionEnabled_) {
+            SuppressedRequestIdSet_.Reconfigure((Config_->RequestSuppressionTimeout + DequeuePeriod) * 2);
         } else {
-            SuppressedTraceIdSet_.Clear();
-            SuppressedTraceIdQueue_.DequeueAll();
+            SuppressedRequestIdSet_.Clear();
+            SuppressedRequestIdQueue_.DequeueAll();
         }
 
         for (const auto& pair : Config_->WriterConfigs) {
@@ -1096,7 +1092,7 @@ private:
     int ProcessTimeOrderedBuffer()
     {
         int eventsWritten = 0;
-        if (!TraceSuppressionEnabled_) {
+        if (!RequestSuppressionEnabled_) {
             // Fast path.
             while (!TimeOrderedBuffer_.empty()) {
                 auto& event = TimeOrderedBuffer_.front();
@@ -1117,9 +1113,9 @@ private:
             return eventsWritten;
         }
 
-        SuppressedTraceIdSet_.Update(SuppressedTraceIdQueue_.DequeueAll());
+        SuppressedRequestIdSet_.Update(SuppressedRequestIdQueue_.DequeueAll());
 
-        auto deadline = GetCpuInstant() - DurationToCpuDuration(Config_->TraceSuppressionTimeout);
+        auto deadline = GetCpuInstant() - DurationToCpuDuration(Config_->RequestSuppressionTimeout);
 
         int suppressed = 0;
         while (!TimeOrderedBuffer_.empty()) {
@@ -1136,7 +1132,7 @@ private:
                     return UpdateConfig(event);
                 },
                 [&] (const TLogEvent& event) {
-                    if (SuppressedTraceIdSet_.Contains(event.TraceId)) {
+                    if (event.RequestId && SuppressedRequestIdSet_.Contains(event.RequestId)) {
                         ++suppressed;
                     } else {
                         WriteEvent(event);
@@ -1271,10 +1267,10 @@ private:
     TMultipleProducerSingleConsumerLockFreeStack<TThreadLocalQueue*> UnregisteredLocalQueues_;
 
     TMultipleProducerSingleConsumerLockFreeStack<TLoggerQueueItem> GlobalQueue_;
-    TMultipleProducerSingleConsumerLockFreeStack<TTraceId> SuppressedTraceIdQueue_;
+    TMultipleProducerSingleConsumerLockFreeStack<TRequestId> SuppressedRequestIdQueue_;
 
     std::deque<TLoggerQueueItem> TimeOrderedBuffer_;
-    TExpiringSet<TTraceId> SuppressedTraceIdSet_;
+    TExpiringSet<TRequestId> SuppressedRequestIdSet_;
 
     using TEventProfilingKey = std::pair<TStringBuf, ELogLevel>;
     THashMap<TEventProfilingKey, TMonotonicCounter> WrittenEventsCounters_;
@@ -1291,7 +1287,7 @@ private:
 
     std::atomic<bool> ReopenRequested_ = false;
     std::atomic<bool> ShutdownRequested_ = false;
-    std::atomic<bool> TraceSuppressionEnabled_ = false;
+    std::atomic<bool> RequestSuppressionEnabled_ = false;
 
     TPeriodicExecutorPtr FlushExecutor_;
     TPeriodicExecutorPtr WatchExecutor_;
@@ -1394,9 +1390,9 @@ void TLogManager::EnableReopenOnSighup()
     Impl_->EnableReopenOnSighup();
 }
 
-void TLogManager::SuppressTrace(TTraceId traceId)
+void TLogManager::SuppressRequest(TRequestId requestId)
 {
-    Impl_->SuppressTrace(traceId);
+    Impl_->SuppressRequest(requestId);
 }
 
 void TLogManager::Synchronize(TInstant deadline)

@@ -49,6 +49,7 @@ struct TLogEvent
     NConcurrency::TThreadId ThreadId = NConcurrency::InvalidThreadId;
     NConcurrency::TFiberId FiberId = NConcurrency::InvalidFiberId;
     NTracing::TTraceId TraceId = NTracing::InvalidTraceId;
+    NTracing::TRequestId RequestId = NTracing::InvalidRequestId;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -153,7 +153,10 @@ inline TLogEvent CreateLogEvent(const TLogger& logger, ELogLevel level)
     event.Level = level;
     event.ThreadId = TThread::CurrentThreadId();
     event.FiberId = NConcurrency::GetCurrentFiberId();
-    event.TraceId = NTracing::GetCurrentTraceId();
+    if (auto* traceContext = NTracing::GetCurrentTraceContext()) {
+        event.TraceId = traceContext->GetTraceId();
+        event.RequestId = traceContext->GetRequestId();
+    }
     return event;
 }
 

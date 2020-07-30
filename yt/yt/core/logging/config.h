@@ -110,7 +110,7 @@ public:
     std::vector<TString> SuppressedMessages;
     THashMap<TString, size_t> CategoryRateLimits;
 
-    TDuration TraceSuppressionTimeout;
+    TDuration RequestSuppressionTimeout;
 
     bool AbortOnAlert;
 
@@ -141,7 +141,8 @@ public:
         RegisterParameter("category_rate_limits", CategoryRateLimits)
             .Default();
 
-        RegisterParameter("trace_suppression_timeout", TraceSuppressionTimeout)
+        RegisterParameter("request_suppression_timeout", RequestSuppressionTimeout)
+            .Alias("trace_suppression_timeout")
             .Default(TDuration::Zero());
 
         RegisterParameter("abort_on_alert", AbortOnAlert)

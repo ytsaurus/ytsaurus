@@ -406,7 +406,7 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
     NFs::Remove("test.error.log");
 }
 
-TEST_F(TLoggingTest, TraceSuppression)
+TEST_F(TLoggingTest, RequestSuppression)
 {
     NFs::Remove("test.log");
 
@@ -423,16 +423,17 @@ TEST_F(TLoggingTest, TraceSuppression)
                 "type" = "file";
             };
         };
-        "trace_suppression_timeout" = 100;
+        "request_suppression_timeout" = 100;
     })");
 
     {
-        auto traceContext = NTracing::CreateRootTraceContext("Test");
+        auto requestId = NTracing::TRequestId::Create();
+        auto traceContext = NTracing::CreateRootTraceContext("Test", requestId);
         NTracing::TTraceContextGuard guard(traceContext);
 
         YT_LOG_INFO("Traced message");
 
-        TLogManager::Get()->SuppressTrace(traceContext->GetTraceId());
+        TLogManager::Get()->SuppressRequest(requestId);
     }
 
     YT_LOG_INFO("Info message");

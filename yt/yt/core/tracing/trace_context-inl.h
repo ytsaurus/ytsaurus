@@ -44,6 +44,11 @@ Y_FORCE_INLINE TSpanId TTraceContext::GetFollowsFromSpanId() const
     return FollowsFromSpanId_;
 }
 
+Y_FORCE_INLINE TRequestId TTraceContext::GetRequestId() const
+{
+    return RequestId_;
+}
+
 Y_FORCE_INLINE const TString& TTraceContext::GetSpanName() const
 {
     return SpanName_;
@@ -134,16 +139,10 @@ Y_FORCE_INLINE const TTraceContextPtr& TNullTraceContextGuard::GetOldTraceContex
 ////////////////////////////////////////////////////////////////////////////////
 
 extern thread_local TTraceContext* CurrentTraceContext;
-extern thread_local TTraceId CurrentTraceId;
 
 Y_FORCE_INLINE TTraceContext* GetCurrentTraceContext()
 {
     return CurrentTraceContext;
-}
-
-Y_FORCE_INLINE TTraceId GetCurrentTraceId()
-{
-    return CurrentTraceId;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
