@@ -154,6 +154,8 @@ private:
 private:
     void MakeClient()
     {
+        YT_LOG_INFO("Creating TvmClient");
+
         NTvmApi::TClientSettings settings;
         settings.SetSelfClientId(Config_->ClientSelfId);
         if (!Config_->ClientDiskCacheDir.empty()) {
