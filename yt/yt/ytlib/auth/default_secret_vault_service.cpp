@@ -181,8 +181,7 @@ private:
 
         std::vector<TErrorOrSecretSubresponse> subresponses;
         try {
-            static const TString SecretsKey("secrets");
-            auto secretsNode = rootNode->GetChildOrThrow(SecretsKey)->AsList();
+            auto secretsNode = rootNode->GetChildOrThrow("secrets")->AsList();
 
             int successCount = 0;
             int warningCount = 0;
@@ -217,15 +216,13 @@ private:
                 }
 
                 TSecretSubresponse subresponse;
-                static const TString SecretsValueKey("value");
-                auto valueNode = secretMapNode->GetChildOrThrow(SecretsValueKey)->AsList();
+                auto valueNode = secretMapNode->GetChildOrThrow("value")->AsList();
                 for (const auto& fieldNode : valueNode->GetChildren()) {
                     auto fieldMapNode = fieldNode->AsMap();
-                    static const TString SecretKeyKey("key");
-                    static const TString SecretValueKey("value");
-                    subresponse.Payload.emplace(
-                        fieldMapNode->GetChildOrThrow(SecretKeyKey)->GetValue<TString>(),
-                        fieldMapNode->GetChildOrThrow(SecretsValueKey)->GetValue<TString>());
+                    subresponse.Values.emplace_back(TSecretValue{
+                        fieldMapNode->GetChildOrThrow("key")->GetValue<TString>(),
+                        fieldMapNode->GetChildOrThrow("value")->GetValue<TString>(),
+                        fieldMapNode->GetChildOrThrow("encoding")->GetValue<TString>()});
                 }
 
                 subresponses.push_back(subresponse);

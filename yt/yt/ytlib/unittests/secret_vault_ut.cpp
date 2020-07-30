@@ -90,6 +90,7 @@ TEST_F(TDefaultSecretVaultTest, WarningResponseStatus)
     static const TString SecretSignature = "secret-signature";
     static const TString SecretKey = "secret-key";
     static const TString SecretValue = "secret-value";
+    static const TString SecretEncoding = "EBCDIC";
 
     SetCallback([&] (TClientRequest* request) {
         if (!request->Input().FirstLine().StartsWith("POST /1/tokens/?consumer=yp.unittest")) {
@@ -114,6 +115,7 @@ TEST_F(TDefaultSecretVaultTest, WarningResponseStatus)
                             .BeginMap()
                                 .Item("key").Value(SecretKey)
                                 .Item("value").Value(SecretValue)
+                                .Item("encoding").Value(SecretEncoding)
                             .EndMap()
                         .EndList()
                     .EndMap()
@@ -139,12 +141,11 @@ TEST_F(TDefaultSecretVaultTest, WarningResponseStatus)
         .ValueOrThrow();
     ASSERT_EQ(1, subresponses.size());
 
-    const auto& secrets = subresponses[0].ValueOrThrow().Payload;
+    const auto& secrets = subresponses[0].ValueOrThrow().Values;
     ASSERT_EQ(1, secrets.size());
-
-    auto it = secrets.find(SecretKey);
-    ASSERT_TRUE(secrets.end() != it);
-    ASSERT_EQ(SecretValue, it->second);
+    ASSERT_EQ(SecretKey, secrets[0].Key);
+    ASSERT_EQ(SecretValue, secrets[0].Value);
+    ASSERT_EQ(SecretEncoding, secrets[0].Encoding);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
