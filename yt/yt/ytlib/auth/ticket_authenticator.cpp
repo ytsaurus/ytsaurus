@@ -77,6 +77,7 @@ private:
         const auto& allowedScopes = Config_->Scopes;
         if (allowedScopes.empty()) {
             // This mode is to examine received scopes in prod logs.
+            YT_LOG_WARNING("Got user ticket with scopes %v", scopes);
             return TError();
         }
         for (const auto& scope : scopes) {
