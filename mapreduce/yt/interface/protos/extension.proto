@@ -13,11 +13,36 @@ message EWrapperFieldFlag
         ENUM_INT = 2;
         ENUM_STRING = 3;
 
+        // Fields marked by this flag may correspond to composite types in table,
+        // e.g. message to Struct, repeated to List etc.
         SERIALIZATION_YT = 4;
+
+        // Message fields marked by this flag correspond to String column in table
+        // (containing serialized representation of the field).
         SERIALIZATION_PROTOBUF = 5;
 
+        // repeated field corresponds to List<T> type.
         REQUIRED_LIST = 6;
+
+        // repeated field corresponds to Optional<List<T>> type.
         OPTIONAL_LIST = 7;
+
+        // map<Key, Value> corresponds to List<Struct<Key, String>>, i.e.
+        // the type for Value is inferred as if it had SERIALIZATION_PROTOBUF flag.
+        MAP_AS_LIST_OF_STRUCTS_LEGACY = 8;
+
+        // map<Key, Value> corresponds to List<Struct<Key, Inferred(Value)>>,
+        // where Inferred(Value) is the type inferred as if Value had SERIALIZATION_YT flag,
+        // e.g. Struct for message type.
+        MAP_AS_LIST_OF_STRUCTS = 9;
+
+        // map<Key, Value> corresponds to Dict<Key, Inferred(Value)>.
+        // (the option is experimental, see YT-13314)
+        MAP_AS_DICT = 10;
+
+        // map<Key, Value> corresponds to Optional<Dict<Key, Inferred(Value)>>.
+        // (the option is experimental, see YT-13314)
+        MAP_AS_OPTIONAL_DICT = 11;
     }
 }
 

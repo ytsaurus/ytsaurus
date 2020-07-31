@@ -9,12 +9,17 @@
 
 using namespace NYT;
 
+static TNode GetColumns(const TFormat& format, int tableIndex = 0)
+{
+    return format.Config.GetAttributes()["tables"][tableIndex]["columns"];
+}
+
 Y_UNIT_TEST_SUITE(ProtobufFormat)
 {
     Y_UNIT_TEST(TIntegral)
     {
         const auto format = TFormat::Protobuf<NTesting::TIntegral>();
-        const auto& columns = format.Config.GetAttributes()["tables"][0]["columns"];
+        auto columns = GetColumns(format);
 
         struct TColumn
         {
@@ -51,7 +56,7 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
     Y_UNIT_TEST(TRowFieldSerializationOption)
     {
         const auto format = TFormat::Protobuf<NTesting::TRowFieldSerializationOption>();
-        const auto& columns = format.Config.GetAttributes()["tables"][0]["columns"];
+        auto columns = GetColumns(format);
 
         UNIT_ASSERT_VALUES_EQUAL(columns[0]["name"], "UrlRow_1");
         UNIT_ASSERT_VALUES_EQUAL(columns[0]["proto_type"], "structured_message");
@@ -77,7 +82,7 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
     Y_UNIT_TEST(Packed)
     {
         const auto format = TFormat::Protobuf<NTesting::TPacked>();
-        const auto& column = format.Config.GetAttributes()["tables"][0]["columns"][0];
+        auto column = GetColumns(format)[0];
 
         UNIT_ASSERT_VALUES_EQUAL(column["name"], "PackedListInt64");
         UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "int64");
@@ -95,9 +100,57 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
         UNIT_ASSERT_EXCEPTION(TFormat::Protobuf<NTesting::TCyclic::TD>(), TApiUsageError);
 
         const auto format = TFormat::Protobuf<NTesting::TCyclic::TE>();
-        const auto& column = format.Config.GetAttributes()["tables"][0]["columns"][0];
+        auto column = GetColumns(format)[0];
         UNIT_ASSERT_VALUES_EQUAL(column["name"], "d");
         UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "message");
         UNIT_ASSERT_VALUES_EQUAL(column["field_number"], 1);
+    }
+
+    Y_UNIT_TEST(Map)
+    {
+        const auto format = TFormat::Protobuf<NTesting::TWithMap>();
+        auto columns = GetColumns(format);
+
+        UNIT_ASSERT_VALUES_EQUAL(columns.Size(), 5);
+        {
+            const auto& column = columns[0];
+            UNIT_ASSERT_VALUES_EQUAL(column["name"], "MapDefault");
+            UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "structured_message");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"].Size(), 2);
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][0]["proto_type"], "int64");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][1]["proto_type"], "message");
+        }
+        {
+            const auto& column = columns[1];
+            UNIT_ASSERT_VALUES_EQUAL(column["name"], "MapListOfStructsLegacy");
+            UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "structured_message");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"].Size(), 2);
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][0]["proto_type"], "int64");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][1]["proto_type"], "message");
+        }
+        {
+            const auto& column = columns[2];
+            UNIT_ASSERT_VALUES_EQUAL(column["name"], "MapListOfStructs");
+            UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "structured_message");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"].Size(), 2);
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][0]["proto_type"], "int64");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][1]["proto_type"], "structured_message");
+        }
+        {
+            const auto& column = columns[3];
+            UNIT_ASSERT_VALUES_EQUAL(column["name"], "MapOptionalDict");
+            UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "structured_message");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"].Size(), 2);
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][0]["proto_type"], "int64");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][1]["proto_type"], "structured_message");
+        }
+        {
+            const auto& column = columns[4];
+            UNIT_ASSERT_VALUES_EQUAL(column["name"], "MapDict");
+            UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "structured_message");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"].Size(), 2);
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][0]["proto_type"], "int64");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][1]["proto_type"], "structured_message");
+        }
     }
 }

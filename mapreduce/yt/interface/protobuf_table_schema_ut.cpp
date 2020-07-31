@@ -310,4 +310,38 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
                 }))))
             .AddColumn(TColumnSchema().Name("EmbeddedByFieldNumber").Type(byFieldNumber)));
     }
+
+    Y_UNIT_TEST(Map)
+    {
+        const auto schema = CreateTableSchema<NTesting::TWithMap>();
+
+        auto createKeyValueStruct = [] (NTi::TTypePtr key, NTi::TTypePtr value) {
+            return NTi::List(NTi::Struct({
+                {"key", NTi::Optional(key)},
+                {"value", NTi::Optional(value)},
+            }));
+        };
+
+        auto embedded = NTi::Struct({
+            {"x", NTi::Optional(NTi::Int64())},
+            {"y", NTi::Optional(NTi::String())},
+        });
+
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema()
+                .Name("MapDefault")
+                .Type(createKeyValueStruct(NTi::Int64(), NTi::String())))
+            .AddColumn(TColumnSchema()
+                .Name("MapListOfStructsLegacy")
+                .Type(createKeyValueStruct(NTi::Int64(), NTi::String())))
+            .AddColumn(TColumnSchema()
+                .Name("MapListOfStructs")
+                .Type(createKeyValueStruct(NTi::Int64(), embedded)))
+            .AddColumn(TColumnSchema()
+                .Name("MapOptionalDict")
+                .Type(NTi::Optional(NTi::Dict(NTi::Int64(), embedded))))
+            .AddColumn(TColumnSchema()
+                .Name("MapDict")
+                .Type(NTi::Dict(NTi::Int64(), embedded))));
+    }
 }

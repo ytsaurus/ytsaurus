@@ -275,3 +275,19 @@ message TFieldSortOrder
     optional TEmbeddedAsInProtoFile EmbeddedAsInProtoFile = 2;
     optional TEmbeddedByFieldNumber EmbeddedByFieldNumber = 3;
 }
+
+message TWithMap
+{
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
+
+    message TEmbedded {
+        optional int64 x = 1;
+        optional string y = 2;
+    }
+
+    map<int64, TEmbedded> MapDefault = 1;
+    map<int64, TEmbedded> MapListOfStructsLegacy = 2 [(NYT.flags) = MAP_AS_LIST_OF_STRUCTS_LEGACY];
+    map<int64, TEmbedded> MapListOfStructs = 3 [(NYT.flags) = MAP_AS_LIST_OF_STRUCTS];
+    map<int64, TEmbedded> MapOptionalDict = 4 [(NYT.flags) = MAP_AS_OPTIONAL_DICT];
+    map<int64, TEmbedded> MapDict = 5 [(NYT.flags) = MAP_AS_DICT];
+}
