@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -33,7 +34,7 @@ func do() error {
 		DmesgLog:       yatest.OutputPath("dmesg.log"),
 		ReadmeFile:     yatest.OutputPath("README.md"),
 		DownloadScript: yatest.OutputPath("download.sh"),
-		PrepareFile:    yatest.OutputPath("prepare.json"),
+		PreparedFile:   yatest.OutputPath("prepare.json"),
 		ResultFile:     yatest.OutputPath("result.json"),
 	}
 
@@ -44,6 +45,15 @@ func do() error {
 
 	env.FillConfig(&execConfig)
 	if err := config.FillConfig(&execConfig); err != nil {
+		return err
+	}
+
+	configJS, err := json.MarshalIndent(execConfig, "", "    ")
+	if err != nil {
+		return err
+	}
+
+	if err := ioutil.WriteFile(yatest.OutputPath("ytexec.json"), configJS, 0666); err != nil {
 		return err
 	}
 
