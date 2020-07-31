@@ -8,6 +8,8 @@ import (
 	"os"
 
 	"github.com/spf13/pflag"
+
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 var (
@@ -33,11 +35,17 @@ func do() error {
 		return err
 	}
 
-	return exec.Run(context.Background())
+	if err := exec.Run(context.Background()); err != nil {
+		return err
+	}
+
+	_, err = exec.ReadOutputs(context.Background())
+	return err
 }
 
 func Main() {
 	if err := do(); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "%+v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "%+v\n", yterrors.FromError(err))
+		os.Exit(1)
 	}
 }

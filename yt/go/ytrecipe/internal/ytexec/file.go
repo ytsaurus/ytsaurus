@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"io/ioutil"
+	"path/filepath"
 	"text/template"
 	"time"
 
@@ -23,7 +24,11 @@ type readmeArgs struct {
 	WorkDir       string
 }
 
-var readmeTmpl = template.Must(template.New("").Parse(`
+var funcMap = template.FuncMap{
+	"filepathBase": filepath.Base,
+}
+
+var readmeTmpl = template.Must(template.New("").Funcs(funcMap).Parse(`
 # ytrecipe debugging
 {{$cluster := .Cluster}}
 This test was running in operation {{.OpID}} on cluster {{$cluster}}.
@@ -44,7 +49,7 @@ Test was using following files:
 
 {{range .Files}}
 {{.LocalPath}}
-yt --proxy {{$cluster}} download {{.CypressPath}}
+yt --proxy {{$cluster}} download {{.CypressPath}} > {{filepathBase .LocalPath}}
 {{end}}
 `[1:]))
 
@@ -95,7 +100,7 @@ func (e *Exec) writePrepare(job *job.Job, outDir ypath.Path) error {
 		return err
 	}
 
-	return ioutil.WriteFile(e.config.Exec.PrepareFile, preparedJS, 0666)
+	return ioutil.WriteFile(e.config.Exec.PreparedFile, preparedJS, 0666)
 }
 
 func (e *Exec) writeResult(exitRow *jobfs.ExitRow) error {
