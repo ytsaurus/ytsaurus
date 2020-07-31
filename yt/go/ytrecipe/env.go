@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"a.yandex-team.ru/library/go/test/yatest"
 	"a.yandex-team.ru/yt/go/ytrecipe/internal/ytexec"
@@ -21,6 +22,7 @@ type Env struct {
 	WorkPath  string
 	TraceFile string
 	GDBRoot   string
+	LLVMRoot  string
 
 	ProjectPath         string
 	Modulo, ModuloIndex string
@@ -77,6 +79,10 @@ func (e *Env) FillConfig(c *ytexec.Config) {
 	if e.GDBRoot != "" {
 		c.FS.UploadTarDir = append(c.FS.UploadTarDir, e.GDBRoot)
 	}
+
+	if e.LLVMRoot != "" {
+		c.FS.UploadTarDir = append(c.FS.UploadTarDir, e.LLVMRoot)
+	}
 }
 
 func CaptureEnv() (*Env, error) {
@@ -109,7 +115,7 @@ func CaptureEnv() (*Env, error) {
 		switch arg {
 		case "--output-dir":
 			e.OutputDir = e.Args[i+1]
-		case "--tracefile", "--ya-trace":
+		case "--tracefile", "--ya-trace", "--trace-path":
 			e.TraceFile = e.Args[i+1]
 		case "--project-path":
 			e.ProjectPath = e.Args[i+1]
@@ -122,6 +128,10 @@ func CaptureEnv() (*Env, error) {
 		case "--gdb-path":
 			e.GDBRoot = filepath.Dir(filepath.Dir(e.Args[i+1]))
 		}
+	}
+
+	if symbolizer, ok := os.LookupEnv("ASAN_SYMBOLIZER_PATH"); ok {
+		e.LLVMRoot = strings.TrimSuffix(symbolizer, "/bin/llvm-symbolizer")
 	}
 
 	if e.OutputDir == "" {

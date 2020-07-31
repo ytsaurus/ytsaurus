@@ -2,6 +2,6 @@
     cluster=freud;
     pool="yt-integration-tests";
     upload_binaries=[
-        "yt/go/ytrecipe/test/pytest/yt-go-ytrecipe-test-pytest"
+        "yt/go/ytrecipe/test/symbolizer/symbolizer"
     ];
 }
