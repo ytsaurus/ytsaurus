@@ -1,6 +1,7 @@
 package job
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -73,11 +74,17 @@ func (j *Job) saveDmesg() error {
 		return err
 	}
 
+	var dmesgErr bytes.Buffer
+
 	cmd := exec.Command("/bin/dmesg", "-T")
 	cmd.Stdout = logFile
-	cmd.Stderr = logFile
+	cmd.Stderr = &dmesgErr
 
-	return cmd.Run()
+	err = cmd.Run()
+	if err != nil {
+		return fmt.Errorf("dmesg failed: %q: %w", dmesgErr.String(), err)
+	}
+	return nil
 }
 
 func (j *Job) runJob(out mapreduce.Writer) error {
