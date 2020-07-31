@@ -94,12 +94,10 @@ public:
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
-        auto uncompressedDataSize = UncompressedDataSize_.load();
-
         NChunkClient::NProto::TDataStatistics dataStatistics;
         dataStatistics.set_chunk_count(1);
-        dataStatistics.set_compressed_data_size(uncompressedDataSize);
-        dataStatistics.set_uncompressed_data_size(uncompressedDataSize);
+        dataStatistics.set_compressed_data_size(CompressedDataSize_.load());
+        dataStatistics.set_uncompressed_data_size(UncompressedDataSize_.load());
         dataStatistics.set_row_count(RowCount_);
         dataStatistics.set_data_weight(DataWeight_);
         return dataStatistics;
@@ -140,8 +138,9 @@ private:
     TFuture<void> ReadyEvent_ = VoidFuture;
     int RowCount_ = 0;
     i64 DataWeight_ = 0;
-    std::atomic<i64> UncompressedDataSize_ = {0};
-    std::atomic<NProfiling::TCpuDuration> DecompressionTime_ = {0};
+    std::atomic<i64> CompressedDataSize_ = 0;
+    std::atomic<i64> UncompressedDataSize_ = 0;
+    std::atomic<NProfiling::TCpuDuration> DecompressionTime_ = 0;
 
     TFuture<TSharedRef> FetchedRowset_;
     std::vector<TVersionedRow> FetchedRows_;
@@ -159,7 +158,6 @@ private:
             TabletSnapshot_->MountRevision,
             TabletSnapshot_->TableSchema,
             ComputeEstimatedSize(),
-            &UncompressedDataSize_,
             ColumnFilter_,
             Timestamp_,
             CompressionCodecId,
@@ -193,9 +191,12 @@ private:
 
     void ProcessFetchedRowset(const TSharedRef& fetchedRowset)
     {
+        CompressedDataSize_ += fetchedRowset.Size();
+        
         TWallTimer timer;
         auto uncompressedFetchedRowset = Codec_->Decompress(fetchedRowset);
         DecompressionTime_ += timer.GetElapsedValue();
+        UncompressedDataSize_ += uncompressedFetchedRowset.Size();
 
         auto schemaData = TWireProtocolReader::GetSchemaData(*TabletSnapshot_->TableSchema, TColumnFilter());
         TWireProtocolReader reader(uncompressedFetchedRowset, RowBuffer_);
