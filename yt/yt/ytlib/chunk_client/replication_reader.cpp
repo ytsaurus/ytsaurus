@@ -208,10 +208,10 @@ public:
 
     virtual TFuture<TSharedRef> LookupRows(
         const TClientBlockReadOptions& options,
-        const TSharedRange<TKey>& lookupKeys,
+        TSharedRange<TKey> lookupKeys,
         TObjectId tableId,
         TRevision revision,
-        const TTableSchema& tableSchema,
+        TTableSchemaPtr tableSchema,
         std::optional<i64> estimatedSize,
         std::atomic<i64>* uncompressedDataSize,
         const TColumnFilter& columnFilter,
@@ -1906,7 +1906,7 @@ public:
         TSharedRange<TKey> lookupKeys,
         TObjectId tableId,
         TRevision revision,
-        TTableSchema tableSchema,
+        TTableSchemaPtr tableSchema,
         const std::optional<i64> estimatedSize,
         std::atomic<i64>* uncompressedDataSize,
         const TColumnFilter& columnFilter,
@@ -1953,7 +1953,7 @@ private:
     const TSharedRange<TKey> LookupKeys_;
     const TObjectId TableId_;
     const TRevision Revision_;
-    const TTableSchema TableSchema_;
+    const TTableSchemaPtr TableSchema_;
     const std::optional<i64> EstimatedSize_;
     std::atomic<i64>* const UncompressedDataSizePtr_;
     const TReadSessionId ReadSessionId_;
@@ -2150,7 +2150,7 @@ private:
         ToProto(schemaData->mutable_table_id(), TableId_);
         schemaData->set_revision(Revision_);
         if (sendSchema) {
-            ToProto(schemaData->mutable_schema(), TableSchema_);
+            ToProto(schemaData->mutable_schema(), *TableSchema_);
         }
 
         req->Header().set_response_memory_zone(static_cast<i32>(EMemoryZone::Undumpable));
@@ -2272,10 +2272,10 @@ private:
 
 TFuture<TSharedRef> TReplicationReader::LookupRows(
     const TClientBlockReadOptions& options,
-    const TSharedRange<TKey>& lookupKeys,
+    TSharedRange<TKey> lookupKeys,
     TObjectId tableId,
     TRevision revision,
-    const TTableSchema& tableSchema,
+    TTableSchemaPtr tableSchema,
     std::optional<i64> estimatedSize,
     std::atomic<i64>* uncompressedDataSize,
     const TColumnFilter& columnFilter,
@@ -2289,10 +2289,10 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
     auto session = New<TLookupRowsSession>(
         this,
         options,
-        lookupKeys,
+        std::move(lookupKeys),
         tableId,
         revision,
-        tableSchema,
+        std::move(tableSchema),
         estimatedSize,
         uncompressedDataSize,
         columnFilter,

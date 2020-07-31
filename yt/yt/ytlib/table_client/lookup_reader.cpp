@@ -157,7 +157,7 @@ private:
             LookupKeys_,
             TabletSnapshot_->TableId,
             TabletSnapshot_->MountRevision,
-            *TabletSnapshot_->TableSchema,
+            TabletSnapshot_->TableSchema,
             ComputeEstimatedSize(),
             &UncompressedDataSize_,
             ColumnFilter_,

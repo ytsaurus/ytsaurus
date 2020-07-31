@@ -24,10 +24,10 @@ struct ILookupReader
         // TODO(akozhikhov): change TClientBlockReadOptions type name,
         // because now it also provides options for lookups.
         const NChunkClient::TClientBlockReadOptions& options,
-        const TSharedRange<TKey>& lookupKeys,
+        TSharedRange<TKey> lookupKeys,
         NCypressClient::TObjectId tableId,
         NHydra::TRevision revision,
-        const NTableClient::TTableSchema& tableSchema,
+        NTableClient::TTableSchemaPtr tableSchema,
         std::optional<i64> estimatedSize,
         std::atomic<i64>* uncompressedDataSize,
         const NTableClient::TColumnFilter& columnFilter,
