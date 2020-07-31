@@ -213,7 +213,6 @@ public:
         TRevision revision,
         TTableSchemaPtr tableSchema,
         std::optional<i64> estimatedSize,
-        std::atomic<i64>* uncompressedDataSize,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
         NCompression::ECodec codecId,
@@ -1908,7 +1907,6 @@ public:
         TRevision revision,
         TTableSchemaPtr tableSchema,
         const std::optional<i64> estimatedSize,
-        std::atomic<i64>* uncompressedDataSize,
         const TColumnFilter& columnFilter,
         TTimestamp timestamp,
         NCompression::ECodec codecId,
@@ -1920,7 +1918,6 @@ public:
         , Revision_(revision)
         , TableSchema_(std::move(tableSchema))
         , EstimatedSize_(estimatedSize)
-        , UncompressedDataSizePtr_(uncompressedDataSize)
         , ReadSessionId_(options.ReadSessionId)
         , ColumnFilter_(columnFilter)
         , Timestamp_(timestamp)
@@ -1955,7 +1952,6 @@ private:
     const TRevision Revision_;
     const TTableSchemaPtr TableSchema_;
     const std::optional<i64> EstimatedSize_;
-    std::atomic<i64>* const UncompressedDataSizePtr_;
     const TReadSessionId ReadSessionId_;
     const TColumnFilter ColumnFilter_;
     TTimestamp Timestamp_;
@@ -2116,10 +2112,10 @@ private:
             return;
         }
         
-        SendRequestToPeer(channel, reader, peerAddressWithNetwork, *chosenPeer, false);
+        RequestRowsFromPeer(channel, reader, peerAddressWithNetwork, *chosenPeer, false);
     }
 
-     void SendRequestToPeer(
+     void RequestRowsFromPeer(
         const IChannelPtr& channel,
         const TReplicationReaderPtr& reader,
         const TAddressWithNetwork& peerAddressWithNetwork,
@@ -2159,7 +2155,7 @@ private:
         NProfiling::TWallTimer dataWaitTimer;
         req->Invoke()
             .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr& rspOrError) {
-                this_->ReceiveRequestFromPeer(
+                this_->OnResponse(
                     std::move(rspOrError),
                     std::move(channel),
                     std::move(dataWaitTimer),
@@ -2170,7 +2166,7 @@ private:
             }).Via(SessionInvoker_));
     }
 
-    void ReceiveRequestFromPeer(
+    void OnResponse(
         const TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr& rspOrError,
         const IChannelPtr& channel,
         NProfiling::TWallTimer dataWaitTimer,
@@ -2213,7 +2209,7 @@ private:
                 chosenPeer.Type);
 
             // No throttling on table schema.
-            SendRequestToPeer(channel, reader, peerAddressWithNetwork, chosenPeer, true);
+            RequestRowsFromPeer(channel, reader, peerAddressWithNetwork, chosenPeer, true);
             return;
         } else if (!response->fetched_rows()) {
             // NB(akozhikhov): If data node waits for schema from other tablet node,
@@ -2260,13 +2256,10 @@ private:
     template <class TRspPtr>
     void ProcessAttachedVersionedRowset(const TRspPtr& response)
     {
-        YT_VERIFY(FetchedRowset_.Empty());
-
+        YT_VERIFY(!FetchedRowset_);
         FetchedRowset_ = response->Attachments()[0];
 
-        auto byteSize = GetByteSize(response->Attachments());
-        UncompressedDataSizePtr_->fetch_add(byteSize);
-        TotalBytesReceived_ += byteSize;
+        TotalBytesReceived_ += FetchedRowset_.Size();
     }
 };
 
@@ -2277,7 +2270,6 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
     TRevision revision,
     TTableSchemaPtr tableSchema,
     std::optional<i64> estimatedSize,
-    std::atomic<i64>* uncompressedDataSize,
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     NCompression::ECodec codecId,
@@ -2294,7 +2286,6 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
         revision,
         std::move(tableSchema),
         estimatedSize,
-        uncompressedDataSize,
         columnFilter,
         timestamp,
         codecId,

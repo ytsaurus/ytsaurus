@@ -29,7 +29,6 @@ struct ILookupReader
         NHydra::TRevision revision,
         NTableClient::TTableSchemaPtr tableSchema,
         std::optional<i64> estimatedSize,
-        std::atomic<i64>* uncompressedDataSize,
         const NTableClient::TColumnFilter& columnFilter,
         NTableClient::TTimestamp timestamp,
         NCompression::ECodec codecId,
