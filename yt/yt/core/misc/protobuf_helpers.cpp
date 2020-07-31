@@ -15,7 +15,7 @@
 #include <contrib/libs/protobuf/io/zero_copy_stream.h>
 #include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
 #include <contrib/libs/protobuf/text_format.h>
-#include <contrib/libs/protobuf/util/time_util.h>
+#include <google/protobuf/util/time_util.h>
 
 namespace NYT {
 
