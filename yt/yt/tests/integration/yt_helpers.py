@@ -129,11 +129,13 @@ class Metric(object):
         else:
             return self.get(item)
 
-    def update(self):
+    def update(self, from_time=None):
         # Need time in mcs.
         update_time = int(time.time() * 1e6)
-        new_samples = self._read_from_orchid(from_time=max(self.last_update_time - Metric.FROM_TIME_GAP,
-                                                           self.start_time))
+
+        if from_time is None:
+            from_time = max(self.last_update_time - Metric.FROM_TIME_GAP, self.start_time)
+        new_samples = self._read_from_orchid(from_time=from_time)
 
         if isinstance(new_samples, list):
             self.data, self.state = Metric._update_data(
