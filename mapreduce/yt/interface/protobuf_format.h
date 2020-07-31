@@ -32,13 +32,21 @@ enum class EProtobufSerializationMode
     Yt,
 };
 
-enum class EListMode
+enum class EProtobufListMode
 {
     Optional,
     Required,
 };
 
-enum class EFieldSortOrder
+enum class EProtobufMapMode
+{
+    ListOfStructsLegacy,
+    ListOfStructs,
+    Dict,
+    OptionalDict,
+};
+
+enum class EProtobufFieldSortOrder
 {
     AsInProtoFile,
     ByFieldNumber,
@@ -48,12 +56,13 @@ struct TProtobufFieldOptions
 {
     TMaybe<EProtobufType> Type;
     EProtobufSerializationMode SerializationMode = EProtobufSerializationMode::Protobuf;
-    EListMode ListMode = EListMode::Required;
+    EProtobufListMode ListMode = EProtobufListMode::Required;
+    EProtobufMapMode MapMode = EProtobufMapMode::ListOfStructsLegacy;
 };
 
 struct TProtobufMessageOptions
 {
-    EFieldSortOrder FieldSortOrder = EFieldSortOrder::ByFieldNumber;
+    EProtobufFieldSortOrder FieldSortOrder = EProtobufFieldSortOrder::ByFieldNumber;
 };
 
 void ParseProtobufFieldOptions(

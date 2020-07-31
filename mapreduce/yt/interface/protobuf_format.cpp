@@ -20,10 +20,11 @@ using ::google::protobuf::FieldDescriptor;
 using TFieldOption = TVariant<
     EProtobufType,
     EProtobufSerializationMode,
-    EListMode>;
+    EProtobufListMode,
+    EProtobufMapMode>;
 
 using TMessageOption = TVariant<
-    EFieldSortOrder>;
+    EProtobufFieldSortOrder>;
 
 TFieldOption FieldFlagToOption(EWrapperFieldFlag::Enum flag)
 {
@@ -44,10 +45,18 @@ TFieldOption FieldFlagToOption(EWrapperFieldFlag::Enum flag)
             return EProtobufType::EnumString;
 
         case EFlag::OPTIONAL_LIST:
-            return EListMode::Optional;
+            return EProtobufListMode::Optional;
         case EFlag::REQUIRED_LIST:
-            return EListMode::Required;
+            return EProtobufListMode::Required;
 
+        case EFlag::MAP_AS_LIST_OF_STRUCTS_LEGACY:
+            return EProtobufMapMode::ListOfStructsLegacy;
+        case EFlag::MAP_AS_LIST_OF_STRUCTS:
+            return EProtobufMapMode::ListOfStructs;
+        case EFlag::MAP_AS_DICT:
+            return EProtobufMapMode::Dict;
+        case EFlag::MAP_AS_OPTIONAL_DICT:
+            return EProtobufMapMode::OptionalDict;
     }
     Y_FAIL();
 }
@@ -57,9 +66,9 @@ TMessageOption MessageFlagToOption(EWrapperMessageFlag::Enum flag)
     using EFlag = EWrapperMessageFlag;
     switch (flag) {
         case EFlag::DEPRECATED_SORT_FIELDS_AS_IN_PROTO_FILE:
-            return EFieldSortOrder::AsInProtoFile;
+            return EProtobufFieldSortOrder::AsInProtoFile;
         case EFlag::SORT_FIELDS_BY_FIELD_NUMBER:
-            return EFieldSortOrder::ByFieldNumber;
+            return EProtobufFieldSortOrder::ByFieldNumber;
     }
     Y_FAIL();
 }
@@ -93,13 +102,27 @@ EWrapperFieldFlag::Enum OptionToFieldFlag(TFieldOption option)
             }
             Y_FAIL();
         }
-        EFlag::Enum operator() (EListMode listMode)
+        EFlag::Enum operator() (EProtobufListMode listMode)
         {
             switch (listMode) {
-                case EListMode::Optional:
+                case EProtobufListMode::Optional:
                     return EFlag::OPTIONAL_LIST;
-                case EListMode::Required:
+                case EProtobufListMode::Required:
                     return EFlag::REQUIRED_LIST;
+            }
+            Y_FAIL();
+        }
+        EFlag::Enum operator() (EProtobufMapMode mapMode)
+        {
+            switch (mapMode) {
+                case EProtobufMapMode::ListOfStructsLegacy:
+                    return EFlag::MAP_AS_LIST_OF_STRUCTS_LEGACY;
+                case EProtobufMapMode::ListOfStructs:
+                    return EFlag::MAP_AS_LIST_OF_STRUCTS;
+                case EProtobufMapMode::Dict:
+                    return EFlag::MAP_AS_DICT;
+                case EProtobufMapMode::OptionalDict:
+                    return EFlag::MAP_AS_OPTIONAL_DICT;
             }
             Y_FAIL();
         }
@@ -113,12 +136,12 @@ EWrapperMessageFlag::Enum OptionToMessageFlag(TMessageOption option)
     using EFlag = EWrapperMessageFlag;
     struct TVisitor
     {
-        EFlag::Enum operator() (EFieldSortOrder sortOrder)
+        EFlag::Enum operator() (EProtobufFieldSortOrder sortOrder)
         {
             switch (sortOrder) {
-                case EFieldSortOrder::AsInProtoFile:
+                case EProtobufFieldSortOrder::AsInProtoFile:
                     return EFlag::DEPRECATED_SORT_FIELDS_AS_IN_PROTO_FILE;
-                case EFieldSortOrder::ByFieldNumber:
+                case EProtobufFieldSortOrder::ByFieldNumber:
                     return EFlag::SORT_FIELDS_BY_FIELD_NUMBER;
             }
             Y_FAIL();
@@ -141,9 +164,14 @@ public:
         SetOption(SerializationMode, serializationMode);
     }
 
-    void operator() (EListMode listMode)
+    void operator() (EProtobufListMode listMode)
     {
         SetOption(ListMode, listMode);
+    }
+
+    void operator() (EProtobufMapMode mapMode)
+    {
+        SetOption(MapMode, mapMode);
     }
 
     template <typename T>
@@ -162,13 +190,14 @@ public:
 public:
     TMaybe<EProtobufType> Type;
     TMaybe<EProtobufSerializationMode> SerializationMode;
-    TMaybe<EListMode> ListMode;
+    TMaybe<EProtobufListMode> ListMode;
+    TMaybe<EProtobufMapMode> MapMode;
 };
 
 class TParseProtobufMessageOptionsVisitor
 {
 public:
-    void operator() (EFieldSortOrder fieldSortOrder)
+    void operator() (EProtobufFieldSortOrder fieldSortOrder)
     {
         SetOption(FieldSortOrder, fieldSortOrder);
     }
@@ -187,7 +216,7 @@ public:
     };
 
 public:
-    TMaybe<EFieldSortOrder> FieldSortOrder;
+    TMaybe<EProtobufFieldSortOrder> FieldSortOrder;
 };
 
 void ParseProtobufFieldOptions(
@@ -206,6 +235,9 @@ void ParseProtobufFieldOptions(
     }
     if (visitor.ListMode) {
         fieldOptions->ListMode = *visitor.ListMode;
+    }
+    if (visitor.MapMode) {
+        fieldOptions->MapMode = *visitor.MapMode;
     }
 }
 
@@ -349,6 +381,34 @@ TNode MakeProtoFormatMessageFieldsConfig(
     TNode* enumerations,
     TCycleChecker& cycleChecker);
 
+TNode MakeProtoFormatMessageFieldsConfig(
+    const Descriptor* descriptor,
+    TNode* enumerations,
+    const TProtobufFieldOptions& defaultOptions,
+    TCycleChecker& cycleChecker);
+
+TNode MakeMapFieldsConfig(
+    const FieldDescriptor* fieldDescriptor,
+    TNode* enumerations,
+    const TProtobufFieldOptions& fieldOptions,
+    TCycleChecker& cycleChecker)
+{
+    Y_VERIFY(fieldDescriptor->is_map());
+    auto message = fieldDescriptor->message_type();
+    switch (fieldOptions.MapMode) {
+        case EProtobufMapMode::ListOfStructsLegacy:
+            return MakeProtoFormatMessageFieldsConfig(message, enumerations, cycleChecker);
+        case EProtobufMapMode::ListOfStructs:
+        case EProtobufMapMode::Dict:
+        case EProtobufMapMode::OptionalDict: {
+            TProtobufFieldOptions options;
+            options.SerializationMode = EProtobufSerializationMode::Yt;
+            return MakeProtoFormatMessageFieldsConfig(message, enumerations, options, cycleChecker);
+        }
+    }
+    Y_FAIL();
+}
+
 TNode MakeProtoFormatFieldConfig(
     const FieldDescriptor* fieldDescriptor,
     TNode* enumerations,
@@ -376,10 +436,18 @@ TNode MakeProtoFormatFieldConfig(
         auto* enumeration = fieldDescriptor->enum_type();
         (*enumerations)[enumeration->name()] = MakeEnumerationConfig(enumeration);
         fieldConfig["enumeration_name"] = enumeration->name();
-    } else if (
-        fieldDescriptor->type() == FieldDescriptor::TYPE_MESSAGE &&
-        fieldOptions.SerializationMode == EProtobufSerializationMode::Yt)
-    {
+    }
+
+    if (fieldOptions.SerializationMode != EProtobufSerializationMode::Yt) {
+        return fieldConfig;
+    }
+
+    if (fieldDescriptor->is_map()) {
+        fieldConfig["fields"] = MakeMapFieldsConfig(fieldDescriptor, enumerations, fieldOptions, cycleChecker);
+        return fieldConfig;
+    }
+
+    if (fieldDescriptor->type() == FieldDescriptor::TYPE_MESSAGE) {
         fieldConfig["fields"] = MakeProtoFormatMessageFieldsConfig(
             fieldDescriptor->message_type(),
             enumerations,
@@ -392,21 +460,30 @@ TNode MakeProtoFormatFieldConfig(
 TNode MakeProtoFormatMessageFieldsConfig(
     const Descriptor* descriptor,
     TNode* enumerations,
+    const TProtobufFieldOptions& defaultOptions,
     TCycleChecker& cycleChecker)
 {
     TNode fields = TNode::CreateList();
-    TProtobufFieldOptions fieldOptions;
-    ParseProtobufFieldOptions(descriptor->options().GetRepeatedExtension(default_field_flags), &fieldOptions);
     auto guard = cycleChecker.Enter(descriptor);
     for (int fieldIndex = 0; fieldIndex < descriptor->field_count(); ++fieldIndex) {
         auto* fieldDesc = descriptor->field(fieldIndex);
         fields.Add(MakeProtoFormatFieldConfig(
             fieldDesc,
             enumerations,
-            fieldOptions,
+            defaultOptions,
             cycleChecker));
     }
     return fields;
+}
+
+TNode MakeProtoFormatMessageFieldsConfig(
+    const Descriptor* descriptor,
+    TNode* enumerations,
+    TCycleChecker& cycleChecker)
+{
+    TProtobufFieldOptions defaultOptions;
+    ParseProtobufFieldOptions(descriptor->options().GetRepeatedExtension(default_field_flags), &defaultOptions);
+    return MakeProtoFormatMessageFieldsConfig(descriptor, enumerations, defaultOptions, cycleChecker);
 }
 
 TNode MakeProtoFormatConfig(const TVector<const Descriptor*>& descriptors)
@@ -482,18 +559,116 @@ bool HasNameExtension(const FieldDescriptor& fieldDescriptor)
     return options.HasExtension(column_name) || options.HasExtension(key_column_name);
 }
 
-void SortFields(TVector<const FieldDescriptor*>& fieldDescriptors, EFieldSortOrder fieldSortOrder)
+void SortFields(TVector<const FieldDescriptor*>& fieldDescriptors, EProtobufFieldSortOrder fieldSortOrder)
 {
     switch (fieldSortOrder) {
-        case EFieldSortOrder::AsInProtoFile:
+        case EProtobufFieldSortOrder::AsInProtoFile:
             return;
-        case EFieldSortOrder::ByFieldNumber:
+        case EProtobufFieldSortOrder::ByFieldNumber:
             SortBy(fieldDescriptors, [] (const FieldDescriptor* fieldDescriptor) {
                 return fieldDescriptor->number();
             });
             return;
     }
     Y_FAIL();
+}
+
+TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
+    const FieldDescriptor& fieldDescriptor,
+    const TProtobufFieldOptions& defaultOptions,
+    TCycleChecker& cycleChecker);
+
+NTi::TTypePtr GetMessageType(
+    const FieldDescriptor& fieldDescriptor,
+    const TProtobufFieldOptions& defaultFieldOptions,
+    TCycleChecker& cycleChecker)
+{
+    const auto& messageDescriptor = *fieldDescriptor.message_type();
+    auto guard = cycleChecker.Enter(&messageDescriptor);
+    auto embeddedMessageDefaultFieldOptions = defaultFieldOptions;
+    TProtobufMessageOptions embeddedMessageOptions;
+    ParseProtobufFieldOptions(
+        messageDescriptor.options().GetRepeatedExtension(default_field_flags),
+        &embeddedMessageDefaultFieldOptions);
+    ParseProtobufMessageOptions(
+        messageDescriptor.options().GetRepeatedExtension(message_flags),
+        &embeddedMessageOptions);
+
+    TVector<const FieldDescriptor*> fieldDescriptors;
+    fieldDescriptors.reserve(messageDescriptor.field_count());
+    for (int i = 0; i < messageDescriptor.field_count(); ++i) {
+        fieldDescriptors.push_back(messageDescriptor.field(i));
+    }
+    SortFields(fieldDescriptors, embeddedMessageOptions.FieldSortOrder);
+
+    TVector<NTi::TStructType::TOwnedMember> members;
+    for (const auto innerFieldDescriptor : fieldDescriptors) {
+        auto type = GetFieldType(
+            *innerFieldDescriptor,
+            embeddedMessageDefaultFieldOptions,
+            cycleChecker);
+
+        if (HoldsAlternative<TOtherColumns>(type)) {
+            ythrow TApiUsageError() <<
+                "Could not deduce YT type for field " << innerFieldDescriptor->name() << " of " <<
+                "embedded message field " << fieldDescriptor.name() << " " <<
+                "(note that " << EWrapperFieldFlag::OTHER_COLUMNS << " fields " <<
+                "are not allowed inside embedded messages)";
+        } else if (HoldsAlternative<NTi::TTypePtr>(type)) {
+            members.push_back(NTi::TStructType::TOwnedMember(
+                GetColumnName(*innerFieldDescriptor),
+                Get<NTi::TTypePtr>(type)));
+        } else {
+            Y_FAIL();
+        }
+    }
+    return NTi::Struct(std::move(members));
+}
+
+NTi::TTypePtr GetMapType(
+    const FieldDescriptor& fieldDescriptor,
+    const TProtobufFieldOptions& fieldOptions,
+    TCycleChecker& cycleChecker)
+{
+    Y_VERIFY(fieldDescriptor.is_map());
+    switch (fieldOptions.MapMode) {
+        case EProtobufMapMode::ListOfStructsLegacy:
+        case EProtobufMapMode::ListOfStructs: {
+            TProtobufFieldOptions embeddedOptions;
+            if (fieldOptions.MapMode == EProtobufMapMode::ListOfStructs) {
+                embeddedOptions.SerializationMode = EProtobufSerializationMode::Yt;
+            }
+            auto list = NTi::List(GetMessageType(fieldDescriptor, embeddedOptions, cycleChecker));
+            switch (fieldOptions.ListMode) {
+                case EProtobufListMode::Required:
+                    return list;
+                case EProtobufListMode::Optional:
+                    return NTi::Optional(std::move(list));
+            }
+            Y_FAIL();
+        }
+        case EProtobufMapMode::Dict:
+        case EProtobufMapMode::OptionalDict: {
+            auto message = fieldDescriptor.message_type();
+            Y_VERIFY(message->field_count() == 2);
+            auto keyVariant = GetScalarFieldType(*message->field(0), TProtobufFieldOptions{});
+            Y_VERIFY(HoldsAlternative<EValueType>(keyVariant));
+            auto key = Get<EValueType>(keyVariant);
+            TProtobufFieldOptions embeddedOptions;
+            embeddedOptions.SerializationMode = EProtobufSerializationMode::Yt;
+            auto valueVariant = GetFieldType(*message->field(1), embeddedOptions, cycleChecker);
+            Y_VERIFY(HoldsAlternative<NTi::TTypePtr>(valueVariant));
+            auto value = Get<NTi::TTypePtr>(valueVariant);
+            Y_VERIFY(value->IsOptional());
+            value = value->AsOptional()->GetItemType();
+            auto dict = NTi::Dict(ToTypeV3(key, true), value);
+            if (fieldOptions.MapMode == EProtobufMapMode::OptionalDict) {
+                return NTi::Optional(dict);
+            } else {
+                return dict;
+            }
+        }
+    }
 }
 
 TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
@@ -514,46 +689,11 @@ TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
     if (fieldDescriptor.type() == FieldDescriptor::TYPE_MESSAGE &&
         fieldOptions.SerializationMode == EProtobufSerializationMode::Yt)
     {
-        const auto& messageDescriptor = *fieldDescriptor.message_type();
-        auto guard = cycleChecker.Enter(&messageDescriptor);
-        TProtobufFieldOptions embeddedMessageDefaultFieldOptions;
-        TProtobufMessageOptions embeddedMessageOptions;
-        ParseProtobufFieldOptions(
-            messageDescriptor.options().GetRepeatedExtension(default_field_flags),
-            &embeddedMessageDefaultFieldOptions);
-        ParseProtobufMessageOptions(
-            messageDescriptor.options().GetRepeatedExtension(message_flags),
-            &embeddedMessageOptions);
-
-        TVector<const FieldDescriptor*> fieldDescriptors;
-        fieldDescriptors.reserve(messageDescriptor.field_count());
-        for (int i = 0; i < messageDescriptor.field_count(); ++i) {
-            fieldDescriptors.push_back(messageDescriptor.field(i));
+        if (fieldDescriptor.is_map()) {
+            return GetMapType(fieldDescriptor, fieldOptions, cycleChecker);
+        } else {
+            type = GetMessageType(fieldDescriptor, TProtobufFieldOptions{}, cycleChecker);
         }
-        SortFields(fieldDescriptors, embeddedMessageOptions.FieldSortOrder);
-
-        TVector<NTi::TStructType::TOwnedMember> members;
-        for (const auto innerFieldDescriptor : fieldDescriptors) {
-            auto type = GetFieldType(
-                *innerFieldDescriptor,
-                embeddedMessageDefaultFieldOptions,
-                cycleChecker);
-
-            if (HoldsAlternative<TOtherColumns>(type)) {
-                ythrow TApiUsageError() <<
-                    "Could not deduce YT type for field " << innerFieldDescriptor->name() << " of " <<
-                    "embedded message field " << fieldDescriptor.name() << " " <<
-                    "(note that " << EWrapperFieldFlag::OTHER_COLUMNS << " fields " <<
-                    "are not allowed inside embedded messages)";
-            } else if (HoldsAlternative<NTi::TTypePtr>(type)) {
-                members.push_back(NTi::TStructType::TOwnedMember(
-                    GetColumnName(*innerFieldDescriptor),
-                    Get<NTi::TTypePtr>(type)));
-            } else {
-                Y_FAIL();
-            }
-        }
-        type = NTi::Struct(std::move(members));
     } else {
         auto scalarType = GetScalarFieldType(fieldDescriptor, fieldOptions);
         if (HoldsAlternative<TOtherColumns>(scalarType)) {
@@ -570,9 +710,9 @@ TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
             Y_ENSURE(fieldOptions.SerializationMode == EProtobufSerializationMode::Yt,
                 "Repeated fields are supported only for YT serialization mode");
             switch (fieldOptions.ListMode) {
-                case EListMode::Required:
+                case EProtobufListMode::Required:
                     return NTi::TTypePtr(NTi::List(std::move(type)));
-                case EListMode::Optional:
+                case EProtobufListMode::Optional:
                     return NTi::TTypePtr(NTi::Optional(NTi::List(std::move(type))));
             }
             Y_FAIL();

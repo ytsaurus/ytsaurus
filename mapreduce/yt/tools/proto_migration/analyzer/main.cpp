@@ -40,26 +40,31 @@ void Traverse(
     }
 }
 
-bool AreFieldsOrderedByFieldNumber(const Descriptor* descriptor)
-{
-    for (int i = 0; i < descriptor->field_count() - 1; ++i) {
-        if (descriptor->field(i)->number() > descriptor->field(i + 1)->number()) {
-            return false;
+void PrintUnorderedMessages(const FieldDescriptor* field, const TProtobufFieldOptions& options) {
+    auto areFieldsOrderedByFieldNumber = [](const Descriptor* descriptor) {
+        for (int i = 0; i < descriptor->field_count() - 1; ++i) {
+            if (descriptor->field(i)->number() > descriptor->field(i + 1)->number()) {
+                return false;
+            }
         }
+        return true;
+    };
+    if (field->type() == FieldDescriptor::TYPE_MESSAGE &&
+        options.SerializationMode == EProtobufSerializationMode::Yt &&
+        !areFieldsOrderedByFieldNumber(field->message_type()))
+    {
+        Cout << field->message_type()->file()->name() << ": message " << field->message_type()->full_name() << Endl;
     }
-    return true;
 }
 
-void Analyze(const Descriptor* descriptor)
+void PrintMaps(const FieldDescriptor* field, const TProtobufFieldOptions& options) {
+    if (options.SerializationMode == EProtobufSerializationMode::Yt && field->is_map()) {
+        Cout << field->file()->name() << ": message " << field->full_name() << ", field " << field->name() << " = " << field->index() << Endl;
+    }
+}
+
+void Analyze(const Descriptor* descriptor, TVisitor visitor)
 {
-    auto visitor = [] (const FieldDescriptor* field, const TProtobufFieldOptions& options) {
-        if (field->type() == FieldDescriptor::TYPE_MESSAGE &&
-            options.SerializationMode == EProtobufSerializationMode::Yt &&
-            !AreFieldsOrderedByFieldNumber(field->message_type()))
-        {
-            Cout << field->message_type()->file()->name() << ": message " << field->message_type()->full_name() << Endl;
-        }
-    };
     THashSet<const Descriptor*> visited;
     for (int fieldIndex = 0; fieldIndex < descriptor->field_count(); ++fieldIndex) {
         auto* field = descriptor->field(fieldIndex);
@@ -75,7 +80,7 @@ int main(int argc, char** argv)
 
     NLastGetopt::TOptsParseResult args(&opts, argc, argv);
 
-    Analyze(NYT::NProtoMigration::TRoot::descriptor());
+    Analyze(NYT::NProtoMigration::TRoot::descriptor(), PrintUnorderedMessages);
 
     return 0;
 }
