@@ -232,7 +232,7 @@ class TestSchedulerAbortsJobOnLackOfCpu(YTEnvSetup):
         release_breakpoint("Op1")
 
         wait(lambda: len(op2.get_running_jobs()) == 1)
-        wait(lambda: get(op2.get_path() + "/@progress/jobs/aborted/scheduled/preemption") == 1)
+        wait(lambda: get(op2.get_path() + "/@progress/jobs/aborted/scheduled/preemption") > 0)
         wait(lambda: len(op1.get_running_jobs()) == 1)
 
 
