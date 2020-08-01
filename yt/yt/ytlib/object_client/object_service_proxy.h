@@ -393,7 +393,9 @@ public:
     TReqExecuteBatchBasePtr ExecuteBatchNoBackoffRetries(int subbatchSize = DefaultSubbatchSize);
 
     //! Same as ExecuteBatch, but additionally retries any subrequest that results a retriable error.
-    TReqExecuteBatchWithRetriesPtr ExecuteBatchWithRetries(TReqExecuteBatchWithRetriesConfigPtr config, int subbatchSize = DefaultSubbatchSize);
+    TReqExecuteBatchWithRetriesPtr ExecuteBatchWithRetries(
+        TReqExecuteBatchWithRetriesConfigPtr config,
+        int subbatchSize = DefaultSubbatchSize);
     TReqExecuteBatchWithRetriesPtr ExecuteBatchWithRetries(
         TReqExecuteBatchWithRetriesConfigPtr config,
         TCallback<bool(int, const TError&)> needRetry,

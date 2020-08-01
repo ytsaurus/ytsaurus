@@ -28,7 +28,9 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(IChannelPtr channe
         TObjectServiceProxy::GetDescriptor(),
         TMethodDescriptor("Execute"))
     , SubbatchSize_(subbatchSize)
-{ }
+{
+    SetHeavy(true);
+}
 
 TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(const TReqExecuteSubbatch& other)
     : TClientRequest(other)
