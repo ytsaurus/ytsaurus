@@ -84,11 +84,6 @@ void WriteUnversionedValue(const TUnversionedValue& value, IOutputStream* output
         << TErrorAttribute("value", ToString(value));
 }
 
-bool IsAnyOrComposite(const TUnversionedValue& value)
-{
-    return value.Type == EValueType::Any || value.Type == EValueType::Composite;
-}
-
 bool IsTrivialIntermediateSchema(const NTableClient::TTableSchema& schema)
 {
     // Here we make expected objects.

@@ -30,8 +30,6 @@ private:
 
 void WriteUnversionedValue(const NTableClient::TUnversionedValue& value, IOutputStream* output, const TEscapeTable& escapeTable);
 
-bool IsAnyOrComposite(const NTableClient::TUnversionedValue& value);
-
 bool IsTrivialIntermediateSchema(const NTableClient::TTableSchema& schema);
 
 ////////////////////////////////////////////////////////////////////////////////

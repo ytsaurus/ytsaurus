@@ -89,7 +89,7 @@ private:
 
     void WriteValue(const TUnversionedValue& value)
     {
-        if (Config_->SkipUnsupportedTypes && IsAnyOrComposite(value)) {
+        if (Config_->SkipUnsupportedTypes && IsAnyOrComposite(value.Type)) {
             return;
         }
         auto* output = GetOutputStream();

@@ -112,7 +112,7 @@ protected:
 
         if (!isNull) {
             ui32 size;
-            if (ValueType == EValueType::Any && unversionedValue.Type != EValueType::Any) {
+            if (IsAnyOrComposite(ValueType) && !IsAnyOrComposite(unversionedValue.Type)) {
                 // Any non-any and non-null value convert to yson.
                 size = WriteYson(CurrentPreallocated_, unversionedValue);
             } else {

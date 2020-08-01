@@ -230,12 +230,14 @@ inline constexpr bool IsArithmeticType(EValueType type)
     return IsIntegralType(type) || type == EValueType::Double;
 }
 
+inline constexpr bool IsAnyOrComposite(EValueType type)
+{
+    return type == EValueType::Any || type == EValueType::Composite;
+}
+
 inline constexpr bool IsStringLikeType(EValueType type)
 {
-    return
-        type == EValueType::String ||
-        type == EValueType::Any ||
-        type == EValueType::Composite;
+    return type == EValueType::String || IsAnyOrComposite(type);
 }
 
 inline constexpr bool IsValueType(EValueType type)

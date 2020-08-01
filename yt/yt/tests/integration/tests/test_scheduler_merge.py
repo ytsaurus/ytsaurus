@@ -1504,6 +1504,30 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
         assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
+
+    @authors("ermolovd")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_merge_lose_composite_type(self, optimize_for):
+        create("table", "//tmp/t1", attributes={
+            "schema": [
+                {"name": "a", "type_v3": list_type("int64")},
+            ]
+        })
+        write_table("//tmp/t1", [{"a": [1, 2, 3]}, {"a": [4, 5, 6]}])
+
+        create("table", "//tmp/t_out", attributes={
+            "schema": [
+                {"name": "a", "type_v3": optional_type("yson")},
+            ],
+            "optimize_for": optimize_for,
+        })
+        op = merge(
+            in_=["//tmp/t1"],
+            out="//tmp/t_out",
+            spec={"schema_inference_mode": "from_output"},
+        )
+
+
 ##################################################################
 
 class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
