@@ -11,6 +11,8 @@
 
 #include <yt/core/ytalloc/memory_zone.h>
 
+#include <yt/core/profiling/timing.h>
+
 namespace NYT::NRpc {
 
 using namespace NBus;
@@ -23,6 +25,7 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = RpcClientLogger;
+static const auto LightInvokerDurationWarningThreshold = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -487,7 +490,15 @@ void TClientResponse::HandleError(const TError& error)
 
 void TClientResponse::DoHandleError(const TError& error)
 {
+    NProfiling::TWallTimer timer;
+
     Finish(error);
+
+    if (!ClientContext_->GetHeavy() && timer.GetElapsedTime() > LightInvokerDurationWarningThreshold) {
+        YT_LOG_DEBUG("Handling light request error took too long (RequestId: %v, Duration: %v)",
+            ClientContext_->GetRequestId(),
+            timer.GetElapsedTime());
+    }
 }
 
 void TClientResponse::Finish(const TError& error)
@@ -580,8 +591,16 @@ void TClientResponse::HandleResponse(TSharedRefArray message)
 
 void TClientResponse::DoHandleResponse(TSharedRefArray message)
 {
+    NProfiling::TWallTimer timer;
+
     Deserialize(std::move(message));
     Finish(TError());
+
+    if (!ClientContext_->GetHeavy() && timer.GetElapsedTime() > LightInvokerDurationWarningThreshold) {
+        YT_LOG_DEBUG("Handling light response took too long (RequestId: %v, Duration: %v)",
+            ClientContext_->GetRequestId(),
+            timer.GetElapsedTime());
+    }
 }
 
 void TClientResponse::HandleStreamingPayload(const TStreamingPayload& payload)
