@@ -1200,7 +1200,7 @@ private:
                 node->FirstPendingRowIndex,
                 node->FirstPendingRowIndex + flushRowCount - 1,
                 flushDataSize,
-                CpuDurationToValue(lagTime));
+                CpuDurationToDuration(lagTime));
 
             req->Invoke().Subscribe(
                 BIND(&TImpl::OnBlocksFlushed, MakeWeak(this), CurrentSession_, node, flushRowCount)
