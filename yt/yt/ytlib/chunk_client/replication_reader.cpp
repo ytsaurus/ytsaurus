@@ -2169,6 +2169,8 @@ private:
         req->Header().set_response_memory_zone(static_cast<i32>(EMemoryZone::Undumpable));
 
         req->Attachments() = writer.Finish();
+        // COMPAT(babenko)
+        req->set_lookup_keys(MergeRefsToString(req->Attachments()));
         TotalBytesSent_ += GetByteSize(req->Attachments());
 
         NProfiling::TWallTimer dataWaitTimer;
