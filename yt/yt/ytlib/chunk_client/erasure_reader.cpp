@@ -28,13 +28,14 @@ namespace NYT::NChunkClient {
 using namespace NApi;
 using namespace NErasure;
 using namespace NConcurrency;
+using namespace NYTree;
 using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NErasureHelpers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
+std::vector<IChunkReaderPtr> CreateErasurePartReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NNative::IClientPtr client,
@@ -63,6 +64,9 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
             return lhs.GetReplicaIndex() < rhs.GetReplicaIndex();
         });
 
+    auto partConfig = CloneYsonSerializable(config);
+    partConfig->FailOnNoSeeds = true;
+
     std::vector<IChunkReaderPtr> readers;
     readers.reserve(partIndexSet.size());
 
@@ -81,7 +85,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
                 TChunkReplicaList partReplicas(it, jt);
                 auto partChunkId = ErasurePartIdFromChunkId(chunkId, it->GetReplicaIndex());
                 auto reader = CreateReplicationReader(
-                    config,
+                    partConfig,
                     options,
                     client,
                     nodeDirectory,
@@ -106,7 +110,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     return readers;
 }
 
-std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
+std::vector<IChunkReaderPtr> CreateAllErasurePartReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NNative::IClientPtr client,
@@ -123,7 +127,7 @@ std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
     TPartIndexList partIndexList(partCount);
     std::iota(partIndexList.begin(), partIndexList.end(), 0);
 
-    return CreateErasurePartsReaders(
+    return CreateErasurePartReaders(
         config,
         options,
         client,

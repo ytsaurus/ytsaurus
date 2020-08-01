@@ -508,7 +508,8 @@ IChunkReaderPtr CreateRemoteReader(
     auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
     auto replicas = FromProto<TChunkReplicaList>(chunkSpec.replicas());
 
-    auto Logger = TLogger(ChunkClientLogger).AddTag("ChunkId: %v", chunkId);
+    auto Logger = TLogger(ChunkClientLogger)
+        .AddTag("ChunkId: %v", chunkId);
 
     if (IsErasureChunkId(chunkId)) {
         auto erasureCodecId = ECodec(chunkSpec.erasure_codec());
@@ -526,6 +527,9 @@ IChunkReaderPtr CreateRemoteReader(
             erasureCodec->GetTotalPartCount() :
             erasureCodec->GetDataPartCount();
 
+        auto partConfig = CloneYsonSerializable(config);
+        partConfig->FailOnNoSeeds = true;
+
         std::vector<IChunkReaderAllowingRepairPtr> readers;
         readers.reserve(partCount);
 
@@ -538,7 +542,7 @@ IChunkReaderPtr CreateRemoteReader(
 
             auto partChunkId = ErasurePartIdFromChunkId(chunkId, index);
             auto reader = CreateReplicationReader(
-                config,
+                partConfig,
                 options,
                 client,
                 nodeDirectory,

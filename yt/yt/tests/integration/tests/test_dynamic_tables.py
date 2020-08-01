@@ -1873,15 +1873,27 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 return False
         wait(_try_build_snapshot)
 
-        def _check_snapshot():
-            files = ls("//sys/tablet_cells/{}/snapshots".format(cell_id))
+        def _get_lastest_snapshot():
+            root = "//sys/tablet_cells/{}/snapshots".format(cell_id)
+            files = ls(root)
             assert len(files) <= 1
             if len(files) == 0:
-                return False
-            file = files[0]
-            assert get("//sys/tablet_cells/{}/snapshots/{}/@erasure_codec".format(cell_id, file)) == "isa_lrc_12_2_2"
-            return True
-        wait(_check_snapshot)
+                return None
+            return root + "/" + files[0]
+
+        wait(lambda: _get_lastest_snapshot() is not None)
+
+        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
+
+        snapshot = _get_lastest_snapshot()
+        chunk_id = get(snapshot + "/@chunk_ids")[0]
+        chunk_replica_address = list([str(r) for r in get("#{}/@stored_replicas".format(chunk_id)) if r.attributes["index"] == 0])[0]
+        set("//sys/cluster_nodes/{0}/@banned".format(chunk_replica_address), True)
+
+        tablet_address = get("#{}/@peers/0/address".format(cell_id))	
+        set("//sys/cluster_nodes/{0}/@decommissioned".format(tablet_address), True)
+
+        self._wait_cell_good(cell_id, [tablet_address])
 
 ##################################################################
 

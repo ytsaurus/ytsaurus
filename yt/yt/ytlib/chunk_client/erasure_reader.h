@@ -19,7 +19,7 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
+std::vector<IChunkReaderPtr> CreateErasurePartReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::NNative::IClientPtr client,
@@ -33,7 +33,7 @@ std::vector<IChunkReaderPtr> CreateErasurePartsReaders(
     NConcurrency::IThroughputThrottlerPtr bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
     NConcurrency::IThroughputThrottlerPtr rpsThrottler = NConcurrency::GetUnlimitedThrottler());
 
-std::vector<IChunkReaderPtr> CreateErasureAllPartsReaders(
+std::vector<IChunkReaderPtr> CreateAllErasurePartReaders(
     TReplicationReaderConfigPtr config,
     TRemoteReaderOptionsPtr options,
     NApi::NNative::IClientPtr client,
