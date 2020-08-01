@@ -28,7 +28,9 @@ public:
     {
         YT_VERIFY(Provider_);
 
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps)
+            .SetQueueSizeLimit(100000)
+            .SetConcurrencyLimit(100000));
     }
 
 private:
