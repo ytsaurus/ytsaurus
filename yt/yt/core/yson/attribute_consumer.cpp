@@ -120,9 +120,9 @@ void TAttributeFragmentConsumer::End()
 
 TAttributeValueConsumer::TAttributeValueConsumer(
     IAsyncYsonConsumer* underlyingConsumer,
-    TStringBuf key)
+    TString key)
     : UnderlyingConsumer_(underlyingConsumer)
-    , Key_(key)
+    , Key_(std::move(key))
 { }
 
 void TAttributeValueConsumer::OnStringScalar(TStringBuf value)
@@ -218,8 +218,7 @@ void TAttributeValueConsumer::OnRaw(TStringBuf yson, EYsonType type)
 void TAttributeValueConsumer::OnRaw(TFuture<TYsonString> asyncStr)
 {
     if (Empty_) {
-        auto key = Key_;
-        UnderlyingConsumer_->OnRaw(asyncStr.Apply(BIND([key] (const TYsonString& str) {
+        UnderlyingConsumer_->OnRaw(asyncStr.Apply(BIND([key = Key_] (const TYsonString& str) {
             if (str) {
                 YT_VERIFY(str.GetType() == EYsonType::Node);
                 TStringStream stream;
