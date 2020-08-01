@@ -203,7 +203,7 @@ message TReqLookupRows
     }
 
     required NYT.NProto.TGuid chunk_id = 1;
-    required bytes lookup_keys = 2;
+    reserved 2;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
     required NYT.NProto.TGuid read_session_id = 4;
     required bool produce_all_versions = 5;
@@ -211,8 +211,9 @@ message TReqLookupRows
     optional uint64 timestamp = 8;
     optional int32 compression_codec = 9;
     optional uint64 chunk_timestamp = 10;
-
     required TTableSchemaData schema_data = 6;
+
+    // Lookup keys are passed via attachments.
 }
 
 message TRspLookupRows

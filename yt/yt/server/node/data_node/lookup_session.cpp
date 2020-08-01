@@ -46,7 +46,7 @@ TLookupSession::TLookupSession(
     TTimestamp timestamp,
     bool produceAllVersions,
     TCachedTableSchemaPtr tableSchema,
-    const TString& requestedKeysString,
+    const std::vector<TSharedRef>& serializedKeys,
     NCompression::ECodec codecId,
     TTimestamp chunkTimestamp)
     : Bootstrap_(bootstrap)
@@ -76,7 +76,7 @@ TLookupSession::TLookupSession(
         ChunkId_);
 
     TWireProtocolReader keysReader(
-        TSharedRef::FromString<TKeyReaderBufferTag>(requestedKeysString),
+        MergeRefsToRef<TKeyReaderBufferTag>(serializedKeys),
         KeyReaderRowBuffer_);
     RequestedKeys_ = keysReader.ReadUnversionedRowset(true);
 
