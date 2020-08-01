@@ -106,7 +106,9 @@ TAG(
     ya:fat
     ya:force_distbuild
     ya:huge_logs
+    ya:full_logs
     ya:sys_info
+    ya:noretries
 )
 
 NO_LINT()
