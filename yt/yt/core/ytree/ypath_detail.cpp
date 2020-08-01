@@ -486,12 +486,15 @@ TFuture<TYsonString> TSupportsAttributes::DoFindAttribute(TStringBuf key)
 }
 
 TYsonString TSupportsAttributes::DoGetAttributeFragment(
-    const TStringBuf key,
+    TStringBuf key,
     const TYPath& path,
     const TYsonString& wholeYson)
 {
     if (!wholeYson) {
         ThrowNoSuchAttribute(key);
+    }
+    if (path.empty()) {
+        return wholeYson;
     }
     auto node = ConvertToNode<TYsonString>(wholeYson);
     return SyncYPathGet(node, path, std::nullopt);
