@@ -2133,7 +2133,6 @@ private:
 
         TWireProtocolWriter writer;
         writer.WriteUnversionedRowset(MakeRange(LookupKeys_));
-        ToProto(req->mutable_lookup_keys(), MergeRefsToString(writer.Finish()));
 
         ToProto(req->mutable_read_session_id(), ReadSessionId_);
         req->set_timestamp(Timestamp_);
@@ -2150,7 +2149,9 @@ private:
         }
 
         req->Header().set_response_memory_zone(static_cast<i32>(EMemoryZone::Undumpable));
-        TotalBytesSent_ += req->ByteSize();
+
+        req->Attachments() = writer.Finish();
+        TotalBytesSent_ += GetByteSize(req->Attachments());
 
         NProfiling::TWallTimer dataWaitTimer;
         req->Invoke()

@@ -695,7 +695,7 @@ private:
             timestamp,
             produceAllVersions,
             tableSchema,
-            request->lookup_keys(),
+            request->Attachments(),
             codecId,
             chunkTimestamp);
         response->Attachments().push_back(lookupSession.Run());

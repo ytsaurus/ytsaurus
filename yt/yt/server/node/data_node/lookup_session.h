@@ -34,7 +34,7 @@ public:
         NQueryClient::TTimestamp timestamp,
         bool produceAllVersions,
         TCachedTableSchemaPtr tableSchema,
-        const TString& requestedKeysString,
+        const std::vector<TSharedRef>& serializedKeys,
         NCompression::ECodec codecId,
         NQueryClient::TTimestamp chunkTimestamp);
 
