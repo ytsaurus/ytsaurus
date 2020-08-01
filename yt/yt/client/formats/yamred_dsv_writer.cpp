@@ -158,7 +158,7 @@ private:
             if (!value) {
                 continue;
             }
-            bool skip = Config_->SkipUnsupportedTypesInValue && IsAnyOrComposite(*value);
+            bool skip = Config_->SkipUnsupportedTypesInValue && IsAnyOrComposite(value->Type);
             if (!skip) {
                 if (!firstColumn) {
                     stream->Write(Config_->FieldSeparator);
