@@ -1915,10 +1915,11 @@ double TPool::GetSpecifiedResourceFlowRatio() const
 
 void TPool::ConsumeAndRefillForPeriod(TDuration period)
 {
+    double upperLimit = std::max(PersistentAttributes_.AccumulatedResourceRatioVolume, GetIntegralPoolCapacity());
     PersistentAttributes_.AccumulatedResourceRatioVolume += Attributes_.ResourceFlowRatio * period.SecondsFloat();
     PersistentAttributes_.AccumulatedResourceRatioVolume -= PersistentAttributes_.LastIntegralShareRatio * period.SecondsFloat();
     PersistentAttributes_.AccumulatedResourceRatioVolume = std::max(PersistentAttributes_.AccumulatedResourceRatioVolume, 0.0);
-    PersistentAttributes_.AccumulatedResourceRatioVolume = std::min(PersistentAttributes_.AccumulatedResourceRatioVolume, GetIntegralPoolCapacity());
+    PersistentAttributes_.AccumulatedResourceRatioVolume = std::min(PersistentAttributes_.AccumulatedResourceRatioVolume, upperLimit);
 }
 
 double TPool::GetIntegralShareRatioLimitForRelaxedType() const
