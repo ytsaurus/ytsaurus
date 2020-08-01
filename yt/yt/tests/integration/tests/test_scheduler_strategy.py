@@ -2963,21 +2963,18 @@ class TestIntegralGuarantees(YTEnvSetup):
         create_pool("test_pool", attributes={
             "integral_guarantees": {
                 "guarantee_type": "relaxed",
-                "resource_flow": {"cpu": 2}
+                "resource_flow": {"cpu": 10}
             }
         })
 
-        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool"))
-        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/accumulated_resource_ratio_volume") < 0.5
-
-        time.sleep(3)
-        wait(lambda: get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/accumulated_resource_ratio_volume") > 1)
+        wait(lambda: exists(scheduler_orchid_pool_path("test_pool")))
+        wait(lambda: get(scheduler_orchid_pool_path("test_pool") + "/accumulated_resource_ratio_volume") > 3)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            pass
+            set("//sys/pools/test_pool/@integral_guarantees/resource_flow/cpu", 0)
 
-        wait(lambda: exists(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool"))
-        assert get(scheduler_orchid_default_pool_tree_path() + "/pools/test_pool/accumulated_resource_ratio_volume") > 1
+        wait(lambda: exists(scheduler_orchid_pool_path("test_pool")))
+        assert get(scheduler_orchid_pool_path("test_pool") + "/accumulated_resource_ratio_volume") > 3
 
     def test_integral_pools_orchid(self):
         create_pool("burst_pool", attributes={
