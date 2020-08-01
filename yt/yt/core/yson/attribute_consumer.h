@@ -54,7 +54,7 @@ class TAttributeValueConsumer
 public:
     TAttributeValueConsumer(
         IAsyncYsonConsumer* underlyingConsumer,
-        TStringBuf key);
+        TString key);
 
     virtual void OnStringScalar(TStringBuf value) override;
     virtual void OnInt64Scalar(i64 value) override;
@@ -76,7 +76,7 @@ public:
 
 private:
     IAsyncYsonConsumer* const UnderlyingConsumer_;
-    const TStringBuf Key_;
+    const TString Key_;
     bool Empty_ = true;
 
     void ProduceKeyIfNeeded();
