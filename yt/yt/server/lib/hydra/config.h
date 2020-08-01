@@ -179,7 +179,11 @@ public:
 
         RegisterPreprocessor([&] {
             Reader->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
+
             Writer->WorkloadDescriptor.Category = EWorkloadCategory::SystemTabletLogging;
+            Writer->MaxChunkRowCount = 1'000'000'000;
+            Writer->MaxChunkDataSize = 1_TB;
+            Writer->MaxChunkSessionDuration = TDuration::Hours(24);
         });
     }
 };
