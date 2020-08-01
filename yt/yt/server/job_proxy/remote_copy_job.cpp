@@ -315,7 +315,7 @@ private:
         TDeferredChunkMetaPtr chunkMeta;
 
         auto erasureCodec = NErasure::GetCodec(erasureCodecId);
-        auto readers = CreateErasureAllPartsReaders(
+        auto readers = CreateAllErasurePartReaders(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
             RemoteClient_,
@@ -526,7 +526,7 @@ private:
             localChunkReplicas.push_back(replica);
         }
 
-        auto repairPartReaders = CreateErasurePartsReaders(
+        auto repairPartReaders = CreateErasurePartReaders(
             ReaderConfig_,
             New<TRemoteReaderOptions>(),
             Host_->GetClient(),

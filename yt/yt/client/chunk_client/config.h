@@ -137,6 +137,9 @@ public:
     //! Maximum number of attempts to fetch new seeds.
     int RetryCount;
 
+    //! Fail read session immediately if master reports no seeds for chunk.
+    bool FailOnNoSeeds;
+
     //! Time to wait before making another pass with same seeds.
     //! Increases exponentially with every pass, from MinPassBackoffTime to MaxPassBackoffTime.
     TDuration MinBackoffTime;
@@ -217,6 +220,8 @@ public:
             .Default(TDuration::Seconds(3));
         RegisterParameter("retry_count", RetryCount)
             .Default(20);
+        RegisterParameter("fail_on_no_seeds", FailOnNoSeeds)
+            .Default(false);
         RegisterParameter("min_backoff_time", MinBackoffTime)
             .Default(TDuration::Seconds(3));
         RegisterParameter("max_backoff_time", MaxBackoffTime)

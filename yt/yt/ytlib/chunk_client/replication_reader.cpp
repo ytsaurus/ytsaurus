@@ -917,6 +917,11 @@ private:
 
     void OnGotSeeds(const TErrorOr<TChunkReplicaList>& result)
     {
+        auto reader = Reader_.Lock();
+        if (!reader) {
+            return;
+        }
+
         if (!result.IsOK()) {
             DiscardSeeds();
             RegisterError(TError(
@@ -930,7 +935,11 @@ private:
         SeedReplicas_ = result.Value();
         if (SeedReplicas_.empty()) {
             RegisterError(TError("Chunk is lost"));
-            OnRetryFailed();
+            if (reader->Config_->FailOnNoSeeds) {
+                OnSessionFailed(/* fatal */ true);
+            } else {
+                OnRetryFailed();
+            }
             return;
         }
 
@@ -1474,6 +1483,10 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    if (blockIndexes.empty()) {
+        return MakeFuture<std::vector<TBlock>>({});
+    }
+
     auto session = New<TReadBlockSetSession>(this, options, blockIndexes, estimatedSize);
     return session->Run();
 }
@@ -1719,6 +1732,11 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     std::optional<i64> estimatedSize)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+    YT_VERIFY(blockCount >= 0);
+
+    if (blockCount == 0) {
+        return MakeFuture<std::vector<TBlock>>({});
+    }
 
     auto session = New<TReadBlockRangeSession>(this, options, firstBlockIndex, blockCount, estimatedSize);
     return session->Run();

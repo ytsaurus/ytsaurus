@@ -79,7 +79,7 @@ public:
             Logger.AddTag("ReadSessionId: %v", BlockReadOptions_.ReadSessionId);
         }
 
-        YT_LOG_INFO("Creating file chunk reader (StartOffset: %v, EndOffset: %v)",
+        YT_LOG_DEBUG("Creating file chunk reader (StartOffset: %v, EndOffset: %v)",
             startOffset,
             endOffset);
 
@@ -176,12 +176,12 @@ private:
 
     void DoOpen()
     {
-        YT_LOG_INFO("Requesting chunk meta");
+        YT_LOG_DEBUG("Requesting chunk meta");
 
         auto metaOrError = WaitFor(ChunkReader_->GetMeta(BlockReadOptions_));
         THROW_ERROR_EXCEPTION_IF_FAILED(metaOrError, "Failed to get file chunk meta");
 
-        YT_LOG_INFO("Chunk meta received");
+        YT_LOG_DEBUG("Chunk meta received");
         const auto& meta = metaOrError.Value();
 
         auto type = EChunkType(meta->type());
@@ -243,12 +243,6 @@ private:
         }
         YT_VERIFY(blockCount >= 0);
 
-        YT_LOG_INFO("Reading %v blocks out of %v starting from %v (SelectedSize: %v)",
-            blockSequence.size(),
-            blockCount,
-            blockIndex,
-            selectedSize);
-
         auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(meta->extensions());
 
         SequentialBlockFetcher_ = New<TSequentialBlockFetcher>(
@@ -261,15 +255,18 @@ private:
             static_cast<double>(miscExt.compressed_data_size()) / miscExt.uncompressed_data_size(),
             BlockReadOptions_);
 
-        YT_LOG_INFO("File reader opened");
+        YT_LOG_DEBUG("File chunk reader opened (BlockIndexes: %v-%v, SelectedSize: %v)",
+            blockIndex,
+            blockIndex + blockCount - 1,
+            selectedSize);
     }
 
     TBlock GetBlock()
     {
         const auto& block = CurrentBlock_.Get().ValueOrThrow();
 
-        auto* begin = block.Data.Begin();
-        auto* end = block.Data.End();
+        const auto* begin = block.Data.Begin();
+        const auto* end = block.Data.End();
 
         YT_VERIFY(EndOffset_ > 0);
 
