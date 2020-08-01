@@ -695,7 +695,8 @@ private:
             timestamp,
             produceAllVersions,
             tableSchema,
-            request->Attachments(),
+            // COMPAT(babenko)
+            request->has_lookup_keys() ? std::vector{TSharedRef::FromString(request->lookup_keys())} : request->Attachments(),
             codecId,
             chunkTimestamp);
         response->Attachments().push_back(lookupSession.Run());
