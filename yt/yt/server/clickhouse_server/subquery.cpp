@@ -369,33 +369,52 @@ private:
         }
         YT_VERIFY(KeyColumnCount_);
 
-        YT_VERIFY(static_cast<int>(lowerKey.GetCount()) >= *KeyColumnCount_);
-        YT_VERIFY(static_cast<int>(upperKey.GetCount()) >= *KeyColumnCount_);
-
         DB::FieldRef minKey[*KeyColumnCount_];
         DB::FieldRef maxKey[*KeyColumnCount_];
 
-        bool isMin = lowerKey.GetCount() >= 1 && lowerKey[0].Type == EValueType::Min;
-        if (!isMin) {
-            for (int index = 0; index < *KeyColumnCount_; ++index) {
-                minKey[index] = ConvertToField(lowerKey[index]);
+        // TODO(max42): Refactor!
+        {
+            int index = 0;
+            for ( ; index < std::min<int>(lowerKey.GetCount(), *KeyColumnCount_); ++index) {
+                if (lowerKey[index].Type != EValueType::Max && lowerKey[index].Type != EValueType::Min && lowerKey[index].Type != EValueType::Null) {
+                    minKey[index] = ConvertToField(lowerKey[index]);
+                } else {
+                    // Fill the rest with nulls.
+                    break;
+                }
             }
-        } else {
-            // Luckily, Null is smaller than any other value and is recognizible by ClickHouse. Phew.
-            for (int index = 0; index < *KeyColumnCount_; ++index) {
+            for (; index < *KeyColumnCount_; ++index) {
                 minKey[index] = ConvertToField(MakeUnversionedNullValue());
             }
         }
 
         bool isMax = upperKey.GetCount() >= 1 && upperKey[0].Type == EValueType::Max;
-        if (!isMax) {
-            for (int index = 0; index < *KeyColumnCount_; ++index) {
-                maxKey[index] = ConvertToField(upperKey[index]);
+        {
+            if (!isMax) {
+                int index = 0;
+                for (; index < std::min<int>(upperKey.GetCount(), *KeyColumnCount_); ++index) {
+                    if (upperKey[index].Type == EValueType::Max) {
+                        // We can not do anything better than this CH has no meaning of "infinite" value.
+                        // Pretend like this is a half-open ray.
+                        isMax = true;
+                        break;
+                    } else if (upperKey[index].Type == EValueType::Min || upperKey[index].Type == EValueType::Null) {
+                        // Fill the rest with nulls.
+                        break;
+                    } else {
+                        maxKey[index] = ConvertToField(upperKey[index]);
+                    }
+                }
+                if (!isMax) {
+                    for (; index < *KeyColumnCount_; ++index) {
+                        maxKey[index] = ConvertToField(MakeUnversionedNullValue());
+                    }
+                }
             }
         }
-        // We do not have any Max-equiavalent in ClickHouse, but luckily again we have mayBeTrueAfter method which allows
-        // us checking key condition on half-open ray.
 
+        // We do not have any Max-equivalent in ClickHouse, but luckily again we have mayBeTrueAfter method which allows
+        // us checking key condition on half-open ray.
         if (!isMax) {
             return BoolMask(KeyConditions_[tableIndex]->mayBeTrueInRange(*KeyColumnCount_, minKey, maxKey, KeyColumnDataTypes_), false);
         } else {
@@ -517,6 +536,7 @@ std::vector<TSubquery> BuildSubqueries(
             TUnorderedChunkPoolOptions{
                 .JobSizeConstraints = jobSizeConstraints,
                 .OperationId = queryContext->QueryId,
+                .RowBuffer = queryContext->RowBuffer,
             },
             TInputStreamDirectory({TInputStreamDescriptor(false /* isTeleportable */, true /* isPrimary */, false /* isVersioned */)}));
     } else if (poolKind == EPoolKind::Sorted) {

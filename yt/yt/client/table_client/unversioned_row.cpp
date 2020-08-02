@@ -939,6 +939,7 @@ TUnversionedOwningRow DeserializeFromString(const TString& data)
     auto* header = reinterpret_cast<TUnversionedRowHeader*>(rowData.Begin());
 
     header->Count = static_cast<i32>(valueCount);
+    header->Capacity = static_cast<i32>(valueCount);
 
     auto* values = reinterpret_cast<TUnversionedValue*>(header + 1);
     for (int index = 0; index < valueCount; ++index) {

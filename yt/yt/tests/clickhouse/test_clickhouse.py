@@ -1443,7 +1443,6 @@ class TestJobInput(ClickHouseTestBase):
             # Column 'a' isn't sorted.
             clique.assert_read_row_count('select * from concatYtTables("//tmp/t1", "//tmp/t3") where a > 18', exact=2)
 
-
     @authors("max42")
     @pytest.mark.xfail(run="False", reason="Chunk slicing is temporarily not supported")
     def test_chunk_slicing(self):
@@ -1551,6 +1550,65 @@ class TestJobInput(ClickHouseTestBase):
             for delta_stat, instance in zip(delta_stats, instances):
                 assert delta_stat[0] == (1 if instance == initial_instance else 0)
                 assert delta_stat[1] == (1 if instance == initial_instance else 0)
+
+    @authors("max42")
+    def test_ypath(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "ki", "type": "int64", "sort_order": "ascending"},
+                                                          {"name": "ks", "type": "string", "sort_order": "ascending"},
+                                                          {"name": "v", "type": "string"}]})
+        rows = []
+        for ki in xrange(9):
+            for ks in ("abc", "def", "ghi"):
+                rows.append({"ki": ki, "ks": ks, "v": str(ki) + ks})
+            if ki % 3 == 2:
+                write_table("<append=%true>//tmp/t", rows)
+                rows = []
+
+        yson_max = yson.to_yson_type(None, attributes={"type": "max"})
+        yson_min = yson.to_yson_type(None, attributes={"type": "min"})
+        yson_null = yson.to_yson_type(None)
+
+        with Clique(1) as clique:
+            # Simple form.
+            def check_simple(lower_limit, upper_limit):
+                if upper_limit is not None:
+                    range_spec = "{}:{}".format(lower_limit, upper_limit)
+                else:
+                    range_spec = lower_limit
+                table_path = "//tmp/t[{}]".format(range_spec)
+                expected_rows = read_table(table_path)
+                actual_rows = clique.make_query("select * from `{}`".format(table_path))
+                assert actual_rows == expected_rows
+
+            for lower_limit in ("", "#3", "#12", "()", "(0)", "(0, \"def\")", "(1)", "(1, \"def\")"):
+                check_simple(lower_limit, None)
+                for upper_limit in ("", "#24", "#15", "()", "(2)", "(2, \"ghi\")", "(1)", "(1, \"ghi\")"):
+                    check_simple(lower_limit, upper_limit)
+                    check_simple(upper_limit, lower_limit)
+
+            # Complex form.
+            def check_complex(lower_limit, upper_limit):
+                if upper_limit is not None:
+                    range_spec = {"exact": lower_limit}
+                else:
+                    range_spec = {"lower": lower_limit, "upper": upper_limit}
+                table_path = "<ranges=[{}]>//tmp/t".format(yson.dumps(range_spec, yson_format="text"))
+                expected_rows = read_table(table_path)
+                actual_rows = clique.make_query("select * from `{}`".format(table_path))
+                assert actual_rows == expected_rows
+
+            for lower_limit in ({}, {"row_index": 3}, {"row_index": 12}, {"key": []}, {"key": [0]},
+                                {"key": [0, "def"]}, {"key": [1]}, {"key": [1, "def"]}, {"key": [0, yson_max]},
+                                {"key": [0, yson_min]}, {"key": [0, yson_null]}, {"key": [1, yson_max]},
+                                {"key": [1, yson_min]}, {"key": [1, yson_null]}):
+                check_complex(lower_limit, None)
+                for upper_limit in ({}, {"row_index": 24}, {"row_index": 15}, {"key": []}, {"key": [2]},
+                                    {"key": [2, "ghi"]}, {"key": [1]}, {"key": [1, "ghi"]}, {"key": [2, yson_max]},
+                                    {"key": [2, yson_min]}, {"key": [2, yson_null]}, {"key": [1, yson_max]},
+                                    {"key": [1, yson_min]}, {"key": [1, yson_null]}):
+                    check_complex(lower_limit, upper_limit)
+                    check_complex(upper_limit, lower_limit)
+
 
 
 class TestMutations(ClickHouseTestBase):
@@ -2356,7 +2414,6 @@ class TestQueryLog(ClickHouseTestBase):
                 assert state["state"] in ("seen", "evicted")
 
 
-
 class TestQueryRegistry(ClickHouseTestBase):
     def setup(self):
         self._setup()
@@ -2430,6 +2487,7 @@ class TestQueryRegistry(ClickHouseTestBase):
             t = clique.make_async_query_via_proxy("select sleep(3)", headers={"X-Request-Id": "ummagumma"})
             wait(lambda: "ummagumma" in str(clique.get_orchid(clique.get_active_instances()[0], "/queries/running_queries")), iter=10)
             t.join()
+
 
 class TestJoinAndIn(ClickHouseTestBase):
     def setup(self):
@@ -3009,6 +3067,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
 def is_tracing_enabled():
     return "YT_TRACE_DUMP_DIR" in os.environ
+
 
 class TestTracing(ClickHouseTestBase):
     def setup(self):
