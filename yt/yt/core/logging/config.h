@@ -170,6 +170,8 @@ public:
     static TLogManagerConfigPtr CreateDefault();
     static TLogManagerConfigPtr CreateQuiet();
     static TLogManagerConfigPtr CreateSilent();
+    //! Create logging config a-la YT server config: ./#componentName{,.debug,.error}.log.
+    static TLogManagerConfigPtr CreateYtServer(const TString& componentName);
     static TLogManagerConfigPtr CreateFromFile(const TString& file, const NYPath::TYPath& path = "");
     static TLogManagerConfigPtr CreateFromNode(NYTree::INodePtr node, const NYPath::TYPath& path = "");
 };
