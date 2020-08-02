@@ -168,8 +168,8 @@ TString FormatResource(
         usage.GetGpu(),
         limits.GetGpu(),
         // Memory (in MB)
-        usage.GetMemory() / (1024 * 1024),
-        limits.GetMemory() / (1024 * 1024),
+        usage.GetMemory() / 1_MB,
+        limits.GetMemory() / 1_MB,
         // Network
         usage.GetNetwork(),
         limits.GetNetwork());

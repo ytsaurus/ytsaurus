@@ -14,7 +14,7 @@ TJobResources TResourceTreeElement::GetResourceUsage()
 {
     NConcurrency::TReaderGuard guard(ResourceUsageLock_);
 
-    ResourceTree_->IncrementResourceUsageLockReadCount();
+    ResourceTree_->IncrementUsageLockReadCount();
 
     return ResourceUsage_;
 }
@@ -23,7 +23,7 @@ TJobResources TResourceTreeElement::GetResourceUsageWithPrecommit()
 {
     NConcurrency::TReaderGuard guard(ResourceUsageLock_);
 
-    ResourceTree_->IncrementResourceUsageLockReadCount();
+    ResourceTree_->IncrementUsageLockReadCount();
 
     return ResourceUsage_ + ResourceUsagePrecommit_;
 }
@@ -35,7 +35,7 @@ bool TResourceTreeElement::CheckDemand(
 {
     NConcurrency::TReaderGuard guard(ResourceUsageLock_);
 
-    ResourceTree_->IncrementResourceUsageLockReadCount();
+    ResourceTree_->IncrementUsageLockReadCount();
 
     auto availableDemand = ComputeAvailableResources(
         resourceDemand,
@@ -49,46 +49,77 @@ void TResourceTreeElement::SetResourceLimits(TJobResources resourceLimits)
 {
     NConcurrency::TWriterGuard guard(ResourceUsageLock_);
 
-    ResourceTree_->IncrementResourceUsageLockWriteCount();
+    ResourceTree_->IncrementUsageLockWriteCount();
 
     ResourceLimits_ = resourceLimits;
 }
 
-void TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(const TJobResources& delta)
+bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(const TJobResources& delta)
 {
     NConcurrency::TWriterGuard guard(ResourceUsageLock_);
 
-    ResourceTree_->IncrementResourceUsageLockWriteCount();
+    if (!Alive_) {
+        return false;
+    }
+
+    ResourceTree_->IncrementUsageLockWriteCount();
 
     ResourceUsagePrecommit_ += delta;
+
+    return true;
 }
 
-void TResourceTreeElement::CommitLocalResourceUsage(
+bool TResourceTreeElement::CommitLocalResourceUsage(
     const TJobResources& resourceUsageDelta,
     const TJobResources& precommittedResources)
 {
     NConcurrency::TWriterGuard guard(ResourceUsageLock_);
 
-    ResourceTree_->IncrementResourceUsageLockWriteCount();
+    if (!Alive_) {
+        return false;
+    }
+
+    ResourceTree_->IncrementUsageLockWriteCount();
 
     ResourceUsage_ += resourceUsageDelta;
     ResourceUsagePrecommit_ -= precommittedResources;
+
+    return true;
 }
 
-void TResourceTreeElement::IncreaseLocalResourceUsage(const TJobResources& delta)
+bool TResourceTreeElement::IncreaseLocalResourceUsage(const TJobResources& delta)
 {
     NConcurrency::TWriterGuard guard(ResourceUsageLock_);
 
-    ResourceTree_->IncrementResourceUsageLockWriteCount();
+    if (!Alive_) {
+        return false;
+    }
+
+    ResourceTree_->IncrementUsageLockWriteCount();
 
     ResourceUsage_ += delta;
+
+    return true;
+}
+
+void TResourceTreeElement::ReleaseResources(TJobResources* usagePrecommit, TJobResources* usage)
+{
+    NConcurrency::TWriterGuard guard(ResourceUsageLock_);
+
+    YT_VERIFY(!Alive_);
+
+    *usagePrecommit = ResourceUsagePrecommit_;
+    *usage = ResourceUsage_;
+
+    ResourceUsagePrecommit_ = TJobResources();
+    ResourceUsage_ = TJobResources();
 }
 
 TJobResources TResourceTreeElement::GetResourceUsagePrecommit()
 {
     NConcurrency::TReaderGuard guard(ResourceUsageLock_);
 
-    ResourceTree_->IncrementResourceUsageLockReadCount();
+    ResourceTree_->IncrementUsageLockReadCount();
 
     return ResourceUsagePrecommit_;
 }
@@ -98,6 +129,10 @@ bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommitWithCheck(
     TJobResources* availableResourceLimitsOutput)
 {
     NConcurrency::TWriterGuard guard(ResourceUsageLock_);
+    
+    if (!Alive_) {
+        return false;
+    }
 
     // NB: Actually tree elements has resource usage discounts (used for scheduling with preemption)
     // that should be considered in this check. But concurrent nature of this shared tree makes hard to consider

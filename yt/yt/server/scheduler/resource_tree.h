@@ -31,7 +31,7 @@ public:
 
     void IncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta);
     void IncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta);
-    bool TryIncreaseHierarchicalResourceUsagePrecommit(
+    EResourceTreeIncreaseResult TryIncreaseHierarchicalResourceUsagePrecommit(
         const TResourceTreeElementPtr& element,
         const TJobResources &delta,
         TJobResources *availableResourceLimitsOutput);
@@ -43,26 +43,31 @@ public:
     void AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent);
     void ChangeParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent);
     void ScheduleDetachParent(const TResourceTreeElementPtr& element);
-    void ReleaseResources(const TResourceTreeElementPtr& element);
+    void ReleaseResources(const TResourceTreeElementPtr& element, bool markAsNonAlive);
 
     void ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementPtr& element, const TJobMetrics& delta);
 
     void PerformPostponedActions();
 
-    void IncrementResourceUsageLockReadCount();
-    void IncrementResourceUsageLockWriteCount();
+    void IncrementStructureLockReadCount();
+    void IncrementStructureLockWriteCount();
+    void IncrementUsageLockReadCount();
+    void IncrementUsageLockWriteCount();
 
 private:
     TFairShareStrategyTreeConfigPtr Config_;
 
+    std::atomic<bool> EnableStructureLockProfiling = false;
+    std::atomic<bool> EnableUsageLockProfiling = false;
+
     TMultipleProducerSingleConsumerLockFreeStack<TResourceTreeElementPtr> ElementsToDetachQueue_;
-    NConcurrency::TReaderWriterSpinLock TreeLock_;
+    NConcurrency::TReaderWriterSpinLock StructureLock_;
 
     NProfiling::TProfiler Profiler = {"/resource_tree"};
-    NProfiling::TMonotonicCounter TreeLockReadCount{"/tree_lock_read_count"};
-    NProfiling::TMonotonicCounter TreeLockWriteCount{"/tree_lock_write_count"};
-    NProfiling::TMonotonicCounter ResourceUsageLockReadCount{"/resource_usage_read_count"};
-    NProfiling::TMonotonicCounter ResourceUsageLockWriteCount{"/resource_usage_write_count"};
+    NProfiling::TMonotonicCounter StructureLockReadCount{"/structure_lock_read_count"};
+    NProfiling::TMonotonicCounter StructureLockWriteCount{"/structure_lock_write_count"};
+    NProfiling::TMonotonicCounter UsageLockReadCount{"/usage_read_count"};
+    NProfiling::TMonotonicCounter UsageLockWriteCount{"/usage_write_count"};
 
     void CheckCycleAbsence(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent);
     void DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta);

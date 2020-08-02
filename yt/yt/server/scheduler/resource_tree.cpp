@@ -10,19 +10,20 @@ static const auto& Logger = SchedulerLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NConcurrency;
-    
+
 TResourceTree::TResourceTree(const TFairShareStrategyTreeConfigPtr& config)
     : Config_(config)
 { }
 
 void TResourceTree::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
 {
-    Config_ = config;
+    EnableStructureLockProfiling.store(config->EnableResourceTreeStructureLockProfiling);
+    EnableUsageLockProfiling.store(config->EnableResourceTreeUsageLockProfiling);
 }
 
 void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent)
 {
-    // There is no necessity to acquire TreeLock_ since element is newly created and no concurrent operations are possible.
+    // There is no necessity to acquire StructureLock_ since element is newly created and no concurrent operations are possible.
     YT_VERIFY(!element->Initialized_);
     YT_VERIFY(!element->Parent_);
     YT_VERIFY(element != parent);
@@ -33,11 +34,9 @@ void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const T
 
 void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent)
 {
-    TWriterGuard guard(TreeLock_);
+    TWriterGuard guard(StructureLock_);
 
-    if (Config_->EnableResourceTreeProfiling) {
-        Profiler.Increment(TreeLockWriteCount, 1);
-    }
+    IncrementStructureLockWriteCount();
 
     TWriterGuard resourceUsageLock(element->ResourceUsageLock_);
     YT_VERIFY(element->Parent_);
@@ -56,17 +55,50 @@ void TResourceTree::ChangeParent(const TResourceTreeElementPtr& element, const T
 
 void TResourceTree::ScheduleDetachParent(const TResourceTreeElementPtr& element)
 {
+    YT_LOG_DEBUG("Scheduling element to detach (Id: %v)", element->GetId());
     YT_VERIFY(element->Initialized_);
     ElementsToDetachQueue_.Enqueue(element);
 }
 
-void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element)
+void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, bool markAsNonAlive)
 {
-    YT_VERIFY(element->Parent_);
-    YT_VERIFY(element->Initialized_);
+    if (!element->GetAlive()) {
+        return;
+    }
 
-    IncreaseHierarchicalResourceUsagePrecommit(element, -element->GetResourceUsagePrecommit());
-    IncreaseHierarchicalResourceUsage(element, -element->GetResourceUsage());
+    TReaderGuard guard(StructureLock_);
+
+    IncrementStructureLockReadCount();
+
+    YT_VERIFY(element->Initialized_);
+    YT_VERIFY(element->Parent_);
+
+    if (markAsNonAlive) {
+        element->SetNonAlive();
+        // No resource usage changes are possible after element is marked as non-alive.
+
+        TJobResources usagePrecommit;
+        TJobResources usage;
+        element->ReleaseResources(&usagePrecommit, &usage);
+
+        YT_LOG_DEBUG("Strong release of element resources (Id: %v, Usage: %v, UsagePrecommit: %v)",
+            element->GetId(),
+            FormatResources(usage),
+            FormatResources(usagePrecommit));
+
+        DoIncreaseHierarchicalResourceUsagePrecommit(element->Parent_, -usagePrecommit);
+        DoIncreaseHierarchicalResourceUsage(element->Parent_, -usage);
+    } else {
+        // Relaxed way to release resources.
+        auto usagePrecommit = element->GetResourceUsagePrecommit();
+        auto usage = element->GetResourceUsage();
+        YT_LOG_DEBUG("Relaxed release of element resources (Id: %v, Usage: %v, UsagePrecommit: %v)",
+            element->GetId(),
+            FormatResources(usage),
+            FormatResources(usagePrecommit));
+        DoIncreaseHierarchicalResourceUsagePrecommit(element, -usagePrecommit);
+        DoIncreaseHierarchicalResourceUsage(element, -usage);
+    }
 }
 
 void TResourceTree::CheckCycleAbsence(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent)
@@ -81,17 +113,15 @@ void TResourceTree::CheckCycleAbsence(const TResourceTreeElementPtr& element, co
 
 void TResourceTree::IncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
-    TReaderGuard guard(TreeLock_);
-
-    if (Config_->EnableResourceTreeProfiling) {
-        Profiler.Increment(TreeLockReadCount, 1);
-    }
-
-    YT_VERIFY(element->Initialized_);
-
     if (!element->GetAlive()) {
         return;
     }
+
+    TReaderGuard guard(StructureLock_);
+
+    IncrementStructureLockReadCount();
+
+    YT_VERIFY(element->Initialized_);
 
     DoIncreaseHierarchicalResourceUsage(element, delta);
 }
@@ -99,27 +129,32 @@ void TResourceTree::IncreaseHierarchicalResourceUsage(const TResourceTreeElement
 void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
     YT_VERIFY(element->Initialized_);
-
+    
     TResourceTreeElement* current = element.Get();
+    if (!current->IncreaseLocalResourceUsage(delta)) {
+        YT_LOG_DEBUG("Local increase of usage failed (Id: %v)", element->GetId());
+        return;
+    }
+    current = current->Parent_.Get();
+
     while (current != nullptr) {
-        current->IncreaseLocalResourceUsage(delta);
+        auto result = current->IncreaseLocalResourceUsage(delta);
+        YT_ASSERT(result);
         current = current->Parent_.Get();
     }
 }
 
 void TResourceTree::IncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
-    TReaderGuard guard(TreeLock_);
-
-    if (Config_->EnableResourceTreeProfiling) {
-        Profiler.Increment(TreeLockReadCount, 1);
-    }
-
-    YT_VERIFY(element->Initialized_);
-
     if (!element->GetAlive()) {
         return;
     }
+
+    TReaderGuard guard(StructureLock_);
+
+    IncrementStructureLockReadCount();
+
+    YT_VERIFY(element->Initialized_);
 
     DoIncreaseHierarchicalResourceUsagePrecommit(element, delta);
 }
@@ -129,30 +164,35 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
     const TJobResources& delta)
 {
     YT_VERIFY(element->Initialized_);
-
+    
     TResourceTreeElement* current = element.Get();
+    if (!current->IncreaseLocalResourceUsagePrecommit(delta)) {
+        YT_LOG_DEBUG("Local increase of usage precommit failed (Id: %v)", element->GetId());
+        return;
+    }
+    current = current->Parent_.Get();
+
     while (current != nullptr) {
-        current->IncreaseLocalResourceUsagePrecommit(delta);
+        auto result = current->IncreaseLocalResourceUsagePrecommit(delta);
+        YT_ASSERT(result);
         current = current->Parent_.Get();
     }
 }
 
-bool TResourceTree::TryIncreaseHierarchicalResourceUsagePrecommit(
+EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsagePrecommit(
     const TResourceTreeElementPtr& element,
     const TJobResources &delta,
     TJobResources *availableResourceLimitsOutput)
 {
-    TReaderGuard guard(TreeLock_);
-
-    if (Config_->EnableResourceTreeProfiling) {
-        Profiler.Increment(TreeLockReadCount, 1);
+    if (!element->GetAlive()) {
+        return EResourceTreeIncreaseResult::ElementDisabled;
     }
+
+    TReaderGuard guard(StructureLock_);
+
+    IncrementStructureLockReadCount();
 
     YT_VERIFY(element->Initialized_);
-
-    if (!element->GetAlive()) {
-        return false;
-    }
 
     auto availableResourceLimits = TJobResources::Infinite();
 
@@ -175,13 +215,14 @@ bool TResourceTree::TryIncreaseHierarchicalResourceUsagePrecommit(
             currentElement->IncreaseLocalResourceUsagePrecommit(-delta);
             currentElement = currentElement->Parent_.Get();
         }
-        return false;
+        return EResourceTreeIncreaseResult::ResourceLimitExceeded;
     }
 
     if (availableResourceLimitsOutput != nullptr) {
         *availableResourceLimitsOutput = availableResourceLimits;
     }
-    return true;
+
+    return EResourceTreeIncreaseResult::Success;
 }
 
 
@@ -190,28 +231,31 @@ void TResourceTree::CommitHierarchicalResourceUsage(
     const TJobResources& resourceUsageDelta,
     const TJobResources& precommittedResources)
 {
-    TReaderGuard guard(TreeLock_);
+    TReaderGuard guard(StructureLock_);
 
-    if (Config_->EnableResourceTreeProfiling) {
-        Profiler.Increment(TreeLockReadCount, 1);
-    }
-
+    IncrementStructureLockReadCount();
+    
     YT_VERIFY(element->Initialized_);
 
     TResourceTreeElement* current = element.Get();
+    if (!current->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources)) {
+        YT_LOG_DEBUG("Local commit of resource usage failed (Id: %v)", current->GetId());
+        return;
+    }
+    current = current->Parent_.Get();
+
     while (current != nullptr) {
-        current->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
+        auto result = current->CommitLocalResourceUsage(resourceUsageDelta, precommittedResources);
+        YT_ASSERT(result);
         current = current->Parent_.Get();
     }
 }
 
 void TResourceTree::ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementPtr& element, const TJobMetrics& delta)
 {
-    TReaderGuard guard(TreeLock_);
+    TReaderGuard guard(StructureLock_);
 
-    if (Config_->EnableResourceTreeProfiling) {
-        Profiler.Increment(TreeLockReadCount, 1);
-    }
+    IncrementStructureLockReadCount();
 
     YT_VERIFY(element->Initialized_);
 
@@ -224,11 +268,9 @@ void TResourceTree::ApplyHierarchicalJobMetricsDelta(const TResourceTreeElementP
 
 void TResourceTree::PerformPostponedActions()
 {
-    TWriterGuard guard(TreeLock_);
+    TWriterGuard guard(StructureLock_);
 
-    if (Config_->EnableResourceTreeProfiling) {
-        Profiler.Increment(TreeLockReadCount, 1);
-    }
+    IncrementStructureLockWriteCount();
 
     auto elementsToDetach = ElementsToDetachQueue_.DequeueAll();
     for (const auto& element : elementsToDetach) {
@@ -243,18 +285,32 @@ void TResourceTree::PerformPostponedActions()
         element->Parent_ = nullptr;
     }
 }
-    
-void TResourceTree::IncrementResourceUsageLockReadCount()
+
+void TResourceTree::IncrementStructureLockReadCount()
 {
-    if (Config_->EnableResourceTreeProfiling) {
-        Profiler.Increment(ResourceUsageLockReadCount, 1);
+    if (EnableStructureLockProfiling) {
+        Profiler.Increment(StructureLockReadCount, 1);
     }
 }
 
-void TResourceTree::IncrementResourceUsageLockWriteCount()
+void TResourceTree::IncrementStructureLockWriteCount()
 {
-    if (Config_->EnableResourceTreeProfiling) {
-        Profiler.Increment(ResourceUsageLockWriteCount, 1);
+    if (EnableStructureLockProfiling) {
+        Profiler.Increment(StructureLockWriteCount, 1);
+    }
+}
+
+void TResourceTree::IncrementUsageLockReadCount()
+{
+    if (EnableUsageLockProfiling) {
+        Profiler.Increment(UsageLockReadCount, 1);
+    }
+}
+
+void TResourceTree::IncrementUsageLockWriteCount()
+{
+    if (EnableUsageLockProfiling) {
+        Profiler.Increment(UsageLockWriteCount, 1);
     }
 }
 

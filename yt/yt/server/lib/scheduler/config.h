@@ -225,7 +225,8 @@ public:
 
     bool UseRecentResourceUsageForLocalSatisfaction;
 
-    bool EnableResourceTreeProfiling;
+    bool EnableResourceTreeStructureLockProfiling;
+    bool EnableResourceTreeUsageLockProfiling;
 
     TFairShareStrategyTreeConfig();
 };

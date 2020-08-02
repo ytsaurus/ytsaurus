@@ -104,7 +104,8 @@
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
-    XX(EnableResourceTreeProfiling, enable_resource_tree_profiling) \
+    XX(EnableResourceTreeStructureLockProfiling, enable_resource_tree_structure_lock_profiling) \
+    XX(EnableResourceTreeUsageLockProfiling, enable_resource_tree_usage_lock_profiling) \
     XX(EnableSchedulingTags, enable_scheduling_tags) \
     XX(EntranceCellTag, entrance_cell_tag) \
     XX(EntranceNodeId, entrance_node_id) \

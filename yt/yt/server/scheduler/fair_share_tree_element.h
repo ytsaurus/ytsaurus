@@ -4,6 +4,7 @@
 #include "job.h"
 #include "private.h"
 #include "resource_vector.h"
+#include "resource_tree.h"
 #include "resource_tree_element.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
@@ -341,7 +342,7 @@ public:
     virtual bool IsAggressiveStarvationPreemptionAllowed() const = 0;
 
     bool IsAlive() const;
-    void SetAlive(bool alive);
+    void SetNonAlive();
 
     TResourceVector GetFairShare() const;
     void SetFairShare(TResourceVector fairShare);
@@ -1018,10 +1019,10 @@ public:
 
     std::optional<NProfiling::TTagId> GetCustomProfilingTag();
 
-    void Disable();
+    void Disable(bool markAsNonAlive);
     void Enable();
 
-    bool TryIncreaseHierarchicalResourceUsagePrecommit(
+    EResourceTreeIncreaseResult TryIncreaseHierarchicalResourceUsagePrecommit(
         const TJobResources& delta,
         TJobResources* availableResourceLimitsOutput = nullptr);
 

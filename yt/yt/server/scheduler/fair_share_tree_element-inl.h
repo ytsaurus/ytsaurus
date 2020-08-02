@@ -24,9 +24,9 @@ inline bool TSchedulerElement::IsAlive() const
     return ResourceTreeElement_->GetAlive();
 }
 
-inline void TSchedulerElement::SetAlive(bool alive)
+inline void TSchedulerElement::SetNonAlive()
 {
-    ResourceTreeElement_->SetAlive(alive);
+    ResourceTreeElement_->SetNonAlive();
 }
 
 inline void TSchedulerElement::SetFairShare(TResourceVector fairShare)

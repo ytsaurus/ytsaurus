@@ -82,6 +82,7 @@ DEFINE_ENUM(EScheduleJobFailReason,
     ((NodeOffline)                   (20))
     ((ControllerThrottling)          (21))
     ((TentativeSpeculativeForbidden) (22))
+    ((OperationDisabled)             (23))
 );
 
 DEFINE_ENUM(EErrorCode,

@@ -338,7 +338,7 @@ public:
     virtual bool IsAggressiveStarvationPreemptionAllowed() const = 0;
 
     bool IsAlive() const;
-    void SetAlive(bool alive);
+    void SetNonAlive();
 
     double GetFairShareRatio() const;
     void PublishFairShareRatio();
@@ -990,10 +990,10 @@ public:
 
     std::optional<NProfiling::TTagId> GetCustomProfilingTag();
 
-    void Disable();
+    void Disable(bool markAsNonAlive);
     void Enable();
 
-    bool TryIncreaseHierarchicalResourceUsagePrecommit(
+    EResourceTreeIncreaseResult TryIncreaseHierarchicalResourceUsagePrecommit(
         const TJobResources& delta,
         TJobResources* availableResourceLimitsOutput = nullptr);
 
