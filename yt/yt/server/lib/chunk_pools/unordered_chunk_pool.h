@@ -23,6 +23,8 @@ struct TUnorderedChunkPoolOptions
     //! Minimum data weight to be teleported.
     i64 MinTeleportChunkDataWeight = std::numeric_limits<i64>::max();
     bool SliceErasureChunksByParts = false;
+    // TODO(max42): YT-13335.
+    NTableClient::TRowBufferPtr RowBuffer;
     NScheduler::TOperationId OperationId;
     TString Name;
 

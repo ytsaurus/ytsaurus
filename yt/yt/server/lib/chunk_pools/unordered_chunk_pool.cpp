@@ -54,6 +54,7 @@ public:
         , MinTeleportChunkSize_(options.MinTeleportChunkSize)
         , MinTeleportChunkDataWeight_(options.MinTeleportChunkDataWeight)
         , SliceErasureChunksByParts_(options.SliceErasureChunksByParts)
+        , RowBuffer_(options.RowBuffer)
         , InputStreamDirectory_(std::move(directory))
         , JobManager_(New<TJobManager>())
         , FreeJobCounter_(New<TProgressCounter>())
@@ -63,6 +64,10 @@ public:
         Logger.AddTag("ChunkPoolId: %v", ChunkPoolId_);
         Logger.AddTag("OperationId: %v", OperationId_);
         Logger.AddTag("Name: %v", Name_);
+
+        if (!RowBuffer_) {
+            RowBuffer_ = New<TRowBuffer>();
+        }
 
         JobManager_->SetLogger(TLogger{Logger});
 
@@ -181,7 +186,7 @@ public:
             FreeRowCounter_->AddSuspended(-statistics.RowCount);
             YT_VERIFY(FreeRowCounter_->GetSuspended() >= 0);
         }
-    
+
         JobManager_->Resume(cookie);
     }
 
@@ -468,7 +473,7 @@ private:
     i64 MinTeleportChunkDataWeight_ = std::numeric_limits<i64>::max();
     bool SliceErasureChunksByParts_ = false;
 
-    TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+    TRowBufferPtr RowBuffer_;
 
     TInputStreamDirectory InputStreamDirectory_;
 
@@ -778,7 +783,7 @@ private:
 
     void CheckCompleted()
     {
-        bool completed = 
+        bool completed =
             Finished &&
             FreeDataWeightCounter_->GetTotal() == 0 &&
             JobCounter->GetRunning() == 0 &&
