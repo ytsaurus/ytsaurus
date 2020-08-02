@@ -462,9 +462,8 @@ auto TFairShareTree<TFairShareImpl>::UnregisterOperation(
 
     auto* pool = operationElement->GetMutableParent();
 
-    operationElement->Disable();
+    operationElement->Disable(/* markAsNonAlive */ true);
     operationElement->DetachParent();
-    operationElement->SetAlive(false);
 
     OnOperationRemovedFromPool(state, operationElement, pool);
 
@@ -599,7 +598,7 @@ auto TFairShareTree<TFairShareImpl>::DisableOperation(const TFairShareStrategyOp
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     auto operationElement = GetOperationElement(state->GetHost()->GetId());
-    operationElement->Disable();
+    operationElement->Disable(/* markAsNonAlive */ false);
     operationElement->GetMutableParent()->DisableChild(operationElement);
 }
 
@@ -825,6 +824,10 @@ template <class TFairShareImpl>
 auto TFairShareTree<TFairShareImpl>::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) -> void
 {
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+    if (AreNodesEqual(ConvertToNode(config), ConvertToNode(Config_))) {
+        return;
+    }
 
     Config_ = config;
     RootElement_->UpdateTreeConfig(Config_);
@@ -1984,7 +1987,7 @@ auto TFairShareTree<TFairShareImpl>::UnregisterPool(const TPoolPtr& pool) -> voi
     auto extractedPool = std::move(Pools_[pool->GetId()]);
     YT_VERIFY(Pools_.erase(pool->GetId()) == 1);
 
-    extractedPool->SetAlive(false);
+    extractedPool->SetNonAlive();
     auto parent = extractedPool->GetParent();
     extractedPool->DetachParent();
 

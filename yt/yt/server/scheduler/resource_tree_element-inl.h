@@ -16,15 +16,17 @@ TJobMetrics TResourceTreeElement::GetJobMetrics()
     return JobMetrics_;
 }
 
-
 bool TResourceTreeElement::GetAlive() const
 {
     return Alive_.load(std::memory_order_relaxed);
 }
 
-void TResourceTreeElement::SetAlive(bool alive)
+void TResourceTreeElement::SetNonAlive()
 {
-    Alive_ = alive;
+    // We need a barrier to be sure that nobody tries to change some usages.
+    NConcurrency::TWriterGuard guard(ResourceUsageLock_);
+
+    Alive_ = false;
 }
 
 TResourceVector TResourceTreeElement::GetFairShare() const

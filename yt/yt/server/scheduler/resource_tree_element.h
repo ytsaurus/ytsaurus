@@ -35,7 +35,7 @@ public:
     void SetResourceLimits(TJobResources resourceLimits);
 
     inline bool GetAlive() const;
-    inline void SetAlive(bool alive);
+    inline void SetNonAlive();
 
     inline TResourceVector GetFairShare() const;
     inline void SetFairShare(TResourceVector fairShare);
@@ -65,6 +65,7 @@ private:
     // Element is considered as initialized after first AttachParent.
     bool Initialized_ = false;
 
+    // NB: Any resource usage changes are forbidden after alive is set to false.
     std::atomic<bool> Alive_ = {true};
     TAtomicObject<TResourceVector> FairShare_ = {};
 
@@ -72,13 +73,15 @@ private:
         const TJobResources& delta,
         TJobResources* availableResourceLimitsOutput);
 
-    void IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
+    bool IncreaseLocalResourceUsagePrecommit(const TJobResources& delta);
 
-    void CommitLocalResourceUsage(
+    bool CommitLocalResourceUsage(
         const TJobResources& resourceUsageDelta,
         const TJobResources& precommittedResources);
 
-    void IncreaseLocalResourceUsage(const TJobResources& delta);
+    bool IncreaseLocalResourceUsage(const TJobResources& delta);
+
+    void ReleaseResources(TJobResources* usagePrecommit, TJobResources* usage);
 
     inline void ApplyLocalJobMetricsDelta(const TJobMetrics& delta);
 

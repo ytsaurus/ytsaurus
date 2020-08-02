@@ -2325,12 +2325,12 @@ bool TOperationElement::IsOperation() const
     return true;
 }
 
-void TOperationElement::Disable()
+void TOperationElement::Disable(bool markAsNonAlive)
 {
     YT_LOG_DEBUG("Operation element disabled in strategy");
 
     OperationElementSharedState_->Disable();
-    TreeHost_->GetResourceTree()->ReleaseResources(ResourceTreeElement_);
+    TreeHost_->GetResourceTree()->ReleaseResources(ResourceTreeElement_, markAsNonAlive);
 }
 
 void TOperationElement::Enable()
@@ -2394,10 +2394,15 @@ std::optional<EDeactivationReason> TOperationElement::TryStartScheduleJob(
     }
 
     TJobResources availableResourceLimits;
-    if (!TryIncreaseHierarchicalResourceUsagePrecommit(
-            minNeededResources,
-            &availableResourceLimits)) {
+    auto increaseResult = TryIncreaseHierarchicalResourceUsagePrecommit(
+        minNeededResources,
+        &availableResourceLimits);
+
+    if (increaseResult == EResourceTreeIncreaseResult::ResourceLimitExceeded) {
         return EDeactivationReason::ResourceLimitsExceeded;
+    }
+    if (increaseResult == EResourceTreeIncreaseResult::ElementDisabled) {
+        return EDeactivationReason::IsNotAlive;
     }
 
     Controller_->IncreaseConcurrentScheduleJobCalls(context.SchedulingContext()->GetNodeShardId());
@@ -3171,10 +3176,10 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
         const auto& startDescriptor = *scheduleJobResult->StartDescriptor;
         // Note: resourceDelta might be negative.
         const auto resourceDelta = startDescriptor.ResourceLimits.ToJobResources() - *precommittedResources;
-        bool successfullyPrecommitted = TryIncreaseHierarchicalResourceUsagePrecommit(resourceDelta);
-        if (successfullyPrecommitted) {
+        auto increaseResult = TryIncreaseHierarchicalResourceUsagePrecommit(resourceDelta);
+        if (increaseResult == EResourceTreeIncreaseResult::Success) {
             *precommittedResources += resourceDelta;
-        } else {
+        } else if (increaseResult == EResourceTreeIncreaseResult::ResourceLimitExceeded) {
             auto jobId = scheduleJobResult->StartDescriptor->Id;
             const auto availableDelta = GetHierarchicalAvailableResources(*context);
             YT_LOG_DEBUG("Aborting job with resource overcommit (JobId: %v, Limits: %v, JobResources: %v)",
@@ -3187,6 +3192,9 @@ TControllerScheduleJobResultPtr TOperationElement::DoScheduleJob(
             // Reset result.
             scheduleJobResult = New<TControllerScheduleJobResult>();
             scheduleJobResult->RecordFail(EScheduleJobFailReason::ResourceOvercommit);
+        } else { // Operation is disabled
+            scheduleJobResult = New<TControllerScheduleJobResult>();
+            scheduleJobResult->RecordFail(EScheduleJobFailReason::OperationDisabled);
         }
     } else if (scheduleJobResult->Failed[EScheduleJobFailReason::Timeout] > 0) {
         YT_LOG_WARNING("Job scheduling timed out");
@@ -3244,7 +3252,7 @@ void TOperationElement::UpdatePreemptableJobsList()
     }
 }
 
-bool TOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
+EResourceTreeIncreaseResult TOperationElement::TryIncreaseHierarchicalResourceUsagePrecommit(
     const TJobResources& delta,
     TJobResources* availableResourceLimitsOutput)
 {

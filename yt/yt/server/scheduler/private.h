@@ -66,6 +66,12 @@ DEFINE_ENUM(EJobRevivalPhase,
     (Finished)
 );
 
+DEFINE_ENUM(EResourceTreeIncreaseResult,
+    (Success)
+    (ElementDisabled)
+    (ResourceLimitExceeded)
+);
+
 extern const NLogging::TLogger SchedulerLogger;
 extern const NLogging::TLogger SchedulerEventLogger;
 extern const NLogging::TLogger SchedulerResourceMeteringLogger;
