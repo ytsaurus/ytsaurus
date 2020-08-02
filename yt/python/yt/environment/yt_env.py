@@ -822,7 +822,7 @@ class YTInstance(object):
         with self._lock:
             index = number if number is not None else 0
             name_with_number = name
-            if number:
+            if number is not None:
                 name_with_number = "{0}-{1}".format(name, number)
 
             if self._service_processes[name][index] is not None:
@@ -870,7 +870,7 @@ class YTInstance(object):
 
         logger.info("Starting %s", name)
 
-        for i in xrange(len(self.configs[name])):
+        for index in xrange(len(self.configs[name])):
             args = None
             if self.abi_version[0] >= 19:
                 args = [_get_yt_binary_path("ytserver-" + component, custom_paths=self.custom_paths)]
@@ -878,8 +878,9 @@ class YTInstance(object):
                     args.extend(["--pdeathsig", str(int(signal.SIGKILL))])
             else:
                 raise YtError("Unsupported YT ABI version {0}".format(self.abi_version))
-            args.extend([config_option, self.config_paths[name][i]])
-            self._run(args, name, number=i)
+            args.extend([config_option, self.config_paths[name][index]])
+            number = None if len(self.configs[name]) == 1 else index
+            self._run(args, name, number=number )
 
     def _get_master_name(self, master_name, cell_index):
         if cell_index == 0:
