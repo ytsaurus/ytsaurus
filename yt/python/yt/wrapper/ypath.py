@@ -193,10 +193,15 @@ class YPath(object):
         else:
             if simplify and path:
                 self._path_object = parse_ypath(path, client=client)
-                for key, value in iteritems(self._path_object.attributes):
+                keys_to_replace = []
+                for key in self._path_object.attributes:
                     if "-" in key:
-                        self._path_object.attributes[key.replace("-", "_")] = value
-                        del self._path_object.attributes[key]
+                        keys_to_replace.append(key)
+
+                for key in keys_to_replace:
+                    self._path_object.attributes[key.replace("-", "_")] = self._path_object.attributes[key]
+                for key in keys_to_replace:
+                    del self._path_object.attributes[key]
             else:
                 self._path_object = yson.to_yson_type(path)
 
