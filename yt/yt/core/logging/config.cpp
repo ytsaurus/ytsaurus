@@ -84,6 +84,29 @@ TLogManagerConfigPtr TLogManagerConfig::CreateSilent()
     return config;
 }
 
+TLogManagerConfigPtr TLogManagerConfig::CreateYtServer(const TString& componentName)
+{
+    auto config = New<TLogManagerConfig>();
+
+    for (const auto& logLevel : {ELogLevel::Debug, ELogLevel::Info, ELogLevel::Error}) {
+        auto rule = New<TRuleConfig>();
+        rule->MinLevel = logLevel;
+        rule->Writers.push_back(ToString(logLevel));
+
+        auto fileWriterConfig = New<TWriterConfig>();
+        fileWriterConfig->Type = EWriterType::File;
+        fileWriterConfig->FileName = Format(
+            "./%v%v.log",
+            componentName,
+            logLevel == ELogLevel::Info ? "" : "." + FormatEnum(logLevel));
+
+        config->Rules.push_back(rule);
+        config->WriterConfigs.insert(std::make_pair(ToString(logLevel), fileWriterConfig));
+    }
+
+    return config;
+}
+
 TLogManagerConfigPtr TLogManagerConfig::CreateFromFile(const TString& file, const NYPath::TYPath& path)
 {
     NYTree::INodePtr node;

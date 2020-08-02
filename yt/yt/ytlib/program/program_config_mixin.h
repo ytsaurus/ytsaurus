@@ -34,18 +34,26 @@ protected:
             .SetFlag(&ConfigActual_);
     }
 
-    TIntrusivePtr<TConfig> GetConfig()
+    TIntrusivePtr<TConfig> GetConfig(bool returnNullIfNotSupplied = false)
     {
+        if (returnNullIfNotSupplied && !ConfigPath_) {
+            return nullptr;
+        }
+
         if (!Config_) {
-            Load();
+            LoadConfig();
         }
         return Config_;
     }
 
-    NYTree::INodePtr GetConfigNode()
+    NYTree::INodePtr GetConfigNode(bool returnNullIfNotSupplied = false)
     {
+        if (returnNullIfNotSupplied && !ConfigPath_) {
+            return nullptr;
+        }
+
         if (!ConfigNode_) {
-            Load();
+            LoadConfigNode();
         }
         return ConfigNode_;
     }
@@ -70,7 +78,7 @@ protected:
     }
 
 private:
-    void Load()
+    void LoadConfigNode()
     {
         using namespace NYTree;
 
@@ -86,10 +94,17 @@ private:
                 ConfigPath_)
                 << ex;
         }
+    }
+
+    void LoadConfig()
+    {
+        if (!ConfigNode_) {
+            LoadConfigNode();
+        }
 
         try {
             Config_ = New<TConfig>();
-            Config_->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+            Config_->SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
             Config_->Load(ConfigNode_);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error loading configuration file %v",
