@@ -42,12 +42,12 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
         
             DoGet(entry->Key, context)
                 .Apply(BIND([entry] (const TErrorOr<TValue>& value) {
-                    auto rejected = !value.IsOK() && value.FindMatching(NRpc::EErrorCode::InvalidCredentials);
+                    auto transientError = !value.IsOK() && !value.FindMatching(NRpc::EErrorCode::InvalidCredentials);
 
                     auto guard = Guard(entry->Lock);
                     entry->Updating = false;
                 
-                    if (!rejected) {
+                    if (transientError) {
                         return;
                     }
 

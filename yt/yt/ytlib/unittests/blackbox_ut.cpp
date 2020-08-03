@@ -384,6 +384,27 @@ TEST_F(TCachingTokenAuthenticatorTest, OptimisticCaching)
     result.ValueOrThrow();
 }
 
+TEST_F(TCachingTokenAuthenticatorTest, ErrorCaching)
+{
+    {
+        testing::InSequence s;
+        EXPECT_CALL(*Blackbox_, Call("oauth", _))
+            .WillOnce(Return(ErrorResult));
+        EXPECT_CALL(*Blackbox_, Call("oauth", _))
+            .WillRepeatedly(Return(GoodResult));
+    }
+
+    auto result = Invoke("mytoken", "127.0.0.1").Get();
+    ASSERT_THROW(result.ValueOrThrow(), TErrorException);
+
+    Sleep(TDuration::Seconds(2));
+    result = Invoke("mytoken", "127.0.0.1").Get();
+
+    Sleep(TDuration::Seconds(1));
+    result = Invoke("mytoken", "127.0.0.1").Get();
+    result.ValueOrThrow();
+}
+
 TEST_F(TCachingTokenAuthenticatorTest, TokenInvalidation)
 {
     {
