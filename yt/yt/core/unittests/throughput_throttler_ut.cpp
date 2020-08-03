@@ -203,7 +203,7 @@ TEST(TReconfigurableThroughputThrottlerTest, TestFractionalLimit)
         throttler->Throttle(1).Get().ThrowOnError();
     }
     auto duration = timer.GetElapsedTime().MilliSeconds();
-    EXPECT_GE(duration, 2000);
+    EXPECT_GE(duration, 1500);
     EXPECT_LE(duration, 4000);
 }
 
