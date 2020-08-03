@@ -64,7 +64,7 @@ public:
     TBlockReordererConfig()
     {
         RegisterParameter("enable_block_reordering", EnableBlockReordering)
-            .Default(true);
+            .Default(false);
 
         RegisterParameter("shuffle_blocks", ShuffleBlocks)
             .Default(false);
