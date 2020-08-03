@@ -55,7 +55,7 @@ DB::Context PrepareContextForQuery(
         Poco::Net::SocketAddress());
 
     auto settings = contextForQuery.getSettings();
-    settings.max_execution_time.set(Poco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond()));
+    settings.max_execution_time = Poco::Timespan(timeout.Seconds(), timeout.MicroSecondsOfSecond());
     contextForQuery.setSettings(settings);
 
     auto queryId = TQueryId::Create();
