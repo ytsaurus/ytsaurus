@@ -299,8 +299,14 @@ public:
 
         auto batchReq = StartObjectBatchRequest();
 
-        auto req = TYPathProxy::Set(StrategyStatePath);
-        req->set_value(ConvertToYsonString(persistentStrategyState, EYsonFormat::Binary).GetData());
+        auto req = NCypressClient::TCypressYPathProxy::Create(StrategyStatePath);
+        req->set_type(static_cast<int>(EObjectType::Document));
+        req->set_force(true);
+
+        auto* attribute = req->mutable_node_attributes()->add_attributes();
+        attribute->set_key("value");
+        attribute->set_value(ConvertToYsonString(persistentStrategyState, EYsonFormat::Binary).GetData());
+
         GenerateMutationId(req);
         batchReq->AddRequest(req);
 
