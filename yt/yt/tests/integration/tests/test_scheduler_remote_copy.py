@@ -422,6 +422,7 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         assert get(op.get_path() + "/@progress/legacy_controller") == self.USE_LEGACY_CONTROLLERS
 
     @authors("gritukan")
+    @pytest.mark.timeout(300)
     def test_erasure_repair(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
         create("table", "//tmp/t2")
@@ -475,18 +476,6 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         assert(len(op.get_running_jobs()) == 1)
         # Unban one part, job should complete.
         set_banned_flag_for_part_nodes([1], False)
-        op.track()
-        check_everything()
-        unban_all_nodes()
-
-        op = run_operation()
-        # All parts are unavailable, even chunk meta cannot be loaded.
-        set_banned_flag_for_part_nodes(list(range(9)), True)
-        time.sleep(8)
-        # Job freezes.
-        assert(len(op.get_running_jobs()) == 1)
-        # Unban first six parts, job should complete.
-        set_banned_flag_for_part_nodes(list(range(6)), False)
         op.track()
         check_everything()
         unban_all_nodes()
