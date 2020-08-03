@@ -20,6 +20,8 @@
 
 #include <yt/core/actions/cancelable_context.h>
 
+#include <yt/core/concurrency/action_queue.h>
+
 namespace NYT::NChunkClient {
 
 using namespace NConcurrency;
@@ -43,7 +45,7 @@ public:
         TNodeDirectoryPtr nodeDirectory,
         const NLogging::TLogger& logger)
         : Config_(config)
-        , Invoker_(invoker)
+        , Invoker_(CreateSerializedInvoker(invoker))
         , ThrottlerManager_(throttlerManager)
         , Client_(client)
         , NodeDirectory_(nodeDirectory)
@@ -244,6 +246,18 @@ void TFetcherBase::StartFetchingRound()
         DeadNodes_.size(),
         DeadChunks_.size());
 
+    // Unban nodes with expired ban duration.
+    auto now = TInstant::Now();
+    while (!BannedNodes_.empty() && BannedNodes_.begin()->first <= now) {
+        auto nodeId = BannedNodes_.begin()->second;
+        YT_LOG_DEBUG("Unban node (Address: %v)",
+            NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress(),
+            now);
+
+        YT_VERIFY(UnbanTime_.erase(nodeId) == 1);
+        BannedNodes_.erase(BannedNodes_.begin());
+    }
+
     // Construct address -> chunk* map.
     typedef THashMap<TNodeId, std::vector<int> > TNodeIdToChunkIndexes;
     TNodeIdToChunkIndexes nodeIdToChunkIndexes;
@@ -256,10 +270,12 @@ void TFetcherBase::StartFetchingRound()
         const auto replicas = chunk->GetReplicaList();
         for (auto replica : replicas) {
             auto nodeId = replica.GetNodeId();
-            if (DeadNodes_.find(nodeId) == DeadNodes_.end() &&
+            if (!DeadNodes_.contains(nodeId) &&
                 DeadChunks_.find(std::make_pair(nodeId, chunkId)) == DeadChunks_.end())
             {
-                nodeIdToChunkIndexes[nodeId].push_back(chunkIndex);
+                if (!UnbanTime_.contains(nodeId)) {
+                    nodeIdToChunkIndexes[nodeId].push_back(chunkIndex);
+                }
                 chunkAvailable = true;
             }
         }
@@ -286,7 +302,7 @@ void TFetcherBase::StartFetchingRound()
         DeadChunks_.clear();
         BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this))
             .Via(Invoker_)
-            .Run(error);
+            .Run(/*backoff=*/false, error);
         return;
     }
 
@@ -322,8 +338,10 @@ void TFetcherBase::StartFetchingRound()
         }
     }
 
+    bool backoff = asyncResults.empty();
+
     AllSucceeded(asyncResults).Subscribe(
-        BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this))
+        BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this), backoff)
             .Via(Invoker_));
 }
 
@@ -356,7 +374,33 @@ void TFetcherBase::OnNodeFailed(TNodeId nodeId, const std::vector<int>& chunkInd
     UnfetchedChunkIndexes_.insert(chunkIndexes.begin(), chunkIndexes.end());
 }
 
-void TFetcherBase::OnFetchingRoundCompleted(const TError& error)
+void TFetcherBase::OnRequestThrottled(TNodeId nodeId, const std::vector<int>& chunkIndexes)
+{
+    auto nodeAddress = NodeDirectory_->GetDescriptor(nodeId).GetDefaultAddress();
+    YT_LOG_DEBUG("Fetch request throttled by node (Address: %v, ChunkCount: %v)",
+        nodeAddress,
+        chunkIndexes.size());
+
+    auto unbanTime = TInstant::Zero();
+    if (UnbanTime_.contains(nodeId)) {
+        unbanTime = UnbanTime_[nodeId];
+        YT_VERIFY(BannedNodes_.erase(std::make_pair(unbanTime, nodeId)) == 1);
+        YT_VERIFY(UnbanTime_.erase(nodeId) == 1);
+    }
+
+    unbanTime = std::max(unbanTime, TInstant::Now() + Config_->NodeBanDuration);
+
+    YT_LOG_DEBUG("Node banned (Address: %v, UnbanTime: %v)",
+        nodeAddress,
+        unbanTime);
+
+    YT_VERIFY(BannedNodes_.emplace(unbanTime, nodeId).second);
+    YT_VERIFY(UnbanTime_.emplace(nodeId, unbanTime).second);
+
+    UnfetchedChunkIndexes_.insert(chunkIndexes.begin(), chunkIndexes.end());
+}
+
+void TFetcherBase::OnFetchingRoundCompleted(bool backoff, const TError& error)
 {
     if (!error.IsOK()) {
         YT_LOG_ERROR(error, "Fetching failed");
@@ -369,6 +413,10 @@ void TFetcherBase::OnFetchingRoundCompleted(const TError& error)
         OnFetchingCompleted();
         Promise_.Set(TError());
         return;
+    }
+
+    if (backoff) {
+        TDelayedExecutor::WaitForDuration(Config_->BackoffTime);
     }
 
     StartFetchingRound();

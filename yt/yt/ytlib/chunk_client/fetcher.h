@@ -101,6 +101,9 @@ protected:
     void OnNodeFailed(
         NNodeTrackerClient::TNodeId nodeId,
         const std::vector<int>& chunkIndexes);
+    void OnRequestThrottled(
+        NNodeTrackerClient::TNodeId nodeId,
+        const std::vector<int>& chunkIndexes);
 
 private:
     NApi::NNative::IClientPtr Client_;
@@ -114,11 +117,17 @@ private:
     //! |(nodeId, chunkId)| pairs for which an error was returned from the node.
     std::set<std::pair<NNodeTrackerClient::TNodeId, TChunkId>> DeadChunks_;
 
+    //! |(unbanTime, nodeId)| pairs for nodes that throttled our requests.
+    std::set<std::pair<TInstant, NNodeTrackerClient::TNodeId>> BannedNodes_;
+
+    //! NodeId -> UnbanTime for nodes that throttled our requests.
+    THashMap<NNodeTrackerClient::TNodeId, TInstant> UnbanTime_;
+
     TCancelableContextPtr CancelableContext_;
 
     TPromise<void> Promise_ = NewPromise<void>();
 
-    void OnFetchingRoundCompleted(const TError& error);
+    void OnFetchingRoundCompleted(bool backoff, const TError& error);
     void OnChunkLocated(TChunkId chunkId, const TChunkReplicaList& replicas);
 };
 

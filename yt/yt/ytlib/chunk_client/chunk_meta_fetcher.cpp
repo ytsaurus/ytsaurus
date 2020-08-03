@@ -99,12 +99,21 @@ void TChunkMetaFetcher::OnResponse(
 
     YT_VERIFY(responses.size() == requestedChunkIndexes.size());
 
+    std::vector<int> throttledChunkIndexes;
+
     for (int index = 0; index < requestedChunkIndexes.size(); ++index) {
         int chunkIndex = requestedChunkIndexes[index];
         auto& rsp = responses[index];
-        YT_VERIFY(!rsp->net_throttling());
+        if (rsp->net_throttling()) {
+            throttledChunkIndexes.push_back(chunkIndex);
+            continue;
+        }
         YT_VERIFY(chunkIndex < ChunkMetas_.size());
         ChunkMetas_[chunkIndex] = New<TRefCountedChunkMeta>(std::move(rsp->chunk_meta()));
+    }
+
+    if (!throttledChunkIndexes.empty()) {
+        OnRequestThrottled(nodeId, throttledChunkIndexes);
     }
 }
 
