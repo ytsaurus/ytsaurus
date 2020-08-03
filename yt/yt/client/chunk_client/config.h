@@ -40,10 +40,22 @@ class TFetcherConfig
 public:
     TDuration NodeRpcTimeout;
 
+    //! If node throttled fetch request, it becomes banned for this period of time.
+    TDuration NodeBanDuration;
+
+    //! Time to sleep before next fetching round if no requests were performed.
+    TDuration BackoffTime;
+
     TFetcherConfig()
     {
         RegisterParameter("node_rpc_timeout", NodeRpcTimeout)
             .Default(TDuration::Seconds(30));
+
+        RegisterParameter("node_ban_duration", NodeBanDuration)
+            .Default(TDuration::Seconds(5));
+
+        RegisterParameter("backoff_time", BackoffTime)
+            .Default(TDuration::MilliSeconds(100));
     }
 };
 
