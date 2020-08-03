@@ -37,6 +37,7 @@ class TCachedTableSchemaWrapper
 public:
     TCachedTableSchemaWrapper(
         TSchemaCacheKey schemaCacheKey,
+        i64 schemaSize,
         TDuration requestTimeout);
 
     bool IsSet();
@@ -47,8 +48,12 @@ public:
 
     void SetValue(TCachedTableSchemaPtr cachedTableSchema);
 
+    i64 GetWeight() const;
+
 private:
     const TDuration RequestTimeout_;
+    const i64 SchemaSize_;
+
     std::atomic<TInstant> NextRequestTime_;
 
     // NB: For concurrent access of CachedTableSchema_.
@@ -69,10 +74,12 @@ class TTableSchemaCache
 public:
     explicit TTableSchemaCache(const TTableSchemaCacheConfigPtr& config);
 
-    TCachedTableSchemaWrapperPtr GetOrCreate(const TSchemaCacheKey& key);
+    TCachedTableSchemaWrapperPtr GetOrCreate(const TSchemaCacheKey& key, i64 schemaSize);
 
 private:
     const TDuration TableSchemaCacheRequestTimeout_;
+
+    virtual i64 GetWeight(const TCachedTableSchemaWrapperPtr& value) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableSchemaCache)

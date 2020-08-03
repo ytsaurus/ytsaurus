@@ -27,7 +27,7 @@ class TLookupSession
 public:
     TLookupSession(
         NClusterNode::TBootstrap* bootstrap,
-        TChunkId chunkId,
+        IChunkPtr chunk,
         NChunkClient::TReadSessionId readSessionId,
         TWorkloadDescriptor workloadDescriptor,
         NQueryClient::TColumnFilter columnFilter,
@@ -53,6 +53,7 @@ private:
     struct TKeyReaderBufferTag { };
 
     NClusterNode::TBootstrap const* Bootstrap_;
+    const IChunkPtr Chunk_;
     const TChunkId ChunkId_;
     const NChunkClient::TReadSessionId ReadSessionId_;
     const TWorkloadDescriptor WorkloadDescriptor_;
@@ -63,7 +64,6 @@ private:
     NCompression::ICodec* const Codec_;
     const NQueryClient::TTimestamp ChunkTimestamp_;
 
-    IChunkPtr Chunk_;
     TBlockReadOptions Options_;
     NChunkClient::IChunkReaderPtr UnderlyingChunkReader_;
     TSharedRange<NTableClient::TUnversionedRow> RequestedKeys_;

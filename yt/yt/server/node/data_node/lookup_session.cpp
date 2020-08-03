@@ -39,7 +39,7 @@ using namespace NConcurrency;
 
 TLookupSession::TLookupSession(
     TBootstrap* bootstrap,
-    TChunkId chunkId,
+    IChunkPtr chunk,
     TReadSessionId readSessionId,
     TWorkloadDescriptor workloadDescriptor,
     TColumnFilter columnFilter,
@@ -50,7 +50,8 @@ TLookupSession::TLookupSession(
     NCompression::ECodec codecId,
     TTimestamp chunkTimestamp)
     : Bootstrap_(bootstrap)
-    , ChunkId_(chunkId)
+    , Chunk_(std::move(chunk))
+    , ChunkId_(Chunk_->GetId())
     , ReadSessionId_(readSessionId)
     , WorkloadDescriptor_(std::move(workloadDescriptor))
     , ColumnFilter_(std::move(columnFilter))
@@ -61,8 +62,6 @@ TLookupSession::TLookupSession(
     , ChunkTimestamp_(chunkTimestamp)
 {
     // NB: TableSchema is assumed to be set upon calling LookupSession.
-    Chunk_ = Bootstrap_->GetChunkRegistry()->GetChunkOrThrow(chunkId);
-
     Verify();
 
     UnderlyingChunkReader_ = CreateLocalChunkReader(
@@ -72,13 +71,15 @@ TLookupSession::TLookupSession(
         Bootstrap_->GetBlockCache(),
         Bootstrap_->GetBlockMetaCache());
 
-    YT_LOG_DEBUG("Local chunk reader is created for lookup request (ChunkId: %v)",
-        ChunkId_);
-
     TWireProtocolReader keysReader(
         MergeRefsToRef<TKeyReaderBufferTag>(serializedKeys),
         KeyReaderRowBuffer_);
     RequestedKeys_ = keysReader.ReadUnversionedRowset(true);
+
+    YT_LOG_DEBUG("Local chunk reader is created for lookup request (ChunkId: %v, ReadSessionId: %v, KeyCount: %v)",
+        ChunkId_,
+        ReadSessionId_,
+        RequestedKeys_.Size());
 
     YT_VERIFY(!RequestedKeys_.Empty());
 }
@@ -101,14 +102,9 @@ std::tuple<TCachedTableSchemaPtr, bool> TLookupSession::FindTableSchema(
 {
     auto tableId = FromProto<TObjectId>(schemaData.table_id());
     auto revision = FromProto<TRevision>(schemaData.revision());
+    i64 schemaSize = schemaData.has_schema_size() ? schemaData.schema_size() : 1_MB;
 
-    YT_LOG_DEBUG("Trying to find schema for lookup request (ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %llx)",
-        chunkId,
-        readSessionId,
-        tableId,
-        revision);
-
-    auto tableSchemaWrapper = tableSchemaCache->GetOrCreate(TSchemaCacheKey{tableId, revision});
+    auto tableSchemaWrapper = tableSchemaCache->GetOrCreate(TSchemaCacheKey{tableId, revision}, schemaSize);
     YT_VERIFY(tableSchemaWrapper);
     if (tableSchemaWrapper->IsSet()) {
         return {tableSchemaWrapper->GetValue(), false};
@@ -117,11 +113,13 @@ std::tuple<TCachedTableSchemaPtr, bool> TLookupSession::FindTableSchema(
     if (!schemaData.has_schema()) {
         bool isSchemaRequested = tableSchemaWrapper->TryRequestSchema();
 
-        YT_LOG_DEBUG("Schema for lookup request is missing (ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %llx, IsSchemaRequested: %v)",
+        YT_LOG_DEBUG("Schema for lookup request is missing"
+            "(ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %llx, SchemaSize: %v, IsSchemaRequested: %v)",
             chunkId,
             readSessionId,
-            FromProto<TObjectId>(schemaData.table_id()),
-            FromProto<TRevision>(schemaData.revision()),
+            tableId,
+            revision,
+            schemaSize,
             isSchemaRequested);
 
         return {nullptr, isSchemaRequested};
@@ -135,11 +133,13 @@ std::tuple<TCachedTableSchemaPtr, bool> TLookupSession::FindTableSchema(
     auto cachedTableSchema = New<TCachedTableSchema>(std::move(tableSchema), std::move(rowKeyComparer));
     tableSchemaWrapper->SetValue(cachedTableSchema);
 
-    YT_LOG_DEBUG("Inserted schema to schema cache for lookup request (ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %llx)",
+    YT_LOG_DEBUG("Inserted schema to schema cache for lookup request"
+        "(ChunkId: %v, ReadSessionId: %v, TableId: %v, Revision: %llx, SchemaSize: %v)",
         chunkId,
         readSessionId,
         tableId,
-        revision);
+        revision,
+        schemaSize);
 
     return {cachedTableSchema, false};
 }
@@ -192,10 +192,6 @@ void TLookupSession::Verify()
             << TErrorAttribute("table_key_columns", tableKeyColumns)
             << TErrorAttribute("chunk_key_columns", chunkKeyColumns);
     }
-
-    YT_LOG_DEBUG("Lookup session is verified (ChunkId: %v, ReadSessionId: %v)",
-        ChunkId_,
-        ReadSessionId_);
 }
 
 TSharedRef TLookupSession::DoRun()
@@ -217,13 +213,7 @@ TSharedRef TLookupSession::DoRun()
         New<TChunkReaderPerformanceCounters>(),
         TableSchema_->RowKeyComparer);
 
-    YT_LOG_DEBUG("Starting to read requested keys in lookup session (ChunkId: %v, ReadSessionId: %v, KeyCount: %v)",
-        ChunkId_,
-        ReadSessionId_,
-        RequestedKeys_.size());
-
     TWireProtocolWriter writer;
-
     auto onRow = [&] (TVersionedRow row) {
         writer.WriteVersionedRow(row);
     };

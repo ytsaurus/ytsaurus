@@ -34,11 +34,15 @@ using TSchemaCacheKey = std::pair<TObjectId, TRevision>;
 
 TCachedTableSchemaWrapper::TCachedTableSchemaWrapper(
     TSchemaCacheKey schemaCacheKey,
+    i64 schemaSize,
     TDuration requestTimeout)
     : TSyncCacheValueBase(std::move(schemaCacheKey))
     , RequestTimeout_(requestTimeout)
+    , SchemaSize_(schemaSize)
     , NextRequestTime_(NProfiling::GetInstant())
-{ }
+{ 
+    YT_VERIFY(SchemaSize_ > 0);
+}
 
 bool TCachedTableSchemaWrapper::IsSet()
 {
@@ -79,6 +83,11 @@ void TCachedTableSchemaWrapper::SetValue(TCachedTableSchemaPtr cachedTableSchema
     CachedTableSchema_ = std::move(cachedTableSchema);
 }
 
+i64 TCachedTableSchemaWrapper::GetWeight() const
+{
+    return SchemaSize_;
+}
+
 bool TCachedTableSchemaWrapper::CheckSchemaSet()
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
@@ -93,19 +102,24 @@ TTableSchemaCache::TTableSchemaCache(const TTableSchemaCacheConfigPtr& config)
     , TableSchemaCacheRequestTimeout_(config->TableSchemaCacheRequestTimeout)
 { }
 
-TCachedTableSchemaWrapperPtr TTableSchemaCache::GetOrCreate(const TSchemaCacheKey& key)
+TCachedTableSchemaWrapperPtr TTableSchemaCache::GetOrCreate(const TSchemaCacheKey& key, i64 schemaSize)
 {
     if (auto result = Find(key)) {
         return result;
     }
 
-    auto emptyTableSchema = New<TCachedTableSchemaWrapper>(key, TableSchemaCacheRequestTimeout_);
+    auto emptyTableSchema = New<TCachedTableSchemaWrapper>(key, schemaSize, TableSchemaCacheRequestTimeout_);
     TCachedTableSchemaWrapperPtr existingTableSchema;
     if (!TryInsert(emptyTableSchema, &existingTableSchema)) {
         return existingTableSchema;
     }
 
     return emptyTableSchema;
+}
+
+i64 TTableSchemaCache::GetWeight(const TCachedTableSchemaWrapperPtr& value) const
+{
+    return value->GetWeight();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
