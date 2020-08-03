@@ -199,6 +199,7 @@ message TReqLookupRows
     {
         required NYT.NProto.TGuid table_id = 1;
         required uint64 revision = 2;
+        optional int64 schema_size = 3;
         optional NTableClient.NProto.TTableSchemaExt schema = 8;
     }
 

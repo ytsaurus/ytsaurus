@@ -1935,7 +1935,6 @@ public:
         , TableId_(tableId)
         , Revision_(revision)
         , TableSchema_(std::move(tableSchema))
-        , EstimatedSize_(estimatedSize)
         , ReadSessionId_(options.ReadSessionId)
         , ColumnFilter_(columnFilter)
         , Timestamp_(timestamp)
@@ -1946,6 +1945,9 @@ public:
         Logger.AddTag("TableId: %v, Revision: %llx",
             TableId_,
             Revision_);
+        if (estimatedSize) {
+            BytesToThrottle_ += std::max(0L, *estimatedSize);
+        }
     }
 
     ~TLookupRowsSession()
@@ -1969,7 +1971,6 @@ private:
     const TObjectId TableId_;
     const TRevision Revision_;
     const TTableSchemaPtr TableSchema_;
-    const std::optional<i64> EstimatedSize_;
     const TReadSessionId ReadSessionId_;
     const TColumnFilter ColumnFilter_;
     TTimestamp Timestamp_;
@@ -1982,8 +1983,9 @@ private:
 
     TSharedRef FetchedRowset_;
 
+    i64 BytesToThrottle_ = 0;
     i64 BytesThrottled_ = 0;
-    i64 TotalBytesSent_ = 0;
+
     bool WaitedForSchemaForTooLong_ = false;
 
     int SinglePassIterationCounter_;
@@ -2052,22 +2054,12 @@ private:
             return;
         }
 
-        TotalBytesReceived_ = 0;
-        TotalBytesSent_ = 0;
-
-        YT_LOG_DEBUG("Starting new lookup iteration "
-            "(CandidateIndex: %v, CandidateCount: %v, IterationCount: %v)",
-            CandidateIndex_,
-            SinglePassCandidates_.size(),
-            SinglePassIterationCounter_);
-
         if (SinglePassCandidates_.empty()) {
             SinglePassCandidates_ = PickPeerCandidates(
                 reader,
                 ReaderConfig_->LookupRequestPeerCount,
                 /* enableEarlyExit */ false);
         }
-
         if (SinglePassCandidates_.empty()) {
             OnPassCompleted();
             return;
@@ -2075,9 +2067,10 @@ private:
 
         if (SinglePassIterationCounter_ == ReaderConfig_->SinglePassIterationLimitForLookup) {
             // Additional post-throttling at the end of each pass.
-            auto totalBytesToThrottle = TotalBytesReceived_ + TotalBytesSent_;
-            BytesThrottled_ += totalBytesToThrottle;
-            AsyncThrottle(reader->BandwidthThrottler_, totalBytesToThrottle, BIND(&TLookupRowsSession::OnPassCompleted, MakeStrong(this)));
+            auto delta = BytesToThrottle_;
+            BytesToThrottle_ = 0;
+            BytesThrottled_ += delta;
+            AsyncThrottle(reader->BandwidthThrottler_, delta, BIND(&TLookupRowsSession::OnPassCompleted, MakeStrong(this)));
             return;
         }
 
@@ -2112,14 +2105,23 @@ private:
 
         WaitedForSchemaForTooLong_ = false;
 
-        if (!IsAddressLocal(peerAddressWithNetwork.Address) && BytesThrottled_ == 0 && EstimatedSize_) {
+        YT_LOG_DEBUG("Sending lookup request to peer "
+            "(Address: %v, CandidateIndex: %v, CandidateCount: %v, IterationCount: %v)",
+            peerAddressWithNetwork,
+            CandidateIndex_,
+            SinglePassCandidates_.size(),
+            SinglePassIterationCounter_);
+
+        if (!IsAddressLocal(peerAddressWithNetwork.Address) && BytesThrottled_ == 0 && BytesToThrottle_) {
             // NB(psushin): This is preliminary throttling. The subsequent request may fail or return partial result.
             // In order not to throttle twice, we use BandwidthThrottled_ flag.
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
-            BytesThrottled_ = *EstimatedSize_;
-            AsyncThrottle(reader->BandwidthThrottler_, BytesThrottled_, BIND(&TLookupRowsSession::RequestRows, MakeStrong(this)));
-            return;
+            std::swap(BytesThrottled_, BytesToThrottle_);
+            if (!reader->BandwidthThrottler_->TryAcquire(BytesThrottled_)) {
+                AsyncThrottle(reader->BandwidthThrottler_, BytesThrottled_, BIND(&TLookupRowsSession::RequestRows, MakeStrong(this)));
+                return;
+            }
         }
 
         ++CandidateIndex_;
@@ -2129,7 +2131,6 @@ private:
             RequestRows();
             return;
         }
-        
         RequestRowsFromPeer(channel, reader, peerAddressWithNetwork, *chosenPeer, false);
     }
 
@@ -2162,6 +2163,7 @@ private:
         auto schemaData = req->mutable_schema_data();
         ToProto(schemaData->mutable_table_id(), TableId_);
         schemaData->set_revision(Revision_);
+        schemaData->set_schema_size(TableSchema_->GetMemoryUsage());
         if (sendSchema) {
             ToProto(schemaData->mutable_schema(), *TableSchema_);
         }
@@ -2171,7 +2173,8 @@ private:
         req->Attachments() = writer.Finish();
         // COMPAT(babenko)
         req->set_lookup_keys(MergeRefsToString(req->Attachments()));
-        TotalBytesSent_ += GetByteSize(req->Attachments());
+        // NB: Throttling on table schema (if any) will be performed on response.
+        BytesToThrottle_ += GetByteSize(req->Attachments());
 
         NProfiling::TWallTimer dataWaitTimer;
         req->Invoke()
@@ -2205,11 +2208,11 @@ private:
                 TError("Error fetching rows from node %v", peerAddressWithNetwork));
 
             YT_LOG_WARNING("Data node lookup request failed "
-                "(Address: %v, PeerType: %v, IterationCount: %v, BytesSent: %v)",
+                "(Address: %v, PeerType: %v, IterationCount: %v, BytesToThrottle: %v)",
                 peerAddressWithNetwork,
                 chosenPeer.Type,
                 SinglePassIterationCounter_,
-                TotalBytesSent_);
+                BytesToThrottle_);
 
             RequestRows();
             return;
@@ -2229,7 +2232,6 @@ private:
                 peerAddressWithNetwork,
                 chosenPeer.Type);
 
-            // No throttling on table schema.
             RequestRowsFromPeer(channel, reader, peerAddressWithNetwork, chosenPeer, true);
             return;
         } else if (!response->fetched_rows()) {
@@ -2250,27 +2252,21 @@ private:
 
         ProcessAttachedVersionedRowset(response);
 
-        auto totalBytesToThrottle = TotalBytesReceived_ + TotalBytesSent_;
-        if (!IsAddressLocal(peerAddressWithNetwork.Address) && totalBytesToThrottle > BytesThrottled_) {
-            auto delta = totalBytesToThrottle - BytesThrottled_;
-            BytesThrottled_ = totalBytesToThrottle;
-            reader->BandwidthThrottler_->Acquire(delta);
+        if (!IsAddressLocal(peerAddressWithNetwork.Address) && BytesToThrottle_) {
+            BytesThrottled_ += BytesToThrottle_;
+            reader->BandwidthThrottler_->Acquire(BytesToThrottle_);
+            BytesToThrottle_ = 0;
         }
-
-        YT_LOG_DEBUG("Finished processing rows response "
-            "(Address: %v, PeerType: %v, BytesReceived: %v, BytesSent: %v, IterationCount: %v)",
-            peerAddressWithNetwork,
-            chosenPeer.Type,
-            TotalBytesReceived_,
-            TotalBytesSent_,
-            SinglePassIterationCounter_);
 
         OnSessionSucceeded();
     }
 
     void OnSessionSucceeded()
     {
-        YT_LOG_DEBUG("Requested rows are fetched");
+        YT_LOG_DEBUG("Finished processing rows response "
+            "(BytesThrottled: %v, IterationCount: %v)",
+            BytesThrottled_,            
+            SinglePassIterationCounter_);   
         Promise_.TrySet(FetchedRowset_);
     }
 
@@ -2279,8 +2275,8 @@ private:
     {
         YT_VERIFY(!FetchedRowset_);
         FetchedRowset_ = response->Attachments()[0];
-
         TotalBytesReceived_ += FetchedRowset_.Size();
+        BytesToThrottle_ += FetchedRowset_.Size();
     }
 };
 

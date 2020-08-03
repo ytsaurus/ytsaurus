@@ -658,6 +658,9 @@ private:
             workloadDescriptor);
 
         ValidateConnected();
+        
+        auto chunk = Bootstrap_->GetChunkRegistry()->GetChunkOrThrow(chunkId);
+        YT_VERIFY(chunk->GetId() == chunkId);
 
         auto schemaData = request->schema_data();
         auto [tableSchema, schemaRequested] = TLookupSession::FindTableSchema(
@@ -688,7 +691,7 @@ private:
 
         TLookupSession lookupSession(
             Bootstrap_,
-            chunkId,
+            std::move(chunk),
             readSessionId,
             workloadDescriptor,
             std::move(columnFilter),
