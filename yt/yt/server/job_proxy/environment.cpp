@@ -326,31 +326,34 @@ public:
         int uid,
         const TUserJobProcessOptions& options) override
     {
-        TString gpuCorePipeFile;
+        TString slotGpuCorePipeFile;
 
-        if (options.CoreWatcherDirectory) {
+        if (options.SlotCoreWatcherDirectory) {
             // NB: Core watcher expects core info file to be created before
             // core pipe file.
+            auto slotCoreDirectory = *options.SlotCoreWatcherDirectory;
             auto coreDirectory = *options.CoreWatcherDirectory;
-            auto coreInfoFile = coreDirectory + "/core_\"${CORE_PID}\".info";
-            auto corePipeFile = coreDirectory + "/core_\"${CORE_PID}\".pipe";
+            auto slotCoreInfoFile = slotCoreDirectory + "/core_\"${CORE_PID}\".info";
+            auto slotCorePipeFile = slotCoreDirectory + "/core_\"${CORE_PID}\".pipe";
             auto bashCoreHandler =
-                "echo \"${CORE_TASK_NAME}\" >" + coreInfoFile + " && " +
-                "echo \"${CORE_PID}\" >>" + coreInfoFile + " && " +
-                "echo \"${CORE_TID}\" >>" + coreInfoFile + " && " +
-                "echo \"${CORE_SIG}\" >>" + coreInfoFile + " && " +
-                "echo \"${CORE_CONTAINER}\" >>" + coreInfoFile + " && " +
-                "echo \"${CORE_DATETIME}\" >>" + coreInfoFile + " && " +
-                "mkfifo " + corePipeFile + " && " +
-                "cat >" + corePipeFile;
+                "echo \"${CORE_TASK_NAME}\" >" + slotCoreInfoFile + " && " +
+                "echo \"${CORE_PID}\" >>" + slotCoreInfoFile + " && " +
+                "echo \"${CORE_TID}\" >>" + slotCoreInfoFile + " && " +
+                "echo \"${CORE_SIG}\" >>" + slotCoreInfoFile + " && " +
+                "echo \"${CORE_CONTAINER}\" >>" + slotCoreInfoFile + " && " +
+                "echo \"${CORE_DATETIME}\" >>" + slotCoreInfoFile + " && " +
+                "mkfifo " + slotCorePipeFile + " && " +
+                "cat >" + slotCorePipeFile;
             auto coreHandler = "bash -c \'" + bashCoreHandler + "\'";
             YT_LOG_DEBUG("Enabling core forwarding for Porto container (CoreHandler: %v)",
                 coreHandler);
             Instance_->SetCoreDumpHandler(coreHandler);
 
             if (options.EnableCudaGpuCoreDump) {
-                gpuCorePipeFile = NFS::CombinePaths(coreDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
-                YT_LOG_DEBUG("Creating pipe for GPU core dumps (GpuCorePipeFile: %v)",
+                slotGpuCorePipeFile = NFS::CombinePaths(slotCoreDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
+                auto gpuCorePipeFile = NFS::CombinePaths(coreDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
+                YT_LOG_DEBUG("Creating pipe for GPU core dumps (SlotGpuCorePipeFile: %v, GpuCorePipeFile: %v)",
+                    slotGpuCorePipeFile,
                     gpuCorePipeFile);
                 if (mkfifo(gpuCorePipeFile.c_str(), 0666) == -1) {
                     THROW_ERROR_EXCEPTION("Failed to create CUDA GPU core dump pipe")
@@ -405,7 +408,7 @@ public:
         Process_->AddArguments({"--uid", ::ToString(uid)});
         if (options.EnableCudaGpuCoreDump) {
             Process_->AddArguments({"--env", "CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1"});
-            Process_->AddArguments({"--env", Format("CUDA_COREDUMP_FILE=%v", gpuCorePipeFile)});
+            Process_->AddArguments({"--env", Format("CUDA_COREDUMP_FILE=%v", slotGpuCorePipeFile)});
         }
         for (const auto& networkAddress : options.NetworkAddresses) {
             Process_->AddArguments({"--env", Format("YT_IP_ADDRESS_%v=%v", networkAddress->Name.to_upper(), networkAddress->Address)});

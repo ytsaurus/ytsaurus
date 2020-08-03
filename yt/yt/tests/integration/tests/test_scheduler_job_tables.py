@@ -1100,7 +1100,7 @@ class TestCoreTablePorto(YTEnvSetup):
     @unix_only
     def test_core_when_user_job_was_killed_porto(self):
         # Breakpoints are not supported in tests with rootfs.
-        op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1, get_job_id=False)
+        op, job_ids = self._start_operation(1, kill_self=True, max_failed_job_count=1, get_job_id=False, enable_cuda_gpu_core_dump=True)
 
         with pytest.raises(YtError):
             op.track()
