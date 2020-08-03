@@ -44,7 +44,7 @@ class Base:
             while True:
                 time.sleep(0.5)
                 try:
-                    for i in range(5):
+                    for i in range(10):
                         make_request()
                 except:
                     continue
@@ -104,6 +104,7 @@ class Base:
         self.wait_for_config([])
 
     @authors("aleksandra-zh")
+    @flaky(max_runs=5)
     def test_peer_count_change(self):
         self.set_peer_count(3)
         self.wait_for_config([0, 1, 2])
