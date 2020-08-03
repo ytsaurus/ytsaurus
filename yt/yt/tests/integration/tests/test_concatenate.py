@@ -7,7 +7,7 @@ import pytest
 
 class TestConcatenate(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 5
+    NUM_NODES = 9
     NUM_SCHEDULERS = 1
 
     @authors("ermolovd")
@@ -311,7 +311,8 @@ class TestConcatenate(YTEnvSetup):
             concatenate(["//tmp/t1"], "//tmp/union")
 
     @authors("gritukan")
-    def test_sorted_concatenation(self):
+    @pytest.mark.parametrize("erasure", [False, True])
+    def test_sorted_concatenation(self, erasure):
         def make_rows(values):
             return [{"a": value} for value in values]
 
@@ -319,6 +320,8 @@ class TestConcatenate(YTEnvSetup):
            attributes={
                "schema": make_schema([{"name": "a", "type": "int64"}])
            })
+        if erasure:
+            set("//tmp/in/@erasure_codec", "reed_solomon_6_3")
 
         for x in [1, 3, 2]:
             write_table("<chunk_key_column_count=1;append=true>//tmp/in", make_rows([x]))
