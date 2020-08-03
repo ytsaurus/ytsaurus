@@ -58,7 +58,9 @@ TFuture<void> TChunkMetaFetcher::FetchFromNode(TNodeId nodeId, std::vector<int> 
         // CC: psushin@
         req->SetMultiplexingBand(EMultiplexingBand::Heavy);
         req->set_enable_throttling(true);
-        ToProto(req->mutable_chunk_id(), chunk->ChunkId());
+
+        auto chunkId = EncodeChunkId(chunk, nodeId);
+        ToProto(req->mutable_chunk_id(), chunkId);
         ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
         InitializeRequest_(*req);
 
