@@ -47,7 +47,12 @@ struct IUserJobEnvironment
 
     struct TUserJobProcessOptions
     {
+        //! Path to core watcher pipes directory relative to user job working directory.
+        std::optional<TString> SlotCoreWatcherDirectory;
+
+        //! Path to core watcher pipes directory relative to job proxy working directory.
         std::optional<TString> CoreWatcherDirectory;
+
         NContainers::EEnablePorto EnablePorto = NContainers::EEnablePorto::None;
         bool EnableCudaGpuCoreDump = false;
         std::optional<TString> HostName;
