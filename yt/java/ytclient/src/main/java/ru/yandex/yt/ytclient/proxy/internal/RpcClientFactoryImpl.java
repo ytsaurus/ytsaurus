@@ -10,9 +10,9 @@ import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 
 public class RpcClientFactoryImpl implements RpcClientFactory {
-    private BusConnector connector;
-    private RpcCredentials credentials;
-    private RpcCompression compression;
+    final private BusConnector connector;
+    final private RpcCredentials credentials;
+    final private RpcCompression compression;
 
     public RpcClientFactoryImpl(BusConnector connector,
                                 RpcCredentials credentials,
