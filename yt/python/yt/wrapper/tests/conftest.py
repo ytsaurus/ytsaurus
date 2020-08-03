@@ -77,19 +77,25 @@ class YtTestEnvironment(object):
         self.uniq_dir_name = os.path.join(self.test_name, "run_" + run_id)
         self.sandbox_dir = os.path.join(get_tests_sandbox(), self.uniq_dir_name)
 
+        self.binaries_path = None
         if yatest_common is not None:
             if need_suid and arcadia_interop.is_inside_distbuild():
                 pytest.skip()
 
-            bin_dir = os.path.join(get_tests_sandbox(), "need_suid_" + str(int(need_suid)))
-            if not os.path.exists(bin_dir):
-                os.makedirs(bin_dir)
+            suffix = "need_suid_" + str(int(need_suid))
+            if yatest_common.get_param("ram_drive_path") is not None:
+                prepare_dir = os.path.join(yatest_common.ram_drive_path(), suffix)
+            else:
+                prepare_dir = os.path.join(yatest_common.work_path(), suffix)
 
-                path = arcadia_interop.prepare_yt_environment(
-                    bin_dir,
+            if not os.path.exists(prepare_dir):
+                os.makedirs(prepare_dir)
+
+                self.binaries_path = arcadia_interop.prepare_yt_environment(
+                    prepare_dir,
                     copy_ytserver_all=True,
                     need_suid=need_suid)
-                os.environ["PATH"] = os.pathsep.join([path, os.environ.get("PATH", "")])
+                os.environ["PATH"] = os.pathsep.join([self.binaries_path, os.environ.get("PATH", "")])
 
         common_delta_node_config = {
             "exec_agent": {
