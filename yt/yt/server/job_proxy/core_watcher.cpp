@@ -185,57 +185,61 @@ void TCoreWatcher::DoWatchCores()
     YT_LOG_DEBUG("Looking for new cores (CoreDirectoryPath: %v)",
         CoreDirectoryPath_);
 
-    for (const auto& file : TDirIterator(CoreDirectoryPath_)) {
-        auto fileName = TFsPath{file.fts_path}.GetName();
-        if (GetFileExtension(fileName) == "pipe") {
-            auto name = GetFileNameWithoutExtension(fileName);
-            if (!SeenCoreNames_.contains(name)) {
-                YT_LOG_INFO("New core pipe found (CorePipeFileName: %v)",
-                    fileName);
+    try {
+        for (const auto& file : TDirIterator(CoreDirectoryPath_)) {
+            auto fileName = TFsPath{file.fts_path}.GetName();
+            if (GetFileExtension(fileName) == "pipe") {
+                auto name = GetFileNameWithoutExtension(fileName);
+                if (!SeenCoreNames_.contains(name)) {
+                    YT_LOG_INFO("New core pipe found (CorePipeFileName: %v)",
+                        fileName);
 
-                int coreIndex = NextCoreIndex_;
-                ++NextCoreIndex_;
+                    int coreIndex = NextCoreIndex_;
+                    ++NextCoreIndex_;
 
-                SeenCoreNames_.insert(name);
+                    SeenCoreNames_.insert(name);
 
-                auto coreInfoFuture = BIND(&TCoreWatcher::DoProcessLinuxCore, MakeStrong(this), name, coreIndex)
-                    .AsyncVia(IOInvoker_)
-                    .Run();
-                CoreFutures_.push_back(coreInfoFuture);
-            }
-        } else if (fileName == CudaGpuCoreDumpPipeName) {
-            if (!SeenCoreNames_.contains(fileName)) {
-                YT_LOG_DEBUG("GPU core dump pipe found (FileName: %v)",
-                    fileName);
-
-                if (!GpuCoreReader_) {
-                    const auto gpuCoreDumpPath = CoreDirectoryPath_ + "/" + fileName;
-                    GpuCoreReader_ = New<TGpuCoreReader>(gpuCoreDumpPath);
-                    YT_LOG_DEBUG("GPU core reader created (CoreDumpPath: %v)",
-                        gpuCoreDumpPath);
-                }
-                
-                auto bytesAvailable = GpuCoreReader_->GetBytesAvailable();
-                if (bytesAvailable > 0) {
-                    YT_LOG_INFO("GPU core dump streaming started (GpuCorePipeFileName: %v, BytesAvailable: %v)",
-                        fileName,
-                        bytesAvailable);
-
-                    int coreIndex = NextCoreIndex_++;
-
-                    SeenCoreNames_.insert(fileName);
-
-                    auto coreInfoFuture = BIND(
-                        &TCoreWatcher::DoProcessGpuCore, 
-                        MakeStrong(this), 
-                        GpuCoreReader_->CreateAsyncReader(), 
-                        coreIndex)
+                    auto coreInfoFuture = BIND(&TCoreWatcher::DoProcessLinuxCore, MakeStrong(this), name, coreIndex)
                         .AsyncVia(IOInvoker_)
                         .Run();
                     CoreFutures_.push_back(coreInfoFuture);
                 }
+            } else if (fileName == CudaGpuCoreDumpPipeName) {
+                if (!SeenCoreNames_.contains(fileName)) {
+                    YT_LOG_DEBUG("GPU core dump pipe found (FileName: %v)",
+                        fileName);
+
+                    if (!GpuCoreReader_) {
+                        const auto gpuCoreDumpPath = CoreDirectoryPath_ + "/" + fileName;
+                        GpuCoreReader_ = New<TGpuCoreReader>(gpuCoreDumpPath);
+                        YT_LOG_DEBUG("GPU core reader created (CoreDumpPath: %v)",
+                            gpuCoreDumpPath);
+                    }
+                    
+                    auto bytesAvailable = GpuCoreReader_->GetBytesAvailable();
+                    if (bytesAvailable > 0) {
+                        YT_LOG_INFO("GPU core dump streaming started (GpuCorePipeFileName: %v, BytesAvailable: %v)",
+                            fileName,
+                            bytesAvailable);
+
+                        int coreIndex = NextCoreIndex_++;
+
+                        SeenCoreNames_.insert(fileName);
+
+                        auto coreInfoFuture = BIND(
+                            &TCoreWatcher::DoProcessGpuCore, 
+                            MakeStrong(this), 
+                            GpuCoreReader_->CreateAsyncReader(), 
+                            coreIndex)
+                            .AsyncVia(IOInvoker_)
+                            .Run();
+                        CoreFutures_.push_back(coreInfoFuture);
+                    }
+                }
             }
         }
+    } catch (const std::exception& ex) {
+        YT_LOG_WARNING(ex, "Failed to watch new cores");
     }
 }
 
