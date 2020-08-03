@@ -21,7 +21,7 @@ public class SerializedExecutorService implements ExecutorService {
     private final AtomicBoolean lock = new AtomicBoolean();
     private final ConcurrentLinkedQueue<Runnable> taskQueue = new ConcurrentLinkedQueue<>();
 
-    public SerializedExecutorService(ExecutorService underlying)
+    public SerializedExecutorService(@Nonnull ExecutorService underlying)
     {
         this.underlying = underlying;
     }
@@ -81,7 +81,7 @@ public class SerializedExecutorService implements ExecutorService {
 
     @Nonnull
     @Override
-    public Future<Void> submit(@Nonnull Runnable runnable) {
+    public CompletableFuture<Void> submit(@Nonnull Runnable runnable) {
         return submit(()->{
             runnable.run();
             return null;
