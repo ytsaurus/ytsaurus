@@ -206,7 +206,7 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
 public class ApiServiceClient implements TransactionalClient {
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceClient.class);
 
-    @Nonnull private final ApiService service;
+    private final ApiService service;
     @Nonnull private final Executor heavyExecutor;
     @Nullable private final RpcClient rpcClient;
     @Nonnull private final RpcOptions rpcOptions;
@@ -223,12 +223,12 @@ public class ApiServiceClient implements TransactionalClient {
         this.rpcOptions = options;
     }
 
-    private ApiServiceClient(RpcClient client, RpcOptions options, ApiService service) {
+    private ApiServiceClient(@Nullable RpcClient client, RpcOptions options, ApiService service) {
         this(client, options, service, ForkJoinPool.commonPool());
     }
 
     public ApiServiceClient(RpcClient client, RpcOptions options) {
-        this(client, options, client.getService(ApiService.class, options));
+        this(client, options, RpcServiceClient.create(ApiService.class, options));
     }
 
     public ApiServiceClient(RpcOptions options) {
@@ -439,8 +439,7 @@ public class ApiServiceClient implements TransactionalClient {
         }
         builder.body().setPath(path);
 
-        return RpcUtil.apply(invoke(builder),
-                response -> response.body());
+        return RpcUtil.apply(invoke(builder), RpcClientResponse::body);
     }
 
     public CompletableFuture<List<YTreeNode>> getTablePivotKeys(String path, @Nullable Duration requestTimeout) {
@@ -924,9 +923,7 @@ public class ApiServiceClient implements TransactionalClient {
             if (tabletsMounted.allMatch(mounted -> mounted)) {
                 futureToComplete.complete(null);
             } else {
-                executorService.schedule(() -> {
-                    runTabletsMountedChecker(tablePath, futureToComplete, executorService);
-                }, 1, TimeUnit.SECONDS);
+                executorService.schedule(() -> runTabletsMountedChecker(tablePath, futureToComplete, executorService), 1, TimeUnit.SECONDS);
             }
         }).exceptionally(e -> {
             futureToComplete.completeExceptionally(e);
@@ -1628,12 +1625,12 @@ public class ApiServiceClient implements TransactionalClient {
 
     protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<ResponseType> invoke(
             RpcClientRequestBuilder<RequestType, ResponseType> builder) {
-        return builder.invoke();
+        return builder.invoke(rpcClient);
     }
 
     protected <RequestType extends MessageLite.Builder, ResponseType> RpcClientStreamControl startStream(
             RpcClientRequestBuilder<RequestType, ResponseType> builder) {
-        return builder.startStream();
+        return builder.startStream(rpcClient);
     }
 
     @Override

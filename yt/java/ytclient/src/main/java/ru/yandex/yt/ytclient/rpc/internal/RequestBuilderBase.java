@@ -6,7 +6,8 @@ import java.util.concurrent.CompletableFuture;
 
 import com.google.protobuf.MessageLite;
 
-import ru.yandex.bolts.collection.Option;
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.ytclient.proxy.internal.FailoverRpcExecutor;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
@@ -17,16 +18,16 @@ import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
+@NonNullApi
+@NonNullFields
 public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder, ResponseType> implements RpcClientRequestBuilder<RequestType, ResponseType> {
-    private final Option<RpcClient> clientOpt;
     private final TRequestHeader.Builder header;
     private final RequestType body;
     private final List<byte[]> attachments = new ArrayList<>();
     private boolean requestAck = true;
     private final RpcOptions options;
 
-    RequestBuilderBase(Option<RpcClient> clientOpt, TRequestHeader.Builder header, RequestType body, RpcOptions options) {
-        this.clientOpt = clientOpt;
+    RequestBuilderBase(TRequestHeader.Builder header, RequestType body, RpcOptions options) {
         this.header = header;
         this.body = body;
         this.options = options;
@@ -70,16 +71,12 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     }
 
     @Override
-    public CompletableFuture<ResponseType> invoke() {
+    public CompletableFuture<ResponseType> invoke(RpcClient client) {
         CompletableFuture<ResponseType> result = new CompletableFuture<>();
         try {
             RpcClientResponseHandler handler = createHandler(result);
-            if (clientOpt.isPresent()) {
-                RpcClientRequestControl control = clientOpt.get().send(this, handler);
-                result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
-            } else {
-                throw new IllegalStateException("client is not set");
-            }
+            RpcClientRequestControl control = client.send(this, handler);
+            result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
         } catch (Throwable e) {
             result.completeExceptionally(e);
         }
@@ -100,12 +97,8 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     }
 
     @Override
-    public RpcClientStreamControl startStream() {
-        if (clientOpt.isPresent()) {
-            return clientOpt.get().startStream(this);
-        } else {
-            throw new IllegalStateException("client is not set");
-        }
+    public RpcClientStreamControl startStream(RpcClient client) {
+        return client.startStream(this);
     }
 
     @Override

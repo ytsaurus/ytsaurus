@@ -3,16 +3,13 @@ package ru.yandex.yt.ytclient.rpc.internal;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.Objects;
 import java.util.concurrent.ThreadLocalRandom;
 
 import com.google.protobuf.MessageLite;
 
-import ru.yandex.bolts.collection.Option;
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.tracing.TTracingExt;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
@@ -23,14 +20,12 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 public class RpcServiceClient implements InvocationHandler {
     private static final Object[] EMPTY_ARGS = new Object[0];
 
-    private final Option<RpcClient> clientOpt;
     private final RpcServiceDescriptor serviceDescriptor;
     private final String serviceName;
     private final int protocolVersion;
     private final RpcOptions options;
 
-    private RpcServiceClient(Option<RpcClient> clientOpt, Class<?> interfaceClass, RpcOptions options) {
-        this.clientOpt = Objects.requireNonNull(clientOpt);
+    private RpcServiceClient(Class<?> interfaceClass, RpcOptions options) {
         this.serviceDescriptor = RpcServiceDescriptor.forInterface(interfaceClass);
         this.serviceName =
                 options.getServiceName() != null ? options.getServiceName() : serviceDescriptor.getServiceName();
@@ -60,13 +55,13 @@ public class RpcServiceClient implements InvocationHandler {
 
     @SuppressWarnings("unchecked")
     private RpcClientRequestBuilder<?, ?> createBuilder(RpcServiceMethodDescriptor methodDescriptor, RpcOptions options) {
-        return new RequestWithResponseBuilder(clientOpt, createHeader(methodDescriptor),
+        return new RequestWithResponseBuilder(createHeader(methodDescriptor),
                 (MessageLite.Builder) methodDescriptor.getRequestBodyCreator().get(),
                 methodDescriptor.getResponseBodyParser(), options);
     }
 
     @Override
-    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+    public Object invoke(Object proxy, Method method, Object[] args) {
         if (args == null) {
             args = EMPTY_ARGS;
         }
@@ -94,24 +89,13 @@ public class RpcServiceClient implements InvocationHandler {
     /**
      * Создаёт реализацию interfaceClass для вызова методов через client
      */
-    public static <T> T create(RpcClient client, Class<T> interfaceClass) {
-        return create(client, interfaceClass, new RpcOptions());
+    public static <T> T create(Class<T> interfaceClass) {
+        return create(interfaceClass, new RpcOptions());
     }
 
     public static <T> T create(Class<T> interfaceClass, RpcOptions options) {
-        return create(Option.empty(), interfaceClass, options);
-    }
-
-    /**
-     * Создаёт реализацию interfaceClass для вызова методов через client
-     */
-    @SuppressWarnings("unchecked")
-    public static <T> T create(RpcClient client, Class<T> interfaceClass, RpcOptions options) {
-        return create(Option.of(client), interfaceClass, options);
-    }
-
-    public static <T> T create(Option<RpcClient> clientOpt, Class<T> interfaceClass, RpcOptions options) {
-        InvocationHandler handler = new RpcServiceClient(clientOpt, interfaceClass, options);
+        InvocationHandler handler = new RpcServiceClient(interfaceClass, options);
+        //noinspection unchecked
         return (T) Proxy.newProxyInstance(interfaceClass.getClassLoader(), new Class[]{interfaceClass}, handler);
     }
 }

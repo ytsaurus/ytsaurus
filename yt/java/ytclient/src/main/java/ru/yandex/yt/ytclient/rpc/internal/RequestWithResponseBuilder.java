@@ -8,6 +8,7 @@ import java.util.concurrent.CompletableFuture;
 import com.google.protobuf.MessageLite;
 
 import ru.yandex.bolts.collection.Option;
+import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
@@ -16,14 +17,15 @@ import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcMessageParser;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
+@NonNullApi
 public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder, ResponseType extends MessageLite> extends RequestBuilderBase<RequestType, RpcClientResponse<ResponseType>> {
     private final RpcMessageParser<ResponseType> parser;
 
     RequestWithResponseBuilder(
-            Option<RpcClient> clientOpt, TRequestHeader.Builder header, RequestType body,
+            TRequestHeader.Builder header, RequestType body,
             RpcMessageParser<ResponseType> parser,
             RpcOptions options) {
-        super(clientOpt, header, body, options);
+        super(header, body, options);
         this.parser = parser;
     }
 

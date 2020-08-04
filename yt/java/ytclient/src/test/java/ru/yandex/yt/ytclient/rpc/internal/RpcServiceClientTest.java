@@ -108,14 +108,12 @@ public class RpcServiceClientTest {
     }
 
     public static class MyServiceClient {
+        private final RpcClient client;
         private final MyService service;
 
         public MyServiceClient(RpcClient client) {
-            this(client.getService(MyService.class));
-        }
-
-        public MyServiceClient(MyService service) {
-            this.service = service;
+            this.client = client;
+            this.service = RpcServiceClient.create(MyService.class);
         }
 
         public TRspDiscover discover(TReqDiscover req) {
@@ -123,7 +121,7 @@ public class RpcServiceClientTest {
             assertThat(builder.getService(), is("MyService"));
             assertThat(builder.getMethod(), is("Discover"));
             builder.body().mergeFrom(req);
-            return builder.invoke().join().body();
+            return builder.invoke(client).join().body();
         }
     }
 
@@ -163,7 +161,7 @@ public class RpcServiceClientTest {
     @SuppressWarnings({"unused", "EqualsWithItself"})
     public void standardMethods() {
         RpcClient client = new FailingClient(new MyException("Not used"));
-        MyService service = RpcServiceClient.create(client, MyService.class);
+        MyService service = RpcServiceClient.create(MyService.class);
         int h = service.hashCode();
         String s = service.toString();
         assertThat(s, not(isEmptyString()));

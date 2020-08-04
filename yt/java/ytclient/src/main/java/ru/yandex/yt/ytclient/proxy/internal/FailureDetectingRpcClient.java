@@ -17,19 +17,19 @@ import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.internal.RpcServiceClient;
 
 public class FailureDetectingRpcClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(FailureDetectingRpcClient.class);
 
     private RpcClient innerClient;
-    private Function<Throwable, Boolean> isError;
-    private Consumer<Throwable> errorHandler;
+    private final Function<Throwable, Boolean> isError;
+    private final Consumer<Throwable> errorHandler;
 
-    public FailureDetectingRpcClient(RpcClient innerClient,
-                                     Function<Throwable, Boolean> isError,
-                                     Consumer<Throwable> errorHandler) {
+    public FailureDetectingRpcClient(
+            RpcClient innerClient,
+            Function<Throwable, Boolean> isError,
+            Consumer<Throwable> errorHandler)
+    {
         this.innerClient = innerClient;
         this.isError = isError;
         this.errorHandler = errorHandler;
@@ -102,7 +102,7 @@ public class FailureDetectingRpcClient implements RpcClient {
 
     @Override
     public RpcClient withTokenAuthentication(String user, String token) {
-        this.innerClient = innerClient.withTokenAuthentication(user, token);
+        this.innerClient = innerClient.withTokenAuthentication(new RpcCredentials(user, token));
         return this;
     }
 
@@ -116,16 +116,6 @@ public class FailureDetectingRpcClient implements RpcClient {
     public RpcClient withCompression(RpcCompression compression) {
         this.innerClient = innerClient.withCompression(compression);
         return this;
-    }
-
-    @Override
-    public <T> T getService(Class<T> interfaceClass) {
-        return RpcServiceClient.create(this, interfaceClass);
-    }
-
-    @Override
-    public <T> T getService(Class<T> interfaceClass, RpcOptions options) {
-        return RpcServiceClient.create(this, interfaceClass, options);
     }
 
     @Override
