@@ -420,6 +420,7 @@ class ClickHouseTestBase(YTEnvSetup):
 
         create_user("yt-clickhouse-cache")
         create_user("yt-clickhouse")
+        sync_create_cells(1)
 
         if exists("//sys/clickhouse"):
             return
@@ -432,6 +433,7 @@ class ClickHouseTestBase(YTEnvSetup):
         del Clique.base_config["engine"]
         Clique.base_config["cluster_connection"] = self.__class__.Env.configs["driver"]
         Clique.proxy_address = self._get_proxy_address()
+
 
 def get_scheduling_options(user_slots):
     return {
@@ -1417,6 +1419,49 @@ class TestJobInput(ClickHouseTestBase):
             clique.assert_read_row_count('select * from "//tmp/t" {} 5 <= i and i <= 8'.format(where_prewhere), exact=4)
             clique.assert_read_row_count('select * from "//tmp/t" {} i in (-1, 2, 8, 8, 15)'.format(where_prewhere), exact=2)
 
+    @authors("max42")
+    def test_computed_column_chunk_filter(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "c", "type": "int64", "sort_order": "ascending",
+                                                           "expression": "i *  2"},
+                                                          {"name": "i", "type": "int64", "sort_order": "ascending"}]})
+        for i in xrange(5):
+            write_table("<append=%true>//tmp/t", [{"i": 2 * i}, {"i": 2 * i + 1}])
+
+        for enable_computed_column_deduction in (False, True):
+            with Clique(1, config_patch={"yt": {"settings": {
+                "enable_computed_column_deduction": enable_computed_column_deduction
+            }}}) as clique:
+                correct_row_count = lambda row_count: row_count if enable_computed_column_deduction else 10
+                clique.assert_read_row_count('select * from "//tmp/t" where i == 3', exact=correct_row_count(2))
+                clique.assert_read_row_count('select * from "//tmp/t" where i == 6 or i == 7', exact=correct_row_count(2))
+                clique.assert_read_row_count('select * from "//tmp/t" where i == 0 or i == 9', exact=correct_row_count(4))
+                # These cases should not be optimized.
+                clique.assert_read_row_count('select * from "//tmp/t" where 5 <= i and i <= 8', exact=10)
+                clique.assert_read_row_count('select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
+
+    @authors("max42")
+    def test_dynamic_table_farm_hash(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "computed_key", "type": "uint64", "sort_order": "ascending",
+                                                           "expression": "farm_hash(key)"},
+                                                          {"name": "key", "type": "string", "sort_order": "ascending"},
+                                                          {"name": "value", "type": "string"}],
+                                               "dynamic": True,
+                                               "enable_dynamic_store_read": True})
+        tablet_count = 100
+        sync_reshard_table("//tmp/t", [[]] + [[yson.YsonUint64(i * 2**64 // tablet_count)] for i in xrange(tablet_count)])
+        sync_mount_table("//tmp/t")
+        key_count = 5
+        for i in xrange(key_count):
+            insert_rows("//tmp/t", [{"key": "k" + str(i), "value": "v" + str(i)}])
+
+        for enable_computed_column_deduction in (False, True):
+            with Clique(1, config_patch={"yt": {"settings": {"enable_computed_column_deduction": enable_computed_column_deduction},
+                                                "enable_dynamic_tables": True}}) as clique:
+                correct_row_count = lambda row_count: row_count if enable_computed_column_deduction else 5
+                clique.assert_read_row_count("select * from `//tmp/t`", exact=5)
+                clique.assert_read_row_count("select * from `//tmp/t` where key == 'k1' or key = 'k3'", exact=correct_row_count(2))
+                clique.assert_read_row_count("select * from (select * from `//tmp/t` where key == 'k4')", exact=correct_row_count(1))
+
     @authors("dakovalkov")
     def test_common_schema_sorted(self):
         create("table", "//tmp/t1", attributes={"schema": [
@@ -1608,7 +1653,6 @@ class TestJobInput(ClickHouseTestBase):
                                     {"key": [1, yson_min]}, {"key": [1, yson_null]}):
                     check_complex(lower_limit, upper_limit)
                     check_complex(upper_limit, lower_limit)
-
 
 
 class TestMutations(ClickHouseTestBase):
@@ -3229,8 +3273,6 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
 
 class TestClickHouseDynamicTables(ClickHouseTestBase):
     def setup(self):
-        sync_create_cells(1)
-
         self._setup()
 
     def _get_config_patch(self):

@@ -175,7 +175,7 @@ DB::Block TBlockInputStream::readImpl()
     DB::Block block;
     while (block.rows() == 0) {
         TRowBatchReadOptions options{
-            .Columnar = Host_->GetConfig()->EnableColumnarRead
+            .Columnar = Host_->GetConfig()->QuerySettings->EnableColumnarRead
         };
         auto batch = Reader_->Read(options);
         if (!batch) {
@@ -229,7 +229,7 @@ void TBlockInputStream::Prepare()
 {
     InputHeaderBlock_ = ToHeaderBlock(*ReadSchema_);
     OutputHeaderBlock_ = ToHeaderBlock(*ReadSchema_);
-    
+
     if (PrewhereInfo_) {
         // Create header with executed prewhere actions.
         ExecutePrewhereActions(OutputHeaderBlock_, PrewhereInfo_);
