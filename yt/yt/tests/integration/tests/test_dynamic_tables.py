@@ -223,7 +223,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         for metric in metrics:
             assert metric.update().get(verbose=True) == 0
 
-    @authors("kiselyovp")
+    @authors("ifsmirnov")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_follower_catchup(self, decommission_through_extra_peers):
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", decommission_through_extra_peers)
@@ -245,7 +245,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             insert_rows("//tmp/t", rows)
             assert lookup_rows("//tmp/t", keys) == rows
 
-    @authors("kiselyovp")
+    @authors("ifsmirnov")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_run_reassign_leader(self, decommission_through_extra_peers):
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", decommission_through_extra_peers)
@@ -274,7 +274,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         assert lookup_rows("//tmp/t", keys) == rows
 
-    @authors("kiselyovp")
+    @authors("ifsmirnov")
     @pytest.mark.parametrize("decommission_through_extra_peers", [False, True])
     def test_run_reassign_all_peers(self, decommission_through_extra_peers):
         set("//sys/@config/tablet_manager/decommission_through_extra_peers", decommission_through_extra_peers)
@@ -433,7 +433,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         cell_id = sync_create_cells(1)[0]
         wait(lambda: get("#{0}/@health".format(cell_id)) == "good")
 
-    @authors("kiselyovp")
+    @authors("ifsmirnov")
     def test_distributed_commit(self):
         cell_count = 5
         sync_create_cells(cell_count)
@@ -450,7 +450,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         actual = select_rows("* from [//tmp/t]")
         assert_items_equal(actual, rows)
 
-    @authors("kiselyovp")
+    @authors("ifsmirnov")
     def test_update_only_key_columns(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
