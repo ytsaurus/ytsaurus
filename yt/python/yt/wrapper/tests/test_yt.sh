@@ -80,7 +80,55 @@ test_cypress_commands()
     $YT create file //home/wrapper_test/file_with_attrs --attributes "{testattr=1;other=2}" --ignore-existing
     check "//home/wrapper_test/file_with_attrs" "$($YT find //home/wrapper_test --attribute-filter "testattr=1")"
     check "" "$($YT find //home/wrapper_test --attribute-filter "attr=1")"
+}
 
+test_create_account()
+{
+    $YT create-account parent
+    check 'true' "$($YT exists //sys/account_tree/parent)"
+    $YT create-account parent -i
+
+    check '0' "$($YT get //sys/account_tree/parent/@resource_limits/node_count)"
+    $YT set //sys/accounts/parent/@resource_limits/node_count 10
+
+    $YT create-account --parent-name parent --name child --resource-limits {node_count=10} --allow-children-limit-overcommit
+    check 'true' "$($YT exists //sys/account_tree/parent/child)"
+    check '10' "$($YT get //sys/account_tree/parent/child/@resource_limits/node_count)"
+    check '%true' "$($YT get //sys/account_tree/parent/child/@allow_children_limit_overcommit)"
+}
+
+test_create_pool()
+{
+    $YT create-pool test
+    check 'true' "$($YT exists //sys/pool_trees/default/test)"
+    $YT create-pool test -i
+
+    $YT create scheduler_pool_tree --attributes {name=yggdrasil}
+
+    $YT create-pool parent yggdrasil --resource-limits '{cpu=10; memory=1000000000}' --min-share-resources {cpu=5}
+    check 'true' "$($YT exists //sys/pool_trees/yggdrasil/parent)"
+    check '10' "$($YT get //sys/pool_trees/yggdrasil/parent/@resource_limits/cpu)"
+    check '1000000000' "$($YT get //sys/pool_trees/yggdrasil/parent/@resource_limits/memory)"
+    check '5' "$($YT get //sys/pool_trees/yggdrasil/parent/@min_share_resources/cpu)"
+
+    $YT create-pool --parent-name parent --pool-tree yggdrasil --name fair-share-child --weight 3.14 \
+    --max-operation-count 10 --max-running-operation-count 5 --attributes {attr=value}
+    check 'true' "$($YT exists //sys/pool_trees/yggdrasil/parent/fair-share-child)"
+    check '3.14' "$($YT get //sys/pool_trees/yggdrasil/parent/fair-share-child/@weight)"
+    check '10' "$($YT get //sys/pool_trees/yggdrasil/parent/fair-share-child/@max_operation_count)"
+    check '5' "$($YT get //sys/pool_trees/yggdrasil/parent/fair-share-child/@max_running_operation_count)"
+    check '"value"' "$($YT get //sys/pool_trees/yggdrasil/parent/fair-share-child/@attr)"
+
+    $YT create-pool fifo-child --parent-name parent --pool-tree yggdrasil --mode fifo --fifo-sort-parameters [pending_job_count] \
+    --create-ephemeral-subpools --ephemeral-subpool-config {max_operation_count=10} --forbid-immediate-operations
+    check '"fifo"' "$($YT get //sys/pool_trees/yggdrasil/parent/fifo-child/@mode)"
+    check '"pending_job_count"' "$($YT get //sys/pool_trees/yggdrasil/parent/fifo-child/@fifo_sort_parameters/0)"
+    check 'false' "$($YT exists //sys/pool_trees/yggdrasil/parent/fifo-child/@fifo_sort_parameters/1)"
+    check '%true' "$($YT get //sys/pool_trees/yggdrasil/parent/fifo-child/@forbid_immediate_operations)"
+    check '%true' "$($YT get //sys/pool_trees/yggdrasil/parent/fifo-child/@create_ephemeral_subpools)"
+    check '10' "$($YT get //sys/pool_trees/yggdrasil/parent/fifo-child/@ephemeral_subpool_config/max_operation_count)"
+
+    $YT remove //sys/pool_trees/yggdrasil --force --recursive
 }
 
 test_list_long_format()
@@ -584,6 +632,8 @@ run_test test_file_commands
 run_test test_copy_move_link
 run_test test_merge_erase
 run_test test_map_reduce
+run_test test_create_account
+run_test test_create_pool
 run_test test_users
 run_test test_concurrent_upload_in_operation
 run_test test_sorted_by
