@@ -1653,7 +1653,6 @@ auto TFairShareTree<TFairShareImpl>::DoBuildPoolsInformation(
     auto buildPoolInfo = [&] (const TCompositeSchedulerElement* pool, TFluentMap fluent) {
         const auto& id = pool->GetId();
         const auto& attributes = pool->Attributes();
-        auto accumulatedResourceVolume = pool->GetTotalResourceLimits() * pool->GetAccumulatedResourceRatioVolume();
         fluent
             .Item(id).BeginMap()
                 .Item("mode").Value(pool->GetMode())
@@ -1675,8 +1674,8 @@ auto TFairShareTree<TFairShareImpl>::DoBuildPoolsInformation(
                         .Item("specified_burst_ratio").Value(burstRatio)
                         .Item("specified_resource_flow_ratio").Value(resourceFlowRatio)
                         .Item("accumulated_resource_ratio_volume").Value(pool->GetAccumulatedResourceRatioVolume())
-                        .Item("accumulated_resource_volume").Value(accumulatedResourceVolume);
-                    if (burstRatio > RatioComparisonPrecision) {
+                        .Item("accumulated_resource_volume").Value(pool->GetAccumulatedResourceVolume());
+                    if (burstRatio > resourceFlowRatio + RatioComparisonPrecision) {
                         fluent.Item("estimated_burst_usage_duration_sec").Value(pool->GetAccumulatedResourceRatioVolume() / (burstRatio - resourceFlowRatio));
                     }
                 })
@@ -2469,6 +2468,11 @@ auto TFairShareTree<TFairShareImpl>::ProfileSchedulerElement(
         static_cast<i64>(element->GetAccumulatedResourceRatioVolume() * 1e5),
         EMetricType::Gauge,
         tags);
+    accumulator.Add(
+        profilingPrefix + "/accumulated_resource_volume_cpu",
+        static_cast<i64>(element->GetAccumulatedResourceVolume().GetCpu()),
+        EMetricType::Gauge,
+        tags);
 
     ProfileResources(accumulator, element->ResourceUsageAtUpdate(), profilingPrefix + "/resource_usage", tags);
     ProfileResources(accumulator, element->ResourceLimits(), profilingPrefix + "/resource_limits", tags);
@@ -2503,7 +2507,7 @@ auto TFairShareTree<TFairShareImpl>::BuildPersistentTreeState() const -> TPersis
     for (const auto& [poolId, pool] : Pools_) {
         if (pool->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
             auto state = New<TPersistentPoolState>();
-            state->AccumulatedResourceRatioVolume = pool->GetAccumulatedResourceRatioVolume();
+            state->AccumulatedResourceVolume = pool->GetAccumulatedResourceVolume();
             result->PoolStates.emplace(poolId, std::move(state));
         }
     }
@@ -2517,7 +2521,7 @@ auto TFairShareTree<TFairShareImpl>::InitPersistentTreeState(const TPersistentTr
         auto poolIt = Pools_.find(poolName);
         if (poolIt != Pools_.end()) {
             if (poolIt->second->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
-                poolIt->second->InitAccumulatedResourceRatioVolume(volume->AccumulatedResourceRatioVolume);
+                poolIt->second->InitAccumulatedResourceVolume(volume->AccumulatedResourceVolume);
             } else {
                 YT_LOG_INFO("Pool is not integral and cannot accept integral resource volume (Pool: %v, PoolTree: %v, Volume: %v)",
                     poolName,

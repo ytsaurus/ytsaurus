@@ -317,8 +317,9 @@ public:
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
             YT_LOG_ERROR(rspOrError, "Error storing persistent strategy state");
+        } else {
+            YT_LOG_INFO("Persistent strategy state successfully stored");
         }
-        YT_LOG_INFO("Persistent strategy state successfully stored");
     }
 
     void AttachJobContext(

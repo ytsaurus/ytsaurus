@@ -43,6 +43,7 @@ struct TSchedulableAttributes
     double PossibleUsageRatio = 1.0;
     double BurstRatio = 0.0;
     double TotalBurstRatio = 0.0;
+    TJobResources CompleteResourceFlow = {};
     double ResourceFlowRatio = 0.0;
     double TotalResourceFlowRatio = 0.0;
     int FifoIndex = -1;
@@ -112,14 +113,14 @@ struct TPersistentAttributes
     double BestAllocationRatio = 1.0;
     TInstant LastBestAllocationRatioUpdateTime;
 
-    double AccumulatedResourceRatioVolume = 0.0;
+    TJobResources AccumulatedResourceVolume = {};
     double LastIntegralShareRatio = 0.0;
 
     // NB: we don't want to reset all attributes.
     void ResetOnElementEnabled()
     {
         auto resetElement = TPersistentAttributes();
-        resetElement.AccumulatedResourceRatioVolume = AccumulatedResourceRatioVolume;
+        resetElement.AccumulatedResourceVolume = AccumulatedResourceVolume;
         *this = resetElement;
     }
 };
@@ -355,7 +356,8 @@ public:
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const;
     virtual TJobResources GetBurstGuaranteeResources() const;
     double GetAccumulatedResourceRatioVolume() const;
-    void InitAccumulatedResourceRatioVolume(double resourceVolume);
+    TJobResources GetAccumulatedResourceVolume() const;
+    void InitAccumulatedResourceVolume(TJobResources resourceVolume);
     double GetIntegralShareRatioByVolume() const;
 
     virtual double GetFairShareStarvationTolerance() const = 0;
@@ -576,7 +578,7 @@ public:
     virtual double GetSpecifiedBurstRatio() const = 0;
     virtual double GetSpecifiedResourceFlowRatio() const = 0;
 
-    double GetIntegralPoolCapacity() const;
+    TJobResources GetIntegralPoolCapacity() const;
 
 protected:
     const NProfiling::TTagId ProfilingTag_;

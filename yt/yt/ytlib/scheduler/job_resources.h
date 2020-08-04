@@ -134,6 +134,8 @@ TString FormatResources(
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 TString FormatResources(const TExtendedJobResources& resources);
 
+void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */);
+
 void ProfileResources(
     const NProfiling::TProfiler& profiler,
     const TJobResources& resources,
@@ -195,6 +197,8 @@ TJobResourcesWithQuota Min(const TJobResourcesWithQuota& lhs, const TJobResource
 
 void Serialize(const TExtendedJobResources& resources, NYson::IYsonConsumer* consumer);
 void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
+
+void Deserialize(TJobResources& resources, NYTree::INodePtr node);
 
 const TJobResources& MinSpareNodeResources();
 

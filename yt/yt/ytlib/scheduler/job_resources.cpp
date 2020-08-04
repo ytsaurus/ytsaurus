@@ -204,6 +204,17 @@ TString FormatResources(const TJobResources& resources)
         resources.GetNetwork());
 }
 
+void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TStringBuf /* format */)
+{
+    builder->AppendFormat(
+        "{UserSlots: %v, Cpu: %v, Gpu: %v, Memory: %v, Network: %v}",
+        resources.GetUserSlots(),
+        resources.GetCpu(),
+        resources.GetGpu(),
+        resources.GetMemory() / 1_MB,
+        resources.GetNetwork());
+}
+
 TString FormatResources(
     const TJobResourcesWithQuota& resources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
@@ -526,6 +537,20 @@ void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
             // COMPAT(psushin): fix for a web-face.
             .Item("memory").Value(resources.GetMemory())
         .EndMap();
+}
+
+void Deserialize(TJobResources& resources, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+#define XX(name, Name) \
+    auto child##Name = mapNode->FindChild(#name); \
+    if (child##Name) { \
+        auto val##Name = resources.Get##Name(); \
+        Deserialize(val##Name, child##Name); \
+        resources.Set##Name(val##Name); \
+    }
+    ITERATE_JOB_RESOURCES(XX)
+#undef XX
 }
 
 TJobResources GetMinSpareResources()

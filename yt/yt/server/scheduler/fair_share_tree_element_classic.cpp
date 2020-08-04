@@ -430,13 +430,20 @@ TJobResources TSchedulerElement::GetBurstGuaranteeResources() const
 
 double TSchedulerElement::GetAccumulatedResourceRatioVolume() const
 {
-    return PersistentAttributes_.AccumulatedResourceRatioVolume;
+    return TotalResourceLimits_.GetCpu() < RatioComparisonPrecision
+        ? 0.0
+        : static_cast<double>(PersistentAttributes_.AccumulatedResourceVolume.GetCpu()) / static_cast<double>(TotalResourceLimits_.GetCpu());
 }
 
-void TSchedulerElement::InitAccumulatedResourceRatioVolume(double resourceVolume)
+TJobResources TSchedulerElement::GetAccumulatedResourceVolume() const
 {
-    YT_VERIFY(PersistentAttributes_.AccumulatedResourceRatioVolume == 0.0);
-    PersistentAttributes_.AccumulatedResourceRatioVolume = resourceVolume;
+    return PersistentAttributes_.AccumulatedResourceVolume;
+}
+
+void TSchedulerElement::InitAccumulatedResourceVolume(TJobResources resourceVolume)
+{
+    YT_VERIFY(PersistentAttributes_.AccumulatedResourceVolume == TJobResources());
+    PersistentAttributes_.AccumulatedResourceVolume = resourceVolume;
 }
 
 double TSchedulerElement::GetIntegralShareRatioByVolume() const
@@ -839,6 +846,7 @@ void TCompositeSchedulerElement::UpdateCumulativeAttributes(TDynamicAttributesLi
     Attributes_.TotalBurstRatio = Attributes_.BurstRatio;
     Attributes_.ResourceFlowRatio = GetSpecifiedResourceFlowRatio();
     Attributes_.TotalResourceFlowRatio = Attributes_.ResourceFlowRatio;
+    Attributes_.CompleteResourceFlow = TotalResourceLimits_ * Attributes_.ResourceFlowRatio;
 
     SchedulableChildren_.clear();
     TJobResources childrenLimitedResourceDemand;
@@ -1571,9 +1579,9 @@ void TCompositeSchedulerElement::BuildResourceMetering(const std::optional<TMete
     }
 }
 
-double TCompositeSchedulerElement::GetIntegralPoolCapacity() const
+TJobResources TCompositeSchedulerElement::GetIntegralPoolCapacity() const
 {
-    return Attributes_.ResourceFlowRatio * TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod.SecondsFloat();
+    return Attributes_.CompleteResourceFlow * TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod.SecondsFloat();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1915,11 +1923,10 @@ double TPool::GetSpecifiedResourceFlowRatio() const
 
 void TPool::ConsumeAndRefillForPeriod(TDuration period)
 {
-    double upperLimit = std::max(PersistentAttributes_.AccumulatedResourceRatioVolume, GetIntegralPoolCapacity());
-    PersistentAttributes_.AccumulatedResourceRatioVolume += Attributes_.ResourceFlowRatio * period.SecondsFloat();
-    PersistentAttributes_.AccumulatedResourceRatioVolume -= PersistentAttributes_.LastIntegralShareRatio * period.SecondsFloat();
-    PersistentAttributes_.AccumulatedResourceRatioVolume = std::max(PersistentAttributes_.AccumulatedResourceRatioVolume, 0.0);
-    PersistentAttributes_.AccumulatedResourceRatioVolume = std::min(PersistentAttributes_.AccumulatedResourceRatioVolume, upperLimit);
+    PersistentAttributes_.AccumulatedResourceVolume += Attributes_.CompleteResourceFlow * period.SecondsFloat();
+    PersistentAttributes_.AccumulatedResourceVolume -= TotalResourceLimits_ * PersistentAttributes_.LastIntegralShareRatio * period.SecondsFloat();
+    PersistentAttributes_.AccumulatedResourceVolume = Max(PersistentAttributes_.AccumulatedResourceVolume, TJobResources());
+    PersistentAttributes_.AccumulatedResourceVolume = Min(PersistentAttributes_.AccumulatedResourceVolume, GetIntegralPoolCapacity());
 }
 
 double TPool::GetIntegralShareRatioLimitForRelaxedType() const
