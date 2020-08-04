@@ -147,6 +147,28 @@ DB::Block ToHeaderBlock(const TTableSchema& schema)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EValueType ToValueType(DB::Field::Types::Which which)
+{
+    switch (which) {
+        case DB::Field::Types::Which::Null:
+            return EValueType::Null;
+        case DB::Field::Types::Which::Int64:
+            return EValueType::Int64;
+        case DB::Field::Types::Which::UInt64:
+            return EValueType::Uint64;
+        case DB::Field::Types::Which::Float64:
+            return EValueType::Double;
+        case DB::Field::Types::Which::String:
+            return EValueType::String;
+        default:
+            THROW_ERROR_EXCEPTION(
+                "ClickHouse physical type %Qv is not supported",
+                DB::Field::Types::toString(which));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLogicalTypePtr RepresentClickHouseType(const DB::DataTypePtr& type)
 {
     if (type->isNullable()) {

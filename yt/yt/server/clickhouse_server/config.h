@@ -119,6 +119,22 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! This class will be accessible either via pragmas or via default_settings.
+class TQuerySettings
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableColumnarRead;
+
+    bool EnableComputedColumnDeduction;
+
+    TQuerySettings();
+};
+
+DEFINE_REFCOUNTED_TYPE(TQuerySettings)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYtConfig
     : public NYTree::TYsonSerializable
 {
@@ -179,8 +195,6 @@ public:
     //! Initial memory reservation for reader.
     i64 ReaderMemoryRequirement;
 
-    bool EnableColumnarRead;
-
     TDuration ProfilingPeriod;
 
     THealthCheckerConfigPtr HealthChecker;
@@ -190,6 +204,8 @@ public:
     bool EnableDynamicTables;
 
     TDuration TotalMemoryTrackerUpdatePeriod;
+
+    TQuerySettingsPtr QuerySettings;
 
     TYtConfig();
 };

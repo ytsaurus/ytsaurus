@@ -6,6 +6,7 @@
 
 #include <Core/NamesAndTypes.h>
 #include <Core/Block.h>
+#include <Core/Field.h>
 
 namespace NYT::NClickHouseServer {
 
@@ -16,7 +17,7 @@ std::vector<TString> ToVectorString(const DB::Names& columnNames);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// YT type system -> CH type system.
+// YT logical type system -> CH data type system.
 
 DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema);
 
@@ -26,7 +27,13 @@ DB::Block ToHeaderBlock(const NTableClient::TTableSchema& schema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// CH type system -> YT type system.
+// YT physical type system -> CH field type system.
+
+NTableClient::EValueType ToValueType(DB::Field::Types::Which which);
+
+////////////////////////////////////////////////////////////////////////////////
+
+// CH logicl type system -> YT type system.
 
 NTableClient::TTableSchema ConvertToTableSchema(
     const DB::ColumnsDescription& columns,

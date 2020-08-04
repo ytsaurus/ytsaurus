@@ -4,6 +4,11 @@
 #include "query_context.h"
 #include "subquery.h"
 #include "table.h"
+#include "computed_columns.h"
+#include "format.h"
+#include "query_context.h"
+#include "host.h"
+#include "config.h"
 
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
@@ -118,7 +123,7 @@ void TQueryAnalyzer::ValidateKeyColumns()
                 result.emplace_back(identifier->shortName());
             } else {
                 THROW_ERROR_EXCEPTION("Invalid sorted JOIN: CHYT does not support compound expressions in ON/USING clause")
-                    << TErrorAttribute("expression", ToString(keyAst));
+                    << TErrorAttribute("expression", keyAst);
             }
         }
         return result;
@@ -271,7 +276,7 @@ void TQueryAnalyzer::ParseQuery()
             YT_VERIFY(astWithAlias);
             if (astWithAlias->alias.empty()) {
                 THROW_ERROR_EXCEPTION("In queries with JOIN all joined expressions should be provided with aliases")
-                    << TErrorAttribute("table_expression", ToString(static_cast<DB::IAST&>(*tableExpression)))  ;
+                    << TErrorAttribute("table_expression", tableExpression);
             }
         }
     }
@@ -304,6 +309,8 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
 
     TQueryAnalysisResult result;
 
+    auto config = GetQueryContext(Context_)->Host->GetConfig();
+
     for (const auto& storage : Storages_) {
         if (!storage) {
             continue;
@@ -316,7 +323,27 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
                 ToNamesAndTypesList(*schema),
                 Context_);
 
-            keyCondition = DB::KeyCondition(QueryInfo_, Context_, ToNames(schema->GetKeyColumns()), std::move(primaryKeyExpression));
+            auto queryInfoForKeyCondition = QueryInfo_;
+
+            if (config->QuerySettings->EnableComputedColumnDeduction) {
+                // Query may not contain deducible values for computed columns.
+                // We populate query with deducible equations on computed columns,
+                // so key condition is able to properly filter ranges with computed
+                // key columns.
+                queryInfoForKeyCondition.query = queryInfoForKeyCondition.query->clone();
+                auto* selectQuery = queryInfoForKeyCondition.query->as<DB::ASTSelectQuery>();
+                YT_VERIFY(selectQuery);
+
+                if (selectQuery->where()) {
+                    selectQuery->refWhere() = PopulatePredicateWithComputedColumns(
+                        selectQuery->where(),
+                        schema,
+                        Context_,
+                        Logger);
+                }
+            }
+
+            keyCondition = DB::KeyCondition(queryInfoForKeyCondition, Context_, ToNames(schema->GetKeyColumns()), std::move(primaryKeyExpression));
         }
         result.KeyConditions.emplace_back(std::move(keyCondition));
         result.TableSchemas.emplace_back(storage->GetSchema());

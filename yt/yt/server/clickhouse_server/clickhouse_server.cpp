@@ -9,6 +9,8 @@
 #include "host.h"
 #include "helpers.h"
 #include "caching_profiler.h"
+#include "clickhouse_singletons.h"
+#include "format.h"
 
 #include <yt/core/misc/fs.h>
 
@@ -22,30 +24,23 @@
 
 #include <Access/AccessControlManager.h>
 #include <Access/MemoryAccessStorage.h>
-#include <AggregateFunctions/registerAggregateFunctions.h>
 #include <Common/ClickHouseRevision.h>
 #include <Common/MemoryTracker.h>
 #include <Databases/DatabaseMemory.h>
-#include <Dictionaries/registerDictionaries.h>
-#include <Functions/registerFunctions.h>
 #include <Interpreters/AsynchronousMetrics.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/ExternalDictionariesLoader.h>
 #include <Interpreters/ProcessList.h>
 #include <Interpreters/QueryLog.h>
-#include <Interpreters/SystemLog.h>
 #include <Interpreters/executeQuery.h>
-#include <Storages/StorageFactory.h>
 #include <Storages/StorageMemory.h>
 #include <Storages/System/StorageSystemAsynchronousMetrics.h>
 #include <Storages/System/StorageSystemDictionaries.h>
 #include <Storages/System/StorageSystemMetrics.h>
 #include <Storages/System/StorageSystemProcesses.h>
 #include <Storages/System/attachSystemTables.h>
-#include <TableFunctions/registerTableFunctions.h>
 
 #include <Poco/DirectoryIterator.h>
-#include <Poco/File.h>
 #include <Poco/Net/HTTPServer.h>
 #include <Poco/Net/TCPServer.h>
 #include <Poco/ThreadPool.h>
@@ -194,12 +189,7 @@ private:
         ServerContext_->setConfig(LayeredConfig_);
         ServerContext_->setUsersConfig(ConvertToPocoConfig(ConvertToNode(Config_->Users)));
 
-        DB::registerFunctions();
-        DB::registerAggregateFunctions();
-        DB::registerTableFunctions();
-        DB::registerStorageMemory(DB::StorageFactory::instance());
-        DB::registerStorageBuffer(DB::StorageFactory::instance());
-        DB::registerDictionaries();
+        RegisterClickHouseSingletons();
 
         CurrentMetrics::set(CurrentMetrics::Revision, ClickHouseRevision::get());
         CurrentMetrics::set(CurrentMetrics::VersionInteger, ClickHouseRevision::getVersionInteger());
@@ -293,7 +283,7 @@ private:
             Config_->QueryLog->FlushIntervalMilliseconds);
 
         auto createTableAst = log->getCreateTableQuery();
-        auto createTableQuery = ToString(createTableAst);
+        auto createTableQuery = TString(DB::serializeAST(*createTableAst));
 
         const TString TableNamePlaceholder = "{table_name}";
         const TString UnderlyingTableNamePlaceholder = "{underlying_table_name}";

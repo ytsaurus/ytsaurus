@@ -16,8 +16,6 @@
 
 #include <yt/core/logging/log.h>
 
-#include <yt/library/re2/re2.h>
-
 #include <Common/FieldVisitors.h>
 
 #include <Interpreters/ExpressionActions.h>
@@ -25,17 +23,11 @@
 
 #include <Storages/MergeTree/KeyCondition.h>
 
-#include <Storages/ColumnsDescription.h>
-
-#include <Parsers/IAST.h>
-#include <Parsers/formatAST.h>
-
 #include <Access/AccessControlManager.h>
 #include <Access/User.h>
 
 namespace NYT::NClickHouseServer {
 
-using namespace DB;
 using namespace NTableClient;
 using namespace NYPath;
 using namespace NYTree;
@@ -46,7 +38,6 @@ using namespace NChunkClient;
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NYson;
-using namespace NRe2;
 
 using NYT::ToProto;
 
@@ -75,25 +66,23 @@ void RegisterNewUser(DB::AccessControlManager& accessControlManager, TString use
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Field ConvertToField(const NTableClient::TUnversionedValue& value)
+DB::Field ConvertToField(const NTableClient::TUnversionedValue& value)
 {
     switch (value.Type) {
         case EValueType::Null:
-            return Field();
+            return DB::Field();
         case EValueType::Int64:
-            return Field(static_cast<Int64>(value.Data.Int64));
+            return DB::Field(static_cast<DB::Int64>(value.Data.Int64));
         case EValueType::Uint64:
-            return Field(static_cast<UInt64>(value.Data.Uint64));
+            return DB::Field(static_cast<DB::UInt64>(value.Data.Uint64));
         case EValueType::Double:
-            return Field(static_cast<Float64>(value.Data.Double));
+            return DB::Field(static_cast<DB::Float64>(value.Data.Double));
         case EValueType::Boolean:
-            return Field(static_cast<UInt64>(value.Data.Boolean ? 1 : 0));
+            return DB::Field(static_cast<DB::UInt64>(value.Data.Boolean ? 1 : 0));
         case EValueType::String:
-            return Field(value.Data.String, value.Length);
         case EValueType::Any:
-            return Field(value.Data.String, value.Length);
         case EValueType::Composite:
-            return Field(value.Data.String, value.Length);
+            return DB::Field(value.Data.String, value.Length);
         default:
             THROW_ERROR_EXCEPTION("Unexpected data type %Qlv", value.Type);
     }
@@ -128,14 +117,6 @@ void ConvertToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TString MaybeTruncateSubquery(TString query)
-{
-    static const auto ytSubqueryRegex = New<TRe2>("ytSubquery\\([^()]*\\)");
-    static constexpr const char* replacement = "ytSubquery(...)";
-    RE2::GlobalReplace(&query, *ytSubqueryRegex, replacement);
-    return query;
-}
 
 TTableSchemaPtr InferCommonSchema(const std::vector<TTablePtr>& tables, const TLogger& logger)
 {
@@ -259,11 +240,6 @@ namespace DB {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const IAST& ast)
-{
-    return NYT::NClickHouseServer::MaybeTruncateSubquery(TString(DB::serializeAST(ast, true)));
-}
-
 TString ToString(const NameSet& nameSet)
 {
     return NYT::Format("%v", std::vector<TString>(nameSet.begin(), nameSet.end()));
@@ -317,7 +293,7 @@ TString ToString(const Block& block)
     content.AppendChar('}');
 
     return NYT::Format(
-        "{RowCount: %v, ColumnCount: %v, Structure: %v, Content: %v}",
+        "{RowCount: %v, ColumnCount: %v, Structure: {%v}, Content: %v}",
         block.rows(),
         block.columns(),
         block.dumpStructure(),
@@ -327,16 +303,3 @@ TString ToString(const Block& block)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace DB
-
-namespace std {
-
-////////////////////////////////////////////////////////////////////////////////
-
-TString ToString(const std::shared_ptr<DB::IAST>& astPtr)
-{
-    return astPtr ? ToString(*astPtr) : "#";
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace std

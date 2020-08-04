@@ -88,6 +88,17 @@ TSecurityManagerConfig::TSecurityManagerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TQuerySettings::TQuerySettings()
+{
+    RegisterParameter("enable_columnar_read", EnableColumnarRead)
+        .Default(false);
+
+    RegisterParameter("enable_computed_column_deduction", EnableComputedColumnDeduction)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TYtConfig::TYtConfig()
 {
     RegisterParameter("clique_id", CliqueId)
@@ -162,9 +173,6 @@ TYtConfig::TYtConfig()
     RegisterParameter("reader_memory_requirement", ReaderMemoryRequirement)
         .Default(500_MB);
 
-    RegisterParameter("enable_columnar_read", EnableColumnarRead)
-        .Default(false);
-
     RegisterParameter("health_checker", HealthChecker)
         .DefaultNew();
 
@@ -173,6 +181,10 @@ TYtConfig::TYtConfig()
 
     RegisterParameter("total_memory_tracker_update_period", TotalMemoryTrackerUpdatePeriod)
         .Default(TDuration::MilliSeconds(300));
+
+    RegisterParameter("query_settings", QuerySettings)
+        .Alias("settings")
+        .DefaultNew();
 
     RegisterPreprocessor([&] {
         PermissionCache->RefreshUser = CacheUserName;

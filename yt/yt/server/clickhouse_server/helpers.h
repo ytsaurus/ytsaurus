@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include "format.h"
+
 #include <yt/ytlib/api/native/public.h>
 
 #include <yt/ytlib/chunk_client/helpers.h>
@@ -41,11 +43,6 @@ NTableClient::TTableSchemaPtr InferCommonSchema(const std::vector<TTablePtr>& ta
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Truncate ytSubquery(<long base64-encoded stuff>) to make it human-readable.
-TString MaybeTruncateSubquery(TString query);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Leaves only some of the "significant" profile counters.
 THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters& profileCounters);
 
@@ -57,8 +54,6 @@ namespace DB {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString ToString(const IAST& ast);
-
 void Serialize(const QueryStatusInfo& queryStatusInfo, NYT::NYson::IYsonConsumer* consumer);
 void Serialize(const ProcessListForUserInfo& processListForUserInfo, NYT::NYson::IYsonConsumer* consumer);
 
@@ -67,13 +62,3 @@ TString ToString(const Block& block);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace DB
-
-namespace std {
-
-////////////////////////////////////////////////////////////////////////////////
-
-TString ToString(const std::shared_ptr<DB::IAST>& astPtr);
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace std

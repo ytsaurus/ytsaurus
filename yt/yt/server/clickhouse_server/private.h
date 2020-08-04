@@ -6,6 +6,8 @@
 
 #include <Common/ProfileEvents.h>
 
+#include <Parsers/IAST_fwd.h>
+
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,6 +59,7 @@ DECLARE_REFCOUNTED_CLASS(TClickHouseConfig);
 DECLARE_REFCOUNTED_CLASS(TYtConfig);
 DECLARE_REFCOUNTED_STRUCT(IClickHouseHost);
 DECLARE_REFCOUNTED_STRUCT(IClickHouseServer);
+DECLARE_REFCOUNTED_CLASS(TQuerySettings);
 DECLARE_REFCOUNTED_CLASS(THost);
 DECLARE_REFCOUNTED_CLASS(TSecurityManagerConfig);
 DECLARE_REFCOUNTED_CLASS(TLauncherConfig);
@@ -149,7 +152,6 @@ class ColumnsDescription;
 class StorageFactory;
 struct ProcessListForUserInfo;
 struct QueryStatusInfo;
-class IAST;
 struct ASTTableExpression;
 class AccessControlManager;
 

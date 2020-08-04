@@ -12,6 +12,7 @@
 #include "host.h"
 #include "logging_transform.h"
 #include "query_context.h"
+#include "format.h"
 
 #include <yt/server/lib/chunk_pools/chunk_stripe.h>
 
@@ -303,7 +304,7 @@ public:
         ValidateReadPermissions(ToVectorString(columnNames), Tables_, QueryContext_);
         SpecTemplate_ = TSubquerySpec();
         SpecTemplate_.InitialQueryId = QueryContext_->QueryId;
-        SpecTemplate_.InitialQuery = ToString(queryInfo.query);
+        SpecTemplate_.InitialQuery = SerializeAndMaybeTruncateSubquery(*queryInfo.query);
 
         auto cliqueNodes = QueryContext_->Host->GetNodes();
         if (cliqueNodes.empty()) {
