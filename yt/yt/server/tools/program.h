@@ -1,3 +1,5 @@
+#pragma once
+
 #include <yt/ytlib/program/program.h>
 #include <yt/ytlib/program/helpers.h>
 
