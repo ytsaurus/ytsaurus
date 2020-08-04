@@ -367,6 +367,8 @@ std::unique_ptr<TProxy> TClient::CreateReadProxy(
     return std::make_unique<TProxy>(channel);
 }
 
+template std::unique_ptr<TObjectServiceProxy> TClient::CreateReadProxy<TObjectServiceProxy>(const TMasterReadOptions& options, TCellTag cellTag);
+
 template <class TProxy>
 std::unique_ptr<TProxy> TClient::CreateWriteProxy(
     TCellTag cellTag)
