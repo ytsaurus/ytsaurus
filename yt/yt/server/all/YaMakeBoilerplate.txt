@@ -9,14 +9,15 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/server/master
     yt/yt/server/clock_server
-    yt/yt/server/node
-    yt/yt/server/scheduler
     yt/yt/server/controller_agent
+    yt/yt/server/exec
     yt/yt/server/http_proxy
-    yt/yt/server/rpc_proxy
     yt/yt/server/job_proxy
     yt/yt/server/log_tailer
-    yt/yt/server/exec
+    yt/yt/server/master
+    yt/yt/server/node
+    yt/yt/server/rpc_proxy
+    yt/yt/server/scheduler
+    yt/yt/server/tools
 )
