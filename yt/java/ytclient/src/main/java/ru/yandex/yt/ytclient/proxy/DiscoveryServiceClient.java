@@ -10,6 +10,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
+import ru.yandex.yt.ytclient.rpc.internal.RpcServiceClient;
 
 public class DiscoveryServiceClient {
     private final DiscoveryService service;
@@ -17,7 +18,7 @@ public class DiscoveryServiceClient {
 
     public DiscoveryServiceClient(RpcClient client, RpcOptions options) {
         this.client = client;
-        this.service = client.getService(DiscoveryService.class, options);
+        this.service = RpcServiceClient.create(DiscoveryService.class, options);
     }
 
     public RpcClient getClient() {
@@ -30,6 +31,6 @@ public class DiscoveryServiceClient {
         if (role != null) {
             builder.body().setRole(role);
         }
-        return RpcUtil.apply(builder.invoke(), response -> response.body().getAddressesList());
+        return RpcUtil.apply(builder.invoke(client), response -> response.body().getAddressesList());
     }
 }

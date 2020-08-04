@@ -3,7 +3,6 @@ package ru.yandex.yt.ytclient.rpc;
 import java.util.concurrent.ScheduledExecutorService;
 
 import ru.yandex.yt.ytclient.rpc.internal.RpcClientWithCompression;
-import ru.yandex.yt.ytclient.rpc.internal.RpcServiceClient;
 import ru.yandex.yt.ytclient.rpc.internal.TokenAuthentication;
 
 /**
@@ -50,20 +49,6 @@ public interface RpcClient extends AutoCloseable {
 
     default RpcClient withCompression(RpcCompression compression) {
         return new RpcClientWithCompression(this, compression);
-    }
-
-    /**
-     * Возвращает клиент для сервиса с интерфейсом interfaceClass
-     */
-    default <T> T getService(Class<T> interfaceClass) {
-        return RpcServiceClient.create(this, interfaceClass);
-    }
-
-    /**
-     * Возвращает клиент для сервиса с интерфейсом interfaceClass
-     */
-    default <T> T getService(Class<T> interfaceClass, RpcOptions options) {
-        return RpcServiceClient.create(this, interfaceClass, options);
     }
 
     String destinationName();
