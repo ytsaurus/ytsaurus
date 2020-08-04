@@ -394,12 +394,31 @@ void TTcpConnection::ConnectSocket(const TNetworkAddress& address)
 
 void TTcpConnection::OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
 {
-    if (socketOrError.IsOK()) {
-        OnSocketConnected(socketOrError.Value());
-    } else {
-        Abort(socketOrError);
-    }
     DialerSession_.Reset();
+    
+    if (!socketOrError.IsOK()) {
+        Abort(TError(
+            NBus::EErrorCode::TransportError,
+            "Error connecting to %v",
+            EndpointDescription_)
+            << socketOrError);
+        return;
+    }
+    
+    {
+        auto guard = Guard(Lock_);
+
+        YT_VERIFY(State_ == EState::Opening);
+
+        Socket_ = socketOrError.Value();
+
+        auto tosLevel = TosLevel_.load();
+        if (tosLevel != DefaultTosLevel) {
+            InitSocketTosLevel(tosLevel);
+        }
+
+        Open();
+    }
 }
 
 const TString& TTcpConnection::GetEndpointDescription() const
@@ -609,35 +628,6 @@ void TTcpConnection::OnShutdown()
     YT_LOG_DEBUG(CloseError_, "Connection terminated");
 
     Terminated_.Fire(CloseError_);
-}
-
-void TTcpConnection::OnSocketConnected(SOCKET socket)
-{
-    YT_ASSERT(State_ == EState::Opening);
-
-    Socket_ = socket;
-
-    // Check if connection was established successfully.
-    int error = GetSocketError();
-    if (error != 0) {
-        Abort(TError(
-            NBus::EErrorCode::TransportError,
-            "Error connecting to %v",
-            EndpointDescription_)
-            << TError::FromSystem(error));
-        return;
-    }
-
-    {
-        auto guard = Guard(Lock_);
-
-        auto tosLevel = TosLevel_.load();
-        if (tosLevel != DefaultTosLevel) {
-            InitSocketTosLevel(tosLevel);
-        }
-
-        Open();
-    }
 }
 
 void TTcpConnection::OnSocketRead()
