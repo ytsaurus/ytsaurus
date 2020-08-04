@@ -923,7 +923,12 @@ double TSchedulerElement::GetAccumulatedResourceRatioVolume() const
     return 0.0;
 }
 
-void TSchedulerElement::InitAccumulatedResourceRatioVolume(double resourceVolume)
+TJobResources TSchedulerElement::GetAccumulatedResourceVolume() const
+{
+    return {};
+}
+
+void TSchedulerElement::InitAccumulatedResourceVolume(TJobResources /* resourceVolume */)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

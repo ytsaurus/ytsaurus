@@ -361,7 +361,8 @@ public:
 
     virtual EIntegralGuaranteeType GetIntegralGuaranteeType() const;
     double GetAccumulatedResourceRatioVolume() const;
-    void InitAccumulatedResourceRatioVolume(double resourceVolume);
+    TJobResources GetAccumulatedResourceVolume() const;
+    void InitAccumulatedResourceVolume(TJobResources resourceVolume);
 
     virtual double GetFairShareStarvationTolerance() const = 0;
     virtual TDuration GetMinSharePreemptionTimeout() const = 0;

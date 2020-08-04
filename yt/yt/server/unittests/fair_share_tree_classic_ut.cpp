@@ -1603,10 +1603,13 @@ TEST_F(TClassicFairShareTreeTest, TestTwoRelaxedPoolsGetShareRatioProportionalTo
     auto [relaxedOperationElement1, relaxedOperationHost1] = CreateOperationWithJobs(100, host.Get(), relaxedPool1.Get());
     auto [relaxedOperationElement2, relaxedOperationHost2] = CreateOperationWithJobs(100, host.Get(), relaxedPool2.Get());
 
-    auto volume1 = TDuration::Minutes(1).SecondsFloat() * 0.1;  // 10% of cluster for 1 minute
-    auto volume2 = TDuration::Minutes(1).SecondsFloat() * 0.3;  // 30% of cluster for 1 minute
-    relaxedPool1->InitAccumulatedResourceRatioVolume(volume1);
-    relaxedPool2->InitAccumulatedResourceRatioVolume(volume2);
+    TJobResources tenCpu;
+    tenCpu.SetCpu(10);
+
+    auto volume1 = tenCpu * TDuration::Minutes(1).SecondsFloat();  // 10% of cluster for 1 minute
+    auto volume2 = tenCpu * TDuration::Minutes(1).SecondsFloat() * 3.0;  // 30% of cluster for 1 minute
+    relaxedPool1->InitAccumulatedResourceVolume(volume1);
+    relaxedPool2->InitAccumulatedResourceVolume(volume2);
     {
         auto dynamicAttributes = TDynamicAttributesList(3);
 

@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/ytlib/scheduler/job_resources.h>
+
 #include <yt/core/ytree/yson_serializable.h>
 
 namespace NYT::NScheduler {
@@ -12,7 +14,7 @@ class TPersistentPoolState
     : public NYTree::TYsonSerializable  // TODO(renadeen): try make it lite
 {
 public:
-    double AccumulatedResourceRatioVolume;
+    TJobResources AccumulatedResourceVolume;
 
     TPersistentPoolState();
 };
