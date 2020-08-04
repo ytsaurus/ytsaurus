@@ -39,6 +39,19 @@ public:
         }));
     }
 
+    TFuture<IConnectionPtr> GetFuture() const
+    {
+        return Promise_.ToFuture();
+    }
+
+private:
+    const TString Name_;
+    const TNetworkAddress RemoteAddress_;
+    const IPollerPtr Poller_;
+    const IAsyncDialerSessionPtr Session_;
+
+    const TPromise<IConnectionPtr> Promise_ = NewPromise<IConnectionPtr>();
+
     void OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
     {
         if (socketOrError.IsOK()) {
@@ -53,19 +66,6 @@ public:
                 << TErrorAttribute("dialer", Name_));
         }
     }
-
-    TFuture<IConnectionPtr> GetFuture() const
-    {
-        return Promise_.ToFuture();
-    }
-
-private:
-    const TString Name_;
-    const TNetworkAddress RemoteAddress_;
-    const IPollerPtr Poller_;
-    const IAsyncDialerSessionPtr Session_;
-
-    const TPromise<IConnectionPtr> Promise_ = NewPromise<IConnectionPtr>();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -151,12 +151,7 @@ public:
         YT_VERIFY(!Dialed_);
         Dialed_ = true;
 
-        Connect();
-        
-        if (Finished_) {
-            guard.Release();
-            Finish();
-        }
+        Connect(guard);
     }
 
 private:
@@ -196,17 +191,18 @@ private:
     const TGuid Id_;
     const NLogging::TLogger Logger;
 
+    TSpinLock SpinLock_;
     SOCKET Socket_ = INVALID_SOCKET;
     bool Dialed_ = false;
-    TError Error_;
-    std::atomic<bool> Finished_ = {false};
-    TSpinLock SpinLock_;
+    bool Finished_ = false;
     TDuration Timeout_;
     TDelayedExecutorCookie TimeoutCookie_;
     TIntrusivePtr<TPollable> Pollable_;
 
     void CloseSocket()
     {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
         if (Socket_ != INVALID_SOCKET) {
             YT_VERIFY(TryClose(Socket_));
             Socket_ = INVALID_SOCKET;
@@ -215,6 +211,9 @@ private:
 
     void RegisterPollable()
     {
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+        YT_VERIFY(!Pollable_);
         Pollable_ = New<TPollable>(this, Id_, Socket_);
         Poller_->Register(Pollable_);
         Poller_->Arm(Socket_, Pollable_, EPollControl::Read | EPollControl::Write | EPollControl::EdgeTriggered);
@@ -222,108 +221,94 @@ private:
 
     void UnregisterPollable()
     {
-        if (Socket_ != INVALID_SOCKET) {
-            Poller_->Unarm(Socket_);
-        }
+        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
+        YT_VERIFY(Socket_ != INVALID_SOCKET);
+        Poller_->Unarm(Socket_);
+
+        YT_VERIFY(Pollable_);
         Poller_->Unregister(Pollable_);
         Pollable_.Reset();
     }
 
-    void Connect()
+    void Connect(TGuard<TSpinLock>& guard)
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
         try {
-            int family = Address_.GetSockAddr()->sa_family;
+            auto family = Address_.GetSockAddr()->sa_family;
 
             YT_VERIFY(Socket_ == INVALID_SOCKET);
-            if (Address_.GetSockAddr()->sa_family == AF_UNIX) {
+            if (family == AF_UNIX) {
                 Socket_ = CreateUnixClientSocket();
             } else {
                 Socket_ = CreateTcpClientSocket(family);
-            }
-
-            if (Config_->EnableNoDelay && family != AF_UNIX) {
-                if (Config_->EnableNoDelay) {
-                    if (!TrySetSocketNoDelay(Socket_)) {
-                        YT_LOG_DEBUG("Failed to set socket no delay option");
-                    }
+                if (Config_->EnableNoDelay && !TrySetSocketNoDelay(Socket_)) {
+                    YT_LOG_DEBUG("Failed to set socket no delay option");
                 }
-
                 if (!TrySetSocketKeepAlive(Socket_)) {
                     YT_LOG_DEBUG("Failed to set socket keep alive option");
                 }
             }
-
+            
             if (ConnectSocket(Socket_, Address_) == 0) {
+                // Connection was established synchronously.
+                int socket = Socket_;
+                Socket_ = INVALID_SOCKET;
                 Finished_ = true;
+                guard.Release();
+                OnFinished_(socket);
                 return;
             }
-
-            if (Config_->EnableAggressiveReconnect) {
-               TimeoutCookie_ = TDelayedExecutor::Submit(
-                    BIND(&TAsyncDialerSession::OnTimeout, MakeWeak(this)),
-                    Timeout_);
-            }
-
-            RegisterPollable();
         } catch (const std::exception& ex) {
-            Error_ = TError(ex);
-            CloseSocket();
             Finished_ = true;
+            CloseSocket();
+            guard.Release();
+            OnFinished_(ex);
+            return;
         }
-    }
 
-    void Finish()
-    {
-        YT_VERIFY(Finished_);
+        RegisterPollable();
 
-        if (Socket_ == INVALID_SOCKET) {
-            OnFinished_(Error_);
-        } else {
-            auto socket = Socket_;
-            Socket_ = INVALID_SOCKET;
-
-            int error = GetSocketError(socket);
-            if (error != 0) {
-                YT_VERIFY(TryClose(socket, false));
-                socket = INVALID_SOCKET;
-                Error_ = TError(NRpc::EErrorCode::TransportError, "Connect error")
-                    << TError::FromSystem(error);
-            }
-
-            OnFinished_(Error_.IsOK() ? TErrorOr<SOCKET>(socket) : TErrorOr<SOCKET>(Error_));
+        if (Config_->EnableAggressiveReconnect) {
+            TimeoutCookie_ = TDelayedExecutor::Submit(
+                BIND(&TAsyncDialerSession::OnTimeout, MakeWeak(this)),
+                Timeout_);
         }
     }
 
     void OnConnected(TPollable* pollable)
     {
-        if (Finished_.load(std::memory_order_relaxed)) {
+        TGuard<TSpinLock> guard(SpinLock_);
+
+        if (Finished_ || pollable != Pollable_) {
             return;
         }
 
-        {
-            TGuard<TSpinLock> guard(SpinLock_);
-
-            if (Finished_ || pollable != Pollable_) {
-                return;
-            }
-
-            TDelayedExecutor::CancelAndClear(TimeoutCookie_);
-            
-            Finished_ = true;
-            Finish();
-        }
+        Finished_ = true;
 
         UnregisterPollable();
+
+        TDelayedExecutor::CancelAndClear(TimeoutCookie_);
+        
+        int socket = Socket_;
+        YT_VERIFY(socket != INVALID_SOCKET);
+        
+        if (int socketError = GetSocketError(socket); socketError == 0) {
+            Socket_ = INVALID_SOCKET;
+            guard.Release();
+            OnFinished_(socket);
+        } else {
+            auto error = TError(NRpc::EErrorCode::TransportError, "Connect error")
+                << TError::FromSystem(socketError);
+            CloseSocket();
+            guard.Release();
+            OnFinished_(error);
+        }
     }
 
     void OnTimeout()
     {
-        if (Finished_.load(std::memory_order_relaxed)) {
-            return;
-        }
-
         TGuard<TSpinLock> guard(SpinLock_);
 
         if (Finished_) {
@@ -331,6 +316,7 @@ private:
         }
 
         UnregisterPollable();
+
         CloseSocket();
 
         if (Timeout_ < Config_->MaxRto) {
@@ -340,11 +326,7 @@ private:
         YT_LOG_DEBUG("Connect timeout; trying to reconnect (Timeout: %v)",
             Timeout_);
 
-        Connect();
-        if (Finished_) {
-            guard.Release();
-            Finish();
-        }
+        Connect(guard);
     }
 
     static float GetRandomVariation()

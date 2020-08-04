@@ -223,8 +223,6 @@ private:
     int GetSocketError() const;
     bool IsSocketError(ssize_t result);
 
-    void OnSocketConnected(SOCKET socket);
-
     void OnSocketRead();
     bool HasUnreadData() const;
     bool ReadSocket(char* buffer, size_t size, size_t* bytesRead);

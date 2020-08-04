@@ -150,7 +150,8 @@ public:
             }
             YT_VERIFY(Pollables_.emplace(pollable, std::move(entry)).second);
         }
-        YT_LOG_DEBUG("Pollable registered (%v)",
+        YT_LOG_DEBUG("Pollable registered (Ptr: %v, %v)",
+            pollable.Get(),
             pollable->GetLoggingId());
     }
 
@@ -164,7 +165,8 @@ public:
             auto it = Pollables_.find(pollable);
             if (it == Pollables_.end()) {
                 guard.Release();
-                YT_LOG_DEBUG("Pollable is already unregistered (%v)",
+                YT_LOG_DEBUG("Pollable is already unregistered (Ptr: %v, %v)",
+                    pollable.Get(),
                     pollable->GetLoggingId());
                 return VoidFuture;
             }
@@ -182,7 +184,8 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Requesting pollable unregistration (%v, FirstTime: %v)",
+        YT_LOG_DEBUG("Requesting pollable unregistration (Ptr: %v, %v, FirstTime: %v)",
+            pollable.Get(),
             pollable->GetLoggingId(),
             firstTime);
         return future;
@@ -372,7 +375,8 @@ private:
 
             for (const auto& entry : deadEntries) {
                 entry->Pollable->OnShutdown();
-                YT_LOG_DEBUG("Pollable unregistered (%v)",
+                YT_LOG_DEBUG("Pollable unregistered (Ptr: %v, %v)",
+                    entry->Pollable.Get(),
                     entry->Pollable->GetLoggingId());
             }
 
