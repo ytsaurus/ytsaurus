@@ -1302,7 +1302,7 @@ public:
                 .Item("pool").Value(key.PoolId)
                 .Item("cluster").Value(ClusterName_)
             .EndMap()
-            .Item("version").Value(1)
+            .Item("version").Value("1")
             .Item("source_wt").Value(now);
     }
 
