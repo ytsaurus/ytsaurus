@@ -2118,7 +2118,9 @@ private:
             // Still it protects us from bursty incoming traffic on the host.
             // If estimated size was not given, we fallback to post-throttling on actual received size.
             std::swap(BytesThrottled_, BytesToThrottle_);
-            if (!reader->BandwidthThrottler_->TryAcquire(BytesThrottled_)) {
+            if (!reader->BandwidthThrottler_->IsOverdraft()) {
+                reader->BandwidthThrottler_->Acquire(BytesThrottled_);
+            } else {
                 AsyncThrottle(reader->BandwidthThrottler_, BytesThrottled_, BIND(&TLookupRowsSession::RequestRows, MakeStrong(this)));
                 return;
             }
