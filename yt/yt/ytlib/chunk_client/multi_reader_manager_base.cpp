@@ -281,7 +281,7 @@ void TMultiReaderManagerBase::OnReaderFinished()
 
 bool TMultiReaderManagerBase::OnEmptyRead(bool readerFinished)
 {
-    if (readerFinished || CompletionError_.IsSet()) {
+    if (readerFinished) {
         OnReaderFinished();
         return !CompletionError_.IsSet() || !CompletionError_.Get().IsOK();
     } else {
