@@ -181,6 +181,12 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("enable_resource_tree_usage_lock_profiling", EnableResourceTreeUsageLockProfiling)
         .Default(true);
 
+    RegisterParameter("preemption_check_starvation", PreemptionCheckStarvation)
+        .Default(true);
+
+    RegisterParameter("preemption_check_satisfaction", PreemptionCheckSatisfaction)
+        .Default(true);
+
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive preemption satisfaction threshold must be less than preemption satisfaction threshold")

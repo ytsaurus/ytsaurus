@@ -256,6 +256,8 @@
     XX(PivotKey, pivot_key) \
     XX(PivotKeys, pivot_keys) \
     XX(PreemptionSatisfactionThreshold, preemption_satisfaction_threshold) \
+    XX(PreemptionCheckStarvation, preemption_check_starvation) \
+    XX(PreemptionCheckSatisfaction, preemption_check_satisfaction) \
     XX(PreemptiveSchedulingBackoff, preemptive_scheduling_backoff) \
     XX(PreloadState, preload_state) \
     XX(PrerequisiteTransactionId, prerequisite_transaction_id) \

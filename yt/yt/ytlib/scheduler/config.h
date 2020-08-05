@@ -148,6 +148,9 @@ public:
     std::optional<double> FairShareStarvationToleranceLimit;
 
     std::optional<bool> AllowAggressiveStarvationPreemption;
+    
+    bool PreemptionCheckStarvation;
+    bool PreemptionCheckSatisfaction;
 
     TSchedulableConfig();
 };
