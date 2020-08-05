@@ -79,7 +79,7 @@ void TSlotManager::Initialize()
             Locations_.push_back(New<TSlotLocation>(
                 std::move(locationConfig),
                 Bootstrap_,
-                Format("slot:%v", locationIndex),
+                Format("slot%v", locationIndex),
                 JobEnvironment_->CreateJobDirectoryManager(locationConfig->Path, locationIndex),
                 Config_->EnableTmpfs,
                 SlotCount_));
