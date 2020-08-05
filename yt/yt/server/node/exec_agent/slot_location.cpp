@@ -606,7 +606,8 @@ void TSlotLocation::Disable(const TError& error)
         "Slot location at %v is disabled",
         Config_->Path) << error;
 
-    YT_LOG_ALERT(alert);
+    YT_LOG_ERROR(alert);
+    YT_VERIFY(!Logger.GetAbortOnAlert());
 
     auto masterConnector = Bootstrap_->GetMasterConnector();
     masterConnector->RegisterAlert(alert);

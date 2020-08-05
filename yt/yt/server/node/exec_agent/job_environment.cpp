@@ -220,7 +220,8 @@ protected:
 
         auto alert = TError("Job environment is disabled") << error;
 
-        YT_LOG_ALERT(alert);
+        YT_LOG_ERROR(alert);
+        YT_VERIFY(!Logger.GetAbortOnAlert());
 
         auto masterConnector = Bootstrap_->GetMasterConnector();
         masterConnector->RegisterAlert(alert);
