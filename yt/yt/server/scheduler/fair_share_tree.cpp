@@ -774,16 +774,24 @@ auto TFairShareTree<TFairShareImpl>::CheckOperationUnschedulable(
         }
     }
 
-    // NB(eshcherbin): Here we rely on the fact that |element->ResourceLimits_| is infinite
-    // if the element is not in the fair share tree snapshot yet.
-    auto* limitingAncestor = FindAncestorWithInsufficientResourceLimits(element, minNeededResources);
+    // We only want to find the operations that are unschedulable due to poorly configured resource limits or a custom
+    // scheduling tag filter. Node shortage, e.g. due to a bulk restart, shouldn't fail the operation. See YT-13329.
+    auto totalResourceLimits = RootElementSnapshot_
+        ? RootElementSnapshot_->RootElement->GetTotalResourceLimits()
+        : TJobResources::Infinite();
+    bool shouldCheckLimitingAncestor = Dominates(totalResourceLimits, minNeededResources);
+    if (shouldCheckLimitingAncestor) {
+        // NB(eshcherbin): Here we rely on the fact that |element->ResourceLimits_| is infinite
+        // if the element is not in the fair share tree snapshot yet.
+        auto* limitingAncestor = FindAncestorWithInsufficientResourceLimits(element, minNeededResources);
 
-    if (activationTime + limitingAncestorSafeTimeout < now && limitingAncestor) {
-        return TError("Operation has an ancestor whose resource limits are too small to satisfy operation's minimum job resource demand")
-            << TErrorAttribute("safe_timeout", limitingAncestorSafeTimeout)
-            << TErrorAttribute("limiting_ancestor", limitingAncestor->GetId())
-            << TErrorAttribute("resource_limits", limitingAncestor->ResourceLimits())
-            << TErrorAttribute("min_needed_resources", minNeededResources);
+        if (activationTime + limitingAncestorSafeTimeout < now && limitingAncestor) {
+            return TError("Operation has an ancestor whose resource limits are too small to satisfy operation's minimum job resource demand")
+                << TErrorAttribute("safe_timeout", limitingAncestorSafeTimeout)
+                << TErrorAttribute("limiting_ancestor", limitingAncestor->GetId())
+                << TErrorAttribute("resource_limits", limitingAncestor->ResourceLimits())
+                << TErrorAttribute("min_needed_resources", minNeededResources);
+        }
     }
 
     int deactivationCount = 0;
