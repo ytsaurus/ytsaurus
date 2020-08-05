@@ -370,5 +370,7 @@ class TestDynamicTableCommands(object):
         table = TEST_DIR + "/dyntable"
         schema = [{"name": "key", "type": "string"}]
         self._create_dynamic_table(table, schema=schema)
+        # Added by ignat to fix test failures.
+        yt.mount_table(table, sync=True)
 
         list(yt.explain_query("* from [{}]".format(table)))
