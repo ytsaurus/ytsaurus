@@ -1412,6 +1412,13 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
         }
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "available_exec_nodes_check_period": 1000,
+            "banned_exec_nodes_check_period": 100000000,
+        }
+    }
+
     @classmethod
     def modify_node_config(cls, config):
         config["exec_agent"]["job_controller"]["resource_limits"]["cpu"] = 2
@@ -1457,6 +1464,43 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
         result = str(get(op.get_path() + "/@result"))
         assert "unschedulable" in result
         assert "limiting_ancestor" in result and "limiting_pool" in result
+
+    @authors("eshcherbin")
+    def test_skip_limiting_ancestor_check_on_node_shortage(self):
+        set("//sys/scheduler/config/operation_unschedulable_safe_timeout", 100000000)
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/config/operation_unschedulable_safe_timeout"), 100000000)
+
+        set("//sys/pool_trees/default/@nodes_filter", "!custom")
+        create_pool_tree("custom_tree", attributes={"nodes_filter": "custom"})
+        create_pool("research", pool_tree="custom_tree")
+
+        node = ls("//sys/cluster_nodes")[0]
+        set("//sys/cluster_nodes/{}/@user_tags".format(node), ["custom"])
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/custom_tree/resource_limits/cpu") > 0.0)
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            spec={"pool": "subpool", "pool_trees": ["custom_tree"]},
+            task_patch={"cpu_limit": 2.0})
+        wait_breakpoint()
+
+        # Ensure that the controller has seen the available node and will not fail the operation.
+        time.sleep(3.0)
+
+        set("//sys/cluster_nodes/{}/@user_tags".format(node), [])
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/custom_tree/resource_limits/cpu") == 0.0)
+
+        release_breakpoint()
+
+        # Let the operation hang with no available nodes in the tree for some time.
+        # The limiting ancestor check should not be triggered.
+        time.sleep(10)
+
+        set("//sys/cluster_nodes/{}/@user_tags".format(node), ["custom"])
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/custom_tree/resource_limits/cpu") > 0.0)
+
+        op.track()
 
 ##################################################################
 
