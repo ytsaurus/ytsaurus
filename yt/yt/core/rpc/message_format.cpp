@@ -9,7 +9,7 @@
 
 #include <yt/core/misc/protobuf_helpers.h>
 
-#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
 namespace NYT::NRpc {
 

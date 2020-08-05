@@ -28,8 +28,8 @@
 #include <yt/core/misc/crash_handler.h>
 #include <yt/core/misc/signal_registry.h>
 
-#include <contrib/libs/protobuf/io/coded_stream.h>
-#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
 #include <google/protobuf/descriptor.pb.h>
 

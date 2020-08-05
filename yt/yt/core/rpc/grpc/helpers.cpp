@@ -14,7 +14,7 @@
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/include/grpc/byte_buffer.h>
 
-#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
 #include <contrib/libs/grpc/include/grpc/support/alloc.h>
 

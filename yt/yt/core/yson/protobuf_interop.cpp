@@ -30,9 +30,9 @@
 #include <contrib/libs/protobuf/dynamic_message.h>
 #include <contrib/libs/protobuf/wire_format.h>
 
-#include <contrib/libs/protobuf/io/coded_stream.h>
-#include <contrib/libs/protobuf/io/zero_copy_stream.h>
-#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <google/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/zero_copy_stream.h>
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
 namespace NYT::NYson {
 
