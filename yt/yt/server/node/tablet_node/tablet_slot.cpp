@@ -117,10 +117,10 @@ public:
         , Config_(config)
         , Bootstrap_(bootstrap)
         , AutomatonQueue_(New<TFairShareActionQueue>(
-            Format("TabletSlot:%v", SlotIndex_),
+            Format("TabletSlot%v", SlotIndex_),
             TEnumTraits<EAutomatonThreadQueue>::GetDomainNames()))
         , SnapshotQueue_(New<TActionQueue>(
-            Format("TabletSnap:%v", SlotIndex_)))
+            Format("TabletSnap%v", SlotIndex_)))
         , PeerId_(createInfo.peer_id())
         , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
         , TabletCellBundle_(createInfo.tablet_cell_bundle())
