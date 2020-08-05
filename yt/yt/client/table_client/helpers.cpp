@@ -12,7 +12,7 @@
 #include <yt/core/yson/protobuf_interop.h>
 #include <yt/core/yson/token_writer.h>
 
-#include <contrib/libs/protobuf/io/zero_copy_stream_impl_lite.h>
+#include <google/protobuf/io/zero_copy_stream_impl_lite.h>
 
 namespace NYT::NTableClient {
 

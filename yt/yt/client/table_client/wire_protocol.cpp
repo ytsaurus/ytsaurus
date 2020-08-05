@@ -21,7 +21,7 @@
 
 #include <util/system/sanitizers.h>
 
-#include <contrib/libs/protobuf/io/coded_stream.h>
+#include <google/protobuf/io/coded_stream.h>
 
 namespace NYT::NTableClient {
 
