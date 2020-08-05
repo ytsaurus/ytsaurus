@@ -23,7 +23,7 @@ DEFINE_ENUM(EEvaluationContext,
 
 bool IsSymbolAllowedInName(char c, EEvaluationContext context, bool isFirst)
 {
-    const static THashSet<char> extraAllowedBooleanVariableTokens{'/', '-', '.'};
+    const static THashSet<char> extraAllowedBooleanVariableTokens{'/', '-', '.', ':'};
 
     if (std::isalpha(c) || c == '_') {
         return true;

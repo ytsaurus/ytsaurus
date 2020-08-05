@@ -57,7 +57,9 @@ INSTANTIATE_TEST_SUITE_P(
         std::make_tuple("in/|x", std::vector<TString>{"in/"}, true),
         std::make_tuple("%true", std::vector<TString>{""}, true),
         std::make_tuple("%false", std::vector<TString>{"false"}, false),
-        std::make_tuple("%true|%false", std::vector<TString>{""}, true)
+        std::make_tuple("%true|%false", std::vector<TString>{""}, true),
+        std::make_tuple("a.b.c-d.e:1234", std::vector<TString>{"a.b.c-d.e:1234"}, true),
+        std::make_tuple("!a.b.c-d.e:1234", std::vector<TString>{"a.b.c-d.e:1234"}, false)
 ));
 
 ////////////////////////////////////////////////////////////////////////////////
