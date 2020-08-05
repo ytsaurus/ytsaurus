@@ -3351,7 +3351,7 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
 
     const TSchedulerElement* element = this;
 
-    if (element->GetStarving()) {
+    if (config->PreemptionCheckStarvation && element->GetStarving()) {
         OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceStarving);
         return false;
     }
@@ -3365,7 +3365,7 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
         : config->PreemptionSatisfactionThreshold;
 
     // NB: we want to use <s>local</s> satisfaction here.
-    if (element->ComputeLocalSatisfactionRatio() < threshold + RatioComparisonPrecision) {
+    if (config->PreemptionCheckSatisfaction && element->ComputeLocalSatisfactionRatio() < threshold + RatioComparisonPrecision) {
         OperationElementSharedState_->UpdatePreemptionStatusStatistics(EOperationPreemptionStatus::ForbiddenSinceUnsatisfied);
         return false;
     }

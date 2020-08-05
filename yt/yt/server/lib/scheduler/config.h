@@ -228,6 +228,9 @@ public:
     bool EnableResourceTreeStructureLockProfiling;
     bool EnableResourceTreeUsageLockProfiling;
 
+    bool PreemptionCheckStarvation;
+    bool PreemptionCheckSatisfaction;
+
     TFairShareStrategyTreeConfig();
 };
 
