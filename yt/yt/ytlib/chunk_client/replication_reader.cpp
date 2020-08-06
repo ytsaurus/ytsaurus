@@ -572,8 +572,8 @@ protected:
         }
     }
 
-    template <class TResponsePtr>
-    void ProcessError(const TErrorOr<TResponsePtr>& rspOrError, const TString& peerAddress, const TError& wrappingError)
+    template <class T>
+    void ProcessError(const TErrorOr<T>& rspOrError, const TString& peerAddress, const TError& wrappingError)
     {
         auto code = rspOrError.GetCode();
         if (code == NYT::EErrorCode::Canceled) {
@@ -1082,6 +1082,111 @@ private:
         }
     }
 
+    struct TPeerProbeResult
+    {
+        bool NetThrottling;
+        bool DiskThrottling;
+        i64 NetQueueSize;
+        i64 DiskQueueSize;
+        ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor> PeerDescriptors;
+    };
+
+    using TErrorOrPeerProbeResult = TErrorOr<TPeerProbeResult>;
+
+    template <class TRspPtr>
+    static TPeerProbeResult ParseProbeResponse(const TRspPtr& rsp)
+    {
+        return {
+            .NetThrottling = rsp->net_throttling(),
+            .DiskThrottling = rsp->disk_throttling(),
+            .NetQueueSize = rsp->net_queue_size(),
+            .DiskQueueSize = rsp->disk_queue_size(),
+            .PeerDescriptors = rsp->peer_descriptors()
+        };
+    }
+
+    template <class TRspPtr>
+    static std::pair<TPeer, TErrorOrPeerProbeResult> ParsePeerAndProbeResponse(
+        const TPeer& peer,
+        const TErrorOr<TRspPtr>& rspOrError)
+    {
+        if (rspOrError.IsOK()) {
+            return {
+                peer,
+                TErrorOrPeerProbeResult(ParseProbeResponse(rspOrError.Value()))
+            };
+        } else {
+            return {
+                peer,
+                TErrorOrPeerProbeResult(TError(rspOrError))
+            };
+        }
+    }
+
+    TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeerViaGetBlockSet(
+        const IChannelPtr& channel,
+        const TPeer& peer,
+        const std::vector<int>& blockIndexes,
+        const TReplicationReaderPtr& reader)
+    {
+        TDataNodeServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
+
+        auto req = proxy.GetBlockSet();
+        req->SetHeavy(true);
+        req->set_fetch_from_cache(false);
+        req->set_fetch_from_disk(false);
+        ToProto(req->mutable_chunk_id(), reader->ChunkId_);
+        ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
+        ToProto(req->mutable_block_indexes(), blockIndexes);
+        req->SetAcknowledgementTimeout(std::nullopt);
+
+        return req->Invoke().Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError) {
+            return ParsePeerAndProbeResponse(peer, rspOrError);
+        }));
+    }
+
+    TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeerViaProbeBlockSet(
+        const IChannelPtr& channel,
+        const TPeer& peer,
+        const std::vector<int>& blockIndexes,
+        const TReplicationReaderPtr& reader)
+    {
+        TDataNodeServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
+
+        auto req = proxy.ProbeBlockSet();
+        req->SetHeavy(true);
+        ToProto(req->mutable_chunk_id(), reader->ChunkId_);
+        ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
+        ToProto(req->mutable_block_indexes(), blockIndexes);
+        req->SetAcknowledgementTimeout(std::nullopt);
+
+        return req->Invoke().Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError) {
+            return ParsePeerAndProbeResponse(peer, rspOrError);
+        }));
+    }
+
+    TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>> ProbePeer(
+        const IChannelPtr& channel,
+        const TPeer& peer,
+        const std::vector<int>& blockIndexes,
+        const TReplicationReaderPtr& reader)
+    {
+        if (ReaderConfig_->EnableProbeBlockSet) {
+            return ProbePeerViaProbeBlockSet(channel, peer, blockIndexes, reader)
+                .Apply(BIND([=] (const std::pair<TPeer, TErrorOrPeerProbeResult>& peerAndResult) {
+                    if (peerAndResult.second.FindMatching(NRpc::EErrorCode::NoSuchMethod)) {
+                        return ProbePeerViaGetBlockSet(channel, peer, blockIndexes, reader);
+                    } else {
+                        return MakeFuture(peerAndResult);
+                    }
+                }));
+        } else {
+            return ProbePeerViaGetBlockSet(channel, peer, blockIndexes, reader); 
+        }
+    }
+
     TPeerList ProbeAndSelectBestPeers(
         const TPeerList& candidates,
         int count,
@@ -1100,92 +1205,80 @@ private:
         }
 
         // Multiple candidates - send probing requests.
-        std::vector<TFuture<std::pair<TPeer, TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr>>> probeResultFutures;
+        std::vector<TFuture<std::pair<TPeer, TErrorOrPeerProbeResult>>> peerAndProbeResultFutures;
         for (const auto& peer : candidates) {
             auto channel = GetChannel(peer.AddressWithNetwork);
             if (!channel) {
                 continue;
             }
-
-            TDataNodeServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(ReaderConfig_->ProbeRpcTimeout);
-
-            auto req = proxy.GetBlockSet();
-            req->SetHeavy(true);
-            req->set_fetch_from_cache(false);
-            req->set_fetch_from_disk(false);
-            ToProto(req->mutable_chunk_id(), reader->ChunkId_);
-            ToProto(req->mutable_workload_descriptor(), WorkloadDescriptor_);
-            ToProto(req->mutable_block_indexes(), blockIndexes);
-            req->SetAcknowledgementTimeout(std::nullopt);
-            probeResultFutures.push_back(req->Invoke().Apply(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspGetBlockSetPtr& rspOrError) {
-                return std::make_pair(peer, rspOrError);
-            })));
+            peerAndProbeResultFutures.push_back(ProbePeer(
+                channel,
+                peer,
+                blockIndexes,
+                reader));
         }
 
-        auto probeResultsOrError = WaitFor(AllSucceeded(std::move(probeResultFutures)));
-        if (!probeResultsOrError.IsOK()) {
+        auto peerAndProbeResultsOrError = WaitFor(AllSucceeded(std::move(peerAndProbeResultFutures)));
+        if (!peerAndProbeResultsOrError.IsOK()) {
             return {};
         }
 
-        const auto& probeResults = probeResultsOrError.Value();
-
-        std::vector<std::pair<TPeer, TDataNodeServiceProxy::TRspGetBlockSetPtr>> successfulProbeResults;
+        const auto& peerAndProbeResults = peerAndProbeResultsOrError.Value();
+        std::vector<std::pair<TPeer, TPeerProbeResult>> peerAndSuccessfulProbeResults;
         bool receivedNewPeers = false;
-        for (const auto& result : probeResults) {
-            const auto& [peer, rspOrError] = result;
-            if (!rspOrError.IsOK()) {
+        for (const auto& [peer, probeResultOrError] : peerAndProbeResults) {
+            if (!probeResultOrError.IsOK()) {
                 ProcessError(
-                    rspOrError,
+                    probeResultOrError,
                     peer.AddressWithNetwork.Address,
                     TError("Error probing node %v queue length", peer.AddressWithNetwork));
                 continue;
             }
 
-            const auto& rsp = rspOrError.Value();
-            if (UpdatePeerBlockMap(rsp, reader)) {
+            const auto& probeResult = probeResultOrError.Value();
+
+            if (UpdatePeerBlockMap(probeResult, reader)) {
                 receivedNewPeers = true;
             }
 
             // Exclude throttling peers from current pass.
-            if (rsp->net_throttling() || rsp->disk_throttling()) {
+            if (probeResult.NetThrottling || probeResult.DiskThrottling) {
                 YT_LOG_DEBUG("Peer is throttling (Address: %v, NetThrottling: %v, DiskThrottling: %v)",
                     peer.AddressWithNetwork,
-                    rsp->net_throttling(),
-                    rsp->disk_throttling());
+                    probeResult.NetThrottling,
+                    probeResult.DiskThrottling);
                 continue;
             }
 
-            successfulProbeResults.emplace_back(peer, rsp);
+            peerAndSuccessfulProbeResults.emplace_back(peer, probeResult);
         }
 
-        if (successfulProbeResults.empty()) {
+        if (peerAndSuccessfulProbeResults.empty()) {
             YT_LOG_DEBUG("All peer candidates were discarded");
             return {};
         }
 
         if (receivedNewPeers) {
             YT_LOG_DEBUG("P2P was activated");
-            for (const auto& result : successfulProbeResults) {
-                const auto& [peer, rsp] = result;
+            for (const auto& [peer, probeResult] : peerAndSuccessfulProbeResults) {
                 ReinstallPeer(peer.AddressWithNetwork.Address);
             }
             return {};
         }
 
         SortBy(
-            successfulProbeResults,
-            [&] (const auto& result) {
-                const auto& [peer, rsp] = result;
+            peerAndSuccessfulProbeResults,
+            [&] (const auto& peerAndSuccessfulProbeResult) {
+                const auto& [peer, probeResult] = peerAndSuccessfulProbeResult;
                 return
-                    ReaderConfig_->NetQueueSizeFactor * rsp->net_queue_size() +
-                    ReaderConfig_->DiskQueueSizeFactor * rsp->disk_queue_size();
+                    ReaderConfig_->NetQueueSizeFactor * probeResult.NetQueueSize +
+                    ReaderConfig_->DiskQueueSizeFactor * probeResult.DiskQueueSize;
             });
 
-        count = std::min(count, static_cast<int>(successfulProbeResults.size()));
+        count = std::min(count, static_cast<int>(peerAndSuccessfulProbeResults.size()));
         TPeerList bestPeers;
-        for (int index = 0; index < static_cast<int>(successfulProbeResults.size()); ++index) {
-            const auto& [peer, rsp] = successfulProbeResults[index];
+        for (int index = 0; index < static_cast<int>(peerAndSuccessfulProbeResults.size()); ++index) {
+            const auto& [peer, probeResult] = peerAndSuccessfulProbeResults[index];
             if (index < count) {
                 bestPeers.push_back(peer);
             } else {
@@ -1195,13 +1288,13 @@ private:
 
         YT_LOG_DEBUG("Best peers selected (Peers: %v)",
             MakeFormattableView(
-                MakeRange(successfulProbeResults.begin(), successfulProbeResults.begin() + count),
-                [] (auto* builder, const auto& result) {
-                    const auto& [peer, rsp] = result;
+                MakeRange(peerAndSuccessfulProbeResults.begin(), peerAndSuccessfulProbeResults.begin() + count),
+                [] (auto* builder, const auto& peerAndSuccessfulProbeResult) {
+                    const auto& [peer, probeResult] = peerAndSuccessfulProbeResult;
                     builder->AppendFormat("{Address: %v, DiskQueueSize: %v, NetQueueSize: %v}",
                         peer.AddressWithNetwork,
-                        rsp->disk_queue_size(),
-                        rsp->net_queue_size());
+                        probeResult.DiskQueueSize,
+                        probeResult.NetQueueSize);
                 }));
                 
         return bestPeers;
@@ -1214,19 +1307,19 @@ private:
     }
 
     bool UpdatePeerBlockMap(
-        const TDataNodeServiceProxy::TRspGetBlockSetPtr& rsp,
+        const TPeerProbeResult& probeResult,
         const TReplicationReaderPtr& reader)
     {
-        if (!ReaderConfig_->FetchFromPeers && rsp->peer_descriptors_size() > 0) {
+        if (!ReaderConfig_->FetchFromPeers && !probeResult.PeerDescriptors.empty()) {
             YT_LOG_DEBUG("Peer suggestions received but ignored");
             return false;
         }
 
         bool addedNewPeers = false;
-        for (const auto& peerDescriptor : rsp->peer_descriptors()) {
+        for (const auto& peerDescriptor : probeResult.PeerDescriptors) {
             int blockIndex = peerDescriptor.block_index();
             TBlockId blockId(reader->ChunkId_, blockIndex);
-            for (const auto& peerNodeId : peerDescriptor.node_ids()) {
+            for (auto peerNodeId : peerDescriptor.node_ids()) {
                 auto maybeSuggestedDescriptor = reader->NodeDirectory_->FindDescriptor(peerNodeId);
                 if (!maybeSuggestedDescriptor) {
                     YT_LOG_DEBUG("Cannot resolve peer descriptor (Block: %v, NodeId: %v)",
@@ -1363,10 +1456,15 @@ private:
         SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted += rsp->GetTotalSize();
         reader->AccountTraffic(rsp->GetTotalSize(), respondedPeer.NodeDescriptor);
 
-        UpdatePeerBlockMap(rsp, reader);
+        auto probeResult = ParseProbeResponse(rsp);
+        
+        UpdatePeerBlockMap(probeResult, reader);
 
-        if (rsp->net_throttling() || rsp->disk_throttling()) {
-            YT_LOG_DEBUG("Peer is throttling (Address: %v)", respondedPeer.AddressWithNetwork);
+        if (probeResult.NetThrottling || probeResult.DiskThrottling) {
+            YT_LOG_DEBUG("Peer is throttling (Address: %v, NetThrottling: %v, DiskThrottling: %v)",
+                respondedPeer.AddressWithNetwork,
+                probeResult.NetThrottling,
+                probeResult.DiskThrottling);
         }
 
         if (rsp->has_chunk_reader_statistics()) {

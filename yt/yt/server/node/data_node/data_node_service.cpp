@@ -127,6 +127,10 @@ public:
             .SetConcurrencyLimit(5000)
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbeBlockSet)
+            .SetCancelable(true)
+            .SetQueueSizeLimit(5000)
+            .SetConcurrencyLimit(5000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
             .SetCancelable(true)
             .SetQueueSizeLimit(5000)
@@ -395,6 +399,90 @@ private:
         context->Reply();
     }
 
+    template <class TRequest, class TResponse>
+    void SuggestPeersWithBlocks(
+        const TRequest* request,
+        TResponse* response,
+        TNodeId requesterNodeId = InvalidNodeId,
+        TInstant requesterExpirationTime = {})
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
+        for (int blockIndex : request->block_indexes()) {
+            auto blockId = TBlockId(chunkId, blockIndex);
+            auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, requesterNodeId != InvalidNodeId);
+            if (peerData) {
+                auto peers = peerData->GetPeers();
+                if (!peers.empty()) {
+                    auto* peerDescriptor = response->add_peer_descriptors();
+                    peerDescriptor->set_block_index(blockIndex);
+                    for (auto peer : peers) {
+                        peerDescriptor->add_node_ids(peer);
+                    }
+                    YT_LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
+                        blockId,
+                        peers.size());
+                }
+            }
+            if (requesterNodeId != InvalidNodeId) {
+                // Register the peer we're replying to.
+                peerData->AddPeer(requesterNodeId, requesterExpirationTime);
+            }
+        }
+    }
+
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ProbeBlockSet)
+    {
+        auto chunkId = FromProto<TChunkId>(request->chunk_id());
+        auto blockIndexes = FromProto<std::vector<int>>(request->block_indexes());
+        auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+
+        context->SetRequestInfo("BlockIds: %v:%v, Workload: %v",
+            chunkId,
+            MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3),
+            workloadDescriptor);
+
+        ValidateConnected();
+
+        const auto& chunkRegistry = Bootstrap_->GetChunkRegistry();
+        auto chunk = chunkRegistry->FindChunk(chunkId);
+        bool hasCompleteChunk = chunk.operator bool();
+        response->set_has_complete_chunk(hasCompleteChunk);
+
+        i64 diskQueueSize = GetDiskReadQueueSize(chunk, workloadDescriptor);
+        response->set_disk_queue_size(diskQueueSize);
+
+        bool diskThrottling = diskQueueSize > Config_->DiskReadThrottlingLimit;
+        response->set_disk_throttling(diskThrottling);
+
+        const auto& throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+        i64 netThrottlerQueueSize = throttler->GetQueueTotalCount();
+        i64 netOutQueueSize = context->GetBusStatistics().PendingOutBytes;
+        i64 netQueueSize = netThrottlerQueueSize + netOutQueueSize;
+
+        response->set_net_queue_size(netQueueSize);
+
+        bool netThrottling = netQueueSize > Config_->NetOutThrottlingLimit;
+        response->set_net_throttling(netThrottling);
+
+        SuggestPeersWithBlocks(
+            request,
+            response);
+
+        context->SetResponseInfo(
+            "HasCompleteChunk: %v, NetThrottling: %v, NetOutQueueSize: %v, "
+            "NetThrottlerQueueSize: %v, DiskThrottling: %v, DiskQueueSize: %v",
+            hasCompleteChunk,
+            netThrottling,
+            netOutQueueSize,
+            netThrottlerQueueSize,
+            diskThrottling,
+            diskQueueSize);
+
+        context->Reply();
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetBlockSet)
     {
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
@@ -445,30 +533,15 @@ private:
                 context->GetEndpointAttributes().Get("network", DefaultNetworkName));
         }
 
-        // Try suggesting other peers. This can never hurt.
-        bool registerRequestingPeer = request->has_peer_node_id() && request->has_peer_expiration_time();
-        const auto& peerBlockTable = Bootstrap_->GetPeerBlockTable();
-        for (int blockIndex : request->block_indexes()) {
-            auto blockId = TBlockId(chunkId, blockIndex);
-            auto peerData = peerBlockTable->FindOrCreatePeerData(blockId, registerRequestingPeer);
-            if (peerData) {
-                auto peers = peerData->GetPeers();
-                if (!peers.empty()) {
-                    auto* peerDescriptor = response->add_peer_descriptors();
-                    peerDescriptor->set_block_index(blockIndex);
-                    for (auto peer : peers) {
-                        peerDescriptor->add_node_ids(peer);
-                    }
-                    YT_LOG_DEBUG("Peers suggested (BlockId: %v, PeerCount: %v)",
-                        blockId,
-                        peers.size());
-                }
-            }
-            if (registerRequestingPeer) {
-                // Register the peer we're replying to.
-                peerData->AddPeer(request->peer_node_id(), FromProto<TInstant>(request->peer_expiration_time()));
-            }
-        }
+        bool hasRequester = request->has_peer_node_id() && request->has_peer_expiration_time();
+        auto requesterNodeId = hasRequester ? request->peer_node_id() : InvalidNodeId;
+        auto requesterExpirationTime = hasRequester ? FromProto<TInstant>(request->peer_expiration_time()) : TInstant();
+
+        SuggestPeersWithBlocks(
+            request,
+            response,
+            requesterNodeId,
+            requesterExpirationTime);
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
@@ -545,18 +618,13 @@ private:
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
         bool populateCache = request->populate_cache();
-        bool fetchFromCache = request->fetch_from_cache();
-        bool fetchFromDisk = request->fetch_from_disk();
 
         context->SetRequestInfo(
-            "BlockIds: %v:%v-%v, PopulateCache: %v, FetchFromCache: %v, "
-            "FetchFromDisk: %v, Workload: %v",
+            "BlockIds: %v:%v-%v, PopulateCache: %v, Workload: %v",
             chunkId,
             firstBlockIndex,
             firstBlockIndex + blockCount - 1,
             populateCache,
-            fetchFromCache,
-            fetchFromDisk,
             workloadDescriptor);
 
         ValidateConnected();
@@ -593,29 +661,27 @@ private:
 
         auto chunkReaderStatistics = New<TChunkReaderStatistics>();
 
-        if (fetchFromCache || fetchFromDisk) {
-            TBlockReadOptions options;
-            options.WorkloadDescriptor = workloadDescriptor;
-            options.PopulateCache = populateCache;
-            options.BlockCache = Bootstrap_->GetBlockCache();
-            options.FetchFromCache = fetchFromCache && !netThrottling;
-            options.FetchFromDisk = fetchFromDisk && !netThrottling && !diskThrottling;
-            options.ChunkReaderStatistics = chunkReaderStatistics;
-            if (context->GetTimeout() && context->GetStartTime()) {
-                options.Deadline = *context->GetStartTime() + *context->GetTimeout() * Config_->BlockReadTimeoutFraction;
-            }
-
-            const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
-            auto asyncBlocks = chunkBlockManager->ReadBlockRange(
-                chunkId,
-                firstBlockIndex,
-                blockCount,
-                options);
-
-            auto blocks = WaitFor(asyncBlocks)
-                .ValueOrThrow();
-            SetRpcAttachedBlocks(response, blocks);
+        TBlockReadOptions options;
+        options.WorkloadDescriptor = workloadDescriptor;
+        options.PopulateCache = populateCache;
+        options.BlockCache = Bootstrap_->GetBlockCache();
+        options.FetchFromCache = !netThrottling;
+        options.FetchFromDisk = !netThrottling && !diskThrottling;
+        options.ChunkReaderStatistics = chunkReaderStatistics;
+        if (context->GetTimeout() && context->GetStartTime()) {
+            options.Deadline = *context->GetStartTime() + *context->GetTimeout() * Config_->BlockReadTimeoutFraction;
         }
+
+        const auto& chunkBlockManager = Bootstrap_->GetChunkBlockManager();
+        auto asyncBlocks = chunkBlockManager->ReadBlockRange(
+            chunkId,
+            firstBlockIndex,
+            blockCount,
+            options);
+
+        auto blocks = WaitFor(asyncBlocks)
+            .ValueOrThrow();
+        SetRpcAttachedBlocks(response, blocks);
 
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 

@@ -209,6 +209,9 @@ public:
     //! Maximum number of passes with same seeds for lookup request.
     int LookupRequestPassCount;
 
+    // COMPAT(babenko): replace with 'true' once all clusters support ProbeBlockSet
+    bool EnableProbeBlockSet; 
+
     TReplicationReaderConfig()
     {
         RegisterParameter("block_rpc_timeout", BlockRpcTimeout)
@@ -277,6 +280,8 @@ public:
         RegisterParameter("lookup_request_pass_count", LookupRequestPassCount)
             .GreaterThan(0)
             .Default(10);
+        RegisterParameter("enable_probe_block_set", EnableProbeBlockSet)
+            .Default(false);
 
         RegisterPostprocessor([&] {
             // Seems unreasonable to make backoff greater than half of total session timeout.

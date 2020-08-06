@@ -15,6 +15,15 @@ import "yt/client/table_client/proto/wire_protocol.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TPeerDescriptor
+{
+    required int32 block_index = 1;
+    reserved 2;
+    repeated int32 node_ids = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqStartChunk
 {
     required TSessionId session_id = 7;
@@ -125,6 +134,25 @@ message TRspPopulateCache
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqProbeBlockSet
+{
+    required NYT.NProto.TGuid chunk_id = 1;
+    repeated int32 block_indexes = 2;
+    required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
+}
+
+message TRspProbeBlockSet
+{
+    repeated TPeerDescriptor peer_descriptors = 1;
+    required bool has_complete_chunk = 2;
+    required bool net_throttling = 3;
+    required int64 net_queue_size = 4;
+    required bool disk_throttling = 5;
+    required int64 disk_queue_size = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqGetBlockSet
 {
     required NYT.NProto.TGuid chunk_id = 1;
@@ -132,7 +160,9 @@ message TReqGetBlockSet
     optional uint64 peer_expiration_time = 4;
     optional bool populate_cache = 5 [default = true];
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 6;
+    // COMPAT(babenko): drop once all clusters support ProbeBlockSet
     optional bool fetch_from_cache = 7 [default = true];
+    // COMPAT(babenko): drop once all clusters support ProbeBlockSet
     optional bool fetch_from_disk = 8 [default = true];
     optional int32 peer_node_id = 9;
 
@@ -141,14 +171,6 @@ message TReqGetBlockSet
 
 message TRspGetBlockSet
 {
-    message TPeerDescriptor
-    {
-        required int32 block_index = 1;
-        repeated int32 node_ids = 3;
-
-        reserved 2;
-    }
-
     repeated TPeerDescriptor peer_descriptors = 1;
     required bool has_complete_chunk = 3;
     required bool net_throttling = 5;
@@ -172,8 +194,6 @@ message TReqGetBlockRange
     required int32 block_count = 3;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 4;
     optional bool populate_cache = 5 [default = true];
-    optional bool fetch_from_cache = 6 [default = true];
-    optional bool fetch_from_disk = 7 [default = true];
 }
 
 message TRspGetBlockRange
