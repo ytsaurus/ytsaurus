@@ -59,6 +59,10 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
     }
 
     entry = New<TEntry>(key, context);
+    entry->Promise = NewPromise<TValue>();
+    entry->Future = entry->Promise.ToFuture();
+    entry->LastUpdateTime = now;
+
     bool inserted = false;
 
     {
@@ -72,15 +76,15 @@ TFuture<TValue> TAuthCache<TKey, TValue, TContext>::Get(const TKey& key, const T
         }
     }
 
-    auto guard = Guard(entry->Lock);
     if (inserted) {
         entry->EraseCookie = NConcurrency::TDelayedExecutor::Submit(
             BIND(&TAuthCache::TryErase, MakeWeak(this), MakeWeak(entry)),
             Config_->OptimisticCacheTtl);
 
-        entry->LastUpdateTime = now;
-        entry->Future = DoGet(entry->Key, entry->Context).ToUncancelable();
+        entry->Promise.SetFrom(DoGet(entry->Key, entry->Context).ToUncancelable());
     }
+
+    auto guard = Guard(entry->Lock);
     return entry->Future;
 }
 

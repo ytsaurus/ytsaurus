@@ -29,6 +29,7 @@ private:
         TSpinLock Lock;
         TContext Context;
         TFuture<TValue> Future;
+        TPromise<TValue> Promise;
 
         NConcurrency::TDelayedExecutorCookie EraseCookie;
         NProfiling::TCpuInstant LastAccessTime;
