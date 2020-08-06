@@ -44,8 +44,7 @@ namespace NYT {
  * \endcode
  *
  * What will happen on <tt>new TFoo()</tt> construction? After memory allocation
- * the reference counter for newly created instance would be initialized to
-     zero.
+ * the reference counter for newly created instance would be initialized to zero.
  * Afterwards, the control goes to TFoo constructor. To invoke
  * <tt>RegisterObject</tt> a new temporary smart pointer to the current instance
  * have to be created effectively incrementing the reference counter (now one).
@@ -72,7 +71,7 @@ struct THasAllocator
 };
 
 template <class T>
-struct THasAllocator<T, TAcceptor<typename T::TAllocator>>
+struct THasAllocator<T, std::void_t<typename T::TAllocator>>
 {
     using TTrue = void;
 };
@@ -116,7 +115,6 @@ class TWithExtraSpace
 protected:
     const void* GetExtraSpacePtr() const;
     void* GetExtraSpacePtr();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

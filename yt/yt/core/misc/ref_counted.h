@@ -11,9 +11,6 @@
 
 namespace NYT {
 
-template <class...>
-using TAcceptor = void;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A technical base class for ref-counted objects and promise states.
@@ -33,7 +30,6 @@ private:
 
     TRefCountedBase& operator=(const TRefCountedBase&) = delete;
     TRefCountedBase& operator=(TRefCountedBase&&) = delete;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,7 +44,7 @@ struct TFreeMemory
 };
 
 template <class T>
-struct TFreeMemory<T, TAcceptor<typename T::TAllocator>>
+struct TFreeMemory<T, std::void_t<typename T::TAllocator>>
 {
     static void Do(void* ptr)
     {
@@ -59,8 +55,9 @@ struct TFreeMemory<T, TAcceptor<typename T::TAllocator>>
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRefCounter
+class TRefCounter
 {
+public:
     //! Returns current number of strong references to the object.
     /*!
      * Note that you should never ever use this method in production code.

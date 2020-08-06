@@ -23,7 +23,7 @@ struct TElement final
     char Data[0];
 
     using TAllocator = TSlabAllocator;
-    using TEnableHazard = void;
+    static constexpr bool EnableHazard = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,7 +32,7 @@ template <class T>
 class THazardPtr
 {
 public:
-    using TRequireHazardEnabled = typename T::TEnableHazard;
+    static_assert(T::EnableHazard, "T::EnableHazard must be true.");
 
     THazardPtr() = default;
     THazardPtr(const THazardPtr&) = delete;

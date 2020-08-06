@@ -14,9 +14,9 @@ template <class T>
 struct TConcurrentCache<T>::TLookupTable final
     : public THashTable
 {
-    using TEnableHazard = void;
+    static constexpr bool EnableHazard = true;
 
-    std::atomic<size_t> Size = {0};
+    std::atomic<size_t> Size = 0;
     TAtomicPtr<TLookupTable> Next;
 
     explicit TLookupTable(size_t elementCount)
