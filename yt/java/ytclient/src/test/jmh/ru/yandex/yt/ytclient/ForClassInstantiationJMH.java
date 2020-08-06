@@ -24,6 +24,7 @@ import ru.yandex.yt.ytclient.object.LargeFlattenObjectClass;
 import ru.yandex.yt.ytclient.object.LargeFlattenPrimitiveClass;
 import ru.yandex.yt.ytclient.object.LargeObjectClass;
 import ru.yandex.yt.ytclient.object.LargeObjectClassWithStateSupport;
+import ru.yandex.yt.ytclient.object.LargeObjectWithListClass;
 import ru.yandex.yt.ytclient.object.LargePrimitiveClass;
 import ru.yandex.yt.ytclient.object.LargeUnflattenObjectClass;
 import ru.yandex.yt.ytclient.object.LargeUnflattenObjectClassWithStateSupport;
@@ -337,6 +338,7 @@ ForClassInstantiationJMH.test04_serializationFactoryLargeWithAllSupportedSeriali
         final ObjectsMetadata<LargeUnflattenObjectClassWithStateSupport> largeUnflattenObjectsWithStateSupport;
         final ObjectsMetadata<LargeUnflattenPrimitiveClass> largeUnflattenPrimitives;
         final ObjectsMetadata<LargeWithAllSupportedSerializersClass> largeWithAllSupportedSerializers;
+        final ObjectsMetadata<LargeObjectWithListClass> largeObjectsWithList;
 
         private Consumer<Object> delegate;
 
@@ -370,6 +372,9 @@ ForClassInstantiationJMH.test04_serializationFactoryLargeWithAllSupportedSeriali
             this.largeWithAllSupportedSerializers =
                     ObjectsMetadata.getMetadata(LargeWithAllSupportedSerializersClass.class,
                             value -> delegate.accept(value));
+
+            this.largeObjectsWithList = ObjectsMetadata.getMetadata(LargeObjectWithListClass.class,
+                    value -> delegate.accept(value));
         }
 
         @Setup(Level.Trial)

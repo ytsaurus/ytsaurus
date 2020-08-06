@@ -2,6 +2,7 @@ package ru.yandex.yt.ytclient.object;
 
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -29,6 +30,9 @@ import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 
 public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, WireValueDeserializer<Void>,
         WireVersionedRowsetDeserializer<T>, WireSchemafulRowsetDeserializer<T> {
+
+    // Уменьшаем размер буфера - ожидаем, что объекты не очень большие
+    private static final int BUFFER_SIZE = 512;
 
     public static <T> MappedRowsetDeserializer<T> forClass(YTreeObjectSerializer<T> serializer) {
         final TableSchema schema = MappedRowSerializer.asTableSchema(serializer.getFieldMap());
@@ -69,6 +73,8 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
     private ColumnValueType type;
     private ObjectFieldWrapper field;
     private YTreeNode node;
+
+    private byte[] cache;
 
     private MappedRowsetDeserializer(TableSchema schema, SerializerConfiguration<T> configuration,
                                      ConsumerSource<T> consumer) {
@@ -259,8 +265,13 @@ public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, W
                     stringNode.setBytes(bytes);
                     this.node = stringNode;
                 } else {
+                    if (cache == null) {
+                        cache = new byte[BUFFER_SIZE];
+                    } else {
+                        Arrays.fill(cache, (byte) 0);
+                    }
                     this.node = YTreeBinarySerializer
-                            .deserialize(new ByteArrayInputStream(bytes)); // TODO: improve performance
+                            .deserialize(new ByteArrayInputStream(bytes), cache); // TODO: improve performance
                 }
                 break;
             default:

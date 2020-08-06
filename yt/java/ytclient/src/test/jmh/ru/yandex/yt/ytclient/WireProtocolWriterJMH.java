@@ -11,6 +11,7 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.GCProfiler;
+import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
@@ -21,6 +22,7 @@ import ru.yandex.yt.ytclient.object.LargeFlattenObjectClass;
 import ru.yandex.yt.ytclient.object.LargeFlattenPrimitiveClass;
 import ru.yandex.yt.ytclient.object.LargeObjectClass;
 import ru.yandex.yt.ytclient.object.LargeObjectClassWithStateSupport;
+import ru.yandex.yt.ytclient.object.LargeObjectWithListClass;
 import ru.yandex.yt.ytclient.object.LargePrimitiveClass;
 import ru.yandex.yt.ytclient.object.LargeUnflattenObjectClass;
 import ru.yandex.yt.ytclient.object.LargeUnflattenObjectClassWithStateSupport;
@@ -31,7 +33,7 @@ import ru.yandex.yt.ytclient.object.SmallPrimitiveClass;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 
 @BenchmarkMode(Mode.Throughput)
-@Warmup(iterations = 3, time = 5)
+@Warmup(iterations = 1, time = 5)
 @Measurement(iterations = 3, time = 5)
 public class WireProtocolWriterJMH {
 
@@ -493,6 +495,19 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
                 .serializeUnversionedObjects(serializers.largeUnflattenPrimitivesDataUnversioned));
     }
 
+    @Benchmark
+    public void test07_serializeMappedLargeObjectsWithList(Serializers serializers, Blackhole blackhole) {
+        blackhole.consume(serializers.largeObjectsWithList.serializeMappedObjects(
+                serializers.largeObjectsWithListData));
+    }
+
+    @Benchmark
+    public void test08_serializeLegacyMappedLargeObjectsWithList(Serializers serializers, Blackhole blackhole) {
+        blackhole.consume(serializers.largeObjectsWithList.serializeLegacyMappedObjects(
+                serializers.largeObjectsWithListData));
+    }
+
+
     @State(Scope.Thread)
     public static class Serializers extends ForClassInstantiationJMH.ObjectMetadata {
         private final List<SmallObjectClass> smallObjectsData;
@@ -501,6 +516,7 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
         private final List<SmallPrimitiveClass> smallPrimitiveData;
         private final List<UnversionedRow> smallPrimitiveDataUnversioned;
         private final List<LargeObjectClass> largeObjectsData;
+        private final List<LargeObjectWithListClass> largeObjectsWithListData;
         private final List<LargeObjectClassWithStateSupport> largeObjectsDataWithStateSupport;
         private final List<UnversionedRow> largeObjectsDataUnversioned;
         private final List<LargePrimitiveClass> largePrimitiveData;
@@ -555,14 +571,17 @@ WireProtocolWriterJMH.test24_serializeUnversionedLargeUnflattenPrimitives:·gc.t
             largeUnflattenPrimitivesData = largeUnflattenPrimitives.generateObjects(1000);
             largeUnflattenPrimitivesDataUnversioned =
                     largeUnflattenPrimitives.convertObjectsToUnversioned(largeUnflattenPrimitivesData);
+            largeObjectsWithListData = largeObjectsWithList.generateObjects(1000);
         }
     }
 
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
-                .include(WireProtocolWriterJMH.class.getSimpleName())
+                .include(WireProtocolWriterJMH.class.getSimpleName() + ".*MappedLargeObjects*")
                 .addProfiler(GCProfiler.class)
                 .forks(2)
+                .resultFormat(ResultFormatType.JSON)
+                .result("writer-" + Long.toHexString(System.currentTimeMillis()) + ".json")
                 .build();
 
         new Runner(opt).run();

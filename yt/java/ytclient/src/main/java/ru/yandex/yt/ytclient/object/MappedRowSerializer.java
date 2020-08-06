@@ -39,6 +39,10 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
+    // Маленький размер буфера для кодирования заголовков и размеров
+    private static final int BUFFER_SIZE = 64;
+    private static final int OUTPUT_SIZE = 256;
+
     public static <T> MappedRowSerializer<T> forClass(YTreeSerializer<T> serializer) {
         return new MappedRowSerializer<>(serializer);
     }
@@ -165,8 +169,12 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
             if (binarySerializer != null) {
                 throw new IllegalStateException("Binary serializer must be empty at this state");
             }
-            output = new ByteArrayOutputStream();
-            binarySerializer = YTreeBinarySerializer.getSerializer(output); // TODO: improve performance
+            if (output == null) {
+                output = new ByteArrayOutputStream(OUTPUT_SIZE);
+            } else {
+                output.reset();
+            }
+            binarySerializer = YTreeBinarySerializer.getSerializer(output, BUFFER_SIZE); // TODO: improve performance
             current = binarySerializer;
         }
 
@@ -174,7 +182,6 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
             current = direct;
             binarySerializer.close();
             direct.onBytesDirect(output.toByteArray());
-            output = null;
             binarySerializer = null;
         }
 
@@ -422,7 +429,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
                     }
 
                     // Это может быть только ANY тип и в этом случае мы должны корректно сериализовать массив байтов
-                    final ByteArrayOutputStream output = new ByteArrayOutputStream();
+                    final ByteArrayOutputStream output = new ByteArrayOutputStream(bytes.length + 1 + 4);
 
                     try (YTreeCloseableConsumer binarySerializer = YTreeBinarySerializer.getSerializer(output)) {
                         binarySerializer.onString(bytes); // TODO: improve performance
