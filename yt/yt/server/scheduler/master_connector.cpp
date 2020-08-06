@@ -152,57 +152,87 @@ public:
         OperationNodesUpdateExecutor_->RemoveUpdate(operation->GetId());
     }
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation)
+    void DoCreateOperationNode(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
-        YT_LOG_INFO("Creating operation node (OperationId: %v)",
-            operationId);
 
-        auto batchReq = StartObjectBatchRequest();
+        try {
+            YT_LOG_INFO("Creating operation node (OperationId: %v)",
+                operationId);
 
-        auto operationYson = BuildYsonStringFluently()
-            .BeginAttributes()
-                .Do(BIND(&BuildMinimalOperationAttributes, operation))
-                .Item("opaque").Value(true)
-                .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
-            .EndAttributes()
-            .BeginMap()
-                .Item("jobs").BeginAttributes()
-                    .Item("opaque").Value(true)
-                    .Item("acl").Value(MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl))
-                    .Item("inherit_acl").Value(false)
-                .EndAttributes()
-                .BeginMap().EndMap()
-            .EndMap()
-            .GetData();
+            {
+                auto batchReq = StartObjectBatchRequest();
 
-        auto req = TYPathProxy::Set(GetOperationPath(operationId));
-        req->set_value(operationYson);
-        req->set_recursive(true);
-        req->set_force(true);
-        GenerateMutationId(req);
-        batchReq->AddRequest(req);
+                auto operationYson = BuildYsonStringFluently()
+                    .BeginAttributes()
+                        .Do(BIND(&BuildMinimalOperationAttributes, operation))
+                        .Item("opaque").Value(true)
+                        .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
+                    .EndAttributes()
+                    .BeginMap()
+                        .Item("jobs").BeginAttributes()
+                            .Item("opaque").Value(true)
+                            .Item("acl").Value(MakeOperationArtifactAcl(operation->GetRuntimeParameters()->Acl))
+                            .Item("inherit_acl").Value(false)
+                        .EndAttributes()
+                        .BeginMap().EndMap()
+                    .EndMap()
+                    .GetData();
 
-        if (operation->GetSecureVault()) {
-            // Create secure vault.
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("inherit_acl", false);
-            attributes->Set("value", operation->GetSecureVault());
-            attributes->Set("acl", ConvertToYsonString(operation->GetRuntimeParameters()->Acl));
+                auto req = TYPathProxy::Set(GetOperationPath(operationId));
+                req->set_value(operationYson);
+                req->set_recursive(true);
+                req->set_force(true);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req);
 
-            auto req = TCypressYPathProxy::Create(GetSecureVaultPath(operationId));
-            req->set_type(static_cast<int>(EObjectType::Document));
-            ToProto(req->mutable_node_attributes(), *attributes);
-            GenerateMutationId(req);
-            batchReq->AddRequest(req);
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+
+                GetCumulativeError(batchRspOrError)
+                    .ThrowOnError();
+            }
+
+
+            if (operation->GetSecureVault()) {
+                auto batchReq = StartObjectBatchRequest();
+
+                // Create secure vault.
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("inherit_acl", false);
+                attributes->Set("value", operation->GetSecureVault());
+                attributes->Set("acl", ConvertToYsonString(operation->GetRuntimeParameters()->Acl));
+
+                auto req = TCypressYPathProxy::Create(GetSecureVaultPath(operationId));
+                req->set_type(static_cast<int>(EObjectType::Document));
+                ToProto(req->mutable_node_attributes(), *attributes);
+                GenerateMutationId(req);
+                batchReq->AddRequest(req);
+
+                auto batchRspOrError = WaitFor(batchReq->Invoke());
+
+                GetCumulativeError(batchRspOrError)
+                    .ThrowOnError();
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error creating operation node %v", operationId)
+                << ex;
         }
 
-        return batchReq->Invoke().Apply(
-            BIND(&TImpl::OnOperationNodeCreated, MakeStrong(this), operation)
-                .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector)));
+        YT_LOG_INFO("Operation node created (OperationId: %v)",
+            operationId);
+    }
+
+    TFuture<void> CreateOperationNode(TOperationPtr operation)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
+
+        return BIND(&TImpl::DoCreateOperationNode, MakeStrong(this), operation)
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
+            .Run();
     }
 
     TFuture<void> UpdateInitializedOperationNode(const TOperationPtr& operation)
@@ -977,7 +1007,7 @@ private:
 
             auto watcherResponses = WaitFor(batchReq->Invoke())
                 .ValueOrThrow();
-            
+
             YT_LOG_INFO("Handling watcher update results");
 
             for (const auto& watcher : Owner_->CommonWatcherRecords_) {
@@ -987,7 +1017,7 @@ private:
             for (const auto& watcher : Owner_->CustomWatcherRecords_) {
                 Owner_->RunWatcherHandler(watcher, watcherResponses, /* strictMode */ true);
             }
-            
+
             YT_LOG_INFO("Watchers update results handled");
         }
 
@@ -1454,21 +1484,6 @@ private:
             MakeStrong(this),
             update->Operation)
             .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector));
-    }
-
-    void OnOperationNodeCreated(
-        const TOperationPtr& operation,
-        const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        auto operationId = operation->GetId();
-        auto error = GetCumulativeError(batchRspOrError);
-        THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error creating operation node %v",
-            operationId);
-
-        YT_LOG_INFO("Operation node created (OperationId: %v)",
-            operationId);
     }
 
     void OnInitializedOperationNodeUpdated(
