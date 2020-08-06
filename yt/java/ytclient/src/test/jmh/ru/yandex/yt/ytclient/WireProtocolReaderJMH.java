@@ -11,13 +11,14 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 import org.openjdk.jmh.profile.GCProfiler;
+import org.openjdk.jmh.results.format.ResultFormatType;
 import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
 
 @BenchmarkMode(Mode.Throughput)
-@Warmup(iterations = 3, time = 5)
+@Warmup(iterations = 1, time = 5)
 @Measurement(iterations = 3, time = 5)
 public class WireProtocolReaderJMH {
 
@@ -311,6 +312,23 @@ WireProtocolReaderJMH.test24_deserializeUnversionedLargeUnflattenPrimitives:·gc
         blackhole.consume(deserializers.largeObjects.deserializeUnversionedObjects(deserializers.largeObjectsData));
     }
 
+
+    @Benchmark
+    public void test07_deserializeMappedLargeObjectsWithList(Deserializers deserializers) {
+        deserializers.largeObjectsWithList.deserializeMappedObjects(deserializers.largeObjectWithListData);
+    }
+
+    @Benchmark
+    public void test08_deserializeLegacyMappedLargeObjectsWithList(Deserializers deserializers) {
+        deserializers.largeObjectsWithList.deserializeLegacyMappedObjects(deserializers.largeObjectWithListData);
+    }
+
+    @Benchmark
+    public void test09_deserializeUnversionedLargeObjectsWithList(Deserializers deserializers, Blackhole blackhole) {
+        blackhole.consume(deserializers.largeObjectsWithList.deserializeUnversionedObjects(
+                deserializers.largeObjectWithListData));
+    }
+
     @Benchmark
     public void test10_deserializeMappedLargePrimitives(Deserializers deserializers) {
         deserializers.largePrimitives.deserializeMappedObjects(deserializers.largePrimitiveData);
@@ -389,10 +407,29 @@ WireProtocolReaderJMH.test24_deserializeUnversionedLargeUnflattenPrimitives:·gc
 
     @Benchmark
     public void test24_deserializeUnversionedLargeUnflattenPrimitives(Deserializers deserializers,
-            Blackhole blackhole)
-    {
+            Blackhole blackhole) {
         blackhole.consume(deserializers.largeUnflattenPrimitives
                 .deserializeUnversionedObjects(deserializers.largeUnflattenPrimitivesData));
+    }
+
+    @Benchmark
+    public void test22_deserializeLargeWithAllSupportedSerializersData(Deserializers deserializers) {
+        deserializers.largeWithAllSupportedSerializers.deserializeMappedObjects(
+                deserializers.largeWithAllSupportedSerializersData);
+    }
+
+    @Benchmark
+    public void test23_deserializeLegacyLargeWithAllSupportedSerializersData(Deserializers deserializers) {
+        deserializers.largeWithAllSupportedSerializers
+                .deserializeLegacyMappedObjects(deserializers.largeWithAllSupportedSerializersData);
+    }
+
+    @Benchmark
+    public void test24_deserializeUnversionedLargeWithAllSupportedSerializersData(Deserializers deserializers,
+                                                                      Blackhole blackhole)
+    {
+        blackhole.consume(deserializers.largeWithAllSupportedSerializers
+                .deserializeUnversionedObjects(deserializers.largeWithAllSupportedSerializersData));
     }
 
     @State(Scope.Thread)
@@ -405,6 +442,8 @@ WireProtocolReaderJMH.test24_deserializeUnversionedLargeUnflattenPrimitives:·gc
         private final List<byte[]> largeFlattenPrimitivesData;
         private final List<byte[]> largeUnflattenObjectsData;
         private final List<byte[]> largeUnflattenPrimitivesData;
+        private final List<byte[]> largeWithAllSupportedSerializersData;
+        private final List<byte[]> largeObjectWithListData;
 
         public Deserializers() {
             smallObjectsData = smallObjects.generateAndSerializeObjects(1000);
@@ -415,14 +454,18 @@ WireProtocolReaderJMH.test24_deserializeUnversionedLargeUnflattenPrimitives:·gc
             largeFlattenPrimitivesData = largeFlattenPrimitives.generateAndSerializeObjects(1000);
             largeUnflattenObjectsData = largeUnflattenObjects.generateAndSerializeObjects(1000);
             largeUnflattenPrimitivesData = largeUnflattenPrimitives.generateAndSerializeObjects(1000);
+            largeWithAllSupportedSerializersData = largeWithAllSupportedSerializers.generateAndSerializeObjects(1000);
+            largeObjectWithListData = largeObjectsWithList.generateAndSerializeObjects(1000);
         }
     }
 
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
-                .include(WireProtocolReaderJMH.class.getSimpleName())
+                .include(WireProtocolReaderJMH.class.getSimpleName() + ".*MappedLargeObjects*")
                 .addProfiler(GCProfiler.class)
                 .forks(2)
+                .resultFormat(ResultFormatType.JSON)
+                .result("reader-" + Long.toHexString(System.currentTimeMillis()) + ".json")
                 .build();
 
         new Runner(opt).run();
