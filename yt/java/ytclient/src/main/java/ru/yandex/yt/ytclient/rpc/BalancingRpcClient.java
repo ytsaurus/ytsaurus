@@ -173,8 +173,12 @@ public class BalancingRpcClient implements RpcClient {
     @Override
     public RpcClientRequestControl send(RpcClient unused, RpcClientRequest request, RpcClientResponseHandler handler) {
         List<RpcClient> destinations = Manifold.selectDestinations(dataCenters, 3, localDataCenter != null, rnd, !failoverPolicy.randomizeDcs());
-        FailoverRpcExecutor executor = new FailoverRpcExecutor(executorService, destinations, request, handler);
-        return executor.execute();
+        return FailoverRpcExecutor.execute(
+                executorService,
+                RpcClientPool.collectionPool(destinations),
+                request,
+                handler,
+                destinations.size());
     }
 
     public String destinationName() {

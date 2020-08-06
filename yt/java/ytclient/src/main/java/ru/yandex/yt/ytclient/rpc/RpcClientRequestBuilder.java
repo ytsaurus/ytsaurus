@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.rpc;
 import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 import com.google.protobuf.MessageLite;
 
@@ -96,11 +97,11 @@ public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder
      */
     CompletableFuture<ResponseType> invoke(RpcClient client);
 
-    CompletableFuture<ResponseType> invokeVia(List<RpcClient> clients);
+    CompletableFuture<ResponseType> invokeVia(ScheduledExecutorService executor, List<RpcClient> clients);
 
     RpcClientStreamControl startStream(RpcClient client);
 
-    RpcClientStreamControl startStream(List<RpcClient> clients);
+    RpcClientStreamControl startStream(ScheduledExecutorService executor, List<RpcClient> clients);
 
     RpcOptions getOptions();
 

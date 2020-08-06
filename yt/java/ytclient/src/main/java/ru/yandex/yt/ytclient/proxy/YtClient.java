@@ -3,15 +3,20 @@ package ru.yandex.yt.ytclient.proxy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -23,7 +28,6 @@ import org.slf4j.LoggerFactory;
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.misc.io.IoUtils;
 import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.misc.RandomList;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.internal.Manifold;
@@ -41,6 +45,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
 
     private static final Object KEY = new Object();
 
+    private final ScheduledExecutorService executor;
     private final List<PeriodicDiscovery> discovery;
     private final Random rnd = new Random();
 
@@ -90,6 +95,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         super(options);
         discovery = new ArrayList<>();
 
+        this.executor = connector.executorService();
         this.dataCenters = new DataCenter[clusters.size()];
         this.options = options;
 
@@ -103,6 +109,7 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                                 .map(DataCenter::getAliveDestinations)
                                 .flatMap(Collection::stream)
                                 .collect(Collectors.toList());
+                        Collections.shuffle(clients, rnd);
                         return new RandomList<>(rnd, clients); // TODO: Временное решение, будет исправлено позже
                     }));
         } else {
@@ -257,16 +264,38 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     @Override
     protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<ResponseType> invoke(
             RpcClientRequestBuilder<RequestType, ResponseType> builder) {
-        return builder.invokeVia(selectDestinations());
+        return builder.invokeVia(executor, selectDestinations());
     }
 
     @Override
     protected <RequestType extends MessageLite.Builder, ResponseType> RpcClientStreamControl startStream(
             RpcClientRequestBuilder<RequestType, ResponseType> builder) {
-        return builder.startStream(selectDestinations());
+        return builder.startStream(executor, selectDestinations());
     }
 
     protected DataCenter[] getDataCenters() {
         return this.dataCenters;
+    }
+
+}
+
+class RandomList<T> extends ru.yandex.yt.ytclient.misc.RandomList<T> {
+    public RandomList(Random random, List<T> data) {
+        super(random, data);
+    }
+
+    @Nonnull
+    public Iterator<T> iterator() {
+        return new Iterator<T>() {
+            @Override
+            public boolean hasNext() {
+                return !isEmpty();
+            }
+
+            @Override
+            public T next() {
+                return get(0);
+            }
+        };
     }
 }

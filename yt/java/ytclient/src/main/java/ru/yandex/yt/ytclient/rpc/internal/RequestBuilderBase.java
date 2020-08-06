@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.rpc.internal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ScheduledExecutorService;
 
 import com.google.protobuf.MessageLite;
 
@@ -11,6 +12,7 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.ytclient.proxy.internal.FailoverRpcExecutor;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
+import ru.yandex.yt.ytclient.rpc.RpcClientPool;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
 import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
@@ -84,11 +86,11 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     }
 
     @Override
-    public CompletableFuture<ResponseType> invokeVia(List<RpcClient> clients) {
+    public CompletableFuture<ResponseType> invokeVia(ScheduledExecutorService executor, List<RpcClient> clients) {
         CompletableFuture<ResponseType> result = new CompletableFuture<>();
         try {
             RpcClientResponseHandler handler = createHandler(result);
-            RpcClientRequestControl control = sendVia(handler, clients);
+            RpcClientRequestControl control = sendVia(executor, handler, clients);
             result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
         } catch (Throwable e) {
             result.completeExceptionally(e);
@@ -102,7 +104,7 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     }
 
     @Override
-    public RpcClientStreamControl startStream(List<RpcClient> clients) {
+    public RpcClientStreamControl startStream(ScheduledExecutorService executor, List<RpcClient> clients) {
         if (!clients.isEmpty()) {
             return clients.get(0).startStream(this);
         } else {
@@ -110,9 +112,17 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
         }
     }
 
-    private RpcClientRequestControl sendVia(RpcClientResponseHandler handler, List<RpcClient> clients) {
-        FailoverRpcExecutor executor = new FailoverRpcExecutor(clients.get(0).executor(), clients, this, handler);
-        return executor.execute();
+    private RpcClientRequestControl sendVia(
+            ScheduledExecutorService executorService,
+            RpcClientResponseHandler handler,
+            List<RpcClient> clients)
+    {
+        return FailoverRpcExecutor.execute(
+            executorService,
+            RpcClientPool.collectionPool(clients),
+            this,
+            handler,
+            clients.size());
     }
 
     protected abstract RpcClientResponseHandler createHandler(CompletableFuture<ResponseType> result);
