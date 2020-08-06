@@ -267,7 +267,6 @@ def init_environment_for_test_session(mode, **kwargs):
             config["api_version"] = "v4"
     elif mode == "rpc":
         config["backend"] = "rpc"
-        config["use_http_backend_for_streaming"] = False
     elif mode in ("native_multicell", "yamr", "job_archive"):
         config["backend"] = "http"
         config["api_version"] = "v4"
