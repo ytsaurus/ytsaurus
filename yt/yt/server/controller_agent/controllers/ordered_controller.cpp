@@ -25,6 +25,8 @@
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/ytlib/hive/cluster_directory.h>
@@ -43,6 +45,8 @@
 
 #include <yt/core/misc/numeric_helpers.h>
 
+#include <util/generic/cast.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NApi;
@@ -57,6 +61,7 @@ using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
+using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -158,8 +163,14 @@ protected:
             using NYT::Persist;
             Persist(context, Controller_);
             Persist(context, ChunkPool_);
+            Persist(context, TotalOutputRowCount_);
 
             ChunkPool_->SubscribeChunkTeleported(BIND(&TOrderedTask::OnChunkTeleported, MakeWeak(this)));
+        }
+
+        i64 GetTotalOutputRowCount() const
+        {
+            return TotalOutputRowCount_;
         }
 
     private:
@@ -168,6 +179,8 @@ protected:
         TOrderedControllerBase* Controller_;
 
         IChunkPoolPtr ChunkPool_;
+
+        i64 TotalOutputRowCount_ = 0;
 
         virtual TDuration GetLocalityTimeout() const override
         {
@@ -222,6 +235,7 @@ protected:
         virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
+            TotalOutputRowCount_ += GetTotalOutputDataStatistics(*jobSummary.Statistics).row_count();
 
             TChunkStripeKey key = 0;
             if (Controller_->OrderedOutputRequired_) {
@@ -497,7 +511,9 @@ private:
 
     virtual bool IsRowCountPreserved() const override
     {
-        return !Spec_->InputQuery;
+        return !Spec_->InputQuery &&
+            !Spec_->Sampling->SamplingRate &&
+            !Spec_->JobIO->TableReader->SamplingRate;
     }
 
     virtual i64 GetMinTeleportChunkSize() override
@@ -611,6 +627,22 @@ private:
     virtual TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
+    }
+
+    virtual void OnOperationCompleted(bool interrupted) override
+    {
+        if (!interrupted) {
+            auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
+            if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
+                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != OrderedTask_->GetTotalOutputRowCount(),
+                    "Input/output row count mismatch in ordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
+                    TotalEstimatedInputRowCount,
+                    OrderedTask_->GetTotalOutputRowCount());
+                YT_VERIFY(TotalEstimatedInputRowCount == OrderedTask_->GetTotalOutputRowCount());
+            }
+        }
+
+        TOrderedControllerBase::OnOperationCompleted(interrupted);
     }
 };
 
