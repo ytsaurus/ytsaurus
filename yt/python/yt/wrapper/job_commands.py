@@ -1,5 +1,5 @@
 from .config import get_config
-from .driver import make_request, make_formatted_request, _create_http_client_from_rpc
+from .driver import make_request, make_formatted_request
 from .common import set_param
 from .ypath import YPath
 
@@ -78,8 +78,6 @@ def get_job_input(job_id, client=None):
 
     :param str job_id: job id.
     """
-    if get_config(client)["backend"] == "rpc" and get_config(client).get("use_http_backend_for_streaming", True):
-        client = _create_http_client_from_rpc(client, "get_job_input")
     return make_request(
         "get_job_input",
         params={"job_id": job_id},
@@ -122,8 +120,6 @@ def get_job_fail_context(operation_id, job_id, client=None):
     :param str operation_id: operation id.
     :param str job_id: job id.
     """
-    if get_config(client)["backend"] == "rpc" and get_config(client).get("use_http_backend_for_streaming", True):
-        client = _create_http_client_from_rpc(client, "get_job_input")
     return make_request(
         "get_job_fail_context",
         params={"operation_id": operation_id, "job_id": job_id},
