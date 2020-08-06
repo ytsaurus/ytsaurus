@@ -46,6 +46,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((HierarchicalPartitions)               (300413))
     ((SingleJobOrderedPool)                 (300414))
     ((MergeRowCountValidation)              (300415))
+    ((FixDataFlowGraphPersistence)          (300416))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -261,6 +261,7 @@ public:
         Persist(context, JobCounter_);
         Persist(context, JobType_);
         Persist(context, *LivePreviews_);
+        Persist(context, *Edges_);
         Persist(context, NodeDirectory_);
 
         if (context.IsLoad()) {
