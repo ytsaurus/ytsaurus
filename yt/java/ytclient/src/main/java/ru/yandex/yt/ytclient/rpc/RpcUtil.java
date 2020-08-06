@@ -176,7 +176,9 @@ public class RpcUtil {
     }
 
     /**
-     * Возвращает CompletableFuture, завершённое с ошибкой ex
+     * Returns a new CompletableFuture that is already completed exceptionally with the given exception.
+     *
+     * NB. This is compat with JDK8 that doesn't have {@link CompletableFuture#failedFuture(Throwable)} method.
      */
     public static <T> CompletableFuture<T> failedFuture(Throwable ex) {
         CompletableFuture<T> future = new CompletableFuture<>();
