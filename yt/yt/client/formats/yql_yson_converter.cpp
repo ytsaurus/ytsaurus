@@ -609,7 +609,7 @@ public:
         }
 
         if (Y_UNLIKELY(Type != EValueType::Any && value.Type != Type)) {
-            THROW_ERROR_EXCEPTION("Bad value Type: expected %Qlv, got %Qlv",
+            THROW_ERROR_EXCEPTION("Bad value type: expected %Qlv, got %Qlv",
                 Type,
                 value.Type);
         }

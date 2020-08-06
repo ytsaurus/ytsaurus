@@ -669,9 +669,8 @@ private:
     TCallback<void(TSaveContext&)> SaveAsync()
     {
         std::vector<std::pair<TTabletId, TCallback<void(TSaveContext&)>>> capturedTablets;
-        for (const auto& pair : TabletMap_) {
-            auto* tablet = pair.second;
-            capturedTablets.push_back(std::make_pair(tablet->GetId(), tablet->AsyncSave()));
+        for (auto [tabletId, tablet] : TabletMap_) {
+            capturedTablets.emplace_back(tabletId, tablet->AsyncSave());
         }
 
         return BIND(
@@ -679,9 +678,9 @@ private:
                 capturedTablets = std::move(capturedTablets)
             ] (TSaveContext& context) {
                 using NYT::Save;
-                for (const auto& pair : capturedTablets) {
-                    Save(context, pair.first);
-                    pair.second.Run(context);
+                for (const auto& [tabletId, callback] : capturedTablets) {
+                    Save(context, tabletId);
+                    callback(context);
                 }
             });
     }
@@ -746,8 +745,7 @@ private:
             }
         }
 
-        for (const auto& pair : TabletMap_) {
-            auto* tablet = pair.second;
+        for (auto [tabletId, tablet] : TabletMap_) {
             auto storeManager = CreateStoreManager(tablet);
             tablet->SetStoreManager(storeManager);
             tablet->FillProfilerTags(Slot_->GetCellId());
@@ -832,8 +830,7 @@ private:
 
         TTabletAutomatonPart::OnLeaderActive();
 
-        for (const auto& pair : TabletMap_) {
-            auto* tablet = pair.second;
+        for (auto [tabletId, tablet] : TabletMap_) {
             CheckIfTabletFullyUnlocked(tablet);
             CheckIfTabletFullyFlushed(tablet);
         }
@@ -883,16 +880,14 @@ private:
 
     void StartEpoch()
     {
-        for (const auto& pair : TabletMap_) {
-            auto* tablet = pair.second;
+        for (auto [tabletId, tablet] : TabletMap_) {
             StartTabletEpoch(tablet);
         }
     }
 
     void StopEpoch()
     {
-        for (const auto& pair : TabletMap_) {
-            auto* tablet = pair.second;
+        for (auto [tabletId, tablet] : TabletMap_) {
             StopTabletEpoch(tablet);
         }
     }
@@ -1025,8 +1020,8 @@ private:
                 tablet->SetState(ETabletState::Unmounted);
             }
 
-            for (const auto& pair : tablet->StoreIdMap()) {
-                SetStoreOrphaned(tablet, pair.second);
+            for (const auto& [storeId, store] : tablet->StoreIdMap()) {
+                SetStoreOrphaned(tablet, store);
             }
 
             const auto& storeManager = tablet->GetStoreManager();
@@ -1054,9 +1049,7 @@ private:
             YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (%v)",
                 tablet->GetLoggingId());
 
-            if (IsLeader()) {
-                CheckIfTabletFullyUnlocked(tablet);
-            }
+            CheckIfTabletFullyUnlocked(tablet);
         }
     }
 
@@ -1082,8 +1075,7 @@ private:
         UpdateTabletSnapshot(tablet);
 
         if (!IsRecovery()) {
-            for (auto& pair : tablet->Replicas()) {
-                auto& replicaInfo = pair.second;
+            for (auto& [replicaId, replicaInfo] : tablet->Replicas()) {
                 StopTableReplicaEpoch(&replicaInfo);
                 StartTableReplicaEpoch(tablet, &replicaInfo);
             }
@@ -1117,9 +1109,7 @@ private:
         YT_LOG_INFO_IF(IsLeader(), "Waiting for all tablet locks to be released (%v)",
             tablet->GetLoggingId());
 
-        if (IsLeader()) {
-            CheckIfTabletFullyUnlocked(tablet);
-        }
+        CheckIfTabletFullyUnlocked(tablet);
     }
 
     void HydraUnfreezeTablet(TReqUnfreezeTablet* request)
@@ -1323,9 +1313,7 @@ private:
                     tablet->GetLoggingId(),
                     requestedState);
 
-                if (IsLeader()) {
-                    CheckIfTabletFullyFlushed(tablet);
-                }
+                CheckIfTabletFullyFlushed(tablet);
                 break;
             }
 
@@ -1339,8 +1327,7 @@ private:
                     StopTabletEpoch(tablet);
                 }
 
-                for (const auto& pair : tablet->Replicas()) {
-                    const auto& replicaInfo = pair.second;
+                for (const auto& [replicaId, replicaInfo] : tablet->Replicas()) {
                     PostTableReplicaStatistics(tablet, replicaInfo);
                 }
 
@@ -1757,9 +1744,7 @@ private:
             }
         }
 
-        if (IsLeader()) {
-            CheckIfTabletFullyFlushed(tablet);
-        }
+        CheckIfTabletFullyFlushed(tablet);
 
         auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
 
@@ -1802,7 +1787,7 @@ private:
         // But before proceeding to removals, we must take care of backing stores.
         THashMap<TStoreId, IDynamicStorePtr> idToBackingStore;
         auto registerBackingStore = [&] (const IStorePtr& store) {
-            YT_VERIFY(idToBackingStore.insert(std::make_pair(store->GetId(), store->AsDynamic())).second);
+            YT_VERIFY(idToBackingStore.emplace(store->GetId(), store->AsDynamic()).second);
         };
 
         if (!IsRecovery()) {
@@ -1878,9 +1863,7 @@ private:
 
         UpdateTabletSnapshot(tablet);
 
-        if (IsLeader()) {
-            CheckIfTabletFullyFlushed(tablet);
-        }
+        CheckIfTabletFullyFlushed(tablet);
     }
 
     void HydraSplitPartition(TReqSplitPartition* request)
@@ -2437,9 +2420,7 @@ private:
             }
         }
 
-        for (const auto& pair : tablet->Replicas()) {
-            auto replicaId = pair.first;
-            const auto& replicaInfo = pair.second;
+        for (const auto& [replicaId, replicaInfo] : tablet->Replicas()) {
             if (replicaInfo.GetMode() == ETableReplicaMode::Sync) {
                 if (std::find(syncReplicaIds.begin(), syncReplicaIds.end(), replicaId) == syncReplicaIds.end()) {
                     THROW_ERROR_EXCEPTION("Synchronous replica %v of tablet %v is not being written by client",
@@ -2475,8 +2456,7 @@ private:
             }
 
             ValidateSyncReplicaSet(tablet, writeRecord.SyncReplicaIds);
-            for (auto& pair : tablet->Replicas()) {
-                auto& replicaInfo = pair.second;
+            for (auto& [replicaId, replicaInfo] : tablet->Replicas()) {
                 ValidateReplicaWritable(tablet, replicaInfo);
                 if (replicaInfo.GetMode() == ETableReplicaMode::Sync) {
                     replicaToRowCount[&replicaInfo] += writeRecord.RowCount;
@@ -2485,10 +2465,8 @@ private:
         }
 
         YT_VERIFY(!transaction->GetReplicatedRowsPrepared());
-        for (const auto& pair : replicaToRowCount) {
-            auto* replicaInfo = pair.first;
+        for (auto [replicaInfo, rowCount] : replicaToRowCount) {
             const auto* tablet = replicaInfo->GetTablet();
-            auto rowCount = pair.second;
             auto oldCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
             auto newCurrentReplicationRowIndex = oldCurrentReplicationRowIndex + rowCount;
             replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
@@ -2728,10 +2706,8 @@ private:
                 }
             }
 
-            for (const auto& pair : replicaToRowCount) {
-                auto* replicaInfo = pair.first;
+            for (auto [replicaInfo, rowCount] : replicaToRowCount) {
                 const auto* tablet = replicaInfo->GetTablet();
-                auto rowCount = pair.second;
                 auto oldCurrentReplicationRowIndex = replicaInfo->GetCurrentReplicationRowIndex();
                 auto newCurrentReplicationRowIndex = oldCurrentReplicationRowIndex - rowCount;
                 replicaInfo->SetCurrentReplicationRowIndex(newCurrentReplicationRowIndex);
@@ -2893,7 +2869,6 @@ private:
         auto lockCount = tablet->Unlock();
         CheckIfTabletFullyUnlocked(tablet);
         if (tablet->GetState() == ETabletState::Orphaned && lockCount == 0) {
-            // NB: Copying is intentional.
             auto id = tablet->GetId();
             YT_LOG_INFO_UNLESS(IsRecovery(), "Tablet unlocked and will be dropped (TabletId: %v)",
                 id);
@@ -3015,6 +2990,10 @@ private:
 
     void CheckIfTabletFullyFlushed(TTablet* tablet)
     {
+        if (!IsLeader()) {
+            return;
+        }
+        
         auto state = tablet->GetState();
         if (state != ETabletState::UnmountFlushing && state != ETabletState::FreezeFlushing) {
             return;
@@ -3078,8 +3057,7 @@ private:
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->RegisterTabletSnapshot(Slot_, tablet);
 
-        for (auto& pair : tablet->Replicas()) {
-            auto& replicaInfo = pair.second;
+        for (auto& [replicaId, replicaInfo] : tablet->Replicas()) {
             StartTableReplicaEpoch(tablet, &replicaInfo);
         }
     }
@@ -3095,8 +3073,7 @@ private:
         auto slotManager = Bootstrap_->GetTabletSlotManager();
         slotManager->UnregisterTabletSnapshot(Slot_, tablet);
 
-        for (auto& pair : tablet->Replicas()) {
-            auto& replicaInfo = pair.second;
+        for (auto& [replicaId, replicaInfo] : tablet->Replicas()) {
             StopTableReplicaEpoch(&replicaInfo);
         }
     }
@@ -3614,9 +3591,9 @@ private:
             return nullptr;
         }
 
-        auto pair = replicas.emplace(replicaId, TTableReplicaInfo(tablet, replicaId));
-        YT_VERIFY(pair.second);
-        auto& replicaInfo = pair.first->second;
+        auto [replicaIt, replicaInserted] = replicas.emplace(replicaId, TTableReplicaInfo(tablet, replicaId));
+        YT_VERIFY(replicaInserted);
+        auto& replicaInfo = replicaIt->second;
 
         replicaInfo.SetClusterName(descriptor.cluster_name());
         replicaInfo.SetReplicaPath(descriptor.replica_path());
@@ -3766,8 +3743,7 @@ private:
         }
 
         auto minReplicationRowIndex = std::numeric_limits<i64>::max();
-        for (const auto& pair : tablet->Replicas()) {
-            const auto& replicaInfo = pair.second;
+        for (const auto& [replicaId, replicaInfo] : tablet->Replicas()) {
             minReplicationRowIndex = std::min(minReplicationRowIndex, replicaInfo.GetCurrentReplicationRowIndex());
         }
 

@@ -15,7 +15,7 @@ struct TElement final
     ui32 Size;
     char Data[0];
 
-    using TEnableHazard = void;
+    static constexpr bool EnableHazard = true;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

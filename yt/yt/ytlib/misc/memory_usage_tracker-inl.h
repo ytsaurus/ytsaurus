@@ -125,7 +125,7 @@ void TMemoryUsageTracker<ECategory>::Acquire(ECategory category, i64 size)
 
     auto currentFree = TotalFreeCounter_.GetCurrent();
     if (currentFree < 0) {
-        YT_LOG_WARNING("Total memory overcommit by %v after %Qlv request for %v",
+        YT_LOG_WARNING("Total memory overcommit detected (Debt: %v, RequestCategeory: %v, RequestSize: %v)",
             -currentFree,
             category,
             size);
@@ -134,7 +134,7 @@ void TMemoryUsageTracker<ECategory>::Acquire(ECategory category, i64 size)
     const auto& data = Categories_[category];
     auto currentUsed = data.UsedCounter.GetCurrent();
     if (currentUsed > data.Limit) {
-        YT_LOG_WARNING("Per-category memory overcommit by %v after %Qlv request for %v",
+        YT_LOG_WARNING("Per-category memory overcommit detected (Debt: %v, RequestCategeory: %v, RequestSize: %v)",
             currentUsed - data.Limit,
             category,
             size);
@@ -149,10 +149,10 @@ TError TMemoryUsageTracker<ECategory>::TryAcquire(ECategory category, i64 size)
     i64 free = GetFree(category);
     if (size > GetFree(category)) {
         return TError(
-            "Not enough memory to serve %Qlv request: free %v, requested %v",
-            category,
-            free,
-            size);
+            "Not enough memory to serve %Qlv acquisition request",
+            category)
+            << TErrorAttribute("bytes_free", free)
+            << TErrorAttribute("bytes_requested", size);
     }
 
     DoAcquire(category, size);

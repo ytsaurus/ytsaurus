@@ -55,7 +55,7 @@ class TSampleObject final
 {
 public:
     using TAllocator = TTestAllocator;
-    using TEnableHazard = void;
+    static constexpr bool EnableHazard = true;
 
     explicit TSampleObject(IOutputStream* output)
         : Output_(output)
@@ -185,7 +185,7 @@ class TSamplePolymorphicObject
 {
 public:
     using TAllocator = TTestAllocator;
-    using TEnableHazard = void;
+    static constexpr bool EnableHazard = true;
 
     explicit TSamplePolymorphicObject(IOutputStream* output)
         : Output_(output)

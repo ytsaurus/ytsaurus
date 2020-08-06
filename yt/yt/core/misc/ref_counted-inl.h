@@ -50,7 +50,7 @@ using TDeleter = void (*)(void*);
 void ScheduleObjectDeletion(void* ptr, TDeleter deleter);
 
 template <class T>
-struct TMemoryReleaser<T, TAcceptor<typename T::TEnableHazard>>
+struct TMemoryReleaser<T, std::enable_if_t<T::EnableHazard>>
 {
     static void Do(void* ptr, uint16_t offset)
     {
