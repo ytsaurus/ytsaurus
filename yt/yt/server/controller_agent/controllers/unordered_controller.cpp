@@ -21,6 +21,8 @@
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
 #include <yt/ytlib/table_client/config.h>
 #include <yt/ytlib/table_client/schema.h>
 
@@ -29,6 +31,8 @@
 #include <yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/core/misc/numeric_helpers.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -40,6 +44,7 @@ using namespace NChunkClient;
 using namespace NChunkPools;
 using namespace NChunkClient::NProto;
 using namespace NScheduler::NProto;
+using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NTableClient;
 using namespace NConcurrency;
@@ -107,6 +112,7 @@ public:
             using NYT::Persist;
             Persist(context, Controller_);
             Persist(context, ChunkPool_);
+            Persist(context, TotalOutputRowCount_);
 
             ChunkPool_->SubscribeChunkTeleported(BIND(&TUnorderedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
@@ -124,6 +130,7 @@ public:
         virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
+            TotalOutputRowCount_ += GetTotalOutputDataStatistics(*jobSummary.Statistics).row_count();
 
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 
@@ -139,10 +146,17 @@ public:
             }
         }
 
+        i64 GetTotalOutputRowCount() const
+        {
+            return TotalOutputRowCount_;
+        }
+
     private:
         TUnorderedControllerBase* Controller_;
 
         IChunkPoolPtr ChunkPool_;
+
+        i64 TotalOutputRowCount_ = 0;
 
         virtual TExtendedJobResources GetMinNeededResourcesHeavy() const override
         {
@@ -698,7 +712,9 @@ private:
     // Unsorted helpers.
     virtual bool IsRowCountPreserved() const override
     {
-        return !Spec->InputQuery;
+        return !Spec->InputQuery &&
+            !Spec->Sampling->SamplingRate &&
+            !Spec->JobIO->TableReader->SamplingRate;
     }
 
     virtual i64 GetMinTeleportChunkSize() const override
@@ -774,6 +790,22 @@ private:
     virtual bool IsJobInterruptible() const override
     {
         return false;
+    }
+
+    virtual void OnOperationCompleted(bool interrupted) override
+    {
+        if (!interrupted) {
+            auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
+            if (!isNontrivialInput && IsRowCountPreserved() && Spec->ForceTransform) {
+                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != UnorderedTask_->GetTotalOutputRowCount(),
+                    "Input/output row count mismatch in unordered merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
+                     TotalEstimatedInputRowCount,
+                     UnorderedTask_->GetTotalOutputRowCount());
+                YT_VERIFY(TotalEstimatedInputRowCount == UnorderedTask_->GetTotalOutputRowCount());
+            }
+        }
+
+        TUnorderedControllerBase::OnOperationCompleted(interrupted);
     }
 };
 

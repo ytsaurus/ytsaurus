@@ -23,6 +23,8 @@
 #include <yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/ytlib/chunk_client/input_data_slice.h>
 
+#include <yt/ytlib/job_tracker_client/statistics.h>
+
 #include <yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/ytlib/table_client/schema.h>
@@ -32,6 +34,8 @@
 #include <yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/core/misc/numeric_helpers.h>
+
+#include <util/generic/cast.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -45,6 +49,7 @@ using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
+using namespace NJobTrackerClient;
 using namespace NJobTrackerClient::NProto;
 using namespace NConcurrency;
 using namespace NTableClient;
@@ -165,6 +170,7 @@ protected:
             using NYT::Persist;
             Persist(context, Controller_);
             Persist(context, ChunkPool_);
+            Persist(context, TotalOutputRowCount_);
 
             ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
@@ -178,11 +184,18 @@ protected:
             }
         }
 
+        i64 GetTotalOutputRowCount() const
+        {
+            return TotalOutputRowCount_;
+        }
+
     protected:
         TSortedControllerBase* Controller_;
 
         //! Initialized in descendandt tasks.
         IChunkPoolPtr ChunkPool_;
+
+        i64 TotalOutputRowCount_ = 0;
 
         void BuildInputOutputJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
         {
@@ -225,6 +238,7 @@ protected:
         virtual TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
+            TotalOutputRowCount_ += GetTotalOutputDataStatistics(*jobSummary.Statistics).row_count();
 
             RegisterOutput(&jobSummary.Result, joblet->ChunkListIds, joblet);
 
@@ -665,7 +679,8 @@ public:
 
     virtual bool IsRowCountPreserved() const override
     {
-        return true;
+        return !Spec_->Sampling->SamplingRate &&
+            !Spec_->JobIO->TableReader->SamplingRate;
     }
 
     virtual TUserJobSpecPtr GetUserJobSpec() const
@@ -810,6 +825,22 @@ protected:
     virtual TYsonSerializablePtr GetTypedSpec() const override
     {
         return Spec_;
+    }
+
+    virtual void OnOperationCompleted(bool interrupted) override
+    {
+        if (!interrupted) {
+            auto isNontrivialInput = InputHasReadLimits() || InputHasVersionedTables();
+            if (!isNontrivialInput && IsRowCountPreserved() && Spec_->ForceTransform) {
+                YT_LOG_ERROR_IF(TotalEstimatedInputRowCount != SortedTask_->GetTotalOutputRowCount(),
+                    "Input/output row count mismatch in sorted merge operation (TotalEstimatedInputRowCount: %v, TotalOutputRowCount: %v)",
+                    TotalEstimatedInputRowCount,
+                    SortedTask_->GetTotalOutputRowCount());
+                YT_VERIFY(TotalEstimatedInputRowCount == SortedTask_->GetTotalOutputRowCount());
+            }
+        }
+
+        TSortedControllerBase::OnOperationCompleted(interrupted);
     }
 
 private:

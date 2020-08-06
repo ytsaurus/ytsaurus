@@ -45,6 +45,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((FixLostInMultiPool)                   (300412))
     ((HierarchicalPartitions)               (300413))
     ((SingleJobOrderedPool)                 (300414))
+    ((MergeRowCountValidation)              (300415))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
