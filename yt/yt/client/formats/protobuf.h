@@ -171,9 +171,15 @@ private:
         const TProtobufColumnConfigPtr& columnConfig,
         NTableClient::TComplexTypeFieldDescriptor descriptor);
 
-    void TraverseComposite(
+    void TraverseStruct(
         int tableIndex,
         TProtobufFieldDescriptionBase* parent,
+        const TProtobufColumnConfigPtr& columnConfig,
+        NTableClient::TComplexTypeFieldDescriptor descriptor);
+
+    void TraverseDict(
+        int tableIndex,
+        TProtobufFieldDescriptionBase* field,
         const TProtobufColumnConfigPtr& columnConfig,
         NTableClient::TComplexTypeFieldDescriptor descriptor);
 };
