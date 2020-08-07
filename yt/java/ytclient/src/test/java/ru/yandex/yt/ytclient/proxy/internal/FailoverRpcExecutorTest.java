@@ -132,7 +132,7 @@ public class FailoverRpcExecutorTest {
     }
 
     @Test
-    public void errorImmediatelyPoolExhausted() throws ExecutionException, InterruptedException {
+    public void errorImmediatelyPoolExhausted() {
         CompletableFuture<String> result = new CompletableFuture<>();
 
         AtomicInteger attempts = new AtomicInteger(0);
@@ -152,10 +152,10 @@ public class FailoverRpcExecutorTest {
     }
 
     @Test
-    public void errorWithDelayPoolExhausted() throws ExecutionException, InterruptedException {
+    public void errorWithDelayPoolExhausted() {
         CompletableFuture<String> result = new CompletableFuture<>();
 
-        RpcOptions options = new RpcOptions()
+        RpcOptions options = defaultOptions()
                 .setGlobalTimeout(Duration.ofMillis(1000))
                 .setFailoverTimeout(Duration.ofMillis(20));
 
@@ -163,7 +163,7 @@ public class FailoverRpcExecutorTest {
                 () -> handler.onError(new YtException("our test error")),
                 100, TimeUnit.MILLISECONDS);
 
-        execute(respondWithDelay, new RpcOptions(), result, 1, 2);
+        execute(respondWithDelay, options, result, 1, 2);
 
         waitFuture(result, 1000);
 
