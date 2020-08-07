@@ -78,22 +78,22 @@ public:
         IInvokerPtr invoker,
         TMemberId memberId,
         TGroupId groupId)
-        : Config_(std::move(config))
-        , Id_(std::move(memberId))
+        : Id_(std::move(memberId))
         , GroupId_(std::move(groupId))
         , PeriodicExecutor_(New<TPeriodicExecutor>(
             std::move(invoker),
             BIND(&TImpl::OnHeartbeat, MakeWeak(this)),
-            Config_->HeartbeatPeriod))
+            config->HeartbeatPeriod))
         , ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
         , Logger(NLogging::TLogger(DiscoveryClientLogger)
             .AddTag("GroupId: %v, MemberId: %v",
                 GroupId_,
                 Id_))
         , AddressPool_(New<TServerAddressPool>(
-            Config_->ServerBanTimeout,
+            config->ServerBanTimeout,
             Logger,
-            Config_->ServerAddresses))
+            config->ServerAddresses))
+        , Config_(std::move(config))
         , Attributes_(CreateMemberAttributes(CreateEphemeralAttributes()))
         , ThreadSafeAttributes_(CreateThreadSafeAttributes(Attributes_.get()))
     { }
@@ -125,14 +125,33 @@ public:
         PeriodicExecutor_->Stop();
     }
 
+    void Reconfigure(TMemberClientConfigPtr config)
+    {
+        TWriterGuard guard(Lock_);
+
+        if (config->HeartbeatPeriod != Config_->HeartbeatPeriod) {
+            PeriodicExecutor_->SetPeriod(config->HeartbeatPeriod);
+        }
+        if (config->ServerBanTimeout != Config_->ServerBanTimeout) {
+            AddressPool_->SetBanTimeout(config->ServerBanTimeout);
+        }
+        if (config->ServerAddresses != Config_->ServerAddresses) {
+            AddressPool_->SetAddresses(config->ServerAddresses);
+        }
+
+        Config_ = std::move(config);
+    }
+
 private:
-    const TMemberClientConfigPtr Config_;
     const TMemberId Id_;
     const TGroupId GroupId_;
     const NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
     const IChannelFactoryPtr ChannelFactory_;
     const NLogging::TLogger Logger;
     const TServerAddressPoolPtr AddressPool_;
+
+    TReaderWriterSpinLock Lock_;
+    TMemberClientConfigPtr Config_;
 
     std::atomic<i64> Priority_ = std::numeric_limits<i64>::max();
     i64 Revision_ = 0;
@@ -143,28 +162,32 @@ private:
 
     void OnHeartbeat()
     {
-        ++Revision_;
-
-        std::unique_ptr<NYTree::IAttributeDictionary> attributes;
-        auto now = TInstant::Now();
-        if (now - LastAttributesUpdateTime_ > Config_->AttributeUpdatePeriod) {
-            attributes = ThreadSafeAttributes_->Clone();
-        }
-
         YT_LOG_DEBUG("Started sending heartbeat (Revision: %v)",
             Revision_,
             Id_);
 
-        auto session = New<THeartbeatSession>(
-            AddressPool_,
-            Config_,
-            ChannelFactory_,
-            Logger,
-            GroupId_,
-            Id_,
-            Priority_,
-            Revision_,
-            std::move(attributes));
+        ++Revision_;
+
+        std::unique_ptr<NYTree::IAttributeDictionary> attributes;
+        auto now = TInstant::Now();
+        THeartbeatSessionPtr session;
+        {
+            TReaderGuard guard(Lock_);
+            if (now - LastAttributesUpdateTime_ > Config_->AttributeUpdatePeriod) {
+                attributes = ThreadSafeAttributes_->Clone();
+            }
+
+            session = New<THeartbeatSession>(
+                AddressPool_,
+                Config_,
+                ChannelFactory_,
+                Logger,
+                GroupId_,
+                Id_,
+                Priority_,
+                Revision_,
+                std::move(attributes));
+        }
         auto rspOrError = WaitFor(session->Run());
         if (!rspOrError.IsOK()) {
             YT_LOG_DEBUG(rspOrError, "Error reporting heartbeat (Revision: %v)",
@@ -220,6 +243,11 @@ void TMemberClient::Start()
 void TMemberClient::Stop()
 {
     Impl_->Stop();
+}
+
+void TMemberClient::Reconfigure(TMemberClientConfigPtr config)
+{
+    Impl_->Reconfigure(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

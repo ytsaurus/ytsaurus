@@ -7,6 +7,8 @@
 
 #include <yt/core/actions/future.h>
 
+#include <yt/core/concurrency/rw_spinlock.h>
+
 #include <yt/core/rpc/public.h>
 
 namespace NYT::NDiscoveryClient {
@@ -25,11 +27,15 @@ public:
 
     TFuture<TGroupMeta> GetGroupMeta(const TString& groupId);
 
+    void Reconfigure(TDiscoveryClientConfigPtr config);
+
 private:
     const NLogging::TLogger Logger;
-    const TDiscoveryClientConfigPtr Config_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const NRpc::TServerAddressPoolPtr AddressPool_;
+
+    NConcurrency::TReaderWriterSpinLock Lock_;
+    TDiscoveryClientConfigPtr Config_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiscoveryClient)

@@ -33,8 +33,6 @@ public:
 
     TDuration ThrottlerExpirationTime;
 
-    int ShardCount;
-
     EDistributedThrottlerMode Mode;
     double ExtraLimitRatio;
     double EmaAlpha;

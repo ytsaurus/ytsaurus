@@ -6,8 +6,6 @@
 
 #include <yt/core/ytree/attributes.h>
 
-#include <yt/core/concurrency/rw_spinlock.h>
-
 #include <yt/core/rpc/public.h>
 
 namespace NYT::NDiscoveryClient {
@@ -28,6 +26,8 @@ public:
 
     void Start();
     void Stop();
+
+    void Reconfigure(TMemberClientConfigPtr config);
 
     NYTree::IAttributeDictionary* GetAttributes();
 

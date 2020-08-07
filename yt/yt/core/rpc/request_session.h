@@ -27,9 +27,13 @@ public:
     void BanAddress(const TString& address);
     void UnbanAddress(const TString& address);
 
+    void SetBanTimeout(TDuration banTimeout);
+    void SetAddresses(const std::vector<TString>& addresses);
+
 private:
-    const TDuration BanTimeout_;
     const NLogging::TLogger Logger;
+
+    std::atomic<TDuration> BanTimeout_;
 
     TSpinLock Lock_;
     THashSet<TString> UpAddresses_;
