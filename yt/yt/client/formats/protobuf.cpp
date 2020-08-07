@@ -667,13 +667,16 @@ void TProtobufFormatDescriptionBase::Traverse(
     }
 
     if (field->Repeated) {
-        if (descriptor.GetType()->GetMetatype() != ELogicalMetatype::List) {
+        if (descriptor.GetType()->GetMetatype() == ELogicalMetatype::Dict) {
+            // Do nothing, this case will be processed in the following switch.
+        } else if (descriptor.GetType()->GetMetatype() == ELogicalMetatype::List) {
+            descriptor = descriptor.ListElement();
+        } else {
             ThrowSchemaMismatch(
-                Format("repeated field must correspond to list, got %Qlv", descriptor.GetType()->GetMetatype()),
+                Format("repeated field must correspond to list or dict, got %Qlv", descriptor.GetType()->GetMetatype()),
                 descriptor,
                 columnConfig);
         }
-        descriptor = descriptor.ListElement();
     }
 
     const auto& logicalType = descriptor.GetType();
@@ -697,7 +700,7 @@ void TProtobufFormatDescriptionBase::Traverse(
                     descriptor,
                     columnConfig);
             }
-            TraverseComposite(tableIndex, field, columnConfig, descriptor);
+            TraverseStruct(tableIndex, field, columnConfig, descriptor);
             break;
         case ELogicalMetatype::VariantStruct:
             if (columnConfig->ProtoType != EProtobufType::Oneof) {
@@ -706,7 +709,10 @@ void TProtobufFormatDescriptionBase::Traverse(
                     descriptor,
                     columnConfig);
             }
-            TraverseComposite(tableIndex, field, columnConfig, descriptor);
+            TraverseStruct(tableIndex, field, columnConfig, descriptor);
+            break;
+        case ELogicalMetatype::Dict:
+            TraverseDict(tableIndex, field, columnConfig, descriptor);
             break;
         case ELogicalMetatype::Simple:
             ValidateSimpleType(field->Type, logicalType->AsSimpleTypeRef().GetElement());
@@ -720,7 +726,7 @@ void TProtobufFormatDescriptionBase::Traverse(
     }
 }
 
-void TProtobufFormatDescriptionBase::TraverseComposite(
+void TProtobufFormatDescriptionBase::TraverseStruct(
     int tableIndex,
     TProtobufFieldDescriptionBase* parent,
     const TProtobufColumnConfigPtr& columnConfig,
@@ -782,6 +788,43 @@ void TProtobufFormatDescriptionBase::TraverseComposite(
     for (const auto& [name, childConfig] : nameToConfig) {
         IgnoreField(tableIndex, parent, childConfig);
     }
+}
+
+void TProtobufFormatDescriptionBase::TraverseDict(
+    int tableIndex,
+    TProtobufFieldDescriptionBase* field,
+    const TProtobufColumnConfigPtr& columnConfig,
+    TComplexTypeFieldDescriptor descriptor)
+{
+    YT_VERIFY(field->Repeated);
+    if (field->Type != EProtobufType::StructuredMessage) {
+        ThrowSchemaMismatch(
+            Format("expected protobuf field of type %Qlv to match %Qlv type in schema",
+                EProtobufType::StructuredMessage,
+                ELogicalMetatype::Dict),
+            descriptor,
+            columnConfig);
+    }
+    const auto& fields = columnConfig->Fields;
+    if (fields.size() != 2 ||
+        fields[0]->Name != "key" ||
+        fields[1]->Name != "value")
+    {
+        ThrowSchemaMismatch(
+            Format(
+                "expected protobuf message with exactly fields \"key\" and \"value\" "
+                "to match %Qlv type in schema",
+                ELogicalMetatype::Dict),
+            descriptor,
+            columnConfig);
+    }
+    field->StructFieldCount = 2;
+    const auto& keyConfig = fields[0];
+    const auto& valueConfig = fields[1];
+    auto keyField = AddField(tableIndex, field, /* fieldIndex */ 0, keyConfig);
+    Traverse(tableIndex, keyField, keyConfig, descriptor.DictKey());
+    auto valueField = AddField(tableIndex, field, /* fieldIndex */ 1, valueConfig);
+    Traverse(tableIndex, valueField, valueConfig, descriptor.DictValue());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

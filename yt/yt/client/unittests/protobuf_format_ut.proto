@@ -39,6 +39,7 @@ message TMessageWithStructuredEmbedded
             string oneof_string_field = 102;
             TEmbeddedMessage oneof_message_field = 1000;
         }
+        map<int64, TEmbeddedMessage> map_field = 13;
     }
 
     message TSecondMessage
@@ -81,6 +82,8 @@ message TMessageWithStructuredEmbedded
         string oneof_string_field = 102;
         TEmbeddedMessage oneof_message_field = 1000;
     }
+
+    map<int64, TEmbeddedMessage> map_field = 19;
 }
 
 message TSeveralTablesMessageFirst
