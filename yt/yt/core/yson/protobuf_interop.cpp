@@ -28,7 +28,7 @@
 
 #include <contrib/libs/protobuf/descriptor.h>
 #include <contrib/libs/protobuf/dynamic_message.h>
-#include <contrib/libs/protobuf/wire_format.h>
+#include <google/protobuf/wire_format.h>
 
 #include <google/protobuf/io/coded_stream.h>
 #include <google/protobuf/io/zero_copy_stream.h>

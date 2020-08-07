@@ -20,7 +20,7 @@
 #include <util/stream/buffer.h>
 #include <util/stream/mem.h>
 
-#include <contrib/libs/protobuf/wire_format_lite_inl.h>
+#include <google/protobuf/wire_format_lite_inl.h>
 
 namespace NYT::NFormats {
 

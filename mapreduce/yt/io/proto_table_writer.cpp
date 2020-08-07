@@ -6,7 +6,7 @@
 
 #include <mapreduce/yt/common/node_builder.h>
 #include <mapreduce/yt/interface/protos/extension.pb.h>
-#include <contrib/libs/protobuf/unknown_field_set.h>
+#include <google/protobuf/unknown_field_set.h>
 
 namespace NYT {
 
