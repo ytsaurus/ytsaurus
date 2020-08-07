@@ -7,7 +7,7 @@
 
 #include <mapreduce/yt/interface/protos/extension.pb.h>
 
-#include <contrib/libs/protobuf/wire_format_lite.h>
+#include <google/protobuf/wire_format_lite.h>
 
 namespace NYT::NFormats {
 

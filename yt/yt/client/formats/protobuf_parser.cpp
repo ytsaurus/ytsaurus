@@ -15,7 +15,7 @@
 #include <util/generic/buffer.h>
 #include <util/string/escape.h>
 
-#include <contrib/libs/protobuf/wire_format_lite_inl.h>
+#include <google/protobuf/wire_format_lite_inl.h>
 
 namespace NYT::NFormats {
 
