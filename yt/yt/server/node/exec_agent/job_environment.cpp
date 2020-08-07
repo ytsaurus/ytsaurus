@@ -516,7 +516,9 @@ private:
             return;
         }
 
-        MetaInstance_->SetCpuLimit(cpuLimit);
+        if (MetaInstance_) {
+            MetaInstance_->SetCpuLimit(cpuLimit);
+        }
         CpuLimit_ = cpuLimit;
     }
 
