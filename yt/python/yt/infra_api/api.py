@@ -131,6 +131,9 @@ class InfraClient(object):
         return self._request("get", "events", params=filter).json()
 
     # Services
+    def get_services(self):
+        return self._request("get", "services").json()
+
     def create_service(self, service):
         return self._request("post", "services", body=service).json()
 
