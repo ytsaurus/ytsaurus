@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
@@ -72,14 +73,7 @@ public class FailoverRpcExecutor {
     }
 
     private RpcClientRequestControl execute() {
-        FailoverResponseHandler failoverResponseHandler = new FailoverResponseHandler();
-
-        long globalDelay = globalDeadline - System.currentTimeMillis();
-        serializedExecutorService.schedule(
-                this::onGlobalTimeout,
-                globalDelay,
-                TimeUnit.MILLISECONDS);
-        send(failoverResponseHandler);
+        serializedExecutorService.execute(() -> mutableState.executeImpl(new FailoverResponseHandler()));
 
         result.whenComplete((result, error) -> {
             serializedExecutorService.submit(mutableState::cancel);
@@ -89,7 +83,7 @@ public class FailoverRpcExecutor {
         return () -> result.cancel(true);
     }
 
-    private void send(FailoverResponseHandler handler) {
+    private void send(RpcClientResponseHandler handler) {
         clientPool.peekClient(result).whenCompleteAsync((RpcClient client, Throwable error) -> {
             if (error == null) {
                 mutableState.sendImpl(client, handler);
@@ -184,7 +178,7 @@ public class FailoverRpcExecutor {
             }
         }
 
-        public void sendImpl(RpcClient client, FailoverResponseHandler handler) {
+        public void sendImpl(RpcClient client, RpcClientResponseHandler handler) {
             long now = System.currentTimeMillis();
             if (now >= globalDeadline) {
                 onGlobalTimeout();
@@ -204,7 +198,7 @@ public class FailoverRpcExecutor {
             cancellation.add(client.send(request, handler));
 
             // schedule next step
-            serializedExecutorService.schedule(
+            ScheduledFuture<?> scheduled = serializedExecutorService.schedule(
                     () -> {
                         if (!result.isDone()) {
                             boolean isTimeoutRetriable = !stopped && requestsSent < attemptCount && failoverPolicy.onTimeout();
@@ -213,6 +207,17 @@ public class FailoverRpcExecutor {
                             }
                         }
                     }, failoverTimeout, TimeUnit.MILLISECONDS);
+            cancellation.add(() -> scheduled.cancel(true));
+        }
+
+        public void executeImpl(RpcClientResponseHandler handler) {
+            long globalDelay = globalDeadline - System.currentTimeMillis();
+            ScheduledFuture<?> scheduled = serializedExecutorService.schedule(
+                    FailoverRpcExecutor.this::onGlobalTimeout,
+                    globalDelay,
+                    TimeUnit.MILLISECONDS);
+            cancellation.add(() -> scheduled.cancel(true));
+            send(handler);
         }
 
         public void cancel() {
