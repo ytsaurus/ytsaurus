@@ -76,12 +76,12 @@ public abstract class TableAttachmentRowsetReader<T> implements TableAttachmentR
         bb.position(endPosition);
     }
 
-    private List<T> parseRowsWithStatistics(byte[] attachment) throws Exception {
+    private List<T> parseRowsWithStatistics(byte[] attachment, int offset, int length) throws Exception {
         if (attachment == null) {
             return null;
         }
 
-        ByteBuffer bb = ByteBuffer.wrap(attachment).order(ByteOrder.LITTLE_ENDIAN);
+        ByteBuffer bb = ByteBuffer.wrap(attachment, offset, length).order(ByteOrder.LITTLE_ENDIAN);
         int parts = bb.getInt();
         if (parts != 2) {
             throw new IllegalArgumentException();
@@ -101,8 +101,16 @@ public abstract class TableAttachmentRowsetReader<T> implements TableAttachmentR
     }
 
     @Override
+    public List<T> parse(byte[] attachments, int offset, int length) throws Exception {
+        return parseRowsWithStatistics(attachments, offset, length);
+    }
+
+    @Override
     public List<T> parse(byte[] attachments) throws Exception {
-        return parseRowsWithStatistics(attachments);
+        if (attachments == null) {
+            return null;
+        }
+        return parseRowsWithStatistics(attachments, 0, attachments.length);
     }
 
     @Override

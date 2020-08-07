@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.proxy.internal;
 
+import java.util.Arrays;
 import java.util.List;
 
 import javax.annotation.Nullable;
@@ -13,6 +14,8 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 public interface TableAttachmentReader<T> {
 
     List<T> parse(byte[] attachments) throws Exception;
+
+    List<T> parse(byte[] attachments, int offset, int length) throws Exception;
 
     long getTotalRowCount();
 
@@ -33,6 +36,19 @@ public interface TableAttachmentReader<T> {
                 return null;
             } else {
                 return Cf.list(attachments);
+            }
+        }
+
+        @Override
+        public List<byte[]> parse(byte[] attachments, int offset, int length) {
+            if (attachments == null) {
+                return null;
+            } else {
+                if (offset == 0 && length == attachments.length) {
+                    return Cf.list(attachments);
+                } else {
+                    return Cf.list(Arrays.copyOfRange(attachments, offset, length));
+                }
             }
         }
 
