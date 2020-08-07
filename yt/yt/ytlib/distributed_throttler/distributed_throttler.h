@@ -33,25 +33,13 @@ public:
         const TString& throttlerId,
         NConcurrency::TThroughputThrottlerConfigPtr throttlerConfig);
 
+    void Reconfigure(TDistributedThrottlerConfigPtr config);
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDistributedThrottlerFactory)
-
-////////////////////////////////////////////////////////////////////////////////
-
-NConcurrency::IReconfigurableThroughputThrottlerPtr CreateDistributedThrottler(
-    TDistributedThrottlerConfigPtr config,
-    NConcurrency::TThroughputThrottlerConfigPtr throttlerConfig,
-    NRpc::IChannelFactoryPtr channelFactory,
-    IInvokerPtr invoker,
-    NDiscoveryClient::TGroupId groupId,
-    NDiscoveryClient::TMemberId memberId,
-    NRpc::IServerPtr rpcServer,
-    TString address,
-    NLogging::TLogger logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

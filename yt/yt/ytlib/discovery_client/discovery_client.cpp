@@ -26,18 +26,20 @@ using NYT::FromProto;
 TDiscoveryClient::TDiscoveryClient(
     TDiscoveryClientConfigPtr config,
     IChannelFactoryPtr channelFactory)
-    : Config_(std::move(config))
-    , ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
+    : ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
     , AddressPool_(New<TServerAddressPool>(
-        Config_->ServerBanTimeout,
+        config->ServerBanTimeout,
         DiscoveryClientLogger,
-        Config_->ServerAddresses))
+        config->ServerAddresses))
+    , Config_(std::move(config))
 { }
 
 TFuture<std::vector<TMemberInfo>> TDiscoveryClient::ListMembers(
     const TString& groupId,
     const TListMembersOptions& options)
 {
+    TReaderGuard guard(Lock_);
+
     auto session = New<TListMembersRequestSession>(
         AddressPool_,
         Config_,
@@ -50,6 +52,8 @@ TFuture<std::vector<TMemberInfo>> TDiscoveryClient::ListMembers(
 
 TFuture<TGroupMeta> TDiscoveryClient::GetGroupMeta(const TString& groupId)
 {
+    TReaderGuard guard(Lock_);
+
     auto session = New<TGetGroupMetaRequestSession>(
         AddressPool_,
         Config_,
@@ -57,6 +61,20 @@ TFuture<TGroupMeta> TDiscoveryClient::GetGroupMeta(const TString& groupId)
         Logger,
         groupId);
     return session->Run();
+}
+
+void TDiscoveryClient::Reconfigure(TDiscoveryClientConfigPtr config)
+{
+    TWriterGuard guard(Lock_);
+
+    if (config->ServerBanTimeout != Config_->ServerBanTimeout) {
+        AddressPool_->SetBanTimeout(config->ServerBanTimeout);
+    }
+    if (config->ServerAddresses != Config_->ServerAddresses) {
+        AddressPool_->SetAddresses(config->ServerAddresses);
+    }
+
+    Config_ = std::move(config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

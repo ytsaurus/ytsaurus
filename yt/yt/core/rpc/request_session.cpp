@@ -14,8 +14,8 @@ TServerAddressPool::TServerAddressPool(
     TDuration banTimeout,
     const NLogging::TLogger& logger,
     const std::vector<TString>& addresses)
-    : BanTimeout_(banTimeout)
-    , Logger(logger)
+    : Logger(logger)
+    , BanTimeout_(banTimeout)
     , UpAddresses_(addresses.begin(), addresses.end())
 { }
 
@@ -63,6 +63,22 @@ void TServerAddressPool::UnbanAddress(const TString& address)
     YT_LOG_DEBUG("Server unbanned (Address: %v)", address);
     ProbationAddresses_.erase(it);
     UpAddresses_.insert(address);
+}
+
+void TServerAddressPool::SetBanTimeout(TDuration banTimeout)
+{
+    BanTimeout_ = std::move(banTimeout);
+}
+
+void TServerAddressPool::SetAddresses(const std::vector<TString>& addresses)
+{
+    TGuard guard(Lock_);
+
+    YT_LOG_INFO("Address list changed (Addresses: %v)", addresses);
+
+    ProbationAddresses_.clear();
+    DownAddresses_.clear();
+    UpAddresses_ = {addresses.begin(), addresses.end()};
 }
 
 void TServerAddressPool::OnBanTimeoutExpired(const TString& address)

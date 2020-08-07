@@ -28,9 +28,6 @@ TDistributedThrottlerConfig::TDistributedThrottlerConfig()
     RegisterParameter("throttler_expiration_time", ThrottlerExpirationTime)
         .Default(TDuration::Seconds(30));
 
-    RegisterParameter("shard_count", ShardCount)
-        .Default(16);
-
     RegisterParameter("mode", Mode)
         .Default(EDistributedThrottlerMode::Adaptive);
     RegisterParameter("extra_limit_ratio", ExtraLimitRatio)
