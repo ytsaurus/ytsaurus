@@ -43,66 +43,62 @@ class YtConnectionTest {
 
     // Нужно для того, чтобы не закрывалось подключение к RPC YT (оно останется открытым, пока есть
     // хотя бы одно JDBC подключение)
-    private static String URL;
-    private static Properties PROPS;
-    private static Connection PERMANENT_CONNECTION;
-    private static String HOME;
-    private static String TABLE;
-    private static YtClient CLIENT;
+    private static String url;
+    private static Properties props;
+    private static Connection permanentConnection;
+    private static String home;
+    private static String table;
+    private static YtClient client;
 
-    private static ObjectMapper MAPPER;
-    private static ObjectWriter WRITER;
+    private static ObjectMapper mapper;
+    private static ObjectWriter writer;
+
+    private Connection connection;
+    private YTreeObjectSerializer<MappedObject> serializer;
 
     @BeforeAll
     static void initYtConnection() throws SQLException {
         DriverManager.registerDriver(new YtDriver());
 
-        HOME = YtClientTest.getPath();
+        home = YtClientTest.getPath();
 
-        final Properties props = new Properties();
+        props = new Properties();
         props.setProperty("username", YtClientTest.getUsername());
         props.setProperty("token", YtClientTest.getToken());
         props.setProperty("compression", "Lz4");
-        props.setProperty("home", HOME);
+        props.setProperty("home", home);
         props.setProperty("scan_recursive", "true");
 
-        URL = "jdbc:yt:" + YtClientTest.getProxy();
-        PROPS = props;
-        PERMANENT_CONNECTION = DriverManager.getConnection(URL, PROPS);
+        url = "jdbc:yt:" + YtClientTest.getProxy();
+        permanentConnection = DriverManager.getConnection(url, props);
 
-        CLIENT = ((YtConnection) PERMANENT_CONNECTION).getClient();
+        client = ((YtConnection) permanentConnection).getClient();
 
-        final String dir = HOME + "/dir1";
-        TABLE = dir + "/table1";
-        YtClientTest.createDirectory(CLIENT, dir);
-        YtClientTest.createTable(CLIENT, TABLE);
+        final String dir = home + "/dir1";
+        table = dir + "/table1";
+        YtClientTest.createDirectory(client, dir);
+        YtClientTest.createTable(client, table);
 
         final Collection<MappedObject> objects = Arrays.asList(
                 new MappedObject(1, "test1"),
                 new MappedObject(2, "test2"));
 
-        YtClientTest.insertData(CLIENT, TABLE, objects,
+        YtClientTest.insertData(client, table, objects,
                 (YTreeObjectSerializer<MappedObject>) YTreeObjectSerializerFactory.forClass(MappedObject.class));
 
-        MAPPER = new ObjectMapper();
-        WRITER = MAPPER.writer().withDefaultPrettyPrinter();
+        mapper = new ObjectMapper();
+        writer = mapper.writer().withDefaultPrettyPrinter();
     }
 
     @AfterAll
-    static void closeYtConnection() throws SQLException, InterruptedException {
-        YtClientTest.deleteDirectory(CLIENT, HOME);
-        PERMANENT_CONNECTION.close();
+    static void closeYtConnection() throws SQLException {
+        YtClientTest.deleteDirectory(client, home);
+        permanentConnection.close();
     }
-
-    private Connection connection;
-    private String table;
-
-    private YTreeObjectSerializer<MappedObject> serializer;
 
     @BeforeEach
     void init() throws SQLException {
-        connection = DriverManager.getConnection(URL, PROPS);
-        table = TABLE;
+        connection = DriverManager.getConnection(url, props);
     }
 
     @AfterEach
@@ -190,7 +186,7 @@ class YtConnectionTest {
     @SuppressWarnings("unchecked")
     List<Map<String, Object>> fromJson(String json) {
         try {
-            final Map<String, Object>[] maps = MAPPER.readValue(json, Map[].class);
+            final Map<String, Object>[] maps = mapper.readValue(json, Map[].class);
             return Arrays.asList(maps);
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -199,7 +195,7 @@ class YtConnectionTest {
 
     String toJson(Object object) {
         try {
-            return WRITER.writeValueAsString(object);
+            return writer.writeValueAsString(object);
         } catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }

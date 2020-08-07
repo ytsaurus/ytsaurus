@@ -145,9 +145,9 @@ public class YtStatement extends AbstractWrapper implements Statement {
 
     @Override
     public void cancel() throws SQLException {
-        final CompletableFuture<UnversionedRowset> future = this.future;
-        if (future != null) {
-            future.cancel(true);
+        final CompletableFuture<UnversionedRowset> currentFuture = this.future;
+        if (currentFuture != null) {
+            currentFuture.cancel(true);
         }
     }
 
