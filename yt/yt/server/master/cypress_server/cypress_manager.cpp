@@ -1,6 +1,7 @@
 #include "cypress_manager.h"
 #include "private.h"
 #include "access_tracker.h"
+#include "cypress_traverser.h"
 #include "expiration_tracker.h"
 #include "config.h"
 #include "lock_proxy.h"
@@ -18,6 +19,8 @@
 #include "resolve_cache.h"
 #include "link_node_type_handler.h"
 #include "document_node_type_handler.h"
+
+#include <yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config_manager.h>
@@ -44,6 +47,7 @@
 
 #include <yt/core/misc/singleton.h>
 #include <yt/core/misc/small_set.h>
+#include <yt/core/misc/sync_expiring_cache.h>
 
 #include <yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/core/ytree/ypath_detail.h>
@@ -720,6 +724,90 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TResourceUsageVisitor
+    : public ICypressNodeVisitor
+{
+public:
+    TResourceUsageVisitor(
+        NCellMaster::TBootstrap* bootstrap,
+        TCypressNode* trunkRootNode,
+        TTransaction* rootNodeTransaction)
+        : Bootstrap_(bootstrap)
+        , TrunkRootNode_(trunkRootNode)
+        , RootNodeTransaction_(rootNodeTransaction)
+    { }
+
+    TPromise<TYsonString> Run()
+    {
+        TraverseCypress(
+            Bootstrap_->GetCypressManager(),
+            Bootstrap_->GetTransactionManager(),
+            Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetSecurityManager(),
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::CypressTraverser),
+            TrunkRootNode_,
+            RootNodeTransaction_,
+            this);
+        return Promise_;
+    }
+
+private:
+    NCellMaster::TBootstrap* const Bootstrap_;
+    TCypressNode* const TrunkRootNode_;
+    TTransaction* const RootNodeTransaction_;
+
+    const TPromise<TYsonString> Promise_ = NewPromise<TYsonString>();
+    TClusterResources LocalCellResourceUsage_;
+    std::vector<TFuture<TClusterResources>> RemoteCellResourceUsage_;
+
+    virtual void OnNode(TCypressNode* trunkNode, TTransaction* transaction) override
+    {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
+        if (node->GetType() == EObjectType::PortalEntrance) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            const auto& handler = objectManager->GetHandler(node);
+            auto proxy = handler->GetProxy(node, transaction);
+
+            auto asyncResourceUsage = proxy->GetBuiltinAttributeAsync(EInternedAttributeKey::RecursiveResourceUsage)
+                .Apply(BIND([=, this_ = MakeStrong(this)] (const TYsonString& ysonResourceUsage) {
+                    auto serializableResourceUsage = ConvertTo<TSerializableClusterResourcesPtr>(ysonResourceUsage);
+                    const auto& chunkManager = Bootstrap_->GetChunkManager();
+                    return serializableResourceUsage->ToClusterResources(chunkManager);
+                }).AsyncVia(GetCurrentInvoker()));
+
+            RemoteCellResourceUsage_.push_back(std::move(asyncResourceUsage));
+        } else {
+            LocalCellResourceUsage_ += node->GetTotalResourceUsage();
+        }
+    }
+
+    virtual void OnError(const TError& error) override
+    {
+        auto wrappedError = TError("Error computing recursive resource usage")
+            << error;
+        Promise_.Set(wrappedError);
+    }
+
+    virtual void OnCompleted() override
+    {
+        AllSucceeded(std::move(RemoteCellResourceUsage_))
+            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TClusterResources>>& resourceUsageOrError) {
+                if (!resourceUsageOrError.IsOK()) {
+                    OnError(resourceUsageOrError);
+                    return;
+                }
+
+                const auto& resourceUsage = resourceUsageOrError.Value();
+                auto result = std::accumulate(resourceUsage.begin(), resourceUsage.end(), LocalCellResourceUsage_);
+                auto usage = New<TSerializableClusterResources>(Bootstrap_->GetChunkManager(), result);
+                Promise_.Set(ConvertToYsonString(usage));
+            }).AsyncVia(GetCurrentInvoker()));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCypressManager::TImpl
     : public NCellMaster::TMasterAutomatonPart
 {
@@ -730,6 +818,10 @@ public:
         , AccessTracker_(New<TAccessTracker>(bootstrap))
         , ExpirationTracker_(New<TExpirationTracker>(bootstrap))
         , NodeMap_(TNodeMapTraits(this))
+        , RecursiveResourceUsageCache_(New<TRecursiveResourceUsageCache>(
+            BIND(&TImpl::DoComputeRecursiveResourceUsage, MakeStrong(this)),
+            TDuration::Zero(),
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default)))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
@@ -1795,6 +1887,13 @@ public:
 
     DEFINE_SIGNAL(void(TCypressNode*), NodeCreated);
 
+    TFuture<TYsonString> ComputeRecursiveResourceUsage(TCypressNode* trunkNode, TTransaction* transaction)
+    {
+        return RecursiveResourceUsageCache_->Get(TVersionedNodeId(
+            trunkNode->GetId(),
+            GetObjectId(transaction)));
+    }
+
 private:
     friend class TNodeTypeHandler;
     friend class TLockTypeHandler;
@@ -1825,6 +1924,10 @@ private:
 
     TCypressShardId RootShardId_;
     TCypressShard* RootShard_ = nullptr;
+
+    using TRecursiveResourceUsageCache = TSyncExpiringCache<TVersionedNodeId, TFuture<TYsonString>>;
+    using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
+    const TRecursiveResourceUsageCachePtr RecursiveResourceUsageCache_;
 
     // COMPAT(babenko)
     bool NeedBindNodesToRootShard_ = false;
@@ -1897,6 +2000,8 @@ private:
 
         RootNode_ = nullptr;
         RootShard_ = nullptr;
+
+        RecursiveResourceUsageCache_->Clear();
     }
 
     virtual void SetZeroState() override
@@ -2094,6 +2199,11 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         AccessTracker_->Start();
+
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(
+            BIND(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
+        OnDynamicConfigChanged();
     }
 
     virtual void OnLeaderRecoveryComplete() override
@@ -3417,6 +3527,26 @@ private:
 
         DoUnlockNode(trunkNode, transaction, explicitOnly);
     }
+
+    TFuture<TYsonString> DoComputeRecursiveResourceUsage(TVersionedNodeId versionedNodeId)
+    {
+        auto* node = GetNodeOrThrow(versionedNodeId);
+        auto visitor = New<TResourceUsageVisitor>(Bootstrap_, node->GetTrunkNode(), node->GetTransaction());
+        return visitor->Run();
+    }
+
+
+    const TDynamicCypressManagerConfigPtr& GetDynamicConfig()
+    {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        return configManager->GetConfig()->CypressManager;
+    }
+
+    void OnDynamicConfigChanged()
+    {
+        RecursiveResourceUsageCache_->SetExpirationTimeout(
+            GetDynamicConfig()->RecursiveResourceUsageCacheExpirationTimeout);
+    }
 };
 
 DEFINE_ENTITY_MAP_ACCESSORS(TCypressManager::TImpl, Node, TCypressNode, NodeMap_);
@@ -3720,6 +3850,12 @@ const TResolveCachePtr& TCypressManager::GetResolveCache()
 {
     return Impl_->ResolveCache();
 }
+
+TFuture<TYsonString> TCypressManager::ComputeRecursiveResourceUsage(TCypressNode* trunkNode, TTransaction* transaction)
+{
+    return Impl_->ComputeRecursiveResourceUsage(trunkNode, transaction);
+}
+
 
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Node, TCypressNode, *Impl_);
 DELEGATE_ENTITY_MAP_ACCESSORS(TCypressManager, Lock, TLock, *Impl_)

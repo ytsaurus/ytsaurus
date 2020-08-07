@@ -69,6 +69,9 @@ TDynamicCypressManagerConfig::TDynamicCypressManagerConfig()
         .Default(false);
     RegisterParameter("enable_unlock_command", EnableUnlockCommand)
         .Default(false);
+
+    RegisterParameter("recursive_resource_usage_cache_expiration_timeout", RecursiveResourceUsageCacheExpirationTimeout)
+        .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
