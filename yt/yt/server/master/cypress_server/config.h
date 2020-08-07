@@ -66,6 +66,8 @@ public:
     //! Controls if unlock command is enabled.
     bool EnableUnlockCommand;
 
+    TDuration RecursiveResourceUsageCacheExpirationTimeout;
+
     TDynamicCypressManagerConfig();
 };
 

@@ -201,6 +201,10 @@ public:
     const NTableServer::TSharedTableSchemaRegistryPtr& GetSharedTableSchemaRegistry() const;
     const TResolveCachePtr& GetResolveCache();
 
+    TFuture<NYson::TYsonString> ComputeRecursiveResourceUsage(
+        TCypressNode* trunkNode,
+        NTransactionServer::TTransaction* transaction);
+
     DECLARE_ENTITY_MAP_ACCESSORS(Node, TCypressNode);
     DECLARE_ENTITY_MAP_ACCESSORS(Lock, TLock);
     DECLARE_ENTITY_MAP_ACCESSORS(Shard, TCypressShard);

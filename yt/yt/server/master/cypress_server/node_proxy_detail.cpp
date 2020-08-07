@@ -1,6 +1,5 @@
 #include "node_proxy_detail.h"
 #include "private.h"
-#include "cypress_traverser.h"
 #include "helpers.h"
 #include "shard.h"
 
@@ -219,88 +218,6 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNontemplateCypressNodeProxyBase::TResourceUsageVisitor
-    : public ICypressNodeVisitor
-{
-public:
-    TResourceUsageVisitor(
-        NCellMaster::TBootstrap* bootstrap,
-        ICypressNodeProxyPtr rootNode)
-        : Bootstrap_(bootstrap)
-        , RootNode_(std::move(rootNode))
-    { }
-
-    TPromise<TYsonString> Run()
-    {
-        TraverseCypress(
-            Bootstrap_->GetCypressManager(),
-            Bootstrap_->GetTransactionManager(),
-            Bootstrap_->GetObjectManager(),
-            Bootstrap_->GetSecurityManager(),
-            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::CypressTraverser),
-            RootNode_->GetTrunkNode(),
-            RootNode_->GetTransaction(),
-            this);
-        return Promise_;
-    }
-
-private:
-    NCellMaster::TBootstrap* const Bootstrap_;
-    const ICypressNodeProxyPtr RootNode_;
-
-    TPromise<TYsonString> Promise_ = NewPromise<TYsonString>();
-    TClusterResources LocalCellResourceUsage_;
-    std::vector<TFuture<TClusterResources>> RemoteCellResourceUsage_;
-
-    virtual void OnNode(TCypressNode* trunkNode, TTransaction* transaction) override
-    {
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* node = cypressManager->GetVersionedNode(trunkNode, transaction);
-
-        if (node->GetType() == EObjectType::PortalEntrance) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            const auto& handler = objectManager->GetHandler(node);
-            auto proxy = handler->GetProxy(node, transaction);
-
-            auto asyncResourceUsage = proxy->GetBuiltinAttributeAsync(EInternedAttributeKey::RecursiveResourceUsage)
-                .Apply(BIND([=, this_ = MakeStrong(this)] (const TYsonString& ysonResourceUsage) {
-                    auto serializableResourceUsage = ConvertTo<TSerializableClusterResourcesPtr>(ysonResourceUsage);
-                    const auto& chunkManager = Bootstrap_->GetChunkManager();
-                    return serializableResourceUsage->ToClusterResources(chunkManager);
-                }).AsyncVia(GetCurrentInvoker()));
-
-            RemoteCellResourceUsage_.push_back(std::move(asyncResourceUsage));
-        } else {
-            LocalCellResourceUsage_ += node->GetTotalResourceUsage();
-        }
-    }
-
-    virtual void OnError(const TError& error) override
-    {
-        auto wrappedError = TError("Error computing recursive resource usage")
-            << error;
-        Promise_.Set(wrappedError);
-    }
-
-    virtual void OnCompleted() override
-    {
-        AllSucceeded(std::move(RemoteCellResourceUsage_))
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TClusterResources>>& resourceUsageOrError) {
-                if (!resourceUsageOrError.IsOK()) {
-                    OnError(resourceUsageOrError);
-                    return;
-                }
-
-                const auto& resourceUsage = resourceUsageOrError.Value();
-                auto result = std::accumulate(resourceUsage.begin(), resourceUsage.end(), LocalCellResourceUsage_);
-                auto usage = New<TSerializableClusterResources>(Bootstrap_->GetChunkManager(), result);
-                Promise_.Set(ConvertToYsonString(usage));
-            }).AsyncVia(GetCurrentInvoker()));
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     NCellMaster::TBootstrap* bootstrap,
     TObjectTypeMetadata* metadata,
@@ -379,8 +296,8 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetBuiltinAttributeAsync(
 {
     switch (key) {
         case EInternedAttributeKey::RecursiveResourceUsage: {
-            auto visitor = New<TResourceUsageVisitor>(Bootstrap_, this);
-            return visitor->Run();
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            return cypressManager->ComputeRecursiveResourceUsage(GetTrunkNode(), GetTransaction());
         }
 
         default:

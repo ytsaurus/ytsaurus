@@ -309,4 +309,17 @@ struct TDirectVersionedObjectIdHash;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <>
+struct THash<NYT::NObjectClient::TVersionedObjectId>
+{
+    size_t operator()(const NYT::NObjectClient::TVersionedObjectId& id) const
+    {
+        auto result = THash<NYT::NObjectClient::TObjectId>()(id.ObjectId);
+        HashCombine(result, id.TransactionId);
+        return result;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 Y_DECLARE_PODTYPE(NYT::NObjectClient::TVersionedObjectId);

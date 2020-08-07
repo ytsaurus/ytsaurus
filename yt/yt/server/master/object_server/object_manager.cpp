@@ -284,8 +284,8 @@ private:
 
     TEpoch CurrentEpoch_ = 0;
 
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     void SaveKeys(NCellMaster::TSaveContext& context) const;
     void SaveValues(NCellMaster::TSaveContext& context) const;

@@ -73,8 +73,6 @@ protected:
 
     } CustomAttributesImpl_;
 
-    class TResourceUsageVisitor;
-
     NTransactionServer::TTransaction* const Transaction_;
     TCypressNode* const TrunkNode_;
     const TVersionedNodeId VersionedId_;
