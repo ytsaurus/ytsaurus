@@ -13,8 +13,6 @@ import time
 import uuid
 import signal
 import fcntl
-import random
-import string
 import gzip
 import contextlib
 import copy
@@ -43,29 +41,11 @@ _YT_LISTEN_PORT_PER_NODE = 3
 MB = 1024 * 1024
 GB = MB * 1024
 
-# See https://a.yandex-team.ru/arc/trunk/arcadia/devtools/ya/test/node/run_test.py?rev=2316309#L30
-FILE_SIZE_LIMIT = 2 * MB
-
 
 def get_value(value, default):
     if value is None:
         return default
     return value
-
-
-@contextlib.contextmanager
-def disable_gzip_crc_check():
-    """
-    Context manager that replaces gzip.GzipFile._read_eof with a no-op.
-
-    This is useful when decompressing partial files, something that won't
-    work if GzipFile does it's checksum comparison.
-
-    """
-    _read_eof = gzip.GzipFile._read_eof
-    gzip.GzipFile._read_eof = lambda *args, **kwargs: None
-    yield
-    gzip.GzipFile._read_eof = _read_eof
 
 
 class YtConfig(object):
@@ -214,57 +194,14 @@ class YtStuff(object):
             import tarfile
             tarfile.open(tgz).extractall(path=where)
 
-    @_timing
-    def _split_file(self, file_path):
-        def split_on_chunks(stream):
-            size = 0
-            chunk = []
-            for obj in stream:
-                if size + len(obj) > FILE_SIZE_LIMIT and size > 0:
-                    yield chunk
-                    chunk = []
-                    size = 0
-                chunk.append(obj)
-                size += len(obj)
-            if size > 0:
-                yield chunk
-
-        with disable_gzip_crc_check():
-            if file_path.endswith(".gz"):
-                file_obj = gzip.open(file_path)
-                gzipped = True
-            else:
-                file_obj = open(file_path)
-                gzipped = False
-
-            for index, chunk in enumerate(split_on_chunks(file_obj)):
-                new_file_path = file_path
-                if gzipped:
-                    new_file_path = new_file_path[:-3]
-                new_file_path = new_file_path + ".split." + str(index + 1)
-                if os.path.exists(new_file_path):
-                    random_suffix = "".join(random.choice(string.ascii_uppercase + string.digits) for _ in range(5))
-                    new_file_path = new_file_path + "." + random_suffix
-                if gzipped:
-                    new_file_path = new_file_path + ".gz"
-
-                if gzipped:
-                    fout = gzip.open(new_file_path, "w")
-                else:
-                    fout = open(new_file_path, "w")
-
-                for line in chunk:
-                    fout.write(line)
-
-            fout.close()
-            file_obj.close()
-
     def _prepare_files(self):
         # build_path = yatest.common.runtime.build_path()
         work_path = yatest.common.runtime.work_path()
 
         # YT directory.
-        self.yt_path = tempfile.mkdtemp(dir=work_path, prefix="yt_") if self.config.yt_path is None else self.config.yt_path
+        self.yt_path = get_value(
+            self.config.yt_path,
+            tempfile.mkdtemp(dir=work_path, prefix="yt_"))
 
         # YT binaries.
         self.yt_bins_path = os.path.join(self.yt_path, "bin")
@@ -380,8 +317,10 @@ class YtStuff(object):
             args += ["--node-config", _dumps(self.config.build_node_config(), yson_format="text")]
             args += ["--scheduler-config", _dumps(self.config.build_scheduler_config(), yson_format="text")]
             args += ["--proxy-config", _dumps(self.config.build_proxy_config(), yson_format="text")]
-            args += ["--controller-agent-config", _dumps(self.config.build_controller_agent_config(), yson_format="text")]
-            args += ["--jobs-resource-limits", _dumps(self.config.build_job_controller_resource_limits(), yson_format="text")]
+            args += ["--controller-agent-config",
+                     _dumps(self.config.build_controller_agent_config(), yson_format="text")]
+            args += ["--jobs-resource-limits",
+                     _dumps(self.config.build_job_controller_resource_limits(), yson_format="text")]
 
             local_cypress_dir = self.config.local_cypress_dir or yatest.common.get_param("yt_local_cypress_dir")
             if local_cypress_dir:
@@ -547,19 +486,11 @@ class YtStuff(object):
 
         os.system("chmod -R 0775 " + self.yt_work_dir)
 
-        save_runtime_data = save_runtime_data or self.config.save_runtime_data or yatest.common.get_param("yt_save_runtime_data")
+        save_runtime_data = save_runtime_data or \
+            self.config.save_runtime_data or \
+            yatest.common.get_param("yt_save_runtime_data")
         if not save_runtime_data:
             remove_runtime_data(self.yt_work_dir)
-
-        # Split huge files, because ya.test cuts them.
-        for root, dirs, files in os.walk(self.yt_work_dir):
-            if os.path.basename(root) == "logs":
-                for file in files:
-                    file_path = os.path.join(root, file)
-                    if os.path.getsize(file_path) >= FILE_SIZE_LIMIT:
-                        if sys.version_info.major < 3:  # XXX
-                            self._split_file(file_path)
-                            os.remove(file_path)
 
         collect_cores(
             self._get_pids(),
