@@ -17,7 +17,7 @@
 #include <yt/core/misc/proto/protobuf_helpers.pb.h>
 
 #include <contrib/libs/protobuf/message.h>
-#include <contrib/libs/protobuf/repeated_field.h>
+#include <google/protobuf/repeated_field.h>
 
 namespace NYT {
 
