@@ -1689,7 +1689,7 @@ private:
     std::optional<EAbortReason> GetAbortReason(const TJobResult& jobResult)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         auto resultError = FromProto<TError>(jobResult.error());
 
         if (jobResult.HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)) {
@@ -1805,13 +1805,14 @@ private:
             error.FindMatching(NTableClient::EErrorCode::InvalidColumnRenaming) ||
             error.FindMatching(NTableClient::EErrorCode::FormatCannotRepresentRow) ||
             error.FindMatching(EErrorCode::SetupCommandFailed) ||
-            error.FindMatching(EErrorCode::GpuJobWithoutLayers);
+            error.FindMatching(EErrorCode::GpuJobWithoutLayers) ||
+            error.FindMatching(EErrorCode::TmpfsOverflow);
     }
 
     TYsonString EnrichStatisticsWithGpuInfo(const TYsonString& statisticsYson)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         auto statistics = ConvertTo<TStatistics>(statisticsYson);
 
         i64 totalUtilizationGpu = 0;

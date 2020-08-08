@@ -257,34 +257,45 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
                 << ex;
         }
 
-        auto logErrorAndDisableLocation = [&] (const std::exception& ex) {
-            // Probably location error, job will be aborted.
-            auto error = TError(
-                EErrorCode::ArtifactCopyingFailed,
-                "Failed to build file %Qv in sandbox %v",
-                destinationName,
-                sandboxPath) << ex;
-            Disable(error);
-            THROW_ERROR error;
+        auto processError = [&] (const std::exception& ex, bool noSpace) {
+            if (IsInsideTmpfs(destinationPath) && noSpace) {
+                THROW_ERROR_EXCEPTION(
+                    EErrorCode::TmpfsOverflow,
+                    "Failed to build file %Qv in sandbox %v: tmpfs is too small",
+                    destinationName,
+                    sandboxPath)
+                    << ex;                
+            } else if (SlotsWithQuota_.find(slotIndex) != SlotsWithQuota_.end() && noSpace) {
+                THROW_ERROR_EXCEPTION(
+                    "Failed to build file %Qv in sandbox %v: disk space limit is too small",
+                    destinationName,
+                    sandboxPath)
+                    << ex;
+            } else {
+                // Probably location error, job will be aborted.
+                auto error = TError(
+                    EErrorCode::ArtifactCopyingFailed,
+                    "Failed to build file %Qv in sandbox %v",
+                    destinationName,
+                    sandboxPath)
+                    << ex;
+                Disable(error);
+                THROW_ERROR error;
+            }
         };
 
         try {
             callback(destinationPath);
             EnsureNotInUse(destinationPath);
         } catch (const TErrorException& ex) {
-            if (IsInsideTmpfs(destinationPath) && ex.Error().FindMatching(ELinuxErrorCode::NOSPC)) {
-                THROW_ERROR_EXCEPTION("Failed to build file %Qv in sandbox %v: tmpfs is too small",
-                    destinationName,
-                    sandboxPath) << ex;
-            } else if (SlotsWithQuota_.find(slotIndex) != SlotsWithQuota_.end() && ex.Error().FindMatching(ELinuxErrorCode::NOSPC)) {
-                THROW_ERROR_EXCEPTION("Failed to build file %Qv in sandbox %v: disk space limit is too small",
-                    destinationName,
-                    sandboxPath) << ex;
-            } else {
-                logErrorAndDisableLocation(ex);
-            }
+            bool noSpace = static_cast<bool>(ex.Error().FindMatching(ELinuxErrorCode::NOSPC));
+            processError(ex, noSpace);
+        } catch (const TSystemError& ex) {
+            // For util functions.
+            bool noSpace = (ex.Status() == ENOSPC);
+            processError(ex, noSpace);
         } catch (const std::exception& ex) {
-            logErrorAndDisableLocation(ex);
+            processError(ex, /*noSpace=*/false);
         }
     })
     .AsyncVia(LocationQueue_->GetInvoker())

@@ -48,6 +48,7 @@ IncompatibleSchemas    = 316
 InvalidSchemaValue = 314
 ResolveErrorCode = 500
 AuthorizationErrorCode = 901
+TmpfsOverflow = 1124
 UserJobProducedCoreFiles = 1206
 TabletNotMounted = 1702
 OperationProgressOutdated = 1911
