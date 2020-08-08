@@ -3,7 +3,7 @@
 
 #include "errors.h"
 
-#include <contrib/libs/protobuf/descriptor.h>
+#include <google/protobuf/descriptor.h>
 #include <contrib/libs/protobuf/messagext.h>
 
 namespace NYT {

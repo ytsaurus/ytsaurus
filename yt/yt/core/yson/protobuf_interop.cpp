@@ -26,8 +26,8 @@
 
 #include <yt/core/ytree/proto/attributes.pb.h>
 
-#include <contrib/libs/protobuf/descriptor.h>
-#include <contrib/libs/protobuf/dynamic_message.h>
+#include <google/protobuf/descriptor.h>
+#include <google/protobuf/dynamic_message.h>
 #include <google/protobuf/wire_format.h>
 
 #include <google/protobuf/io/coded_stream.h>

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <contrib/libs/protobuf/descriptor.h>
+#include <google/protobuf/descriptor.h>
 
 namespace NYT::NPython {
 
