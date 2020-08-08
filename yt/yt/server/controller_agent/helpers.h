@@ -53,7 +53,7 @@ struct TUserFile
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector<TUserFile>& files);
+void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector<TUserFile>& files, bool enableBypassArtifactCache);
 
 ////////////////////////////////////////////////////////////////////////////////
 
