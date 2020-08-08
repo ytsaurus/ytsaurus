@@ -677,6 +677,8 @@ class TestArtifactCacheBypass(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    USE_PORTO = True
+
     @authors("babenko")
     def test_bypass_artifact_cache_for_file(self):
         create("table", "//tmp/t_input")
@@ -716,6 +718,31 @@ class TestArtifactCacheBypass(YTEnvSetup):
             })
 
         assert read_table("//tmp/t_output") == [{"hello": "world"}]
+
+    @authors("gritukan")
+    def test_sandbox_in_tmpfs_overflow(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        create("file", "//tmp/file")
+        write_file("//tmp/file", "A" * 10**7)
+
+        with raises_yt_error(TmpfsOverflow):
+            map(command="cat table",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_size": 5 * 1024 * 1024,
+                        "tmpfs_path": ".",
+                        "file_paths": ["<bypass_artifact_cache=%true>//tmp/file"],
+                        "output_format": "json",
+                    },
+                    "max_failed_job_count": 1,
+                })
+        # In tests we crash if slot location is disabled.
+        # Thus, if this test passed successfully, location was not disabled.
 
 ##################################################################
 

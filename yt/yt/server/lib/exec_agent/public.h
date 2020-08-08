@@ -35,6 +35,7 @@ DEFINE_ENUM(EErrorCode,
     ((SetupCommandFailed)            (1121))
     ((GpuLayerNotFetched)            (1122))
     ((GpuJobWithoutLayers)           (1123))
+    ((TmpfsOverflow)                 (1124))
 );
 
 DEFINE_ENUM(ESandboxKind,
