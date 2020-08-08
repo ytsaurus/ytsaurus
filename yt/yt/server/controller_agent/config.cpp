@@ -722,6 +722,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("memory_usage_profiling_period", MemoryUsageProfilingPeriod)
         .Default(TDuration::Seconds(1));
 
+    RegisterParameter("enable_bypass_artifact_cache", EnableBypassArtifactCache)
+        .Default(true);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

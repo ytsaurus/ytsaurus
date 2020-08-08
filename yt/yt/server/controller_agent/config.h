@@ -813,6 +813,8 @@ public:
 
     TDuration MemoryUsageProfilingPeriod;
 
+    bool EnableBypassArtifactCache;
+
     TControllerAgentConfig();
 
 private:
