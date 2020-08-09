@@ -1,6 +1,7 @@
 #include "storage_subquery.h"
 
 #include "block_input_stream.h"
+#include "config.h"
 #include "prewhere_block_input_stream.h"
 #include "query_context.h"
 #include "subquery_spec.h"
@@ -29,25 +30,11 @@ public:
         , QueryContext_(queryContext)
         , SubquerySpec_(std::move(subquerySpec))
     {
-        if (SubquerySpec_.InitialQueryId != queryContext->QueryId) {
-            queryContext->Logger.AddTag("InitialQueryId: %v", SubquerySpec_.InitialQueryId);
-            if (queryContext->InitialQuery) {
-                YT_VERIFY(*queryContext->InitialQuery == SubquerySpec_.InitialQuery);
-            } else {
-                queryContext->InitialQuery = SubquerySpec_.InitialQuery;
-            }
-        }
-        Logger = queryContext->Logger;
-        Logger.AddTag(
-            "SubqueryIndex: %v, SubqueryTableIndex: %v",
-            SubquerySpec_.SubqueryIndex,
-            SubquerySpec_.TableIndex);
-
         DB::StorageInMemoryMetadata storage_metadata;
         storage_metadata.setColumns(DB::ColumnsDescription(ToNamesAndTypesList(*SubquerySpec_.ReadSchema)));
         setInMemoryMetadata(storage_metadata);
 
-        queryContext->MoveToPhase(EQueryPhase::Preparation);
+        QueryContext_->MoveToPhase(EQueryPhase::Preparation);
     }
 
     std::string getName() const override
@@ -77,6 +64,26 @@ public:
         unsigned maxStreamCount) override
     {
         QueryContext_->MoveToPhase(EQueryPhase::Execution);
+        StorageContext_ = QueryContext_->GetOrRegisterStorageContext(this, context);
+
+        if (StorageContext_->Settings->ThrowTestingExceptionInSubquery) {
+            THROW_ERROR_EXCEPTION("Testing exception in subquery")
+                << TErrorAttribute("storage_index", StorageContext_->Index);
+        }
+
+        if (SubquerySpec_.InitialQueryId != QueryContext_->QueryId) {
+            QueryContext_->Logger.AddTag("InitialQueryId: %v", SubquerySpec_.InitialQueryId);
+            if (QueryContext_->InitialQuery) {
+                YT_VERIFY(*QueryContext_->InitialQuery == SubquerySpec_.InitialQuery);
+            } else {
+                QueryContext_->InitialQuery = SubquerySpec_.InitialQuery;
+            }
+        }
+        Logger = StorageContext_->Logger;
+        Logger.AddTag(
+            "SubqueryIndex: %v, SubqueryTableIndex: %v",
+            SubquerySpec_.SubqueryIndex,
+            SubquerySpec_.TableIndex);
 
         const auto& traceContext = GetQueryContext(context)->TraceContext;
 
@@ -192,6 +199,7 @@ public:
     }
 
 private:
+    TStorageContext* StorageContext_ = nullptr;
     TQueryContext* QueryContext_;
     TSubquerySpec SubquerySpec_;
     TLogger Logger;

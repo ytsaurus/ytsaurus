@@ -50,7 +50,8 @@ public:
 
     virtual StoragePtr executeImpl(const ASTPtr& functionAst, const Context& context, const std::string& /* tableName */) const override
     {
-        const auto& Logger = GetQueryContext(context)->Logger;
+        auto* queryContext = GetQueryContext(context);
+        const auto& Logger = queryContext->Logger;
 
         const char* err = "Table function 'ytSubquery' requires 1 parameter: table part to read";
 
@@ -81,10 +82,8 @@ public:
 private:
     StoragePtr Execute(const Context& context, TSubquerySpec subquerySpec) const
     {
-        auto* queryContext = GetQueryContext(context);
-
         return CreateStorageSubquery(
-            queryContext,
+            GetQueryContext(context),
             std::move(subquerySpec));
     }
 };

@@ -25,6 +25,29 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueryContext;
+
+//! Context for select query.
+struct TStorageContext
+    : public TRefCounted
+{
+public:
+    int Index = -1;
+    TQueryContext* QueryContext;
+    TQuerySettingsPtr Settings;
+    NLogging::TLogger Logger;
+
+    TStorageContext(int index, const DB::Context& context, TQueryContext* queryContext);
+
+    ~TStorageContext();
+};
+
+DEFINE_REFCOUNTED_TYPE(TStorageContext);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Context for whole query. Shared by all select queries from YT tables in query
+//! (including subqueries).
 struct TQueryContext
     : public TRefCounted
 {
@@ -66,14 +89,13 @@ public:
 
     EQueryPhase GetQueryPhase() const;
 
-    int RegisterStorageDistributor();
+    TStorageContext* FindStorageContext(const DB::IStorage* storage);
+    TStorageContext* GetOrRegisterStorageContext(const DB::IStorage* storage, const DB::Context& context);
 
 private:
     NTracing::TTraceContextGuard TraceContextGuard_;
 
     TInstant StartTime_;
-
-    int StorageDistributorCount_ = 0;
 
     mutable TSpinLock PhaseLock_;
     std::atomic<EQueryPhase> QueryPhase_ {EQueryPhase::Start};
@@ -85,7 +107,13 @@ private:
 
     //! Native client for the user that initiated the query. Created on first use.
     mutable NApi::NNative::IClientPtr Client_;
+
+    //! Spinlock controlling select query context map.
+    mutable NConcurrency::TReaderWriterSpinLock StorageToStorageContextLock_;
+    THashMap<const DB::IStorage*, TStorageContextPtr> StorageToStorageContext_;
 };
+
+DEFINE_REFCOUNTED_TYPE(TQueryContext);
 
 void Serialize(const TQueryContext& queryContext, NYson::IYsonConsumer* consumer, const DB::QueryStatusInfo* queryStatusInfo);
 
@@ -99,6 +127,8 @@ void SetupHostContext(
     std::optional<TString> dataLensRequestId = std::nullopt);
 
 TQueryContext* GetQueryContext(const DB::Context& context);
+
+NLogging::TLogger GetLogger(const DB::Context& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 

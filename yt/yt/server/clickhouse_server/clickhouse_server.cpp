@@ -259,6 +259,10 @@ private:
 
         DictionaryGuard_ = ServerContext_->getExternalDictionariesLoader().addConfigRepository(CreateDictionaryConfigRepository(Config_->Dictionaries));
 
+        YT_LOG_DEBUG("Setting chyt custom setting prefix");
+
+        ServerContext_->getAccessControlManager().setCustomSettingsPrefixes("chyt_");
+
         YT_LOG_INFO("Finished setting up context");
     }
 

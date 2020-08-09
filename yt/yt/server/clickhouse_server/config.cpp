@@ -91,9 +91,14 @@ TSecurityManagerConfig::TSecurityManagerConfig()
 TQuerySettings::TQuerySettings()
 {
     RegisterParameter("enable_columnar_read", EnableColumnarRead)
-        .Default(false);
+        .Default(true);
 
     RegisterParameter("enable_computed_column_deduction", EnableComputedColumnDeduction)
+        .Default(true);
+
+    RegisterParameter("throw_testing_exception_in_distributor", ThrowTestingExceptionInDistributor)
+        .Default(false);
+    RegisterParameter("throw_testing_exception_in_subquery", ThrowTestingExceptionInSubquery)
         .Default(false);
 }
 

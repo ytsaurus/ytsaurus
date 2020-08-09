@@ -93,19 +93,23 @@ public:
 
 public:
     TInputFetcher(
-        TQueryContext* queryContext,
+        TStorageContext* storageContext,
         const TQueryAnalysisResult& queryAnalysisResult,
         const std::vector<std::string>& columnNames)
-        : Client_(queryContext->Client())
-        , Invoker_(CreateSerializedInvoker(queryContext->Host->GetWorkerInvoker()))
+        : StorageContext_(storageContext)
+        , QueryContext_(StorageContext_->QueryContext)
+        , Client_(QueryContext_->Client())
+        , Invoker_(CreateSerializedInvoker(QueryContext_->Host->GetWorkerInvoker()))
         , TableSchemas_(queryAnalysisResult.TableSchemas)
         , KeyConditions_(queryAnalysisResult.KeyConditions)
         , ColumnNames_(columnNames)
         , KeyColumnCount_(queryAnalysisResult.KeyColumnCount)
-        , Config_(queryContext->Host->GetConfig()->Subquery)
-        , RowBuffer_(queryContext->RowBuffer)
-        , Logger(queryContext->Logger)
+        , Config_(QueryContext_->Host->GetConfig()->Subquery)
+        , RowBuffer_(QueryContext_->RowBuffer)
+        , Logger(StorageContext_->Logger)
     {
+        Y_UNUSED(StorageContext_);
+
         OperandCount_ = queryAnalysisResult.Tables.size();
         for (int operandIndex = 0; operandIndex < static_cast<int>(queryAnalysisResult.Tables.size()); ++operandIndex) {
             for (auto& table : queryAnalysisResult.Tables[operandIndex]) {
@@ -123,6 +127,9 @@ public:
     }
 
 private:
+    TStorageContext* StorageContext_;
+    TQueryContext* QueryContext_;
+
     NApi::NNative::IClientPtr Client_;
 
     IInvokerPtr Invoker_;
@@ -428,12 +435,12 @@ DEFINE_REFCOUNTED_TYPE(TInputFetcher);
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueryInput FetchInput(
-    TQueryContext* queryContext,
+    TStorageContext* storageContext,
     const TQueryAnalysisResult& queryAnalysisResult,
     TSubquerySpec& specTemplate,
     const std::vector<std::string>& columnNames)
 {
-    auto inputFetcher = New<TInputFetcher>(queryContext, queryAnalysisResult, columnNames);
+    auto inputFetcher = New<TInputFetcher>(storageContext, queryAnalysisResult, columnNames);
     WaitFor(inputFetcher->Fetch())
         .ThrowOnError();
 
@@ -497,11 +504,11 @@ std::vector<TSubquery> BuildSubqueries(
     EPoolKind poolKind,
     int jobCount,
     std::optional<double> samplingRate,
-    const DB::Context& context,
+    const TStorageContext* storageContext,
     const TSubqueryConfigPtr& config)
 {
-    auto* queryContext = GetQueryContext(context);
-    const auto& Logger = queryContext->Logger;
+    auto* queryContext = storageContext->QueryContext;
+    const auto& Logger = storageContext->Logger;
 
     YT_LOG_INFO(
         "Building subqueries (TotalDataWeight: %v, TotalChunkCount: %v, TotalRowCount: %v, "

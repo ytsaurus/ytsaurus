@@ -33,7 +33,7 @@ struct TQueryInput
 
 //! Fetch data slices for given input tables and fill given subquery spec template.
 TQueryInput FetchInput(
-    TQueryContext* queryContet,
+    TStorageContext* storageContext,
     const TQueryAnalysisResult& queryAnalysisResult,
     TSubquerySpec& specTemplate,
     const std::vector<std::string>& columnNames);
@@ -44,7 +44,7 @@ std::vector<TSubquery> BuildSubqueries(
     EPoolKind poolKind,
     int jobCount,
     std::optional<double> samplingRate,
-    const DB::Context& context,
+    const TStorageContext* storageContext,
     const TSubqueryConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////

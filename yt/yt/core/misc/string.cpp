@@ -104,10 +104,10 @@ TString Trim(const TString& str, const TString& whitespaces)
 
 bool TryParseBool(const TString& value, bool& result)
 {
-    if (value == "true") {
+    if (value == "true" || value == "1") {
         result = true;
         return true;
-    } else if (value == "false") {
+    } else if (value == "false" || value == "0") {
         result = false;
         return true;
     } else {

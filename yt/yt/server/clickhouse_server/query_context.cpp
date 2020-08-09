@@ -32,6 +32,24 @@ TLogger QueryLogger("Query");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TStorageContext::TStorageContext(int index, const DB::Context& context, TQueryContext* queryContext)
+    : Index(index)
+    , QueryContext(queryContext)
+    , Logger(TLogger(queryContext->Logger)
+        .AddTag("StorageIndex: %v", Index))
+{
+    YT_LOG_INFO("Storage context created");
+
+    Settings = ParseCustomSettings(queryContext->Host->GetConfig()->QuerySettings, context.getSettings().allCustom(), Logger);
+}
+
+TStorageContext::~TStorageContext()
+{
+    YT_LOG_INFO("Storage context destroyed");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TQueryContext::TQueryContext(
     THost* host,
     const DB::Context& context,
@@ -108,14 +126,15 @@ TQueryContext::~TQueryContext()
 
 const NApi::NNative::IClientPtr& TQueryContext::Client() const
 {
-    ClientLock_.AcquireReader();
-    auto clientPresent = static_cast<bool>(Client_);
-    ClientLock_.ReleaseReader();
+    bool clientPresent;
+    {
+        auto readerGuard = TReaderGuard(&ClientLock_);
+        clientPresent = static_cast<bool>(Client_);
+    }
 
     if (!clientPresent) {
-        ClientLock_.AcquireWriter();
+        auto writerGuard = TWriterGuard(&ClientLock_);
         Client_ = Host->CreateClient(User);
-        ClientLock_.ReleaseWriter();
     }
 
     return Client_;
@@ -165,12 +184,32 @@ EQueryPhase TQueryContext::GetQueryPhase() const
     return QueryPhase_.load();
 }
 
-int TQueryContext::RegisterStorageDistributor()
+TStorageContext* TQueryContext::FindStorageContext(const DB::IStorage* storage)
 {
-    return StorageDistributorCount_++;
+    {
+        auto readerGuard = TReaderGuard(StorageToStorageContextLock_);
+        auto it = StorageToStorageContext_.find(storage);
+        if (it != StorageToStorageContext_.end()) {
+            return it->second.Get();
+        }
+    }
+    return nullptr;
 }
 
-DEFINE_REFCOUNTED_TYPE(TQueryContext)
+TStorageContext* TQueryContext::GetOrRegisterStorageContext(const DB::IStorage* storage, const DB::Context& context)
+{
+    if (auto* storageContext = FindStorageContext(storage)) {
+        return storageContext;
+    }
+
+    {
+        auto writerGuard = TWriterGuard(StorageToStorageContextLock_);
+        auto storageIndex = StorageToStorageContext_.size();
+        const auto& storageContext = (StorageToStorageContext_[storage] =
+            New<TStorageContext>(storageIndex, context, this));
+        return storageContext.Get();
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

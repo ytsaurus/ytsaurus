@@ -16,6 +16,7 @@
 
 #include <Core/Field.h>
 #include <Core/Block.h>
+#include <Core/Settings.h>
 #include <Storages/ColumnsDescription.h>
 
 namespace NYT::NClickHouseServer {
@@ -32,6 +33,13 @@ DB::Field ConvertToField(const NTableClient::TUnversionedValue& value);
 
 //! `value` should have Type field filled.
 void ConvertToUnversionedValue(const DB::Field& field, NTableClient::TUnversionedValue* value);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQuerySettingsPtr ParseCustomSettings(
+    TQuerySettingsPtr baseSettings,
+    const DB::Settings::Range& customSettings,
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
