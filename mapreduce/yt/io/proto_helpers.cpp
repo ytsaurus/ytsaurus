@@ -6,7 +6,7 @@
 
 #include <google/protobuf/descriptor.h>
 #include <google/protobuf/descriptor.pb.h>
-#include <contrib/libs/protobuf/messagext.h>
+#include <google/protobuf/messagext.h>
 #include <google/protobuf/io/coded_stream.h>
 
 #include <util/stream/str.h>

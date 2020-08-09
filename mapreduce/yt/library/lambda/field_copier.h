@@ -1,6 +1,6 @@
 #pragma once
 
-#include <contrib/libs/protobuf/message.h>
+#include <google/protobuf/message.h>
 
 #include <mapreduce/yt/interface/common.h>
 
