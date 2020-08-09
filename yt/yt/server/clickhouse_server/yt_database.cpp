@@ -110,7 +110,7 @@ public:
             mutable DB::StoragePtr Table_ = nullptr;
         };
 
-        auto queryContext = GetQueryContext(context);
+        auto* queryContext = GetQueryContext(context);
 
         TTableTraverser traverser(queryContext->Client(), queryContext->Host->GetConfig()->ShowTables->Roots,  filterByTableName);
 
@@ -196,7 +196,7 @@ private:
                 /* skipUnsuitableNodes */ false,
                 queryContext->Logger);
 
-            return CreateStorageDistributor(queryContext, std::move(tables));
+            return CreateStorageDistributor(context, std::move(tables));
         } catch (const TErrorException& ex) {
             if (ex.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
                 return nullptr;

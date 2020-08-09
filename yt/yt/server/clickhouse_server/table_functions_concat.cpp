@@ -142,7 +142,7 @@ public:
             /* skipUnsuitableNodes */ false,
             queryContext->Logger);
 
-        return CreateStorageDistributor(queryContext, std::move(tables));
+        return CreateStorageDistributor(context, std::move(tables));
     }
 
     virtual const char* getStorageTypeName() const override
@@ -217,13 +217,13 @@ public:
             queryContext->Host,
             std::move(itemPaths),
             /* skipUnsuitableItems */ true,
-            queryContext->Logger);
+            Logger);
 
         std::sort(tables.begin(), tables.end(), [] (const TTablePtr& lhs, const TTablePtr& rhs) {
             return lhs->Path.GetPath() < rhs->Path.GetPath();
         });
 
-        return CreateStorageDistributor(queryContext, std::move(tables));
+        return CreateStorageDistributor(context, std::move(tables));
     }
 
     virtual const char* getStorageTypeName() const override

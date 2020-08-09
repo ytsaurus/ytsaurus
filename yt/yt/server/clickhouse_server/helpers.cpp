@@ -2,6 +2,7 @@
 
 #include "schema.h"
 #include "table.h"
+#include "config.h"
 
 #include <yt/ytlib/api/native/client.h>
 
@@ -114,6 +115,54 @@ void ConvertToUnversionedValue(const DB::Field& field, TUnversionedValue* value)
             THROW_ERROR_EXCEPTION("Unexpected data type %Qlv", value->Type);
         }
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TQuerySettingsPtr ParseCustomSettings(
+    const TQuerySettingsPtr baseSettings,
+    const DB::Settings::Range& customSettings,
+    const TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    auto result = New<TQuerySettings>();
+    auto node = ConvertToNode(baseSettings);
+    for (const auto& setting : customSettings) {
+        auto settingName = TString(setting.getName());
+        YT_VERIFY(settingName.StartsWith("chyt"));
+        if (!settingName.StartsWith("chyt.") && !settingName.StartsWith("chyt_")) {
+            THROW_ERROR_EXCEPTION(
+                "Invalid setting name %Qv; CHYT settings should start with \"chyt.\" or with \"chyt_\" prefix",
+                settingName);
+        }
+        TYPath ypath = "/" + settingName.substr(5);
+        for (auto& character : ypath) {
+            if (character == '.') {
+                character = '/';
+            }
+        }
+        auto field = setting.getValue();
+        YT_LOG_TRACE("Parsing custom setting (YPath: %v, FieldValue: %v)", ypath, field.dump());
+        TUnversionedValue unversionedValue;
+        unversionedValue.Id = 0;
+        unversionedValue.Type = ToValueType(field.getType());
+        ConvertToUnversionedValue(field, &unversionedValue);
+        auto patchNode = ConvertToNode(unversionedValue);
+        YT_LOG_TRACE("Patch node (Node: %v)", ConvertToYsonString(patchNode, EYsonFormat::Text));
+        SetNodeByYPath(node, ypath, patchNode);
+    }
+
+    YT_LOG_TRACE("Resulting node (Node: %v)", ConvertToYsonString(node, EYsonFormat::Text));
+    result->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+    result->Load(node);
+
+    YT_LOG_DEBUG(
+        "Custom settings parsed (Settings: %v, Unrecognized: %v)",
+        ConvertToYsonString(result, EYsonFormat::Text),
+        ConvertToYsonString(result->GetUnrecognizedRecursively(), EYsonFormat::Text));
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

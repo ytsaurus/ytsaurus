@@ -198,6 +198,233 @@ void ValidateReadPermissions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! This class is extracted for better encapsulation of read() call context.
+//! Recall that TStorageDistributor may be reused for several subqueries.
+class TDistributionPreparer
+{
+public:
+    TDistributionPreparer(
+        const DB::Names& columnNames,
+        const DB::SelectQueryInfo& queryInfo,
+        const DB::Context& context,
+        TQueryContext* queryContext,
+        TStorageContext* storageContext,
+        DB::QueryProcessingStage::Enum processedStage)
+        : ColumnNames_(columnNames)
+        , QueryInfo_(queryInfo)
+        , Context_(context)
+        , QueryContext_(queryContext)
+        , StorageContext_(storageContext)
+        , ProcessedStage_(processedStage)
+        , Logger(StorageContext_->Logger)
+    { }
+
+    DB::Pipes Prepare()
+    {
+        YT_LOG_DEBUG("Preparing distribution (QueryAST: %v)", *QueryInfo_.query, static_cast<void*>(this));
+
+        if (StorageContext_->Settings->ThrowTestingExceptionInDistributor) {
+            THROW_ERROR_EXCEPTION("Testing exception in distributor")
+                << TErrorAttribute("storage_index", StorageContext_->Index);
+        }
+
+        SpecTemplate_ = TSubquerySpec();
+        SpecTemplate_.InitialQueryId = QueryContext_->QueryId;
+        SpecTemplate_.InitialQuery = SerializeAndMaybeTruncateSubquery(*QueryInfo_.query);
+
+        auto cliqueNodes = QueryContext_->Host->GetNodes();
+        if (cliqueNodes.empty()) {
+            THROW_ERROR_EXCEPTION("There are no instances available through discovery");
+        }
+
+        QueryContext_->MoveToPhase(EQueryPhase::Preparation);
+
+        PrepareSubqueries(cliqueNodes.size(), QueryInfo_, ColumnNames_, Context_);
+
+        YT_LOG_INFO("Starting distribution (ColumnNames: %v, NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
+            ColumnNames_,
+            cliqueNodes.size(),
+            static_cast<ui64>(Context_.getSettings().max_threads),
+            Subqueries_.size());
+
+        const auto& settings = Context_.getSettingsRef();
+
+        DB::Context newContext(Context_);
+        newContext.setSettings(PrepareLeafJobSettings(settings));
+
+        // TODO(max42): do we need them?
+        auto throttler = CreateNetThrottler(settings);
+
+        DB::Pipes pipes;
+
+        std::sort(Subqueries_.begin(), Subqueries_.end(), [] (const TSubquery& lhs, const TSubquery& rhs) {
+            return lhs.Cookie < rhs.Cookie;
+        });
+
+        // NB: this is important for queries to distribute deterministically across cluster.
+        std::sort(cliqueNodes.begin(), cliqueNodes.end(), [] (const IClusterNodePtr& lhs, const IClusterNodePtr& rhs) {
+            return lhs->GetName().ToString() < rhs->GetName().ToString();
+        });
+
+        for (const auto& cliqueNode : cliqueNodes) {
+            YT_LOG_DEBUG("Clique node (Host: %v, Port: %v, IsLocal: %v)",
+                cliqueNode->GetName().Host,
+                cliqueNode->GetName().Port,
+                cliqueNode->IsLocal());
+        }
+
+        QueryContext_->MoveToPhase(EQueryPhase::Execution);
+
+        int subqueryCount = std::min(Subqueries_.size(), cliqueNodes.size());
+
+        if (subqueryCount == 0) {
+            // NB: if we make no subqueries, there will be a tricky issue around schemas.
+            // Namely, we return an empty vector of streams, so the resulting schema will
+            // be taken from columns of this storage (which are set via setColumns).
+            // Such schema will be incorrect as it will lack aggregates in mergeable state
+            // which should normally return from our distributed storage.
+            // In order to overcome this, we forcefully make at least one stream, even though it
+            // will return empty result for sure.
+            subqueryCount = 1;
+        }
+
+        for (int index = 0; index < subqueryCount; ++index) {
+            int firstSubqueryIndex = index * Subqueries_.size() / subqueryCount;
+            int lastSubqueryIndex = (index + 1) * Subqueries_.size() / subqueryCount;
+
+            auto threadSubqueries = MakeRange(Subqueries_.data() + firstSubqueryIndex, Subqueries_.data() + lastSubqueryIndex);
+
+            YT_LOG_DEBUG("Preparing subquery (SubqueryIndex: %v, ThreadSubqueryCount: %v)",
+                index,
+                subqueryCount);
+            for (const auto& threadSubquery : threadSubqueries) {
+                YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerLimit: %v, UpperLimit: %v, DataWeight: %v, RowCount: %v, ChunkCount: %v)",
+                    threadSubquery.Cookie,
+                    threadSubquery.Limits.first,
+                    threadSubquery.Limits.second,
+                    threadSubquery.StripeList->TotalDataWeight,
+                    threadSubquery.StripeList->TotalRowCount,
+                    threadSubquery.StripeList->TotalChunkCount);
+            }
+
+            YT_VERIFY(!threadSubqueries.Empty() || Subqueries_.empty());
+
+            const auto& cliqueNode = cliqueNodes[index];
+            auto subqueryAst = QueryAnalyzer_->RewriteQuery(
+                threadSubqueries,
+                SpecTemplate_,
+                MiscExtMap_,
+                index,
+                index + 1 == subqueryCount /* isLastSubquery */);
+
+            YT_LOG_DEBUG("Subquery prepared (Node: %v, ThreadSubqueryCount: %v, SubqueryIndex: %v, TotalSubqueryCount: %v)",
+                cliqueNode->GetName().ToString(),
+                lastSubqueryIndex - firstSubqueryIndex,
+                index,
+                subqueryCount);
+
+            auto pipe = CreateRemoteSource(
+                cliqueNode,
+                subqueryAst,
+                newContext,
+                throttler,
+                Context_.getExternalTables(),
+                ProcessedStage_,
+                Logger);
+
+            pipes.emplace_back(std::move(pipe));
+        }
+
+        YT_LOG_INFO("Finished distribution");
+
+        return pipes;
+    }
+
+    void PrepareSubqueries(
+        int subqueryCount,
+        const DB::SelectQueryInfo& queryInfo,
+        const std::vector<std::string>& columnNames,
+        const DB::Context& context)
+    {
+        NTracing::TChildTraceContextGuard guard("ClickHouseYt.Prepare", /* forceTracing */ true);
+        NTracing::GetCurrentTraceContext()->AddTag("chyt.subquery_count", ToString(subqueryCount));
+        NTracing::GetCurrentTraceContext()->AddTag("chyt.column_names", Format("%v", MakeFormattableView(columnNames, TDefaultFormatter())));
+
+        QueryAnalyzer_.emplace(context, queryInfo, Logger);
+        auto queryAnalysisResult = QueryAnalyzer_->Analyze();
+
+        YT_LOG_TRACE("Preparing StorageDistributor for query (Query: %v)", *queryInfo.query);
+
+        auto input = FetchInput(
+            StorageContext_,
+            queryAnalysisResult,
+            SpecTemplate_,
+            columnNames);
+
+        MiscExtMap_ = std::move(input.MiscExtMap);
+
+        std::optional<double> samplingRate;
+        const auto& selectQuery = queryInfo.query->as<DB::ASTSelectQuery&>();
+        if (auto selectSampleSize = selectQuery.sampleSize()) {
+            auto ratio = selectSampleSize->as<DB::ASTSampleRatio&>().ratio;
+            auto rate = static_cast<double>(ratio.numerator) / ratio.denominator;
+            if (rate > 1.0) {
+                rate /= input.StripeList->TotalRowCount;
+            }
+            rate = std::clamp(rate, 0.0, 1.0);
+            samplingRate = rate;
+        }
+
+        Subqueries_ = BuildSubqueries(
+            std::move(input.StripeList),
+            queryAnalysisResult.KeyColumnCount,
+            queryAnalysisResult.PoolKind,
+            std::max<int>(1, subqueryCount * context.getSettings().max_threads),
+            samplingRate,
+            StorageContext_,
+            QueryContext_->Host->GetConfig()->Subquery);
+
+        size_t totalInputDataWeight = 0;
+
+        for (const auto& subquery : Subqueries_) {
+            totalInputDataWeight += subquery.StripeList->TotalDataWeight;
+        }
+
+        for (const auto& subquery : Subqueries_) {
+            if (subquery.StripeList->TotalDataWeight > QueryContext_->Host->GetConfig()->Subquery->MaxDataWeightPerSubquery)
+            {
+                THROW_ERROR_EXCEPTION(
+                    NClickHouseServer::EErrorCode::SubqueryDataWeightLimitExceeded,
+                    "Subquery exceeds data weight limit: %v > %v",
+                    subquery.StripeList->TotalDataWeight,
+                    QueryContext_->Host->GetConfig()->Subquery->MaxDataWeightPerSubquery)
+                    << TErrorAttribute("total_input_data_weight", totalInputDataWeight);
+            }
+        }
+
+        NTracing::GetCurrentTraceContext()->AddTag("chyt.total_input_data_weight", ToString(totalInputDataWeight));
+    }
+
+private:
+    const DB::Names& ColumnNames_;
+    const DB::SelectQueryInfo& QueryInfo_;
+    const DB::Context& Context_;
+    TQueryContext* const QueryContext_;
+    TStorageContext* const StorageContext_;
+    const DB::QueryProcessingStage::Enum ProcessedStage_;
+    const TLogger Logger;
+
+    TSubquerySpec SpecTemplate_;
+    std::vector<TSubquery> Subqueries_;
+    std::optional<TQueryAnalyzer> QueryAnalyzer_;
+    // TODO(max42): YT-11778.
+    // TMiscExt is used for better memory estimation in readers, but it is dropped when using
+    // TInputChunk, so for now we store it explicitly in a map and use when serializing subquery input.
+    THashMap<TChunkId, TRefCountedMiscExtPtr> MiscExtMap_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStorageDistributor
     : public DB::IStorage
     , public IStorageDistributor
@@ -206,11 +433,11 @@ public:
     friend class TQueryAnalyzer;
 
     TStorageDistributor(
-        TQueryContext* queryContext,
+        const DB::Context& context,
         std::vector<TTablePtr> tables,
         TTableSchemaPtr schema)
         : DB::IStorage({"YT", "distributor"})
-        , QueryContext_(queryContext)
+        , QueryContext_(GetQueryContext(context))
         , Tables_(std::move(tables))
         , Schema_(std::move(schema))
         , Logger(QueryContext_->Logger)
@@ -296,123 +523,13 @@ public:
         size_t /* maxBlockSize */,
         unsigned /* numStreams */) override
     {
-        StorageDistributorIndex_ = QueryContext_->RegisterStorageDistributor();
-        Logger.AddTag("StorageDistributorIndex: %v", StorageDistributorIndex_);
+        auto* queryContext = GetQueryContext(context);
+        auto* storageContext = queryContext->GetOrRegisterStorageContext(this, context);
 
-        YT_LOG_DEBUG("StorageDistributor starts reading (QueryAST: %v, Address: %v)", *queryInfo.query, static_cast<void*>(this));
+        ValidateReadPermissions(ToVectorString(columnNames), Tables_, queryContext);
 
-        ValidateReadPermissions(ToVectorString(columnNames), Tables_, QueryContext_);
-        SpecTemplate_ = TSubquerySpec();
-        SpecTemplate_.InitialQueryId = QueryContext_->QueryId;
-        SpecTemplate_.InitialQuery = SerializeAndMaybeTruncateSubquery(*queryInfo.query);
-
-        auto cliqueNodes = QueryContext_->Host->GetNodes();
-        if (cliqueNodes.empty()) {
-            THROW_ERROR_EXCEPTION("There are no instances available through discovery");
-        }
-
-        QueryContext_->MoveToPhase(EQueryPhase::Preparation);
-
-        Prepare(cliqueNodes.size(), queryInfo, columnNames, context);
-
-        YT_LOG_INFO("Starting distribution (ColumnNames: %v, TableName: %v, NodeCount: %v, MaxThreads: %v, SubqueryCount: %v)",
-            columnNames,
-            getTableName(),
-            cliqueNodes.size(),
-            static_cast<ui64>(context.getSettings().max_threads),
-            Subqueries_.size());
-
-        const auto& settings = context.getSettingsRef();
-
-        DB::Context newContext(context);
-        newContext.setSettings(PrepareLeafJobSettings(settings));
-
-        // TODO(max42): do we need them?
-        auto throttler = CreateNetThrottler(settings);
-
-        DB::Pipes pipes;
-
-        std::sort(Subqueries_.begin(), Subqueries_.end(), [] (const TSubquery& lhs, const TSubquery& rhs) {
-            return lhs.Cookie < rhs.Cookie;
-        });
-
-        // NB: this is important for queries to distribute deterministically across cluster.
-        std::sort(cliqueNodes.begin(), cliqueNodes.end(), [] (const IClusterNodePtr& lhs, const IClusterNodePtr& rhs) {
-            return lhs->GetName().ToString() < rhs->GetName().ToString();
-        });
-
-        for (const auto& cliqueNode : cliqueNodes) {
-            YT_LOG_DEBUG("Clique node (Host: %v, Port: %v, IsLocal: %v)",
-                cliqueNode->GetName().Host,
-                cliqueNode->GetName().Port,
-                cliqueNode->IsLocal());
-        }
-
-        QueryContext_->MoveToPhase(EQueryPhase::Execution);
-
-        int subqueryCount = std::min(Subqueries_.size(), cliqueNodes.size());
-
-        if (subqueryCount == 0) {
-            // NB: if we make no subqueries, there will be a tricky issue around schemas.
-            // Namely, we return an empty vector of streams, so the resulting schema will
-            // be taken from columns of this storage (which are set via setColumns).
-            // Such schema will be incorrect as it will lack aggregates in mergeable state
-            // which should normally return from our distributed storage.
-            // In order to overcome this, we forcefully make at least one stream, even though it
-            // will return empty result for sure.
-            subqueryCount = 1;
-        }
-
-        for (int index = 0; index < subqueryCount; ++index) {
-            int firstSubqueryIndex = index * Subqueries_.size() / subqueryCount;
-            int lastSubqueryIndex = (index + 1) * Subqueries_.size() / subqueryCount;
-
-            auto threadSubqueries = MakeRange(Subqueries_.data() + firstSubqueryIndex, Subqueries_.data() + lastSubqueryIndex);
-
-            YT_LOG_DEBUG("Preparing subquery (SubqueryIndex: %v, ThreadSubqueryCount: %v)",
-                index,
-                subqueryCount);
-            for (const auto& threadSubquery : threadSubqueries) {
-                YT_LOG_DEBUG("Thread subquery (Cookie: %v, LowerLimit: %v, UpperLimit: %v, DataWeight: %v, RowCount: %v, ChunkCount: %v)",
-                    threadSubquery.Cookie,
-                    threadSubquery.Limits.first,
-                    threadSubquery.Limits.second,
-                    threadSubquery.StripeList->TotalDataWeight,
-                    threadSubquery.StripeList->TotalRowCount,
-                    threadSubquery.StripeList->TotalChunkCount);
-            }
-
-            YT_VERIFY(!threadSubqueries.Empty() || Subqueries_.empty());
-
-            const auto& cliqueNode = cliqueNodes[index];
-            auto subqueryAst = QueryAnalyzer_->RewriteQuery(
-                threadSubqueries,
-                SpecTemplate_,
-                MiscExtMap_,
-                index,
-                index + 1 == subqueryCount /* isLastSubquery */);
-
-            YT_LOG_DEBUG("Subquery prepared (Node: %v, ThreadSubqueryCount: %v, SubqueryIndex: %v, TotalSubqueryCount: %v)",
-                cliqueNode->GetName().ToString(),
-                lastSubqueryIndex - firstSubqueryIndex,
-                index,
-                subqueryCount);
-
-            auto pipe = CreateRemoteSource(
-                cliqueNode,
-                subqueryAst,
-                newContext,
-                throttler,
-                context.getExternalTables(),
-                processedStage,
-                Logger);
-
-            pipes.emplace_back(std::move(pipe));
-        }
-
-        YT_LOG_INFO("Finished distribution");
-
-        return pipes;
+        return TDistributionPreparer(columnNames, queryInfo, context, queryContext, storageContext, processedStage)
+            .Prepare();
     }
 
     virtual bool supportsSampling() const override
@@ -458,80 +575,7 @@ private:
     TQueryContext* QueryContext_;
     std::vector<TTablePtr> Tables_;
     TTableSchemaPtr Schema_;
-    TSubquerySpec SpecTemplate_;
-    std::vector<TSubquery> Subqueries_;
-    std::optional<TQueryAnalyzer> QueryAnalyzer_;
-    // TODO(max42): YT-11778.
-    // TMiscExt is used for better memory estimation in readers, but it is dropped when using
-    // TInputChunk, so for now we store it explicitly in a map and use when serializing subquery input.
-    THashMap<TChunkId, TRefCountedMiscExtPtr> MiscExtMap_;
-    int StorageDistributorIndex_;
     TLogger Logger;
-
-    void Prepare(
-        int subqueryCount,
-        const DB::SelectQueryInfo& queryInfo,
-        const std::vector<std::string>& columnNames,
-        const DB::Context& context)
-    {
-        NTracing::TChildTraceContextGuard guard("ClickHouseYt.Prepare", /* forceTracing */ true);
-        NTracing::GetCurrentTraceContext()->AddTag("chyt.subquery_count", ToString(subqueryCount));
-        NTracing::GetCurrentTraceContext()->AddTag("chyt.column_names", Format("%v", MakeFormattableView(columnNames, TDefaultFormatter())));
-
-        QueryAnalyzer_.emplace(context, queryInfo, Logger);
-        auto queryAnalysisResult = QueryAnalyzer_->Analyze();
-
-        YT_LOG_TRACE("Preparing StorageDistributor for query (Query: %v)", *queryInfo.query);
-
-        auto input = FetchInput(
-            QueryContext_,
-            queryAnalysisResult,
-            SpecTemplate_,
-            columnNames);
-
-        MiscExtMap_ = std::move(input.MiscExtMap);
-
-        std::optional<double> samplingRate;
-        const auto& selectQuery = queryInfo.query->as<DB::ASTSelectQuery&>();
-        if (auto selectSampleSize = selectQuery.sampleSize()) {
-            auto ratio = selectSampleSize->as<DB::ASTSampleRatio&>().ratio;
-            auto rate = static_cast<double>(ratio.numerator) / ratio.denominator;
-            if (rate > 1.0) {
-                rate /= input.StripeList->TotalRowCount;
-            }
-            rate = std::clamp(rate, 0.0, 1.0);
-            samplingRate = rate;
-        }
-
-        Subqueries_ = BuildSubqueries(
-            std::move(input.StripeList),
-            queryAnalysisResult.KeyColumnCount,
-            queryAnalysisResult.PoolKind,
-            std::max<int>(1, subqueryCount * context.getSettings().max_threads),
-            samplingRate,
-            context,
-            QueryContext_->Host->GetConfig()->Subquery);
-
-        size_t totalInputDataWeight = 0;
-
-        for (const auto& subquery : Subqueries_) {
-            totalInputDataWeight += subquery.StripeList->TotalDataWeight;
-        }
-
-        for (const auto& subquery : Subqueries_) {
-            if (subquery.StripeList->TotalDataWeight > QueryContext_->Host->GetConfig()->Subquery->MaxDataWeightPerSubquery)
-            {
-                THROW_ERROR_EXCEPTION(
-                    NClickHouseServer::EErrorCode::SubqueryDataWeightLimitExceeded,
-                    "Subquery exceeds data weight limit: %v > %v",
-                    subquery.StripeList->TotalDataWeight,
-                    QueryContext_->Host->GetConfig()->Subquery->MaxDataWeightPerSubquery)
-                    << TErrorAttribute("total_input_data_weight", totalInputDataWeight);
-            }
-        }
-
-        NTracing::GetCurrentTraceContext()->AddTag("chyt.total_input_data_weight", ToString(totalInputDataWeight));
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -609,7 +653,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
         queryContext->Logger);
 
     return std::make_shared<TStorageDistributor>(
-        queryContext,
+        args.local_context,
         std::vector{table},
         schema);
 }
@@ -617,17 +661,19 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::StoragePtr CreateStorageDistributor(
-    TQueryContext* queryContext,
+    const DB::Context& context,
     std::vector<TTablePtr> tables)
 {
     if (tables.empty()) {
         THROW_ERROR_EXCEPTION("No tables to read from");
     }
 
+    auto* queryContext = GetQueryContext(context);
+
     auto commonSchema = InferCommonSchema(tables, queryContext->Logger);
 
     auto storage = std::make_shared<TStorageDistributor>(
-        queryContext,
+        context,
         std::move(tables),
         std::move(commonSchema));
 

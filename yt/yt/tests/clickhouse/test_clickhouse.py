@@ -225,7 +225,8 @@ class Clique(object):
             return None
         return YtError("ClickHouse request failed:\n" + "\n".join(result))
 
-    def make_request(self, url, query, headers, format="JSON", params=None, verbose=False, only_rows=True, full_response=False):
+    def make_request(self, url, query, headers, format="JSON", params=None, verbose=False, only_rows=True,
+                     full_response=False):
         if params is None:
             params = {}
         # Make some improvements to query: strip trailing semicolon, add format if needed.
@@ -285,7 +286,8 @@ class Clique(object):
             else:
                 return None
 
-    def make_direct_query(self, instance, query, user="root", format="JSON", verbose=True, only_rows=True, full_response=False):
+    def make_direct_query(self, instance, query, settings=None, user="root", format="JSON", verbose=True,
+                          only_rows=True, full_response=False):
         host = instance.attributes["host"]
         port = instance.attributes["http_port"]
 
@@ -297,8 +299,8 @@ class Clique(object):
         print_debug("Query id: {}".format(query_id))
 
         try:
-            return self.make_request("http://{}:{}/query".format(host, port), query, format=format, verbose=verbose,
-                                     only_rows=only_rows, full_response=full_response, headers={
+            return self.make_request("http://{}:{}/query".format(host, port), query, params=settings, format=format,
+                                     verbose=verbose, only_rows=only_rows, full_response=full_response, headers={
                                          "X-ClickHouse-User": user,
                                          "X-Yt-Trace-Id": query_id,
                                          "X-Yt-Span-Id": "0",
@@ -322,8 +324,8 @@ class Clique(object):
             raise YtError("Instance unavailable, stderr:\n" + stderr, inner_errors=errors,
                           code=InstanceUnavailableCode)
 
-    def make_query_via_proxy(self, query, format="JSON", verbose=True, only_rows=True, full_response=False,
-                             headers=None, database=None, user="root"):
+    def make_query_via_proxy(self, query, format="JSON", settings=None, verbose=True, only_rows=True,
+                             full_response=False, headers=None, database=None, user="root"):
         if headers is None:
             headers = {}
         headers["X-Yt-User"] = user
@@ -332,15 +334,20 @@ class Clique(object):
         if database is None:
             database = self.op.id
         params = {"database": database}
+        if settings is not None:
+            update_inplace(params, settings)
         print_debug()
         print_debug("Querying proxy {0} with the following data:\n> {1}".format(url, query))
-        return self.make_request(url, query, headers, params=params, format=format, verbose=verbose, only_rows=only_rows, full_response=full_response)
+        return self.make_request(url, query, headers, params=params, format=format, verbose=verbose,
+                                 only_rows=only_rows, full_response=full_response)
 
-    def make_query(self, query, user="root", format="JSON", verbose=True, only_rows=True, full_response=False):
+    def make_query(self, query, user="root", format="JSON", settings=None, verbose=True, only_rows=True,
+                   full_response=False):
         instances = self.get_active_instances()
         assert len(instances) > 0
         instance = random.choice(instances)
-        return self.make_direct_query(instance, query, user, format, verbose, only_rows, full_response)
+        return self.make_direct_query(instance, query, settings=settings, user=user, format=format, verbose=verbose,
+                                      only_rows=only_rows, full_response=full_response)
 
     def make_async_query(self, *args, **kwargs):
         t = Thread(target=self.make_query, args=args, kwargs=kwargs)
@@ -3589,3 +3596,62 @@ class TestColumnarRead(ClickHouseTestBase):
                 'date': '1970-01-03',
                 'timestamp': 3,
                 'interval_': 4,}]
+
+
+class TestCustomSettings(ClickHouseTestBase):
+    def setup(self):
+        self._setup()
+
+    @authors("max42")
+    def test_simple(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+        with Clique(1) as clique:
+            for throw_testing_exception_in_distributor in (None, False, True):
+                for throw_testing_exception_in_subquery in (None, False, True):
+                    settings = {}
+                    if throw_testing_exception_in_distributor is not None:
+                        settings["chyt_throw_testing_exception_in_distributor"] = \
+                            int(throw_testing_exception_in_distributor)
+                    if throw_testing_exception_in_subquery is not None:
+                        settings["chyt_throw_testing_exception_in_subquery"] = int(throw_testing_exception_in_subquery)
+                    if throw_testing_exception_in_subquery is not None:
+                        assert clique.make_query(
+                            "select CAST(getSetting('chyt_throw_testing_exception_in_subquery') as Int64) as v",
+                            settings=settings) == [{"v": int(throw_testing_exception_in_subquery)}]
+                    if throw_testing_exception_in_distributor is not None:
+                        assert clique.make_query(
+                            "select CAST(getSetting('chyt_throw_testing_exception_in_distributor') as Int64) as v",
+                            settings=settings) == [{"v": int(throw_testing_exception_in_distributor)}]
+                    if (not bool(throw_testing_exception_in_distributor) and
+                        not bool(throw_testing_exception_in_subquery)):
+                        assert clique.make_query("select * from `//tmp/t`", settings=settings) == [{"a": 1}]
+                    else:
+                        if bool(throw_testing_exception_in_distributor):
+                            error_substr = "Testing exception in distributor"
+                        else:
+                            error_substr = "Testing exception in subquery"
+                        with raises_yt_error(error_substr):
+                            clique.make_query("select * from `//tmp/t`", settings=settings)
+
+    @authors("max42")
+    def test_defaults(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/t", [{"a": 1}])
+        for default_value in (None, False, True):
+            default_settings = \
+                {"throw_testing_exception_in_distributor": int(default_value)} if default_value is not None else {}
+            with Clique(1, config_patch={"yt": {"settings": default_settings}}) as clique:
+                for override_value in (None, False, True):
+                    value = False
+                    if default_value is not None:
+                        value = default_value
+                    if override_value is not None:
+                        value = override_value
+                    settings = {"chyt_throw_testing_exception_in_distributor": int(override_value)} \
+                        if override_value is not None else {}
+                    if value:
+                        with raises_yt_error("Testing exception in distributor"):
+                            clique.make_query("select * from `//tmp/t`", settings=settings)
+                    else:
+                        assert clique.make_query("select * from `//tmp/t`", settings=settings) == [{"a": 1}]

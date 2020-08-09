@@ -128,6 +128,10 @@ public:
 
     bool EnableComputedColumnDeduction;
 
+    // TODO(max42): move to testing options.
+    bool ThrowTestingExceptionInDistributor;
+    bool ThrowTestingExceptionInSubquery;
+
     TQuerySettings();
 };
 

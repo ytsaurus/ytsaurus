@@ -187,6 +187,7 @@ void Deserialize(double& value, INodePtr node)
 // TString
 void Deserialize(TString& value, INodePtr node)
 {
+
     value = node->AsString()->GetValue();
 }
 
@@ -195,6 +196,18 @@ void Deserialize(bool& value, INodePtr node)
 {
     if (node->GetType() == ENodeType::Boolean) {
         value = node->GetValue<bool>();
+    } else if (node->GetType() == ENodeType::Int64) {
+        auto intValue = node->AsInt64()->GetValue();
+        if (intValue != 0 && intValue != 1) {
+            THROW_ERROR_EXCEPTION("Expected 0 or 1 but found %v", intValue);
+        }
+        value = static_cast<bool>(intValue);
+    } else if (node->GetType() == ENodeType::Uint64) {
+        auto uintValue = node->AsUint64()->GetValue();
+        if (uintValue != 0 && uintValue != 1) {
+            THROW_ERROR_EXCEPTION("Expected 0 or 1 but found %v", uintValue);
+        }
+        value = static_cast<bool>(uintValue);
     } else {
         auto stringValue = node->AsString()->GetValue();
         value = ParseBool(stringValue);
