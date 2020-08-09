@@ -14,7 +14,7 @@
 #include <util/generic/type_name.h>
 #include <util/generic/vector.h>
 
-#include <contrib/libs/protobuf/message.h>
+#include <google/protobuf/message.h>
 
 #include <initializer_list>
 #include <type_traits>

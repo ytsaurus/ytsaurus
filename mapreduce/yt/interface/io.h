@@ -14,7 +14,7 @@
 #include "node.h"
 #include "mpl.h"
 
-#include <contrib/libs/protobuf/message.h>
+#include <google/protobuf/message.h>
 
 #include <statbox/ydl/runtime/cpp/gen_support/traits.h>
 

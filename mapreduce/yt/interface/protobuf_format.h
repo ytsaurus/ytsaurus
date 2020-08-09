@@ -12,7 +12,7 @@
 
 #include <util/generic/maybe.h>
 
-#include <contrib/libs/protobuf/message.h>
+#include <google/protobuf/message.h>
 
 namespace NYT::NDetail {
 
