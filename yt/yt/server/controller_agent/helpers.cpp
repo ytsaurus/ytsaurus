@@ -259,7 +259,7 @@ std::vector<TPartitionKey> BuildPartitionKeysBySamples(
         if (CompareRows(sample->Key, lastKey) != 0) {
             partitionKeys.emplace_back(rowBuffer->Capture(sample->Key));
             ++sampleIndex;
-        } else {
+        } else if (sampleIndex < selectedSamples.size()) {
             // Skip same keys.
             int skippedCount = 0;
             while (sampleIndex < selectedSamples.size() &&
