@@ -446,7 +446,7 @@ public:
         YT_VERIFY(cpuLimitRsp.Value().EndsWith('c'));
         auto cpuLimitValue = TStringBuf(cpuLimitRsp.Value().begin(), cpuLimitRsp.Value().size() - 1);
         if (!TryFromString<double>(cpuLimitValue, cpuLimit)) {
-            THROW_ERROR_EXCEPTION("Failed to parse CPU limit value from orto")
+            THROW_ERROR_EXCEPTION("Failed to parse CPU limit value from Porto")
                 << TErrorAttribute("cpu_limit", cpuLimitRsp.Value());
         }
 
