@@ -3448,7 +3448,9 @@ class TestClickHouseDynamicTables(ClickHouseTestBase):
 class TestColumnarRead(ClickHouseTestBase):
     CONFIG_PATCH = {
         "yt": {
-            "enable_columnar_read": True,
+            "settings": {
+                "enable_columnar_read": True,
+            },
             "table_attribute_cache": {
                 "read_from": "follower",
                 "expire_after_successful_update_time": 0,
@@ -3596,6 +3598,46 @@ class TestColumnarRead(ClickHouseTestBase):
                 'date': '1970-01-03',
                 'timestamp': 3,
                 'interval_': 4,}]
+
+    @authors("babenko")
+    def test_nonuniform_nullability(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [
+                {"name": "x", "type": "string", "required": True},
+            ],
+            "optimize_for": "scan"})
+        write_table("//tmp/t1", [{"x": "hello"}])
+        create("table", "//tmp/t2", attributes={
+            "schema": [
+                {"name": "x", "type": "string", "required": False},
+            ],
+            "optimize_for": "scan"})
+        write_table("//tmp/t2", [{"x": None}, {"x": "world"}])
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            assert clique.make_query('select * from concatYtTables("//tmp/t1", "//tmp/t2") order by x') == [{"x": "hello"}, {"x": "world"}, {"x": None}]
+
+    @authors("babenko")
+    def test_integral_upcast(self):
+        create("table", "//tmp/t1", attributes={
+            "schema": [
+                {"name": "x", "type": "int32", "required": True},
+            ],
+            "optimize_for": "scan"})
+        write_table("//tmp/t1", [{"x": 1}])
+        create("table", "//tmp/t2", attributes={
+            "schema": [
+                {"name": "x", "type": "int64", "required": True},
+            ],
+            "optimize_for": "scan"})
+        write_table("//tmp/t2", [{"x": 2}])
+        create("table", "//tmp/t", attributes={
+            "schema": [
+                {"name": "x", "type": "int64", "required": True},
+            ],
+            "optimize_for": "scan"})
+        merge(in_=["//tmp/t1", "//tmp/t2"], out="//tmp/t")
+        with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
+            assert clique.make_query('select * from "//tmp/t" order by x') == [{"x": 1}, {"x": 2}]
 
 
 class TestCustomSettings(ClickHouseTestBase):

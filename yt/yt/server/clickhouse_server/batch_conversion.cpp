@@ -450,27 +450,44 @@ bool IsIntegerLikeType(ESimpleLogicalValueType type)
         type == ESimpleLogicalValueType::Timestamp;
 }
 
-DB::ColumnPtr ConvertYTColumnToCHColumn(const IUnversionedColumnarRowBatch::TColumn& ytColumn)
+DB::ColumnPtr ConvertYTColumnToCHColumn(
+    const IUnversionedColumnarRowBatch::TColumn& ytColumn,
+    const TColumnSchema& chSchema)
 {
     DB::ColumnPtr chColumn;
 
-    auto type = SimplifyLogicalType(ytColumn.Type).first.value_or(ESimpleLogicalValueType::Any);
-    if (IsIntegerLikeType(type)) {
-        chColumn = ConvertIntegerYTColumnToCHColumn(ytColumn, type);
-    } else if (type == ESimpleLogicalValueType::Double) {
+    auto ytType = SimplifyLogicalType(ytColumn.Type).first.value_or(ESimpleLogicalValueType::Any);
+    auto chType = chSchema.SimplifiedLogicalType().value_or(ESimpleLogicalValueType::Any);
+    
+    auto throwOnIncompatibleType = [&] (bool ok) {
+        if (!ok) {
+            THROW_ERROR_EXCEPTION("Cannot convert %Qlv column to %Qlv type",
+                ytType,
+                chType);
+        }
+    };
+    
+    if (IsIntegerLikeType(chType)) {
+        throwOnIncompatibleType(IsIntegerLikeType(ytType));
+        chColumn = ConvertIntegerYTColumnToCHColumn(ytColumn, chType);
+    } else if (chType == ESimpleLogicalValueType::Double) {
+        throwOnIncompatibleType(ytType == ESimpleLogicalValueType::Double);
         chColumn = ConvertDoubleYTColumnToCHColumn(ytColumn);
-    } else if (type == ESimpleLogicalValueType::Float) {
+    } else if (chType == ESimpleLogicalValueType::Float) {
+        throwOnIncompatibleType(ytType == ESimpleLogicalValueType::Float);
         chColumn = ConvertFloatYTColumnToCHColumn(ytColumn);
-    } else if (IsStringLikeType(type)) {
+    } else if (IsStringLikeType(chType)) {
+        throwOnIncompatibleType(IsStringLikeType(ytType));
         chColumn = ConvertStringLikeYTColumnToCHColumn(ytColumn);
-    } else if (type == ESimpleLogicalValueType::Boolean) {
+    } else if (chType == ESimpleLogicalValueType::Boolean) {
+        throwOnIncompatibleType(ytType == ESimpleLogicalValueType::Boolean);
         chColumn = ConvertBooleanYTColumnToCHColumn(ytColumn);
     } else {    
         THROW_ERROR_EXCEPTION("%Qlv type is not supported",
-            type);
+            chType);
     }
 
-    if (ytColumn.Type->GetMetatype() == ELogicalMetatype::Optional) {
+    if (chSchema.LogicalType()->GetMetatype() == ELogicalMetatype::Optional) {
         auto nullMapCHColumn = BuildNullBytemapForCHColumn(ytColumn);
         chColumn = DB::ColumnNullable::create(std::move(chColumn), std::move(nullMapCHColumn));
     }
@@ -513,7 +530,9 @@ DB::Block ConvertColumnarRowBatchToBlock(
         auto columnIndex = idToColumnIndex[ytColumn->Id];
         YT_VERIFY(columnIndex != -1);
 
-        auto chColumn = ConvertYTColumnToCHColumn(*ytColumn);
+        const auto& columnSchema = readSchema.Columns()[columnIndex];
+
+        auto chColumn = ConvertYTColumnToCHColumn(*ytColumn, columnSchema);
 
         block.getByPosition(columnIndex).column = std::move(chColumn);
 
