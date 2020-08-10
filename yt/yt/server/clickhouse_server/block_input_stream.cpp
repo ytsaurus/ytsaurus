@@ -123,12 +123,14 @@ TBlockInputStream::TBlockInputStream(
     TTableSchemaPtr readSchema,
     TTraceContextPtr traceContext,
     THost* host,
+    TQuerySettingsPtr settings,
     TLogger logger,
     DB::PrewhereInfoPtr prewhereInfo)
     : Reader_(std::move(reader))
     , ReadSchema_(std::move(readSchema))
     , TraceContext_(std::move(traceContext))
     , Host_(host)
+    , Settings_(std::move(settings))
     , Logger(std::move(logger))
     , RowBuffer_(New<NTableClient::TRowBuffer>())
     , PrewhereInfo_(std::move(prewhereInfo))
@@ -175,7 +177,7 @@ DB::Block TBlockInputStream::readImpl()
     DB::Block block;
     while (block.rows() == 0) {
         TRowBatchReadOptions options{
-            .Columnar = Host_->GetConfig()->QuerySettings->EnableColumnarRead
+            .Columnar = Settings_->EnableColumnarRead
         };
         auto batch = Reader_->Read(options);
         if (!batch) {
@@ -252,6 +254,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     TTableSchemaPtr readSchema,
     TTraceContextPtr traceContext,
     THost* host,
+    TQuerySettingsPtr querySettings,
     TLogger logger,
     DB::PrewhereInfoPtr prewhereInfo)
 {
@@ -260,112 +263,22 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         std::move(readSchema),
         std::move(traceContext),
         host,
+        querySettings,
         logger,
         std::move(prewhereInfo));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockInputStreamLoggingAdapter
-    : public DB::IBlockInputStream
-{
-public:
-    TBlockInputStreamLoggingAdapter(
-        DB::BlockInputStreamPtr stream,
-        TLogger logger)
-        : UnderlyingStream_(std::move(stream))
-        , Logger(TLogger(std::move(logger)
-            .AddTag("UnderlyingStream: %v", UnderlyingStream_.get())))
-    {
-        YT_LOG_DEBUG("Stream created");
-        addChild(UnderlyingStream_);
-    }
-
-    virtual void readPrefix() override
-    {
-        YT_LOG_DEBUG("readPrefix() is called");
-        UnderlyingStream_->readPrefix();
-    }
-
-    virtual void readSuffix() override
-    {
-        YT_LOG_DEBUG("readSuffix() is called");
-        UnderlyingStream_->readSuffix();
-    }
-
-    virtual DB::Block readImpl() override
-    {
-        NProfiling::TWallTimer wallTimer;
-        auto result = UnderlyingStream_->read();
-        auto elapsed = wallTimer.GetElapsedTime();
-        if (elapsed > TDuration::Seconds(1)) {
-            YT_LOG_DEBUG("Read took significant time (WallTime: %v)", elapsed);
-        }
-
-        YT_LOG_TRACE("Block read (Block: %v)", result);
-
-        return result;
-    }
-
-    virtual DB::String getName() const override
-    {
-        return "TBlockInputStreamLoggingAdapter";
-    }
-
-    virtual DB::Block getHeader() const override
-    {
-        YT_LOG_DEBUG("Started getting header from the underlying stream");
-        auto result = UnderlyingStream_->getHeader();
-        YT_LOG_DEBUG("Finished getting header from the underlying stream");
-        return result;
-    }
-
-    virtual const DB::BlockMissingValues& getMissingValues() const override
-    {
-        return UnderlyingStream_->getMissingValues();
-    }
-
-    virtual DB::Block getTotals() override
-    {
-        return UnderlyingStream_->getTotals();
-    }
-
-    virtual void progress(const DB::Progress& value) override
-    {
-        UnderlyingStream_->progress(value);
-    }
-
-    virtual void cancel(bool kill) override
-    {
-        UnderlyingStream_->cancel(kill);
-    }
-
-private:
-    const DB::BlockInputStreamPtr UnderlyingStream_;
-    const TLogger Logger;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-DB::BlockInputStreamPtr CreateBlockInputStreamLoggingAdapter(
-    DB::BlockInputStreamPtr stream,
-    TLogger logger)
-{
-    return std::make_shared<TBlockInputStreamLoggingAdapter>(
-        std::move(stream),
-        std::move(logger));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
-    TQueryContext* queryContext,
+    TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
     const DB::Names& columnNames,
     const NTracing::TTraceContextPtr& traceContext,
     const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
     DB::PrewhereInfoPtr prewhereInfo)
 {
+    auto* queryContext = storageContext->QueryContext;
     auto schema = FilterColumnsInSchema(*subquerySpec.ReadSchema, columnNames);
     auto blockReadOptions = CreateBlockReadOptions(queryContext->User);
 
@@ -434,6 +347,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         schema,
         blockInputStreamTraceContext,
         queryContext->Host,
+        storageContext->Settings,
         TLogger(queryContext->Logger)
             .AddTag("ReadSessionId: %v", blockReadOptions.ReadSessionId),
         prewhereInfo);

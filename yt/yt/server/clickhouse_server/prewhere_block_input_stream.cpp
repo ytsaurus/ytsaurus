@@ -50,11 +50,12 @@ std::vector<TDataSliceDescriptor> GetFilteredDataSliceDescriptors(std::shared_pt
 std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
     std::vector<TDataSliceDescriptor>&& dataSliceDescriptors,
     PrewhereInfoPtr prewhereInfo,
-    TQueryContext* queryContext,
+    TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
     const NTracing::TTraceContextPtr& traceContext)
 {
     auto prewhereColumns = ExtractColumnsFromPrewhereInfo(prewhereInfo);
+    auto* queryContext = storageContext->QueryContext;
 
     auto Logger = queryContext->Logger;
     YT_LOG_DEBUG(
@@ -63,7 +64,7 @@ std::vector<TDataSliceDescriptor> FilterDataSliceDescriptorsByPrewhereInfo(
         prewhereColumns);
 
     auto blockInputStream = CreateBlockInputStream(
-        queryContext,
+        storageContext,
         subquerySpec,
         prewhereColumns,
         traceContext,
@@ -87,19 +88,20 @@ class TPrewhereBlockInputStream
 {
 public:
     TPrewhereBlockInputStream(
-        TQueryContext* queryContext,
+        TStorageContext* storageContext,
         const TSubquerySpec& subquerySpec,
         const DB::Names& columnNames,
         NTracing::TTraceContextPtr traceContext,
         DB::PrewhereInfoPtr prewhereInfo,
         std::vector<NChunkClient::TDataSliceDescriptor> dataSliceDescriptors)
-        : QueryContext_(queryContext)
+        : StorageContext_(storageContext)
+        , QueryContext_(storageContext->QueryContext)
         , SubquerySpec_(subquerySpec)
         , ColumnNames_(columnNames)
         , TraceContext_(traceContext)
         , PrewhereInfo_(std::move(prewhereInfo))
         , Header_(CreateBlockInputStream(
-            QueryContext_,
+            StorageContext_,
             SubquerySpec_,
             ColumnNames_,
             TraceContext_,
@@ -129,7 +131,7 @@ public:
         DataSliceDescriptors_ = NDetail::FilterDataSliceDescriptorsByPrewhereInfo(
             std::move(DataSliceDescriptors_),
             PrewhereInfo_,
-            QueryContext_,
+            StorageContext_,
             SubquerySpec_,
             TraceContext_);
 
@@ -141,7 +143,7 @@ public:
         YT_LOG_DEBUG("PREWHERE filtration finished (DroppedRate: %v)", droppedRate);
 
         BlockInputStream_ = CreateBlockInputStream(
-            QueryContext_,
+            StorageContext_,
             SubquerySpec_,
             ColumnNames_,
             TraceContext_,
@@ -156,6 +158,7 @@ public:
     }
 
 private:
+    TStorageContext* StorageContext_;
     TQueryContext* QueryContext_;
     const TSubquerySpec SubquerySpec_;
     const DB::Names ColumnNames_;
@@ -177,7 +180,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::BlockInputStreamPtr CreatePrewhereBlockInputStream(
-    TQueryContext* queryContext,
+    TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
     const DB::Names& columnNames,
     const NTracing::TTraceContextPtr& traceContext,
@@ -185,7 +188,7 @@ DB::BlockInputStreamPtr CreatePrewhereBlockInputStream(
     DB::PrewhereInfoPtr prewhereInfo)
 {
     return std::make_shared<TPrewhereBlockInputStream>(
-        queryContext,
+        storageContext,
         subquerySpec,
         columnNames,
         traceContext,

@@ -32,6 +32,7 @@ public:
         NTableClient::TTableSchemaPtr readSchema,
         NTracing::TTraceContextPtr traceContext,
         THost* host,
+        TQuerySettingsPtr settings,
         NLogging::TLogger logger,
         DB::PrewhereInfoPtr prewhereInfo);
 
@@ -45,6 +46,7 @@ private:
     const NTableClient::TTableSchemaPtr ReadSchema_;
     NTracing::TTraceContextPtr TraceContext_;
     THost* const Host_;
+    const TQuerySettingsPtr Settings_;
     const NLogging::TLogger Logger;
     const NTableClient::TRowBufferPtr RowBuffer_;
     const DB::PrewhereInfoPtr PrewhereInfo_;
@@ -64,15 +66,12 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
     NTableClient::TTableSchemaPtr readSchema,
     NTracing::TTraceContextPtr traceContext,
     THost* host,
+    TQuerySettingsPtr settings,
     NLogging::TLogger logger,
     DB::PrewhereInfoPtr prewhereInfo);
 
-DB::BlockInputStreamPtr CreateBlockInputStreamLoggingAdapter(
-    DB::BlockInputStreamPtr blockInputStream,
-    NLogging::TLogger logger);
-
 std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
-    TQueryContext* queryContext,
+    TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
     const DB::Names& columnNames,
     const NTracing::TTraceContextPtr& traceContext,

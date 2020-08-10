@@ -134,7 +134,7 @@ public:
 
             if (prewhereInfo) {
                 pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreatePrewhereBlockInputStream(
-                    QueryContext_,
+                    StorageContext_,
                     SubquerySpec_,
                     columnNames,
                     traceContext,
@@ -142,7 +142,7 @@ public:
                     prewhereInfo)));
             } else {
                 pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreateBlockInputStream(
-                    QueryContext_,
+                    StorageContext_,
                     SubquerySpec_,
                     columnNames,
                     traceContext,
