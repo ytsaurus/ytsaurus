@@ -600,6 +600,53 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         insert_rows("//tmp/d/t1", [{"key": 0, "value": "0"}])
         wait(lambda: _check(table_profiling1, "table_tag", "custom_tag1"))
 
+    @authors("akozhikhov")
+    def test_profiling_mode_under_transaction_simple(self):
+        set("//tmp/@profiling_mode", "path")
+
+        tx = start_transaction()
+        create("table", "//tmp/t1", tx=tx)
+        assert get("//tmp/t1/@profiling_mode", tx=tx) == "path"
+        commit_transaction(tx)
+
+        assert get("//tmp/t1/@profiling_mode") == "path"
+
+
+    @authors("akozhikhov")
+    def test_profiling_mode_under_transaction_with_remove(self):
+        set("//tmp/@profiling_mode", "path")
+
+        tx = start_transaction()
+
+        create("table", "//tmp/t1", tx=tx)
+
+        assert not exists("//tmp/@profiling_tag", tx=tx)
+        set("//tmp/@profiling_tag", "dir_tag", tx=tx)
+        assert get("//tmp/@profiling_tag", tx=tx) == "dir_tag"
+
+        assert get("//tmp/t1/@profiling_mode", tx=tx) == "path"
+        assert not exists("//tmp/t1/@profiling_tag", tx=tx)
+
+        assert not exists("//tmp/t1/@profiling_tag", tx=tx)
+        set("//tmp/t1/@profiling_tag", "custom", tx=tx)
+        assert get("//tmp/t1/@profiling_tag", tx=tx) == "custom"
+
+        remove("//tmp/t1/@profiling_mode", tx=tx)
+        assert not exists("//tmp/t1/@profiling_mode", tx=tx)
+
+        assert get("//tmp/@profiling_mode", tx=tx) == "path"
+        remove("//tmp/@profiling_mode", tx=tx)
+        assert not exists("//tmp/@profiling_mode", tx=tx)
+        assert get("//tmp/@profiling_mode") == "path"
+
+        commit_transaction(tx)
+
+        assert not exists("//tmp/@profiling_mode")
+        assert get("//tmp/@profiling_tag") == "dir_tag"
+
+        assert not exists("//tmp/t1/@profiling_mode")
+        assert get("//tmp/t1/@profiling_tag") == "custom"
+
 ##################################################################
 
 class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):

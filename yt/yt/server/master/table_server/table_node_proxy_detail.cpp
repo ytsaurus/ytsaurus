@@ -313,7 +313,6 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PreloadState)
         .SetExternal(isExternal)
         .SetPresent(isDynamic));
-    // XXX(akozhikhov): Is this set of options correct?
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ProfilingMode)
         .SetWritable(true)
         .SetReplicated(true)
@@ -781,19 +780,19 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         }
 
         case EInternedAttributeKey::ProfilingMode:
-            if (!trunkTable->GetProfilingMode()) {
+            if (!table->GetProfilingMode()) {
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(*trunkTable->GetProfilingMode());
+                .Value(*table->GetProfilingMode());
             return true;
 
         case EInternedAttributeKey::ProfilingTag:
-            if (!trunkTable->GetProfilingTag()) {
+            if (!table->GetProfilingTag()) {
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(*trunkTable->GetProfilingTag());
+                .Value(*table->GetProfilingTag());
             return true;
 
         default:
@@ -907,14 +906,12 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
         }
 
         case EInternedAttributeKey::ProfilingMode: {
-            ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
             lockedTable->SetProfilingMode(std::nullopt);
             return true;
         }
 
         case EInternedAttributeKey::ProfilingTag: {
-            ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
             lockedTable->SetProfilingTag(std::nullopt);
             return true;
@@ -1078,22 +1075,14 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         }
 
         case EInternedAttributeKey::ProfilingMode: {
-            ValidateNoTransaction();
-
             auto* lockedTable = LockThisImpl();
-            auto profilingMode = ConvertTo<EDynamicTableProfilingMode>(value);
-            lockedTable->SetProfilingMode(profilingMode);
-
+            lockedTable->SetProfilingMode(ConvertTo<EDynamicTableProfilingMode>(value));
             return true;
         }
 
         case EInternedAttributeKey::ProfilingTag: {
-            ValidateNoTransaction();
-
             auto* lockedTable = LockThisImpl();
-            auto profilingTag = ConvertTo<TString>(value);
-            lockedTable->SetProfilingTag(profilingTag);
-
+            lockedTable->SetProfilingTag(ConvertTo<TString>(value));
             return true;
         }
 

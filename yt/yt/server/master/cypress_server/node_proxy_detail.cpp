@@ -1929,6 +1929,9 @@ bool TNontemplateCompositeCypressNodeProxyBase::GetBuiltinAttribute(TInternedAtt
             return true; \
 
         FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX)
+
+        XX(ProfilingMode, profiling_mode)
+        XX(ProfilingTag, profiling_tag)
 #undef XX
 
         case EInternedAttributeKey::PrimaryMedium: {
@@ -2113,8 +2116,6 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
         XX(CommitOrdering, commit_ordering)
         XX(InMemoryMode, in_memory_mode)
         XX(OptimizeFor, optimize_for)
-        XX(ProfilingMode, profiling_mode)
-        XX(ProfilingTag, profiling_tag)
 #undef XX
 
         case EInternedAttributeKey::CompressionCodec: {
@@ -2124,6 +2125,16 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
                 chunkManagerConfig->DeprecatedCodecIds,
                 chunkManagerConfig->DeprecatedCodecNameToAlias);
             node->SetCompressionCodec(ConvertTo<NCompression::ECodec>(value));
+            return true;
+        }
+
+        case EInternedAttributeKey::ProfilingMode: {
+            node->SetProfilingMode(ConvertTo<NTabletNode::EDynamicTableProfilingMode>(value));
+            return true;
+        }
+
+        case EInternedAttributeKey::ProfilingTag: {
+            node->SetProfilingTag(ConvertTo<TString>(value));
             return true;
         }
 
@@ -2149,6 +2160,16 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
         FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
         XX(Media, media);
 #undef XX
+
+        case EInternedAttributeKey::ProfilingMode: {
+            node->SetProfilingMode(std::nullopt);
+            return true;
+        }
+
+        case EInternedAttributeKey::ProfilingTag: {
+            node->SetProfilingTag(std::nullopt);
+            return true;
+        }
 
         case EInternedAttributeKey::PrimaryMedium:
             ValidateNoTransaction();
@@ -2232,6 +2253,16 @@ TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(XX);
 
 #undef XX
+
+    if (key == "profiling_mode") {
+        const auto& value = InheritedAttributes_.ProfilingMode;
+        return value ? ConvertToYsonString(*value) : TYsonString();
+    }
+
+    if (key == "profiling_tag") {
+        const auto& value = InheritedAttributes_.ProfilingTag;
+        return value ? ConvertToYsonString(*value) : TYsonString();
+    }
 
     if (key == "primary_medium") {
         const auto& primaryMediumIndex = InheritedAttributes_.PrimaryMediumIndex;

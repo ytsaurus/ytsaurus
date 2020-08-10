@@ -707,12 +707,12 @@ private:
     process(Atomicity, atomicity) \
     process(CommitOrdering, commit_ordering) \
     process(InMemoryMode, in_memory_mode) \
-    process(OptimizeFor, optimize_for) \
-    process(ProfilingMode, profiling_mode) \
-    process(ProfilingTag, profiling_tag)
+    process(OptimizeFor, optimize_for)
 
 #define FOR_EACH_INHERITABLE_ATTRIBUTE(process) \
     FOR_EACH_SIMPLE_INHERITABLE_ATTRIBUTE(process) \
+    process(ProfilingMode, profiling_mode) \
+    process(ProfilingTag, profiling_tag) \
     process(PrimaryMediumIndex, primary_medium) \
     process(Media, media) \
     process(TabletCellBundle, tablet_cell_bundle)

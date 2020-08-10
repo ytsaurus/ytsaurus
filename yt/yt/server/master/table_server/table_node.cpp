@@ -303,7 +303,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
         {
             auto it = attributes.find(attributeName);
             if (it != attributes.end()) {
-                YT_LOG_DEBUG("Change attribute from custom to builtin (AttributeName: %Qv, AttributeValue: %v, TableId: %v)",
+                YT_LOG_DEBUG("Change attribute from custom to builtin (AttributeName: %v, AttributeValue: %v, TableId: %v)",
                     attributeName,
                     ConvertToYsonString(it->second, EYsonFormat::Text),
                     Id_);
@@ -311,7 +311,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
                 try {
                     functor(it->second);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ALERT(ex, "Exception was raised while changing attribute from custom to builtin (AttributeName: %Qv, AttributeValue: %v, TableId: %v)",
+                    YT_LOG_ALERT(ex, "Exception was raised while changing attribute from custom to builtin (AttributeName: %v, AttributeValue: %v, TableId: %v)",
                         attributeName,
                         ConvertToYsonString(it->second, EYsonFormat::Text),
                         Id_);
@@ -321,11 +321,11 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
             }
         };
 
-        processAttribute(EInternedAttributeKey::ProfilingMode.Unintern(), [&] (const TYsonString& val) {
-            SetProfilingMode(ConvertTo<NTabletNode::EDynamicTableProfilingMode>(val));
+        processAttribute(EInternedAttributeKey::ProfilingMode.Unintern(), [&] (const TYsonString& value) {
+            SetProfilingMode(ConvertTo<NTabletNode::EDynamicTableProfilingMode>(value));
         });
-        processAttribute(EInternedAttributeKey::ProfilingTag.Unintern(), [&] (const TYsonString& val) {
-            SetProfilingTag(ConvertTo<TString>(val));
+        processAttribute(EInternedAttributeKey::ProfilingTag.Unintern(), [&] (const TYsonString& value) {
+            SetProfilingTag(ConvertTo<TString>(value));
         });
 
         if (attributes.empty()) {

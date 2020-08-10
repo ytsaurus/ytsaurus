@@ -122,6 +122,7 @@ DEFINE_ENUM(EMasterReign,
     ((YTINCIDENTS_56_SyncOnPrepare)                                 (1405))  // babenko
     ((FixInheritanceOfProfilingMode)                                (1406))  // akozhikhov
     ((YT_13126_ExpirationTimeout)                                   (1407))  // shakurov
+    ((AllowProfilingModeModificationUnderTx)                        (1408))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
