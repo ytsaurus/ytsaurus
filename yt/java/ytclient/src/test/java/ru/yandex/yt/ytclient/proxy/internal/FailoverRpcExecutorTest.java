@@ -237,10 +237,6 @@ public class FailoverRpcExecutorTest {
 
         RpcClientResponseHandler handler = new RpcClientResponseHandler() {
             @Override
-            public void onAcknowledgement(RpcClient sender) {
-            }
-
-            @Override
             public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
                 result.complete("response");
             }

@@ -12,13 +12,6 @@ import ru.yandex.yt.rpc.TResponseHeader;
  */
 public interface RpcClientResponseHandler {
     /**
-     * Вызывается после получения подтверждения о доставке
-     * <p>
-     * Вызов метода не гарантируется, может быть вызван параллельно с onResponse/onError
-     */
-    void onAcknowledgement(RpcClient sender);
-
-    /**
      * Вызывается при получении сырого успешного ответа
      */
     void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments);

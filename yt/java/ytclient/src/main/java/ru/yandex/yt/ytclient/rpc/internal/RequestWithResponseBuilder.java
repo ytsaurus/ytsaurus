@@ -33,11 +33,6 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
     public RpcClientResponseHandler createHandler(CompletableFuture<RpcClientResponse<ResponseType>> result) {
         return new RpcClientResponseHandler() {
             @Override
-            public void onAcknowledgement(RpcClient sender) {
-                // there's nothing to do in that case
-            }
-
-            @Override
             public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
                 if (!result.isDone()) {
                     if (attachments.size() < 1 || attachments.get(0) == null) {
