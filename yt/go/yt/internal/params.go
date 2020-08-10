@@ -69,6 +69,14 @@ func writePrerequisiteOptions(w *yson.Writer, o *yt.PrerequisiteOptions) {
 	}
 }
 
+func writeTimeoutOptions(w *yson.Writer, o *yt.TimeoutOptions) {
+	if o == nil {
+		return
+	}
+	w.MapKeyString("timeout")
+	w.Any(o.Timeout)
+}
+
 func writeCreateNodeOptions(w *yson.Writer, o *yt.CreateNodeOptions) {
 	if o == nil {
 		return
@@ -732,6 +740,7 @@ func writeSelectRowsOptions(w *yson.Writer, o *yt.SelectRowsOptions) {
 		w.Any(o.OutputRowLimit)
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
+	writeTimeoutOptions(w, o.TimeoutOptions)
 }
 
 func writeStartTabletTxOptions(w *yson.Writer, o *yt.StartTabletTxOptions) {
@@ -2439,6 +2448,10 @@ func (p *SelectRowsParams) MarshalHTTP(w *yson.Writer) {
 
 func (p *SelectRowsParams) TransactionOptions() **yt.TransactionOptions {
 	return &p.options.TransactionOptions
+}
+
+func (p *SelectRowsParams) TimeoutOptions() **yt.TimeoutOptions {
+	return &p.options.TimeoutOptions
 }
 
 type LookupRowsParams struct {

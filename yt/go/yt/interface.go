@@ -99,6 +99,11 @@ type PrerequisiteOptions struct {
 	Revisions      []PrerequisiteRevision `http:"prerequisite_revisions,omitnil"`
 }
 
+// TimeoutOptions specify request timeout that is propagated through internal YT RPC framework.
+type TimeoutOptions struct {
+	Timeout yson.Duration `http:"timeout"`
+}
+
 // CreateNodeOptions.
 //
 // See https://wiki.yandex-team.ru/yt/userdoc/api/#create
@@ -838,6 +843,7 @@ type SelectRowsOptions struct {
 	OutputRowLimit         *int  `http:"output_row_limit,omitnil"`
 
 	*TransactionOptions
+	*TimeoutOptions
 }
 
 type StartTabletTxOptions struct {
