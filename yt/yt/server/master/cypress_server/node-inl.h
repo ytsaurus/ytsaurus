@@ -26,14 +26,34 @@ inline void TCypressNode::SetAccessStatisticsUpdateIndex(int value)
     GetDynamicData()->AccessStatisticsUpdateIndex = value;
 }
 
-inline std::optional<TCypressNodeExpirationMap::iterator> TCypressNode::GetExpirationIterator() const
+inline int TCypressNode::GetTouchNodesIndex() const
 {
-    return GetDynamicData()->ExpirationIterator;
+    return GetDynamicData()->TouchNodesIndex;
 }
 
-inline void TCypressNode::SetExpirationIterator(std::optional<TCypressNodeExpirationMap::iterator> value)
+inline void TCypressNode::SetTouchNodesIndex(int value)
 {
-    GetDynamicData()->ExpirationIterator = value;
+    GetDynamicData()->TouchNodesIndex = value;
+}
+
+inline std::optional<TCypressNodeExpirationMap::iterator> TCypressNode::GetExpirationTimeIterator() const
+{
+    return GetDynamicData()->ExpirationTimeIterator;
+}
+
+inline void TCypressNode::SetExpirationTimeIterator(std::optional<TCypressNodeExpirationMap::iterator> value)
+{
+    GetDynamicData()->ExpirationTimeIterator = value;
+}
+
+inline std::optional<TCypressNodeExpirationMap::iterator> TCypressNode::GetExpirationTimeoutIterator() const
+{
+    return GetDynamicData()->ExpirationTimeoutIterator;
+}
+
+inline void TCypressNode::SetExpirationTimeoutIterator(std::optional<TCypressNodeExpirationMap::iterator> value)
+{
+    GetDynamicData()->ExpirationTimeoutIterator = value;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

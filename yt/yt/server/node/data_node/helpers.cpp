@@ -55,6 +55,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
         TGetUserObjectBasicAttributesOptions options;
         options.SuppressAccessTracking = true;
+        options.SuppressExpirationTimeoutRenewal = true;
         options.ReadFrom = masterChannelKind;
         GetUserObjectBasicAttributes(
             bootstrap->GetMasterClient(),
@@ -130,6 +131,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
     ToProto(req->mutable_ranges(), std::vector<TReadRange>{ {} });
     SetSuppressAccessTracking(req, true);
+    SetSuppressExpirationTimeoutRenewal(req, true);
     req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 
     auto rspOrError = WaitFor(proxy.Execute(req));

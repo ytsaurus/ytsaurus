@@ -67,6 +67,23 @@ bool GetSuppressModificationTracking(const TRequestHeader& header)
         : false;
 }
 
+void SetSuppressExpirationTimeoutRenewal(const NRpc::IClientRequestPtr& request, bool value)
+{
+    SetSuppressExpirationTimeoutRenewal(&request->Header(), value);
+}
+
+void SetSuppressExpirationTimeoutRenewal(NRpc::NProto::TRequestHeader* header, bool value)
+{
+    header->SetExtension(TAccessTrackingExt::suppress_expiration_timeout_renewal, value);
+}
+
+bool GetSuppressExpirationTimeoutRenewal(const NRpc::NProto::TRequestHeader& header)
+{
+    return header.HasExtension(TAccessTrackingExt::suppress_expiration_timeout_renewal)
+        ? header.GetExtension(TAccessTrackingExt::suppress_expiration_timeout_renewal)
+        : false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient

@@ -152,6 +152,7 @@ private:
             AddCellTagToSyncWith(req, userObject.ObjectId);
             SetTransactionId(req, userObject.ExternalTransactionId);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
+            SetSuppressExpirationTimeoutRenewal(req, Options_.SuppressExpirationTimeoutRenewal);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 
             auto rspOrError = WaitFor(proxy.Execute(req));

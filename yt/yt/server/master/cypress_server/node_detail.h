@@ -376,6 +376,14 @@ protected:
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             cypressManager->SetExpirationTime(originatingNode, newExpirationTime);
         }
+
+        auto oldExpirationTimeout = originatingNode->TryGetExpirationTimeout();
+        originatingNode->MergeExpirationTimeout(originatingNode, branchedNode);
+        auto newExpirationTimeout = originatingNode->TryGetExpirationTimeout();
+        if (originatingNode->IsTrunk() && newExpirationTimeout != oldExpirationTimeout) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->SetExpirationTimeout(originatingNode, newExpirationTimeout);
+        }
     }
 
     virtual void DoLogMerge(

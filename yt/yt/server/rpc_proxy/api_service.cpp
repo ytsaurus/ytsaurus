@@ -185,6 +185,9 @@ void FromProto(
     if (proto.has_suppress_modification_tracking()) {
         options->SuppressModificationTracking = proto.suppress_modification_tracking();
     }
+    if (proto.has_suppress_expiration_timeout_renewal()) {
+        options->SuppressExpirationTimeoutRenewal = proto.suppress_expiration_timeout_renewal();
+    }
 }
 
 void FromProto(
@@ -1329,6 +1332,9 @@ private:
         if (request->has_preserve_expiration_time()) {
             options.PreserveExpirationTime = request->preserve_expiration_time();
         }
+        if (request->has_preserve_expiration_timeout()) {
+            options.PreserveExpirationTimeout = request->preserve_expiration_timeout();
+        }
         if (request->has_preserve_owner()) {
             options.PreserveOwner = request->preserve_owner();
         }
@@ -1389,6 +1395,9 @@ private:
         }
         if (request->has_preserve_expiration_time()) {
             options.PreserveExpirationTime = request->preserve_expiration_time();
+        }
+        if (request->has_preserve_expiration_timeout()) {
+            options.PreserveExpirationTimeout = request->preserve_expiration_timeout();
         }
         if (request->has_preserve_owner()) {
             options.PreserveOwner = request->preserve_owner();

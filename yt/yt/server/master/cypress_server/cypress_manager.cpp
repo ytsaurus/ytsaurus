@@ -222,6 +222,11 @@ public:
         return Options_.PreserveExpirationTime;
     }
 
+    virtual bool ShouldPreserveExpirationTimeout() const override
+    {
+        return Options_.PreserveExpirationTimeout;
+    }
+
     virtual bool ShouldPreserveOwner() const override
     {
         return Options_.PreserveOwner;
@@ -1306,6 +1311,10 @@ public:
         error.ThrowOnError();
 
         if (IsLockRedundant(trunkNode, transaction, request)) {
+            if (!transaction) {
+                SetTouched(trunkNode);
+            }
+
             return GetVersionedNode(trunkNode, transaction);
         }
 
@@ -1740,6 +1749,28 @@ public:
         }
     }
 
+    void SetTouched(TCypressNode* trunkNode)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT(trunkNode->IsTrunk());
+
+        if (!trunkNode->TryGetExpirationTimeout()) {
+            return;
+        }
+
+        // This is essential on the leader, but let's do this on followers just
+        // to be nice and keep expiration tracker states (more or less)
+        // identical.
+        ExpirationTracker_->OnNodeTouched(trunkNode);
+
+        if (HydraManager_->IsFollower() && !HasMutationContext()) {
+            // Since it is the leader who decides when and if to expire a node,
+            // followers will need to inform it that the node has been
+            // touched. This is done via the access tracker.
+            AccessTracker_->SetTouched(trunkNode);
+        }
+    }
+
     void SetExpirationTime(TCypressNode* node, std::optional<TInstant> time)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -1754,6 +1785,23 @@ public:
 
         if (node->IsTrunk()) {
             ExpirationTracker_->OnNodeExpirationTimeUpdated(node);
+        } // Otherwise the tracker will be notified when and if the node is merged in.
+    }
+
+    void SetExpirationTimeout(TCypressNode* node, std::optional<TDuration> timeout)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (timeout) {
+            node->SetExpirationTimeout(*timeout);
+        } else if (node->IsTrunk()) {
+            node->ResetExpirationTimeout();
+        } else {
+            node->RemoveExpirationTimeout();
+        }
+
+        if (node->IsTrunk()) {
+            ExpirationTracker_->OnNodeExpirationTimeoutUpdated(node);
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
@@ -2108,6 +2156,10 @@ private:
 
             if (node->IsTrunk() && node->TryGetExpirationTime()) {
                 ExpirationTracker_->OnNodeExpirationTimeUpdated(node);
+            }
+
+            if (node->IsTrunk() && node->TryGetExpirationTimeout()) {
+                ExpirationTracker_->OnNodeExpirationTimeoutUpdated(node);
             }
         }
         YT_LOG_INFO("Finished initializing nodes");
@@ -2771,6 +2823,8 @@ private:
                 transaction->GetId());
         }
 
+        SetTouched(trunkNode);
+
         if (trunkNode->IsExternal() && trunkNode->IsNative() && !dontLockForeign) {
             PostLockForeignNodeRequest(lock);
         }
@@ -2885,6 +2939,10 @@ private:
 
         for (auto* trunkNode : lockedNodes) {
             CheckPendingLocks(trunkNode);
+        }
+
+        for (auto* trunkNode : lockedNodes) {
+            SetTouched(trunkNode);
         }
     }
 
@@ -3253,6 +3311,12 @@ private:
             SetExpirationTime(clonedTrunkNode, *expirationTime);
         }
 
+        // Copy expiration timeout.
+        auto expirationTimeout = sourceNode->TryGetExpirationTimeout();
+        if (factory->ShouldPreserveExpirationTimeout() && expirationTimeout) {
+            SetExpirationTimeout(clonedTrunkNode, *expirationTimeout);
+        }
+
         return clonedTrunkNode;
     }
 
@@ -3274,8 +3338,9 @@ private:
         for (const auto& update : request->updates()) {
             auto nodeId = FromProto<TNodeId>(update.node_id());
             auto* node = FindNode(TVersionedNodeId(nodeId));
-            if (!IsObjectAlive(node))
+            if (!IsObjectAlive(node)) {
                 continue;
+            }
 
             // Update access time.
             auto accessTime = FromProto<TInstant>(update.access_time());
@@ -3797,9 +3862,19 @@ void TCypressManager::SetAccessed(TCypressNode* trunkNode)
     Impl_->SetAccessed(trunkNode);
 }
 
+void TCypressManager::SetTouched(TCypressNode* trunkNode)
+{
+    Impl_->SetTouched(trunkNode);
+}
+
 void TCypressManager::SetExpirationTime(TCypressNode* trunkNode, std::optional<TInstant> time)
 {
     Impl_->SetExpirationTime(trunkNode, time);
+}
+
+void TCypressManager::SetExpirationTimeout(TCypressNode* trunkNode, std::optional<TDuration> timeout)
+{
+    Impl_->SetExpirationTimeout(trunkNode, timeout);
 }
 
 TCypressManager::TSubtreeNodes TCypressManager::ListSubtreeNodes(

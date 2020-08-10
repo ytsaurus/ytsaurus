@@ -8,6 +8,8 @@
 
 #include <yt/server/master/transaction_server/public.h>
 
+#include <yt/ytlib/cypress_client/proto/cypress_service.pb.h>
+
 #include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
@@ -32,6 +34,8 @@ public:
 
     void SetAccessed(TCypressNode* trunkNode);
 
+    void SetTouched(TCypressNode* trunkNode);
+
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
 
@@ -39,6 +43,9 @@ private:
 
     NProto::TReqUpdateAccessStatistics UpdateAccessStatisticsRequest_;
     std::vector<TCypressNode*> NodesWithAccessStatisticsUpdate_;
+
+    NCypressClient::NProto::TReqTouchNodes TouchNodesRequest_;
+    std::vector<TCypressNode*> TouchedNodes_;
 
     NConcurrency::TPeriodicExecutorPtr FlushExecutor_;
 

@@ -124,6 +124,7 @@
     XX(ExpectedState, expected_state) \
     XX(ExpectedTabletState, expected_tablet_state) \
     XX(ExpirationTime, expiration_time) \
+    XX(ExpirationTimeout, expiration_timeout) \
     XX(ExportedObjectCount, exported_object_count) \
     XX(ExportedObjects, exported_objects) \
     XX(Exports, exports) \

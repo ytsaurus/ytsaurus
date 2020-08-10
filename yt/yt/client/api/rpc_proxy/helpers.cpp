@@ -84,6 +84,7 @@ void ToProto(
 {
     proto->set_suppress_access_tracking(options.SuppressAccessTracking);
     proto->set_suppress_modification_tracking(options.SuppressModificationTracking);
+    proto->set_suppress_expiration_timeout_renewal(options.SuppressExpirationTimeoutRenewal);
 }
 
 void ToProto(

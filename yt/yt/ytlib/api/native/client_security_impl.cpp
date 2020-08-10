@@ -122,6 +122,7 @@ TCheckPermissionResponse TClient::DoCheckPermission(
     SetTransactionId(req, options, true);
     SetCachingHeader(req, options);
     NCypressClient::SetSuppressAccessTracking(req, true);
+    NCypressClient::SetSuppressExpirationTimeoutRenewal(req, true);
     batchReq->AddRequest(req);
 
     auto batchRsp = WaitFor(batchReq->Invoke())

@@ -24,6 +24,10 @@ public:
     void Clear();
 
     void OnNodeExpirationTimeUpdated(TCypressNode* trunkNode);
+
+    void OnNodeExpirationTimeoutUpdated(TCypressNode* trunkNode);
+    void OnNodeTouched(TCypressNode* trunkNode);
+
     void OnNodeDestroyed(TCypressNode* trunkNode);
     void OnNodeRemovalFailed(TCypressNode* trunkNode);
 
@@ -34,14 +38,19 @@ private:
 
     NConcurrency::TPeriodicExecutorPtr CheckExecutor_;
 
+    // NB: nodes that have both expiration time and expiration timeout may appear twice here.
     TCypressNodeExpirationMap ExpirationMap_;
     THashSet<TCypressNode*> ExpiredNodes_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
-    void RegisterNodeExpiration(TCypressNode* trunkNode, TInstant expirationTime);
-    void UnregisterNodeExpiration(TCypressNode* trunkNode);
+    void RegisterNodeExpirationTime(TCypressNode* trunkNode, TInstant expirationTime);
+    void RegisterNodeExpirationTimeout(TCypressNode* trunkNode, TInstant expirationTime);
+    void UnregisterNodeExpirationTime(TCypressNode* trunkNode);
+    void UnregisterNodeExpirationTimeout(TCypressNode* trunkNode);
+
+    bool IsNodeLocked(TCypressNode* trunkNode) const;
 
     void OnCheck();
 

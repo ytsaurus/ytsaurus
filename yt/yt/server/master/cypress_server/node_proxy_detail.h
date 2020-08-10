@@ -81,6 +81,7 @@ protected:
 
     bool AccessTrackingSuppressed_ = false;
     bool ModificationTrackingSuppressed_ = false;
+    bool ExpirationTimeoutRenewalSuppressed_ = false;
 
 
     virtual NObjectServer::TVersionedObjectId GetVersionedId() const override;
@@ -199,6 +200,9 @@ protected:
 
     void SetAccessed();
     void SuppressAccessTracking();
+
+    void SetTouched();
+    void SuppressExpirationTimeoutRenewal();
 
     virtual bool CanHaveChildren() const;
 

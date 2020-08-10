@@ -289,6 +289,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
         EPermission::Read,
         TGetUserObjectBasicAttributesOptions{
             .SuppressAccessTracking = config->SuppressAccessTracking,
+            .SuppressExpirationTimeoutRenewal = config->SuppressExpirationTimeoutRenewal,
             .OmitInaccessibleColumns = options.OmitInaccessibleColumns
         });
 
@@ -322,6 +323,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
         }
         SetTransactionId(req, userObject->ExternalTransactionId);
         SetSuppressAccessTracking(req, config->SuppressAccessTracking);
+        SetSuppressExpirationTimeoutRenewal(req, config->SuppressExpirationTimeoutRenewal);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count",
             "dynamic",
@@ -368,6 +370,7 @@ TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReade
                 AddCellTagToSyncWith(req, userObject->ObjectId);
                 SetTransactionId(req, userObject->ExternalTransactionId);
                 SetSuppressAccessTracking(req, config->SuppressAccessTracking);
+                SetSuppressExpirationTimeoutRenewal(req, config->SuppressExpirationTimeoutRenewal);
             },
             Logger,
             /* skipUnavailableChunks */ config->UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip);

@@ -39,6 +39,15 @@ void SetSuppressModificationTracking(NRpc::NProto::TRequestHeader* header, bool 
 //! Gets modification tracking suppression flag.
 bool GetSuppressModificationTracking(const NRpc::NProto::TRequestHeader& header);
 
+//! Sets expiration timeout renewal suppression flag.
+void SetSuppressExpirationTimeoutRenewal(const NRpc::IClientRequestPtr& request, bool value);
+
+//! Sets expiration timeout renewal suppression flag.
+void SetSuppressExpirationTimeoutRenewal(NRpc::NProto::TRequestHeader* header, bool value);
+
+//! Sets expiration timeout renewal suppression flag.
+bool GetSuppressExpirationTimeoutRenewal(const NRpc::NProto::TRequestHeader& header);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressClient

@@ -121,6 +121,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_13003_SeparateScannersForJournalAndBlobChunks)             (1404))  // shakurov
     ((YTINCIDENTS_56_SyncOnPrepare)                                 (1405))  // babenko
     ((FixInheritanceOfProfilingMode)                                (1406))  // akozhikhov
+    ((YT_13126_ExpirationTimeout)                                   (1407))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

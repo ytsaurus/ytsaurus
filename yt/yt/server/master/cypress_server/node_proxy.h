@@ -30,6 +30,7 @@ struct ICypressNodeFactory
     virtual bool ShouldPreserveCreationTime() const  = 0;
     virtual bool ShouldPreserveModificationTime() const  = 0;
     virtual bool ShouldPreserveExpirationTime() const  = 0;
+    virtual bool ShouldPreserveExpirationTimeout() const  = 0;
     virtual bool ShouldPreserveOwner() const  = 0;
     virtual bool ShouldPreserveAcl() const  = 0;
 

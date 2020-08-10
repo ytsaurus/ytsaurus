@@ -21,6 +21,7 @@ message TAccessTrackingExt
     {
         optional bool suppress_access_tracking = 103;
         optional bool suppress_modification_tracking = 108;
+        optional bool suppress_expiration_timeout_renewal = 113;
     }
 }
 

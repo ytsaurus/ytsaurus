@@ -131,6 +131,7 @@ void GetUserObjectBasicAttributes(
         NNative::SetCachingHeader(req, client->GetNativeConnection()->GetConfig(), options);
         NCypressClient::SetTransactionId(req, userObject->TransactionId.value_or(defaultTransactionId));
         NCypressClient::SetSuppressAccessTracking(req, options.SuppressAccessTracking);
+        NCypressClient::SetSuppressExpirationTimeoutRenewal(req, options.SuppressExpirationTimeoutRenewal);
         batchReq->AddRequest(req);
     }
 
