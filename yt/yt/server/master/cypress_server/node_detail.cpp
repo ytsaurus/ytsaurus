@@ -664,6 +664,9 @@ void TCompositeNodeTypeHandler<TImpl>::DoBranch(
         const auto& objectManager = this->Bootstrap_->GetObjectManager();
         objectManager->RefObject(bundle);
     }
+
+    branchedNode->SetProfilingMode(originatingNode->GetProfilingMode());
+    branchedNode->SetProfilingTag(originatingNode->GetProfilingTag());
 }
 
 template <class TImpl>
@@ -688,10 +691,13 @@ void TCompositeNodeTypeHandler<TImpl>::DoMerge(
 {
     TBase::DoMerge(originatingNode, branchedNode);
 
-    if (auto* bundle =originatingNode->GetTabletCellBundle()) {
+    if (auto* bundle = originatingNode->GetTabletCellBundle()) {
         const auto& objectManager = this->Bootstrap_->GetObjectManager();
         objectManager->UnrefObject(bundle);
     }
+
+    originatingNode->SetProfilingMode(branchedNode->GetProfilingMode());
+    originatingNode->SetProfilingTag(branchedNode->GetProfilingTag());
 
     originatingNode->SetAttributes(branchedNode->FindAttributes());
 }

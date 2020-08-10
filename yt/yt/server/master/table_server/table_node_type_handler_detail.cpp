@@ -216,6 +216,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBranch(
     branchedNode->SharedTableSchema() = originatingNode->SharedTableSchema();
     branchedNode->SetSchemaMode(originatingNode->GetSchemaMode());
     branchedNode->SetOptimizeFor(originatingNode->GetOptimizeFor());
+    branchedNode->SetProfilingMode(originatingNode->GetProfilingMode());
+    branchedNode->SetProfilingTag(originatingNode->GetProfilingTag());
 
     // Save current retained and unflushed timestamps in locked node.
     branchedNode->SetRetainedTimestamp(originatingNode->GetCurrentRetainedTimestamp());
@@ -232,6 +234,8 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMerge(
     originatingNode->SharedTableSchema() = branchedNode->SharedTableSchema();
     originatingNode->SetSchemaMode(branchedNode->GetSchemaMode());
     originatingNode->MergeOptimizeFor(originatingNode, branchedNode);
+    originatingNode->SetProfilingMode(branchedNode->GetProfilingMode());
+    originatingNode->SetProfilingTag(branchedNode->GetProfilingTag());
 
     TBase::DoMerge(originatingNode, branchedNode);
 }
