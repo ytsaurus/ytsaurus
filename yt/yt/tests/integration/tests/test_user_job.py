@@ -183,6 +183,33 @@ class TestSandboxTmpfs(YTEnvSetup):
                     "max_failed_job_count": 1,
                 })
 
+        # Per-file `copy_file' attribute has higher priority than `copy_files' in spec.
+        with pytest.raises(YtError):
+            map(command="cat",
+                in_="//tmp/t_input",
+                out="//tmp/t_output",
+                spec={
+                    "mapper": {
+                        "tmpfs_size": 1024 * 1024,
+                        "tmpfs_path": ".",
+                        "file_paths": ["<copy_file=%true>//tmp/test_file"],
+                        "copy_files": False,
+                    },
+                    "max_failed_job_count": 1,
+                })
+        map(command="cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": ".",
+                    "file_paths": ["<copy_file=%false>//tmp/test_file"],
+                    "copy_files": True,
+                },
+                "max_failed_job_count": 1,
+            })
+
     @authors("ignat")
     def test_incorrect_tmpfs_path(self):
         create("table", "//tmp/t_input")

@@ -8188,7 +8188,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->add_environment(Format("YT_PROFILE_JOB=1"));
     }
 
-    BuildFileSpecs(jobSpec, files, Config->EnableBypassArtifactCache);
+    BuildFileSpecs(jobSpec, files, config, Config->EnableBypassArtifactCache);
 }
 
 const std::vector<TUserFile>& TOperationControllerBase::GetUserFiles(const TUserJobSpecPtr& userJobSpec) const

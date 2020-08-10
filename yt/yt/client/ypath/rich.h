@@ -132,6 +132,9 @@ public:
     // "chunk_unique_keys"
     std::optional<bool> GetChunkUniqueKeys() const;
 
+    // "copy_file"
+    std::optional<bool> GetCopyFile() const;
+
 private:
     TYPath Path_;
     std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;

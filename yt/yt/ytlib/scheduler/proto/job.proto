@@ -63,6 +63,7 @@ message TFileDescriptor
     required NChunkClient.NProto.TDataSource data_source = 8;
     repeated NYT.NChunkClient.NProto.TChunkSpec chunk_specs = 9;
     optional bool bypass_artifact_cache = 10;
+    optional bool copy_file = 11;
 }
 
 message TTableBlobSpec
@@ -121,6 +122,8 @@ message TUserJobSpec
 
     repeated TTmpfsVolume tmpfs_volumes = 41;
 
+    // COMPAT(gritukan): Drop it when nodes and controller agents
+    // will be fresh enough.
     optional bool copy_files = 24 [default = false];
 
     optional string file_account = 25;

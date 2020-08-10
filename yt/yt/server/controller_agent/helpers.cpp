@@ -92,7 +92,11 @@ void TUserFile::Persist(const TPersistenceContext& context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector<TUserFile>& files, bool enableBypassArtifactCache)
+void BuildFileSpecs(
+    NScheduler::NProto::TUserJobSpec* jobSpec,
+    const std::vector<TUserFile>& files,
+    const TUserJobSpecPtr& config,
+    bool enableBypassArtifactCache)
 {
     for (const auto& file : files) {
         auto* descriptor = file.Layer
@@ -130,6 +134,10 @@ void BuildFileSpecs(NScheduler::NProto::TUserJobSpec* jobSpec, const std::vector
             if (enableBypassArtifactCache) {
                 descriptor->set_bypass_artifact_cache(file.Path.GetBypassArtifactCache());
             }
+
+            bool copyFile = file.Path.GetCopyFile().value_or(config->CopyFiles);
+            descriptor->set_copy_file(copyFile);
+
             switch (file.Type) {
                 case EObjectType::File:
                     descriptor->set_executable(file.Executable);
