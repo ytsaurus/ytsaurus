@@ -142,6 +142,8 @@ TSuppressableAccessTrackingCommandBase<
         .Optional();
     this->RegisterParameter("suppress_modification_tracking", this->Options.SuppressModificationTracking)
         .Optional();
+    this->RegisterParameter("suppress_expiration_timeout_renewal", this->Options.SuppressExpirationTimeoutRenewal)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

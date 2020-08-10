@@ -197,6 +197,7 @@ public:
             "path",
         };
         options.SuppressAccessTracking = true;
+        options.SuppressExpirationTimeoutRenewal = true;
 
         auto items = WaitFor(queryContext->Client()->ListNode(directory.GetPath(), options))
             .ValueOrThrow();

@@ -41,6 +41,7 @@ struct TNodeFactoryOptions
     bool PreserveCreationTime = false;
     bool PreserveModificationTime = false;
     bool PreserveExpirationTime = false;
+    bool PreserveExpirationTimeout = false;
     bool PreserveOwner = false;
     bool PreserveAcl = false;
     bool PessimisticQuotaCheck = true;
@@ -165,13 +166,12 @@ public:
         TCypressNode* trunkNode,
         NTransactionServer::TTransaction* transaction);
 
-    void SetModified(
-        TCypressNode* node,
-        EModificationType modificationType);
-
+    void SetModified(TCypressNode* node, EModificationType modificationType);
     void SetAccessed(TCypressNode* trunkNode);
+    void SetTouched(TCypressNode* trunkNode);
 
     void SetExpirationTime(TCypressNode* node, std::optional<TInstant> time);
+    void SetExpirationTimeout(TCypressNode* node, std::optional<TDuration> time);
 
     typedef SmallVector<TCypressNode*, 1> TSubtreeNodes;
     TSubtreeNodes ListSubtreeNodes(

@@ -176,6 +176,7 @@ void TCypressNode::Save(TSaveContext& context) const
     TNonversionedObjectRefSerializer::Save(context, Parent_);
     Save(context, LockMode_);
     Save(context, ExpirationTime_);
+    Save(context, ExpirationTimeout_);
     Save(context, CreationTime_);
     Save(context, ModificationTime_);
     Save(context, AttributesRevision_);
@@ -202,6 +203,10 @@ void TCypressNode::Load(TLoadContext& context)
     TNonversionedObjectRefSerializer::Load(context, Parent_);
     Load(context, LockMode_);
     Load(context, ExpirationTime_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= EMasterReign::YT_13126_ExpirationTimeout) {
+        Load(context, ExpirationTimeout_);
+    }
     Load(context, CreationTime_);
     Load(context, ModificationTime_);
     Load(context, AttributesRevision_);

@@ -14,6 +14,7 @@
 
 #include <yt/server/master/cypress_server/cypress_integration.h>
 #include <yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/server/master/cypress_server/cypress_service.h>
 #include <yt/server/master/cypress_server/portal_manager.h>
 
 #include <yt/server/master/file_server/file_node_type_handler.h>
@@ -783,6 +784,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateChunkService(this)); // master hydra service
     RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_));
     RpcServer_->RegisterService(CreateTransactionService(this)); // master hydra service
+    RpcServer_->RegisterService(CreateCypressService(this)); // master hydra service
 
     CypressManager_->RegisterHandler(CreateSysNodeTypeHandler(this));
     CypressManager_->RegisterHandler(CreateChunkMapTypeHandler(this, EObjectType::ChunkMap));

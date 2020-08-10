@@ -97,6 +97,7 @@ struct TSuppressableAccessTrackingOptions
 {
     bool SuppressAccessTracking = false;
     bool SuppressModificationTracking = false;
+    bool SuppressExpirationTimeoutRenewal = false;
 };
 
 struct TMutatingOptions
@@ -619,6 +620,7 @@ struct TCopyNodeOptionsBase
     bool PreserveModificationTime = false;
     bool PreserveOwner = false;
     bool PreserveExpirationTime = false;
+    bool PreserveExpirationTimeout = false;
     bool PreserveAcl = false;
     bool PessimisticQuotaCheck = true;
 };

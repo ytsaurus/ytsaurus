@@ -142,6 +142,7 @@ class TTableReaderConfig
 {
 public:
     bool SuppressAccessTracking;
+    bool SuppressExpirationTimeoutRenewal;
     EUnavailableChunkStrategy UnavailableChunkStrategy;
     std::optional<TDuration> MaxReadDuration;
 
@@ -150,6 +151,8 @@ public:
     TTableReaderConfig()
     {
         RegisterParameter("suppress_access_tracking", SuppressAccessTracking)
+            .Default(false);
+        RegisterParameter("suppress_expiration_timeout_renewal", SuppressExpirationTimeoutRenewal)
             .Default(false);
         RegisterParameter("unavailable_chunk_strategy", UnavailableChunkStrategy)
             .Default(EUnavailableChunkStrategy::Restore);

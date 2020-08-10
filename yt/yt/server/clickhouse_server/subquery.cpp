@@ -304,6 +304,7 @@ private:
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::THeavyColumnStatisticsExt>::Value);
                 SetTransactionId(req, NullTransactionId);
                 SetSuppressAccessTracking(req, true);
+                SetSuppressExpirationTimeoutRenewal(req, true);
             },
             Logger);
 

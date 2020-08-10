@@ -188,10 +188,11 @@ type CopyNodeOptions struct {
 	IgnoreExisting bool `http:"ignore_existing"`
 	Force          bool `http:"force"`
 
-	PreserveAccount        *bool `http:"preserve_account,omitnil"`
-	PreserveExpirationTime *bool `http:"preserve_expiration_time,omitnil"`
-	PreserveCreationTime   *bool `http:"preserve_creation_time,omitnil"`
-	PessimisticQuotaCheck  *bool `http:"pessimistic_quota_check,omitnil"`
+	PreserveAccount           *bool `http:"preserve_account,omitnil"`
+	PreserveExpirationTime    *bool `http:"preserve_expiration_time,omitnil"`
+	PreserveExpirationTimeout *bool `http:"preserve_expiration_timeout,omitnil"`
+	PreserveCreationTime      *bool `http:"preserve_creation_time,omitnil"`
+	PessimisticQuotaCheck     *bool `http:"pessimistic_quota_check,omitnil"`
 
 	*TransactionOptions
 	// *AccessTrackingOptions
@@ -203,9 +204,10 @@ type MoveNodeOptions struct {
 	Recursive bool `http:"recursive"`
 	Force     bool `http:"force"`
 
-	PreserveAccount        *bool `http:"preserve_account,omitnil"`
-	PreserveExpirationTime *bool `http:"preserve_expiration_time,omitnil"`
-	PessimisticQuotaCheck  *bool `http:"pessimistic_quota_check,omitnil"`
+	PreserveAccount           *bool `http:"preserve_account,omitnil"`
+	PreserveExpirationTime    *bool `http:"preserve_expiration_time,omitnil"`
+	PreserveExpirationTimeout *bool `http:"preserve_expiration_timeout,omitnil"`
+	PessimisticQuotaCheck     *bool `http:"pessimistic_quota_check,omitnil"`
 
 	*TransactionOptions
 	// *AccessTrackingOptions

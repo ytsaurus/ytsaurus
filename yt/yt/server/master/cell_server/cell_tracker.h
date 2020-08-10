@@ -4,7 +4,7 @@
 
 #include <yt/server/master/cell_master/public.h>
 
-#include <yt/server/master/node_tracker_server//public.h>
+#include <yt/server/master/node_tracker_server/public.h>
 
 #include <yt/core/concurrency/public.h>
 #include <yt/core/concurrency/thread_affinity.h>

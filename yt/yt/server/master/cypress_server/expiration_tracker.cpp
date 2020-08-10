@@ -35,13 +35,21 @@ void TExpirationTracker::Start()
 
     YT_LOG_INFO("Started registering node expiration (Count: %v)",
         ExpiredNodes_.size());
-    for (auto* trunkNode : ExpiredNodes_) {
-        YT_ASSERT(!trunkNode->GetExpirationIterator());
+    THashSet<TCypressNode*> expiredNodes;
+    expiredNodes.swap(ExpiredNodes_);
+    auto now = TInstant::Now();
+    for (auto* trunkNode : expiredNodes) {
+        YT_ASSERT(!trunkNode->GetExpirationTimeIterator() && !trunkNode->GetExpirationTimeoutIterator());
+
         if (auto expirationTime = trunkNode->TryGetExpirationTime()) {
-            RegisterNodeExpiration(trunkNode, *expirationTime);
+            RegisterNodeExpirationTime(trunkNode, *expirationTime);
+        }
+
+        auto expirationTimeout = trunkNode->TryGetExpirationTimeout();
+        if (expirationTimeout && !IsNodeLocked(trunkNode)) {
+            RegisterNodeExpirationTimeout(trunkNode, now + *expirationTimeout);
         }
     }
-    ExpiredNodes_.clear();
     YT_LOG_INFO("Finished registering node expiration");
 
     YT_VERIFY(!CheckExecutor_);
@@ -82,18 +90,69 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNode* trunkNode)
         return;
     }
 
-    if (trunkNode->GetExpirationIterator()) {
-        UnregisterNodeExpiration(trunkNode);
+    if (trunkNode->GetExpirationTimeIterator()) {
+        UnregisterNodeExpirationTime(trunkNode);
     }
 
     if (auto expirationTime = trunkNode->TryGetExpirationTime()) {
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration time set (NodeId: %v, ExpirationTime: %v)",
             trunkNode->GetId(),
             *expirationTime);
-        RegisterNodeExpiration(trunkNode, *expirationTime);
+        RegisterNodeExpirationTime(trunkNode, *expirationTime);
     } else {
         YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration time reset (NodeId: %v)",
             trunkNode->GetId());
+    }
+}
+
+void TExpirationTracker::OnNodeExpirationTimeoutUpdated(TCypressNode* trunkNode)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT(trunkNode->IsTrunk());
+
+    if (trunkNode->IsForeign()) {
+        return;
+    }
+
+    if (trunkNode->GetExpirationTimeoutIterator()) {
+        UnregisterNodeExpirationTimeout(trunkNode);
+    }
+
+    if (auto expirationTimeout = trunkNode->TryGetExpirationTimeout()) {
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration timeout set (NodeId: %v, ExpirationTimeout: %v)",
+            trunkNode->GetId(),
+            *expirationTimeout);
+        if (!IsNodeLocked(trunkNode)) {
+            RegisterNodeExpirationTimeout(trunkNode, TInstant::Now() + *expirationTimeout);
+        }
+    } else {
+        YT_LOG_DEBUG_UNLESS(IsRecovery(), "Node expiration timeout reset (NodeId: %v)",
+            trunkNode->GetId());
+    }
+}
+
+void TExpirationTracker::OnNodeTouched(TCypressNode* trunkNode)
+{
+    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT(trunkNode->IsTrunk());
+    YT_VERIFY(trunkNode->TryGetExpirationTimeout());
+
+    if (trunkNode->IsForeign()) {
+        return;
+    }
+
+    if (trunkNode->GetExpirationTimeoutIterator()) {
+        UnregisterNodeExpirationTimeout(trunkNode);
+    }
+
+    if (!IsNodeLocked(trunkNode)) {
+        auto expirationTimeout = trunkNode->GetExpirationTimeout();
+        auto expirationTime = TInstant::Now() + expirationTimeout;
+        YT_LOG_TRACE_UNLESS(IsRecovery(), "Node is scheduled to expire by timeout (NodeId: %v, ExpirationTimeout: %v, AnticipatedExpirationTime: %v)",
+            trunkNode->GetId(),
+            expirationTimeout,
+            expirationTime);
+        RegisterNodeExpirationTimeout(trunkNode, expirationTime);
     }
 }
 
@@ -106,8 +165,12 @@ void TExpirationTracker::OnNodeDestroyed(TCypressNode* trunkNode)
         return;
     }
 
-    if (trunkNode->GetExpirationIterator()) {
-        UnregisterNodeExpiration(trunkNode);
+    if (trunkNode->GetExpirationTimeIterator()) {
+        UnregisterNodeExpirationTime(trunkNode);
+    }
+
+    if (trunkNode->GetExpirationTimeoutIterator()) {
+        UnregisterNodeExpirationTimeout(trunkNode);
     }
 
     // NB: Typically missing.
@@ -123,33 +186,60 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
         return;
     }
 
-    if (trunkNode->GetExpirationIterator()) {
-        return;
+    if (trunkNode->TryGetExpirationTime() && !trunkNode->GetExpirationTimeIterator()) {
+        // NB: Typically missing at followers.
+        ExpiredNodes_.erase(trunkNode);
+
+        auto* mutationContext = GetCurrentMutationContext();
+        RegisterNodeExpirationTime(trunkNode, mutationContext->GetTimestamp() + GetDynamicConfig()->ExpirationBackoffTime);
     }
 
-    if (!trunkNode->TryGetExpirationTime()) {
-        return;
+    if (trunkNode->TryGetExpirationTimeout() && !trunkNode->GetExpirationTimeoutIterator()) {
+        // NB: Typically missing at followers.
+        ExpiredNodes_.erase(trunkNode);
+
+        if (!IsNodeLocked(trunkNode)) {
+            auto* mutationContext = GetCurrentMutationContext();
+            RegisterNodeExpirationTimeout(trunkNode, mutationContext->GetTimestamp() + trunkNode->GetExpirationTimeout());
+        } // Else expiration will be rescheduled on lock release.
     }
-
-    // NB: Typically missing at followers.
-    ExpiredNodes_.erase(trunkNode);
-
-    auto* mutationContext = GetCurrentMutationContext();
-    RegisterNodeExpiration(trunkNode, mutationContext->GetTimestamp() + GetDynamicConfig()->ExpirationBackoffTime);
 }
 
-void TExpirationTracker::RegisterNodeExpiration(TCypressNode* trunkNode, TInstant expirationTime)
+void TExpirationTracker::RegisterNodeExpirationTime(TCypressNode* trunkNode, TInstant expirationTime)
 {
+    YT_ASSERT(!trunkNode->GetExpirationTimeIterator());
+
     if (ExpiredNodes_.find(trunkNode) == ExpiredNodes_.end()) {
         auto it = ExpirationMap_.emplace(expirationTime, trunkNode);
-        trunkNode->SetExpirationIterator(it);
+        trunkNode->SetExpirationTimeIterator(it);
     }
 }
 
-void TExpirationTracker::UnregisterNodeExpiration(TCypressNode* trunkNode)
+void TExpirationTracker::RegisterNodeExpirationTimeout(TCypressNode* trunkNode, TInstant expirationTime)
 {
-    ExpirationMap_.erase(*trunkNode->GetExpirationIterator());
-    trunkNode->SetExpirationIterator(std::nullopt);
+    YT_ASSERT(!trunkNode->GetExpirationTimeoutIterator());
+
+    if (ExpiredNodes_.find(trunkNode) == ExpiredNodes_.end()) {
+        auto it = ExpirationMap_.emplace(expirationTime, trunkNode);
+        trunkNode->SetExpirationTimeoutIterator(it);
+    }
+}
+
+void TExpirationTracker::UnregisterNodeExpirationTime(TCypressNode* trunkNode)
+{
+    ExpirationMap_.erase(*trunkNode->GetExpirationTimeIterator());
+    trunkNode->SetExpirationTimeIterator(std::nullopt);
+}
+
+void TExpirationTracker::UnregisterNodeExpirationTimeout(TCypressNode* trunkNode)
+{
+    ExpirationMap_.erase(*trunkNode->GetExpirationTimeoutIterator());
+    trunkNode->SetExpirationTimeoutIterator(std::nullopt);
+}
+
+bool TExpirationTracker::IsNodeLocked(TCypressNode* trunkNode) const
+{
+    return !trunkNode->LockingState().AcquiredLocks.empty();
 }
 
 void TExpirationTracker::OnCheck()
@@ -166,17 +256,20 @@ void TExpirationTracker::OnCheck()
     auto now = TInstant::Now();
     while (!ExpirationMap_.empty() && request.node_ids_size() < GetDynamicConfig()->MaxExpiredNodesRemovalsPerCommit) {
         auto it = ExpirationMap_.begin();
-        const auto& pair = *it;
-        auto expirationTime = pair.first;
-        auto* trunkNode = pair.second;
-        YT_ASSERT(*trunkNode->GetExpirationIterator() == it);
+        auto [expirationTime, trunkNode] = *it;
 
         if (expirationTime > now) {
             break;
         }
 
         ToProto(request.add_node_ids(), trunkNode->GetId());
-        UnregisterNodeExpiration(trunkNode);
+        if (trunkNode->GetExpirationTimeIterator() && *trunkNode->GetExpirationTimeIterator() == it) {
+            UnregisterNodeExpirationTime(trunkNode);
+        } else if (trunkNode->GetExpirationTimeoutIterator() && *trunkNode->GetExpirationTimeoutIterator() == it) {
+            UnregisterNodeExpirationTimeout(trunkNode);
+        } else {
+            YT_ABORT();
+        }
         YT_VERIFY(ExpiredNodes_.insert(trunkNode).second);
     }
 

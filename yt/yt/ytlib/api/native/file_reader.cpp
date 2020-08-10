@@ -136,7 +136,8 @@ private:
             Logger,
             EPermission::Read,
             TGetUserObjectBasicAttributesOptions{
-                .SuppressAccessTracking = Options_.SuppressAccessTracking
+                .SuppressAccessTracking = Options_.SuppressAccessTracking,
+                .SuppressExpirationTimeoutRenewal = Options_.SuppressExpirationTimeoutRenewal
             });
 
         if (userObject.Type != EObjectType::File) {
@@ -159,6 +160,7 @@ private:
             AddCellTagToSyncWith(req, userObject.ObjectId);
             SetTransactionId(req, userObject.ExternalTransactionId);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
+            SetSuppressExpirationTimeoutRenewal(req, Options_.SuppressExpirationTimeoutRenewal);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting extended attributes of file %v",
@@ -199,6 +201,7 @@ private:
 
             SetTransactionId(req, userObject.ExternalTransactionId);
             SetSuppressAccessTracking(req, Options_.SuppressAccessTracking);
+            SetSuppressExpirationTimeoutRenewal(req, Options_.SuppressExpirationTimeoutRenewal);
             req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 
             auto rspOrError = WaitFor(proxy.Execute(req));

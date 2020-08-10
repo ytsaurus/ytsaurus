@@ -401,6 +401,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::CopyNode(
     req->set_preserve_creation_time(options.PreserveCreationTime);
     req->set_preserve_modification_time(options.PreserveModificationTime);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
+    req->set_preserve_expiration_timeout(options.PreserveExpirationTimeout);
     req->set_preserve_owner(options.PreserveOwner);
     req->set_preserve_acl(options.PreserveAcl);
     req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
@@ -433,6 +434,7 @@ TFuture<NCypressClient::TNodeId> TClientBase::MoveNode(
     req->set_preserve_creation_time(options.PreserveCreationTime);
     req->set_preserve_modification_time(options.PreserveModificationTime);
     req->set_preserve_expiration_time(options.PreserveExpirationTime);
+    req->set_preserve_expiration_timeout(options.PreserveExpirationTimeout);
     req->set_preserve_owner(options.PreserveOwner);
     req->set_pessimistic_quota_check(options.PessimisticQuotaCheck);
 

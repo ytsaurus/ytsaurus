@@ -324,6 +324,8 @@ TCopyCommand::TCopyCommand()
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
         .Optional();
+    RegisterParameter("preserve_expiration_timeout", Options.PreserveExpirationTimeout)
+        .Optional();
     RegisterParameter("preserve_owner", Options.PreserveOwner)
         .Optional();
     RegisterParameter("preserve_acl", Options.PreserveAcl)
@@ -361,6 +363,8 @@ TMoveCommand::TMoveCommand()
     RegisterParameter("preserve_modifcation_time", Options.PreserveModificationTime)
         .Optional();
     RegisterParameter("preserve_expiration_time", Options.PreserveExpirationTime)
+        .Optional();
+    RegisterParameter("preserve_expiration_timeout", Options.PreserveExpirationTimeout)
         .Optional();
     RegisterParameter("preserve_owner", Options.PreserveOwner)
         .Optional();

@@ -1716,6 +1716,89 @@ class TestCypress(YTEnvSetup):
         abort_transaction(tx1)
         time.sleep(2)
 
+    @authors("shakurov")
+    def test_expiration_timeout1(self):
+        create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
+        time.sleep(1.5)
+        # Accessing a node may affect its lifetime. Hence no waiting here.
+        assert not exists("//tmp/t")
+
+    @authors("shakurov")
+    def test_expiration_timeout2(self):
+        create("table", "//tmp/t1", attributes={"expiration_timeout": 2000})
+        create("table", "//tmp/t2", attributes={"expiration_timeout": 2000})
+        time.sleep(0.5)
+        set("//tmp/t2/@some_attr", "some_value")
+        wait(lambda: not exists("//tmp/t1", suppress_expiration_timeout_renewal=True) and exists("//tmp/t2", suppress_expiration_timeout_renewal=True))
+        wait(lambda: not exists("//tmp/t2", suppress_expiration_timeout_renewal=True))
+
+    @authors("shakurov")
+    def test_expiration_timeout3(self):
+        create("table", "//tmp/t1", attributes={"expiration_timeout": 4000})
+        for i in xrange(10):
+            # NB: asking if whether the node exists prolongs its life.
+            assert exists("//tmp/t1")
+            time.sleep(1.0)
+
+        time.sleep(3.5)
+        assert not exists("//tmp/t1")
+
+    @authors("shakurov")
+    def test_expiration_timeout4(self):
+        tx = start_transaction()
+
+        create("table", "//tmp/t")
+        set("//tmp/t/@expiration_timeout", 1000)
+
+        lock("//tmp/t", tx=tx, mode="snapshot")
+
+        time.sleep(1.5)
+        assert exists("//tmp/t")
+
+        abort_transaction(tx)
+
+        time.sleep(1.5)
+        assert not exists("//tmp/t")
+
+    @authors("shakurov")
+    def test_expiration_timeout4(self):
+        create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
+        set("//tmp/t/@expiration_timeout", 3000)
+
+        time.sleep(1.5)
+        assert exists("//tmp/t")
+
+        remove("//tmp/t/@expiration_timeout")
+
+        time.sleep(2.0)
+        assert exists("//tmp/t")
+
+    @authors("shakurov")
+    def test_expiration_time_and_timeout1(self):
+        create("table", "//tmp/t1", attributes={"expiration_timeout": 2000, "expiration_time": str(self._now() + timedelta(milliseconds=500))})
+        time.sleep(1.0)
+        assert not exists("//tmp/t1")
+
+        create("table", "//tmp/t2", attributes={"expiration_timeout": 500, "expiration_time": str(self._now() + timedelta(seconds=2))})
+        time.sleep(1.0)
+        assert not exists("//tmp/t2")
+
+    @authors("shakurov")
+    def test_expiration_time_and_timeout2(self):
+        create("table", "//tmp/t1", attributes={"expiration_timeout": 400, "expiration_time": str(self._now() + timedelta(milliseconds=1500))})
+        remove("//tmp/t1/@expiration_timeout")
+        time.sleep(0.6)
+        assert exists("//tmp/t1")
+        time.sleep(1.5)
+        assert not exists("//tmp/t1")
+
+        create("table", "//tmp/t2", attributes={"expiration_timeout": 1500, "expiration_time": str(self._now() + timedelta(milliseconds=400))})
+        remove("//tmp/t2/@expiration_time")
+        time.sleep(0.6)
+        assert exists("//tmp/t2", suppress_expiration_timeout_renewal=True)
+        time.sleep(1.5)
+        assert not exists("//tmp/t2")
+
     @authors("ignat")
     def test_copy_preserve_creation_time(self):
         create("table", "//tmp/t1")

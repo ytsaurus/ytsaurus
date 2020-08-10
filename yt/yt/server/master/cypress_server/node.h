@@ -114,7 +114,9 @@ struct TCypressNodeDynamicData
     : public NObjectServer::TObjectDynamicData
 {
     int AccessStatisticsUpdateIndex = -1;
-    std::optional<TCypressNodeExpirationMap::iterator> ExpirationIterator;
+    int TouchNodesIndex = -1;
+    std::optional<TCypressNodeExpirationMap::iterator> ExpirationTimeIterator;
+    std::optional<TCypressNodeExpirationMap::iterator> ExpirationTimeoutIterator;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,6 +146,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AccessTime);
 
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TInstant, ExpirationTime)
+    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TCypressNode, TDuration, ExpirationTimeout)
 
     //! Master memory usage account was already charged for.
     DEFINE_BYVAL_RW_PROPERTY(i64, ChargedMasterMemoryUsage);
@@ -176,8 +179,14 @@ public:
     int GetAccessStatisticsUpdateIndex() const;
     void SetAccessStatisticsUpdateIndex(int value);
 
-    std::optional<TCypressNodeExpirationMap::iterator> GetExpirationIterator() const;
-    void SetExpirationIterator(std::optional<TCypressNodeExpirationMap::iterator> value);
+    int GetTouchNodesIndex() const;
+    void SetTouchNodesIndex(int value);
+
+    std::optional<TCypressNodeExpirationMap::iterator> GetExpirationTimeIterator() const;
+    void SetExpirationTimeIterator(std::optional<TCypressNodeExpirationMap::iterator> value);
+
+    std::optional<TCypressNodeExpirationMap::iterator> GetExpirationTimeoutIterator() const;
+    void SetExpirationTimeoutIterator(std::optional<TCypressNodeExpirationMap::iterator> value);
 
     //! Returns the static type of the node.
     /*!

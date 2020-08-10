@@ -665,6 +665,7 @@ message TSuppressableAccessTrackingOptions
 {
     optional bool suppress_access_tracking = 1 [default = false];
     optional bool suppress_modification_tracking = 2 [default = false];
+    optional bool suppress_expiration_timeout_renewal = 3 [default = false];
 }
 
 // 105
@@ -970,6 +971,7 @@ message TReqCopyNode
     optional bool preserve_creation_time = 7 [default = false];
     optional bool preserve_modification_time = 10 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
+    optional bool preserve_expiration_timeout = 14 [default = false];
     optional bool preserve_owner = 11 [default = false];
     optional bool preserve_acl = 12 [default = false];
     optional bool ignore_existing = 8 [default = false];
@@ -999,6 +1001,7 @@ message TReqMoveNode
     optional bool preserve_creation_time = 8 [default = false];
     optional bool preserve_modification_time = 9 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
+    optional bool preserve_expiration_timeout = 12 [default = false];
     optional bool preserve_owner = 11 [default = false];
     optional bool pessimistic_quota_check = 7 [default = true];
 

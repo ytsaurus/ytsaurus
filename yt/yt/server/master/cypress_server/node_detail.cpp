@@ -147,6 +147,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
     Save(*context, node->GetCreationTime());
     Save(*context, node->GetModificationTime());
     Save(*context, node->TryGetExpirationTime());
+    Save(*context, node->TryGetExpirationTimeout());
 
     // User attributes
     auto keyToAttribute = GetNodeAttributes(
@@ -292,6 +293,12 @@ bool TNontemplateCypressNodeTypeHandlerBase::LoadInplace(
     auto expirationTime = Load<std::optional<TInstant>>(*context);
     if (factory->ShouldPreserveExpirationTime() && expirationTime) {
         trunkNode->SetExpirationTime(*expirationTime);
+    }
+
+    // Copy expiration timeout.
+    auto expirationTimeout = Load<std::optional<TDuration>>(*context);
+    if (factory->ShouldPreserveExpirationTimeout() && expirationTimeout) {
+        trunkNode->SetExpirationTimeout(*expirationTimeout);
     }
 
     // Copy attributes directly to suppress validation.

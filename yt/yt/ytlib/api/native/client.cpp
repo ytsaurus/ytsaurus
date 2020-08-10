@@ -342,6 +342,9 @@ void TClient::SetSuppressAccessTracking(
     if (commandOptions.SuppressModificationTracking) {
         NCypressClient::SetSuppressModificationTracking(request, true);
     }
+    if (commandOptions.SuppressExpirationTimeoutRenewal) {
+        NCypressClient::SetSuppressExpirationTimeoutRenewal(request, true);
+    }
 }
 
 void TClient::SetCachingHeader(

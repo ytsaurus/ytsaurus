@@ -409,6 +409,25 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             return true;
         }
 
+        case EInternedAttributeKey::ExpirationTimeout: {
+            ValidatePermission(EPermissionCheckScope::This|EPermissionCheckScope::Descendants, EPermission::Remove);
+
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+
+            if (TrunkNode_ == cypressManager->GetRootNode()) {
+                THROW_ERROR_EXCEPTION("Cannot set \"expiration_timeout\" for the root");
+            }
+
+            auto timeout = ConvertTo<TDuration>(value);
+
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* node = LockThisImpl(lockRequest);
+
+            cypressManager->SetExpirationTimeout(node, timeout);
+
+            return true;
+        }
+
         case EInternedAttributeKey::Opaque: {
             ValidateNoTransaction();
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
@@ -478,6 +497,15 @@ bool TNontemplateCypressNodeProxyBase::RemoveBuiltinAttribute(TInternedAttribute
             return true;
         }
 
+        case EInternedAttributeKey::ExpirationTimeout: {
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* node = LockThisImpl(lockRequest);
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            cypressManager->SetExpirationTimeout(node, std::nullopt);
+
+            return true;
+        }
+
         case EInternedAttributeKey::Opaque: {
             ValidateNoTransaction();
             ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
@@ -531,6 +559,10 @@ void TNontemplateCypressNodeProxyBase::ListSystemAttributes(std::vector<TAttribu
         .SetPresent(hasKey));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTime)
         .SetPresent(node->TryGetExpirationTime().operator bool())
+        .SetWritable(true)
+        .SetRemovable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ExpirationTimeout)
+        .SetPresent(node->TryGetExpirationTimeout().operator bool())
         .SetWritable(true)
         .SetRemovable(true));
     descriptors->push_back(EInternedAttributeKey::CreationTime);
@@ -654,6 +686,16 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
             return true;
         }
 
+        case EInternedAttributeKey::ExpirationTimeout: {
+            auto optionalExpirationTimeout = node->TryGetExpirationTimeout();
+            if (!optionalExpirationTimeout) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*optionalExpirationTimeout);
+            return true;
+        }
+
         case EInternedAttributeKey::CreationTime:
             BuildYsonFluently(consumer)
                 .Value(node->GetCreationTime());
@@ -762,6 +804,7 @@ void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IServiceContextPtr& co
 {
     AccessTrackingSuppressed_ = GetSuppressAccessTracking(context->RequestHeader());
     ModificationTrackingSuppressed_ = GetSuppressModificationTracking(context->RequestHeader());
+    ExpirationTimeoutRenewalSuppressed_ = GetSuppressExpirationTimeoutRenewal(context->RequestHeader());
 
     TObjectProxyBase::BeforeInvoke(context);
 }
@@ -769,6 +812,7 @@ void TNontemplateCypressNodeProxyBase::BeforeInvoke(const IServiceContextPtr& co
 void TNontemplateCypressNodeProxyBase::AfterInvoke(const IServiceContextPtr& context)
 {
     SetAccessed();
+    SetTouched();
     TObjectProxyBase::AfterInvoke(context);
 }
 
@@ -1213,6 +1257,25 @@ void TNontemplateCypressNodeProxyBase::SuppressAccessTracking()
     AccessTrackingSuppressed_ = true;
 }
 
+void TNontemplateCypressNodeProxyBase::SetTouched()
+{
+    if (ExpirationTimeoutRenewalSuppressed_) {
+        return;
+    }
+
+    if (!TrunkNode_->IsAlive()) {
+        return;
+    }
+
+    const auto& cypressManager = Bootstrap_->GetCypressManager();
+    cypressManager->SetTouched(TrunkNode_);
+}
+
+void TNontemplateCypressNodeProxyBase::SuppressExpirationTimeoutRenewal()
+{
+    ExpirationTimeoutRenewalSuppressed_ = true;
+}
+
 bool TNontemplateCypressNodeProxyBase::CanHaveChildren() const
 {
     return false;
@@ -1651,6 +1714,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
     bool preserveCreationTime = request->preserve_creation_time();
     bool preserveModificationTime = request->preserve_modification_time();
     bool preserveExpirationTime = request->preserve_expiration_time();
+    bool preserveExpirationTimeout = request->preserve_expiration_timeout();
     bool preserveOwner = request->preserve_owner();
     bool preserveAcl = request->preserve_acl();
     auto recursive = request->recursive();
@@ -1667,7 +1731,8 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
     }
 
     context->SetRequestInfo("TransactionId: %v, "
-        "PreserveAccount: %v, PreserveCreationTime: %v, PreserveModificationTime: %v, PreserveExpirationTime: %v, "
+        "PreserveAccount: %v, PreserveCreationTime: %v, PreserveModificationTime: %v, "
+        "PreserveExpirationTime: %v, PreserveExpirationTimeout: %v, "
         "PreserveOwner: %v, PreserveAcl: %v, Recursive: %v, IgnoreExisting: %v,  LockExisting: %v, "
         "Force: %v, PessimisticQuotaCheck: %v",
         NObjectServer::GetObjectId(Transaction_),
@@ -1675,6 +1740,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         preserveCreationTime,
         preserveModificationTime,
         preserveExpirationTime,
+        preserveExpirationTimeout,
         preserveOwner,
         preserveAcl,
         recursive,
@@ -1722,6 +1788,7 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
         .PreserveCreationTime = preserveCreationTime,
         .PreserveModificationTime = preserveModificationTime,
         .PreserveExpirationTime = preserveExpirationTime,
+        .PreserveExpirationTimeout = preserveExpirationTimeout,
         .PreserveOwner = preserveOwner,
         .PreserveAcl = preserveAcl,
         .PessimisticQuotaCheck = pessimisticQuotaCheck

@@ -210,6 +210,10 @@ func writeCopyNodeOptions(w *yson.Writer, o *yt.CopyNodeOptions) {
 		w.MapKeyString("preserve_expiration_time")
 		w.Any(o.PreserveExpirationTime)
 	}
+	if o.PreserveExpirationTimeout != nil {
+		w.MapKeyString("preserve_expiration_timeout")
+		w.Any(o.PreserveExpirationTimeout)
+	}
 	if o.PreserveCreationTime != nil {
 		w.MapKeyString("preserve_creation_time")
 		w.Any(o.PreserveCreationTime)
@@ -238,6 +242,10 @@ func writeMoveNodeOptions(w *yson.Writer, o *yt.MoveNodeOptions) {
 	if o.PreserveExpirationTime != nil {
 		w.MapKeyString("preserve_expiration_time")
 		w.Any(o.PreserveExpirationTime)
+	}
+	if o.PreserveExpirationTimeout != nil {
+		w.MapKeyString("preserve_expiration_timeout")
+		w.Any(o.PreserveExpirationTimeout)
 	}
 	if o.PessimisticQuotaCheck != nil {
 		w.MapKeyString("pessimistic_quota_check")

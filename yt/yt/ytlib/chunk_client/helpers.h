@@ -188,6 +188,7 @@ struct TGetUserObjectBasicAttributesOptions
     : public NApi::TMasterReadOptions
 {
     bool SuppressAccessTracking = false;
+    bool SuppressExpirationTimeoutRenewal = false;
     bool OmitInaccessibleColumns = false;
     bool PopulateSecurityTags = false;
 };

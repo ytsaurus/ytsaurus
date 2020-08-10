@@ -64,6 +64,7 @@ message TReqCopy
     optional bool preserve_creation_time = 7 [default = false];
     optional bool preserve_modification_time = 10 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
+    optional bool preserve_expiration_timeout = 14 [default = false];
     optional bool preserve_owner = 11 [default = false];
     optional bool preserve_acl = 12 [default = false];
     optional bool ignore_existing = 8 [default = false];
@@ -110,6 +111,7 @@ message TReqEndCopy
     optional bool preserve_creation_time = 7 [default = false];
     optional bool preserve_modification_time = 11 [default = false];
     optional bool preserve_expiration_time = 6 [default = false];
+    optional bool preserve_expiration_timeout = 16 [default = false];
     optional bool preserve_owner = 13 [default = false];
     optional bool preserve_acl = 14 [default = false];
     optional bool ignore_existing = 8 [default = false];
