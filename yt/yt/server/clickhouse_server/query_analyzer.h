@@ -27,7 +27,7 @@ struct TQueryAnalysisResult
 class TQueryAnalyzer
 {
 public:
-    TQueryAnalyzer(const DB::Context& context, const DB::SelectQueryInfo& queryInfo, const NLogging::TLogger& logger);
+    TQueryAnalyzer(const DB::Context& context, const TStorageContext* storageContext, const DB::SelectQueryInfo& queryInfo, const NLogging::TLogger& logger);
 
     DB::ASTPtr RewriteQuery(
         const TRange<TSubquery> subqueries,
@@ -40,6 +40,7 @@ public:
 
 private:
     const DB::Context& Context_;
+    const TStorageContext* StorageContext_;
     DB::SelectQueryInfo QueryInfo_;
     NLogging::TLogger Logger;
     std::vector<DB::ASTTableExpression*> TableExpressions_;

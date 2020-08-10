@@ -15,7 +15,7 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 DB::BlockInputStreamPtr CreatePrewhereBlockInputStream(
-    TQueryContext* queryContext,
+    TStorageContext* storageContext,
     const TSubquerySpec& subquerySpec,
     const DB::Names& columnNames,
     const NTracing::TTraceContextPtr& traceContext,

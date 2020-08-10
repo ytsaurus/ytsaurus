@@ -66,8 +66,9 @@ void FillDataSliceDescriptors(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const DB::SelectQueryInfo& queryInfo, const TLogger& logger)
+TQueryAnalyzer::TQueryAnalyzer(const DB::Context& context, const TStorageContext* storageContext, const DB::SelectQueryInfo& queryInfo, const TLogger& logger)
     : Context_(context)
+    , StorageContext_(storageContext)
     , QueryInfo_(queryInfo)
     , Logger(logger)
 { }
@@ -309,7 +310,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
 
     TQueryAnalysisResult result;
 
-    auto config = GetQueryContext(Context_)->Host->GetConfig();
+    const auto& settings = StorageContext_->Settings;
 
     for (const auto& storage : Storages_) {
         if (!storage) {
@@ -325,7 +326,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
 
             auto queryInfoForKeyCondition = QueryInfo_;
 
-            if (config->QuerySettings->EnableComputedColumnDeduction) {
+            if (settings->EnableComputedColumnDeduction) {
                 // Query may not contain deducible values for computed columns.
                 // We populate query with deducible equations on computed columns,
                 // so key condition is able to properly filter ranges with computed

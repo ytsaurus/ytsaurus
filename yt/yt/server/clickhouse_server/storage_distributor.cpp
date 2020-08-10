@@ -350,7 +350,7 @@ public:
         NTracing::GetCurrentTraceContext()->AddTag("chyt.subquery_count", ToString(subqueryCount));
         NTracing::GetCurrentTraceContext()->AddTag("chyt.column_names", Format("%v", MakeFormattableView(columnNames, TDefaultFormatter())));
 
-        QueryAnalyzer_.emplace(context, queryInfo, Logger);
+        QueryAnalyzer_.emplace(context, StorageContext_, queryInfo, Logger);
         auto queryAnalysisResult = QueryAnalyzer_->Analyze();
 
         YT_LOG_TRACE("Preparing StorageDistributor for query (Query: %v)", *queryInfo.query);
