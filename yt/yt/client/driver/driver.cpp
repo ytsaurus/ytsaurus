@@ -278,6 +278,7 @@ public:
         REGISTER    (TAbortJobCommand,                    "abort_job",                     Null,       Structured, false, false, ApiVersion4);
 
         REGISTER_ALL(TGetVersionCommand,                  "get_version",                   Null,       Structured, false, false);
+        REGISTER_ALL(TGetSupportedFeaturesCommand,        "get_supported_features",        Null,       Structured, false, false);
 
         REGISTER_ALL(TExecuteBatchCommand,                "execute_batch",                 Null,       Structured, true,  false);
 

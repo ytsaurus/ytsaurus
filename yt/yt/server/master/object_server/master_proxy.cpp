@@ -1,3 +1,4 @@
+#include "features.h"
 #include "master.h"
 #include "private.h"
 #include "type_handler_detail.h"
@@ -5,6 +6,7 @@
 
 #include <yt/server/master/cell_master/bootstrap.h>
 #include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/subject.h>
@@ -167,6 +169,7 @@ private:
         auto populateCellDirectory = request->populate_cell_directory();
         auto populateMasterCacheNodeAddresses = request->populate_master_cache_node_addresses();
         auto populateTimestampProviderNodeAddresses = request->populate_timestamp_provider_node_addresses();
+        auto populateFeatures = request->populate_features();
 
         context->SetRequestInfo(
             "PopulateNodeDirectory: %v, "
@@ -174,13 +177,15 @@ private:
             "PopulateMediumDirectory: %v, "
             "PopulateCellDirectory: %v, "
             "PopulateMasterCacheNodeAddresses: %v, "
-            "PopulateTimestampProviderNodeAddresses: %v",
+            "PopulateTimestampProviderNodeAddresses: %v, "
+            "PopulateFeatures: %v",
             populateNodeDirectory,
             populateClusterDirectory,
             populateMediumDirectory,
             populateCellDirectory,
             populateMasterCacheNodeAddresses,
-            populateTimestampProviderNodeAddresses);
+            populateTimestampProviderNodeAddresses,
+            populateFeatures);
 
         if (populateNodeDirectory) {
             TNodeDirectoryBuilder builder(response->mutable_node_directory());
@@ -258,6 +263,13 @@ private:
                 NNodeTrackerClient::ENodeRole::TimestampProvider);
             ToProto(response->mutable_timestamp_provider_node_addresses(), timestampProviderAddresses);
         }
+
+        if (populateFeatures) {
+            const auto& configManager = Bootstrap_->GetConfigManager();
+            const auto& chunkManagerConfig = configManager->GetConfig()->ChunkManager;
+            response->set_features(CreateFeatureRegistryYson(chunkManagerConfig->DeprecatedCodecIds).GetData());
+        }
+
         context->Reply();
     }
 };

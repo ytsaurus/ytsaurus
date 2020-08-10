@@ -41,3 +41,9 @@ def transfer_account_resources(source_account, destination_account, resource_del
         "resource_delta": resource_delta
     }
     return make_request("transfer_account_resources", params=params, client=client)
+
+def get_supported_features(format=None, client=None):
+    """Retrieves supported cluster features (data types, codecs etc.)."""
+    params = {}
+    result = make_formatted_request("get_supported_features", params=params, format=format, client=client)
+    return result["features"]

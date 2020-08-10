@@ -987,6 +987,7 @@ struct TGetClusterMetaOptions
     bool PopulateCellDirectory = false;
     bool PopulateMasterCacheNodeAddresses = false;
     bool PopulateTimestampProviderAddresses = false;
+    bool PopulateFeatures = false;
 };
 
 struct TClusterMeta
@@ -996,6 +997,7 @@ struct TClusterMeta
     std::shared_ptr<NChunkClient::NProto::TMediumDirectory> MediumDirectory;
     std::vector<TString> MasterCacheNodeAddresses;
     std::vector<TString> TimestampProviderAddresses;
+    NYTree::IMapNodePtr Features;
 };
 
 struct TOperation

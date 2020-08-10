@@ -75,6 +75,24 @@ void TGetVersionCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGetSupportedFeaturesCommand::DoExecute(ICommandContextPtr context)
+{
+    TGetClusterMetaOptions options = {
+        .PopulateFeatures = true,
+    };
+    auto meta = WaitFor(context->GetClient()->GetClusterMeta(options))
+        .ValueOrThrow();
+    if (!meta.Features) {
+        THROW_ERROR_EXCEPTION("Feature querying is not supported by current master version");
+    }
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("features").Value(meta.Features)
+        .EndMap());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCheckPermissionCommand::TCheckPermissionCommand()
 {
     RegisterParameter("user", User);

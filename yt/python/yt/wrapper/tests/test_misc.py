@@ -1078,3 +1078,46 @@ class TestTransferAccountResources(object):
         assert yt.get("//sys/accounts/a1/@resource_limits") == get_limits(3)
         assert yt.get("//sys/accounts/a11/@resource_limits") == get_limits(2)
         assert yt.get("//sys/accounts/a/@resource_limits") == get_limits(6)
+
+
+@pytest.mark.usefixtures("yt_env")
+class TestGetSupportedFeatures(object):
+    @authors("levysotsky")
+    def test_get_supported_features(self):
+        features = yt.get_supported_features()
+
+        assert "primitive_types" in features
+        expected_types = {
+            "int8", "int16", "int32", "int64",
+            "uint8", "uint16", "uint32", "uint64",
+            "string", "yson", "utf8", "json",
+            "float", "double",
+            "void", "null",
+            "date", "datetime", "timestamp", "interval",
+        }
+        assert expected_types == expected_types.intersection(set(features["primitive_types"]))
+
+        assert "compression_codecs" in features
+        expected_compression_codecs = {
+            "none", "snappy", "lz4", "lz4_high_compression", "quick_lz",
+            "brotli_1", "brotli_11",
+            "zlib_1", "zlib_9",
+            "zstd_1", "zstd_21",
+            "lzma_0", "lzma_9",
+            "bzip2_1", "bzip2_9",
+        }
+        assert expected_compression_codecs == \
+            expected_compression_codecs.intersection(set(features["compression_codecs"]))
+        deprecated_compression_codecs = {"zlib6", "gzip_best_compression", "brotli8"}
+        assert not deprecated_compression_codecs.intersection(set(features["compression_codecs"]))
+
+        assert "erasure_codecs" in features
+        expected_erasure_codecs = {
+            "none",
+            "reed_solomon_6_3",
+            "reed_solomon_3_3",
+            "lrc_12_2_2",
+            "isa_lrc_12_2_2",
+        }
+        assert expected_erasure_codecs == \
+            expected_erasure_codecs.intersection(set(features["erasure_codecs"]))
