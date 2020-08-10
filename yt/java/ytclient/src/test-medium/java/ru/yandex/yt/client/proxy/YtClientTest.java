@@ -354,7 +354,7 @@ public class YtClientTest {
     public static <T> void insertData(YtClient client, String table, Collection<T> objects,
                                       YTreeObjectSerializer<T> serializer, boolean dynamic) {
         final MappedModifyRowsRequest<T> request = new MappedModifyRowsRequest<>(table, serializer);
-        request.addUpdates(objects);
+        request.addInserts(objects);
 
         final ApiServiceTransactionOptions options =
                 new ApiServiceTransactionOptions(ETransactionType.TT_MASTER).setSticky(true);

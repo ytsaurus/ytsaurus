@@ -42,8 +42,8 @@ public class MappedModifyRowsRequestTest {
         Stream.of(sample1, sample2).flatMap(Collection::stream)
                 .forEach(YTreeStateSupport.saveProxy(obj -> obj.setStringField("Changed value")));
 
-        request.addUpdate(sample1.get(0));
-        request.addUpdates(sample2);
+        request.addInsert(sample1.get(0));
+        request.addInserts(sample2);
 
         request.addInsert(sample3.get(0));
         request.addInserts(sample4);
