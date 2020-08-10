@@ -201,12 +201,25 @@ public:
             DumpState(dumpId);
         }
 
-        for (const auto& [bundleId, bundle] : Provider_->CellBundles()) {
-            if (!IsObjectAlive(bundle)){
-                continue;
+        bool hasDecommissionedNodes = false;
+        for (const auto& node : Nodes_) {
+            if (!node.GetSlots().empty() && node.GetNode()->GetDecommissioned()) {
+                hasDecommissionedNodes = true;
             }
-            if (bundle->CellBalancerConfig()->EnableTabletCellSmoothing) {
-                RebalanceBundle(bundle);
+        }
+
+        if (hasDecommissionedNodes) {
+            if (Provider_->IsVerboseLoggingEnabled()) {
+                YT_LOG_DEBUG("Cluster has decommissioned tablet nodes with cells, skipping cell rebalancing");
+            }
+        } else {
+            for (auto [bundleId, bundle] : Provider_->CellBundles()) {
+                if (!IsObjectAlive(bundle)) {
+                    continue;
+                }
+                if (bundle->CellBalancerConfig()->EnableTabletCellSmoothing) {
+                    RebalanceBundle(bundle);
+                }
             }
         }
 
