@@ -126,9 +126,6 @@ public class BalancingResponseHandler implements RpcClientResponseHandler {
     }
 
     @Override
-    public void onAcknowledgement(RpcClient sender) { }
-
-    @Override
     public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
         f.complete(new Tuple3<>(sender, header, attachments));
     }

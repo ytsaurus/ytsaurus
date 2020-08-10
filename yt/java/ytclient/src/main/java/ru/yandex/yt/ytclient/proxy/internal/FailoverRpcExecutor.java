@@ -121,10 +121,6 @@ public class FailoverRpcExecutor {
 
     private class FailoverResponseHandler implements RpcClientResponseHandler {
         @Override
-        public void onAcknowledgement(RpcClient sender) {
-        }
-
-        @Override
         public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
             result.complete(new Result(sender, header, attachments));
         }

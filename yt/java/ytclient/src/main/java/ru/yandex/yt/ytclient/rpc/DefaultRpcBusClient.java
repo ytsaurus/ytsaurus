@@ -299,17 +299,11 @@ public class DefaultRpcBusClient implements RpcClient {
             throw new IllegalArgumentException();
         }
 
-        void handleError(Throwable cause) {
-            throw new IllegalArgumentException();
-        }
+        abstract void handleError(Throwable cause);
 
-        void handleAcknowledgement(RpcClient sender) {
-            throw new IllegalArgumentException();
-        }
+        abstract void handleAcknowledgement(RpcClient sender);
 
-        void handleCancellation(CancellationException cancel) {
-            throw new IllegalArgumentException();
-        }
+        abstract void handleCancellation(CancellationException cancel);
 
         /**
          * Запускает выполнение запроса
@@ -491,7 +485,6 @@ public class DefaultRpcBusClient implements RpcClient {
 
         @Override
         public void handleAcknowledgement(RpcClient sender) {
-            handler.onAcknowledgement(sender);
         }
 
         @Override

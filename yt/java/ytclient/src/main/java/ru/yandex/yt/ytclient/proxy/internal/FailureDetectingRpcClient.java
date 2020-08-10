@@ -43,11 +43,6 @@ public class FailureDetectingRpcClient implements RpcClient {
     private RpcClientResponseHandler wrapHandler(RpcClientResponseHandler handler) {
         return new RpcClientResponseHandler() {
             @Override
-            public void onAcknowledgement(RpcClient sender) {
-                handler.onAcknowledgement(sender);
-            }
-
-            @Override
             public void onResponse(RpcClient sender, TResponseHeader header, List<byte[]> attachments) {
                 handler.onResponse(sender, header, attachments);
             }
