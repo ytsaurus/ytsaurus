@@ -188,6 +188,7 @@ def _configure_resources(spark_conf, local_conf,
 
     _set_none_safe(spark_conf, "spark.dynamicAllocation.enabled", dynamic_allocation)
     _set_none_safe(spark_conf, "spark.dynamicAllocation.executorIdleTimeout", "10m")
+    _set_none_safe(spark_conf, "spark.dynamicAllocation.cachedExecutorIdleTimeout", "60m")
     _set_none_safe(spark_conf, "spark.cores.max", max_cores)
     _set_none_safe(spark_conf, "spark.dynamicAllocation.maxExecutors", num_executors)
     _set_none_safe(spark_conf, "spark.executor.cores", cores_per_executor)
