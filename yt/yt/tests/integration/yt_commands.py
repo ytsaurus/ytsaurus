@@ -879,6 +879,9 @@ def discover_proxies(type_, **kwargs):
     kwargs["type"] = type_
     return execute_command("discover_proxies", kwargs, parse_yson=True)
 
+def get_supported_features(**kwargs):
+    return execute_command("get_supported_features", kwargs, parse_yson=True)
+
 ###########################################################################
 
 def reset_events_on_fs():

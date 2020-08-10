@@ -61,6 +61,7 @@ TEST_SRCS(
     test_dynamic_tables_resource_limits.py
     test_erasure.py
     test_explain.py
+    test_get_supported_features.py
     test_file_cache.py
     test_files.py
     test_get_job.py

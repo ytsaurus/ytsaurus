@@ -1323,6 +1323,19 @@ def add_get_job_spec_parser(add_parser):
     parser.add_argument("--omit-input-table-specs", type=bool, help='Whether input table specs should be removed from job spec (false by default)')
     parser.add_argument("--omit-output-table-specs", type=bool, help='Whether output table specs should be removed from job spec (false by default)')
 
+@copy_docstring_from(yt.get_supported_features)
+def get_supported_features(**kwargs):
+    result = yt.get_supported_features(**kwargs)
+    if kwargs["format"] is None:
+        result = dump_data(result)
+    print_to_stdout(result, eoln=False)
+
+def add_get_supported_features_parser(add_parser):
+    parser = add_parser("get-features",
+                        function=get_supported_features,
+                        help="Get cluster features (types, codecs etc.)")
+    add_structured_format_argument(parser)
+
 @copy_docstring_from(yt.get_job)
 def get_job(**kwargs):
     result = yt.get_job(**kwargs)
@@ -1776,6 +1789,8 @@ def main():
     add_show_spec_parser(add_parser)
 
     add_download_core_dump_parser(add_parser)
+
+    add_get_supported_features_parser(add_parser)
 
     add_clickhouse_parser(subparsers)
     add_spark_parser(subparsers)

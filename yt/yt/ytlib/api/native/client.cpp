@@ -39,11 +39,14 @@
 
 #include <yt/core/rpc/helpers.h>
 
+#include <yt/core/ytree/convert.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
 using namespace NYPath;
 using namespace NYson;
+using namespace NYTree;
 using namespace NObjectClient;
 using namespace NCypressClient;
 using namespace NTransactionClient;
@@ -404,6 +407,7 @@ TClusterMeta TClient::DoGetClusterMeta(
     req->set_populate_medium_directory(options.PopulateMediumDirectory);
     req->set_populate_master_cache_node_addresses(options.PopulateMasterCacheNodeAddresses);
     req->set_populate_timestamp_provider_node_addresses(options.PopulateTimestampProviderAddresses);
+    req->set_populate_features(options.PopulateFeatures);
     SetCachingHeader(req, options);
     batchReq->AddRequest(req);
 
@@ -430,6 +434,9 @@ TClusterMeta TClient::DoGetClusterMeta(
     }
     if (options.PopulateTimestampProviderAddresses) {
         meta.TimestampProviderAddresses = FromProto<std::vector<TString>>(rsp->timestamp_provider_node_addresses());
+    }
+    if (options.PopulateFeatures && rsp->has_features()) {
+        meta.Features = ConvertTo<IMapNodePtr>(TYsonStringBuf(rsp->features()));
     }
     return meta;
 }

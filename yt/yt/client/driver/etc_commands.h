@@ -70,6 +70,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGetSupportedFeaturesCommand
+    : public TCommandBase
+{
+private:
+    virtual void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCheckPermissionCommand
     : public TTypedCommand<NApi::TCheckPermissionOptions>
 {
