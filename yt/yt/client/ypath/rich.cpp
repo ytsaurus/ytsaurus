@@ -636,6 +636,11 @@ std::optional<bool> TRichYPath::GetChunkUniqueKeys() const
     return FindAttribute<bool>(*this, "chunk_unique_keys");
 }
 
+std::optional<bool> TRichYPath::GetCopyFile() const
+{
+    return FindAttribute<bool>(*this, "copy_file");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TString ConvertToString(const TRichYPath& path, EYsonFormat ysonFormat)

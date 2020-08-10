@@ -778,6 +778,7 @@ private:
         TString Name;
         bool Executable;
         bool BypassArtifactCache;
+        bool CopyFile;
         TArtifactKey Key;
         NDataNode::IChunkPtr Chunk;
     };
@@ -1476,11 +1477,20 @@ private:
         if (SchedulerJobSpecExt_->has_user_job_spec()) {
             const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
             for (const auto& descriptor : userJobSpec.files()) {
+                bool copyFile;
+                // COMPAT(gritukan)
+                if (descriptor.has_copy_file()) {
+                    copyFile = descriptor.copy_file();
+                } else {
+                    copyFile = userJobSpec.copy_files();
+                }
+
                 Artifacts_.push_back(TArtifact{
                     ESandboxKind::User,
                     descriptor.file_name(),
                     descriptor.executable(),
                     descriptor.bypass_artifact_cache(),
+                    copyFile,
                     TArtifactKey(descriptor),
                     nullptr});
             }
@@ -1516,6 +1526,7 @@ private:
                 Artifacts_.push_back(TArtifact{
                     ESandboxKind::Udf,
                     function.name(),
+                    false,
                     false,
                     false,
                     key,
@@ -1578,7 +1589,7 @@ private:
     TFuture<void> PrepareArtifact(const TArtifact& artifact)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
-        
+
         if (artifact.BypassArtifactCache) {
             YT_LOG_INFO("Downloading artifact with cache bypass (FileName: %v, Executable: %v, SandboxKind: %v)",
                 artifact.Name,
@@ -1597,8 +1608,7 @@ private:
         } else {
             YT_VERIFY(artifact.Chunk);
 
-            bool copyFiles = SchedulerJobSpecExt_->has_user_job_spec() && SchedulerJobSpecExt_->user_job_spec().copy_files();
-            if (copyFiles) {
+            if (artifact.CopyFile) {
                 YT_LOG_INFO("Copying artifact (FileName: %v, Executable: %v, SandboxKind: %v)",
                     artifact.Name,
                     artifact.Executable,
