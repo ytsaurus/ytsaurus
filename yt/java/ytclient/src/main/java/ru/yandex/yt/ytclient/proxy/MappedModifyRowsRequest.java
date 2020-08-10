@@ -40,12 +40,16 @@ public class MappedModifyRowsRequest<T> extends AbstractModifyRowsRequest {
         this.addImpl(values, ERowModificationType.RMT_WRITE);
     }
 
+    // @see #addInsert
+    @Deprecated
     public void addUpdate(T value) {
-        this.addImpl(value, ERowModificationType.RMT_WRITE);
+        this.addInsert(value);
     }
 
+    // @see #addInserts
+    @Deprecated
     public void addUpdates(Iterable<? extends T> values) {
-        this.addImpl(values, ERowModificationType.RMT_WRITE);
+        this.addInserts(values);
     }
 
     public void addDelete(T value) {
