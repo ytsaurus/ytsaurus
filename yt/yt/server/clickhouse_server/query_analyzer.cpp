@@ -230,6 +230,11 @@ void TQueryAnalyzer::ParseQuery()
                 YT_LOG_DEBUG("Query is a right or full join");
                 RightOrFullJoin_ = true;
             }
+            if (static_cast<int>(tableJoin->kind) == static_cast<int>(DB::ASTTableJoin::Kind::Cross)) {
+                YT_LOG_DEBUG("Query is a cross join");
+                CrossJoin_ = true;
+            }
+
         }
 
         TableExpressions_.emplace_back(tableExpression->as<DB::ASTTableExpression>());
@@ -285,26 +290,36 @@ void TQueryAnalyzer::ParseQuery()
     YT_VERIFY(YtTableCount_ > 0);
 
     if (YtTableCount_ == 2) {
-        YT_LOG_DEBUG("Query is a two-YT-table join");
-        TwoYTTableJoin_ = true;
+        if (!CrossJoin_) {
+            YT_LOG_DEBUG("Query is a two-YT-table join");
+            TwoYTTableJoin_ = true;
+        } else {
+            YT_LOG_DEBUG("Query is a two-YT-table cross join; considering this as a single YT table join");
+            YtTableCount_ = 1;
+            TwoYTTableJoin_ = false;
+            TableExpressions_.pop_back();
+            TableExpressionPtrs_.pop_back();
+            Storages_.pop_back();
+        }
     }
 
     YT_LOG_DEBUG(
         "Extracted table expressions from query (Query: %v, TableExpressionCount: %v, YtTableCount: %v, "
-        "IsJoin: %v, IsGlobalJoin: %v, IsRightOrFullJoin: %v)",
+        "IsJoin: %v, IsGlobalJoin: %v, IsRightOrFullJoin: %v, IsCrossJoin: %v)",
         *QueryInfo_.query,
         TableExpressions_.size(),
         YtTableCount_,
         Join_,
         GlobalJoin_,
-        RightOrFullJoin_);
+        RightOrFullJoin_,
+        CrossJoin_);
 }
 
 TQueryAnalysisResult TQueryAnalyzer::Analyze()
 {
     ParseQuery();
 
-    if (TwoYTTableJoin_ || RightOrFullJoin_) {
+    if ((TwoYTTableJoin_ && !CrossJoin_) || RightOrFullJoin_) {
         ValidateKeyColumns();
     }
 
@@ -350,7 +365,7 @@ TQueryAnalysisResult TQueryAnalyzer::Analyze()
         result.TableSchemas.emplace_back(storage->GetSchema());
     }
 
-    if (TwoYTTableJoin_ || RightOrFullJoin_) {
+    if ((TwoYTTableJoin_ && !CrossJoin_) || RightOrFullJoin_) {
         result.PoolKind = EPoolKind::Sorted;
         result.KeyColumnCount = QueryInfo_.syntax_analyzer_result->analyzed_join->leftKeysList()->children.size();
     } else {

@@ -129,7 +129,7 @@ class Clique(object):
     def get_active_instance_count(self):
         return len(self.get_active_instances())
 
-    def assert_read_row_count(self, query, exact=None, min=None, max=None, verbose=True):
+    def make_query_and_validate_row_count(self, query, exact=None, min=None, max=None, verbose=True):
         result = self.make_query(query, verbose=verbose, only_rows=False)
         assert (exact is not None) ^ (min is not None and max is not None)
         if exact is not None:
@@ -916,8 +916,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
                     "desired_chunk_size": 10 * 1024})
             assert get("//tmp/test_table/@chunk_count") > 5
             assert clique.make_query('select index from \"//tmp/test_table\" prewhere key = \'b_key\'') == [{"index": 1234}]
-            clique.assert_read_row_count('select index from \"//tmp/test_table\" where key = \'b_key\'', exact=102400)
-            clique.assert_read_row_count('select index from \"//tmp/test_table\" prewhere key = \'b_key\'', exact=1)
+            clique.make_query_and_validate_row_count('select index from \"//tmp/test_table\" where key = \'b_key\'', exact=102400)
+            clique.make_query_and_validate_row_count('select index from \"//tmp/test_table\" prewhere key = \'b_key\'', exact=1)
 
     @authors("evgenstf")
     def test_concat_directory_with_mixed_objects(self):
@@ -1421,10 +1421,10 @@ class TestJobInput(ClickHouseTestBase):
         for i in xrange(10):
             write_table("<append=%true>//tmp/t", [{"i": i}])
         with Clique(1) as clique:
-            clique.assert_read_row_count('select * from "//tmp/t" {} i >= 3'.format(where_prewhere), exact=7)
-            clique.assert_read_row_count('select * from "//tmp/t" {} i < 2'.format(where_prewhere), exact=2)
-            clique.assert_read_row_count('select * from "//tmp/t" {} 5 <= i and i <= 8'.format(where_prewhere), exact=4)
-            clique.assert_read_row_count('select * from "//tmp/t" {} i in (-1, 2, 8, 8, 15)'.format(where_prewhere), exact=2)
+            clique.make_query_and_validate_row_count('select * from "//tmp/t" {} i >= 3'.format(where_prewhere), exact=7)
+            clique.make_query_and_validate_row_count('select * from "//tmp/t" {} i < 2'.format(where_prewhere), exact=2)
+            clique.make_query_and_validate_row_count('select * from "//tmp/t" {} 5 <= i and i <= 8'.format(where_prewhere), exact=4)
+            clique.make_query_and_validate_row_count('select * from "//tmp/t" {} i in (-1, 2, 8, 8, 15)'.format(where_prewhere), exact=2)
 
     @authors("max42")
     def test_computed_column_chunk_filter(self):
@@ -1439,12 +1439,12 @@ class TestJobInput(ClickHouseTestBase):
                 "enable_computed_column_deduction": enable_computed_column_deduction
             }}}) as clique:
                 correct_row_count = lambda row_count: row_count if enable_computed_column_deduction else 10
-                clique.assert_read_row_count('select * from "//tmp/t" where i == 3', exact=correct_row_count(2))
-                clique.assert_read_row_count('select * from "//tmp/t" where i == 6 or i == 7', exact=correct_row_count(2))
-                clique.assert_read_row_count('select * from "//tmp/t" where i == 0 or i == 9', exact=correct_row_count(4))
+                clique.make_query_and_validate_row_count('select * from "//tmp/t" where i == 3', exact=correct_row_count(2))
+                clique.make_query_and_validate_row_count('select * from "//tmp/t" where i == 6 or i == 7', exact=correct_row_count(2))
+                clique.make_query_and_validate_row_count('select * from "//tmp/t" where i == 0 or i == 9', exact=correct_row_count(4))
                 # These cases should not be optimized.
-                clique.assert_read_row_count('select * from "//tmp/t" where 5 <= i and i <= 8', exact=10)
-                clique.assert_read_row_count('select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
+                clique.make_query_and_validate_row_count('select * from "//tmp/t" where 5 <= i and i <= 8', exact=10)
+                clique.make_query_and_validate_row_count('select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
 
     @authors("max42")
     def test_dynamic_table_farm_hash(self):
@@ -1465,9 +1465,9 @@ class TestJobInput(ClickHouseTestBase):
             with Clique(1, config_patch={"yt": {"settings": {"enable_computed_column_deduction": enable_computed_column_deduction},
                                                 "enable_dynamic_tables": True}}) as clique:
                 correct_row_count = lambda row_count: row_count if enable_computed_column_deduction else 5
-                clique.assert_read_row_count("select * from `//tmp/t`", exact=5)
-                clique.assert_read_row_count("select * from `//tmp/t` where key == 'k1' or key = 'k3'", exact=correct_row_count(2))
-                clique.assert_read_row_count("select * from (select * from `//tmp/t` where key == 'k4')", exact=correct_row_count(1))
+                clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)
+                clique.make_query_and_validate_row_count("select * from `//tmp/t` where key == 'k1' or key = 'k3'", exact=correct_row_count(2))
+                clique.make_query_and_validate_row_count("select * from (select * from `//tmp/t` where key == 'k4')", exact=correct_row_count(1))
 
     @authors("dakovalkov")
     def test_common_schema_sorted(self):
@@ -1491,9 +1491,9 @@ class TestJobInput(ClickHouseTestBase):
 
         with Clique(1) as clique:
             # Column 'a' is sorted.
-            clique.assert_read_row_count('select * from concatYtTables("//tmp/t1", "//tmp/t2") where a > 18', exact=1)
+            clique.make_query_and_validate_row_count('select * from concatYtTables("//tmp/t1", "//tmp/t2") where a > 18', exact=1)
             # Column 'a' isn't sorted.
-            clique.assert_read_row_count('select * from concatYtTables("//tmp/t1", "//tmp/t3") where a > 18', exact=2)
+            clique.make_query_and_validate_row_count('select * from concatYtTables("//tmp/t1", "//tmp/t3") where a > 18', exact=2)
 
     @authors("max42")
     @pytest.mark.xfail(run="False", reason="Chunk slicing is temporarily not supported")
@@ -1515,33 +1515,33 @@ class TestJobInput(ClickHouseTestBase):
 
         with Clique(1) as clique:
             # Due to inclusiveness issues each of the row counts should be correct with some error.
-            clique.assert_read_row_count('select i from "//tmp/t" where i >= 3', min=7, max=8)
-            clique.assert_read_row_count('select i from "//tmp/t" where i < 2', min=3, max=4)
-            clique.assert_read_row_count('select i from "//tmp/t" where 5 <= i and i <= 8', min=4, max=6)
-            clique.assert_read_row_count('select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', min=2, max=4)
+            clique.make_query_and_validate_row_count('select i from "//tmp/t" where i >= 3', min=7, max=8)
+            clique.make_query_and_validate_row_count('select i from "//tmp/t" where i < 2', min=3, max=4)
+            clique.make_query_and_validate_row_count('select i from "//tmp/t" where 5 <= i and i <= 8', min=4, max=6)
+            clique.make_query_and_validate_row_count('select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', min=2, max=4)
 
         # Forcefully disable chunk slicing.
         with Clique(1, config_patch={"yt": {"subquery": {"max_sliced_chunk_count": 0}}}) as clique:
             # Due to inclusiveness issues each of the row counts should be correct with some error.
-            clique.assert_read_row_count('select i from "//tmp/t" where i >= 3', exact=10)
-            clique.assert_read_row_count('select i from "//tmp/t" where i < 2', exact=10)
-            clique.assert_read_row_count('select i from "//tmp/t" where 5 <= i and i <= 8', exact=10)
-            clique.assert_read_row_count('select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
+            clique.make_query_and_validate_row_count('select i from "//tmp/t" where i >= 3', exact=10)
+            clique.make_query_and_validate_row_count('select i from "//tmp/t" where i < 2', exact=10)
+            clique.make_query_and_validate_row_count('select i from "//tmp/t" where 5 <= i and i <= 8', exact=10)
+            clique.make_query_and_validate_row_count('select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
 
     @authors("max42")
     def test_sampling(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "int64"}]})
         write_table("//tmp/t", [{"a": i} for i in range(1000)], verbose=False)
         with Clique(1) as clique:
-            clique.assert_read_row_count('select a from "//tmp/t" sample 0.1', min=85, max=115, verbose=False)
-            clique.assert_read_row_count('select a from "//tmp/t" sample 100', min=85, max=115, verbose=False)
-            clique.assert_read_row_count('select a from "//tmp/t" sample 2/20', min=85, max=115, verbose=False)
-            clique.assert_read_row_count('select a from "//tmp/t" sample 0.1 offset 42', min=85, max=115, verbose=False)
-            clique.assert_read_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
-            clique.assert_read_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
-            clique.assert_read_row_count('select a from "//tmp/t" sample 0', exact=0, verbose=False)
-            clique.assert_read_row_count('select a from "//tmp/t" sample 0.000000000001', exact=0, verbose=False)
-            clique.assert_read_row_count('select a from "//tmp/t" sample 1/100000000000', exact=0, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1', min=85, max=115, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 100', min=85, max=115, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 2/20', min=85, max=115, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1 offset 42', min=85, max=115, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0', exact=0, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.000000000001', exact=0, verbose=False)
+            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 1/100000000000', exact=0, verbose=False)
 
     @authors("max42")
     def test_CHYT_143(self):
@@ -2823,6 +2823,38 @@ class TestJoinAndIn(ClickHouseTestBase):
         with Clique(1) as clique:
             with raises_yt_error(QueryFailedError):
                 clique.make_query("select * from \"//tmp/t1\" A inner join \"//tmp/t2\" B on A.key + 1 = B.key")
+
+
+    @authors("max42")
+    def test_cross_join(self):
+        # CHYT-445.
+        create("table", "//tmp/t1_sorted", attributes={"schema": [{"name": "key1", "type": "int64", "sort_order": "ascending"}]})
+        create("table", "//tmp/t1_not_sorted", attributes={"schema": [{"name": "key1", "type": "int64"}]})
+        create("table", "//tmp/t2", attributes={"schema": [{"name": "key2", "type": "int64", "sort_order": "ascending"}]})
+        write_table("<append=%true>//tmp/t1_sorted", [{"key1": 1}])
+        write_table("<append=%true>//tmp/t1_sorted", [{"key1": 2}])
+        write_table("<append=%true>//tmp/t1_not_sorted", [{"key1": 1}])
+        write_table("<append=%true>//tmp/t1_not_sorted", [{"key1": 2}])
+        write_table("//tmp/t2",[{"key2": 3}, {"key2": 4}])
+
+        def expected_result(left_rows):
+            result = []
+            for row in left_rows:
+                for key2 in (3, 4):
+                    result_row = copy.deepcopy(row)
+                    result_row["key2"] = key2
+                    result.append(result_row)
+            return result
+
+        with Clique(1) as clique:
+            for tp in ("sorted", "not_sorted"):
+                assert clique.make_query(
+                    "select * from `//tmp/t1_{}` t1 cross join `//tmp/t2` t2".format(tp)
+                    ) == expected_result([{"key1": 1}, {"key1": 2}])
+                assert clique.make_query(
+                    "select * from `//tmp/t1_{}` t1 cross join `//tmp/t2` t2 where key1 == 1".format(tp)
+                    ) == expected_result([{"key1": 1}])
+
 
 
 class TestClickHouseHttpProxy(ClickHouseTestBase):
