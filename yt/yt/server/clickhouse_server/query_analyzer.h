@@ -53,6 +53,8 @@ private:
     bool GlobalJoin_ = false;
     //! If the query contains outer right or outer full join.
     bool RightOrFullJoin_ = false;
+    //! If the query contains cross join.
+    bool CrossJoin_ = false;
     //! If the query joins two YT tables.
     bool TwoYTTableJoin_ = false;
 
