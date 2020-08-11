@@ -1910,7 +1910,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     @authors("babenko")
     def test_erasure_snapshots(self):
         create_tablet_cell_bundle("b", attributes={"options": {"snapshot_erasure_codec" : "isa_lrc_12_2_2"}})
-        cell_id =  sync_create_cells(1, tablet_cell_bundle="b")[0]
+        cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
 
         def _try_build_snapshot():
             try:
@@ -1941,6 +1941,72 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/cluster_nodes/{0}/@decommissioned".format(tablet_address), True)
 
         self._wait_cell_good(cell_id, [tablet_address])
+
+    @authors("ifsmirnov")
+    def test_kick_orphans_throttler(self):
+        cell_count = 3
+        tablet_count = 10
+
+        self._create_sorted_table("//tmp/t", pivot_keys=[[]] + [[i] for i in range(1, tablet_count)])
+
+        set("//sys/@config/tablet_manager/tablet_cell_decommissioner/decommission_check_period", 1000)
+        set("//sys/@config/tablet_manager/tablet_cell_decommissioner/orphans_check_period", 1000)
+
+        def _initialize_fixed_value_throttler(path, limit):
+            # Configure the throttler in such a way that it:
+            #  - gives `limit` units of the resource immediately;
+            #  - gives no more resource for at least 10 seconds.
+
+            # Wait until `limit` resource is available.
+            set(path, {"limit": 1000000, "period": 1000})
+            sleep(1)
+
+            # `limit` resource is still available, but new resource will come
+            # in a very long time.
+            # 0.999 comes for rounding errors.
+            period = 10**9
+            set(path, {"limit": limit * 1000.0 / period * 0.999, "period": period})
+
+        decommission_throttler = "//sys/@config/tablet_manager/tablet_cell_decommissioner/decommission_throttler"
+        kick_orphans_throttler = "//sys/@config/tablet_manager/tablet_cell_decommissioner/kick_orphans_throttler"
+
+        # Both decommission and kick_orphans throttlers are loose enough.
+        cell_ids = sync_create_cells(cell_count)
+        sync_mount_table("//tmp/t")
+        set(decommission_throttler, {"period": 1000, "limit": 6})
+        set(kick_orphans_throttler, {"period": 1000, "limit": 6})
+        for cell_id in cell_ids:
+            remove("//sys/tablet_cells/{}".format(cell_id))
+        wait(lambda: get("//tmp/t/@tablet_count_by_state/unmounted") == tablet_count)
+        wait(lambda: len(get("//sys/tablet_cells")) == 0)
+
+        # Decommission throttler is tight.
+        cell_ids = sync_create_cells(cell_count)
+        wait(lambda: get("//tmp/t/@tablet_count_by_state/mounted") == tablet_count)
+        _initialize_fixed_value_throttler(decommission_throttler, 3)
+        for cell_id in cell_ids:
+            remove("//sys/tablet_cells/{}".format(cell_id))
+
+        wait(lambda: get("//tmp/t/@tablet_count_by_state/unmounted") == 3)
+        sleep(2)
+        tablet_count_by_state = get("//tmp/t/@tablet_count_by_state")
+        assert tablet_count_by_state["unmounted"] == 3
+        assert tablet_count_by_state["mounted"] == tablet_count - 3
+
+        # Relax decommission throttler.
+        set(decommission_throttler, {"period": 1000, "limit": 1000})
+        wait(lambda: len(get("//sys/tablet_cells")) == 0)
+
+        # Set tight kick_orphans throttler.
+        _initialize_fixed_value_throttler(kick_orphans_throttler, 4)
+        cell_ids = sync_create_cells(cell_count)
+
+        get("//tmp/t/@tablet_count_by_state")
+        wait(lambda: get("//tmp/t/@tablet_count_by_state/mounted") == 4)
+        sleep(2)
+        tablet_count_by_state = get("//tmp/t/@tablet_count_by_state")
+        assert tablet_count_by_state["mounted"] == 4
+        assert tablet_count_by_state["unmounted"] == tablet_count - 4
 
 ##################################################################
 
