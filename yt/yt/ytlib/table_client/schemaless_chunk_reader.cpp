@@ -1095,7 +1095,9 @@ private:
 
         virtual TSharedRange<TUnversionedRow> MaterializeRows() override
         {
-            YT_VERIFY(!RootColumns_);
+            if (RootColumns_) {
+                THROW_ERROR_EXCEPTION("Cannot materialize batch into rows since it was already materialized into columns");
+            }
 
             if (!Rows_) {
                 Rows_ = Reader_->MaterializeRows(RowCount_);
@@ -1106,7 +1108,9 @@ private:
 
         virtual TRange<const TColumn*> MaterializeColumns() override
         {
-            YT_VERIFY(!Rows_);
+            if (Rows_) {
+                THROW_ERROR_EXCEPTION("Cannot materialize batch into columns since it was already materialized into rows");
+            }
 
             if (!RootColumns_) {
                 Reader_->MaterializeColumns(

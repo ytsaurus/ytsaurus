@@ -3583,13 +3583,55 @@ class TestColumnarRead(ClickHouseTestBase):
             assert yson.loads(clique.make_query("select * from `//tmp/t`")[0]["x"]) == row["x"]
 
     @authors("babenko")
-    def test_int64_as_any(self):
+    def test_any_upcast(self):
         with Clique(1, config_patch=self.CONFIG_PATCH) as clique:
-            create("table", "//tmp/s1", attributes={"schema": [{"name": "a", "type": "int64"}]})
-            create("table", "//tmp/s2", attributes={"schema": [{"name": "a", "type": "any"}]})
-            write_table("//tmp/s1", [{"a": 123}])
+            schema = [
+                {"name": "int64", "type": "int64"},
+                {"name": "uint64", "type": "uint64"},
+                {"name": "boolean", "type": "boolean"},
+                {"name": "double", "type": "double"},
+                {"name": "float", "type": "float"},
+                {"name": "string", "type": "string"},
+                {"name": "datetime", "type": "datetime"},
+                {"name": "date", "type": "date"},
+                {"name": "timestamp", "type": "timestamp"},
+                {"name": "interval", "type": "interval"},
+                {"name": "any", "type": "any"}
+            ]
+            create("table", "//tmp/s1", attributes={
+                "schema": schema,
+                "optimize_for": "scan"
+            })
+            create("table", "//tmp/s2", attributes={
+                "schema": [{"name": x["name"], "type": "any"} for x in schema],
+                "optimize_for": "scan"
+            })
+            row = {
+                "int64": -123,
+                "uint64": 456,
+                "boolean": True,
+                "double": 3.14,
+                "float": -2.0,
+                "string": "text",
+                "datetime": 1,
+                "date": 2,
+                "timestamp": 3,
+                "interval": 4,
+                "any": {"hello": "world"}
+            }
+            null_row = {key: None for key, value in row.iteritems()}
+            write_table("//tmp/s1", [row, null_row])
             merge(in_="//tmp/s1", out="//tmp/s2")
-            assert clique.make_query("select YPathInt64(a, '') as i from `//tmp/s2`")[0]["i"] == 123
+            fields = ""
+            for column in schema:
+                if len(fields) > 0:
+                    fields += ", "
+                fields += "ConvertYson({}, 'text') as {}".format(column["name"], column["name"])
+            results = clique.make_query("select {} from `//tmp/s2`".format(fields))
+            for key, value in results[0].iteritems():
+                assert yson.loads(value) == row[key]
+            for key, value in results[1].iteritems():
+                assert value is None
 
     @authors("babenko")
     def test_missing_column_becomes_null(self):

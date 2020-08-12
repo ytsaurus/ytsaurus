@@ -28,6 +28,117 @@ static const auto& Logger = ClickHouseYtLogger;
 
 namespace {
 
+template <class F>
+DB::ColumnPtr ConvertCHColumnToAnyByIndexImpl(const DB::IColumn& column, F func)
+{
+    TString ysonBuffer;
+    TStringOutput ysonOutput(ysonBuffer);
+    NYson::TBufferedBinaryYsonWriter ysonWriter(&ysonOutput);
+
+    auto anyColumn = DB::ColumnString::create();
+    auto& offsets = anyColumn->getOffsets();
+    auto& chars = anyColumn->getChars();
+   
+    for (size_t index = 0; index < column.size(); ++index) {
+        if (index > 0) {
+            offsets.push_back(chars.size());
+        }
+        ysonBuffer.clear();
+        func(index, &ysonWriter);
+        ysonWriter.Flush();
+        chars.insert(chars.end(), ysonBuffer.begin(), ysonBuffer.end());
+        chars.push_back('\x0');
+    }
+    offsets.push_back(chars.size());
+
+    return anyColumn;
+}
+
+template <class T, class F>
+DB::ColumnPtr ConvertCHVectorColumnToAnyImpl(const DB::IColumn& column, F func)
+{
+    const auto& typedColumn = dynamic_cast<const DB::ColumnVector<T>&>(column);
+    const auto& typedValues = typedColumn.getData();
+
+    return ConvertCHColumnToAnyByIndexImpl(
+        column,
+        [&] (size_t index, auto* writer) {
+            auto value = typedValues[index];
+            func(value, writer);
+        });
+}
+
+template <class F>
+DB::ColumnPtr ConvertCHStringColumnToAnyImpl(const DB::IColumn& column, F func)
+{
+    const auto& typedColumn = dynamic_cast<const DB::ColumnString&>(column);
+
+    return ConvertCHColumnToAnyByIndexImpl(
+        column,
+        [&] (size_t index, auto* writer) {
+            auto value = typedColumn.getDataAt(index);
+            func(TStringBuf(value.data, value.size), writer);
+        });
+}
+
+DB::ColumnPtr ConvertCHColumnToAny(const DB::IColumn& column, ESimpleLogicalValueType type)
+{
+    YT_LOG_TRACE("Converting column to any (Count: %v, Type: %v)",
+        column.size(),
+        type);
+
+    switch (type) {
+        #define XX(valueType, cppType) \
+            case ESimpleLogicalValueType::valueType: \
+                return ConvertCHVectorColumnToAnyImpl<cppType>( \
+                    column, \
+                    [] (cppType value, auto* writer) { writer->OnInt64Scalar(value); });
+        XX(Int8,      i8 )
+        XX(Int16,     i16)
+        XX(Int32,     i32)
+        XX(Int64,     i64)
+        XX(Interval,  i64)
+        #undef XX
+
+        #define XX(valueType, cppType) \
+            case ESimpleLogicalValueType::valueType: \
+                return ConvertCHVectorColumnToAnyImpl<cppType>( \
+                    column, \
+                    [] (cppType value, auto* writer) { writer->OnUint64Scalar(value); });
+        XX(Uint8,     ui8 )
+        XX(Uint16,    ui16)
+        XX(Uint32,    ui32)
+        XX(Uint64,    ui64)
+        XX(Date,      ui16)
+        XX(Datetime,  ui32)
+        XX(Timestamp, ui64)
+        #undef XX
+
+        #define XX(chType, cppType) \
+            case ESimpleLogicalValueType::chType: \
+                return ConvertCHVectorColumnToAnyImpl<cppType>( \
+                    column, \
+                    [] (cppType value, auto* writer) { writer->OnDoubleScalar(value); });
+        XX(Float,  float )
+        XX(Double, double)
+        #undef XX
+
+        case ESimpleLogicalValueType::Boolean:
+            return ConvertCHVectorColumnToAnyImpl<ui8>(
+                column,
+                [] (ui8 value, auto* writer) { writer->OnBooleanScalar(value != 0); });
+
+        case ESimpleLogicalValueType::String:
+            return ConvertCHStringColumnToAnyImpl(
+                column,
+                [] (TStringBuf value, auto* writer) { writer->OnStringScalar(value); });
+
+        default:
+            THROW_ERROR_EXCEPTION("Cannot convert CH column to %Qlv type",
+                ESimpleLogicalValueType::Any);
+    }
+}
+
 template <class T>
 DB::ColumnPtr ConvertIntegerYTColumnToCHColumnImpl(
     const IUnversionedColumnarRowBatch::TColumn& ytColumn,
@@ -466,6 +577,12 @@ DB::ColumnPtr ConvertYTColumnToCHColumn(
                 chType);
         }
     };
+
+    bool anyUpcast = false;
+    if (ytType != ESimpleLogicalValueType::Any && chType == ESimpleLogicalValueType::Any) {
+        chType = ytType;
+        anyUpcast = true;
+    }
     
     if (IsIntegerLikeType(chType)) {
         throwOnIncompatibleType(IsIntegerLikeType(ytType));
@@ -477,7 +594,7 @@ DB::ColumnPtr ConvertYTColumnToCHColumn(
         throwOnIncompatibleType(ytType == ESimpleLogicalValueType::Float);
         chColumn = ConvertFloatYTColumnToCHColumn(ytColumn);
     } else if (IsStringLikeType(chType)) {
-        throwOnIncompatibleType(IsStringLikeType(ytType));
+        throwOnIncompatibleType(ytType == chType);
         chColumn = ConvertStringLikeYTColumnToCHColumn(ytColumn);
     } else if (chType == ESimpleLogicalValueType::Boolean) {
         throwOnIncompatibleType(ytType == ESimpleLogicalValueType::Boolean);
@@ -487,27 +604,16 @@ DB::ColumnPtr ConvertYTColumnToCHColumn(
             chType);
     }
 
+    if (anyUpcast) {
+        chColumn = ConvertCHColumnToAny(*chColumn, ytType);
+    }
+
     if (chSchema.LogicalType()->GetMetatype() == ELogicalMetatype::Optional) {
         auto nullMapCHColumn = BuildNullBytemapForCHColumn(ytColumn);
         chColumn = DB::ColumnNullable::create(std::move(chColumn), std::move(nullMapCHColumn));
     }
 
     return chColumn;
-}
-
-bool IsSupportedColumnarBatch(
-    const IUnversionedColumnarRowBatchPtr& batch,
-    const TTableSchema& readSchema)
-{
-    // TODO(babenko): implement efficient to-any conversion
-    for (const auto* column : batch->MaterializeColumns()) {
-        const auto& columnSchema = readSchema.Columns()[column->Id];
-        auto columnType = SimplifyLogicalType(column->Type).first.value_or(ESimpleLogicalValueType::Any);
-        if (columnSchema.GetPhysicalType() == EValueType::Any && columnType != ESimpleLogicalValueType::Any) {
-            return false;
-        }
-    }
-    return true;
 }
 
 DB::Block ConvertColumnarRowBatchToBlock(
@@ -621,8 +727,7 @@ DB::Block ConvertRowBatchToBlock(
     const TRowBufferPtr& rowBuffer,
     const DB::Block& headerBlock)
 {
-    auto columnarBatch = batch->TryAsColumnar();
-    if (columnarBatch && IsSupportedColumnarBatch(columnarBatch, readSchema)) {
+    if (auto columnarBatch = batch->TryAsColumnar()) {
         return ConvertColumnarRowBatchToBlock(
             columnarBatch,
             readSchema,
