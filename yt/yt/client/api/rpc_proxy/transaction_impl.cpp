@@ -49,7 +49,6 @@ TTransaction::TTransaction(
     , Timeout_(timeout)
     , PingAncestors_(pingAncestors)
     , PingPeriod_(pingPeriod)
-    , Sticky_(sticky)
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
         .AddTag("TransactionId: %v", GetId()))
     , Proxy_(Channel_)
@@ -70,7 +69,7 @@ TTransaction::TTransaction(
         GetTimeout(),
         PingAncestors_,
         PingPeriod_,
-        Sticky_);
+        sticky);
 
     // TODO(babenko): don't run periodic pings if client explicitly disables them in options
     RunPeriodicPings();
@@ -316,7 +315,6 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
                 auto req = Proxy_.CommitTransaction();
                 ToProto(req->mutable_transaction_id(), GetId());
                 ToProto(req->mutable_additional_participant_cell_ids(), AdditionalParticipantCellIds_);
-                req->set_sticky(Sticky_);
                 return req->Invoke();
             }))
         .Apply(
@@ -793,7 +791,6 @@ TFuture<void> TTransaction::DoAbort(TGuard<TSpinLock>* guard, const TTransaction
 
     auto req = Proxy_.AbortTransaction();
     ToProto(req->mutable_transaction_id(), GetId());
-    req->set_sticky(Sticky_);
 
     AbortPromise_.TrySetFrom(req->Invoke().Apply(
         BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
@@ -837,7 +834,6 @@ TFuture<void> TTransaction::SendPing()
 
     auto req = Proxy_.PingTransaction();
     ToProto(req->mutable_transaction_id(), GetId());
-    req->set_sticky(Sticky_);
     req->set_ping_ancestors(PingAncestors_);
 
     return req->Invoke().Apply(

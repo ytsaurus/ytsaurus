@@ -44,8 +44,6 @@ TTransactionalCommandBase<
         .Optional();
     this->RegisterParameter("ping_ancestor_transactions", this->Options.PingAncestors)
         .Optional();
-    this->RegisterParameter("sticky", this->Options.Sticky)
-        .Optional();
 }
 
 template <class TOptions>
@@ -75,7 +73,6 @@ NApi::ITransactionPtr TTransactionalCommandBase<
         NApi::TTransactionAttachOptions options;
         options.Ping = false;
         options.PingAncestors = this->Options.PingAncestors;
-        options.Sticky = false;
         transaction = context->GetClient()->AttachTransaction(transactionId, options);
     }
 

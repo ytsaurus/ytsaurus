@@ -39,11 +39,6 @@ public class TransactionalOptions {
         return sticky;
     }
 
-    public TransactionalOptions setSticky(boolean sticky) {
-        this.sticky = sticky;
-        return this;
-    }
-
     public boolean getPingAncestors() {
         return pingAncestors;
     }
@@ -77,7 +72,6 @@ public class TransactionalOptions {
         }
         builder.setPing(ping);
         builder.setPingAncestors(pingAncestors);
-        builder.setSticky(sticky);
         return builder;
     }
 

@@ -217,7 +217,6 @@ public:
         CoordinatorMasterCellId_ = ReplaceCellTagInId(Owner_->PrimaryCellId_, CoordinatorMasterCellTag_);
         Id_ = id;
         AutoAbort_ = options.AutoAbort;
-        YT_VERIFY(!options.Sticky);
         PingPeriod_ = options.PingPeriod;
         Ping_ = options.Ping;
         PingAncestors_ = options.PingAncestors;
@@ -560,8 +559,6 @@ private:
         const TTransactionAttachOptions& options)
     {
         ValidateMasterTransactionId(id);
-        // NB: Sticky transactions are handled in TNativeClient.
-        YT_VERIFY(!options.Sticky);
     }
 
 

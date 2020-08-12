@@ -201,8 +201,6 @@ private:
     const TDuration Timeout_;
     const bool PingAncestors_;
     const std::optional<TDuration> PingPeriod_;
-    // COMPAT(kiselyovp) remove Sticky_ (YT-10654)
-    const bool Sticky_;
 
     const NLogging::TLogger Logger;
 

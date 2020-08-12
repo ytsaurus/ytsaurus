@@ -41,7 +41,6 @@ void ToProto(
     }
     proto->set_ping(options.Ping);
     proto->set_ping_ancestors(options.PingAncestors);
-    proto->set_sticky(options.Sticky);
 }
 
 void ToProto(

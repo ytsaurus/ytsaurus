@@ -161,9 +161,6 @@ ITransactionPtr TClient::AttachTransaction(
     TTransactionId transactionId,
     const TTransactionAttachOptions& options)
 {
-    if (options.Sticky) {
-        THROW_ERROR_EXCEPTION("Attaching to sticky transactions is not supported");
-    }
     auto connection = GetRpcProxyConnection();
     auto client = GetRpcProxyClient();
     auto channel = GetChannel();
@@ -174,7 +171,6 @@ ITransactionPtr TClient::AttachTransaction(
     ToProto(req->mutable_transaction_id(), transactionId);
     // COMPAT(kiselyovp): remove auto_abort from the protocol
     req->set_auto_abort(false);
-    req->set_sticky(options.Sticky);
     if (options.PingPeriod) {
         req->set_ping_period(options.PingPeriod->GetValue());
     }
@@ -201,7 +197,7 @@ ITransactionPtr TClient::AttachTransaction(
         timeout,
         options.PingAncestors,
         options.PingPeriod,
-        options.Sticky);
+        false /* sticky */);
 }
 
 TFuture<void> TClient::MountTable(

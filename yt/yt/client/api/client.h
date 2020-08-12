@@ -89,8 +89,6 @@ struct TTransactionalOptions
     NObjectClient::TTransactionId TransactionId;
     bool Ping = false;
     bool PingAncestors = false;
-    // COMPAT(kiselyovp) remove Sticky (YT-10654)
-    bool Sticky = false;
 };
 
 struct TSuppressableAccessTrackingOptions
@@ -330,7 +328,6 @@ struct TTransferAccountResourcesOptions
     , public TMutatingOptions
 { };
 
-// TODO(lukyan): Use TTransactionalOptions as base class
 struct TTransactionStartOptions
     : public TMutatingOptions
 {
@@ -374,8 +371,6 @@ struct TTransactionStartOptions
 struct TTransactionAttachOptions
 {
     bool AutoAbort = false;
-    // COMPAT(kiselyovp) remove Sticky (YT-10654)
-    bool Sticky = false;
     std::optional<TDuration> PingPeriod;
     bool Ping = true;
     bool PingAncestors = false;

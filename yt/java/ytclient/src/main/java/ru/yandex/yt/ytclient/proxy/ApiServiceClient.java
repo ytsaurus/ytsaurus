@@ -317,7 +317,6 @@ public class ApiServiceClient implements TransactionalClient {
             builder.setTimeout(requestTimeout);
         }
         builder.body().setTransactionId(RpcUtil.toProto(id));
-        builder.body().setSticky(sticky);
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
@@ -332,7 +331,6 @@ public class ApiServiceClient implements TransactionalClient {
             builder.setTimeout(requestTimeout);
         }
         builder.body().setTransactionId(RpcUtil.toProto(id));
-        builder.body().setSticky(sticky);
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
@@ -347,7 +345,6 @@ public class ApiServiceClient implements TransactionalClient {
             builder.setTimeout(requestTimeout);
         }
         builder.body().setTransactionId(RpcUtil.toProto(id));
-        builder.body().setSticky(sticky);
         return RpcUtil.apply(invoke(builder), response -> null);
     }
 
