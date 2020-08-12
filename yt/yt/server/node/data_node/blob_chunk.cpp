@@ -121,8 +121,27 @@ TRefCountedBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TReaderGuard guard(BlocksExtLock_);
-    return WeakBlocksExt_.Lock();
+    {
+        TReaderGuard guard(BlocksExtLock_);
+        if (auto blocksExt = WeakBlocksExt_.Lock()) {
+            return blocksExt;
+        }
+    }
+
+    const auto& chunkMetaManager = Bootstrap_->GetChunkMetaManager();
+    auto blocksExt = chunkMetaManager->FindCachedBlocksExt(GetId());
+    if (!blocksExt) {
+        return nullptr;
+    }
+
+    {
+        TWriterGuard guard(BlocksExtLock_);
+        WeakBlocksExt_ = blocksExt;
+    }
+
+    YT_LOG_DEBUG("Per-chunk blocks ext populated from cache");
+
+    return blocksExt;
 }
 
 bool TBlobChunkBase::IsFatalError(const TError& error)
@@ -571,14 +590,15 @@ void TBlobChunkBase::OnBlocksRead(
     DoReadBlockSet(session, std::move(pendingIOGuard));
 }
 
-bool TBlobChunkBase::ShouldSyncOnClose() const
+bool TBlobChunkBase::ShouldSyncOnClose()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto blocksExt = WeakBlocksExt_.Lock();
+    auto blocksExt = FindCachedBlocksExt();
     if (!blocksExt) {
         return true;
     }
+    
     return blocksExt->sync_on_close();
 }
 
