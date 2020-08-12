@@ -121,7 +121,7 @@ private:
 
     //! Returns `true` if chunk was writen with `sync_on_close` option.
     //! Default value is `true`.
-    bool ShouldSyncOnClose() const;
+    bool ShouldSyncOnClose();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlobChunkBase)
