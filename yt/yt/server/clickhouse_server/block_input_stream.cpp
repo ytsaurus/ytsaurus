@@ -105,7 +105,8 @@ DB::Block FilterRowsByPrewhereInfo(
         schema,
         idToColumnIndex,
         rowBuffer,
-        headerBlock)
+        headerBlock,
+        /* enableColumnarMaterialiazation */ false)
         .AsyncVia(invoker)
         .Run())
         .ValueOrThrow();
@@ -200,7 +201,8 @@ DB::Block TBlockInputStream::readImpl()
             *ReadSchema_,
             IdToColumnIndex_,
             RowBuffer_,
-            InputHeaderBlock_)
+            InputHeaderBlock_,
+            !PrewhereInfo_)
             .AsyncVia(Host_->GetClickHouseWorkerInvoker())
             .Run())
             .ValueOrThrow();

@@ -599,9 +599,12 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query('select distinct value from \"//tmp/test_table\" where value = 1') == [{"value": 1}]
 
     @authors("evgenstf")
-    def test_prewhere_actions(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_prewhere_actions(self, optimize_for):
         with Clique(1) as clique:
-            create("table", "//tmp/t1", attributes={"schema": [{"name": "value", "type": "int64"}]})
+            create("table", "//tmp/t1", attributes={
+                "schema": [{"name": "value", "type": "int64"}],
+                "optimize_for": optimize_for})
             write_table("//tmp/t1", [{"value": 0}, {"value": 1}, {"value": 2}, {"value": 3}])
 
             assert clique.make_query('select count() from "//tmp/t1"') == [{'count()': 4}]
@@ -611,7 +614,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query('select count() from "//tmp/t1" prewhere (value < 3)') == [{'count()': 3}]
             assert clique.make_query('select any(0) from "//tmp/t1" prewhere (value < 3)') == [{'any(0)': 0}]
 
-            create("table", "//tmp/t2", attributes={"schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}]})
+            create("table", "//tmp/t2", attributes={
+                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}],
+                "optimize_for": optimize_for})
             write_table("//tmp/t2", [
                 {"key": 0, "value": "aaa"},
                 {"key": 1, "value": "bbb"},
@@ -880,13 +885,16 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert new_description[0]["name"] == "b"
 
     @authors("evgenstf")
-    def test_prewhere_one_chunk(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_prewhere_one_chunk(self, optimize_for):
         with Clique(1) as clique:
             create("table", "//tmp/table_1", attributes={
                 "schema": [
                     {"name": "i", "type": "int64"},
                     {"name": "j", "type": "int64"},
-                    {"name": "k", "type": "int64"}]})
+                    {"name": "k", "type": "int64"}
+                ],
+                "optimize_for": optimize_for})
             write_table("//tmp/table_1", [
                 {"i": 1, "j": 11, "k": 101},
                 {"i": 2, "j": 12, "k": 102},
@@ -901,16 +909,20 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query('select i from "//tmp/table_1" prewhere j > 13 and j < 18 order by i') == [{'i': 4}, {'i': 5}, {'i': 6}, {'i': 7}]
 
     @authors("evgenstf")
-    def test_prewhere_several_chunks(self):
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_prewhere_several_chunks(self, optimize_for):
         with Clique(1) as clique:
             create("table", "//tmp/test_table",
-                    attributes={"schema": [
-                        {"name": "key", "type": "string"},
-                        {"name": "index", "type": "int64"},
-                        {"name": "data", "type": "string"}]})
+                    attributes={
+                        "schema": [
+                            {"name": "key", "type": "string"},
+                            {"name": "index", "type": "int64"},
+                            {"name": "data", "type": "string"}
+                        ],
+                        "optimize_for": optimize_for})
             write_table(
                 "//tmp/test_table",
-                [{"key": "b_key", "index": i, "data": "b" * 50} if i == 1234 else {"key": "a_key", "data": "a" * 50} for i in range(10 * 10 * 1024)],
+                [{"key": "b_key", "index": i, "data": "b" * 50} if i == 1234 else {"key": "a_key", "data": "a" * 50 + str(random.randint(0, 1000000))} for i in range(10 * 10 * 1024)],
                 table_writer={
                     "block_size": 1024,
                     "desired_chunk_size": 10 * 1024})
