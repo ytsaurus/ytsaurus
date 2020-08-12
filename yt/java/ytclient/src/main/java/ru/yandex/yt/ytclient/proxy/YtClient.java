@@ -18,16 +18,15 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.protobuf.MessageLite;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import ru.yandex.bolts.collection.Cf;
-import ru.yandex.misc.io.IoUtils;
+import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
@@ -35,6 +34,7 @@ import ru.yandex.yt.ytclient.proxy.internal.Manifold;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactoryImpl;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
+import ru.yandex.yt.ytclient.rpc.RpcClientPool;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
@@ -42,29 +42,10 @@ import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 public class YtClient extends DestinationsSelector implements AutoCloseable {
-    private static final Logger logger = LoggerFactory.getLogger(ApiServiceClient.class);
-
     private static final Object KEY = new Object();
 
     private final ScheduledExecutorService executor;
-    private final List<PeriodicDiscovery> discovery;
-    private final Random rnd = new Random();
-
-    private final DataCenter[] dataCenters;
-    private final RpcOptions options;
-    private final DataCenter localDataCenter;
-
-    private final CompletableFuture<Void> waiting = new CompletableFuture<>();
-    private final ConcurrentHashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed = new ConcurrentHashMap<>();
-
-    /*
-     * Кэширующая обертка для ytClient. Обертка кэширует бэкенды, которые доступны для запроса.
-     * Это позволяет избежать постоянные блокировки.
-     * Помимо этого обертка убирает копирование хостов на каждый запрос и делает возможность ретраить запрос больше 3 раз.
-     *
-     * Включается опцией useClientsCache = true и clientsCacheSize > 0
-     */
-    private final LoadingCache<Object, List<RpcClient>> clientsCache;
+    private final ClientPoolProvider poolProvider;
 
     public YtClient(
             BusConnector connector,
@@ -94,89 +75,19 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
             RpcCompression compression,
             RpcOptions options) {
         super(options);
-        discovery = new ArrayList<>();
 
         this.executor = connector.executorService();
-        this.dataCenters = new DataCenter[clusters.size()];
-        this.options = options;
-
-        if (options.getUseClientsCache() && options.getClientsCacheSize() > 0
-                && options.getClientCacheExpiration() != null && options.getClientCacheExpiration().toMillis() > 0) {
-            this.clientsCache = CacheBuilder.newBuilder()
-                    .maximumSize(options.getClientsCacheSize())
-                    .expireAfterAccess(options.getClientCacheExpiration().toMillis(), TimeUnit.MILLISECONDS)
-                    .build(CacheLoader.from(() -> {
-                        final List<RpcClient> clients = Arrays.stream(getDataCenters())
-                                .map(DataCenter::getAliveDestinations)
-                                .flatMap(Collection::stream)
-                                .collect(Collectors.toList());
-                        Collections.shuffle(clients, rnd);
-                        return new RandomList<>(rnd, clients); // TODO: Временное решение, будет исправлено позже
-                    }));
-        } else {
-            this.clientsCache = null;
-        }
-
-        int dataCenterIndex = 0;
-
-        DataCenter localDataCenter = null;
 
         RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(connector, credentials, compression);
-        Random rnd = new Random();
-
-        try {
-            for (YtCluster entry : clusters) {
-                final String dataCenterName = entry.name;
-
-                final DataCenter dc = new DataCenter(dataCenterName, -1.0, options);
-
-                dataCenters[dataCenterIndex++] = dc;
-
-                if (dataCenterName.equals(localDataCenterName)) {
-                    localDataCenter = dc;
-                }
-
-                final PeriodicDiscoveryListener listener = new PeriodicDiscoveryListener() {
-                    @Override
-                    public void onProxiesSet(Set<HostPort> proxies) {
-                        if (!proxies.isEmpty()) {
-                            dc.setProxies(proxies, rpcClientFactory, rnd);
-                            wakeUp();
-                        }
-                    }
-
-                    @Override
-                    public void onError(Throwable e) {
-                        discoveriesFailed.put(this, true);
-                        if (discoveriesFailed.size() == clusters.size()) {
-                            wakeUp(e);
-                        }
-                    }
-                };
-
-                discovery.add(
-                        new PeriodicDiscovery(
-                                dataCenterName,
-                                entry.addresses,
-                                entry.proxyRole.orElse(proxyRole),
-                                String.format("%s:%d", entry.balancerFqdn, entry.httpPort),
-                                connector,
-                                options,
-                                credentials,
-                                compression,
-                                listener));
-            }
-
-            for (PeriodicDiscovery discovery : discovery) {
-                discovery.start();
-            }
-        } catch (Throwable e) {
-            logger.error("Cannot start periodic discovery", e);
-            IoUtils.closeQuietly(this);
-            throw e;
-        }
-
-        this.localDataCenter = localDataCenter;
+        poolProvider = new OldClientPoolProvider(
+                connector,
+                clusters,
+                localDataCenterName,
+                proxyRole,
+                rpcClientFactory,
+                credentials,
+                compression,
+                options);
     }
 
     public YtClient(
@@ -202,64 +113,23 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         this(connector, clusterName, credentials, new RpcOptions());
     }
 
-    private void wakeUp() {
-        waiting.complete(null);
-    }
-
-    private void wakeUp(Throwable e) {
-        waiting.completeExceptionally(e);
-    }
-
     public CompletableFuture<Void> waitProxies() {
-        return waitProxiesImpl().thenRun(clientsCache != null ?
-                clientsCache::invalidateAll : () -> {
-        });
-    }
-
-    public CompletableFuture<Void> waitProxiesImpl() {
-        int proxies = 0;
-        for (DataCenter dataCenter : dataCenters) {
-            proxies += dataCenter.getAliveDestinations().size();
-        }
-        if (proxies > 0) {
-            return CompletableFuture.completedFuture(null);
-        } else if (discoveriesFailed.size() == dataCenters.length) {
-            waiting.completeExceptionally(new IllegalStateException("cannot initialize proxies"));
-            return waiting;
-        } else {
-            return waiting;
-        }
+        return poolProvider.waitProxies();
     }
 
     @Override
     public void close() {
-        for (PeriodicDiscovery disco : discovery) {
-            disco.close();
-        }
-
-        for (DataCenter dc : dataCenters) {
-            dc.close();
-        }
+        poolProvider.close();
     }
 
+    @SuppressWarnings("unused")
     public Map<String, List<ApiServiceClient>> getAliveDestinations() {
-        final Map<String, List<ApiServiceClient>> result = new HashMap<>();
-        for (DataCenter dc : dataCenters) {
-            result.put(dc.getName(), dc.getAliveDestinations(slot -> new ApiServiceClient(slot.getClient(), options)));
-        }
-        return result;
+        return poolProvider.getAliveDestinations();
     }
 
+    @Override
     public List<RpcClient> selectDestinations() {
-        if (clientsCache != null) {
-            return clientsCache.getUnchecked(KEY);
-        } else {
-            return Manifold.selectDestinations(
-                    dataCenters, 3,
-                    localDataCenter != null,
-                    rnd,
-                    !options.getFailoverPolicy().randomizeDcs());
-        }
+        return poolProvider.selectDestinations();
     }
 
     @Override
@@ -274,8 +144,173 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         return builder.startStream(executor, selectDestinations());
     }
 
-    protected DataCenter[] getDataCenters() {
-        return this.dataCenters;
+    private interface ClientPoolProvider extends AutoCloseable {
+        void close();
+        CompletableFuture<Void> waitProxies();
+        Map<String, List<ApiServiceClient>> getAliveDestinations();
+        List<RpcClient> selectDestinations();
+        RpcClientPool getClientPool();
+    }
+
+    @NonNullApi
+    static class OldClientPoolProvider implements ClientPoolProvider {
+        private final DataCenter[] dataCenters;
+        private final List<PeriodicDiscovery> discovery;
+        private final DataCenter localDataCenter;
+        private final RpcOptions options;
+        private final Random random = new Random();
+        private final ConcurrentHashMap<PeriodicDiscoveryListener, Boolean> discoveriesFailed = new ConcurrentHashMap<>();
+        private final CompletableFuture<Void> waiting = new CompletableFuture<>();
+
+        /*
+         * Кэширующая обертка для ytClient. Обертка кэширует бэкенды, которые доступны для запроса.
+         * Это позволяет избежать постоянные блокировки.
+         * Помимо этого обертка убирает копирование хостов на каждый запрос и делает возможность ретраить запрос больше 3 раз.
+         *
+         * Включается опцией useClientsCache = true и clientsCacheSize > 0
+         */
+        private final @Nullable LoadingCache<Object, List<RpcClient>> clientsCache;
+
+        OldClientPoolProvider(
+                BusConnector connector,
+                List<YtCluster> clusters,
+                String localDataCenterName,
+                @Nullable String proxyRole,
+                RpcClientFactory rpcClientFactory,
+                RpcCredentials credentials,
+                RpcCompression compression,
+                RpcOptions options)
+        {
+            dataCenters = new DataCenter[clusters.size()];
+            discovery = new ArrayList<>();
+            this.options = options;
+
+            if (options.getUseClientsCache() && options.getClientsCacheSize() > 0
+                    && options.getClientCacheExpiration() != null && options.getClientCacheExpiration().toMillis() > 0) {
+                this.clientsCache = CacheBuilder.newBuilder()
+                        .maximumSize(options.getClientsCacheSize())
+                        .expireAfterAccess(options.getClientCacheExpiration().toMillis(), TimeUnit.MILLISECONDS)
+                        .build(CacheLoader.from(() -> {
+                            final List<RpcClient> clients = Arrays.stream(dataCenters)
+                                    .map(DataCenter::getAliveDestinations)
+                                    .flatMap(Collection::stream)
+                                    .collect(Collectors.toList());
+                            Collections.shuffle(clients, random);
+                            return new RandomList<>(random, clients); // TODO: Временное решение, будет исправлено позже
+                        }));
+            } else {
+                this.clientsCache = null;
+            }
+
+            int dataCenterIndex = 0;
+            DataCenter tmpLocalDataCenter = null;
+            for (YtCluster entry : clusters) {
+                final String dataCenterName = entry.name;
+
+                final DataCenter currentDataCenter = new DataCenter(dataCenterName, -1.0, options);
+
+                dataCenters[dataCenterIndex++] = currentDataCenter;
+
+                if (dataCenterName.equals(localDataCenterName)) {
+                    tmpLocalDataCenter = currentDataCenter;
+                }
+
+                final PeriodicDiscoveryListener listener = new PeriodicDiscoveryListener() {
+                    @Override
+                    public void onProxiesSet(Set<HostPort> proxies) {
+                        if (!proxies.isEmpty()) {
+                            currentDataCenter.setProxies(proxies, rpcClientFactory, random);
+                            waiting.complete(null);
+                        }
+                    }
+
+                    @Override
+                    public void onError(Throwable e) {
+                        discoveriesFailed.put(this, true);
+                        if (discoveriesFailed.size() == clusters.size()) {
+                            waiting.completeExceptionally(e);
+                        }
+                    }
+                };
+
+                discovery.add(
+                        new PeriodicDiscovery(
+                                dataCenterName,
+                                entry.addresses,
+                                entry.proxyRole.orElse(proxyRole),
+                                String.format("%s:%d", entry.balancerFqdn, entry.httpPort),
+                                connector,
+                                options,
+                                credentials,
+                                compression,
+                                listener));
+            }
+
+            for (PeriodicDiscovery discovery : discovery) {
+                discovery.start();
+            }
+            this.localDataCenter = tmpLocalDataCenter;
+        }
+
+        @Override
+        public RpcClientPool getClientPool() {
+            return RpcClientPool.collectionPool(selectDestinations());
+        }
+
+        @Override
+        public List<RpcClient> selectDestinations() {
+            if (clientsCache != null) {
+                return clientsCache.getUnchecked(KEY);
+            } else {
+                return Manifold.selectDestinations(
+                        dataCenters, 3,
+                        localDataCenter != null,
+                        random,
+                        !options.getFailoverPolicy().randomizeDcs());
+            }
+        }
+
+        @Override
+        public Map<String, List<ApiServiceClient>> getAliveDestinations() {
+            final Map<String, List<ApiServiceClient>> result = new HashMap<>();
+            for (DataCenter dc : dataCenters) {
+                result.put(dc.getName(), dc.getAliveDestinations(slot -> new ApiServiceClient(slot.getClient(), options)));
+            }
+            return result;
+        }
+
+        @Override
+        public void close() {
+            for (PeriodicDiscovery disco : discovery) {
+                disco.close();
+            }
+
+            for (DataCenter dc : dataCenters) {
+                dc.close();
+            }
+        }
+
+        @Override
+        public CompletableFuture<Void> waitProxies() {
+            return waitProxiesImpl().thenRun(clientsCache != null ?
+                    clientsCache::invalidateAll : () -> {
+            });
+        }
+
+        private CompletableFuture<Void> waitProxiesImpl() {
+            int proxies = 0;
+            for (DataCenter dataCenter : dataCenters) {
+                proxies += dataCenter.getAliveDestinations().size();
+            }
+            if (proxies > 0) {
+                return CompletableFuture.completedFuture(null);
+            } else if (discoveriesFailed.size() == dataCenters.length) {
+                waiting.completeExceptionally(new IllegalStateException("cannot initialize proxies"));
+                return waiting;
+            } else {
+                return waiting;
+            }
+        }
     }
 }
 
@@ -303,6 +338,7 @@ class RandomList<T> implements List<T> {
         return data.contains(o);
     }
 
+    @Nonnull
     @Override
     public Iterator<T> iterator() {
         return new Iterator<T>() {
@@ -327,7 +363,7 @@ class RandomList<T> implements List<T> {
 
     @Nonnull
     @Override
-    public <T1> T1[] toArray(final T1[] a) {
+    public <T1> T1[] toArray(@Nonnull final T1[] a) {
         throw new UnsupportedOperationException();
     }
 
@@ -342,27 +378,27 @@ class RandomList<T> implements List<T> {
     }
 
     @Override
-    public boolean containsAll(final Collection<?> c) {
+    public boolean containsAll(@Nonnull final Collection<?> c) {
         return data.containsAll(c);
     }
 
     @Override
-    public boolean addAll(final Collection<? extends T> c) {
+    public boolean addAll(@Nonnull final Collection<? extends T> c) {
         return true;
     }
 
     @Override
-    public boolean addAll(final int index, final Collection<? extends T> c) {
+    public boolean addAll(final int index, @Nonnull final Collection<? extends T> c) {
         return true;
     }
 
     @Override
-    public boolean removeAll(final Collection<?> c) {
+    public boolean removeAll(@Nonnull final Collection<?> c) {
         return true;
     }
 
     @Override
-    public boolean retainAll(final Collection<?> c) {
+    public boolean retainAll(@Nonnull final Collection<?> c) {
         return true;
     }
 
