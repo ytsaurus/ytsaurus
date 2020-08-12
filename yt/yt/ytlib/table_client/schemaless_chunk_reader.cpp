@@ -1244,12 +1244,21 @@ private:
         return New<TColumnarRowBatch>(this, PendingUnmaterializedRowCount_);
     }
 
+    void MaterializePrologue(i64 rowCount)
+    {
+        YT_VERIFY(PendingUnmaterializedRowCount_ == rowCount);
+        PendingUnmaterializedRowCount_ = 0;
+    }
+
     TSharedRange<TUnversionedRow> MaterializeRows(i64 rowCount)
     {
+        MaterializePrologue(rowCount);
+        
         std::vector<TUnversionedRow> rows;
         rows.reserve(rowCount);
         ReadRows(rowCount, &rows);
         ReadEpilogue(&rows);
+        
         return MakeSharedRange(std::move(rows), this);
     }
 
@@ -1258,8 +1267,7 @@ private:
         std::vector<IUnversionedColumnarRowBatch::TColumn>* allBatchColumns,
         std::vector<const IUnversionedColumnarRowBatch::TColumn*>* rootBatchColumns)
     {
-        YT_VERIFY(PendingUnmaterializedRowCount_ == rowCount);
-        PendingUnmaterializedRowCount_ = 0;
+        MaterializePrologue(rowCount);
 
         i64 dataWeight = rowCount; // +1 for each row
         for (const auto& reader : RowColumnReaders_) {
