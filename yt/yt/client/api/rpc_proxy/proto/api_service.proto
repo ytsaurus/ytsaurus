@@ -311,8 +311,7 @@ message TRspStartTransaction
 message TReqPingTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    // COMPAT(kiselyovp) remove sticky (YT-10654)
-    optional bool sticky = 6 [default = false];
+    reserved 6;
     optional bool ping_ancestors = 7 [default = true];
 }
 
@@ -325,8 +324,7 @@ message TRspPingTransaction
 message TReqCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    // COMPAT(kiselyovp) remove sticky (YT-10654)
-    optional bool sticky = 6 [default = false];
+    reserved 6;
     repeated NYT.NProto.TGuid additional_participant_cell_ids = 7;
 }
 
@@ -352,8 +350,7 @@ message TRspFlushTransaction
 message TReqAbortTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
-    // COMPAT(kiselyovp) remove sticky (YT-10654)
-    optional bool sticky = 6 [default = false];
+    reserved 6;
 }
 
 message TRspAbortTransaction
@@ -621,8 +618,7 @@ message TTransactionalOptions
     optional NYT.NProto.TGuid transaction_id = 1;
     optional bool ping = 2 [default = false];
     optional bool ping_ancestors = 3 [default = false];
-    // COMPAT(kiselyovp) remove sticky (YT-10654)
-    optional bool sticky = 4 [default = false];
+    reserved 4;
 }
 
 // 101
@@ -1095,8 +1091,7 @@ message TReqAttachTransaction
 
     // COMPAT(kiselyovp) next option is unused and should get removed
     optional bool auto_abort = 2 [default = false];
-    // COMPAT(kiselyovp) remove sticky (YT-10654)
-    optional bool sticky = 3 [default = false];
+    reserved 3;
     optional uint64 ping_period = 4; // TDuration
     optional bool ping = 5 [default = true];
     optional bool ping_ancestors = 6 [default = false];
@@ -1496,7 +1491,7 @@ message TReqListOperations
     optional EOperationSortDirection cursor_direction = 4 [default = OSD_PAST];
     optional string user_filter = 5;
 
-    reserved 6; // deprecated
+    reserved 6;
 
     optional EOperationState state_filter = 7;
     optional EOperationType type_filter = 8;
@@ -1946,14 +1941,14 @@ message TOperation
     optional uint64 finish_time = 5; // TInstant
 
     optional string authenticated_user = 6;
-    reserved 7; // deprecated
+    reserved 7;
     optional TStrings pools = 8;
 
     optional bytes brief_spec = 9; // YSON
     optional bytes spec = 10; // YSON
     optional bytes full_spec = 11; // YSON
     optional bytes unrecognized_spec = 12; // YSON
-    reserved 13; // deprecated
+    reserved 13;
 
     optional bytes brief_progress = 14; // YSON
     optional bytes progress = 15; // YSON

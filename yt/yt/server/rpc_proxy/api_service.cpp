@@ -119,9 +119,6 @@ void FromProto(
     if (proto.has_ping_ancestors()) {
         options->PingAncestors = proto.ping_ancestors();
     }
-    if (proto.has_sticky()) {
-        options->Sticky = proto.sticky();
-    }
 }
 
 void FromProto(
@@ -542,9 +539,7 @@ private:
         }
         // Don't waste time trying to attach to tablet transactions.
         if (!transaction && options && IsMasterTransactionId(transactionId)) {
-            auto newOptions = *options;
-            newOptions.Sticky = false;
-            transaction = client->AttachTransaction(transactionId, newOptions);
+            transaction = client->AttachTransaction(transactionId, *options);
         }
 
         return transaction;
