@@ -49,6 +49,12 @@ type UserScript struct {
 	OutputTablePaths []ypath.YPath `yson:"output_table_paths,omitempty"`
 }
 
+type ResourceLimits struct {
+	UserSlots int   `yson:"user_slots,omitempty"`
+	CPU       int   `yson:"cpu,omitempty"`
+	Memory    int64 `yson:"memory,omitempty"`
+}
+
 type ControlAttributes struct {
 	EnableTableIndex bool `yson:"enable_table_index"`
 	EnableRowIndex   bool `yson:"enable_row_index"`
@@ -91,6 +97,8 @@ type Spec struct {
 	PoolTrees           []string `yson:"pool_trees,omitempty"`
 	SchedulingTagFilter string   `yson:"scheduling_tag_filter,omitempty"`
 	TentativePoolTrees  []string `yson:"tentative_pool_trees,omitempty"`
+
+	ResourceLimits *ResourceLimits `yson:"resource_limits,omitempty"`
 
 	SecureVault map[string]string `yson:"secure_vault,omitempty"`
 
