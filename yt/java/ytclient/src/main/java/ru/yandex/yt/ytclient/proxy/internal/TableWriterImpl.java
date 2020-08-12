@@ -2,8 +2,10 @@ package ru.yandex.yt.ytclient.proxy.internal;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
@@ -11,13 +13,9 @@ import com.google.protobuf.CodedOutputStream;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 
-import ru.yandex.bolts.collection.Cf;
-import ru.yandex.bolts.collection.MapF;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.rpcproxy.TWriteTableMeta;
-import ru.yandex.yt.ytclient.object.MappedRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.proxy.TableWriter;
@@ -37,10 +35,7 @@ public class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> impleme
     private TableSchema schema;
     private TRowsetDescriptor rowsetDescriptor = TRowsetDescriptor.newBuilder().build();
     private final WireRowSerializer<T> serializer;
-
-    public TableWriterImpl(RpcClientStreamControl control, long windowSize, long packetSize, YTreeObjectSerializer<T> serializer) {
-        this(control, windowSize, packetSize, Objects.requireNonNull(MappedRowSerializer.forClass(serializer)));
-    }
+    private final Map<String, Integer> column2id = new HashMap<>();
 
     public TableWriterImpl(RpcClientStreamControl control, long windowSize, long packetSize, WireRowSerializer<T> serializer) {
         super(control, windowSize, packetSize);
@@ -118,8 +113,6 @@ public class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> impleme
         buf.setLongLE(mergedRowSizeIndex, buf.writerIndex() - mergedRowSizeIndex - 8);
     }
 
-    private final MapF<String, Integer> column2id = Cf.hashMap();
-
     @Override
     public boolean write(List<T> rows, TableSchema schema) throws IOException {
         Iterator<T> it = rows.iterator();
@@ -128,7 +121,7 @@ public class TableWriterImpl<T> extends StreamWriterImpl<TRspWriteTable> impleme
         }
 
         T first = it.next();
-        boolean isUnversionedRows = first instanceof List && ((List) first).get(0) instanceof UnversionedRow;
+        boolean isUnversionedRows = first instanceof List && ((List<?>) first).get(0) instanceof UnversionedRow;
 
         TRowsetDescriptor.Builder builder = TRowsetDescriptor.newBuilder();
 

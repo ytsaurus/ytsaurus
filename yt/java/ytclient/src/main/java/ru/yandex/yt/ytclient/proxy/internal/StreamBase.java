@@ -21,7 +21,7 @@ import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.internal.LazyResponse;
 
 public abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer {
-    protected static final Logger logger = LoggerFactory.getLogger(StreamReaderImpl.class);
+    protected static final Logger logger = LoggerFactory.getLogger(StreamBase.class);
 
     protected final CompletableFuture<RpcClientResponse<RspType>> result = new CompletableFuture<>();
 
@@ -46,7 +46,7 @@ public abstract class StreamBase<RspType extends Message> implements RpcStreamCo
         }
     }
 
-    List<byte[]> decomressedAttachments(int codecId, List<byte[]> attachments) {
+    List<byte[]> decompressedAttachments(int codecId, List<byte[]> attachments) {
         maybeReinitCodec(codecId);
 
         List<byte[]> decompressed;
@@ -56,7 +56,7 @@ public abstract class StreamBase<RspType extends Message> implements RpcStreamCo
             decompressed = new ArrayList<>();
             for (byte[] attachment : attachments) {
                 if (attachment == null) {
-                    decompressed.add(attachment);
+                    decompressed.add(null);
                 } else {
                     decompressed.add(codec.decompress(attachment));
                 }
@@ -73,11 +73,14 @@ public abstract class StreamBase<RspType extends Message> implements RpcStreamCo
                 throw new IllegalStateException("Received response without a body");
             }
 
-            attachments = decomressedAttachments(header.getCodec(), attachments);
+            attachments = decompressedAttachments(header.getCodec(), attachments);
 
-            result.complete(new LazyResponse<>(responseParser(), attachments.get(0),
-                    new ArrayList<>(attachments.subList(1, attachments.size())), sender,
-                    Option.of(header)));
+            result.complete(
+                    new LazyResponse<>(
+                            responseParser(),
+                            attachments.get(0),
+                            new ArrayList<>(attachments.subList(1, attachments.size())), sender,
+                            Option.of(header)));
         }
     }
 
@@ -90,10 +93,6 @@ public abstract class StreamBase<RspType extends Message> implements RpcStreamCo
     @Override
     public void onCancel(RpcClient sender, CancellationException cancel) {
         result.completeExceptionally(cancel);
-    }
-
-    protected CompletableFuture<Void> waitResult() {
-        return result.thenApply((unused) -> null);
     }
 
     public void cancel() {

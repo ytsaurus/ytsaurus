@@ -23,7 +23,7 @@ public interface TableWriter<T> {
     CompletableFuture<Void> readyEvent();
 
     //! Closes the writer. Must be the last call to the writer.
-    CompletableFuture<Void> close();
+    CompletableFuture<?> close();
 
     //! Returns the name table to be used for constructing rows.
     TRowsetDescriptor getRowsetDescriptor();

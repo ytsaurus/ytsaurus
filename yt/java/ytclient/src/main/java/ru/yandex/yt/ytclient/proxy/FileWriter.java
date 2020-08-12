@@ -11,7 +11,7 @@ public interface FileWriter {
     boolean write(byte[] data, int offset, int len);
 
     //! Closes the writer. Must be the last call to the writer.
-    CompletableFuture<Void> close();
+    CompletableFuture<?> close();
 
     void cancel();
 }

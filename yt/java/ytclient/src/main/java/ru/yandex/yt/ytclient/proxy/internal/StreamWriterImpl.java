@@ -5,11 +5,9 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.function.Supplier;
 
 import com.google.protobuf.Message;
 
-import ru.yandex.bolts.collection.Cf;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.proxy.StreamWriter;
@@ -18,9 +16,8 @@ import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.rpc.internal.Codec;
-import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
-interface DataSupplier extends Supplier<byte[]>
+interface DataSupplier
 {
     byte[] get();
 
@@ -56,24 +53,18 @@ class MessagesSupplier implements DataSupplier {
 class WrappedSupplier implements DataSupplier {
     private final DataSupplier supplier;
     private final Codec inputCodec;
-    private final Codec outputCodec;
     private boolean eof;
 
-    WrappedSupplier(DataSupplier supplier, Codec inputCodec, Codec outputCodec) {
+    WrappedSupplier(DataSupplier supplier, Codec inputCodec) {
         this.supplier = supplier;
         this.inputCodec = inputCodec;
-        this.outputCodec = outputCodec;
     }
 
     @Override
     public byte[] get() {
         byte[] data = supplier.get();
         eof = data == null;
-        if (data != null) {
-            return outputCodec.compress(data);
-        } else {
-            return data;
-        }
+        return data;
     }
 
     @Override
@@ -96,32 +87,29 @@ class WrappedSupplier implements DataSupplier {
 }
 
 abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> implements RpcStreamConsumer, StreamWriter {
+    private final static CompletableFuture<Void> completedFuture = CompletableFuture.completedFuture(null);
+
     final CompletableFuture<List<byte[]>> startUpload = new CompletableFuture<>();
 
     private final Object lock = new Object();
     private final DataSupplier supplier;
 
-    private CompletableFuture<Void> readyEvent;
-    private final CompletableFuture<Void> completedFuture = CompletableFuture.completedFuture(null);
+    private CompletableFuture<Void> readyEvent = new CompletableFuture<>();
     private long writePosition = 0;
     private long readPosition = 0;
 
     private final long windowSize;
     private final long packetSize;
 
+    private final List<byte[]> payloadAttachments = new LinkedList<>();
+    private long payloadOffset = 0;
 
     StreamWriterImpl(RpcClientStreamControl control, long windowSize, long packetSize) {
         super(control);
 
-
         this.windowSize = windowSize;
         this.packetSize = packetSize;
-
-        Codec codec = Codec.codecFor(control.compression());
-
-        this.supplier = new WrappedSupplier(new MessagesSupplier(), codec, Codec.codecFor(Compression.None));
-
-        initReadyEvent();
+        this.supplier = new WrappedSupplier(new MessagesSupplier(), Codec.codecFor(control.compression()));
 
         result.whenComplete((unused, ex) -> {
             if (ex != null) {
@@ -130,13 +118,9 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
         });
     }
 
-    private void initReadyEvent() {
-        this.readyEvent = new CompletableFuture<>();
-    }
-
     private void reinitReadyEvent() {
         this.readyEvent.complete(null);
-        initReadyEvent();
+        this.readyEvent = new CompletableFuture<>();
     }
 
     private void uploadSome() {
@@ -170,7 +154,7 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
                 readyToUpload.removeFirst();
             }
 
-            if (logger.isDebugEnabled()) {
+            if (logger.isTraceEnabled()) {
                 StringBuilder stringBuilder = new StringBuilder();
                 stringBuilder.append("[");
                 for (byte[] data : packet) {
@@ -179,7 +163,7 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
                 }
                 stringBuilder.append("]");
 
-                logger.debug("Packet: {} {}", stringBuilder.toString(), writePosition - readPosition);
+                logger.trace("Packet: {} {}", stringBuilder.toString(), writePosition - readPosition);
             }
 
             control.sendPayload(packet);
@@ -201,9 +185,6 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
 
         uploadSome();
     }
-
-    private List<byte[]> payloadAttachments = Cf.linkedList();
-    private long payloadOffset = 0;
 
     @Override
     public void onPayload(RpcClient sender, TStreamingPayloadHeader header, List<byte[]> attachments) {
@@ -245,9 +226,7 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
             if (writePosition - readPosition >= windowSize) {
                 return false;
             }
-        }
 
-        synchronized (lock) {
             writePosition += supplier.put(data);
 
             if (writePosition - readPosition < windowSize) {
@@ -290,9 +269,9 @@ abstract public class StreamWriterImpl<T extends Message> extends StreamBase<T> 
     }
 
     @Override
-    public CompletableFuture<Void> close() {
+    public CompletableFuture<?> close() {
         push(null);
 
-        return result.thenApply((unused) -> null);
+        return result;
     }
 }

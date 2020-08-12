@@ -38,9 +38,13 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
                     if (attachments.size() < 1 || attachments.get(0) == null) {
                         throw new IllegalStateException("Received response without a body");
                     }
-                    result.complete(new LazyResponse<>(parser, attachments.get(0),
-                            new ArrayList<>(attachments.subList(1, attachments.size())), sender,
-                            Option.of(header)));
+                    result.complete(
+                            new LazyResponse<>(
+                                    parser,
+                                    attachments.get(0),
+                                    new ArrayList<>(attachments.subList(1, attachments.size())),
+                                    sender,
+                                    Option.of(header)));
                 }
             }
 
