@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 import com.google.common.base.Charsets;
@@ -35,7 +34,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.misc.thread.ThreadUtils;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
@@ -280,6 +278,7 @@ public class YtClientTest {
     }
 
     public static void createDirectory(YtClient client, String dir) {
+        LOGGER.info("Creating directory: {}", dir);
         client.createNode(new CreateNode(YPath.simple(dir), CypressNodeType.MAP, Collections.emptyMap())
                 .setRecursive(true)
                 .setIgnoreExisting(false)).join();
@@ -287,6 +286,7 @@ public class YtClientTest {
     }
 
     public static void createTable(YtClient client, String table) {
+        LOGGER.info("Creating table: {}", table);
         createTable(client, table, true);
     }
 
@@ -334,15 +334,8 @@ public class YtClientTest {
                 .setIgnoreExisting(false)).join();
 
         if (dynamic) {
-            while (true) {
-                try {
-                    client.mountTable(table).join();
-                    return; // ---
-                } catch (RuntimeException e) {
-                    LOGGER.info("Unable to mount table {}, will retry in a bit", table);
-                    ThreadUtils.sleep(500, TimeUnit.MILLISECONDS);
-                }
-            }
+            LOGGER.info("Waiting for table mount: {}", table);
+            client.mountTable(table, null, false, true).join();
         }
     }
 
@@ -353,6 +346,7 @@ public class YtClientTest {
 
     public static <T> void insertData(YtClient client, String table, Collection<T> objects,
                                       YTreeObjectSerializer<T> serializer, boolean dynamic) {
+        LOGGER.info("Inserting {} rows into table: {}", objects.size(), table);
         final MappedModifyRowsRequest<T> request = new MappedModifyRowsRequest<>(table, serializer);
         request.addInserts(objects);
 

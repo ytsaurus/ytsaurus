@@ -10,12 +10,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -44,7 +44,7 @@ class YtDatabaseMetaData extends AbstractWrapper implements DatabaseMetaData {
     private final YtConnection connection;
     private final YtClient client;
     private final String home;
-    private boolean scanRecursive;
+    private final boolean scanRecursive;
 
     YtDatabaseMetaData(YtConnection connection) {
         this.emptySchema = new TableSchema.Builder().setUniqueKeys(false).build();
@@ -128,7 +128,7 @@ class YtDatabaseMetaData extends AbstractWrapper implements DatabaseMetaData {
             return null; // ---
         }
         final ListNode request = new ListNode(path).setAttributes(new ColumnFilter(false, TABLE_COLUMNS));
-        return client.listNode(request).thenApply(nodes -> {
+        return client.listNode(request).thenApplyAsync(nodes -> {
             final Collection<CompletableFuture<Void>> futures = new ArrayList<>();
             for (YTreeNode item : nodes.asList()) {
                 final String tableName = item.getAttributeOrThrow("key").stringValue();
@@ -156,7 +156,8 @@ class YtDatabaseMetaData extends AbstractWrapper implements DatabaseMetaData {
 
     private Collection<String> listTables(Predicate<String> filter) {
         final Set<String> tables = new ConcurrentSkipListSet<>();
-        Optional.ofNullable(tables(null, filter, new HashSet<>(), tables)).ifPresent(CompletableFuture::join);
+        Optional.ofNullable(tables(null, filter, ConcurrentHashMap.newKeySet(), tables))
+                .ifPresent(CompletableFuture::join);
         return tables;
     }
 
