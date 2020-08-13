@@ -63,7 +63,8 @@ class ArrowBatchReader(stream: YtArrowInputStream,
   }
 
   private def updateBatch(): Unit = {
-    _columnVectors = _root.getFieldVectors.asScala.zip(indexedSchema).map { case (vector, dt) =>
+    _columnVectors = new Array[ColumnVector](schema.fields.length)
+    _root.getFieldVectors.asScala.zip(_root.getSchema.getFields.asScala).foreach { case (vector, arrowSchema) =>
       val isNullVector = vector.getNullCount == vector.getValueCount
       val dict = Option(vector.getField.getDictionary).flatMap { encoding =>
         if (_dictionaries.containsKey(encoding.getId)) {
@@ -72,8 +73,10 @@ class ArrowBatchReader(stream: YtArrowInputStream,
           throw new UnsupportedOperationException
         } else None
       }
-      new ArrowColumnVector(dt, vector, dict, isNullVector)
-    }.toArray[ColumnVector]
+      val sparkIndex = schema.fields.indexWhere(_.name == arrowSchema.getName)
+      val arrowVector = new ArrowColumnVector(indexedSchema(sparkIndex), vector, dict, isNullVector)
+      _columnVectors(sparkIndex) = arrowVector
+    }
     _batch = new ColumnarBatch(_columnVectors)
   }
 }
