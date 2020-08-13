@@ -1257,8 +1257,13 @@ private:
         std::vector<TUnversionedRow> rows;
         rows.reserve(rowCount);
         ReadRows(rowCount, &rows);
+
+        if (!Completed_) {
+            TryFetchNextRow();
+        }
+
         ReadEpilogue(&rows);
-        
+
         return MakeSharedRange(std::move(rows), this);
     }
 
