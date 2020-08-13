@@ -13,9 +13,9 @@ class ArrowBatchReaderTest extends FlatSpec with Matchers with LocalSpark with R
   behavior of "ArrowVectorizedReaderTest"
 
   private val schema = StructType(Seq(
-    StructField("a", DoubleType),
-    StructField("b", DoubleType),
-    StructField("c", DoubleType)
+    StructField("_0", DoubleType),
+    StructField("_1", DoubleType),
+    StructField("_2", DoubleType)
   ))
 
   it should "read old arrow format (< 0.15.0)" in {

@@ -2,14 +2,12 @@ package ru.yandex.spark.yt.wrapper.dyntable
 
 import java.io.ByteArrayOutputStream
 
-import com.sun.xml.internal.messaging.saaj.util.ByteInputStream
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{YTreeBinarySerializer, YTreeTextSerializer}
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.yt.ytclient.proxy.YtClient
-import ru.yandex.yt.ytclient.proxy.request.ReshardTable
 
 import scala.annotation.tailrec
 import scala.concurrent.TimeoutException
