@@ -1,12 +1,12 @@
 from .conftest import authors
-from .helpers import (TEST_DIR, get_tests_location, get_tests_sandbox, get_test_file_path,
+from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path,
                       get_environment_for_binary_test, set_config_option, get_python, yatest_common)
 
 from yt.wrapper.table_commands import copy_table, move_table
 from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_message
 from yt.wrapper.common import parse_bool
 from yt.wrapper import Record, dumps_row, TablePath
-from yt.common import flatten, makedirp, which
+from yt.common import flatten, makedirp
 import yt.yson as yson
 import yt.subprocess_wrapper as subprocess
 import yt.environment.arcadia_interop as arcadia_interop
@@ -240,7 +240,7 @@ class TestYamrMode(object):
         yt.run_sort(table)
         yt.run_reduce("./cpp_bin", table, other_table, local_files=cpp_bin)
         assert sorted(yt.read_table(other_table)) == \
-               [b("key{0}\tsubkey\tvalue=value\n".format(i)) for i in xrange(5)]
+            [b("key{0}\tsubkey\tvalue=value\n".format(i)) for i in xrange(5)]
 
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message

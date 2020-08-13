@@ -4,6 +4,12 @@ from .format import YamrFormat
 
 import os
 
+def set_yamr_prefix(client=None):
+    """Update prefix by yamr env-variable."""
+    config = get_config(client)
+    if "MR_TABLE_PREFIX" in os.environ:
+        config["prefix"] = get_value(config["prefix"], "") + os.environ["MR_TABLE_PREFIX"]
+
 def set_yamr_mode(client=None):
     """Configures global config to be yamr compatible."""
     config = get_config(client)
@@ -18,6 +24,6 @@ def set_yamr_mode(client=None):
         if env_name in os.environ:
             config["yamr_mode"][option] = bool(int(os.environ[env_name]))
 
-    if "MR_TABLE_PREFIX" in os.environ:
-        config["prefix"] = get_value(config["prefix"], "") + os.environ["MR_TABLE_PREFIX"]
     config["tabular_data_format"] = YamrFormat(has_subkey=True, lenval=False)
+
+    set_yamr_prefix(client=client)
