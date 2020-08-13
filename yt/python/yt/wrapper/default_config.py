@@ -6,7 +6,7 @@ from .mappings import VerifiedDict
 import yt.yson as yson
 import yt.json_wrapper as json
 import yt.packages.six as six
-from yt.yson import YsonEntity
+from yt.yson import YsonEntity, YsonMap
 
 import os
 import sys
@@ -662,7 +662,7 @@ SHORTCUTS = {
     "IGNORE_EMPTY_TABLES_IN_MAPREDUCE_LIST": "yamr_mode/ignore_empty_tables_in_mapreduce_list"
 }
 
-def get_config_from_env():
+def update_config_from_env(config):
     def _get_var_type(value):
         var_type = type(value)
         # Using int we treat "0" as false, "1" as "true"
@@ -674,16 +674,16 @@ def get_config_from_env():
         # None type is treated as str
         if isinstance(None, var_type):
             var_type = str
-        if var_type == dict:
+        if var_type == dict or var_type == YsonMap:
             var_type = lambda obj: yson.json_to_yson(json.loads(obj)) if obj else {}
         return var_type
 
-    def _apply_type(type, key, value):
+    def _apply_type(applied_type, key, value):
         try:
-            return type(value)
+            return applied_type(value)
         except ValueError:
-            raise common.YtError("Incorrect value of option '{0}': failed to apply type '{1}' to '{2}'"
-                                 .format(key, type, value))
+            raise common.YtError("Incorrect value of option '{0}': failed to apply type {1} to '{2}' of type {3}"
+                                 .format(key, applied_type, value, type(value)))
 
     def _set(d, key, value):
         parts = key.split("/")
@@ -696,8 +696,6 @@ def get_config_from_env():
         for k in parts:
             d = d.get(k)
         return d
-
-    config = get_default_config()
 
     if "YT_CONFIG_PATCHES" in os.environ:
         try:
@@ -769,9 +767,5 @@ def get_config_from_env():
             if var_type is bool:
                 value = int(value)
             _set(config, name, _apply_type(var_type, key, value))
-        # Some shortcuts cannot be backported one-to-one so they are processed manually.
-        elif key == "CREATE_TABLES_UNDER_TRANSACTION":
-            print(value, bool(int(value)), file=sys.stderr)
-            _set(config, "yamr_mode/create_tables_outside_of_transaction", not bool(int(value)))
 
     return config

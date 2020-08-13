@@ -806,7 +806,7 @@ test_create_tables_under_transaction_option()
     check "true" "`$MAPREDUCE_YT -exists "ignat/xxx_some_table"`"
     sleep 7
 
-    YT_CREATE_TABLES_UNDER_TRANSACTION=1 run "ignat/xxx_some_table2" &
+    YT_CONFIG_PATCHES="{yamr_mode={create_tables_outside_of_transaction=%false}};$YT_CONFIG_PATCHES" run "ignat/xxx_some_table2" &
     sleep 5
     check "false" "`$MAPREDUCE_YT -exists "ignat/xxx_some_table2"`"
     sleep 7

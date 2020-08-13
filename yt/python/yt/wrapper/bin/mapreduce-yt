@@ -21,6 +21,7 @@
 
 from __future__ import print_function
 
+from yt.wrapper.yamr_mode import set_yamr_prefix
 from yt.wrapper.cli_helpers import write_silently, print_to_stdout, run_main, die
 from yt.wrapper.table_commands import copy_table, move_table, _get_format_from_tables, _create_table
 from yt.wrapper.table_helpers import _remove_locks
@@ -243,14 +244,12 @@ def get_smart_format(tables, smart_format_flag, has_subkey, lenval, ignore_unexi
     return result_format
 
 def configure():
-    has_create_tables_outside_of_transaction = "YT_CREATE_TABLES_UNDER_TRANSACTION" in os.environ
-    if has_create_tables_outside_of_transaction:
-        create_tables_outside_of_transaction_old_value = yt.config["yamr_mode"]["create_tables_outside_of_transaction"]
-
     yt.set_yamr_mode()
 
-    if has_create_tables_outside_of_transaction:
-        yt.config["yamr_mode"]["create_tables_outside_of_transaction"] = create_tables_outside_of_transaction_old_value
+    # Environment variables have higher priority than yamr mode configuration.
+    yt.config.config = yt.default_config.update_config_from_env(yt.config.config)
+
+    set_yamr_prefix()
 
     yt.config["ignore_root_path_resolve_error_in_search"] = True
 

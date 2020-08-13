@@ -51,9 +51,10 @@ class Config(types.ModuleType, client_state.ClientState):
         import os
 
         if self.config is not None:
-            self.config = self.common_module.update(self.config, self.default_config_module.get_config_from_env())
+            self.config = self.default_config_module.update_config_from_env(self.config)
         else:
-            self.config = self.default_config_module.get_config_from_env()
+            self.config = self.default_config_module.update_config_from_env(
+                self.default_config_module.get_default_config())
 
         # Update params from env.
         for key, value in self.six_module.iteritems(os.environ):
