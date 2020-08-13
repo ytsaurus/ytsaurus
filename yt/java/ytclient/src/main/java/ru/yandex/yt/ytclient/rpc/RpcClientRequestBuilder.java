@@ -97,11 +97,11 @@ public interface RpcClientRequestBuilder<RequestType extends MessageLite.Builder
      */
     CompletableFuture<ResponseType> invoke(RpcClient client);
 
-    CompletableFuture<ResponseType> invokeVia(ScheduledExecutorService executor, List<RpcClient> clients);
+    CompletableFuture<ResponseType> invokeVia(ScheduledExecutorService executor, RpcClientPool clientPool);
 
     RpcClientStreamControl startStream(RpcClient client);
 
-    RpcClientStreamControl startStream(ScheduledExecutorService executor, List<RpcClient> clients);
+    CompletableFuture<RpcClientStreamControl> startStream(ScheduledExecutorService executor, RpcClientPool clientPool);
 
     RpcOptions getOptions();
 

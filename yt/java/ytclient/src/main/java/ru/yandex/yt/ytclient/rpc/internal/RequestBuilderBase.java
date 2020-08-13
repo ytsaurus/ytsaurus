@@ -86,11 +86,18 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     }
 
     @Override
-    public CompletableFuture<ResponseType> invokeVia(ScheduledExecutorService executor, List<RpcClient> clients) {
+    public CompletableFuture<ResponseType> invokeVia(ScheduledExecutorService executor, RpcClientPool clientPool) {
         CompletableFuture<ResponseType> result = new CompletableFuture<>();
         try {
             RpcClientResponseHandler handler = createHandler(result);
-            RpcClientRequestControl control = sendVia(executor, handler, clients);
+            // NB. we use attemptCount 3 since it corresponds to old default behaviour
+            final int attemptCount = 3;
+            RpcClientRequestControl control = FailoverRpcExecutor.execute(
+                    executor,
+                    clientPool,
+                    this,
+                    handler,
+                    attemptCount);
             result.whenComplete((ignoredResult, ignoredException) -> control.cancel());
         } catch (Throwable e) {
             result.completeExceptionally(e);
@@ -104,25 +111,17 @@ public abstract class RequestBuilderBase<RequestType extends MessageLite.Builder
     }
 
     @Override
-    public RpcClientStreamControl startStream(ScheduledExecutorService executor, List<RpcClient> clients) {
-        if (!clients.isEmpty()) {
-            return clients.get(0).startStream(this);
-        } else {
-            throw new IllegalStateException("client is not set");
-        }
-    }
-
-    private RpcClientRequestControl sendVia(
-            ScheduledExecutorService executorService,
-            RpcClientResponseHandler handler,
-            List<RpcClient> clients)
+    public CompletableFuture<RpcClientStreamControl> startStream(
+            ScheduledExecutorService executor,
+            RpcClientPool clientPool)
     {
-        return FailoverRpcExecutor.execute(
-            executorService,
-            RpcClientPool.collectionPool(clients),
-            this,
-            handler,
-            clients.size());
+        CompletableFuture<RpcClientStreamControl> result = new CompletableFuture<>();
+        CompletableFuture<RpcClient> clientFuture = clientPool.peekClient(result);
+        RpcUtil.relay(
+                clientFuture.thenApply(client -> client.startStream(this)),
+                result
+        );
+        return result;
     }
 
     protected abstract RpcClientResponseHandler createHandler(CompletableFuture<ResponseType> result);

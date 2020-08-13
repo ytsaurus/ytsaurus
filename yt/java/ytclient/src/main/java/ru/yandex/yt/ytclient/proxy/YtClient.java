@@ -134,14 +134,15 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
 
     @Override
     protected <RequestType extends MessageLite.Builder, ResponseType> CompletableFuture<ResponseType> invoke(
-            RpcClientRequestBuilder<RequestType, ResponseType> builder) {
-        return builder.invokeVia(executor, selectDestinations());
+            RpcClientRequestBuilder<RequestType, ResponseType> builder)
+    {
+        return builder.invokeVia(executor, poolProvider.getClientPool());
     }
 
     @Override
-    protected <RequestType extends MessageLite.Builder, ResponseType> RpcClientStreamControl startStream(
-            RpcClientRequestBuilder<RequestType, ResponseType> builder) {
-        return builder.startStream(executor, selectDestinations());
+    protected <RequestType extends MessageLite.Builder, ResponseType>
+    CompletableFuture<RpcClientStreamControl> startStream(RpcClientRequestBuilder<RequestType, ResponseType> builder) {
+        return builder.startStream(executor, poolProvider.getClientPool());
     }
 
     private interface ClientPoolProvider extends AutoCloseable {

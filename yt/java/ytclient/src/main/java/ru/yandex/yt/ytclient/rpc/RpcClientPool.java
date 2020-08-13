@@ -20,7 +20,6 @@ public interface RpcClientPool {
 
     static RpcClientPool collectionPool(Collection<RpcClient> clients) {
         return new IteratorPool(clients.iterator());
-
     }
 }
 
