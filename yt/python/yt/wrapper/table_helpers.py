@@ -9,7 +9,7 @@ from .config import get_config
 from .errors import YtError
 from .format import create_format, YsonFormat, YamrFormat, SkiffFormat
 from .ypath import TablePath
-from .cypress_commands import exists, get, get_attribute, get_type, remove
+from .cypress_commands import exists, get, get_attribute, remove
 from .transaction_commands import abort_transaction
 from .file_commands import upload_file_to_cache, is_executable, LocalFile
 from .transaction import Transaction, null_transaction_id
@@ -126,15 +126,18 @@ def _remove_locks(table, client=None):
 def _remove_tables(tables, client=None):
     exists_results = batch_apply(exists, tables, client=client)
 
-    exists_tables = []
+    existing_tables = []
     for table, exists_result in izip(tables, exists_results):
         if exists_result:
-            exists_tables.append(table)
+            existing_tables.append(table)
 
-    type_results = batch_apply(get_type, exists_tables, client=client)
+    type_results = batch_apply(
+        lambda table, client: get(table + "/@type", client=client),
+        existing_tables,
+        client=client)
 
     tables_to_remove = []
-    for table, table_type in izip(exists_tables, type_results):
+    for table, table_type in izip(existing_tables, type_results):
         table = TablePath(table)
         if table_type == "table" and not table.append and table != DEFAULT_EMPTY_TABLE:
             if get_config(client)["yamr_mode"]["abort_transactions_with_remove"]:

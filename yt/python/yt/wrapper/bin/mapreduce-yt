@@ -784,8 +784,8 @@ Examples:
                       spec=spec)
     if args.drop is not None:
         if yt.exists(args.drop):
-            if not args.force and yt.get_type(args.drop) not in ["table", "file"]:
-                die("You are trying to remove object of type " + yt.get_type(args.drop))
+            if not args.force and yt.get(args.drop + "/@type") not in ["table", "file"]:
+                die("You are trying to remove object of type " + yt.get(args.drop + "/@type"))
             if args.force:
                 _remove_locks(args.drop)
             remove_with_empty_dirs(args.drop)
@@ -832,7 +832,7 @@ Examples:
     if args.erase is not None:
         yt.run_erase(args.erase)
     if args.upload is not None:
-        if yt.exists(args.upload) and yt.get_type(args.upload) == "file":
+        if yt.exists(args.upload) and yt.get(args.upload + "/@type") == "file":
             remove_with_empty_dirs(args.upload)
         yt.mkdir(yt.ypath_dirname(args.upload))
         yt.write_file(args.upload, get_binary_std_stream(sys.stdin))

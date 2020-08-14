@@ -1,6 +1,6 @@
 from . import yson
 from .config import get_config, get_option, get_command_param
-from .common import flatten, get_value, YtError, set_param
+from .common import flatten, get_value, YtError, set_param, deprecated
 from .errors import YtResponseError
 from .driver import set_read_from_params, get_api_version, get_structured_format
 from .transaction_commands import (_make_transactional_request,
@@ -444,6 +444,7 @@ def list_attributes(path, attribute_path="", client=None):
     """
     return list("%s/@%s" % (path, attribute_path), client=client)
 
+@deprecated(alternative="get 'type' attribute")
 def get_type(path, client=None):
     """Gets Cypress node attribute type.
 
