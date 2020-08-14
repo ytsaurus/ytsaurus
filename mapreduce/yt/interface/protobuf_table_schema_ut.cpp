@@ -344,4 +344,43 @@ Y_UNIT_TEST_SUITE(ProtoSchemaTest_Complex)
                 .Name("MapDict")
                 .Type(NTi::Dict(NTi::Int64(), embedded))));
     }
+
+    Y_UNIT_TEST(Oneof)
+    {
+        const auto schema = CreateTableSchema<NTesting::TWithOneof>();
+
+        auto embedded = NTi::Struct({
+            {"Oneof", NTi::Variant(NTi::Struct({
+                {"x", NTi::Int64()},
+                {"y", NTi::String()},
+            }))},
+        });
+
+        auto type = NTi::Optional(NTi::Struct({
+            {"field", NTi::Optional(NTi::String())},
+            {"Oneof2", NTi::Variant(NTi::Struct({
+                {"x2", NTi::Int64()},
+                {"y2", NTi::String()},
+                {"z2", embedded},
+            }))},
+            {"y1", NTi::Optional(NTi::String())},
+            {"z1", NTi::Optional(embedded)},
+            {"x1", NTi::Optional(NTi::Int64())},
+        }));
+
+        ASSERT_SERIALIZABLES_EQUAL(schema, TTableSchema()
+            .AddColumn(TColumnSchema()
+                .Name("DefaultSeparateFields")
+                .Type(type))
+            .AddColumn(TColumnSchema()
+                .Name("NoDefault")
+                .Type(type))
+            .AddColumn(TColumnSchema()
+                .Name("SerializationProtobuf")
+                .Type(NTi::Optional(NTi::Struct({
+                    {"y1", NTi::Optional(NTi::String())},
+                    {"x1", NTi::Optional(NTi::Int64())},
+                    {"z1", NTi::Optional(NTi::String())},
+                })))));
+    }
 }

@@ -55,6 +55,19 @@ message EWrapperMessageFlag
     }
 }
 
+message EWrapperOneofFlag
+{
+    enum Enum
+    {
+        // Each field inside oneof group corresponds to a regular field of the
+        // parent message.
+        SEPARATE_FIELDS = 12;
+
+        // Oneof group corresponds to Variant over Struct.
+        VARIANT = 13;
+    }
+}
+
 extend google.protobuf.FieldOptions
 {
     repeated EWrapperFieldFlag.Enum flags = 56788;
@@ -64,6 +77,12 @@ extend google.protobuf.FieldOptions
 
 extend google.protobuf.MessageOptions
 {
+    repeated EWrapperOneofFlag.Enum default_oneof_flags = 56788;
     repeated EWrapperFieldFlag.Enum default_field_flags = 56789;
     repeated EWrapperMessageFlag.Enum message_flags = 56790;
+}
+
+extend google.protobuf.OneofOptions
+{
+    repeated EWrapperOneofFlag.Enum oneof_flags = 56788;
 }

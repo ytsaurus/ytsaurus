@@ -52,6 +52,17 @@ enum class EProtobufFieldSortOrder
     ByFieldNumber,
 };
 
+enum class EProtobufOneofMode
+{
+    SeparateFields,
+    Variant,
+};
+
+struct TProtobufOneofOptions
+{
+    EProtobufOneofMode Mode = EProtobufOneofMode::Variant;
+};
+
 struct TProtobufFieldOptions
 {
     TMaybe<EProtobufType> Type;
@@ -65,13 +76,11 @@ struct TProtobufMessageOptions
     EProtobufFieldSortOrder FieldSortOrder = EProtobufFieldSortOrder::ByFieldNumber;
 };
 
-void ParseProtobufFieldOptions(
-    const ::google::protobuf::RepeatedField<EWrapperFieldFlag::Enum>& flags,
-    TProtobufFieldOptions* fieldOptions);
+TProtobufFieldOptions GetFieldOptions(
+    const ::google::protobuf::FieldDescriptor* fieldDescriptor,
+    const TMaybe<TProtobufFieldOptions>& defaultFieldOptions = {});
 
-void ParseProtobufMessageOptions(
-    const ::google::protobuf::RepeatedField<EWrapperMessageFlag::Enum>& flags,
-    TProtobufMessageOptions* messageOptions);
+TProtobufMessageOptions GetMessageOptions(const ::google::protobuf::Descriptor* descriptor);
 
 TMaybe<TVector<TString>> InferColumnFilter(const ::google::protobuf::Descriptor& descriptor);
 

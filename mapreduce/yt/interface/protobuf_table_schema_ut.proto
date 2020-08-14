@@ -291,3 +291,76 @@ message TWithMap
     map<int64, TEmbedded> MapOptionalDict = 4 [(NYT.flags) = MAP_AS_OPTIONAL_DICT];
     map<int64, TEmbedded> MapDict = 5 [(NYT.flags) = MAP_AS_DICT];
 }
+
+message TWithOneof
+{
+    option (NYT.default_field_flags) = SERIALIZATION_YT;
+
+    message TEmbedded
+    {
+        option (NYT.default_field_flags) = SERIALIZATION_YT;
+        oneof Oneof {
+            int64 x = 1;
+            string y = 2;
+        }
+    }
+
+    message TDefaultSeparateFields
+    {
+        option (NYT.default_oneof_flags) = SEPARATE_FIELDS;
+        option (NYT.default_field_flags) = SERIALIZATION_YT;
+
+        optional string field = 1;
+
+        oneof Oneof2
+        {
+            option (NYT.oneof_flags) = VARIANT;
+            string y2 = 4;
+            TEmbedded z2 = 6;
+            int64 x2 = 2;
+        }
+
+        oneof Oneof1
+        {
+            int64 x1 = 10;
+            string y1 = 3;
+            TEmbedded z1 = 5;
+        }
+    }
+
+    message TNoDefault
+    {
+        option (NYT.default_field_flags) = SERIALIZATION_YT;
+
+        optional string field = 1;
+
+        oneof Oneof2
+        {
+            string y2 = 4;
+            TEmbedded z2 = 6;
+            int64 x2 = 2;
+        }
+
+        oneof Oneof1
+        {
+            option (NYT.oneof_flags) = SEPARATE_FIELDS;
+            int64 x1 = 10;
+            string y1 = 3;
+            TEmbedded z1 = 5;
+        }
+    }
+
+    message TSerializationProtobuf
+    {
+        oneof Oneof
+        {
+            int64 x1 = 2;
+            string y1 = 1;
+            TEmbedded z1 = 3;
+        }
+    }
+
+    optional TDefaultSeparateFields DefaultSeparateFields = 1;
+    optional TNoDefault NoDefault = 2;
+    optional TSerializationProtobuf SerializationProtobuf = 3;
+}

@@ -14,8 +14,14 @@ namespace NYT::NDetail {
 
 using ::google::protobuf::Descriptor;
 using ::google::protobuf::FieldDescriptor;
+using ::google::protobuf::OneofDescriptor;
+
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using TOneofOption = TVariant<
+    EProtobufOneofMode>;
 
 using TFieldOption = TVariant<
     EProtobufType,
@@ -25,6 +31,14 @@ using TFieldOption = TVariant<
 
 using TMessageOption = TVariant<
     EProtobufFieldSortOrder>;
+
+struct TOtherColumns
+{ };
+
+using TTypePtrOrOtherColumns = TVariant<NTi::TTypePtr, TOtherColumns>;
+using TValueTypeOrOtherColumns = TVariant<EValueType, TOtherColumns>;
+
+////////////////////////////////////////////////////////////////////////////////
 
 TFieldOption FieldFlagToOption(EWrapperFieldFlag::Enum flag)
 {
@@ -69,6 +83,18 @@ TMessageOption MessageFlagToOption(EWrapperMessageFlag::Enum flag)
             return EProtobufFieldSortOrder::AsInProtoFile;
         case EFlag::SORT_FIELDS_BY_FIELD_NUMBER:
             return EProtobufFieldSortOrder::ByFieldNumber;
+    }
+    Y_FAIL();
+}
+
+TOneofOption OneofFlagToOption(EWrapperOneofFlag::Enum flag)
+{
+    using EFlag = EWrapperOneofFlag;
+    switch (flag) {
+        case EFlag::SEPARATE_FIELDS:
+            return EProtobufOneofMode::SeparateFields;
+        case EFlag::VARIANT:
+            return EProtobufOneofMode::Variant;
     }
     Y_FAIL();
 }
@@ -151,6 +177,41 @@ EWrapperMessageFlag::Enum OptionToMessageFlag(TMessageOption option)
     return Visit(TVisitor(), option);
 }
 
+EWrapperOneofFlag::Enum OptionToOneofFlag(TOneofOption option)
+{
+    using EFlag = EWrapperOneofFlag;
+    struct TVisitor
+    {
+        EFlag::Enum operator() (EProtobufOneofMode mode)
+        {
+            switch (mode) {
+                case EProtobufOneofMode::SeparateFields:
+                    return EFlag::SEPARATE_FIELDS;
+                case EProtobufOneofMode::Variant:
+                    return EFlag::VARIANT;
+            }
+            Y_FAIL();
+        }
+    };
+
+    return Visit(TVisitor(), option);
+}
+
+
+template <typename T, typename TOptionToFlag>
+void SetOption(TMaybe<T>& option, T newOption, TOptionToFlag optionToFlag)
+{
+    if (option) {
+        if (*option == newOption) {
+            ythrow yexception() << "Duplicate protobuf flag " << optionToFlag(newOption);
+        } else {
+            ythrow yexception() << "Incompatible protobuf flags " <<
+                optionToFlag(*option) << " and " << optionToFlag(newOption);
+        }
+    }
+    option = newOption;
+}
+
 class TParseProtobufFieldOptionsVisitor
 {
 public:
@@ -175,16 +236,9 @@ public:
     }
 
     template <typename T>
-    void SetOption(TMaybe<T>& option, T newOption) {
-        if (option) {
-            if (*option == newOption) {
-                ythrow yexception() << "Duplicate protobuf field flag " << OptionToFieldFlag(newOption);
-            } else {
-                ythrow yexception() << "Incompatible protobuf field flags " <<
-                    OptionToFieldFlag(*option) << " and " << OptionToFieldFlag(newOption);
-            }
-        }
-        option = newOption;
+    void SetOption(TMaybe<T>& option, T newOption)
+    {
+        NYT::NDetail::SetOption(option, newOption, OptionToFieldFlag);
     };
 
 public:
@@ -203,20 +257,31 @@ public:
     }
 
     template <typename T>
-    void SetOption(TMaybe<T>& option, T newOption) {
-        if (option) {
-            if (*option == newOption) {
-                ythrow yexception() << "Duplicate protobuf message flag " << OptionToMessageFlag(newOption);
-            } else {
-                ythrow yexception() << "Incompatible protobuf message flags " <<
-                    OptionToMessageFlag(*option) << " and " << OptionToMessageFlag(newOption);
-            }
-        }
-        option = newOption;
+    void SetOption(TMaybe<T>& option, T newOption)
+    {
+        NYT::NDetail::SetOption(option, newOption, OptionToMessageFlag);
     };
 
 public:
     TMaybe<EProtobufFieldSortOrder> FieldSortOrder;
+};
+
+class TParseProtobufOneofOptionsVisitor
+{
+public:
+    void operator() (EProtobufOneofMode mode)
+    {
+        SetOption(Mode, mode);
+    }
+
+    template <typename T>
+    void SetOption(TMaybe<T>& option, T newOption)
+    {
+        NYT::NDetail::SetOption(option, newOption, OptionToOneofFlag);
+    };
+
+public:
+    TMaybe<EProtobufOneofMode> Mode;
 };
 
 void ParseProtobufFieldOptions(
@@ -253,6 +318,66 @@ void ParseProtobufMessageOptions(
         messageOptions->FieldSortOrder = *visitor.FieldSortOrder;
     }
 }
+
+void ParseProtobufOneofOptions(
+    const ::google::protobuf::RepeatedField<EWrapperOneofFlag::Enum>& flags,
+    TProtobufOneofOptions* messageOptions)
+{
+    TParseProtobufOneofOptionsVisitor visitor;
+    for (auto flag : flags) {
+        Visit(visitor, OneofFlagToOption(flag));
+    }
+    if (visitor.Mode) {
+        messageOptions->Mode = *visitor.Mode;
+    }
+}
+
+TProtobufFieldOptions GetDefaultFieldOptions(
+    const Descriptor* descriptor,
+    TProtobufFieldOptions defaultFieldOptions = {})
+{
+    ParseProtobufFieldOptions(descriptor->options().GetRepeatedExtension(default_field_flags), &defaultFieldOptions);
+    return defaultFieldOptions;
+}
+
+TProtobufOneofOptions GetDefaultOneofOptions(const Descriptor* descriptor)
+{
+    TProtobufOneofOptions defaultOneofOptions;
+    ParseProtobufOneofOptions(descriptor->options().GetRepeatedExtension(default_oneof_flags), &defaultOneofOptions);
+    switch (defaultOneofOptions.Mode) {
+        case EProtobufOneofMode::Variant: {
+            auto defaultFieldOptions = GetDefaultFieldOptions(descriptor);
+            switch (defaultFieldOptions.SerializationMode) {
+                case EProtobufSerializationMode::Protobuf:
+                    // For Protobuf serialization mode default is SeparateFields.
+                    defaultOneofOptions.Mode = EProtobufOneofMode::SeparateFields;
+                    return defaultOneofOptions;
+                case EProtobufSerializationMode::Yt:
+                    return defaultOneofOptions;
+            }
+            Y_FAIL();
+        }
+        case EProtobufOneofMode::SeparateFields:
+            return defaultOneofOptions;
+    }
+    Y_FAIL();
+}
+
+TProtobufOneofOptions GetOneofOptions(
+    const OneofDescriptor* oneofDescriptor,
+    const TMaybe<TProtobufOneofOptions>& defaultOneofOptions = {})
+{
+    TProtobufOneofOptions options;
+    if (defaultOneofOptions) {
+        options = *defaultOneofOptions;
+    } else {
+        options = GetDefaultOneofOptions(oneofDescriptor->containing_type());
+    }
+    ParseProtobufOneofOptions(oneofDescriptor->options().GetRepeatedExtension(oneof_flags), &options);
+    return options;
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 void ValidateProtobufType(const FieldDescriptor& fieldDescriptor, EProtobufType protobufType)
 {
@@ -328,6 +453,31 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TProtobufFieldOptions GetFieldOptions(
+    const FieldDescriptor* fieldDescriptor,
+    const TMaybe<TProtobufFieldOptions>& defaultFieldOptions)
+{
+    TProtobufFieldOptions options;
+    if (defaultFieldOptions) {
+        options = *defaultFieldOptions;
+    } else {
+        options = GetDefaultFieldOptions(fieldDescriptor->containing_type());
+    }
+    ParseProtobufFieldOptions(fieldDescriptor->options().GetRepeatedExtension(flags), &options);
+    return options;
+}
+
+TProtobufMessageOptions GetMessageOptions(const Descriptor* descriptor)
+{
+    TProtobufMessageOptions options;
+    ParseProtobufMessageOptions(descriptor->options().GetRepeatedExtension(message_flags), &options);
+    return options;
+}
+
 TNode MakeEnumerationConfig(const ::google::protobuf::EnumDescriptor* enumDescriptor)
 {
     auto config = TNode::CreateMap();
@@ -384,7 +534,8 @@ TNode MakeProtoFormatMessageFieldsConfig(
 TNode MakeProtoFormatMessageFieldsConfig(
     const Descriptor* descriptor,
     TNode* enumerations,
-    const TProtobufFieldOptions& defaultOptions,
+    const TProtobufFieldOptions& defaultFieldOptions,
+    const TProtobufOneofOptions& defaultOneofOptions,
     TCycleChecker& cycleChecker);
 
 TNode MakeMapFieldsConfig(
@@ -397,13 +548,21 @@ TNode MakeMapFieldsConfig(
     auto message = fieldDescriptor->message_type();
     switch (fieldOptions.MapMode) {
         case EProtobufMapMode::ListOfStructsLegacy:
-            return MakeProtoFormatMessageFieldsConfig(message, enumerations, cycleChecker);
+            return MakeProtoFormatMessageFieldsConfig(
+                message,
+                enumerations,
+                cycleChecker);
         case EProtobufMapMode::ListOfStructs:
         case EProtobufMapMode::Dict:
         case EProtobufMapMode::OptionalDict: {
-            TProtobufFieldOptions options;
-            options.SerializationMode = EProtobufSerializationMode::Yt;
-            return MakeProtoFormatMessageFieldsConfig(message, enumerations, options, cycleChecker);
+            TProtobufFieldOptions defaultFieldOptions;
+            defaultFieldOptions.SerializationMode = EProtobufSerializationMode::Yt;
+            return MakeProtoFormatMessageFieldsConfig(
+                message,
+                enumerations,
+                defaultFieldOptions,
+                TProtobufOneofOptions{},
+                cycleChecker);
         }
     }
     Y_FAIL();
@@ -419,8 +578,7 @@ TNode MakeProtoFormatFieldConfig(
     fieldConfig["field_number"] = fieldDescriptor->number();
     fieldConfig["name"] = GetColumnName(*fieldDescriptor);
 
-    auto fieldOptions = defaultOptions;
-    ParseProtobufFieldOptions(fieldDescriptor->options().GetRepeatedExtension(flags), &fieldOptions);
+    auto fieldOptions = GetFieldOptions(fieldDescriptor, defaultOptions);
 
     if (fieldDescriptor->is_repeated()) {
         Y_ENSURE_EX(fieldOptions.SerializationMode == EProtobufSerializationMode::Yt,
@@ -457,21 +615,72 @@ TNode MakeProtoFormatFieldConfig(
     return fieldConfig;
 }
 
+void MakeProtoFormatOneofConfig(
+    const OneofDescriptor* oneofDescriptor,
+    TNode* enumerations,
+    const TProtobufFieldOptions& defaultFieldOptions,
+    const TProtobufOneofOptions& defaultOneofOptions,
+    TCycleChecker& cycleChecker,
+    TNode* fields)
+{
+    auto addFields = [&] (TNode* fields) {
+        for (int i = 0; i < oneofDescriptor->field_count(); ++i) {
+            fields->Add(MakeProtoFormatFieldConfig(
+                oneofDescriptor->field(i),
+                enumerations,
+                defaultFieldOptions,
+                cycleChecker));
+        }
+    };
+
+    auto oneofOptions = GetOneofOptions(oneofDescriptor, defaultOneofOptions);
+    switch (oneofOptions.Mode) {
+        case EProtobufOneofMode::SeparateFields:
+            addFields(fields);
+            return;
+        case EProtobufOneofMode::Variant: {
+            auto oneofFields = TNode::CreateList();
+            addFields(&oneofFields);
+            auto oneofField = TNode()
+                ("proto_type", "oneof")
+                ("name", oneofDescriptor->name())
+                ("fields", std::move(oneofFields));
+            fields->Add(std::move(oneofField));
+            return;
+        }
+    }
+    Y_FAIL();
+}
+
 TNode MakeProtoFormatMessageFieldsConfig(
     const Descriptor* descriptor,
     TNode* enumerations,
-    const TProtobufFieldOptions& defaultOptions,
+    const TProtobufFieldOptions& defaultFieldOptions,
+    const TProtobufOneofOptions& defaultOneofOptions,
     TCycleChecker& cycleChecker)
 {
-    TNode fields = TNode::CreateList();
+    auto fields = TNode::CreateList();
+    THashSet<const OneofDescriptor*> visitedOneofs;
     auto guard = cycleChecker.Enter(descriptor);
     for (int fieldIndex = 0; fieldIndex < descriptor->field_count(); ++fieldIndex) {
-        auto* fieldDesc = descriptor->field(fieldIndex);
-        fields.Add(MakeProtoFormatFieldConfig(
-            fieldDesc,
-            enumerations,
-            defaultOptions,
-            cycleChecker));
+        auto fieldDescriptor = descriptor->field(fieldIndex);
+        auto oneofDescriptor = fieldDescriptor->containing_oneof();
+        if (!oneofDescriptor) {
+            fields.Add(MakeProtoFormatFieldConfig(
+                fieldDescriptor,
+                enumerations,
+                defaultFieldOptions,
+                cycleChecker));
+        } else if (!visitedOneofs.contains(oneofDescriptor)) {
+            MakeProtoFormatOneofConfig(
+                oneofDescriptor,
+                enumerations,
+                defaultFieldOptions,
+                defaultOneofOptions,
+                cycleChecker,
+                &fields);
+            visitedOneofs.insert(oneofDescriptor);
+        }
     }
     return fields;
 }
@@ -481,9 +690,12 @@ TNode MakeProtoFormatMessageFieldsConfig(
     TNode* enumerations,
     TCycleChecker& cycleChecker)
 {
-    TProtobufFieldOptions defaultOptions;
-    ParseProtobufFieldOptions(descriptor->options().GetRepeatedExtension(default_field_flags), &defaultOptions);
-    return MakeProtoFormatMessageFieldsConfig(descriptor, enumerations, defaultOptions, cycleChecker);
+    return MakeProtoFormatMessageFieldsConfig(
+        descriptor,
+        enumerations,
+        GetDefaultFieldOptions(descriptor),
+        GetDefaultOneofOptions(descriptor),
+        cycleChecker);
 }
 
 TNode MakeProtoFormatConfig(const TVector<const Descriptor*>& descriptors)
@@ -507,10 +719,7 @@ TNode MakeProtoFormatConfig(const TVector<const Descriptor*>& descriptors)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TOtherColumns
-{ };
-
-static TVariant<EValueType, TOtherColumns> GetScalarFieldType(
+TValueTypeOrOtherColumns GetScalarFieldType(
     const FieldDescriptor& fieldDescriptor,
     const TProtobufFieldOptions& options)
 {
@@ -573,53 +782,115 @@ void SortFields(TVector<const FieldDescriptor*>& fieldDescriptors, EProtobufFiel
     Y_FAIL();
 }
 
-TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
+TTypePtrOrOtherColumns GetFieldType(
     const FieldDescriptor& fieldDescriptor,
     const TProtobufFieldOptions& defaultOptions,
     TCycleChecker& cycleChecker);
 
+void AddStructMember(
+    const FieldDescriptor& fieldDescriptor,
+    const FieldDescriptor& innerFieldDescriptor,
+    TTypePtrOrOtherColumns typeOrOtherColumns,
+    TVector<NTi::TStructType::TOwnedMember>* members)
+{
+    if (HoldsAlternative<TOtherColumns>(typeOrOtherColumns)) {
+        ythrow TApiUsageError() <<
+            "Could not deduce YT type for field " << innerFieldDescriptor.name() << " of " <<
+            "embedded message field " << fieldDescriptor.full_name() << " " <<
+            "(note that " << EWrapperFieldFlag::OTHER_COLUMNS << " fields " <<
+            "are not allowed inside embedded messages)";
+    } else if (HoldsAlternative<NTi::TTypePtr>(typeOrOtherColumns)) {
+        members->push_back(NTi::TStructType::TOwnedMember(
+            GetColumnName(innerFieldDescriptor),
+            Get<NTi::TTypePtr>(std::move(typeOrOtherColumns))));
+    } else {
+        Y_FAIL();
+    }
+}
+
+void AddOneofField(
+    const FieldDescriptor& fieldDescriptor,
+    const OneofDescriptor& oneofDescriptor,
+    const TProtobufFieldOptions& defaultFieldOptions,
+    const TProtobufOneofOptions& defaultOneofOptions,
+    EProtobufFieldSortOrder fieldSortOrder,
+    TVector<NTi::TStructType::TOwnedMember>* members,
+    TCycleChecker& cycleChecker)
+{
+    auto oneofOptions = GetOneofOptions(&oneofDescriptor, defaultOneofOptions);
+
+    auto addFields = [&] (TVector<NTi::TStructType::TOwnedMember>* members, bool removeOptionality) {
+        TVector<const FieldDescriptor*> fieldDescriptors;
+        for (int i = 0; i < oneofDescriptor.field_count(); ++i) {
+            fieldDescriptors.push_back(oneofDescriptor.field(i));
+        }
+        SortFields(fieldDescriptors, fieldSortOrder);
+        for (auto innerFieldDescriptor : fieldDescriptors) {
+            auto type = GetFieldType(
+                *innerFieldDescriptor,
+                defaultFieldOptions,
+                cycleChecker);
+            if (removeOptionality && HoldsAlternative<NTi::TTypePtr>(type) && Get<NTi::TTypePtr>(type)->IsOptional()) {
+                type = Get<NTi::TTypePtr>(type)->AsOptional()->GetItemType();
+            }
+            AddStructMember(fieldDescriptor, *innerFieldDescriptor, std::move(type), members);
+        }
+    };
+
+    switch (oneofOptions.Mode) {
+        case EProtobufOneofMode::SeparateFields:
+            addFields(members, /* removeOptionality */ false);
+            return;
+        case EProtobufOneofMode::Variant: {
+            TVector<NTi::TStructType::TOwnedMember> variantMembers;
+            addFields(&variantMembers, /* removeOptionality */ true);
+            members->emplace_back(
+                oneofDescriptor.name(),
+                NTi::Variant(NTi::Struct(std::move(variantMembers))));
+            return;
+        }
+    }
+    Y_FAIL();
+}
+
 NTi::TTypePtr GetMessageType(
     const FieldDescriptor& fieldDescriptor,
-    const TProtobufFieldOptions& defaultFieldOptions,
+    TProtobufFieldOptions defaultFieldOptions,
     TCycleChecker& cycleChecker)
 {
     const auto& messageDescriptor = *fieldDescriptor.message_type();
     auto guard = cycleChecker.Enter(&messageDescriptor);
-    auto embeddedMessageDefaultFieldOptions = defaultFieldOptions;
-    TProtobufMessageOptions embeddedMessageOptions;
-    ParseProtobufFieldOptions(
-        messageDescriptor.options().GetRepeatedExtension(default_field_flags),
-        &embeddedMessageDefaultFieldOptions);
-    ParseProtobufMessageOptions(
-        messageDescriptor.options().GetRepeatedExtension(message_flags),
-        &embeddedMessageOptions);
+    defaultFieldOptions = GetDefaultFieldOptions(&messageDescriptor, defaultFieldOptions);
+    auto messageOptions = GetMessageOptions(&messageDescriptor);
+    auto defaultOneofOptions = GetDefaultOneofOptions(&messageDescriptor);
 
     TVector<const FieldDescriptor*> fieldDescriptors;
     fieldDescriptors.reserve(messageDescriptor.field_count());
     for (int i = 0; i < messageDescriptor.field_count(); ++i) {
         fieldDescriptors.push_back(messageDescriptor.field(i));
     }
-    SortFields(fieldDescriptors, embeddedMessageOptions.FieldSortOrder);
+    SortFields(fieldDescriptors, messageOptions.FieldSortOrder);
 
     TVector<NTi::TStructType::TOwnedMember> members;
+    THashSet<const OneofDescriptor*> visitedOneofs;
     for (const auto innerFieldDescriptor : fieldDescriptors) {
-        auto type = GetFieldType(
-            *innerFieldDescriptor,
-            embeddedMessageDefaultFieldOptions,
-            cycleChecker);
-
-        if (HoldsAlternative<TOtherColumns>(type)) {
-            ythrow TApiUsageError() <<
-                "Could not deduce YT type for field " << innerFieldDescriptor->name() << " of " <<
-                "embedded message field " << fieldDescriptor.name() << " " <<
-                "(note that " << EWrapperFieldFlag::OTHER_COLUMNS << " fields " <<
-                "are not allowed inside embedded messages)";
-        } else if (HoldsAlternative<NTi::TTypePtr>(type)) {
-            members.push_back(NTi::TStructType::TOwnedMember(
-                GetColumnName(*innerFieldDescriptor),
-                Get<NTi::TTypePtr>(type)));
-        } else {
-            Y_FAIL();
+        auto oneofDescriptor = innerFieldDescriptor->containing_oneof();
+        if (!oneofDescriptor) {
+            auto type = GetFieldType(
+                *innerFieldDescriptor,
+                defaultFieldOptions,
+                cycleChecker);
+            AddStructMember(fieldDescriptor, *innerFieldDescriptor, std::move(type), &members);
+        } else if (!visitedOneofs.contains(oneofDescriptor)) {
+            AddOneofField(
+                fieldDescriptor,
+                *oneofDescriptor,
+                defaultFieldOptions,
+                defaultOneofOptions,
+                messageOptions.FieldSortOrder,
+                &members,
+                cycleChecker);
+            visitedOneofs.insert(oneofDescriptor);
         }
     }
     return NTi::Struct(std::move(members));
@@ -671,16 +942,12 @@ NTi::TTypePtr GetMapType(
     }
 }
 
-TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
+TTypePtrOrOtherColumns GetFieldType(
     const FieldDescriptor& fieldDescriptor,
     const TProtobufFieldOptions& defaultOptions,
     TCycleChecker& cycleChecker)
 {
-    auto fieldOptions = defaultOptions;
-    ParseProtobufFieldOptions(
-        fieldDescriptor.options().GetRepeatedExtension(flags),
-        &fieldOptions);
-
+    auto fieldOptions = GetFieldOptions(&fieldDescriptor, defaultOptions);
     if (fieldOptions.Type) {
         ValidateProtobufType(fieldDescriptor, *fieldOptions.Type);
     }
@@ -727,11 +994,7 @@ TVariant<NTi::TTypePtr, TOtherColumns> GetFieldType(
 TMaybe<TVector<TString>> InferColumnFilter(const ::google::protobuf::Descriptor& descriptor)
 {
     auto isOtherColumns = [] (const ::google::protobuf::FieldDescriptor& field) {
-        TProtobufFieldOptions options;
-        ParseProtobufFieldOptions(
-            field.options().GetRepeatedExtension(flags),
-            &options);
-        return options.Type == EProtobufType::OtherColumns;
+        return GetFieldOptions(&field).Type == EProtobufType::OtherColumns;
     };
 
     TVector<TString> result;
@@ -752,10 +1015,7 @@ TTableSchema CreateTableSchemaImpl(
 {
     TTableSchema result;
 
-    TProtobufFieldOptions defaultOptions;
-    ParseProtobufFieldOptions(
-        messageDescriptor.options().GetRepeatedExtension(default_field_flags),
-        &defaultOptions);
+    auto defaultFieldOptions = GetDefaultFieldOptions(&messageDescriptor);
     TCycleChecker cycleChecker;
     auto guard = cycleChecker.Enter(&messageDescriptor);
     for (int fieldIndex = 0; fieldIndex < messageDescriptor.field_count(); ++fieldIndex) {
@@ -764,7 +1024,7 @@ TTableSchema CreateTableSchemaImpl(
             continue;
         }
 
-        auto type = GetFieldType(fieldDescriptor, defaultOptions, cycleChecker);
+        auto type = GetFieldType(fieldDescriptor, defaultFieldOptions, cycleChecker);
         if (HoldsAlternative<TOtherColumns>(type)) {
             result.Strict(false);
         } else if (HoldsAlternative<NTi::TTypePtr>(type)) {
@@ -798,3 +1058,8 @@ void Out<NYT::EWrapperMessageFlag::Enum>(IOutputStream& stream, NYT::EWrapperMes
     stream << NYT::EWrapperMessageFlag_Enum_Name(value);
 }
 
+template <>
+void Out<NYT::EWrapperOneofFlag::Enum>(IOutputStream& stream, NYT::EWrapperOneofFlag::Enum value)
+{
+    stream << NYT::EWrapperOneofFlag_Enum_Name(value);
+}
