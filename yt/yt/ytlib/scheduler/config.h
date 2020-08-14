@@ -516,6 +516,8 @@ public:
 
     bool LogResidualCustomJobMetricsOnTermination;
 
+    bool TestJobSpeculationTimeout;
+
     TTestingOperationOptions();
 };
 

@@ -405,6 +405,9 @@ class TestListSpeculativeJobs(YTEnvSetup):
         spec = {
             "job_speculation_timeout": 100,
             "max_speculative_job_count_per_task": 2,
+            "testing": {
+                "test_job_speculation_timeout": True,
+            },
         }
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=2)
         wait_breakpoint(job_count=4)
@@ -428,6 +431,9 @@ class TestListSpeculativeJobs(YTEnvSetup):
         spec = {
             "job_speculation_timeout": 100,
             "max_speculative_job_count_per_task": 2,
+            "testing": {
+                "test_job_speculation_timeout": True,
+            },
         }
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=2)
         some_job_id = wait_breakpoint(job_count=4)[0]
@@ -527,10 +533,13 @@ class TestSpeculativeJobsOther(YTEnvSetup):
     }
 
     @authors("gritukan")
-    def test_speculation_job_timeout(self):
+    def test_job_speculation_timeout(self):
         spec = {
             "enable_job_splitting": False,
-            "job_speculation_timeout": 100
+            "job_speculation_timeout": 100,
+            "testing": {
+                "test_job_speculation_timeout": True,
+            },
         }
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=1)
 
@@ -549,7 +558,10 @@ class TestSpeculativeJobsOther(YTEnvSetup):
     def test_speculative_for_speculative(self):
         spec = {
             "enable_job_splitting": False,
-            "job_speculation_timeout": 100
+            "job_speculation_timeout": 100,
+            "testing": {
+                "test_job_speculation_timeout": True,
+            },
         }
         op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec=spec, job_count=1)
 
