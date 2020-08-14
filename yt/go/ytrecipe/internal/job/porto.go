@@ -41,15 +41,13 @@ func (j *Job) createRootFSVolumes(conn porto.PortoAPI) error {
 			"backend": "rbind",
 			"storage": storage,
 		})
-
-		j.L.Info("created volume",
-			log.String("name", path),
-			log.String("storage", storage))
-
 		if err != nil {
 			return fmt.Errorf("failed to bind %s to %s: %w", storage, path, err)
 		}
 
+		j.L.Info("created volume",
+			log.String("name", path),
+			log.String("storage", storage))
 		return nil
 	}
 
@@ -57,7 +55,7 @@ func (j *Job) createRootFSVolumes(conn porto.PortoAPI) error {
 		storage := filepath.Join(tmpfsStorage, guid.New().String())
 
 		if err := createBind(storage, dir); err != nil {
-			return err
+			return fmt.Errorf("failed to create bind: %w", err)
 		}
 	}
 

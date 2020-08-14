@@ -107,8 +107,8 @@ func (j *Job) runJob(out mapreduce.Writer) error {
 	err := j.spawnPorto(j.scheduleSignals(), prepareFS, stdout, stderr)
 	exitRow.FinishedAt = time.Now()
 
-	if err := j.saveDmesg(); err != nil {
-		return err
+	if dmesgErr := j.saveDmesg(); dmesgErr != nil && err == nil {
+		return dmesgErr
 	}
 
 	var ctErr *ContainerExitError
