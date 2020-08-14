@@ -43,7 +43,7 @@ public:
         return "SystemClique";
     }
 
-    DB::Pipes read(
+    DB::Pipe read(
         const DB::Names& /* columnNames */,
         const DB::StorageMetadataPtr& metadata_snapshot,
         const DB::SelectQueryInfo& /* queryInfo */,
@@ -70,10 +70,7 @@ public:
 
         auto blockInputStream = std::make_shared<DB::OneBlockInputStream>(metadata_snapshot->getSampleBlock().cloneWithColumns(std::move(res_columns)));
         auto source = std::make_shared<DB::SourceFromInputStream>(std::move(blockInputStream));
-        DB::Pipe pipe(std::move(source));
-        DB::Pipes result;
-        result.emplace_back(std::move(pipe));
-        return result;
+        return DB::Pipe(std::move(source));
     }
 
 private:

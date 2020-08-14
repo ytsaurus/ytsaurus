@@ -176,7 +176,7 @@ DB::Pipe CreateRemoteSource(
             remoteQueryId,
             remoteNode->GetName().ToString()));
 
-    pipe.addSimpleTransform(std::move(loggingTransform));
+    pipe.addTransform(std::move(loggingTransform));
 
     return pipe;
 }
@@ -219,7 +219,7 @@ public:
         , Logger(StorageContext_->Logger)
     { }
 
-    DB::Pipes Prepare()
+    DB::Pipe Prepare()
     {
         YT_LOG_DEBUG("Preparing distribution (QueryAST: %v)", *QueryInfo_.query, static_cast<void*>(this));
 
@@ -337,7 +337,7 @@ public:
 
         YT_LOG_INFO("Finished distribution");
 
-        return pipes;
+        return DB::Pipe::unitePipes(std::move(pipes));
     }
 
     void PrepareSubqueries(
@@ -514,7 +514,7 @@ public:
         }
     }
 
-    virtual DB::Pipes read(
+    virtual DB::Pipe read(
         const DB::Names& columnNames,
         const DB::StorageMetadataPtr& /*metadata_snapshot*/,
         const DB::SelectQueryInfo& queryInfo,

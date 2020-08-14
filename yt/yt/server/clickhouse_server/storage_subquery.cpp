@@ -54,7 +54,7 @@ public:
         return false;
     }
 
-    DB::Pipes read(
+    DB::Pipe read(
         const DB::Names& columnNames,
         const DB::StorageMetadataPtr& /* metadata_snapshot */,
         const DB::SelectQueryInfo& queryInfo,
@@ -187,7 +187,7 @@ public:
                 debugString.Flush());
         }
 
-        return pipes;
+        return DB::Pipe::unitePipes(std::move(pipes));
     }
 
     virtual DB::QueryProcessingStage::Enum getQueryProcessingStage(
