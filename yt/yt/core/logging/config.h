@@ -20,6 +20,7 @@ public:
     bool EnableCompression;
     size_t CompressionLevel;
     THashMap<TString, NYTree::INodePtr> CommonFields;
+    bool EnableControlMessages;
 
     TWriterConfig()
     {
@@ -37,6 +38,8 @@ public:
             .Default(6);
         RegisterParameter("common_fields", CommonFields)
             .Default();
+        RegisterParameter("enable_control_messages", EnableControlMessages)
+            .Default(true);
 
         RegisterPostprocessor([&] () {
             if (Type == EWriterType::File && FileName.empty()) {

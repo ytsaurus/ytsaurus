@@ -103,9 +103,10 @@ void TCachingDateFormatter::Update(TCpuInstant instant)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TPlainTextLogFormatter::TPlainTextLogFormatter()
+TPlainTextLogFormatter::TPlainTextLogFormatter(bool enableControlMessages)
     : Buffer_(new TMessageBuffer())
     , CachingDateFormatter_(new TCachingDateFormatter())
+    , EnableControlMessages_(enableControlMessages)
 { }
 
 i64 TPlainTextLogFormatter::WriteFormatted(IOutputStream* outputStream, const TLogEvent& event) const
@@ -160,19 +161,24 @@ void TPlainTextLogFormatter::WriteLogReopenSeparator(IOutputStream* outputStream
 
 void TPlainTextLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) const
 {
-    WriteFormatted(outputStream, GetStartLogEvent());
+    if (EnableControlMessages_) {
+        WriteFormatted(outputStream, GetStartLogEvent());
+    }
 }
 
 void TPlainTextLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const
 {
-    WriteFormatted(outputStream, GetSkippedLogEvent(count, skippedBy));
+    if (EnableControlMessages_) {
+        WriteFormatted(outputStream, GetSkippedLogEvent(count, skippedBy));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJsonLogFormatter::TJsonLogFormatter(const THashMap<TString, NYTree::INodePtr>& commonFields)
+TJsonLogFormatter::TJsonLogFormatter(const THashMap<TString, NYTree::INodePtr>& commonFields, bool enableControlMessages)
     : CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
     , CommonFields_(commonFields)
+    , EnableControlMessages_(enableControlMessages)
 { }
 
 i64 TJsonLogFormatter::WriteFormatted(IOutputStream* stream, const TLogEvent& event) const
@@ -206,12 +212,16 @@ void TJsonLogFormatter::WriteLogReopenSeparator(IOutputStream* outputStream) con
 
 void TJsonLogFormatter::WriteLogStartEvent(IOutputStream* outputStream) const
 {
-    WriteFormatted(outputStream, GetStartLogStructuredEvent());
+    if (EnableControlMessages_) {
+        WriteFormatted(outputStream, GetStartLogStructuredEvent());
+    }
 }
 
 void TJsonLogFormatter::WriteLogSkippedEvent(IOutputStream* outputStream, i64 count, TStringBuf skippedBy) const
 {
-    WriteFormatted(outputStream, GetSkippedLogStructuredEvent(count, skippedBy));
+    if (EnableControlMessages_) {
+        WriteFormatted(outputStream, GetSkippedLogStructuredEvent(count, skippedBy));
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
