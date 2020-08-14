@@ -204,7 +204,9 @@ IOutputStream* TStreamLogWriter::GetOutputStream() const noexcept
 ////////////////////////////////////////////////////////////////////////////////
 
 TStderrLogWriter::TStderrLogWriter()
-    : TStreamLogWriterBase::TStreamLogWriterBase(std::make_unique<TPlainTextLogFormatter>(), TString("stderr"))
+    : TStreamLogWriterBase::TStreamLogWriterBase(
+        std::make_unique<TPlainTextLogFormatter>(),
+        TString("stderr"))
 { }
 
 IOutputStream* TStderrLogWriter::GetOutputStream() const noexcept
