@@ -2759,7 +2759,9 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     joblet->Progress = jobSummary->Progress;
     joblet->StderrSize = jobSummary->StderrSize;
 
-    if (joblet->JobSpeculationTimeout &&
+    bool canLaunchSpeculativeJob = (static_cast<bool>(JobSplitter_) || Spec_->TestingOperationOptions->TestJobSpeculationTimeout);
+    if (canLaunchSpeculativeJob &&
+        joblet->JobSpeculationTimeout &&
         jobSummary->PrepareDuration.value_or(TDuration()) + jobSummary->ExecDuration.value_or(TDuration()) >= joblet->JobSpeculationTimeout)
     {
         YT_LOG_DEBUG("Speculation timeout expired; trying to launch speculative job (ExpiredJobId: %v)", jobId);

@@ -199,6 +199,8 @@ TTestingOperationOptions::TTestingOperationOptions()
         .Default();
     RegisterParameter("build_job_spec_proto_delay", BuildJobSpecProtoDelay)
         .Default();
+    RegisterParameter("test_job_speculation_timeout", TestJobSpeculationTimeout)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
