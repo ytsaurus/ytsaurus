@@ -24,13 +24,9 @@ void Traverse(
 
     Cerr << "Visiting " << descriptor->full_name() << Endl;
 
-    TProtobufFieldOptions defaultFieldOptions;
-    ParseProtobufFieldOptions(descriptor->options().GetRepeatedExtension(default_field_flags), &defaultFieldOptions);
-
     for (int fieldIndex = 0; fieldIndex < descriptor->field_count(); ++fieldIndex) {
         auto* field = descriptor->field(fieldIndex);
-        TProtobufFieldOptions fieldOptions = defaultFieldOptions;
-        ParseProtobufFieldOptions(field->options().GetRepeatedExtension(flags), &fieldOptions);
+        auto fieldOptions = GetFieldOptions(field);
         visitor(field, fieldOptions);
         if (field->type() == FieldDescriptor::TYPE_MESSAGE &&
             fieldOptions.SerializationMode == EProtobufSerializationMode::Yt)

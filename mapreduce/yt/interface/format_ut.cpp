@@ -153,4 +153,47 @@ Y_UNIT_TEST_SUITE(ProtobufFormat)
             UNIT_ASSERT_VALUES_EQUAL(column["fields"][1]["proto_type"], "structured_message");
         }
     }
+
+    Y_UNIT_TEST(Oneof)
+    {
+        const auto format = TFormat::Protobuf<NTesting::TWithOneof>();
+        auto columns = GetColumns(format);
+
+        UNIT_ASSERT_VALUES_EQUAL(columns.Size(), 3);
+        auto check = [] (const TNode& column, TStringBuf name) {
+            UNIT_ASSERT_VALUES_EQUAL(column["name"], name);
+            UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "structured_message");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"].Size(), 5);
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][0]["name"], "field");
+
+            const auto& oneof2 = column["fields"][1];
+            UNIT_ASSERT_VALUES_EQUAL(oneof2["name"], "Oneof2");
+            UNIT_ASSERT_VALUES_EQUAL(oneof2["proto_type"], "oneof");
+            UNIT_ASSERT_VALUES_EQUAL(oneof2["fields"][0]["name"], "y2");
+            UNIT_ASSERT_VALUES_EQUAL(oneof2["fields"][1]["name"], "z2");
+            UNIT_ASSERT_VALUES_EQUAL(oneof2["fields"][1]["proto_type"], "structured_message");
+            const auto& embeddedOneof = oneof2["fields"][1]["fields"][0];
+            UNIT_ASSERT_VALUES_EQUAL(embeddedOneof["name"], "Oneof");
+            UNIT_ASSERT_VALUES_EQUAL(embeddedOneof["fields"][0]["name"], "x");
+            UNIT_ASSERT_VALUES_EQUAL(embeddedOneof["fields"][1]["name"], "y");
+            UNIT_ASSERT_VALUES_EQUAL(oneof2["fields"][2]["name"], "x2");
+
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][2]["name"], "x1");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][3]["name"], "y1");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][4]["name"], "z1");
+        };
+
+        check(columns[0], "DefaultSeparateFields");
+        check(columns[1], "NoDefault");
+
+        {
+            const auto& column = columns[2];
+            UNIT_ASSERT_VALUES_EQUAL(column["name"], "SerializationProtobuf");
+            UNIT_ASSERT_VALUES_EQUAL(column["proto_type"], "structured_message");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"].Size(), 3);
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][0]["name"], "x1");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][1]["name"], "y1");
+            UNIT_ASSERT_VALUES_EQUAL(column["fields"][2]["name"], "z1");
+        }
+    }
 }
