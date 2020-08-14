@@ -260,6 +260,11 @@ func (fs *FS) LocateBindPoints() ([]string, error) {
 
 	var bindPoints []string
 	for p := range binds {
+		// tmp directory is already created by the job proxy
+		if p == "/var/tmp" || p == "/tmp" {
+			continue
+		}
+
 		bindPoints = append(bindPoints, p)
 	}
 	return bindPoints, nil
@@ -272,6 +277,9 @@ func (fs *FS) Recreate(blobDir string) (err error) {
 		}
 
 		err = os.MkdirAll(path, 0777)
+		if err != nil {
+			err = fmt.Errorf("mkdirall %s: %w", path, err)
+		}
 	}
 
 	for d := range fs.Dirs {

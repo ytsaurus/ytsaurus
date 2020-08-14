@@ -57,7 +57,7 @@ func (e *Env) FillConfig(c *ytexec.Config) {
 
 	c.FS.UploadStructure = []string{
 		e.BuildRoot,
-		e.TmpDir,
+		// e.TmpDir,
 		e.WorkPath,
 	}
 
