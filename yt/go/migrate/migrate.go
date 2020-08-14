@@ -3,7 +3,7 @@ package migrate
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	"golang.org/x/xerrors"
 
@@ -22,55 +22,17 @@ func (*retrySentinel) Error() string {
 // RetryConflict is a sentinel value that might be returned from ConflictFn.
 var RetryConflict error = &retrySentinel{}
 
-// ensureTabletState updates dynamic table state to requested and waits for changes to take place.
-func ensureTabletState(ctx context.Context, yc yt.Client, path ypath.Path, state string) error {
-	var currentState, inProgressState string
-	switch state {
-	case yt.TabletMounted:
-		inProgressState = yt.TabletMounting
-	case yt.TabletUnmounted:
-		inProgressState = yt.TabletUnmounting
-	case yt.TabletFrozen:
-		inProgressState = yt.TabletFreezing
-	default:
-		return xerrors.Errorf("tablet state %q is invalid", state)
-	}
+const defaultTabletWaitTimeout = time.Minute
 
-	err := yc.GetNode(ctx, path.Attr("tablet_state"), &currentState, nil)
-	if err != nil {
-		return err
-	}
-
-	if currentState != state && currentState != inProgressState {
-		switch {
-		case state == yt.TabletUnmounted:
-			err := yc.UnmountTable(ctx, path, nil)
-			if err != nil {
-				return err
-			}
-		case state == yt.TabletMounted && currentState == yt.TabletUnmounted:
-			err := yc.MountTable(ctx, path, nil)
-			if err != nil {
-				return err
-			}
-		case state == yt.TabletMounted && currentState == yt.TabletFrozen:
-			err := yc.UnfreezeTable(ctx, path, nil)
-			if err != nil {
-				return err
-			}
-		case state == yt.TabletFrozen:
-			err := yc.FreezeTable(ctx, path, nil)
-			if err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("can't transition tablet state: %q => %q", currentState, state)
-		}
-	} else if currentState == state {
-		return nil
+func waitTabletState(ctx context.Context, yc yt.Client, path ypath.Path, state string) error {
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel func()
+		ctx, cancel = context.WithTimeout(ctx, defaultTabletWaitTimeout)
+		defer cancel()
 	}
 
 	return yt.PollMaster(ctx, yc, func() (stop bool, err error) {
+		var currentState string
 		err = yc.GetNode(ctx, path.Attr("tablet_state"), &currentState, nil)
 		if err != nil {
 			return
@@ -81,45 +43,48 @@ func ensureTabletState(ctx context.Context, yc yt.Client, path ypath.Path, state
 			return
 		}
 
-		if currentState == yt.TabletTransient {
-			return
-		}
-
-		// TODO(prime@): remove this, once YT-12497 is fixed.
-		switch state {
-		case yt.TabletMounted:
-			if currentState == yt.TabletUnmounted {
-				return
-			}
-
-		case yt.TabletUnmounted:
-			if currentState == yt.TabletMounted {
-				return
-			}
-		}
-
-		if currentState != inProgressState {
-			err = xerrors.Errorf("wrong tablet state on the master: actual=%q, expected=%q", currentState, inProgressState)
-			return
-		}
-
 		return
 	})
 }
 
 // MountAndWait mounts dynamic table and waits for a table to become mounted.
 func MountAndWait(ctx context.Context, yc yt.Client, path ypath.Path) error {
-	return ensureTabletState(ctx, yc, path, yt.TabletMounted)
+	err := yc.MountTable(ctx, path, nil)
+	if err != nil {
+		return err
+	}
+
+	return waitTabletState(ctx, yc, path, yt.TabletMounted)
 }
 
 // FreezeAndWait freezes dynamic table and waits for a table to become freezed.
 func FreezeAndWait(ctx context.Context, yc yt.Client, path ypath.Path) error {
-	return ensureTabletState(ctx, yc, path, yt.TabletFrozen)
+	err := yc.FreezeTable(ctx, path, nil)
+	if err != nil {
+		return err
+	}
+
+	return waitTabletState(ctx, yc, path, yt.TabletFrozen)
+}
+
+// UnfreezeAndWait unfreezes dynamic table and waits for a table to become mounted.
+func UnfreezeAndWait(ctx context.Context, yc yt.Client, path ypath.Path) error {
+	err := yc.UnfreezeTable(ctx, path, nil)
+	if err != nil {
+		return err
+	}
+
+	return waitTabletState(ctx, yc, path, yt.TabletMounted)
 }
 
 // MountAndWait unmounts dynamic table and waits for a table to become unmounted.
 func UnmountAndWait(ctx context.Context, yc yt.Client, path ypath.Path) error {
-	return ensureTabletState(ctx, yc, path, yt.TabletUnmounted)
+	err := yc.UnmountTable(ctx, path, nil)
+	if err != nil {
+		return err
+	}
+
+	return waitTabletState(ctx, yc, path, yt.TabletUnmounted)
 }
 
 // ConflictFn is function called from migration routine for table that already exists but got unexpected schema.
