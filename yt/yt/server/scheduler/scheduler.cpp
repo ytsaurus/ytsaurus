@@ -1288,7 +1288,7 @@ public:
 
         NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger, NLogging::ELogLevel::Info)
             .Item("schema").Value("yt.scheduler.pools.compute.v1")
-            .Item("id").Value(key.AbcId)
+            .Item("id").Value(ToString(key.AbcId))
             .Item("usage").BeginMap()
                 .Item("quantity").Value((now - lastUpdateTime).MilliSeconds())
                 .Item("unit").Value("milliseconds")
