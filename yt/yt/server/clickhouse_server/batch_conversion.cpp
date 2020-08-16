@@ -725,24 +725,22 @@ DB::Block ConvertRowBatchToBlock(
     const TTableSchema& readSchema,
     const std::vector<int>& idToColumnIndex,
     const TRowBufferPtr& rowBuffer,
-    const DB::Block& headerBlock,
-    bool enableColumnarMaterialization)
+    const DB::Block& headerBlock)
 {
-    if (enableColumnarMaterialization) {
-        if (auto columnarBatch = batch->TryAsColumnar()) {
-            return ConvertColumnarRowBatchToBlock(
-                columnarBatch,
-                readSchema,
-                idToColumnIndex,
-                headerBlock);
-        }
+    if (auto columnarBatch = batch->TryAsColumnar()) {
+        return ConvertColumnarRowBatchToBlock(
+            columnarBatch,
+            readSchema,
+            idToColumnIndex,
+            headerBlock);
+    } else {
+        return ConvertNonColumnarRowBatchToBlock(
+            batch,
+            readSchema,
+            idToColumnIndex,
+            rowBuffer,
+            headerBlock);
     }
-    return ConvertNonColumnarRowBatchToBlock(
-        batch,
-        readSchema,
-        idToColumnIndex,
-        rowBuffer,
-        headerBlock);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -25,6 +25,7 @@ import pytest
 import random
 import threading
 import pprint
+import itertools
 
 from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config, get_log_tailer_config
 
@@ -599,11 +600,15 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query('select distinct value from \"//tmp/test_table\" where value = 1') == [{"value": 1}]
 
     @authors("evgenstf")
-    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
-    def test_prewhere_actions(self, optimize_for):
+    @pytest.mark.parametrize("optimize_for, required", itertools.product(
+                             ["lookup", "scan"],
+                             [False, True]))
+    def test_prewhere_actions(self, optimize_for, required):
         with Clique(1) as clique:
             create("table", "//tmp/t1", attributes={
-                "schema": [{"name": "value", "type": "int64"}],
+                "schema": [
+                    {"name": "value", "type": "int64", "required": required}
+                ],
                 "optimize_for": optimize_for})
             write_table("//tmp/t1", [{"value": 0}, {"value": 1}, {"value": 2}, {"value": 3}])
 
@@ -615,7 +620,10 @@ class TestClickHouseCommon(ClickHouseTestBase):
             assert clique.make_query('select any(0) from "//tmp/t1" prewhere (value < 3)') == [{'any(0)': 0}]
 
             create("table", "//tmp/t2", attributes={
-                "schema": [{"name": "key", "type": "int64"}, {"name": "value", "type": "string"}],
+                "schema": [
+                    {"name": "key", "type": "int64", "required": required},
+                    {"name": "value", "type": "string", "required": required}
+                ],
                 "optimize_for": optimize_for})
             write_table("//tmp/t2", [
                 {"key": 0, "value": "aaa"},

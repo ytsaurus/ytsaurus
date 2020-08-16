@@ -16,6 +16,9 @@
 #include <yt/client/table_client/unversioned_row_batch.h>
 #include <yt/client/table_client/name_table.h>
 
+#include <Columns/ColumnNullable.h>
+#include <Columns/ColumnVector.h>
+
 #include <DataTypes/DataTypeNothing.h>
 
 #include <Interpreters/ExpressionActions.h>
@@ -76,40 +79,45 @@ void ExecutePrewhereActions(DB::Block& block, const DB::PrewhereInfoPtr& prewher
 
 DB::Block FilterRowsByPrewhereInfo(
     DB::Block&& blockToFilter,
-    const IUnversionedRowBatchPtr& batch,
-    const DB::PrewhereInfoPtr& prewhereInfo,
-    const TTableSchema& schema,
-    const std::vector<int>& idToColumnIndex,
-    const TRowBufferPtr& rowBuffer,
-    const DB::Block& headerBlock,
-    const IInvokerPtr& invoker)
+    const DB::PrewhereInfoPtr& prewhereInfo)
 {
+    auto columnsWithTypeAndName = blockToFilter.getColumnsWithTypeAndName();
+
     // Create prewhere column for filtering.
     ExecutePrewhereActions(blockToFilter, prewhereInfo);
-    const auto& prewhereColumn = blockToFilter.getByName(prewhereInfo->prewhere_column_name).column;
 
-    auto rowsToFilter = batch->MaterializeRows();
-    std::vector<TUnversionedRow> filteredRows;
-    filteredRows.reserve(prewhereColumn->size());
-    for (size_t index = 0; index < prewhereColumn->size(); ++index) {
-        if (prewhereColumn->getBool(index)) {
-            filteredRows.push_back(rowsToFilter[index]);
+    // Extract or materialize filter data.
+    // Note that prewhere column is either UInt8 or Nullable(UInt8).
+    const DB::IColumn::Filter* filter;
+    DB::IColumn::Filter materializedFilter;
+    const auto& prewhereColumn = blockToFilter.getByName(prewhereInfo->prewhere_column_name).column;
+    if (const auto* nullablePrewhereColumn = DB::checkAndGetColumn<DB::ColumnNullable>(prewhereColumn.get())) {
+        const auto* prewhereNullsColumn = DB::checkAndGetColumn<DB::ColumnVector<ui8>>(nullablePrewhereColumn->getNullMapColumn());
+        YT_VERIFY(prewhereNullsColumn);
+        const auto& prewhereNulls = prewhereNullsColumn->getData();
+
+        const auto* prewhereValuesColumn = DB::checkAndGetColumn<DB::ColumnVector<ui8>>(nullablePrewhereColumn->getNestedColumn());
+        YT_VERIFY(prewhereValuesColumn);
+        const auto& prewhereValues = prewhereValuesColumn->getData();
+
+        YT_VERIFY(prewhereNulls.size() == prewhereValues.size());
+        auto rowCount = prewhereValues.size();
+        materializedFilter.resize_exact(rowCount);
+        for (size_t index = 0; index < rowCount; ++index) {
+            materializedFilter[index] = static_cast<ui8>(prewhereNulls[index] == 0 && prewhereValues[index] != 0);
         }
+        filter = &materializedFilter;
+    } else {
+        const auto* boolPrewhereColumn = DB::checkAndGetColumn<DB::ColumnVector<ui8>>(prewhereColumn.get());
+        YT_VERIFY(boolPrewhereColumn);
+        filter = &boolPrewhereColumn->getData();
     }
 
-    auto filteredBatch = CreateBatchFromUnversionedRows(
-        MakeSharedRange(std::move(filteredRows), std::move(batch)));
-    auto filteredBlock = WaitFor(BIND(
-        &ConvertRowBatchToBlock,
-        filteredBatch,
-        schema,
-        idToColumnIndex,
-        rowBuffer,
-        headerBlock,
-        /* enableColumnarMaterialiazation */ false)
-        .AsyncVia(invoker)
-        .Run())
-        .ValueOrThrow();
+    // Apply filter.
+    for (auto& columnWithTypeAndName : columnsWithTypeAndName) {
+        columnWithTypeAndName.column = columnWithTypeAndName.column->filter(*filter, 0);
+    }
+    auto filteredBlock = DB::Block(std::move(columnsWithTypeAndName));
 
     // Execute prewhere actions for filtered block.
     ExecutePrewhereActions(filteredBlock, prewhereInfo);
@@ -195,28 +203,13 @@ DB::Block TBlockInputStream::readImpl()
             continue;
         }
 
-        block = WaitFor(BIND(
-            &ConvertRowBatchToBlock,
-            batch,
-            *ReadSchema_,
-            IdToColumnIndex_,
-            RowBuffer_,
-            InputHeaderBlock_,
-            !PrewhereInfo_)
+        block = WaitFor(BIND(&TBlockInputStream::ConvertRowBatchToBlock, this, batch)
             .AsyncVia(Host_->GetClickHouseWorkerInvoker())
             .Run())
             .ValueOrThrow();
 
         if (PrewhereInfo_) {
-            block = FilterRowsByPrewhereInfo(
-                std::move(block),
-                batch,
-                PrewhereInfo_,
-                *ReadSchema_,
-                IdToColumnIndex_,
-                RowBuffer_,
-                InputHeaderBlock_,
-                Host_->GetClickHouseWorkerInvoker());
+            block = FilterRowsByPrewhereInfo(std::move(block), PrewhereInfo_);
         }
 
         // NB: ConvertToField copies all strings, so clearing row buffer is safe here.
@@ -247,6 +240,16 @@ void TBlockInputStream::Prepare()
         }
         IdToColumnIndex_[id] = index;
     }
+}
+
+DB::Block TBlockInputStream::ConvertRowBatchToBlock(const IUnversionedRowBatchPtr& batch)
+{
+    return NClickHouseServer::ConvertRowBatchToBlock(
+        batch,
+        *ReadSchema_,
+        IdToColumnIndex_,
+        RowBuffer_,
+        InputHeaderBlock_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

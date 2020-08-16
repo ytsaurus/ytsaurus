@@ -57,6 +57,7 @@ private:
 
     virtual DB::Block readImpl() override;
     void Prepare();
+    DB::Block ConvertRowBatchToBlock(const NTableClient::IUnversionedRowBatchPtr& batch);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
