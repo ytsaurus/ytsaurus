@@ -15,8 +15,7 @@ DB::Block ConvertRowBatchToBlock(
     const NTableClient::TTableSchema& readSchema,
     const std::vector<int>& idToColumnIndex,
     const NTableClient::TRowBufferPtr& rowBuffer,
-    const DB::Block& headerBlock,
-    bool enableColumnarMaterialization);
+    const DB::Block& headerBlock);
 
 ////////////////////////////////////////////////////////////////////////////////
 
