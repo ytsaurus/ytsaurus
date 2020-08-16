@@ -1303,7 +1303,7 @@ public:
                 .Item("cluster").Value(ClusterName_)
             .EndMap()
             .Item("version").Value("1")
-            .Item("source_wt").Value(now);
+            .Item("source_wt").Value((now - TInstant()).Seconds());
     }
 
     virtual int GetDefaultAbcId() const override
