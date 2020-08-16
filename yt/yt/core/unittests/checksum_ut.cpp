@@ -1,8 +1,11 @@
 #include <yt/core/test_framework/framework.h>
 
+#include <yt/core/misc/blob.h>
+
 #include <yt/core/misc/checksum.h>
 
 #include <util/random/random.h>
+#include <util/stream/mem.h>
 
 namespace NYT {
 namespace {
@@ -89,6 +92,32 @@ TEST(TChecksumTest, Reference)
 
         EXPECT_EQ(isaCrc, oldCrc);
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TChecksumTest, TestStreams)
+{
+    auto size = 0;
+    for (const auto& test : Cases) {
+        size += test.Data.Size();
+    }
+    TBlob blob(TDefaultBlobTag(), size);
+
+    auto memoryOutputStream = TMemoryOutput(blob.Begin(), blob.Size());
+    auto outputStream = TChecksumOutput(&memoryOutputStream);
+    for (const auto& test : Cases) {
+        outputStream.Write(TStringBuf(test.Data));
+    }
+    auto outputChecksum = outputStream.GetChecksum();
+    
+    auto memoryInputStream = TMemoryInput(blob.Begin(), blob.Size());
+    auto inputStream = TChecksumInput(&memoryInputStream);
+    char v;
+    while (inputStream.Read(&v, 1)) { }
+    auto inputChecksum = inputStream.GetChecksum();
+
+    EXPECT_EQ(outputChecksum, inputChecksum);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
