@@ -717,10 +717,10 @@ ui64 CrcImpl(const void* data, size_t length, ui64 seed)
 #ifdef YT_USE_SSE42
     static const bool Native = NX86::CachedHaveSSE42() && NX86::CachedHavePCLMUL();
     if (Native) {
-        return NIsaCrc64::CrcImplFast(data, length, 0);
+        return NIsaCrc64::CrcImplFast(data, length, seed);
     }
 #endif
-    return NIsaCrc64::CrcImplBase(data, length, 0);
+    return NIsaCrc64::CrcImplBase(data, length, seed);
 }
 
 } // namespace
