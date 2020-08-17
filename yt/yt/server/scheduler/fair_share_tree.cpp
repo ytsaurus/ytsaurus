@@ -1551,7 +1551,7 @@ auto TFairShareTree<TFairShareImpl>::DoPreemptJobsGracefully(
 {
     YT_LOG_TRACE("Looking for gracefully preemptable jobs");
     for (const auto& job : schedulingContext->RunningJobs()) {
-        if (job->GetPreemptionMode() != EPreemptionMode::Graceful || job->GetGracefullyPreempted()) {
+        if (job->GetPreemptionMode() != EPreemptionMode::Graceful || job->GetPreempted()) {
             continue;
         }
 
@@ -1565,7 +1565,7 @@ auto TFairShareTree<TFairShareImpl>::DoPreemptJobsGracefully(
         }
 
         if (operationElement->IsJobPreemptable(job->GetId(), /* aggressivePreemptionEnabled */ false)) {
-            schedulingContext->PreemptJobGracefully(job);
+            schedulingContext->PreemptJob(job, Config_->JobGracefulInterruptTimeout);
         }
     }
 }
@@ -1896,7 +1896,7 @@ auto TFairShareTree<TFairShareImpl>::PreemptJob(
     operationElement->IncreaseJobResourceUsage(job->GetId(), -job->ResourceUsage());
     job->ResourceUsage() = {};
 
-    schedulingContext->PreemptJob(job);
+    schedulingContext->PreemptJob(job, Config_->JobInterruptTimeout);
 }
 
 template <class TFairShareImpl>

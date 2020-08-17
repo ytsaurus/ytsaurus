@@ -339,7 +339,7 @@ private:
 
     void SubmitJobsToStrategy();
 
-    void ProcessScheduledJobs(
+    void ProcessScheduledAndPreemptedJobs(
         const ISchedulingContextPtr& schedulingContext,
         const TScheduler::TCtxNodeHeartbeatPtr& rpcContext);
 

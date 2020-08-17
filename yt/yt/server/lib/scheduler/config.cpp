@@ -186,6 +186,13 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 
     RegisterParameter("preemption_check_satisfaction", PreemptionCheckSatisfaction)
         .Default(true);
+    
+    RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
+        .Default(TDuration::Seconds(10));
+
+    RegisterParameter("job_graceful_interrupt_timeout", JobGracefulInterruptTimeout)
+        .Default(TDuration::Seconds(60));
+
 
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -459,12 +466,6 @@ TSchedulerConfig::TSchedulerConfig()
         .Default(true);
     RegisterParameter("enable_job_fail_context_reporter", EnableJobFailContextReporter)
         .Default(true);
-
-    RegisterParameter("job_interrupt_timeout", JobInterruptTimeout)
-        .Default(TDuration::Seconds(10));
-
-    RegisterParameter("graceful_preemption_job_interrupt_timeout", GracefulPreemptionJobInterruptTimeout)
-        .Default(TDuration::Seconds(60));
 
     RegisterParameter("enable_unrecognized_alert", EnableUnrecognizedAlert)
         .Default(true);

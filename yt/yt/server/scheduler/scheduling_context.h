@@ -39,6 +39,12 @@ void Serialize(const TFairShareSchedulingStatistics& event, NYson::IYsonConsumer
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPreemptedJob
+{
+    TJobPtr Job;
+    TDuration InterruptTimeout; 
+};
+
 struct ISchedulingContext
     : public virtual TRefCounted
 {
@@ -55,9 +61,8 @@ struct ISchedulingContext
     virtual TJobResources GetNodeFreeResourcesWithDiscount() = 0;
 
     virtual const std::vector<TJobPtr>& StartedJobs() const = 0;
-    virtual const std::vector<TJobPtr>& PreemptedJobs() const = 0;
-    virtual const std::vector<TJobPtr>& GracefullyPreemptedJobs() const = 0;
     virtual const std::vector<TJobPtr>& RunningJobs() const = 0;
+    virtual const std::vector<TPreemptedJob>& PreemptedJobs() const = 0;
 
     //! Returns |true| if node has enough resources to start job with given limits.
     virtual bool CanStartJob(const TJobResourcesWithQuota& jobResources) const = 0;
@@ -76,8 +81,7 @@ struct ISchedulingContext
         const TJobStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode) = 0;
 
-    virtual void PreemptJob(const TJobPtr& job) = 0;
-    virtual void PreemptJobGracefully(const TJobPtr& job) = 0;
+    virtual void PreemptJob(const TJobPtr& job, TDuration interruptTimeout) = 0;
 
     virtual NProfiling::TCpuInstant GetNow() const = 0;
 

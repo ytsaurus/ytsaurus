@@ -74,7 +74,7 @@ public:
     virtual void AbortOperation(NScheduler::TOperationId operationId, const TError& error) override;
     virtual void FlushOperationNode(NScheduler::TOperationId operationId) override;
 
-    void PreemptJob(const NScheduler::TJobPtr& job);
+    void PreemptJob(const NScheduler::TJobPtr& job, TDuration interruptTimeout);
 
     virtual NYson::IYsonConsumer* GetEventLogConsumer() override;
 

@@ -1,4 +1,3 @@
-
 #pragma once
 
 #include "public.h"
@@ -230,6 +229,12 @@ public:
 
     bool PreemptionCheckStarvation;
     bool PreemptionCheckSatisfaction;
+    
+    // Timeout for job interruption before we abort it.
+    TDuration JobInterruptTimeout;
+
+    // Timeout for graceful job interruption before we abort it.
+    TDuration JobGracefulInterruptTimeout;
 
     TFairShareStrategyTreeConfig();
 };
@@ -513,12 +518,6 @@ public:
 
     // Enables job reporter to send job fail contexts.
     bool EnableJobFailContextReporter;
-
-    // Timeout for job interruption before we abort it.
-    TDuration JobInterruptTimeout;
-
-    // Timeout for graceful job interruption before we abort it.
-    TDuration GracefulPreemptionJobInterruptTimeout;
 
     bool EnableUnrecognizedAlert;
 

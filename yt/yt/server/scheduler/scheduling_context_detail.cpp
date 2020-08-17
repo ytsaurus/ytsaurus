@@ -110,16 +110,10 @@ void TSchedulingContextBase::StartJob(
     StartedJobs_.push_back(job);
 }
 
-void TSchedulingContextBase::PreemptJob(const TJobPtr& job)
+void TSchedulingContextBase::PreemptJob(const TJobPtr& job, TDuration interruptTimeout)
 {
     YT_VERIFY(job->GetNode() == Node_);
-    PreemptedJobs_.push_back(job);
-}
-
-void TSchedulingContextBase::PreemptJobGracefully(const TJobPtr& job)
-{
-    YT_VERIFY(job->GetNode() == Node_);
-    GracefullyPreemptedJobs_.push_back(job);
+    PreemptedJobs_.push_back({job, interruptTimeout});
 }
 
 TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithoutDiscount()
