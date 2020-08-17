@@ -171,12 +171,12 @@ DB::Pipe CreateRemoteSource(
 
     auto pipe = createRemoteSourcePipe(remoteQueryExecutor, addAggregationInfo, addTotals, addExtremes);
 
-    auto loggingTransform = std::make_shared<TLoggingTransform>(pipe.getHeader(), TLogger(queryContext->Logger)
-        .AddTag("RemoteQueryId: %v, RemoteNode: %v",
-            remoteQueryId,
-            remoteNode->GetName().ToString()));
-
-    pipe.addTransform(std::move(loggingTransform));
+    pipe.addSimpleTransform([&](const DB::Block & header) {
+        return std::make_shared<TLoggingTransform>(header, TLogger(queryContext->Logger)
+            .AddTag("RemoteQueryId: %v, RemoteNode: %v",
+                remoteQueryId,
+                remoteNode->GetName().ToString()));
+    });
 
     return pipe;
 }
