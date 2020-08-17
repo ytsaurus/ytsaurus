@@ -344,7 +344,7 @@ func (e *Encoder) GetOperation(
 func (e *Encoder) ListOperations(
 	ctx context.Context,
 	options *yt.ListOperationsOptions,
-) (operations []*yt.OperationStatus, err error) {
+) (operations *yt.ListOperationsResult, err error) {
 	call := e.newCall(NewListOperationsParams(options))
 	err = e.do(ctx, call, func(res *CallResult) error {
 		return res.decode(&operations)

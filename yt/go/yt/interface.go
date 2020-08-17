@@ -524,6 +524,15 @@ type ListOperationsOptions struct {
 	*MasterReadOptions
 
 	*ReadRetryOptions
+
+	FromTime *yson.Time      `http:"from_time,omitempty"`
+	ToTime   *yson.Time      `http:"to_time,omitempty"`
+	Cursor   *yson.Time      `http:"cursor_time,omitempty"`
+	User     *string         `http:"user,omitempty"`
+	State    *OperationState `http:"state,omitempty"`
+	Type     *OperationType  `http:"type,omitempty"`
+	Filter   *string         `http:"filter,omitempty"`
+	Limit    *int            `http:"limit,omitempty"`
 }
 
 type ListJobsOptions struct {
@@ -551,6 +560,16 @@ type JobStatus struct {
 	Progress        float64        `yson:"progress,omitempty"`
 }
 
+type ListOperationsResult struct {
+	Operations      []OperationStatus `yson:"operations"`
+	Incomplete      bool              `yson:"incomplete"`
+	PoolCounts      map[string]int    `yson:"pool_counts"`
+	UserCounts      map[string]int    `yson:"user_counts"`
+	StateCounts     map[string]int    `yson:"state_counts"`
+	TypeCounts      map[string]int    `yson:"type_counts"`
+	FailedJobsCount int               `yson:"failed_jobs_count"`
+}
+
 type ListJobsResult struct {
 	Jobs []JobStatus `yson:"jobs"`
 }
@@ -572,9 +591,14 @@ type OperationResult struct {
 }
 
 type OperationStatus struct {
-	ID     OperationID      `yson:"id"`
-	State  OperationState   `yson:"state"`
-	Result *OperationResult `yson:"result"`
+	ID                OperationID            `yson:"id"`
+	State             OperationState         `yson:"state"`
+	Result            *OperationResult       `yson:"result"`
+	Type              OperationType          `yson:"type"`
+	BriefSpec         map[string]interface{} `yson:"brief_spec"`
+	StartTime         yson.Time              `yson:"start_time"`
+	Suspend           bool                   `yson:"suspend"`
+	AuthenticatedUsed string                 `yson:"authenticated_used"`
 }
 
 type OperationStartClient interface {
@@ -647,7 +671,7 @@ type LowLevelSchedulerClient interface {
 	ListOperations(
 		ctx context.Context,
 		options *ListOperationsOptions,
-	) (operations []*OperationStatus, err error)
+	) (operations *ListOperationsResult, err error)
 
 	// http:verb:"list_jobs"
 	// http:params:"operation_id"

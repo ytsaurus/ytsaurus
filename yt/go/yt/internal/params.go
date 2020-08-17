@@ -467,6 +467,20 @@ func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 	if o == nil {
 		return
 	}
+	w.MapKeyString("from_time")
+	w.Any(o.FromTime)
+	w.MapKeyString("to_time")
+	w.Any(o.ToTime)
+	w.MapKeyString("cursor_time")
+	w.Any(o.Cursor)
+	w.MapKeyString("user")
+	w.Any(o.User)
+	w.MapKeyString("state")
+	w.Any(o.State)
+	w.MapKeyString("type")
+	w.Any(o.Type)
+	w.MapKeyString("filter")
+	w.Any(o.Filter)
 	writeMasterReadOptions(w, o.MasterReadOptions)
 	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
