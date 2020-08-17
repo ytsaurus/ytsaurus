@@ -76,7 +76,7 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
         /*splay*/ Config_->DriverLayerFetchPeriod))
 {
     auto descriptors = NJobAgent::ListGpuDevices();
-    bool hasGpuDevices = !descriptors.empty() || Bootstrap_->GetConfig()->ExecAgent->JobController->TestGpuLayers;
+    bool hasGpuDevices = !descriptors.empty() || Config_->TestLayers;
     if (hasGpuDevices) {
         try {
             DriverVersionString_ = Config_->DriverVersion ? *Config_->DriverVersion : GetGpuDriverVersionString();

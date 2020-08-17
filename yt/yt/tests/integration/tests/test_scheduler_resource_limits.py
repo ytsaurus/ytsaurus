@@ -353,7 +353,7 @@ class TestSchedulerGpu(YTEnvSetup):
         cls.node_counter += 1
         if cls.node_counter == 1:
             config["exec_agent"]["job_controller"]["resource_limits"]["gpu"] = 1
-            config["exec_agent"]["job_controller"]["test_gpu_resource"] = True
+            config["exec_agent"]["job_controller"]["gpu_manager"] = {"test_resource": True}
 
     @authors("renadeen")
     def test_job_count(self):

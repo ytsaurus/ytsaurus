@@ -312,8 +312,8 @@ class TestGpuJobSetup(YTEnvSetup):
                         "path": "/static-bin/static-bash",
                         "args": ["-c", "echo SETUP-GPU-OUTPUT > /gpu_setup_output_file"]
                     },
+                    "test_setup_commands": True,
                 },
-                "test_gpu_setup_commands": True,
             },
             "slot_manager": {
                 "job_environment" : {
@@ -453,12 +453,12 @@ class TestGpuLayer(YTEnvSetup):
                     "path": "/static-bin/static-bash",
                     "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"]
                 },
-                "test_gpu_resource": True,
-                "test_gpu_layers": True,
                 "gpu_manager": {
                     "driver_layer_directory_path": "//tmp/drivers",
                     "driver_version": "test_version",
                     "driver_layer_fetch_period": 10000,
+                    "test_resource": True,
+                    "test_layers": True,
                 }
             },
             "slot_manager": {
@@ -526,12 +526,12 @@ class TestGpuLayerUpdate(YTEnvSetup):
         "exec_agent": {
             "test_root_fs" : True,
             "job_controller": {
-                "test_gpu_resource": True,
-                "test_gpu_layers": True,
                 "gpu_manager": {
                     "driver_layer_directory_path": "//tmp/drivers",
                     "driver_version": "test_version",
                     "driver_layer_fetch_period": 10000,
+                    "test_resource": True,
+                    "test_layers": True,
                 }
             },
             "slot_manager": {
@@ -610,13 +610,13 @@ class TestCudaLayer(YTEnvSetup):
                     "path": "/static-bin/static-bash",
                     "args": ["-c", "echo SETUP-OUTPUT > /setup_output_file"]
                 },
-                "test_gpu_resource": True,
-                "test_gpu_layers": True,
                 "gpu_manager": {
                     "driver_version": "0",
                     "toolkit_min_driver_version": {
                         "0": "0"
-                    }
+                    },
+                    "test_resource": True,
+                    "test_layers": True,
                 }
             },
             "slot_manager": {
@@ -683,9 +683,8 @@ class TestForceCudaLayer(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {
         "exec_agent": {
-            "test_root_fs" : True,
+            "test_root_fs": True,
             "job_controller": {
-                "test_gpu_resource": True,
                 "gpu_manager": {
                     "driver_version": "0",
                     "driver_layer_directory_path": "//tmp/drivers",
@@ -696,6 +695,7 @@ class TestForceCudaLayer(YTEnvSetup):
                         "path": "/static-bin/static-bash",
                         "args": ["-c", "echo SETUP-OUTPUT > /playground/setup_output_file"]
                     },
+                    "test_resource": True,
                 }
             },
             "slot_manager": {

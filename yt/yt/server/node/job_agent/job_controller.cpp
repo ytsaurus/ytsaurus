@@ -391,7 +391,7 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
     ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
     #undef XX
 
-    if (!Config_->TestGpuResource) {
+    if (!Config_->GpuManager->TestResource) {
         result.set_gpu(Bootstrap_->GetGpuManager()->GetTotalGpuCount());
     }
 
