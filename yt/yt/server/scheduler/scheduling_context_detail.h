@@ -21,9 +21,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TDiskResources, DiskResources);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, StartedJobs);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, PreemptedJobs);
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, GracefullyPreemptedJobs);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TJobPtr>, RunningJobs);
+    DEFINE_BYREF_RO_PROPERTY(std::vector<TPreemptedJob>, PreemptedJobs);
 
     DEFINE_BYVAL_RW_PROPERTY(TFairShareSchedulingStatistics, SchedulingStatistics);
 
@@ -49,8 +48,7 @@ public:
         const TJobStartDescriptor& startDescriptor,
         EPreemptionMode preemptionMode) override;
 
-    virtual void PreemptJob(const TJobPtr& job) override;
-    virtual void PreemptJobGracefully(const TJobPtr& job) override;
+    virtual void PreemptJob(const TJobPtr& job, TDuration interruptTimeout) override;
 
     virtual TJobResources GetNodeFreeResourcesWithoutDiscount() override;
     virtual TJobResources GetNodeFreeResourcesWithDiscount() override;

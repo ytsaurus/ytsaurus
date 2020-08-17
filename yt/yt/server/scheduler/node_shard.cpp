@@ -587,11 +587,15 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         mediumDirectory);
 
     PROFILE_AGGREGATED_TIMING (GracefulPreemptionTimeCounter) {
+        bool hasGracefulPreemptionCandidates = false;
         for (const auto& job : runningJobs) {
-            if (job->GetPreemptionMode() == EPreemptionMode::Graceful && !job->GetGracefullyPreempted()) {
-                Host_->GetStrategy()->PreemptJobsGracefully(schedulingContext);
+            if (job->GetPreemptionMode() == EPreemptionMode::Graceful && !job->GetPreempted()) {
+                hasGracefulPreemptionCandidates = true;
                 break;
             }
+        }
+        if (hasGracefulPreemptionCandidates) {
+            Host_->GetStrategy()->PreemptJobsGracefully(schedulingContext);
         }
     }
 
@@ -614,7 +618,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             node->SetLastNonPreemptiveHeartbeatStatistics(statistics);
         }
 
-        ProcessScheduledJobs(
+        ProcessScheduledAndPreemptedJobs(
             schedulingContext,
             /* requestContext */ context);
 
@@ -625,7 +629,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
         context->SetResponseInfo(
             "NodeId: %v, NodeAddress: %v, "
-            "StartedJobs: %v, PreemptedJobs: %v, GracefullyPreemptedJobs: %v, "
+            "StartedJobs: %v, PreemptedJobs: %v, "
             "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
             "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
             "PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingElements: %v",
@@ -633,7 +637,6 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             descriptor.GetDefaultAddress(),
             schedulingContext->StartedJobs().size(),
             schedulingContext->PreemptedJobs().size(),
-            schedulingContext->GracefullyPreemptedJobs().size(),
             statistics.ScheduledDuringPreemption,
             statistics.PreemptableJobCount,
             FormatResources(statistics.ResourceUsageDiscount),
@@ -642,11 +645,15 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             statistics.PreemptiveScheduleJobAttempts,
             statistics.HasAggressivelyStarvingElements);
     } else {
+        ProcessScheduledAndPreemptedJobs(
+            schedulingContext,
+            /* requestContext */ context);
+
         context->SetResponseInfo(
-            "NodeId: %v, NodeAddress: %v, GracefullyPreemptedJobs: %v",
+            "NodeId: %v, NodeAddress: %v, PreemptedJobs: %v",
             nodeId,
             descriptor.GetDefaultAddress(),
-            schedulingContext->GracefullyPreemptedJobs().size());
+            schedulingContext->PreemptedJobs().size());
     }
 
     context->Reply();
@@ -2028,7 +2035,7 @@ void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
     }
 }
 
-void TNodeShard::ProcessScheduledJobs(
+void TNodeShard::ProcessScheduledAndPreemptedJobs(
     const ISchedulingContextPtr& schedulingContext,
     const TScheduler::TCtxNodeHeartbeatPtr& rpcContext)
 {
@@ -2092,31 +2099,25 @@ void TNodeShard::ProcessScheduledJobs(
         ToProto(startInfo->mutable_spec_service_addresses(), agent->GetAgentAddresses());
     }
 
-    for (const auto& job : schedulingContext->PreemptedJobs()) {
+    for (const auto& preemptedJob : schedulingContext->PreemptedJobs()) {
+        auto& job = preemptedJob.Job;
+        auto interruptTimeout = preemptedJob.InterruptTimeout;
         if (!FindOperationState(job->GetOperationId()) || job->GetUnregistered()) {
-            YT_LOG_DEBUG("Cannot preempt job: operation is no longer known (JobId: %v, OperationId: %v)",
+            YT_LOG_DEBUG("Cannot preempt job since operation is no longer known (JobId: %v, OperationId: %v)",
                 job->GetId(),
                 job->GetOperationId());
             continue;
         }
 
-        if (job->GetInterruptible() && Config_->JobInterruptTimeout != TDuration::Zero()) {
+        if (job->GetInterruptible() && interruptTimeout != TDuration::Zero()) {
             if (!job->GetPreempted()) {
-                PreemptJob(job, DurationToCpuDuration(Config_->JobInterruptTimeout));
+                PreemptJob(job, DurationToCpuDuration(interruptTimeout));
                 ToProto(response->add_jobs_to_interrupt(), job->GetId());
             }
             // Else do nothing: job was already interrupted, by deadline not reached yet.
         } else {
             PreemptJob(job, std::nullopt);
             ToProto(response->add_jobs_to_abort(), job->GetId());
-        }
-    }
-
-    for (const auto& job : schedulingContext->GracefullyPreemptedJobs()) {
-        if (!job->GetGracefullyPreempted()) {
-            DoInterruptJob(job, EInterruptReason::GracefulPreemption, DurationToCpuDuration(Config_->GracefulPreemptionJobInterruptTimeout));
-            job->SetGracefullyPreempted(true);
-            ToProto(response->add_jobs_to_interrupt(), job->GetId());
         }
     }
 }

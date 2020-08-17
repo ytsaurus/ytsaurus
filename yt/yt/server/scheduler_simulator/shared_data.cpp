@@ -351,7 +351,7 @@ void TSharedSchedulerStrategy::ScheduleJobs(const ISchedulingContextPtr& schedul
 
 void TSharedSchedulerStrategy::PreemptJob(const TJobPtr& job)
 {
-    StrategyHost_.PreemptJob(job);
+    StrategyHost_.PreemptJob(job, TDuration::Zero());
 }
 
 void TSharedSchedulerStrategy::ProcessJobUpdates(

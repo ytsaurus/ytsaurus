@@ -187,7 +187,7 @@ void TSchedulerStrategyHost::FlushOperationNode(TOperationId operationId)
     YT_VERIFY(false);
 }
 
-void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job)
+void TSchedulerStrategyHost::PreemptJob(const TJobPtr& job, TDuration interruptTimeout)
 {
     YT_VERIFY(job->GetNode()->Jobs().erase(job) == 1);
     job->SetState(NJobTrackerClient::EJobState::Aborted);

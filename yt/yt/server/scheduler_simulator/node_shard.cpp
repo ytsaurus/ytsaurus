@@ -209,7 +209,8 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
     }
 
     // Process all preempted jobs.
-    for (const auto& job : context->PreemptedJobs()) {
+    for (const auto& preemptedJob : context->PreemptedJobs()) {
+        auto& job = preemptedJob.Job;
         job->SetFinishTime(event.Time);
         auto duration = event.Time - job->GetStartTime();
 

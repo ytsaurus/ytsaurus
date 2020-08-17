@@ -876,7 +876,6 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
     BASE_DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
-            "graceful_preemption_job_interrupt_timeout": 10000,
             "event_log": {
                 "flush_period": 300,
                 "retry_backoff_time": 300
@@ -901,6 +900,7 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
         set("//sys/pool_trees/default/@min_share_preemption_timeout", 100)
         set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
         set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@job_graceful_interrupt_timeout", 10000)
         time.sleep(0.5)
 
     @authors("ignat")
@@ -1273,8 +1273,6 @@ class BaseTestResourceLimitsOverdraftPreemption(YTEnvSetup):
     BASE_DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
-            "graceful_preemption_job_interrupt_timeout": 10000,
-            "job_interrupt_timeout": 600000,
             "allowed_node_resources_overcommit_duration": 1000,
         }
     }
@@ -1290,12 +1288,16 @@ class BaseTestResourceLimitsOverdraftPreemption(YTEnvSetup):
         }
     }
 
+    def setup(self):
+        set("//sys/pool_trees/default/@job_graceful_interrupt_timeout", 10000)
+        set("//sys/pool_trees/default/@job_interrupt_timeout", 600000)
+
     def teardown(self):
         remove("//sys/scheduler/config", force=True)
 
     @authors("ignat")
     def test_scheduler_preempt_overdraft_resources(self):
-        set("//sys/scheduler/config", {"job_interrupt_timeout": 1000})
+        set("//sys/pool_trees/default/@job_interrupt_timeout", 1000)
 
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) > 0
