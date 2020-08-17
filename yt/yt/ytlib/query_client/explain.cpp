@@ -1,10 +1,13 @@
 #include "coordinator.h"
 #include "explain.h"
 #include "functions.h"
+#include "helpers.h"
 #include "query_helpers.h"
 #include "query_preparer.h"
 
 #include <yt/client/api/public.h>
+
+#include <yt/client/api/rowset.h>
 
 #include <yt/client/table_client/unversioned_row.h>
 
@@ -19,8 +22,12 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 void GetQueryInfo(
+    NApi::NNative::IConnectionPtr connection,
     const TConstQueryPtr query,
-    TFluentAny& fluent)
+    const TDataRanges& dataSource,
+    TFluentAny& fluent,
+    bool isSubquery,
+    const NApi::TExplainQueryOptions& options)
 {
     const auto& keyColumns = query->GetKeyColumns();
     const auto& expression = query->WhereClause;
@@ -80,6 +87,41 @@ void GetQueryInfo(
                         .Item().Value(ToString(range.second))
                     .EndList();
                 });
+
+            if (options.VerboseOutput && !isSubquery) {
+                TQueryOptions queryOptions;
+                auto Logger = MakeQueryLogger(query);
+                auto rowBuffer = New<TRowBuffer>(TQueryExecutorRowBufferTag{});
+
+                auto allSplits = InferRanges(connection, query, dataSource, queryOptions, rowBuffer, Logger);
+
+                THashMap<TString, std::vector<TDataRanges>> groupsByAddress;
+                for (const auto& split : allSplits) {
+                    const auto& address = split.second;
+                    groupsByAddress[address].push_back(split.first);
+                }
+
+                std::vector<std::pair<std::vector<TDataRanges>, TString>> groupedSplits;
+                for (const auto& group : groupsByAddress) {
+                    groupedSplits.emplace_back(group.second, group.first);
+                }
+
+                fluent.Item("grouped_ranges")
+                    .DoMapFor(groupedSplits, [&] (auto fluent, auto rangesByNode) {
+                        fluent.Item(rangesByNode.second)
+                        .DoListFor(rangesByNode.first, [&] (auto fluent, auto ranges) {
+                            fluent.Item()
+                            .BeginList()
+                            .DoFor(ranges.Ranges, [&] (auto fluent, auto range) {
+                                fluent.Item()
+                                .BeginList()
+                                    .Item().Value(ToString(range.first))
+                                    .Item().Value(ToString(range.second))
+                                .EndList();
+                            }).EndList();
+                        });
+                    });
+            }
         })
         .EndMap();
 }
@@ -98,18 +140,21 @@ void GetFrontQueryInfo(
 }
 
 NYson::TYsonString BuildExplainQueryYson(
+    NApi::NNative::IConnectionPtr connection,
     const TString& queryString,
     const std::unique_ptr<TPlanFragment>& fragment,
-    TStringBuf udfRegistryPath)
+    TStringBuf udfRegistryPath,
+    const NApi::TExplainQueryOptions& options)
 {
     const auto& query = fragment->Query;
+    const TDataRanges& dataSource = fragment->Ranges;
 
     return BuildYsonStringFluently()
         .BeginMap()
         .Item("udf_registry_path").Value(udfRegistryPath)
         .Item("query")
         .Do([&] (auto fluent) {
-            GetQueryInfo(query, fluent);
+            GetQueryInfo(connection, query, dataSource, fluent, false, options);
         })
         .Do([&] (TFluentMap fluent) {
             auto refiner = [] (TConstExpressionPtr expr, const TKeyColumns& keyColumns) {
@@ -123,7 +168,7 @@ NYson::TYsonString BuildExplainQueryYson(
                     .DoFor(coordinatedQuery.second, [&] (auto fluent, const auto& subquery) {
                         fluent.Item(ToString(subquery->Id))
                             .Do([&] (auto fluent) {
-                                GetQueryInfo(subquery, fluent);
+                                GetQueryInfo(connection, subquery, dataSource, fluent, true, options);
                             });
                     })
                 .EndMap();

@@ -503,7 +503,9 @@ struct TSelectRowsOptions
 
 struct TExplainQueryOptions
     : public TSelectRowsOptionsBase
-{};
+{
+    bool VerboseOutput = false;
+};
 
 struct TGetNodeOptions
     : public TTimeoutOptions

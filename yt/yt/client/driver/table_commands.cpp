@@ -359,7 +359,7 @@ void TGetTableColumnarStatisticsCommand::DoExecute(ICommandContextPtr context)
         auto guard = Guard(*writeLock);
         *writeRequested = true;
     }
-        
+
     WaitFor(writeStopped.ToFuture())
         .ThrowOnError();
     WaitFor(keepAliveExecutor->Stop())
@@ -626,6 +626,8 @@ void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
 TExplainQueryCommand::TExplainQueryCommand()
 {
     RegisterParameter("query", Query);
+    RegisterParameter("verbose_output", Options.VerboseOutput)
+        .Optional();
 }
 
 void TExplainQueryCommand::DoExecute(ICommandContextPtr context)
