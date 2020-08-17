@@ -11,6 +11,17 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueryExecutorRowBufferTag
+{ };
+
+std::vector<std::pair<TDataRanges, TString>> InferRanges(
+    NApi::NNative::IConnectionPtr connection,
+    TConstQueryPtr query,
+    const TDataRanges& dataSource,
+    const TQueryOptions& options,
+    TRowBufferPtr rowBuffer,
+    const NLogging::TLogger& Logger);
+
 IExecutorPtr CreateQueryExecutor(
     NApi::NNative::IConnectionPtr connection,
     IInvokerPtr invoker,
