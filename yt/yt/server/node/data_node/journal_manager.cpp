@@ -1038,7 +1038,7 @@ private:
     {
         IChangelogPtr changelog;
 
-        YT_LOG_TRACE("Started opening journal chunk (ChunkId: %v)",
+        YT_LOG_DEBUG("Started opening journal chunk (ChunkId: %v)",
             chunkId);
 
         {
@@ -1051,7 +1051,7 @@ private:
                 HighLatencySplitChangelogConfig_);
         }
 
-        YT_LOG_TRACE("Finished opening journal chunk (ChunkId: %v)",
+        YT_LOG_DEBUG("Finished opening journal chunk (ChunkId: %v)",
             chunkId);
 
         return changelog;

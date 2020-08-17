@@ -177,8 +177,11 @@ public:
 
     virtual TFuture<void> Close() override
     {
-        return UnderlyingChangelog_->Close().Apply(BIND([=, this_ = MakeStrong(this)] (const TError&) {
-            Owner_->TryRemove(this, /* noResurrection */ true);
+        return UnderlyingChangelog_->Close().Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            if (!Owner_->TryRemove(this, /* forbidResurrection */ true)) {
+                YT_LOG_DEBUG("Failed to evict changelog from cache");
+            }
+            return error;
         })).ToUncancelable();
     }
 
@@ -304,7 +307,7 @@ void TJournalDispatcher::TImpl::OnAdded(const TCachedChangelogPtr& changelog)
     TAsyncSlruCacheBase::OnAdded(changelog);
 
     auto key = changelog->GetKey();
-    YT_LOG_TRACE("Journal chunk added to cache (LocationId: %v, ChunkId: %v)",
+    YT_LOG_DEBUG("Changelog added to cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),
         key.ChunkId);
 }
@@ -316,7 +319,7 @@ void TJournalDispatcher::TImpl::OnRemoved(const TCachedChangelogPtr& changelog)
     TAsyncSlruCacheBase::OnRemoved(changelog);
 
     auto key = changelog->GetKey();
-    YT_LOG_TRACE("Journal chunk removed from cache (LocationId: %v, ChunkId: %v)",
+    YT_LOG_DEBUG("Changelog removed from cache (LocationId: %v, ChunkId: %v)",
         key.Location->GetId(),
         key.ChunkId);
 }
