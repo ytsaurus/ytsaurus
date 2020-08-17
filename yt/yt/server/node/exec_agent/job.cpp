@@ -192,7 +192,7 @@ public:
                 }
             }
 
-            if (NeedGpu() && !Config_->JobController->TestGpuResource) {
+            if (NeedGpu() && !Config_->JobController->GpuManager->TestResource) {
                 for (int i = 0; i < GetResourceUsage().gpu(); ++i) {
                     GpuSlots_.emplace_back(Bootstrap_->GetGpuManager()->AcquireGpuSlot());
 
@@ -1495,7 +1495,7 @@ private:
                     nullptr});
             }
 
-            bool needGpuLayers = NeedGpuLayers() || Config_->JobController->TestGpuLayers;
+            bool needGpuLayers = NeedGpuLayers() || Config_->JobController->GpuManager->TestLayers;
 
             if (needGpuLayers && userJobSpec.enable_gpu_layers()) {
                 if (userJobSpec.layers().empty()) {
@@ -1884,7 +1884,7 @@ private:
 
         addIfPresent(Config_->JobController->JobSetupCommand);
 
-        bool needGpu = NeedGpuLayers() || Config_->JobController->TestGpuSetupCommands;
+        bool needGpu = NeedGpuLayers() || Config_->JobController->GpuManager->TestSetupCommands;
         if (needGpu) {
             auto gpu_commands = Bootstrap_->GetGpuManager()->GetSetupCommands();
             result.insert(result.end(), gpu_commands.begin(), gpu_commands.end());

@@ -90,6 +90,13 @@ public:
 
     THashMap<TString, TString> ToolkitMinDriverVersion;
 
+    //! This is a special testing option.
+    //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
+    bool TestResource;
+    //! These options enable testing gpu layers and setup commands.
+    bool TestLayers;
+    bool TestSetupCommands;
+
     TGpuManagerConfig()
     {
         RegisterParameter("health_check_timeout", HealthCheckTimeout)
@@ -108,6 +115,19 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("toolkit_min_driver_version", ToolkitMinDriverVersion)
             .Default();
+        
+        RegisterParameter("test_resource", TestResource)
+            .Default(false);
+        RegisterParameter("test_layers", TestLayers)
+            .Default(false);
+        RegisterParameter("test_setup_commands", TestSetupCommands)
+            .Default(false);
+
+        RegisterPostprocessor([&] {
+            if (TestLayers && !TestResource) {
+                THROW_ERROR_EXCEPTION("You need to specify 'test_resource' option if 'test_layers' is specified");
+            }
+        });
     }
 };
 
@@ -182,13 +202,6 @@ public:
     int PortCount;
     std::optional<THashSet<int>> PortSet;
 
-    //! This is a special testing option.
-    //! Instead of normal gpu discovery, it forces the node to believe the number of GPUs passed in the config.
-    bool TestGpuResource;
-
-    bool TestGpuLayers;
-    bool TestGpuSetupCommands;
-
     TGpuManagerConfigPtr GpuManager;
 
     TMappedMemoryControllerConfigPtr MappedMemoryController;
@@ -239,15 +252,6 @@ public:
 
         RegisterParameter("port_set", PortSet)
             .Default();
-
-        RegisterParameter("test_gpu_resource", TestGpuResource)
-            .Default(false);
-
-        RegisterParameter("test_gpu_layers", TestGpuLayers)
-            .Default(false);
-
-        RegisterParameter("test_gpu_setup_commands", TestGpuSetupCommands)
-            .Default(false);
 
         RegisterParameter("gpu_manager", GpuManager)
             .DefaultNew();
