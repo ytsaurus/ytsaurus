@@ -30,7 +30,6 @@
 #include <yt/ytlib/tablet_client/helpers.h>
 
 #include <yt/core/ypath/helpers.h>
-#include <yt/core/ypath/tokenizer.h>
 
 namespace NYT::NApi::NNative {
 
@@ -50,24 +49,6 @@ using namespace NChunkClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
-
-bool TryParseObjectId(const TYPath& path, TObjectId* objectId)
-{
-    NYPath::TTokenizer tokenizer(path);
-    if (tokenizer.Advance() != NYPath::ETokenType::Literal) {
-        return false;
-    }
-
-    auto token = tokenizer.GetToken();
-    if (!token.StartsWith(ObjectIdPathPrefix)) {
-        return false;
-    }
-
-    *objectId = TObjectId::FromString(token.SubString(
-        ObjectIdPathPrefix.length(),
-        token.length() - ObjectIdPathPrefix.length()));
-    return true;
-}
 
 template <class TRequestPtr>
 void SetCloneNodeBaseRequestParameters(
@@ -602,6 +583,8 @@ TYsonString TClient::DoGetNode(
     const TYPath& path,
     const TGetNodeOptions& options)
 {
+    MaybeValidateExternalObjectPermission(path, EPermission::Read);
+
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto batchReq = proxy->ExecuteBatch();
     SetBalancingHeader(batchReq, options);
@@ -634,6 +617,8 @@ void TClient::DoSetNode(
     const TYsonString& value,
     const TSetNodeOptions& options)
 {
+    MaybeValidateExternalObjectPermission(path, EPermission::Write);
+
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
     SetPrerequisites(batchReq, options);
@@ -666,6 +651,8 @@ void TClient::DoMultisetAttributesNode(
     const IMapNodePtr& attributes,
     const TMultisetAttributesNodeOptions& options)
 {
+    MaybeValidateExternalObjectPermission(path, EPermission::Write);
+
     auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
     SetPrerequisites(batchReq, options);
@@ -694,22 +681,9 @@ void TClient::DoRemoveNode(
     const TYPath& path,
     const TRemoveNodeOptions& options)
 {
-    auto cellTag = PrimaryMasterCellTag;
+    MaybeValidateExternalObjectPermission(path, EPermission::Write);
 
-    TObjectId objectId;
-    if (TryParseObjectId(path, &objectId)) {
-        cellTag = CellTagFromId(objectId);
-        switch (TypeFromId(objectId)) {
-            case EObjectType::TableReplica: {
-                InternalValidateTableReplicaPermission(objectId, EPermission::Write);
-                break;
-            }
-            default:
-                break;
-        }
-    }
-
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
+    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
     auto batchReq = proxy->ExecuteBatch();
     SetPrerequisites(batchReq, options);
 
@@ -730,6 +704,8 @@ TYsonString TClient::DoListNode(
     const TYPath& path,
     const TListNodeOptions& options)
 {
+    MaybeValidateExternalObjectPermission(path, EPermission::Read);
+
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto batchReq = proxy->ExecuteBatch();
     SetBalancingHeader(batchReq, options);

@@ -780,7 +780,13 @@ private:
         const NYPath::TYPath& path,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = {});
-    void InternalValidateTableReplicaPermission(
+    void MaybeValidateExternalObjectPermission(
+        const NYPath::TYPath& path,
+        NYTree::EPermission permission,
+        const TCheckPermissionOptions& options = {});
+    NYPath::TYPath GetReplicaTablePath(
+        NTabletClient::TTableReplicaId replicaId);
+    void ValidateTableReplicaPermission(
         NTabletClient::TTableReplicaId replicaId,
         NYTree::EPermission permission,
         const TCheckPermissionOptions& options = {});
