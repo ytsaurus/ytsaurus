@@ -1,9 +1,8 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import java.io.Closeable;
-import java.util.List;
 
-import ru.yandex.yt.ytclient.rpc.RpcClient;
+import ru.yandex.yt.ytclient.rpc.RpcClientPool;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 public abstract class DestinationsSelector extends ApiServiceClient implements Closeable {
@@ -11,5 +10,5 @@ public abstract class DestinationsSelector extends ApiServiceClient implements C
         super(options);
     }
 
-    abstract public List<RpcClient> selectDestinations();
+    abstract public RpcClientPool getClientPool();
 }
