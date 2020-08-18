@@ -392,17 +392,43 @@ Y_UNIT_TEST_SUITE(CypressClient) {
             *writer << "bar";
             writer->Finish();
         }
+        {
+            auto writer = client->CreateTableWriter<TNode>(workingDir + "/table1");
+            writer->AddRow(TNode()("foo", "bar"));
+            writer->Finish();
+        }
         client->Create(workingDir + "/concat", NT_FILE);
-        TVector<TYPath> nodes{workingDir + "/file1", workingDir + "/file2"};
-        client->Concatenate(nodes, workingDir + "/concat");
+        TVector<TYPath> files{workingDir + "/file1", workingDir + "/file2"};
+        TVector<TYPath> tables{workingDir + "/table1", workingDir + "/table1"};
+        client->Concatenate(files, workingDir + "/concat");
         {
             auto reader = client->CreateFileReader(workingDir + "/concat");
             UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "foobar");
         }
-        client->Concatenate(nodes, workingDir + "/concat", TConcatenateOptions().Append(true));
+        client->Concatenate(files, workingDir + "/concat", TConcatenateOptions().Append(true));
         {
             auto reader = client->CreateFileReader(workingDir + "/concat");
             UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "foobarfoobar");
+        }
+        client->Concatenate(files, workingDir + "/concat", TConcatenateOptions().Append(true));
+        {
+            auto reader = client->CreateFileReader(workingDir + "/concat");
+            UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "foobarfoobarfoobar");
+        }
+
+        // Nonexistent output file.
+        client->Concatenate(files, workingDir + "/nonexistent_file", TConcatenateOptions());
+        {
+            auto reader = client->CreateFileReader(workingDir + "/nonexistent_file");
+            UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "foobar");
+        }
+
+        // Nonexistent output table.
+        client->Concatenate(tables, workingDir + "/nonexistent_table", TConcatenateOptions());
+        {
+            auto reader = client->CreateTableReader<TNode>(workingDir + "/nonexistent_table");
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("foo", "bar"));
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetRow(), TNode()("foo", "bar"));
         }
     }
 
@@ -429,6 +455,13 @@ Y_UNIT_TEST_SUITE(CypressClient) {
             UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "foobar");
         }
         UNIT_ASSERT(!client->Exists(workingDir + "/concat"));
+
+        // Nonexistent output.
+        tx->Concatenate({workingDir + "/file1", workingDir + "/file2"}, workingDir + "/nonexistent");
+        {
+            auto reader = tx->CreateFileReader(workingDir + "/nonexistent");
+            UNIT_ASSERT_VALUES_EQUAL(reader->ReadAll(), "foobar");
+        }
     }
 
     Y_UNIT_TEST(TestRetries)

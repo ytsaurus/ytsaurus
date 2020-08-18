@@ -152,9 +152,13 @@ void TClientBase::Concatenate(
     const TConcatenateOptions& options)
 {
     std::function<void(ITransactionPtr)> lambda = [&sourcePaths, &destinationPath, &options, this](ITransactionPtr transaction) {
+        if (!options.Append_ && !sourcePaths.empty() && !transaction->Exists(destinationPath.Path_)) {
+            auto typeNode = transaction->Get(CanonizeYPath(sourcePaths.front()).Path_ + "/@type");
+            auto type = FromString<ENodeType>(typeNode.AsString());
+            transaction->Create(destinationPath.Path_, type, TCreateOptions().IgnoreExisting(true));
+        }
         NRawClient::Concatenate(this->Auth_, transaction->GetId(), sourcePaths, destinationPath, options);
     };
-
     RetryTransactionWithPolicy(this, lambda, ClientRetryPolicy_->CreatePolicyForGenericRequest());
 }
 
