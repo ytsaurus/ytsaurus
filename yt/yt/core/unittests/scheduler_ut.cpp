@@ -1072,9 +1072,7 @@ TDuration DoSleep(TDuration duration)
 {
     NProfiling::TWallTimer timer;
     Sleep(duration);
-    auto elapsedTime = timer.GetElapsedTime();
-    EXPECT_LE(elapsedTime, duration * 1.5);
-    return elapsedTime;
+    return timer.GetElapsedTime();
 }
 
 TEST_P(TFairShareSchedulerTest, Test)
