@@ -254,6 +254,16 @@ private:
     i64 RowIndex_ = Undefined;
 };
 
+TUnversionedValueToSkiffConverter CreateMissingCompositeValueConverter(TString name) {
+    return [name=name] (const TUnversionedValue& value, TCheckedInDebugSkiffWriter* writer, TWriteContext*) {
+        if (value.Type != EValueType::Null) {
+            THROW_ERROR_EXCEPTION("Cannot represent nonnull value of column %Qv absent in schema as composite skiff value",
+                    name);
+        }
+        writer->WriteVariant8Tag(0);
+    };
+}
+
 TUnversionedValueToSkiffConverter CreateSimpleValueConverter(EWireType wireType, bool required)
 {
     switch (wireType) {
@@ -456,14 +466,27 @@ public:
             auto createComplexValueConverter = [&] (const TFieldDescription& field, bool isSparse) -> std::optional<TUnversionedValueToSkiffConverter> {
                 auto columnSchema = indexedSchemas.GetColumnSchema(tableIndex, field.Name());
 
-                if (!columnSchema || columnSchema->SimplifiedLogicalType()) {
-                    // NB: we don't create complex value converter for simple types:
-                    //   1. Complex value converter expects unversioned values of type ANY and simple types have other types.
-                    //   2. For historical reasons we don't check skiff schema that strictly for simple types,
-                    //      e.g we allow column to be optional in table schema and be required in skiff schema
-                    //      (runtime check is used in such cases).
+                // NB: we don't create complex value converter for simple types
+                // (column is missing in schema or has simple type).
+                //   1. Complex value converter expects unversioned values of type ANY
+                //      and simple types have other types.
+                //   2. For historical reasons we don't check skiff schema that strictly for simple types,
+                //      e.g we allow column to be optional in table schema and be required in skiff schema
+                //      (runtime check is used in such cases).
+                if (!columnSchema) {
+                    if (!field.Simplify() && !field.IsRequired()) {
+                        // NB. Special case, column is described in skiff schema as nonrequired complex field
+                        // but is missing in schema.
+                        // We expect it to be missing in whole table and return corresponding converter.
+                        return CreateMissingCompositeValueConverter(field.Name());
+                    }
+
                     return {};
                 }
+                if (columnSchema->SimplifiedLogicalType()) {
+                    return {};
+                }
+
                 auto descriptor = TComplexTypeFieldDescriptor(field.Name(), columnSchema->LogicalType());
                 return CreateComplexValueConverter(std::move(descriptor), field.Schema(), isSparse);
             };

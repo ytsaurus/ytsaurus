@@ -458,3 +458,49 @@ class TestSkiffFormat(YTEnvSetup):
         assert read_table("//tmp/table") == [{"column": {}}, {"column": {}}]
         read_data = read_table("//tmp/table", is_raw=True, output_format=format)
         assert skiff_data == read_data
+
+    @authors("ermolovd")
+    def test_read_missing_complex_optional(self):
+        create("table", "//tmp/table")
+
+        format = yson.YsonString("skiff")
+        format.attributes["table_skiff_schemas"] = [
+            {
+                "wire_type": "tuple",
+                "children": [
+                    {
+                        "wire_type": "int64",
+                        "name": "column"
+                    },
+                    {
+                        "wire_type": "variant8",
+                        "children": [
+                            {
+                                "wire_type": "nothing",
+                            },
+                            {
+                                "wire_type": "repeated_variant8",
+                                "children": [
+                                    {
+                                        "wire_type": "int64",
+                                    }
+                                ]
+                            }
+                        ],
+                        "name": "missing_column",
+                    }
+                ],
+            }
+        ]
+
+
+        write_table("//tmp/table", [{"column": 1}, {"column": 2, "missing_column": None}])
+        read_data = read_table("//tmp/table", is_raw=True, output_format=format)
+        assert read_data == (
+            "\x00\x00" "\x01\x00\x00\x00""\x00\x00\x00\x00" "\x00"
+            "\x00\x00" "\x02\x00\x00\x00""\x00\x00\x00\x00" "\x00"
+        )
+
+        write_table("//tmp/table", [{"column": 1}, {"column": 2, "missing_column": "GG"}])
+        with raises_yt_error("Cannot represent nonnull value of column"):
+            read_data = read_table("//tmp/table", is_raw=True, output_format=format)

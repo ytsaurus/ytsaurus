@@ -696,12 +696,8 @@ TEST_P(TSkiffWriterSingular, TestOptionalSingular)
             CreateSimpleTypeSchema(EWireType::Nothing),
         })->SetName("opt_null"),
     });
-    auto nameTable = New<TNameTable>();
 
-    EXPECT_THROW_WITH_SUBSTRING(
-        CreateSkiffWriter(skiffSchema, nameTable, &Cnull, std::vector{New<TTableSchema>()}),
-        "cannot be represented with skiff schema");
-    
+    auto nameTable = New<TNameTable>();
     const std::vector<TTableSchemaPtr> tableSchemas = {
         New<TTableSchema>(std::vector{
             TColumnSchema("opt_null", OptionalLogicalType(SimpleLogicalType(singularType))),
@@ -1593,6 +1589,43 @@ TEST(TSkiffWriter, TestBadWireTypeForSimpleColumn)
         CreateSkiffWriter(skiffSchema, nameTable, &resultStream, std::vector{New<TTableSchema>()}),
         "cannot be represented with skiff schema"
     );
+}
+
+TEST(TSkiffWriter, TestMissingComplexColumn)
+{
+    auto optionalSkiffSchema = CreateTupleSchema({
+        CreateVariant8Schema({
+            CreateSimpleTypeSchema(EWireType::Nothing),
+            CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(EWireType::Int64)}),
+        })->SetName("opt_list"),
+    });
+    auto requiredSkiffSchema = CreateTupleSchema({
+        CreateRepeatedVariant8Schema({CreateSimpleTypeSchema(EWireType::Int64)})->SetName("opt_list"),
+    });
+
+    { // Non optional skiff schema
+        auto nameTable = New<TNameTable>();
+        EXPECT_THROW_WITH_SUBSTRING(
+            CreateSkiffWriter(requiredSkiffSchema, nameTable, &Cnull, std::vector{New<TTableSchema>()}),
+            "cannot be represented with skiff schema"
+        );
+    }
+
+    {
+        auto nameTable = New<TNameTable>();
+        TStringStream resultStream;
+        auto writer = CreateSkiffWriter(optionalSkiffSchema, nameTable, &resultStream, std::vector{New<TTableSchema>()});
+        writer->Write({
+            MakeRow({ }).Get(),
+            MakeRow({ MakeUnversionedNullValue(nameTable->GetIdOrRegisterName("opt_list")), }).Get(),
+            MakeRow({ }).Get(),
+        });
+        writer->Close()
+            .Get()
+            .ThrowOnError();
+
+        EXPECT_EQ(HexEncode(resultStream.Str()), "0000" "00" "0000" "00" "0000" "00");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
