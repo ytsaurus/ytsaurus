@@ -380,6 +380,20 @@ TControllerAgentTrackerConfig::TControllerAgentTrackerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TResourceMeteringConfig::TResourceMeteringConfig()
+{
+    RegisterParameter("default_abc_id", DefaultAbcId)
+        .Default(-1);
+
+    RegisterParameter("default_cloud_id", DefaultCloudId)
+        .Default();
+
+    RegisterParameter("default_folder_id", DefaultFolderId)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TSchedulerConfig::TSchedulerConfig()
 {
     SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -557,9 +571,9 @@ TSchedulerConfig::TSchedulerConfig()
 
     RegisterParameter("use_classic_scheduler", UseClassicScheduler)
         .Default(true);
-
-    RegisterParameter("default_abc_id", DefaultAbcId)
-        .Default(-1);
+    
+    RegisterParameter("resource_metering", ResourceMetering)
+        .DefaultNew();
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

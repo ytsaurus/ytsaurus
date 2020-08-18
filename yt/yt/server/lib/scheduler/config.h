@@ -431,6 +431,24 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TResourceMeteringConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    //! Default ABC id for use in resource metering
+    int DefaultAbcId;
+
+    //! Default id for all metering records.
+    TString DefaultCloudId;
+    TString DefaultFolderId;
+
+    TResourceMeteringConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TResourceMeteringConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSchedulerConfig
     : public TFairShareStrategyConfig
 {
@@ -602,13 +620,15 @@ public:
     //! Use scheduling strategy based on fair share ratio instead of new one based on vector fair share.
     bool UseClassicScheduler;
 
-    //! Default ABC id for use in resource metering
-    int DefaultAbcId;
+    //! Config for some resource metering defaults.
+    TResourceMeteringConfigPtr ResourceMetering;
 
     TSchedulerConfig();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerBootstrapConfig
     : public TServerConfig
