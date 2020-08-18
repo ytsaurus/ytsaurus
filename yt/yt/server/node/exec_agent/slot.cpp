@@ -148,9 +148,7 @@ public:
     virtual TFuture<void> FinalizePreparation() override
     {
         return RunPrepareAction<void>([&] {
-                return Location_->FinalizeSandboxPreparation(
-                    SlotIndex_,
-                    JobEnvironment_->GetUserId(SlotIndex_));
+                return Location_->FinalizeSandboxPreparation(SlotIndex_);
             },
             // Permission setting is uncancelable since it includes tool invocation in a separate process.
             true);
@@ -186,13 +184,12 @@ public:
         return TTcpBusClientConfig::CreateUnixDomain(JobProxyUnixDomainSocketPath_);
     }
 
-    virtual TFuture<std::vector<TString>> CreateSandboxDirectories(const TUserSandboxOptions& options)
+    virtual TFuture<std::vector<TString>> PrepareSandboxDirectories(const TUserSandboxOptions& options)
     {
         return RunPrepareAction<std::vector<TString>>([&] {
-                return Location_->CreateSandboxDirectories(
+                return Location_->PrepareSandboxDirectories(
                     SlotIndex_,
-                    options,
-                    JobEnvironment_->GetUserId(SlotIndex_));
+                    options);
             },
             // Includes quota setting and tmpfs creation.
             true);

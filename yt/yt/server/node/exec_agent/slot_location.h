@@ -33,14 +33,14 @@ public:
         const TString& id,
         IJobDirectoryManagerPtr jobDirectoryManager,
         bool enableTmpfs,
-        int slotCount);
+        int slotCount,
+        std::function<int(int)> slotIndexToUserId);
 
-    //! Make ./sandbox, ./home/, ./udf and other directories.
+    //! Sets up tmpfs directories and applies disk quotas.
     //! Returns list of tmpfs paths.
-    TFuture<std::vector<TString>> CreateSandboxDirectories(
+    TFuture<std::vector<TString>> PrepareSandboxDirectories(
         int slotIndex,
-        TUserSandboxOptions options,
-        int userId);
+        TUserSandboxOptions options);
 
     TFuture<void> MakeSandboxCopy(
         int slotIndex,
@@ -63,10 +63,8 @@ public:
         const TString& destinationName,
         bool executable);
 
-    // Set quota, permissions, etc. Must be called when all files are prepared.
-    TFuture<void> FinalizeSandboxPreparation(
-        int slotIndex,
-        int userId);
+    //! Must be called when all files are prepared.
+    TFuture<void> FinalizeSandboxPreparation(int slotIndex);
 
     TFuture<void> MakeConfig(int slotIndex, NYTree::INodePtr config);
 
@@ -96,7 +94,18 @@ private:
     const IJobDirectoryManagerPtr JobDirectoryManager_;
     const bool EnableTmpfs_;
 
-    const NConcurrency::TActionQueuePtr LocationQueue_;
+    const std::function<int(int)> SlotIndexToUserId_;
+
+    const NConcurrency::TActionQueuePtr HeavyLocationQueue_;
+    const NConcurrency::TActionQueuePtr LightLocationQueue_;
+
+    //! This invoker is used for heavy IO actions e.g. copying file to disk.
+    const IInvokerPtr HeavyInvoker_;
+
+    //! This invoker is used for light IO actions e.g. copying file to tmpfs,
+    //! creating job proxy config on disk.
+    const IInvokerPtr LightInvoker_;
+
     const TDiskHealthCheckerPtr HealthChecker_;
     const NConcurrency::TPeriodicExecutorPtr DiskResourcesUpdateExecutor_;
     //! Absolute path to location.
@@ -104,10 +113,10 @@ private:
 
     TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
 
-    std::set<TString> TmpfsPaths_;
-    std::set<int> SlotsWithQuota_;
-
     NConcurrency::TReaderWriterSpinLock SlotsLock_;
+
+    std::set<TString> TmpfsPaths_;
+    THashSet<int> SlotsWithQuota_;
     THashMap<int, std::optional<i64>> OccupiedSlotToDiskLimit_;
 
     NConcurrency::TReaderWriterSpinLock DiskResourcesLock_;
@@ -131,7 +140,15 @@ private:
         int slotIndex,
         ESandboxKind kind,
         const std::function<void(const TString& destinationPath)>& callback,
-        const TString& destinationName);
+        const TString& destinationName,
+        bool canUseLightInvoker);
+
+    void CreateSandboxDirectories(int slotIndex);
+
+    void ChownChmod(
+        const TString& path,
+        int userId,
+        int permissions);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotLocation)

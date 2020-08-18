@@ -2,6 +2,7 @@
 #include "slot_manager.h"
 #include "private.h"
 #include "job_directory_manager.h"
+#include "yt/server/lib/exec_agent/public.h"
 
 #include <yt/server/lib/exec_agent/config.h>
 
@@ -46,20 +47,25 @@ TSlotLocation::TSlotLocation(
     const TString& id,
     IJobDirectoryManagerPtr jobDirectoryManager,
     bool enableTmpfs,
-    int slotCount)
+    int slotCount,
+    std::function<int(int)> slotIndexToUserId)
     : TDiskLocation(config, id, ExecAgentLogger)
     , Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , JobDirectoryManager_(std::move(jobDirectoryManager))
     , EnableTmpfs_(enableTmpfs)
-    , LocationQueue_(New<TActionQueue>(Format("IO:%v", id)))
+    , SlotIndexToUserId_(slotIndexToUserId)
+    , HeavyLocationQueue_(New<TActionQueue>(Format("HeavyIO:%v", id)))
+    , LightLocationQueue_(New<TActionQueue>(Format("LightIO:%v", id)))
+    , HeavyInvoker_(HeavyLocationQueue_->GetInvoker())
+    , LightInvoker_(LightLocationQueue_->GetInvoker())
     , HealthChecker_(New<TDiskHealthChecker>(
         bootstrap->GetConfig()->DataNode->DiskHealthChecker,
         Config_->Path,
-        LocationQueue_->GetInvoker(),
+        HeavyInvoker_,
         Logger))
     , DiskResourcesUpdateExecutor_(New<TPeriodicExecutor>(
-        LocationQueue_->GetInvoker(),
+        HeavyInvoker_,
         BIND(&TSlotLocation::UpdateDiskResources, MakeWeak(this)),
         Bootstrap_->GetConfig()->ExecAgent->SlotManager->DiskResourcesUpdatePeriod))
     , LocationPath_(NFS::GetRealPath(Config_->Path))
@@ -88,61 +94,56 @@ TSlotLocation::TSlotLocation(
                     RunTool<TRemoveDirAsRootTool>(sandboxPath);
                 }
             }
+
+            CreateSandboxDirectories(slotIndex);
         }
     } catch (const std::exception& ex) {
-        auto error = TError("Failed to initialize slot location %v", Config_->Path) << ex;
+        auto error = TError("Failed to initialize slot location %v", Config_->Path)
+            << ex;
         Disable(error);
         return;
     }
 
     HealthChecker_->SubscribeFailed(BIND(&TSlotLocation::Disable, MakeWeak(this))
-        .Via(LocationQueue_->GetInvoker()));
+        .Via(HeavyInvoker_));
     HealthChecker_->Start();
 
     DiskResourcesUpdateExecutor_->Start();
 }
 
-TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIndex, TUserSandboxOptions options, int userId)
+TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options)
 {
+    auto userId = SlotIndexToUserId_(slotIndex);
+    auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
+
+    bool sandboxTmpfs = false;
+    for (const auto& tmpfsVolume : options.TmpfsVolumes) {
+        auto tmpfsPath = NFS::CombinePaths(sandboxPath, tmpfsVolume.Path);
+        sandboxTmpfs = (tmpfsPath == sandboxPath);
+    }
+
+    bool shouldApplyQuota = ((options.InodeLimit || options.DiskSpaceLimit) && !sandboxTmpfs);
+
+    const auto& invoker = sandboxTmpfs
+        ? LightInvoker_
+        : HeavyInvoker_;
+
     return BIND([=, this_ = MakeStrong(this)] {
-         ValidateEnabled();
+        ValidateEnabled();
 
-         YT_LOG_DEBUG("Making sandbox directiories (SlotIndex: %v)", slotIndex);
+        YT_LOG_DEBUG("Preparing sandbox directiories (SlotIndex: %v, SandboxTmpfs: %v)",
+            slotIndex,
+            sandboxTmpfs);
 
-         auto slotPath = GetSlotPath(slotIndex);
-         try {
-             NFS::MakeDirRecursive(slotPath, 0755);
-
-             for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-                 auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-                 NFS::MakeDirRecursive(sandboxPath, 0700);
-             }
-         } catch (const std::exception& ex) {
-            // Job will be aborted.
-             auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to create sandbox directories for slot %v", slotPath)
-                << ex;
-             Disable(error);
-             THROW_ERROR error;
-         }
-
-        auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
-
-        auto shouldApplyQuota = [&] () {
-             bool sandboxTmpfs = false;
-             for (const auto& tmpfsVolume : options.TmpfsVolumes) {
-                 auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, tmpfsVolume.Path));
-                 sandboxTmpfs = (tmpfsPath == sandboxPath);
-             }
-
-             return (options.InodeLimit || options.DiskSpaceLimit) && !sandboxTmpfs;
-        };
-
-        if (shouldApplyQuota()) {
+        if (shouldApplyQuota) {
             try {
                 auto properties = TJobDirectoryProperties {options.DiskSpaceLimit, options.InodeLimit, userId};
                 WaitFor(JobDirectoryManager_->ApplyQuota(sandboxPath, properties))
                     .ThrowOnError();
-                SlotsWithQuota_.insert(slotIndex);
+                {
+                    TWriterGuard guard(SlotsLock_);
+                    SlotsWithQuota_.insert(slotIndex);
+                }
             } catch (const std::exception& ex) {
                 auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job sandbox")
                     << TErrorAttribute("sandbox_path", sandboxPath)
@@ -176,6 +177,7 @@ TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIn
         std::vector<TString> result;
 
         for (const auto& tmpfsVolume : options.TmpfsVolumes) {
+            // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
             auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, tmpfsVolume.Path));
             try {
                 if (tmpfsPath != sandboxPath) {
@@ -199,7 +201,10 @@ TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIn
                 WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
                     .ThrowOnError();
 
-                YT_VERIFY(TmpfsPaths_.insert(tmpfsPath).second);
+                {
+                    TWriterGuard guard(SlotsLock_);
+                    YT_VERIFY(TmpfsPaths_.insert(tmpfsPath).second);
+                }
 
                 result.push_back(tmpfsPath);
             } catch (const std::exception& ex) {
@@ -226,9 +231,12 @@ TFuture<std::vector<TString>> TSlotLocation::CreateSandboxDirectories(int slotIn
             }
         }
 
+        YT_LOG_DEBUG("Sandbox directories prepared (SlotIndex: %v)",
+            slotIndex);
+
         return result;
     })
-    .AsyncVia(LocationQueue_->GetInvoker())
+    .AsyncVia(invoker)
     .Run();
 }
 
@@ -236,13 +244,24 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
     int slotIndex,
     ESandboxKind kind,
     const std::function<void(const TString& destinationPath)>& callback,
-    const TString& destinationName)
+    const TString& destinationName,
+    bool canUseLightInvoker)
 {
-    return BIND([=, this_ = MakeStrong(this)] () {
+    auto sandboxPath = GetSandboxPath(slotIndex, kind);
+    auto destinationPath = NFS::CombinePaths(sandboxPath, destinationName);
+
+    bool useLightInvoker = (canUseLightInvoker && IsInsideTmpfs(destinationPath)); 
+    const auto& invoker = useLightInvoker
+        ? LightInvoker_
+        : HeavyInvoker_;
+
+    return BIND([=, this_ = MakeStrong(this)] {
         ValidateEnabled();
 
-        auto sandboxPath = GetSandboxPath(slotIndex, kind);
-        auto destinationPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, destinationName));
+        YT_LOG_DEBUG("Making sandbox file (DestinationName: %v, UseLightInvoker: %v, SlotIndex: %v)",
+            destinationName,
+            useLightInvoker,
+            slotIndex);
 
         try {
             // This validations do not disable slot.
@@ -258,6 +277,12 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
         }
 
         auto processError = [&] (const std::exception& ex, bool noSpace) {
+            bool slotWithQuota = false;
+            {
+                TReaderGuard guard(SlotsLock_);
+                slotWithQuota = SlotsWithQuota_.contains(slotIndex);
+            }
+
             if (IsInsideTmpfs(destinationPath) && noSpace) {
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::TmpfsOverflow,
@@ -265,7 +290,7 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
                     destinationName,
                     sandboxPath)
                     << ex;                
-            } else if (SlotsWithQuota_.find(slotIndex) != SlotsWithQuota_.end() && noSpace) {
+            } else if (slotWithQuota && noSpace) {
                 THROW_ERROR_EXCEPTION(
                     "Failed to build file %Qv in sandbox %v: disk space limit is too small",
                     destinationName,
@@ -295,10 +320,14 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
             bool noSpace = (ex.Status() == ENOSPC);
             processError(ex, noSpace);
         } catch (const std::exception& ex) {
-            processError(ex, /*noSpace=*/false);
+            processError(ex, /* noSpace */false);
         }
+
+        YT_LOG_DEBUG("Sandbox file created (DestinationName: %v, SlotIndex: %v)",
+            destinationName,
+            slotIndex);
     })
-    .AsyncVia(LocationQueue_->GetInvoker())
+    .AsyncVia(invoker)
     .Run();
 }
 
@@ -328,7 +357,8 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
                 sourcePath,
                 destinationName);
         },
-        destinationName);
+        destinationName,
+        /* canUseLightInvoker */IsInsideTmpfs(sourcePath));
 }
 
 TFuture<void> TSlotLocation::MakeSandboxLink(
@@ -355,7 +385,8 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
                 targetPath,
                 linkName);
         },
-        linkName);
+        linkName,
+        /* canUseLightInvoker */true);
 }
 
 TFuture<void> TSlotLocation::MakeSandboxFile(
@@ -383,66 +414,53 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
             YT_LOG_DEBUG("Finished building sandbox file (DestinationName: %v)",
                 destinationName);
         },
-        destinationName);
+        destinationName,
+        /* canUseLightInvoker */true);
 }
 
-TFuture<void> TSlotLocation::FinalizeSandboxPreparation(
-    int slotIndex,
-    int userId)
+TFuture<void> TSlotLocation::FinalizeSandboxPreparation(int slotIndex)
 {
-    return BIND([=, this_ = MakeStrong(this)] () {
+    auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
+    const auto& invoker = IsInsideTmpfs(sandboxPath)
+        ? LightInvoker_
+        : HeavyInvoker_;
+
+    return BIND([=, this_ = MakeStrong(this)] {
+        YT_LOG_DEBUG("Finalizing sandbox preparation (SlotIndex: %v)",
+            slotIndex);
+
         ValidateEnabled();
 
-        auto chownChmod = [&] (ESandboxKind sandboxKind, int permissions) {
-            auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
-
-            try {
-                if (Bootstrap_->IsSimpleEnvironment()) {
-                    ChownChmodDirectoriesRecursively(sandboxPath, std::nullopt, permissions);
-                } else {
-                    auto config = New<TChownChmodConfig>();
-
-                    config->Permissions = permissions;
-                    config->Path = sandboxPath;
-                    config->UserId = static_cast<uid_t>(userId);
-                    RunTool<TChownChmodTool>(config);
-                }
-            } catch (const std::exception& ex) {
-                auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set owner and permissions for a job sandbox")
-                    << TErrorAttribute("sandbox_path", sandboxPath)
-                    << ex;
-                Disable(error);
-                THROW_ERROR error;
-            }
-        };
+        auto userId = SlotIndexToUserId_(slotIndex);
 
         // We need to give read access to sandbox directory to yt_node/yt_job_proxy effective user (usually yt:yt)
         // and to job user (e.g. yt_slot_N). Since they can have different groups, we fallback to giving read
         // access to everyone.
         // job proxy requires read access e.g. for getting tmpfs size.
         // Write access is for job user only, who becomes an owner.
-        chownChmod(ESandboxKind::User, 0755);
+        try {
+            ChownChmod(sandboxPath, userId, 0755);
+        } catch (const std::exception& ex) {
+            auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set owner and permissions for a job sandbox")
+                << TErrorAttribute("sandbox_path", sandboxPath)
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
 
-        // Since we make slot user to be owner, but job proxy creates some files during job shell
-        // initialization we leave write access for everybody. Presumably this will not ruin job isolation.
-        chownChmod(ESandboxKind::Home, 0777);
-
-        // Tmp is accessible for everyone.
-        chownChmod(ESandboxKind::Tmp, 0777);
-
-        // CUDA library should have an access to cores directory to write GPU core dump into it.
-        chownChmod(ESandboxKind::Cores, 0777);
-
-        // Pipes are accessible for everyone.
-        chownChmod(ESandboxKind::Pipes, 0777);
+        YT_LOG_DEBUG("Finalized sandbox preparation (SlotIndex: %v)",
+            slotIndex);
     })
-    .AsyncVia(LocationQueue_->GetInvoker())
+    .AsyncVia(invoker)
     .Run();
 }
 
 TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
 {
-    return BIND([=, this_ = MakeStrong(this)] () {
+    return BIND([=, this_ = MakeStrong(this)] {
+        YT_LOG_DEBUG("Making job proxy config (SlotIndex: %v)",
+            slotIndex);
+
         ValidateEnabled();
         auto proxyConfigPath = GetConfigPath(slotIndex);
 
@@ -460,14 +478,22 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
             Disable(error);
             THROW_ERROR error;
         }
+
+        YT_LOG_DEBUG("Job proxy config written (SlotIndex: %v)",
+            slotIndex);
     })
-    .AsyncVia(LocationQueue_->GetInvoker())
+    // NB(gritukan): Job proxy config is written to the disk, but it should be fast
+    // under reasonable circumstances, so we use light invoker here. 
+    .AsyncVia(LightInvoker_)
     .Run();
 }
 
 TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
 {
-    return BIND([=, this_ = MakeStrong(this)] () {
+    return BIND([=, this_ = MakeStrong(this)] {
+        YT_LOG_DEBUG("Sandboxes cleaning started (SlotIndex: %v)",
+            slotIndex);
+
         ValidateEnabled();
 
         {
@@ -478,9 +504,9 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
             OccupiedSlotToDiskLimit_.erase(slotIndex);
         }
 
-        for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-            const auto& sandboxPath = NFS::GetRealPath(GetSandboxPath(slotIndex, sandboxKind));
-            try {
+        try {
+            for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+                const auto& sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
                 if (!NFS::Exists(sandboxPath)) {
                     continue;
                 }
@@ -498,20 +524,31 @@ TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
                     RunTool<TRemoveDirAsRootTool>(sandboxPath);
                 }
 
-                auto it = TmpfsPaths_.lower_bound(sandboxPath);
-                while (it != TmpfsPaths_.end() && it->StartsWith(sandboxPath)) {
-                    it = TmpfsPaths_.erase(it);
-                }
+                {
+                    TWriterGuard guard(SlotsLock_);
 
-                SlotsWithQuota_.erase(slotIndex);
-            } catch (const std::exception& ex) {
-                auto error = TError("Failed to clean sandbox directory %v", sandboxPath) << ex;
-                Disable(error);
-                THROW_ERROR error;
+                    auto it = TmpfsPaths_.lower_bound(sandboxPath);
+                    while (it != TmpfsPaths_.end() && it->StartsWith(sandboxPath)) {
+                        it = TmpfsPaths_.erase(it);
+                    }
+
+                    SlotsWithQuota_.erase(slotIndex);
+                }
             }
+
+            // Prepare slot for the next job.
+            CreateSandboxDirectories(slotIndex);
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to clean sandbox directories")
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
         }
+
+        YT_LOG_DEBUG("Sandboxes cleaning finished (SlotIndex: %v)",
+            slotIndex);
     })
-    .AsyncVia(LocationQueue_->GetInvoker())
+    .AsyncVia(HeavyInvoker_)
     .Run();
 }
 
@@ -574,6 +611,8 @@ TString TSlotLocation::GetSandboxPath(int slotIndex, ESandboxKind sandboxKind) c
 
 bool TSlotLocation::IsInsideTmpfs(const TString& path) const
 {
+    TReaderGuard guard(SlotsLock_);
+
     auto it = TmpfsPaths_.lower_bound(path);
     if (it != TmpfsPaths_.begin()) {
         --it;
@@ -615,7 +654,8 @@ void TSlotLocation::Disable(const TError& error)
     auto alert = TError(
         EErrorCode::SlotLocationDisabled,
         "Slot location at %v is disabled",
-        Config_->Path) << error;
+        Config_->Path)
+        << error;
 
     YT_LOG_ERROR(alert);
     YT_VERIFY(!Logger.GetAbortOnAlert());
@@ -636,6 +676,8 @@ void TSlotLocation::UpdateDiskResources()
     if (!IsEnabled()) {
         return;
     }
+
+    YT_LOG_DEBUG("Updating disk resources");
 
     try {
         auto locationStatistics = NFS::GetDiskSpaceStatistics(Config_->Path);
@@ -697,12 +739,69 @@ void TSlotLocation::UpdateDiskResources()
         YT_LOG_WARNING(error);
         Disable(error);
     }
+
+    YT_LOG_DEBUG("Disk resources updated");
 }
 
 NNodeTrackerClient::NProto::TDiskLocationResources TSlotLocation::GetDiskResources() const
 {
     auto guard = TReaderGuard(DiskResourcesLock_);
     return DiskResources_;
+}
+
+void TSlotLocation::CreateSandboxDirectories(int slotIndex)
+{
+    auto userId = SlotIndexToUserId_(slotIndex);
+
+    YT_LOG_DEBUG("Creating sandbox directories (SlotIndex: %v, UserId: %v)",
+        slotIndex,
+        userId);
+
+    auto slotPath = GetSlotPath(slotIndex);
+    try {
+        NFS::MakeDirRecursive(slotPath, 0755);
+
+        for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+            auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
+            NFS::MakeDirRecursive(sandboxPath, 0700);
+        }
+
+        // Since we make slot user to be owner, but job proxy creates some files during job shell
+        // initialization we leave write access for everybody. Presumably this will not ruin job isolation.
+        ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::Home), userId, 0777);
+
+        // Tmp is accessible for everyone.
+        ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::Tmp), userId, 0777);
+
+        // CUDA library should have an access to cores directory to write GPU core dump into it.
+        ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::Cores), userId, 0777);
+
+        // Pipes are accessible for everyone.
+        ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::Pipes), userId, 0777);
+    } catch (const std::exception& ex) {
+        auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to create sandbox directories for slot %v", slotPath)
+            << ex;
+        Disable(error);
+    }
+
+    YT_LOG_DEBUG("Sandbox directories created (SlotIndex: %v)", slotIndex);
+}
+
+void TSlotLocation::ChownChmod(
+    const TString& path,
+    int userId,
+    int permissions)
+{
+    if (Bootstrap_->IsSimpleEnvironment()) {
+        ChownChmodDirectoriesRecursively(path, std::nullopt, permissions);
+    } else {
+        auto config = New<TChownChmodConfig>();
+
+        config->Permissions = permissions;
+        config->Path = path;
+        config->UserId = static_cast<uid_t>(userId);
+        RunTool<TChownChmodTool>(config);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
