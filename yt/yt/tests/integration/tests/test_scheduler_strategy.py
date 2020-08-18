@@ -930,7 +930,6 @@ class BaseTestSchedulerPreemption(YTEnvSetup):
 
     @authors("ignat")
     @pytest.mark.parametrize("interruptible", [False, True])
-    @pytest.mark.skipif(True, reason="YT-11083")
     def test_interrupt_job_on_preemption(self, interruptible):
         set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 2)
         create("table", "//tmp/t_in")
