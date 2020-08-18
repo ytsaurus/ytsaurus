@@ -2017,7 +2017,9 @@ class TestResourceMetering(YTEnvSetup):
     NUM_NODES = 5
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
-            "default_abc_id": 42,
+            "resource_metering": {
+                "default_abc_id": 42,
+            },
             "resource_metering_period": 1000,
         }
     }

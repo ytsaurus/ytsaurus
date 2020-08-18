@@ -1289,6 +1289,8 @@ public:
         NLogging::LogStructuredEventFluently(SchedulerResourceMeteringLogger, NLogging::ELogLevel::Info)
             .Item("schema").Value("yt.scheduler.pools.compute.v1")
             .Item("id").Value(ToString(key.AbcId))
+            .Item("cloud_id").Value(Config_->ResourceMetering->DefaultCloudId)
+            .Item("folder_id").Value(Config_->ResourceMetering->DefaultFolderId)
             .Item("usage").BeginMap()
                 .Item("quantity").Value((now - lastUpdateTime).MilliSeconds())
                 .Item("unit").Value("milliseconds")
@@ -1308,7 +1310,7 @@ public:
 
     virtual int GetDefaultAbcId() const override
     {
-        return Config_->DefaultAbcId;
+        return Config_->ResourceMetering->DefaultAbcId;
     }
 
     // NB(eshcherbin): Separate method due to separate invoker.
