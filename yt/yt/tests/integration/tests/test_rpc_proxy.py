@@ -175,17 +175,18 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
         create_user("u")
         set("//sys/users/u/@request_queue_size_limit", 0)
         start = time.time()
-        with pytest.raises(YtError): get("//@", authenticated_user="u")
+        with pytest.raises(YtError): create("map_node", "//tmp/test", authenticated_user="u")
         end = time.time()
         assert end - start >= 1.4
 
-        rsp = get("//@", authenticated_user="u", return_response=True)
+        rsp = create("map_node", "//tmp/test", authenticated_user="u", return_response=True)
         time.sleep(0.1)
         assert not rsp.is_set()
         set("//sys/users/u/@request_queue_size_limit", 1)
         rsp.wait()
         if not rsp.is_ok():
             raise YtResponseError(rsp.error())
+        assert exists("//tmp/test")
 
     @authors("kiselyovp")
     def test_streaming_without_retries(self):
