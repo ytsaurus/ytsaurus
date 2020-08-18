@@ -343,6 +343,7 @@ default_config = {
     # Path to remote directories for temporary files and tables.
     "remote_temp_files_directory": None,
     "remote_temp_tables_directory": "//tmp/yt_wrapper/table_storage",
+    "remote_temp_tables_bucket_count": 200,
 
     # Expiration timeout for temporary objects (in milliseconds).
     "temp_expiration_timeout": 7 * 24 * 60 * 60 * 1000,

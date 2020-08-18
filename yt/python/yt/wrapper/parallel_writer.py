@@ -3,7 +3,7 @@ from .config import get_config, get_total_request_timeout
 from .common import MB
 from .cypress_commands import mkdir, concatenate, find_free_subpath, remove
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
-from .ypath import YPath, YPathSupportingAppend
+from .ypath import YPath, YPathSupportingAppend, ypath_join
 from .progress_bar import SimpleProgressBar, FakeProgressReporter
 from .stream import RawStream, ItemStream
 from .transaction import Transaction
@@ -12,6 +12,7 @@ from .thread_pool import ThreadPool
 from .heavy_commands import WriteRequestRetrier
 
 import copy
+import random
 import threading
 
 class _ParallelProgressReporter(object):
@@ -85,6 +86,9 @@ class ParallelWriter(object):
             path = find_free_subpath(str(self._path) + ".", client=client)
         else:
             temp_directory = self._remote_temp_directory
+            bucket_count = get_config(client)["remote_temp_tables_bucket_count"]
+            bucket = "{:03}".format(random.randrange(bucket_count))
+            temp_directory = ypath_join(temp_directory, bucket)
             mkdir(temp_directory, recursive=True, client=client)
             if not temp_directory.endswith("/"):
                 temp_directory = temp_directory + "/"
