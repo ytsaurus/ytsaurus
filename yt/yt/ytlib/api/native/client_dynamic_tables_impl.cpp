@@ -1499,7 +1499,7 @@ void TClient::DoAlterTableReplica(
     TTableReplicaId replicaId,
     const TAlterTableReplicaOptions& options)
 {
-    InternalValidateTableReplicaPermission(replicaId, EPermission::Write);
+    ValidateTableReplicaPermission(replicaId, EPermission::Write);
 
     auto req = TTableReplicaYPathProxy::Alter(FromObjectId(replicaId));
     if (options.Enabled) {

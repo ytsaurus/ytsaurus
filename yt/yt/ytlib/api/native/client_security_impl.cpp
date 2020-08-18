@@ -5,6 +5,7 @@
 #include <yt/client/security_client/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
@@ -16,16 +17,42 @@
 
 #include <yt/ytlib/scheduler/proto/job.pb.h>
 
+#include <yt/core/ypath/tokenizer.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
+using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NTabletClient;
 using namespace NSecurityClient;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+bool TryParseObjectId(const TYPath& path, TObjectId* objectId)
+{
+    NYPath::TTokenizer tokenizer(path);
+    if (tokenizer.Advance() != NYPath::ETokenType::Literal) {
+        return false;
+    }
+
+    auto token = tokenizer.GetToken();
+    if (!token.StartsWith(ObjectIdPathPrefix)) {
+        return false;
+    }
+
+    *objectId = TObjectId::FromString(token.SubString(
+        ObjectIdPathPrefix.length(),
+        token.length() - ObjectIdPathPrefix.length()));
+    return true;
+}
+
+} // namespace
 
 TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     const std::optional<TString>& user,
@@ -173,15 +200,52 @@ void TClient::InternalValidatePermission(
         .ThrowOnError();
 }
 
-void TClient::InternalValidateTableReplicaPermission(
+void TClient::MaybeValidateExternalObjectPermission(
+    const TYPath& path,
+    EPermission permission,
+    const TCheckPermissionOptions& options)
+{
+    TObjectId objectId;
+    if (!TryParseObjectId(path, &objectId)) {
+        return;
+    }
+    
+    switch (TypeFromId(objectId)) {
+        case EObjectType::TableReplica:
+            ValidateTableReplicaPermission(objectId, permission, options);
+            break;
+        
+        default:
+            break;
+    }
+}
+
+TYPath TClient::GetReplicaTablePath(TTableReplicaId replicaId)
+{
+    auto cellTag = CellTagFromId(replicaId);
+    auto proxy = CreateReadProxy<TObjectServiceProxy>({}, cellTag);
+    auto batchReq = proxy->ExecuteBatch();
+
+    auto req = TYPathProxy::Get(FromObjectId(replicaId) + "/@table_path");
+    NCypressClient::SetSuppressAccessTracking(req, true);
+    NCypressClient::SetSuppressExpirationTimeoutRenewal(req, true);
+    batchReq->AddRequest(req);
+
+    auto batchRsp = WaitFor(batchReq->Invoke())
+        .ValueOrThrow();
+    auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0)
+        .ValueOrThrow();
+
+    return ConvertTo<TYPath>(TYsonString(rsp->value()));
+}
+
+void TClient::ValidateTableReplicaPermission(
     TTableReplicaId replicaId,
     EPermission permission,
     const TCheckPermissionOptions& options)
 {
     // TODO(babenko): consider passing proper timeout
-    auto tablePathYson = WaitFor(GetNode(FromObjectId(replicaId) + "/@table_path", {}))
-        .ValueOrThrow();
-    auto tablePath = ConvertTo<TYPath>(tablePathYson);
+    auto tablePath = GetReplicaTablePath(replicaId);
     InternalValidatePermission(tablePath, permission, options);
 }
 

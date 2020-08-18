@@ -1330,13 +1330,32 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         set("//tmp/dir/@acl", [make_ace("deny", "u", "write")])
         with pytest.raises(YtError):
             alter_table_replica(replica_id, enabled=True, authenticated_user="u")
+        with pytest.raises(YtError):
+            set("#" + replica_id + "/@attr", "value", authenticated_user="u")
 
         set("//tmp/dir/@acl", [make_ace("allow", "u", "write")])
         alter_table_replica(replica_id, enabled=True, sauthenticated_user="u")
+        get("//tmp/dir/t/@effective_acl")
+        get("#" + replica_id + "/@effective_acl")
+        set("#" + replica_id + "/@attr", "value", authenticated_user="u")
 
         set("//tmp/dir/@acl", [make_ace("deny", "u", "write")])
         with pytest.raises(YtError):
             remove("#" + replica_id, authenticated_user="u")
+
+        set("//tmp/dir/@acl", [make_ace("deny", "u", "read")])
+        with pytest.raises(YtError):
+            get("#" + replica_id + "/@attr", authenticated_user="u")
+
+        set("//tmp/dir/@acl", [make_ace("allow", "u", "read")])
+        assert get("#" + replica_id + "/@attr", authenticated_user="u") == "value"
+
+        set("//tmp/dir/@acl", [make_ace("deny", "u", "read")])
+        with pytest.raises(YtError):
+            ls("#" + replica_id + "/@", authenticated_user="u")
+
+        set("//tmp/dir/@acl", [make_ace("allow", "u", "read")])
+        assert "attr" in ls("#" + replica_id + "/@", authenticated_user="u")
 
         set("//tmp/dir/@acl", [make_ace("allow", "u", "write")])
         remove("#" + replica_id, authenticated_user="u")
