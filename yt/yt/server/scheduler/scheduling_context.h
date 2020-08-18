@@ -23,6 +23,7 @@ namespace NYT::NScheduler {
 struct TFairShareSchedulingStatistics
 {
     int ControllerScheduleJobCount = 0;
+    int AggressivelyPreemptiveScheduleJobAttempts = 0;
     int PreemptiveScheduleJobAttempts = 0;
     int NonPreemptiveScheduleJobAttempts = 0;
     int PackingFallbackScheduleJobAttempts = 0;

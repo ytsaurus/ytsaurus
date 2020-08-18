@@ -238,7 +238,8 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         "StartedJobs: %v, PreemptedJobs: %v, "
         "JobsScheduledDuringPreemption: %v, PreemptableJobs: %v, PreemptableResources: %v, "
         "ControllerScheduleJobCount: %v, NonPreemptiveScheduleJobAttempts: %v, "
-        "PreemptiveScheduleJobAttempts: %v, HasAggressivelyStarvingElements: %v)",
+        "AggressivelyPreemptiveScheduleJobAttempts: %v, PreemptiveScheduleJobAttempts: %v"
+        "HasAggressivelyStarvingElements: %v)",
         event.Time,
         event.NodeId,
         node->GetDefaultAddress(),
@@ -249,6 +250,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         FormatResources(statistics.ResourceUsageDiscount),
         statistics.ControllerScheduleJobCount,
         statistics.NonPreemptiveScheduleJobAttempts,
+        statistics.AggressivelyPreemptiveScheduleJobAttempts,
         statistics.PreemptiveScheduleJobAttempts,
         statistics.HasAggressivelyStarvingElements);
 

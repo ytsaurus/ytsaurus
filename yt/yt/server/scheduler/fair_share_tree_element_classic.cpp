@@ -293,7 +293,10 @@ void TSchedulerElement::UpdateDynamicAttributes(TDynamicAttributesList* dynamicA
     attributes.Active = IsAlive();
 }
 
-void TSchedulerElement::PrescheduleJob(TFairShareContext* context, bool /*starvingOnly*/, bool /*aggressiveStarvationEnabled*/)
+void TSchedulerElement::PrescheduleJob(
+    TFairShareContext* context,
+    EPrescheduleJobOperationCriterion /* operationCriterion */,
+    bool /* aggressiveStarvationEnabled */)
 {
     UpdateDynamicAttributes(&context->DynamicAttributesList());
 }
@@ -1068,7 +1071,10 @@ void TCompositeSchedulerElement::IncreaseRunningOperationCount(int delta)
     }
 }
 
-void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled)
+void TCompositeSchedulerElement::PrescheduleJob(
+    TFairShareContext* context,
+    EPrescheduleJobOperationCriterion operationCriterion,
+    bool aggressiveStarvationEnabled)
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
@@ -1095,13 +1101,24 @@ void TCompositeSchedulerElement::PrescheduleJob(TFairShareContext* context, bool
         context->SchedulingStatistics().HasAggressivelyStarvingElements = true;
     }
 
-    // If pool is starving, any child will do.
-    bool starvingOnlyForChildren = starving ? false : starvingOnly;
+    auto operationCriterionForChildren = operationCriterion;
+    {
+        // If pool is starving, any child will do.
+        bool satisfiedByPoolAggressiveStarvation = starving &&
+            operationCriterion == EPrescheduleJobOperationCriterion::AggressivelyStarvingOnly &&
+            aggressiveStarvationEnabled;
+        bool satisfiedByPoolStarvation = starving && operationCriterion == EPrescheduleJobOperationCriterion::StarvingOnly;
+        bool satisfiedByPool = satisfiedByPoolAggressiveStarvation || satisfiedByPoolStarvation;
+
+        if (satisfiedByPool) {
+            operationCriterionForChildren = EPrescheduleJobOperationCriterion::All;
+        }
+    }
     for (const auto& child : SchedulableChildren_) {
-        child->PrescheduleJob(context, starvingOnlyForChildren, aggressiveStarvationEnabled);
+        child->PrescheduleJob(context, operationCriterionForChildren, aggressiveStarvationEnabled);
     }
 
-    TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
+    TSchedulerElement::PrescheduleJob(context, operationCriterion, aggressiveStarvationEnabled);
 
     if (attributes.Active) {
         ++context->StageState()->ActiveTreeSize;
@@ -2620,7 +2637,10 @@ void TOperationElement::UpdateControllerConfig(const TFairShareStrategyOperation
     ControllerConfig_ = config;
 }
 
-void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starvingOnly, bool aggressiveStarvationEnabled)
+void TOperationElement::PrescheduleJob(
+    TFairShareContext* context,
+    EPrescheduleJobOperationCriterion operationCriterion,
+    bool aggressiveStarvationEnabled)
 {
     auto& attributes = context->DynamicAttributesFor(this);
 
@@ -2655,7 +2675,16 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
         return;
     }
 
-    if (starvingOnly && !PersistentAttributes_.Starving) {
+    if (operationCriterion == EPrescheduleJobOperationCriterion::AggressivelyStarvingOnly &&
+        !(PersistentAttributes_.Starving && aggressiveStarvationEnabled))
+    {
+        onOperationDeactivated(EDeactivationReason::IsNotAggressivelyStarving);
+        return;
+    }
+
+    if (operationCriterion == EPrescheduleJobOperationCriterion::StarvingOnly &&
+        !PersistentAttributes_.Starving)
+    {
         onOperationDeactivated(EDeactivationReason::IsNotStarving);
         return;
     }
@@ -2672,7 +2701,7 @@ void TOperationElement::PrescheduleJob(TFairShareContext* context, bool starving
     ++context->StageState()->ActiveTreeSize;
     ++context->StageState()->ActiveOperationCount;
 
-    TSchedulerElement::PrescheduleJob(context, starvingOnly, aggressiveStarvationEnabled);
+    TSchedulerElement::PrescheduleJob(context, operationCriterion, aggressiveStarvationEnabled);
 }
 
 bool TOperationElement::HasAggressivelyStarvingElements(TFairShareContext* /*context*/, bool /*aggressiveStarvationEnabled*/) const
@@ -2950,7 +2979,7 @@ void TOperationElement::CheckForStarvation(TInstant now)
         now);
 }
 
-bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, const TFairShareStrategyTreeConfigPtr& config) const
+bool TOperationElement::IsPreemptionAllowed(bool isAggressivePreemption, const TFairShareStrategyTreeConfigPtr& config) const
 {
     if (Spec_->PreemptionMode == EPreemptionMode::Graceful) {
         return false;
@@ -2973,7 +3002,7 @@ bool TOperationElement::IsPreemptionAllowed(const TFairShareContext& context, co
             return false;
         }
 
-        bool aggressivePreemptionEnabled = context.SchedulingStatistics().HasAggressivelyStarvingElements &&
+        bool aggressivePreemptionEnabled = isAggressivePreemption &&
             element->IsAggressiveStarvationPreemptionAllowed() &&
             IsAggressiveStarvationPreemptionAllowed();
         auto threshold = aggressivePreemptionEnabled

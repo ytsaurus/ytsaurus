@@ -1507,7 +1507,7 @@ class TestSchedulerUnschedulableOperations(YTEnvSetup):
 
 class BaseTestSchedulerAggressivePreemption(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 3
+    NUM_NODES = 4
     NUM_SCHEDULERS = 1
 
     BASE_DELTA_SCHEDULER_CONFIG = {
@@ -1519,9 +1519,12 @@ class BaseTestSchedulerAggressivePreemption(YTEnvSetup):
     def setup_method(self, method):
         super(BaseTestSchedulerAggressivePreemption, self).setup_method(method)
         set("//sys/pool_trees/default/@aggressive_preemption_satisfaction_threshold", 0.2)
+        set("//sys/pool_trees/default/@preemption_satisfaction_threshold", 0.9)
         set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 0)
         set("//sys/pool_trees/default/@fair_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@fair_share_preemption_timeout_limit", 100)
         set("//sys/pool_trees/default/@min_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@min_share_preemption_timeout_limit", 100)
         set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
         set("//sys/pool_trees/default/@max_ephemeral_pools_per_user", 5)
         time.sleep(0.5)
@@ -1533,12 +1536,6 @@ class BaseTestSchedulerAggressivePreemption(YTEnvSetup):
 
     @authors("ignat")
     def test_aggressive_preemption(self):
-        create("table", "//tmp/t_in")
-        for i in xrange(3):
-            write_table("<append=true>//tmp/t_in", {"foo": "bar"})
-
-        create("table", "//tmp/t_out")
-
         create_pool("special_pool")
         set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
         scheduling_info_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/"
@@ -1552,23 +1549,76 @@ class BaseTestSchedulerAggressivePreemption(YTEnvSetup):
         ops = []
         for index in xrange(2):
             create("table", "//tmp/t_out" + str(index))
-            op = map(track=False, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out" + str(index),
-                    spec={"pool": "fake_pool" + str(index), "job_count": 3, "locality_timeout": 0, "mapper": {"memory_limit": 10 * 1024 * 1024}})
+            op = run_sleeping_vanilla(job_count=4, spec={"pool": "fake_pool" + str(index), "locality_timeout": 0})
             ops.append(op)
         time.sleep(3)
 
         for op in ops:
             wait(lambda: are_almost_equal(get_fair_share_ratio(op.id), 1.0 / 2.0))
             wait(lambda: are_almost_equal(get_usage_ratio(op.id), 1.0 / 2.0))
-            wait(lambda: len(op.get_running_jobs()) == 3)
+            wait(lambda: len(op.get_running_jobs()) == 4)
 
-        op = map(track=False, command="sleep 1000; cat", in_=["//tmp/t_in"], out="//tmp/t_out",
-                 spec={"pool": "special_pool", "job_count": 1, "locality_timeout": 0, "mapper": {"cpu_limit": 2}})
+        op = run_sleeping_vanilla(job_count=1, spec={"pool": "special_pool", "locality_timeout": 0}, task_patch={"cpu_limit": 2})
         time.sleep(3)
 
-        wait(lambda: are_almost_equal(get_fair_share_ratio(op.id), 1.0 / 3.0))
-        wait(lambda: are_almost_equal(get_usage_ratio(op.id), 1.0 / 3.0))
+        wait(lambda: are_almost_equal(get_fair_share_ratio(op.id), 1.0 / 4.0))
+        wait(lambda: are_almost_equal(get_usage_ratio(op.id), 1.0 / 4.0))
         wait(lambda: len(op.get_running_jobs()) == 1)
+
+    @authors("eshcherbin")
+    def test_no_aggressive_preemption_for_non_aggressively_starving_operation(self):
+        create_pool("special_pool")
+        scheduling_info_path = "//sys/scheduler/orchid/scheduler/operations/{0}/progress/scheduling_info_per_pool_tree/default/"
+
+        def is_starving(op_id):
+            return get(scheduling_info_path.format(op_id) + "starving")
+
+        def get_fair_share_ratio(op_id):
+            return get(scheduling_info_path.format(op_id) + "fair_share_ratio")
+
+        def get_usage_ratio(op_id):
+            return get(scheduling_info_path.format(op_id) + "usage_ratio")
+
+        ops = []
+        for index in xrange(2):
+            create("table", "//tmp/t_out" + str(index))
+            op = run_sleeping_vanilla(job_count=3, spec={"pool": "fake_pool" + str(index), "locality_timeout": 0})
+            ops.append(op)
+        time.sleep(3)
+
+        for op in ops:
+            wait(lambda: are_almost_equal(get_fair_share_ratio(op.id), 0.375))
+            wait(lambda: are_almost_equal(get_usage_ratio(op.id), 0.375))
+            wait(lambda: len(op.get_running_jobs()) == 3)
+
+        op1 = run_sleeping_vanilla(job_count=1, spec={"pool": "regular_pool", "locality_timeout": 0}, task_patch={"cpu_limit": 2})
+        time.sleep(3)
+
+        wait(lambda: is_starving(op1.id))
+        wait(lambda: are_almost_equal(get_fair_share_ratio(op1.id), 1.0 / 4.0))
+        wait(lambda: are_almost_equal(get_usage_ratio(op1.id), 0.0))
+        wait(lambda: len(op1.get_running_jobs()) == 0)
+
+        op2 = vanilla(
+            spec={
+                "pool": "special_pool",
+                "locality_timeout": 0,
+                "tasks": {
+                    "first": {"job_count": 1, "command": "sleep 1000", "cpu_limit": 1},
+                    "second": {"job_count": 1, "command": "sleep 1000", "cpu_limit": 2}
+                }},
+            track=False)
+        time.sleep(3)
+
+        wait(lambda: is_starving(op2.id))
+        wait(lambda: are_almost_equal(get_fair_share_ratio(op2.id), 1.0 / 4.0))
+        wait(lambda: are_almost_equal(get_usage_ratio(op2.id), 1.0 / 8.0))
+        wait(lambda: len(op2.get_running_jobs()) == 1)
+
+        set("//sys/pools/special_pool/@aggressive_starvation_enabled", True)
+
+        wait(lambda: are_almost_equal(get_usage_ratio(op2.id), 0.375))
+        wait(lambda: len(op2.get_running_jobs()) == 2)
 
 class TestSchedulerAggressivePreemptionClassic(BaseTestSchedulerAggressivePreemption):
     DELTA_SCHEDULER_CONFIG = BaseTestSchedulerAggressivePreemption.BASE_DELTA_SCHEDULER_CONFIG
