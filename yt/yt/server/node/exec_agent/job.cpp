@@ -1463,7 +1463,7 @@ private:
             }
         }
 
-        TmpfsPaths_ = WaitFor(Slot_->CreateSandboxDirectories(options))
+        TmpfsPaths_ = WaitFor(Slot_->PrepareSandboxDirectories(options))
             .ValueOrThrow();
 
         YT_LOG_INFO("Finished preparing sandbox directories");

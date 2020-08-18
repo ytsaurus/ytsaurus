@@ -41,8 +41,9 @@ struct ISlot
         TJobId jobId,
         TOperationId operationId) = 0;
 
-    //! Returns tmpfs path if any.
-    virtual TFuture<std::vector<TString>> CreateSandboxDirectories(const TUserSandboxOptions& options) = 0;
+    //! Sets up quotas and tmpfs.
+    //! Returns tmpfs paths if any.
+    virtual TFuture<std::vector<TString>> PrepareSandboxDirectories(const TUserSandboxOptions& options) = 0;
 
     virtual TFuture<void> MakeLink(
         ESandboxKind sandboxKind,
