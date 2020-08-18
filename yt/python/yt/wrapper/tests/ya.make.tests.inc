@@ -26,6 +26,7 @@ SET(YT_TEST_SRCS
     test_misc.py
     test_module.py
     test_operations.py
+    test_operations_tracker.py
     test_parse_ypath.py
     test_random_sample.py
     test_spark.py
