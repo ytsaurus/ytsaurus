@@ -334,6 +334,7 @@ private:
     TRootElementSnapshotPtr RootElementSnapshotPrecommit_;
 
     TFairShareSchedulingStage NonPreemptiveSchedulingStage_;
+    TFairShareSchedulingStage AggressivelyPreemptiveSchedulingStage_;
     TFairShareSchedulingStage PreemptiveSchedulingStage_;
     TFairShareSchedulingStage PackingFallbackSchedulingStage_;
 
@@ -357,6 +358,15 @@ private:
         bool ignorePacking,
         bool oneJobOnly);
     void DoScheduleJobsWithoutPreemption(
+        const TRootElementSnapshotPtr& rootElementSnapshot,
+        TFairShareContext* context,
+        NProfiling::TCpuInstant startTime);
+    void DoScheduleJobsWithPreemptionImpl(
+        const TRootElementSnapshotPtr& rootElementSnapshot,
+        TFairShareContext* context,
+        NProfiling::TCpuInstant startTime,
+        bool isAggressive);
+    void DoScheduleJobsWithAggressivePreemption(
         const TRootElementSnapshotPtr& rootElementSnapshot,
         TFairShareContext* context,
         NProfiling::TCpuInstant startTime);

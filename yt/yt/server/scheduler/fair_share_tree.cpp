@@ -306,6 +306,9 @@ TFairShareTree<TFairShareImpl>::TFairShareTree(
     , NonPreemptiveSchedulingStage_(
         /* nameInLogs */ "Non preemptive",
         TScheduleJobsProfilingCounters("/non_preemptive", {TreeIdProfilingTag_}))
+    , AggressivelyPreemptiveSchedulingStage_(
+        /* nameInLogs */ "Aggressively preemptive",
+        TScheduleJobsProfilingCounters("/aggressively_preemptive", {TreeIdProfilingTag_}))
     , PreemptiveSchedulingStage_(
         /* nameInLogs */ "Preemptive",
         TScheduleJobsProfilingCounters("/preemptive", {TreeIdProfilingTag_}))
@@ -1166,7 +1169,7 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithoutPreemptionImpl(
                 if (!context->GetInitialized()) {
                     context->Initialize(rootElement->GetTreeSize(), RegisteredSchedulingTagFilters_);
                 }
-                rootElement->PrescheduleJob(context, /* starvingOnly */ false, /* aggressiveStarvationEnabled */ false);
+                rootElement->PrescheduleJob(context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
                 context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                 prescheduleExecuted = true;
                 context->SetPrescheduleCalled(true);
@@ -1220,10 +1223,11 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsPackingFallback(
 }
 
 template <class TFairShareImpl>
-auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemption(
+auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemptionImpl(
     const TRootElementSnapshotPtr& rootElementSnapshot,
     TFairShareContext* context,
-    TCpuInstant startTime) -> void
+    TCpuInstant startTime,
+    bool isAggressive) -> void
 {
     auto& rootElement = rootElementSnapshot->RootElement;
     auto& config = rootElementSnapshot->Config;
@@ -1236,8 +1240,13 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemption(
         context->SchedulingStatistics().HasAggressivelyStarvingElements = rootElement->HasAggressivelyStarvingElements(context, false);
     }
 
+    if (isAggressive && !context->SchedulingStatistics().HasAggressivelyStarvingElements) {
+        return;
+    }
+
     // Compute discount to node usage.
-    YT_LOG_TRACE("Looking for preemptable jobs");
+    YT_LOG_TRACE("Looking for %v jobs",
+        isAggressive ? "aggressively preemptable" : "preemptable");
     THashSet<const TCompositeSchedulerElement *> discountedPools;
     std::vector<TJobPtr> preemptableJobs;
     PROFILE_AGGREGATED_TIMING(AnalyzePreemptableJobsTimeCounter_) {
@@ -1250,11 +1259,11 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemption(
                 continue;
             }
 
-            if (!operationElement->IsPreemptionAllowed(*context, config)) {
+            if (!operationElement->IsPreemptionAllowed(isAggressive, config)) {
                 continue;
             }
 
-            bool aggressivePreemptionEnabled = context->SchedulingStatistics().HasAggressivelyStarvingElements &&
+            bool aggressivePreemptionEnabled = isAggressive &&
                 operationElement->IsAggressiveStarvationPreemptionAllowed();
             if (operationElement->IsJobPreemptable(job->GetId(), aggressivePreemptionEnabled)) {
                 const auto* parent = operationElement->GetParent();
@@ -1278,9 +1287,10 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemption(
     TJobPtr jobStartedUsingPreemption;
     {
         YT_LOG_TRACE(
-            "Scheduling new jobs with preemption (PreemptableJobs: %v ResourceUsageDiscount: %v)",
+            "Scheduling new jobs with preemption (PreemptableJobs: %v ResourceUsageDiscount: %v, IsAggressive: %v)",
             preemptableJobs.size(),
-            FormatResources(context->SchedulingContext()->ResourceUsageDiscount()));
+            FormatResources(context->SchedulingContext()->ResourceUsageDiscount()),
+            isAggressive);
 
         bool prescheduleExecuted = false;
         TCpuInstant schedulingDeadline = startTime + DurationToCpuDuration(ControllerConfig_->ScheduleJobsTimeout);
@@ -1290,9 +1300,15 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemption(
         {
             if (!prescheduleExecuted) {
                 TWallTimer prescheduleTimer;
-                rootElement->PrescheduleJob(context, /* starvingOnly */ true, /* aggressiveStarvationEnabled */ false);
+                rootElement->PrescheduleJob(
+                    context,
+                    isAggressive
+                        ? EPrescheduleJobOperationCriterion::AggressivelyStarvingOnly
+                        : EPrescheduleJobOperationCriterion::StarvingOnly,
+                    /* aggressiveStarvationEnabled */ false);
                 context->StageState()->PrescheduleDuration = prescheduleTimer.GetElapsedTime();
                 prescheduleExecuted = true;
+                context->SetPrescheduleCalled(true);
             }
 
             ++context->StageState()->ScheduleJobAttemptCount;
@@ -1413,6 +1429,32 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemption(
 }
 
 template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithAggressivePreemption(
+    const TRootElementSnapshotPtr& rootElementSnapshot,
+    TFairShareContext* context,
+    TCpuInstant startTime) -> void
+{
+    DoScheduleJobsWithPreemptionImpl(
+        rootElementSnapshot,
+        context,
+        startTime,
+        /* isAggressive */ true);
+}
+
+template <class TFairShareImpl>
+auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemption(
+    const TRootElementSnapshotPtr& rootElementSnapshot,
+    TFairShareContext* context,
+    TCpuInstant startTime) -> void
+{
+    DoScheduleJobsWithPreemptionImpl(
+        rootElementSnapshot,
+        context,
+        startTime,
+        /* isAggressive */ false);
+}
+
+template <class TFairShareImpl>
 auto TFairShareTree<TFairShareImpl>::DoScheduleJobs(
     const ISchedulingContextPtr& schedulingContext,
     const TRootElementSnapshotPtr& rootElementSnapshot) -> void
@@ -1464,10 +1506,21 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobs(
 
     context.SchedulingStatistics().ScheduleWithPreemption = scheduleJobsWithPreemption;
     if (scheduleJobsWithPreemption) {
-        context.StartStage(&PreemptiveSchedulingStage_);
-        DoScheduleJobsWithPreemption(rootElementSnapshot, &context, now);
-        context.SchedulingStatistics().PreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
-        context.FinishStage();
+        // First try to schedule a job with aggressive preemption for aggressively starving operations only.
+        {
+            context.StartStage(&AggressivelyPreemptiveSchedulingStage_);
+            DoScheduleJobsWithAggressivePreemption(rootElementSnapshot, &context, now);
+            context.SchedulingStatistics().AggressivelyPreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
+            context.FinishStage();
+        }
+
+        // If no jobs were scheduled in the previous stage, try to schedule a job with regular preemption.
+        if (context.SchedulingStatistics().ScheduledDuringPreemption == 0) {
+            context.StartStage(&PreemptiveSchedulingStage_);
+            DoScheduleJobsWithPreemption(rootElementSnapshot, &context, now);
+            context.SchedulingStatistics().PreemptiveScheduleJobAttempts = context.StageState()->ScheduleJobAttemptCount;
+            context.FinishStage();
+        }
     } else {
         YT_LOG_DEBUG("Skip preemptive scheduling");
     }

@@ -490,8 +490,8 @@ private:
         rootElement->PreUpdate(dynamicAttributesList, &updateContext);
         rootElement->Update(dynamicAttributesList, &updateContext);
 
-        context->Initialize(rootElement->GetTreeSize(), /*registeredSchedulingTagFilters*/ {});
-        rootElement->PrescheduleJob(context, /*starvingOnly*/ false, /*aggressiveStarvationEnabled*/ false);
+        context->Initialize(rootElement->GetTreeSize(), /* registeredSchedulingTagFilters */ {});
+        rootElement->PrescheduleJob(context, EPrescheduleJobOperationCriterion::All, /* aggressiveStarvationEnabled */ false);
         context->SetPrescheduleCalled(true);
     }
 };

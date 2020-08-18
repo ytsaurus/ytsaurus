@@ -32,6 +32,7 @@ namespace NYT::NScheduler {
 DEFINE_ENUM(EDeactivationReason,
     (IsNotAlive)
     (UnmatchedSchedulingTag)
+    (IsNotAggressivelyStarving)
     (IsNotStarving)
     (ScheduleJobFailed)
     (NoBestLeafDescendant)
