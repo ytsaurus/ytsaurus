@@ -113,6 +113,10 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         this(connector, clusterName, credentials, new RpcOptions());
     }
 
+    public ScheduledExecutorService getExecutor() {
+        return executor;
+    }
+
     public CompletableFuture<Void> waitProxies() {
         return poolProvider.waitProxies();
     }
@@ -128,8 +132,8 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
     }
 
     @Override
-    public List<RpcClient> selectDestinations() {
-        return poolProvider.selectDestinations();
+    public RpcClientPool getClientPool() {
+        return poolProvider.getClientPool();
     }
 
     @Override
@@ -149,7 +153,6 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         void close();
         CompletableFuture<Void> waitProxies();
         Map<String, List<ApiServiceClient>> getAliveDestinations();
-        List<RpcClient> selectDestinations();
         RpcClientPool getClientPool();
     }
 
@@ -259,19 +262,6 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         }
 
         @Override
-        public List<RpcClient> selectDestinations() {
-            if (clientsCache != null) {
-                return clientsCache.getUnchecked(KEY);
-            } else {
-                return Manifold.selectDestinations(
-                        dataCenters, 3,
-                        localDataCenter != null,
-                        random,
-                        !options.getFailoverPolicy().randomizeDcs());
-            }
-        }
-
-        @Override
         public Map<String, List<ApiServiceClient>> getAliveDestinations() {
             final Map<String, List<ApiServiceClient>> result = new HashMap<>();
             for (DataCenter dc : dataCenters) {
@@ -310,6 +300,18 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                 return waiting;
             } else {
                 return waiting;
+            }
+        }
+
+        private List<RpcClient> selectDestinations() {
+            if (clientsCache != null) {
+                return clientsCache.getUnchecked(KEY);
+            } else {
+                return Manifold.selectDestinations(
+                        dataCenters, 3,
+                        localDataCenter != null,
+                        random,
+                        !options.getFailoverPolicy().randomizeDcs());
             }
         }
     }
