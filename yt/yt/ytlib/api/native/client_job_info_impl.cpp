@@ -73,8 +73,11 @@ static const THashSet<TString> SupportedJobAttributes = {
     "state",
     "start_time",
     "finish_time",
+    "progress",
     "address",
     "error",
+    "stderr_size",
+    "brief_statistics",
     "statistics",
     "events",
     "has_spec",
@@ -1012,32 +1015,79 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     }));
 }
 
+static TYsonString BuildBriefStatistics(const INodePtr& statistics)
+{
+    if (statistics->GetType() != ENodeType::Map) {
+        return BuildYsonStringFluently()
+            .BeginMap()
+            .EndMap();
+    }
+
+    // See NControllerAgent::BuildBriefStatistics.
+    auto rowCount = FindNodeByYPath(statistics, "/data/input/row_count/sum");
+    auto uncompressedDataSize = FindNodeByYPath(statistics, "/data/input/uncompressed_data_size/sum");
+    auto compressedDataSize = FindNodeByYPath(statistics, "/data/input/compressed_data_size/sum");
+    auto dataWeight = FindNodeByYPath(statistics, "/data/input/data_weight/sum");
+    auto inputPipeIdleTime = FindNodeByYPath(statistics, "/user_job/pipes/input/idle_time/sum");
+    auto jobProxyCpuUsage = FindNodeByYPath(statistics, "/job_proxy/cpu/user/sum");
+
+    return BuildYsonStringFluently()
+        .BeginMap()
+            .DoIf(static_cast<bool>(rowCount), [&] (TFluentMap fluent) {
+                fluent.Item("processed_input_row_count").Value(rowCount->AsInt64()->GetValue());
+            })
+            .DoIf(static_cast<bool>(uncompressedDataSize), [&] (TFluentMap fluent) {
+                fluent.Item("processed_input_uncompressed_data_size").Value(uncompressedDataSize->AsInt64()->GetValue());
+            })
+            .DoIf(static_cast<bool>(compressedDataSize), [&] (TFluentMap fluent) {
+                fluent.Item("processed_input_compressed_data_size").Value(compressedDataSize->AsInt64()->GetValue());
+            })
+            .DoIf(static_cast<bool>(dataWeight), [&] (TFluentMap fluent) {
+                fluent.Item("processed_input_data_weight").Value(dataWeight->AsInt64()->GetValue());
+            })
+            .DoIf(static_cast<bool>(inputPipeIdleTime), [&] (TFluentMap fluent) {
+                fluent.Item("input_pipe_idle_time").Value(inputPipeIdleTime->AsInt64()->GetValue());
+            })
+            .DoIf(static_cast<bool>(jobProxyCpuUsage), [&] (TFluentMap fluent) {
+                fluent.Item("job_proxy_cpu_usage").Value(jobProxyCpuUsage->AsInt64()->GetValue());
+            })
+        .EndMap();
+}
+
 static std::vector<TJob> ParseJobsFromArchiveResponse(
     TOperationId operationId,
     const IUnversionedRowsetPtr& rowset)
 {
     const auto& schema = rowset->GetSchema();
 
-    auto jobIdHiIndex = schema.GetColumnIndexOrThrow("job_id_hi");
-    auto jobIdLoIndex = schema.GetColumnIndexOrThrow("job_id_lo");
-    auto typeIndex = schema.GetColumnIndexOrThrow("job_type");
-    auto stateIndex = schema.GetColumnIndexOrThrow("job_state");
-    auto startTimeIndex = schema.GetColumnIndexOrThrow("start_time");
-    auto finishTimeIndex = schema.GetColumnIndexOrThrow("finish_time");
-    auto addressIndex = schema.GetColumnIndexOrThrow("address");
-    auto errorIndex = schema.GetColumnIndexOrThrow("error");
-    auto statisticsIndex = schema.GetColumnIndexOrThrow("statistics");
-    auto stderrSizeIndex = schema.GetColumnIndexOrThrow("stderr_size");
-    auto hasSpecIndex = schema.GetColumnIndexOrThrow("has_spec");
-    auto failContextSizeIndex = schema.GetColumnIndexOrThrow("fail_context_size");
-    auto jobCompetitionIdIndex = schema.GetColumnIndexOrThrow("job_competition_id");
-    auto hasCompetitorsIndex = schema.GetColumnIndexOrThrow("has_competitors");
-    auto execAttributesIndex = schema.GetColumnIndexOrThrow("exec_attributes");
-    auto taskNameIndex = schema.GetColumnIndexOrThrow("task_name");
-    std::optional<int> coreInfosIndex;
-    if (auto column = schema.FindColumn("core_infos")) {
-        coreInfosIndex = schema.GetColumnIndex(*column);
-    }
+    auto findColumnIndex = [&] (auto ...names) -> std::optional<int> {
+        for (auto name : {names...,}) {
+            auto column = schema.FindColumn(name);
+            if (column) {
+                return schema.GetColumnIndex(*column);
+            }
+        }
+        return {};
+    };
+
+    auto jobIdHiIndex = findColumnIndex("job_id_hi");
+    auto jobIdLoIndex = findColumnIndex("job_id_lo");
+    auto operationIdHiIndex = findColumnIndex("operation_id_hi");
+    auto typeIndex = findColumnIndex("job_type", "type");
+    auto stateIndex = findColumnIndex("job_state", "transient_state");
+    auto startTimeIndex = findColumnIndex("start_time");
+    auto finishTimeIndex = findColumnIndex("finish_time");
+    auto addressIndex = findColumnIndex("address");
+    auto errorIndex = findColumnIndex("error");
+    auto statisticsIndex = findColumnIndex("statistics");
+    auto stderrSizeIndex = findColumnIndex("stderr_size");
+    auto hasSpecIndex = findColumnIndex("has_spec");
+    auto failContextSizeIndex = findColumnIndex("fail_context_size");
+    auto jobCompetitionIdIndex = findColumnIndex("job_competition_id");
+    auto hasCompetitorsIndex = findColumnIndex("has_competitors");
+    auto execAttributesIndex = findColumnIndex("exec_attributes");
+    auto taskNameIndex = findColumnIndex("task_name");
+    auto coreInfosIndex = findColumnIndex("core_infos");
 
     std::vector<TJob> jobs;
     auto rows = rowset->GetRows();
@@ -1045,108 +1095,98 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     for (auto row : rows) {
         auto& job = jobs.emplace_back();
 
-        ValidateNonNull(row[jobIdHiIndex], "job_id_hi", operationId);
-        ValidateNonNull(row[jobIdLoIndex], "job_id_lo", operationId);
-        job.Id = TJobId(FromUnversionedValue<ui64>(row[jobIdHiIndex]), FromUnversionedValue<ui64>(row[jobIdLoIndex]));
-
-        ValidateNonNull(row[typeIndex], "type", operationId, job.Id);
-        job.Type = ParseEnum<EJobType>(FromUnversionedValue<TStringBuf>(row[typeIndex]));
-
-        ValidateNonNull(row[stateIndex], "state", operationId, job.Id);
-        job.ArchiveState = ParseEnum<EJobState>(FromUnversionedValue<TStringBuf>(row[stateIndex]));
-
-        if (row[startTimeIndex].Type != EValueType::Null) {
-            job.StartTime = TInstant::MicroSeconds(FromUnversionedValue<i64>(row[startTimeIndex]));
-        } else {
-            // This field previously was non-optional.
-            job.StartTime.emplace();
+        if (jobIdHiIndex) {
+            YT_VERIFY(jobIdLoIndex);
+            ValidateNonNull(row[*jobIdHiIndex], "job_id_hi", operationId);
+            ValidateNonNull(row[*jobIdLoIndex], "job_id_lo", operationId);
+            job.Id = TJobId(FromUnversionedValue<ui64>(row[*jobIdHiIndex]), FromUnversionedValue<ui64>(row[*jobIdLoIndex]));
         }
 
-        if (row[finishTimeIndex].Type != EValueType::Null) {
-            job.FinishTime = TInstant::MicroSeconds(FromUnversionedValue<i64>(row[finishTimeIndex]));
+        if (operationIdHiIndex) {
+            job.OperationId = operationId;
         }
 
-        if (row[addressIndex].Type != EValueType::Null) {
-            job.Address = FromUnversionedValue<TString>(row[addressIndex]);
-        } else {
-            // This field previously was non-optional.
-            job.Address.emplace();
+        if (typeIndex) {
+            ValidateNonNull(row[*typeIndex], "type", operationId, job.Id);
+            job.Type = ParseEnum<EJobType>(FromUnversionedValue<TStringBuf>(row[*typeIndex]));
         }
 
-        if (row[stderrSizeIndex].Type != EValueType::Null) {
-            job.StderrSize = FromUnversionedValue<ui64>(row[stderrSizeIndex]);
+        if (stateIndex) {
+            ValidateNonNull(row[*stateIndex], "state", operationId, job.Id);
+            job.ArchiveState = ParseEnum<EJobState>(FromUnversionedValue<TStringBuf>(row[*stateIndex]));
         }
 
-        if (row[failContextSizeIndex].Type != EValueType::Null) {
-            job.FailContextSize = FromUnversionedValue<ui64>(row[failContextSizeIndex]);
+        if (startTimeIndex) {
+            if (row[*startTimeIndex].Type != EValueType::Null) {
+                job.StartTime = TInstant::MicroSeconds(FromUnversionedValue<i64>(row[*startTimeIndex]));
+            } else {
+                // This field previously was non-optional.
+                job.StartTime.emplace();
+            }
         }
 
-        if (row[jobCompetitionIdIndex].Type != EValueType::Null) {
-            job.JobCompetitionId = FromUnversionedValue<TGuid>(row[jobCompetitionIdIndex]);
+        if (finishTimeIndex && row[*finishTimeIndex].Type != EValueType::Null) {
+            job.FinishTime = TInstant::MicroSeconds(FromUnversionedValue<i64>(row[*finishTimeIndex]));
         }
 
-        if (row[hasCompetitorsIndex].Type != EValueType::Null) {
-            job.HasCompetitors = FromUnversionedValue<bool>(row[hasCompetitorsIndex]);
-        } else {
-            job.HasCompetitors = false;
+        if (addressIndex) {
+            if (row[*addressIndex].Type != EValueType::Null) {
+                job.Address = FromUnversionedValue<TString>(row[*addressIndex]);
+            } else {
+                // This field previously was non-optional.
+                job.Address.emplace();
+            }
         }
 
-        if (row[hasSpecIndex].Type != EValueType::Null) {
-            job.HasSpec = FromUnversionedValue<bool>(row[hasSpecIndex]);
-        } else {
-            // This field previously was non-optional.
-            job.HasSpec = false;
+        if (stderrSizeIndex && row[*stderrSizeIndex].Type != EValueType::Null) {
+            job.StderrSize = FromUnversionedValue<ui64>(row[*stderrSizeIndex]);
         }
 
-        if (row[errorIndex].Type != EValueType::Null) {
-            job.Error = FromUnversionedValue<TYsonString>(row[errorIndex]);
+        if (failContextSizeIndex && row[*failContextSizeIndex].Type != EValueType::Null) {
+            job.FailContextSize = FromUnversionedValue<ui64>(row[*failContextSizeIndex]);
+        }
+
+        if (jobCompetitionIdIndex && row[*jobCompetitionIdIndex].Type != EValueType::Null) {
+            job.JobCompetitionId = FromUnversionedValue<TGuid>(row[*jobCompetitionIdIndex]);
+        }
+
+        if (hasCompetitorsIndex) {
+            if (row[*hasCompetitorsIndex].Type != EValueType::Null) {
+                job.HasCompetitors = FromUnversionedValue<bool>(row[*hasCompetitorsIndex]);
+            } else {
+                job.HasCompetitors = false;
+            }
+        }
+
+        if (hasSpecIndex) {
+            if (row[*hasSpecIndex].Type != EValueType::Null) {
+                job.HasSpec = FromUnversionedValue<bool>(row[*hasSpecIndex]);
+            } else {
+                // This field previously was non-optional.
+                job.HasSpec = false;
+            }
+        }
+
+        if (errorIndex && row[*errorIndex].Type != EValueType::Null) {
+            job.Error = FromUnversionedValue<TYsonString>(row[*errorIndex]);
         }
 
         if (coreInfosIndex && row[*coreInfosIndex].Type != EValueType::Null) {
             job.CoreInfos = FromUnversionedValue<TYsonString>(row[*coreInfosIndex]);
         }
 
-        if (row[statisticsIndex].Type != EValueType::Null) {
-            auto briefStatisticsYson = FromUnversionedValue<TYsonString>(row[statisticsIndex]);
-            auto briefStatistics = ConvertToNode(briefStatisticsYson);
-
-            // See BuildBriefStatistics.
-            auto rowCount = FindNodeByYPath(briefStatistics, "/data/input/row_count/sum");
-            auto uncompressedDataSize = FindNodeByYPath(briefStatistics, "/data/input/uncompressed_data_size/sum");
-            auto compressedDataSize = FindNodeByYPath(briefStatistics, "/data/input/compressed_data_size/sum");
-            auto dataWeight = FindNodeByYPath(briefStatistics, "/data/input/data_weight/sum");
-            auto inputPipeIdleTime = FindNodeByYPath(briefStatistics, "/user_job/pipes/input/idle_time/sum");
-            auto jobProxyCpuUsage = FindNodeByYPath(briefStatistics, "/job_proxy/cpu/user/sum");
-
-            job.BriefStatistics = BuildYsonStringFluently()
-                .BeginMap()
-                    .DoIf(static_cast<bool>(rowCount), [&] (TFluentMap fluent) {
-                        fluent.Item("processed_input_row_count").Value(rowCount->AsInt64()->GetValue());
-                    })
-                    .DoIf(static_cast<bool>(uncompressedDataSize), [&] (TFluentMap fluent) {
-                        fluent.Item("processed_input_uncompressed_data_size").Value(uncompressedDataSize->AsInt64()->GetValue());
-                    })
-                    .DoIf(static_cast<bool>(compressedDataSize), [&] (TFluentMap fluent) {
-                        fluent.Item("processed_input_compressed_data_size").Value(compressedDataSize->AsInt64()->GetValue());
-                    })
-                    .DoIf(static_cast<bool>(dataWeight), [&] (TFluentMap fluent) {
-                        fluent.Item("processed_input_data_weight").Value(dataWeight->AsInt64()->GetValue());
-                    })
-                    .DoIf(static_cast<bool>(inputPipeIdleTime), [&] (TFluentMap fluent) {
-                        fluent.Item("input_pipe_idle_time").Value(inputPipeIdleTime->AsInt64()->GetValue());
-                    })
-                    .DoIf(static_cast<bool>(jobProxyCpuUsage), [&] (TFluentMap fluent) {
-                        fluent.Item("job_proxy_cpu_usage").Value(jobProxyCpuUsage->AsInt64()->GetValue());
-                    })
-                .EndMap();
+        if (statisticsIndex && row[*statisticsIndex].Type != EValueType::Null) {
+            auto statisticsYson = FromUnversionedValue<TYsonString>(row[*statisticsIndex]);
+            auto statistics = ConvertToNode(statisticsYson);
+            job.BriefStatistics = BuildBriefStatistics(statistics);
         }
 
-        if (row[execAttributesIndex].Type != EValueType::Null) {
-            job.ExecAttributes = FromUnversionedValue<TYsonString>(row[execAttributesIndex]);
+        if (execAttributesIndex && row[*execAttributesIndex].Type != EValueType::Null) {
+            job.ExecAttributes = FromUnversionedValue<TYsonString>(row[*execAttributesIndex]);
         }
 
-        if (row[taskNameIndex].Type != EValueType::Null) {
-            job.TaskName = FromUnversionedValue<TString>(row[taskNameIndex]);
+        if (taskNameIndex && row[*taskNameIndex].Type != EValueType::Null) {
+            job.TaskName = FromUnversionedValue<TString>(row[*taskNameIndex]);
         }
 
         // We intentionally mark stderr as missing if job has no spec since
@@ -1733,32 +1773,6 @@ TListJobsResult TClient::DoListJobs(
     return result;
 }
 
-template <typename T>
-static std::optional<T> FindValue(
-    TUnversionedRow row,
-    const NTableClient::TColumnFilter& columnFilter,
-    int columnIndex)
-{
-    auto maybeIndex = columnFilter.FindPosition(columnIndex);
-    if (maybeIndex && row[*maybeIndex].Type != EValueType::Null) {
-        return FromUnversionedValue<T>(row[*maybeIndex]);
-    }
-    return {};
-}
-
-template <typename TValue>
-void TryAddFluentItem(
-    TFluentMap fluent,
-    TStringBuf key,
-    TUnversionedRow row,
-    const NTableClient::TColumnFilter& columnFilter,
-    int columnIndex)
-{
-    if (auto value = FindValue<TValue>(row, columnFilter, columnIndex)) {
-        fluent.Item(key).Value(*value);
-    }
-}
-
 static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& attributes)
 {
     std::vector<TString> result;
@@ -1824,82 +1838,13 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
 
     auto rows = rowset->GetRows();
     YT_VERIFY(!rows.Empty());
-    auto row = rows[0];
-
-    if (!row) {
+    if (!rows[0]) {
         return {};
     }
 
-    const auto& columnFilter = lookupOptions.ColumnFilter;
-
-    TJob job;
-
-    if (columnFilter.ContainsIndex(table.Index.JobIdHi)) {
-        job.Id = jobId;
-    }
-    if (columnFilter.ContainsIndex(table.Index.OperationIdHi)) {
-        job.OperationId = operationId;
-    }
-
-    auto state = FindValue<TStringBuf>(row, columnFilter, table.Index.State);
-    if (!state) {
-        state = FindValue<TStringBuf>(row, columnFilter, table.Index.TransientState);
-    }
-    if (state) {
-        job.ArchiveState = ParseEnum<EJobState>(*state);
-    }
-
-    // NB: We need a separate function for |TInstant| because it has type "int64" in table
-    // but |FromUnversionedValue<TInstant>| expects it to be "uint64".
-    auto findInstant = [&] (int columnIndex) -> std::optional<TInstant> {
-        if (auto microseconds = FindValue<i64>(row, columnFilter, columnIndex)) {
-            return TInstant::MicroSeconds(*microseconds);
-        }
-        return {};
-    };
-
-    if (auto startTime = findInstant(table.Index.StartTime)) {
-        job.StartTime = *startTime;
-    }
-    if (auto finishTime = findInstant(table.Index.FinishTime)) {
-        job.FinishTime = *finishTime;
-    }
-    if (auto hasSpec = FindValue<bool>(row, columnFilter, table.Index.HasSpec)) {
-        job.HasSpec = *hasSpec;
-    }
-    if (auto address = FindValue<TStringBuf>(row, columnFilter, table.Index.Address)) {
-        job.Address = *address;
-    }
-    if (auto type = FindValue<TStringBuf>(row, columnFilter, table.Index.Type)) {
-        job.Type = ParseEnum<EJobType>(*type);
-    }
-    if (auto error = FindValue<TYsonString>(row, columnFilter, table.Index.Error)) {
-        job.Error = std::move(*error);
-    }
-    if (auto statistics = FindValue<TYsonString>(row, columnFilter, table.Index.Statistics)) {
-        job.Statistics = std::move(*statistics);
-    }
-    if (auto events = FindValue<TYsonString>(row, columnFilter, table.Index.Events)) {
-        job.Events = std::move(*events);
-    }
-    if (auto jobCompetitionId = FindValue<TJobId>(row, columnFilter, table.Index.JobCompetitionId)) {
-        job.JobCompetitionId = *jobCompetitionId;
-    }
-    if (columnFilter.FindPosition(table.Index.HasCompetitors)) {
-        if (auto hasCompetitors = FindValue<bool>(row, columnFilter, table.Index.HasCompetitors)) {
-            job.HasCompetitors = *hasCompetitors;
-        } else {
-            job.HasCompetitors = false;
-        }
-    }
-    if (auto execAttributes = FindValue<TYsonString>(row, columnFilter, table.Index.ExecAttributes)) {
-        job.ExecAttributes = std::move(*execAttributes);
-    }
-    if (auto taskName = FindValue<TStringBuf>(row, columnFilter, table.Index.TaskName)) {
-        job.TaskName = taskName;
-    }
-
-    return job;
+    auto jobs = ParseJobsFromArchiveResponse(operationId, rowset);
+    YT_VERIFY(!jobs.empty());
+    return jobs.front();
 }
 
 std::optional<TJob> TClient::DoGetJobFromControllerAgent(
@@ -1974,6 +1919,7 @@ TYsonString TClient::DoGetJob(
         "finish_time",
         "address",
         "error",
+        "stderr_size",
         "statistics",
         "events",
         "has_spec",
