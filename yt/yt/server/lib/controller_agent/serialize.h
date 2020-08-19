@@ -47,6 +47,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((SingleJobOrderedPool)                 (300414))
     ((MergeRowCountValidation)              (300415))
     ((FixDataFlowGraphPersistence)          (300416))
+    ((JobResourcesIntToLong)                (300417))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
