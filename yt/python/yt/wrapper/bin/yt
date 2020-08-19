@@ -1437,8 +1437,8 @@ def add_download_core_dump_parser(add_parser):
                         type=int,
                         action="append",
                         dest="core_indices",
-                        help="Indices of core dumps during the given job that should be downloaded, "
-                             "several indices may be specified. If not specified, all core dumps are downloaded. "
+                        help="Indices of core dumps to download (indexing inside single job). "
+                             "Several indices may be specified. If not specified, all core dumps will be downloaded. "
                              "Requires --job-id to be specified")
     parser.add_argument("--output-directory",
                         default=".",
