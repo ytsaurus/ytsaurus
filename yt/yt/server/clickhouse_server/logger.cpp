@@ -28,7 +28,10 @@ public:
         NLogging::TLogEvent event;
         event.Category = Logger.GetCategory();
         event.Level = GetLogLevel(message.getPriority());
-        event.Message = TSharedRef::FromString(MaybeTruncateSubquery(TString(message.getText())));
+        event.Message = TSharedRef::FromString(Format(
+            "[%v] %v",
+            GetOriginalLevelLetter(message.getPriority()),
+            MaybeTruncateSubquery(TString(message.getText()))));
         event.Instant = GetCpuInstant();
         event.ThreadId = TThread::CurrentThreadId();
 
@@ -42,10 +45,11 @@ private:
             case Poco::Message::PRIO_FATAL:
             case Poco::Message::PRIO_CRITICAL:
                 return ELogLevel::Fatal;
+            // ClickHouse often puts user errors into error level, which we
+            // do not like to see in our logs. Thus, we always put its messages to
+            // Debug level.
             case Poco::Message::PRIO_ERROR:
-                return ELogLevel::Error;
             case Poco::Message::PRIO_WARNING:
-                return ELogLevel::Warning;
             case Poco::Message::PRIO_NOTICE:
             case Poco::Message::PRIO_INFORMATION:
                 return ELogLevel::Info;
@@ -54,6 +58,13 @@ private:
             case Poco::Message::PRIO_TRACE:
                 return ELogLevel::Trace;
         }
+    }
+
+    static char GetOriginalLevelLetter(Poco::Message::Priority priority)
+    {
+        constexpr const char* Letters = "?FCEWNIDT";
+
+        return Letters[priority];
     }
 };
 
