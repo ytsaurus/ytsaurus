@@ -4,6 +4,7 @@ from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
                      YtRequestTimedOut, YtRetriableError, YtNoSuchTransaction, hide_auth_headers)
+from .framing import UnframingStream
 from .command import parse_commands
 from .format import JsonFormat, YsonFormat
 
@@ -190,6 +191,9 @@ def create_response(response, request_info, error_format, client):
 
     if "X-YT-Response-Parameters" in response.headers:
         response.headers["X-YT-Response-Parameters"] = loads(response.headers["X-YT-Response-Parameters"])
+    if "X-YT-Framing" in response.headers:
+        assert response.raw is not None
+        response.iter_content = UnframingStream(response.raw).iter_content
     response.request_info = request_info
     response._error = get_error()
     response.error = types.MethodType(error, response)

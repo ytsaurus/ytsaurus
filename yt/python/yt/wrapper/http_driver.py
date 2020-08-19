@@ -8,6 +8,7 @@ from .errors import (YtError, YtHttpResponseError, YtProxyUnavailable,
 from .format import JsonFormat
 from .http_helpers import (make_request_with_retries, get_token, get_http_api_version, get_http_api_commands,
                            get_proxy_url, get_error_from_headers, get_header_format, ProxyProvider)
+from .framing import UnframingStream
 from .response_stream import ResponseStream
 
 import yt.logger as logger
@@ -119,6 +120,7 @@ class TokenAuth(AuthBase):
         request.register_hook("response", self.handle_redirect)
         return request
 
+
 @forbidden_inside_job
 def make_request(command_name,
                  params,
@@ -227,6 +229,10 @@ def make_request(command_name,
     if write_params_to_header and params:
         headers.update({"X-YT-Parameters": dump_params(params, header_format)})
 
+    use_framing = command_name in get_config(client)["proxy"]["commands_with_framing"]
+    if use_framing:
+        headers["X-YT-Accept-Framing"] = "1"
+
     auth = TokenAuth(get_token(client=client))
 
     if command.input_type in ["binary", "tabular"]:
@@ -239,7 +245,7 @@ def make_request(command_name,
         if content_encoding in ["br", "gzip"] and not is_data_compressed:
             data = get_compressor(content_encoding)(data)
 
-    stream = (command.output_type in ["binary", "tabular"])
+    stream = use_framing or (command.output_type in ["binary", "tabular"])
     response = make_request_with_retries(
         command.http_method(),
         url,
