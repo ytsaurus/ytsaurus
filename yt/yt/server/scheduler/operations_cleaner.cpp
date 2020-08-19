@@ -778,6 +778,25 @@ private:
         i64 orderedByStartTimeRowsDataWeight = 0;
         i64 operationAliasesRowsDataWeight = 0;
 
+        THashSet<TOperationId> skippedOperationIds;
+
+        auto isValueWeightViolated = [&] (TUnversionedRow row, TOperationId operationId, const TNameTablePtr nameTable) {
+            for (auto value : row) {
+                auto valueWeight = GetDataWeight(value);
+                if (valueWeight > MaxStringValueLength) {
+                    YT_LOG_WARNING(
+                        "Operation row violates value data weight, archivation skipped"
+                        "(OperationId: %v, Key: %v, Weight: %v, WeightLimit: %v)",
+                        operationId,
+                        nameTable->GetNameOrThrow(value.Id),
+                        valueWeight,
+                        MaxStringValueLength);
+                    return true;
+                }
+            }
+            return false;
+        };
+
         PROFILE_AGGREGATED_TIMING(OperationsRowsPreparationTimeCounter_) {
             // ordered_by_id table rows
             {
@@ -790,6 +809,12 @@ private:
                     try {
                         const auto& request = GetRequest(operationId);
                         auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Index, version);
+
+                        if (isValueWeightViolated(row, operationId, desc.NameTable)) {
+                            skippedOperationIds.insert(operationId);
+                            continue;
+                        }
+
                         rows.push_back(row);
                         orderedByIdRowsDataWeight += GetDataWeight(row);
                     } catch (const std::exception& ex) {
@@ -812,6 +837,9 @@ private:
                 rows.reserve(operationIds.size());
 
                 for (auto operationId : operationIds) {
+                    if (skippedOperationIds.contains(operationId)) {
+                        continue;
+                    }
                     try {
                         const auto& request = GetRequest(operationId);
                         auto row = NDetail::BuildOrderedByStartTimeTableRow(rowBuffer, request, desc.Index, version);
@@ -837,6 +865,10 @@ private:
                 rows.reserve(operationIds.size());
 
                 for (auto operationId : operationIds) {
+                    if (skippedOperationIds.contains(operationId)) {
+                        continue;
+                    }
+
                     const auto& request = GetRequest(operationId);
 
                     if (request.Alias) {
@@ -855,10 +887,11 @@ private:
 
         i64 totalDataWeight = orderedByIdRowsDataWeight + orderedByStartTimeRowsDataWeight;
 
-        YT_LOG_DEBUG("Started committing archivation transaction (TransactionId: %v, OperationCount: %v, OrderedByIdRowsDataWeight: %v, "
-            "OrderedByStartTimeRowsDataWeight: %v, TotalDataWeight: %v)",
+        YT_LOG_DEBUG("Started committing archivation transaction (TransactionId: %v, OperationCount: %v, SkippedOperationCount: %v, "
+            "OrderedByIdRowsDataWeight: %v, OrderedByStartTimeRowsDataWeight: %v, TotalDataWeight: %v)",
             transaction->GetId(),
             operationIds.size(),
+            skippedOperationIds.size(),
             orderedByIdRowsDataWeight,
             orderedByStartTimeRowsDataWeight,
             totalDataWeight);
