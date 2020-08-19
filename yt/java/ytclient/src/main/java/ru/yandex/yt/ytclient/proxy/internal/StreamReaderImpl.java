@@ -82,8 +82,8 @@ class Stash {
 }
 
 class Attachment {
-    private long compressedSize;
-    private byte[] decompressedBytes;
+    private final long compressedSize;
+    private final byte[] decompressedBytes;
 
     public Attachment(long compressedSize, byte[] decompressedBytes) {
         this.compressedSize = compressedSize;
@@ -100,8 +100,8 @@ class Attachment {
 }
 
 class Payload {
-    private List<Attachment> attachments;
-    private RpcClient sender;
+    private final List<Attachment> attachments;
+    private final RpcClient sender;
 
     public Payload(List<Attachment> attachments, RpcClient sender) {
         this.attachments = attachments;
@@ -118,10 +118,11 @@ class Payload {
 }
 
 public abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspType> {
-    private Stash stash = new Stash();
+    private static final int MAX_WINDOW_SIZE = 16384;
+
+    private final Stash stash = new Stash();
     private boolean started = false;
-    private final int MAX_WINDOW_SIZE = 16384;
-    private SlidingWindow<Payload> window = new SlidingWindow<>(MAX_WINDOW_SIZE, payload -> {
+    private final SlidingWindow<Payload> window = new SlidingWindow<>(MAX_WINDOW_SIZE, payload -> {
         for (Attachment attachment : payload.getAttachments()) {
             try {
                 stash.push(attachment);
