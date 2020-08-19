@@ -296,6 +296,13 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         actual = lookup_rows("//tmp/t1", [{"key": row["key"]} for row in rows])
         assert_items_equal(actual, rows)
 
+    @authors("babenko", "savrus")
+    def test_yt_13441_empty_store_set(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t", freeze=True)
+        assert select_rows("* from [//tmp/t] where key in (1)") == []
+
     @authors("lukyan")
     def test_row_cache(self):
         sync_create_cells(1)

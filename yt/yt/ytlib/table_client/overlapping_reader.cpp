@@ -104,6 +104,7 @@ ISchemafulUnversionedReaderPtr TSchemafulOverlappingLookupReader::Create(
     }
 
     this_->UpdateReadyEvent();
+    this_->Exhausted_ = this_->Sessions_.empty();
     return this_;
 }
 
