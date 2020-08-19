@@ -29,6 +29,8 @@ public:
 
     TFixedPointNumber();
 
+    TFixedPointNumber(i64 value);
+
     template <typename T>
     TFixedPointNumber(const T& value);
 

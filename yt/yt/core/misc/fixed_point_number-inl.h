@@ -23,6 +23,11 @@ TFixedPointNumber<U, P>::TFixedPointNumber()
 { }
 
 template <typename U, int P>
+TFixedPointNumber<U, P>::TFixedPointNumber(i64 value)
+    : Value_(value * ScalingFactor)
+{ }
+
+template <typename U, int P>
 template <typename T>
 TFixedPointNumber<U, P>::TFixedPointNumber(const T& value)
     : Value_(std::round(value * ScalingFactor))

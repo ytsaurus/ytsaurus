@@ -21,7 +21,7 @@ namespace NYT::NScheduler {
 using TMemoryDistribution = THashMap<i64, int>;
 
 // Uses precision of 2 decimal digits.
-using TCpuResource = TFixedPointNumber<int, 2>;
+using TCpuResource = TFixedPointNumber<i64, 2>;
 
 // Implementation detail.
 class TEmptyJobResourcesBase
@@ -30,13 +30,13 @@ class TEmptyJobResourcesBase
 class TExtendedJobResources
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(int, UserSlots);
+    DEFINE_BYVAL_RW_PROPERTY(i64, UserSlots);
     DEFINE_BYVAL_RW_PROPERTY(TCpuResource, Cpu);
     DEFINE_BYVAL_RW_PROPERTY(int, Gpu);
     DEFINE_BYVAL_RW_PROPERTY(i64, JobProxyMemory);
     DEFINE_BYVAL_RW_PROPERTY(i64, UserJobMemory);
     DEFINE_BYVAL_RW_PROPERTY(i64, FootprintMemory);
-    DEFINE_BYVAL_RW_PROPERTY(int, Network);
+    DEFINE_BYVAL_RW_PROPERTY(i64, Network);
 
 public:
     i64 GetMemory() const;
@@ -48,11 +48,11 @@ class TJobResources
     : public TEmptyJobResourcesBase
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(int, UserSlots);
+    DEFINE_BYVAL_RW_PROPERTY(i64, UserSlots);
     DEFINE_BYVAL_RW_PROPERTY(TCpuResource, Cpu);
     DEFINE_BYVAL_RW_PROPERTY(int, Gpu);
     DEFINE_BYVAL_RW_PROPERTY(i64, Memory);
-    DEFINE_BYVAL_RW_PROPERTY(int, Network);
+    DEFINE_BYVAL_RW_PROPERTY(i64, Network);
 
 public:
     TJobResources() = default;
