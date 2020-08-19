@@ -106,6 +106,11 @@ class TestGetJob(YTEnvSetup):
 
         self._check_get_job(op.id, job_id, before_start_time, state="running", check_has_spec=False)
 
+        def correct_stderr_size():
+            job_info = retry(lambda: get_job(op.id, job_id))
+            return job_info.get("stderr_size", 0) == len("SOME-STDERR\n")
+        wait(correct_stderr_size)
+
         release_breakpoint()
         op.track()
 
