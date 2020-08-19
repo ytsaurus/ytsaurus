@@ -411,7 +411,7 @@ public:
             Process_->AddArguments({"--env", Format("CUDA_COREDUMP_FILE=%v", slotGpuCorePipeFile)});
         }
         for (const auto& networkAddress : options.NetworkAddresses) {
-            Process_->AddArguments({"--env", Format("YT_IP_ADDRESS_%v=%v", networkAddress->Name.to_upper(), networkAddress->Address)});
+            Process_->AddArguments({"--env", Format("YT_IP_ADDRESS_%v=%v", to_upper(networkAddress->Name), networkAddress->Address)});
         }
 
         return Process_;
