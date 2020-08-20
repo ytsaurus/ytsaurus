@@ -297,6 +297,11 @@ def stop(spark, exception=None):
     )
 
 
+def jvm_process_pid():
+    from pyspark import SparkContext
+    return SparkContext._gateway.proc.pid
+
+
 def _close_yt_client(spark):
     spark._jvm.ru.yandex.spark.yt.fs.YtClientProvider.close()
 
@@ -324,10 +329,11 @@ def _shutdown_jvm(spark):
     from pyspark import SparkContext
     from pyspark.sql import SparkSession
     from subprocess import Popen
-    if not isinstance(SparkContext._gateway.proc, Popen):
+    proc = SparkContext._gateway.proc
+    if not isinstance(proc, Popen):
         logger.warning("SparkSession cannot be closed properly, please update yandex-spyt and Spark cluster")
         return
-    SparkContext._gateway.proc.stdin.close()
+    proc.stdin.close()
     SparkContext._gateway.shutdown()
     SparkContext._gateway = None
     SparkContext._jvm = None
