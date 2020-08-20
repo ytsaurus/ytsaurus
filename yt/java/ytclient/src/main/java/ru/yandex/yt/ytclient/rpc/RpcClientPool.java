@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.rpc;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Stream;
 
 import ru.yandex.lang.NonNullApi;
 
@@ -19,6 +20,10 @@ public interface RpcClientPool {
     CompletableFuture<RpcClient> peekClient(CompletableFuture<?> releaseFuture);
 
     static RpcClientPool collectionPool(Collection<RpcClient> clients) {
+        return new IteratorPool(clients.iterator());
+    }
+
+    static RpcClientPool collectionPool(Stream<RpcClient> clients) {
         return new IteratorPool(clients.iterator());
     }
 }

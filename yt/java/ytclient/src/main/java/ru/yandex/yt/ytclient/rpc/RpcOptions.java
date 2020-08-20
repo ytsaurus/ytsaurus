@@ -45,6 +45,8 @@ public class RpcOptions {
 
     private DiscoveryMethod preferableDiscoveryMethod = DiscoveryMethod.RPC;
 
+    private boolean newDiscoveryServiceEnabled = false;
+
     public RpcOptions() {
         // nothing
     }
@@ -269,5 +271,22 @@ public class RpcOptions {
 
     public void setPreferableDiscoveryMethod(DiscoveryMethod preferableDiscoveryMethod) {
         this.preferableDiscoveryMethod = preferableDiscoveryMethod;
+    }
+
+    /**
+     * @see #setNewDiscoveryServiceEnabled
+     */
+    public boolean isNewDiscoveryServiceEnabled() {
+        return newDiscoveryServiceEnabled;
+    }
+
+    /**
+     * Whether or not to use new discovery service.
+     *
+     * <p> This option is temporary and we are going to move all clients to new discovery service.
+     * Once we are sure our new service is pretty stable this option will be removed.
+     */
+    public void setNewDiscoveryServiceEnabled(boolean newDiscoveryServiceEnabled) {
+        this.newDiscoveryServiceEnabled = newDiscoveryServiceEnabled;
     }
 }

@@ -31,12 +31,12 @@ import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.junit.Assert.fail;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
+import static ru.yandex.yt.testlib.FutureUtils.getError;
+import static ru.yandex.yt.testlib.Matchers.isCausedBy;
 
 public class FailoverRpcExecutorTest {
     ScheduledExecutorService executorService = new ScheduledThreadPoolExecutor(4);
@@ -61,7 +61,7 @@ public class FailoverRpcExecutorTest {
     @Test
     public void testSuccess() throws Exception {
         CompletableFuture<String> result = new CompletableFuture<>();
-        execute(responseImmediately(),  defaultOptions(), result, 2, 2);
+        execute(responseImmediately(), defaultOptions(), result, 2, 2);
 
         waitFuture(result, 1000);
 
@@ -83,7 +83,7 @@ public class FailoverRpcExecutorTest {
 
         assertThat(result.isDone(), is(true));
         assertThat(result.isCompletedExceptionally(), is(true));
-        assertThat(getError(result), instanceOf(TimeoutException.class));
+        assertThat(getError(result), isCausedBy(TimeoutException.class));
     }
 
     @Test
@@ -176,10 +176,12 @@ public class FailoverRpcExecutorTest {
         RpcClientRequestControl control = mock(RpcClientRequestControl.class);
         return new RpcClient() {
             @Override
-            public void close() {}
+            public void close() {
+            }
 
             @Override
-            public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request, RpcClientResponseHandler handler) {
+            public RpcClientRequestControl send(RpcClient sender, RpcClientRequest request,
+                                                RpcClientResponseHandler handler) {
                 handlerConsumer.accept(handler);
                 return control;
             }
@@ -202,7 +204,8 @@ public class FailoverRpcExecutorTest {
     }
 
     private Consumer<RpcClientResponseHandler> responseNever() {
-        return handler -> {};
+        return handler -> {
+        };
     }
 
     private Consumer<RpcClientResponseHandler> responseImmediately() {
@@ -212,6 +215,7 @@ public class FailoverRpcExecutorTest {
     private Consumer<RpcClientResponseHandler> responseOnSecondRequest() {
         return new Consumer<>() {
             int count = 1;
+
             @Override
             public void accept(RpcClientResponseHandler handler) {
                 if (count >= 2) {
@@ -228,8 +232,7 @@ public class FailoverRpcExecutorTest {
             RpcOptions options,
             CompletableFuture<String> result,
             int clientCount,
-            int attemptCount)
-    {
+            int attemptCount) {
         TRequestHeader.Builder header = TRequestHeader.newBuilder();
         RpcClientRequest request = mock(RpcClientRequest.class);
         when(request.getOptions()).thenReturn(options);
@@ -274,22 +277,6 @@ public class FailoverRpcExecutorTest {
         } catch (ExecutionException | CancellationException error) {
             // that's ok
         }
-    }
-
-    private static Throwable getError(CompletableFuture<?> future) {
-        assertThat(future.isCompletedExceptionally(), is(true));
-
-        Throwable t = null;
-        try {
-            future.get();
-            fail("expected exception to be thrown");
-        } catch (ExecutionException error) {
-            t = error.getCause();
-        } catch (InterruptedException error) {
-            fail("unexpected error: " + error.toString());
-        }
-        assertThat(t, is(notNullValue()));
-        return t;
     }
 
     static RpcOptions defaultOptions() {

@@ -12,6 +12,7 @@ import java.util.concurrent.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.misc.ScheduledSerializedExecutorService;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
@@ -33,6 +34,7 @@ public class FailoverRpcExecutor {
     private final long globalDeadline;
 
     private final RpcClientRequest request;
+    private final GUID requestId;
     private final RpcClientResponseHandler baseHandler;
 
     private final CompletableFuture<Result> result = new CompletableFuture<>();
@@ -67,6 +69,7 @@ public class FailoverRpcExecutor {
         this.attemptCount = attemptCount;
 
         this.request = request;
+        this.requestId = request.getRequestId();
         this.baseHandler = handler;
 
         this.mutableState = new MutableState();
@@ -84,13 +87,14 @@ public class FailoverRpcExecutor {
     }
 
     private void send(RpcClientResponseHandler handler) {
+        logger.trace("Peeking connection from pool; RequestId: {}", requestId);
         clientPool.peekClient(result).whenCompleteAsync((RpcClient client, Throwable error) -> {
             if (error == null) {
                 mutableState.sendImpl(client, handler);
                 return;
             }
 
-            logger.warn("Failed to get RpcClient from pool", error);
+            logger.warn("Failed to get RpcClient from pool; RequestId: {}", requestId, error);
             mutableState.softAbort(error);
         }, serializedExecutorService);
     }

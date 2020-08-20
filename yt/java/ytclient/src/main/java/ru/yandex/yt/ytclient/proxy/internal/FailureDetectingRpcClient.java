@@ -18,6 +18,7 @@ import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 
+// TODO: move closer to user an make package private
 public class FailureDetectingRpcClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(FailureDetectingRpcClient.class);
 
@@ -93,12 +94,6 @@ public class FailureDetectingRpcClient implements RpcClient {
     @Override
     public RpcClientStreamControl startStream(RpcClientRequest request) {
         return innerClient.startStream(this, request);
-    }
-
-    @Override
-    public RpcClient withTokenAuthentication(String user, String token) {
-        this.innerClient = innerClient.withTokenAuthentication(new RpcCredentials(user, token));
-        return this;
     }
 
     @Override

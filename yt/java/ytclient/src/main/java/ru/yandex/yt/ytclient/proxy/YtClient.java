@@ -24,11 +24,13 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import com.google.protobuf.MessageLite;
+import io.netty.channel.EventLoopGroup;
 
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.DataCenter;
+import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.internal.Manifold;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
@@ -40,6 +42,8 @@ import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
 import ru.yandex.yt.ytclient.rpc.RpcCredentials;
 import ru.yandex.yt.ytclient.rpc.RpcOptions;
+import ru.yandex.yt.ytclient.rpc.RpcUtil;
+import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolderImpl;
 
 public class YtClient extends DestinationsSelector implements AutoCloseable {
     private static final Object KEY = new Object();
@@ -79,15 +83,26 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         this.executor = connector.executorService();
 
         RpcClientFactory rpcClientFactory = new RpcClientFactoryImpl(connector, credentials, compression);
-        poolProvider = new OldClientPoolProvider(
-                connector,
-                clusters,
-                localDataCenterName,
-                proxyRole,
-                rpcClientFactory,
-                credentials,
-                compression,
-                options);
+        if (options.isNewDiscoveryServiceEnabled()) {
+            poolProvider = new NewClientPoolProvider(
+                    connector,
+                    clusters,
+                    localDataCenterName,
+                    proxyRole,
+                    rpcClientFactory,
+                    credentials,
+                    options);
+        } else {
+            poolProvider = new OldClientPoolProvider(
+                    connector,
+                    clusters,
+                    localDataCenterName,
+                    proxyRole,
+                    rpcClientFactory,
+                    credentials,
+                    compression,
+                    options);
+        }
     }
 
     public YtClient(
@@ -154,6 +169,135 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
         CompletableFuture<Void> waitProxies();
         Map<String, List<ApiServiceClient>> getAliveDestinations();
         RpcClientPool getClientPool();
+    }
+
+    @NonNullApi
+    static class NewClientPoolProvider implements ClientPoolProvider {
+        final MultiDcClientPool multiDcClientPool;
+        final List<ClientPoolService> dataCenterList = new ArrayList<>();
+        final RpcOptions options;
+
+        NewClientPoolProvider(
+            BusConnector connector,
+            List<YtCluster> clusters,
+            String localDataCenterName,
+            @Nullable String proxyRole,
+            RpcClientFactory rpcClientFactory,
+            RpcCredentials credentials,
+            RpcOptions options)
+        {
+            this.options = options;
+
+            final EventLoopGroup eventLoopGroup = connector.eventLoopGroup();
+            final Random random = new Random();
+
+            for (YtCluster curCluster : clusters) {
+                // 1. Понять http-discovery или rpc
+                if (curCluster.balancerFqdn != null && !curCluster.balancerFqdn.isEmpty() && (
+                        options.getPreferableDiscoveryMethod() == DiscoveryMethod.HTTP
+                                || curCluster.addresses == null
+                                || curCluster.addresses.isEmpty()))
+                {
+                    // Use http
+                    dataCenterList.add(
+                            ClientPoolService.httpBuilder()
+                                    .setDataCenterName(curCluster.getName())
+                                    .setBalancerAddress(curCluster.balancerFqdn, curCluster.httpPort)
+                                    .setRole(proxyRole)
+                                    .setToken(credentials.getToken())
+                                    .setOptions(options)
+                                    .setClientFactory(rpcClientFactory)
+                                    .setEventLoop(eventLoopGroup)
+                                    .setRandom(random)
+                                    .build()
+                    );
+                } else if (
+                        curCluster.addresses != null && !curCluster.addresses.isEmpty() && (
+                        options.getPreferableDiscoveryMethod() == DiscoveryMethod.HTTP
+                        || curCluster.balancerFqdn == null || curCluster.balancerFqdn.isEmpty()))
+                {
+                    // use rpc
+                    List<HostPort> initialProxyList =
+                            curCluster.addresses.stream().map(HostPort::parse).collect(Collectors.toList());
+                    dataCenterList.add(
+                            ClientPoolService.rpcBuilder()
+                                    .setDataCenterName(curCluster.getName())
+                                    .setInitialProxyList(initialProxyList)
+                                    .setRole(proxyRole)
+                                    .setOptions(options)
+                                    .setClientFactory(rpcClientFactory)
+                                    .setEventLoop(eventLoopGroup)
+                                    .setRandom(random)
+                                    .build()
+                    );
+                } else {
+                    throw new RuntimeException(String.format(
+                            "Cluster %s does not have neither http balancer nor rpc proxies specified ",
+                            curCluster.getName()
+                    ));
+                }
+
+                for (ClientPoolService clientPoolService : dataCenterList) {
+                    clientPoolService.start();
+                }
+            }
+
+            multiDcClientPool = MultiDcClientPool.builder()
+                    .setLocalDc(localDataCenterName)
+                    .addClientPools(dataCenterList)
+                    .setDcMetricHolder(DataCenterMetricsHolderImpl.instance)
+                    .build();
+        }
+
+        @Override
+        public void close() {
+            for (ClientPoolService dataCenter : dataCenterList) {
+                dataCenter.close();
+            }
+        }
+
+        @Override
+        public CompletableFuture<Void> waitProxies() {
+            CompletableFuture<Void> result = new CompletableFuture<>();
+            CompletableFuture<RpcClient> client = multiDcClientPool.peekClient(result);
+            client.whenComplete((c, error) -> {
+                if (error != null) {
+                    result.completeExceptionally(error);
+                } else {
+                    result.complete(null);
+                }
+            });
+            RpcUtil.relayCancel(result, client);
+            return result;
+        }
+
+        @Override
+        public Map<String, List<ApiServiceClient>> getAliveDestinations() {
+            Map<String, List<ApiServiceClient>> result = new HashMap<>();
+
+            CompletableFuture<Void> releaseFuture = new CompletableFuture<>();
+            try {
+                for (ClientPoolService clientPoolService : dataCenterList) {
+                    RpcClient[] aliveClients = clientPoolService.getAliveClients();
+                    if (aliveClients.length == 0) {
+                        continue;
+                    }
+                    List<ApiServiceClient> clients =
+                            result.computeIfAbsent(clientPoolService.getDataCenterName(), k -> new ArrayList<>());
+                    for (RpcClient curClient : aliveClients) {
+                        clients.add(new ApiServiceClient(curClient, options));
+                    }
+                }
+            } finally {
+                releaseFuture.complete(null);
+            }
+            return result;
+        }
+
+        @Override
+        public RpcClientPool getClientPool() {
+            return multiDcClientPool;
+        }
     }
 
     @NonNullApi
