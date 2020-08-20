@@ -1056,7 +1056,8 @@ static TYsonString BuildBriefStatistics(const INodePtr& statistics)
 
 static std::vector<TJob> ParseJobsFromArchiveResponse(
     TOperationId operationId,
-    const IUnversionedRowsetPtr& rowset)
+    const IUnversionedRowsetPtr& rowset,
+    bool needFullStatistics)
 {
     const auto& schema = rowset->GetSchema();
 
@@ -1178,6 +1179,9 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
         if (statisticsIndex && row[*statisticsIndex].Type != EValueType::Null) {
             auto statisticsYson = FromUnversionedValue<TYsonString>(row[*statisticsIndex]);
             auto statistics = ConvertToNode(statisticsYson);
+            if (needFullStatistics) {
+                job.Statistics = statisticsYson;
+            }
             job.BriefStatistics = BuildBriefStatistics(statistics);
         }
 
@@ -1320,7 +1324,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     selectRowsOptions.MemoryLimitPerNode = 100_MB;
 
     return SelectRows(builder.Build(), selectRowsOptions).Apply(BIND([operationId] (const TSelectRowsResult& result) {
-        return ParseJobsFromArchiveResponse(operationId, result.Rowset);
+        return ParseJobsFromArchiveResponse(operationId, result.Rowset, /* needFullStatistics */ false);
     }));
 }
 
@@ -1842,7 +1846,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
         return {};
     }
 
-    auto jobs = ParseJobsFromArchiveResponse(operationId, rowset);
+    auto jobs = ParseJobsFromArchiveResponse(operationId, rowset, /* needFullStatistics */ true);
     YT_VERIFY(!jobs.empty());
     return jobs.front();
 }
