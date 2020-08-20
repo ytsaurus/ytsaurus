@@ -561,7 +561,8 @@ void TTcpConnection::OnEvent(EPollControl control)
         // New events could come while previous handler is still running.
         if (Any(Pending_ & (EPollControl::Running | EPollControl::Shutdown))) {
             Pending_ |= control;
-            YT_LOG_TRACE("Event handler is already running (Pending: %v)", Pending_);
+            YT_LOG_TRACE("Event handler is already running (Pending: %v)",
+                Pending_);
             return;
         }
 
@@ -575,7 +576,7 @@ void TTcpConnection::OnEvent(EPollControl control)
     }
 
     {
-        // OnEvent should never be called for offline socket.
+        // OnEvent should never be called for an offline socket.
         YT_VERIFY(None(action & EPollControl::Offline));
 
         if (Any(action & EPollControl::Terminate)) {
@@ -593,12 +594,13 @@ void TTcpConnection::OnEvent(EPollControl control)
             OnSocketRead();
         }
 
-        if (Any(action & EPollControl::Write)) {
+        if (State_ == EState::Open) {
             ProcessQueuedMessages();
             OnSocketWrite();
         }
 
-        YT_LOG_TRACE("Event processing finished (HasUnsentData: %v)", HasUnsentData());
+        YT_LOG_TRACE("Event processing finished (HasUnsentData: %v)",
+            HasUnsentData());
     }
 
     // Finaly, clear Running flag and recheck new pending events.
@@ -809,9 +811,10 @@ bool TTcpConnection::OnAckPacketReceived()
 
 bool TTcpConnection::OnMessagePacketReceived()
 {
-    YT_LOG_DEBUG("Incoming message received (PacketId: %v, PacketSize: %v)",
+    YT_LOG_DEBUG("Incoming message received (PacketId: %v, PacketSize: %v, PacketFlags: %v)",
         Decoder_.GetPacketId(),
-        Decoder_.GetPacketSize());
+        Decoder_.GetPacketSize(),
+        Decoder_.GetPacketFlags());
 
     if (Any(Decoder_.GetPacketFlags() & EPacketFlags::RequestAcknowledgement)) {
         EnqueuePacket(EPacketType::Ack, EPacketFlags::None, 0, Decoder_.GetPacketId());

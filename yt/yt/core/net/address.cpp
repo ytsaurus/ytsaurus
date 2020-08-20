@@ -95,7 +95,7 @@ const TNetworkAddress NullNetworkAddress;
 
 TNetworkAddress::TNetworkAddress()
 {
-    memset(&Storage, 0, sizeof(Storage));
+    Storage = {};
     Storage.ss_family = AF_UNSPEC;
     Length = sizeof(Storage);
 }
@@ -125,7 +125,7 @@ TNetworkAddress::TNetworkAddress(const sockaddr& other, socklen_t length)
 
 TNetworkAddress::TNetworkAddress(int family, const char* addr, size_t size)
 {
-    memset(&Storage, 0, sizeof(Storage));
+    Storage = {};
     Storage.ss_family = family;
     switch (Storage.ss_family) {
         case AF_INET: {
@@ -294,8 +294,7 @@ TErrorOr<TNetworkAddress> TNetworkAddress::TryParse(TStringBuf address)
 
 TNetworkAddress TNetworkAddress::CreateIPv6Any(int port)
 {
-    sockaddr_in6 serverAddress;
-    memset(&serverAddress, 0, sizeof(serverAddress));
+    sockaddr_in6 serverAddress = {};
     serverAddress.sin6_family = AF_INET6;
     serverAddress.sin6_addr = in6addr_any;
     serverAddress.sin6_port = htons(port);
@@ -305,8 +304,7 @@ TNetworkAddress TNetworkAddress::CreateIPv6Any(int port)
 
 TNetworkAddress TNetworkAddress::CreateIPv6Loopback(int port)
 {
-    sockaddr_in6 serverAddress;
-    memset(&serverAddress, 0, sizeof(serverAddress));
+    sockaddr_in6 serverAddress = {};
     serverAddress.sin6_family = AF_INET6;
     serverAddress.sin6_addr = in6addr_loopback;
     serverAddress.sin6_port = htons(port);
@@ -318,14 +316,13 @@ TNetworkAddress TNetworkAddress::CreateUnixDomainSocketAddress(const TString& so
 {
 #ifdef _linux_
     // Abstract unix sockets are supported only on Linux.
-    sockaddr_un sockAddr;
+    sockaddr_un sockAddr = {};
     if (socketPath.size() > sizeof(sockAddr.sun_path)) {
         THROW_ERROR_EXCEPTION("Unix domain socket path is too long")
             << TErrorAttribute("socket_path", socketPath)
             << TErrorAttribute("max_socket_path_length", sizeof(sockAddr.sun_path));
     }
 
-    memset(&sockAddr, 0, sizeof(sockAddr));
     sockAddr.sun_family = AF_UNIX;
     memcpy(sockAddr.sun_path, socketPath.data(), socketPath.length());
     return TNetworkAddress(

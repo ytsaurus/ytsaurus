@@ -124,7 +124,13 @@ public:
 
     TBusTest()
     {
+#ifdef _darwin_
+        // XXX(babenko): PortManager is based on SO_REUSEPORT, and I failed to make it work for MacOS and our Bus layer.
+        // Must revisit this issue sometime later.
+        Port = 1234;
+#else
         Port = PortManager.GetPort();
+#endif
         Address = Format("localhost:%v", Port);
     }
 

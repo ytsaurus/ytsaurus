@@ -32,7 +32,7 @@ EContPoll ToImplControl(EPollControl control)
 {
     int implControl = CONT_POLL_ONE_SHOT;
     if (Any(control & EPollControl::EdgeTriggered)) {
-            implControl = CONT_POLL_EDGE_TRIGGERED;
+        implControl = CONT_POLL_EDGE_TRIGGERED;
     }
     if (Any(control & EPollControl::Read)) {
         implControl |= CONT_POLL_READ;
@@ -118,7 +118,7 @@ public:
 
         {
             IPollable* pollable;
-            while (Retry_.Dequeue(&pollable)) {
+            while (RetryQueue_.Dequeue(&pollable)) {
             }
         }
 
@@ -133,7 +133,7 @@ public:
         {
             auto guard = Guard(SpinLock_);
             YT_VERIFY(Pollables_.empty());
-            YT_VERIFY(Retry_.IsEmpty());
+            YT_VERIFY(RetryQueue_.IsEmpty());
             ShutdownFinished_.store(true);
         }
 
@@ -150,8 +150,7 @@ public:
             }
             YT_VERIFY(Pollables_.emplace(pollable, std::move(entry)).second);
         }
-        YT_LOG_DEBUG("Pollable registered (Ptr: %v, %v)",
-            pollable.Get(),
+        YT_LOG_DEBUG("Pollable registered (%v)",
             pollable->GetLoggingId());
     }
 
@@ -165,8 +164,7 @@ public:
             auto it = Pollables_.find(pollable);
             if (it == Pollables_.end()) {
                 guard.Release();
-                YT_LOG_DEBUG("Pollable is already unregistered (Ptr: %v, %v)",
-                    pollable.Get(),
+                YT_LOG_DEBUG("Pollable is already unregistered (%v)",
                     pollable->GetLoggingId());
                 return VoidFuture;
             }
@@ -184,8 +182,7 @@ public:
             }
         }
 
-        YT_LOG_DEBUG("Requesting pollable unregistration (Ptr: %v, %v, FirstTime: %v)",
-            pollable.Get(),
+        YT_LOG_DEBUG("Requesting pollable unregistration (%v, FirstTime: %v)",
             pollable->GetLoggingId(),
             firstTime);
         return future;
@@ -193,18 +190,27 @@ public:
 
     virtual void Arm(int fd, const IPollablePtr& pollable, EPollControl control) override
     {
+        YT_LOG_TRACE("Arming poller (FD: %v, Control: %v, %v)",
+            fd,
+            control,
+            pollable->GetLoggingId());
         Impl_.Set(pollable.Get(), fd, ToImplControl(control));
     }
 
     virtual void Unarm(int fd) override
     {
+        YT_LOG_TRACE("Unarming poller (FD: %v)",
+            fd);
         Impl_.Remove(fd);
     }
 
     virtual void Retry(const IPollablePtr& pollable, bool wakeup) override
     {
+        YT_LOG_TRACE("Scheduling poller retry (%v, Wakeup: %v)",
+            pollable->GetLoggingId(),
+            wakeup);
         // Pollable is registered - skip grabbing reference.
-        Retry_.Enqueue(pollable.Get());
+        RetryQueue_.Enqueue(pollable.Get());
         if (wakeup) {
             Invoker_->RaiseWakeupHandle();
         }
@@ -241,7 +247,7 @@ private:
         }
 
         const IPollablePtr Pollable;
-        std::atomic<int> UnregisterSeenBy = {0};
+        std::atomic<int> UnregisterSeenBy = 0;
         std::atomic_flag UnregisterLock = ATOMIC_FLAG_INIT;
         TPromise<void> UnregisterPromise = NewPromise<void>();
     };
@@ -312,12 +318,10 @@ private:
     private:
         TThreadPoolPoller* const Poller_;
         const NLogging::TLogger Logger;
+        const TClosure ExecuteCallback_;
 
         bool ExecutingCallbacks_ = false;
-
         TMultipleProducerSingleConsumerLockFreeStack<TPollableEntryPtr> UnregisterEntries_;
-
-        TClosure ExecuteCallback_;
 
         void HandleEvents()
         {
@@ -336,8 +340,12 @@ private:
                 auto control = FromImplControl(Poller_->Impl_.ExtractFilter(&event));
                 auto* pollable = static_cast<IPollable*>(Poller_->Impl_.ExtractEvent(&event));
                 if (pollable) {
+                    YT_LOG_TRACE("Got pollable event (Pollable: %v, Control: %v)",
+                        pollable->GetLoggingId(),
+                        control);
                     pollable->OnEvent(control);
                 } else {
+                    YT_LOG_TRACE("Got poller callback");
                     ExecutingCallbacks_ = true;
                     Poller_->Invoker_->ClearWakeupHandle();
                 }
@@ -350,10 +358,9 @@ private:
                 return;
             }
 
+            // Dequeue one by one to let other threads do their job.
             IPollable* pollable;
-
-            // Dequeue one by one to let other threads do their job
-            while (Poller_->Retry_.Dequeue(&pollable)) {
+            while (Poller_->RetryQueue_.Dequeue(&pollable)) {
                 pollable->OnEvent(EPollControl::Retry);
             }
         }
@@ -375,8 +382,7 @@ private:
 
             for (const auto& entry : deadEntries) {
                 entry->Pollable->OnShutdown();
-                YT_LOG_DEBUG("Pollable unregistered (Ptr: %v, %v)",
-                    entry->Pollable.Get(),
+                YT_LOG_DEBUG("Pollable unregistered (%v)",
                     entry->Pollable->GetLoggingId());
             }
 
@@ -404,7 +410,7 @@ private:
     TSpinLock SpinLock_;
     THashMap<IPollablePtr, TPollableEntryPtr> Pollables_;
 
-    TLockFreeQueue<IPollable*> Retry_;
+    TLockFreeQueue<IPollable*> RetryQueue_;
 
     class TInvoker
         : public IInvoker

@@ -137,12 +137,12 @@ public:
 private:
     const TString Name_;
     const TNetworkAddress Address_;
-    SOCKET ServerSocket_ = INVALID_SOCKET;
-    IPollerPtr Poller_;
-    IPollerPtr Acceptor_;
+    const SOCKET ServerSocket_;
+    const IPollerPtr Poller_;
+    const IPollerPtr Acceptor_;
 
     TSpinLock Lock_;
-    std::atomic<bool> Pending_ = {false};
+    std::atomic<bool> Pending_ = false;
     std::deque<TPromise<IConnectionPtr>> Queue_;
     TError Error_;
 
