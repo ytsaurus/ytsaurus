@@ -31,6 +31,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeCloseableConsumer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
+import ru.yandex.yson.YsonConsumer;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
@@ -142,14 +143,14 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
 
         private ByteArrayOutputStream output;
         private YTreeCloseableConsumer binarySerializer;
-        private YTreeConsumer current;
+        private YsonConsumer current;
         private int level;
 
         private YTreeConsumerProxy(TableSchema tableSchema) {
             this.direct = new YTreeConsumerDirect(tableSchema);
         }
 
-        YTreeConsumer wrap(WireProtocolWriteable writeable) {
+        YsonConsumer wrap(WireProtocolWriteable writeable) {
             direct.wrap(writeable);
             this.current = null;
             this.binarySerializer = null;

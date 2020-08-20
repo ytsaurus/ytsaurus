@@ -1,6 +1,6 @@
 package ru.yandex.yt.ytclient.wire;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
+import ru.yandex.yson.YsonConsumer;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 
 public class VersionedValue extends UnversionedValue {
@@ -47,7 +47,7 @@ public class VersionedValue extends UnversionedValue {
     }
 
     @Override
-    public void writeTo(YTreeConsumer consumer) {
+    public void writeTo(YsonConsumer consumer) {
         consumer.onBeginAttributes();
         consumer.onKeyedItem("timestamp");
         consumer.onUnsignedInteger(timestamp);

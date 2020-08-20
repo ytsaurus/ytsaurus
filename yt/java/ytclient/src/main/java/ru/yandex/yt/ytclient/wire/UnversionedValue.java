@@ -13,13 +13,13 @@ import ru.yandex.inside.yt.kosher.impl.ytree.YTreeProtoUtils;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeBooleanNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeDoubleNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeEntityNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeIntegerNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeStringNode;
+import ru.yandex.yson.YsonConsumer;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.ytree.YTreeConvertible;
 
@@ -313,7 +313,7 @@ public class UnversionedValue implements YTreeConvertible {
     /**
      * Пишет значение в consumer
      */
-    public void writeTo(YTreeConsumer consumer) {
+    public void writeTo(YsonConsumer consumer) {
         switch (type) {
             case NULL:
                 consumer.onEntity();
