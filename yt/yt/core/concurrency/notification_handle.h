@@ -32,7 +32,6 @@ private:
     int EventFD_ = -1;
 #else
     int PipeFDs_[2] = {-1, -1};
-    std::atomic<int> PipeCount_ = {0};
 #endif
 
 };

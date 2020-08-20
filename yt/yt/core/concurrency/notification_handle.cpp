@@ -41,13 +41,8 @@ void TNotificationHandle::Raise()
     uint64_t one = 1;
     YT_VERIFY(HandleEintr(write, EventFD_, &one, sizeof(one)) == sizeof(one));
 #else
-    if (PipeCount_.load(std::memory_order_relaxed) > 0) {
-        // Avoid trashing pipe with redundant notifications.
-        return;
-    }
     char c = 'x';
     YT_VERIFY(HandleEintr(write, PipeFDs_[1], &c, sizeof(char)) == sizeof(char));
-    PipeCount_.fetch_add(1, std::memory_order_relaxed);
 #endif
 }
 
@@ -55,13 +50,17 @@ void TNotificationHandle::Clear()
 {
 #ifdef _linux_
     uint64_t count = 0;
-    ssize_t ret = HandleEintr(read, EventFD_, &count, sizeof(count));
+    auto ret = HandleEintr(read, EventFD_, &count, sizeof(count));
     // For edge-triggered one could clear multiple events, others get nothing.
     YT_VERIFY(ret == sizeof(count) || (ret < 0 && errno == EAGAIN));
 #else
-    for (int count = PipeCount_.exchange(0, std::memory_order_relaxed); count > 0; --count) {
+    while (true) {
         char c;
-        YT_VERIFY(HandleEintr(read, PipeFDs_[0], &c, sizeof(char)) == sizeof(char));
+        auto ret = HandleEintr(read, PipeFDs_[0], &c, sizeof(c));
+        YT_VERIFY(ret == sizeof(c) || (ret < 0 && errno == EAGAIN));
+        if (ret < 0) {
+            break;
+        }
     }
 #endif
 }
