@@ -3,7 +3,6 @@ package ru.yandex.yt.ytclient.proxy.internal;
 import java.net.InetSocketAddress;
 
 import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.bus.DefaultBusFactory;
 import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
 import ru.yandex.yt.ytclient.rpc.RpcClient;
 import ru.yandex.yt.ytclient.rpc.RpcCompression;
@@ -26,8 +25,7 @@ public class RpcClientFactoryImpl implements RpcClientFactory {
     public RpcClient create(HostPort hostPort, String name) {
         final String host = hostPort.getHost();
         final int port = hostPort.getPort();
-        RpcClient rpcClient = new DefaultRpcBusClient(
-                new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)), name);
+        RpcClient rpcClient = new DefaultRpcBusClient(connector, new InetSocketAddress(host, port), name);
         if (!compression.isEmpty()) {
             rpcClient = rpcClient.withCompression(compression);
         }

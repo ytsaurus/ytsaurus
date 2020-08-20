@@ -1,6 +1,8 @@
 package ru.yandex.yt.ytclient.rpc;
 
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.ClosedChannelException;
@@ -35,8 +37,8 @@ import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingParameters;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.bus.Bus;
+import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
-import ru.yandex.yt.ytclient.bus.BusFactory;
 import ru.yandex.yt.ytclient.bus.BusListener;
 import ru.yandex.yt.ytclient.rpc.internal.Compression;
 import ru.yandex.yt.ytclient.rpc.metrics.DefaultRpcBusClientMetricsHolder;
@@ -48,7 +50,8 @@ import ru.yandex.yt.ytclient.rpc.metrics.DefaultRpcBusClientMetricsHolderImpl;
 public class DefaultRpcBusClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(DefaultRpcBusClient.class);
 
-    private final BusFactory busFactory;
+    private final BusConnector busConnector;
+    private final SocketAddress address;
     private final Lock sessionLock = new ReentrantLock();
     private Session currentSession;
     private boolean closed;
@@ -102,7 +105,7 @@ public class DefaultRpcBusClient implements RpcClient {
         private final String sessionName = String.format("Session(%s@%s)", name, Integer.toHexString(hashCode()));
 
         public Session() {
-            bus = busFactory.createBus(this);
+            bus = busConnector.connect(address, this);
         }
 
         public void start() {
@@ -913,18 +916,19 @@ public class DefaultRpcBusClient implements RpcClient {
         }
     }
 
-    public DefaultRpcBusClient(BusFactory busFactory) {
-        this(busFactory, busFactory.destinationName());
+    public DefaultRpcBusClient(BusConnector busFactory, InetSocketAddress address) {
+        this(busFactory, address, address.getHostName(), new DefaultRpcBusClientMetricsHolderImpl());
     }
 
-    public DefaultRpcBusClient(BusFactory busFactory, String destinationName) {
-        this(busFactory, destinationName, new DefaultRpcBusClientMetricsHolderImpl());
+    public DefaultRpcBusClient(BusConnector busFactory, SocketAddress address, String destinationName) {
+        this(busFactory, address, destinationName, new DefaultRpcBusClientMetricsHolderImpl());
     }
 
-    public DefaultRpcBusClient(BusFactory busFactory, String destinationName, DefaultRpcBusClientMetricsHolder metricsHolder) {
-        this.busFactory = Objects.requireNonNull(busFactory);
+    public DefaultRpcBusClient(BusConnector busConnector, SocketAddress address, String destinationName, DefaultRpcBusClientMetricsHolder metricsHolder) {
+        this.busConnector = Objects.requireNonNull(busConnector);
+        this.address = Objects.requireNonNull(address);
         this.destinationName = destinationName;
-        this.name = String.format("%s@%d", busFactory.destinationName(), System.identityHashCode(this));
+        this.name = String.format("%s@%d", destinationName, System.identityHashCode(this));
         this.stats = new Statistics(destinationName());
         this.metricsHolder = metricsHolder;
     }
