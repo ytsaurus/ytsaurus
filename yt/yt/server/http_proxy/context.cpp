@@ -634,20 +634,16 @@ void TContext::SetupOutputStream()
         DriverRequest_.OutputStream = framingStream;
 
         // NB: This lambda should not capture |this| (by strong reference) to avoid cyclic references.
-        auto sendKeepAliveFrame = [Logger=Logger] (const TFramingAsyncOutputStreamPtr& stream) {
+        auto sendKeepAliveFrame = [] (const TFramingAsyncOutputStreamPtr& stream) {
             // All errors are ignored.
-            YT_LOG_DEBUG("Sending keep_alive frame");
             auto error = WaitFor(stream->WriteKeepAliveFrame());
             if (!error.IsOK()) {
-                YT_LOG_ERROR("Error sending keep_alive frame", error);
                 return;
             }
             Y_UNUSED(WaitFor(stream->Flush()));
         };
 
         if (auto keepAlivePeriod = GetFramingConfig()->KeepAlivePeriod; keepAlivePeriod) {
-            YT_LOG_DEBUG("Creating periodic executor to send keep_alive frames (KeepAlivePeriod: %v)",
-                *keepAlivePeriod);
             auto connection = Api_->GetDriverV4()->GetConnection();
             SendKeepAliveExecutor_ = New<TPeriodicExecutor>(
                 connection->GetInvoker(),
@@ -673,7 +669,6 @@ void TContext::SetupOutputParameters()
         OnOutputParameters();
 
         if (SendKeepAliveExecutor_) {
-            YT_LOG_DEBUG("Starting periodic executor to send keep_alive frames");
             SendKeepAliveExecutor_->Start();
         }
 
