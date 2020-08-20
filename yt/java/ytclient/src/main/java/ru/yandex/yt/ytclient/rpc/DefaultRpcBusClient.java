@@ -388,12 +388,9 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         public void handleTimeout() {
-            try {
-                cancel();
-            } catch (Throwable ex) {
-                logger.warn("Error on cancel", ex);
-            }
+            logger.warn("Request timed out; RequestId: {}", requestId);
 
+            sendCancellation(); // NB. YT-11418
             error(new TimeoutException("Request timed out"));
         }
 
