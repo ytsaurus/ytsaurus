@@ -14,8 +14,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.annotation.Nonnull;
 
 import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
@@ -341,6 +347,28 @@ public class RpcUtil {
             Function<? super T, ? extends CompletionStage<U>> fn)
     {
         return compose(f, fn, false);
+    }
+
+    /**
+     * Replacement for {@link CompletableFuture#orTimeout} that is missing in JDK 8.
+     * Additionally allows to specify error message.
+     */
+    @Nonnull
+    public static <T> CompletableFuture<T> withTimeout(
+            @Nonnull CompletableFuture<T> f,
+            @Nonnull String errorMessage,
+            long delay,
+            @Nonnull TimeUnit timeUnit,
+            @Nonnull ScheduledExecutorService scheduledExecutorService)
+    {
+        if (!f.isDone()) {
+            ScheduledFuture<?> cancelFuture = scheduledExecutorService.schedule(
+                    () -> f.completeExceptionally(new TimeoutException(errorMessage)),
+                    delay,
+                    timeUnit);
+            f.whenComplete((result, error) -> cancelFuture.cancel(false));
+        }
+        return f;
     }
 
     /**
