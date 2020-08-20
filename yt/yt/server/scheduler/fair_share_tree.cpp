@@ -1287,7 +1287,7 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemptionImpl(
     TJobPtr jobStartedUsingPreemption;
     {
         YT_LOG_TRACE(
-            "Scheduling new jobs with preemption (PreemptableJobs: %v ResourceUsageDiscount: %v, IsAggressive: %v)",
+            "Scheduling new jobs with preemption (PreemptableJobs: %v, ResourceUsageDiscount: %v, IsAggressive: %v)",
             preemptableJobs.size(),
             FormatResources(context->SchedulingContext()->ResourceUsageDiscount()),
             isAggressive);
