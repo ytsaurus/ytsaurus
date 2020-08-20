@@ -16,7 +16,6 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
-import ru.yandex.yt.ytclient.bus.DefaultBusFactory;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.YtCluster;
@@ -98,8 +97,7 @@ public final class ExamplesUtil {
     }
 
     public static RpcClient createRpcClient(BusConnector connector, RpcCredentials credentials, String host, int port) {
-        RpcClient client = new DefaultRpcBusClient(
-                new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)));
+        RpcClient client = new DefaultRpcBusClient(connector, new InetSocketAddress(host, port));
 
         if (CompressionEnabled) {
             return client
@@ -111,8 +109,7 @@ public final class ExamplesUtil {
     }
 
     public static RpcClient createRpcClient(BusConnector connector, RpcCredentials credentials, String host, int port, String shortName) {
-        RpcClient client = new DefaultRpcBusClient(
-            new DefaultBusFactory(connector, () -> new InetSocketAddress(host, port)), shortName);
+        RpcClient client = new DefaultRpcBusClient(connector, new InetSocketAddress(host, port), shortName);
         if (CompressionEnabled) {
             return client
                     .withTokenAuthentication(credentials)
@@ -130,7 +127,7 @@ public final class ExamplesUtil {
         try (BusConnector connector = createConnector()) {
             try (RpcClient rpcClient = createRpcClient(connector, credentials, host, YT_PORT)) {
                 ApiServiceClient serviceClient = new ApiServiceClient(rpcClient,
-                        new RpcOptions().setDefaultTimeout(Duration.ofSeconds(15)));
+                        new RpcOptions().setGlobalTimeout(Duration.ofSeconds(15)));
                 consumer.accept(serviceClient);
             }
         }
