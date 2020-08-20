@@ -53,7 +53,7 @@ object Dependencies {
   lazy val spark = Seq(
     "org.apache.spark" %% "spark-core",
     "org.apache.spark" %% "spark-sql"
-  ).map(_ % sparkVersion % Provided).excludeLogging
+  ).map(_ % sparkVersion % Provided)
 
   lazy val yandexIceberg = Seq(
     "ru.yandex" % "iceberg-inside-yt" % yandexIcebergVersion excludeAll (
@@ -62,6 +62,7 @@ object Dependencies {
     "ru.yandex" % "java-ytclient" % yandexYtClientVersion
   ).map(_ excludeAll (
     ExclusionRule(organization = "org.slf4j"),
+    ExclusionRule(organization = "log4j"),
     ExclusionRule(organization = "com.fasterxml.jackson.core"),
     ExclusionRule(organization = "ru.yandex.jdk10")
   ))
@@ -79,7 +80,9 @@ object Dependencies {
     "org.slf4j" % "slf4j-log4j12",
     "org.slf4j" % "slf4j-api",
     "org.slf4j" % "jul-to-slf4j"
-  ).map(_ % slf4jVersion)
+  ).map(_ % slf4jVersion) ++ Seq(
+    "log4j" % "log4j" % "1.2.17"
+  )
 
   lazy val scalatra = Seq(
     "org.scalatra" %% "scalatra" % scalatraVersion,
@@ -92,6 +95,9 @@ object Dependencies {
   )
 
   implicit class RichDependencies(deps: Seq[ModuleID]) {
-    def excludeLogging: Seq[ModuleID] = deps.map(_.excludeAll(ExclusionRule(organization = "org.slf4j")))
+    def excludeLogging: Seq[ModuleID] = deps.map(_.excludeAll(
+      ExclusionRule(organization = "org.slf4j"),
+      ExclusionRule(organization = "log4j")
+    ))
   }
 }
