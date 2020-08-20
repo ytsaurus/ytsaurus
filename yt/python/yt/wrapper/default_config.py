@@ -127,9 +127,6 @@ default_config = {
         # Sometimes proxy can return incorrect or incomplete response.
         # This option enables checking response format for light requests.
         "check_response_format": True,
-
-        # List of commands that use framing (cf. https://yt.yandex-team.ru/docs/description/proxy/http_proxy_reference#framing).
-        "commands_with_framing": ["read_table", "get_table_columnar_statistics", "get_job_input"],
     },
 
     # Parameters for dynamic table requests retries.

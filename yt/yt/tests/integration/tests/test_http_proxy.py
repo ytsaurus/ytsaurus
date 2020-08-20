@@ -222,6 +222,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
                     },
                 }
             },
+            "framing_keep_alive_period": KEEP_ALIVE_PERIOD,
         },
     }
 
