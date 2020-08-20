@@ -6,8 +6,8 @@ import java.util.Objects;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
+import ru.yandex.yson.YsonConsumer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class UnversionedRow {
@@ -47,11 +47,11 @@ public class UnversionedRow {
                 '}';
     }
 
-    public void writeTo(YTreeConsumer consumer, TableSchema schema) {
+    public void writeTo(YsonConsumer consumer, TableSchema schema) {
         writeTo(consumer, schema, false);
     }
 
-    public void writeTo(YTreeConsumer consumer, TableSchema schema, boolean ignoreSystemColumns) {
+    public void writeTo(YsonConsumer consumer, TableSchema schema, boolean ignoreSystemColumns) {
         consumer.onBeginMap();
         for (UnversionedValue value : values)  {
             int index = value.getId();
