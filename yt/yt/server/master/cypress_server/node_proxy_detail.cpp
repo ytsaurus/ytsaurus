@@ -51,7 +51,7 @@
 
 #include <yt/core/yson/async_writer.h>
 
-#include <yt/core/compression//codec.h>
+#include <yt/core/compression/codec.h>
 
 #include <type_traits>
 
