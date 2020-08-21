@@ -54,7 +54,7 @@ public:
     {
         RevisionTracker_.FixCurrentRevision();
 
-        YT_LOG_INFO("Reloading dictionary (Revision: %v)", RevisionTracker_.GetRevision());
+        YT_LOG_INFO("Reloading dictionary (Revision: %llx)", RevisionTracker_.GetRevision());
 
         auto table = FetchTables(
             Host_->GetRootClient(),

@@ -87,7 +87,7 @@ struct IUnversionedColumnReader
      *  1) all values are assumed to be non-null
      *  2) for strings, the average (over the segment) length is used
      */
-    // TODO(babenko): add density parameter to segment meta to solve 1), as least partially.  
+    // TODO(babenko): add density parameter to segment meta to solve 1), at least partially.  
     virtual i64 EstimateDataWeight(i64 lowerRowIndex, i64 upperRowIndex) = 0;
 };
 

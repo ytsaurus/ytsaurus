@@ -473,10 +473,6 @@ private:
             return true;
         }
 #endif
-        void ArmPoller()
-        {
-            Owner_->Impl_.Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_READ | CONT_POLL_EDGE_TRIGGERED);
-        }
 
         void RaiseWakeupHandle()
         {
@@ -495,6 +491,11 @@ private:
         TLockFreeQueue<TClosure> Callbacks_;
         TNotificationHandle WakeupHandle_;
 
+
+        void ArmPoller()
+        {
+            Owner_->Impl_.Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_READ | CONT_POLL_EDGE_TRIGGERED);
+        }
 
         void DrainQueueIfNeeded()
         {

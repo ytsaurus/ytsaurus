@@ -45,7 +45,7 @@ TSchedulerConnector::TSchedulerConnector(
         BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
         Config_->HeartbeatPeriod,
         Config_->HeartbeatSplay))
-    , TimeBetweenSentHeartbeatsCounter_("/scheduler_connector/time_between_send_heartbeats")
+    , TimeBetweenSentHeartbeatsCounter_("/scheduler_connector/time_between_sent_heartbeats")
     , TimeBetweenAcknowledgedHeartbeatsCounter_("/scheduler_connector/time_between_acknowledged_heartbeats")
     , TimeBetweenFullyProcessedHeartbeatsCounter_("/scheduler_connector/time_between_fully_processed_heartbeats")
 {

@@ -109,7 +109,7 @@ public:
 
             AddArguments(process, slotIndex);
 
-            YT_LOG_INFO("Spawning a job proxy (SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v, StderrPath: %v)",
+            YT_LOG_INFO("Spawning job proxy (SlotIndex: %v, JobId: %v, OperationId: %v, WorkingDirectory: %v, StderrPath: %v)",
                 slotIndex,
                 jobId,
                 operationId,

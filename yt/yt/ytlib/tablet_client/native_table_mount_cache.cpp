@@ -191,7 +191,7 @@ private:
                 return MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
             }
 
-            YT_LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %v)",
+            YT_LOG_DEBUG("Requesting table mount info from primary master (RefreshPrimaryRevision: %llx)",
                 refreshPrimaryRevision);
 
             auto options = GetMasterReadOptions();
@@ -250,7 +250,7 @@ private:
                 return MakeFuture<TTableMountInfoPtr>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
             }
 
-            YT_LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %v)",
+            YT_LOG_DEBUG("Requesting table mount info from secondary master (TableId: %v, CellTag: %v, RefreshSecondaryRevision: %llx)",
                 TableId_,
                 CellTag_,
                 refreshSecondaryRevision);
@@ -366,7 +366,7 @@ private:
                 tableInfo->UpperCapBound = MakeUnversionedOwningRow(static_cast<int>(tableInfo->Tablets.size()));
             }
 
-            YT_LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
+            YT_LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %llx, SecondaryRevision: %llx)",
                 tableInfo->TableId,
                 tableInfo->Tablets.size(),
                 tableInfo->Dynamic,
@@ -389,7 +389,7 @@ private:
 
     virtual void OnAdded(const TTableMountCacheKey& key) noexcept override
     {
-        YT_LOG_DEBUG("Table mount info added to cache (Path: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
+        YT_LOG_DEBUG("Table mount info added to cache (Path: %v, PrimaryRevision: %llx, SecondaryRevision: %llx)",
             key.Path,
             key.RefreshPrimaryRevision,
             key.RefreshSecondaryRevision);
@@ -397,7 +397,7 @@ private:
 
     virtual void OnRemoved(const TTableMountCacheKey& key) noexcept override
     {
-        YT_LOG_DEBUG("Table mount info removed from cache (Path: %v, PrimaryRevision: %v, SecondaryRevision: %v)",
+        YT_LOG_DEBUG("Table mount info removed from cache (Path: %v, PrimaryRevision: %llx, SecondaryRevision: %llx)",
             key.Path,
             key.RefreshPrimaryRevision,
             key.RefreshSecondaryRevision);

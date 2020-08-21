@@ -49,7 +49,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     userObject.Path = path;
 
     {
-        YT_LOG_INFO("Fetching layer basic attributes (LayerPath: %v, OldContentRevision: %v)",
+        YT_LOG_INFO("Fetching layer basic attributes (LayerPath: %v, OldContentRevision: %llx)",
             path,
             contentRevision);
 
@@ -80,7 +80,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     auto objectIdPath = FromObjectId(objectId);
 
     {
-        YT_LOG_INFO("Fetching layer revision (LayerPath: %v, OldContentRevision: %v)",
+        YT_LOG_INFO("Fetching layer revision (LayerPath: %v, OldContentRevision: %llx)",
             path,
             contentRevision);
 
@@ -117,7 +117,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         return result;
     }
 
-    YT_LOG_INFO("Fetching layer chunk specs (LayerPath: %v, ObjectId: %v, ContentRevision: %v)",
+    YT_LOG_INFO("Fetching layer chunk specs (LayerPath: %v, ObjectId: %v, ContentRevision: %llx)",
         path,
         objectId,
         userObject.ContentRevision);
