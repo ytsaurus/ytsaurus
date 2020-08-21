@@ -783,8 +783,9 @@ private:
         const auto& client = Bootstrap_->GetMasterClient();
         auto transaction = WaitFor(client->StartTransaction(ETransactionType::Tablet, TTransactionStartOptions{}))
            .ValueOrThrow();
-        YT_LOG_DEBUG("Operation progress update transaction started (TransactionId: %v)",
-           transaction->GetId());
+        YT_LOG_DEBUG("Operation progress update transaction started (TransactionId: %v, OperationId: %v)",
+           transaction->GetId(),
+           operationId);
 
         TOrderedByIdTableDescriptor tableDescriptor;
         TUnversionedRowBuilder builder;
@@ -807,19 +808,26 @@ private:
             .WithTimeout(Config_->OperationProgressArchivationTimeout));
 
         if (!error.IsOK()) {
-            YT_LOG_WARNING("Operation progress update in Archive failed (TransactionId: %v)",
-                transaction->GetId());
+            YT_LOG_WARNING(
+                error,
+                "Operation progress update in Archive failed (TransactionId: %v, OperationId: %v)",
+                transaction->GetId(),
+                operationId);
             ControllerAgentProfiler.Increment(UpdateOperationProgressFailuresCounter_);
         } else {
-            YT_LOG_DEBUG("Operation progress updated successfully (TransactionId: %v, DataWeight: %v)",
+            YT_LOG_DEBUG("Operation progress updated successfully (TransactionId: %v, DataWeight: %v, OperationId: %v)",
                 transaction->GetId(),
-                orderedByIdRowsDataWeight);
+                orderedByIdRowsDataWeight,
+                operationId);
         }
         return error.IsOK();
     }
 
     void UpdateOperationProgressInCypress(TOperationId operationId, const TYsonString& progress, const TYsonString& briefProgress)
     {
+        YT_LOG_DEBUG("Updating operation progress in Cypress (OperationId: %v)",
+            operationId);
+
         auto batchReq = StartObjectBatchRequestWithPrerequisites();
         GenerateMutationId(batchReq);
 
@@ -842,6 +850,9 @@ private:
         batchReq->AddRequest(multisetReq, "update_op_node");
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
+        
+        YT_LOG_DEBUG("Operation progress in Cypress updated (OperationId: %v)",
+            operationId);
     }
 
     std::vector<TCreateJobNodeRequest> CreateJobNodes(

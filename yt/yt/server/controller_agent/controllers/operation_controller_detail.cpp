@@ -7391,7 +7391,7 @@ void TOperationControllerBase::BuildAndSaveProgress()
             !BriefProgressString_ || BriefProgressString_ != briefProgressString)
         {
             ShouldUpdateProgressInCypress_.store(true);
-            YT_LOG_DEBUG("New progress is different from previous one, should update progress in Cypress");
+            YT_LOG_DEBUG("New progress is different from previous one, should update progress");
         }
         ProgressString_ = progressString;
         BriefProgressString_ = briefProgressString;
