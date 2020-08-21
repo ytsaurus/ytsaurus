@@ -29,25 +29,6 @@ message TRspExecute
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqRead
-{
-    required NYT.NProto.TGuid tablet_id = 1;
-    required int64 mount_revision = 2;
-    required uint64 timestamp = 3;
-    // TODO(kiselyovp) move codecs to header
-    required int32 request_codec = 4; // ECodec
-    required int32 response_codec = 5; // ECodec
-    optional string retention_config = 6;
-    // Attachment contains wire-encoded data.
-}
-
-message TRspRead
-{
-    // Attachment contains wire-encoded data.
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 message TReqMultiread
 {
     // TODO(kiselyovp) move codecs to header

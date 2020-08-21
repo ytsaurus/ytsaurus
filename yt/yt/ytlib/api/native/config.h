@@ -94,7 +94,6 @@ public:
     NCompression::ECodec LookupRowsRequestCodec;
     NCompression::ECodec LookupRowsResponseCodec;
     int MaxRowsPerLookupRequest;
-    bool EnableLookupMultiread;
 
     NYPath::TYPath UdfRegistryPath;
     TAsyncExpiringCacheConfigPtr FunctionRegistryCache;

@@ -169,9 +169,6 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Execute)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(Read)
-            .SetCancelable(true)
-            .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
             .SetCancelable(true)
             .SetInvoker(bootstrap->GetTabletLookupPoolInvoker()));
@@ -254,82 +251,6 @@ private:
                 ToProto(response->mutable_query_statistics(), result);
                 context->Reply();
             });
-    }
-
-    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Read)
-    {
-        TServiceProfilerGuard profilerGuard(&Profiler, "/read");
-
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto mountRevision = request->mount_revision();
-        auto timestamp = TTimestamp(request->timestamp());
-        auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
-        auto responseCodecId = CheckedEnumCast<NCompression::ECodec>(request->response_codec());
-
-        TClientBlockReadOptions blockReadOptions;
-        // TODO(sandello): Extract this out of RPC request.
-        blockReadOptions.WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::UserInteractive);
-        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-        blockReadOptions.ReadSessionId = TReadSessionId::Create();
-
-        TRetentionConfigPtr retentionConfig;
-        if (request->has_retention_config()) {
-            retentionConfig = ConvertTo<TRetentionConfigPtr>(TYsonString(request->retention_config()));
-        }
-
-        context->SetRequestInfo("TabletId: %v, Timestamp: %llx, RequestCodec: %v, ResponseCodec: %v, ReadSessionId: %v, RetentionConfig: %v",
-            tabletId,
-            timestamp,
-            requestCodecId,
-            responseCodecId,
-            blockReadOptions.ReadSessionId,
-            retentionConfig);
-
-        auto* requestCodec = NCompression::GetCodec(requestCodecId);
-        auto* responseCodec = NCompression::GetCodec(responseCodecId);
-
-        auto requestData = requestCodec->Decompress(request->Attachments()[0]);
-
-        const auto& slotManager = Bootstrap_->GetTabletSlotManager();
-
-        try {
-            ExecuteRequestWithRetries<void>(
-                Config_->MaxQueryRetries,
-                Logger,
-                [&] {
-                    auto tabletSnapshot = slotManager->GetTabletSnapshotOrThrow(tabletId);
-
-                    if (tabletSnapshot->IsProfilingEnabled() && profilerGuard.GetProfilerTags().empty()) {
-                        profilerGuard.SetProfilerTags(AddCurrentUserTag(tabletSnapshot->ProfilerTags));
-                    }
-
-                    slotManager->ValidateTabletAccess(tabletSnapshot, timestamp);
-
-                    tabletSnapshot->ValidateMountRevision(mountRevision);
-
-                    struct TLookupRowBufferTag { };
-                    TWireProtocolReader reader(requestData, New<TRowBuffer>(TLookupRowBufferTag()));
-                    TWireProtocolWriter writer;
-
-                    LookupRead(
-                        tabletSnapshot,
-                        timestamp,
-                        false,
-                        blockReadOptions,
-                        retentionConfig,
-                        &reader,
-                        &writer);
-
-                    response->Attachments().push_back(responseCodec->Compress(writer.Finish()));
-                    context->Reply();
-                });
-        } catch (const TErrorException&) {
-            if (auto tabletSnapshot = slotManager->FindTabletSnapshot(tabletId)) {
-                ++tabletSnapshot->PerformanceCounters->LookupErrorCount;
-            }
-
-            throw;
-        }
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, Multiread)

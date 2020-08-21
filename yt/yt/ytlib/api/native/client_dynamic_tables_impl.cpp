@@ -59,7 +59,6 @@ using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TTabletCellLookupSession)
 DECLARE_REFCOUNTED_CLASS(TQueryPreparer)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,158 +175,6 @@ std::vector<int> BuildResponseIdMapping(const TColumnFilter& remappedColumnFilte
 }
 
 } // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTabletCellLookupSession
-    : public TIntrinsicRefCounted
-{
-public:
-    using TEncoder = std::function<std::vector<TSharedRef>(const std::vector<NTableClient::TUnversionedRow>&)>;
-    using TDecoder = std::function<NTableClient::TTypeErasedRow(NTableClient::TWireProtocolReader*)>;
-
-    TTabletCellLookupSession(
-        TConnectionConfigPtr config,
-        const TNetworkPreferenceList& networks,
-        NObjectClient::TCellId cellId,
-        const TLookupRowsOptionsBase& options,
-        NTabletClient::TTableMountInfoPtr tableInfo,
-        const std::optional<TString>& retentionConfig,
-        TEncoder encoder,
-        TDecoder decoder)
-        : Config_(std::move(config))
-        , Networks_(networks)
-        , CellId_(cellId)
-        , Options_(options)
-        , TableInfo_(std::move(tableInfo))
-        , RetentionConfig_(retentionConfig)
-        , Encoder_(std::move(encoder))
-        , Decoder_(std::move(decoder))
-    { }
-
-    void AddKey(int index, TTabletInfoPtr tabletInfo, NTableClient::TKey key)
-    {
-        if (Batches_.empty() ||
-            Batches_.back()->TabletInfo->TabletId != tabletInfo->TabletId ||
-            Batches_.back()->Indexes.size() >= Config_->MaxRowsPerLookupRequest)
-        {
-            Batches_.emplace_back(new TBatch(std::move(tabletInfo)));
-        }
-
-        auto& batch = Batches_.back();
-        batch->Indexes.push_back(index);
-        batch->Keys.push_back(key);
-    }
-
-    TFuture<void> Invoke(const IChannelFactoryPtr& channelFactory, const TCellDirectoryPtr& cellDirectory)
-    {
-        auto* codec = NCompression::GetCodec(Config_->LookupRowsRequestCodec);
-
-        // Do all the heavy lifting here.
-        for (auto& batch : Batches_) {
-            batch->RequestData = codec->Compress(Encoder_(batch->Keys));
-        }
-
-        const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(CellId_);
-        auto channel = CreateTabletReadChannel(
-            channelFactory,
-            cellDescriptor,
-            Options_,
-            Networks_);
-
-        InvokeProxy_ = std::make_unique<TQueryServiceProxy>(std::move(channel));
-        InvokeProxy_->SetDefaultTimeout(Options_.Timeout.value_or(Config_->DefaultLookupRowsTimeout));
-        InvokeProxy_->SetDefaultAcknowledgementTimeout(std::nullopt);
-
-        InvokeNextBatch();
-        return InvokePromise_;
-    }
-
-    void ParseResponse(
-        const TRowBufferPtr& rowBuffer,
-        std::vector<NTableClient::TTypeErasedRow>* resultRows)
-    {
-        auto* responseCodec = NCompression::GetCodec(Config_->LookupRowsResponseCodec);
-        for (const auto& batch : Batches_) {
-            auto responseData = responseCodec->Decompress(batch->Response->Attachments()[0]);
-            NTableClient::TWireProtocolReader reader(responseData, rowBuffer);
-            auto batchSize = batch->Keys.size();
-            for (int index = 0; index < batchSize; ++index) {
-                (*resultRows)[batch->Indexes[index]] = Decoder_(&reader);
-            }
-        }
-    }
-
-private:
-    const TConnectionConfigPtr Config_;
-    const TNetworkPreferenceList Networks_;
-    const NObjectClient::TCellId CellId_;
-    const TLookupRowsOptionsBase Options_;
-    const NTabletClient::TTableMountInfoPtr TableInfo_;
-    const std::optional<TString> RetentionConfig_;
-    const TEncoder Encoder_;
-    const TDecoder Decoder_;
-
-    struct TBatch
-    {
-        explicit TBatch(TTabletInfoPtr tabletInfo)
-            : TabletInfo(std::move(tabletInfo))
-        { }
-
-        TTabletInfoPtr TabletInfo;
-        std::vector<int> Indexes;
-        std::vector<NTableClient::TKey> Keys;
-        TSharedRef RequestData;
-        TQueryServiceProxy::TRspReadPtr Response;
-    };
-
-    std::vector<std::unique_ptr<TBatch>> Batches_;
-    std::unique_ptr<TQueryServiceProxy> InvokeProxy_;
-    int InvokeBatchIndex_ = 0;
-    TPromise<void> InvokePromise_ = NewPromise<void>();
-
-
-    void InvokeNextBatch()
-    {
-        if (InvokeBatchIndex_ >= Batches_.size()) {
-            InvokePromise_.Set(TError());
-            return;
-        }
-
-        const auto& batch = Batches_[InvokeBatchIndex_];
-
-        auto req = InvokeProxy_->Read();
-        req->SetMultiplexingBand(Options_.MultiplexingBand);
-        ToProto(req->mutable_tablet_id(), batch->TabletInfo->TabletId);
-        req->set_mount_revision(batch->TabletInfo->MountRevision);
-        req->set_timestamp(Options_.Timestamp);
-        req->set_request_codec(static_cast<int>(Config_->LookupRowsRequestCodec));
-        req->set_response_codec(static_cast<int>(Config_->LookupRowsResponseCodec));
-        req->Attachments().push_back(batch->RequestData);
-        if (batch->TabletInfo->IsInMemory()) {
-            req->Header().set_uncancelable(true);
-        }
-        if (RetentionConfig_) {
-            req->set_retention_config(*RetentionConfig_);
-        }
-
-        req->Invoke().Subscribe(
-            BIND(&TTabletCellLookupSession::OnResponse, MakeStrong(this)));
-    }
-
-    void OnResponse(const TQueryServiceProxy::TErrorOrRspReadPtr& rspOrError)
-    {
-        if (rspOrError.IsOK()) {
-            Batches_[InvokeBatchIndex_]->Response = rspOrError.Value();
-            ++InvokeBatchIndex_;
-            InvokeNextBatch();
-        } else {
-            InvokePromise_.Set(rspOrError);
-        }
-    }
-};
-
-DEFINE_REFCOUNTED_TYPE(TTabletCellLookupSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -655,240 +502,187 @@ TRowset TClient::DoLookupRowsOnce(
 
     std::vector<TTypeErasedRow> uniqueResultRows;
 
-    if (Connection_->GetConfig()->EnableLookupMultiread) {
-        struct TBatch
-        {
-            NObjectClient::TObjectId TabletId;
-            NHydra::TRevision MountRevision = NHydra::NullRevision;
-            std::vector<TKey> Keys;
-            size_t OffsetInResult;
+    struct TBatch
+    {
+        NObjectClient::TObjectId TabletId;
+        NHydra::TRevision MountRevision = NHydra::NullRevision;
+        std::vector<TKey> Keys;
+        size_t OffsetInResult;
 
-            TQueryServiceProxy::TRspMultireadPtr Response;
-        };
+        TQueryServiceProxy::TRspMultireadPtr Response;
+    };
 
-        std::vector<std::vector<TBatch>> batchesByCells;
-        THashMap<TCellId, size_t> cellIdToBatchIndex;
+    std::vector<std::vector<TBatch>> batchesByCells;
+    THashMap<TCellId, size_t> cellIdToBatchIndex;
 
-        std::optional<bool> inMemory;
+    std::optional<bool> inMemory;
 
-        {
-            auto itemsBegin = sortedKeys.begin();
-            auto itemsEnd = sortedKeys.end();
+    {
+        auto itemsBegin = sortedKeys.begin();
+        auto itemsEnd = sortedKeys.end();
 
-            size_t keySize = schema->GetKeyColumnCount();
+        size_t keySize = schema->GetKeyColumnCount();
 
-            itemsBegin = std::lower_bound(
-                itemsBegin,
+        itemsBegin = std::lower_bound(
+            itemsBegin,
+            itemsEnd,
+            tableInfo->LowerCapBound.Get(),
+            [&] (const auto& item, TKey pivot) {
+                return CompareRows(item.first, pivot, keySize) < 0;
+            });
+
+        itemsEnd = std::upper_bound(
+            itemsBegin,
+            itemsEnd,
+            tableInfo->UpperCapBound.Get(),
+            [&] (TKey pivot, const auto& item) {
+                return CompareRows(pivot, item.first, keySize) < 0;
+            });
+
+        auto nextShardIt = tableInfo->Tablets.begin() + 1;
+        for (auto itemsIt = itemsBegin; itemsIt != itemsEnd;) {
+            YT_VERIFY(!tableInfo->Tablets.empty());
+
+            // Run binary search to find the relevant tablets.
+            nextShardIt = std::upper_bound(
+                nextShardIt,
+                tableInfo->Tablets.end(),
+                itemsIt->first,
+                [&] (TKey key, const TTabletInfoPtr& tabletInfo) {
+                    return CompareRows(key, tabletInfo->PivotKey.Get(), keySize) < 0;
+                });
+
+            const auto& startShard = *(nextShardIt - 1);
+            auto nextPivotKey = (nextShardIt == tableInfo->Tablets.end())
+                ? tableInfo->UpperCapBound
+                : (*nextShardIt)->PivotKey;
+
+            // Binary search to reduce expensive row comparisons
+            auto endItemsIt = std::lower_bound(
+                itemsIt,
                 itemsEnd,
-                tableInfo->LowerCapBound.Get(),
+                nextPivotKey.Get(),
                 [&] (const auto& item, TKey pivot) {
-                    return CompareRows(item.first, pivot, keySize) < 0;
+                    return CompareRows(item.first, pivot) < 0;
                 });
 
-            itemsEnd = std::upper_bound(
-                itemsBegin,
-                itemsEnd,
-                tableInfo->UpperCapBound.Get(),
-                [&] (TKey pivot, const auto& item) {
-                    return CompareRows(pivot, item.first, keySize) < 0;
-                });
+            ValidateTabletMountedOrFrozen(startShard);
 
-            auto nextShardIt = tableInfo->Tablets.begin() + 1;
-            for (auto itemsIt = itemsBegin; itemsIt != itemsEnd;) {
-                YT_VERIFY(!tableInfo->Tablets.empty());
-
-                // Run binary search to find the relevant tablets.
-                nextShardIt = std::upper_bound(
-                    nextShardIt,
-                    tableInfo->Tablets.end(),
-                    itemsIt->first,
-                    [&] (TKey key, const TTabletInfoPtr& tabletInfo) {
-                        return CompareRows(key, tabletInfo->PivotKey.Get(), keySize) < 0;
-                    });
-
-                const auto& startShard = *(nextShardIt - 1);
-                auto nextPivotKey = (nextShardIt == tableInfo->Tablets.end())
-                    ? tableInfo->UpperCapBound
-                    : (*nextShardIt)->PivotKey;
-
-                // Binary search to reduce expensive row comparisons
-                auto endItemsIt = std::lower_bound(
-                    itemsIt,
-                    itemsEnd,
-                    nextPivotKey.Get(),
-                    [&] (const auto& item, TKey pivot) {
-                        return CompareRows(item.first, pivot) < 0;
-                    });
-
-                ValidateTabletMountedOrFrozen(startShard);
-
-                auto emplaced = cellIdToBatchIndex.emplace(startShard->CellId, batchesByCells.size());
-                if (emplaced.second) {
-                    batchesByCells.emplace_back();
-                }
-
-                TBatch batch;
-                batch.TabletId = startShard->TabletId;
-                batch.MountRevision = startShard->MountRevision;
-                batch.OffsetInResult = currentResultIndex;
-
-                if (startShard->InMemoryMode) {
-                    YT_VERIFY(!inMemory || *inMemory == startShard->IsInMemory());
-                    inMemory = startShard->IsInMemory();
-                }
-
-                std::vector<TKey> rows;
-                rows.reserve(endItemsIt - itemsIt);
-
-                while (itemsIt != endItemsIt) {
-                    auto key = itemsIt->first;
-                    rows.push_back(key);
-
-                    do {
-                        keyIndexToResultIndex[itemsIt->second] = currentResultIndex;
-                        ++itemsIt;
-                    } while (itemsIt != endItemsIt && itemsIt->first == key);
-                    ++currentResultIndex;
-                }
-
-                batch.Keys = std::move(rows);
-                batchesByCells[emplaced.first->second].push_back(std::move(batch));
+            auto emplaced = cellIdToBatchIndex.emplace(startShard->CellId, batchesByCells.size());
+            if (emplaced.second) {
+                batchesByCells.emplace_back();
             }
+
+            TBatch batch;
+            batch.TabletId = startShard->TabletId;
+            batch.MountRevision = startShard->MountRevision;
+            batch.OffsetInResult = currentResultIndex;
+
+            if (startShard->InMemoryMode) {
+                YT_VERIFY(!inMemory || *inMemory == startShard->IsInMemory());
+                inMemory = startShard->IsInMemory();
+            }
+
+            std::vector<TKey> rows;
+            rows.reserve(endItemsIt - itemsIt);
+
+            while (itemsIt != endItemsIt) {
+                auto key = itemsIt->first;
+                rows.push_back(key);
+
+                do {
+                    keyIndexToResultIndex[itemsIt->second] = currentResultIndex;
+                    ++itemsIt;
+                } while (itemsIt != endItemsIt && itemsIt->first == key);
+                ++currentResultIndex;
+            }
+
+            batch.Keys = std::move(rows);
+            batchesByCells[emplaced.first->second].push_back(std::move(batch));
+        }
+    }
+
+    using TEncoder = std::function<std::vector<TSharedRef>(const std::vector<NTableClient::TUnversionedRow>&)>;
+    using TDecoder = std::function<NTableClient::TTypeErasedRow(NTableClient::TWireProtocolReader*)>;
+
+    TEncoder boundEncoder = std::bind(encoderWithMapping, remappedColumnFilter, std::placeholders::_1);
+    TDecoder boundDecoder = std::bind(decoderWithMapping, resultSchemaData, std::placeholders::_1);
+
+    auto* codec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsRequestCodec);
+
+    std::vector<TFuture<TQueryServiceProxy::TRspMultireadPtr>> asyncResults(batchesByCells.size());
+
+    const auto& cellDirectory = Connection_->GetCellDirectory();
+    const auto& networks = Connection_->GetNetworks();
+
+    for (auto [cellId, cellIndex] : cellIdToBatchIndex) {
+        const auto& batches = batchesByCells[cellIndex];
+
+        auto channel = CreateTabletReadChannel(
+            ChannelFactory_,
+            cellDirectory->GetDescriptorOrThrow(cellId),
+            options,
+            networks);
+
+        TQueryServiceProxy proxy(channel);
+        proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultLookupRowsTimeout));
+        proxy.SetDefaultAcknowledgementTimeout(std::nullopt);
+
+        auto req = proxy.Multiread();
+        req->SetMultiplexingBand(options.MultiplexingBand);
+        req->set_request_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
+        req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
+        req->set_timestamp(options.Timestamp);
+        req->set_enable_partial_result(options.EnablePartialResult);
+        req->set_use_lookup_cache(options.UseLookupCache);
+
+        if (inMemory && *inMemory) {
+            req->Header().set_uncancelable(true);
+        }
+        if (retentionConfig) {
+            req->set_retention_config(*retentionConfig);
         }
 
-        TTabletCellLookupSession::TEncoder boundEncoder = std::bind(encoderWithMapping, remappedColumnFilter, std::placeholders::_1);
-        TTabletCellLookupSession::TDecoder boundDecoder = std::bind(decoderWithMapping, resultSchemaData, std::placeholders::_1);
-
-        auto* codec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsRequestCodec);
-
-        std::vector<TFuture<TQueryServiceProxy::TRspMultireadPtr>> asyncResults(batchesByCells.size());
-
-        const auto& cellDirectory = Connection_->GetCellDirectory();
-        const auto& networks = Connection_->GetNetworks();
-
-        for (const auto& item : cellIdToBatchIndex) {
-            size_t cellIndex = item.second;
-            const auto& batches = batchesByCells[cellIndex];
-
-            auto channel = CreateTabletReadChannel(
-                ChannelFactory_,
-                cellDirectory->GetDescriptorOrThrow(item.first),
-                options,
-                networks);
-
-            TQueryServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultLookupRowsTimeout));
-            proxy.SetDefaultAcknowledgementTimeout(std::nullopt);
-
-            auto req = proxy.Multiread();
-            req->SetMultiplexingBand(options.MultiplexingBand);
-            req->set_request_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsRequestCodec));
-            req->set_response_codec(static_cast<int>(Connection_->GetConfig()->LookupRowsResponseCodec));
-            req->set_timestamp(options.Timestamp);
-            req->set_enable_partial_result(options.EnablePartialResult);
-            req->set_use_lookup_cache(options.UseLookupCache);
-
-            if (inMemory && *inMemory) {
-                req->Header().set_uncancelable(true);
-            }
-            if (retentionConfig) {
-                req->set_retention_config(*retentionConfig);
-            }
-
-            for (const auto& batch : batches) {
-                ToProto(req->add_tablet_ids(), batch.TabletId);
-                req->add_mount_revisions(batch.MountRevision);
-                TSharedRef requestData = codec->Compress(boundEncoder(batch.Keys));
-                req->Attachments().push_back(requestData);
-            }
-
-            asyncResults[cellIndex] = req->Invoke();
+        for (const auto& batch : batches) {
+            ToProto(req->add_tablet_ids(), batch.TabletId);
+            req->add_mount_revisions(batch.MountRevision);
+            TSharedRef requestData = codec->Compress(boundEncoder(batch.Keys));
+            req->Attachments().push_back(requestData);
         }
 
-        auto results = WaitFor(AllSet(std::move(asyncResults)))
-            .ValueOrThrow();
+        asyncResults[cellIndex] = req->Invoke();
+    }
 
-        uniqueResultRows.resize(currentResultIndex, TTypeErasedRow{nullptr});
+    auto results = WaitFor(AllSet(std::move(asyncResults)))
+        .ValueOrThrow();
 
-        auto* responseCodec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsResponseCodec);
+    uniqueResultRows.resize(currentResultIndex, TTypeErasedRow{nullptr});
 
-        for (size_t cellIndex = 0; cellIndex < results.size(); ++cellIndex) {
-            if (options.EnablePartialResult && !results[cellIndex].IsOK()) {
+    auto* responseCodec = NCompression::GetCodec(Connection_->GetConfig()->LookupRowsResponseCodec);
+
+    for (size_t cellIndex = 0; cellIndex < results.size(); ++cellIndex) {
+        if (options.EnablePartialResult && !results[cellIndex].IsOK()) {
+            continue;
+        }
+
+        const auto& batches = batchesByCells[cellIndex];
+        const auto& result = results[cellIndex].ValueOrThrow();
+
+        for (size_t batchIndex = 0; batchIndex < batches.size(); ++batchIndex) {
+            const auto& attachment = result->Attachments()[batchIndex];
+
+            if (options.EnablePartialResult && attachment.Empty()) {
                 continue;
             }
 
-            const auto& batches = batchesByCells[cellIndex];
-            const auto& result = results[cellIndex].ValueOrThrow();
+            auto responseData = responseCodec->Decompress(result->Attachments()[batchIndex]);
+            TWireProtocolReader reader(responseData, outputRowBuffer);
 
-            for (size_t batchIndex = 0; batchIndex < batches.size(); ++batchIndex) {
-                const auto& attachment = result->Attachments()[batchIndex];
+            const auto& batch = batches[batchIndex];
 
-                if (options.EnablePartialResult && attachment.Empty()) {
-                    continue;
-                }
-
-                auto responseData = responseCodec->Decompress(result->Attachments()[batchIndex]);
-                TWireProtocolReader reader(responseData, outputRowBuffer);
-
-                const auto& batch = batches[batchIndex];
-
-                for (size_t index = 0; index < batch.Keys.size(); ++index) {
-                    uniqueResultRows[batch.OffsetInResult + index] = boundDecoder(&reader);
-                }
+            for (size_t index = 0; index < batch.Keys.size(); ++index) {
+                uniqueResultRows[batch.OffsetInResult + index] = boundDecoder(&reader);
             }
-        }
-    } else {
-        THashMap<TCellId, TTabletCellLookupSessionPtr> cellIdToSession;
-
-        // TODO(sandello): Reuse code from QL here to partition sorted keys between tablets.
-        // Get rid of hash map.
-        // TODO(sandello): Those bind states must be in a cross-session shared state. Check this when refactor out batches.
-        TTabletCellLookupSession::TEncoder boundEncoder = std::bind(encoderWithMapping, remappedColumnFilter, std::placeholders::_1);
-        TTabletCellLookupSession::TDecoder boundDecoder = std::bind(decoderWithMapping, resultSchemaData, std::placeholders::_1);
-        for (int index = 0; index < sortedKeys.size();) {
-            auto key = sortedKeys[index].first;
-            auto tabletInfo = GetSortedTabletForRow(tableInfo, key);
-            auto cellId = tabletInfo->CellId;
-            auto it = cellIdToSession.find(cellId);
-            if (it == cellIdToSession.end()) {
-                auto session = New<TTabletCellLookupSession>(
-                    Connection_->GetConfig(),
-                    Connection_->GetNetworks(),
-                    cellId,
-                    options,
-                    tableInfo,
-                    retentionConfig,
-                    boundEncoder,
-                    boundDecoder);
-                it = cellIdToSession.insert(std::make_pair(cellId, std::move(session))).first;
-            }
-            const auto& session = it->second;
-            session->AddKey(currentResultIndex, std::move(tabletInfo), key);
-
-            do {
-                keyIndexToResultIndex[sortedKeys[index].second] = currentResultIndex;
-                ++index;
-            } while (index < sortedKeys.size() && sortedKeys[index].first == key);
-            ++currentResultIndex;
-        }
-
-        std::vector<TFuture<void>> asyncResults;
-        for (const auto& pair : cellIdToSession) {
-            const auto& session = pair.second;
-            asyncResults.push_back(session->Invoke(
-                ChannelFactory_,
-                Connection_->GetCellDirectory()));
-        }
-
-        WaitFor(AllSucceeded(std::move(asyncResults)))
-            .ThrowOnError();
-
-        // Rows are type-erased here and below to handle different kinds of rowsets.
-        uniqueResultRows.resize(currentResultIndex);
-
-        for (const auto& pair : cellIdToSession) {
-            const auto& session = pair.second;
-            session->ParseResponse(outputRowBuffer, &uniqueResultRows);
         }
     }
 
