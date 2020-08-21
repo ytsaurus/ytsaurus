@@ -32,6 +32,7 @@ def get_clique_spec_builder(instance_count,
                             enable_job_tables=None,
                             enable_log_tailer=None,
                             trampoline_log_file=None,
+                            stderr_file=None,
                             max_instance_count=None,
                             spec=None,
                             client=None):
@@ -120,6 +121,9 @@ def get_clique_spec_builder(instance_count,
 
     if trampoline_log_file:
         args += ["--log-file", trampoline_log_file]
+
+    if stderr_file:
+        args += ["--stderr-file", stderr_file]
 
     trampoline_command = " ".join(args)
 

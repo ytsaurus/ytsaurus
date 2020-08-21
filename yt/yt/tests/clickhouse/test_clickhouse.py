@@ -78,11 +78,14 @@ class Clique(object):
             spec = update(spec, kwargs.pop("spec"))
 
         self.log_root = os.path.join(self.path_to_run, "logs", "clickhouse-{}".format(Clique.clique_index))
+        self.stderr_root = os.path.join(self.path_to_run, "stderrs", "clickhouse-{}".format(Clique.clique_index))
+        for root in (self.log_root, self.stderr_root):
+            os.mkdir(root)
+            os.chmod(root, 0777)
+
         for writer_key, writer in config["logging"]["writers"].iteritems():
             if writer["type"] == "file":
                 writer["file_name"] = os.path.join(self.log_root, writer["file_name"])
-        os.mkdir(self.log_root)
-        os.chmod(self.log_root, 0777)
 
         filename = "//sys/clickhouse/config-{}.yson".format(Clique.clique_index)
         Clique.clique_index += 1
@@ -102,8 +105,9 @@ class Clique(object):
                                                cpu_limit=cpu_limit,
                                                spec=spec,
                                                core_dump_destination=core_dump_destination,
-                                               trampoline_log_file=os.path.join(self.log_root, "trampoline.debug.log"),
-                                                          **kwargs)
+                                               trampoline_log_file=os.path.join(self.log_root, "trampoline-$YT_JOB_INDEX.debug.log"),
+                                               stderr_file=os.path.join(self.stderr_root, "stderr.clickhouse-$YT_JOB_INDEX"),
+                                               **kwargs)
         self.spec = simplify_structure(spec_builder.build())
         if not is_asan_build() and core_dump_destination is not None:
             self.spec["tasks"]["instances"]["force_core_dump"] = True
