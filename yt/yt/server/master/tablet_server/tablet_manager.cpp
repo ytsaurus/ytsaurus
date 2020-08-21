@@ -631,9 +631,6 @@ public:
         auto* table = tablets[0]->GetTable();
 
         // Validate that table is not in process of mount/unmount/etc.
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
-        cypressManager->LockNode(table, nullptr, ELockMode::Exclusive);
-
         table->ValidateNoCurrentMountTransaction("Cannot create tablet action");
 
         for (const auto* tablet : tablets) {
@@ -2950,6 +2947,10 @@ private:
                             : action->PivotKeys().size();
 
                         try {
+                            // TODO(ifsmirnov) Use custom locking to allow reshard when locked by operation and upload has not been started yet.
+                            const auto& cypressManager = Bootstrap_->GetCypressManager();
+                            cypressManager->LockNode(table, nullptr, ELockMode::Exclusive);
+
                             PrepareReshardTable(
                                 table,
                                 firstTabletIndex,

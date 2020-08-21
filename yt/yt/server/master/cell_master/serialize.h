@@ -114,6 +114,7 @@ DEFINE_ENUM(EMasterReign,
     ((MountHint)                                                    (1323))  // ifsmirnov
     ((MakeProfilingModeAnInheritedAttribute_20_2)                   (1325))  // akozhikhov
     ((AddSnapshotErasureCodec)                                      (1326))  // babenko
+    ((ForbidReshardWhenTableIsLockedByTransaction)                  (1329))  // savrus
     ((SubjectAliases)                                               (1400))  // s-v-m
     ((OpaquePortalEntrances)                                        (1401))  // shakurov
     ((MultisetAttributes)                                           (1402))  // gritukan
