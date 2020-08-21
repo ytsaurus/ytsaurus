@@ -2,7 +2,7 @@ from .config import get_config, get_backend_type
 from .common import get_value
 from .errors import YtError, YtResponseError
 from .exceptions_catcher import ExceptionCatcher
-from .operation_commands import (Operation, _create_operation_failed_error, PrintOperationInfo,
+from .operation_commands import (Operation, PrintOperationInfo,
                                  get_operation_attributes, get_operation_state, get_operation_url,
                                  OperationState, abort_operation)
 from .spec_builders import SpecBuilder
@@ -22,19 +22,6 @@ def copy_client(client):
     from .client import YtClient
     return YtClient(config=deepcopy(get_config(client)))
 
-
-class TrackerOperation(object):
-    def __init__(self, id, client=None):
-        self.id = id
-        self.client = copy_client(client)
-        self.printer = PrintOperationInfo(id, client=client)
-        self.url = get_operation_url(id, client=client)
-
-    def get_state(self):
-        return get_operation_state(self.id, client=self.client)
-
-    def abort(self):
-        abort_operation(self.id, client=self.client)
 
 class _OperationsTrackingThread(Thread):
     def __init__(self, poll_period, print_progress, batch_size):
@@ -128,7 +115,9 @@ class _OperationsTrackingThread(Thread):
                         operation.printer(state)
                     if state is not None and state.is_finished():
                         if state.is_unsuccessfully_finished():
-                            self.errors.append(_create_operation_failed_error(operation, state))
+                            error = operation.get_error(state=state)
+                            assert error is not None
+                            self.errors.append(error)
                     else:
                         self._operations_to_track.append(operation)
 
@@ -182,10 +171,9 @@ class OperationsTrackerBase(object):
                           "to add method, not {0!r}".format(operation))
 
         if not operation.exists():
-            raise YtError("Operation {0} is already tracked".format(operation.id))
+            raise YtError("Operation {0} does not exist".format(operation.id))
 
-        tracker_operation = TrackerOperation(operation.id, client=operation.client)
-        self._add_operation(tracker_operation)
+        self._add_operation(operation)
 
     def wait_all(self, check_result=True, abort_exceptions=(KeyboardInterrupt,), keep_finished=False):
         """Waits all added operations and prints progress.
@@ -253,15 +241,14 @@ class OperationsTracker(OperationsTrackerBase):
         """
 
         try:
-            operation = TrackerOperation(operation_id, client=client)
+            operation = Operation(operation_id, client=client)
         except YtResponseError as err:
             if not err.is_resolve_error():
                 raise
             logger.warning("Operation %s does not exist and is not added", operation_id)
             return
 
-        tracker_operation = TrackerOperation(operation.id, client=operation.client)
-        self._add_operation(tracker_operation)
+        self._add_operation(operation)
 
 SpecTask = namedtuple("SpecTask", ["spec_builder", "client", "enable_optimizations"])
 

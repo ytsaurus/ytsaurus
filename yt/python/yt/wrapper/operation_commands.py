@@ -535,6 +535,7 @@ def get_operation_error(operation, client=None):
         return result["error"]
     return None
 
+# TODO(ignat): remove this method with all usages in arcadia.
 def _create_operation_failed_error(operation, state):
     error = get_operation_error(operation.id, client=operation.client)
     stderrs = get_jobs_with_error_or_stderr(operation.id, only_failed_jobs=True, client=operation.client)
@@ -545,8 +546,8 @@ def _create_operation_failed_error(operation, state):
         stderrs=stderrs,
         url=operation.url)
 
-def process_operation_unsuccesful_finish_state(operation, state):
-    error = _create_operation_failed_error(operation, state)
+def process_operation_unsuccesful_finish_state(operation, error):
+    assert error is not None
     if get_config(operation.client)["operation_tracker"]["enable_logging_failed_operation"]:
         logger.warning("***** Failed operation information:\n%s", str(error))
         if error.attributes["stderrs"]:
@@ -640,6 +641,26 @@ class Operation(object):
         """
         return get_jobs_with_error_or_stderr(self.id, only_failed_jobs=only_failed_jobs, client=self.client)
 
+    def get_error(self, state=None):
+        """Returns YtOperationFailed error if operation has failed, otherwies returns None."""
+        if state is None:
+            state = self.get_state()
+
+        if not state.is_unsuccessfully_finished():
+            return None
+
+        error = get_operation_error(self.id, client=self.client)
+        if error is None:
+            return None
+
+        stderrs = self.get_jobs_with_error_or_stderr(only_failed_jobs=True)
+        return YtOperationFailedError(
+            id=self.id,
+            state=str(state),
+            error=error,
+            stderrs=stderrs,
+            url=self.url)
+
     @deprecated(alternative="get_jobs_with_error_or_stderr")
     def get_stderrs(self, only_failed_jobs=False):
         """ Deprecated!
@@ -697,7 +718,7 @@ class Operation(object):
                 finalize_function(state)
 
         if check_result and state.is_unsuccessfully_finished():
-            process_operation_unsuccesful_finish_state(self, state)
+            process_operation_unsuccesful_finish_state(self, self.get_error(state=state))
 
         if get_config(self.client)["operation_tracker"]["log_job_statistics"]:
             statistics = self.get_job_statistics()
