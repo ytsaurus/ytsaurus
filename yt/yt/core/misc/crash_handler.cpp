@@ -81,6 +81,11 @@ void WriteToStderr(const char* buffer)
     WriteToStderr(buffer, strlen(buffer));
 }
 
+void WriteToStderr(const TString& string)
+{
+    WriteToStderr(string.begin(), string.length());
+}
+
 //! Dumps time information.
 /*!
  *  We do not dump human-readable time information with localtime()

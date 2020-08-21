@@ -23,9 +23,10 @@ TLogger Logger("MemoryWatchdog");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMemoryWatchdog::TMemoryWatchdog(TMemoryWatchdogConfigPtr config, TCallback<void()> exitCallback)
+TMemoryWatchdog::TMemoryWatchdog(TMemoryWatchdogConfigPtr config, TCallback<void()> exitCallback, TCallback<void()> interruptCallback)
     : Config_(std::move(config))
     , ExitCallback_(std::move(exitCallback))
+    , InterruptCallback_(std::move(interruptCallback))
     , ActionQueue_(New<TActionQueue>("MemoryWatchdog"))
     , Invoker_(ActionQueue_->GetInvoker())
     , PeriodicExecutor_(New<TPeriodicExecutor>(
@@ -74,10 +75,10 @@ void TMemoryWatchdog::CheckMemoryUsage()
         maximumWindowRss,
         Config_->WindowCodicilWatermark);
     if (rss + Config_->CodicilWatermark > Config_->MemoryLimit) {
-        KillSelf("memory usage is too high");
+        KillSelf("memory usage is too high", false);
     }
     if (maximumWindowRss + Config_->WindowCodicilWatermark > Config_->MemoryLimit) {
-        KillSelf("window memory usage is too high");
+        KillSelf("window memory usage is too high", true);
     }
 
     // ClickHouse periodically snapshots current RSS and then tracks its
@@ -88,15 +89,26 @@ void TMemoryWatchdog::CheckMemoryUsage()
     CurrentMetrics::set(CurrentMetrics::MemoryTracking, rss);
 }
 
-void TMemoryWatchdog::KillSelf(TString reason)
+void TMemoryWatchdog::KillSelf(TString reason, bool graceful)
 {
-    YT_LOG_ERROR("Killing self because %v", reason);
-    NYT::NLogging::TLogManager::Get()->Shutdown();
-    Cerr << "*** OOM by watchdog (" << reason << ") ***\n" << Endl;
-    ExitCallback_.Run();
-    Cerr << "*** RefCountedTracker ***\n" << Endl;
-    Cerr << TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */) << Endl;
-    _exit(MemoryLimitExceededExitCode);
+    if (graceful) {
+        YT_LOG_ERROR("Interrupting self because %v", reason);
+    } else {
+        YT_LOG_ERROR("Killing self because %v", reason);
+    }
+    WriteToStderr("*** OOM by watchdog (");
+    WriteToStderr(reason);
+    WriteToStderr(") ***\n");
+    WriteToStderr("*** RefCountedTracker ***\n");
+    WriteToStderr(TRefCountedTracker::Get()->GetDebugInfo(2 /* sortByColumn */));
+    if (graceful) {
+        InterruptCallback_.Run();
+        while (true);
+    } else {
+        NYT::NLogging::TLogManager::Get()->Shutdown();
+        ExitCallback_.Run();
+        _exit(MemoryLimitExceededExitCode);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

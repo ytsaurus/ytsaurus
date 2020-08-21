@@ -2524,32 +2524,41 @@ class TestQueryRegistry(ClickHouseTestBase):
     @authors("max42")
     def test_codicils(self):
         create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
-        # Normal footprint at start of clique should be around 1.5 Gb
-        s = 'x' * (4 * 1024**2)  # 4 Mb.
-        write_table("//tmp/t", [{"a": s}])
-        merge(in_=["//tmp/t"] * 200,
-              out="//tmp/t",
-              spec={"force_transform": True})  # 800 Mb.
+        write_table("//tmp/t", [{"a": "foo"}])
 
-        def assert_in_error(config_patch=None, message=None):
+        # Normal footprint at start of clique should around 0.5 GiB - 1.5 GiB.
+        oom_allocation_size = 2 * 1024**3
+
+        def assert_in_error(config_patch=None, message=None, allocation_size=0):
             print_debug("Checking config_patch={} for '{}' presense".format(config_patch, message))
             clique = Clique(1, config_patch=config_patch)
             with pytest.raises(YtError):
                 clique.__enter__()
-                clique.make_query("select a from \"//tmp/t\" order by a", verbose=False)
+                clique.make_query(
+                    "select sleep(3) from `//tmp/t` settings chyt_testing_subquery_allocation_size = {}".format(allocation_size),
+                    verbose=False)
             clique.op.track(False, False)
             assert message in str(clique.op.get_error())
             with pytest.raises(YtError):
                 clique.__exit__(None, None, None)
 
-        # Watchdog errors.
+        def assert_no_error(config_patch=None, completed_job_count=0, allocation_size=0):
+            print_debug("Checking config_patch={} for no error".format(config_patch))
+            with Clique(1, config_patch=config_patch) as clique:
+                assert clique.make_query(
+                    "select sleep(3) from `//tmp/t` settings chyt_testing_subquery_allocation_size = {}".format(allocation_size),
+                    verbose=False) == [{"sleep(3)": 0}]
+                # NB: interrupted jobs are considered to be lost.
+                wait(lambda: clique.op.get_job_count("lost") >= completed_job_count)
+
+        assert_no_error()
         assert_in_error(config_patch={"yt": {"memory_watchdog": {"memory_limit": 10 * 1024**3, "period": 50,
                                                                  "codicil_watermark": 8 * 1024**3}}},
-                        message="OOM")
-        assert_in_error(config_patch={"yt": {"memory_watchdog": {"memory_limit": 10 * 1024**3, "period": 50,
+                        message="OOM", allocation_size=oom_allocation_size)
+        assert_no_error(config_patch={"yt": {"memory_watchdog": {"memory_limit": 10 * 1024**3, "period": 50,
                                                                  "window_codicil_watermark": 8 * 1024**3,
                                                                  "window_width": 200}}},
-                        message="OOM")
+                        allocation_size=oom_allocation_size, completed_job_count=1)
 
     @authors("max42")
     @pytest.mark.skipif(True, reason="temporarily broken")

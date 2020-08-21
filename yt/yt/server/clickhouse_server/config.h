@@ -131,6 +131,7 @@ public:
     // TODO(max42): move to testing options.
     bool ThrowTestingExceptionInDistributor;
     bool ThrowTestingExceptionInSubquery;
+    i64 TestingSubqueryAllocationSize;
 
     TQuerySettings();
 };
@@ -230,6 +231,26 @@ public:
 DEFINE_REFCOUNTED_TYPE(TLauncherConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
+//
+// Values in braces are not defined explicitly, but rather taken in account when setting
+// the rest of the values. Values starting with hash sign are defined explicitly.
+//
+// | <================================================= #MemoryLimit ==========================================> |
+// | <================= #MaxServerMemoryUsage =================> | <========== (ClickHouseWatermark) ==========> |
+// | #Reader | #UncompressedBlockCache | (CH Memory + Footprint) |                       | #WatchdogOomWatermark |
+// |                                                | <============== #WatchdogOomWindowWatermark =============> |
+//
+//                                                         ^              ^                     ^                  ^
+// If min rss over 15 min window resides in this __________|              |                     |                  |
+// range, instance performs graceful self-interruption.                   |                     |                  |
+//                                                                        |                     |                  |
+// If rss goes here, CH does not allow any new memory allocation. ________|                     |                  |
+//                                                                                              |                  |
+// If rss goes here, instance performs harakiri. _______________________________________________|                  |
+//                                                                                                                 |
+// If rss goes here, YT kills the instance. _______________________________________________________________________|
+//
+// Memory tracking is one hell of a job.
 
 class TMemoryConfig
     : public NYTree::TYsonSerializable

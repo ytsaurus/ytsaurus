@@ -154,7 +154,8 @@ public:
             Config_->ProcessListSnapshotUpdatePeriod);
         MemoryWatchdog_ = New<TMemoryWatchdog>(
             Config_->MemoryWatchdog,
-            BIND(&TQueryRegistry::WriteStateToStderr, QueryRegistry_));
+            BIND(&TQueryRegistry::WriteStateToStderr, QueryRegistry_),
+            BIND([] { raise(SIGINT); }));
         HealthChecker_ = New<THealthChecker>(
             Config_->HealthChecker,
             Config_->User,
@@ -176,6 +177,8 @@ public:
         HealthChecker_->Start();
         CreateOrchidNode();
         StartDiscovery();
+
+        WriteToStderr("*** Serving started ***\n");
     }
 
     void HandleIncomingGossip(const TString& instanceId, EInstanceState state)
