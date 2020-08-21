@@ -223,9 +223,8 @@ int TFetcherBase::GetChunkCount() const
 TFuture<void> TFetcherBase::Fetch()
 {
     OnFetchingStarted();
-    BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this))
-        .Via(Invoker_)
-        .Run();
+    Invoker_->Invoke(
+        BIND(&TFetcherBase::StartFetchingRound, MakeWeak(this)));
     auto future = Promise_.ToFuture();
     if (CancelableContext_) {
         future = future.ToImmediatelyCancelable();
@@ -300,9 +299,8 @@ void TFetcherBase::StartFetchingRound()
         YT_LOG_DEBUG("All unavailable chunks are located");
         DeadNodes_.clear();
         DeadChunks_.clear();
-        BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this))
-            .Via(Invoker_)
-            .Run(/*backoff=*/false, error);
+        Invoker_->Invoke(
+            BIND(&TFetcherBase::OnFetchingRoundCompleted, MakeWeak(this), /* backoff */ false, error));
         return;
     }
 

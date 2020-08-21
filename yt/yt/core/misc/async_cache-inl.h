@@ -389,7 +389,7 @@ bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TValuePtr& value,
         --ItemMapSize_;
 
         if (forbidResurrection || !IsResurrectionSupported()) {
-            YT_VERIFY(ValueMap_.erase(value->GetKey()) == 1);
+            ValueMap_.erase(valueIt);
             value->Cache_.Reset();
         }
 

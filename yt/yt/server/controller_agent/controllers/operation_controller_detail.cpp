@@ -6086,7 +6086,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
                     file.ChunkCount = chunkCount;
                     file.ContentRevision = attributes.Get<NHydra::TRevision>("content_revision");
 
-                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v, ContentRevision: %v)",
+                    YT_LOG_INFO("User file locked (Path: %v, TaskTitle: %v, FileName: %v, SecurityTags: %v, ContentRevision: %llx)",
                         path,
                         userJobSpec->TaskTitle,
                         file.FileName,

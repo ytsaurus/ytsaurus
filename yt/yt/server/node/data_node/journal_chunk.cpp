@@ -33,7 +33,6 @@ using namespace NProfiling;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = DataNodeLogger;
-static TMonotonicCounter DiskJournalReadByteCounter("/disk_journal_read_bytes");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -243,7 +242,6 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
         locationProfiler.Update(performanceCounters.JournalBlockReadTime, NProfiling::DurationToValue(readTime));
         locationProfiler.Update(performanceCounters.JournalBlockReadThroughput, bytesRead * 1000000 / (1 + readTime.MicroSeconds()));
         locationProfiler.Increment(performanceCounters.JournalBlockReadBytes, bytesRead);
-        DataNodeProfiler.Increment(DiskJournalReadByteCounter, bytesRead);
 
         ProfileReadBlockSetLatency(session);
 
