@@ -100,6 +100,8 @@ TQuerySettings::TQuerySettings()
         .Default(false);
     RegisterParameter("throw_testing_exception_in_subquery", ThrowTestingExceptionInSubquery)
         .Default(false);
+    RegisterParameter("testing_subquery_allocation_size", TestingSubqueryAllocationSize)
+        .Default(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

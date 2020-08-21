@@ -169,8 +169,10 @@ void TBootstrap::HandleSigint()
         Host_->HandleSigint();
     }
     if (SigintCounter_ > 1) {
+        WriteToStderr("*** Immediately stopping server due to second SIGINT ***");
         _exit(InterruptionExitCode);
     }
+    WriteToStderr("*** Gracefully stopping server due to SIGINT ***");
     YT_LOG_INFO("Stopping server due to SIGINT");
     TFuture<void> discoveryStopFuture;
     if (Host_) {
@@ -197,6 +199,7 @@ void TBootstrap::HandleSigint()
             HttpServer_->Stop();
         }
         NLogging::TLogManager::StaticShutdown();
+        WriteToStderr("*** Server gracefully stopped ***");
         _exit(InterruptionExitCode);
     }).Via(GetControlInvoker()));
 }

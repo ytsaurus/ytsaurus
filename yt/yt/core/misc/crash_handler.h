@@ -55,6 +55,10 @@ private:
 void WriteToStderr(const char* buffer, int length);
 //! Writes the given zero-terminated buffer to the standard error.
 void WriteToStderr(const char* buffer);
+//! Same for TStringBuf.
+void WriteToStderr(TStringBuf buffer);
+//! Same for TString.
+void WriteToStderr(const TString& buffer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

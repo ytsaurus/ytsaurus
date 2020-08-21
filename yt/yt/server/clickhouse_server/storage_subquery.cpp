@@ -71,6 +71,19 @@ public:
                 << TErrorAttribute("storage_index", StorageContext_->Index);
         }
 
+        if (StorageContext_->Settings->TestingSubqueryAllocationSize > 0) {
+            // Make an intentional memory leak.
+            auto* leakedMemory = new char[StorageContext_->Settings->TestingSubqueryAllocationSize];
+            for (i64 index = 0; index != StorageContext_->Settings->TestingSubqueryAllocationSize; ++index) {
+                leakedMemory[index] = (index < 2) ? 1 : leakedMemory[index - 2] + leakedMemory[index - 1];
+            }
+            // Prevent optimization.
+            YT_LOG_DEBUG(
+                "Testing Fibbonacci number calculated (Index: %v, Value: %v)",
+                StorageContext_->Settings->TestingSubqueryAllocationSize - 1,
+                leakedMemory[StorageContext_->Settings->TestingSubqueryAllocationSize - 1]);
+        }
+
         if (SubquerySpec_.InitialQueryId != QueryContext_->QueryId) {
             QueryContext_->Logger.AddTag("InitialQueryId: %v", SubquerySpec_.InitialQueryId);
             if (QueryContext_->InitialQuery) {
