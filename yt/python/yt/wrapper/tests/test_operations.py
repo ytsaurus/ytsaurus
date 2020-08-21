@@ -1528,6 +1528,10 @@ class TestOperationsSeveralOutputTables(object):
         def third_mapper(row):
             yield yt.create_table_switch(row["x"] + 5)
             yield row
+        
+        def none_encoding_mapper(row):
+            yield yt.create_table_switch(row[b"x"])
+            yield row
 
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 0}, {"x": 1}, {"x": 2}])
@@ -1550,6 +1554,13 @@ class TestOperationsSeveralOutputTables(object):
 
         with pytest.raises(yt.YtError):
             yt.run_map(third_mapper, table, output_tables, format=yt.YsonFormat(control_attributes_mode="iterator"))
+        
+        yt.run_map(none_encoding_mapper, table, output_tables, format=yt.YsonFormat(control_attributes_mode="iterator", encoding=None))
+
+        assert list(yt.read_table(output_tables[0])) == [{"x": 0}]
+        assert list(yt.read_table(output_tables[1])) == [{"x": 1}]
+        assert list(yt.read_table(output_tables[2])) == [{"x": 2}]
+        assert list(yt.read_table(output_tables[3])) == []
 
     @authors("asaitgalin")
     @add_failed_operation_stderrs_to_error_message
