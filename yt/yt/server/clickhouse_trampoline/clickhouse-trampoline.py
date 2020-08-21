@@ -104,18 +104,22 @@ def patch_log_tailer_config(inside_mtn):
     logger.info("Config patched")
 
 
-def start_process(args):
+def start_process(args, shell=False):
     logger.info("Going to invoke following command: %s", args)
     # NB: without preexec_fn=os.setpgrp any signal coming to the parent will always be immediately propagated to
     # children.
     # See https://stackoverflow.com/questions/3791398/how-to-stop-python-from-propagating-signals-to-subprocesses for
     # more details.
-    process = subprocess.Popen(args, preexec_fn=os.setpgrp)
+    kwargs = {"preexec_fn": os.setpgrp}
+    if shell:
+        kwargs["shell"] = True
+        kwargs["executable"] = "/bin/bash"
+    process = subprocess.Popen(args, **kwargs)
     logger.info("Process started, pid = %d", process.pid)
     return process
 
 
-def run_ytserver_clickhouse(ytserver_clickhouse_bin, monitoring_port):
+def run_ytserver_clickhouse(ytserver_clickhouse_bin, monitoring_port, stderr_file):
     logger.info("Starting ytserver-clickhouse")
     args = [ytserver_clickhouse_bin]
     args += ["--config", "./config_patched.yson"]
@@ -126,7 +130,13 @@ def run_ytserver_clickhouse(ytserver_clickhouse_bin, monitoring_port):
     args += ["--tcp-port", os.environ["YT_PORT_2"]]
     args += ["--http-port", os.environ["YT_PORT_3"]]
     args += ["--pdeathsig", "9"]
-    return start_process(args)
+    shell = False
+    if stderr_file is not None:
+        args = "exec " + " ".join(args)
+        stderr_file = substitute_env(stderr_file)
+        args += " 2> >(tee {} >&2)".format(stderr_file)
+        shell = True
+    return start_process(args, shell)
 
 
 def run_log_tailer(log_tailer_bin, ytserver_clickhouse_pid, monitoring_port):
@@ -159,6 +169,9 @@ def setup_logging(log_file):
     stderr_handler.setFormatter(formatter)
     logger.addHandler(stderr_handler)
 
+    if log_file:
+        log_file = substitute_env(log_file)
+
     file_handler = logging.FileHandler(log_file or "trampoline.debug.log")
     file_handler.setLevel(logging.DEBUG)
     file_handler.setFormatter(formatter)
@@ -186,6 +199,8 @@ def main():
     parser.add_argument("--log-tailer-bin", help="Log tailer binary path; log tailer will be run over "
                                                  "ytserver-clickhouse process")
     parser.add_argument("--log-file", help="Path to trampoline log file")
+    parser.add_argument("--stderr-file", help="Redirect stderr to this file (substituting $YT_JOB_INDEX from env, "
+                                              "if needed)")
     args = parser.parse_args()
 
     setup_logging(args.log_file)
@@ -207,7 +222,15 @@ def main():
         logger.info("Apparently we are inside MTN")
 
     patch_ytserver_clickhouse_config(args.prepare_geodata, inside_mtn)
-    ytserver_clickhouse_process = run_ytserver_clickhouse(args.ytserver_clickhouse_bin, args.monitoring_port)
+
+    stderr_file = args.stderr_file
+
+    # TODO(max42): there are some issues around signaling; wait until log tailer is deprecated.
+    if args.log_tailer_bin:
+        stderr_file = None
+
+    ytserver_clickhouse_process = run_ytserver_clickhouse(args.ytserver_clickhouse_bin, args.monitoring_port,
+                                                          stderr_file)
     sigint_handler = SigintHandler(ytserver_clickhouse_process, args.interrupt_child)
     sigint_handler.install()
 
