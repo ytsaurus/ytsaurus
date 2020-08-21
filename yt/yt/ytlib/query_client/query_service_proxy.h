@@ -18,7 +18,6 @@ public:
         .SetProtocolVersion(33));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
-    DEFINE_RPC_PROXY_METHOD(NProto, Read);
     DEFINE_RPC_PROXY_METHOD(NProto, Multiread);
     DEFINE_RPC_PROXY_METHOD(NProto, GetTabletInfo);
     DEFINE_RPC_PROXY_METHOD(NProto, ReadDynamicStore,

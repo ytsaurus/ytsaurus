@@ -114,8 +114,6 @@ TConnectionConfig::TConnectionConfig()
         .Alias("max_rows_per_read_request")
         .GreaterThan(0)
         .Default(1000);
-    RegisterParameter("enable_lookup_multiread", EnableLookupMultiread)
-        .Default(true);
 
     RegisterParameter("udf_registry_path", UdfRegistryPath)
         .Default("//tmp/udfs");
