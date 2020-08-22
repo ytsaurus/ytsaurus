@@ -881,14 +881,14 @@ private:
     void PrepareOutputTablePipes()
     {
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.output_format()));
+        auto valueConsumers = CreateValueConsumers(ConvertTo<TTypeConversionConfigPtr>(format.Attributes()));
+        auto parsers = CreateParsersForFormat(format, valueConsumers);
 
         const auto& writers = UserJobWriteController_->GetWriters();
 
-        TableOutputs_.resize(writers.size());
+        TableOutputs_.reserve(writers.size());
         for (int i = 0; i < writers.size(); ++i) {
-            auto valueConsumers = CreateValueConsumers(ConvertTo<TTypeConversionConfigPtr>(format.Attributes()));
-            auto parser = CreateParserForFormat(format, valueConsumers, i);
-            TableOutputs_[i].reset(new TTableOutput(std::move(parser)));
+            TableOutputs_.emplace_back(std::make_unique<TTableOutput>(std::move(parsers[i])));
 
             int jobDescriptor = UserJobSpec_.use_yamr_descriptors()
                 ? 3 + i

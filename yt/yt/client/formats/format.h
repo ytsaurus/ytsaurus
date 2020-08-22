@@ -118,10 +118,15 @@ std::unique_ptr<IParser> CreateParserForFormat(
     EDataType dataType,
     NYson::IYsonConsumer* consumer);
 
+//! Create own parser for each value consumer.
+std::vector<std::unique_ptr<IParser>> CreateParsersForFormat(
+    const TFormat& format,
+    const std::vector<NTableClient::IValueConsumer*>& valueConsumers);
+
+//! Create parser for value consumer. Helper for previous method in singular case.
 std::unique_ptr<IParser> CreateParserForFormat(
     const TFormat& format,
-    const std::vector<NTableClient::IValueConsumer*>& valueConsumers,
-    int tableIndex);
+    NTableClient::IValueConsumer* valueConsumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

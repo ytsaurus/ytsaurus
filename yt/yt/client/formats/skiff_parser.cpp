@@ -378,10 +378,10 @@ std::unique_ptr<IParser> CreateParserForSkiff(
 
 std::unique_ptr<IParser> CreateParserForSkiff(
     IValueConsumer* consumer,
+    const std::vector<TSkiffSchemaPtr>& skiffSchemas,
     TSkiffFormatConfigPtr config,
     int tableIndex)
 {
-    auto skiffSchemas = ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
     if (tableIndex >= static_cast<int>(skiffSchemas.size())) {
         THROW_ERROR_EXCEPTION("Skiff format config does not describe table #%v",
             tableIndex);

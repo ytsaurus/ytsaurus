@@ -18,6 +18,12 @@
 #include "yamr_writer.h"
 #include "yson_parser.h"
 
+#include <yt/client/table_client/name_table.h>
+
+#include <yt/client/table_client/table_consumer.h>
+
+#include <yt/library/skiff/schema_match.h>
+
 #include <yt/core/misc/error.h>
 
 #include <yt/core/yson/writer.h>
@@ -29,10 +35,6 @@
 #include <yt/core/json/json_parser.h>
 #include <yt/core/json/json_writer.h>
 
-#include <yt/client/table_client/name_table.h>
-
-#include <yt/client/table_client/table_consumer.h>
-
 namespace NYT::NFormats {
 
 using namespace NConcurrency;
@@ -40,6 +42,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NJson;
 using namespace NTableClient;
+using namespace NSkiff;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -528,24 +531,49 @@ std::unique_ptr<IParser> CreateParserForFormat(const TFormat& format, EDataType 
     }
 }
 
-std::unique_ptr<IParser> CreateParserForFormat(
+std::vector<std::unique_ptr<IParser>> CreateParsersForFormat(
     const TFormat& format,
-    const std::vector<IValueConsumer*>& valueConsumers,
-    int tableIndex)
+    const std::vector<IValueConsumer*>& valueConsumers)
 {
+    std::vector<std::unique_ptr<IParser>> parsers;
+
+    auto parserCount = valueConsumers.size();
+    parsers.reserve(parserCount);
+
     switch (format.GetType()) {
         case EFormatType::Protobuf: {
             auto config = ConvertTo<TProtobufFormatConfigPtr>(&format.Attributes());
-            return CreateParserForProtobuf(valueConsumers[tableIndex], config, tableIndex);
+            // TODO(max42): implementation of CreateParserForProtobuf clones config
+            // on each call, so this loop works in quadratic time. Fix that.
+            for (int tableIndex = 0; tableIndex < parserCount; ++tableIndex) {
+                parsers.emplace_back(CreateParserForProtobuf(valueConsumers[tableIndex], config, tableIndex));
+            }
+            break;
         }
         case EFormatType::Skiff: {
             auto config = ConvertTo<TSkiffFormatConfigPtr>(&format.Attributes());
-            return CreateParserForSkiff(valueConsumers[tableIndex], config, tableIndex);
+            auto skiffSchemas = ParseSkiffSchemas(config->SkiffSchemaRegistry, config->TableSkiffSchemas);
+            for (int tableIndex = 0; tableIndex < parserCount; ++tableIndex) {
+                parsers.emplace_back(CreateParserForSkiff(valueConsumers[tableIndex], skiffSchemas, config, tableIndex));
+            }
+            break;
         }
         default:
-            return std::unique_ptr<IParser>(
-                new TTableParserAdapter(format, valueConsumers, tableIndex));
+            for (int tableIndex = 0; tableIndex < parserCount; ++tableIndex) {
+                parsers.emplace_back(std::make_unique<TTableParserAdapter>(format, valueConsumers, tableIndex));
+            }
+            break;
     }
+
+    return parsers;
+}
+
+std::unique_ptr<IParser> CreateParserForFormat(
+    const TFormat& format,
+    IValueConsumer* valueConsumer)
+{
+    auto parsers = CreateParsersForFormat(format, {valueConsumer});
+    return std::move(parsers.front());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
