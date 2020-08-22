@@ -273,11 +273,9 @@ void TWriteTableCommand::DoExecute(ICommandContextPtr context)
         ConvertTo<TTypeConversionConfigPtr>(context->GetInputFormat().Attributes()),
         MaxRowBufferSize);
 
-    std::vector<IValueConsumer*> valueConsumers(1, &valueConsumer);
     TTableOutput output(CreateParserForFormat(
         context->GetInputFormat(),
-        valueConsumers,
-        0));
+        &valueConsumer));
 
     PipeInputToOutput(context->Request().InputStream, &output, MaxRowBufferSize);
 
@@ -646,11 +644,9 @@ std::vector<TUnversionedRow> ParseRows(
     ICommandContextPtr context,
     TBuildingValueConsumer* valueConsumer)
 {
-    std::vector<IValueConsumer*> valueConsumers(1, valueConsumer);
     TTableOutput output(CreateParserForFormat(
         context->GetInputFormat(),
-        valueConsumers,
-        0));
+        valueConsumer));
 
     auto input = CreateSyncAdapter(context->Request().InputStream);
     PipeInputToOutput(input.get(), &output, 64_KB);
