@@ -41,6 +41,7 @@ public:
         , Host_(std::move(host))
         , Invoker_(std::move(invoker))
         , TotalReservedMemory_(Options_.TotalReservedMemorySize)
+        , RequiredMemoryLowerBound_(Options_.TotalReservedMemorySize)
         , FreeMemory_(Options_.TotalReservedMemorySize)
         , ProfilingTagList_(std::move(Options_.ProfilingTagList))
         , ProfilingExecutor_(New<TPeriodicExecutor>(
@@ -142,12 +143,12 @@ public:
 
     virtual i64 GetRequiredMemorySize() const override
     {
-        return TotalRequiredMemory_;
+        return std::max<i64>(TotalRequiredMemory_, RequiredMemoryLowerBound_);
     }
 
     virtual i64 GetDesiredMemorySize() const override
     {
-        return TotalDesiredMemory_;
+        return std::max<i64>(TotalDesiredMemory_, RequiredMemoryLowerBound_);
     }
 
     virtual i64 GetReservedMemorySize() const override
@@ -216,6 +217,8 @@ private:
 
     //! Amount of memory reserved for this memory manager.
     std::atomic<i64> TotalReservedMemory_ = 0;
+
+    std::atomic<i64> RequiredMemoryLowerBound_ = 0;
 
     std::atomic<i64> FreeMemory_ = 0;
 

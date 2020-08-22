@@ -56,8 +56,8 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerAllocatesDesiredMemorySiz
     reader1->SetPrefetchMemorySize(234);
     WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 357; });
 
-    EXPECT_EQ(memoryManager->GetRequiredMemorySize(), 123);
-    EXPECT_EQ(memoryManager->GetDesiredMemorySize(), 357);
+    EXPECT_EQ(memoryManager->GetRequiredMemorySize(), 100'000);
+    EXPECT_EQ(memoryManager->GetDesiredMemorySize(), 100'000);
     EXPECT_EQ(memoryManager->GetReservedMemorySize(), 100'000);
 }
 
@@ -175,7 +175,7 @@ TEST(TestParallelReaderMemoryManager, TestMemoryManagerAllocatesAsMuchAsPossible
     reader1->SetPrefetchMemorySize(234);
     WaitTestPredicate([&] () { return reader1->GetReservedMemorySize() == 120; });
 
-    EXPECT_EQ(memoryManager->GetRequiredMemorySize(), 100);
+    EXPECT_EQ(memoryManager->GetRequiredMemorySize(), 120);
     EXPECT_EQ(memoryManager->GetDesiredMemorySize(), 334);
     EXPECT_EQ(memoryManager->GetReservedMemorySize(), 120);
 }

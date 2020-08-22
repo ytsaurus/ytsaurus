@@ -15,7 +15,8 @@ struct IMultiReaderMemoryManager
     //! Returns amount of free memory in memory manager.
     virtual i64 GetFreeMemorySize() = 0;
 
-    //! Creates memory manager for particular chunk reader with `reservedMemorySize' reserved memory.
+    //! Creates memory manager for particular chunk reader with `reservedMemorySize' reserved memory. Memory requirements of child memory manager will
+    //! never become less than `requiredMemorySize' until its destruction.
     //! If not set `MaxInitialReaderReservedMemory' memory will be allocated.
     virtual TChunkReaderMemoryManagerPtr CreateChunkReaderMemoryManager(
         std::optional<i64> reservedMemorySize = std::nullopt,
