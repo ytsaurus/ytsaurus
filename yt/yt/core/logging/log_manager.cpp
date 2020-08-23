@@ -785,12 +785,12 @@ private:
             switch (config->AcceptedMessageFormat) {
                 case ELogMessageFormat::PlainText:
                     formatter = std::make_unique<TPlainTextLogFormatter>(
-                        config->EnableControlMessages);
+                        config->EnableSystemMessages);
                     break;
                 case ELogMessageFormat::Structured:
                     formatter = std::make_unique<TJsonLogFormatter>(
                         config->CommonFields,
-                        config->EnableControlMessages);
+                        config->EnableSystemMessages);
                     break;
                 default:
                     YT_ABORT();

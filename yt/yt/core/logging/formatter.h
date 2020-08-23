@@ -51,7 +51,7 @@ public:
 private:
     const std::unique_ptr<TMessageBuffer> Buffer_;
     const std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
-    const bool EnableControlMessages_;
+    const bool EnableSystemMessages_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,7 +70,7 @@ public:
 private:
     const std::unique_ptr<TCachingDateFormatter> CachingDateFormatter_;
     const THashMap<TString, NYTree::INodePtr> CommonFields_;
-    const bool EnableControlMessages_;
+    const bool EnableSystemMessages_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
