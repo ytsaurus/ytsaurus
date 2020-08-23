@@ -4,6 +4,8 @@
 
 #include <yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/server/master/chunk_server/chunk_list.h>
+
 #include <yt/server/master/tablet_server/tablet.h>
 #include <yt/server/master/tablet_server/tablet_cell_bundle.h>
 
@@ -408,6 +410,12 @@ bool TTableNode::IsDynamic() const
 bool TTableNode::IsEmpty() const
 {
     return ComputeTotalStatistics().chunk_count() == 0;
+}
+
+bool TTableNode::IsLogicallyEmpty() const
+{
+    YT_VERIFY(ChunkList_);
+    return ChunkList_->Statistics().LogicalRowCount == 0;
 }
 
 TTimestamp TTableNode::GetCurrentUnflushedTimestamp(

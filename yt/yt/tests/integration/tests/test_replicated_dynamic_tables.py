@@ -1039,7 +1039,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
     @pytest.mark.parametrize("mode", ["sync", "async"])
     def test_replication_trim(self, mode):
         self._create_cells()
-        self._create_replicated_table("//tmp/t", dynamic_store_auto_flush_period=1000, dynamic_store_period_skew=0)
+        self._create_replicated_table("//tmp/t", dynamic_store_auto_flush_period=1000)
 
         sync_mount_table("//tmp/t")
         replica_id = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r",
@@ -1560,6 +1560,36 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         assert async_replica["replica_id"] == replica_id1
         assert async_replica["current_replication_row_index"] <= 3
+
+    @authors("ifsmirnov")
+    def test_reshard_non_empty_replicated_table(self):
+        self._create_cells()
+        self._create_replicated_table("//tmp/t", schema=self.SIMPLE_SCHEMA_SORTED, min_replication_log_ttl=0)
+        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "async"})
+        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "sync"})
+        self._create_replica_table("//tmp/r1", replica_id1, schema=self.SIMPLE_SCHEMA_SORTED)
+        self._create_replica_table("//tmp/r2", replica_id2, schema=self.SIMPLE_SCHEMA_SORTED)
+
+        sync_enable_table_replica(replica_id1)
+        sync_enable_table_replica(replica_id2)
+
+        rows = [{"key": 100, "value1": "foo", "value2": 200}]
+        insert_rows("//tmp/t", rows)
+
+        wait(lambda: all(
+            replica["current_replication_row_index"] == 1
+            for replica in get_tablet_infos("//tmp/t", [0])["tablets"][0]["replica_infos"]))
+
+        sync_flush_table("//tmp/t")
+
+        # Remove one replica to advance replicated trimmed row count.
+        remove("#{}".format(replica_id1))
+        wait(lambda: get("//tmp/t/@chunk_count") == 0)
+        assert get_tablet_infos("//tmp/t", [0])["tablets"][0]["trimmed_row_count"] == 1
+
+        sync_unmount_table("//tmp/t")
+        with pytest.raises(YtError):
+            reshard_table("//tmp/t", [[]])
 
 ##################################################################
 

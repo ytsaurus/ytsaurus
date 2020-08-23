@@ -1336,10 +1336,6 @@ public:
             THROW_ERROR_EXCEPTION("Cannot reshard a static table");
         }
 
-        if (table->IsReplicated() && !table->IsEmpty()) {
-            THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
-        }
-
         if (newTabletCount <= 0) {
             THROW_ERROR_EXCEPTION("Tablet count must be positive");
         }
@@ -1394,7 +1390,7 @@ public:
             }
 
             if (!table->IsPhysicallySorted() && pivotKeys.empty()) {
-                THROW_ERROR_EXCEPTION("Pivot keys must be porovided to reshard a replicated table");
+                THROW_ERROR_EXCEPTION("Pivot keys must be provided to reshard a replicated table");
             }
         } else {
             if (!pivotKeys.empty()) {
@@ -1404,6 +1400,10 @@ public:
 
         if (table->IsExternal()) {
             return;
+        }
+
+        if (table->IsReplicated() && !table->IsLogicallyEmpty()) {
+            THROW_ERROR_EXCEPTION("Cannot reshard non-empty replicated table");
         }
 
         // Now check against tablets.
