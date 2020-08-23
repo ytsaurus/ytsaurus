@@ -241,7 +241,7 @@ TMemoryConfig::TMemoryConfig()
         .Default();
     RegisterParameter("watchdog_oom_watermark", WatchdogOomWatermark)
         .Default();
-    RegisterParameter("watchdog_oom_window_watermark", WatchdogOomWatermark)
+    RegisterParameter("watchdog_oom_window_watermark", WatchdogOomWindowWatermark)
         .Default();
 }
 
