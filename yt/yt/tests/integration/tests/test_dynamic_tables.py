@@ -2129,6 +2129,15 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         wait_for_tablet_state("//tmp/t", expected_state)
         assert get("//tmp/t/@tablets/0/state") == expected_state
 
+    @authors("ifsmirnov")
+    def test_cannot_change_bundle_of_mounted_table(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        create_tablet_cell_bundle("b")
+        with pytest.raises(YtError):
+            set("//tmp/t/@tablet_cell_bundle", "b")
+
 class TestDynamicTablesPortal(TestDynamicTablesMulticell):
     ENABLE_TMP_PORTAL = True
 
