@@ -2319,9 +2319,8 @@ public:
             return;
         }
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
-            if (table->GetTabletCellBundle() && table->IsDynamic()) {
+        if (table->IsNative()) {
+            if (table->IsDynamic()) {
                 table->ValidateAllTabletsUnmounted("Cannot change tablet cell bundle");
             }
         }
