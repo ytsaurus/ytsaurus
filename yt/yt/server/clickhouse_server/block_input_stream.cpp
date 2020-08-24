@@ -292,10 +292,6 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         "ClickHouseYt.BlockInputStream");
     NTracing::TTraceContextGuard guard(blockInputStreamTraceContext);
 
-    auto readerMemoryManager = queryContext->Host->GetMultiReaderMemoryManager()->CreateMultiReaderMemoryManager(
-        queryContext->Host->GetConfig()->ReaderMemoryRequirement,
-        {queryContext->UserTagId});
-
     ISchemalessMultiChunkReaderPtr reader;
 
     if (!subquerySpec.DataSourceDirectory->DataSources().empty() &&
@@ -309,6 +305,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         }
         TDataSliceDescriptor dataSliceDescriptor(std::move(chunkSpecs));
 
+        // TODO(max42): Use RMM when YT-13460 is done.
         reader = CreateSchemalessMergingMultiChunkReader(
             CreateTableReaderConfig(),
             New<NTableClient::TTableReaderOptions>(),
@@ -326,6 +323,10 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             GetUnlimitedThrottler(),
             GetUnlimitedThrottler());
     } else {
+        auto readerMemoryManager = queryContext->Host->GetMultiReaderMemoryManager()->CreateMultiReaderMemoryManager(
+            queryContext->Host->GetConfig()->ReaderMemoryRequirement,
+            {queryContext->UserTagId});
+
         reader = CreateSchemalessParallelMultiReader(
             CreateTableReaderConfig(),
             New<NTableClient::TTableReaderOptions>(),
