@@ -1034,9 +1034,10 @@ class TestPythonOperations(object):
         yt.run_map(sum_x_raw, table, table, format=yt.DsvFormat())
         check(yt.read_table(table), [{"sum": "9"}])
 
+    # TODO(ignat): enable after adding system python tests to autobuild.
     @authors("ignat")
     @add_failed_operation_stderrs_to_error_message
-    def test_python_operations_with_local_python(self):
+    def DISABLED_test_python_operations_with_local_python(self):
         def func(row):
             yield row
 
@@ -1045,7 +1046,8 @@ class TestPythonOperations(object):
         yt.write_table(input, [{"x": 1}, {"y": 2}])
 
         with set_config_option("pickling/use_local_python_in_jobs", True):
-            yt.run_map(func, input, output)
+            with set_config_option("pickling/python_binary", None):
+                yt.run_map(func, input, output)
 
         check(yt.read_table(output), [{"x": 1}, {"y": 2}], ordered=False)
 

@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 from yt.wrapper.common import generate_uuid
 
 from yt.common import to_native_str, YtError, which
@@ -334,10 +336,10 @@ def emergency_exit_within_tests(test_environment, process, call_arguments):
     else:
         what = "exited with code {}".format(process.returncode)
 
-    print >>sys.stderr, 'Process run by command "{0}" {1}'.format(" ".join(call_arguments), what)
+    print('Process run by command "{0}" {1}'.format(" ".join(call_arguments), what), file=sys.stderr)
     test_environment.stop()
 
-    print >>sys.stderr, "Killing pytest process"
+    print("Killing pytest process", file=sys.stderr)
     # Avoid dumping useless stacktrace to stderr.
     os.kill(os.getpid(), signal.SIGKILL)
 

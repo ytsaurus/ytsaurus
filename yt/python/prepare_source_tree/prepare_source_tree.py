@@ -55,7 +55,7 @@ YT_PREFIX_BINARIES = [
 ]
 
 
-def prepare_python_source_tree(python_root, yt_root, arcadia_root=None, prepare_binary_symlinks=True, prepare_bindings=True):
+def prepare_python_source_tree(python_root, yt_root, arcadia_root=None, prepare_binary_symlinks=False, prepare_bindings=True):
     def python_contrib_path(path):
         return os.path.join(python_root, "contrib", path)
 
@@ -142,9 +142,10 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--python-root", default=get_default_python_root())
     parser.add_argument("--yt-root", default=get_default_yt_root())
+    parser.add_argument("--arcadia-root", default=get_default_yt_root())
     args = parser.parse_args()
 
-    prepare_python_source_tree(python_root=args.python_root, yt_root=args.yt_root)
+    prepare_python_source_tree(python_root=args.python_root, yt_root=args.yt_root, arcadia_root=args.arcadia_root)
 
 
 if __name__ == "__main__":
