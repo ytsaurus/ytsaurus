@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "rw_spinlock.h"
+
 #include <yt/core/actions/future.h>
 
 #include <yt/core/profiling/profiler.h>
@@ -59,7 +61,7 @@ public:
     TFuture<void> GetReadyEvent();
 
 private:
-    TSpinLock SpinLock_;
+    TReaderWriterSpinLock SpinLock_;
     std::atomic<i64> TotalSlots_;
     std::atomic<i64> FreeSlots_;
 

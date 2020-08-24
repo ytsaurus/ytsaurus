@@ -16,7 +16,7 @@ void TAsyncSemaphore::SetTotal(i64 totalSlots)
     YT_VERIFY(totalSlots >= 0);
 
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TWriterGuard guard(SpinLock_);
         auto delta = totalSlots - TotalSlots_;
         TotalSlots_ += delta;
         FreeSlots_ += delta;
@@ -30,7 +30,7 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
     YT_VERIFY(slots >= 0);
 
     {
-        TGuard<TSpinLock> guard(SpinLock_);
+        TWriterGuard guard(SpinLock_);
 
         FreeSlots_ += slots;
         YT_ASSERT(FreeSlots_ <= TotalSlots_);
@@ -47,7 +47,7 @@ void TAsyncSemaphore::Release(i64 slots /* = 1 */)
         TPromise<void> readyEventToSet;
 
         {
-            TGuard<TSpinLock> guard(SpinLock_);
+            TWriterGuard guard(SpinLock_);
 
             while (!Waiters_.empty() && FreeSlots_ >= Waiters_.front().Slots) {
                 auto& waiter = Waiters_.front();
@@ -81,7 +81,7 @@ void TAsyncSemaphore::Acquire(i64 slots /* = 1 */)
 {
     YT_VERIFY(slots >= 0);
 
-    TGuard<TSpinLock> guard(SpinLock_);
+    TWriterGuard guard(SpinLock_);
     FreeSlots_ -= slots;
 }
 
@@ -89,7 +89,7 @@ bool TAsyncSemaphore::TryAcquire(i64 slots /*= 1*/)
 {
     YT_VERIFY(slots >= 0);
 
-    TGuard<TSpinLock> guard(SpinLock_);
+    TWriterGuard guard(SpinLock_);
     if (FreeSlots_ < slots) {
         return false;
     }
@@ -104,7 +104,7 @@ void TAsyncSemaphore::AsyncAcquire(
 {
     YT_VERIFY(slots >= 0);
 
-    TGuard<TSpinLock> guard(SpinLock_);
+    TWriterGuard guard(SpinLock_);
     if (FreeSlots_ >= slots) {
         FreeSlots_ -= slots;
         guard.Release();
@@ -121,6 +121,8 @@ bool TAsyncSemaphore::IsReady() const
 
 bool TAsyncSemaphore::IsFree() const
 {
+    TReaderGuard guard(SpinLock_);
+
     return FreeSlots_ == TotalSlots_;
 }
 
@@ -131,6 +133,8 @@ i64 TAsyncSemaphore::GetTotal() const
 
 i64 TAsyncSemaphore::GetUsed() const
 {
+    TReaderGuard guard(SpinLock_);
+
     return TotalSlots_ - FreeSlots_;
 }
 
@@ -141,7 +145,7 @@ i64 TAsyncSemaphore::GetFree() const
 
 TFuture<void> TAsyncSemaphore::GetReadyEvent()
 {
-    TGuard<TSpinLock> guard(SpinLock_);
+    TWriterGuard guard(SpinLock_);
 
     if (IsReady()) {
         return VoidFuture;
