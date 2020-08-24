@@ -202,6 +202,7 @@ public abstract class StreamReaderImpl<RspType extends Message> extends StreamBa
     }
 
     CompletableFuture<Void> doClose() {
-        return result.thenAccept((unused) -> {});
+        control.cancel();
+        return result.handle((unused, error) -> null);
     }
 }

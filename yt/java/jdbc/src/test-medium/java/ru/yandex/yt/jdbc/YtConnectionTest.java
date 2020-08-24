@@ -32,6 +32,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.misc.io.InputStreamSourceUtils2;
 import ru.yandex.yt.client.proxy.MappedObject;
 import ru.yandex.yt.client.proxy.YtClientTest;
+import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -69,7 +70,7 @@ class YtConnectionTest {
         props.setProperty("home", home);
         props.setProperty("scan_recursive", "true");
 
-        url = "jdbc:yt:" + YtClientTest.getProxy();
+        url = "jdbc:yt:" + LocalYt.getAddress();
         permanentConnection = DriverManager.getConnection(url, props);
 
         client = ((YtConnection) permanentConnection).getClient();
