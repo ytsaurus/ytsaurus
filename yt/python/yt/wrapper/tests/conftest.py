@@ -14,8 +14,8 @@ import yt.environment.init_operation_archive as init_operation_archive
 import yt.subprocess_wrapper as subprocess
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
 
-
-from yt.packages.six import itervalues
+from yt.packages.six import iteritems, itervalues
+from yt.packages import requests
 
 import yt.wrapper as yt
 
@@ -201,6 +201,12 @@ class YtTestEnvironment(object):
 
         self.config["enable_token"] = False
         self.config["pickling"]["module_filter"] = lambda module: hasattr(module, "__file__") and not "driver_lib" in module.__file__
+
+        self.config["pickling"]["python_binary"] = sys.executable
+        self.config["user_job_spec_defaults"] = {
+            "environment": dict([(key, value) for key, value in iteritems(os.environ) if "PYTHON" in key])
+        }
+
         if config["backend"] != "rpc":
             self.config["driver_config"] = self.env.configs["driver"]
         self.config["local_temp_directory"] = local_temp_directory

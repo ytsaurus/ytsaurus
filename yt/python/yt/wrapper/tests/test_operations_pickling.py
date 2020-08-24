@@ -9,7 +9,7 @@ from yt.wrapper.spec_builders import VanillaSpecBuilder, MapSpecBuilder
 import yt.subprocess_wrapper as subprocess
 
 # It is used in skipif expression.
-from yt.packages.six import PY3  # noqa
+from yt.packages.six import PY3, iteritems  # noqa
 from yt.packages.six.moves import xrange
 
 # Necessary for tests.
@@ -250,8 +250,8 @@ if __name__ == "__main__":
                                        TEST_DIR + "/other_table")
                 f.write(mapper)
 
-            op_id = subprocess.check_output([get_python(), f.name],
-                                            env={"PYTHONPATH": os.environ["PYTHONPATH"]}).strip()
+            env = dict([(key, value) for key, value in iteritems(os.environ) if key.startswith("PYTHON")])
+            op_id = subprocess.check_output([get_python(), f.name], env=env).strip()
             op_path = get_operation_path(op_id)
             while not yt.exists(op_path) \
                     or yt.get(op_path + "/@state") not in ["aborted", "failed", "completed"]:
