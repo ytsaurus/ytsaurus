@@ -35,6 +35,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.ETransactionType;
+import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransactionOptions;
@@ -46,6 +47,7 @@ import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.YtCluster;
 import ru.yandex.yt.ytclient.proxy.request.AlterTable;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
+import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
@@ -69,10 +71,6 @@ public class YtClientTest {
                 {new RpcCompression(Compression.Zlib_4)},
                 {new RpcCompression(Compression.Lz4)},
                 {new RpcCompression(Compression.Lz4HighCompression, Compression.Zlib_9)}};
-    }
-
-    public static String getProxy() {
-        return Objects.requireNonNull(System.getenv().get("YT_PROXY"), "Env variable YT_PROXY is required");
     }
 
     public static String getUsername() {
@@ -115,7 +113,7 @@ public class YtClientTest {
     @Before
     public void init() {
 
-        final String proxy = getProxy();
+        final String proxy = LocalYt.getAddress();
         final String username = getUsername();
         final String token = getToken();
 
@@ -237,6 +235,37 @@ public class YtClientTest {
 
         final SelectRowsRequest request = SelectRowsRequest.of(query).setExecutionPool(poolName);
         Assert.assertEquals(0, client.selectRows(request).join().getRows().size());
+    }
+
+    @Test(timeout = 10000)
+    public void earlyReaderClose() throws IOException {
+        String table = path + "/table";
+
+        client.createNode(new CreateNode(table, ObjectType.Table).setRecursive(true)).join();
+
+        {
+            TableWriter<MappedObject> writer =
+                    client.writeTable(
+                            new WriteTable<MappedObject>(table, YTreeObjectSerializerFactory.forClass(MappedObject.class)))
+                            .join();
+            List<MappedObject> data = new ArrayList<>();
+            for (int i = 0; i < 1000; ++i) {
+                data.add(new MappedObject(i, Integer.toString(i)));
+            }
+            writer.write(data);
+            writer.readyEvent().join();
+            writer.close().join();
+        }
+
+        {
+            TableReader<MappedObject> reader = client.readTable(
+                    new ReadTable<MappedObject>(
+                            table,
+                            YTreeObjectSerializerFactory.forClass(MappedObject.class)))
+                    .join();
+
+            reader.close().join();
+        }
     }
 
     private void readWriteImpl(String table, String path, MappedObject... expect) throws Exception {
