@@ -145,13 +145,11 @@ public class YtClientTest {
 
     @Test(timeout = 10000)
     public void executeSomeOperations() {
-        final String dir1 = path + "/dir1";
-        final String table1 = dir1 + "/table1";
+        final String table = path + "/dir1/table1";
 
-        createDirectory(client, dir1);
-        createTable(client, table1);
+        createDynamicTable(client, table);
 
-        final String query = String.format("* from [%s]", table1);
+        final String query = String.format("* from [%s]", table);
         final YTreeObjectSerializer<MappedObject> serializer =
                 (YTreeObjectSerializer<MappedObject>) YTreeObjectSerializerFactory.forClass(MappedObject.class);
 
@@ -161,7 +159,7 @@ public class YtClientTest {
                 new MappedObject(1, "test1"),
                 new MappedObject(2, "test2"));
 
-        insertData(client, table1, objects, serializer);
+        insertData(client, table, objects, serializer);
 
         final List<UnversionedRow> rows = client.selectRows(query).join().getRows();
         final List<MappedObject> mappedRows = client.selectRows(SelectRowsRequest.of(query), serializer).join();
@@ -180,20 +178,18 @@ public class YtClientTest {
 
     @Test(timeout = 10000)
     public void readTable() throws Exception {
-        final String dir1 = path + "/dir1";
-        final String table2 = dir1 + "/table2";
+        final String table = path + "/dir1/table2";
 
-        final String path = YPath.simple(table2).toString();
+        final String path = YPath.simple(table).toString();
 
-        readTableImpl(dir1, table2, path, new MappedObject(1, "test1"), new MappedObject(2, "test2"));
+        readWriteImpl(table, path, new MappedObject(1, "test1"), new MappedObject(2, "test2"));
     }
 
     @Test(timeout = 10000)
     public void readTableWithRange() throws Exception {
-        final String dir1 = path + "/dir1";
-        final String table3 = dir1 + "/table3";
+        final String table = path + "/dir1/table3";
 
-        final String path = YPath.simple(table3)
+        final String path = YPath.simple(table)
                 .withColumns("k1", "v1")
                 .withExact(new RangeLimit(
                         Cf.list(new YTreeBuilder().value(1).build()),
@@ -201,24 +197,23 @@ public class YtClientTest {
                         -1))
                 .toString();
 
-        readTableImpl(dir1, table3, path, new MappedObject(1, "test1"));
+        readWriteImpl(table, path, new MappedObject(1, "test1"));
     }
 
     @Test(timeout = 10000)
     public void alterTable() throws Exception {
-        final String dir1 = path + "/dir1";
-        final String table4 = dir1 + "/table4";
+        final String table = path + "/dir1/table4";
 
-        final String path = YPath.simple(table4).toString();
+        final String path = YPath.simple(table).toString();
 
         // Вставляем данные
-        readTableImpl(dir1, table4, path, new MappedObject(1, "test1"), new MappedObject(2, "test2"));
+        readWriteImpl(table, path, new MappedObject(1, "test1"), new MappedObject(2, "test2"));
 
         // Такая же схема - ничего не изменилось
-        client.alterTable(new AlterTable(table4).setSchema(schema())).join();
+        client.alterTable(new AlterTable(table).setSchema(schema())).join();
 
         // Модифицируем - новый столбец
-        client.alterTable(new AlterTable(table4).setSchema(schema(b ->
+        client.alterTable(new AlterTable(table).setSchema(schema(b ->
                 b.beginMap()
                         .key("name").value("v2")
                         .key("type").value("string")
@@ -228,11 +223,9 @@ public class YtClientTest {
 
     @Test(timeout = 10000)
     public void selectRowsWithKnownPool() {
-        final String dir1 = path + "/dir1";
-        final String table5 = dir1 + "/table5";
+        final String table = path + "/dir1/table5";
 
-        createDirectory(client, dir1);
-        createTable(client, table5);
+        createDynamicTable(client, table);
 
         final String poolName = "known_test_pool";
         client.createNode(new CreateNode(YPath.simple("//sys/ql_pools/" + poolName),
@@ -240,15 +233,14 @@ public class YtClientTest {
                 .setRecursive(true)
                 .setIgnoreExisting(true));
 
-        final String query = String.format("* from [%s]", table5);
+        final String query = String.format("* from [%s]", table);
 
         final SelectRowsRequest request = SelectRowsRequest.of(query).setExecutionPool(poolName);
         Assert.assertEquals(0, client.selectRows(request).join().getRows().size());
     }
 
-    private void readTableImpl(String dir, String table, String path, MappedObject... expect) throws Exception {
-        createDirectory(client, dir);
-        createTable(client, table, false);
+    private void readWriteImpl(String table, String path, MappedObject... expect) throws Exception {
+        createStaticTable(client, table);
 
         final YTreeObjectSerializer<MappedObject> serializer =
                 (YTreeObjectSerializer<MappedObject>) YTreeObjectSerializerFactory.forClass(MappedObject.class);
@@ -257,35 +249,27 @@ public class YtClientTest {
                 new MappedObject(1, "test1"),
                 new MappedObject(2, "test2"));
 
+        LOGGER.info("Inserting: {}", objects);
+
         insertData(client, table, objects, serializer, false);
 
         LOGGER.info("Reading table from {}", path);
 
-        final List<MappedObject> actual = new ArrayList<>();
-        final TableReader<MappedObject> reader = client.readTable(new ReadTable<>(path, serializer)).join();
-        while (reader.canRead()) {
-            final List<MappedObject> read = reader.read();
-            if (read != null && !read.isEmpty()) { // Could be null
-                actual.addAll(read);
-            }
-        }
+        List<MappedObject> actual = readData(client, path, serializer);
 
         Assert.assertEquals(Arrays.asList(expect), actual);
     }
+
 
     public static void deleteDirectory(YtClient client, String path) {
         client.removeNode(new RemoveNode(path)).join();
     }
 
-    public static void createDirectory(YtClient client, String dir) {
-        LOGGER.info("Creating directory: {}", dir);
-        client.createNode(new CreateNode(YPath.simple(dir), CypressNodeType.MAP, Collections.emptyMap())
-                .setRecursive(true)
-                .setIgnoreExisting(false)).join();
-
+    public static void createStaticTable(YtClient client, String table) {
+        createTable(client, table, false);
     }
 
-    public static void createTable(YtClient client, String table) {
+    public static void createDynamicTable(YtClient client, String table) {
         LOGGER.info("Creating table: {}", table);
         createTable(client, table, true);
     }
@@ -324,19 +308,46 @@ public class YtClientTest {
     }
 
     public static void createTable(YtClient client, String table, boolean dynamic) {
+        createTable(client, table, schema(), dynamic);
+    }
+
+    public static void createTable(YtClient client, String table, YTreeNode schema, boolean dynamic) {
         final Map<String, YTreeNode> attrs = YTree.mapBuilder()
                 .key("dynamic").value(YTree.booleanNode(dynamic))
-                .key("schema").value(schema())
+                .key("schema").value(schema)
                 .buildMap().asMap();
 
         client.createNode(new CreateNode(YPath.simple(table), CypressNodeType.TABLE, attrs)
-                .setRecursive(false)
+                .setRecursive(true)
                 .setIgnoreExisting(false)).join();
 
         if (dynamic) {
             LOGGER.info("Waiting for table mount: {}", table);
             client.mountTable(table, null, false, true).join();
         }
+    }
+
+    public static <T> List<T> readData(YtClient client, String path,
+                                       YTreeObjectSerializer<T> serializer) throws Exception {
+        LOGGER.info("Reading from {}", path);
+        final List<T> actual = new ArrayList<>();
+        final TableReader<T> reader = client.readTable(new ReadTable<>(path, serializer)).join();
+        try {
+            while (reader.canRead()) {
+                while (true) {
+                    final List<T> read = reader.read();
+                    if (read != null && !read.isEmpty()) { // Could be null
+                        actual.addAll(read);
+                    } else {
+                        break;
+                    }
+                }
+                reader.readyEvent().join();
+            }
+        } finally {
+            reader.close().join();
+        }
+        return actual;
     }
 
     public static <T> void insertData(YtClient client, String table, Collection<T> objects,
