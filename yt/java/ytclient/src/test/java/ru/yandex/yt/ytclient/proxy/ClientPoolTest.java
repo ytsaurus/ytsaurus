@@ -17,6 +17,13 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.junit.Assert.assertThat;
 import static ru.yandex.yt.testlib.FutureUtils.getError;
 import static ru.yandex.yt.testlib.FutureUtils.waitFuture;
+import static ru.yandex.yt.testlib.Matchers.isCausedBy;
+
+class CustomException extends Exception {
+    CustomException(String message) {
+        super(message);
+    }
+}
 
 public class ClientPoolTest {
     ExecutorService executorService;
@@ -86,9 +93,7 @@ public class ClientPoolTest {
             assertThat(clientFuture1.join().destinationName(), is("localhost:1"));
             assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(true));
 
-            waitFuture(
-                    clientPool.updateClients(List.of()),
-                    100);
+            waitFuture(clientPool.updateClients(List.of()), 100);
 
             assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(true));
         } finally {
@@ -113,11 +118,26 @@ public class ClientPoolTest {
 
             assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(true));
 
-            waitFuture(
-                    clientPool.updateClients(List.of()),
-                    100);
+            waitFuture(clientPool.updateClients(List.of()), 100);
 
             assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(false));
+        } finally {
+            done.complete(null);
+        }
+    }
+
+    @Test
+    public void testUpdateWithError() {
+        ClientPool clientPool = newClientPool();
+
+        CompletableFuture<Void> done = new CompletableFuture<>();
+        try {
+            var clientFuture1 = clientPool.peekClient(done);
+            assertThat(clientFuture1.isDone(), is(false));
+
+            waitFuture(clientPool.updateWithError(new CustomException("error update")), 100);
+
+            assertThat(getError(clientFuture1), isCausedBy(CustomException.class));
         } finally {
             done.complete(null);
         }
