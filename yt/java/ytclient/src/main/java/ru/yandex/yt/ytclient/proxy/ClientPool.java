@@ -15,6 +15,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
@@ -51,6 +52,8 @@ interface DataCenterRpcClientPool extends RpcClientPool {
 @NonNullFields
 @NonNullApi
 class MultiDcClientPool implements RpcClientPool {
+    static final Logger logger = LoggerFactory.getLogger(MultiDcClientPool.class);
+
     final DataCenterRpcClientPool[] clientPools;
     @Nullable final RpcClientPool localDcPool;
     final DataCenterMetricsHolder dcMetricHolder;
@@ -66,7 +69,14 @@ class MultiDcClientPool implements RpcClientPool {
                     .filter((clientPool) -> clientPool.getDataCenterName().equals(builder.localDc))
                     .findFirst().orElse(null);
             if (localDcPool == null) {
-                throw new IllegalArgumentException("Local datacenter is missing: " + builder.localDc);
+                // N.B. actually we should throw exception
+                // but by historical reasons we have to work in such conditions
+                // At least we can complain.
+                logger.error("Cannot find local datacenter: {} among: {}",
+                        builder.localDc,
+                        builder.clientPools.stream()
+                                .map(DataCenterRpcClientPool::getDataCenterName)
+                                .collect(Collectors.toList()));
             }
         } else {
             localDcPool = null;
@@ -199,6 +209,8 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         synchronized (this) {
             if (running) {
                 nextUpdate = executorService.submit(this::doUpdate);
+            } else {
+                throw new IllegalArgumentException("ClientPoolService was already stopped");
             }
         }
     }
@@ -219,6 +231,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                 updateClients(result);
             } else {
                 logger.warn("Failed to discover rpc proxies DataCenter: {} Error: ", getDataCenterName(), error);
+                updateWithError(error);
             }
 
             synchronized (this) {
@@ -372,6 +385,8 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
 @NonNullApi
 @NonNullFields
 class ClientPool implements DataCenterRpcClientPool {
+    static private final Logger logger = LoggerFactory.getLogger(ClientPool.class);
+
     private final String dataCenterName;
     private final int maxSize;
     private final RpcClientFactory clientFactory;
@@ -408,6 +423,11 @@ class ClientPool implements DataCenterRpcClientPool {
             safeExecutorService.submit(()-> peekClientUnsafe(result, release));
         }
         return result;
+    }
+
+    CompletableFuture<Void> updateWithError(Throwable error) {
+        return safeExecutorService.submit(() -> updateWithErrorUnsafe(error));
+
     }
 
     CompletableFuture<Void> updateClients(Collection<HostPort> proxies) {
@@ -462,7 +482,8 @@ class ClientPool implements DataCenterRpcClientPool {
         return false;
     }
 
-    private void banClient(HostPort hostPort) {
+    private void banErrorClient(HostPort hostPort, Throwable error) {
+        logger.warn("Client {} is banned due to error", hostPort, error);
         safeExecutorService.submit(() -> banClientUnsafe(hostPort));
     }
 
@@ -471,7 +492,6 @@ class ClientPool implements DataCenterRpcClientPool {
             if (proxies.contains(pooledClient.hostPort)) {
                 proxies.remove(pooledClient.hostPort);
             } else {
-                // TODO: безопасно ли удалять элемент во время итерации по коллекции?
                 banClientUnsafe(pooledClient.hostPort);
             }
         }
@@ -490,6 +510,13 @@ class ClientPool implements DataCenterRpcClientPool {
         nextUpdate = new CompletableFuture<>();
 
         oldNextUpdate.complete(null);
+    }
+
+    private void updateWithErrorUnsafe(Throwable error) {
+        CompletableFuture<Void> oldNextUpdate = nextUpdate;
+        nextUpdate = new CompletableFuture<>();
+
+        oldNextUpdate.completeExceptionally(error);
     }
 
     private void updateGoodClientsCacheUnsafe() {
@@ -525,7 +552,7 @@ class ClientPool implements DataCenterRpcClientPool {
             this.publicClient = new FailureDetectingRpcClient(
                     internalClient,
                     RpcError::isUnrecoverable,
-                    e -> banClient(hostPort)
+                    e -> banErrorClient(hostPort, e)
             );
         }
 
