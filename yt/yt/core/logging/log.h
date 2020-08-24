@@ -43,6 +43,7 @@ struct TLogEvent
     const TLoggingCategory* Category = nullptr;
     ELogLevel Level = ELogLevel::Minimum;
     ELogMessageFormat MessageFormat = ELogMessageFormat::PlainText;
+    bool Essential = false;
     TSharedRef Message;
     NYson::TYsonString StructuredMessage;
     NProfiling::TCpuInstant Instant = 0;
@@ -58,7 +59,7 @@ class TLogger
 {
 public:
     TLogger();
-    explicit TLogger(TStringBuf categoryName);
+    explicit TLogger(TStringBuf categoryName, bool essential = false);
     TLogger(const TLogger& other) = default;
 
     explicit operator bool() const;
@@ -66,6 +67,8 @@ public:
     const TLoggingCategory* GetCategory() const;
     bool IsLevelEnabled(ELogLevel level) const;
     bool GetAbortOnAlert() const;
+
+    bool Essential() const;
 
     bool IsPositionUpToDate(const TLoggingPosition& position) const;
     void UpdatePosition(TLoggingPosition* position, TStringBuf message) const;
@@ -83,6 +86,7 @@ public:
 private:
     TLogManager* LogManager_;
     const TLoggingCategory* Category_;
+    bool Essential_;
 
     TString Context_;
 };

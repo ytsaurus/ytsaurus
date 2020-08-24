@@ -525,7 +525,7 @@ public:
         }
 
         // NB: Always allow system messages to pass through.
-        if (Suspended_ && event.Category != SystemCategory_) {
+        if (Suspended_ && event.Category != SystemCategory_ && !event.Essential) {
             ++DroppedEvents_;
             return;
         }
