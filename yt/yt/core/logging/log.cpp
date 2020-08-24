@@ -87,11 +87,13 @@ thread_local bool TMessageStringBuilder::CacheDestroyed_;
 TLogger::TLogger()
     : LogManager_(nullptr)
     , Category_(nullptr)
+    , Essential_(false)
 { }
 
-TLogger::TLogger(TStringBuf categoryName)
+TLogger::TLogger(TStringBuf categoryName, bool essential)
     : LogManager_(TLogManager::Get())
     , Category_(LogManager_->GetCategory(categoryName))
+    , Essential_(essential)
 { }
 
 TLogger::operator bool() const
@@ -120,6 +122,11 @@ bool TLogger::IsLevelEnabled(ELogLevel level) const
 bool TLogger::GetAbortOnAlert() const
 {
     return LogManager_->GetAbortOnAlert();
+}
+
+bool TLogger::Essential() const
+{
+    return Essential_;
 }
 
 bool TLogger::IsPositionUpToDate(const TLoggingPosition& position) const
