@@ -3415,15 +3415,34 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* sourceTransaction = sourceTransactionId
-            ? transactionManager->GetTransaction(sourceTransactionId)
+            ? transactionManager->FindTransaction(sourceTransactionId)
             : nullptr;
+        if (sourceTransactionId && !IsObjectAlive(sourceTransaction)) {
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Source transaction is not alive (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
+                sourceNodeId,
+                clonedNodeId,
+                sourceTransactionId,
+                clonedTransactionId,
+                mode);
+            return;
+        }
+        
         auto* clonedTransaction = clonedTransactionId
-            ? transactionManager->GetTransaction(clonedTransactionId)
+            ? transactionManager->FindTransaction(clonedTransactionId)
             : nullptr;
+        if (clonedTransactionId && !IsObjectAlive(clonedTransaction)) {
+            YT_LOG_ALERT_UNLESS(IsRecovery(), "Cloned transaction is not alive (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
+                sourceNodeId,
+                clonedNodeId,
+                sourceTransactionId,
+                clonedTransactionId,
+                mode);
+            return;
+        }
 
         auto* sourceTrunkNode = FindNode(TVersionedObjectId(sourceNodeId));
         if (!IsObjectAlive(sourceTrunkNode)) {
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Attempted to clone non-existing foreign node (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
+            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Attempted to clone a non-alive foreign node (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
                 sourceNodeId,
                 clonedNodeId,
                 sourceTransactionId,

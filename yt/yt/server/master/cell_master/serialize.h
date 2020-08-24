@@ -117,6 +117,7 @@ DEFINE_ENUM(EMasterReign,
     ((ForbidReshardWhenTableIsLockedByTransaction)                  (1329))  // savrus
     ((FixReshardNonEmptyReplicatedTable)                            (1330))  // ifsmirnov
     ((DisallowSettingBundleOfMountedTables)                         (1331))  // ifsmirnov
+    ((NonAliveTxInCloneForeignNode)                                 (1332))  // babenko
     ((SubjectAliases)                                               (1400))  // s-v-m
     ((OpaquePortalEntrances)                                        (1401))  // shakurov
     ((MultisetAttributes)                                           (1402))  // gritukan
