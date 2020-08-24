@@ -53,4 +53,12 @@ public class MappedObject {
     public int hashCode() {
         return Objects.hash(k1, v1);
     }
+
+    @Override
+    public String toString() {
+        return "MappedObject{" +
+                "k1=" + k1 +
+                ", v1='" + v1 + '\'' +
+                '}';
+    }
 }

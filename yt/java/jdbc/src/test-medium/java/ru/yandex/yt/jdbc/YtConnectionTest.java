@@ -74,10 +74,8 @@ class YtConnectionTest {
 
         client = ((YtConnection) permanentConnection).getClient();
 
-        final String dir = home + "/dir1";
-        table = dir + "/table1";
-        YtClientTest.createDirectory(client, dir);
-        YtClientTest.createTable(client, table);
+        table = home + "/dir1/table1";
+        YtClientTest.createDynamicTable(client, table);
 
         final Collection<MappedObject> objects = Arrays.asList(
                 new MappedObject(1, "test1"),
