@@ -11,6 +11,8 @@ from .transaction_commands import _make_transactional_request
 from .thread_pool import ThreadPool
 from .heavy_commands import WriteRequestRetrier
 
+from yt.common import YT_NULL_TRANSACTION_ID
+
 import copy
 import random
 import threading
@@ -89,7 +91,8 @@ class ParallelWriter(object):
             bucket_count = get_config(client)["remote_temp_tables_bucket_count"]
             bucket = "{:03}".format(random.randrange(bucket_count))
             temp_directory = ypath_join(temp_directory, bucket)
-            mkdir(temp_directory, recursive=True, client=client)
+            with client.Transaction(transaction_id=YT_NULL_TRANSACTION_ID):
+                mkdir(temp_directory, recursive=True, client=client)
             if not temp_directory.endswith("/"):
                 temp_directory = temp_directory + "/"
             path = find_free_subpath(temp_directory, client=client)
