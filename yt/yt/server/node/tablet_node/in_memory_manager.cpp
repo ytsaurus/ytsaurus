@@ -51,6 +51,8 @@
 
 #include <yt/core/rpc/local_channel.h>
 
+#include <yt/core/net/local_address.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -1025,8 +1027,7 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
 {
     std::vector<TNodePtr> nodes;
     for (const auto& target : cellDescriptor.Peers) {
-        auto channel = target.GetVoting()
-            // There is just one voting peer -- the local one.
+        auto channel = target.GetDefaultAddress() == NNet::GetLocalHostName()
             ? CreateLocalChannel(localRpcServer)
             : client->GetChannelFactory()->CreateChannel(target);
 
