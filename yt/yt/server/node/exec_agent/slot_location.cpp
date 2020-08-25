@@ -54,6 +54,7 @@ TSlotLocation::TSlotLocation(
     , Bootstrap_(bootstrap)
     , JobDirectoryManager_(std::move(jobDirectoryManager))
     , EnableTmpfs_(enableTmpfs)
+    , SlotCount_(slotCount)
     , SlotIndexToUserId_(slotIndexToUserId)
     , HeavyLocationQueue_(New<TActionQueue>(Format("HeavyIO:%v", id)))
     , LightLocationQueue_(New<TActionQueue>(Format("LightIO:%v", id)))
@@ -69,46 +70,62 @@ TSlotLocation::TSlotLocation(
         BIND(&TSlotLocation::UpdateDiskResources, MakeWeak(this)),
         Bootstrap_->GetConfig()->ExecAgent->SlotManager->DiskResourcesUpdatePeriod))
     , LocationPath_(NFS::GetRealPath(Config_->Path))
+{ }
+
+TFuture<void> TSlotLocation::Initialize()
 {
     Enabled_ = true;
 
-    try {
-        NFS::MakeDirRecursive(Config_->Path, 0755);
+    return BIND([=, this_ = MakeStrong(this)] {
+        try {
+            NFS::MakeDirRecursive(Config_->Path, 0755);
 
-        WaitFor(HealthChecker_->RunCheck())
-            .ThrowOnError();
+            WaitFor(HealthChecker_->RunCheck())
+                .ThrowOnError();
 
-        ValidateMinimumSpace();
+            ValidateMinimumSpace();
 
-        for (int slotIndex = 0; slotIndex < slotCount; ++slotIndex) {
-            for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
-                auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
+            for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
+                for (auto sandboxKind : TEnumTraits<ESandboxKind>::GetDomainValues()) {
+                    auto sandboxPath = GetSandboxPath(slotIndex, sandboxKind);
 
-                if (!NFS::Exists(sandboxPath)) {
-                    continue;
+                    try { 
+                        if (!NFS::Exists(sandboxPath)) {
+                            continue;
+                        }
+
+                        if (NFS::EnumerateFiles(sandboxPath).empty() && NFS::EnumerateDirectories(sandboxPath).empty()) {
+                            continue;
+                        }
+                    } catch (const std::exception& ex) {
+                        // In case of any errors (e.g. no permissions) we swallow exception and
+                        // fallback to removing slots.
+                    }
+
+                    if (Bootstrap_->IsSimpleEnvironment()) {
+                        NFS::RemoveRecursive(sandboxPath);
+                    } else {
+                        RunTool<TRemoveDirAsRootTool>(sandboxPath);
+                    }
                 }
 
-                if (Bootstrap_->IsSimpleEnvironment()) {
-                    NFS::RemoveRecursive(sandboxPath);
-                } else {
-                    RunTool<TRemoveDirAsRootTool>(sandboxPath);
-                }
+                CreateSandboxDirectories(slotIndex);
             }
-
-            CreateSandboxDirectories(slotIndex);
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to initialize slot location %v", Config_->Path)
+                << ex;
+            Disable(error);
+            return;
         }
-    } catch (const std::exception& ex) {
-        auto error = TError("Failed to initialize slot location %v", Config_->Path)
-            << ex;
-        Disable(error);
-        return;
-    }
 
-    HealthChecker_->SubscribeFailed(BIND(&TSlotLocation::Disable, MakeWeak(this))
-        .Via(HeavyInvoker_));
-    HealthChecker_->Start();
+        HealthChecker_->SubscribeFailed(BIND(&TSlotLocation::Disable, MakeWeak(this))
+            .Via(HeavyInvoker_));
+        HealthChecker_->Start();
 
-    DiskResourcesUpdateExecutor_->Start();
+        DiskResourcesUpdateExecutor_->Start();
+    })
+    .AsyncVia(HeavyInvoker_)
+    .Run();
 }
 
 TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options)
