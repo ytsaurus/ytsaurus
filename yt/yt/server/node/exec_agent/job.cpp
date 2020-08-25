@@ -1829,6 +1829,8 @@ private:
         i64 totalUtilizationMemory = 0;
         i64 totalLoad = 0;
         i64 totalMaxMemoryUsed = 0;
+        i64 totalUtilizationPower = 0;
+        i64 totalUtilizationClocksSm = 0;
 
         auto gpuInfoMap = Bootstrap_->GetGpuManager()->GetGpuInfoMap();
         for (int index = 0; index < GpuSlots_.size(); ++index) {
@@ -1853,6 +1855,12 @@ private:
             if (gpuInfo.UtilizationGpuRate > 0) {
                 slotStatistics.CumulativeLoad += (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds();
             }
+            slotStatistics.CumulativeUtilizationPower +=
+                (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
+                (gpuInfo.PowerDraw / gpuInfo.PowerLimit);
+            slotStatistics.CumulativeUtilizationClocksSm +=
+                (gpuInfo.UpdateTime - slotStatistics.LastUpdateTime).MilliSeconds() *
+                (static_cast<double>(gpuInfo.ClocksSm) / gpuInfo.ClocksMaxSm);
             slotStatistics.MaxMemoryUsed = std::max(slotStatistics.MaxMemoryUsed, gpuInfo.MemoryUsed);
             slotStatistics.LastUpdateTime = gpuInfo.UpdateTime;
 
@@ -1860,10 +1868,14 @@ private:
             totalUtilizationMemory += slotStatistics.CumulativeUtilizationMemory;
             totalLoad += slotStatistics.CumulativeLoad;
             totalMaxMemoryUsed += slotStatistics.MaxMemoryUsed;
+            totalUtilizationPower += slotStatistics.CumulativeUtilizationPower;
+            totalUtilizationClocksSm += slotStatistics.CumulativeUtilizationClocksSm;
         }
 
         statistics.AddSample("/user_job/gpu/utilization_gpu", totalUtilizationGpu);
         statistics.AddSample("/user_job/gpu/utilization_memory", totalUtilizationMemory);
+        statistics.AddSample("/user_job/gpu/utilization_power", totalUtilizationPower);
+        statistics.AddSample("/user_job/gpu/utilization_clocks_sm", totalUtilizationClocksSm);
         statistics.AddSample("/user_job/gpu/load", totalLoad);
         statistics.AddSample("/user_job/gpu/memory_used", totalMaxMemoryUsed);
 

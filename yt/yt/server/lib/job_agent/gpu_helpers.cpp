@@ -16,6 +16,7 @@
 #include <util/string/strip.h>
 #include <util/string/subst.h>
 #include <util/string/split.h>
+#include <util/string/join.h>
 
 namespace NYT::NJobAgent {
 
@@ -35,6 +36,48 @@ static const TString NvidiaModuleVersionPath("/sys/module/nvidia/version");
 static const THashSet<TString> MetaGpuDevices = {
     "/dev/nvidiactl",
     "/dev/nvidia-uvm"
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TGpuMetricsIndex
+{
+    TGpuMetricsIndex()
+        : Uuid(Register("uuid"))
+        , Name(Register("name"))
+        , UtilizationGpu(Register("utilization.gpu"))
+        , UtilizationMemory(Register("utilization.memory"))
+        , MemoryUsed(Register("memory.used"))
+        , PowerDraw(Register("power.draw"))
+        , PowerLimit(Register("power.limit"))
+        , ClocksSm(Register("clocks.sm"))
+        , ClocksMaxSm(Register("clocks.max.sm"))
+    { }
+
+    int Register(const TString& name)
+    {
+        int index = Names.size();
+        Names.push_back(name);
+        return index;
+    }
+
+    TString GetQueryString() const
+    {
+        return JoinSeq(",", Names);
+    }
+
+    std::vector<TString> Names;
+
+    int Uuid;
+    int Name;
+    int UtilizationGpu;
+    int UtilizationMemory;
+    int MemoryUsed;
+    int MemoryTotal;
+    int PowerDraw;
+    int PowerLimit;
+    int ClocksSm;
+    int ClocksMaxSm;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,8 +178,10 @@ std::vector<TGpuInfo> GetGpuInfos(TDuration checkTimeout)
         THROW_ERROR_EXCEPTION("Getting gpu information timed out");
     }
 
+    TGpuMetricsIndex Index;
+
     TSubprocess subprocess("nvidia-smi");
-    subprocess.AddArguments({"--query-gpu=uuid,name,utilization.gpu,utilization.memory,memory.used", "--format=csv,noheader,nounits"});
+    subprocess.AddArguments({"--query-gpu=" + Index.GetQueryString(), "--format=csv,noheader,nounits"});
 
     auto killCookie = TDelayedExecutor::Submit(
         BIND([&] () {
@@ -166,14 +211,15 @@ std::vector<TGpuInfo> GetGpuInfos(TDuration checkTimeout)
     std::vector<TGpuInfo> result;
     for (TStringBuf line : StringSplitter(output).Split('\n').SkipEmpty()) {
         std::vector<TStringBuf> tokens = StringSplitter(line).Split(',');
-        if (tokens.size() != 5) {
+        if (tokens.size() != Index.Names.size()) {
             THROW_ERROR_EXCEPTION(
-                "Invalid 'nvidia-smi --query-gpu' output format: expected 4 comma separated values, but got %Qv",
+                "Invalid 'nvidia-smi --query-gpu' output format: expected %v comma separated values, but got %Qv",
+                Index.Names.size(),
                 line);
         }
 
         TGpuInfo info;
-        auto gpuId = StripString(tokens[0]);
+        auto gpuId = StripString(tokens[Index.Uuid]);
         {
             auto it = gpuIdToNumber.find(gpuId);
             if (it == gpuIdToNumber.end()) {
@@ -182,10 +228,15 @@ std::vector<TGpuInfo> GetGpuInfos(TDuration checkTimeout)
             }
             info.Index = it->second;
         }
-        info.Name = SubstGlobalCopy(to_lower(TString(StripString(tokens[1]))), ' ', '_');
-        info.UtilizationGpuRate = FromString<i64>(StripString(tokens[2])) / 100.0;
-        info.UtilizationMemoryRate = FromString<i64>(StripString(tokens[3])) / 100.0;
-        info.MemoryUsed = FromString<i64>(StripString(tokens[4])) * 1_MB;
+        info.Name = SubstGlobalCopy(to_lower(TString(StripString(tokens[Index.Name]))), ' ', '_');
+        info.UtilizationGpuRate = FromString<i64>(StripString(tokens[Index.UtilizationGpu])) / 100.0;
+        info.UtilizationMemoryRate = FromString<i64>(StripString(tokens[Index.UtilizationMemory])) / 100.0;
+        info.MemoryUsed = FromString<i64>(StripString(tokens[Index.MemoryUsed])) * 1_MB;
+        info.MemoryTotal = FromString<i64>(StripString(tokens[Index.MemoryTotal])) * 1_MB;
+        info.PowerDraw = FromString<double>(StripString(tokens[Index.PowerDraw]));
+        info.PowerLimit = FromString<double>(StripString(tokens[Index.PowerLimit]));
+        info.ClocksSm = FromString<i64>(StripString(tokens[Index.ClocksSm]));
+        info.ClocksMaxSm = FromString<i64>(StripString(tokens[Index.ClocksMaxSm]));
         result.emplace_back(std::move(info));
     }
 
@@ -259,6 +310,11 @@ void ProfileGpuInfo(NProfiling::TProfiler& profiler, const TGpuInfo& gpuInfo, co
     profiler.Enqueue("/utilization_gpu_rate_x1000", gpuInfo.UtilizationGpuRate, NProfiling::EMetricType::Gauge, tagIds);
     profiler.Enqueue("/utilization_memory_rate_x1000", gpuInfo.UtilizationMemoryRate, NProfiling::EMetricType::Gauge, tagIds);
     profiler.Enqueue("/memory_used", gpuInfo.MemoryUsed, NProfiling::EMetricType::Gauge, tagIds);
+    profiler.Enqueue("/memory_limit", gpuInfo.MemoryTotal, NProfiling::EMetricType::Gauge, tagIds);
+    profiler.Enqueue("/power_used", gpuInfo.PowerDraw, NProfiling::EMetricType::Gauge, tagIds);
+    profiler.Enqueue("/power_limit", gpuInfo.PowerLimit, NProfiling::EMetricType::Gauge, tagIds);
+    profiler.Enqueue("/clocks_sm_used", gpuInfo.ClocksSm, NProfiling::EMetricType::Gauge, tagIds);
+    profiler.Enqueue("/clocks_sm_limit", gpuInfo.ClocksMaxSm, NProfiling::EMetricType::Gauge, tagIds);
 }
 
 TGpuDriverVersion TGpuDriverVersion::FromString(TStringBuf driverVersionString)

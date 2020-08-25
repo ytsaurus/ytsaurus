@@ -1395,6 +1395,11 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                             .Item("utilization_gpu_rate").Value(gpuInfo.UtilizationGpuRate)
                             .Item("utilization_memory_rate").Value(gpuInfo.UtilizationMemoryRate)
                             .Item("memory_used").Value(gpuInfo.MemoryUsed)
+                            .Item("memory_limit").Value(gpuInfo.MemoryTotal)
+                            .Item("power_used").Value(gpuInfo.PowerDraw)
+                            .Item("power_limit").Value(gpuInfo.PowerLimit)
+                            .Item("clocks_sm_used").Value(gpuInfo.ClocksSm)
+                            .Item("clocks_sm_limit").Value(gpuInfo.ClocksMaxSm)
                         .EndMap();
                 }
             )
