@@ -1,5 +1,5 @@
 from .conftest import authors
-from .helpers import (get_tests_sandbox, TEST_DIR, get_tests_location, wait_record_in_job_archive,
+from .helpers import (get_tests_sandbox, TEST_DIR, wait_record_in_job_archive,
                       yatest_common, get_operation_path)
 
 from yt.common import to_native_str, YT_NULL_TRANSACTION_ID
@@ -23,11 +23,6 @@ import json
 NODE_ORCHID_JOB_PATH_PATTERN = "//sys/cluster_nodes/{0}/orchid/job_controller/active_jobs/scheduler/{1}"
 
 class TestJobTool(object):
-    if yatest_common is None:
-        JOB_TOOL_BINARY = os.path.join(os.path.dirname(get_tests_location()), "bin", "yt-job-tool")
-    else:
-        JOB_TOOL_BINARY = arcadia_interop.search_binary_path("yt-job-tool")
-
     TEXT_YSON = "<format=pretty>yson"
 
     def get_failing_command(self):
@@ -38,7 +33,8 @@ class TestJobTool(object):
 
     def setup(self):
         self._tmpdir = tempfile.mkdtemp(dir=get_tests_sandbox())
-        os.chmod(self._tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO) # allow user job to write to this directory
+        # allow user job to write to this directory
+        os.chmod(self._tmpdir, stat.S_IRWXU | stat.S_IRWXG | stat.S_IRWXO)
 
     def _prepare_job_environment(self, yt_env_job_archive, operation_id, job_id,
                                  get_context_mode=INPUT_CONTEXT_MODE):
@@ -47,7 +43,8 @@ class TestJobTool(object):
         else:
             args = []
         args += [
-            self.JOB_TOOL_BINARY,
+            arcadia_interop.search_binary_path("yt"),
+            "job-tool",
             "prepare-job-environment",
             operation_id,
             job_id,
@@ -61,7 +58,7 @@ class TestJobTool(object):
             wait_record_in_job_archive(operation_id, job_id)
         else:
             args += ["--context"]
-        return subprocess.check_output(args).strip()
+        return subprocess.check_output(args, stderr=sys.stderr).strip()
 
     def _check(self, operation_id, yt_env_job_archive, check_running=False,
                get_context_mode=INPUT_CONTEXT_MODE, expect_ok_return_code=False):
@@ -111,8 +108,9 @@ class TestJobTool(object):
         assert config["job_id"] == job_id
 
         if not check_running:
-            proc = subprocess.Popen([self.JOB_TOOL_BINARY, "run-job", job_path,
-                                     "--env", '{PATH="/bin:/usr/bin:' + os.environ["PATH"] +'"}'],
+            proc = subprocess.Popen([arcadia_interop.search_binary_path("yt"), "job-tool",
+                                     "run-job", job_path,
+                                     "--env", '{PATH="/bin:/usr/bin:' + os.environ["PATH"] + '"}'],
                                     stderr=subprocess.PIPE)
             proc.wait()
 

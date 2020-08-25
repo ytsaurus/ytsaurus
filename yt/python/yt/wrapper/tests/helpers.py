@@ -56,7 +56,7 @@ def get_test_file_path(name, use_files=True):
             os.makedirs(dir_path)
         with open(file_path, "wb") as fout:
             files_dir = "files/" if use_files else ""
-            resource_path = "resfs/file/yt_python_test/../" + files_dir + name
+            resource_path = "/yt_python_test/" + files_dir + name
             fout.write(library.python.resource.find(resource_path))
         os.chmod(file_path, 0o744)
         return file_path
@@ -65,6 +65,21 @@ def get_test_file_path(name, use_files=True):
             return os.path.join(get_tests_location(), "files", name)
         else:
             return os.path.join(get_tests_location(), name)
+
+def get_binary_path(name):
+    if yatest_common is not None:
+        import library.python.resource
+        file_path = os.path.join(yatest_common.work_path(), "tmp_files", name)
+        dir_path = os.path.dirname(file_path)
+        if not os.path.exists(dir_path):
+            os.makedirs(dir_path)
+        with open(file_path, "wb") as fout:
+            resource_path = "/binaries/" + name
+            fout.write(library.python.resource.find(resource_path))
+        os.chmod(file_path, 0o744)
+        return file_path
+    else:
+        return os.path.join(get_tests_location(), "../bin", name)
 
 def get_port_locks_path():
     path = get_tmpfs_path()
@@ -148,8 +163,8 @@ def get_environment_for_binary_test(yt_env, enable_request_logging=True):
         mapreduce_binary = os.path.join(binaries_dir, "mapreduce-yt")
     else:
         python_binary = get_python()
-        yt_binary = get_test_file_path("../bin/yt", use_files=False)
-        mapreduce_binary = get_test_file_path("../bin/mapreduce-yt", use_files=False)
+        yt_binary = get_binary_path("yt")
+        mapreduce_binary = get_binary_path("mapreduce-yt")
 
     env = {
         "PYTHON_BINARY": python_binary,

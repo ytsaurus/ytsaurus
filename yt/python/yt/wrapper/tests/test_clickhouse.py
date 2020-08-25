@@ -53,6 +53,8 @@ class ClickhouseTestBase(object):
     def _setup(self):
         if yt.config["backend"] in ("native", "rpc"):
             pytest.skip()
+        if os.environ.get("YTRECIPE") is not None:
+            pytest.skip()
 
         if yt.exists("//sys/clickhouse/defaults"):
             return
