@@ -18,6 +18,8 @@
 
 #include <yt/core/misc/optional.h>
 
+#include <yt/core/ytree/fluent.h>
+
 namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,6 +95,8 @@ struct IJob
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() = 0;
     virtual TString GetStderr() = 0;
     virtual std::optional<TString> GetFailContext() = 0;
+
+    virtual void BuildOrchid(NYTree::TFluentMap fluent) const = 0;
 
     /*
      * \note Thread affinity: any

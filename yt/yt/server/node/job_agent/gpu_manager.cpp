@@ -75,9 +75,20 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
         Config_->DriverLayerFetchPeriod,
         /*splay*/ Config_->DriverLayerFetchPeriod))
 {
-    auto descriptors = NJobAgent::ListGpuDevices();
-    bool hasGpuDevices = !descriptors.empty() || Config_->TestLayers;
-    if (hasGpuDevices) {
+    std::vector<TGpuDeviceDescriptor> descriptors;
+    bool shouldInitializeLayers;
+
+    if (Config_->TestResource) {
+        for (int index = 0; index < Config_->TestGpuCount; ++index) {
+            descriptors.push_back(TGpuDeviceDescriptor{Format("/dev/nvidia%v", index), index});
+        }
+        shouldInitializeLayers = Config_->TestLayers;
+    } else {
+        descriptors = NJobAgent::ListGpuDevices();
+        shouldInitializeLayers = !descriptors.empty();
+    }
+
+    if (shouldInitializeLayers) {
         try {
             DriverVersionString_ = Config_->DriverVersion ? *Config_->DriverVersion : GetGpuDriverVersionString();
         } catch (const std::exception& ex) {
@@ -94,7 +105,7 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
             DriverLayerPath_,
             DriverVersionString_);
 
-        if (hasGpuDevices) {
+        if (shouldInitializeLayers) {
             FetchDriverLayerExecutor_->Start();
         } else {
             OnFetchDriverLayerInfo();
@@ -114,10 +125,13 @@ TGpuManager::TGpuManager(TBootstrap* bootstrap, TGpuManagerConfigPtr config)
 
         TGpuInfo info;
         info.UpdateTime = now;
+        info.Index = descriptor.DeviceNumber;
         YT_VERIFY(HealthyGpuInfoMap_.emplace(descriptor.DeviceNumber, info).second);
     }
 
-    HealthCheckExecutor_->Start();
+    if (!Config_->TestResource) {
+        HealthCheckExecutor_->Start();
+    }
 }
 
 void TGpuManager::OnHealthCheck()
@@ -159,7 +173,7 @@ void TGpuManager::OnHealthCheck()
             }
 
             std::vector<TGpuSlot> healthySlots;
-            for (auto& slot: FreeSlots_) {
+            for (auto& slot : FreeSlots_) {
                 if (HealthyGpuInfoMap_.find(slot.GetDeviceNumber()) == HealthyGpuInfoMap_.end()) {
                     YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
                         slot.GetDeviceName());
@@ -279,6 +293,79 @@ TGpuManager::TGpuSlotPtr TGpuManager::AcquireGpuSlot()
     YT_LOG_DEBUG("Acquired GPU slot (DeviceName: %v)",
         slot->GetDeviceName());
     return slot;
+}
+
+std::vector<TGpuManager::TGpuSlotPtr> TGpuManager::AcquireGpuSlots(int slotCount)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = Guard(SpinLock_);
+    YT_VERIFY(FreeSlots_.size() >= slotCount);
+
+    // TODO(ignat): use actual topology of GPU-s.
+    // nvidia-smi topo -p2p r
+    int levelCount = 4;
+    // NB: std::map used to make the behaviour deterministic.
+    std::vector<std::map<int, std::vector<int>>> freeDeviceNumberPerLevelPerGroup(levelCount);
+    for (const auto& slot : FreeSlots_) {
+        int number = slot.GetDeviceNumber();
+        for (int levelIndex = 0; levelIndex < levelCount; ++levelIndex) {
+            int groupIndex = number / (1 << levelIndex);
+            freeDeviceNumberPerLevelPerGroup[levelIndex][groupIndex].push_back(number);
+        }
+    }
+
+    THashSet<int> resultDeviceNumbers;
+    bool found = false;
+    for (int levelIndex = 0; levelIndex < levelCount && !found; ++levelIndex) {
+        for (const auto& [_, slots] : freeDeviceNumberPerLevelPerGroup[levelIndex]) {
+            if (slots.size() >= slotCount) {
+                found = true;
+                for (int index = 0; index < slotCount; ++index) {
+                    resultDeviceNumbers.insert(slots[index]);
+                }
+                break;
+            }
+        }
+    }
+
+    YT_VERIFY(found);
+    YT_VERIFY(resultDeviceNumbers.size() == slotCount);
+
+    YT_LOG_DEBUG("Acquired GPU slots (DeviceNumbers: %v)",
+        resultDeviceNumbers);
+
+    auto deleter = [this, this_ = MakeStrong(this)] (TGpuSlot* slot) {
+        YT_LOG_DEBUG("Released GPU slot (DeviceName: %v)",
+            slot->GetDeviceName());
+
+        auto guard = Guard(this_->SpinLock_);
+        if (HealthyGpuInfoMap_.find(slot->GetDeviceNumber()) == HealthyGpuInfoMap_.end()) {
+            guard.Release();
+            YT_LOG_WARNING("Found lost GPU device (DeviceName: %v)",
+                slot->GetDeviceName());
+            Bootstrap_->GetMasterConnector()->RegisterAlert(TError("Found lost GPU device %v",
+                slot->GetDeviceName()));
+        } else {
+            this_->FreeSlots_.emplace_back(std::move(*slot));
+        }
+
+        delete slot;
+    };
+
+    std::vector<TGpuSlotPtr> resultSlots;
+    std::vector<TGpuSlot> remainingSlots;
+    for (auto& slot : FreeSlots_) {
+        if (resultDeviceNumbers.contains(slot.GetDeviceNumber())) {
+            resultSlots.push_back(TGpuSlotPtr(new TGpuSlot(std::move(slot)), deleter));
+        } else {
+            remainingSlots.push_back(std::move(slot));
+        }
+    }
+
+    swap(FreeSlots_, remainingSlots);
+
+    return resultSlots;
 }
 
 std::vector<TShellCommandConfigPtr> TGpuManager::GetSetupCommands()

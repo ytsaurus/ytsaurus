@@ -34,6 +34,8 @@ struct TJobEvent
 
 using TJobEvents = std::vector<TJobEvent>;
 
+void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobProfile

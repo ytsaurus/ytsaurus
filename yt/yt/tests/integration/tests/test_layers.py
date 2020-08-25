@@ -459,6 +459,7 @@ class TestGpuLayer(YTEnvSetup):
                     "driver_layer_fetch_period": 10000,
                     "test_resource": True,
                     "test_layers": True,
+                    "test_gpu_count": 1,
                 }
             },
             "slot_manager": {
@@ -532,6 +533,7 @@ class TestGpuLayerUpdate(YTEnvSetup):
                     "driver_layer_fetch_period": 10000,
                     "test_resource": True,
                     "test_layers": True,
+                    "test_gpu_count": 1,
                 }
             },
             "slot_manager": {
@@ -617,6 +619,7 @@ class TestCudaLayer(YTEnvSetup):
                     },
                     "test_resource": True,
                     "test_layers": True,
+                    "test_gpu_count": 1,
                 }
             },
             "slot_manager": {
@@ -696,6 +699,7 @@ class TestForceCudaLayer(YTEnvSetup):
                         "args": ["-c", "echo SETUP-OUTPUT > /playground/setup_output_file"]
                     },
                     "test_resource": True,
+                    "test_gpu_count": 1,
                 }
             },
             "slot_manager": {

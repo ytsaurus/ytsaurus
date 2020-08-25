@@ -352,8 +352,9 @@ class TestSchedulerGpu(YTEnvSetup):
             cls.node_counter = 0
         cls.node_counter += 1
         if cls.node_counter == 1:
-            config["exec_agent"]["job_controller"]["resource_limits"]["gpu"] = 1
-            config["exec_agent"]["job_controller"]["gpu_manager"] = {"test_resource": True}
+            config["exec_agent"]["job_controller"]["resource_limits"]["user_slots"] = 4
+            config["exec_agent"]["job_controller"]["resource_limits"]["cpu"] = 4
+            config["exec_agent"]["job_controller"]["gpu_manager"] = {"test_resource": True, "test_gpu_count": 4}
 
     @authors("renadeen")
     def test_job_count(self):
@@ -385,7 +386,54 @@ class TestSchedulerGpu(YTEnvSetup):
     def test_min_share_resources(self):
         create_pool("gpu_pool", attributes={"min_share_resources": {"gpu": 1}})
         wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/min_share_resources/gpu") == 1)
-        wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/min_share_ratio") == 1.0)
+        wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/min_share_ratio") == 0.25)
+    
+    @authors("ignat")
+    def test_packing(self):
+        gpu_nodes = [node for node in ls("//sys/cluster_nodes") if get("//sys/cluster_nodes/{}/@resource_limits/gpu".format(node)) > 0]
+        assert len(gpu_nodes) == 1
+        gpu_node = gpu_nodes[0]
+
+        create("table", "//tmp/in")
+        create("table", "//tmp/out1")
+        create("table", "//tmp/out2")
+        write_table("//tmp/in", [{"foo": i} for i in range(3)])
+
+        op1 = map(
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            in_="//tmp/in",
+            out="//tmp/out1",
+            spec={"mapper": {
+                "gpu_limit": 1,
+                "enable_gpu_layers": False,
+            }},
+            track=False)
+
+        wait(lambda: get("//sys/cluster_nodes/{}/@resource_usage/gpu".format(gpu_node)) == 1)
+
+        jobs = op1.get_running_jobs()
+        assert len(jobs) == 1
+        assert jobs.values()[0]["address"] == gpu_node
+        job_info = get("//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}".format(gpu_node, jobs.keys()[0]))
+        assert [device["device_number"] for device in job_info["exec_attributes"]["gpu_devices"]] == [0]
+        
+        op2 = map(
+            command=with_breakpoint("cat ; BREAKPOINT"),
+            in_="//tmp/in",
+            out="//tmp/out2",
+            spec={"mapper": {
+                "gpu_limit": 2,
+                "enable_gpu_layers": False,
+            }},
+            track=False)
+
+        wait(lambda: get("//sys/cluster_nodes/{}/@resource_usage/gpu".format(gpu_node)) == 3)
+
+        jobs = op2.get_running_jobs()
+        assert len(jobs) == 1
+        assert jobs.values()[0]["address"] == gpu_node
+        job_info = get("//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}".format(gpu_node, jobs.keys()[0]))
+        assert __builtin__.set([device["device_number"] for device in job_info["exec_attributes"]["gpu_devices"]]) == __builtin__.set([2, 3])
 
 ###############################################################################################
 
