@@ -2,8 +2,8 @@ from __future__ import print_function
 
 from .conftest import authors
 from .helpers import (TEST_DIR, get_tests_sandbox, get_test_file_path, wait, get_default_resource_limits,
-                      get_environment_for_binary_test, check, set_config_options, set_config_option,
-                      get_python, get_environment_for_binary_test)
+                      check, set_config_options, set_config_option,
+                      get_python, get_binary_path, get_environment_for_binary_test)
 
 from yt.subprocess_wrapper import Popen, PIPE
 from yt.wrapper.errors import YtRetriableError
@@ -171,7 +171,7 @@ class TestYtBinary(object):
         # TODO(ignat): use compiled yt
         proc = subprocess.Popen(
             [
-                get_python(), get_test_file_path("../bin/yt", use_files=False),
+                get_python(), get_binary_path("yt"),
                 "map", "cat",
                 "--format", "yson",
                 "--src", TEST_DIR + "/input",

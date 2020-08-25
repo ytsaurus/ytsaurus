@@ -1,9 +1,19 @@
 from .conftest import authors
 from .helpers import TEST_DIR
 
-from yt.wrapper.cypress_fuse import CachedYtClient, Cypress
+try:
+    import yt.wrapper.cypress_fuse as cypress_fuse
+# Process OSError('Unable for find libfuse')
+except (ImportError, OSError, EnvironmentError):
+    cypress_fuse = None
 
-from yt.packages.fuse import fuse_file_info, FuseOSError
+try:
+    from yt.packages.fuse import fuse_file_info, FuseOSError
+# Process OSError('Unable for find libfuse')
+except (ImportError, OSError, EnvironmentError):
+    fuse_file_info = None
+    FuseOSError = None
+
 from yt.packages.six import iterkeys, PY3
 from yt.packages.six.moves import xrange
 
@@ -13,34 +23,35 @@ import pytest
 import random
 import json
 
+@pytest.mark.skipif('os.environ.get("YTRECIPE") is not None')
 @pytest.mark.usefixtures("yt_env")
 class TestCachedYtClient(object):
     @authors("acid")
     def test_list(self):
-        client = CachedYtClient(config=yt.config.config)
+        client = cypress_fuse.CachedYtClient(config=yt.config.config)
         assert sorted(client.list("/")) == sorted(yt.list("/"))
 
     @authors("acid")
     def test_list_nonexistent(self):
-        client = CachedYtClient(config=yt.config.config)
+        client = cypress_fuse.CachedYtClient(config=yt.config.config)
         with pytest.raises(yt.YtError):
             client.list("//nonexistent")
 
     @authors("acid")
     def test_get_attributes_empty(self):
-        client = CachedYtClient(config=yt.config.config)
+        client = cypress_fuse.CachedYtClient(config=yt.config.config)
         assert client.get_attributes("//sys", []) == {}
 
     @authors("acid")
     def test_get_attributes_nonexistent(self):
-        client = CachedYtClient(config=yt.config.config)
+        client = cypress_fuse.CachedYtClient(config=yt.config.config)
         assert client.get_attributes("//sys", ["nonexistent"]) == {}
         # Get cached attribute again.
         assert client.get_attributes("//sys", ["nonexistent"]) == {}
 
     @authors("acid")
     def test_get_attributes_list(self, yt_env):
-        client = CachedYtClient(config=yt.config.config)
+        client = cypress_fuse.CachedYtClient(config=yt.config.config)
 
         real_attributes = yt.get("//home/@")
         for attribute in list(real_attributes):
@@ -62,21 +73,21 @@ class TestCachedYtClient(object):
         for name in sample_names:
             assert real_attributes[name] == cached_attributes[name]
 
-
+@pytest.mark.skipif('os.environ.get("YTRECIPE") is not None')
 @pytest.mark.usefixtures("yt_env")
 class TestCypress(object):
     @authors("acid")
     def test_readdir(self):
-        cypress = Cypress(
-            CachedYtClient(config=yt.config.config),
+        cypress = cypress_fuse.Cypress(
+            cypress_fuse.CachedYtClient(config=yt.config.config),
             enable_write_access=False)
 
         assert sorted(cypress.readdir("/", None)) == sorted(yt.list("/"))
 
     @authors("acid")
     def test_read_file(self):
-        cypress = Cypress(
-            CachedYtClient(config=yt.config.config),
+        cypress = cypress_fuse.Cypress(
+            cypress_fuse.CachedYtClient(config=yt.config.config),
             enable_write_access=False)
 
         filepath = TEST_DIR + "/file"
@@ -102,8 +113,8 @@ class TestCypress(object):
 
     @authors("acid")
     def test_read_table(self):
-        cypress = Cypress(
-            CachedYtClient(config=yt.config.config),
+        cypress = cypress_fuse.Cypress(
+            cypress_fuse.CachedYtClient(config=yt.config.config),
             enable_write_access=False)
 
         filepath = TEST_DIR + "/file"
@@ -135,8 +146,8 @@ class TestCypress(object):
 
     @authors("acid")
     def test_create_file(self):
-        cypress = Cypress(
-            CachedYtClient(config=yt.config.config),
+        cypress = cypress_fuse.Cypress(
+            cypress_fuse.CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
@@ -150,8 +161,8 @@ class TestCypress(object):
 
     @authors("acid")
     def test_unlink_file(self):
-        cypress = Cypress(
-            CachedYtClient(config=yt.config.config),
+        cypress = cypress_fuse.Cypress(
+            cypress_fuse.CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
@@ -166,8 +177,8 @@ class TestCypress(object):
 
     @authors("acid")
     def test_truncate_file(self):
-        cypress = Cypress(
-            CachedYtClient(config=yt.config.config),
+        cypress = cypress_fuse.Cypress(
+            cypress_fuse.CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
@@ -187,8 +198,8 @@ class TestCypress(object):
 
     @authors("acid")
     def test_write_file(self):
-        cypress = Cypress(
-            CachedYtClient(config=yt.config.config),
+        cypress = cypress_fuse.Cypress(
+            cypress_fuse.CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
@@ -206,8 +217,8 @@ class TestCypress(object):
 
     @authors("acid")
     def test_write_multipart_file(self):
-        cypress = Cypress(
-            CachedYtClient(config=yt.config.config),
+        cypress = cypress_fuse.Cypress(
+            cypress_fuse.CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         filepath = TEST_DIR + "/file"
@@ -237,8 +248,8 @@ class TestCypress(object):
 
     @authors("acid")
     def test_create_directory(self):
-        cypress = Cypress(
-            CachedYtClient(config=yt.config.config),
+        cypress = cypress_fuse.Cypress(
+            cypress_fuse.CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         dirpath = TEST_DIR + "/dir"
@@ -255,8 +266,8 @@ class TestCypress(object):
 
     @authors("acid")
     def test_remove_directory(self):
-        cypress = Cypress(
-            CachedYtClient(config=yt.config.config),
+        cypress = cypress_fuse.Cypress(
+            cypress_fuse.CachedYtClient(config=yt.config.config),
             enable_write_access=True)
 
         dirpath = TEST_DIR + "/dir"
@@ -280,8 +291,8 @@ class TestCypress(object):
 
     @authors("acid")
     def test_write_access_guards(self):
-        cypress = Cypress(
-            CachedYtClient(config=yt.config.config),
+        cypress = cypress_fuse.Cypress(
+            cypress_fuse.CachedYtClient(config=yt.config.config),
             enable_write_access=False)
 
         filepath = TEST_DIR + "/file"

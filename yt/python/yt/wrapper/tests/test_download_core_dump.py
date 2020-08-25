@@ -3,7 +3,6 @@ from .helpers import TEST_DIR, get_tests_sandbox, yatest_common
 
 from yt.common import makedirp
 import yt.wrapper as yt
-import yt.environment.arcadia_interop as arcadia_interop
 
 from yt.packages.six.moves import xrange
 
@@ -38,7 +37,7 @@ class TestDownloadCoreDump(object):
 
         makedirp(core_output_dir)
 
-        cpp_bin_core_crash = arcadia_interop.search_binary_path("cpp_bin_core_crash")
+        cpp_bin_core_crash = os.path.join(yatest_common.work_path(), "cpp_bin_core_crash/cpp_bin_core_crash")
 
         op = yt.run_map("./cpp_bin_core_crash", table, other_table, local_files=cpp_bin_core_crash, format="yson",
                         sync=False, spec={"core_table_path": core_dump_table})

@@ -55,7 +55,7 @@ PEERDIR(
 DEPENDS(
     yt/yt/packages/tests_package
     yt/python/yt/local/bin/yt_local_make
-    yt/python/yt/wrapper/bin/yt-job-tool_make
+    yt/python/yt/wrapper/bin/yt_make
     yt/python/yt/wrapper/tests/yt_python
     yt/python/yt/wrapper/tests/yt_python3
     yt/python/yt/wrapper/tests/yt_ipython
@@ -65,29 +65,36 @@ DEPENDS(
     ${YT_ROOT}/yt/server/log_tailer/bin
     ${YT_ROOT}/yt/experiments/ytserver_dummy
     yt/python/yt/wrapper/tests/files/cpp_bin
-    yt/python/yt/wrapper/tests/files/cpp_bin_core_crash
 )
 
-RESOURCE_FILES(
-    PREFIX yt_python_test/
-    ../files/accumulate_c.py
-    ../files/capitalize_b.py
-    ../files/collect.py
-    ../files/driver_catch_sigint.py
-    ../files/driver_read_request_catch_sigint.py
-    ../files/empty
-    ../files/getnumber.cpp
-    ../files/helpers.py
-    ../files/many_output.py
-    ../files/my_op.py
-    ../files/split.py
-    ../files/standalone_binary.py
-    ../files/stderr_download.py
-    ../files/yt_test_lib.cpp
-    ../test_mapreduce.sh
-    ../test_yt.sh
-    ../../bin/yt
-    ../../bin/mapreduce-yt
+DATA(
+    # Directory with cpp_bin_core_crash binary, create it locally and upload with:
+    # ya upload ... --ttl=inf
+    # cpp_bin_core_crash/
+    #     cpp_bin_core_crash
+    sbr://1681775644 
+)
+
+RESOURCE(
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/accumulate_c.py /yt_python_test/accumulate_c.py
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/capitalize_b.py /yt_python_test/files/capitalize_b.py
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/collect.py /yt_python_test/files/collect.py
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/driver_catch_sigint.py /yt_python_test/files/driver_catch_sigint.py
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/driver_read_request_catch_sigint.py /yt_python_test/files/driver_read_request_catch_sigint.py
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/empty /yt_python_test/files/empty
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/getnumber.cpp /yt_python_test/files/getnumber.cpp
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/helpers.py /yt_python_test/files/helpers.py
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/many_output.py /yt_python_test/files/many_output.py
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/my_op.py /yt_python_test/files/my_op.py
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/split.py /yt_python_test/files/split.py
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/standalone_binary.py /yt_python_test/files/standalone_binary.py
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/stderr_download.py /yt_python_test/files/stderr_download.py
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/files/yt_test_lib.cpp /yt_python_test/files/yt_test_lib.cpp
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/test_mapreduce.sh /yt_python_test/test_mapreduce.sh
+    ${ARCADIA_ROOT}/${YT_TEST_SRCDIR}/test_yt.sh /yt_python_test/test_yt.sh
+
+    ${ARCADIA_ROOT}/yt/python/yt/wrapper/bin/yt /binaries/yt
+    ${ARCADIA_ROOT}/yt/python/yt/wrapper/bin/mapreduce-yt /binaries/mapreduce-yt
 )
 
 SIZE(LARGE)
@@ -95,7 +102,7 @@ SIZE(LARGE)
 TIMEOUT(1800)
 
 FORK_TEST_FILES()
-FORK_TESTS()
+FORK_SUBTESTS()
 SPLIT_FACTOR(12)
 
 REQUIREMENTS(

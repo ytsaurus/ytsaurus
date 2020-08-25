@@ -387,7 +387,9 @@ class TestTableCommands(object):
                 node_count=10,
                 http_proxy_count=1 if (yt.config["backend"] != "native") else 0,
                 rpc_proxy_count=1 if (yt.config["backend"] == "rpc") else 0,
-                enable_debug_logging=True)
+                fqdn="localhost",
+                enable_debug_logging=True,
+                cell_tag=1)
             client = instance.create_client()
             client.config["driver_config"] = instance.configs["rpc_driver"] if yt.config["backend"] == "rpc" else instance.configs["driver"]
             client.config["backend"] = yt.config["backend"]
