@@ -20,6 +20,8 @@
 
 #include <yt/core/concurrency/action_queue.h>
 
+#include <yt/core/misc/proc.h>
+
 #include <yt/core/utilex/random.h>
 
 namespace NYT::NExecAgent {
@@ -42,7 +44,7 @@ TSlotManager::TSlotManager(
     : Config_(config)
     , Bootstrap_(bootstrap)
     , SlotCount_(Bootstrap_->GetConfig()->ExecAgent->JobController->ResourceLimits->UserSlots)
-    , NodeTag_(Format("yt-node-%v", Bootstrap_->GetConfig()->RpcPort))
+    , NodeTag_(Format("yt-node-%v-%v", Bootstrap_->GetConfig()->RpcPort, GetCurrentProcessId()))
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 }
@@ -73,45 +75,40 @@ void TSlotManager::Initialize()
         return;
     }
 
+    std::vector<TFuture<void>> initLocationFutures;
     int locationIndex = 0;
     for (const auto& locationConfig : Config_->Locations) {
-        try {
-            Locations_.push_back(New<TSlotLocation>(
-                std::move(locationConfig),
-                Bootstrap_,
-                Format("slot%v", locationIndex),
-                JobEnvironment_->CreateJobDirectoryManager(locationConfig->Path, locationIndex),
-                Config_->EnableTmpfs,
-                SlotCount_,
-                BIND(&IJobEnvironment::GetUserId, JobEnvironment_)));
+        Locations_.push_back(New<TSlotLocation>(
+            std::move(locationConfig),
+            Bootstrap_,
+            Format("slot%v", locationIndex),
+            JobEnvironment_->CreateJobDirectoryManager(locationConfig->Path, locationIndex),
+            Config_->EnableTmpfs,
+            SlotCount_,
+            BIND(&IJobEnvironment::GetUserId, JobEnvironment_)));
 
-            if (Locations_.back()->IsEnabled()) {
-                AliveLocations_.push_back(Locations_.back());
-            }
-        } catch (const std::exception& ex) {
-            auto alert = TError("Failed to initialize slot location %v", locationConfig->Path)
-                << ex;
-            Disable(alert);
-        }
+        initLocationFutures.push_back(Locations_.back()->Initialize());
 
         ++locationIndex;
     }
 
-    // Then clean all the sandboxes.
-    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
-    for (const auto& location : AliveLocations_) {
-        try {
-            for (int slotIndex = 0; slotIndex < SlotCount_; ++slotIndex) {
-                WaitFor(location->CleanSandboxes(slotIndex))
-                    .ThrowOnError();
+    auto initResults = WaitFor(AllSet(initLocationFutures));
+    if (!initResults.IsOK()) {
+        auto error =  TError("Failed to initialize slot locations") << initResults;
+        Disable(error);
+    } else {
+        // We ignore results from initLocationsFutures, 
+        // they are provided via TSlotLocation::IsEnabled method.
+        for (const auto& location: Locations_) {
+            if (!location->IsEnabled()) {
+                AliveLocations_.push_back(location);
             }
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to clean up sandboxes during initialization");
         }
     }
 
     // To this moment all old processed must have been killed, so we can safely clean up old volumes
     // during root volume manager initialization.
+    auto environmentConfig = NYTree::ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment);
     if (environmentConfig->Type == EJobEnvironmentType::Porto) {
         RootVolumeManager_ = CreatePortoVolumeManager(
             Bootstrap_->GetConfig()->DataNode->VolumeManager,

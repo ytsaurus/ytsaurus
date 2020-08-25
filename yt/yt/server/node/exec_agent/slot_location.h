@@ -36,6 +36,8 @@ public:
         int slotCount,
         std::function<int(int)> slotIndexToUserId);
 
+    TFuture<void> Initialize();
+
     //! Sets up tmpfs directories and applies disk quotas.
     //! Returns list of tmpfs paths.
     TFuture<std::vector<TString>> PrepareSandboxDirectories(
@@ -93,6 +95,7 @@ private:
     const NClusterNode::TBootstrap* Bootstrap_;
     const IJobDirectoryManagerPtr JobDirectoryManager_;
     const bool EnableTmpfs_;
+    const int SlotCount_;
 
     const std::function<int(int)> SlotIndexToUserId_;
 
