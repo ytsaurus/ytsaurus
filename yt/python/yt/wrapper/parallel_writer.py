@@ -89,7 +89,7 @@ class ParallelWriter(object):
         else:
             temp_directory = self._remote_temp_directory
             bucket_count = get_config(client)["remote_temp_tables_bucket_count"]
-            bucket = "{:03}".format(random.randrange(bucket_count))
+            bucket = "{:02x}".format(random.randrange(bucket_count))
             temp_directory = ypath_join(temp_directory, bucket)
             with client.Transaction(transaction_id=YT_NULL_TRANSACTION_ID):
                 mkdir(temp_directory, recursive=True, client=client)
