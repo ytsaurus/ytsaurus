@@ -15,6 +15,11 @@ struct TGpuInfo
     double UtilizationGpuRate = 0.0;
     double UtilizationMemoryRate = 0.0;
     i64 MemoryUsed = 0;
+    i64 MemoryTotal = 0;
+    double PowerDraw = 0.0;
+    double PowerLimit = 0.0;
+    i64 ClocksSm = 0;
+    i64 ClocksMaxSm = 0;
     TString Name;
 };
 

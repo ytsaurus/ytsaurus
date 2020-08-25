@@ -40,6 +40,8 @@ struct TGpuStatistics
     i64 MaxMemoryUsed = 0;
     // Number of microseconds when GPU was busy.
     i64 CumulativeLoad = 0;
+    i64 CumulativeUtilizationPower = 0;
+    i64 CumulativeUtilizationClocksSm = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
