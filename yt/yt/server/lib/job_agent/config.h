@@ -97,6 +97,8 @@ public:
     bool TestLayers;
     bool TestSetupCommands;
 
+    int TestGpuCount;
+
     TGpuManagerConfig()
     {
         RegisterParameter("health_check_timeout", HealthCheckTimeout)
@@ -122,10 +124,15 @@ public:
             .Default(false);
         RegisterParameter("test_setup_commands", TestSetupCommands)
             .Default(false);
+        RegisterParameter("test_gpu_count", TestGpuCount)
+            .Default(0);
 
         RegisterPostprocessor([&] {
             if (TestLayers && !TestResource) {
                 THROW_ERROR_EXCEPTION("You need to specify 'test_resource' option if 'test_layers' is specified");
+            }
+            if (TestGpuCount > 0 && !TestResource) {
+                THROW_ERROR_EXCEPTION("You need to specify 'test_resource' option if 'test_gpu_count' is greater than zero");
             }
         });
     }

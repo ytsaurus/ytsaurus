@@ -28,8 +28,7 @@ void FormatValue(TStringBuilderBase* builder, const TDetailedFairShare& detailed
 
 void Serialize(const TDetailedFairShare& detailedFairShare, NYson::IYsonConsumer* consumer)
 {
-    BuildYsonFluently(consumer)
-        .BeginMap()
+    BuildYsonFluently(consumer).BeginMap()
         .Item("min_share_guarantee_ratio").Value(detailedFairShare.MinShareGuaranteeRatio)
         .Item("integral_guarantee_ratio").Value(detailedFairShare.IntegralGuaranteeRatio)
         .Item("weight_proportional_ratio").Value(detailedFairShare.WeightProportionalRatio)

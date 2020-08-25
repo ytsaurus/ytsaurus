@@ -65,6 +65,8 @@ public:
 
     using TGpuSlotPtr = std::unique_ptr<TGpuSlot, std::function<void(TGpuSlot*)>>;
     TGpuSlotPtr AcquireGpuSlot();
+    
+    std::vector<TGpuSlotPtr> AcquireGpuSlots(int slotCount);
 
     std::vector<TShellCommandConfigPtr> GetSetupCommands();
     std::vector<NDataNode::TArtifactKey> GetToppingLayers();

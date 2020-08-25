@@ -285,6 +285,9 @@ public:
         YT_ABORT();
     }
 
+    virtual void BuildOrchid(NYTree::TFluentMap fluent) const override
+    { }
+
     virtual TInstant GetStartTime() const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -329,7 +332,7 @@ public:
     {
         YT_ABORT();
     }
-
+    
     virtual std::vector<TChunkId> DumpInputContext() override
     {
         THROW_ERROR_EXCEPTION("Input context dumping is not supported");

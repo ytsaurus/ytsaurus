@@ -192,16 +192,17 @@ public:
                 }
             }
 
-            if (NeedGpu() && !Config_->JobController->GpuManager->TestResource) {
-                for (int i = 0; i < GetResourceUsage().gpu(); ++i) {
-                    GpuSlots_.emplace_back(Bootstrap_->GetGpuManager()->AcquireGpuSlot());
-
+            if (NeedGpu()) {
+                int gpuCount = GetResourceUsage().gpu();
+                YT_LOG_DEBUG("Acquiring GPU slots (Count: %v)", gpuCount);
+                GpuSlots_ = Bootstrap_->GetGpuManager()->AcquireGpuSlots(gpuCount);
+                for (int index = 0; index < gpuCount; ++index) {
                     TGpuStatistics statistics;
                     statistics.LastUpdateTime = now;
                     GpuStatistics_.emplace_back(std::move(statistics));
                 }
 
-                if (SchedulerJobSpecExt_->has_user_job_spec()) {
+                if (SchedulerJobSpecExt_->has_user_job_spec() && !Config_->JobController->GpuManager->TestResource) {
                     const auto& userJobSpec = SchedulerJobSpecExt_->user_job_spec();
                     if (userJobSpec.has_cuda_toolkit_version()) {
                         Bootstrap_->GetGpuManager()->VerifyToolkitDriverVersion(userJobSpec.cuda_toolkit_version());
@@ -550,6 +551,14 @@ public:
             ReportStatistics(MakeDefaultJobStatistics()
                 .Statistics(Statistics_));
         }
+    }
+    
+    virtual void BuildOrchid(NYTree::TFluentMap fluent) const override
+    {
+        fluent
+            .Item("events").Value(JobEvents_)
+            .Item("core_infos").Value(CoreInfos_)
+            .Item("exec_attributes").Value(ExecAttributes_);
     }
 
     virtual std::vector<TChunkId> DumpInputContext() override

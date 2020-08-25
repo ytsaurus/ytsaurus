@@ -66,6 +66,8 @@ using NJobTrackerClient::NProto::TJobResult;
 using NJobTrackerClient::NProto::TJobSpec;
 using NJobTrackerClient::NProto::TJobStatus;
 
+using std::placeholders::_1;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = JobAgentServerLogger;
@@ -391,9 +393,7 @@ TNodeResources TJobController::TImpl::GetResourceLimits() const
     ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX)
     #undef XX
 
-    if (!Config_->GpuManager->TestResource) {
-        result.set_gpu(Bootstrap_->GetGpuManager()->GetTotalGpuCount());
-    }
+    result.set_gpu(Bootstrap_->GetGpuManager()->GetTotalGpuCount());
 
     const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
 
@@ -577,7 +577,7 @@ void TJobController::TImpl::SetDisableSchedulerJobs(bool value)
     if (value) {
         Bootstrap_->GetJobInvoker()->Invoke(BIND([=, this_ = MakeStrong(this)] {
             VERIFY_THREAD_AFFINITY(JobThread);
-        
+
             for (const auto& job : GetJobs()) {
                 auto jobId = job->GetId();
                 if (TypeFromId(jobId) == EObjectType::SchedulerJob && job->GetState() != EJobState::Running) {
@@ -1382,6 +1382,7 @@ void TJobController::TImpl::BuildOrchid(IYsonConsumer* consumer) const
                                     .Item("duration").Value(TInstant::Now() - job->GetStartTime())
                                     .OptionalItem("statistics", job->GetStatistics())
                                     .OptionalItem("operation_id", job->GetOperationId())
+                                    .Do(std::bind(&IJob::BuildOrchid, job, _1))
                                 .EndMap();
                         });
                 })

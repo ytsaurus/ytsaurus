@@ -77,12 +77,11 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
     BuildYsonFluently(consumer)
         .BeginList()
         .DoFor(events, [] (TFluentList fluent, const TJobEvent& event) {
-            fluent.Item()
-                .BeginMap()
+            fluent.Item().BeginMap()
                 .Item("time").Value(event.Timestamp())
                 .OptionalItem("state", event.State())
                 .OptionalItem("phase", event.Phase())
-                .EndMap();
+            .EndMap();
         })
         .EndList();
 }
