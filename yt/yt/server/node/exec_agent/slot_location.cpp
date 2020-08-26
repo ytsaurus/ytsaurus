@@ -2,7 +2,6 @@
 #include "slot_manager.h"
 #include "private.h"
 #include "job_directory_manager.h"
-#include "yt/server/lib/exec_agent/public.h"
 
 #include <yt/server/lib/exec_agent/config.h>
 
@@ -133,11 +132,21 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotI
     auto userId = SlotIndexToUserId_(slotIndex);
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
-    bool sandboxTmpfs = false;
-    for (const auto& tmpfsVolume : options.TmpfsVolumes) {
-        auto tmpfsPath = NFS::CombinePaths(sandboxPath, tmpfsVolume.Path);
-        sandboxTmpfs = (tmpfsPath == sandboxPath);
-    }
+    bool sandboxTmpfs = WaitFor(BIND([=, this_ = MakeStrong(this)] {
+        for (const auto& tmpfsVolume : options.TmpfsVolumes) {
+            // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
+            // real path without filesystem access.
+            auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, tmpfsVolume.Path));
+            if (tmpfsPath == sandboxPath) {
+                return true;
+            }
+        }
+
+        return false;
+    })
+    .AsyncVia(LightInvoker_)
+    .Run())
+    .ValueOrThrow();
 
     bool shouldApplyQuota = ((options.InodeLimit || options.DiskSpaceLimit) && !sandboxTmpfs);
 
