@@ -7,6 +7,7 @@
 #include <yt/core/misc/proc.h>
 
 #include <util/folder/dirut.h>
+#include <util/folder/iterator.h>
 #include <util/folder/filelist.h>
 #include <util/string/split.h>
 #include <util/system/shellcommand.h>
@@ -57,6 +58,27 @@ bool Exists(const TString& path)
 #else
     return access(path.data(), F_OK) == 0;
 #endif
+}
+
+bool IsDirEmpty(const TString& path)
+{
+    if (!IsDir(path)) {
+        THROW_ERROR_EXCEPTION("%v is not a directory",
+            path);
+    }
+
+    TDirIterator dir(path, TDirIterator::TOptions(FTS_NOSTAT));
+    for (auto it = dir.begin(); it != dir.end(); ++it) {
+        switch (it->fts_info) {
+            case FTS_F:
+            case FTS_DEFAULT:
+            case FTS_DP:
+            case FTS_SL:
+            case FTS_SLNONE:
+                return false;
+        }
+    }
+    return true;
 }
 
 void Remove(const TString& path)
