@@ -236,10 +236,10 @@ public class YtClient extends DestinationsSelector implements AutoCloseable {
                             curCluster.getName()
                     ));
                 }
+            }
 
-                for (ClientPoolService clientPoolService : dataCenterList) {
-                    clientPoolService.start();
-                }
+            for (ClientPoolService clientPoolService : dataCenterList) {
+                clientPoolService.start();
             }
 
             multiDcClientPool = MultiDcClientPool.builder()

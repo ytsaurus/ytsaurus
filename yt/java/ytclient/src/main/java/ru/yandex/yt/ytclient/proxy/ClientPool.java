@@ -195,7 +195,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
     final long updatePeriodMs;
     final List<AutoCloseable> toClose = new ArrayList<>();
 
-    boolean running = true;
+    State state = State.NOT_STARTED;
     Future<?> nextUpdate = new CompletableFuture<>();
 
     static HttpBuilder httpBuilder() {
@@ -208,10 +208,11 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
 
     void start() {
         synchronized (this) {
-            if (running) {
+            if (state == State.NOT_STARTED) {
+                state = State.RUNNING;
                 nextUpdate = executorService.submit(this::doUpdate);
             } else {
-                throw new IllegalArgumentException("ClientPoolService was already stopped");
+                throw new IllegalArgumentException("ClientPoolService is in invalid state: " + state);
             }
         }
     }
@@ -219,7 +220,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
     @Override
     public void close() {
         synchronized (this) {
-            running = false;
+            state = State.STOPPED;
             nextUpdate.cancel(true);
         }
 
@@ -249,8 +250,10 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
             }
 
             synchronized (this) {
-                if (running) {
+                if (state == State.RUNNING) {
                     nextUpdate = executorService.schedule(this::doUpdate, updatePeriodMs, TimeUnit.MILLISECONDS);
+                } else if (state != State.STOPPED) {
+                    throw new IllegalArgumentException("ClientPoolService is in unexpected state: " + state);
                 }
             }
         }, executorService);
@@ -390,6 +393,12 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         ClientPoolService build() {
             return new ClientPoolService(this);
         }
+    }
+
+    private enum State {
+        NOT_STARTED,
+        RUNNING,
+        STOPPED
     }
 }
 
