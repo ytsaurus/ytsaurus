@@ -252,8 +252,6 @@ public:
         cellManager->SubscribeCellBundleDestroyed(BIND(&TImpl::OnTabletCellBundleDestroyed, MakeWeak(this)));
         cellManager->SubscribeCellDecommissionStarted(BIND(&TImpl::OnTabletCellDecommissionStarted, MakeWeak(this)));
 
-        FillProfilerTags();
-
         TabletService_->Initialize();
     }
 
@@ -2449,9 +2447,9 @@ private:
 
     IReconfigurableThroughputThrottlerPtr TableStatisticsGossipThrottler_;
 
-    TEnumIndexedVector<ETabletStoresUpdateReason, TTagId> UpdateTabletStoresProfilerTags_;
-    TTagId SortedTableProfilerTag_;
-    TTagId OrderedTableProfilerTag_;
+    const NProfiling::TTagId SortedTableProfilerTag_ = TProfileManager::Get()->RegisterTag("table_type", "sorted");
+    const NProfiling::TTagId OrderedTableProfilerTag_ = TProfileManager::Get()->RegisterTag("table_type", "ordered");
+    const TEnumMemberTagCache<ETabletStoresUpdateReason> UpdateTabletStoresProfilerTags_{"operation_type"};
 
     TTabletCellBundleId DefaultTabletCellBundleId_;
     TTabletCellBundle* DefaultTabletCellBundle_ = nullptr;
@@ -5341,7 +5339,7 @@ private:
         auto updateReason = FromProto<ETabletStoresUpdateReason>(request->update_reason());
         auto tagIds = TTagIdList{
             tablet->GetTable()->GetTabletCellBundle()->GetProfilingTag(),
-            UpdateTabletStoresProfilerTags_[updateReason],
+            UpdateTabletStoresProfilerTags_.GetTag(updateReason),
             tablet->GetTable()->IsPhysicallySorted()
                 ? SortedTableProfilerTag_
                 : OrderedTableProfilerTag_
@@ -6264,20 +6262,6 @@ private:
             THROW_ERROR_EXCEPTION("Error cloning table %v",
                 cypressManager->GetNodePath(trunkNode->GetTrunkNode(), trunkNode->GetTransaction()))
                 << ex;
-        }
-    }
-
-    void FillProfilerTags()
-    {
-        const auto& profilerManager = NProfiling::TProfileManager::Get();
-        SortedTableProfilerTag_ = profilerManager->RegisterTag("table_type", "sorted");
-        OrderedTableProfilerTag_ = profilerManager->RegisterTag("table_type", "ordered");
-
-        using TTraits = TEnumTraits<ETabletStoresUpdateReason>;
-        for (int index = 0; index < TTraits::DomainSize; ++index) {
-            auto value = TTraits::GetDomainValues()[index];
-            auto name = TTraits::GetDomainNames()[index];
-            UpdateTabletStoresProfilerTags_[value] = profilerManager->RegisterTag("update_reason", name);
         }
     }
 
