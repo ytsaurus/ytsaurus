@@ -51,8 +51,6 @@
 
 #include <yt/core/rpc/local_channel.h>
 
-#include <yt/core/net/local_address.h>
-
 namespace NYT::NTabletNode {
 
 using namespace NApi;
@@ -1020,6 +1018,7 @@ public:
 
 IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
     NNative::IClientPtr client,
+    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
     const NHiveClient::TCellDescriptor& cellDescriptor,
     EInMemoryMode inMemoryMode,
@@ -1027,7 +1026,7 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
 {
     std::vector<TNodePtr> nodes;
     for (const auto& target : cellDescriptor.Peers) {
-        auto channel = target.GetDefaultAddress() == NNet::GetLocalHostName()
+        auto channel = target.GetDefaultAddress() == localDescriptor.GetDefaultAddress()
             ? CreateLocalChannel(localRpcServer)
             : client->GetChannelFactory()->CreateChannel(target);
 
@@ -1077,6 +1076,7 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
 
 TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
     NNative::IClientPtr client,
+    const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
     const NHiveClient::TCellDescriptor& cellDescriptor,
     EInMemoryMode inMemoryMode,
@@ -1088,7 +1088,7 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
 
     return BIND(&DoCreateRemoteInMemoryBlockCache)
         .AsyncVia(GetCurrentInvoker())
-        .Run(client, localRpcServer, cellDescriptor, inMemoryMode, config);
+        .Run(client, localDescriptor, localRpcServer, cellDescriptor, inMemoryMode, config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

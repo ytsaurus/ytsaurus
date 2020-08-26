@@ -111,6 +111,11 @@ protected:
         return nullptr;
     }
 
+    virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override
+    {
+        return NNodeTrackerClient::NullNodeDescriptor();
+    }
+
     virtual NNodeTrackerClient::TNodeMemoryTrackerPtr GetMemoryUsageTracker() override
     {
         return nullptr;

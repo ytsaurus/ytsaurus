@@ -276,6 +276,7 @@ struct ITabletContext
         const NTabletNode::NProto::TAddStoreDescriptor* descriptor) = 0;
     virtual TTransactionManagerPtr GetTransactionManager() = 0;
     virtual NRpc::IServerPtr GetLocalRpcServer() = 0;
+    virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() = 0;
 
     virtual NNodeTrackerClient::TNodeMemoryTrackerPtr GetMemoryUsageTracker() = 0;
 };

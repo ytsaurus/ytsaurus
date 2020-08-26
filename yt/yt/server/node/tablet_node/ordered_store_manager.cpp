@@ -7,7 +7,6 @@
 #include "transaction.h"
 
 #include <yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
-
 #include <yt/server/lib/tablet_node/config.h>
 
 #include <yt/ytlib/table_client/schemaless_chunk_writer.h>
@@ -248,6 +247,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Client_,
+            TabletContext_->GetLocalDescriptor(),
             TabletContext_->GetLocalRpcServer(),
             Client_->GetNativeConnection()->GetCellDirectory()->GetDescriptorOrThrow(tabletSnapshot->CellId),
             inMemoryMode,

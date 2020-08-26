@@ -14,6 +14,8 @@
 
 #include <yt/server/node/cluster_node/bootstrap.h>
 
+#include <yt/server/node/data_node/master_connector.h>
+
 #include <yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/server/lib/tablet_node/config.h>
@@ -136,7 +138,7 @@ private:
     NProfiling::TSimpleGauge FeasibleCompactionsCounter_{"/feasible_compactions"};
     NProfiling::TMonotonicCounter ScheduledPartitioningsCounter_{"/scheduled_partitionings"};
     NProfiling::TMonotonicCounter ScheduledCompactionsCounter_{"/scheduled_compactions"};
-    
+
     const NProfiling::TTagId CompactionTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction");
     const NProfiling::TTagId CompactionFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction_failed");
     const NProfiling::TTagId PartitioningTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "partitioning");
@@ -1315,6 +1317,7 @@ private:
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetRpcServer(),
             Bootstrap_
                 ->GetMasterClient()
@@ -1787,6 +1790,7 @@ private:
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Bootstrap_->GetMasterClient(),
+            Bootstrap_->GetMasterConnector()->GetLocalDescriptor(),
             Bootstrap_->GetRpcServer(),
             Bootstrap_
                 ->GetMasterClient()
