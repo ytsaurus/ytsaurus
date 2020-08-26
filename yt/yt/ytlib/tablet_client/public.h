@@ -35,6 +35,7 @@ DEFINE_ENUM(ETabletCellLifeStage,
 );
 
 DEFINE_ENUM(ETabletStoresUpdateReason,
+    ((Unknown)          (0))
     ((Flush)            (1))
     ((Compaction)       (2))
     ((Partitioning)     (3))
