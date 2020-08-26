@@ -11,13 +11,15 @@ from .transaction import Transaction, null_transaction_id, add_transaction_to_ab
 from .thread_pool import ThreadPool
 from .ypath import TablePath
 
+from yt.common import join_exceptions
+
 import copy
 import threading
 
 class ParallelReadRetrier(Retrier):
     def __init__(self, command_name, transaction_id, client):
         chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
-        retriable_errors = tuple(list(get_retriable_errors()) + [YtChunkUnavailable, YtFormatReadError])
+        retriable_errors = join_exceptions(get_retriable_errors(), YtChunkUnavailable, YtFormatReadError)
         retry_config = get_config(client)["read_retries"]
         timeout = get_config(client)["proxy"]["heavy_request_timeout"]
 

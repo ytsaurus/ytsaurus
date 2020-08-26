@@ -16,6 +16,8 @@ from .format import YtFormatReadError
 
 import yt.logger as logger
 
+from yt.common import join_exceptions
+
 from yt.packages.six.moves import xrange
 
 import time
@@ -226,7 +228,7 @@ def _get_read_response(command_name, params, transaction_id, client=None):
 class ReadIterator(IteratorRetrier):
     def __init__(self, command_name, transaction, process_response_action, retriable_state_class, client=None):
         chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", client)
-        retriable_errors = tuple(list(get_retriable_errors()) + [YtChunkUnavailable, YtFormatReadError])
+        retriable_errors = join_exceptions(get_retriable_errors(), YtChunkUnavailable, YtFormatReadError)
         retry_config = get_config(client)["read_retries"]
         timeout = get_config(client)["proxy"]["heavy_request_timeout"]
 

@@ -12,7 +12,7 @@ from .local_mode import is_local_mode, get_local_mode_proxy_address
 from . import yson
 
 import yt.logger as logger
-from yt.common import format_error, to_native_str, flatten
+from yt.common import format_error, to_native_str, flatten, join_exceptions
 
 from yt.packages.decorator import decorator
 from yt.packages.six import iteritems, itervalues, iterkeys
@@ -416,7 +416,7 @@ def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
         if get_config(client)["enable_operations_api"]:
             try:
                 stderr = to_native_str(get_job_stderr(operation, job, client=client).read(), encoding=stderr_encoding)
-            except tuple(builtins.list(get_retriable_errors()) + [YtResponseError]) as err:
+            except join_exceptions(get_retriable_errors(), YtResponseError) as err:
                 if isinstance(err, YtResponseError) and err.is_no_such_job():
                     pass
                 elif not ignore_errors:
@@ -429,7 +429,7 @@ def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
             if has_stderr:
                 try:
                     stderr = to_native_str(read_file(stderr_path, client=yt_client).read(), encoding=stderr_encoding)
-                except tuple(builtins.list(get_retriable_errors()) + [YtResponseError]):
+                except join_exceptions(get_retriable_errors(), YtResponseError):
                     if not ignore_errors:
                         raise
         if stderr is not None:
