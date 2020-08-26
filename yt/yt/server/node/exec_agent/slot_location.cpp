@@ -93,7 +93,7 @@ TFuture<void> TSlotLocation::Initialize()
                             continue;
                         }
 
-                        if (NFS::EnumerateFiles(sandboxPath).empty() && NFS::EnumerateDirectories(sandboxPath).empty()) {
+                        if (NFS::IsDirEmpty(sandboxPath)) {
                             continue;
                         }
                     } catch (const std::exception& ex) {

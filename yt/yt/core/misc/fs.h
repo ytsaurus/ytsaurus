@@ -21,6 +21,9 @@ const char* const TempFileSuffix = "~";
 //! Returns |true| if a given path points to an existing file or directory.
 bool Exists(const TString& path);
 
+//! Returns |true| if a given path to an empty directory.
+bool IsDirEmpty(const TString& path);
+
 //! Removes a given file or directory.
 void Remove(const TString& path);
 
