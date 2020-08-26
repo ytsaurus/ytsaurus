@@ -502,6 +502,25 @@ class TestSandboxTmpfs(YTEnvSetup):
                 },
             })
 
+    @authors("gritukan")
+    def test_tmpfs_sandbox_and_disk_space_limit(self):
+        create("table", "//tmp/t_input")
+        create("table", "//tmp/t_output")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        # Should not apply disk space limit to sandbox.
+        map(command="cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec={
+                "mapper": {
+                    "tmpfs_size": 1024 * 1024,
+                    "tmpfs_path": ".",
+                    "disk_space_limit": 1024 * 1024,
+                },
+                "max_failed_job_count": 1
+            })
+
 ##################################################################
 
 class TestSandboxTmpfsOverflow(YTEnvSetup):
