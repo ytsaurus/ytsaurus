@@ -30,6 +30,7 @@ from .user_statistics import write_statistics
 from .yamr_mode import set_yamr_mode
 from .dynamic_table_commands import ASYNC_LAST_COMMITED_TIMESTAMP, SYNC_LAST_COMMITED_TIMESTAMP
 from .skiff import convert_to_skiff_schema
+from .http_helpers import get_retriable_errors
 
 from .common import get_version, is_inside_job, escape_c
 __version__ = VERSION = get_version()
@@ -38,8 +39,7 @@ __version__ = VERSION = get_version()
 from .http_helpers import (_cleanup_http_session,
                            get_token as _get_token,
                            get_proxy_url as _get_proxy_url,
-                           make_request_with_retries as _make_http_request_with_retries,
-                           get_retriable_errors as _get_retriable_errors)
+                           make_request_with_retries as _make_http_request_with_retries)
 
 # For PyCharm checks
 from . import config

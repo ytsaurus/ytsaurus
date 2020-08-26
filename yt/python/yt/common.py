@@ -436,6 +436,16 @@ def format_error(error, attribute_length_limit=300):
     return _pretty_format(error, attribute_length_limit)
 
 
+def join_exceptions(*args):
+    result = []
+    for exception in args:
+        if isinstance(exception, tuple):
+            result += exception
+        else:
+            result.append(exception)
+    return tuple(result)
+
+
 def which(name, flags=os.X_OK, custom_paths=None):
     """Return list of files in system paths with given name."""
     # TODO: check behavior when dealing with symlinks
