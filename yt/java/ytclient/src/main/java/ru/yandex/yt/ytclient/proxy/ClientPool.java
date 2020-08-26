@@ -55,7 +55,7 @@ class MultiDcClientPool implements RpcClientPool {
     static final Logger logger = LoggerFactory.getLogger(MultiDcClientPool.class);
 
     final DataCenterRpcClientPool[] clientPools;
-    @Nullable final RpcClientPool localDcPool;
+    @Nullable final DataCenterRpcClientPool localDcPool;
     final DataCenterMetricsHolder dcMetricHolder;
 
     static Builder builder() {
@@ -193,6 +193,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
     final ProxyGetter proxyGetter;
     final ScheduledExecutorService executorService;
     final long updatePeriodMs;
+    final List<AutoCloseable> toClose = new ArrayList<>();
 
     boolean running = true;
     Future<?> nextUpdate = new CompletableFuture<>();
@@ -220,6 +221,19 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
         synchronized (this) {
             running = false;
             nextUpdate.cancel(true);
+        }
+
+        Throwable error = null;
+        for (AutoCloseable closable : toClose) {
+            try {
+                closable.close();
+            } catch (Throwable t) {
+                logger.error("Error while closing client pool service", t);
+                error = t;
+            }
+        }
+        if (error != null) {
+            throw new RuntimeException(error);
         }
     }
 
@@ -263,6 +277,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                 httpBuilder.role,
                 httpBuilder.token
         );
+        toClose.add(asyncHttpClient);
 
         executorService = httpBuilder.eventLoop;
         updatePeriodMs = httpBuilder.options.getProxyUpdateTimeout().toMillis();
@@ -427,7 +442,6 @@ class ClientPool implements DataCenterRpcClientPool {
 
     CompletableFuture<Void> updateWithError(Throwable error) {
         return safeExecutorService.submit(() -> updateWithErrorUnsafe(error));
-
     }
 
     CompletableFuture<Void> updateClients(Collection<HostPort> proxies) {
