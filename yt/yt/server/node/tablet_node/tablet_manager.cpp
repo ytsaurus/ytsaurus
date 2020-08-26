@@ -610,6 +610,11 @@ private:
             return Owner_->Bootstrap_->GetMemoryUsageTracker();
         }
 
+        virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() override
+        {
+            return Owner_->Bootstrap_->GetMasterConnector()->GetLocalDescriptor();
+        }
+
     private:
         TImpl* const Owner_;
 
@@ -2993,7 +2998,7 @@ private:
         if (!IsLeader()) {
             return;
         }
-        
+
         auto state = tablet->GetState();
         if (state != ETabletState::UnmountFlushing && state != ETabletState::FreezeFlushing) {
             return;
@@ -3095,7 +3100,7 @@ private:
                 Bootstrap_->GetTabletNodeInThrottler(EWorkloadCategory::SystemTabletReplication),
                 Bootstrap_->GetTabletNodeOutThrottler(EWorkloadCategory::SystemTabletReplication));
             replicaInfo->SetReplicator(replicator);
-            
+
             if (replicaInfo->GetState() == ETableReplicaState::Enabled) {
                 replicator->Enable();
             }
