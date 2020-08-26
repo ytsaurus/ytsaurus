@@ -2,7 +2,6 @@ package ru.yandex.yt.ytclient.rpc;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.ClosedChannelException;
@@ -51,7 +50,7 @@ public class DefaultRpcBusClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(DefaultRpcBusClient.class);
 
     private final BusConnector busConnector;
-    private final SocketAddress address;
+    private final InetSocketAddress address;
     private final Lock sessionLock = new ReentrantLock();
     private Session currentSession;
     private boolean closed;
@@ -920,11 +919,11 @@ public class DefaultRpcBusClient implements RpcClient {
         this(busFactory, address, address.getHostName(), new DefaultRpcBusClientMetricsHolderImpl());
     }
 
-    public DefaultRpcBusClient(BusConnector busFactory, SocketAddress address, String destinationName) {
+    public DefaultRpcBusClient(BusConnector busFactory, InetSocketAddress address, String destinationName) {
         this(busFactory, address, destinationName, new DefaultRpcBusClientMetricsHolderImpl());
     }
 
-    public DefaultRpcBusClient(BusConnector busConnector, SocketAddress address, String destinationName, DefaultRpcBusClientMetricsHolder metricsHolder) {
+    public DefaultRpcBusClient(BusConnector busConnector, InetSocketAddress address, String destinationName, DefaultRpcBusClientMetricsHolder metricsHolder) {
         this.busConnector = Objects.requireNonNull(busConnector);
         this.address = Objects.requireNonNull(address);
         this.destinationName = destinationName;
