@@ -249,7 +249,7 @@ public class DefaultRpcBusClient implements RpcClient {
         }
 
         public boolean unregister(RequestBase request) {
-            logger.debug("Unregister request {}", request.requestId);
+            logger.trace("Unregister request {}", request.requestId);
             return activeRequests.remove(request.requestId, request);
         }
 
@@ -342,7 +342,7 @@ public class DefaultRpcBusClient implements RpcClient {
                         logger.debug("({}) request `{}` acked in {} ms with error `{}`", session, request, elapsed.toMillis(), exception.toString());
                     } else {
                         ack();
-                        logger.debug("({}) request `{}` acked in {} ms", session, request, elapsed.toMillis());
+                        logger.trace("({}) request `{}` acked in {} ms", session, request, elapsed.toMillis());
                     }
                 });
 
