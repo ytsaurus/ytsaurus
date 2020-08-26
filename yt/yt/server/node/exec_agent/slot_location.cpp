@@ -804,6 +804,9 @@ void TSlotLocation::CreateSandboxDirectories(int slotIndex)
 
         // Pipes are accessible for everyone.
         ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::Pipes), userId, 0777);
+
+        // Node should have access to user sandbox during job preparation.
+        ChownChmod(GetSandboxPath(slotIndex, ESandboxKind::User), getuid(), 0755);
     } catch (const std::exception& ex) {
         auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to create sandbox directories for slot %v", slotPath)
             << ex;
