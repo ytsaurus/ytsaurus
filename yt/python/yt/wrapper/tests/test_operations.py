@@ -2,7 +2,7 @@ from __future__ import print_function
 
 from .conftest import authors
 from .helpers import (TEST_DIR, get_test_file_path, check, set_config_option, get_tests_sandbox,
-                      dumps_yt_config, get_python, wait, get_operation_path)
+                      dumps_yt_config, get_python, wait, get_operation_path, random_string)
 
 # Necessary for tests.
 try:
@@ -15,7 +15,7 @@ from yt.wrapper.py_wrapper import create_modules_archive_default, TempfilesManag
 from yt.wrapper.common import get_disk_size, MB
 from yt.wrapper.operation_commands import (
     add_failed_operation_stderrs_to_error_message, get_jobs_with_error_or_stderr, get_operation_error)
-from yt.wrapper.spec_builders import MapSpecBuilder, MapReduceSpecBuilder, VanillaSpecBuilder
+from yt.wrapper.spec_builders import MapReduceSpecBuilder, VanillaSpecBuilder
 from yt.wrapper.skiff import convert_to_skiff_schema
 
 from yt.test_helpers import are_almost_equal
@@ -36,9 +36,7 @@ import io
 import logging
 import os
 import pytest
-import random
 import signal
-import string
 import sys
 import tempfile
 import time
@@ -85,10 +83,6 @@ class TestOperations(object):
     def teardown(self):
         yt.config["tabular_data_format"] = None
         yt.remove("//tmp/yt_wrapper/file_storage", recursive=True, force=True)
-
-    def random_string(self, length):
-        char_set = string.ascii_lowercase + string.digits + string.ascii_uppercase
-        return "".join(random.sample(char_set, length))
 
     @authors("ignat")
     def test_merge(self):
@@ -155,7 +149,7 @@ class TestOperations(object):
         table = TEST_DIR + "/table"
         other_table = TEST_DIR + "/other_table"
 
-        columns = [(self.random_string(7), self.random_string(7)) for _ in xrange(10)]
+        columns = [(random_string(7), random_string(7)) for _ in xrange(10)]
         yt.write_table(table, [b("x={0}\ty={1}\n".format(*c)) for c in columns], format=yt.DsvFormat(), raw=True)
 
         with pytest.raises(yt.YtError):

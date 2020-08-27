@@ -4,6 +4,7 @@ from .retries import Retrier, default_chaos_monkey
 from .errors import (YtError, YtTokenError, YtProxyUnavailable, YtIncorrectResponse, YtHttpResponseError,
                      YtRequestRateLimitExceeded, YtRequestQueueSizeLimitExceeded, YtRpcUnavailable,
                      YtRequestTimedOut, YtRetriableError, YtNoSuchTransaction, hide_auth_headers)
+from .framing import unframed_iter_content
 from .command import parse_commands
 from .format import JsonFormat, YsonFormat
 
@@ -190,10 +191,14 @@ def create_response(response, request_info, error_format, client):
 
     if "X-YT-Response-Parameters" in response.headers:
         response.headers["X-YT-Response-Parameters"] = loads(response.headers["X-YT-Response-Parameters"])
+    if "X-YT-Framing" in response.headers:
+        response.framed_iter_content = response.iter_content
+        response.iter_content = lambda *args: unframed_iter_content(response, *args)
     response.request_info = request_info
     response._error = get_error()
     response.error = types.MethodType(error, response)
     response.is_ok = types.MethodType(is_ok, response)
+    response.framing_error = None
     return response
 
 def _process_request_backoff(current_time, client):

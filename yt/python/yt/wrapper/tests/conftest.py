@@ -15,6 +15,7 @@ import yt.subprocess_wrapper as subprocess
 from yt.test_helpers.authors import pytest_configure, pytest_collection_modifyitems, pytest_itemcollected  # noqa
 
 from yt.packages.six import iteritems, itervalues
+
 from yt.packages import requests
 
 import yt.wrapper as yt
@@ -299,6 +300,46 @@ def test_environment(request):
     request.addfinalizer(lambda: environment.cleanup())
     return environment
 
+@pytest.fixture(scope="class", params=["v3", "v4"])
+def test_environment_with_framing(request):
+    suspending_path = "//tmp/suspending_table"
+    delay_before_command = 10 * 1000
+    keep_alive_period = 1 * 1000
+    delta_proxy_config = {
+        "api": {
+            "testing": {
+                "delay_before_command": {
+                    "read_table": {
+                        "parameter_path": "/path",
+                        "substring": suspending_path,
+                        "delay": delay_before_command,
+                    },
+                    "get_table_columnar_statistics": {
+                        "parameter_path": "/paths/0",
+                        "substring": suspending_path,
+                        "delay": delay_before_command,
+                    },
+                },
+            },
+        },
+    }
+    environment = init_environment_for_test_session(request.param, delta_proxy_config=delta_proxy_config)
+
+    # Setup framing keep-alive period through dynamic config.
+    yt.set("//sys/proxies/@config", {"framing": {"keep_alive_period": keep_alive_period}})
+    monitoring_port = environment.env.configs["http_proxy"][0]["monitoring_port"]
+    config_url = "http://localhost:{}/orchid/coordinator/dynamic_config".format(monitoring_port)
+    wait(lambda: requests.get(config_url).json()["framing"]["keep_alive_period"] == keep_alive_period)
+
+    environment.framing_options = {
+        "keep_alive_period": keep_alive_period,
+        "delay_before_command": delay_before_command,
+        "suspending_path": suspending_path,
+    }
+
+    request.addfinalizer(lambda: environment.cleanup())
+    return environment
+
 @pytest.fixture(scope="class", params=["v3", "v4", "native_v3", "native_v4", "rpc"])
 def test_environment_with_rpc(request):
     environment = init_environment_for_test_session(request.param)
@@ -483,8 +524,7 @@ def test_method_teardown():
     _remove_operations()
     _remove_objects()
 
-@pytest.fixture(scope="function")
-def yt_env(request, test_environment):
+def _yt_env(request, test_environment):
     """ YT cluster fixture.
         Uses test_environment fixture.
         Starts YT cluster once per session but checks its health before each test function.
@@ -496,16 +536,16 @@ def yt_env(request, test_environment):
     return test_environment
 
 @pytest.fixture(scope="function")
+def yt_env(request, test_environment):
+    return _yt_env(request, test_environment)
+
+@pytest.fixture(scope="function")
+def yt_env_with_framing(request, test_environment_with_framing):
+    return _yt_env(request, test_environment_with_framing)
+
+@pytest.fixture(scope="function")
 def yt_env_with_rpc(request, test_environment_with_rpc):
-    """ YT cluster fixture.
-        Uses test_environment fixture.
-        Starts YT cluster once per session but checks its health before each test function.
-    """
-    test_environment_with_rpc.check_liveness()
-    test_environment_with_rpc.reload_global_configuration()
-    yt.mkdir(TEST_DIR, recursive=True)
-    request.addfinalizer(test_method_teardown)
-    return test_environment_with_rpc
+    return _yt_env(request, test_environment_with_rpc)
 
 @pytest.fixture(scope="function")
 def test_dynamic_library(request, yt_env):
