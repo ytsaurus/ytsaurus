@@ -90,6 +90,7 @@ private:
     //! the node until restart and fire alert.
     int ConsecutiveAbortedJobCount_ = 0;
 
+    int DefaultMediumIndex_ = NChunkClient::DefaultSlotsMediumIndex;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 

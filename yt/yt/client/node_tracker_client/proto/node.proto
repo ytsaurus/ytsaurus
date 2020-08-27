@@ -96,6 +96,8 @@ message TDiskLocationResources
 message TDiskResources
 {
     repeated TDiskLocationResources disk_location_resources = 1;
+    // Default medium that should be used for jobs without specified disk requests.
+    optional int32 default_medium_index = 2;
 }
 
 // Limits overrides pushed from master to node.

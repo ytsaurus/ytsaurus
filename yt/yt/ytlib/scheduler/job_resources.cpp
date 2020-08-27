@@ -604,6 +604,17 @@ bool CanSatisfyDiskQuotaRequest(
     return false;
 }
 
+bool HasLocationWithDefaultMedium(const NNodeTrackerClient::NProto::TDiskResources& diskResources)
+{
+    bool hasLocationWithDefaultMedium = false;
+    for (const auto& diskLocationResources : diskResources.disk_location_resources()) {
+        if (diskLocationResources.medium_index() == diskResources.default_medium_index()) {
+            hasLocationWithDefaultMedium = true;
+        }
+    }
+    return hasLocationWithDefaultMedium;
+}
+
 bool CanSatisfyDiskQuotaRequest(
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
     TDiskQuota diskQuotaRequest)
@@ -618,6 +629,11 @@ bool CanSatisfyDiskQuotaRequest(
             return false;
         }
     }
+
+    if (diskQuotaRequest.DiskSpacePerMedium.empty() && !HasLocationWithDefaultMedium(diskResources)) {
+        return false;
+    }
+
     return true;
 }
 
@@ -632,10 +648,18 @@ bool CanSatisfyDiskQuotaRequests(
     }
 
     THashMap<int, std::vector<i64>> diskSpaceRequestsPerMedium;
+    bool hasEmptyDiskRequest = false;
     for (const auto& diskQuotaRequest : diskQuotaRequests) {
         for (auto [mediumIndex, diskSpace] : diskQuotaRequest.DiskSpacePerMedium) {
             diskSpaceRequestsPerMedium[mediumIndex].push_back(diskSpace);
         }
+        if (diskQuotaRequest.DiskSpacePerMedium.empty()) {
+            hasEmptyDiskRequest = true;
+        }
+    }
+
+    if (hasEmptyDiskRequest && !HasLocationWithDefaultMedium(diskResources)) {
+        return false;
     }
 
     for (const auto& [mediumIndex, diskSpaceRequests] : diskSpaceRequestsPerMedium) {
@@ -643,6 +667,7 @@ bool CanSatisfyDiskQuotaRequests(
             return false;
         }
     }
+
     return true;
 }
 
