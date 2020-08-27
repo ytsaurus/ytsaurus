@@ -1943,6 +1943,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         self._wait_cell_good(cell_id, [tablet_address])
 
     @authors("ifsmirnov")
+    @flaky(max_runs=5)
     def test_kick_orphans_throttler(self):
         cell_count = 3
         tablet_count = 10
