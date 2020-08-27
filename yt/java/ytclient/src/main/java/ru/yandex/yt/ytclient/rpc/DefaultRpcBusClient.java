@@ -51,9 +51,12 @@ public class DefaultRpcBusClient implements RpcClient {
 
     private final BusConnector busConnector;
     private final InetSocketAddress address;
+    private final String addressString;
     private final Lock sessionLock = new ReentrantLock();
     private Session currentSession;
     private boolean closed;
+
+    // TODO: we should remove destinationName and name and use only addressString
     private final String destinationName; // for debug
     private final String name; // output in user log
 
@@ -101,7 +104,7 @@ public class DefaultRpcBusClient implements RpcClient {
     private class Session implements BusListener {
         private final Bus bus;
         private final ConcurrentHashMap<GUID, RequestBase> activeRequests = new ConcurrentHashMap<>();
-        private final String sessionName = String.format("Session(%s@%s)", name, Integer.toHexString(hashCode()));
+        private final String sessionName = String.format("Session(%s@%s)", addressString, Integer.toHexString(hashCode()));
 
         public Session() {
             bus = busConnector.connect(address, this);
@@ -160,7 +163,6 @@ public class DefaultRpcBusClient implements RpcClient {
                     }
 
                     request.response(header, message.subList(1, message.size()));
-
                     break;
                 }
 
@@ -332,7 +334,7 @@ public class DefaultRpcBusClient implements RpcClient {
                 BusDeliveryTracking level =
                         request.requestAck() ? BusDeliveryTracking.FULL : BusDeliveryTracking.SENT;
 
-                logger.debug("({}) starting request `{}`", session, request);
+                logger.debug("Starting request `{}` Session: {}", request, session);
                 session.bus.send(message, level).whenComplete((ignored, exception) -> {
                     Duration elapsed = Duration.between(started, Instant.now());
                     stat.updateAck(elapsed.toMillis());
@@ -498,7 +500,7 @@ public class DefaultRpcBusClient implements RpcClient {
         public void response(TResponseHeader header, List<byte[]> attachments) {
             Duration elapsed = Duration.between(started, Instant.now());
             stat.updateResponse(elapsed.toMillis());
-            logger.debug("({}) request `{}` finished in {} ms", session, request, elapsed.toMillis());
+            logger.debug("Request `{}` finished in {} ms Session: {}", request, elapsed.toMillis(), session);
 
             lock.lock();
             try {
@@ -644,7 +646,7 @@ public class DefaultRpcBusClient implements RpcClient {
 
         @Override
         void handleAcknowledgement(RpcClient sender) {
-            logger.debug("Ack {}", requestId);
+            logger.trace("Ack {}", requestId);
         }
 
         @Override
@@ -784,7 +786,7 @@ public class DefaultRpcBusClient implements RpcClient {
         public void response(TResponseHeader header, List<byte[]> attachments) {
             Duration elapsed = Duration.between(started, Instant.now());
             stat.updateResponse(elapsed.toMillis());
-            logger.debug("({}) request `{}` finished in {} ms", session, request, elapsed.toMillis());
+            logger.debug("Request `{}` finished in {} ms Session: {}", request, elapsed.toMillis(), session);
 
             lock.lock();
             try {
@@ -926,6 +928,7 @@ public class DefaultRpcBusClient implements RpcClient {
     public DefaultRpcBusClient(BusConnector busConnector, InetSocketAddress address, String destinationName, DefaultRpcBusClientMetricsHolder metricsHolder) {
         this.busConnector = Objects.requireNonNull(busConnector);
         this.address = Objects.requireNonNull(address);
+        this.addressString = address.getHostString() + ":" + address.getPort();
         this.destinationName = destinationName;
         this.name = String.format("%s@%d", destinationName, System.identityHashCode(this));
         this.stats = new Statistics(destinationName());
