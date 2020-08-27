@@ -1,3 +1,4 @@
+import yt_env_setup
 from yt_env_setup import (
     YTEnvSetup, unix_only,
     Restarter, SCHEDULERS_SERVICE, patch_porto_env_only
@@ -15,14 +16,35 @@ from flaky import flaky
 import pytest
 import time
 import datetime
+import os
+import shutil
 
 ##################################################################
 
 class TestSandboxTmpfs(YTEnvSetup):
     NUM_MASTERS = 1
-    NUM_NODES = 3
+    NUM_NODES = 1
     NUM_SCHEDULERS = 1
     USE_PORTO = True
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1,
+            "default_file_replication_factor": 1
+        }
+    }
+
+    @classmethod
+    def modify_node_config(cls, config):
+        if not os.path.exists(cls.default_disk_path):
+            os.makedirs(cls.default_disk_path)
+        config["exec_agent"]["slot_manager"]["locations"][0]["path"] = cls.default_disk_path
+
+    @classmethod
+    def teardown_class(cls):
+        super(TestSandboxTmpfs, cls).teardown_class()
+        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
+            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
 
     @authors("ignat")
     def test_simple(self):
