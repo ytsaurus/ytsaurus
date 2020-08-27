@@ -332,6 +332,15 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
         location->SetMediumDescriptor(*newDescriptor);
         location->InvokeUpdateDiskResources();
     }
+
+    {
+        auto descriptor = mediumDirectory->FindByName(Config_->DefaultMediumName);
+        if (!descriptor) {
+            THROW_ERROR_EXCEPTION("Default medium is unknown (MediumName: %v)",
+                Config_->DefaultMediumName);
+        }
+        DefaultMediumIndex_ = descriptor->Index;
+    }
 }
 
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
@@ -340,6 +349,9 @@ NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
 
     UpdateAliveLocations();
     NNodeTrackerClient::NProto::TDiskResources result;
+
+    result.set_default_medium_index(DefaultMediumIndex_);
+
     // Make a copy, since GetDiskResources is async and iterator over AliveLocations_
     // may have been invalidated between iterations.
     auto locations = AliveLocations_;

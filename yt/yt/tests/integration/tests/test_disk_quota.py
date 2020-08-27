@@ -2,11 +2,10 @@ import yt_env_setup
 from yt_env_setup import wait, YTEnvSetup
 from yt_commands import *
 
-import yt.common
-
 import pytest
 
 import os
+import time
 import shutil
 
 ##################################################################
@@ -536,3 +535,111 @@ class TestDiskMediumRenamePorto(YTEnvSetup):
         op.track()
 
         start_op(3, "ssd_renamed", track=True)
+
+
+class TestDefaultDiskMediumPorto(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "slot_manager": {
+                "disk_resources_update_period": 100,
+            },
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 1,
+                    "cpu": 1.0
+                }
+            },
+            "min_required_disk_space": 0,
+        }
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "cypress_manager": {
+            "default_table_replication_factor": 1
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "safe_scheduler_online_time": 60000,
+        },
+        "cluster_connection": {
+            "medium_directory_synchronizer": {
+                "sync_period": 100,
+            }
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "cluster_connection": {
+            "medium_directory_synchronizer": {
+                "sync_period": 100,
+            }
+        },
+    }
+
+    USE_PORTO = True
+
+    @classmethod
+    def modify_node_config(cls, config):
+        for disk in (cls.default_disk_path, cls.ssd_disk_path):
+            if os.path.exists(disk):
+                shutil.rmtree(disk)
+            os.makedirs(disk)
+
+        config["exec_agent"]["slot_manager"]["locations"] = [
+            {
+                "path": cls.ssd_disk_path,
+                "disk_quota": 2 * 1024 * 1024,
+                "disk_usage_watermark": 0,
+                "medium_name": "ssd",
+            }
+        ]
+        config["exec_agent"]["slot_manager"]["default_medium_name"] = "hdd"
+
+    @classmethod
+    def teardown_class(cls):
+        super(TestDefaultDiskMediumPorto, cls).teardown_class()
+        if yt_env_setup.SANDBOX_STORAGE_ROOTDIR is not None:
+            shutil.rmtree(os.path.join(yt_env_setup.SANDBOX_STORAGE_ROOTDIR, cls.run_name))
+
+    @classmethod
+    def on_masters_started(cls):
+        create_medium("hdd")
+        create_medium("ssd")
+
+    @authors("ignat")
+    def test_default_medium_on_node(self):
+        create("table", "//tmp/in")
+        write_table("//tmp/in", [{"foo": "bar"}])
+        create("table", "//tmp/out")
+
+        def start_op(medium_type, track):
+            return map(
+                command="cat; echo $(pwd) >&2",
+                in_="//tmp/in",
+                out="//tmp/out",
+                spec={
+                    "mapper": {
+                        "disk_request": {
+                            "disk_space": 1024 * 1024,
+                            "medium_name": medium_type
+                        },
+                    },
+                    "max_failed_job_count": 1,
+                },
+                track=track
+            )
+
+        start_op("ssd", track=True)
+
+        op = start_op("hdd", track=False)
+        op.wait_for_state("running")
+        time.sleep(5)
+        assert op.get_state() == "running"
+        assert op.get_job_count("running") == 0
+        assert op.get_job_count("aborted") == 0

@@ -177,6 +177,9 @@ public:
 
     TDuration DisableJobsTimeout;
 
+    //! Default medium used to run jobs without disk requests.
+    TString DefaultMediumName;
+
     TSlotManagerConfig()
     {
         RegisterParameter("locations", Locations);
@@ -200,6 +203,9 @@ public:
             .Default(500);
         RegisterParameter("disable_jobs_timeout", DisableJobsTimeout)
             .Default(TDuration::Minutes(10));
+
+        RegisterParameter("default_medium_name", DefaultMediumName)
+            .Default(NChunkClient::DefaultSlotsMediumName);
     }
 };
 
