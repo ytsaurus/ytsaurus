@@ -164,7 +164,9 @@ void TFairShareStrategyOperationController::OnScheduleJobFailed(
     }
 
     if (backoffDeadline > 0) {
-        YT_LOG_DEBUG("Failed to schedule job, backing off (Reasons: %v)", scheduleJobResult->Failed);
+        YT_LOG_DEBUG("Failed to schedule job, backing off (Duration: %v, Reasons: %v)",
+            backoffDeadline - now,
+            scheduleJobResult->Failed);
         ScheduleJobBackoffDeadline_.store(backoffDeadline);
     }
 
