@@ -48,6 +48,7 @@ struct TGpuMetricsIndex
         , UtilizationGpu(Register("utilization.gpu"))
         , UtilizationMemory(Register("utilization.memory"))
         , MemoryUsed(Register("memory.used"))
+        , MemoryTotal(Register("memory.total"))
         , PowerDraw(Register("power.draw"))
         , PowerLimit(Register("power.limit"))
         , ClocksSm(Register("clocks.sm"))
