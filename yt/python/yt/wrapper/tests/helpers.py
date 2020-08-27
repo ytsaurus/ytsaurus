@@ -1,7 +1,7 @@
 from __future__ import print_function
 
 from yt.packages.six import iteritems, integer_types, text_type, binary_type, b, PY3
-from yt.packages.six.moves import map as imap
+from yt.packages.six.moves import map as imap, xrange
 
 from yt.test_helpers import wait, get_tests_sandbox as get_tests_sandbox_impl, get_tmpfs_path
 from yt.test_helpers.job_events import JobEvents
@@ -21,9 +21,11 @@ except ImportError:
 import collections
 import glob
 import os
+import random
 import shutil
-import sys
 import stat
+import string
+import sys
 import tempfile
 import threading
 from contextlib import contextmanager
@@ -297,3 +299,7 @@ def failing_heavy_request(module, n_fails, assert_exhausted=True):
 
     if assert_exhausted:
         assert fail_state["exhausted"]
+
+def random_string(length):
+    char_set = string.ascii_lowercase + string.digits + string.ascii_uppercase
+    return "".join(random.choice(char_set) for _ in xrange(length))

@@ -2,7 +2,7 @@ from __future__ import with_statement, print_function
 
 from .conftest import authors
 from .helpers import (TEST_DIR, check, set_config_option, get_tests_sandbox, set_config_options,
-                      wait, failing_heavy_request)
+                      wait, failing_heavy_request, random_string)
 
 import yt.wrapper.format as yt_format
 
@@ -28,6 +28,7 @@ import uuid
 import gzip
 from io import BytesIO
 from copy import deepcopy
+from datetime import datetime, timedelta
 
 class FakeFileManager(object):
     def __init__(self, client):
@@ -914,8 +915,54 @@ class TestTableCommandsJsonFormat(object):
         with pytest.raises(yt.YtFormatError):
             yt.write_table(table, [row_ascii], format=self._create_format(encoding="utf-16", encode_utf8=False))
 
+
 class TestTableCommandsJsonFormatUjson(TestTableCommandsJsonFormat):
     @classmethod
     def setup_class(cls):
         super(TestTableCommandsJsonFormatUjson, cls).setup_class()
         cls._enable_ujson = True
+
+
+@pytest.mark.usefixtures("yt_env_with_framing")
+class TestTableCommandsFraming(object):
+    REQUEST_TIMEOUT = 2 * 1000
+
+    @authors("levysotsky")
+    def test_read(self, yt_env_with_framing):
+        suspending_path = yt_env_with_framing.framing_options["suspending_path"]
+        delay_before_command = yt_env_with_framing.framing_options["delay_before_command"]
+        yt.create("table", suspending_path)
+        yt.write_table(suspending_path, [{"column_1": 1, "column_2": "foo"}])
+        start = datetime.now()
+        with set_config_option("proxy/heavy_request_timeout", self.REQUEST_TIMEOUT):
+            read_rows = yt.read_table(suspending_path)
+        check([{"column_1": 1, "column_2": "foo"}], read_rows)
+        assert datetime.now() - start > timedelta(milliseconds=delay_before_command)
+
+    @authors("levysotsky")
+    def test_error_in_read(self, yt_env_with_framing):
+        suspending_path = yt_env_with_framing.framing_options["suspending_path"]
+        delay_before_command = yt_env_with_framing.framing_options["delay_before_command"]
+        row_count = 10000
+        rows = [{"a": random_string(100)} for _ in xrange(row_count)]
+        rows.append({"b": 12})
+        yt.write_table(suspending_path, rows)
+        start = datetime.now()
+        with set_config_option("proxy/heavy_request_timeout", self.REQUEST_TIMEOUT):
+            with pytest.raises(yt.YtResponseError):
+                for _ in yt.read_table(suspending_path, format=yt.SchemafulDsvFormat(columns=["a"])):
+                    pass
+        assert datetime.now() - start > timedelta(milliseconds=delay_before_command)
+
+    @authors("levysotsky")
+    def test_get_table_columnar_statistics(self, yt_env_with_framing):
+        suspending_path = yt_env_with_framing.framing_options["suspending_path"]
+        delay_before_command = yt_env_with_framing.framing_options["delay_before_command"]
+        yt.create("table", suspending_path)
+        yt.write_table(suspending_path, [{"column_1": 1, "column_2": "foo"}])
+        start = datetime.now()
+        with set_config_option("proxy/request_timeout", self.REQUEST_TIMEOUT):
+            statistics = yt.get_table_columnar_statistics(suspending_path + "{column_1}")
+        assert len(statistics) == 1
+        assert "column_data_weights" in statistics[0]
+        assert datetime.now() - start > timedelta(milliseconds=delay_before_command)
