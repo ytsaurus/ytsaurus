@@ -92,6 +92,15 @@ public:
             return;
         }
 
+        for (auto id : sample.TagIds) {
+            if (id < 0 || id >= RegisteredTagCount_) {
+                YT_LOG_ALERT("Invalid tag id in profiling sample (Path: %v, TagId: %v)",
+                    sample.Path,
+                    id);
+                return;
+            }
+        }
+
         if (!selfProfiling) {
             ProfilingProfiler.Increment(EnqueuedCounter_);
         }
@@ -138,6 +147,7 @@ public:
         IdToTag_.push_back(tag);
         YT_VERIFY(TagToId_.insert(std::make_pair(pair, id)).second);
         TagKeyToValues_[tag.Key].push_back(tag.Value);
+        ++RegisteredTagCount_;
 
         return id;
     }
@@ -461,6 +471,7 @@ private:
     TMonotonicCounter DequeuedCounter_{"/dequeued"};
     TMonotonicCounter DroppedCounter_{"/dropped"};
 
+
     TProfileManagerConfigPtr Config_;
 
     TMultipleProducerSingleConsumerLockFreeStack<TQueuedSample> SampleQueue_;
@@ -469,6 +480,7 @@ private:
 
     TForkAwareSpinLock TagSpinLock_;
     std::vector<TTag> IdToTag_;
+    std::atomic<int> RegisteredTagCount_ = 0;
     THashMap<std::pair<TString, TString>, int> TagToId_;
     using TTagKeyToValues = THashMap<TString, std::vector<TString>>;
     TTagKeyToValues TagKeyToValues_;
