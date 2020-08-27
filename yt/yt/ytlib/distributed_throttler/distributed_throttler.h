@@ -34,6 +34,9 @@ public:
         NConcurrency::TThroughputThrottlerConfigPtr throttlerConfig);
 
     void Reconfigure(TDistributedThrottlerConfigPtr config);
+
+    void Start();
+    void Stop();
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

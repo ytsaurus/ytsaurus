@@ -738,21 +738,6 @@ public:
         attributes->Set(AddressAttributeKey, address);
 
         MemberClient_->SetPriority(TInstant::Now().Seconds());
-        MemberClient_->Start();
-
-        UpdateLimitsExecutor_->Start();
-        UpdateLeaderExecutor_->Start();
-    }
-
-    ~TImpl()
-    {
-        MemberClient_->Stop();
-        UpdateLimitsExecutor_->Stop();
-        UpdateLeaderExecutor_->Stop();
-
-        if (LeaderId_ == MemberId_) {
-            DistributedThrottlerService_->Finalize();
-        }
     }
 
     IReconfigurableThroughputThrottlerPtr GetOrCreateThrottler(const TString& throttlerId, TThroughputThrottlerConfigPtr throttlerConfig)
@@ -827,6 +812,30 @@ public:
         }
 
         Config_.Store(std::move(config));
+    }
+
+    void Start()
+    {
+        MemberClient_->Start();
+
+        UpdateLimitsExecutor_->Start();
+        UpdateLeaderExecutor_->Start();
+
+        if (LeaderId_ == MemberId_) {
+            DistributedThrottlerService_->Initialize();
+        }
+    }
+
+    void Stop()
+    {
+        MemberClient_->Stop();
+
+        UpdateLimitsExecutor_->Stop();
+        UpdateLeaderExecutor_->Stop();
+
+        if (LeaderId_ == MemberId_) {
+            DistributedThrottlerService_->Finalize();
+        }
     }
 
 private:
@@ -1069,6 +1078,16 @@ void TDistributedThrottlerFactory::Reconfigure(
     TDistributedThrottlerConfigPtr config)
 {
     Impl_->Reconfigure(std::move(config));
+}
+
+void TDistributedThrottlerFactory::Start()
+{
+    Impl_->Start();
+}
+
+void TDistributedThrottlerFactory::Stop()
+{
+    Impl_->Stop();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
