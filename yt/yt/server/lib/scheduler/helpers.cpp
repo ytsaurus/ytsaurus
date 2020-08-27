@@ -26,18 +26,18 @@ TError CheckPoolName(const TString& poolName)
 {
     if (poolName == NScheduler::RootPoolName) {
         return TError("Pool name cannot be equal to root pool name")
-            << TErrorAttribute("RootPoolName", RootPoolName);
+            << TErrorAttribute("root_pool_name", RootPoolName);
     }
 
     if (poolName.length() > PoolNameMaxLength) {
-        return TError("Pool name is too long")
+        return TError("Pool name %Qv is too long", poolName)
             << TErrorAttribute("length", poolName.length())
             << TErrorAttribute("max_length", PoolNameMaxLength);
     }
 
     static NRe2::TRe2Ptr regex = New<NRe2::TRe2>(PoolNameRegex);
     if (!NRe2::TRe2::FullMatch(NRe2::StringPiece(poolName), *regex)) {
-        return TError("Name must match regular expression %Qv", PoolNameRegex);
+        return TError("Pool name %Qv must match regular expression %Qv", poolName, PoolNameRegex);
     }
 
     return TError();
