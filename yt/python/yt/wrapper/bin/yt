@@ -168,6 +168,10 @@ try:
     output_format = OUTPUT_FORMATS[YT_STRUCTURED_DATA_FORMAT]
 except KeyError as e:
     raise yt.YtError("Incorrect structured format " + str(e))
+    
+SUBPARSER_KWARGS = {}
+if (sys.version_info.major, sys.version_info.minor) >= (3, 7):
+    SUBPARSER_KWARGS["required"] = True
 
 class ParseFormat(Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -1456,7 +1460,7 @@ def add_idm_parser(root_subparsers):
 
     parser.add_argument("--address", help="IDM integration service address")
 
-    idm_subparsers = parser.add_subparsers(metavar="idm_command")
+    idm_subparsers = parser.add_subparsers(metavar="idm_command", **SUBPARSER_KWARGS)
 
     # idm show
     add_idm_show_parser(idm_subparsers)
@@ -1537,7 +1541,7 @@ def add_idm_copy_parser(idm_subparsers):
 
 def add_spark_parser(root_subparsers):
     parser = populate_argument_help(root_subparsers.add_parser("spark", description="Spark over YT commands"))
-    spark_subparsers = parser.add_subparsers(metavar="spark_command")
+    spark_subparsers = parser.add_subparsers(metavar="spark_command", **SUBPARSER_KWARGS)
     add_spark_subparser = add_subparser(spark_subparsers, params_argument=False)
     add_start_spark_cluster_parser(add_spark_subparser)
     add_find_spark_cluster_parser(add_spark_subparser)
@@ -1588,7 +1592,9 @@ def add_clickhouse_execute_parser(add_parser):
 
 def add_clickhouse_parser(root_subparsers):
     parser = populate_argument_help(root_subparsers.add_parser("clickhouse", description="ClickHouse over YT commands"))
-    clickhouse_subparsers = parser.add_subparsers(metavar="clickhouse_command")
+
+    clickhouse_subparsers = parser.add_subparsers(metavar="clickhouse_command", **SUBPARSER_KWARGS)
+
     add_clickhouse_subparser = add_subparser(clickhouse_subparsers, params_argument=False)
     add_clickhouse_start_clique_parser(add_clickhouse_subparser)
     add_clickhouse_execute_parser(add_clickhouse_subparser)
