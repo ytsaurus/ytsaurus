@@ -3614,8 +3614,14 @@ private:
 
     TFuture<TYsonString> DoComputeRecursiveResourceUsage(TVersionedNodeId versionedNodeId)
     {
-        auto* node = GetNodeOrThrow(versionedNodeId);
-        auto visitor = New<TResourceUsageVisitor>(Bootstrap_, node->GetTrunkNode(), node->GetTransaction());
+        auto trunkNodeId = versionedNodeId.ObjectId;
+        auto transactionId = versionedNodeId.TransactionId;
+        auto* trunkNode = GetNodeOrThrow(TVersionedNodeId{trunkNodeId});
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* transaction = transactionId
+            ? transactionManager->GetTransactionOrThrow(transactionId)
+            : nullptr;
+        auto visitor = New<TResourceUsageVisitor>(Bootstrap_, trunkNode, transaction);
         return visitor->Run();
     }
 

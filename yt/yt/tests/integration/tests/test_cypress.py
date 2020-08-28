@@ -1890,19 +1890,23 @@ class TestCypress(YTEnvSetup):
         for i in xrange(10):
             assert get_batch_output(get_results[i]) == i
 
-    @authors("babenko")
+    @authors("babenko", "shakurov")
     def test_recursive_resource_usage_map(self):
         create("map_node", "//tmp/m")
         for i in xrange(10):
             set("//tmp/m/" + str(i), i)
         assert get("//tmp/m/@recursive_resource_usage/node_count") == 11
+        tx = start_transaction()
+        assert get("//tmp/m/@recursive_resource_usage/node_count", tx=tx) == 11
 
-    @authors("babenko")
+    @authors("babenko", "shakurov")
     def test_recursive_resource_usage_list(self):
         create("list_node", "//tmp/l")
         for i in xrange(10):
             set("//tmp/l/end", i)
         assert get("//tmp/l/@recursive_resource_usage/node_count") == 11
+        tx = start_transaction()
+        assert get("//tmp/l/@recursive_resource_usage/node_count", tx=tx) == 11
 
     @authors("ignat")
     def test_prerequisite_transactions(self):
