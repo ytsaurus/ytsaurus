@@ -18,7 +18,7 @@ public:
         const NYPath::TYPath& path,
         NProfiling::TValue value,
         NProfiling::EMetricType metricType,
-        const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds) const;
+        const NProfiling::TTagIdList& tagIds = {}) const;
 
 private:
     using TKey = std::pair<NYPath::TYPath, NProfiling::TTagIdList>;

@@ -226,7 +226,7 @@ public:
         TCellTag cellTag);
 
     const NProfiling::TProfiler& GetProfiler();
-    NProfiling::TMonotonicCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
+    NProfiling::TShardedMonotonicCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
 
     TEpoch GetCurrentEpoch();
 

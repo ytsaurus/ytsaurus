@@ -131,13 +131,13 @@ struct TVolumeMeta
 
 struct TLayerLocationPerformanceCounters
 {
-    NProfiling::TSimpleGauge LayerCount;
-    NProfiling::TSimpleGauge VolumeCount;
+    NProfiling::TAtomicGauge LayerCount;
+    NProfiling::TAtomicGauge VolumeCount;
 
-    NProfiling::TAggregateGauge TotalSpace;
-    NProfiling::TAggregateGauge UsedSpace;
-    NProfiling::TAggregateGauge AvailableSpace;
-    NProfiling::TSimpleGauge Full;
+    NProfiling::TShardedAggregateGauge TotalSpace;
+    NProfiling::TShardedAggregateGauge UsedSpace;
+    NProfiling::TShardedAggregateGauge AvailableSpace;
+    NProfiling::TAtomicGauge Full;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1091,7 +1091,7 @@ private:
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
-    TMonotonicCounter TmpfsCacheHitCounter_;
+    TShardedMonotonicCounter TmpfsCacheHitCounter_;
 
     virtual bool IsResurrectionSupported() const override
     {

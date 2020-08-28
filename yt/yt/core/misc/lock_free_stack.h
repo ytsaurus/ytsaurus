@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <atomic>
 
 namespace NYT {
@@ -16,7 +18,6 @@ struct TIntrusiveStackItem
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=84522
 // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=80878
 
-constexpr size_t CacheLineSize = 64;
 using TAtomicUint128 = volatile unsigned __int128  __attribute__((aligned(16)));
 
 template <class T1, class T2>

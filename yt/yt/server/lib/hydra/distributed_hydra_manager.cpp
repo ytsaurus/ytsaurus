@@ -531,7 +531,7 @@ private:
 
     const NProfiling::TProfiler Profiler;
     int RestartCounter_ = 0;
-    NProfiling::TAggregateGauge LeaderSyncTimeGauge_{"/leader_sync_time"};
+    NProfiling::TShardedAggregateGauge LeaderSyncTimeGauge_{"/leader_sync_time"};
 
     std::atomic<bool> ReadOnly_ = {false};
     const TLeaderLeasePtr LeaderLease_ = New<TLeaderLease>();

@@ -586,46 +586,46 @@ protected:
         explicit TMethodPerformanceCounters(const NProfiling::TTagIdList& tagIds);
 
         //! Counts the number of method calls.
-        NProfiling::TMonotonicCounter RequestCounter;
+        NProfiling::TShardedMonotonicCounter RequestCounter;
 
         //! Counts the number of canceled method calls.
-        NProfiling::TMonotonicCounter CanceledRequestCounter;
+        NProfiling::TShardedMonotonicCounter CanceledRequestCounter;
 
         //! Counts the number of failed method calls.
-        NProfiling::TMonotonicCounter FailedRequestCounter;
+        NProfiling::TShardedMonotonicCounter FailedRequestCounter;
 
         //! Counts the number of timed out method calls.
-        NProfiling::TMonotonicCounter TimedOutRequestCounter;
+        NProfiling::TShardedMonotonicCounter TimedOutRequestCounter;
 
         //! Time spent while handling the request.
-        NProfiling::TAggregateGauge ExecutionTimeCounter;
+        NProfiling::TShardedAggregateGauge ExecutionTimeCounter;
 
         //! Time spent at the caller's side before the request arrived into the server queue.
-        NProfiling::TAggregateGauge RemoteWaitTimeCounter;
+        NProfiling::TShardedAggregateGauge RemoteWaitTimeCounter;
 
         //! Time spent while the request was waiting in the server queue.
-        NProfiling::TAggregateGauge LocalWaitTimeCounter;
+        NProfiling::TShardedAggregateGauge LocalWaitTimeCounter;
 
         //! Time between the request arrival and the moment when it is fully processed.
-        NProfiling::TAggregateGauge TotalTimeCounter;
+        NProfiling::TShardedAggregateGauge TotalTimeCounter;
 
         //! CPU time spent in the handler's fiber.
-        NProfiling::TMonotonicCounter HandlerFiberTimeCounter;
+        NProfiling::TShardedMonotonicCounter HandlerFiberTimeCounter;
 
         //! CPU time spent in the trace context associated with the request (locally).
-        NProfiling::TMonotonicCounter TraceContextTimeCounter;
+        NProfiling::TShardedMonotonicCounter TraceContextTimeCounter;
 
         //! Counts the number of bytes in requests message body.
-        NProfiling::TMonotonicCounter RequestMessageBodySizeCounter;
+        NProfiling::TShardedMonotonicCounter RequestMessageBodySizeCounter;
 
         //! Counts the number of bytes in request message attachment.
-        NProfiling::TMonotonicCounter RequestMessageAttachmentSizeCounter;
+        NProfiling::TShardedMonotonicCounter RequestMessageAttachmentSizeCounter;
 
         //! Counts the number of bytes in response message body.
-        NProfiling::TMonotonicCounter ResponseMessageBodySizeCounter;
+        NProfiling::TShardedMonotonicCounter ResponseMessageBodySizeCounter;
 
         //! Counts the number of bytes in response message attachment.
-        NProfiling::TMonotonicCounter ResponseMessageAttachmentSizeCounter;
+        NProfiling::TShardedMonotonicCounter ResponseMessageAttachmentSizeCounter;
     };
 
     using TMethodPerformanceCountersPtr = TIntrusivePtr<TMethodPerformanceCounters>;
@@ -642,10 +642,10 @@ protected:
         const NProfiling::TTagIdList TagIds;
 
         std::atomic<int> QueueSize = 0;
-        NProfiling::TSimpleGauge QueueSizeCounter;
-        NProfiling::TSimpleGauge QueueSizeLimitCounter;
-        NProfiling::TSimpleGauge ConcurrencyCounter;
-        NProfiling::TSimpleGauge ConcurrencyLimitCounter;
+        NProfiling::TAtomicGauge QueueSizeCounter;
+        NProfiling::TAtomicGauge QueueSizeLimitCounter;
+        NProfiling::TAtomicGauge ConcurrencyCounter;
+        NProfiling::TAtomicGauge ConcurrencyLimitCounter;
 
         std::atomic<int> ConcurrencySemaphore = 0;
         TLockFreeQueue<TServiceContextPtr> RequestQueue;
@@ -762,8 +762,8 @@ private:
     std::atomic<int> ActiveRequestCount_ = 0;
 
     std::atomic<int> AuthenticationQueueSize_ = 0;
-    NProfiling::TSimpleGauge AuthenticationQueueSizeCounter_;
-    NProfiling::TAggregateGauge AuthenticationTimeCounter_;
+    NProfiling::TAtomicGauge AuthenticationQueueSizeCounter_;
+    NProfiling::TShardedAggregateGauge AuthenticationTimeCounter_;
     int AuthenticationQueueSizeLimit_ = TServiceConfig::DefaultAuthenticationQueueSizeLimit;
 
 private:

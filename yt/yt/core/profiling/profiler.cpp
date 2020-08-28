@@ -7,6 +7,8 @@
 
 #include <yt/core/ypath/token.h>
 
+#include <util/system/sanitizers.h>
+
 namespace NYT::NProfiling {
 
 using namespace NYPath;
@@ -54,28 +56,20 @@ TCounterBase::TCounterBase(
     : Path_(path)
     , TagIds_(tagIds)
     , Interval_(DurationToCpuDuration(interval))
-    , Deadline_(0)
-    , Current_(0)
 { }
 
 TCounterBase::TCounterBase(const TCounterBase& other)
-{
-    *this = other;
-}
+    : Path_(other.Path_)
+    , TagIds_(other.TagIds_)
+    , Interval_(other.Interval_)
+{ }
 
 TCounterBase& TCounterBase::operator=(const TCounterBase& other)
 {
     Path_ = other.Path_;
     TagIds_ = other.TagIds_;
     Interval_ = other.Interval_;
-    Deadline_ = 0;
-    Current_ = other.GetCurrent();
     return *this;
-}
-
-TValue TCounterBase::GetCurrent() const
-{
-    return Current_.load();
 }
 
 TCpuInstant TCounterBase::GetUpdateDeadline() const
@@ -83,89 +77,312 @@ TCpuInstant TCounterBase::GetUpdateDeadline() const
     return Deadline_.load(std::memory_order_relaxed);
 }
 
+void TCounterBase::Reset()
+{
+    Deadline_ = 0;
+}
+
+bool TCounterBase::CheckAndPromoteUpdateDeadline(TTscp tscp, bool forceEnqueue)
+{
+    if (Path_.empty()) {
+        return false;
+    }
+
+    auto currentDeadline = Deadline_.load(std::memory_order_relaxed);
+    if (!forceEnqueue && tscp.Instant < currentDeadline) {
+        return false;
+    }
+
+    auto newDeadline = tscp.Instant + Interval_;
+    if (!Deadline_.compare_exchange_strong(currentDeadline, newDeadline, std::memory_order_relaxed) && !forceEnqueue) {
+        return false;
+    }
+    
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TAggregateGauge::TAggregateGauge(
+TShardedAggregateGaugeBase::TShardedAggregateGaugeBase(
     const NYPath::TYPath& path,
     const TTagIdList& tagIds,
     EAggregateMode mode,
     TDuration interval)
     : TCounterBase(path, tagIds, interval)
     , Mode_(mode)
-{
-    Reset();
-}
+{ }
 
-TAggregateGauge::TAggregateGauge(const TAggregateGauge& other)
+TShardedAggregateGaugeBase::TShardedAggregateGaugeBase(const TShardedAggregateGaugeBase& other)
     : TCounterBase(other)
-{
-    *this = other;
-    Reset();
-}
+    , Mode_(other.Mode_)
+{ }
 
-TAggregateGauge& TAggregateGauge::operator=(const TAggregateGauge& other)
+TShardedAggregateGaugeBase& TShardedAggregateGaugeBase::operator = (const TShardedAggregateGaugeBase& other)
 {
     static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
     Mode_ = other.Mode_;
+    return *this;
+}
+
+Y_NO_SANITIZE("thread")
+void TShardedAggregateGaugeBase::UpdateShards(TValue value, TTscp tscp)
+{
+    auto& shard = DynamicData_->Shards[tscp.ProcessorId];
+
+    shard.Count += 1;
+    
+    if (Mode_ == EAggregateMode::All || Mode_ == EAggregateMode::Avg) {
+        shard.Sum += value;
+    }
+
+    if (Mode_ == EAggregateMode::All || Mode_ == EAggregateMode::Min) {
+        auto min = shard.Min.load(std::memory_order_relaxed);
+        do {
+            if (min <= value) {
+                break;
+            }
+        } while (!shard.Min.compare_exchange_weak(min, value));
+    }
+
+    if (Mode_ == EAggregateMode::All || Mode_ == EAggregateMode::Max) {
+        auto max = shard.Max.load(std::memory_order_relaxed);
+        do {
+            if (max >= value) {
+                break;
+            }
+        } while (!shard.Max.compare_exchange_weak(max, value));
+    }
+
+    shard.Current = value;
+    shard.Instant = tscp.Instant;
+}
+
+Y_NO_SANITIZE("thread")
+void TShardedAggregateGaugeBase::Reset()
+{
+    TCounterBase::Reset();
+    DynamicData_ = std::make_unique<TDynamicData>();
+    for (auto& shard : DynamicData_->Shards) {
+        shard.Min = std::numeric_limits<TValue>::max();
+        shard.Max = std::numeric_limits<TValue>::min();
+        shard.Sum = 0;
+        shard.Count = 0;
+        shard.Instant = 0;
+        shard.Current = 0;
+    }
+}
+
+Y_NO_SANITIZE("thread")
+TShardedAggregateGauge::TStats TShardedAggregateGaugeBase::CollectShardStats()
+{
+    auto guard = Guard(SpinLock_);
+    TStats result;
+    result.Min = std::numeric_limits<TValue>::max();
+    result.Max = std::numeric_limits<TValue>::min();
+    result.Sum = 0;
+    result.Count = 0;
+    for (auto& shard : DynamicData_->Shards) {
+        result.Min = std::min(result.Min, shard.Min.exchange(std::numeric_limits<TValue>::max()));
+        result.Max = std::max(result.Max, shard.Max.exchange(std::numeric_limits<TValue>::min()));
+        result.Sum += shard.Sum.exchange(0);
+        result.Count += shard.Count.exchange(0);
+    }
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TShardedAggregateGauge::TShardedAggregateGauge(
+    const NYPath::TYPath& path,
+    const TTagIdList& tagIds,
+    EAggregateMode mode,
+    TDuration interval)
+    : TShardedAggregateGaugeBase(path, tagIds, mode, interval)
+{
+    Reset();
+}
+
+TShardedAggregateGauge::TShardedAggregateGauge(const TShardedAggregateGauge& other)
+    : TShardedAggregateGaugeBase(other)
+{
+    Reset();
+}
+
+TShardedAggregateGauge& TShardedAggregateGauge::operator=(const TShardedAggregateGauge& other)
+{
+    static_cast<TShardedAggregateGaugeBase&>(*this) = static_cast<const TShardedAggregateGaugeBase&>(other);
     Reset();
     return *this;
 }
 
-void TAggregateGauge::Reset()
+void TShardedAggregateGauge::Update(TValue value, TTscp tscp)
 {
-    Min_ = std::numeric_limits<TValue>::max();
-    Max_ = std::numeric_limits<TValue>::min();
-    Sum_ = 0;
-    SampleCount_ = 0;
+    UpdateShards(value, tscp);
+}
+
+void TShardedAggregateGauge::Reset()
+{
+    TShardedAggregateGaugeBase::Reset();
+}
+
+Y_NO_SANITIZE("thread")
+TValue TShardedAggregateGauge::GetCurrent() const
+{
+    TCpuInstant latestInstant = 0;
+    TValue latestCurrent = 0;
+    for (const auto& shard : DynamicData_->Shards) {
+        auto instant = shard.Instant.load();
+        auto current = shard.Current.load();
+        if (instant > latestInstant) {
+            latestInstant = instant;
+            latestCurrent = current;
+        }
+    }
+    return latestCurrent;
+}   
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAtomicShardedAggregateGauge::TAtomicShardedAggregateGauge(
+    const NYPath::TYPath& path,
+    const TTagIdList& tagIds,
+    EAggregateMode mode,
+    TDuration interval)
+    : TShardedAggregateGaugeBase(path, tagIds, mode, interval)
+{
+    Reset();
+}
+
+TAtomicShardedAggregateGauge::TAtomicShardedAggregateGauge(const TAtomicShardedAggregateGauge& other)
+    : TShardedAggregateGaugeBase(other)
+{
+    Reset();
+}
+
+TAtomicShardedAggregateGauge& TAtomicShardedAggregateGauge::operator=(const TAtomicShardedAggregateGauge& other)
+{
+    static_cast<TShardedAggregateGaugeBase&>(*this) = static_cast<const TShardedAggregateGaugeBase&>(other);
+    Reset();
+    return *this;
+}
+
+void TAtomicShardedAggregateGauge::Update(TValue value, TTscp tscp)
+{
+    Current_ = value;
+    UpdateShards(value, tscp);
+}
+
+TValue TAtomicShardedAggregateGauge::Increment(TValue delta, TTscp tscp)
+{
+    auto value = (Current_ += delta);
+    UpdateShards(value, tscp);
+    return value;
+}
+
+void TAtomicShardedAggregateGauge::Reset()
+{
+    TShardedAggregateGaugeBase::Reset();
+    Current_ = 0;
+}
+
+TValue TAtomicShardedAggregateGauge::GetCurrent() const
+{
+    return Current_.load();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMonotonicCounter::TMonotonicCounter(
+TShardedMonotonicCounter::TShardedMonotonicCounter(
+    const NYPath::TYPath& path,
+    const TTagIdList& tagIds,
+    TDuration interval)
+    : TCounterBase(path, tagIds, interval)
+{
+    Reset();
+}
+
+TShardedMonotonicCounter::TShardedMonotonicCounter(const TShardedMonotonicCounter& other)
+    : TCounterBase(other)
+{
+    Reset();
+}
+
+TShardedMonotonicCounter& TShardedMonotonicCounter::operator=(const TShardedMonotonicCounter& other)
+{
+    static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
+    Reset();
+    return *this;
+}
+
+Y_NO_SANITIZE("thread")
+TValue TShardedMonotonicCounter::GetCurrent() const
+{
+    TValue result = 0;
+    for (const auto& shard : DynamicData_->Shards) {
+        result += shard.Delta;
+    }
+    return result;
+}
+
+Y_NO_SANITIZE("thread")
+void TShardedMonotonicCounter::Increment(TValue delta, TTscp tscp)
+{
+    DynamicData_->Shards[tscp.ProcessorId].Delta += delta;
+}
+
+Y_NO_SANITIZE("thread")
+void TShardedMonotonicCounter::Reset()
+{
+    TCounterBase::Reset();
+    DynamicData_ = std::make_unique<TDynamicData>();
+    for (auto& shard : DynamicData_->Shards) {
+        shard.Delta = 0;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TAtomicGauge::TAtomicGauge(
     const NYPath::TYPath& path,
     const TTagIdList& tagIds,
     TDuration interval)
     : TCounterBase(path, tagIds, interval)
 { }
 
-TMonotonicCounter::TMonotonicCounter(const TMonotonicCounter& other)
+TAtomicGauge::TAtomicGauge(const TAtomicGauge& other)
     : TCounterBase(other)
 {
-    *this = other;
+    Reset();
 }
 
-TMonotonicCounter& TMonotonicCounter::operator=(const TMonotonicCounter& other)
+TAtomicGauge& TAtomicGauge::operator=(const TAtomicGauge& other)
 {
     static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
+    Reset();
     return *this;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-TSimpleGauge::TSimpleGauge(
-    const NYPath::TYPath& path,
-    const TTagIdList& tagIds,
-    TDuration interval)
-    : TCounterBase(path, tagIds, interval)
-{ }
-
-TSimpleGauge::TSimpleGauge(const TSimpleGauge& other)
-    : TCounterBase(other)
+TValue TAtomicGauge::GetCurrent() const
 {
-    *this = other;
+    return Current_.load();
 }
 
-TSimpleGauge& TSimpleGauge::operator=(const TSimpleGauge& other)
+void TAtomicGauge::Update(TValue value)
 {
-    static_cast<TCounterBase&>(*this) = static_cast<const TCounterBase&>(other);
-    return *this;
+    Current_ = value;
+}
+
+TValue TAtomicGauge::Increment(TValue delta)
+{
+    return Current_ += delta;
+}
+
+void TAtomicGauge::Reset()
+{
+    Current_ = 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TProfiler::TProfiler()
-    : Enabled_(false)
-{ }
 
 TProfiler::TProfiler(
     const TYPath& pathPrefix,
@@ -322,105 +539,78 @@ TDuration TProfiler::DoTimingCheckpoint(
     }
 }
 
-void TProfiler::Update(TAggregateGauge& counter, TValue value) const
+void TProfiler::Update(TShardedAggregateGauge& gauge, TValue value, TTscp tscp) const
 {
-    counter.Current_ = value;
-    OnUpdated(counter, value);
+    gauge.Update(value, tscp);
+    OnCounterUpdated(gauge, tscp);
 }
 
-TValue TProfiler::Increment(TAggregateGauge& counter, TValue delta) const
+void TProfiler::Update(TAtomicShardedAggregateGauge& gauge, TValue value, TTscp tscp) const
 {
-    auto value = (counter.Current_ += delta);
-    OnUpdated(counter, value);
-    return value;
+    gauge.Update(value, tscp);
+    OnCounterUpdated(gauge, EMetricType::Gauge, tscp);
 }
 
-void TProfiler::Update(TSimpleGauge& counter, TValue value) const
+TValue TProfiler::Increment(TAtomicShardedAggregateGauge& gauge, TValue delta, TTscp tscp) const
 {
-    counter.Current_ = value;
-    OnUpdated(counter, EMetricType::Gauge);
-}
-
-TValue TProfiler::Increment(TSimpleGauge& counter, TValue delta) const
-{
-    auto result = (counter.Current_ += delta);
-    OnUpdated(counter, EMetricType::Gauge);
+    auto result = gauge.Increment(delta, tscp);
+    OnCounterUpdated(gauge, EMetricType::Gauge, tscp);
     return result;
 }
 
-void TProfiler::Reset(TMonotonicCounter& counter) const
+void TProfiler::Update(TAtomicGauge& gauge, TValue value, TTscp tscp) const
 {
-    counter.Current_ = 0;
-    OnUpdated(counter, EMetricType::Counter);
+    gauge.Update(value);
+    OnCounterUpdated(gauge, EMetricType::Gauge, tscp);
 }
 
-TValue TProfiler::Increment(TMonotonicCounter& counter, TValue delta) const
+TValue TProfiler::Increment(TAtomicGauge& gauge, TValue delta, TTscp tscp) const
 {
-    auto result = (counter.Current_ += delta);
-    OnUpdated(counter, EMetricType::Counter);
+    auto result = gauge.Increment(delta);
+    OnCounterUpdated(gauge, EMetricType::Gauge, tscp);
     return result;
 }
 
-bool TProfiler::IsCounterEnabled(const TCounterBase& counter) const
+void TProfiler::Reset(TShardedMonotonicCounter& counter, TTscp tscp) const
 {
-    return Enabled_ && !counter.Path_.empty();
-}
-
-void TProfiler::OnUpdated(TAggregateGauge& counter, TValue value) const
-{
-    if (!IsCounterEnabled(counter)) {
-        return;
-    }
-
-    auto mode = counter.Mode_;
-
-    counter.SampleCount_ += 1;
-    if (mode == EAggregateMode::All || mode == EAggregateMode::Avg) {
-        counter.Sum_ += value;
-    }
-
-    if (mode == EAggregateMode::All || mode == EAggregateMode::Min) {
-        auto min = counter.Min_.load(std::memory_order_relaxed);
-        do {
-            if (min <= value) {
-                break;
-            }
-        } while (!counter.Min_.compare_exchange_weak(min, value));
-    }
-
-    if (mode == EAggregateMode::All || mode == EAggregateMode::Max) {
-        auto max = counter.Max_.load(std::memory_order_relaxed);
-        do {
-            if (max >= value) {
-                break;
-            }
-        } while (!counter.Max_.compare_exchange_weak(max, value));
-    }
-
-    auto now = GetCpuInstant();
-    if (now < counter.Deadline_.load(std::memory_order_relaxed)) {
-        return;
-    }
-
-    TGuard<TSpinLock> guard(counter.SpinLock_);
-
-    if (!ForceEnqueue_ && now < counter.Deadline_) {
-        return;
-    }
-
-    auto sampleCount = counter.SampleCount_.load();
-    if (sampleCount == 0) {
-        return;
-    }
-
-    auto min = counter.Min_.load();
-    auto max = counter.Max_.load();
-    auto avg = counter.Sum_.load() / sampleCount;
     counter.Reset();
-    counter.Deadline_ = now + counter.Interval_;
+    OnCounterUpdated(counter, EMetricType::Counter, tscp);
+}
 
-    guard.Release();
+void TProfiler::Increment(TShardedMonotonicCounter& counter, TValue delta, TTscp tscp) const
+{
+    counter.Increment(delta, tscp);
+    OnCounterUpdated(counter, EMetricType::Counter, tscp);
+}
 
+template <class T>
+bool TProfiler::OnCounterUpdatedPrologue(T& counter, TTscp tscp) const
+{
+    if (!Enabled_) {
+        return false;
+    }
+
+    if (!counter.CheckAndPromoteUpdateDeadline(tscp, ForceEnqueue_)) {
+        return false;
+    }
+    
+    return true;
+}
+
+void TProfiler::OnCounterUpdated(TShardedAggregateGauge& counter, TTscp tscp) const
+{
+    if (!OnCounterUpdatedPrologue(counter, tscp)) {
+        return;
+    }
+
+    auto stats = counter.CollectShardStats();
+    if (stats.Count == 0) {
+        return;
+    }
+
+    auto min = stats.Min;
+    auto max = stats.Max;
+    auto avg = stats.Sum / stats.Count;
     switch (counter.Mode_) {
         case EAggregateMode::All:
             Enqueue(counter.Path_ + "/min", min, EMetricType::Gauge, counter.TagIds_);
@@ -445,25 +635,16 @@ void TProfiler::OnUpdated(TAggregateGauge& counter, TValue value) const
     }
 }
 
-void TProfiler::OnUpdated(TCounterBase& counter, EMetricType metricType) const
+template <class T>
+void TProfiler::OnCounterUpdated(T& counter, EMetricType metricType, TTscp tscp) const
 {
-    if (!IsCounterEnabled(counter)) {
-        return;
-    }
-
-    auto deadline = counter.Deadline_.load(std::memory_order_relaxed);
-    auto now = GetCpuInstant();
-    if (!ForceEnqueue_ && now < deadline) {
-        return;
-    }
-
-    if (!counter.Deadline_.compare_exchange_strong(deadline, now + counter.Interval_, std::memory_order_relaxed) && !ForceEnqueue_) {
+    if (!OnCounterUpdatedPrologue(counter, tscp)) {
         return;
     }
 
     Enqueue(
         counter.Path_,
-        counter.Current_.load(),
+        counter.GetCurrent(),
         metricType,
         counter.TagIds_);
 }

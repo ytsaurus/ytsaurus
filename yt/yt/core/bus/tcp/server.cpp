@@ -32,7 +32,7 @@ using namespace NNet;
 
 static const auto& Profiler = BusProfiler;
 
-static NProfiling::TAggregateGauge AcceptTime("/accept_time");
+static NProfiling::TShardedAggregateGauge AcceptTime("/accept_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 

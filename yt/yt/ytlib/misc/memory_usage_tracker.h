@@ -49,13 +49,13 @@ private:
 
     i64 TotalLimit_;
 
-    NProfiling::TAggregateGauge TotalUsedCounter_;
-    NProfiling::TAggregateGauge TotalFreeCounter_;
+    NProfiling::TAtomicGauge TotalUsedGauge_;
+    NProfiling::TAtomicGauge TotalFreeGauge_;
 
     struct TCategory
     {
         i64 Limit = std::numeric_limits<i64>::max();
-        NProfiling::TAggregateGauge UsedCounter;
+        NProfiling::TAtomicGauge UsedGauge;
     };
 
     TEnumIndexedVector<ECategory, TCategory> Categories_;

@@ -14,9 +14,11 @@ using namespace NProfiling;
 
 TThrottlerManager::TThrottlerManager(
     TThroughputThrottlerConfigPtr config,
-    const NLogging::TLogger& logger)
-    : Config_(config)
-    , Logger_(logger)
+    NLogging::TLogger logger,
+    NProfiling::TProfiler profiler)
+    : Config_(std::move(config))
+    , Logger_(std::move(logger))
+    , Profiler_(std::move(profiler))
 { }
 
 void TThrottlerManager::Reconfigure(TThroughputThrottlerConfigPtr config)
@@ -40,12 +42,14 @@ IThroughputThrottlerPtr TThrottlerManager::GetThrottler(TCellTag cellTag)
     auto logger = Logger_;
     logger.AddTag("CellTag: %v", cellTag);
 
-    TTagIdList tagIds { TProfileManager::Get()->RegisterTag("cell_tag", cellTag) };
+    TTagIdList tagIds{
+        TProfileManager::Get()->RegisterTag("cell_tag", cellTag)
+    };
 
     auto throttler = CreateReconfigurableThroughputThrottler(
         Config_,
         logger,
-        TProfiler("/locate_chunks_throttler", tagIds));
+        Profiler_.AddTags(tagIds));
 
     YT_VERIFY(ThrottlerMap_.insert(std::make_pair(cellTag, throttler)).second);
 

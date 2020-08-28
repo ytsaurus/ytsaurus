@@ -228,9 +228,9 @@ private:
     std::atomic<NProfiling::TCpuInstant> LastFlushed_ = 0;
     std::atomic<bool> ProcessQueueCallbackPending_ = false;
 
-    TAggregateGauge ChangelogReadIOTimeGauge_{"/changelog_read_io_time"};
-    TAggregateGauge ChangelogReadCopyTimeGauge_{"/changelog_read_copy_time"};
-    TAggregateGauge ChangelogFlushIOTimeGauge_{"/changelog_flush_io_time"};
+    TShardedAggregateGauge ChangelogReadIOTimeGauge_{"/changelog_read_io_time"};
+    TShardedAggregateGauge ChangelogReadCopyTimeGauge_{"/changelog_read_copy_time"};
+    TShardedAggregateGauge ChangelogFlushIOTimeGauge_{"/changelog_flush_io_time"};
 
     DECLARE_THREAD_AFFINITY_SLOT(SyncThread);
 
@@ -410,14 +410,14 @@ private:
 
     THashSet<TFileChangelogQueuePtr> Queues_;
 
-    TMonotonicCounter RecordCounter_{"/records"};
-    TMonotonicCounter ByteCounter_{"/bytes"};
-    TSimpleGauge QueueCountGauge_{"/queue_count"};
-    TAggregateGauge ChangelogTruncateIOTimeGauge_{"/changelog_truncate_io_time"};
-    TAggregateGauge ChangelogCloseIOTimeGauge_{"/changelog_close_io_time"};
-    TAggregateGauge ChangelogPreallocateIOTimeGauge_{"/changelog_preallocate_io_time"};
-    TAggregateGauge ChangelogReadRecordCountGauge_{"/changelog_read_record_count"};
-    TAggregateGauge ChangelogReadSizeGauge_{"/changelog_read_size"};
+    TShardedMonotonicCounter RecordCounter_{"/records"};
+    TShardedMonotonicCounter ByteCounter_{"/bytes"};
+    TAtomicGauge QueueCountGauge_{"/queue_count"};
+    TShardedAggregateGauge ChangelogTruncateIOTimeGauge_{"/changelog_truncate_io_time"};
+    TShardedAggregateGauge ChangelogCloseIOTimeGauge_{"/changelog_close_io_time"};
+    TShardedAggregateGauge ChangelogPreallocateIOTimeGauge_{"/changelog_preallocate_io_time"};
+    TShardedAggregateGauge ChangelogReadRecordCountGauge_{"/changelog_read_record_count"};
+    TShardedAggregateGauge ChangelogReadSizeGauge_{"/changelog_read_size"};
 
     void ProcessQueues()
     {

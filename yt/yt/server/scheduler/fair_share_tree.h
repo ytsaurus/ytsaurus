@@ -199,7 +199,7 @@ public:
 
     virtual TResourceTree* GetResourceTree() override;
 
-    virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) override;
+    virtual NProfiling::TShardedAggregateGauge& GetProfilingCounter(const TString& name) override;
 
     void CheckOperationsWaitingForPool(TCompositeSchedulerElement* pool);
 
@@ -338,14 +338,14 @@ private:
     TFairShareSchedulingStage PreemptiveSchedulingStage_;
     TFairShareSchedulingStage PackingFallbackSchedulingStage_;
 
-    mutable NProfiling::TAggregateGauge FairSharePreUpdateTimeCounter_;
-    mutable NProfiling::TAggregateGauge FairShareUpdateTimeCounter_;
-    mutable NProfiling::TAggregateGauge FairShareFluentLogTimeCounter_;
-    mutable NProfiling::TAggregateGauge FairShareTextLogTimeCounter_;
-    mutable NProfiling::TAggregateGauge AnalyzePreemptableJobsTimeCounter_;
+    mutable NProfiling::TShardedAggregateGauge FairSharePreUpdateTimeCounter_;
+    mutable NProfiling::TShardedAggregateGauge FairShareUpdateTimeCounter_;
+    mutable NProfiling::TShardedAggregateGauge FairShareFluentLogTimeCounter_;
+    mutable NProfiling::TShardedAggregateGauge FairShareTextLogTimeCounter_;
+    mutable NProfiling::TShardedAggregateGauge AnalyzePreemptableJobsTimeCounter_;
 
     TSpinLock CustomProfilingCountersLock_;
-    THashMap<TString, std::unique_ptr<NProfiling::TAggregateGauge>> CustomProfilingCounters_;
+    THashMap<TString, std::unique_ptr<NProfiling::TShardedAggregateGauge>> CustomProfilingCounters_;
 
     NProfiling::TCpuInstant LastSchedulingInformationLoggedTime_ = 0;
 

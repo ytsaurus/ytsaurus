@@ -446,7 +446,7 @@ private:
     THashMap<TCellTag, EMasterCellRoles> MasterCellRolesMap_;
 
     const TIntrusivePtr<TAsyncBatcher<void>> UpstreamSyncBatcher_;
-    NProfiling::TAggregateGauge UpstreamSyncTimeGauge_{"/upstream_sync_time"};
+    NProfiling::TShardedAggregateGauge UpstreamSyncTimeGauge_{"/upstream_sync_time"};
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);

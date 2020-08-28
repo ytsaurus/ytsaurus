@@ -235,7 +235,7 @@ public:
         TCellTag cellTag);
 
     const NProfiling::TProfiler& GetProfiler();
-    NProfiling::TMonotonicCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
+    NProfiling::TShardedMonotonicCounter* GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method);
 
     TEpoch GetCurrentEpoch();
 
@@ -260,7 +260,7 @@ private:
 
     struct TMethodEntry
     {
-        NProfiling::TMonotonicCounter CumulativeExecuteTimeCounter;
+        NProfiling::TShardedMonotonicCounter CumulativeExecuteTimeCounter;
     };
 
     THashMap<std::pair<EObjectType, TString>, std::unique_ptr<TMethodEntry>> MethodToEntry_;
@@ -1983,7 +1983,7 @@ const TProfiler& TObjectManager::TImpl::GetProfiler()
     return Profiler;
 }
 
-NProfiling::TMonotonicCounter* TObjectManager::TImpl::GetMethodCumulativeExecuteTimeCounter(
+NProfiling::TShardedMonotonicCounter* TObjectManager::TImpl::GetMethodCumulativeExecuteTimeCounter(
     EObjectType type,
     const TString& method)
 {
@@ -1991,7 +1991,7 @@ NProfiling::TMonotonicCounter* TObjectManager::TImpl::GetMethodCumulativeExecute
     auto it = MethodToEntry_.find(key);
     if (it == MethodToEntry_.end()) {
         auto entry = std::make_unique<TMethodEntry>();
-        entry->CumulativeExecuteTimeCounter = NProfiling::TMonotonicCounter(
+        entry->CumulativeExecuteTimeCounter = NProfiling::TShardedMonotonicCounter(
             "/cumulative_execute_time",
             {
                 TProfileManager::Get()->RegisterTag("type", type),
@@ -2317,7 +2317,7 @@ const NProfiling::TProfiler& TObjectManager::GetProfiler()
     return Impl_->GetProfiler();
 }
 
-NProfiling::TMonotonicCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method)
+NProfiling::TShardedMonotonicCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(EObjectType type, const TString& method)
 {
     return Impl_->GetMethodCumulativeExecuteTimeCounter(type, method);
 }

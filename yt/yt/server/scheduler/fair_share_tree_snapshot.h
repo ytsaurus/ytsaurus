@@ -48,7 +48,7 @@ class IFairShareTreeHost
 public:
     virtual TResourceTree* GetResourceTree() = 0;
 
-    virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) = 0;
+    virtual NProfiling::TShardedAggregateGauge& GetProfilingCounter(const TString& name) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IFairShareTreeHost)

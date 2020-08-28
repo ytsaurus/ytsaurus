@@ -46,15 +46,15 @@ struct TScheduleJobsProfilingCounters
 {
     TScheduleJobsProfilingCounters(const TString& prefix, const NProfiling::TTagIdList& treeIdProfilingTags);
 
-    NProfiling::TAggregateGauge PrescheduleJobTime;
-    NProfiling::TAggregateGauge TotalControllerScheduleJobTime;
-    NProfiling::TAggregateGauge ExecControllerScheduleJobTime;
-    NProfiling::TAggregateGauge StrategyScheduleJobTime;
-    NProfiling::TAggregateGauge PackingRecordHeartbeatTime;
-    NProfiling::TAggregateGauge PackingCheckTime;
-    NProfiling::TMonotonicCounter ScheduleJobAttemptCount;
-    NProfiling::TMonotonicCounter ScheduleJobFailureCount;
-    TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TMonotonicCounter> ControllerScheduleJobFail;
+    NProfiling::TShardedAggregateGauge PrescheduleJobTime;
+    NProfiling::TShardedAggregateGauge TotalControllerScheduleJobTime;
+    NProfiling::TShardedAggregateGauge ExecControllerScheduleJobTime;
+    NProfiling::TShardedAggregateGauge StrategyScheduleJobTime;
+    NProfiling::TShardedAggregateGauge PackingRecordHeartbeatTime;
+    NProfiling::TShardedAggregateGauge PackingCheckTime;
+    NProfiling::TShardedMonotonicCounter ScheduleJobAttemptCount;
+    NProfiling::TShardedMonotonicCounter ScheduleJobFailureCount;
+    TEnumIndexedVector<NControllerAgent::EScheduleJobFailReason, NProfiling::TShardedMonotonicCounter> ControllerScheduleJobFail;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

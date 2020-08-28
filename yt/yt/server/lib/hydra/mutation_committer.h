@@ -62,7 +62,7 @@ protected:
 
     const NElection::TCellManagerPtr CellManager_;
 
-    NProfiling::TSimpleGauge LoggingSuspensionTimeGauge_{"/mutation_logging_suspension_time"};
+    NProfiling::TAtomicGauge LoggingSuspensionTimeGauge_{"/mutation_logging_suspension_time"};
 
     bool LoggingSuspended_ = false;
     std::optional<NProfiling::TWallTimer> LoggingSuspensionTimer_;
@@ -170,7 +170,7 @@ private:
     TFuture<void> PrevBatchQuorumFlushResult_ = VoidFuture;
     NConcurrency::TDelayedExecutorCookie BatchTimeoutCookie_;
 
-    NProfiling::TSimpleGauge CommitTimeGauge_{"/mutation_commit_time"};
+    NProfiling::TAtomicGauge CommitTimeGauge_{"/mutation_commit_time"};
 };
 
 DEFINE_REFCOUNTED_TYPE(TLeaderCommitter)

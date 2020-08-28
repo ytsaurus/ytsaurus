@@ -264,11 +264,11 @@ struct TCacheProfilingCounters
     { }
 
     const NProfiling::TProfiler Profiler;
-    NProfiling::TMonotonicCounter CacheHitCounter;
-    NProfiling::TMonotonicCounter CacheMissCounter;
-    NProfiling::TMonotonicCounter RedundantCacheMissCounter;
-    NProfiling::TMonotonicCounter InvalidCacheCounter;
-    NProfiling::TSimpleGauge ByteSize;
+    NProfiling::TShardedMonotonicCounter CacheHitCounter;
+    NProfiling::TShardedMonotonicCounter CacheMissCounter;
+    NProfiling::TShardedMonotonicCounter RedundantCacheMissCounter;
+    NProfiling::TShardedMonotonicCounter InvalidCacheCounter;
+    NProfiling::TAtomicGauge ByteSize;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheProfilingCounters);

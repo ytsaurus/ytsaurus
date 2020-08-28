@@ -139,13 +139,13 @@ void FormatValue(TStringBuilderBase* builder, const TJobResources& resources, TS
 void ProfileResources(
     const NProfiling::TProfiler& profiler,
     const TJobResources& resources,
-    const TString& prefix = TString(),
-    const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
+    const TString& prefix = {},
+    const NProfiling::TTagIdList& tagIds = {});
 void ProfileResources(
     NProfiling::TMetricsAccumulator& accumulator,
     const TJobResources& resources,
-    const TString& prefix = TString(),
-    const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
+    const TString& prefix = {},
+    const NProfiling::TTagIdList& tagIds = {});
 
 EJobResourceType GetDominantResource(
     const TJobResources& demand,

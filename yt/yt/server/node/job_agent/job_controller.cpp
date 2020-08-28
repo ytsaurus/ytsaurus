@@ -157,7 +157,7 @@ private:
     THashMap<int, TTagId> GpuDeviceNumberToProfilingTag_;
     THashMap<TString, TTagId> GpuNameToProfilingTag_;
 
-    THashMap<std::pair<EJobState, EJobOrigin>, TMonotonicCounter> JobFinalStateCounters_;
+    THashMap<std::pair<EJobState, EJobOrigin>, TShardedMonotonicCounter> JobFinalStateCounters_;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ResourceAdjustmentExecutor_;
@@ -241,7 +241,7 @@ private:
 
     void CheckReservedMappedMemory();
 
-    TMonotonicCounter* GetJobFinalStateCounter(EJobState state, EJobOrigin origin);
+    TShardedMonotonicCounter* GetJobFinalStateCounter(EJobState state, EJobOrigin origin);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1456,14 +1456,14 @@ void TJobController::TImpl::OnProfiling()
     }
 }
 
-TMonotonicCounter* TJobController::TImpl::GetJobFinalStateCounter(EJobState state, EJobOrigin origin)
+TShardedMonotonicCounter* TJobController::TImpl::GetJobFinalStateCounter(EJobState state, EJobOrigin origin)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
     auto key = std::make_pair(state, origin);
     auto it = JobFinalStateCounters_.find(key);
     if (it == JobFinalStateCounters_.end()) {
-        TMonotonicCounter counter{
+        TShardedMonotonicCounter counter{
             "/job_final_state",
             {
                 TProfileManager::Get()->RegisterTag("state", state),

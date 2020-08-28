@@ -37,9 +37,9 @@ struct TChunkWriteCounters
         , CompressionCpuTime("/chunk_writer/compression_cpu_time", tagIds)
     { }
 
-    TMonotonicCounter DiskSpace;
-    TMonotonicCounter DataWeight;
-    TMonotonicCounter CompressionCpuTime;
+    TShardedMonotonicCounter DiskSpace;
+    TShardedMonotonicCounter DataWeight;
+    TShardedMonotonicCounter CompressionCpuTime;
 };
 
 using TChunkWriteProfilerTrait = TTagListProfilerTrait<TChunkWriteCounters>;
@@ -74,9 +74,9 @@ struct TChunkReadCounters
         , ChunkReaderStatisticsCounters("/chunk_reader_statistics", tagIds)
     { }
 
-    TMonotonicCounter CompressedDataSize;
-    TMonotonicCounter UnmergedDataWeight;
-    TMonotonicCounter DecompressionCpuTime;
+    TShardedMonotonicCounter CompressedDataSize;
+    TShardedMonotonicCounter UnmergedDataWeight;
+    TShardedMonotonicCounter DecompressionCpuTime;
     TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
@@ -107,7 +107,7 @@ struct TDynamicMemoryUsageCounters
         : DynamicMemoryUsage("/dynamic_memory_usage", tagIds)
     { }
 
-    TSimpleGauge DynamicMemoryUsage;
+    TAtomicGauge DynamicMemoryUsage;
 };
 
 using TDynamicMemoryProfilerTrait = TTagListProfilerTrait<TDynamicMemoryUsageCounters>;

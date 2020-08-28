@@ -13,9 +13,10 @@ class TProfileManager;
 class TResourceTracker;
 
 class TTimer;
-class TMonotonicCounter;
-class TSimpleGauge;
-class TAggregateGauge;
+class TShardedMonotonicCounter;
+class TAtomicGauge;
+class TShardedAggregateGauge;
+class TAtomicShardedAggregateGauge;
 
 struct TQueuedSample;
 
@@ -29,8 +30,6 @@ using TTagId = int;
 
 constexpr int TypicalTagCount = 8;
 using TTagIdList = SmallVector<TTagId, TypicalTagCount>;
-
-extern const TTagIdList EmptyTagIds;
 
 //! Enumeration of metric types.
 /*

@@ -48,21 +48,21 @@ class TChunkReaderStatisticsCounters
 {
 public:
     explicit TChunkReaderStatisticsCounters(
-        const NYPath::TYPath& path = NYPath::TYPath(),
-        const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
+        const NYPath::TYPath& path = {},
+        const NProfiling::TTagIdList& tagIds = {});
 
     void Increment(
         const NProfiling::TProfiler& profiler,
         const TChunkReaderStatisticsPtr& chunkReaderStatistics);
 
 private:
-    NProfiling::TMonotonicCounter DataBytesReadFromDisk;
-    NProfiling::TMonotonicCounter DataBytesTransmitted;
-    NProfiling::TMonotonicCounter DataBytesReadFromCache;
-    NProfiling::TMonotonicCounter MetaBytesReadFromDisk;
-    NProfiling::TMonotonicCounter DataWaitTime;
-    NProfiling::TMonotonicCounter MetaWaitTime;
-    NProfiling::TMonotonicCounter PickPeerWaitTime;
+    NProfiling::TShardedMonotonicCounter DataBytesReadFromDisk;
+    NProfiling::TShardedMonotonicCounter DataBytesTransmitted;
+    NProfiling::TShardedMonotonicCounter DataBytesReadFromCache;
+    NProfiling::TShardedMonotonicCounter MetaBytesReadFromDisk;
+    NProfiling::TShardedMonotonicCounter DataWaitTime;
+    NProfiling::TShardedMonotonicCounter MetaWaitTime;
+    NProfiling::TShardedMonotonicCounter PickPeerWaitTime;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

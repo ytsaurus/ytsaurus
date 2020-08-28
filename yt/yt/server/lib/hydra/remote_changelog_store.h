@@ -28,7 +28,7 @@ IChangelogStoreFactoryPtr CreateRemoteChangelogStoreFactory(
     NSecurityServer::IResourceLimitsManagerPtr resourceLimitsManager,
     NTransactionClient::TTransactionId prerequisiteTransactionId =
         NTransactionClient::NullTransactionId,
-    const NProfiling::TTagIdList& profilerTags = NProfiling::EmptyTagIds);
+    const NProfiling::TTagIdList& profilerTags = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -24,7 +24,7 @@ struct IActionQueue
      * \param index Index is used as a hint to place the action
      * using the most suitable implementation-specific way.
      */
-    virtual void Enqueue(TEnqueuedAction&& action, int index) = 0;
+    virtual void Enqueue(TEnqueuedAction&& action, TTscp tscp) = 0;
 
     //! Extracts single element from the queue.
     /*!
@@ -33,33 +33,22 @@ struct IActionQueue
      * using the most suitable implementation-specific way.
      * \return |true| on successful operation. False on empty queue.
      */
-    virtual bool Dequeue(TEnqueuedAction* action, int index) = 0;
-
-    //! Configures the queue for the specified number of threads.
-    /*!
-     * \param threadCount Number of threads to configure the queue.
-     *
-     * \note Must be invoked before any Enqueue/Dequeue invocations.
-     */
-    virtual void Configure(int threadCount) = 0;
+    virtual bool Dequeue(TEnqueuedAction* action, TTscp tscp) = 0;
 };
 
 class TLockFreeActionQueue
     : public IActionQueue
 {
 public:
-    virtual void Enqueue(TEnqueuedAction&& action, int /*index*/) override
+    virtual void Enqueue(TEnqueuedAction&& action, TTscp /*tscp*/) override
     {
         Queue_.Enqueue(std::move(action));
     }
 
-    virtual bool Dequeue(TEnqueuedAction* action, int /*index*/) override
+    virtual bool Dequeue(TEnqueuedAction* action, TTscp /*tscp*/) override
     {
         return Queue_.Dequeue(action);
     }
-
-    virtual void Configure(int threadCount) override
-    { }
 
 private:
     TLockFreeQueue<TEnqueuedAction> Queue_;
@@ -129,10 +118,10 @@ public:
     }
 
     template <typename U>
-    void Enqueue(U&& val, int index)
+    void Enqueue(U&& val, TTscp tscp)
     {
         TryQueue(
-            index,
+            tscp,
             [&] (TQueueType& q) {
                 return q.TryEnqueue(std::forward<U>(val));
             },
@@ -142,12 +131,12 @@ public:
             });
     }
 
-    bool Dequeue(T* val, int index)
+    bool Dequeue(T* val, TTscp tscp)
     {
         YT_ASSERT(val);
 
         return TryQueue(
-            index,
+            tscp,
             [&] (TQueueType& q) {
                 return q.TryDequeue(val);
             },
@@ -159,40 +148,35 @@ public:
 private:
     TQueueType& GetQueue(int index)
     {
-        return Queues_[index % Queues_.size()];
+        return Queues_[index & (TTscp::MaxProcessorId - 1)];
     }
 
     template <typename FTry, typename F>
-    bool TryQueue(int i, FTry&& fTry, F&& f)
+    bool TryQueue(TTscp tscp, FTry&& fTry, F&& f)
     {
-        for (size_t n = 0; n < Queues_.size(); ++ n) {
-            if (fTry(GetQueue(i + n))) {
+        for (int shift = 0; shift < TTscp::MaxProcessorId; ++shift) {
+            if (fTry(GetQueue(tscp.ProcessorId + shift))) {
                 return true;
             }
         }
-        return f(GetQueue(i));
+        return f(GetQueue(tscp.ProcessorId));
     }
 
-    std::vector<TQueueType> Queues_;
+    std::array<TQueueType, TTscp::MaxProcessorId> Queues_;
 };
 
 class TMultiLockActionQueue
     : public IActionQueue
 {
 public:
-    virtual void Enqueue(TEnqueuedAction&& action, int index) override
+    virtual void Enqueue(TEnqueuedAction&& action, TTscp tscp) override
     {
-        Queue_.Enqueue(action, index);
+        Queue_.Enqueue(action, tscp);
     }
 
-    virtual bool Dequeue(TEnqueuedAction *action, int index) override
+    virtual bool Dequeue(TEnqueuedAction *action, TTscp tscp) override
     {
-        return Queue_.Dequeue(action, index);
-    }
-
-    virtual void Configure(int threadCount) override
-    {
-        Queue_.Configure(threadCount);
+        return Queue_.Dequeue(action, tscp);
     }
 
 private:
@@ -225,11 +209,11 @@ TInvokerQueue::TInvokerQueue(
     , Profiler("/action_queue")
     , EnqueuedCounter("/enqueued", tagIds)
     , DequeuedCounter("/dequeued", tagIds)
-    , SizeCounter("/size", tagIds)
-    , WaitTimeCounter("/time/wait", tagIds)
-    , ExecTimeCounter("/time/exec", tagIds)
+    , SizeGauge("/size", tagIds)
+    , WaitTimeGauge("/time/wait", tagIds)
+    , ExecTimeGauge("/time/exec", tagIds)
     , CumulativeTimeCounter("/time/cumulative", tagIds)
-    , TotalTimeCounter("/time/total", tagIds)
+    , TotalTimeGauge("/time/total", tagIds)
 {
     Profiler.SetEnabled(enableProfiling);
     Y_UNUSED(EnableLogging);
@@ -240,11 +224,6 @@ TInvokerQueue::~TInvokerQueue() = default;
 void TInvokerQueue::SetThreadId(TThreadId threadId)
 {
     ThreadId = threadId;
-}
-
-void TInvokerQueue::Configure(int threadCount)
-{
-    Queue->Configure(threadCount);
 }
 
 void TInvokerQueue::Invoke(TClosure callback)
@@ -259,18 +238,20 @@ void TInvokerQueue::Invoke(TClosure callback)
         return;
     }
 
-    QueueSize.fetch_add(1, std::memory_order_relaxed);
-
-    auto index = Profiler.Increment(EnqueuedCounter);
-
     YT_LOG_TRACE_IF(EnableLogging, "Callback enqueued: %p",
         callback.GetHandle());
 
+    auto tscp = TTscp::Get();
+
+    Profiler.Increment(SizeGauge, +1, tscp);
+    Profiler.Increment(EnqueuedCounter, +1, tscp);
+
     TEnqueuedAction action;
     action.Finished = false;
-    action.EnqueuedAt = GetCpuInstant();
+    action.EnqueuedAt = tscp.Instant;
     action.Callback = std::move(callback);
-    Queue->Enqueue(std::move(action), index);
+
+    Queue->Enqueue(std::move(action), tscp);
 
     CallbackEventCount->NotifyOne();
 }
@@ -297,25 +278,25 @@ void TInvokerQueue::Drain()
     YT_VERIFY(!Running.load(std::memory_order_relaxed));
 
     Queue.reset();
-    QueueSize = 0;
+    SizeGauge.Reset();
 }
 
-TClosure TInvokerQueue::BeginExecute(TEnqueuedAction* action, int index)
+TClosure TInvokerQueue::BeginExecute(TEnqueuedAction* action)
 {
     YT_ASSERT(action && action->Finished);
     YT_ASSERT(Queue);
 
-    if (!Queue->Dequeue(action, index)) {
-        return TClosure();
+    auto tscp = TTscp::Get();
+    if (!Queue->Dequeue(action, tscp)) {
+        return {};
     }
 
-    Profiler.Increment(DequeuedCounter);
+    action->StartedAt = tscp.Instant;
 
-    action->StartedAt = GetCpuInstant();
+    auto waitTime = CpuDurationToValue(action->StartedAt - action->EnqueuedAt);
 
-    Profiler.Update(
-        WaitTimeCounter,
-        CpuDurationToValue(action->StartedAt - action->EnqueuedAt));
+    Profiler.Increment(DequeuedCounter, +1, tscp);
+    Profiler.Update(WaitTimeGauge, waitTime, tscp);
 
     SetCurrentInvoker(this);
 
@@ -332,22 +313,22 @@ void TInvokerQueue::EndExecute(TEnqueuedAction* action)
         return;
     }
 
-    int queueSize = QueueSize.fetch_sub(1, std::memory_order_relaxed) - 1;
-    Profiler.Update(SizeCounter, queueSize);
+    auto tscp = TTscp::Get();
+    action->FinishedAt = tscp.Instant;
+    action->Finished = true;
 
-    action->FinishedAt = GetCpuInstant();
     auto timeFromStart = CpuDurationToValue(action->FinishedAt - action->StartedAt);
     auto timeFromEnqueue = CpuDurationToValue(action->FinishedAt - action->EnqueuedAt);
-    Profiler.Update(ExecTimeCounter, timeFromStart);
-    Profiler.Increment(CumulativeTimeCounter, timeFromStart);
-    Profiler.Update(TotalTimeCounter, timeFromEnqueue);
 
-    action->Finished = true;
+    Profiler.Increment(SizeGauge, -1, tscp);
+    Profiler.Update(ExecTimeGauge, timeFromStart, tscp);
+    Profiler.Increment(CumulativeTimeCounter, timeFromStart, tscp);
+    Profiler.Update(TotalTimeGauge, timeFromEnqueue, tscp);
 }
 
 int TInvokerQueue::GetSize() const
 {
-    return QueueSize.load(std::memory_order_relaxed);
+    return SizeGauge.GetCurrent();
 }
 
 bool TInvokerQueue::IsEmpty() const

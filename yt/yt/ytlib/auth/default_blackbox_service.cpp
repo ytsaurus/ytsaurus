@@ -70,10 +70,10 @@ private:
 
     const NHttp::IClientPtr HttpClient_;
 
-    NProfiling::TMonotonicCounter BlackboxCalls_{"/blackbox_calls"};
-    NProfiling::TMonotonicCounter BlackboxCallErrors_{"/blackbox_call_errors"};
-    NProfiling::TMonotonicCounter BlackboxCallFatalErrors_{"/blackbox_call_fatal_errors"};
-    NProfiling::TAggregateGauge BlackboxCallTime_{"/blackbox_call_time", {}, NProfiling::EAggregateMode::All};
+    NProfiling::TShardedMonotonicCounter BlackboxCalls_{"/blackbox_calls"};
+    NProfiling::TShardedMonotonicCounter BlackboxCallErrors_{"/blackbox_call_errors"};
+    NProfiling::TShardedMonotonicCounter BlackboxCallFatalErrors_{"/blackbox_call_fatal_errors"};
+    NProfiling::TShardedAggregateGauge BlackboxCallTime_{"/blackbox_call_time", {}, NProfiling::EAggregateMode::All};
 
 private:
     INodePtr DoCall(

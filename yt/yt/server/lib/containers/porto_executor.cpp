@@ -338,10 +338,10 @@ private:
             , FailureCounter("/command_failures", tagIds)
         { }
 
-        NProfiling::TAggregateGauge TimeGauge;
-        NProfiling::TMonotonicCounter RetryCounter;
-        NProfiling::TMonotonicCounter SuccessCounter;
-        NProfiling::TMonotonicCounter FailureCounter;
+        NProfiling::TShardedAggregateGauge TimeGauge;
+        NProfiling::TShardedMonotonicCounter RetryCounter;
+        NProfiling::TShardedMonotonicCounter SuccessCounter;
+        NProfiling::TShardedMonotonicCounter FailureCounter;
     };
 
     TSpinLock CommandLock_;

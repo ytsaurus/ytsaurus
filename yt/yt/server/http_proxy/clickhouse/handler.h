@@ -31,19 +31,19 @@ public:
     // It combines all metrics in one structure.
     struct TClickHouseProxyMetrics
     {
-        NProfiling::TAggregateGauge ResolveAliasTime{"/query_time/resolve_alias"};
-        NProfiling::TAggregateGauge DiscoveryForceUpdateTime{"/query_time/discovery_force_update"};
-        NProfiling::TAggregateGauge FindDiscoveryTime{"/query_time/find_discovery"};
-        NProfiling::TAggregateGauge IssueProxiedRequestTime{"/query_time/issue_proxied_request"};
-        NProfiling::TAggregateGauge AuthenticateTime{"/query_time/authenticate"};
-        NProfiling::TAggregateGauge CreateDiscoveryTime{"/query_time/create_discovery"};
-        NProfiling::TAggregateGauge ForwardProxiedResponseTime{"/query_time/forward_proxied_response"};
+        NProfiling::TShardedAggregateGauge ResolveAliasTime{"/query_time/resolve_alias"};
+        NProfiling::TShardedAggregateGauge DiscoveryForceUpdateTime{"/query_time/discovery_force_update"};
+        NProfiling::TShardedAggregateGauge FindDiscoveryTime{"/query_time/find_discovery"};
+        NProfiling::TShardedAggregateGauge IssueProxiedRequestTime{"/query_time/issue_proxied_request"};
+        NProfiling::TShardedAggregateGauge AuthenticateTime{"/query_time/authenticate"};
+        NProfiling::TShardedAggregateGauge CreateDiscoveryTime{"/query_time/create_discovery"};
+        NProfiling::TShardedAggregateGauge ForwardProxiedResponseTime{"/query_time/forward_proxied_response"};
 
-        NProfiling::TAggregateGauge TotalQueryTime{"/total_query_time"};
+        NProfiling::TShardedAggregateGauge TotalQueryTime{"/total_query_time"};
 
-        NProfiling::TMonotonicCounter QueryCount{"/query_count"};
-        NProfiling::TMonotonicCounter ForceUpdateCount{"/force_update_count"};
-        NProfiling::TMonotonicCounter BannedCount{"/banned_count"};
+        NProfiling::TShardedMonotonicCounter QueryCount{"/query_count"};
+        NProfiling::TShardedMonotonicCounter ForceUpdateCount{"/force_update_count"};
+        NProfiling::TShardedMonotonicCounter BannedCount{"/banned_count"};
     };
 
 private:

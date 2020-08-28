@@ -31,8 +31,6 @@ public:
 
     void SetThreadId(TThreadId threadId);
 
-    void Configure(int threadCount);
-
     virtual void Invoke(TClosure callback) override;
 
 #ifdef YT_ENABLE_THREAD_AFFINITY_CHECK
@@ -44,7 +42,7 @@ public:
 
     void Drain();
 
-    TClosure BeginExecute(TEnqueuedAction* action, int index = 0);
+    TClosure BeginExecute(TEnqueuedAction* action);
     void EndExecute(TEnqueuedAction* action);
 
     int GetSize() const;
@@ -62,16 +60,15 @@ private:
     std::atomic<bool> Running = {true};
 
     std::unique_ptr<IActionQueue> Queue;
-    std::atomic<int> QueueSize = {0};
 
     NProfiling::TProfiler Profiler;
-    NProfiling::TMonotonicCounter EnqueuedCounter;
-    NProfiling::TMonotonicCounter DequeuedCounter;
-    NProfiling::TAggregateGauge SizeCounter;
-    NProfiling::TAggregateGauge WaitTimeCounter;
-    NProfiling::TAggregateGauge ExecTimeCounter;
-    NProfiling::TMonotonicCounter CumulativeTimeCounter;
-    NProfiling::TAggregateGauge TotalTimeCounter;
+    NProfiling::TShardedMonotonicCounter EnqueuedCounter;
+    NProfiling::TShardedMonotonicCounter DequeuedCounter;
+    NProfiling::TAtomicShardedAggregateGauge SizeGauge;
+    NProfiling::TShardedAggregateGauge WaitTimeGauge;
+    NProfiling::TShardedAggregateGauge ExecTimeGauge;
+    NProfiling::TShardedMonotonicCounter CumulativeTimeCounter;
+    NProfiling::TShardedAggregateGauge TotalTimeGauge;
 };
 
 DEFINE_REFCOUNTED_TYPE(TInvokerQueue)

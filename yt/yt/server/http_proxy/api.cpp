@@ -157,7 +157,7 @@ void TApi::IncrementHttpCode(EStatusCode httpStatusCode)
 }
 
 void TApi::DoIncrementHttpCode(
-    THashMap<NHttp::EStatusCode, TMonotonicCounter>* counters,
+    THashMap<NHttp::EStatusCode, TShardedMonotonicCounter>* counters,
     EStatusCode httpStatusCode,
     TTagIdList tags)
 {
@@ -168,7 +168,7 @@ void TApi::DoIncrementHttpCode(
 
         it = counters->emplace(
             httpStatusCode,
-            TMonotonicCounter{"/http_code_count", tags}).first;
+            TShardedMonotonicCounter{"/http_code_count", tags}).first;
     }
 
     HttpProxyProfiler.Increment(it->second);
@@ -206,7 +206,7 @@ void TApi::IncrementProfilingCounters(
 
             it = counters->ApiErrors.emplace(
                 apiErrorCode,
-                TMonotonicCounter{"/api_error_count", tags}).first;
+                TShardedMonotonicCounter{"/api_error_count", tags}).first;
         }
 
         HttpProxyProfiler.Increment(it->second);

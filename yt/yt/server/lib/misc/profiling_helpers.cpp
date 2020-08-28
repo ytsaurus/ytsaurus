@@ -59,9 +59,9 @@ struct TServiceProfilerCounters
         , CumulativeTime(key.first + "/cumulative_time", key.second)
     { }
 
-    TMonotonicCounter RequestCount;
-    TAggregateGauge RequestExecutionTime;
-    TMonotonicCounter CumulativeTime;
+    TShardedMonotonicCounter RequestCount;
+    TShardedAggregateGauge RequestExecutionTime;
+    TShardedMonotonicCounter CumulativeTime;
 };
 
 using TServiceProfilerTrait = TProfilerTrait<TServiceProfilerCounters::TKey, TServiceProfilerCounters>;

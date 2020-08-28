@@ -15,7 +15,7 @@ TControllerAgentCounterManager::TControllerAgentCounterManager()
 {
     static const TEnumMemberTagCache<EOperationType> OperationTypeTagCache("operation_type");
     for (auto type : TEnumTraits<EOperationType>::GetDomainValues()) {
-        AssertionsFailed_[type] = TMonotonicCounter(
+        AssertionsFailed_[type] = TShardedMonotonicCounter(
             "/assertions_failed",
             {OperationTypeTagCache.GetTag(type)});
     }

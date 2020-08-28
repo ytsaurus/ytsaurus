@@ -92,10 +92,10 @@ private:
     const NProfiling::TTagId StoreFlushTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "store_flush");
     const NProfiling::TTagId StoreFlushFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "store_flush_failed");
 
-    NProfiling::TSimpleGauge DynamicMemoryUsageActiveCounter_{"/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "active")}};
-    NProfiling::TSimpleGauge DynamicMemoryUsagePassiveCounter_{"/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "passive")}};
-    NProfiling::TSimpleGauge DynamicMemoryUsageBackingCounter_{"/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "backing")}};
-    NProfiling::TSimpleGauge DynamicMemoryUsageOtherCounter_{"/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "other")}};
+    NProfiling::TAtomicGauge DynamicMemoryUsageActiveCounter_{"/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "active")}};
+    NProfiling::TAtomicGauge DynamicMemoryUsagePassiveCounter_{"/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "passive")}};
+    NProfiling::TAtomicGauge DynamicMemoryUsageBackingCounter_{"/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "backing")}};
+    NProfiling::TAtomicGauge DynamicMemoryUsageOtherCounter_{"/dynamic_memory_usage", {NProfiling::TProfileManager::Get()->RegisterTag("memory_type", "other")}};
 
     struct TForcedRotationCandidate
     {

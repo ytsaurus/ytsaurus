@@ -1023,14 +1023,14 @@ auto TFairShareTree<TFairShareImpl>::GetResourceTree() -> TResourceTree*
 }
 
 template <class TFairShareImpl>
-auto TFairShareTree<TFairShareImpl>::GetProfilingCounter(const TString& name) -> TAggregateGauge&
+auto TFairShareTree<TFairShareImpl>::GetProfilingCounter(const TString& name) -> TShardedAggregateGauge&
 {
     TGuard<TSpinLock> guard(CustomProfilingCountersLock_);
 
     auto it = CustomProfilingCounters_.find(name);
     if (it == CustomProfilingCounters_.end()) {
         auto tag = TProfileManager::Get()->RegisterTag("tree", TreeId_);
-        auto ptr = std::make_unique<TAggregateGauge>(name, TTagIdList{tag});
+        auto ptr = std::make_unique<TShardedAggregateGauge>(name, TTagIdList{tag});
         it = CustomProfilingCounters_.emplace(name, std::move(ptr)).first;
     }
     return *it->second;

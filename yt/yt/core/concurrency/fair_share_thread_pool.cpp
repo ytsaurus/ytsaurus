@@ -235,10 +235,12 @@ public:
 
         YT_ASSERT(action && action->Finished);
 
+        auto tscp = NProfiling::TTscp::Get();
+
         TBucketPtr bucket;
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            bucket = GetStarvingBucket(action);
+            bucket = GetStarvingBucket(action, tscp);
 
             if (!bucket) {
                 return TClosure();
@@ -247,9 +249,9 @@ public:
             ++bucket->CurrentExecutions;
 
             execution.Bucket = bucket;
-            execution.AccountedAt = GetCpuInstant();
+            execution.AccountedAt = tscp.Instant;
 
-            action->StartedAt = GetCpuInstant();
+            action->StartedAt = tscp.Instant;
             bucket->WaitTime = action->StartedAt - action->EnqueuedAt;
         }
 
@@ -257,7 +259,8 @@ public:
 
         Profiler_.Update(
             WaitTimeCounter_,
-            CpuDurationToValue(bucket->WaitTime));
+            CpuDurationToValue(bucket->WaitTime),
+            tscp);
 
         return std::move(action->Callback);
     }
@@ -276,15 +279,17 @@ public:
             return;
         }
 
-        action->FinishedAt = GetCpuInstant();
+        auto tscp = NProfiling::TTscp::Get();
+
+        action->FinishedAt = tscp.Instant;
 
         int queueSize = QueueSize_.fetch_sub(1, std::memory_order_relaxed) - 1;
-        Profiler_.Update(SizeCounter_, queueSize);
+        Profiler_.Update(SizeCounter_, queueSize, tscp);
 
         auto timeFromStart = CpuDurationToDuration(action->FinishedAt - action->StartedAt);
         auto timeFromEnqueue = CpuDurationToDuration(action->FinishedAt - action->EnqueuedAt);
-        Profiler_.Update(ExecTimeCounter_, DurationToValue(timeFromStart));
-        Profiler_.Update(TotalTimeCounter_, DurationToValue(timeFromEnqueue));
+        Profiler_.Update(ExecTimeCounter_, DurationToValue(timeFromStart), tscp);
+        Profiler_.Update(TotalTimeCounter_, DurationToValue(timeFromEnqueue), tscp);
 
         if (timeFromStart > LogDurationThreshold) {
             YT_LOG_DEBUG("Callback execution took too long (Wait: %v, Execution: %v, Total: %v)",
@@ -310,7 +315,7 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             bucket = std::move(execution.Bucket);
 
-            UpdateExcessTime(bucket.Get(), GetCpuInstant() - execution.AccountedAt);
+            UpdateExcessTime(bucket.Get(), tscp.Instant - execution.AccountedAt);
 
             YT_VERIFY(bucket->CurrentExecutions-- > 0);
         }
@@ -335,22 +340,21 @@ private:
     std::atomic<int> QueueSize_ = {0};
 
     TProfiler Profiler_;
-    TAggregateGauge BucketCounter_;
-    TAggregateGauge SizeCounter_;
-    TAggregateGauge WaitTimeCounter_;
-    TAggregateGauge ExecTimeCounter_;
-    TAggregateGauge TotalTimeCounter_;
+    TAtomicGauge BucketCounter_;
+    TShardedAggregateGauge SizeCounter_;
+    TShardedAggregateGauge WaitTimeCounter_;
+    TShardedAggregateGauge ExecTimeCounter_;
+    TShardedAggregateGauge TotalTimeCounter_;
 
-    void AccountCurrentlyExecutingBuckets()
+    void AccountCurrentlyExecutingBuckets(NProfiling::TTscp tscp)
     {
-        auto currentInstant = GetCpuInstant();
         for (auto& execution : CurrentlyExecutingActionsByThread_) {
             if (!execution.Bucket) {
                 continue;
             }
 
-            auto duration = currentInstant - execution.AccountedAt;
-            execution.AccountedAt = currentInstant;
+            auto duration = tscp.Instant - execution.AccountedAt;
+            execution.AccountedAt = tscp.Instant;
 
             UpdateExcessTime(execution.Bucket.Get(), duration);
         }
@@ -370,10 +374,10 @@ private:
         SiftDown(Heap_.begin(), Heap_.end(), Heap_.begin() + indexInHeap, std::less<>());
     }
 
-    TBucketPtr GetStarvingBucket(TEnqueuedAction* action)
+    TBucketPtr GetStarvingBucket(TEnqueuedAction* action, NProfiling::TTscp tscp)
     {
         // For each currently evaluating buckets recalculate excess time.
-        AccountCurrentlyExecutingBuckets();
+        AccountCurrentlyExecutingBuckets(tscp);
 
         #ifdef YT_ENABLE_TRACE_LOGGING
         {

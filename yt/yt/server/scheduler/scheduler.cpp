@@ -1635,9 +1635,9 @@ private:
     TProfiler TotalResourceLimitsProfiler_{SchedulerProfiler.AppendPath("/total_resource_limits")};
     TProfiler TotalResourceUsageProfiler_{SchedulerProfiler.AppendPath("/total_resource_usage")};
 
-    TMonotonicCounter TotalCompletedJobTimeCounter_{"/total_completed_job_time"};
-    TMonotonicCounter TotalFailedJobTimeCounter_{"/total_failed_job_time"};
-    TMonotonicCounter TotalAbortedJobTimeCounter_{"/total_aborted_job_time"};
+    TShardedMonotonicCounter TotalCompletedJobTimeCounter_{"/total_completed_job_time"};
+    TShardedMonotonicCounter TotalFailedJobTimeCounter_{"/total_failed_job_time"};
+    TShardedMonotonicCounter TotalAbortedJobTimeCounter_{"/total_aborted_job_time"};
 
     TPeriodicExecutorPtr ProfilingExecutor_;
     TPeriodicExecutorPtr ClusterInfoLoggingExecutor_;

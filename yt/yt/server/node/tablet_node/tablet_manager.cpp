@@ -121,8 +121,8 @@ struct TWriteCounters
         , DataWeight("/write/data_weight", list)
     { }
 
-    TMonotonicCounter RowCount;
-    TMonotonicCounter DataWeight;
+    TShardedMonotonicCounter RowCount;
+    TShardedMonotonicCounter DataWeight;
 };
 
 using TWriteProfilerTrait = TTagListProfilerTrait<TWriteCounters>;
@@ -134,8 +134,8 @@ struct TCommitCounters
         , DataWeight("/commit/data_weight", list)
     { }
 
-    TMonotonicCounter RowCount;
-    TMonotonicCounter DataWeight;
+    TShardedMonotonicCounter RowCount;
+    TShardedMonotonicCounter DataWeight;
 };
 
 using TCommitProfilerTrait = TTagListProfilerTrait<TCommitCounters>;

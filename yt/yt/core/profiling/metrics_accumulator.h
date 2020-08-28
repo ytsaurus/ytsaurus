@@ -15,7 +15,7 @@ public:
         const NYPath::TYPath& path,
         NProfiling::TValue value,
         NProfiling::EMetricType metricType,
-        const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
+        const NProfiling::TTagIdList& tagIds = {});
 
     void Publish(const NProfiling::TProfiler* profiler);
 

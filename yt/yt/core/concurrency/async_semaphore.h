@@ -92,7 +92,7 @@ public:
         i64 totalSlots,
         const NProfiling::TProfiler& profiler,
         const NYPath::TYPath& path,
-        const NProfiling::TTagIdList& tagIds = NProfiling::EmptyTagIds);
+        const NProfiling::TTagIdList& tagIds = {});
 
     virtual void Release(i64 slots = 1) override;
     virtual void Acquire(i64 slots = 1) override;
@@ -101,7 +101,7 @@ public:
 private:
     const NProfiling::TProfiler Profiler;
 
-    NProfiling::TSimpleGauge Gauge_;
+    NProfiling::TAtomicGauge Gauge_;
 
     void Profile();
 };

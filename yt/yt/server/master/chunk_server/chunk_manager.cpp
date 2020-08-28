@@ -118,7 +118,7 @@ using NYT::ToProto;
 static const auto& Logger = ChunkServerLogger;
 static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
 
-static NProfiling::TAggregateGauge ChunkTreeRebalanceTimeCounter("/chunk_tree_rebalance_time");
+static NProfiling::TShardedAggregateGauge ChunkTreeRebalanceTimeCounter("/chunk_tree_rebalance_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -45,38 +45,38 @@ DEFINE_ENUM(EIOCategory,
 struct TLocationPerformanceCounters
 {
     //! Indexed by |(ioDirection, ioCategory)|.
-    std::vector<NProfiling::TSimpleGauge> PendingIOSize;
-    std::vector<NProfiling::TMonotonicCounter> CompletedIOSize;
+    std::vector<NProfiling::TAtomicGauge> PendingIOSize;
+    std::vector<NProfiling::TShardedMonotonicCounter> CompletedIOSize;
 
-    NProfiling::TMonotonicCounter ThrottledReads;
-    NProfiling::TMonotonicCounter ThrottledWrites;
+    NProfiling::TShardedMonotonicCounter ThrottledReads;
+    NProfiling::TShardedMonotonicCounter ThrottledWrites;
 
-    NProfiling::TAggregateGauge PutBlocksWallTime;
-    NProfiling::TAggregateGauge BlobChunkMetaReadTime;
-    NProfiling::TAggregateGauge BlobChunkReaderOpenTime;
-    NProfiling::TAggregateGauge BlobBlockReadSize;
-    NProfiling::TAggregateGauge BlobBlockReadTime;
-    NProfiling::TAggregateGauge BlobBlockReadThroughput;
-    NProfiling::TMonotonicCounter BlobBlockReadBytes;
-    TEnumIndexedVector<EWorkloadCategory, NProfiling::TAggregateGauge> BlobBlockReadLatencies;
-    TEnumIndexedVector<EWorkloadCategory, NProfiling::TAggregateGauge> BlobChunkMetaReadLatencies;
-    NProfiling::TAggregateGauge BlobBlockWriteSize;
-    NProfiling::TAggregateGauge BlobBlockWriteTime;
-    NProfiling::TAggregateGauge BlobBlockWriteThroughput;
-    NProfiling::TMonotonicCounter BlobBlockWriteBytes;
-    NProfiling::TAggregateGauge JournalBlockReadSize;
-    NProfiling::TAggregateGauge JournalBlockReadTime;
-    NProfiling::TAggregateGauge JournalBlockReadThroughput;
-    NProfiling::TMonotonicCounter JournalBlockReadBytes;
-    NProfiling::TAggregateGauge JournalChunkCreateTime;
-    NProfiling::TAggregateGauge JournalChunkOpenTime;
-    NProfiling::TAggregateGauge JournalChunkRemoveTime;
+    NProfiling::TShardedAggregateGauge PutBlocksWallTime;
+    NProfiling::TShardedAggregateGauge BlobChunkMetaReadTime;
+    NProfiling::TShardedAggregateGauge BlobChunkReaderOpenTime;
+    NProfiling::TShardedAggregateGauge BlobBlockReadSize;
+    NProfiling::TShardedAggregateGauge BlobBlockReadTime;
+    NProfiling::TShardedAggregateGauge BlobBlockReadThroughput;
+    NProfiling::TShardedMonotonicCounter BlobBlockReadBytes;
+    TEnumIndexedVector<EWorkloadCategory, NProfiling::TShardedAggregateGauge> BlobBlockReadLatencies;
+    TEnumIndexedVector<EWorkloadCategory, NProfiling::TShardedAggregateGauge> BlobChunkMetaReadLatencies;
+    NProfiling::TShardedAggregateGauge BlobBlockWriteSize;
+    NProfiling::TShardedAggregateGauge BlobBlockWriteTime;
+    NProfiling::TShardedAggregateGauge BlobBlockWriteThroughput;
+    NProfiling::TShardedMonotonicCounter BlobBlockWriteBytes;
+    NProfiling::TShardedAggregateGauge JournalBlockReadSize;
+    NProfiling::TShardedAggregateGauge JournalBlockReadTime;
+    NProfiling::TShardedAggregateGauge JournalBlockReadThroughput;
+    NProfiling::TShardedMonotonicCounter JournalBlockReadBytes;
+    NProfiling::TShardedAggregateGauge JournalChunkCreateTime;
+    NProfiling::TShardedAggregateGauge JournalChunkOpenTime;
+    NProfiling::TShardedAggregateGauge JournalChunkRemoveTime;
 
-    TEnumIndexedVector<ESessionType, NProfiling::TSimpleGauge> SessionCount;
+    TEnumIndexedVector<ESessionType, NProfiling::TAtomicGauge> SessionCount;
 
-    NProfiling::TAggregateGauge UsedSpace;
-    NProfiling::TAggregateGauge AvailableSpace;
-    NProfiling::TSimpleGauge Full;
+    NProfiling::TShardedAggregateGauge UsedSpace;
+    NProfiling::TShardedAggregateGauge AvailableSpace;
+    NProfiling::TAtomicGauge Full;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -265,10 +265,10 @@ private:
     TLocationPerformanceCounters PerformanceCounters_;
 
     static EIOCategory ToIOCategory(const TWorkloadDescriptor& workloadDescriptor);
-    NProfiling::TSimpleGauge& GetPendingIOSizeCounter(
+    NProfiling::TAtomicGauge& GetPendingIOSizeCounter(
         EIODirection direction,
         EIOCategory category);
-    NProfiling::TMonotonicCounter& GetCompletedIOSizeCounter(
+    NProfiling::TShardedMonotonicCounter& GetCompletedIOSizeCounter(
         EIODirection direction,
         EIOCategory category);
 

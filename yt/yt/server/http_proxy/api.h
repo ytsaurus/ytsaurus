@@ -92,15 +92,15 @@ private:
         NProfiling::TTagIdList CommandTag;
         NProfiling::TTagIdList UserTag;
 
-        NProfiling::TAggregateGauge ConcurrencySemaphore;
-        NProfiling::TMonotonicCounter RequestCount;
-        NProfiling::TMonotonicCounter BytesIn;
-        NProfiling::TMonotonicCounter BytesOut;
-        NProfiling::TAggregateGauge RequestDuration;
+        NProfiling::TAtomicShardedAggregateGauge ConcurrencySemaphore;
+        NProfiling::TShardedMonotonicCounter RequestCount;
+        NProfiling::TShardedMonotonicCounter BytesIn;
+        NProfiling::TShardedMonotonicCounter BytesOut;
+        NProfiling::TShardedAggregateGauge RequestDuration;
 
         TSpinLock Lock;
-        THashMap<NHttp::EStatusCode, NProfiling::TMonotonicCounter> HttpCodes;
-        THashMap<TErrorCode, NProfiling::TMonotonicCounter> ApiErrors;
+        THashMap<NHttp::EStatusCode, NProfiling::TShardedMonotonicCounter> HttpCodes;
+        THashMap<TErrorCode, NProfiling::TShardedMonotonicCounter> ApiErrors;
     };
 
     std::atomic<int> GlobalSemaphore_{0};
@@ -109,14 +109,14 @@ private:
     THashMap<TUserCommandPair, std::unique_ptr<TProfilingCounters>> Counters_;
 
     TSpinLock HttpCodesLock_;
-    THashMap<NHttp::EStatusCode, NProfiling::TMonotonicCounter> HttpCodes_;
+    THashMap<NHttp::EStatusCode, NProfiling::TShardedMonotonicCounter> HttpCodes_;
 
     TProfilingCounters* GetProfilingCounters(const TUserCommandPair& key);
 
-    NProfiling::TMonotonicCounter PrepareErrorCount_{"/request_prepare_error_count"};
+    NProfiling::TShardedMonotonicCounter PrepareErrorCount_{"/request_prepare_error_count"};
 
     void DoIncrementHttpCode(
-        THashMap<NHttp::EStatusCode, NProfiling::TMonotonicCounter>* counters,
+        THashMap<NHttp::EStatusCode, NProfiling::TShardedMonotonicCounter>* counters,
         NHttp::EStatusCode httpStatusCode,
         NProfiling::TTagIdList tags);
 };

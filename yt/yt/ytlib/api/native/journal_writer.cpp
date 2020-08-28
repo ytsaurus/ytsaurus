@@ -301,8 +301,8 @@ private:
             i64 FlushedDataSize = 0;
             bool SwitchScheduled = false;
 
-            TAggregateGauge MaxReplicaLag{"/max_replica_lag"};
-            TAggregateGauge WriteQuorumLag{"/write_quorum_lag"};        };
+            TShardedAggregateGauge MaxReplicaLag{"/max_replica_lag"};
+            TShardedAggregateGauge WriteQuorumLag{"/write_quorum_lag"};        };
 
         using TChunkSessionPtr = TIntrusivePtr<TChunkSession>;
         using TChunkSessionWeakPtr = TWeakPtr<TChunkSession>;

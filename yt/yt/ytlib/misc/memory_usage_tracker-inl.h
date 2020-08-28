@@ -20,19 +20,18 @@ TMemoryUsageTracker<ECategory>::TMemoryUsageTracker(
     const NLogging::TLogger& logger,
     const NProfiling::TProfiler& profiler)
     : TotalLimit_(totalLimit)
-    , TotalUsedCounter_("/total_used", NProfiling::EmptyTagIds, NProfiling::EAggregateMode::Max)
-    , TotalFreeCounter_("/total_free", NProfiling::EmptyTagIds, NProfiling::EAggregateMode::Min)
+    , TotalUsedGauge_("/total_used")
+    , TotalFreeGauge_("/total_free")
     , Logger(logger)
     , Profiler(profiler)
 {
-    Profiler.Update(TotalFreeCounter_, totalLimit);
+    Profiler.Update(TotalFreeGauge_, totalLimit);
 
     static const NProfiling::TEnumMemberTagCache<ECategory> CategoryTagCache("category");
     for (auto category : TEnumTraits<ECategory>::GetDomainValues()) {
-        Categories_[category].UsedCounter = NProfiling::TAggregateGauge(
+        Categories_[category].UsedGauge = NProfiling::TAtomicGauge(
             "/used",
-            {CategoryTagCache.GetTag(category)},
-            NProfiling::EAggregateMode::Max);
+            {CategoryTagCache.GetTag(category)});
     }
 
     for (const auto& pair : limits) {
@@ -55,7 +54,7 @@ i64 TMemoryUsageTracker<ECategory>::GetTotalLimit() const
 template <class ECategory>
 i64 TMemoryUsageTracker<ECategory>::GetTotalUsed() const
 {
-    return TotalUsedCounter_.GetCurrent();
+    return TotalUsedGauge_.GetCurrent();
 }
 
 template <class ECategory>
@@ -69,7 +68,7 @@ i64 TMemoryUsageTracker<ECategory>::GetTotalFree() const
 template <class ECategory>
 bool TMemoryUsageTracker<ECategory>::IsTotalExceeded() const
 {
-    return TotalUsedCounter_.GetCurrent() > TotalLimit_;
+    return TotalUsedGauge_.GetCurrent() > TotalLimit_;
 }
 
 template <class ECategory>
@@ -81,7 +80,7 @@ i64 TMemoryUsageTracker<ECategory>::GetLimit(ECategory category) const
 template <class ECategory>
 i64 TMemoryUsageTracker<ECategory>::GetUsed(ECategory category) const
 {
-    return Categories_[category].UsedCounter.GetCurrent();
+    return Categories_[category].UsedGauge.GetCurrent();
 }
 
 template <class ECategory>
@@ -99,7 +98,7 @@ bool TMemoryUsageTracker<ECategory>::IsExceeded(ECategory category) const
         return true;
     }
     const auto& data = Categories_[category];
-    return data.UsedCounter.GetCurrent() > data.Limit;
+    return data.UsedGauge.GetCurrent() > data.Limit;
 }
 
 template <class ECategory>
@@ -123,7 +122,7 @@ void TMemoryUsageTracker<ECategory>::Acquire(ECategory category, i64 size)
 
     DoAcquire(category, size);
 
-    auto currentFree = TotalFreeCounter_.GetCurrent();
+    auto currentFree = TotalFreeGauge_.GetCurrent();
     if (currentFree < 0) {
         YT_LOG_WARNING("Total memory overcommit detected (Debt: %v, RequestCategeory: %v, RequestSize: %v)",
             -currentFree,
@@ -132,7 +131,7 @@ void TMemoryUsageTracker<ECategory>::Acquire(ECategory category, i64 size)
     }
 
     const auto& data = Categories_[category];
-    auto currentUsed = data.UsedCounter.GetCurrent();
+    auto currentUsed = data.UsedGauge.GetCurrent();
     if (currentUsed > data.Limit) {
         YT_LOG_WARNING("Per-category memory overcommit detected (Debt: %v, RequestCategeory: %v, RequestSize: %v)",
             currentUsed - data.Limit,
@@ -165,9 +164,9 @@ void TMemoryUsageTracker<ECategory>::DoAcquire(ECategory category, i64 size)
     YT_VERIFY(size >= 0);
 
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-    Profiler.Increment(TotalUsedCounter_, +size);
-    Profiler.Increment(TotalFreeCounter_, -size);
-    Profiler.Increment(Categories_[category].UsedCounter, +size);
+    Profiler.Increment(TotalUsedGauge_, +size);
+    Profiler.Increment(TotalFreeGauge_, -size);
+    Profiler.Increment(Categories_[category].UsedGauge, +size);
 }
 
 template <class ECategory>
@@ -176,19 +175,19 @@ void TMemoryUsageTracker<ECategory>::Release(ECategory category, i64 size)
     YT_VERIFY(size >= 0);
 
     TGuard<TSpinLock> guard(SpinLock_);
-    Profiler.Increment(TotalUsedCounter_, -size);
-    Profiler.Increment(TotalFreeCounter_, +size);
-    Profiler.Increment(Categories_[category].UsedCounter, -size);
+    Profiler.Increment(TotalUsedGauge_, -size);
+    Profiler.Increment(TotalFreeGauge_, +size);
+    Profiler.Increment(Categories_[category].UsedGauge, -size);
 }
 
 template <class ECategory>
 void TMemoryUsageTracker<ECategory>::UpdateMetrics()
 {
-    Profiler.Increment(TotalUsedCounter_, 0);
-    Profiler.Increment(TotalFreeCounter_, 0);
+    Profiler.Increment(TotalUsedGauge_, 0);
+    Profiler.Increment(TotalFreeGauge_, 0);
 
     for (auto& category : Categories_) {
-        Profiler.Increment(category.UsedCounter, 0);
+        Profiler.Increment(category.UsedGauge, 0);
     }
 }
 

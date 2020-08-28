@@ -259,8 +259,8 @@ private:
 
     THashMap<TMutationId, TPromise<TSharedRefArray>> PendingResponses_;
 
-    NProfiling::TAggregateGauge CountCounter_{"/kept_response_count"};
-    NProfiling::TAggregateGauge SpaceCounter_{"/kept_response_space"};
+    NProfiling::TShardedAggregateGauge CountCounter_{"/kept_response_count"};
+    NProfiling::TShardedAggregateGauge SpaceCounter_{"/kept_response_space"};
 
     DECLARE_THREAD_AFFINITY_SLOT(HomeThread);
 

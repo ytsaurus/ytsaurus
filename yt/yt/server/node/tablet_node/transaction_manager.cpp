@@ -537,7 +537,7 @@ private:
     const TCellTag NativeCellTag_;
 
     const NProfiling::TProfiler Profiler;
-    NProfiling::TAggregateGauge TransactionSerializationLagCounter_{"/transaction_serialization_lag"};
+    NProfiling::TShardedAggregateGauge TransactionSerializationLagCounter_{"/transaction_serialization_lag"};
 
     TEntityMap<TTransaction> PersistentTransactionMap_;
     TEntityMap<TTransaction> TransientTransactionMap_;

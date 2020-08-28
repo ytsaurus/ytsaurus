@@ -93,11 +93,11 @@ private:
     std::atomic<int> Size_ = {0};
 
     NProfiling::TProfiler Profiler;
-    NProfiling::TMonotonicCounter HitWeightCounter_;
-    NProfiling::TMonotonicCounter MissedWeightCounter_;
-    NProfiling::TMonotonicCounter DroppedWeightCounter_;
-    NProfiling::TSimpleGauge YoungerWeightCounter_;
-    NProfiling::TSimpleGauge OlderWeightCounter_;
+    NProfiling::TShardedMonotonicCounter HitWeightCounter_;
+    NProfiling::TShardedMonotonicCounter MissedWeightCounter_;
+    NProfiling::TShardedMonotonicCounter DroppedWeightCounter_;
+    NProfiling::TAtomicGauge YoungerWeightCounter_;
+    NProfiling::TAtomicGauge OlderWeightCounter_;
 
     TShard* GetShardByKey(const TKey& key) const;
 

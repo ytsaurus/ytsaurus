@@ -150,7 +150,7 @@ private:
     std::vector<TTabletActionId> SpawnedTabletActionIds_;
 
     const NProfiling::TProfiler Profiler;
-    NProfiling::TSimpleGauge QueueSizeCounter_;
+    NProfiling::TAtomicGauge QueueSizeCounter_;
 
     TInstant LastBalancingTime_;
     TInstant CurrentTime_;

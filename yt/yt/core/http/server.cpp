@@ -101,9 +101,9 @@ private:
 
     TRequestPathMatcher Handlers_;
 
-    TSimpleGauge ConnectionsActiveGauge_{"/connections_active"};
-    TMonotonicCounter ConnectionsAcceptedCounter_{"/connections_accepted"};
-    TMonotonicCounter ConnectionsDroppedCounter_{"/connections_dropped"};
+    TAtomicGauge ConnectionsActiveGauge_{"/connections_active"};
+    TShardedMonotonicCounter ConnectionsAcceptedCounter_{"/connections_accepted"};
+    TShardedMonotonicCounter ConnectionsDroppedCounter_{"/connections_dropped"};
 
 
     void AsyncAcceptConnection()

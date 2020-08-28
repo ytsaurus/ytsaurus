@@ -111,7 +111,7 @@ class TCounterIncrementingTimingGuard
 public:
     TCounterIncrementingTimingGuard(
         const TProfiler& profiler,
-        TMonotonicCounter* counter);
+        TShardedMonotonicCounter* counter);
     ~TCounterIncrementingTimingGuard();
 
     TCounterIncrementingTimingGuard(const TCounterIncrementingTimingGuard&) = delete;
@@ -119,7 +119,7 @@ public:
 
 private:
     const TProfiler& Profiler_;
-    TMonotonicCounter* const Counter_;
+    TShardedMonotonicCounter* const Counter_;
     TTimer Timer_;
 };
 
@@ -136,6 +136,8 @@ public:
 private:
     TTimer* const Timer_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NProfiling
 

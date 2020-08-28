@@ -146,10 +146,10 @@ DECLARE_REFCOUNTED_STRUCT(TRefCountedGauge)
 
 struct TRefCountedGauge
     : public TIntrinsicRefCounted
-    , public NProfiling::TSimpleGauge
+    , public NProfiling::TAtomicGauge
 {
     TRefCountedGauge(const NYPath::TYPath& path, const NProfiling::TTagIdList& tagIds)
-        : NProfiling::TSimpleGauge(path, tagIds)
+        : NProfiling::TAtomicGauge(path, tagIds)
     { }
 };
 
@@ -255,9 +255,9 @@ void SwitchFromFiber(TFiberPtr target)
 ////////////////////////////////////////////////////////////////////////////////
 
 static NProfiling::TProfiler Profiler("/action_queue");
-static NProfiling::TMonotonicCounter CreatedFibersCounter("/created_fibers");
-static NProfiling::TSimpleGauge AliveFibersCounter("/alive_fibers");
-static NProfiling::TSimpleGauge IdleFibersCounter("/idle_fibers");
+static NProfiling::TShardedMonotonicCounter CreatedFibersCounter("/created_fibers");
+static NProfiling::TAtomicGauge AliveFibersCounter("/alive_fibers");
+static NProfiling::TAtomicGauge IdleFibersCounter("/idle_fibers");
 
 void TFiberReusingAdapter::CancelWait()
 {

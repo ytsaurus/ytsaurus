@@ -61,9 +61,9 @@ struct TCacheProfilingCounters
 {
     explicit TCacheProfilingCounters(const NProfiling::TTagIdList& tagIds);
 
-    NProfiling::TMonotonicCounter HitRequestCount;
-    NProfiling::TMonotonicCounter HitResponseBytes;
-    NProfiling::TMonotonicCounter MissRequestCount;
+    NProfiling::TShardedMonotonicCounter HitRequestCount;
+    NProfiling::TShardedMonotonicCounter HitResponseBytes;
+    NProfiling::TShardedMonotonicCounter MissRequestCount;
 };
 
 DEFINE_REFCOUNTED_TYPE(TCacheProfilingCounters)

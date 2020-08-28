@@ -141,9 +141,9 @@ public:
 
 private:
     NProfiling::TProfiler Profiler_{"/fiber_execution_stack"};
-    NProfiling::TMonotonicCounter BytesAllocated_{"/bytes_allocated"};
-    NProfiling::TMonotonicCounter BytesFreed_{"/bytes_freed"};
-    NProfiling::TSimpleGauge BytesAlive_{"/bytes_alive"};
+    NProfiling::TShardedMonotonicCounter BytesAllocated_{"/bytes_allocated"};
+    NProfiling::TShardedMonotonicCounter BytesFreed_{"/bytes_freed"};
+    NProfiling::TAtomicGauge BytesAlive_{"/bytes_alive"};
 };
 
 ////////////////////////////////////////////////////////////////////////////////

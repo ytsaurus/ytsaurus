@@ -94,7 +94,7 @@ void TSchedulerConnector::SendHeartbeat()
         req))
         .ThrowOnError();
 
-    auto profileInterval = [&] (TInstant lastTime, NProfiling::TAggregateGauge& counter) {
+    auto profileInterval = [&] (TInstant lastTime, NProfiling::TShardedAggregateGauge& counter) {
         if (lastTime != TInstant::Zero()) {
             auto delta = TInstant::Now() - lastTime;
             Profiler.Update(counter, NProfiling::DurationToValue(delta));

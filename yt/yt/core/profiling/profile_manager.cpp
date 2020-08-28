@@ -36,7 +36,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 static NLogging::TLogger Logger("Profiling");
-static TProfiler ProfilingProfiler("/profiling", EmptyTagIds, true);
+static TProfiler ProfilingProfiler("/profiling", {}, true);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +49,7 @@ public:
         , WasShutdown_(false)
         , EventQueue_(New<TInvokerQueue>(
             EventCount_,
-            EmptyTagIds,
+            TTagIdList(),
             true,
             false))
         , Thread_(New<TThread>(this))
@@ -436,7 +436,7 @@ private:
             : TSchedulerThread(
                 owner->EventCount_,
                 "Profiling",
-                EmptyTagIds,
+                {},
                 true,
                 false)
             , Owner(owner)
@@ -467,9 +467,9 @@ private:
 
     const IMapNodePtr Root_;
     
-    TMonotonicCounter EnqueuedCounter_{"/enqueued"};
-    TMonotonicCounter DequeuedCounter_{"/dequeued"};
-    TMonotonicCounter DroppedCounter_{"/dropped"};
+    TShardedMonotonicCounter EnqueuedCounter_{"/enqueued"};
+    TShardedMonotonicCounter DequeuedCounter_{"/dequeued"};
+    TShardedMonotonicCounter DroppedCounter_{"/dropped"};
 
 
     TProfileManagerConfigPtr Config_;

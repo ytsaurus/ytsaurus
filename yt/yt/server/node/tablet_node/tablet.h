@@ -78,14 +78,14 @@ struct TReplicaCounters
     TReplicaCounters() = default;
     explicit TReplicaCounters(const NProfiling::TTagIdList& list);
 
-    NProfiling::TAggregateGauge LagRowCount;
-    NProfiling::TAggregateGauge LagTime;
-    NProfiling::TAggregateGauge ReplicationTransactionStartTime;
-    NProfiling::TAggregateGauge ReplicationTransactionCommitTime;
-    NProfiling::TAggregateGauge ReplicationRowsReadTime;
-    NProfiling::TAggregateGauge ReplicationRowsWriteTime;
-    NProfiling::TAggregateGauge ReplicationBatchRowCount;
-    NProfiling::TAggregateGauge ReplicationBatchDataWeight;
+    NProfiling::TShardedAggregateGauge LagRowCount;
+    NProfiling::TShardedAggregateGauge LagTime;
+    NProfiling::TShardedAggregateGauge ReplicationTransactionStartTime;
+    NProfiling::TShardedAggregateGauge ReplicationTransactionCommitTime;
+    NProfiling::TShardedAggregateGauge ReplicationRowsReadTime;
+    NProfiling::TShardedAggregateGauge ReplicationRowsWriteTime;
+    NProfiling::TShardedAggregateGauge ReplicationBatchRowCount;
+    NProfiling::TShardedAggregateGauge ReplicationBatchDataWeight;
 
     const NProfiling::TTagIdList Tags;
 };
@@ -255,8 +255,8 @@ struct TTabletCounters
 {
     TTabletCounters(const NProfiling::TTagIdList& list);
 
-    NProfiling::TAggregateGauge OverlappingStoreCount;
-    NProfiling::TAggregateGauge EdenStoreCount;
+    NProfiling::TShardedAggregateGauge OverlappingStoreCount;
+    NProfiling::TShardedAggregateGauge EdenStoreCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -68,7 +68,7 @@ private:
     };
     std::queue<TQueueItem> SubrequestQueue_;
 
-    NProfiling::TAggregateGauge BatchingLatencyGauge_{"/batching_latency"};
+    NProfiling::TShardedAggregateGauge BatchingLatencyGauge_{"/batching_latency"};
 
 
     TFuture<TSecretSubresponse> DoGetSecret(const TSecretSubrequest& subrequest, TGuard<TSpinLock>& guard)
