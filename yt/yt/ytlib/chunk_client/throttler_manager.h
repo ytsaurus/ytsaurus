@@ -19,9 +19,10 @@ class TThrottlerManager
     : public TRefCounted
 {
 public:
-    TThrottlerManager(
+    explicit TThrottlerManager(
         NConcurrency::TThroughputThrottlerConfigPtr config,
-        const NLogging::TLogger& logger = NLogging::TLogger());
+        NLogging::TLogger logger = {},
+        NProfiling::TProfiler profiler = {});
 
     NConcurrency::IThroughputThrottlerPtr GetThrottler(NObjectClient::TCellTag cellTag);
 
@@ -29,7 +30,6 @@ public:
 
 private:
     NConcurrency::TThroughputThrottlerConfigPtr Config_;
-
     const NLogging::TLogger Logger_;
     const NProfiling::TProfiler Profiler_;
 

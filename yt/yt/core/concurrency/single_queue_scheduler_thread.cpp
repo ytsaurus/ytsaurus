@@ -10,8 +10,7 @@ TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
     const TString& threadName,
     const NProfiling::TTagIdList& tagIds,
     bool enableLogging,
-    bool enableProfiling,
-    int index)
+    bool enableProfiling)
     : TSchedulerThread(
         std::move(callbackEventCount),
         threadName,
@@ -19,14 +18,13 @@ TSingleQueueSchedulerThread::TSingleQueueSchedulerThread(
         enableLogging,
         enableProfiling)
     , Queue(std::move(queue))
-    , Index(index)
 { }
 
 TSingleQueueSchedulerThread::~TSingleQueueSchedulerThread() = default;
 
 TClosure TSingleQueueSchedulerThread::BeginExecute()
 {
-    return Queue->BeginExecute(&CurrentAction, Index);
+    return Queue->BeginExecute(&CurrentAction);
 }
 
 void TSingleQueueSchedulerThread::EndExecute()

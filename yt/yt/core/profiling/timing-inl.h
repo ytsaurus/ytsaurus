@@ -39,7 +39,7 @@ TValueIncrementingTimingGuard<TTimer>::~TValueIncrementingTimingGuard()
 template <class TTimer>
 TCounterIncrementingTimingGuard<TTimer>::TCounterIncrementingTimingGuard(
     const TProfiler& profiler,
-    TMonotonicCounter* counter)
+    TShardedMonotonicCounter* counter)
     : Profiler_(profiler)
     , Counter_(counter)
 { }

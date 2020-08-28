@@ -155,7 +155,7 @@ public:
     size_t GetLowestEmptyPoolId()
     {
         size_t id = 0;
-        while (id < Pools_.size() && !Pools_[id].TagToBucket.empty()) {
+        while (id < IdToPool_.size() && IdToPool_[id]) {
             ++id;
         }
         return id;
@@ -165,30 +165,31 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        auto it = NameToPoolId_.emplace(poolName, GetLowestEmptyPoolId());
-        if (it.first->second >= Pools_.size()) {
-            Pools_.emplace_back();
+        auto poolIt = NameToPoolId_.find(poolName);
+        if (poolIt == NameToPoolId_.end()) {
+            auto newPoolId = GetLowestEmptyPoolId();
+            auto tagIds = GetBucketTagIds(Profiler_.GetEnabled(), ThreadNamePrefix_, poolName);
+            auto newPool = std::make_unique<TExecutionPool>(poolName, tagIds);
+            if (newPoolId >= IdToPool_.size()) {
+                IdToPool_.emplace_back();
+            }
+            IdToPool_[newPoolId] = std::move(newPool);
+            poolIt = NameToPoolId_.emplace(poolName, newPoolId).first;
         }
 
-        size_t poolId = it.first->second;
-        auto& pool = Pools_[poolId];
+        auto poolId = poolIt->second;
+        const auto& pool = IdToPool_[poolId]; 
 
-        if (it.second) {
-            pool.SetTagIds(GetBucketTagIds(Profiler_.GetEnabled(), ThreadNamePrefix_, poolName));
-            pool.PoolName = poolName;
-        }
+        pool->Weight = weight;
+        auto [bucketIt, bucketInserted] = pool->TagToBucket.emplace(tag, nullptr);
 
-        pool.Weight = weight;
-
-        auto inserted = pool.TagToBucket.emplace(tag, nullptr).first;
-        auto invoker = inserted->second.Lock();
-
+        auto invoker = bucketIt->second.Lock();
         if (!invoker) {
             invoker = New<TBucket>(poolId, tag, MakeWeak(this));
-            inserted->second = invoker;
+            bucketIt->second = invoker;
         }
 
-        Profiler_.Update(pool.BucketCounter, pool.TagToBucket.size());
+        Profiler_.Update(pool->BucketCounter, pool->TagToBucket.size());
 
         return invoker;
     }
@@ -196,18 +197,18 @@ public:
     void Invoke(TClosure callback, TBucket* bucket)
     {
         TGuard<TSpinLock> guard(SpinLock_);
-        auto& pool = Pools_[bucket->PoolId];
+        const auto& pool = IdToPool_[bucket->PoolId];
 
-        pool.QueueSize.fetch_add(1, std::memory_order_relaxed);
+        Profiler_.Increment(pool->SizeCounter, +1);
 
         if (!bucket->HeapIterator) {
             // Otherwise ExcessTime will be recalculated in AccountCurrentlyExecutingBuckets.
-            if (bucket->CurrentExecutions == 0 && !pool.Heap.empty()) {
-                bucket->ExcessTime = pool.Heap.front().Bucket->ExcessTime;
+            if (bucket->CurrentExecutions == 0 && !pool->Heap.empty()) {
+                bucket->ExcessTime = pool->Heap.front().Bucket->ExcessTime;
             }
 
-            pool.Heap.emplace_back(bucket);
-            AdjustHeapBack(pool.Heap.begin(), pool.Heap.end());
+            pool->Heap.emplace_back(bucket);
+            AdjustHeapBack(pool->Heap.begin(), pool->Heap.end());
             YT_VERIFY(bucket->HeapIterator);
         }
 
@@ -228,17 +229,19 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        auto& pool = Pools_[bucket->PoolId];
-        auto it = pool.TagToBucket.find(bucket->Tag);
-        if (it != pool.TagToBucket.end() && it->second.IsExpired()) {
-            pool.TagToBucket.erase(it);
+        auto& pool = IdToPool_[bucket->PoolId];
+        
+        auto it = pool->TagToBucket.find(bucket->Tag);
+        if (it != pool->TagToBucket.end() && it->second.IsExpired()) {
+            pool->TagToBucket.erase(it);
         }
 
-        if (pool.TagToBucket.empty()) {
-            YT_VERIFY(NameToPoolId_.erase(pool.PoolName));
-        }
+        Profiler_.Update(pool->BucketCounter, pool->TagToBucket.size());
 
-        Profiler_.Update(pool.BucketCounter, pool.TagToBucket.size());
+        if (pool->TagToBucket.empty()) {
+            YT_VERIFY(NameToPoolId_.erase(pool->PoolName) == 1);
+            pool.reset();
+        }
     }
 
     virtual void Shutdown() override
@@ -250,9 +253,11 @@ public:
     {
         TGuard<TSpinLock> guard(SpinLock_);
 
-        for (const auto& pool : Pools_) {
-            for (const auto& item : pool.Heap) {
-                item.Bucket->Drain();
+        for (const auto& pool : IdToPool_) {
+            if (pool) {
+                for (const auto& item : pool->Heap) {
+                    item.Bucket->Drain();
+                }
             }
         }
     }
@@ -263,6 +268,8 @@ public:
 
         YT_ASSERT(!execution.Bucket);
         YT_ASSERT(action && action->Finished);
+
+        auto tscp = NProfiling::TTscp::Get();
 
         TBucketPtr bucket;
         {
@@ -276,9 +283,9 @@ public:
             ++bucket->CurrentExecutions;
 
             execution.Bucket = bucket;
-            execution.AccountedAt = GetCpuInstant();
+            execution.AccountedAt = tscp.Instant;
 
-            action->StartedAt = GetCpuInstant();
+            action->StartedAt = tscp.Instant;
             bucket->WaitTime = action->StartedAt - action->EnqueuedAt;
         }
 
@@ -286,11 +293,12 @@ public:
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            auto& pool = Pools_[bucket->PoolId];
+            auto& pool = IdToPool_[bucket->PoolId];
 
             Profiler_.Update(
-                pool.WaitTimeCounter,
-                CpuDurationToValue(bucket->WaitTime));
+                pool->WaitTimeCounter,
+                CpuDurationToValue(bucket->WaitTime),
+                tscp);
         }
 
         return std::move(action->Callback);
@@ -310,19 +318,19 @@ public:
             return;
         }
 
-        action->FinishedAt = GetCpuInstant();
+        auto tscp = NProfiling::TTscp::Get();
+
+        action->FinishedAt = tscp.Instant;
 
         auto timeFromStart = CpuDurationToDuration(action->FinishedAt - action->StartedAt);
         auto timeFromEnqueue = CpuDurationToDuration(action->FinishedAt - action->EnqueuedAt);
 
         {
             TGuard<TSpinLock> guard(SpinLock_);
-            auto& pool = Pools_[execution.Bucket->PoolId];
-
-            int queueSize = pool.QueueSize.fetch_sub(1, std::memory_order_relaxed) - 1;
-            Profiler_.Update(pool.SizeCounter, queueSize);
-            Profiler_.Update(pool.ExecTimeCounter, DurationToValue(timeFromStart));
-            Profiler_.Update(pool.TotalTimeCounter, DurationToValue(timeFromEnqueue));
+            const auto& pool = IdToPool_[execution.Bucket->PoolId];
+            Profiler_.Increment(pool->SizeCounter, -1, tscp);
+            Profiler_.Update(pool->ExecTimeCounter, DurationToValue(timeFromStart), tscp);
+            Profiler_.Update(pool->TotalTimeCounter, DurationToValue(timeFromEnqueue), tscp);
         }
 
         if (timeFromStart > LogDurationThreshold) {
@@ -349,8 +357,8 @@ public:
             TGuard<TSpinLock> guard(SpinLock_);
             bucket = std::move(execution.Bucket);
 
-            UpdateExcessTime(bucket.Get(), GetCpuInstant() - execution.AccountedAt);
-            execution.AccountedAt = GetCpuInstant();
+            UpdateExcessTime(bucket.Get(), tscp.Instant - execution.AccountedAt);
+            execution.AccountedAt = tscp.Instant;
 
             YT_VERIFY(bucket->CurrentExecutions-- > 0);
         }
@@ -365,30 +373,14 @@ private:
 
     struct TExecutionPool
     {
-        TExecutionPool() = default;
-
-        TExecutionPool(TExecutionPool&& other)
-            : Weight(other.Weight)
-            , PoolName(other.PoolName)
-            , BucketCounter(other.BucketCounter)
-            , SizeCounter(other.SizeCounter)
-            , WaitTimeCounter(other.WaitTimeCounter)
-            , ExecTimeCounter(other.ExecTimeCounter)
-            , TotalTimeCounter(other.TotalTimeCounter)
-            , ExcessTime(other.ExcessTime)
-            , Heap(std::move(other.Heap))
-            , QueueSize(other.QueueSize.load())
-            , TagToBucket(std::move(other.TagToBucket))
+        TExecutionPool(const TString& poolName, const TTagIdList& tagIds)
+            : PoolName(poolName)
+            , BucketCounter("/buckets", tagIds)
+            , SizeCounter("/size", tagIds)
+            , WaitTimeCounter("/time/wait", tagIds)
+            , ExecTimeCounter("/time/exec", tagIds)
+            , TotalTimeCounter("/time/total", tagIds)
         { }
-
-        void SetTagIds(const TTagIdList& tagIds)
-        {
-            BucketCounter = TAggregateGauge("/buckets", tagIds);
-            SizeCounter = TAggregateGauge("/size", tagIds);
-            WaitTimeCounter = TAggregateGauge("/time/wait", tagIds);
-            ExecTimeCounter = TAggregateGauge("/time/exec", tagIds);
-            TotalTimeCounter = TAggregateGauge("/time/total", tagIds);
-        }
 
         TBucketPtr GetStarvingBucket(TEnqueuedAction* action)
         {
@@ -409,24 +401,24 @@ private:
             return nullptr;
         }
 
-        double Weight = 1.0;
-        TString PoolName;
+        const TString PoolName;
+        
+        TShardedAggregateGauge BucketCounter;
+        TAtomicShardedAggregateGauge SizeCounter;
+        TShardedAggregateGauge WaitTimeCounter;
+        TShardedAggregateGauge ExecTimeCounter;
+        TShardedAggregateGauge TotalTimeCounter;
 
-        TAggregateGauge BucketCounter;
-        TAggregateGauge SizeCounter;
-        TAggregateGauge WaitTimeCounter;
-        TAggregateGauge ExecTimeCounter;
-        TAggregateGauge TotalTimeCounter;
+        double Weight = 1.0;
 
         TCpuDuration ExcessTime = 0;
         std::vector<THeapItem> Heap;
-        std::atomic<int> QueueSize = {0};
         THashMap<TFairShareThreadPoolTag, TWeakPtr<TBucket>> TagToBucket;
     };
 
     TSpinLock SpinLock_;
-    std::vector<TExecutionPool> Pools_;
-    THashMap<TString, size_t> NameToPoolId_;
+    std::vector<std::unique_ptr<TExecutionPool>> IdToPool_;
+    THashMap<TString, int> NameToPoolId_;
 
     std::shared_ptr<TEventCount> CallbackEventCount_;
     std::vector<TExecution> CurrentlyExecutingActionsByThread_;
@@ -453,9 +445,9 @@ private:
     {
         VERIFY_SPINLOCK_AFFINITY(SpinLock_);
 
-        auto& pool = Pools_[bucket->PoolId];
+        const auto& pool = IdToPool_[bucket->PoolId];
 
-        pool.ExcessTime += duration / pool.Weight;
+        pool->ExcessTime += duration / pool->Weight;
         bucket->ExcessTime += duration;
 
         auto positionInHeap = bucket->HeapIterator;
@@ -463,9 +455,9 @@ private:
             return;
         }
 
-        size_t indexInHeap = positionInHeap - pool.Heap.data();
-        YT_VERIFY(indexInHeap < pool.Heap.size());
-        SiftDown(pool.Heap.begin(), pool.Heap.end(), pool.Heap.begin() + indexInHeap, std::less<>());
+        size_t indexInHeap = positionInHeap - pool->Heap.data();
+        YT_VERIFY(indexInHeap < pool->Heap.size());
+        SiftDown(pool->Heap.begin(), pool->Heap.end(), pool->Heap.begin() + indexInHeap, std::less<>());
     }
 
     TBucketPtr GetStarvingBucket(TEnqueuedAction* action)
@@ -478,38 +470,45 @@ private:
         // Compute min excess over non-empty queues.
         auto minExcessTime = std::numeric_limits<NProfiling::TCpuDuration>::max();
 
-        size_t minPoolIndex;
-        for (size_t index = 0; index < Pools_.size(); ++index) {
-            if (!Pools_[index].Heap.empty() && Pools_[index].ExcessTime < minExcessTime) {
-                minExcessTime = Pools_[index].ExcessTime;
+        int minPoolIndex = -1;
+        for (int index = 0; index < static_cast<int>(IdToPool_.size()); ++index) {
+            const auto& pool = IdToPool_[index];
+            if (pool && !pool->Heap.empty() && pool->ExcessTime < minExcessTime) {
+                minExcessTime = pool->ExcessTime;
                 minPoolIndex = index;
             }
         }
 
         YT_LOG_TRACE("Buckets: %v",
             MakeFormattableView(
-                xrange(size_t(0), Pools_.size()),
-                [&] (auto* builder, const auto index) {
-                    builder->AppendFormat("[%v %v ", index, Pools_[index].ExcessTime);
-                    for (const auto& tagToBucket : Pools_[index].TagToBucket) {
-                        if (auto item = tagToBucket.second.Lock()) {
-                            auto excess = CpuDurationToDuration(tagToBucket.second.Lock()->ExcessTime).MilliSeconds();
-                            builder->AppendFormat("(%v %v) ", tagToBucket.first, excess);
+                xrange(size_t(0), IdToPool_.size()),
+                [&] (auto* builder, auto index) {
+                    const auto& pool = IdToPool_[index];
+                    if (!pool) {
+                        builder->AppendString("<null>");
+                        return;
+                    }
+                    builder->AppendFormat("[%v %v ", index, pool->ExcessTime);
+                    for (const auto& [tagId, weakBucket] : pool->TagToBucket) {
+                        if (auto bucket = weakBucket.Lock()) {
+                            auto excess = CpuDurationToDuration(bucket->ExcessTime).MilliSeconds();
+                            builder->AppendFormat("(%v %v) ", tagId, excess);
                         } else {
-                            builder->AppendFormat("(%v *) ", tagToBucket.first);
+                            builder->AppendFormat("(%v *) ", tagId);
                         }
                     }
                     builder->AppendFormat("]");
                 }));
 
-        if (minExcessTime < std::numeric_limits<NProfiling::TCpuDuration>::max()) {
+        if (minPoolIndex >= 0) {
             // Reduce excesses (with truncation).
-            auto delta = Pools_[minPoolIndex].ExcessTime;
-            for (auto& pool : Pools_) {
-                pool.ExcessTime = std::max<NProfiling::TCpuDuration>(pool.ExcessTime - delta, 0);
+            auto delta = IdToPool_[minPoolIndex]->ExcessTime;
+            for (const auto& pool : IdToPool_) {
+                if (pool) {
+                    pool->ExcessTime = std::max<NProfiling::TCpuDuration>(pool->ExcessTime - delta, 0);
+                }
             }
-
-            return Pools_[minPoolIndex].GetStarvingBucket(action);
+            return IdToPool_[minPoolIndex]->GetStarvingBucket(action);
         }
 
         return nullptr;

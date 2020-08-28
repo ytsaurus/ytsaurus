@@ -265,7 +265,7 @@ private:
 
     TEnumIndexedVector<EControllerAgentAlertType, TError> Alerts_;
 
-    NProfiling::TMonotonicCounter UpdateOperationProgressFailuresCounter_;
+    NProfiling::TShardedMonotonicCounter UpdateOperationProgressFailuresCounter_;
 
     struct TUnstageRequest
     {

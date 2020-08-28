@@ -375,12 +375,12 @@ private:
     std::atomic<bool> Sick_ = false;
     std::atomic<i64> SicknessCounter_ = 0;
 
-    NProfiling::TSimpleGauge SickGauge_{"/sick"};
-    NProfiling::TSimpleGauge SickEventsGauge_{"/sick_events"};
-    NProfiling::TAggregateGauge PreadTimeGauge_{"/pread_time"};
-    NProfiling::TAggregateGauge PwriteTimeGauge_{"/pwrite_time"};
-    NProfiling::TAggregateGauge FdatasyncTimeGauge_{"/fdatasync_time"};
-    NProfiling::TAggregateGauge FsyncTimeGauge_{"/fsync_time"};
+    NProfiling::TAtomicGauge SickGauge_{"/sick"};
+    NProfiling::TAtomicGauge SickEventsGauge_{"/sick_events"};
+    NProfiling::TShardedAggregateGauge PreadTimeGauge_{"/pread_time"};
+    NProfiling::TShardedAggregateGauge PwriteTimeGauge_{"/pwrite_time"};
+    NProfiling::TShardedAggregateGauge FdatasyncTimeGauge_{"/fdatasync_time"};
+    NProfiling::TShardedAggregateGauge FsyncTimeGauge_{"/fsync_time"};
 
     bool IsDirectAligned(const std::shared_ptr<TFileHandle>& handle)
     {

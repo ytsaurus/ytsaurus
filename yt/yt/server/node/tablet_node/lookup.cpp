@@ -69,14 +69,14 @@ struct TLookupCounters
         , ChunkReaderStatisticsCounters("/lookup/chunk_reader_statistics", list)
     { }
 
-    TMonotonicCounter CacheHits;
-    TMonotonicCounter CacheMisses;
-    TMonotonicCounter RowCount;
-    TMonotonicCounter DataWeight;
-    TMonotonicCounter UnmergedRowCount;
-    TMonotonicCounter UnmergedDataWeight;
-    TMonotonicCounter CpuTime;
-    TMonotonicCounter DecompressionCpuTime;
+    TShardedMonotonicCounter CacheHits;
+    TShardedMonotonicCounter CacheMisses;
+    TShardedMonotonicCounter RowCount;
+    TShardedMonotonicCounter DataWeight;
+    TShardedMonotonicCounter UnmergedRowCount;
+    TShardedMonotonicCounter UnmergedDataWeight;
+    TShardedMonotonicCounter CpuTime;
+    TShardedMonotonicCounter DecompressionCpuTime;
     TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 

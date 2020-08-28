@@ -85,8 +85,8 @@ private:
     const TThrottlerManagerPtr ThrottlerManager_;
 
     const NProfiling::TProfiler Profiler = TabletNodeProfiler.AppendPath("/partition_balancer");
-    NProfiling::TMonotonicCounter ScheduledSplitsCounter_{"/scheduled_splits"};
-    NProfiling::TMonotonicCounter ScheduledMergesCounter_{"/scheduled_merges"};
+    NProfiling::TShardedMonotonicCounter ScheduledSplitsCounter_{"/scheduled_splits"};
+    NProfiling::TShardedMonotonicCounter ScheduledMergesCounter_{"/scheduled_merges"};
 
 
     void OnScanSlot(TTabletSlotPtr slot)

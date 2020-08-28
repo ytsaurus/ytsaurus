@@ -20,12 +20,12 @@ class TRateLimitCounter
 public:
     TRateLimitCounter(
         std::optional<size_t> limit,
-        const NProfiling::TMonotonicCounter& bytesCounter,
-        const NProfiling::TMonotonicCounter& skippedEventsCounter);
+        const NProfiling::TShardedMonotonicCounter& bytesCounter,
+        const NProfiling::TShardedMonotonicCounter& skippedEventsCounter);
 
     void SetRateLimit(std::optional<size_t> rateLimit);
-    void SetBytesCounter(const NProfiling::TMonotonicCounter& counter);
-    void SetSkippedEventsCounter(const NProfiling::TMonotonicCounter& counter);
+    void SetBytesCounter(const NProfiling::TShardedMonotonicCounter& counter);
+    void SetSkippedEventsCounter(const NProfiling::TShardedMonotonicCounter& counter);
     bool IsLimitReached();
     bool IsIntervalPassed();
     i64 GetAndResetLastSkippedEventsCount();
@@ -38,8 +38,8 @@ private:
     TDuration UpdatePeriod_ = TDuration::Seconds(1);
     TInstant LastUpdate_;
     std::optional<size_t> RateLimit_;
-    NProfiling::TMonotonicCounter BytesCounter_;
-    NProfiling::TMonotonicCounter SkippedEventsCounter_;
+    NProfiling::TShardedMonotonicCounter BytesCounter_;
+    NProfiling::TShardedMonotonicCounter SkippedEventsCounter_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

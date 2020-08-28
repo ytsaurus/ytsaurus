@@ -427,7 +427,7 @@ EIOCategory TLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescripto
     }
 }
 
-NProfiling::TSimpleGauge& TLocation::GetPendingIOSizeCounter(
+NProfiling::TAtomicGauge& TLocation::GetPendingIOSizeCounter(
     EIODirection direction,
     EIOCategory category)
 {
@@ -437,7 +437,7 @@ NProfiling::TSimpleGauge& TLocation::GetPendingIOSizeCounter(
     return PerformanceCounters_.PendingIOSize[index];
 }
 
-NProfiling::TMonotonicCounter& TLocation::GetCompletedIOSizeCounter(
+NProfiling::TShardedMonotonicCounter& TLocation::GetCompletedIOSizeCounter(
     EIODirection direction,
     EIOCategory category)
 {

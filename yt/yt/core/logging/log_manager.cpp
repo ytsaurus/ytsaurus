@@ -348,7 +348,7 @@ public:
     TImpl()
         : EventQueue_(New<TInvokerQueue>(
             EventCount_,
-            NProfiling::EmptyTagIds,
+            NProfiling::TTagIdList(),
             false,
             false))
         , LoggingThread_(New<TThread>(this))
@@ -573,7 +573,7 @@ private:
             : TSchedulerThread(
                 owner->EventCount_,
                 "Logging",
-                NProfiling::EmptyTagIds,
+                {},
                 false,
                 false)
             , Owner_(owner)
@@ -922,7 +922,7 @@ private:
         }
     }
 
-    TMonotonicCounter* GetWrittenEventsCounter(const TLogEvent& event)
+    TShardedMonotonicCounter* GetWrittenEventsCounter(const TLogEvent& event)
     {
         auto key = std::make_pair(event.Category->Name, event.Level);
         auto it = WrittenEventsCounters_.find(key);
@@ -933,7 +933,7 @@ private:
             };
             it = WrittenEventsCounters_.emplace(
                 key,
-                TMonotonicCounter("/written_events", tagIds)).first;
+                TShardedMonotonicCounter("/written_events", tagIds)).first;
         }
         return &it->second;
     }
@@ -1276,7 +1276,7 @@ private:
     TExpiringSet<TRequestId> SuppressedRequestIdSet_;
 
     using TEventProfilingKey = std::pair<TStringBuf, ELogLevel>;
-    THashMap<TEventProfilingKey, TMonotonicCounter> WrittenEventsCounters_;
+    THashMap<TEventProfilingKey, TShardedMonotonicCounter> WrittenEventsCounters_;
 
     std::atomic<ui64> EnqueuedEvents_ = 0;
     std::atomic<ui64> WrittenEvents_ = 0;

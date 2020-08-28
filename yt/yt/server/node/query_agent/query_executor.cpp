@@ -154,7 +154,7 @@ struct TSelectCpuCounters
         , ChunkReaderStatisticsCounters("/select/chunk_reader_statistics", list)
     { }
 
-    TMonotonicCounter CpuTime;
+    TShardedMonotonicCounter CpuTime;
     TChunkReaderStatisticsCounters ChunkReaderStatisticsCounters;
 };
 
@@ -170,11 +170,11 @@ struct TSelectReadCounters
         , DecompressionCpuTime("/select/decompression_cpu_time", list)
     { }
 
-    TMonotonicCounter RowCount;
-    TMonotonicCounter DataWeight;
-    TMonotonicCounter UnmergedRowCount;
-    TMonotonicCounter UnmergedDataWeight;
-    TMonotonicCounter DecompressionCpuTime;
+    TShardedMonotonicCounter RowCount;
+    TShardedMonotonicCounter DataWeight;
+    TShardedMonotonicCounter UnmergedRowCount;
+    TShardedMonotonicCounter UnmergedDataWeight;
+    TShardedMonotonicCounter DecompressionCpuTime;
 };
 
 using TSelectReadProfilerTrait = TTagListProfilerTrait<TSelectReadCounters>;

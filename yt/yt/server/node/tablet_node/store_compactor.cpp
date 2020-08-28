@@ -134,10 +134,10 @@ private:
     const TAsyncSemaphorePtr PartitioningSemaphore_;
     const TAsyncSemaphorePtr CompactionSemaphore_;
 
-    NProfiling::TSimpleGauge FeasiblePartitioningsCounter_{"/feasible_partitionings"};
-    NProfiling::TSimpleGauge FeasibleCompactionsCounter_{"/feasible_compactions"};
-    NProfiling::TMonotonicCounter ScheduledPartitioningsCounter_{"/scheduled_partitionings"};
-    NProfiling::TMonotonicCounter ScheduledCompactionsCounter_{"/scheduled_compactions"};
+    NProfiling::TAtomicGauge FeasiblePartitioningsCounter_{"/feasible_partitionings"};
+    NProfiling::TAtomicGauge FeasibleCompactionsCounter_{"/feasible_compactions"};
+    NProfiling::TShardedMonotonicCounter ScheduledPartitioningsCounter_{"/scheduled_partitionings"};
+    NProfiling::TShardedMonotonicCounter ScheduledCompactionsCounter_{"/scheduled_compactions"};
 
     const NProfiling::TTagId CompactionTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction");
     const NProfiling::TTagId CompactionFailedTag_ = NProfiling::TProfileManager::Get()->RegisterTag("method", "compaction_failed");
@@ -856,7 +856,7 @@ private:
         std::vector<std::unique_ptr<TTask>>* tasks,
         size_t* index,
         const TOrchidServiceManagerPtr& orchidServiceManager,
-        NProfiling::TSimpleGauge& counter)
+        NProfiling::TAtomicGauge& counter)
     {
         Profiler.Update(counter, candidates->size());
 
@@ -897,7 +897,7 @@ private:
         size_t* index,
         const TOrchidServiceManagerPtr& orchidServiceManager,
         const TAsyncSemaphorePtr& semaphore,
-        NProfiling::TMonotonicCounter& counter,
+        NProfiling::TShardedMonotonicCounter& counter,
         void (TStoreCompactor::*action)(TTask*))
     {
         auto taskGuard = Guard(TaskSpinLock_);

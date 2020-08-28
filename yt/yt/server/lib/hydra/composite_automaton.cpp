@@ -116,7 +116,7 @@ void TCompositeAutomatonPart::RegisterMethod(
     };
     TCompositeAutomaton::TMethodDescriptor descriptor{
         callback,
-        TMonotonicCounter("/cumulative_mutation_time", tagIds)
+        TShardedMonotonicCounter("/cumulative_mutation_time", tagIds)
     };
     YT_VERIFY(Automaton_->MethodNameToDescriptor_.insert(std::make_pair(type, descriptor)).second);
 }

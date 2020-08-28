@@ -200,7 +200,7 @@ private:
     struct TMethodDescriptor
     {
         TCallback<void(TMutationContext* context)> Callback;
-        NProfiling::TMonotonicCounter CumulativeTimeCounter;
+        NProfiling::TShardedMonotonicCounter CumulativeTimeCounter;
     };
 
     struct TSaverDescriptorBase
@@ -243,8 +243,8 @@ private:
 
     EFinalRecoveryAction FinalRecoveryAction_ = EFinalRecoveryAction::None;
 
-    NProfiling::TMonotonicCounter MutationCounter_ = {"/mutation_count"};
-    NProfiling::TAggregateGauge MutationWaitTimeCounter_ = {"/mutation_wait_time"};
+    NProfiling::TShardedMonotonicCounter MutationCounter_ = {"/mutation_count"};
+    NProfiling::TShardedAggregateGauge MutationWaitTimeCounter_ = {"/mutation_wait_time"};
 
 private:
     void DoSaveSnapshot(

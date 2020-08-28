@@ -16,7 +16,7 @@ namespace NYT::NDataNode {
 
 struct TNetworkCounters
 {
-    NProfiling::TMonotonicCounter ThrottledReadsCounter;
+    NProfiling::TShardedMonotonicCounter ThrottledReadsCounter;
 };
 
 class TNetworkStatistics

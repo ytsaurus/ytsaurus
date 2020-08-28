@@ -85,8 +85,8 @@ using NChunkClient::TReadLimit;
 static const auto& Logger = ChunkServerLogger;
 static const auto& Profiler = ChunkServerProfiler;
 
-static NProfiling::TAggregateGauge RefreshTimeCounter("/refresh_time");
-static NProfiling::TAggregateGauge RequisitionUpdateTimeCounter("/requisition_update_time");
+static NProfiling::TShardedAggregateGauge RefreshTimeCounter("/refresh_time");
+static NProfiling::TShardedAggregateGauge RequisitionUpdateTimeCounter("/requisition_update_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 

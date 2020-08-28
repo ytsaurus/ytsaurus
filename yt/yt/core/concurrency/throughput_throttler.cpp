@@ -213,8 +213,8 @@ private:
     const NLogging::TLogger Logger;
     const NProfiling::TProfiler Profiler;
 
-    NProfiling::TMonotonicCounter ValueCounter_;
-    NProfiling::TSimpleGauge QueueSizeCounter_;
+    NProfiling::TShardedMonotonicCounter ValueCounter_;
+    NProfiling::TAtomicGauge QueueSizeCounter_;
 
     std::atomic<TInstant> LastUpdated_ = TInstant::Zero();
     std::atomic<i64> Available_ = 0;
@@ -439,7 +439,7 @@ public:
 
 private:
     const NProfiling::TProfiler Profiler;
-    NProfiling::TMonotonicCounter ValueCounter_;
+    NProfiling::TShardedMonotonicCounter ValueCounter_;
 };
 
 IThroughputThrottlerPtr GetUnlimitedThrottler()

@@ -64,10 +64,10 @@ private:
     NConcurrency::TReaderWriterSpinLock StructureLock_;
 
     NProfiling::TProfiler Profiler = {"/resource_tree"};
-    NProfiling::TMonotonicCounter StructureLockReadCount{"/structure_lock_read_count"};
-    NProfiling::TMonotonicCounter StructureLockWriteCount{"/structure_lock_write_count"};
-    NProfiling::TMonotonicCounter UsageLockReadCount{"/usage_read_count"};
-    NProfiling::TMonotonicCounter UsageLockWriteCount{"/usage_write_count"};
+    NProfiling::TShardedMonotonicCounter StructureLockReadCount{"/structure_lock_read_count"};
+    NProfiling::TShardedMonotonicCounter StructureLockWriteCount{"/structure_lock_write_count"};
+    NProfiling::TShardedMonotonicCounter UsageLockReadCount{"/usage_read_count"};
+    NProfiling::TShardedMonotonicCounter UsageLockWriteCount{"/usage_write_count"};
 
     void CheckCycleAbsence(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& newParent);
     void DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta);

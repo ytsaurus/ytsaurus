@@ -364,7 +364,7 @@ public:
         : ResourceTree_(New<TResourceTree>(treeConfig))
     { }
 
-    virtual NProfiling::TAggregateGauge& GetProfilingCounter(const TString& name) override
+    virtual NProfiling::TShardedAggregateGauge& GetProfilingCounter(const TString& name) override
     {
         return FakeCounter_;
     }
@@ -375,7 +375,7 @@ public:
     }
 
 private:
-    NProfiling::TAggregateGauge FakeCounter_;
+    NProfiling::TShardedAggregateGauge FakeCounter_;
     TResourceTreePtr ResourceTree_;
 };
 

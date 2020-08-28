@@ -140,16 +140,16 @@ private:
 
     std::unique_ptr<TTvmClient> Client_;
 
-    NProfiling::TMonotonicCounter GetServiceTicketCountCounter_{"/get_service_ticket_count"};
-    NProfiling::TAggregateGauge GetServiceTicketTimeGauge_{"/get_service_ticket_time"};
-    NProfiling::TMonotonicCounter SuccessfulGetServiceTicketCountCounter_{"/successful_get_service_ticket_count"};
-    NProfiling::TMonotonicCounter FailedGetServiceTicketCountCounter_{"/failed_get_service_ticket_count"};
+    NProfiling::TShardedMonotonicCounter GetServiceTicketCountCounter_{"/get_service_ticket_count"};
+    NProfiling::TShardedAggregateGauge GetServiceTicketTimeGauge_{"/get_service_ticket_time"};
+    NProfiling::TShardedMonotonicCounter SuccessfulGetServiceTicketCountCounter_{"/successful_get_service_ticket_count"};
+    NProfiling::TShardedMonotonicCounter FailedGetServiceTicketCountCounter_{"/failed_get_service_ticket_count"};
 
-    NProfiling::TMonotonicCounter ParseUserTicketCountCounter_{"/parse_user_ticket_count"};
-    NProfiling::TMonotonicCounter SuccessfulParseUserTicketCountCounter_{"/successful_parse_user_ticket_count"};
-    NProfiling::TMonotonicCounter FailedParseUserTicketCountCounter_{"/failed_parse_user_ticket_count"};
+    NProfiling::TShardedMonotonicCounter ParseUserTicketCountCounter_{"/parse_user_ticket_count"};
+    NProfiling::TShardedMonotonicCounter SuccessfulParseUserTicketCountCounter_{"/successful_parse_user_ticket_count"};
+    NProfiling::TShardedMonotonicCounter FailedParseUserTicketCountCounter_{"/failed_parse_user_ticket_count"};
 
-    NProfiling::TMonotonicCounter ClientErrorCountCounter_{"/client_error_count"};
+    NProfiling::TShardedMonotonicCounter ClientErrorCountCounter_{"/client_error_count"};
 
 private:
     void MakeClient()

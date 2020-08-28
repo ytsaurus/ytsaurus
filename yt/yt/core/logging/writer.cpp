@@ -22,8 +22,8 @@ static constexpr size_t BufferSize = 1 << 16;
 
 TRateLimitCounter::TRateLimitCounter(
     std::optional<size_t> limit,
-    const TMonotonicCounter& bytesCounter,
-    const TMonotonicCounter& skippedEventsCounter)
+    const TShardedMonotonicCounter& bytesCounter,
+    const TShardedMonotonicCounter& skippedEventsCounter)
     : LastUpdate_(TInstant::Now())
     , RateLimit_(limit)
     , BytesCounter_(bytesCounter)
@@ -37,12 +37,12 @@ void TRateLimitCounter::SetRateLimit(std::optional<size_t> rateLimit)
     BytesWritten_ = 0;
 }
 
-void TRateLimitCounter::SetBytesCounter(const TMonotonicCounter& counter)
+void TRateLimitCounter::SetBytesCounter(const TShardedMonotonicCounter& counter)
 {
     BytesCounter_ = counter;
 }
 
-void TRateLimitCounter::SetSkippedEventsCounter(const TMonotonicCounter& counter)
+void TRateLimitCounter::SetSkippedEventsCounter(const TShardedMonotonicCounter& counter)
 {
     SkippedEventsCounter_ = counter;
 }
@@ -92,8 +92,8 @@ TStreamLogWriterBase::TStreamLogWriterBase(std::unique_ptr<ILogFormatter> format
     , Name_(std::move(name))
     , RateLimit_(
         std::nullopt,
-        TMonotonicCounter(),
-        TMonotonicCounter("/log_events_skipped", {TProfileManager::Get()->RegisterTag("skipped_by", Name_)}))
+        TShardedMonotonicCounter(),
+        TShardedMonotonicCounter("/log_events_skipped", {TProfileManager::Get()->RegisterTag("skipped_by", Name_)}))
 { }
 
 TStreamLogWriterBase::~TStreamLogWriterBase() = default;
@@ -182,8 +182,8 @@ TRateLimitCounter* TStreamLogWriterBase::GetCategoryRateLimitCounter(TStringBuf 
     if (it == CategoryToRateLimit_.end()) {
         auto tagId = TProfileManager::Get()->RegisterTag("writer_and_category", Name_ + "/" + category);
         auto skippedTagId = TProfileManager::Get()->RegisterTag("skipped_by", Name_ + "/" + category);
-        TMonotonicCounter bytesCounter("/bytes_written", {tagId});
-        TMonotonicCounter skippedEventsCounter("/log_events_skipped", {skippedTagId});
+        TShardedMonotonicCounter bytesCounter("/bytes_written", {tagId});
+        TShardedMonotonicCounter skippedEventsCounter("/log_events_skipped", {skippedTagId});
         it = CategoryToRateLimit_.insert({category, TRateLimitCounter(std::nullopt, bytesCounter, skippedEventsCounter)}).first;
     }
     return &it->second;

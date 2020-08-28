@@ -88,12 +88,12 @@ struct TRemoteDynamicStoreReadCounters
         , SessionWallTime("/dynamic_store_read/session_wall_time", list)
     { }
 
-    TMonotonicCounter RowCount;
-    TMonotonicCounter DataWeight;
-    TMonotonicCounter CpuTime;
-    TAggregateGauge SessionRowCount;
-    TAggregateGauge SessionDataWeight;
-    TAggregateGauge SessionWallTime;
+    TShardedMonotonicCounter RowCount;
+    TShardedMonotonicCounter DataWeight;
+    TShardedMonotonicCounter CpuTime;
+    TShardedAggregateGauge SessionRowCount;
+    TShardedAggregateGauge SessionDataWeight;
+    TShardedAggregateGauge SessionWallTime;
 };
 
 using TRemoteDynamicStoreReadProfilerTrait = TTagListProfilerTrait<TRemoteDynamicStoreReadCounters>;

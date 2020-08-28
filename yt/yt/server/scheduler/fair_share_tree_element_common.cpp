@@ -65,7 +65,7 @@ TScheduleJobsProfilingCounters::TScheduleJobsProfilingCounters(
         auto tags = NDetail::GetFailReasonProfilingTags(reason);
         tags.insert(tags.end(), treeIdProfilingTags.begin(), treeIdProfilingTags.end());
 
-        ControllerScheduleJobFail[reason] = NProfiling::TMonotonicCounter(
+        ControllerScheduleJobFail[reason] = NProfiling::TShardedMonotonicCounter(
             prefix + "/controller_schedule_job_fail",
             tags);
     }

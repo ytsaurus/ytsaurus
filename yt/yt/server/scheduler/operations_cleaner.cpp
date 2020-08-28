@@ -540,16 +540,16 @@ private:
 
     TProfiler Profiler = {"/operations_cleaner"};
 
-    TSimpleGauge RemovePendingCounter_ {"/remove_pending"};
-    TSimpleGauge ArchivePendingCounter_ {"/archive_pending"};
-    TMonotonicCounter ArchivedCounter_ {"/archived"};
-    TMonotonicCounter RemovedCounter_ {"/removed"};
-    TMonotonicCounter CommittedDataWeightCounter_ {"/committed_data_weight"};
-    TMonotonicCounter ArchiveErrorCounter_ {"/archive_errors"};
-    TMonotonicCounter RemoveErrorCounter_ {"/remove_errors"};
+    TAtomicGauge RemovePendingCounter_ {"/remove_pending"};
+    TAtomicGauge ArchivePendingCounter_ {"/archive_pending"};
+    TShardedMonotonicCounter ArchivedCounter_ {"/archived"};
+    TShardedMonotonicCounter RemovedCounter_ {"/removed"};
+    TShardedMonotonicCounter CommittedDataWeightCounter_ {"/committed_data_weight"};
+    TShardedMonotonicCounter ArchiveErrorCounter_ {"/archive_errors"};
+    TShardedMonotonicCounter RemoveErrorCounter_ {"/remove_errors"};
 
-    TAggregateGauge AnalyzeOperationsTimeCounter_ = {"/analyze_operations_time"};
-    TAggregateGauge OperationsRowsPreparationTimeCounter_ = {"/operations_rows_preparation_time"};
+    TShardedAggregateGauge AnalyzeOperationsTimeCounter_ = {"/analyze_operations_time"};
+    TShardedAggregateGauge OperationsRowsPreparationTimeCounter_ = {"/operations_rows_preparation_time"};
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

@@ -91,11 +91,11 @@ static const auto& Logger = NodeTrackerServerLogger;
 
 static const auto ProfilingPeriod = TDuration::Seconds(10);
 
-static NProfiling::TSimpleGauge MasterCacheNodeCount("/master_cache_node_count");
-static NProfiling::TAggregateGauge FullHeartbeatTimeCounter("/full_heartbeat_time");
-static NProfiling::TAggregateGauge IncrementalHeartbeatTimeCounter("/incremental_heartbeat_time");
-static NProfiling::TAggregateGauge NodeUnregisterTimeCounter("/node_unregister_time");
-static NProfiling::TAggregateGauge NodeDisposeTimeCounter("/node_dispose_time");
+static NProfiling::TAtomicGauge MasterCacheNodeCount("/master_cache_node_count");
+static NProfiling::TShardedAggregateGauge FullHeartbeatTimeCounter("/full_heartbeat_time");
+static NProfiling::TShardedAggregateGauge IncrementalHeartbeatTimeCounter("/incremental_heartbeat_time");
+static NProfiling::TShardedAggregateGauge NodeUnregisterTimeCounter("/node_unregister_time");
+static NProfiling::TShardedAggregateGauge NodeDisposeTimeCounter("/node_dispose_time");
 
 ////////////////////////////////////////////////////////////////////////////////
 

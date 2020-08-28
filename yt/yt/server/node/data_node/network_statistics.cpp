@@ -36,7 +36,7 @@ void TNetworkStatistics::IncrementReadThrottlingCounter(const TString& name)
                 };
 
                 auto& counters = Counters_[name];
-                counters.ThrottledReadsCounter = TMonotonicCounter(
+                counters.ThrottledReadsCounter = TShardedMonotonicCounter(
                     "/net_throttled_reads",
                     tagIds,
                     Config_->NetOutThrottleCounterInterval);

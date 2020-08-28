@@ -62,8 +62,6 @@ public:
                 Threads_.back().Reset();
                 Threads_.pop_back();
             }
-
-            Queue_->Configure(threadCount);
         }
 
         if (StartFlag_.load(std::memory_order_relaxed)) {
@@ -155,8 +153,7 @@ private:
             Format("%v:%v", ThreadNamePrefix_, index),
             GetThreadTagIds(EnableProfiling_, ThreadNamePrefix_),
             EnableLogging_,
-            EnableProfiling_,
-            index);
+            EnableProfiling_);
     }
 };
 

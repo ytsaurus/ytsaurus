@@ -18,14 +18,12 @@ public:
         const TString& threadName,
         const NProfiling::TTagIdList& tagIds,
         bool enableLogging,
-        bool enableProfiling,
-        int index = 0);
+        bool enableProfiling);
 
     ~TSingleQueueSchedulerThread();
 
 protected:
     const TInvokerQueuePtr Queue;
-    const int Index;
 
     TEnqueuedAction CurrentAction;
 

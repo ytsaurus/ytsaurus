@@ -11,15 +11,15 @@ struct TRequestProfilingCounters
 {
     explicit TRequestProfilingCounters(const NProfiling::TTagIdList& tagIds);
 
-    NProfiling::TMonotonicCounter TotalReadRequestCounter;
-    NProfiling::TMonotonicCounter TotalWriteRequestCounter;
-    NProfiling::TMonotonicCounter LocalReadRequestCounter;
-    NProfiling::TMonotonicCounter LocalWriteRequestCounter;
-    NProfiling::TMonotonicCounter LeaderFallbackRequestCounter;
-    NProfiling::TMonotonicCounter IntraCellForwardingRequestCounter;
-    NProfiling::TMonotonicCounter CrossCellForwardingRequestCounter;
-    NProfiling::TMonotonicCounter AutomatonForwardingRequestCounter;
-    NProfiling::TMonotonicCounter LocalMutationScheduleTimeCounter;
+    NProfiling::TShardedMonotonicCounter TotalReadRequestCounter;
+    NProfiling::TShardedMonotonicCounter TotalWriteRequestCounter;
+    NProfiling::TShardedMonotonicCounter LocalReadRequestCounter;
+    NProfiling::TShardedMonotonicCounter LocalWriteRequestCounter;
+    NProfiling::TShardedMonotonicCounter LeaderFallbackRequestCounter;
+    NProfiling::TShardedMonotonicCounter IntraCellForwardingRequestCounter;
+    NProfiling::TShardedMonotonicCounter CrossCellForwardingRequestCounter;
+    NProfiling::TShardedMonotonicCounter AutomatonForwardingRequestCounter;
+    NProfiling::TShardedMonotonicCounter LocalMutationScheduleTimeCounter;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRequestProfilingCounters)

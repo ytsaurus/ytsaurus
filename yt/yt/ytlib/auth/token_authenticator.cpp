@@ -67,9 +67,9 @@ private:
     const IBlackboxServicePtr Blackbox_;
     const NProfiling::TProfiler Profiler_;
 
-    TMonotonicCounter RejectedTokens_{"/blackbox_token_authenticator/rejected_tokens"};
-    TMonotonicCounter InvalidBlackboxResponces_{"/blackbox_token_authenticator/invalid_responces"};
-    TMonotonicCounter TokenScopeCheckErrors_{"/blackbox_token_authenticator/scope_check_errors"};
+    TShardedMonotonicCounter RejectedTokens_{"/blackbox_token_authenticator/rejected_tokens"};
+    TShardedMonotonicCounter InvalidBlackboxResponces_{"/blackbox_token_authenticator/invalid_responces"};
+    TShardedMonotonicCounter TokenScopeCheckErrors_{"/blackbox_token_authenticator/scope_check_errors"};
 
 private:
     TAuthenticationResult OnCallResult(const TString& tokenHash, const INodePtr& data)

@@ -220,14 +220,14 @@ protected:
     TLogger Logger = ReporterLogger;
 
 private:
-    TMonotonicCounter EnqueuedCounter_ = {"/enqueued"};
-    TMonotonicCounter DequeuedCounter_ = {"/dequeued"};
-    TMonotonicCounter DroppedCounter_ = {"/dropped"};
-    TMonotonicCounter WriteFailuresCounter_ = {"/write_failures"};
-    TSimpleGauge PendingCounter_ = {"/pending"};
-    TSimpleGauge QueueIsTooLargeCounter_ = {"/queue_is_too_large"};
-    TMonotonicCounter CommittedCounter_ = {"/committed"};
-    TMonotonicCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
+    TShardedMonotonicCounter EnqueuedCounter_ = {"/enqueued"};
+    TShardedMonotonicCounter DequeuedCounter_ = {"/dequeued"};
+    TShardedMonotonicCounter DroppedCounter_ = {"/dropped"};
+    TShardedMonotonicCounter WriteFailuresCounter_ = {"/write_failures"};
+    TAtomicGauge PendingCounter_ = {"/pending"};
+    TAtomicGauge QueueIsTooLargeCounter_ = {"/queue_is_too_large"};
+    TShardedMonotonicCounter CommittedCounter_ = {"/committed"};
+    TShardedMonotonicCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
     const TSharedDataPtr Data_;
     const TJobReporterConfigPtr Config_;

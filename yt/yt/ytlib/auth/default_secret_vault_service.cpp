@@ -72,15 +72,15 @@ private:
 
     const NHttp::IClientPtr HttpClient_;
 
-    NProfiling::TAggregateGauge SubrequestsPerCallGauge_{"/subrequests_per_call"};
-    NProfiling::TMonotonicCounter CallCountCounter_{"/call_count"};
-    NProfiling::TMonotonicCounter SubrequestCountCounter_{"/subrequest_count"};
-    NProfiling::TAggregateGauge CallTimeGauge_{"/call_time"};
-    NProfiling::TMonotonicCounter SuccessfulCallCountCounter_{"/successful_call_count"};
-    NProfiling::TMonotonicCounter FailedCallCountCounter_{"/failed_call_count"};
-    NProfiling::TMonotonicCounter SuccessfulSubrequestCountCounter_{"/successful_subrequest_count"};
-    NProfiling::TMonotonicCounter WarningSubrequestCountCounter_{"/warning_subrequest_count"};
-    NProfiling::TMonotonicCounter FailedSubrequestCountCounter_{"/failed_subrequest_count"};
+    NProfiling::TShardedAggregateGauge SubrequestsPerCallGauge_{"/subrequests_per_call"};
+    NProfiling::TShardedMonotonicCounter CallCountCounter_{"/call_count"};
+    NProfiling::TShardedMonotonicCounter SubrequestCountCounter_{"/subrequest_count"};
+    NProfiling::TShardedAggregateGauge CallTimeGauge_{"/call_time"};
+    NProfiling::TShardedMonotonicCounter SuccessfulCallCountCounter_{"/successful_call_count"};
+    NProfiling::TShardedMonotonicCounter FailedCallCountCounter_{"/failed_call_count"};
+    NProfiling::TShardedMonotonicCounter SuccessfulSubrequestCountCounter_{"/successful_subrequest_count"};
+    NProfiling::TShardedMonotonicCounter WarningSubrequestCountCounter_{"/warning_subrequest_count"};
+    NProfiling::TShardedMonotonicCounter FailedSubrequestCountCounter_{"/failed_subrequest_count"};
 
 private:
     NHttp::IClientPtr CreateHttpClient(IPollerPtr poller) const

@@ -21,7 +21,7 @@ public:
     static TControllerAgentCounterManager* Get();
 
 private:
-    TEnumIndexedVector<NScheduler::EOperationType, NProfiling::TMonotonicCounter> AssertionsFailed_;
+    TEnumIndexedVector<NScheduler::EOperationType, NProfiling::TShardedMonotonicCounter> AssertionsFailed_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

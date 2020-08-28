@@ -62,10 +62,10 @@ using NYT::ToProto;
 
 static const auto& Profiler = SchedulerProfiler;
 
-static NProfiling::TAggregateGauge AnalysisTimeCounter;
-static NProfiling::TAggregateGauge StrategyJobProcessingTimeCounter;
-static NProfiling::TAggregateGauge ScheduleTimeCounter;
-static NProfiling::TAggregateGauge GracefulPreemptionTimeCounter;
+static NProfiling::TShardedAggregateGauge AnalysisTimeCounter;
+static NProfiling::TShardedAggregateGauge StrategyJobProcessingTimeCounter;
+static NProfiling::TShardedAggregateGauge ScheduleTimeCounter;
+static NProfiling::TShardedAggregateGauge GracefulPreemptionTimeCounter;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -98,9 +98,9 @@ namespace {
         return it->second;
     }
 
-    TMonotonicCounter GetJobErrorCounter(const TString& treeId, const TString& jobError)
+    TShardedMonotonicCounter GetJobErrorCounter(const TString& treeId, const TString& jobError)
     {
-        static THashMap<std::tuple<TString, TString>, TMonotonicCounter> counters;
+        static THashMap<std::tuple<TString, TString>, TShardedMonotonicCounter> counters;
 
         auto pair = std::make_tuple(treeId, jobError);
         auto it = counters.find(pair);
@@ -111,7 +111,7 @@ namespace {
 
             it = counters.emplace(
                 pair,
-                TMonotonicCounter("/aborted_job_errors", tags)
+                TShardedMonotonicCounter("/aborted_job_errors", tags)
             ).first;
         }
 

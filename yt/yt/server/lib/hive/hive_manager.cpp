@@ -300,7 +300,7 @@ private:
     THashMap<TCellId, TIntrusivePtr<TAsyncBatcher<void>>> CellToIdToBatcher_;
 
     const NProfiling::TProfiler Profiler;
-    TMonotonicCounter PostingTimeCounter_{"/posting_time"};
+    TShardedMonotonicCounter PostingTimeCounter_{"/posting_time"};
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 

@@ -156,13 +156,13 @@ struct TProfilingCounters
         , UpdateTabletStoresStoreCount("/update_tablet_stores/store_count", list)
     { }
 
-    TMonotonicCounter CopyChunkListIfSharedActionCount;
-    TMonotonicCounter UpdateTabletStoresStoreCount;
+    TShardedMonotonicCounter CopyChunkListIfSharedActionCount;
+    TShardedMonotonicCounter UpdateTabletStoresStoreCount;
 };
 
 using TTabletManagerProfilerTrait = TTagListProfilerTrait<TProfilingCounters>;
 
-static TMonotonicCounter IncrementalHeartbeatCounter("/incremental_heartbeat");
+static TShardedMonotonicCounter IncrementalHeartbeatCounter("/incremental_heartbeat");
 
 ////////////////////////////////////////////////////////////////////////////////
 

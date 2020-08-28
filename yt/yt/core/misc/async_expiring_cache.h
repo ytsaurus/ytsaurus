@@ -92,9 +92,9 @@ private:
     NConcurrency::TReaderWriterSpinLock SpinLock_;
     THashMap<TKey, TIntrusivePtr<TEntry>> Map_;
 
-    NProfiling::TMonotonicCounter HitCounter_{"/hit"};
-    NProfiling::TMonotonicCounter MissedCounter_{"/missed"};
-    NProfiling::TSimpleGauge SizeCounter_{"/size"};
+    NProfiling::TShardedMonotonicCounter HitCounter_{"/hit"};
+    NProfiling::TShardedMonotonicCounter MissedCounter_{"/missed"};
+    NProfiling::TAtomicGauge SizeCounter_{"/size"};
 
     void SetResult(
         const TWeakPtr<TEntry>& entry,
