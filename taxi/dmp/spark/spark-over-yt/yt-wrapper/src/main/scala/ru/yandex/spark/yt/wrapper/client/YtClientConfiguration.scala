@@ -55,5 +55,15 @@ object YtClientConfiguration {
       getByName("masterWrapper.url")
     )
   }
+
+  def default(proxy: String): YtClientConfiguration = YtClientConfiguration(
+    proxy = proxy,
+    user = DefaultRpcCredentials.user,
+    token = DefaultRpcCredentials.token,
+    timeout = 5 minutes,
+    proxyRole = None,
+    byop = ByopConfiguration.DISABLED,
+    masterWrapperUrl = None
+  )
 }
 
