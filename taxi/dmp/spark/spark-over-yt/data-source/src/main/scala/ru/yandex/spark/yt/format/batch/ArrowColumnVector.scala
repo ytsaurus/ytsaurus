@@ -6,12 +6,11 @@ import org.apache.arrow.vector.complex.{BaseRepeatedValueVector, ListVector, Str
 import org.apache.arrow.vector.dictionary.Dictionary
 import org.apache.arrow.vector.holders.NullableVarCharHolder
 import org.apache.log4j.Logger
-import org.apache.spark.sql.catalyst.util.{ArrayData, GenericArrayData}
 import org.apache.spark.sql.types.{BinaryType, DataType, Decimal, StringType}
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarArray, ColumnarMap}
 import org.apache.spark.unsafe.types.UTF8String
+import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.IndexedDataType.{ArrayType => IArrayType, AtomicType => IAtomicType}
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.{IndexedDataType, YsonDecoder}
 
 class ArrowColumnVector(dataType: IndexedDataType,
                         vector: ValueVector,
@@ -37,6 +36,7 @@ class ArrowColumnVector(dataType: IndexedDataType,
         case v: TinyIntVector => ByteAccessor(keys, v)
         case v: SmallIntVector => ShortAccessor(keys, v)
         case v: IntVector => IntAccessor(keys, v)
+        case v: UInt8Vector => UInt8Accessor(keys, v)
         case v: BigIntVector => LongAccessor(keys, v)
         case v: Float4Vector => FloatAccessor(keys, v)
         case v: Float8Vector => DoubleAccessor(keys, v)
@@ -195,6 +195,10 @@ class ArrowColumnVector(dataType: IndexedDataType,
   }
 
   private case class LongAccessor(keys: Option[IntVector], values: BigIntVector) extends ArrowVectorAccessor {
+    override final def getLong(rowId: Int): Long = values.get(id(rowId))
+  }
+
+  private case class UInt8Accessor(keys: Option[IntVector], values: UInt8Vector) extends ArrowVectorAccessor {
     override final def getLong(rowId: Int): Long = values.get(id(rowId))
   }
 
