@@ -25,6 +25,7 @@ import copy
 import ctypes
 import errno
 import functools
+import inspect
 import os
 import re
 import signal
@@ -660,3 +661,25 @@ def underscore_case_to_camel_case(str):
             upper = False
         first = False
     return "".join(result)
+
+class WaitFailed(Exception):
+    pass
+
+def wait(predicate, error_message=None, iter=100, sleep_backoff=0.3, ignore_exceptions=False):
+    for _ in range(iter):
+        try:
+            if predicate():
+                return
+        except:
+            if ignore_exceptions:
+                time.sleep(sleep_backoff)
+                continue
+            raise
+        time.sleep(sleep_backoff)
+
+    if inspect.isfunction(error_message):
+        error_message = error_message()
+    if error_message is None:
+        error_message = "Wait failed"
+    error_message += " (timeout = {0})".format(iter * sleep_backoff)
+    raise WaitFailed(error_message)

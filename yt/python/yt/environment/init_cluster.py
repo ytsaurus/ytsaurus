@@ -2,7 +2,7 @@
 
 import yt.wrapper as yt
 import yt.logger as logger
-from yt.common import get_value
+from yt.common import get_value, wait
 
 import string
 import argparse
@@ -86,7 +86,7 @@ def get_default_resource_limits(client):
 
     return result
 
-def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None, configure_pool_trees=True):
+def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None, configure_pool_trees=True, is_multicell=False):
     client = get_value(client, yt)
     users = ["odin", "cron", "cron_merge", "cron_compression", "cron_operations", "cron_tmp",
              "nightly_tester", "application_operations", "robot-yt-mon", "transfer_manager", "fennel", "robot-yt-idm",
@@ -141,6 +141,8 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
                                                  "permissions": ["use"]
                                              }],
                                              "resource_limits": get_default_resource_limits(client)})
+        if is_multicell:
+            wait(lambda: client.get("//sys/accounts/tmp_files/@life_stage") == 'creation_committed')
     else:
         logger.warning("Account 'tmp_files' already exists")
 
@@ -152,12 +154,17 @@ def initialize_world(client=None, idm=None, proxy_address=None, ui_address=None,
                                                  "permissions": ["use"]
                                              }],
                                              "resource_limits": get_default_resource_limits(client)})
+
+        if is_multicell:
+            wait(lambda: client.get("//sys/accounts/default/@life_stage") == 'creation_committed')
     else:
         logger.warning("Account 'default' already exists")
 
     if not client.exists("//sys/accounts/tmp_jobs"):
         client.create("account", attributes={"name": "tmp_jobs",
                                              "resource_limits": get_default_resource_limits(client)})
+        if is_multicell:
+            wait(lambda: client.get("//sys/accounts/tmp_jobs/@life_stage") == 'creation_committed')
     else:
         logger.warning("Account 'tmp_jobs' already exists")
 

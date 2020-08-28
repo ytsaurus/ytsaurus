@@ -184,14 +184,15 @@ def _safe_remove(path):
             raise
 
 def _initialize_world(client, environment, wait_tablet_cell_initialization,
-                      configure_default_tablet_cell_bundle):
+                      configure_default_tablet_cell_bundle, is_multicell):
     cluster_connection = environment.configs["driver"]
 
     proxy_address = None
     initialize_world(
         client,
         proxy_address=proxy_address,
-        configure_pool_trees=False)
+        configure_pool_trees=False,
+        is_multicell=is_multicell)
 
     tablet_cell_attributes = {
         "changelog_replication_factor": 1,
@@ -236,6 +237,7 @@ _START_DEFAULTS = {
     "scheduler_count": 1,
     "http_proxy_count": 1,
     "rpc_proxy_count": None,
+    "secondary_master_cell_count": 0,
     "jobs_resource_limits": {
         "memory": 16 * GB,
         "cpu": 1,
@@ -252,7 +254,7 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
           prepare_only=False, jobs_memory_limit=None, jobs_cpu_limit=None, jobs_user_slot_count=None, jobs_resource_limits=None,
           node_chunk_store_quota=None, allow_chunk_storage_in_tmpfs=True, wait_tablet_cell_initialization=False,
           meta_files_suffix=None, set_pdeath_sig=False, watcher_config=None, cell_tag=0,
-          ytserver_all_path=None, driver_backend=None):
+          ytserver_all_path=None, driver_backend=None, secondary_master_cell_count=None):
     options = {}
     for name in _START_DEFAULTS:
         options[name] = get_value(locals()[name], _START_DEFAULTS[name])
@@ -329,7 +331,8 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
         os.remove(is_started_file)
 
     if not prepare_only:
-        environment.start()
+        start_secondary_master_cells = secondary_master_cell_count is not None and secondary_master_cell_count > 0
+        environment.start(start_secondary_master_cells=start_secondary_master_cells)
 
         # FIXME(asaitgalin): Remove this when st/YT-3054 is done.
         if not environment._load_existing_environment:
@@ -341,7 +344,8 @@ def start(master_count=None, node_count=None, scheduler_count=None, rpc_proxy_co
             client.config["proxy"]["enable_proxy_discovery"] = False
 
             _initialize_world(client, environment, wait_tablet_cell_initialization,
-                              (environment.abi_version[0] >= 19))
+                              configure_default_tablet_cell_bundle=(environment.abi_version[0] >= 19),
+                              is_multicell=start_secondary_master_cells)
             if local_cypress_dir is not None:
                 _synchronize_cypress_with_local_dir(local_cypress_dir, meta_files_suffix, client)
 
