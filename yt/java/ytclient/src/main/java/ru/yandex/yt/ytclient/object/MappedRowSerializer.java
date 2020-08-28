@@ -7,6 +7,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import javax.annotation.Nonnull;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeDateSerializer;
@@ -28,9 +30,9 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStri
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeUnsignedLongSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeCloseableConsumer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeConsumer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
+import ru.yandex.yson.ClosableYsonConsumer;
 import ru.yandex.yson.YsonConsumer;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
@@ -142,7 +144,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         private final YTreeConsumerDirect direct;
 
         private ByteArrayOutputStream output;
-        private YTreeCloseableConsumer binarySerializer;
+        private ClosableYsonConsumer binarySerializer;
         private YsonConsumer current;
         private int level;
 
@@ -254,7 +256,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onKeyedItem(String key) {
+        public void onKeyedItem(@Nonnull String key) {
             current.onKeyedItem(key);
         }
 
@@ -279,7 +281,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onString(byte[] bytes) {
+        public void onString(@Nonnull byte[] bytes) {
             current.onString(bytes);
         }
     }
@@ -375,7 +377,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onKeyedItem(String key) {
+        public void onKeyedItem(@Nonnull String key) {
             this.currentColumn = this.schema.get(key);
 
             if (this.schema.isEmpty()) {
@@ -420,7 +422,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
         }
 
         @Override
-        public void onString(byte[] bytes) {
+        public void onString(@Nonnull byte[] bytes) {
             if (currentColumn != null) {
                 if (currentColumn.columnType == ColumnValueType.STRING) {
                     this.onBytesDirect(bytes);
@@ -432,7 +434,7 @@ public class MappedRowSerializer<T> implements WireRowSerializer<T> {
                     // Это может быть только ANY тип и в этом случае мы должны корректно сериализовать массив байтов
                     final ByteArrayOutputStream output = new ByteArrayOutputStream(bytes.length + 1 + 4);
 
-                    try (YTreeCloseableConsumer binarySerializer = YTreeBinarySerializer.getSerializer(output)) {
+                    try (ClosableYsonConsumer binarySerializer = YTreeBinarySerializer.getSerializer(output)) {
                         binarySerializer.onString(bytes); // TODO: improve performance
                     }
                     this.onBytesDirect(output.toByteArray());
