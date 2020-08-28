@@ -800,7 +800,7 @@ def create_tables_latest_version(client, override_tablet_cell_bundle="default", 
     """ Creates operation archive tables of latest version """
     create_tables(client, _get_latest_version(), override_tablet_cell_bundle, shard_count=shard_count, archive_path=archive_path)
 
-def main():
+def build_arguments_parser():
     parser = argparse.ArgumentParser(description="Transform operations archive")
     parser.add_argument("--force", action="store_true", default=False)
     parser.add_argument("--archive-path", type=str, default=DEFAULT_ARCHIVE_PATH)
@@ -810,14 +810,12 @@ def main():
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--target-version", type=int)
     group.add_argument("--latest", action="store_true")
+    return parser
 
-    args = parser.parse_args()
-
+def run(client, args):
     archive_path = args.archive_path
 
     logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
-
-    client = YtClient(proxy=args.proxy, token=config["token"])
 
     client.config['pickling']['module_filter'] = lambda module: 'hashlib' not in getattr(module, '__name__', '')
 
@@ -839,6 +837,11 @@ def main():
         target_version = args.target_version
     transform_archive(client, next_version, target_version, args.force, archive_path, shard_count=args.shard_count)
 
+def main():
+    args = build_arguments_parser().parse_args()
+    client = YtClient(proxy=args.proxy, token=config["token"])
+
+    run(client, args)
 
 if __name__ == "__main__":
     main()
