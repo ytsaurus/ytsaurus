@@ -181,6 +181,8 @@ def add_start_subparser(subparsers):
     parser.add_argument("--scheduler-count", type=int, default=_USE_START_DEFAULT, help="number of schedulers")
     parser.add_argument("--http-proxy-count", type=int, default=_USE_START_DEFAULT, help="number of http proxies")
     parser.add_argument("--rpc-proxy-count", type=int, default=_USE_START_DEFAULT, help="number of rpc proxies")
+    parser.add_argument("--secondary-master-cell-count", type=int, default=_USE_START_DEFAULT,
+                        help="number of secondary cells. Do not use it if you are not sure what you are doing.")
 
     for service in SERVICE_LIST:
         config_parser = parser.add_mutually_exclusive_group(required=False)
