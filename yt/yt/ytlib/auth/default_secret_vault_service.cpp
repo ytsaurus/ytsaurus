@@ -219,10 +219,12 @@ private:
                 auto valueNode = secretMapNode->GetChildOrThrow("value")->AsList();
                 for (const auto& fieldNode : valueNode->GetChildren()) {
                     auto fieldMapNode = fieldNode->AsMap();
+                    auto encodingNode = fieldMapNode->FindChild("encoding");
+                    TString encoding = encodingNode ? encodingNode->GetValue<TString>() : "";
                     subresponse.Values.emplace_back(TSecretValue{
                         fieldMapNode->GetChildOrThrow("key")->GetValue<TString>(),
                         fieldMapNode->GetChildOrThrow("value")->GetValue<TString>(),
-                        fieldMapNode->GetChildOrThrow("encoding")->GetValue<TString>()});
+                        encoding});
                 }
 
                 subresponses.push_back(subresponse);
