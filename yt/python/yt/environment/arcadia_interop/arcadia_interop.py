@@ -7,11 +7,15 @@ import fcntl
 import time
 import shutil
 import logging
+import subprocess
 
 try:
     import yatest.common as yatest_common
 except ImportError:
     yatest_common = None
+
+def sudo_rmtree(path):
+    subprocess.check_call(["sudo", "rm", "-rf", path])
 
 def is_inside_arcadia(inside_arcadia):
     if inside_arcadia is None:
@@ -220,7 +224,15 @@ def remove_runtime_data(working_directory):
             runtime_data_paths.append(os.path.join(working_directory, root))
 
     for path in runtime_data_paths:
+        failed = False
         try:
             shutil.rmtree(path, ignore_errors=True)
         except IOError:
-            pass
+            yt_logger.exception("Failed to remove {} without sudo".format(path))
+            failed = True
+
+        if failed:
+            try:
+                sudo_rmtree(path)
+            except subprocess.CalledProcessError:
+                yt_logger.exception("Failed to remove {} with sudo".format(path))
