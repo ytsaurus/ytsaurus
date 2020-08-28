@@ -20,6 +20,14 @@ using ::testing::HasSubstr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TString SecretId = "secret-id";
+static const TString SecretVersion = "secret-version";
+static const TString SecretDelegationToken = "secret-token";
+static const TString SecretSignature = "secret-signature";
+static const TString SecretKey = "secret-key";
+static const TString SecretValue = "secret-value";
+static const TString SecretEncoding = "EBCDIC";
+
 class TDefaultSecretVaultTest
     : public ::testing::Test
 {
@@ -56,9 +64,16 @@ protected:
         }
     }
 
-    void SetCallback(TMockHttpServer::TCallback callback)
+    void SetCallback(const TString& response)
     {
-        MockHttpServer_.SetCallback(std::move(callback));
+        MockHttpServer_.SetCallback([&] (TClientRequest* request) {
+            if (!request->Input().FirstLine().StartsWith("POST /1/tokens/?consumer=yp.unittest")) {
+                request->Output() << HttpResponse(404, "");
+                return;
+            }
+
+            request->Output() << HttpResponse(200, response);
+        });
     }
 
 private:
@@ -84,49 +99,33 @@ private:
 
 TEST_F(TDefaultSecretVaultTest, WarningResponseStatus)
 {
-    static const TString SecretId = "secret-id";
-    static const TString SecretVersion = "secret-version";
-    static const TString SecretDelegationToken = "secret-token";
-    static const TString SecretSignature = "secret-signature";
-    static const TString SecretKey = "secret-key";
-    static const TString SecretValue = "secret-value";
-    static const TString SecretEncoding = "EBCDIC";
+    TStringStream outputStream;
+    auto consumer = NJson::CreateJsonConsumer(&outputStream);
+    NYTree::BuildYsonFluently(consumer.get())
+        .BeginMap()
+            .Item("secrets")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("status").Value("warning")
+                    .Item("warning_message").Value("version is hidden")
+                    .Item("value")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("key").Value(SecretKey)
+                            .Item("value").Value(SecretValue)
+                            .Item("encoding").Value(SecretEncoding)
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+            .Item("status").Value("ok")
+        .EndMap();
 
-    SetCallback([&] (TClientRequest* request) {
-        if (!request->Input().FirstLine().StartsWith("POST /1/tokens/?consumer=yp.unittest")) {
-            request->Output() << HttpResponse(404, "");
-            return;
-        }
+    consumer->Flush();
 
-        TStringStream outputStream;
-        auto consumer = NJson::CreateJsonConsumer(&outputStream);
-
-        NYTree::BuildYsonFluently(consumer.get())
-            .BeginMap()
-                .Item("secrets")
-                .BeginList()
-                    .Item()
-                    .BeginMap()
-                        .Item("status").Value("warning")
-                        .Item("warning_message").Value("version is hidden")
-                        .Item("value")
-                        .BeginList()
-                            .Item()
-                            .BeginMap()
-                                .Item("key").Value(SecretKey)
-                                .Item("value").Value(SecretValue)
-                                .Item("encoding").Value(SecretEncoding)
-                            .EndMap()
-                        .EndList()
-                    .EndMap()
-                .EndList()
-                .Item("status").Value("ok")
-            .EndMap();
-
-        consumer->Flush();
-
-        request->Output() << HttpResponse(200, outputStream.Str());
-    });
+    SetCallback(outputStream.Str());
 
     auto service = CreateDefaultSecretVaultService();
 
@@ -146,6 +145,54 @@ TEST_F(TDefaultSecretVaultTest, WarningResponseStatus)
     ASSERT_EQ(SecretKey, secrets[0].Key);
     ASSERT_EQ(SecretValue, secrets[0].Value);
     ASSERT_EQ(SecretEncoding, secrets[0].Encoding);
+}
+
+TEST_F(TDefaultSecretVaultTest, NoEncoding)
+{
+    TStringStream outputStream;
+    auto consumer = NJson::CreateJsonConsumer(&outputStream);
+    NYTree::BuildYsonFluently(consumer.get())
+        .BeginMap()
+            .Item("secrets")
+            .BeginList()
+                .Item()
+                .BeginMap()
+                    .Item("status").Value("ok")
+                    .Item("value")
+                    .BeginList()
+                        .Item()
+                        .BeginMap()
+                            .Item("key").Value(SecretKey)
+                            .Item("value").Value(SecretValue)
+                        .EndMap()
+                    .EndList()
+                .EndMap()
+            .EndList()
+            .Item("status").Value("ok")
+        .EndMap();
+
+    consumer->Flush();
+
+    SetCallback(outputStream.Str());
+
+    auto service = CreateDefaultSecretVaultService();
+
+    std::vector<ISecretVaultService::TSecretSubrequest> subrequests;
+    subrequests.push_back({
+        SecretId,
+        SecretVersion,
+        SecretDelegationToken,
+        SecretSignature});
+
+    auto subresponses = WaitFor(service->GetSecrets(subrequests))
+        .ValueOrThrow();
+    ASSERT_EQ(1, subresponses.size());
+
+    const auto& secrets = subresponses[0].ValueOrThrow().Values;
+    ASSERT_EQ(1, secrets.size());
+    ASSERT_EQ(SecretKey, secrets[0].Key);
+    ASSERT_EQ(SecretValue, secrets[0].Value);
+    ASSERT_TRUE(secrets[0].Encoding.empty());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
