@@ -301,13 +301,13 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::CancelInsert(const TKey& key, con
 
     DrainTouchBuffer();
 
-    auto it = ItemMap_.find(key);
-    YT_VERIFY(it != ItemMap_.end());
+    auto itemIt = ItemMap_.find(key);
+    YT_VERIFY(itemIt != ItemMap_.end());
 
-    auto* item = it->second;
+    auto* item = itemIt->second;
     auto promise = item->ValuePromise;
 
-    ItemMap_.erase(it);
+    ItemMap_.erase(itemIt);
     --ItemMapSize_;
 
     delete item;
@@ -329,80 +329,62 @@ void TAsyncSlruCacheBase<TKey, TValue, THash>::Unregister(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
-bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key, bool forbidResurrection)
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TKey& key, bool forbidResurrection)
 {
-    NConcurrency::TWriterGuard guard(SpinLock_);
-
-    DrainTouchBuffer();
-
-    auto it = ItemMap_.find(key);
-    if (it == ItemMap_.end()) {
-        return false;
-    }
-
-    auto* item = it->second;
-    auto value = item->Value;
-    if (!value) {
-        return false;
-    }
-
-    ItemMap_.erase(it);
-    --ItemMapSize_;
-
-    if (forbidResurrection || !IsResurrectionSupported()) {
-        YT_VERIFY(ValueMap_.erase(key) == 1);
-        value->Cache_.Reset();
-    }
-
-    Pop(item);
-
-    // Release the guard right away to prevent recursive spinlock acquisition.
-    // Indeed, the item's dtor may drop the last reference
-    // to the value and thus cause an invocation of TAsyncCacheValueBase::TAsyncCacheValueBase.
-    // The latter will try to acquire the spinlock.
-    guard.Release();
-
-    OnRemoved(value);
-
-    delete item;
-
-    return true;
+    DoTryRemove(key, nullptr, forbidResurrection);
 }
 
 template <class TKey, class TValue, class THash>
-bool TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TValuePtr& value, bool forbidResurrection)
+void TAsyncSlruCacheBase<TKey, TValue, THash>::TryRemove(const TValuePtr& value, bool forbidResurrection)
+{
+    DoTryRemove(value->GetKey(), value, forbidResurrection);
+}
+
+template <class TKey, class TValue, class THash>
+void TAsyncSlruCacheBase<TKey, TValue, THash>::DoTryRemove(
+    const TKey& key,
+    const TValuePtr& value,
+    bool forbidResurrection)
 {
     NConcurrency::TWriterGuard guard(SpinLock_);
 
     DrainTouchBuffer();
 
-    auto valueIt = ValueMap_.find(value->GetKey());
-    if (valueIt == ValueMap_.end() || valueIt->second != value) {
-        return false;
+    auto valueIt = ValueMap_.find(key);
+    if (valueIt == ValueMap_.end()) {
+        return;
     }
 
-    auto itemIt = ItemMap_.find(value->GetKey());
-    if (itemIt != ItemMap_.end()) {
-        auto* item = itemIt->second;
-
-        ItemMap_.erase(itemIt);
-        --ItemMapSize_;
-
-        if (forbidResurrection || !IsResurrectionSupported()) {
-            ValueMap_.erase(valueIt);
-            value->Cache_.Reset();
-        }
-
-        Pop(item);
-
-        delete item;
+    if (value && valueIt->second != value) {
+        return;
     }
+
+    if (forbidResurrection || !IsResurrectionSupported()) {
+        valueIt->second->Cache_.Reset();
+        ValueMap_.erase(valueIt);
+    }
+
+    auto itemIt = ItemMap_.find(key);
+    if (itemIt == ItemMap_.end()) {
+        return;
+    }
+
+    auto* item = itemIt->second;
+    auto actualValue = item->Value;
+    if (!actualValue) {
+        return;
+    }
+
+    ItemMap_.erase(itemIt);
+    --ItemMapSize_;
+
+    Pop(item);
+
+    delete item;
 
     guard.Release();
 
-    OnRemoved(value);
-
-    return true;
+    OnRemoved(actualValue);
 }
 
 template <class TKey, class TValue, class THash>

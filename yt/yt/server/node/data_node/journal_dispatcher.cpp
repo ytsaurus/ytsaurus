@@ -178,9 +178,7 @@ public:
     virtual TFuture<void> Close() override
     {
         return UnderlyingChangelog_->Close().Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
-            if (!Owner_->TryRemove(this, /* forbidResurrection */ true)) {
-                YT_LOG_DEBUG("Failed to evict changelog from cache");
-            }
+            Owner_->TryRemove(this, /* forbidResurrection */ true);
             return error;
         })).ToUncancelable();
     }
