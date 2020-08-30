@@ -224,8 +224,6 @@ message TReqLookupRows
     }
 
     required NYT.NProto.TGuid chunk_id = 1;
-    // COMPAT(babenko)
-    optional bytes lookup_keys = 2;
     required NYT.NProto.TWorkloadDescriptor workload_descriptor = 3;
     required NYT.NProto.TGuid read_session_id = 4;
     required bool produce_all_versions = 5;
