@@ -87,6 +87,7 @@ DECLARE_REFCOUNTED_STRUCT(IPlainVolumeManager)
 DECLARE_REFCOUNTED_STRUCT(TCachedTableSchema)
 DECLARE_REFCOUNTED_CLASS(TTableSchemaCache)
 DECLARE_REFCOUNTED_CLASS(TCachedTableSchemaWrapper)
+DECLARE_REFCOUNTED_CLASS(TLookupSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 

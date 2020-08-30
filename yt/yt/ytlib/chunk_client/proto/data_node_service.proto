@@ -234,6 +234,8 @@ message TReqLookupRows
     optional int32 compression_codec = 9;
     optional uint64 chunk_timestamp = 10;
     required TTableSchemaData schema_data = 6;
+    // COMPAT(akozhikhov): Make this field required.
+    optional bool populate_cache = 11 [default = true];
 
     // Lookup keys are passed via attachments.
 }

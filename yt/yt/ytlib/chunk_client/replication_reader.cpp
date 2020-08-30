@@ -2259,6 +2259,7 @@ private:
         ToProto(req->mutable_column_filter(), ColumnFilter_);
         req->set_produce_all_versions(ProduceAllVersions_);
         req->set_chunk_timestamp(ChunkTimestamp_);
+        req->set_populate_cache(true);
 
         auto schemaData = req->mutable_schema_data();
         ToProto(schemaData->mutable_table_id(), TableId_);
