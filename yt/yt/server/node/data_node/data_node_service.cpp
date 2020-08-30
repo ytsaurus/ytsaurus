@@ -717,11 +717,13 @@ private:
         auto chunkId = FromProto<TChunkId>(request->chunk_id());
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
         auto workloadDescriptor = FromProto<TWorkloadDescriptor>(request->workload_descriptor());
+        auto populateCache = request->populate_cache();
 
-        context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v",
+        context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, PopulateCache: %v",
             chunkId,
             readSessionId,
-            workloadDescriptor);
+            workloadDescriptor,
+            populateCache);
 
         ValidateConnected();
         
@@ -755,7 +757,7 @@ private:
         auto produceAllVersions = FromProto<bool>(request->produce_all_versions());
         auto chunkTimestamp = request->has_chunk_timestamp() ? request->chunk_timestamp() : NullTimestamp;
 
-        TLookupSession lookupSession(
+        auto lookupSession = New<TLookupSession>(
             Bootstrap_,
             std::move(chunk),
             readSessionId,
@@ -763,23 +765,28 @@ private:
             std::move(columnFilter),
             timestamp,
             produceAllVersions,
-            tableSchema,
+            std::move(tableSchema),
             // COMPAT(babenko)
             request->has_lookup_keys() ? std::vector{TSharedRef::FromString(request->lookup_keys())} : request->Attachments(),
             codecId,
-            chunkTimestamp);
-        response->Attachments().push_back(lookupSession.Run());
+            chunkTimestamp,
+            populateCache);
 
-        response->set_fetched_rows(true);
-        ToProto(response->mutable_chunk_reader_statistics(), lookupSession.GetChunkReaderStatistics());
+        context->ReplyFrom(lookupSession->Run()
+            .Apply(BIND([=, this_ = MakeStrong(this)] (const TSharedRef& result) {
+                response->Attachments().push_back(result);
 
-        context->SetResponseInfo("ChunkId: %v, ReadSessionId: %v",
-            chunkId,
-            readSessionId);
+                response->set_fetched_rows(true);
+                ToProto(response->mutable_chunk_reader_statistics(), lookupSession->GetChunkReaderStatistics());
 
-        auto throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
-        context->SetComplete();
-        context->ReplyFrom(throttler->Throttle(GetByteSize(response->Attachments())));
+                context->SetResponseInfo("ChunkId: %v, ReadSessionId: %v",
+                    chunkId,
+                    readSessionId);
+
+                auto throttler = Bootstrap_->GetOutThrottler(workloadDescriptor);
+                context->SetComplete();
+                return throttler->Throttle(GetByteSize(response->Attachments()));
+            })));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, GetChunkMeta)

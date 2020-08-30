@@ -37,6 +37,10 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = DataNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TLookupSession::TLookupSession(
     TBootstrap* bootstrap,
     IChunkPtr chunk,
@@ -48,12 +52,12 @@ TLookupSession::TLookupSession(
     TCachedTableSchemaPtr tableSchema,
     const std::vector<TSharedRef>& serializedKeys,
     NCompression::ECodec codecId,
-    TTimestamp chunkTimestamp)
+    TTimestamp chunkTimestamp,
+    bool populateCache)
     : Bootstrap_(bootstrap)
     , Chunk_(std::move(chunk))
     , ChunkId_(Chunk_->GetId())
     , ReadSessionId_(readSessionId)
-    , WorkloadDescriptor_(std::move(workloadDescriptor))
     , ColumnFilter_(std::move(columnFilter))
     , Timestamp_(timestamp)
     , ProduceAllVersions_(produceAllVersions)
@@ -61,9 +65,26 @@ TLookupSession::TLookupSession(
     , Codec_(NCompression::GetCodec(codecId))
     , ChunkTimestamp_(chunkTimestamp)
 {
-    // NB: TableSchema is assumed to be set upon calling LookupSession.
-    Verify();
+    Options_.ChunkReaderStatistics = ChunkReaderStatistics_;
+    Options_.ReadSessionId = ReadSessionId_;
+    Options_.WorkloadDescriptor = std::move(workloadDescriptor);
+    Options_.PopulateCache = populateCache;
 
+    // May be slow because of chunk meta cache misses.
+    YT_ASSERT(CheckKeyColumnCompatibility());
+
+    // NB: TableSchema is assumed to be fetched upon calling LookupSession.
+    YT_VERIFY(TableSchema_->TableSchema);
+    if (!TableSchema_->TableSchema->GetUniqueKeys()) {
+        THROW_ERROR_EXCEPTION("Table schema for chunk %v must have unique keys", ChunkId_)
+            << TErrorAttribute("read_session_id", ReadSessionId_);
+    }
+    if (!TableSchema_->TableSchema->GetStrict()) {
+        THROW_ERROR_EXCEPTION("Table schema for chunk %v must be strict", ChunkId_)
+            << TErrorAttribute("read_session_id", ReadSessionId_);
+    }
+
+    // Use cache for readers?
     UnderlyingChunkReader_ = CreateLocalChunkReader(
         New<TReplicationReaderConfig>(),
         Chunk_,
@@ -75,18 +96,26 @@ TLookupSession::TLookupSession(
         MergeRefsToRef<TKeyReaderBufferTag>(serializedKeys),
         KeyReaderRowBuffer_);
     RequestedKeys_ = keysReader.ReadUnversionedRowset(true);
+    YT_VERIFY(!RequestedKeys_.Empty());
 
     YT_LOG_DEBUG("Local chunk reader is created for lookup request (ChunkId: %v, ReadSessionId: %v, KeyCount: %v)",
         ChunkId_,
         ReadSessionId_,
         RequestedKeys_.Size());
-
-    YT_VERIFY(!RequestedKeys_.Empty());
 }
 
-TSharedRef TLookupSession::Run()
+TFuture<TSharedRef> TLookupSession::Run()
 {
-    return DoRun();
+    NProfiling::TWallTimer metaWaitTimer;
+    const auto& chunkMetaManager = Bootstrap_->GetVersionedChunkMetaManager();
+
+    return
+        chunkMetaManager->GetMeta(UnderlyingChunkReader_, *TableSchema_->TableSchema, Options_)
+        .Apply(BIND([=, this_ = MakeStrong(this), metaWaitTimer = std::move(metaWaitTimer)] (TCachedVersionedChunkMetaPtr chunkMeta) {
+            Options_.ChunkReaderStatistics->MetaWaitTime += metaWaitTimer.GetElapsedValue();
+            return DoRun(std::move(chunkMeta));
+        })
+        .AsyncVia(Bootstrap_->GetStorageLookupInvoker()));
 }
 
 const TChunkReaderStatisticsPtr& TLookupSession::GetChunkReaderStatistics()
@@ -144,17 +173,8 @@ std::tuple<TCachedTableSchemaPtr, bool> TLookupSession::FindTableSchema(
     return {cachedTableSchema, false};
 }
 
-void TLookupSession::Verify()
+bool TLookupSession::CheckKeyColumnCompatibility()
 {
-    const auto& tableKeyColumns = TableSchema_->TableSchema->GetKeyColumns();
-    for (const auto& key : RequestedKeys_) {
-        YT_VERIFY(key.GetCount() == tableKeyColumns.size());
-    }
-
-    Options_.WorkloadDescriptor = WorkloadDescriptor_;
-    Options_.ChunkReaderStatistics = ChunkReaderStatistics_;
-    Options_.ReadSessionId = ReadSessionId_;
-
     auto chunkMeta = WaitFor(Chunk_->ReadMeta(Options_))
         .ValueOrThrow();
     auto type = CheckedEnumCast<EChunkType>(chunkMeta->type());
@@ -165,9 +185,9 @@ void TLookupSession::Verify()
             << TErrorAttribute("chunk_type", type);
     }
 
-    if (!TableSchema_->TableSchema->GetUniqueKeys()) {
-        THROW_ERROR_EXCEPTION("Chunk %v must have unique keys", ChunkId_)
-            << TErrorAttribute("read_session_id", ReadSessionId_);
+    const auto& tableKeyColumns = TableSchema_->TableSchema->GetKeyColumns();
+    for (auto key : RequestedKeys_) {
+        YT_VERIFY(key.GetCount() == tableKeyColumns.size());
     }
 
     TKeyColumns chunkKeyColumns;
@@ -192,22 +212,19 @@ void TLookupSession::Verify()
             << TErrorAttribute("table_key_columns", tableKeyColumns)
             << TErrorAttribute("chunk_key_columns", chunkKeyColumns);
     }
+
+    return true;
 }
 
-TSharedRef TLookupSession::DoRun()
+TSharedRef TLookupSession::DoRun(TCachedVersionedChunkMetaPtr chunkMeta)
 {
-    const auto& chunkMetaManager = Bootstrap_->GetVersionedChunkMetaManager();
-    auto versionedChunkMeta = WaitFor(
-        chunkMetaManager->GetMeta(UnderlyingChunkReader_, *TableSchema_->TableSchema, Options_))
-        .ValueOrThrow();
-
     TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);
 
     auto chunkState = New<TChunkState>(
         Bootstrap_->GetBlockCache(),
         std::move(chunkSpec),
-        versionedChunkMeta,
+        std::move(chunkMeta),
         ChunkTimestamp_,
         nullptr /* lookupHashTable */,
         New<TChunkReaderPerformanceCounters>(),

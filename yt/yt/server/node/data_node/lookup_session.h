@@ -18,11 +18,8 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = DataNodeLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TLookupSession
+    : public TRefCounted
 {
 public:
     TLookupSession(
@@ -36,9 +33,10 @@ public:
         TCachedTableSchemaPtr tableSchema,
         const std::vector<TSharedRef>& serializedKeys,
         NCompression::ECodec codecId,
-        NQueryClient::TTimestamp chunkTimestamp);
+        NQueryClient::TTimestamp chunkTimestamp,
+        bool populateCache);
 
-    TSharedRef Run();
+    TFuture<TSharedRef> Run();
 
     const NChunkClient::TChunkReaderStatisticsPtr& GetChunkReaderStatistics();
 
@@ -56,7 +54,6 @@ private:
     const IChunkPtr Chunk_;
     const TChunkId ChunkId_;
     const NChunkClient::TReadSessionId ReadSessionId_;
-    const TWorkloadDescriptor WorkloadDescriptor_;
     const NQueryClient::TColumnFilter ColumnFilter_;
     const NQueryClient::TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
@@ -70,10 +67,13 @@ private:
     const NTableClient::TRowBufferPtr KeyReaderRowBuffer_ = New<NTableClient::TRowBuffer>(TKeyReaderBufferTag());
     const NChunkClient::TChunkReaderStatisticsPtr ChunkReaderStatistics_ = New<NChunkClient::TChunkReaderStatistics>();
 
-    void Verify();
 
-    TSharedRef DoRun();
+    bool CheckKeyColumnCompatibility();
+
+    TSharedRef DoRun(NTableClient::TCachedVersionedChunkMetaPtr chunkMeta);
 };
+
+DEFINE_REFCOUNTED_TYPE(TLookupSession)
 
 ////////////////////////////////////////////////////////////////////////////////
 
