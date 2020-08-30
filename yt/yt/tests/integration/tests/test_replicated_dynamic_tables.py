@@ -1646,28 +1646,6 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
         wait(lambda: get("//tmp/t/@replicas/{}/error_count".format(replica_id)) == 0)
 
     @authors("lexolordan")
-    @pytest.mark.parametrize("mode", ["sync"])
-    def test_metric_tablet_move_replica_mode(self, mode):
-        self._create_cells()
-        self._create_replicated_table("//tmp/t", SIMPLE_SCHEMA_SORTED, replicated_table_options={"enable_replicated_table_tracker": False})
-        replica_id1 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r1", attributes={"mode": "sync"})
-        replica_id2 = create_table_replica("//tmp/t", self.REPLICA_CLUSTER_NAME, "//tmp/r2", attributes={"mode": "async"})
-        self._create_replica_table("//tmp/r1", replica_id1)
-        self._create_replica_table("//tmp/r2", replica_id2)
-        sync_enable_table_replica(replica_id1)
-        sync_enable_table_replica(replica_id2)
-
-        switch_metric = Metric.at_master("tablet_server/switch_tablet_replica_mode", aggr_method="max")
-
-        set("//tmp/t/@replicated_table_options", {"enable_replicated_table_tracker": True, "tablet_cell_bundle_name_failure_interval": 1000})
-        remove("//tmp/r1", driver=self.replica_driver)
-
-        wait(lambda: get("#{0}/@mode".format(replica_id1)) == "async")
-        wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
-
-        wait(lambda: switch_metric.update(0).get(verbose=True) > 0)
-
-    @authors("lexolordan")
     def test_replicated_tracker_in_safe_mode(self):
         self._create_cells()
         self._create_replicated_table("//tmp/t", replicated_table_options={"enable_replicated_table_tracker": False})
