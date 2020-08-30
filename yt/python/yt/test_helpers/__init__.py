@@ -89,13 +89,16 @@ def get_tmpfs_path():
 
 def get_tests_sandbox(non_arcadia_path):
     path = os.environ.get("TESTS_SANDBOX")
-    tmpfs_path = get_tmpfs_path()
     if path is None:
         if yatest_common is not None:
-            if tmpfs_path is None:
-                path = os.path.join(yatest_common.output_path(), "sandbox")
+            if os.environ.get("YTRECIPE") is not None:
+                path = yatest_common.work_path("ytrecipe_output")
             else:
-                path = os.path.join(tmpfs_path, "sandbox")
+                tmpfs_path = get_tmpfs_path()
+                if tmpfs_path is None:
+                    path = os.path.join(yatest_common.output_path(), "sandbox")
+                else:
+                    path = os.path.join(tmpfs_path, "sandbox")
         else:
             path = non_arcadia_path
     if not os.path.exists(path):
@@ -104,4 +107,3 @@ def get_tests_sandbox(non_arcadia_path):
         except OSError:  # Already exists.
             pass
     return path
-
