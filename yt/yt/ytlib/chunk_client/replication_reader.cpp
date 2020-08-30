@@ -2272,8 +2272,6 @@ private:
         req->Header().set_response_memory_zone(static_cast<i32>(EMemoryZone::Undumpable));
 
         req->Attachments() = writer.Finish();
-        // COMPAT(babenko)
-        req->set_lookup_keys(MergeRefsToString(req->Attachments()));
         // NB: Throttling on table schema (if any) will be performed on response.
         BytesToThrottle_ += GetByteSize(req->Attachments());
 
