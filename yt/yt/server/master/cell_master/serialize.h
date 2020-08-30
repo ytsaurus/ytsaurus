@@ -112,21 +112,23 @@ DEFINE_ENUM(EMasterReign,
     ((YT_13015_CorrectSrcTxForCrossShardCopy)                       (1321))  // shakurov
     ((AclCheckWorkaroundForMutatingRequests_20_2)                   (1322))  // shakurov
     ((MountHint)                                                    (1323))  // ifsmirnov
+    ((YTINCIDENTS_56_SyncOnPrepare)                                 (1324))  // babenko
     ((MakeProfilingModeAnInheritedAttribute_20_2)                   (1325))  // akozhikhov
-    ((AddSnapshotErasureCodec)                                      (1326))  // babenko
+    ((FixInheritanceOfProfilingModeForStaticTables)                 (1326))  // akozhikhov
+    ((AddSnapshotErasureCodec)                                      (1327))  // babenko
+    ((AllowProfilingModeModificationUnderTx)                        (1328))  // akozhikhov
     ((ForbidReshardWhenTableIsLockedByTransaction)                  (1329))  // savrus
     ((FixReshardNonEmptyReplicatedTable)                            (1330))  // ifsmirnov
     ((DisallowSettingBundleOfMountedTables)                         (1331))  // ifsmirnov
     ((NonAliveTxInCloneForeignNode)                                 (1332))  // babenko
+    // 20.3
     ((SubjectAliases)                                               (1400))  // s-v-m
     ((OpaquePortalEntrances)                                        (1401))  // shakurov
     ((MultisetAttributes)                                           (1402))  // gritukan
     ((MakeProfilingModeAnInheritedAttribute_20_3)                   (1403))  // akozhikhov
     ((YT_13003_SeparateScannersForJournalAndBlobChunks)             (1404))  // shakurov
-    ((YTINCIDENTS_56_SyncOnPrepare)                                 (1405))  // babenko
     ((FixInheritanceOfProfilingMode)                                (1406))  // akozhikhov
     ((YT_13126_ExpirationTimeout)                                   (1407))  // shakurov
-    ((AllowProfilingModeModificationUnderTx)                        (1408))  // akozhikhov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
