@@ -93,8 +93,8 @@ public:
     TValueFuture Lookup(const TKey& key);
 
     TInsertCookie BeginInsert(const TKey& key);
-    bool TryRemove(const TKey& key, bool forbidResurrection = false);
-    bool TryRemove(const TValuePtr& value, bool forbidResurrection = false);
+    void TryRemove(const TKey& key, bool forbidResurrection = false);
+    void TryRemove(const TValuePtr& value, bool forbidResurrection = false);
     void Clear();
 
 protected:
@@ -153,6 +153,8 @@ private:
 
     bool Touch(TItem* item);
     void DrainTouchBuffer();
+
+    void DoTryRemove(const TKey& key, const TValuePtr& value, bool forbidResurrection);
 
     void Trim(NConcurrency::TWriterGuard& guard);
 
