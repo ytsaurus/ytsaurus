@@ -77,7 +77,9 @@ def insert_sudo_wrapper(bin_dir):
             os.chmod(bin_path, 0o755)
 
 
-def prepare_yt_binaries(destination, source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=True, use_from_package=False, copy_ytserver_all=False, need_suid=False):
+def prepare_yt_binaries(destination,
+                        source_prefix="", arcadia_root=None, inside_arcadia=None, use_ytserver_all=True,
+                        use_from_package=False, copy_ytserver_all=False, need_suid=False):
     def get_binary_path(path):
         if arcadia_root is None:
             return search_binary_path(path)
@@ -187,7 +189,8 @@ def collect_cores(pids, working_directory, binaries, logger=None):
 
     if not has_core_files:
         if logger is not None:
-            logger.debug("No core files found (working_directory: %s, pids: %s)",
+            logger.debug(
+                "No core files found (working_directory: %s, pids: %s)",
                 working_directory,
                 str(pids))
     else:
@@ -203,10 +206,13 @@ def save_sandbox(sandbox_path, output_subpath):
     if output_path == sandbox_path:
         return
 
+    if os.environ.get("YTRECIPE") is not None and sandbox_path.startswith(yatest_common.work_path("ytrecipe_output")):
+        return
+
     # Do not copy sandbox if it stored in output ram drive and consistent with output_subpath.
     if yatest_common.output_ram_drive_path() is not None and \
-        sandbox_path.startswith(yatest_common.output_ram_drive_path()) and \
-        sandbox_path.strip("/").endswith(output_subpath.strip("/")):
+            sandbox_path.startswith(yatest_common.output_ram_drive_path()) and \
+            sandbox_path.strip("/").endswith(output_subpath.strip("/")):
         return
 
     shutil.move(sandbox_path, output_path)
