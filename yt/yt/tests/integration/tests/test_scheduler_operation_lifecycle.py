@@ -4,7 +4,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import *
-from yt_helpers import *
+from yt_helpers import get_current_time, parse_yt_time, Metric
 
 from yt.yson import YsonEntity
 import yt.common
@@ -51,17 +51,15 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
     @authors("ignat")
     def test_connection_time(self):
-        def parse_time(time_str):
-            return datetime.strptime(time_str, "%Y-%m-%dT%H:%M:%S.%fZ")
-        connection_time_attr = parse_time(get("//sys/scheduler/@connection_time"))
-        connection_time_orchid = parse_time(get("//sys/scheduler/orchid/scheduler/service/last_connection_time"))
+        connection_time_attr = parse_yt_time(get("//sys/scheduler/@connection_time"))
+        connection_time_orchid = parse_yt_time(get("//sys/scheduler/orchid/scheduler/service/last_connection_time"))
         assert connection_time_orchid - connection_time_attr < timedelta(seconds=2)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        new_connection_time_attr = parse_time(get("//sys/scheduler/@connection_time"))
-        new_connection_time_orchid = parse_time(get("//sys/scheduler/orchid/scheduler/service/last_connection_time"))
+        new_connection_time_attr = parse_yt_time(get("//sys/scheduler/@connection_time"))
+        new_connection_time_orchid = parse_yt_time(get("//sys/scheduler/orchid/scheduler/service/last_connection_time"))
 
         assert new_connection_time_attr > connection_time_attr
         assert new_connection_time_orchid > connection_time_orchid
@@ -70,7 +68,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
     @flaky(max_runs=3)
     def test_revive(self):
         def get_connection_time():
-            return datetime.strptime(get("//sys/scheduler/@connection_time"), "%Y-%m-%dT%H:%M:%S.%fZ")
+            return parse_yt_time(get("//sys/scheduler/@connection_time"))
 
         self._prepare_tables()
 
@@ -78,12 +76,12 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
         time.sleep(3)
 
-        assert datetime.utcnow() - get_connection_time() > timedelta(seconds=3)
+        assert get_current_time() - get_connection_time() > timedelta(seconds=3)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        assert datetime.utcnow() - get_connection_time() < timedelta(seconds=3)
+        assert get_current_time() - get_connection_time() < timedelta(seconds=3)
 
         op.track()
 

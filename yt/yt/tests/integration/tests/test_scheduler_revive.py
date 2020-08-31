@@ -4,7 +4,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import *
-from yt_helpers import *
+from yt_helpers import get_current_time, parse_yt_time
 
 from yt.yson import YsonEntity
 
@@ -361,16 +361,16 @@ class TestControllerAgentReconnection(YTEnvSetup):
         def get_connection_time():
             controller_agents = ls("//sys/controller_agents/instances")
             assert len(controller_agents) == 1
-            return datetime.strptime(get("//sys/controller_agents/instances/{}/@connection_time".format(controller_agents[0])), "%Y-%m-%dT%H:%M:%S.%fZ")
+            return parse_yt_time(get("//sys/controller_agents/instances/{}/@connection_time".format(controller_agents[0])))
 
         time.sleep(3)
 
-        assert datetime.utcnow() - get_connection_time() > timedelta(seconds=3)
+        assert get_current_time() - get_connection_time() > timedelta(seconds=3)
 
         with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
             pass
 
-        assert datetime.utcnow() - get_connection_time() < timedelta(seconds=3)
+        assert get_current_time() - get_connection_time() < timedelta(seconds=3)
 
     @authors("ignat")
     def test_abort_operation_without_controller_agent(self):

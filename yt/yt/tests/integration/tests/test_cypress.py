@@ -13,6 +13,7 @@ from yt.environment.helpers import assert_items_equal
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt_helpers import get_current_time
 
 from contextlib import contextmanager
 
@@ -1441,9 +1442,6 @@ class TestCypress(YTEnvSetup):
             create("table", "//tmp/t", attributes={"external_cell_bias": 2.0})
 
 
-    def _now(self):
-        return datetime.now(tzlocal())
-
     @authors("babenko")
     def test_expiration_time_validation(self):
         create("table", "//tmp/t")
@@ -1457,7 +1455,7 @@ class TestCypress(YTEnvSetup):
             make_ace("allow", "u", "write"),
             make_ace("deny", "u", "remove")])
         with pytest.raises(YtError):
-            set("//tmp/t/@expiration_time", str(self._now()), authenticated_user="u")
+            set("//tmp/t/@expiration_time", str(get_current_time()), authenticated_user="u")
 
     @authors("babenko")
     def test_expiration_time_change_requires_recursive_remove_permission_failure(self):
@@ -1468,7 +1466,7 @@ class TestCypress(YTEnvSetup):
             make_ace("allow", "u", "write"),
             make_ace("deny", "u", "remove")])
         with pytest.raises(YtError):
-            set("//tmp/m/@expiration_time", str(self._now()), authenticated_user="u")
+            set("//tmp/m/@expiration_time", str(get_current_time()), authenticated_user="u")
 
     @authors("babenko")
     def test_expiration_time_reset_requires_write_permission_success(self):
@@ -1497,19 +1495,19 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_expiration_time_can_be_set_upon_construction1(self):
         create_user("u")
-        create("table", "//tmp/t", attributes={"expiration_time": str(self._now())}, authenticated_user="u")
+        create("table", "//tmp/t", attributes={"expiration_time": str(get_current_time())}, authenticated_user="u")
         wait(lambda: not exists("//tmp/t"))
 
     @authors("babenko")
     def test_expiration_time_can_be_set_upon_construction2(self):
-        create("table", "//tmp/t", attributes={"expiration_time": str(self._now() + timedelta(seconds=10.0))})
+        create("table", "//tmp/t", attributes={"expiration_time": str(get_current_time() + timedelta(seconds=10.0))})
         time.sleep(1)
         assert exists("//tmp/t")
 
     @authors("babenko")
     def test_expiration_time_can_be_set_upon_construction3(self):
         tx = start_transaction()
-        create("table", "//tmp/t", attributes={"expiration_time": str(self._now())}, tx=tx)
+        create("table", "//tmp/t", attributes={"expiration_time": str(get_current_time())}, tx=tx)
         time.sleep(1)
         assert not exists("//tmp/t")
         assert exists("//tmp/t", tx=tx)
@@ -1519,7 +1517,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_expiration_time_removal(self):
-        create("table", "//tmp/t", attributes={"expiration_time": str(self._now())})
+        create("table", "//tmp/t", attributes={"expiration_time": str(get_current_time())})
         time.sleep(1)
         assert not exists("//tmp/t")
 
@@ -1528,9 +1526,9 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t")
         tx = start_transaction()
         lock("//tmp/t", tx=tx)
-        with pytest.raises(YtError): set("//tmp/t/@expiration_time", str(self._now()))
+        with pytest.raises(YtError): set("//tmp/t/@expiration_time", str(get_current_time()))
         unlock("//tmp/t", tx=tx)
-        set("//tmp/t/@expiration_time", str(self._now()))
+        set("//tmp/t/@expiration_time", str(get_current_time()))
         time.sleep(1)
         assert not exists("//tmp/t")
 
@@ -1539,7 +1537,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/x/t", recursive=True)
         tx = start_transaction()
         lock("//tmp/x", tx=tx)
-        set("//tmp/x/t/@expiration_time", str(self._now()))
+        set("//tmp/x/t/@expiration_time", str(get_current_time()))
         time.sleep(1)
         assert exists("//tmp/x/t")
         abort_transaction(tx)
@@ -1552,7 +1550,7 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/m/t")
         tx = start_transaction()
         lock("//tmp/m/t", tx=tx)
-        set("//tmp/m/@expiration_time", str(self._now()))
+        set("//tmp/m/@expiration_time", str(get_current_time()))
         time.sleep(1)
         assert exists("//tmp/m")
         abort_transaction(tx)
@@ -1564,13 +1562,13 @@ class TestCypress(YTEnvSetup):
         create("table", "//tmp/t")
         tx = start_transaction()
         lock("//tmp/t", tx=tx, mode="snapshot")
-        set("//tmp/t/@expiration_time", str(self._now()))
+        set("//tmp/t/@expiration_time", str(get_current_time()))
         time.sleep(1)
         assert not exists("//tmp/t")
 
     @authors("babenko")
     def test_no_expiration_time_for_root(self):
-        with pytest.raises(YtError): set("//@expiration_time", str(self._now()))
+        with pytest.raises(YtError): set("//@expiration_time", str(get_current_time()))
 
     @authors("shakurov")
     def test_expiration_time_versioning1(self):
@@ -1654,7 +1652,7 @@ class TestCypress(YTEnvSetup):
     @authors("shakurov")
     def test_expiration_time_versioning5(self):
         tx = start_transaction()
-        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now())}, tx=tx)
+        create("table", "//tmp/t1", attributes={"expiration_time": str(get_current_time())}, tx=tx)
         time.sleep(1)
         assert exists("//tmp/t1", tx=tx)
         commit_transaction(tx)
@@ -1663,7 +1661,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_copy_preserve_expiration_time(self):
-        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1))})
+        create("table", "//tmp/t1", attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))})
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True)
         assert exists("//tmp/t2/@expiration_time")
         time.sleep(2)
@@ -1672,7 +1670,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_copy_dont_preserve_expiration_time(self):
-        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1))})
+        create("table", "//tmp/t1", attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))})
         copy("//tmp/t1", "//tmp/t2")
         assert not exists("//tmp/t2/@expiration_time")
         time.sleep(2)
@@ -1681,7 +1679,7 @@ class TestCypress(YTEnvSetup):
 
     @authors("babenko")
     def test_copy_preserve_expiration_time_in_tx1(self):
-        create("table", "//tmp/t1", attributes={"expiration_time": str(self._now() + timedelta(seconds=1))})
+        create("table", "//tmp/t1", attributes={"expiration_time": str(get_current_time() + timedelta(seconds=1))})
         tx = start_transaction()
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
         assert exists("//tmp/t2/@expiration_time", tx=tx)
@@ -1695,7 +1693,7 @@ class TestCypress(YTEnvSetup):
     def test_copy_preserve_expiration_time_in_tx2(self):
         create("table", "//tmp/t1")
         tx = start_transaction()
-        set("//tmp/t1/@expiration_time", str(self._now() + timedelta(seconds=1)), tx=tx)
+        set("//tmp/t1/@expiration_time", str(get_current_time() + timedelta(seconds=1)), tx=tx)
         copy("//tmp/t1", "//tmp/t2", preserve_expiration_time=True, tx=tx)
         assert exists("//tmp/t1/@expiration_time", tx=tx)
         assert exists("//tmp/t2/@expiration_time", tx=tx)
@@ -1711,7 +1709,7 @@ class TestCypress(YTEnvSetup):
     def test_expire_orphaned_node_yt_8064(self):
         tx1 = start_transaction()
         tx2 = start_transaction()
-        node_id = create("table", "//tmp/t", attributes={"expiration_time": str(self._now() + timedelta(seconds=2))}, tx=tx1)
+        node_id = create("table", "//tmp/t", attributes={"expiration_time": str(get_current_time() + timedelta(seconds=2))}, tx=tx1)
         lock("#" + node_id, tx=tx2, mode="snapshot")
         abort_transaction(tx1)
         time.sleep(2)
@@ -1775,24 +1773,24 @@ class TestCypress(YTEnvSetup):
 
     @authors("shakurov")
     def test_expiration_time_and_timeout1(self):
-        create("table", "//tmp/t1", attributes={"expiration_timeout": 2000, "expiration_time": str(self._now() + timedelta(milliseconds=500))})
+        create("table", "//tmp/t1", attributes={"expiration_timeout": 2000, "expiration_time": str(get_current_time() + timedelta(milliseconds=500))})
         time.sleep(1.0)
         assert not exists("//tmp/t1")
 
-        create("table", "//tmp/t2", attributes={"expiration_timeout": 500, "expiration_time": str(self._now() + timedelta(seconds=2))})
+        create("table", "//tmp/t2", attributes={"expiration_timeout": 500, "expiration_time": str(get_current_time() + timedelta(seconds=2))})
         time.sleep(1.0)
         assert not exists("//tmp/t2")
 
     @authors("shakurov")
     def test_expiration_time_and_timeout2(self):
-        create("table", "//tmp/t1", attributes={"expiration_timeout": 400, "expiration_time": str(self._now() + timedelta(milliseconds=1500))})
+        create("table", "//tmp/t1", attributes={"expiration_timeout": 400, "expiration_time": str(get_current_time() + timedelta(milliseconds=1500))})
         remove("//tmp/t1/@expiration_timeout")
         time.sleep(0.6)
         assert exists("//tmp/t1")
         time.sleep(1.5)
         assert not exists("//tmp/t1")
 
-        create("table", "//tmp/t2", attributes={"expiration_timeout": 1500, "expiration_time": str(self._now() + timedelta(milliseconds=400))})
+        create("table", "//tmp/t2", attributes={"expiration_timeout": 1500, "expiration_time": str(get_current_time() + timedelta(milliseconds=400))})
         remove("//tmp/t2/@expiration_time")
         time.sleep(0.6)
         assert exists("//tmp/t2", suppress_expiration_timeout_renewal=True)

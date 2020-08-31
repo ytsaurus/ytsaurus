@@ -49,6 +49,9 @@ private:
             .SetPresent(request.Key.Kind == ELockKeyKind::Child));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AttributeKey)
             .SetPresent(request.Key.Kind == ELockKeyKind::Attribute));
+        descriptors->push_back(EInternedAttributeKey::CreationTime);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AcquisitionTime)
+            .SetPresent(lock->GetState() == ELockState::Acquired));
     }
 
     virtual bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
@@ -97,6 +100,19 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(request.Key.Name);
                 return true;
+
+            case EInternedAttributeKey::CreationTime:
+                BuildYsonFluently(consumer)
+                    .Value(lock->GetCreationTime());
+                return true;
+
+            case EInternedAttributeKey::AcquisitionTime:
+                if (lock->GetState() == ELockState::Acquired) {
+                    BuildYsonFluently(consumer)
+                        .Value(lock->GetAcquisitionTime());
+                    return true;
+                }
+                break;
 
             default:
                 break;
