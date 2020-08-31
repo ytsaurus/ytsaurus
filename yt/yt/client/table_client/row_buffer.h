@@ -18,7 +18,7 @@ struct TDefaultRowBufferPoolTag { };
  *  of helpers.
  */
 class TRowBuffer
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TRowBuffer(

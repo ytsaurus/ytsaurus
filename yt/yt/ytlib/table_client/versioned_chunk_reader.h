@@ -23,7 +23,7 @@ static constexpr size_t RowBufferCapacity = 1000;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkReaderPerformanceCounters
-    : public virtual TIntrinsicRefCounted
+    : public virtual TRefCounted
 {
     std::atomic<i64> StaticChunkRowReadCount = {0};
     std::atomic<i64> StaticChunkRowReadDataWeightCount = {0};

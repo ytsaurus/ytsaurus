@@ -16,7 +16,7 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResourceTreeElement
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TResourceTreeElement(TResourceTree* resourceTree, const TString& id);

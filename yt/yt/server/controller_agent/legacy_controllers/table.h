@@ -38,7 +38,7 @@ struct TLivePreviewTableBase
 };
 
 struct TInputTable
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public NChunkClient::TUserObject
 {
     using NChunkClient::TUserObject::TUserObject;
@@ -67,7 +67,7 @@ DEFINE_REFCOUNTED_TYPE(TInputTable)
 struct TOutputTable
     : public NChunkClient::TUserObject
     , public TLivePreviewTableBase
-    , public TIntrinsicRefCounted
+    , public TRefCounted
 {
     TOutputTable() = default;
     TOutputTable(
@@ -122,7 +122,7 @@ DEFINE_REFCOUNTED_TYPE(TOutputTable)
 
 struct TIntermediateTable
     : public TLivePreviewTableBase
-    , public TIntrinsicRefCounted
+    , public TRefCounted
 {
     void Persist(const TPersistenceContext& context);
 };

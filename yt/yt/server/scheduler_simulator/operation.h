@@ -11,7 +11,7 @@ namespace NYT::NSchedulerSimulator {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public NScheduler::IOperationStrategyHost
 {
 public:

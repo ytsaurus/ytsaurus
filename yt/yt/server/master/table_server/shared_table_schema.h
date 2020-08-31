@@ -12,7 +12,7 @@ namespace NYT::NTableServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSharedTableSchemaRegistry
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     friend class TSharedTableSchema;
 
@@ -49,7 +49,7 @@ DEFINE_REFCOUNTED_TYPE(TSharedTableSchemaRegistry);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSharedTableSchema
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TSharedTableSchema(NTableClient::TTableSchema tableSchema, const TSharedTableSchemaRegistryPtr& registry);

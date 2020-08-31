@@ -581,7 +581,7 @@ protected:
 
     //! Per-user and per-method profiling counters.
     struct TMethodPerformanceCounters
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         explicit TMethodPerformanceCounters(const NProfiling::TTagIdList& tagIds);
 
@@ -632,7 +632,7 @@ protected:
 
     //! Describes a service method and its runtime statistics.
     struct TRuntimeMethodInfo
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         TRuntimeMethodInfo(
             const TMethodDescriptor& descriptor,

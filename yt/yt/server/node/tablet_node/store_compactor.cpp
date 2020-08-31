@@ -308,7 +308,7 @@ private:
 
     private:
         struct TTaskInfo
-            : public TIntrinsicRefCounted
+            : public TRefCounted
         {
             explicit TTaskInfo(const TTask& task)
                 : TabletId(task.TabletId)

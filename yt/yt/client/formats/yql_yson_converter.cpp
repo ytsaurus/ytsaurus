@@ -44,7 +44,7 @@ static TStringBuf TruncateUtf8(TStringBuf string, i64 limit)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYqlJsonWriter
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     explicit TYqlJsonWriter(NJson::IJsonWriter* underlying);

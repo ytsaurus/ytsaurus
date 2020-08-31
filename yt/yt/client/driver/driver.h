@@ -27,7 +27,7 @@ namespace NYT::NDriver {
 struct TDriverRequest
 {
     TDriverRequest();
-    explicit TDriverRequest(TIntrusivePtr<TIntrinsicRefCounted> holder);
+    explicit TDriverRequest(TIntrusivePtr<TRefCounted> holder);
 
     //! Request identifier to be logged.
     std::variant<ui64, TGuid> Id = static_cast<ui64>(0);
@@ -63,7 +63,7 @@ struct TDriverRequest
     void Reset();
 
 private:
-    using THolderPtr = TIntrusivePtr<TIntrinsicRefCounted>;
+    using THolderPtr = TIntrusivePtr<TRefCounted>;
     THolderPtr Holder_;
 };
 

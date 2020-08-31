@@ -32,7 +32,7 @@ namespace NYT::NTabletNode {
 //! All fields must be atomic since they're being accessed both
 //! from the writer and from readers concurrently.
 struct TRuntimeTabletCellData
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     std::atomic<TTimestamp> BarrierTimestamp = {MinTimestamp};
 };

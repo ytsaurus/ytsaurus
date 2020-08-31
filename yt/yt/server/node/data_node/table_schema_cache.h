@@ -17,7 +17,7 @@ namespace NYT::NDataNode {
 using TSchemaCacheKey = std::pair<NObjectClient::TObjectId, NHydra::TRevision>;
 
 struct TCachedTableSchema
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TCachedTableSchema(
         NTableClient::TTableSchemaPtr tableSchema,

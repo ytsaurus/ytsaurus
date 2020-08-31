@@ -235,7 +235,7 @@ private:
     const NLogging::TLogger Logger;
 
     struct TPollableEntry
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         explicit TPollableEntry(IPollablePtr pollable)
             : Pollable(std::move(pollable))

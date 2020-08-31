@@ -260,7 +260,7 @@ bool TVirtualMapBase::RemoveBuiltinAttribute(TInternedAttributeKey /*key*/)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCompositeMapService::TImpl
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     std::vector<TString> GetKeys(i64 limit) const

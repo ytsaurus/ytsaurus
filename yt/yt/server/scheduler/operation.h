@@ -180,7 +180,7 @@ public: \
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public IOperationStrategyHost
 {
 public:
@@ -395,7 +395,7 @@ DEFINE_REFCOUNTED_TYPE(TOperation)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperationControllerData
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     int GetPendingJobCount() const;

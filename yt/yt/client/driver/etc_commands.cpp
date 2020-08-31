@@ -195,7 +195,7 @@ TExecuteBatchCommand::TRequest::TRequest()
 }
 
 class TExecuteBatchCommand::TRequestExecutor
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TRequestExecutor(

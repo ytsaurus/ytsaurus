@@ -54,7 +54,7 @@ DEFINE_REFCOUNTED_TYPE(TRowCache)
 
 //! Cf. TRuntimeTabletData.
 struct TRuntimeTableReplicaData
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     std::atomic<ETableReplicaMode> Mode = {ETableReplicaMode::Async};
     std::atomic<i64> CurrentReplicationRowIndex = {0};
@@ -95,7 +95,7 @@ extern TReplicaCounters NullReplicaCounters;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTableReplicaSnapshot
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     NTransactionClient::TTimestamp StartReplicationTimestamp;
     TRuntimeTableReplicaDataPtr RuntimeData;
@@ -109,7 +109,7 @@ DEFINE_REFCOUNTED_TYPE(TTableReplicaSnapshot)
 //! All fields must be atomic since they're being accessed both
 //! from the writer and from readers concurrently.
 struct TRuntimeTabletData
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     std::atomic<i64> TotalRowCount = {0};
     std::atomic<i64> TrimmedRowCount = {0};

@@ -213,7 +213,7 @@ size_t GetByteSize(const std::vector<T>& parts)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSharedRefArrayImpl
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public TWithExtraSpace<TSharedRefArrayImpl>
 {
 public:

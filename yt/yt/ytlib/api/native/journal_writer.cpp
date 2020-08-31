@@ -207,7 +207,7 @@ private:
         const IInvokerPtr Invoker_ = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
 
         struct TBatch
-            : public TIntrinsicRefCounted
+            : public TRefCounted
         {
             i64 FirstRowIndex = -1;
             i64 RowCount = 0;

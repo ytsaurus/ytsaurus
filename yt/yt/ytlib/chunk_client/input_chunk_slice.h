@@ -53,7 +53,7 @@ void ToProto(NProto::TReadLimit* protoLimit, const TInputSliceLimit& limit);
 ////////////////////////////////////////////////////////////////////////////////
 
 class TInputChunkSlice
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     DECLARE_BYVAL_RO_PROPERTY(i64, DataWeight);

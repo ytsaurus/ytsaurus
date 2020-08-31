@@ -32,7 +32,7 @@ using TRepeatedVariant16SchemaPtr = TIntrusivePtr<TRepeatedVariant16Schema>;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSkiffSchema
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     EWireType GetWireType() const;

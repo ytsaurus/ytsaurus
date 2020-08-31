@@ -18,7 +18,7 @@ using TRefCountedColumnMeta = TRefCountedProto<NProto::TColumnMetaExt>;
 using TRefCountedColumnMetaPtr = TIntrusivePtr<TRefCountedColumnMeta>;
 
 class TColumnarChunkMeta
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(NChunkClient::EChunkType, ChunkType);

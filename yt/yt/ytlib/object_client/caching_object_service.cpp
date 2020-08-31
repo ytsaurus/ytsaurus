@@ -77,7 +77,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 
     class TMasterRequest
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
     public:
         TMasterRequest(

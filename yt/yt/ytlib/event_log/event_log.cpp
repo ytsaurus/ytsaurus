@@ -121,7 +121,7 @@ private:
 };
 
 class TEventLogWriter::TImpl
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TImpl(const TEventLogManagerConfigPtr& config, const NNative::IClientPtr& client, const IInvokerPtr& invoker)

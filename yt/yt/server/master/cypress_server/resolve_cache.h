@@ -15,7 +15,7 @@ namespace NYT::NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TResolveCacheNode
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     // These fields are either const or only mutated in automaton thread.
     TCypressNode* TrunkNode;
@@ -55,7 +55,7 @@ DEFINE_REFCOUNTED_TYPE(TResolveCacheNode)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TResolveCache
-    :  public TIntrinsicRefCounted
+    :  public TRefCounted
 {
 public:
     explicit TResolveCache(TNodeId rootNodeId);

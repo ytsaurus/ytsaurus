@@ -46,7 +46,7 @@ std::vector<TBound> IntersectBounds(
 DECLARE_REFCOUNTED_STRUCT(TKeyTrie)
 
 struct TKeyTrie
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     size_t Offset = 0;
 

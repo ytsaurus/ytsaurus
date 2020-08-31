@@ -34,7 +34,7 @@ const TDelayedExecutorCookie NullDelayedExecutorCookie;
 namespace NDetail {
 
 struct TDelayedExecutorEntry
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     struct TComparer
     {

@@ -77,7 +77,7 @@ private:
 //! Compact representation of NProto::TChunkSpec.
 //! Used inside scheduler to reduce memory footprint.
 class TInputChunk
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public TInputChunkBase
 {
 public:

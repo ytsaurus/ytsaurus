@@ -7,7 +7,7 @@ namespace NYT::NObjectServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TRequestProfilingCounters
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     explicit TRequestProfilingCounters(const NProfiling::TTagIdList& tagIds);
 

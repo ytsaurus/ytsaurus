@@ -41,7 +41,7 @@ DEFINE_ENUM(ELogicalMetatype,
 )
 
 class TLogicalType
-    : public virtual TIntrinsicRefCounted
+    : public virtual TRefCounted
 {
 public:
     explicit TLogicalType(ELogicalMetatype type);

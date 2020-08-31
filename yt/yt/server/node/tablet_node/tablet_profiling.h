@@ -32,7 +32,7 @@ void ProfileDynamicMemoryUsage(
     i64 memoryUsage);
 
 class TWriterProfiler
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TWriterProfiler() = default;
@@ -51,7 +51,7 @@ DEFINE_REFCOUNTED_TYPE(TWriterProfiler)
 /////////////////////////////////////////////////////////////////////////////
 
 class TReaderProfiler
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TReaderProfiler() = default;

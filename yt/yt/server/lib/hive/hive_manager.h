@@ -24,7 +24,7 @@ bool IsHiveMutation();
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSerializedMessage
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TString Type;
     TString Data;

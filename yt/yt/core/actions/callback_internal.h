@@ -31,7 +31,7 @@ namespace NYT::NDetail {
  * class from the types of the bound argument via "type erasure."
  */
 struct TBindStateBase
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     explicit TBindStateBase(
 #ifdef YT_ENABLE_BIND_LOCATION_TRACKING

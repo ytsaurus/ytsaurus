@@ -23,7 +23,7 @@ namespace NYT::NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLeaderLease
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     bool IsValid() const;

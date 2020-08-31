@@ -160,7 +160,7 @@ private:
         const NLogging::TLogger Logger;
 
         struct TBatch
-            : public TIntrinsicRefCounted
+            : public TRefCounted
         {
             TRequestPtr BatchRequest;
             std::vector<std::pair<TContextPtr, TState>> ContextsWithStates;

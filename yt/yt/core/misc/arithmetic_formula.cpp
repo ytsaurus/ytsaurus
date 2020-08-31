@@ -186,7 +186,7 @@ bool operator!=(const TFormulaToken& lhs, const TFormulaToken& rhs)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGenericFormulaImpl
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TString, Formula);

@@ -74,7 +74,7 @@ private:
     };
 
     struct TFetchItemsSession
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         IInvokerPtr Invoker;
         i64 Limit = -1;

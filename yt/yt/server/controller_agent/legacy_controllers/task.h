@@ -317,7 +317,7 @@ DEFINE_REFCOUNTED_TYPE(TTask)
 //! - to prioritize tasks
 //! - to skip a vast number of tasks whose resource requirements cannot be met
 struct TTaskGroup
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     //! No task from this group is considered for scheduling unless this requirement is met.
     NScheduler::TJobResourcesWithQuota MinNeededResources;

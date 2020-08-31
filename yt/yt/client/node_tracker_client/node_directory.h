@@ -129,7 +129,7 @@ namespace NYT::NNodeTrackerClient {
  *  Thread affinity: thread-safe
  */
 class TNodeDirectory
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     void MergeFrom(const NProto::TNodeDirectory& source);

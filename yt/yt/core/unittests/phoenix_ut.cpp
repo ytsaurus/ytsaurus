@@ -112,7 +112,7 @@ struct A;
 struct B;
 
 struct A
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TIntrusivePtr<B> X;
     TIntrusivePtr<B> Y;
@@ -127,7 +127,7 @@ struct A
 };
 
 struct B
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     B()
         : V(-1)
@@ -168,7 +168,7 @@ TEST(TPhoenixTest, Ref1)
 namespace NRef2 {
 
 struct A
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TIntrusivePtr<A> X;
 
@@ -198,7 +198,7 @@ TEST(TPhoenixTest, Ref2)
 namespace NRef3 {
 
 struct A
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TIntrusivePtr<A> X;
 
@@ -232,7 +232,7 @@ TEST(TPhoenixTest, Ref3)
 namespace NRef4 {
 
 struct A
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     A()
         : X(nullptr)
@@ -270,7 +270,7 @@ struct A;
 struct B;
 
 struct A
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     A()
         : X(nullptr)
@@ -289,7 +289,7 @@ struct A
 };
 
 struct B
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     B()
         : V(-1)
@@ -328,7 +328,7 @@ TEST(TPhoenixTest, Ref5)
 namespace NRef6 {
 
 struct TBase
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public IPersistent
 { };
 
@@ -396,7 +396,7 @@ TEST(TPhoenixTest, Ref6)
 namespace NRef7 {
 
 struct TNonConstructable
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public NPhoenix::TFactoryTag<NPhoenix::TNullFactory>
 {
     explicit TNonConstructable(int x)
@@ -568,7 +568,7 @@ TEST(TPhoenixTest, Ref9)
 namespace NRef10 {
 
 struct TBase
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public NPhoenix::TDynamicTag
 {
     TBase()

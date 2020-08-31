@@ -12,7 +12,7 @@ namespace NYT {
 
 template <class T>
 class TInternRegistry
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TInternedObject<T> Intern(T&& data);
@@ -50,7 +50,7 @@ private:
 
 template <class T>
 class TInternedObjectData
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     ~TInternedObjectData();

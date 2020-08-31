@@ -39,7 +39,7 @@ struct TCodegenFragmentInfo
 DECLARE_REFCOUNTED_STRUCT(TCodegenFragmentInfos)
 
 struct TCodegenFragmentInfos
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     std::vector<TCodegenFragmentInfo> Items;
     std::vector<Function*> Functions;

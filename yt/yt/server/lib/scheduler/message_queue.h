@@ -18,7 +18,7 @@ using TMessageQueueItemId = i64;
 
 template <class TItem>
 class TMessageQueueOutbox
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     explicit TMessageQueueOutbox(const NLogging::TLogger& logger);

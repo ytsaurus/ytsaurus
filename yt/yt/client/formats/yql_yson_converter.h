@@ -13,7 +13,7 @@ namespace NYT::NFormats {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TYqlConverterConfig
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     std::optional<i64> StringWeightLimit;
     std::optional<i64> FieldWeightLimit;

@@ -18,7 +18,7 @@ struct TSchedulerElementStateSnapshot
 
 //! Thread affinity: any
 struct IFairShareTreeSnapshot
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     virtual TFuture<void> ScheduleJobs(const ISchedulingContextPtr& schedulingContext) = 0;
     virtual void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext) = 0;

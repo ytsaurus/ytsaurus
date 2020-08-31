@@ -16,7 +16,7 @@ class TAsyncSemaphoreGuard;
 
 //! Custom semaphore class with async acquire operation.
 class TAsyncSemaphore
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     explicit TAsyncSemaphore(i64 totalSlots);

@@ -152,7 +152,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkReaderMemoryManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TMemoryUsageGuard
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TMemoryUsageGuard() = default;
 
@@ -171,7 +171,7 @@ DEFINE_REFCOUNTED_TYPE(TMemoryUsageGuard)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TMemoryManagedData
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TMemoryManagedData() = default;
 

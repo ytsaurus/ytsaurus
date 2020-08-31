@@ -63,7 +63,7 @@ struct TJobInfoBase
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TJobInfo
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public TJobInfoBase
 {
     TJobInfo() = default;
@@ -151,7 +151,7 @@ DEFINE_REFCOUNTED_TYPE(TFinishedJobInfo)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCompletedJob
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     bool Suspended = false;
 

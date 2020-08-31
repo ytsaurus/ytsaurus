@@ -14,7 +14,7 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareStrategyOperationState
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     using TTreeIdToPoolNameMap = THashMap<TString, TPoolName>;
@@ -264,7 +264,7 @@ private:
     TRootElementPtr RootElement_;
 
     struct TRootElementSnapshot
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         TRootElementPtr RootElement;
         TRawOperationElementMap OperationIdToElement;

@@ -16,7 +16,7 @@ namespace NYT::NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSkiffSchema
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TSkiffSchema(

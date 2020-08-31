@@ -18,7 +18,7 @@ using namespace NConcurrency;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TStreamHolder
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     explicit TStreamHolder(IAsyncOutputStreamPtr output)
         : Output(std::move(output))

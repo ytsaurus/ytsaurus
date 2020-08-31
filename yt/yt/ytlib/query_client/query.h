@@ -41,7 +41,7 @@ DEFINE_ENUM(EExpressionKind,
 );
 
 struct TExpression
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     explicit TExpression(EValueType type)
         : Type(type)
@@ -316,7 +316,7 @@ struct TMappedSchema
 };
 
 struct TJoinClause
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TMappedSchema Schema;
     std::vector<TString> SelfJoinedColumns;
@@ -372,7 +372,7 @@ struct TJoinClause
 DEFINE_REFCOUNTED_TYPE(TJoinClause)
 
 struct TGroupClause
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TNamedItemList GroupItems;
     TAggregateItemList AggregateItems;
@@ -410,7 +410,7 @@ DEFINE_REFCOUNTED_TYPE(TGroupClause)
 typedef std::pair<TConstExpressionPtr, bool> TOrderItem;
 
 struct TOrderClause
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     std::vector<TOrderItem> OrderItems;
 };
@@ -418,7 +418,7 @@ struct TOrderClause
 DEFINE_REFCOUNTED_TYPE(TOrderClause)
 
 struct TProjectClause
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TNamedItemList Projections;
 
@@ -450,7 +450,7 @@ DEFINE_REFCOUNTED_TYPE(TProjectClause)
 // IsMerge is always true for front Query and false for Bottom Query
 
 struct TBaseQuery
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     explicit TBaseQuery(TGuid id = TGuid::Create())
         : Id(id)
