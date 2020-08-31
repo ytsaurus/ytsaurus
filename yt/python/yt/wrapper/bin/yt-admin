@@ -7,7 +7,7 @@ from yt.wrapper.cli_helpers import ParseStructuredArgument
 from yt.wrapper.native_driver import get_driver_instance
 import yt.wrapper as yt
 
-from argparse import ArgumentParser, Action
+from argparse import ArgumentParser
 
 def build_snapshot(*args, **kwargs):
     print(get_driver_instance(None).build_snapshot(*args, **kwargs))
@@ -48,7 +48,8 @@ def main():
     build_snapshot_parser.add_argument("--wait-for-snapshot-completion", action="store_true", default=False)
     build_snapshot_parser.add_argument("--cell-id", required=True)
 
-    build_master_snapshot_parser = subparsers.add_parser("build-master-snapshots", help="Build snapshots for all master cells")
+    build_master_snapshot_parser = subparsers.add_parser("build-master-snapshots",
+                                                         help="Build snapshots for all master cells")
     build_master_snapshot_parser.set_defaults(func=build_master_snapshots)
     build_master_snapshot_parser.add_argument("--set-read-only", action="store_true", default=False)
     build_master_snapshot_parser.add_argument("--wait-for-snapshot-completion", action="store_true", default=False)
@@ -57,20 +58,24 @@ def main():
     gc_collect_parser = subparsers.add_parser("gc-collect", help="Run garbage collection")
     gc_collect_parser.set_defaults(func=gc_collect)
 
-    kill_process_parser = subparsers.add_parser("kill-process", help="Force remote YT process (node, scheduler or master) " +
-                                                                     "listening to a given address exit immediately, use with care. " +
-                                                                     "This command always finishes with an error")
+    kill_process_parser = subparsers.add_parser("kill-process",
+                                                help="Force remote YT process (node, scheduler or master) "
+                                                     "listening to a given address exit immediately, use with care. "
+                                                     "This command always finishes with an error")
     kill_process_parser.add_argument("address")
     kill_process_parser.set_defaults(func=kill_process)
 
-    write_core_dump_parser = subparsers.add_parser("write-core-dump", help="Make remote YT process (node, scheduler or master) write a run-time" +
-                                                                           "core dump. This (presumably) does not affect the state of the process.")
+    write_core_dump_parser = subparsers.add_parser(
+        "write-core-dump",
+        help="Make remote YT process (node, scheduler or master) write a run-time"
+             "core dump. This (presumably) does not affect the state of the process.")
     write_core_dump_parser.add_argument("address")
     write_core_dump_parser.set_defaults(func=write_core_dump)
 
-    write_operation_controller_core_dump_parser = subparsers.add_parser("write-operation-controller-core-dump",
-                                                                        help="Make operation controller write a run-time core dump." +
-                                                                             "This (presumably) does not affect the state of the process.")
+    write_operation_controller_core_dump_parser = subparsers.add_parser(
+        "write-operation-controller-core-dump",
+        help="Make operation controller write a run-time core dump."
+             "This (presumably) does not affect the state of the process.")
     write_operation_controller_core_dump_parser.add_argument("operation_id")
     write_operation_controller_core_dump_parser.set_defaults(func=write_operation_controller_core_dump)
 
@@ -83,6 +88,7 @@ def main():
     args = parser.parse_args(unparsed)
     func_args = dict(vars(args))
     func_args.pop("func")
+    func_args.pop("config")
     args.func(**func_args)
 
 if __name__ == "__main__":
