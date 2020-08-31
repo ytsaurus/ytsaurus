@@ -182,7 +182,7 @@ TGilGuard::TGilGuard()
 
 TGilGuard::~TGilGuard()
 {
-    // See comment for TReleaseAcquireGilGuard destrructor.
+    // See comment for TReleaseAcquireGilGuard destructor.
     if (!Py_IsInitialized()) {
         return;
     }
@@ -245,7 +245,16 @@ PyObject* GetYsonTypeClass(const std::string& name)
 bool WaitForSettingFuture(TFuture<void> future)
 {
     while (true) {
+        auto result = future.TimedWait(TDuration::MilliSeconds(100));
+        if (result) {
+            return true;
+        }
+
         {
+            if (!Py_IsInitialized()) {
+                return false;
+            }
+
             TGilGuard guard;
             auto signals = PyErr_CheckSignals();
             if (signals == -1) {
@@ -253,10 +262,6 @@ bool WaitForSettingFuture(TFuture<void> future)
             }
         }
 
-        auto result = future.TimedWait(TDuration::MilliSeconds(100));
-        if (result) {
-            return true;
-        }
     }
 }
 
