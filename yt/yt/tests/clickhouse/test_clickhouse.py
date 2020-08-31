@@ -1653,7 +1653,7 @@ class TestJobInput(ClickHouseTestBase):
                     range_spec = lower_limit
                 table_path = "//tmp/t[{}]".format(range_spec)
                 expected_rows = read_table(table_path)
-                actual_rows = clique.make_query("select * from `{}`".format(table_path))
+                actual_rows = clique.make_query("select * from `{}` order by (ki, ks)".format(table_path))
                 assert actual_rows == expected_rows
 
             for lower_limit in ("", "#3", "#12", "()", "(0)", "(0, \"def\")", "(1)", "(1, \"def\")"):
@@ -1670,7 +1670,7 @@ class TestJobInput(ClickHouseTestBase):
                     range_spec = {"lower": lower_limit, "upper": upper_limit}
                 table_path = "<ranges=[{}]>//tmp/t".format(yson.dumps(range_spec, yson_format="text"))
                 expected_rows = read_table(table_path)
-                actual_rows = clique.make_query("select * from `{}`".format(table_path))
+                actual_rows = clique.make_query("select * from `{}` order by (ki, ks)".format(table_path))
                 assert actual_rows == expected_rows
 
             for lower_limit in ({}, {"row_index": 3}, {"row_index": 12}, {"key": []}, {"key": [0]},
@@ -2882,11 +2882,11 @@ class TestJoinAndIn(ClickHouseTestBase):
         with Clique(1) as clique:
             for tp in ("sorted", "not_sorted"):
                 assert clique.make_query(
-                    "select * from `//tmp/t1_{}` t1 cross join `//tmp/t2` t2".format(tp)
-                    ) == expected_result([{"key1": 1}, {"key1": 2}])
+                    "select * from `//tmp/t1_{}` t1 cross join `//tmp/t2` t2 order by (key1, key2)"
+                        .format(tp)) == expected_result([{"key1": 1}, {"key1": 2}])
                 assert clique.make_query(
-                    "select * from `//tmp/t1_{}` t1 cross join `//tmp/t2` t2 where key1 == 1".format(tp)
-                    ) == expected_result([{"key1": 1}])
+                    "select * from `//tmp/t1_{}` t1 cross join `//tmp/t2` t2 where key1 == 1 order by (key1, key2)"
+                        .format(tp)) == expected_result([{"key1": 1}])
 
 
 
