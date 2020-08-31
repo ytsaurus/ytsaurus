@@ -294,6 +294,10 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
 
     ISchemalessMultiChunkReaderPtr reader;
 
+    auto readerMemoryManager = queryContext->Host->GetMultiReaderMemoryManager()->CreateMultiReaderMemoryManager(
+        queryContext->Host->GetConfig()->ReaderMemoryRequirement,
+        {queryContext->UserTagId});
+
     if (!subquerySpec.DataSourceDirectory->DataSources().empty() &&
         subquerySpec.DataSourceDirectory->DataSources()[0].GetType() == EDataSourceType::VersionedTable)
     {
@@ -305,7 +309,6 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
         }
         TDataSliceDescriptor dataSliceDescriptor(std::move(chunkSpecs));
 
-        // TODO(max42): Use RMM when YT-13460 is done.
         reader = CreateSchemalessMergingMultiChunkReader(
             CreateTableReaderConfig(),
             New<NTableClient::TTableReaderOptions>(),
@@ -321,12 +324,9 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             TColumnFilter(schema->Columns().size()),
             /* trafficMeter */ nullptr,
             GetUnlimitedThrottler(),
-            GetUnlimitedThrottler());
+            GetUnlimitedThrottler(),
+            /* multiReaderMemoryManager = */readerMemoryManager);
     } else {
-        auto readerMemoryManager = queryContext->Host->GetMultiReaderMemoryManager()->CreateMultiReaderMemoryManager(
-            queryContext->Host->GetConfig()->ReaderMemoryRequirement,
-            {queryContext->UserTagId});
-
         reader = CreateSchemalessParallelMultiReader(
             CreateTableReaderConfig(),
             New<NTableClient::TTableReaderOptions>(),

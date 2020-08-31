@@ -620,7 +620,8 @@ public:
         TColumnFilter columnFilter,
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler);
+        IThroughputThrottlerPtr rpsThrottler,
+        IMultiReaderMemoryManagerPtr readerMemoryManager);
 
     virtual TFuture<void> GetReadyEvent() const override
     {
@@ -951,7 +952,8 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
     TColumnFilter columnFilter,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    IMultiReaderMemoryManagerPtr readerMemoryManager)
 {
     auto Logger = TableClientLogger;
     if (blockReadOptions.ReadSessionId) {
@@ -1040,12 +1042,14 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
 
     auto performanceCounters = New<TChunkReaderPerformanceCounters>();
 
-    auto parallelReaderMemoryManager = CreateParallelReaderMemoryManager(
-        TParallelReaderMemoryManagerOptions{
-            .TotalReservedMemorySize = config->MaxBufferSize,
-            .MaxInitialReaderReservedMemory = config->WindowSize
-        },
-        NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+    if (!readerMemoryManager) {
+        readerMemoryManager = CreateParallelReaderMemoryManager(
+            TParallelReaderMemoryManagerOptions{
+                .TotalReservedMemorySize = config->MaxBufferSize,
+                .MaxInitialReaderReservedMemory = config->WindowSize
+            },
+            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
+    }
 
     auto createVersionedChunkReader = [
         config,
@@ -1065,7 +1069,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         bandwidthThrottler,
         rpsThrottler,
         renameDescriptors,
-        parallelReaderMemoryManager,
+        readerMemoryManager,
         Logger
     ] (const TChunkSpec& chunkSpec) -> IVersionedReaderPtr {
         auto chunkId = NYT::FromProto<TChunkId>(chunkSpec.chunk_id());
@@ -1125,7 +1129,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
             performanceCounters,
             nullptr);
         auto chunkReaderMemoryManager =
-            parallelReaderMemoryManager->CreateChunkReaderMemoryManager(chunkMeta->Misc().uncompressed_data_size());
+            readerMemoryManager->CreateChunkReaderMemoryManager(chunkMeta->Misc().uncompressed_data_size());
 
         return CreateVersionedChunkReader(
             config,
@@ -1217,7 +1221,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         std::move(idMapping),
         std::move(nameTable),
         rowCount,
-        std::move(parallelReaderMemoryManager));
+        std::move(readerMemoryManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1237,7 +1241,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
     const TColumnFilter& columnFilter,
     NChunkClient::TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr bandwidthThrottler,
-    IThroughputThrottlerPtr rpsThrottler)
+    IThroughputThrottlerPtr rpsThrottler,
+    IMultiReaderMemoryManagerPtr readerMemoryManager)
 {
     return TSchemalessMergingMultiChunkReader::Create(
         config,
@@ -1254,7 +1259,8 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
         columnFilter,
         trafficMeter,
         std::move(bandwidthThrottler),
-        std::move(rpsThrottler));
+        std::move(rpsThrottler),
+        std::move(readerMemoryManager));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
