@@ -2784,6 +2784,9 @@ private:
         YT_VERIFY(lock->GetState() == ELockState::Pending);
         lock->SetState(ELockState::Acquired);
 
+        const auto* mutationContext = GetCurrentMutationContext();
+        lock->SetAcquisitionTime(mutationContext->GetTimestamp());
+
         auto* lockingState = trunkNode->MutableLockingState();
         lockingState->PendingLocks.erase(lock->GetLockListIterator());
         lockingState->AcquiredLocks.push_back(lock);
@@ -2888,6 +2891,9 @@ private:
         lock->SetTrunkNode(trunkNode);
         lock->SetTransaction(transaction);
         lock->Request() = request;
+
+        const auto* mutationContext = GetCurrentMutationContext();
+        lock->SetCreationTime(mutationContext->GetTimestamp());
 
         auto* lockingState = trunkNode->MutableLockingState();
         lockingState->PendingLocks.push_back(lock);

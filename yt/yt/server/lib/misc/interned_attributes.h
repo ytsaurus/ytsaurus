@@ -13,6 +13,7 @@
     XX(ActionId, action_id) \
     XX(ActionIds, action_ids) \
     XX(ActualTabletState, actual_tablet_state) \
+    XX(AcquisitionTime, acquisition_time) \
     XX(Addresses, addresses) \
     XX(AggressivePreemptionSatisfactionThreshold, aggressive_preemption_satisfaction_threshold) \
     XX(AggressiveStarvationEnabled, aggressive_starvation_enabled) \

@@ -2,6 +2,7 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt_helpers import get_current_time
 
 from yt.common import YtError
 
@@ -229,13 +230,10 @@ class TestPortals(YTEnvSetup):
         remove("//tmp/p2/t")
         wait(lambda: not exists("//sys/accounts/a"))
 
-    def _now(self):
-        return datetime.now(tzlocal())
-
     @authors("babenko")
     def test_expiration_time(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 1})
-        create("table", "//tmp/p/t", attributes={"expiration_time": str(self._now())})
+        create("table", "//tmp/p/t", attributes={"expiration_time": str(get_current_time())})
         wait(lambda: not exists("//tmp/p/t"))
 
     @authors("babenko")

@@ -4,6 +4,7 @@ import datetime
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt_helpers import get_current_time, parse_yt_time
 from yt.yson import to_yson_type
 
 
@@ -55,8 +56,8 @@ class TestRff(YTEnvSetup):
         assert get("//sys/@chunk_replicator_enabled", read_from="follower")
 
         tx = start_transaction()
-        last_ping_time = datetime.strptime(get("#" + tx + "/@last_ping_time", read_from="follower"), "%Y-%m-%dT%H:%M:%S.%fZ")
-        now = datetime.utcnow()
+        last_ping_time = parse_yt_time(get("#" + tx + "/@last_ping_time", read_from="follower"))
+        now = get_current_time()
         assert last_ping_time < now
         assert (now - last_ping_time).total_seconds() < 3
 

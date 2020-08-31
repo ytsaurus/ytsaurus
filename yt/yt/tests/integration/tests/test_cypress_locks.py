@@ -2,12 +2,13 @@ import pytest
 
 from yt_env_setup import YTEnvSetup
 from yt_commands import *
+from yt_helpers import get_current_time, parse_yt_time
 
 import __builtin__
 
 ##################################################################
 
-class TestLocks(YTEnvSetup):
+class TestCypressLocks(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 3
 
@@ -1358,8 +1359,36 @@ class TestLocks(YTEnvSetup):
         abort_transaction(tx1)
         abort_transaction(tx)
 
+    @authors("babenko")
+    def test_lock_times(self):
+        set("//tmp/a", 1)
+
+        tx1 = start_transaction()
+        lock_id1 = lock("//tmp/a", tx=tx1)["lock_id"]
+
+        assert parse_yt_time(get("#{}/@creation_time".format(lock_id1))) < get_current_time()
+        assert get("#{}/@creation_time".format(lock_id1)) == get("#{}/@acquisition_time".format(lock_id1))
+
+        tx2 = start_transaction()
+        lock_id2 = lock("//tmp/a", tx=tx2, waitable=True)["lock_id"]
+
+        assert not exists("#{}/@acquisition_time".format(lock_id2))
+        assert get("#" + lock_id1 + "/@state") == "acquired"
+        assert get("//tmp/a/@lock_mode", tx=tx1) == "exclusive"
+        assert get("#" + lock_id2 + "/@state") == "pending"
+        assert parse_yt_time(get("#{}/@creation_time".format(lock_id2))) < get_current_time()
+        assert parse_yt_time(get("#{}/@creation_time".format(lock_id1))) < parse_yt_time(get("#{}/@creation_time".format(lock_id2)))
+
+        abort_transaction(tx1)
+
+        assert not exists("//sys/locks/" + lock_id1)
+        assert get("#" + lock_id2 + "/@state") == "acquired"
+        assert get("//tmp/a/@lock_mode", tx=tx2) == "exclusive"
+        assert exists("#{}/@acquisition_time".format(lock_id2))
+        assert parse_yt_time(get("#{}/@acquisition_time".format(lock_id2))) < get_current_time()
+
 ##################################################################
 
-class TestLocksMulticell(TestLocks):
+class TestCypressLocksMulticell(TestCypressLocks):
     NUM_SECONDARY_MASTER_CELLS = 2
 

@@ -2,6 +2,9 @@ from yt_commands import get, YtError, print_debug
 
 from yt.packages import requests
 import time
+from datetime import datetime
+from dateutil import parser
+from dateutil.tz import tzlocal
 import pytest
 import tarfile
 import os
@@ -272,3 +275,9 @@ def from_sandbox(resource_id):
     tar = tarfile.open(fileobj=file_obj)
     tar.list()
     tar.extractall()
+
+def parse_yt_time(time):
+    return parser.parse(time)
+
+def get_current_time():
+    return datetime.now(tzlocal())

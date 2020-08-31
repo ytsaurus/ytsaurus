@@ -129,6 +129,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_13003_SeparateScannersForJournalAndBlobChunks)             (1404))  // shakurov
     ((FixInheritanceOfProfilingMode)                                (1406))  // akozhikhov
     ((YT_13126_ExpirationTimeout)                                   (1407))  // shakurov
+    ((YT_12198_LockTimes)                                           (1408))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

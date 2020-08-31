@@ -48,6 +48,7 @@ TEST_SRCS(
     test_cypress.py
     test_cypress_acls.py
     test_cypress_annotations.py
+    test_cypress_locks.py
     test_data_centers.py
     test_discovery.py
     test_disk_quota.py
@@ -73,7 +74,6 @@ TEST_SRCS(
     test_layers.py
     test_list_jobs.py
     test_list_operations.py
-    test_locks.py
     test_lookup.py
     test_map_reduce_over_dyntables.py
     test_master_cell_addition.py

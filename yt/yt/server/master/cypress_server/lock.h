@@ -86,6 +86,8 @@ class TLock
 public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Implicit);
     DEFINE_BYVAL_RW_PROPERTY(ELockState, State, ELockState::Pending);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, AcquisitionTime);
     DEFINE_BYREF_RW_PROPERTY(TLockRequest, Request);
     DEFINE_BYVAL_RW_PROPERTY(TCypressNode*, TrunkNode);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
