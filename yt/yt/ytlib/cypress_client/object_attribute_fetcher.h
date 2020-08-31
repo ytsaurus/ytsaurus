@@ -15,7 +15,7 @@ namespace NYT::NCypressClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Attributes will be fetched from cypress.
-TFuture<std::vector<TErrorOr<NYTree::TAttributeMap>>> FetchAttributes(
+TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> FetchAttributes(
     const std::vector<NYPath::TYPath>& paths,
     const std::vector<TString>& attributes,
     const NApi::NNative::IClientPtr& client,

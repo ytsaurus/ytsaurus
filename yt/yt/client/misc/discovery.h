@@ -27,13 +27,13 @@ public:
     //! Make this participant exposed to the group.
     //! It doesn't update the stored list of participants,
     //! but will add {name, attributes} in every result of List().
-    TFuture<void> Enter(TString name, NYTree::TAttributeMap attributes);
+    TFuture<void> Enter(TString name, NYTree::IAttributeDictionaryPtr attributes);
     //! Make this participant unexposed to the group.
     //! It doesn't update the stored list of participants.
     TFuture<void> Leave();
 
     //! Return the list of participants stored in data structure.
-    THashMap<TString, NYTree::TAttributeMap> List(bool includeBanned = false) const;
+    THashMap<TString, NYTree::IAttributeDictionaryPtr> List(bool includeBanned = false) const;
     //! Temporary exclude |name| from the list of available participants.
     void Ban(TString name);
 
@@ -55,20 +55,20 @@ private:
     TDiscoveryConfigPtr Config_;
     NApi::IClientPtr Client_;
     IInvokerPtr Invoker_;
-    THashMap<TString, NYTree::TAttributeMap> List_;
+    THashMap<TString, NYTree::IAttributeDictionaryPtr> List_;
     THashMap<TString, TInstant> BannedSince_;
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
     NApi::TListNodeOptions ListOptions_;
     mutable NConcurrency::TReaderWriterSpinLock Lock_;
     NApi::ITransactionPtr Transaction_;
     const NLogging::TLogger Logger;
-    std::optional<std::pair<TString, NYTree::TAttributeMap>> NameAndAttributes_;
+    std::optional<std::pair<TString, NYTree::IAttributeDictionaryPtr>> NameAndAttributes_;
     TFuture<void> ScheduledForceUpdate_;
     TInstant LastUpdate_;
     TCallback<void(void)> TransactionRestorer_;
     int Epoch_;
 
-    void DoEnter(TString name, NYTree::TAttributeMap attributes);
+    void DoEnter(TString name, NYTree::IAttributeDictionaryPtr attributes);
     void DoLeave();
 
     void DoUpdateList();

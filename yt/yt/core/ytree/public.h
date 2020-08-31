@@ -40,8 +40,6 @@ struct IAttributeOwner;
 
 struct ISystemAttributeProvider;
 
-using TAttributeMap = THashMap<TString, NYTree::INodePtr>;
-
 DECLARE_REFCOUNTED_STRUCT(IYPathService)
 DECLARE_REFCOUNTED_STRUCT(ICachedYPathService)
 

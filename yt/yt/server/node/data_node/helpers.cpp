@@ -96,10 +96,10 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
             auto fetchResult = WaitFor(attributesFuture)
                 .ValueOrThrow();
 
-            auto attributesMap = fetchResult[0]
+            auto attributes = fetchResult[0]
                 .ValueOrThrow();
 
-            userObject.ContentRevision = attributesMap["content_revision"]->GetValue<NHydra::TRevision>();
+            userObject.ContentRevision = attributes->Get<NHydra::TRevision>("content_revision");
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error fetching revision for layer %v", path)
                 << ex;

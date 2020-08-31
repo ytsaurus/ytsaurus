@@ -42,7 +42,7 @@ TDiscovery::TDiscovery(
     ListOptions_.ExpireAfterFailedUpdateTime = Config_->MasterCacheExpireTime;
 }
 
-TFuture<void> TDiscovery::Enter(TString name, TAttributeMap attributes)
+TFuture<void> TDiscovery::Enter(TString name, IAttributeDictionaryPtr attributes)
 {
     return BIND(&TDiscovery::DoEnter, MakeStrong(this), std::move(name), std::move(attributes))
         .AsyncVia(Invoker_)
@@ -71,9 +71,9 @@ TFuture<void> TDiscovery::UpdateList(TDuration ageThreshold)
     return ScheduledForceUpdate_;
 }
 
-THashMap<TString, TAttributeMap> TDiscovery::List(bool includeBanned) const
+THashMap<TString, IAttributeDictionaryPtr> TDiscovery::List(bool includeBanned) const
 {
-    THashMap<TString, TAttributeMap> result;
+    THashMap<TString, IAttributeDictionaryPtr> result;
     THashMap<TString, TInstant> bannedSince;
     decltype(NameAndAttributes_) nameAndAttributes;
     {
@@ -123,7 +123,7 @@ i64 TDiscovery::GetWeight()
     return List_.size();
 }
 
-void TDiscovery::DoEnter(TString name, TAttributeMap attributes)
+void TDiscovery::DoEnter(TString name, IAttributeDictionaryPtr attributes)
 {
     YT_VERIFY(!Transaction_);
     YT_LOG_INFO("Entering the group");
@@ -171,7 +171,7 @@ void TDiscovery::DoUpdateList()
 {
     auto list = ConvertToNode(WaitFor(Client_->ListNode(Config_->Directory, ListOptions_))
         .ValueOrThrow());
-    THashMap<TString, TAttributeMap> newList;
+    THashMap<TString, IAttributeDictionaryPtr> newList;
 
     i64 aliveCount = 0;
     i64 deadCount = 0;
@@ -194,9 +194,7 @@ void TDiscovery::DoUpdateList()
 
         if (isAlive) {
             ++aliveCount;
-            auto stringNode = node->AsString();
-            auto attributes = stringNode->Attributes().ToMap()->GetChildren();
-            newList[stringNode->GetValue()] = TAttributeMap(attributes.begin(), attributes.end());
+            newList[node->GetValue<TString>()] = node->Attributes().Clone();
         } else {
             ++deadCount;
         }

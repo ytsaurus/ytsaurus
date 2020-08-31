@@ -20,17 +20,17 @@ using namespace NTableClient;
 
 DEFINE_REFCOUNTED_TYPE(TTable);
 
-TTable::TTable(TRichYPath path, const TAttributeMap& attributes)
+TTable::TTable(TRichYPath path, const IAttributeDictionaryPtr& attributes)
     : TUserObject(std::move(path))
 {
-    ObjectId = TObjectId::FromString(attributes.at("id")->GetValue<TString>());
+    ObjectId = attributes->Get<TObjectId>("id");
     Type = TypeFromId(ObjectId);
-    Dynamic = attributes.at("dynamic")->GetValue<bool>();
-    ExternalCellTag = attributes.at("external")->GetValue<bool>()
-        ? attributes.at("external_cell_tag")->GetValue<ui64>()
+    Dynamic = attributes->Get<bool>("dynamic");
+    ExternalCellTag = attributes->Get<bool>("external")
+        ? attributes->Get<ui64>("external_cell_tag")
         : CellTagFromId(ObjectId);
-    ChunkCount = attributes.at("chunk_count")->GetValue<i64>();
-    Schema = ConvertTo<TTableSchemaPtr>(attributes.at("schema"));
+    ChunkCount = attributes->Get<i64>("chunk_count");
+    Schema = attributes->Get<TTableSchemaPtr>("schema");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -62,22 +62,20 @@ std::vector<TTablePtr> FetchTables(
 
         try {
             const auto& attributes = attributesOrError.ValueOrThrow();
-            std::optional<EObjectType> type;
-            if (attributes.contains("type")) {
-                type = ConvertTo<EObjectType>(attributes.at("type"));
-            }
-            if (type != EObjectType::Table) {
+            auto maybeType = attributes->Find<EObjectType>("type");
+            if (maybeType != EObjectType::Table) {
                 THROW_ERROR_EXCEPTION("Path %Qv does not correspond to a table; expected type %Qlv, actual type %Qlv",
                     path,
                     EObjectType::Table,
-                    type);
+                    maybeType);
             }
-            if (attributes.at("dynamic")->GetValue<bool>() && !host->GetConfig()->EnableDynamicTables) {
+            // COMPAT(max42): remove this when 20.2 is everywhere.
+            if (attributes->Get<bool>("dynamic") && !host->GetConfig()->EnableDynamicTables) {
                 THROW_ERROR_EXCEPTION(
                     "Table %Qv is dynamic; dynamic tables are not supported yet (CHYT-57)",
                     path.GetPath());
             }
-            if (attributes.at("dynamic")->GetValue<bool>() && !ConvertTo<TTableSchemaPtr>(attributes.at("schema"))->IsSorted()) {
+            if (attributes->Get<bool>("dynamic") && !attributes->Get<TTableSchemaPtr>("schema")->IsSorted()) {
                 THROW_ERROR_EXCEPTION(
                     "Table %Qv is an ordered dynamic table; they are not supported yet (CHYT-419)",
                     path.GetPath());

@@ -185,7 +185,7 @@ public:
 
         if (JobCookie_.has_value()) {
             for (const auto& [id, attributes] : Instances_) {
-                if (*JobCookie_ == attributes.at("job_cookie")->GetValue<size_t>()) {
+                if (*JobCookie_ == attributes->Get<size_t>("job_cookie")) {
                     InitializeInstance(id, attributes);
                     return true;
                 }
@@ -318,7 +318,7 @@ private:
 
     TClickHouseHandler::TClickHouseProxyMetrics& Metrics_;
 
-    THashMap<TString, NYTree::TAttributeMap> Instances_;
+    THashMap<TString, NYTree::IAttributeDictionaryPtr> Instances_;
 
     void ReplyWithError(EStatusCode statusCode, const TError& error) const
     {
@@ -657,11 +657,11 @@ private:
         return true;
     }
 
-    void InitializeInstance(const TString& id, const NYTree::TAttributeMap& attributes)
+    void InitializeInstance(const TString& id, const NYTree::IAttributeDictionaryPtr& attributes)
     {
         InstanceId_ = id;
-        InstanceHost_ = attributes.at("host")->GetValue<TString>();
-        auto port = attributes.at("http_port");
+        InstanceHost_ = attributes->Get<TString>("host");
+        auto port = attributes->Get<INodePtr>("http_port");
         InstanceHttpPort_ = (port->GetType() == ENodeType::String ? port->GetValue<TString>() : ToString(port->GetValue<ui64>()));
 
         ProxiedRequestUrl_ = Format("http://%v:%v%v?%v",

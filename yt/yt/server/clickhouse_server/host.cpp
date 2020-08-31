@@ -228,7 +228,7 @@ public:
         }
     }
 
-    std::vector<TErrorOr<NYTree::TAttributeMap>> GetObjectAttributes(
+    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
         const std::vector<TYPath>& paths,
         const IClientPtr& client)
     {
@@ -251,7 +251,7 @@ public:
         auto attributesForMissedPaths = WaitFor(TableAttributeCache_->GetFromClient(missedPaths, client))
             .ValueOrThrow();
 
-        std::vector<TErrorOr<NYTree::TAttributeMap>> attributes;
+        std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> attributes;
         attributes.reserve(paths.size());
 
         for (auto& cachedAttributeOrError : cachedAttributes) {
@@ -274,8 +274,8 @@ public:
         TClusterNodes result;
         result.reserve(nodeList.size());
         for (const auto& [_, attributes] : nodeList) {
-            auto host = attributes.at("host")->GetValue<TString>();
-            auto tcpPort = attributes.at("tcp_port")->GetValue<i64>();
+            auto host = attributes->Get<TString>("host");
+            auto tcpPort = attributes->Get<i64>("tcp_port");
             result.push_back(CreateClusterNode(TClusterNodeName{host, tcpPort}, Context_->getSettingsRef()));
         }
         return result;
@@ -498,7 +498,7 @@ private:
 
         Discovery_->StartPolling();
 
-        TAttributeMap attributes = {
+        auto attributes = ConvertToAttributes(THashMap<TString, INodePtr>{
             {"host", ConvertToNode(Config_->Address)},
             {"rpc_port", ConvertToNode(Ports_.Rpc)},
             {"monitoring_port", ConvertToNode(Ports_.Monitoring)},
@@ -506,7 +506,7 @@ private:
             {"http_port", ConvertToNode(Ports_.Http)},
             {"pid", ConvertToNode(getpid())},
             {"job_cookie", ConvertToNode(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))},
-        };
+        });
 
         WaitFor(Discovery_->Enter(ToString(Config_->InstanceId), attributes))
             .ThrowOnError();
@@ -527,7 +527,7 @@ private:
 
         for (auto [_, attributes] : nodes) {
             auto channel = ChannelFactory_->CreateChannel(
-                attributes["host"]->GetValue<TString>() + ":" + ToString(attributes["rpc_port"]->GetValue<ui64>()));
+                attributes->Get<TString>("host") + ":" + ToString(attributes->Get<ui64>("rpc_port")));
             TClickHouseServiceProxy proxy(channel);
             auto req = proxy.ProcessGossip();
             req->set_instance_id(ToString(Config_->InstanceId));
@@ -547,10 +547,10 @@ private:
                 responseIt->Value()->instance_state() == EInstanceState::Stopped)
             {
                 YT_LOG_WARNING("Banning instance (Address: %v, HttpPort: %v, TcpPort: %v, RpcPort: %v, JobId: %v, State: %v)",
-                    attributes["host"]->GetValue<TString>(),
-                    attributes["http_port"]->GetValue<ui64>(),
-                    attributes["tcp_port"]->GetValue<ui64>(),
-                    attributes["rpc_port"]->GetValue<ui64>(),
+                    attributes->Get<TString>("host"),
+                    attributes->Get<ui64>("http_port"),
+                    attributes->Get<ui64>("tcp_port"),
+                    attributes->Get<ui64>("rpc_port"),
                     name,
                     (responseIt->IsOK() ? Format("%v", EInstanceState(responseIt->Value()->instance_state())) : "Request failed"));
                 Discovery_->Ban(name);
@@ -670,7 +670,7 @@ void THost::ValidateReadPermissions(
     return Impl_->ValidateReadPermissions(paths, user);
 }
 
-std::vector<TErrorOr<NYTree::TAttributeMap>> THost::GetObjectAttributes(
+std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> THost::GetObjectAttributes(
     const std::vector<NYPath::TYPath>& paths,
     const IClientPtr& client)
 {

@@ -35,7 +35,7 @@ DEFINE_REFCOUNTED_TYPE(TStrictMockTransaction)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> GetNames(const THashMap<TString, TAttributeMap>& listResult)
+std::vector<TString> GetNames(const THashMap<TString, IAttributeDictionaryPtr>& listResult)
 {
     auto result = GetKeys(listResult);
     std::sort(result.begin(), result.end());
@@ -139,7 +139,7 @@ TEST(TDiscoveryTest, Enter)
 
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
 
-    WaitFor(discovery->Enter("test_node", TAttributeMap()))
+    WaitFor(discovery->Enter("test_node", CreateEphemeralAttributes()))
         .ThrowOnError();
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(100));
@@ -168,8 +168,8 @@ TEST(TDiscoveryTest, Leave) {
     NYPath::TYPath path = "/test/1234";
     std::vector<TString> keys = {};
 
-    TAttributeMap attrs;
-    attrs["host"] = BuildYsonNodeFluently().Value("something.ru");
+    auto attrs = CreateEphemeralAttributes();
+    attrs->Set("host", BuildYsonNodeFluently().Value("something.ru"));
     THashMap<TString, TString> comparableAttrs;
     comparableAttrs["host"] = "something.ru";
 
@@ -277,11 +277,11 @@ TEST(TDiscoveryTest, Ban)
         .ThrowOnError();
 }
 
-THashMap<TString, std::vector<TString>> GetAttributesKeys(THashMap<TString, TAttributeMap> listResult)
+THashMap<TString, std::vector<TString>> GetAttributesKeys(THashMap<TString, IAttributeDictionaryPtr> listResult)
 {
     THashMap<TString, std::vector<TString>> result;
     for (const auto& [name, attributes] : listResult) {
-        result[name] = GetKeys(attributes);
+        result[name] = attributes->ListKeys();
         std::sort(result[name].begin(), result[name].end());
     }
     return result;
@@ -392,7 +392,7 @@ TEST(TDiscoveryTest, CreationRace)
 
     EXPECT_THAT(discovery->List(), ResultOf(GetNames, std::vector<TString>()));
 
-    auto enterFuture = discovery->Enter("test_node", TAttributeMap());
+    auto enterFuture = discovery->Enter("test_node", CreateEphemeralAttributes());
 
     TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(50));
 

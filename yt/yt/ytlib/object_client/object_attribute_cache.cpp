@@ -26,7 +26,7 @@ TObjectAttributeCache::TObjectAttributeCache(
     , Invoker_(std::move(invoker))
 { }
 
-TFuture<std::vector<TErrorOr<TAttributeMap>>> TObjectAttributeCache::GetFromClient(
+TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TObjectAttributeCache::GetFromClient(
     const std::vector<TYPath>& keys,
     const NNative::IClientPtr& client) const
 {
@@ -42,17 +42,17 @@ TFuture<std::vector<TErrorOr<TAttributeMap>>> TObjectAttributeCache::GetFromClie
         });
 }
 
-TFuture<TAttributeMap> TObjectAttributeCache::DoGet(
+TFuture<IAttributeDictionaryPtr> TObjectAttributeCache::DoGet(
     const TYPath& path,
     bool isPeriodicUpdate) noexcept
 {
     return DoGetMany({path}, isPeriodicUpdate)
-        .Apply(BIND([path] (const std::vector<TErrorOr<TAttributeMap>>& response) {
+        .Apply(BIND([path] (const std::vector<TErrorOr<IAttributeDictionaryPtr>>& response) {
             return response[0].ValueOrThrow();
         }));
 }
 
-TFuture<std::vector<TErrorOr<TAttributeMap>>> TObjectAttributeCache::DoGetMany(
+TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> TObjectAttributeCache::DoGetMany(
     const std::vector<TYPath>& paths,
     bool /*isPeriodicUpdate*/) noexcept
 {

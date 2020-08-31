@@ -15,7 +15,7 @@ namespace NYT::NObjectClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TObjectAttributeCache
-    : public TAsyncExpiringCache<NYPath::TYPath, NYTree::TAttributeMap>
+    : public TAsyncExpiringCache<NYPath::TYPath, NYTree::IAttributeDictionaryPtr>
 {
 public:
     TObjectAttributeCache(
@@ -28,15 +28,15 @@ public:
 
     // Gets attributes from master via provided client.
     // It doesn't change the cache.
-    TFuture<std::vector<TErrorOr<NYTree::TAttributeMap>>> GetFromClient(
+    TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> GetFromClient(
         const std::vector<NYPath::TYPath>& paths,
         const NApi::NNative::IClientPtr& client) const;
 
 protected:
-    virtual TFuture<NYTree::TAttributeMap> DoGet(
+    virtual TFuture<NYTree::IAttributeDictionaryPtr> DoGet(
         const NYPath::TYPath& path,
         bool isPeriodicUpdate) noexcept override;
-    virtual TFuture<std::vector<TErrorOr<NYTree::TAttributeMap>>> DoGetMany(
+    virtual TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> DoGetMany(
         const std::vector<NYPath::TYPath>& paths,
         bool isPeriodicUpdate) noexcept override;
 
