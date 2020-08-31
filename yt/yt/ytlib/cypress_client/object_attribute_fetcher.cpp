@@ -18,14 +18,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<std::vector<TErrorOr<TAttributeMap>>> FetchAttributes(
+TFuture<std::vector<TErrorOr<IAttributeDictionaryPtr>>> FetchAttributes(
     const std::vector<TYPath>& paths,
     const std::vector<TString>& attributeKeys,
     const NNative::IClientPtr& client,
     const TMasterReadOptions& options)
 {
     if (paths.empty()) {
-        return MakeFuture(std::vector<TErrorOr<TAttributeMap>>());
+        return MakeFuture(std::vector<TErrorOr<IAttributeDictionaryPtr>>());
     }
     TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(options.ReadFrom));
     auto batchReq = proxy.ExecuteBatch();
@@ -47,11 +47,11 @@ TFuture<std::vector<TErrorOr<TAttributeMap>>> FetchAttributes(
     return batchReq->Invoke()
         .Apply(BIND([] (TObjectServiceProxy::TRspExecuteBatchPtr batchResponse) mutable {
             auto responses = batchResponse->GetResponses<TYPathProxy::TRspGet>();
-            std::vector<TErrorOr<TAttributeMap>> result;
+            std::vector<TErrorOr<IAttributeDictionaryPtr>> result;
             result.reserve(responses.size());
             for (const auto& response : responses) {
                 if (response.IsOK()) {
-                    result.emplace_back(ConvertTo<TAttributeMap>(TYsonString(response.Value()->value())));
+                    result.emplace_back(ConvertToAttributes(TYsonString(response.Value()->value())));
                 } else {
                     result.emplace_back(TError(response));
                 }

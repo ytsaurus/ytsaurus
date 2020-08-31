@@ -42,7 +42,7 @@ public:
 
     void ValidateReadPermissions(const std::vector<NYPath::TRichYPath>& paths, const TString& user);
 
-    std::vector<TErrorOr<NYTree::TAttributeMap>> GetObjectAttributes(
+    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributes(
         const std::vector<NYPath::TYPath>& paths,
         const NApi::NNative::IClientPtr& client);
 

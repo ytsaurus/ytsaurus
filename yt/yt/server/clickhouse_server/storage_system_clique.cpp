@@ -57,15 +57,15 @@ public:
         DB::MutableColumns res_columns = metadata_snapshot->getSampleBlock().cloneEmptyColumns();
 
         for (const auto& [name, attributes] : nodes) {
-            res_columns[0]->insert(std::string(attributes.at("host")->GetValue<TString>()));
-            res_columns[1]->insert(attributes.at("rpc_port")->GetValue<ui64>());
-            res_columns[2]->insert(attributes.at("monitoring_port")->GetValue<ui64>());
-            res_columns[3]->insert(attributes.at("tcp_port")->GetValue<ui64>());
-            res_columns[4]->insert(attributes.at("http_port")->GetValue<ui64>());
+            res_columns[0]->insert(std::string(attributes->Get<TString>("host")));
+            res_columns[1]->insert(attributes->Get<ui64>("rpc_port"));
+            res_columns[2]->insert(attributes->Get<ui64>("monitoring_port"));
+            res_columns[3]->insert(attributes->Get<ui64>("tcp_port"));
+            res_columns[4]->insert(attributes->Get<ui64>("http_port"));
             res_columns[5]->insert(std::string(name));
-            res_columns[6]->insert(attributes.at("pid")->GetValue<i64>());
+            res_columns[6]->insert(attributes->Get<i64>("pid"));
             res_columns[7]->insert(name == ToString(InstanceId_));
-            res_columns[8]->insert(attributes.at("job_cookie")->GetValue<ui64>());
+            res_columns[8]->insert(attributes->Get<ui64>("job_cookie"));
         }
 
         auto blockInputStream = std::make_shared<DB::OneBlockInputStream>(metadata_snapshot->getSampleBlock().cloneWithColumns(std::move(res_columns)));

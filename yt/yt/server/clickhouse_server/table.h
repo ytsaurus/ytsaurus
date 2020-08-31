@@ -29,7 +29,7 @@ struct TTable
     int OperandIndex = 0;
     bool Dynamic = false;
 
-    TTable(NYPath::TRichYPath path, const NYTree::TAttributeMap& attributes);
+    TTable(NYPath::TRichYPath path, const NYTree::IAttributeDictionaryPtr& attributes);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
