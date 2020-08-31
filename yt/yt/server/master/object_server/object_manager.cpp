@@ -322,7 +322,7 @@ private:
 
     void OnProfiling();
 
-    std::unique_ptr<IAttributeDictionary> GetReplicatedAttributes(
+    IAttributeDictionaryPtr GetReplicatedAttributes(
         TObject* object,
         bool mandatory);
     void OnReplicateValuesToSecondaryMaster(TCellTag cellTag);
@@ -1231,7 +1231,7 @@ TObject* TObjectManager::TImpl::CreateObject(
         securityManager->ValidatePermission(schema, user, EPermission::Create);
     }
 
-    std::unique_ptr<IAttributeDictionary> attributeHolder;
+    IAttributeDictionaryPtr attributeHolder;
     if (auto* attributeSet = schema->GetAttributes()) {
         attributeHolder = CreateEphemeralAttributes();
         for (const auto& pair : attributeSet->Attributes()) {
@@ -1241,14 +1241,14 @@ TObject* TObjectManager::TImpl::CreateObject(
             auto attributeMap = PatchNode(attributeHolder->ToMap(), attributes->ToMap());
             attributeHolder = IAttributeDictionary::FromMap(attributeMap->AsMap());
         }
-        attributes = attributeHolder.get();
+        attributes = attributeHolder.Get();
     } else if (!attributes) {
         attributeHolder = CreateEphemeralAttributes();
-        attributes = attributeHolder.get();
+        attributes = attributeHolder.Get();
     }
 
     // ITypeHandler::CreateObject may modify the attributes.
-    std::unique_ptr<IAttributeDictionary> replicatedAttributes;
+    IAttributeDictionaryPtr replicatedAttributes;
     if (replicate) {
         replicatedAttributes = attributes->Clone();
     }
@@ -1714,12 +1714,12 @@ void TObjectManager::TImpl::HydraCreateForeignObject(NProto::TReqCreateForeignOb
 
     auto attributes = request->has_object_attributes()
         ? FromProto(request->object_attributes())
-        : std::unique_ptr<IAttributeDictionary>();
+        : nullptr;
 
     CreateObject(
         objectId,
         type,
-        attributes.get());
+        attributes.Get());
 
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Foreign object created (Id: %v, Type: %v)",
         objectId,
@@ -2019,7 +2019,7 @@ void TObjectManager::TImpl::OnProfiling()
     Profiler.Enqueue("/destroyed_objects", DestroyedObjects_, EMetricType::Counter);
 }
 
-std::unique_ptr<IAttributeDictionary> TObjectManager::TImpl::GetReplicatedAttributes(
+IAttributeDictionaryPtr TObjectManager::TImpl::GetReplicatedAttributes(
     TObject* object,
     bool mandatory)
 {

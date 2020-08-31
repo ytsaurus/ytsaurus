@@ -130,7 +130,7 @@ public:
 private:
     const TChannelConfigPtr Config_;
     const TString EndpointDescription_;
-    const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
+    const IAttributeDictionaryPtr EndpointAttributes_;
 
     TSingleShotCallbackList<void(const TError&)> Terminated_;
 

@@ -69,7 +69,7 @@ void TNontemplateCypressNodeTypeHandlerBase::FillAttributes(
 
     const auto& objectManager = Bootstrap_->GetObjectManager();
     auto combinedAttributes = NYTree::OverlayAttributeDictionaries(explicitAttributes, inheritedAttributes);
-    objectManager->FillAttributes(trunkNode, combinedAttributes);
+    objectManager->FillAttributes(trunkNode, *combinedAttributes);
 }
 
 bool TNontemplateCypressNodeTypeHandlerBase::IsSupportedInheritableAttribute(const TString&) const

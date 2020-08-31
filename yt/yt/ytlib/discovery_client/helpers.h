@@ -25,7 +25,7 @@ struct TMemberInfo
 {
     TMemberId Id;
     i64 Priority = 0;
-    std::unique_ptr<NYTree::IAttributeDictionary> Attributes;
+    NYTree::IAttributeDictionaryPtr Attributes;
     i64 Revision = 0;
 };
 

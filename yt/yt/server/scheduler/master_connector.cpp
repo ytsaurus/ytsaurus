@@ -1230,7 +1230,7 @@ private:
                 auto rsps = batchRsp->GetResponses<TYPathProxy::TRspGet>(getBatchKey(operation));
 
                 for (size_t rspIndex = 0; rspIndex < rsps.size(); ++rspIndex) {
-                    std::unique_ptr<IAttributeDictionary> attributes;
+                    IAttributeDictionaryPtr attributes;
                     auto updateAttributes = [&] (const TErrorOr<TIntrusivePtr<TYPathProxy::TRspGet>>& rspOrError) {
                         if (!rspOrError.IsOK()) {
                             return;

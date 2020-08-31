@@ -98,7 +98,7 @@ TString TYamrDelimitedBaseParser::GetContext() const
     return result;
 }
 
-std::unique_ptr<IAttributeDictionary> TYamrDelimitedBaseParser::GetDebugInfo() const
+IAttributeDictionaryPtr TYamrDelimitedBaseParser::GetDebugInfo() const
 {
     auto result = CreateEphemeralAttributes();
     result->Set("context", GetContext());

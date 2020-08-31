@@ -349,7 +349,7 @@ struct TTransactionStartOptions
     bool Ping = true;
     bool PingAncestors = true;
 
-    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
+    NYTree::IAttributeDictionaryPtr Attributes;
 
     NTransactionClient::EAtomicity Atomicity = NTransactionClient::EAtomicity::Full;
     NTransactionClient::EDurability Durability = NTransactionClient::EDurability::Sync;
@@ -392,7 +392,7 @@ struct TTransactionCommitOptions
     ETransactionCoordinatorCommitMode CoordinatorCommitMode = ETransactionCoordinatorCommitMode::Eager;
 
     //! At non-coordinating participants, Transaction Manager will synchronize with
-    //! these cells before running prepare. 
+    //! these cells before running prepare.
     std::vector<NObjectClient::TCellId> CellIdsToSyncWithBeforePrepare;
 
     //! If |true| then all participants will use the commit timestamp provided by the coordinator.
@@ -515,7 +515,7 @@ struct TGetNodeOptions
     , public TPrerequisiteOptions
 {
     // XXX(sandello): This one is used only in ProfileManager to pass `from_time`.
-    std::shared_ptr<const NYTree::IAttributeDictionary> Options;
+    NYTree::IAttributeDictionaryPtr Options;
     std::optional<std::vector<TString>> Attributes;
     std::optional<i64> MaxSize;
 };
@@ -566,7 +566,7 @@ struct TCreateObjectOptions
     , public TPrerequisiteOptions
 {
     bool IgnoreExisting = false;
-    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
+    NYTree::IAttributeDictionaryPtr Attributes;
 };
 
 struct TCreateNodeOptions
@@ -640,7 +640,7 @@ struct TLinkNodeOptions
     , public TPrerequisiteOptions
 {
     //! Attributes of a newly created link node.
-    std::shared_ptr<const NYTree::IAttributeDictionary> Attributes;
+    NYTree::IAttributeDictionaryPtr Attributes;
     bool Recursive = false;
     bool IgnoreExisting = false;
     bool LockExisting = false;

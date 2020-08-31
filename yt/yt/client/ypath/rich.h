@@ -137,7 +137,7 @@ public:
 
 private:
     TYPath Path_;
-    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
+    NYTree::IAttributeDictionaryPtr Attributes_;
 };
 
 bool operator== (const TRichYPath& lhs, const TRichYPath& rhs);

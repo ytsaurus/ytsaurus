@@ -72,7 +72,7 @@ public:
     explicit THttpReplyBus(
         IResponseWriterPtr rsp,
         const TString& endpointDescription,
-        std::unique_ptr<IAttributeDictionary> endpointAttributes,
+        IAttributeDictionaryPtr endpointAttributes,
         const TNetworkAddress& endpointAddress)
         : Rsp_(std::move(rsp))
         , EndpointDescription_(endpointDescription)
@@ -159,7 +159,7 @@ public:
 private:
     const IResponseWriterPtr Rsp_;
     const TString EndpointDescription_;
-    const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
+    const IAttributeDictionaryPtr EndpointAttributes_;
     const TNetworkAddress EndpointAddress_;
 
     TPromise<void> ReplySent_ = NewPromise<void>();

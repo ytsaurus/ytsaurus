@@ -146,7 +146,7 @@ private:
     const EConnectionType ConnectionType_;
     const TConnectionId Id_;
     const TString EndpointDescription_;
-    const std::unique_ptr<NYTree::IAttributeDictionary> EndpointAttributes_;
+    const NYTree::IAttributeDictionaryPtr EndpointAttributes_;
     const NNet::TNetworkAddress EndpointAddress_;
     const std::optional<TString> Address_;
     const std::optional<TString> UnixDomainSocketPath_;

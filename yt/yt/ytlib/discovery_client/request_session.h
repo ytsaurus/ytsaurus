@@ -88,7 +88,7 @@ public:
         TMemberId memberId,
         i64 priority,
         i64 revision,
-        std::unique_ptr<NYTree::IAttributeDictionary> attributes);
+        NYTree::IAttributeDictionaryPtr attributes);
 
 private:
     const TMemberClientConfigPtr Config_;
@@ -97,7 +97,7 @@ private:
     const TMemberId MemberId_;
     const i64 Priority_;
     const i64 Revision_;
-    const std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
+    const NYTree::IAttributeDictionaryPtr Attributes_;
 
     std::atomic<int> SuccessCount_ = 0;
 

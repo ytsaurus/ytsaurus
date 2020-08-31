@@ -185,7 +185,7 @@ public:
 private:
     const TTcpBusClientConfigPtr Config_;
     TString EndpointDescription_;
-    std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
+    IAttributeDictionaryPtr EndpointAttributes_;
 
 };
 

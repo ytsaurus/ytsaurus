@@ -158,12 +158,12 @@ bool TOverlaidAttributeDictionary<T>::Remove(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class... Args>
-TOverlaidAttributeDictionary<typename std::decay<T>::type>
+TIntrusivePtr<TOverlaidAttributeDictionary<typename std::decay<T>::type>>
 OverlayAttributeDictionaries(
     T&& topmostUnderlyingDict,
     Args&&... underlyingDicts)
 {
-    return TOverlaidAttributeDictionary<typename std::decay<T>::type>(
+    return New<TOverlaidAttributeDictionary<typename std::decay<T>::type>>(
         std::forward<T>(topmostUnderlyingDict),
         std::forward<Args>(underlyingDicts)...);
 }

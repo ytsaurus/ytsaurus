@@ -55,7 +55,7 @@ public:
     const NYTree::IAttributeDictionary& Attributes() const;
 
 private:
-    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
+    NYTree::IAttributeDictionaryPtr Attributes_;
 
 };
 

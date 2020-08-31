@@ -32,7 +32,7 @@ void IAttributeDictionary::MergeFrom(const IAttributeDictionary& other)
     }
 }
 
-std::unique_ptr<IAttributeDictionary> IAttributeDictionary::Clone() const
+IAttributeDictionaryPtr IAttributeDictionary::Clone() const
 {
     auto attributes = CreateEphemeralAttributes();
     attributes->MergeFrom(*this);
@@ -51,7 +51,7 @@ bool IAttributeDictionary::Contains(TStringBuf key) const
     return FindYson(key).operator bool();
 }
 
-std::unique_ptr<IAttributeDictionary> IAttributeDictionary::FromMap(const IMapNodePtr& node)
+IAttributeDictionaryPtr IAttributeDictionary::FromMap(const IMapNodePtr& node)
 {
     auto attributes = CreateEphemeralAttributes();
     auto children = node->GetChildren();

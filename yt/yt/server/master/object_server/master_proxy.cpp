@@ -86,11 +86,11 @@ private:
 
         auto attributes = request->has_object_attributes()
             ? FromProto(request->object_attributes())
-            : std::unique_ptr<IAttributeDictionary>();
+            : nullptr;
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         if (ignoreExisting) {
-            auto maybeExistingObject = objectManager->FindObjectByAttributes(type, attributes.get());
+            auto maybeExistingObject = objectManager->FindObjectByAttributes(type, attributes.Get());
             if (!maybeExistingObject) {
                 THROW_ERROR_EXCEPTION("\"ignore_existing\" option is not supported for type %Qlv",
                     type);
@@ -109,7 +109,7 @@ private:
         auto* object = objectManager->CreateObject(
             NullObjectId,
             type,
-            attributes.get());
+            attributes.Get());
 
         const auto& objectId = object->GetId();
 

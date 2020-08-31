@@ -396,7 +396,7 @@ TRichYPath TRichYPath::Parse(const TString& str)
 {
     auto attributes = CreateEphemeralAttributes();
 
-    auto strWithoutAttributes = ParseAttributes(str, attributes.get());
+    auto strWithoutAttributes = ParseAttributes(str, attributes.Get());
     TTokenizer ypathTokenizer(strWithoutAttributes);
 
     while (ypathTokenizer.GetType() != ETokenType::EndOfStream && ypathTokenizer.GetType() != ETokenType::Range) {
@@ -408,8 +408,8 @@ TRichYPath TRichYPath::Parse(const TString& str)
     if (ypathTokenizer.GetType() == ETokenType::Range) {
         NYson::TTokenizer ysonTokenizer(rangeStr);
         ysonTokenizer.ParseNext();
-        ParseColumns(ysonTokenizer, attributes.get());
-        ParseRowRanges(ysonTokenizer, attributes.get());
+        ParseColumns(ysonTokenizer, attributes.Get());
+        ParseRowRanges(ysonTokenizer, attributes.Get());
         ysonTokenizer.CurrentToken().ExpectType(NYson::ETokenType::EndOfStream);
     }
     return TRichYPath(path, *attributes);
@@ -646,13 +646,13 @@ std::optional<bool> TRichYPath::GetCopyFile() const
 TString ConvertToString(const TRichYPath& path, EYsonFormat ysonFormat)
 {
     const IAttributeDictionary* attributes = nullptr;
-    std::unique_ptr<IAttributeDictionary> attrHolder;
+    IAttributeDictionaryPtr attrHolder;
     auto columns = path.GetColumns();
 
     if (columns) {
         attrHolder = path.Attributes().Clone();
         attrHolder->Remove("columns");
-        attributes = attrHolder.get();
+        attributes = attrHolder.Get();
     } else {
         attributes = &path.Attributes();
     }

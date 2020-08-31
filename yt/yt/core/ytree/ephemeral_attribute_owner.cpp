@@ -18,15 +18,15 @@ IAttributeDictionary* TEphemeralAttributeOwner::MutableAttributes()
     if (!HasAttributes()) {
         Attributes_ = CreateEphemeralAttributes();
     }
-    return Attributes_.get();
+    return Attributes_.Get();
 }
 
 bool TEphemeralAttributeOwner::HasAttributes() const
 {
-    return Attributes_ != nullptr;
+    return static_cast<bool>(Attributes_);
 }
 
-void TEphemeralAttributeOwner::SetAttributes(std::unique_ptr<IAttributeDictionary> attributes)
+void TEphemeralAttributeOwner::SetAttributes(IAttributeDictionaryPtr attributes)
 {
     Attributes_ = std::move(attributes);
 }

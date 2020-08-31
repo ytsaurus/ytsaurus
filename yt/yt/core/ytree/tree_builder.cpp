@@ -123,7 +123,7 @@ public:
     {
         YT_ASSERT(!AttributeConsumer);
         Attributes = CreateEphemeralAttributes();
-        AttributeConsumer.reset(new TAttributeConsumer(Attributes.get()));
+        AttributeConsumer = std::make_unique<TAttributeConsumer>(Attributes.Get());
         Forward(AttributeConsumer.get(), nullptr, NYson::EYsonType::MapFragment);
     }
 
@@ -141,13 +141,13 @@ private:
     std::optional<TString> Key;
     INodePtr ResultNode;
     std::unique_ptr<TAttributeConsumer> AttributeConsumer;
-    std::unique_ptr<IAttributeDictionary> Attributes;
+    IAttributeDictionaryPtr Attributes;
 
     void AddNode(INodePtr node, bool push)
     {
         if (Attributes) {
             node->MutableAttributes()->MergeFrom(*Attributes);
-            Attributes.reset();
+            Attributes = nullptr;
         }
 
         if (NodeStack.empty()) {

@@ -132,7 +132,7 @@ THeartbeatSession::THeartbeatSession(
     TMemberId memberId,
     i64 priority,
     i64 revision,
-    std::unique_ptr<IAttributeDictionary> attributes)
+    IAttributeDictionaryPtr attributes)
     : TRequestSession<void>(
         config->WriteQuorum,
         std::move(addressPool),

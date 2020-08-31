@@ -124,7 +124,7 @@ public:
                     << TErrorAttribute("request_id", Request_->GetRequestId()));
                 return;
             }
-            
+
             auto* ext = header.MutableExtension(NRpc::NProto::THedgingExt::hedging_ext);
             ext->set_backup_responded(true);
             message = SetResponseHeader(std::move(message), header);
@@ -147,12 +147,12 @@ public:
 
         YT_LOG_DEBUG_IF(backup, "Request failed at backup (RequestId: %v)",
             Request_->GetRequestId());
-        
+
         ResponseHandler_->HandleError(
             backup
             ? error << TErrorAttribute(BackupFailedKey, true)
             : error);
-        
+
         Cleanup();
     }
 
@@ -371,7 +371,7 @@ private:
     const THedgingChannelOptions Options_;
 
     const TString EndpointDescription_;
-    const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
+    const IAttributeDictionaryPtr EndpointAttributes_;
 };
 
 IChannelPtr CreateHedgingChannel(

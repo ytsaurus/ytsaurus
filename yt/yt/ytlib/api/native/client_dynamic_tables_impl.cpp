@@ -920,7 +920,7 @@ NYson::TYsonString TClient::DoExplainQuery(
     return BuildExplainQueryYson(GetNativeConnection(), queryString, fragment, udfRegistryPath, options);
 }
 
-std::unique_ptr<IAttributeDictionary> TClient::ResolveExternalTable(
+IAttributeDictionaryPtr TClient::ResolveExternalTable(
     const TYPath& path,
     TTableId* tableId,
     TCellTag* externalCellTag,
@@ -941,7 +941,7 @@ std::unique_ptr<IAttributeDictionary> TClient::ResolveExternalTable(
         THROW_ERROR_EXCEPTION("%v is not a table", path);
     }
 
-    std::unique_ptr<IAttributeDictionary> extraAttributes;
+    IAttributeDictionaryPtr extraAttributes;
     {
         auto req = TTableYPathProxy::Get(FromObjectId(*tableId) + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), extraAttributeKeys);

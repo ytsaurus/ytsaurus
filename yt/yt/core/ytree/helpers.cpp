@@ -94,9 +94,9 @@ private:
 
 };
 
-std::unique_ptr<IAttributeDictionary> CreateEphemeralAttributes()
+IAttributeDictionaryPtr CreateEphemeralAttributes()
 {
-    return std::unique_ptr<IAttributeDictionary>(new TEphemeralAttributeDictionary());
+    return New<TEphemeralAttributeDictionary>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +133,8 @@ public:
 
 const IAttributeDictionary& EmptyAttributes()
 {
-    return *Singleton<TEmptyAttributeDictionary>();
+    static auto emptyAttributeDictionary = New<TEmptyAttributeDictionary>();
+    return *emptyAttributeDictionary;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,9 +182,9 @@ private:
     NConcurrency::TReaderWriterSpinLock Lock_;
 };
 
-std::unique_ptr<IAttributeDictionary> CreateThreadSafeAttributes(IAttributeDictionary* underlying)
+IAttributeDictionaryPtr CreateThreadSafeAttributes(IAttributeDictionary* underlying)
 {
-    return std::unique_ptr<IAttributeDictionary>(new TThreadSafeAttributeDictionary(underlying));
+    return New<TThreadSafeAttributeDictionary>(underlying);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -217,7 +218,7 @@ void ToProto(NProto::TAttributeDictionary* protoAttributes, const IAttributeDict
     }
 }
 
-std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributeDictionary& protoAttributes)
+IAttributeDictionaryPtr FromProto(const NProto::TAttributeDictionary& protoAttributes)
 {
     auto attributes = CreateEphemeralAttributes();
     for (const auto& protoAttribute : protoAttributes.attributes()) {
@@ -230,10 +231,18 @@ std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributeDictiona
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAttributeDictionaryValueSerializer::Save(TStreamSaveContext& context, const IAttributeDictionary& obj)
+void TAttributeDictionarySerializer::Save(TStreamSaveContext& context, const IAttributeDictionaryPtr& attributes)
 {
     using NYT::Save;
-    auto pairs = obj.ListPairs();
+
+    // Presence byte.
+    if (!attributes) {
+        Save(context, false);
+        return;
+    }
+    Save(context, true);
+
+    auto pairs = attributes->ListPairs();
     std::sort(pairs.begin(), pairs.end(), [] (const auto& lhs, const auto& rhs) {
         return lhs.first < rhs.first;
     });
@@ -244,15 +253,25 @@ void TAttributeDictionaryValueSerializer::Save(TStreamSaveContext& context, cons
     }
 }
 
-void TAttributeDictionaryValueSerializer::Load(TStreamLoadContext& context, IAttributeDictionary& obj)
+void TAttributeDictionarySerializer::Load(TStreamLoadContext& context, IAttributeDictionaryPtr& attributes)
 {
     using NYT::Load;
-    obj.Clear();
+
+    // We intentionally always recreate attributes from scratch as an ephemeral
+    // attribute dictionary. Do not expect any phoenix-like behaviour here.
+    attributes = CreateEphemeralAttributes();
+
+    // Presence byte.
+    if (!Load<bool>(context)) {
+        return;
+    }
+
+    attributes->Clear();
     size_t size = TSizeSerializer::Load(context);
     for (size_t index = 0; index < size; ++index) {
         auto key = Load<TString>(context);
         auto value = Load<TYsonString>(context);
-        obj.SetYson(key, value);
+        attributes->SetYson(key, value);
     }
 }
 

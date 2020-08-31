@@ -689,7 +689,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
     auto ignoreTypeMismatch = request->ignore_type_mismatch();
     const auto& path = GetRequestTargetYPath(context->RequestHeader());
 
-    std::unique_ptr<IAttributeDictionary> explicitAttributes;
+    IAttributeDictionaryPtr explicitAttributes;
     if (request->has_node_attributes()) {
         explicitAttributes = FromProto(request->node_attributes());
     }
@@ -714,7 +714,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNonversionedMapObjectProxyBase<TObject>, Create)
         force,
         ignoreTypeMismatch);
 
-    auto proxy = Create(type, path, explicitAttributes.get());
+    auto proxy = Create(type, path, explicitAttributes.Get());
     const auto& objectId = proxy->GetId();
 
     response->set_cell_tag(TBase::Bootstrap_->GetCellTag());

@@ -1095,7 +1095,7 @@ public:
 
         Persist(context, Spec_);
         Persist(context, Options_);
-        Persist<TAttributeDictionaryRefSerializer>(context, InputTableAttributes_);
+        Persist<TAttributeDictionarySerializer>(context, InputTableAttributes_);
     }
 
     virtual IJobSplitter* GetJobSplitter() override
@@ -1109,7 +1109,7 @@ private:
     TRemoteCopyOperationSpecPtr Spec_;
     TRemoteCopyOperationOptionsPtr Options_;
 
-    std::unique_ptr<IAttributeDictionary> InputTableAttributes_;
+    IAttributeDictionaryPtr InputTableAttributes_;
 
     virtual TStringBuf GetDataWeightParameterNameForJob(EJobType jobType) const override
     {

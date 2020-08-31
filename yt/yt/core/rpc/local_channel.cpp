@@ -35,7 +35,7 @@ static const auto& Logger = RpcClientLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString EndpointDescription = "<local>";
-static const std::unique_ptr<IAttributeDictionary> EndpointAttributes =
+static const IAttributeDictionaryPtr EndpointAttributes =
     ConvertToAttributes(BuildYsonStringFluently()
         .BeginMap()
             .Item("local").Value(true)

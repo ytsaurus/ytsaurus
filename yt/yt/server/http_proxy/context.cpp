@@ -775,7 +775,7 @@ TSharedRef DumpError(const TError& error)
     formatAttributes->SetYson("format", TYsonString("pretty"));
 
     auto consumer = CreateConsumerForFormat(
-        TFormat(EFormatType::Json, formatAttributes.get()),
+        TFormat(EFormatType::Json, formatAttributes.Get()),
         EDataType::Structured,
         &errorStream);
 

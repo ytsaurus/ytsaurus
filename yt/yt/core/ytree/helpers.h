@@ -17,11 +17,11 @@ bool operator == (const IAttributeDictionary& lhs, const IAttributeDictionary& r
 bool operator != (const IAttributeDictionary& lhs, const IAttributeDictionary& rhs);
 
 //! Creates attributes dictionary in memory.
-std::unique_ptr<IAttributeDictionary> CreateEphemeralAttributes();
+IAttributeDictionaryPtr CreateEphemeralAttributes();
 
 //! Wraps an arbitrary implementation of IAttributeDictionary and turns it into a thread-safe one.
 //! Internally uses a read-write spinlock to protect the underlying instance from concurrent access.
-std::unique_ptr<IAttributeDictionary> CreateThreadSafeAttributes(IAttributeDictionary* underlying);
+IAttributeDictionaryPtr CreateThreadSafeAttributes(IAttributeDictionary* underlying);
 
 //! Creates empty attributes dictionary with deprecated method Set.
 const IAttributeDictionary& EmptyAttributes();
@@ -31,23 +31,14 @@ void Serialize(const IAttributeDictionary& attributes, NYson::IYsonConsumer* con
 
 //! Protobuf conversion methods.
 void ToProto(NProto::TAttributeDictionary* protoAttributes, const IAttributeDictionary& attributes);
-std::unique_ptr<IAttributeDictionary> FromProto(const NProto::TAttributeDictionary& protoAttributes);
+IAttributeDictionaryPtr FromProto(const NProto::TAttributeDictionary& protoAttributes);
 
-//! By-value binary serializer.
-struct TAttributeDictionaryValueSerializer
+//! By-ptr binary serializer.
+//! Supports TIntrusivePtr only.
+struct TAttributeDictionarySerializer
 {
-    static void Save(TStreamSaveContext& context, const IAttributeDictionary& obj);
-    static void Load(TStreamLoadContext& context, IAttributeDictionary& obj);
-};
-
-//! By-ref binary serializer.
-//! Supports |std::unique_ptr| and |std::shared_ptr|.
-struct TAttributeDictionaryRefSerializer
-{
-    template <class T>
-    static void Save(TStreamSaveContext& context, const T& obj);
-    template <class T>
-    static void Load(TStreamLoadContext& context, T& obj);
+    static void Save(TStreamSaveContext& context, const IAttributeDictionaryPtr& attributes);
+    static void Load(TStreamLoadContext& context, IAttributeDictionaryPtr& attributes);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -70,21 +61,9 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class C>
-struct TSerializerTraits<NYTree::IAttributeDictionary, C, void>
+struct TSerializerTraits<NYTree::IAttributeDictionaryPtr, C, void>
 {
-    typedef NYTree::TAttributeDictionaryValueSerializer TSerializer;
-};
-
-template <class C>
-struct TSerializerTraits<std::unique_ptr<NYTree::IAttributeDictionary>, C, void>
-{
-    typedef NYTree::TAttributeDictionaryRefSerializer TSerializer;
-};
-
-template <class C>
-struct TSerializerTraits<std::shared_ptr<NYTree::IAttributeDictionary>, C, void>
-{
-    typedef NYTree::TAttributeDictionaryRefSerializer TSerializer;
+    typedef NYTree::TAttributeDictionarySerializer TSerializer;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

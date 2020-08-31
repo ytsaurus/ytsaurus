@@ -79,7 +79,7 @@ void TUserFile::Persist(const TPersistenceContext& context)
     TUserObject::Persist(context);
 
     using NYT::Persist;
-    Persist<TAttributeDictionaryRefSerializer>(context, Attributes);
+    Persist<TAttributeDictionarySerializer>(context, Attributes);
     Persist(context, FileName);
     Persist(context, ChunkSpecs);
     Persist(context, Type);

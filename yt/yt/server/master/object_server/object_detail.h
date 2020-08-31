@@ -222,7 +222,11 @@ protected:
     private:
         TNontemplateNonversionedObjectProxyBase* const Proxy_;
 
-    } CustomAttributesImpl_;
+    };
+
+    using TCustomAttributeDictionaryPtr = TIntrusivePtr<TCustomAttributeDictionary>;
+
+    TCustomAttributeDictionaryPtr CustomAttributesImpl_;
 
     virtual bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 

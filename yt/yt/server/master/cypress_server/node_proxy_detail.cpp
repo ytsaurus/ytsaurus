@@ -225,7 +225,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     TCypressNode* trunkNode)
     : TObjectProxyBase(bootstrap, metadata, trunkNode)
     , THierarchicPermissionValidator(CreatePermissionValidator())
-    , CustomAttributesImpl_(this)
+    , CustomAttributesImpl_(New<TCustomAttributeDictionary>(this))
     , Transaction_(transaction)
     , TrunkNode_(trunkNode)
     , VersionedId_(Object_->GetId(), GetObjectId(Transaction_))
@@ -233,7 +233,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
     YT_ASSERT(TrunkNode_);
     YT_ASSERT(TrunkNode_->IsTrunk());
 
-    CustomAttributes_ = &CustomAttributesImpl_;
+    CustomAttributes_ = CustomAttributesImpl_.Get();
 }
 
 std::unique_ptr<ITransactionalNodeFactory> TNontemplateCypressNodeProxyBase::CreateFactory() const
@@ -1473,20 +1473,20 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
         }
     }
 
-    std::unique_ptr<IAttributeDictionary> explicitAttributes;
+    IAttributeDictionaryPtr explicitAttributes;
     if (request->has_node_attributes()) {
         explicitAttributes = FromProto(request->node_attributes());
     }
 
-    ValidateCreatePermissions(replace, explicitAttributes.get());
+    ValidateCreatePermissions(replace, explicitAttributes.Get());
 
     auto* node = GetThisImpl();
     // The node inside which the new node must be created.
     auto* intendedParentNode = replace ? node->GetParent() : node;
     auto* account = intendedParentNode->GetAccount();
 
-    TInheritedAttributeDictionary inheritedAttributes(Bootstrap_);
-    GatherInheritableAttributes(intendedParentNode, &inheritedAttributes.Attributes());
+    auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
+    GatherInheritableAttributes(intendedParentNode, &inheritedAttributes->Attributes());
 
     if (explicitAttributes) {
         auto optionalAccount = explicitAttributes->FindAndRemove<TString>("account");
@@ -1507,7 +1507,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     }
 
     auto factory = CreateCypressFactory(account, TNodeFactoryOptions());
-    auto newProxy = factory->CreateNode(type, &inheritedAttributes, explicitAttributes.get());
+    auto newProxy = factory->CreateNode(type, inheritedAttributes.Get(), explicitAttributes.Get());
 
     if (replace) {
         parent->ReplaceChild(this, newProxy);
