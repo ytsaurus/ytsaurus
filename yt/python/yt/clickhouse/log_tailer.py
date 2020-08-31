@@ -28,13 +28,18 @@ def set_log_tailer_table_attributes(table_kind, table_path, ttl, log_tailer_vers
     # COMPAT(max42)
     atomicity = "none" if _is_fresher_than(log_tailer_version, "19.8.34144") else "full"
 
+    if "ssd_blobs" in get("//sys/media", client=client):
+        medium = "ssd_blobs"
+    else:
+        medium = "default"
+
     attributes = {
         "min_data_versions": 0,
         "max_data_versions": 1,
         "max_dynamic_store_pool_size": 268435456,
         "min_data_ttl": ttl,
         "max_data_ttl": ttl,
-        "primary_medium": "ssd_blobs",
+        "primary_medium": medium,
         "optimize_for": "scan",
         "backing_store_retention_time": 0,
         "auto_compaction_period": 86400000,
