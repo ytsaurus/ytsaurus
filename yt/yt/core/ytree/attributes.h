@@ -9,9 +9,8 @@ namespace NYT::NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IAttributeDictionary
+    : public TRefCounted
 {
-    virtual ~IAttributeDictionary() = default;
-
     using TKey = TString;
     using TValue = NYson::TYsonString;
     using TKeyValuePair = std::pair<TKey, TValue>;
@@ -75,7 +74,7 @@ struct IAttributeDictionary
     void Set(const TString& key, const T& value);
 
     //! Constructs an instance from a map node (by serializing the values).
-    static std::unique_ptr<IAttributeDictionary> FromMap(const IMapNodePtr& node);
+    static IAttributeDictionaryPtr FromMap(const IMapNodePtr& node);
 
     //! Converts attributes to map node.
     IMapNodePtr ToMap() const;
@@ -87,8 +86,10 @@ struct IAttributeDictionary
     void MergeFrom(const IAttributeDictionary& other);
 
     //! Constructs an ephemeral copy.
-    std::unique_ptr<IAttributeDictionary> Clone() const;
+    IAttributeDictionaryPtr Clone() const;
 };
+
+DEFINE_REFCOUNTED_TYPE(IAttributeDictionary)
 
 ////////////////////////////////////////////////////////////////////////////////
 

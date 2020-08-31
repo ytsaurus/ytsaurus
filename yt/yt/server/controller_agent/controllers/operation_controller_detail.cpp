@@ -6025,10 +6025,10 @@ void TOperationControllerBase::GetUserFilesAttributes()
                             file.FileName = *fileNameFromPath;
                         } else {
                             const auto* actualAttributes = &attributes;
-                            std::unique_ptr<IAttributeDictionary> linkAttributes;
+                            IAttributeDictionaryPtr linkAttributes;
                             if (linkRsp.IsOK()) {
                                 linkAttributes = ConvertToAttributes(TYsonString(linkRsp.Value()->value()));
-                                actualAttributes = linkAttributes.get();
+                                actualAttributes = linkAttributes.Get();
                             }
                             if (const auto& fileNameAttribute = actualAttributes->Find<TString>("file_name")) {
                                 file.FileName = *fileNameAttribute;

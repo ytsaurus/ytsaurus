@@ -71,7 +71,11 @@ protected:
     private:
         TNontemplateCypressNodeProxyBase* const Proxy_;
 
-    } CustomAttributesImpl_;
+    };
+
+    using TCustomAttributeDictionaryPtr = TIntrusivePtr<TCustomAttributeDictionary>;
+
+    TCustomAttributeDictionaryPtr CustomAttributesImpl_;
 
     NTransactionServer::TTransaction* const Transaction_;
     TCypressNode* const TrunkNode_;
@@ -280,7 +284,7 @@ public:
 private:
     const NCellMaster::TBootstrap* Bootstrap_;
     TCompositeNodeBase::TAttributes InheritedAttributes_;
-    std::unique_ptr<IAttributeDictionary> Fallback_;
+    NYTree::IAttributeDictionaryPtr Fallback_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

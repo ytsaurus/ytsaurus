@@ -106,11 +106,11 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
-    auto primaryMediumName = combinedAttributes.GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
+    auto primaryMediumName = combinedAttributes->GetAndRemove<TString>("primary_medium", NChunkClient::DefaultStoreMediumName);
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
 
     std::optional<TSecurityTags> securityTags;
-    auto securityTagItems = combinedAttributes.FindAndRemove<TSecurityTagsItems>("security_tags");
+    auto securityTagItems = combinedAttributes->FindAndRemove<TSecurityTagsItems>("security_tags");
     if (securityTagItems) {
         securityTags = TSecurityTags{std::move(*securityTagItems)};
         securityTags->Validate();

@@ -15,10 +15,10 @@ public:
 
 protected:
     bool HasAttributes() const;
-    void SetAttributes(std::unique_ptr<IAttributeDictionary> attributes);
+    void SetAttributes(IAttributeDictionaryPtr attributes);
 
 private:
-    std::unique_ptr<IAttributeDictionary> Attributes_;
+    IAttributeDictionaryPtr Attributes_;
 
 };
 

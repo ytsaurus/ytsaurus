@@ -434,7 +434,7 @@ bool TSupportsAttributes::TCombinedAttributeDictionary::Remove(const TString& ke
 ////////////////////////////////////////////////////////////////////////////////
 
 TSupportsAttributes::TSupportsAttributes()
-    : CombinedAttributes_(this)
+    : CombinedAttributes_(New<TSupportsAttributes::TCombinedAttributeDictionary>(this))
 { }
 
 IYPathService::TResolveResult TSupportsAttributes::ResolveAttributes(
@@ -1115,7 +1115,7 @@ void TSupportsAttributes::SetAttributes(const TYPath& path, TReqMultisetAttribut
 
 IAttributeDictionary* TSupportsAttributes::GetCombinedAttributes()
 {
-    return &CombinedAttributes_;
+    return CombinedAttributes_.Get();
 }
 
 IAttributeDictionary* TSupportsAttributes::GetCustomAttributes()

@@ -56,9 +56,9 @@ protected:
     {
         const auto& config = Bootstrap_->GetConfig()->CypressManager;
         auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
-        auto replicationFactor = combinedAttributes.GetAndRemove("replication_factor", config->DefaultFileReplicationFactor);
-        auto compressionCodec = combinedAttributes.GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::None);
-        auto erasureCodec = combinedAttributes.GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
+        auto replicationFactor = combinedAttributes->GetAndRemove("replication_factor", config->DefaultFileReplicationFactor);
+        auto compressionCodec = combinedAttributes->GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::None);
+        auto erasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
 
         ValidateReplicationFactor(replicationFactor);
 

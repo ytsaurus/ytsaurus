@@ -73,10 +73,10 @@ protected:
             context.InheritedAttributes->Remove("compression_codec");
         }
         auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
-        auto erasureCodec = combinedAttributes.GetAndRemove<NErasure::ECodec>("erasure_codec", config->DefaultJournalErasureCodec);
-        auto replicationFactor = combinedAttributes.GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
-        auto readQuorum = combinedAttributes.GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
-        auto writeQuorum = combinedAttributes.GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
+        auto erasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("erasure_codec", config->DefaultJournalErasureCodec);
+        auto replicationFactor = combinedAttributes->GetAndRemove<int>("replication_factor", config->DefaultJournalReplicationFactor);
+        auto readQuorum = combinedAttributes->GetAndRemove<int>("read_quorum", config->DefaultJournalReadQuorum);
+        auto writeQuorum = combinedAttributes->GetAndRemove<int>("write_quorum", config->DefaultJournalWriteQuorum);
 
         NJournalClient::ValidateJournalAttributes(
             erasureCodec,

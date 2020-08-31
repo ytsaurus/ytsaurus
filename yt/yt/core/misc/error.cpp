@@ -637,7 +637,7 @@ void FromProto(TError* error, const NYT::NProto::TError& protoError)
         error->Attributes_ = FromProto(protoError.attributes());
         error->ExtractOriginAttributes();
     } else {
-        error->Attributes_.reset();
+        error->Attributes_ = nullptr;
     }
     error->InnerErrors_ = FromProto<std::vector<TError>>(protoError.inner_errors());
 }

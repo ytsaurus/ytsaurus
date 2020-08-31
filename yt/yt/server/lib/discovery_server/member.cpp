@@ -34,7 +34,7 @@ TMember::TAttributeReader::TAttributeReader(TMemberPtr member)
 
 const IAttributeDictionary* TMember::TAttributeReader::GetAttributes()
 {
-    return Member_->Attributes_.get();
+    return Member_->Attributes_.Get();
 }
 
 i64 TMember::TAttributeReader::GetRevision()
@@ -50,7 +50,7 @@ TMember::TAttributeWriter::TAttributeWriter(TMemberPtr member)
 IAttributeDictionary* TMember::TAttributeWriter::GetAttributes()
 {
     Member_->LastAttributesUpdateTime_ = TInstant::Now();
-    return Member_->Attributes_.get();
+    return Member_->Attributes_.Get();
 }
 
 void TMember::TAttributeWriter::SetRevision(i64 revision)

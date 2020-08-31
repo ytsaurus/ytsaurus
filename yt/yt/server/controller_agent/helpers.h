@@ -37,7 +37,7 @@ struct TUserFile
         std::optional<NObjectClient::TTransactionId> transactionId,
         bool layer);
 
-    std::shared_ptr<NYTree::IAttributeDictionary> Attributes;
+    NYTree::IAttributeDictionaryPtr Attributes;
     TString FileName;
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;
     bool Executable = false;

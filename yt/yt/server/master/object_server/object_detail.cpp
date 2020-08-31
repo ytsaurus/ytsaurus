@@ -988,9 +988,9 @@ TNontemplateNonversionedObjectProxyBase::TNontemplateNonversionedObjectProxyBase
     TObjectTypeMetadata* metadata,
     TObject* object)
     : TObjectProxyBase(bootstrap, metadata, object)
-    , CustomAttributesImpl_(this)
+    , CustomAttributesImpl_(New<TCustomAttributeDictionary>(this))
 {
-    CustomAttributes_ = &CustomAttributesImpl_;
+    CustomAttributes_ = CustomAttributesImpl_.Get();
 }
 
 bool TNontemplateNonversionedObjectProxyBase::DoInvoke(const IServiceContextPtr& context)

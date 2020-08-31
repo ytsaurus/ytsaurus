@@ -589,7 +589,7 @@ private:
         const std::vector<int>& tabletIndexes,
         const TGetTabletsInfoOptions& options);
 
-    std::unique_ptr<NYTree::IAttributeDictionary> ResolveExternalTable(
+    NYTree::IAttributeDictionaryPtr ResolveExternalTable(
         const NYPath::TYPath& path,
         NTableClient::TTableId* tableId,
         NObjectClient::TCellTag* externalCellTag,
@@ -930,7 +930,7 @@ private:
     NJobTrackerClient::NProto::TJobSpec FetchJobSpecFromArchive(
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
-    // Tries to fetch job spec from both node and job archive and checks 
+    // Tries to fetch job spec from both node and job archive and checks
     // that user has |requiredPermissions| for accessing the corresponding operation.
     // Throws if spec could not be fetched.
     NJobTrackerClient::NProto::TJobSpec FetchJobSpec(

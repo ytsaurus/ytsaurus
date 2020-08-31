@@ -126,7 +126,7 @@ NFormats::TFormat GetDefaultFormatForDataType(EDataType dataType)
     } else if (dataType == EDataType::Tabular) {
         auto attributes = CreateEphemeralAttributes();
         attributes->Set("format", "text");
-        return NFormats::TFormat(EFormatType::Yson, attributes.get());
+        return NFormats::TFormat(EFormatType::Yson, attributes.Get());
     } else {
         return NFormats::TFormat(EFormatType::Yson);
     }

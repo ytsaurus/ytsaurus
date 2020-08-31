@@ -80,7 +80,7 @@ private:
     void AppendToContextBuffer(char symbol);
 
     TString GetContext() const;
-    std::unique_ptr<NYTree::IAttributeDictionary> GetDebugInfo() const;
+    NYTree::IAttributeDictionaryPtr GetDebugInfo() const;
 
     IYamrConsumerPtr Consumer;
 

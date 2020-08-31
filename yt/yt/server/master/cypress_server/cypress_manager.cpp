@@ -293,15 +293,15 @@ public:
                 type);
         }
 
-        std::unique_ptr<IAttributeDictionary> explicitAttributeHolder;
+        IAttributeDictionaryPtr explicitAttributeHolder;
         if (!explicitAttributes) {
             explicitAttributeHolder = CreateEphemeralAttributes();
-            explicitAttributes = explicitAttributeHolder.get();
+            explicitAttributes = explicitAttributeHolder.Get();
         }
-        std::unique_ptr<IAttributeDictionary> inheritedAttributeHolder;
+        IAttributeDictionaryPtr inheritedAttributeHolder;
         if (!inheritedAttributes) {
             inheritedAttributeHolder = CreateEphemeralAttributes();
-            inheritedAttributes = inheritedAttributeHolder.get();
+            inheritedAttributes = inheritedAttributeHolder.Get();
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -362,8 +362,8 @@ public:
         }
 
         // INodeTypeHandler::Create and ::FillAttributes may modify the attributes.
-        std::unique_ptr<IAttributeDictionary> replicationExplicitAttributes;
-        std::unique_ptr<IAttributeDictionary> replicationInheritedAttributes;
+        IAttributeDictionaryPtr replicationExplicitAttributes;
+        IAttributeDictionaryPtr replicationInheritedAttributes;
         if (external) {
             replicationExplicitAttributes = explicitAttributes->Clone();
             replicationInheritedAttributes = inheritedAttributes->Clone();
@@ -551,8 +551,8 @@ private:
     struct TCreatedPortalEntrance
     {
         TPortalEntranceNode* Node;
-        std::unique_ptr<IAttributeDictionary> InheritedAttributes;
-        std::unique_ptr<IAttributeDictionary> ExplicitAttributes;
+        IAttributeDictionaryPtr InheritedAttributes;
+        IAttributeDictionaryPtr ExplicitAttributes;
     };
     std::vector<TCreatedPortalEntrance> CreatedPortalEntrances_;
 
@@ -571,8 +571,8 @@ private:
         EObjectType NodeType;
         TVersionedNodeId NodeId;
         TAccountId AccountId;
-        std::unique_ptr<IAttributeDictionary> ReplicationExplicitAttributes;
-        std::unique_ptr<IAttributeDictionary> ReplicationInheritedAttributes;
+        IAttributeDictionaryPtr ReplicationExplicitAttributes;
+        IAttributeDictionaryPtr ReplicationInheritedAttributes;
         TCellTag ExternalCellTag;
     };
     std::vector<TCreatedExternalNode> CreatedExternalNodes_;
@@ -3392,15 +3392,15 @@ private:
             TCreateNodeContext{
                 .ExternalCellTag = NotReplicatedCellTag,
                 .Transaction = transaction,
-                .InheritedAttributes = inheritedAttributes.get(),
-                .ExplicitAttributes = explicitAttributes.get(),
+                .InheritedAttributes = inheritedAttributes.Get(),
+                .ExplicitAttributes = explicitAttributes.Get(),
                 .Account = account
             });
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(trunkNode);
 
-        handler->FillAttributes(trunkNode, inheritedAttributes.get(), explicitAttributes.get());
+        handler->FillAttributes(trunkNode, inheritedAttributes.Get(), explicitAttributes.Get());
 
         LockNode(trunkNode, transaction, ELockMode::Exclusive);
     }
@@ -3432,7 +3432,7 @@ private:
                 mode);
             return;
         }
-        
+
         auto* clonedTransaction = clonedTransactionId
             ? transactionManager->FindTransaction(clonedTransactionId)
             : nullptr;

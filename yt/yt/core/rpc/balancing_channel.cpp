@@ -112,7 +112,7 @@ private:
     const TBalancingChannelConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
     const TString EndpointDescription_;
-    const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
+    const IAttributeDictionaryPtr EndpointAttributes_;
     const TString ServiceName_;
     const TDiscoverRequestHook DiscoverRequestHook_;
 
@@ -772,7 +772,7 @@ private:
     const TDiscoverRequestHook DiscoverRequestHook_;
 
     const TString EndpointDescription_;
-    const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
+    const IAttributeDictionaryPtr EndpointAttributes_;
 
     mutable TReaderWriterSpinLock SpinLock_;
     THashMap<TString, TBalancingChannelSubproviderPtr> SubproviderMap_;

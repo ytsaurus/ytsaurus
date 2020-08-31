@@ -142,7 +142,7 @@ private:
     NConcurrency::TFiberId Fid_ = NConcurrency::InvalidFiberId;
     NTracing::TTraceId TraceId_;
     NTracing::TSpanId SpanId_;
-    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
+    NYTree::IAttributeDictionaryPtr Attributes_;
     std::vector<TError> InnerErrors_;
 
     void CaptureOriginAttributes();

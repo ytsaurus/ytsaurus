@@ -122,7 +122,7 @@ private:
     const TNetworkPreferenceList Networks_;
 
     const TString EndpointDescription_;
-    const std::unique_ptr<IAttributeDictionary> EndpointAttributes_;
+    const IAttributeDictionaryPtr EndpointAttributes_;
 
     TSpinLock SpinLock_;
     IChannelPtr CachedChannel_;

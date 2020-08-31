@@ -252,10 +252,11 @@ private:
 
     private:
         TSupportsAttributes* const Owner_;
-
     };
 
-    TCombinedAttributeDictionary CombinedAttributes_;
+    using TCombinedAttributeDictionaryPtr = TIntrusivePtr<TCombinedAttributeDictionary>;
+
+    TCombinedAttributeDictionaryPtr CombinedAttributes_;
 
     TFuture<NYson::TYsonString> DoFindAttribute(TStringBuf key);
 

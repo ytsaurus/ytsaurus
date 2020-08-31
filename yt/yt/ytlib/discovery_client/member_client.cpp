@@ -25,7 +25,7 @@ class TMemberAttributeDictionary
     : public NYTree::IAttributeDictionary
 {
 public:
-    explicit TMemberAttributeDictionary(std::unique_ptr<IAttributeDictionary> underlying)
+    explicit TMemberAttributeDictionary(IAttributeDictionaryPtr underlying)
         : Underlying_(std::move(underlying))
     { }
 
@@ -58,12 +58,12 @@ public:
     }
 
 private:
-    const std::unique_ptr<IAttributeDictionary> Underlying_;
+    const IAttributeDictionaryPtr Underlying_;
 };
 
-std::unique_ptr<IAttributeDictionary> CreateMemberAttributes(std::unique_ptr<IAttributeDictionary> underlying)
+IAttributeDictionaryPtr CreateMemberAttributes(IAttributeDictionaryPtr underlying)
 {
-    return std::unique_ptr<IAttributeDictionary>(new TMemberAttributeDictionary(std::move(underlying)));
+    return New<TMemberAttributeDictionary>(std::move(underlying));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -95,12 +95,12 @@ public:
             config->ServerAddresses))
         , Config_(std::move(config))
         , Attributes_(CreateMemberAttributes(CreateEphemeralAttributes()))
-        , ThreadSafeAttributes_(CreateThreadSafeAttributes(Attributes_.get()))
+        , ThreadSafeAttributes_(CreateThreadSafeAttributes(Attributes_.Get()))
     { }
 
     NYTree::IAttributeDictionary* GetAttributes()
     {
-        return ThreadSafeAttributes_.get();
+        return ThreadSafeAttributes_.Get();
     }
 
     i64 GetPriority()
@@ -156,8 +156,8 @@ private:
     std::atomic<i64> Priority_ = std::numeric_limits<i64>::max();
     i64 Revision_ = 0;
 
-    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
-    std::unique_ptr<NYTree::IAttributeDictionary> ThreadSafeAttributes_;
+    NYTree::IAttributeDictionaryPtr Attributes_;
+    NYTree::IAttributeDictionaryPtr ThreadSafeAttributes_;
     TInstant LastAttributesUpdateTime_;
 
     void OnHeartbeat()
@@ -168,7 +168,7 @@ private:
 
         ++Revision_;
 
-        std::unique_ptr<NYTree::IAttributeDictionary> attributes;
+        NYTree::IAttributeDictionaryPtr attributes;
         auto now = TInstant::Now();
         THeartbeatSessionPtr session;
         {

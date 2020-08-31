@@ -106,10 +106,10 @@ INodePtr ConvertToNode(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-std::unique_ptr<IAttributeDictionary> ConvertToAttributes(const T& value)
+IAttributeDictionaryPtr ConvertToAttributes(const T& value)
 {
     auto attributes = CreateEphemeralAttributes();
-    TAttributeConsumer consumer(attributes.get());
+    TAttributeConsumer consumer(attributes.Get());
     Serialize(value, &consumer);
     return attributes;
 }

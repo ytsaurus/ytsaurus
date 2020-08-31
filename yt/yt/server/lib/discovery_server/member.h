@@ -70,7 +70,7 @@ private:
     NConcurrency::TReaderWriterSpinLock Lock_;
     i64 Priority_ = 0;
     i64 Revision_ = 0;
-    std::unique_ptr<NYTree::IAttributeDictionary> Attributes_;
+    NYTree::IAttributeDictionaryPtr Attributes_;
     NConcurrency::TLease Lease_;
     TInstant LeaseDeadline_;
     TInstant LastHeartbeatTime_;

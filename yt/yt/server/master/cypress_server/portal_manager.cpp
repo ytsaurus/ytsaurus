@@ -247,8 +247,8 @@ private:
             exitNodeId,
             TCreateNodeContext{
                 .ExternalCellTag = NotReplicatedCellTag,
-                .InheritedAttributes = inheritedAttributes.get(),
-                .ExplicitAttributes = explicitAttributes.get(),
+                .InheritedAttributes = inheritedAttributes.Get(),
+                .ExplicitAttributes = explicitAttributes.Get(),
                 .Account = account,
                 .Shard = shard
             })->As<TPortalExitNode>();
@@ -275,7 +275,7 @@ private:
         const auto& objectManager = Bootstrap_->GetObjectManager();
         objectManager->RefObject(node);
 
-        handler->FillAttributes(node, inheritedAttributes.get(), explicitAttributes.get());
+        handler->FillAttributes(node, inheritedAttributes.Get(), explicitAttributes.Get());
 
         YT_VERIFY(ExitNodes_.emplace(node->GetId(), node).second);
 

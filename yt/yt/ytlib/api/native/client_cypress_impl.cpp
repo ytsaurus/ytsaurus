@@ -902,7 +902,7 @@ TNodeId TClient::DoLinkNode(
     req->set_force(options.Force);
     SetTransactionId(req, options, true);
     SetMutationId(req, options);
-    auto attributes = options.Attributes ? ConvertToAttributes(options.Attributes.get()) : CreateEphemeralAttributes();
+    auto attributes = options.Attributes ? ConvertToAttributes(options.Attributes.Get()) : CreateEphemeralAttributes();
     attributes->Set("target_path", srcPath);
     ToProto(req->mutable_node_attributes(), *attributes);
     batchReq->AddRequest(req);
@@ -1063,7 +1063,7 @@ private:
             req->set_populate_security_tags(true);
             req->Tag() = &srcObject;
             NCypressClient::SetTransactionId(req, *srcObject.TransactionId);
-            batchReq->AddRequest(req, "get_src_attributes"); 
+            batchReq->AddRequest(req, "get_src_attributes");
         }
 
         {
