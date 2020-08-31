@@ -98,7 +98,7 @@ public:
     TMemoryUsageGuardPtr Acquire(i64 size);
 
     //! Future is set, when enough free size is available.
-    TFuture<TMemoryUsageGuardPtr> AsyncAquire(i64 size);
+    TFuture<TMemoryUsageGuardPtr> AsyncAcquire(i64 size);
 
     void Release(i64 size);
 

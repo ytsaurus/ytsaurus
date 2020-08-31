@@ -79,13 +79,13 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerGetsMemory)
     EXPECT_EQ(reader1->GetFreeMemorySize(), 200);
 
     {
-        auto acquire1 = reader1->AsyncAquire(200);
+        auto acquire1 = reader1->AsyncAcquire(200);
         NConcurrency::WaitFor(acquire1)
             .ValueOrThrow();
     }
 
     EXPECT_EQ(reader1->GetFreeMemorySize(), 200);
-    auto acquire2 = reader1->AsyncAquire(201);
+    auto acquire2 = reader1->AsyncAcquire(201);
     AssertOverTime([&] () { return !acquire2.IsSet(); });
 }
 
@@ -107,7 +107,7 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerRevokesMemory)
     EXPECT_EQ(reader1->GetFreeMemorySize(), 100);
 
     {
-        auto acquire1 = reader1->AsyncAquire(100);
+        auto acquire1 = reader1->AsyncAcquire(100);
         NConcurrency::WaitFor(acquire1)
             .ValueOrThrow();
     }
@@ -119,7 +119,7 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerRevokesMemory)
     EXPECT_EQ(reader1->GetFreeMemorySize(), 50);
     EXPECT_EQ(reader2->GetFreeMemorySize(), 50);
 
-    auto acquire2 = reader2->AsyncAquire(51);
+    auto acquire2 = reader2->AsyncAcquire(51);
     AssertOverTime([&] () { return !acquire2.IsSet(); });
 }
 
@@ -143,7 +143,7 @@ TEST(TestParallelReaderMemoryManager, TestChunkReaderMemoryManagerUnregister)
     AssertOverTime([&] () { return reader2->GetReservedMemorySize() == 0; });
 
     {
-        auto allocation = reader1->AsyncAquire(100);
+        auto allocation = reader1->AsyncAcquire(100);
         NConcurrency::WaitFor(allocation).ValueOrThrow();
         reader1->Finalize();
         AssertOverTime([&] () {

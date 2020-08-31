@@ -119,7 +119,7 @@ TBlockFetcher::TBlockFetcher(
     YT_VERIFY(TotalRemainingSize_ > 0);
 
     FetchNextGroupMemoryFuture_ =
-        MemoryManager_->AsyncAquire(
+        MemoryManager_->AsyncAcquire(
             std::min(TotalRemainingSize_.load(), Config_->GroupSize));
     FetchNextGroupMemoryFuture_.Subscribe(BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this))
         .Via(ReaderInvoker_));
@@ -305,7 +305,7 @@ void TBlockFetcher::FetchNextGroup(TErrorOr<TMemoryUsageGuardPtr> memoryUsageGua
     if (TotalRemainingSize_ > 0) {
         MemoryManager_->SetPrefetchMemorySize(std::min<i64>(TotalRemainingSize_, Config_->GroupSize));
         FetchNextGroupMemoryFuture_ =
-            MemoryManager_->AsyncAquire(std::min<i64>(TotalRemainingSize_, Config_->GroupSize));
+            MemoryManager_->AsyncAcquire(std::min<i64>(TotalRemainingSize_, Config_->GroupSize));
         FetchNextGroupMemoryFuture_.Subscribe(BIND(&TBlockFetcher::FetchNextGroup, MakeWeak(this))
             .Via(ReaderInvoker_));
     }
