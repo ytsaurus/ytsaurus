@@ -25,7 +25,7 @@ DEFINE_ENUM(EChunkMappingMode,
 //! force reset the contradicting chunk stripe to the given state and remap
 //! all the remaining stripes.
 class TInputChunkMapping
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TInputChunkMapping(EChunkMappingMode mode = EChunkMappingMode::Sorted);

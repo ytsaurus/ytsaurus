@@ -39,7 +39,7 @@ struct TExternalFunctionImpl
 };
 
 struct TExternalCGInfo
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TExternalCGInfo();
 

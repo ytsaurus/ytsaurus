@@ -310,7 +310,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryExecution
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TQueryExecution(

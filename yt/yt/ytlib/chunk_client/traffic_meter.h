@@ -25,7 +25,7 @@ namespace NYT::NChunkClient {
  * directions.
  */
 class TTrafficMeter
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     using TDirection = std::pair<TDataCenterName, TDataCenterName>;

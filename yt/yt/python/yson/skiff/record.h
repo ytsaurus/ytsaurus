@@ -15,7 +15,7 @@ namespace NYT::NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSkiffRecord
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     explicit TSkiffRecord(TSkiffSchema* schema);

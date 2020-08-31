@@ -15,7 +15,7 @@ namespace NYT::NApi {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSkynetSharePartsLocations
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     NNodeTrackerClient::TNodeDirectoryPtr NodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs;

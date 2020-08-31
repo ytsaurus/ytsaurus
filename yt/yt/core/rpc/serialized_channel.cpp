@@ -101,7 +101,7 @@ private:
     };
 
     struct TEntry
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         TEntry(
             IClientRequestPtr request,

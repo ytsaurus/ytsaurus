@@ -36,7 +36,7 @@ TChunkStripeStatisticsVector AggregateStatistics(
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkStripe
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TChunkStripe(bool foreign = false, bool solid = false);
     explicit TChunkStripe(NChunkClient::TInputDataSlicePtr dataSlice, bool foreign = false, bool solid = false);
@@ -70,7 +70,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkStripe)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TChunkStripeList
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TChunkStripeList() = default;
     TChunkStripeList(int stripeCount);

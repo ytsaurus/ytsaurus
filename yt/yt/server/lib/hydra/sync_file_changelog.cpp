@@ -37,7 +37,7 @@ static constexpr i64 Alignment = 4_KB;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSyncFileChangelog::TImpl
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TImpl(

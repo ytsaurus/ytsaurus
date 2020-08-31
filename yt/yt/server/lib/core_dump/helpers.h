@@ -27,7 +27,7 @@ void Serialize(const TCoreInfo& coreInfo, NYson::IYsonConsumer* consumer);
 ////////////////////////////////////////////////////////////////////////////////
 
 class ISparseCoreDumpConsumer
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     virtual void OnRegularBlock(TSharedRef block) = 0;

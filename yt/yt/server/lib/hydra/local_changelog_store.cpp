@@ -39,7 +39,7 @@ TString GetChangelogPath(const TString& path, int id)
 
 ////////////////////////////////////////////////////////////////////////////////
 class TLocalChangelogStoreLock
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     ui64 Acquire()

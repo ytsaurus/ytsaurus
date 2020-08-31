@@ -251,7 +251,7 @@ protected:
     // of a partition (at the same level) with greater partition index.
     // Results of per-partition sorts of final partitions are joined in order of partition indices.
     struct TPartition
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         //! For persistence only.
         TPartition() = default;
@@ -1849,7 +1849,7 @@ protected:
     void AssignPartitions()
     {
         struct TAssignedNode
-            : public TIntrinsicRefCounted
+            : public TRefCounted
         {
             TAssignedNode(const TExecNodeDescriptor& descriptor, double weight)
                 : Descriptor(descriptor)

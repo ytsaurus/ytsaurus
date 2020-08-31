@@ -57,7 +57,7 @@ static const auto& Profiler = ClickHouseProfiler;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClickHouseContext
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TClickHouseContext(

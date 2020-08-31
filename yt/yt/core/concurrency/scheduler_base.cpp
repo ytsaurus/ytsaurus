@@ -145,7 +145,7 @@ thread_local TFiberReusingAdapter* CurrentThread = nullptr;
 DECLARE_REFCOUNTED_STRUCT(TRefCountedGauge)
 
 struct TRefCountedGauge
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public NProfiling::TAtomicGauge
 {
     TRefCountedGauge(const NYPath::TYPath& path, const NProfiling::TTagIdList& tagIds)

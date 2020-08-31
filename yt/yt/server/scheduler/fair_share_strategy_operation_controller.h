@@ -7,7 +7,7 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareStrategyOperationController
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TFairShareStrategyOperationController(

@@ -11,7 +11,7 @@ const TLease NullLease = TLease();
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TLeaseEntry
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     bool IsValid = true;
     TDuration Timeout;

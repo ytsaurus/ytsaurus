@@ -55,7 +55,7 @@ void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NP
 
 //! An immutable ref-counted map of TExecNodeDescriptor-s.
 struct TRefCountedExecNodeDescriptorMap
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public TExecNodeDescriptorMap
 { };
 

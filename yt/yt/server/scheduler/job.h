@@ -26,7 +26,7 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJob
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
 

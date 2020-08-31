@@ -19,7 +19,7 @@ class TSharedRange
     : public TRange<T>
 {
 public:
-    typedef TIntrusivePtr<TIntrinsicRefCounted> THolderPtr;
+    typedef TIntrusivePtr<TRefCounted> THolderPtr;
 
     //! Constructs a null TMutableRange.
     TSharedRange()
@@ -98,10 +98,10 @@ protected:
 
 //! Constructs a combined holder instance by taking ownership of a given list of holders.
 template <class... THolders>
-TIntrusivePtr<TIntrinsicRefCounted> MakeIntrinsicHolder(THolders&&... holders)
+TIntrusivePtr<TRefCounted> MakeIntrinsicHolder(THolders&&... holders)
 {
     struct THolder
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         std::tuple<typename std::decay<THolders>::type...> Holders;
     };
@@ -115,7 +115,7 @@ template <class T, class TContainer, class... THolders>
 TSharedRange<T> DoMakeSharedRange(TContainer&& elements, THolders&&... holders)
 {
     struct THolder
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         typename std::decay<TContainer>::type Elements;
         std::tuple<typename std::decay<THolders>::type...> Holders;
@@ -173,7 +173,7 @@ class TSharedMutableRange
     : public TMutableRange<T>
 {
 public:
-    typedef TIntrusivePtr<TIntrinsicRefCounted> THolderPtr;
+    typedef TIntrusivePtr<TRefCounted> THolderPtr;
 
     //! Constructs a null TSharedMutableRange.
     TSharedMutableRange()
@@ -252,7 +252,7 @@ template <class T, class TContainer, class... THolders>
 TSharedMutableRange<T> DoMakeSharedMutableRange(TContainer&& elements, THolders&&... holders)
 {
     struct THolder
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         typename std::decay<TContainer>::type Elements;
         std::tuple<typename std::decay<THolders>::type...> Holders;

@@ -10,7 +10,7 @@ namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEvaluator
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     explicit TEvaluator(

@@ -14,7 +14,7 @@ namespace NYT::NChunkClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TInputDataSlice
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     using TChunkSliceList = SmallVector<TInputChunkSlicePtr, 1>;

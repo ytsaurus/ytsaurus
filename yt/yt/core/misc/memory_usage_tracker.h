@@ -7,7 +7,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IMemoryUsageTracker
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     virtual TError TryAcquire(size_t size) = 0;
     virtual void Release(size_t size) = 0;

@@ -484,7 +484,7 @@ private:
         const TCallback<TYsonString()>& localFetcher)
     {
         struct TSession
-            : public TIntrinsicRefCounted
+            : public TRefCounted
         {
             THashMap<TString, TYsonString> Map;
         };
@@ -518,7 +518,7 @@ private:
         const TCallback<TYsonString()>& localFetcher)
     {
         struct TSession
-            : public TIntrinsicRefCounted
+            : public TRefCounted
         {
             i64 Value = 0;
         };

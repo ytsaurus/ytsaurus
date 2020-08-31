@@ -175,7 +175,7 @@ public:
 private:
     int SerializationKeyIndex_ = 0;
     THashMap<void*, TEntitySerializationKey> RawPtrs_;
-    THashMap<TIntrusivePtr<TIntrinsicRefCounted>, TEntitySerializationKey> RefCountedPtrs_;
+    THashMap<TIntrusivePtr<TRefCounted>, TEntitySerializationKey> RefCountedPtrs_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -196,7 +196,7 @@ public:
 
 private:
     std::vector<void*> RawPtrs_;
-    std::vector<TIntrusivePtr<TIntrinsicRefCounted>> RefCountedPtrs_;
+    std::vector<TIntrusivePtr<TRefCounted>> RefCountedPtrs_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

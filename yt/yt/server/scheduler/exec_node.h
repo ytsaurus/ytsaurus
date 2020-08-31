@@ -41,7 +41,7 @@ struct TRecentlyFinishedJobInfo
  *  Thread affinity: ControlThread (unless noted otherwise)
  */
 class TExecNode
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 private:
     typedef THashMap<TJobId, TJobPtr> TJobMap;

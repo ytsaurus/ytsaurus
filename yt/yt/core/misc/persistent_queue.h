@@ -24,7 +24,7 @@ class TPersistentQueue;
 
 template <class T, size_t ChunkSize>
 struct TPersistentQueueChunk
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TIntrusivePtr<TPersistentQueueChunk<T, ChunkSize>> Next;
     T Elements[ChunkSize];

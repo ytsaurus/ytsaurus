@@ -295,7 +295,7 @@ struct TFairShareScheduleJobResult
 
 class TSchedulerElement
     : public TSchedulerElementFixedState
-    , public TIntrinsicRefCounted
+    , public TRefCounted
 {
 public:
     //! Enumerates elements of the tree using inorder traversal. Returns first unused index.
@@ -781,7 +781,7 @@ DEFINE_ENUM(EOperationPreemptionStatus,
 using TPreemptionStatusStatisticsVector = TEnumIndexedVector<EOperationPreemptionStatus, int>;
 
 class TOperationElementSharedState
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TOperationElementSharedState(

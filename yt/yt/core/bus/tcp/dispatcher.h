@@ -11,7 +11,7 @@ namespace NYT::NBus {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTcpDispatcherCounters
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     std::atomic<i64> InBytes = {0};
     std::atomic<i64> InPackets = {0};

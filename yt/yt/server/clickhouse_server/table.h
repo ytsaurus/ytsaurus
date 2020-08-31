@@ -13,7 +13,7 @@ namespace NYT::NClickHouseServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TTable
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public NChunkClient::TUserObject
 {
     NTableClient::TTableSchemaPtr Schema;

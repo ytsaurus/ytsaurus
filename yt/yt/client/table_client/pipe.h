@@ -10,7 +10,7 @@ namespace NYT::NTableClient {
 
 //! A pipe connecting a schemaful writer to a schemaful reader.
 class TSchemafulPipe
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TSchemafulPipe();

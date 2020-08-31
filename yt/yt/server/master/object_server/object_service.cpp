@@ -264,7 +264,7 @@ DEFINE_ENUM(EExecutionSessionSubrequestType,
 );
 
 class TObjectService::TExecuteSession
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TExecuteSession(

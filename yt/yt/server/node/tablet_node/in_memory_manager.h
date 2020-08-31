@@ -32,7 +32,7 @@ struct TPreloadedBlockTag { };
 
 //! Contains all relevant data (e.g. blocks) for in-memory chunks.
 struct TInMemoryChunkData
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
     int StartBlockIndex = 0;

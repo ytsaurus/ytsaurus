@@ -18,7 +18,7 @@ namespace NYT::NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSnapshotJob
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TOperationId OperationId;
     // We intentionally deal with controller weak pointers in the parent process in order

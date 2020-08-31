@@ -17,7 +17,7 @@ struct TSchemafulPipeBufferTag
 { };
 
 struct TSchemafulPipe::TData
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TSpinLock SpinLock;
 
@@ -232,7 +232,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemafulPipe::TImpl
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TImpl()

@@ -2136,7 +2136,7 @@ namespace NDetail {
 
 template <class T>
 class TBoundedConcurrencyRunner
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TBoundedConcurrencyRunner(

@@ -67,7 +67,7 @@ protected:
 
 
     struct TReadSessionBase
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         NProfiling::TWallTimer SessionTimer;
         std::optional<TChunkReadGuard> ChunkReadGuard;

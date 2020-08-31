@@ -129,9 +129,6 @@ struct TRefCounted
     static void DestroyRefCountedImpl(T* ptr);
 };
 
-// COMPAT
-using TIntrinsicRefCounted = TRefCounted;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 // Forward declaration.

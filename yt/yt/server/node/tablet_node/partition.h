@@ -16,7 +16,7 @@ struct TSampleKeyListTag
 { };
 
 struct TSampleKeyList
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TSharedRange<TKey> Keys;
 
@@ -29,7 +29,7 @@ DEFINE_REFCOUNTED_TYPE(TSampleKeyList)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TPartitionSnapshot
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TPartitionId Id;
     TOwningKey PivotKey;

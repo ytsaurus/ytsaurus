@@ -135,7 +135,7 @@ private:
     const TBlockMetaCachePtr BlockMetaCache_;
 
     struct TReadBlockSetSession
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         TBlockReadOptions Options;
         std::vector<int> BlockIndexes;

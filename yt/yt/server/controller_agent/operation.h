@@ -22,7 +22,7 @@ namespace NYT::NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TOperation
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TOperationId, Id);

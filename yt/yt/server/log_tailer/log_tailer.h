@@ -8,7 +8,7 @@ namespace NYT::NLogTailer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogTailer
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TLogTailer(

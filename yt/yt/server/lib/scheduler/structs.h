@@ -35,7 +35,7 @@ struct TJobStartDescriptor
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TControllerScheduleJobResult
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     void RecordFail(NControllerAgent::EScheduleJobFailReason reason);
     bool IsBackoffNeeded() const;

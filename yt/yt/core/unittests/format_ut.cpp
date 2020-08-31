@@ -38,7 +38,7 @@ static_assert(TFormatTraits<TInstant>::HasCustomFormatValue);
 struct TUnformattable
 { };
 static_assert(!TFormatTraits<TUnformattable>::HasCustomFormatValue);
-static_assert(!TFormatTraits<TIntrusivePtr<TIntrinsicRefCounted>>::HasCustomFormatValue);
+static_assert(!TFormatTraits<TIntrusivePtr<TRefCounted>>::HasCustomFormatValue);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -658,7 +658,7 @@ static inline TFluentAttributes BuildYsonAttributesFluently(NYson::IYsonConsumer
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFluentYsonWriterState
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     typedef NYson::TYsonString TValue;
@@ -688,7 +688,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFluentYsonBuilderState
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     typedef INodePtr TValue;

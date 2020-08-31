@@ -43,7 +43,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGrpcLibraryLock
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 private:
     DECLARE_NEW_FRIEND();

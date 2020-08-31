@@ -18,7 +18,7 @@ namespace NYT::NPython {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDriverResponseHolder
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TDriverResponseHolder();

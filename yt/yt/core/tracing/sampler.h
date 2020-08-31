@@ -21,7 +21,7 @@ public:
 
 private:
     struct TUserState
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         std::atomic<uint64_t> SampleCount;
     };

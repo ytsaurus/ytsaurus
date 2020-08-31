@@ -205,7 +205,7 @@ protected:
     // Partitions.
 
     struct TPartition
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         //! For persistence only.
         TPartition()
@@ -1514,7 +1514,7 @@ protected:
     void AssignPartitions()
     {
         struct TAssignedNode
-            : public TIntrinsicRefCounted
+            : public TRefCounted
         {
             TAssignedNode(const TExecNodeDescriptor& descriptor, double weight)
                 : Descriptor(descriptor)

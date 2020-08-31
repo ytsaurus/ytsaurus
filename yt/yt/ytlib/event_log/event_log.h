@@ -69,7 +69,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class IEventLogWriter
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     virtual std::unique_ptr<NYson::IYsonConsumer> CreateConsumer() = 0;

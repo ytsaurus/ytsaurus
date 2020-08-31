@@ -23,7 +23,7 @@ namespace NYT::NDataNode {
  *  Thread affinity: any
  */
 class TBlockPeerData
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     explicit TBlockPeerData(int entryCountLimit);

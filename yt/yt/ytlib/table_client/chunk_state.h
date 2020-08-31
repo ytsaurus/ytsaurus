@@ -11,7 +11,7 @@ namespace NYT::NTableClient {
 
 //! Extracted chunk state to avoid unnecessary reference counting.
 struct TChunkState
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TChunkState() = default;
     TChunkState(

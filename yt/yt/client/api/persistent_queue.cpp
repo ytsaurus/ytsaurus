@@ -146,7 +146,7 @@ private:
     };
 
     struct TState
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         TSpinLock SpinLock;
         std::deque<TPromise<IPersistentQueueRowsetPtr>> Promises;

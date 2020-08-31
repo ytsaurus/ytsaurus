@@ -153,7 +153,7 @@ private:
     friend class TSharedRefArrayImpl;
 
     class TBlobHolder
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
     public:
         explicit TBlobHolder(TBlob&& blob);
@@ -163,7 +163,7 @@ private:
     };
 
     class TStringHolder
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
     public:
         TStringHolder(TString&& string, TRefCountedTypeCookie cookie);
@@ -242,7 +242,7 @@ public:
 
 private:
     class TBlobHolder
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
     public:
         explicit TBlobHolder(TBlob&& blob);
@@ -252,7 +252,7 @@ private:
     };
 
     class TAllocationHolder
-        : public TIntrinsicRefCounted
+        : public TRefCounted
         , public TWithExtraSpace<TAllocationHolder>
     {
     public:

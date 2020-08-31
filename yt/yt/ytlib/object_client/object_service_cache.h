@@ -57,7 +57,7 @@ DEFINE_REFCOUNTED_TYPE(TObjectServiceCacheEntry)
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TCacheProfilingCounters
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     explicit TCacheProfilingCounters(const NProfiling::TTagIdList& tagIds);
 

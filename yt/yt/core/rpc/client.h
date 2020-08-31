@@ -87,7 +87,7 @@ DEFINE_REFCOUNTED_TYPE(IClientRequest)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClientContext
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY(TRequestId, RequestId);

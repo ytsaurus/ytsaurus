@@ -13,7 +13,7 @@ namespace NYT::NControllerAgent::NControllers {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TBriefJobStatistics
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     TInstant Timestamp = TInstant::Zero();
     EJobPhase Phase;
@@ -58,7 +58,7 @@ void ParseStatistics(TJobSummary* jobSummary, TInstant startTime, const NYson::T
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TScheduleJobStatistics
-    : public TIntrinsicRefCounted
+    : public TRefCounted
     , public IPersistent
 {
     void RecordJobResult(const NScheduler::TControllerScheduleJobResult& scheduleJobResult);

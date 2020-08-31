@@ -32,7 +32,7 @@ struct TLogRecord
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogFileReader
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TLogFileReader(

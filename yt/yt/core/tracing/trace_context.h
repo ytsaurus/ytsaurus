@@ -35,7 +35,7 @@ struct TFollowsFrom {};
 
 //! TTraceContext accumulates information associated with single tracing span.
 class TTraceContext
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
 public:
     TTraceContext(

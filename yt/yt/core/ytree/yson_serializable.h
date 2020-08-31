@@ -38,7 +38,7 @@ public:
     typedef std::function<void()> TPreprocessor;
 
     struct IParameter
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
         virtual void Load(NYTree::INodePtr node, const NYPath::TYPath& path, std::optional<EMergeStrategy> mergeStrategy = std::nullopt) = 0;
         virtual void SafeLoad(NYTree::INodePtr node, const NYPath::TYPath& path, const std::function<void()>& validate, std::optional<EMergeStrategy> mergeStrategy = std::nullopt) = 0;

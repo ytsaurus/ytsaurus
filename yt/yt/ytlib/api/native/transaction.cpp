@@ -818,7 +818,7 @@ private:
     };
 
     class TTableCommitSession
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
     public:
         TTableCommitSession(
@@ -882,7 +882,7 @@ private:
     std::vector<TTableCommitSessionPtr> PendingSessions_;
 
     class TTabletCommitSession
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
     public:
         TTabletCommitSession(
@@ -1236,7 +1236,7 @@ private:
     THashMap<TTabletId, TTabletCommitSessionPtr> TabletIdToSession_;
 
     class TCellCommitSession
-        : public TIntrinsicRefCounted
+        : public TRefCounted
     {
     public:
         TCellCommitSession(const TTransactionPtr& transaction, TCellId cellId)

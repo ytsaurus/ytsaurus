@@ -31,7 +31,7 @@ using namespace NLogging;
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TExtractedStripeList
-    : public TIntrinsicRefCounted
+    : public TRefCounted
 {
     //! Used only for persistence.
     TExtractedStripeList() = default;
