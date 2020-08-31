@@ -655,11 +655,23 @@ private:
 
             auto orchidAddressToAnnotations = OrchidAddressToAnnotations_.Load();
             for (const auto& orchidAddress : orchidAddresses) {
+                auto annotationsPath = orchidAddress + "/@annotations";
+                std::optional<TYsonString> annotations;
                 if (orchidAddressToAnnotations.contains(orchidAddress)) {
+                    annotations = orchidAddressToAnnotations[orchidAddress];
+                } else {
+                    try {
+                        annotations = GetNode(annotationsPath);
+                    } catch (const std::exception& ex) {
+                        YT_LOG_DEBUG(ex, "Failed to get annotations from Cypress (AnnotationsPath: %v)",
+                            annotationsPath);
+                    }
+                }
+                if (annotations) {
                     ScheduleSetNode(
-                        orchidAddress + "/@annotations",
+                        annotationsPath,
                         transactionId,
-                        orchidAddressToAnnotations[orchidAddress]);
+                        *annotations);
                 }
             }
 
