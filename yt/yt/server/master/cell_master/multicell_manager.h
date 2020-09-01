@@ -119,7 +119,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    const NObjectClient::TCellTagList& GetRoleMasterCells(EMasterCellRoles cellRole);
+    NObjectClient::TCellTagList GetRoleMasterCells(EMasterCellRoles cellRole);
 
     //! Returns the list of cell tags for all registered master cells (other than the local one),
     //! in a stable order.
