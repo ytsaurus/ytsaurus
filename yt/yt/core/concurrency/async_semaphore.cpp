@@ -116,6 +116,8 @@ void TAsyncSemaphore::AsyncAcquire(
 
 bool TAsyncSemaphore::IsReady() const
 {
+    TReaderGuard guard(SpinLock_);
+
     return FreeSlots_ > 0;
 }
 
@@ -128,6 +130,8 @@ bool TAsyncSemaphore::IsFree() const
 
 i64 TAsyncSemaphore::GetTotal() const
 {
+    TReaderGuard guard(SpinLock_);
+
     return TotalSlots_;
 }
 
@@ -140,6 +144,8 @@ i64 TAsyncSemaphore::GetUsed() const
 
 i64 TAsyncSemaphore::GetFree() const
 {
+    TReaderGuard guard(SpinLock_);
+
     return FreeSlots_;
 }
 
@@ -147,7 +153,7 @@ TFuture<void> TAsyncSemaphore::GetReadyEvent()
 {
     TWriterGuard guard(SpinLock_);
 
-    if (IsReady()) {
+    if (FreeSlots_ > 0) {
         return VoidFuture;
     } else if (!ReadyEvent_) {
         ReadyEvent_ = NewPromise<void>();
