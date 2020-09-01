@@ -130,8 +130,7 @@ public:
 
         TrafficMeter_->Start();
 
-        JobEvents_.emplace_back(JobState_, JobPhase_);
-        ReportStatistics(MakeDefaultJobStatistics());
+        AddJobEvent(JobState_, JobPhase_);
     }
 
     ~TJob()
@@ -552,7 +551,7 @@ public:
                 .Statistics(Statistics_));
         }
     }
-    
+
     virtual void BuildOrchid(NYTree::TFluentMap fluent) const override
     {
         fluent
@@ -821,7 +820,8 @@ private:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         JobEvents_.emplace_back(std::forward<U>(u)...);
-        ReportStatistics(MakeDefaultJobStatistics());
+        ReportStatistics(MakeDefaultJobStatistics()
+            .Events(JobEvents_));
     }
 
     void SetJobState(EJobState state)
@@ -1941,7 +1941,6 @@ private:
             .State(GetState())
             .StartTime(GetStartTime())
             .SpecVersion(0) // TODO: fill correct spec version.
-            .Events(JobEvents_)
             .CoreInfos(CoreInfos_)
             .ExecAttributes(ConvertToYsonString(ExecAttributes_));
         if (FinishTime_) {

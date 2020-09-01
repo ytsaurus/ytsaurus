@@ -117,7 +117,7 @@ public:
             .Default(TDuration::Minutes(5));
         RegisterParameter("toolkit_min_driver_version", ToolkitMinDriverVersion)
             .Default();
-        
+
         RegisterParameter("test_resource", TestResource)
             .Default(false);
         RegisterParameter("test_layers", TestLayers)
@@ -302,6 +302,7 @@ public:
     int MaxInProgressJobFailContextDataSize;
     int MaxItemsInBatch;
     TString User;
+    bool ReportStatisticsLz4;
 
     TJobReporterConfig()
     {
@@ -325,6 +326,8 @@ public:
             .Default(1000);
         RegisterParameter("user", User)
             .Default(NRpc::RootUserName);
+        RegisterParameter("report_statistics_lz4", ReportStatisticsLz4)
+            .Default(false);
     }
 };
 

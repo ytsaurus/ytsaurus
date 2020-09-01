@@ -92,6 +92,8 @@ struct TJobTableDescriptor
         const int Address;
         const int Error;
         const int Statistics;
+        const int BriefStatistics;
+        const int StatisticsLz4;
         const int Events;
         const int StderrSize;
         const int HasSpec;

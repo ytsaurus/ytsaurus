@@ -5,18 +5,23 @@ from yt.wrapper.operation_commands import add_failed_operation_stderrs_to_error_
 from yt.wrapper.common import uuid_hash_pair
 from yt.common import date_string_to_datetime
 
+import copy
 from collections import defaultdict
 from datetime import datetime
 import __builtin__
-from contextlib import contextmanager
 
 import pytest
+
 
 def get_stderr_from_table(operation_id, job_id):
     operation_hash = uuid_hash_pair(operation_id)
     job_hash = uuid_hash_pair(job_id)
-    rows = list(select_rows("stderr from [//sys/operations_archive/stderrs] where operation_id_lo={0}u and operation_id_hi={1}u and job_id_lo={2}u and job_id_hi={3}u"\
-        .format(operation_hash.lo, operation_hash.hi, job_hash.lo, job_hash.hi)))
+    rows = list(select_rows(
+        "stderr from [//sys/operations_archive/stderrs] "
+        "where operation_id_lo={0}u and operation_id_hi={1}u and "
+        "job_id_lo={2}u and job_id_hi={3}u"
+        .format(operation_hash.lo, operation_hash.hi, job_hash.lo, job_hash.hi)
+    ))
     assert len(rows) == 1
     return rows[0]["stderr"]
 
@@ -24,10 +29,14 @@ def get_stderr_from_table(operation_id, job_id):
 def get_profile_from_table(operation_id, job_id):
     operation_hash = uuid_hash_pair(operation_id)
     job_hash = uuid_hash_pair(job_id)
-    rows = list(select_rows("profile_type, profile_blob from [//sys/operations_archive/job_profiles] where operation_id_lo={0}u and operation_id_hi={1}u and job_id_lo={2}u and job_id_hi={3}u"\
-        .format(operation_hash.lo, operation_hash.hi, job_hash.lo, job_hash.hi)))
+    rows = list(select_rows(
+        "profile_type, profile_blob from [//sys/operations_archive/job_profiles] "
+        "where operation_id_lo={0}u and operation_id_hi={1}u and job_id_lo={2}u and job_id_hi={3}u"
+        .format(operation_hash.lo, operation_hash.hi, job_hash.lo, job_hash.hi)
+    ))
     assert len(rows) == 1
     return rows[0]["profile_type"], rows[0]["profile_blob"]
+
 
 def get_job_from_table(operation_id, job_id):
     path = init_operation_archive.DEFAULT_ARCHIVE_PATH + "/jobs"
@@ -41,6 +50,7 @@ def get_job_from_table(operation_id, job_id):
     }])
     return rows[0] if rows else None
 
+
 def set_job_in_table(operation_id, job_id, fields):
     path = init_operation_archive.DEFAULT_ARCHIVE_PATH + "/jobs"
     operation_hash = uuid_hash_pair(operation_id)
@@ -53,13 +63,15 @@ def set_job_in_table(operation_id, job_id, fields):
     })
     insert_rows(path, [fields], update=True, atomicity="none")
 
+
 def checked_list_jobs(*args, **kwargs):
     res = list_jobs(*args, **kwargs)
     if res["errors"]:
         raise YtError(message="list_jobs failed", inner_errors=res["errors"])
     return res
 
-class TestListJobs(YTEnvSetup):
+
+class TestListJobsBase(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "job_reporter": {
@@ -106,7 +118,7 @@ class TestListJobs(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
 
     def setup_method(self, method):
-        super(TestListJobs, self).setup_method(method)
+        super(TestListJobsBase, self).setup_method(method)
         sync_create_cells(1)
         init_operation_archive.create_tables_latest_version(self.Env.create_native_client(), override_tablet_cell_bundle="default")
         self._tmpdir = create_tmpdir("list_jobs")
@@ -342,7 +354,7 @@ class TestListJobs(YTEnvSetup):
         answers_for_sorting = TestListJobs._get_answers_for_sorting_after_finish(job_ids)
         TestListJobs._validate_sorting(op, answers_for_sorting,)
 
-        res = checked_list_jobs(op.id,with_stderr=True)
+        res = checked_list_jobs(op.id, with_stderr=True)
         job_id = res["jobs"][0]["id"]
         assert get_stderr_from_table(op.id, job_id) == "STDERR-OUTPUT\n"
         assert get_profile_from_table(op.id, job_id) == ("test", "foobar")
@@ -376,7 +388,7 @@ class TestListJobs(YTEnvSetup):
                     "input_format": "json",
                     "output_format": "json",
                 },
-                "map_job_count" : 3,
+                "map_job_count": 3,
                 "partition_count": 1,
             },
         )
@@ -424,11 +436,12 @@ class TestListJobs(YTEnvSetup):
         op.track()
 
         completed_map_job_id = job_ids["completed_map"][0]
+
         def has_job_state_converged():
             set_job_in_table(op.id, completed_map_job_id, {"transient_state": "running"})
             time.sleep(1)
             return get_job_from_table(op.id, completed_map_job_id)["transient_state"] == "running" and \
-                    get_job_from_table(op.id, aborted_map_job_id)["transient_state"] == "aborted"
+                get_job_from_table(op.id, aborted_map_job_id)["transient_state"] == "aborted"
         wait(has_job_state_converged)
 
         def check_times(job):
@@ -442,7 +455,6 @@ class TestListJobs(YTEnvSetup):
         completed_map_job_list = [job for job in res["jobs"] if job["id"] == completed_map_job_id]
         assert len(completed_map_job_list) == 1
         completed_map_job = completed_map_job_list[0]
-
 
         check_times(completed_map_job)
         assert completed_map_job["controller_agent_state"] == "completed"
@@ -499,6 +511,13 @@ class TestListJobs(YTEnvSetup):
             job_ids,
             operation_cleaned=True)
 
+
+class TestListJobsStatisticsLz4(TestListJobsBase):
+    DELTA_NODE_CONFIG = copy.deepcopy(TestListJobsBase.DELTA_NODE_CONFIG)
+    DELTA_NODE_CONFIG["exec_agent"]["job_reporter"]["report_statistics_lz4"] = True
+
+
+class TestListJobs(TestListJobsBase):
     @authors("ermolovd", "levysotsky")
     def test_running_jobs_stderr_size(self):
         input_table, output_table = self._create_tables()
@@ -709,3 +728,8 @@ class TestListJobsRpcProxy(TestListJobs):
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
 
+
+class TestListJobsStatisticsLz4RpcProxy(TestListJobsStatisticsLz4):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True
