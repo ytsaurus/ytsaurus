@@ -28,7 +28,7 @@ class TJob
     : public IJob
 {
 public:
-    explicit TJob(IJobHostPtr host);
+    explicit TJob(IJobHost* host);
 
     virtual std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     virtual TString GetStderr() override;
@@ -41,7 +41,7 @@ public:
     virtual i64 GetStderrSize() const override;
  
 protected:
-    const IJobHostPtr Host_;
+    IJobHost* Host_;
     const TInstant StartTime_;
 
     NChunkClient::TClientBlockReadOptions BlockReadOptions_;
@@ -53,7 +53,7 @@ class TSimpleJobBase
     : public TJob
 {
 public:
-    explicit TSimpleJobBase(IJobHostPtr host);
+    explicit TSimpleJobBase(IJobHost* host);
 
     virtual void Initialize() override;
 

@@ -39,7 +39,7 @@ using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUserJobWriteController::TUserJobWriteController(IJobHostPtr host)
+TUserJobWriteController::TUserJobWriteController(IJobHost* host)
     : Host_(host)
     , Logger(host->GetLogger())
 { }

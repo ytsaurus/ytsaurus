@@ -15,7 +15,7 @@ namespace NYT::NJobProxy {
 class TUserJobWriteController
 {
 public:
-    explicit TUserJobWriteController(IJobHostPtr host);
+    explicit TUserJobWriteController(IJobHost* host);
     ~TUserJobWriteController();
 
     void Init();
@@ -27,7 +27,7 @@ public:
     void PopulateStderrResult(NScheduler::NProto::TSchedulerJobResultExt* schedulerJobResultExt);
 
 protected:
-    const IJobHostPtr Host_;
+    const IJobHost* Host_;
     const NLogging::TLogger Logger;
 
     std::atomic<bool> Initialized_ = {false};

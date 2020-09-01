@@ -89,7 +89,7 @@ IConnectionReaderPtr TGpuCoreReader::CreateAsyncReader()
 TCoreWatcher::TCoreWatcher(
     TCoreWatcherConfigPtr config,
     TString coreDirectoryPath,
-    IJobHostPtr jobHost,
+    IJobHost* jobHost,
     IInvokerPtr controlInvoker,
     TBlobTableWriterConfigPtr blobTableWriterConfig,
     TTableWriterOptionsPtr tableWriterOptions,

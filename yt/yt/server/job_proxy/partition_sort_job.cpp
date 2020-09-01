@@ -37,7 +37,7 @@ class TPartitionSortJob
     : public TSimpleJobBase
 {
 public:
-    explicit TPartitionSortJob(IJobHostPtr host)
+    explicit TPartitionSortJob(IJobHost* host)
         : TSimpleJobBase(host)
         , SortJobSpecExt_(JobSpec_.GetExtension(TSortJobSpecExt::sort_job_spec_ext))
     { }
@@ -74,7 +74,7 @@ public:
             Host_->GetInputNodeDirectory(),
             keyColumns,
             nameTable,
-            BIND(&IJobHost::ReleaseNetwork, Host_),
+            BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
             TotalRowCount_,
@@ -152,7 +152,7 @@ private:
     }
 };
 
-IJobPtr CreatePartitionSortJob(IJobHostPtr host)
+IJobPtr CreatePartitionSortJob(IJobHost* host)
 {
     return New<TPartitionSortJob>(host);
 }

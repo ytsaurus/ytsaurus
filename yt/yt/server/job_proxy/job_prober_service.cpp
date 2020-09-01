@@ -32,7 +32,7 @@ class TJobProberService
     : public TServiceBase
 {
 public:
-    TJobProberService(IJobProbePtr jobProxy, IInvokerPtr controlInvoker)
+    TJobProberService(IJobProbe* jobProxy, IInvokerPtr controlInvoker)
         : TServiceBase(
             controlInvoker,
             TJobProberServiceProxy::GetDescriptor(),
@@ -47,7 +47,7 @@ public:
     }
 
 private:
-    const IJobProbePtr JobProxy_;
+    IJobProbe* JobProxy_;
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
     {
@@ -98,7 +98,7 @@ private:
     }
 };
 
-IServicePtr CreateJobProberService(IJobProbePtr jobProbe, IInvokerPtr controlInvoker)
+IServicePtr CreateJobProberService(IJobProbe* jobProbe, IInvokerPtr controlInvoker)
 {
     return New<TJobProberService>(jobProbe, controlInvoker);
 }
