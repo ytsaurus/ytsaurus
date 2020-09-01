@@ -7,6 +7,8 @@
 
 #include <yt/core/rpc/proto/rpc.pb.h>
 
+#include <yt/core/ytalloc/memory_zone.h>
+
 namespace NYT::NRpc {
 
 using namespace NBus;
@@ -27,7 +29,11 @@ struct TFixedMessageHeader
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSerializedMessageTag { };
+struct TSerializedMessageTag
+{ };
+
+struct TAdjustedMemoryZoneMessageTag 
+{ };
 
 namespace {
 
@@ -246,6 +252,46 @@ TSharedRefArray CreateStreamingFeedbackMessage(
         &builder,
         TFixedMessageHeader{EMessageType::StreamingFeedback},
         header);
+    return builder.Finish();
+}
+
+TSharedRefArray AdjustMessageMemoryZone(
+    TSharedRefArray message,
+    NYTAlloc::EMemoryZone memoryZone)
+{
+    size_t bytesToCopy = 0;
+    for (int index = 2; index < message.Size(); ++index) {
+        const auto& part = message[index];
+        if (part.Size() > 0 && NYTAlloc::GetAllocationMemoryZone(part.Begin()) != memoryZone) {
+            bytesToCopy += part.Size();
+        }
+    }
+
+    if (bytesToCopy == 0) {
+        return message;
+    }
+
+    TSharedRefArrayBuilder builder(
+        message.Size(),
+        bytesToCopy,
+        GetRefCountedTypeCookie<TAdjustedMemoryZoneMessageTag>());
+    
+    NYTAlloc::TMemoryZoneGuard guard(memoryZone);
+    
+    for (int index = 0; index < std::min(static_cast<int>(message.Size()), 2); ++index) {
+        builder.Add(message[index]);
+    }
+
+    for (int index = 2; index < message.Size(); ++index) {
+        const auto& part = message[index];
+        if (part.Size() > 0 && NYTAlloc::GetAllocationMemoryZone(part.Begin()) != memoryZone) {
+            auto copiedPart = builder.AllocateAndAdd(part.Size());
+            ::memcpy(copiedPart.Begin(), part.Begin(), part.Size());
+        } else {
+            builder.Add(part);
+        }
+    }
+
     return builder.Finish();
 }
 
