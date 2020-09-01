@@ -149,34 +149,6 @@ private:
                     });
                 return true;
 
-            case EInternedAttributeKey::StagedNodeIds:
-                BuildYsonFluently(consumer)
-                    .DoListFor(transaction->StagedNodes(), [=] (TFluentList fluent, const TCypressNode* node) {
-                        fluent.Item().Value(node->GetId());
-                    });
-                return true;
-
-            case EInternedAttributeKey::BranchedNodeIds:
-                BuildYsonFluently(consumer)
-                    .DoListFor(transaction->BranchedNodes(), [=] (TFluentList fluent, const TCypressNode* node) {
-                        fluent.Item().Value(node->GetId());
-                    });
-                return true;
-
-            case EInternedAttributeKey::LockedNodeIds:
-                BuildYsonFluently(consumer)
-                    .DoListFor(transaction->LockedNodes(), [=] (TFluentList fluent, const TCypressNode* node) {
-                        fluent.Item().Value(node->GetId());
-                    });
-                return true;
-
-            case EInternedAttributeKey::LockIds:
-                BuildYsonFluently(consumer)
-                    .DoListFor(transaction->Locks(), [=] (TFluentList fluent, const TLock* lock) {
-                        fluent.Item().Value(lock->GetId());
-                    });
-                return true;
-
             case EInternedAttributeKey::PrerequisiteTransactionIds:
                 BuildYsonFluently(consumer)
                     .DoListFor(transaction->PrerequisiteTransactions(), [=] (auto fluent, const auto* transaction) {
@@ -269,6 +241,48 @@ private:
                         });
                 }).AsyncVia(GetCurrentInvoker()));
 
+            case EInternedAttributeKey::StagedNodeIds: {
+                return FetchMergeableAttribute(
+                    key.Unintern(),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        return BuildYsonStringFluently().DoListFor(transaction->StagedNodes(), [] (TFluentList fluent, const TCypressNode* node) {
+                            fluent.Item().Value(node->GetId());
+                        });
+                    }));
+            }
+
+            case EInternedAttributeKey::BranchedNodeIds: {
+                return FetchMergeableAttribute(
+                    key.Unintern(),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        return BuildYsonStringFluently().DoListFor(transaction->BranchedNodes(), [] (TFluentList fluent, const TCypressNode* node) {
+                            fluent.Item().Value(node->GetId());
+                        });
+                    }));
+
+
+            }
+
+            case EInternedAttributeKey::LockedNodeIds: {
+                return FetchMergeableAttribute(
+                    key.Unintern(),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        return BuildYsonStringFluently().DoListFor(transaction->LockedNodes(), [] (TFluentList fluent, const TCypressNode* node) {
+                            fluent.Item().Value(node->GetId());
+                        });
+                    }));
+            }
+
+            case EInternedAttributeKey::LockIds: {
+                return FetchMergeableAttribute(
+                    key.Unintern(),
+                    BIND([=, this_ = MakeStrong(this)] {
+                        return BuildYsonStringFluently().DoListFor(transaction->Locks(), [] (TFluentList fluent, const TLock* lock) {
+                            fluent.Item().Value(lock->GetId());
+                        });
+                    }));
+            }
+
             case EInternedAttributeKey::StagedObjectIds: {
                 return FetchMergeableAttribute(
                     key.Unintern(),
@@ -329,11 +343,13 @@ private:
 
     TFuture<TMulticellAccountResourcesMap> GetMulticellResourceUsageMap()
     {
+        const auto* transaction = GetThisImpl();
+
         std::vector<TFuture<std::pair<TCellTag, TAccountResourcesMap>>> asyncResults;
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         asyncResults.push_back(GetLocalResourcesMap(multicellManager->GetCellTag()));
-        if (IsPrimaryMaster()) {
-            for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
+        if (transaction->IsNative()) {
+            for (auto cellTag : transaction->ReplicatedToCellTags()) {
                 asyncResults.push_back(GetRemoteResourcesMap(cellTag));
             }
         }
@@ -381,7 +397,7 @@ private:
         auto batchReq = proxy.ExecuteBatch();
 
         auto transactionId = GetId();
-        auto req = TYPathProxy::Get(FromObjectId(transactionId) + "/@resource_usage");
+        auto req = TYPathProxy::Get("&" + FromObjectId(transactionId) + "/@resource_usage");
         batchReq->AddRequest(req);
 
         return batchReq->Invoke()
@@ -431,7 +447,7 @@ private:
         auto batchReq = proxy.ExecuteBatch();
 
         auto transactionId = Object_->GetId();
-        auto req = TYPathProxy::Get(FromObjectId(transactionId) + "/@" + attributeKey);
+        auto req = TYPathProxy::Get("&" + FromObjectId(transactionId) + "/@" + attributeKey);
         batchReq->AddRequest(req);
 
         return batchReq->Invoke()
@@ -465,10 +481,11 @@ private:
         auto session = New<TSession>();
         accumulator(session, localFetcher());
 
+        const auto* transaction = GetThisImpl();
+
         std::vector<TFuture<void>> asyncResults;
-        if (IsPrimaryMaster()) {
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
+        if (transaction->IsNative()) {
+            for (auto cellTag : transaction->ReplicatedToCellTags()) {
                 asyncResults.push_back(FetchCombinedAttributeFromRemote(session, attributeKey, cellTag, accumulator));
             }
         }

@@ -4,6 +4,7 @@
 #include "garbage_collector.h"
 #include "master.h"
 #include "master_type_handler.h"
+#include "mutation_idempotizer.h"
 #include "schema.h"
 #include "type_handler.h"
 #include "path_resolver.h"
@@ -14,6 +15,8 @@
 
 #include <yt/server/lib/hydra/entity_map.h>
 #include <yt/server/lib/hydra/mutation.h>
+
+#include <yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/server/master/cell_master/automaton.h>
 #include <yt/server/master/cell_master/bootstrap.h>
@@ -40,6 +43,7 @@
 #include <yt/server/master/security_server/user.h>
 #include <yt/server/master/security_server/account.h>
 
+#include <yt/server/master/transaction_server/boomerang_tracker.h>
 #include <yt/server/master/transaction_server/transaction.h>
 #include <yt/server/master/transaction_server/transaction_manager.h>
 
@@ -276,6 +280,8 @@ private:
 
     TGarbageCollectorPtr GarbageCollector_;
 
+    TMutationIdempotizerPtr MutationIdempotizer_;
+
     int CreatedObjects_ = 0;
     int DestroyedObjects_ = 0;
 
@@ -313,6 +319,7 @@ private:
     void HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* request) noexcept;
     void HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept;
     void HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqConfirmRemovalAwaitingCellsSyncObjects* request) noexcept;
+    void HydraRemoveExpiredRecentlyAppliedMutationIds(NProto::TReqRemoveExpiredRecentlyAppliedMutationIds* request);
 
     void DoRemoveObject(TObject* object);
     void CheckRemovingObjectRefCounter(TObject* object);
@@ -603,6 +610,7 @@ TObjectManager::TImpl::TImpl(TBootstrap* bootstrap)
     , Profiler(ObjectServerProfiler)
     , RootService_(New<TRootService>(Bootstrap_))
     , GarbageCollector_(New<TGarbageCollector>(Bootstrap_))
+    , MutationIdempotizer_(New<TMutationIdempotizer>(Bootstrap_))
 {
     YT_VERIFY(bootstrap);
 
@@ -632,6 +640,7 @@ TObjectManager::TImpl::TImpl(TBootstrap* bootstrap)
     RegisterMethod(BIND(&TImpl::HydraConfirmObjectLifeStage, Unretained(this)));
     RegisterMethod(BIND(&TImpl::HydraAdvanceObjectLifeStage, Unretained(this)));
     RegisterMethod(BIND(&TImpl::HydraConfirmRemovalAwaitingCellsSyncObjects, Unretained(this)));
+    RegisterMethod(BIND(&TImpl::HydraRemoveExpiredRecentlyAppliedMutationIds, Unretained(this)));
 
     auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
     MasterObjectId_ = MakeWellKnownId(EObjectType::Master, primaryCellTag);
@@ -890,6 +899,7 @@ void TObjectManager::TImpl::SaveKeys(NCellMaster::TSaveContext& context) const
 {
     SchemaMap_.SaveKeys(context);
     GarbageCollector_->SaveKeys(context);
+    MutationIdempotizer_->Save(context);
 }
 
 void TObjectManager::TImpl::SaveValues(NCellMaster::TSaveContext& context) const
@@ -904,6 +914,10 @@ void TObjectManager::TImpl::LoadKeys(NCellMaster::TLoadContext& context)
 
     SchemaMap_.LoadKeys(context);
     GarbageCollector_->LoadKeys(context);
+    // COMPAT(shakurov)
+    if (context.GetVersion() >= EMasterReign::ShardedTransactions) {
+        MutationIdempotizer_->Load(context);
+    }
 }
 
 void TObjectManager::TImpl::LoadValues(NCellMaster::TLoadContext& context)
@@ -936,6 +950,7 @@ void TObjectManager::TImpl::Clear()
     DestroyedObjects_ = 0;
 
     GarbageCollector_->Clear();
+    MutationIdempotizer_->Clear();
 }
 
 void TObjectManager::TImpl::InitSchemas()
@@ -967,6 +982,8 @@ void TObjectManager::TImpl::InitSchemas()
 
 void TObjectManager::TImpl::OnRecoveryStarted()
 {
+    TMasterAutomatonPart::OnRecoveryStarted();
+
     Profiler.SetEnabled(false);
 
     ++CurrentEpoch_;
@@ -975,6 +992,8 @@ void TObjectManager::TImpl::OnRecoveryStarted()
 
 void TObjectManager::TImpl::OnRecoveryComplete()
 {
+    TMasterAutomatonPart::OnRecoveryComplete();
+
     Profiler.SetEnabled(true);
 }
 
@@ -982,14 +1001,20 @@ void TObjectManager::TImpl::OnLeaderActive()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    TMasterAutomatonPart::OnLeaderActive();
+
     GarbageCollector_->Start();
+    MutationIdempotizer_->Start();
 }
 
 void TObjectManager::TImpl::OnStopLeading()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+    TMasterAutomatonPart::OnStopLeading();
+
     GarbageCollector_->Stop();
+    MutationIdempotizer_->Stop();
 }
 
 TObject* TObjectManager::TImpl::FindObject(TObjectId id)
@@ -1323,7 +1348,7 @@ bool TObjectManager::TImpl::IsObjectLifeStageValid(const TObject* object) const
 {
     YT_VERIFY(IsObjectAlive(object));
 
-    if (NHiveServer::IsHiveMutation()) {
+    if (NHiveServer::IsHiveMutation() && !NTransactionServer::IsBoomerangMutation()) {
         return true;
     }
 
@@ -1438,10 +1463,7 @@ void TObjectManager::TImpl::ValidatePrerequisites(const NObjectClient::NProto::T
     auto getPrerequisiteTransaction = [&] (TTransactionId transactionId) {
         auto* transaction = transactionManager->FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
-            THROW_ERROR_EXCEPTION(
-                NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                "Prerequisite check failed: transaction %v is missing",
-                transactionId);
+            ThrowPrerequisiteCheckFailedNoSuchTransaction(transactionId);
         }
         if (transaction->GetPersistentState() != ETransactionState::Active) {
             THROW_ERROR_EXCEPTION(
@@ -1458,17 +1480,12 @@ void TObjectManager::TImpl::ValidatePrerequisites(const NObjectClient::NProto::T
     }
 
     for (const auto& prerequisite : prerequisites.revisions()) {
-        auto transactionId = FromProto<TTransactionId>(prerequisite.transaction_id());
         const auto& path = prerequisite.path();
         auto revision = prerequisite.revision();
 
-        auto* transaction = transactionId
-            ? getPrerequisiteTransaction(transactionId)
-            : nullptr;
-
         TCypressNode* trunkNode;
         try {
-            trunkNode = cypressManager->ResolvePathToTrunkNode(path, transaction);
+            trunkNode = cypressManager->ResolvePathToTrunkNode(path);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
                 NObjectClient::EErrorCode::PrerequisiteCheckFailed,
@@ -1608,6 +1625,36 @@ void TObjectManager::TImpl::HydraExecuteLeader(
 
     TCodicilGuard codicilGuard(codicilData);
 
+    auto mutationId = rpcContext->GetMutationId();
+    const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+    const auto& responseKeeper = hydraFacade->GetResponseKeeper();
+
+    if (mutationId && MutationIdempotizer_->IsMutationApplied(mutationId)) {
+        // Usually, the response keeper protects us from duplicate mutations,
+        // since no request can be executed while another request is in between
+        // its "begin" and "end".
+        //
+        // However, a boomerang may return in precisely that (unfortunate)
+        // interval. If the boomerang's "begin" has been lost due to a recent
+        // leader change, we get here.
+
+        if (!mutationContext->GetResponseKeeperSuppressed()) {
+            auto keptResult = responseKeeper->FindRequest(mutationId, rpcContext->IsRetry());
+            if (keptResult) {
+                rpcContext->ReplyFrom(keptResult);
+            }
+        }
+        if (!rpcContext->IsReplied()) {
+            rpcContext->Reply(TError("Mutation is already applied")
+                << TErrorAttribute("mutation_id", mutationId));
+        }
+
+        YT_LOG_WARNING("Duplicate mutation application skipped (MutationId: %v)",
+            mutationId);
+
+        return;
+    }
+
     const auto& securityManager = Bootstrap_->GetSecurityManager();
 
     TUser* user = nullptr;
@@ -1623,12 +1670,15 @@ void TObjectManager::TImpl::HydraExecuteLeader(
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, timer.GetElapsedTime()});
     }
 
-    auto mutationId = rpcContext->GetMutationId();
-    if (mutationId && !mutationContext->GetResponseKeeperSuppressed()) {
-        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-        const auto& responseKeeper = hydraFacade->GetResponseKeeper();
-        // NB: Context must already be replied by now.
-        responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage());
+    if (mutationId) {
+        MutationIdempotizer_->SetMutationApplied(mutationId);
+
+        if (!mutationContext->GetResponseKeeperSuppressed()) {
+            const auto& hydraFacade = Bootstrap_->GetHydraFacade();
+            const auto& responseKeeper = hydraFacade->GetResponseKeeper();
+            // NB: Context must already be replied by now.
+            responseKeeper->EndRequest(mutationId, rpcContext->GetResponseMessage());
+        }
     }
 }
 
@@ -1889,6 +1939,11 @@ void TObjectManager::TImpl::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::
     }
 }
 
+void TObjectManager::TImpl::HydraRemoveExpiredRecentlyAppliedMutationIds(NProto::TReqRemoveExpiredRecentlyAppliedMutationIds* /*request*/)
+{
+    MutationIdempotizer_->RemoveExpiredMutations();
+}
+
 void TObjectManager::TImpl::DoRemoveObject(TObject* object)
 {
     YT_LOG_DEBUG_UNLESS(IsRecovery(), "Object removed (ObjectId: %v)",
@@ -2017,6 +2072,7 @@ void TObjectManager::TImpl::OnProfiling()
     Profiler.Enqueue("/locked_object_count", GarbageCollector_->GetLockedCount(), EMetricType::Gauge);
     Profiler.Enqueue("/created_objects", CreatedObjects_, EMetricType::Counter);
     Profiler.Enqueue("/destroyed_objects", DestroyedObjects_, EMetricType::Counter);
+    Profiler.Enqueue("/recently_finished_mutation_count", MutationIdempotizer_->RecentlyFinishedMutationCount(), EMetricType::Counter);
 }
 
 IAttributeDictionaryPtr TObjectManager::TImpl::GetReplicatedAttributes(

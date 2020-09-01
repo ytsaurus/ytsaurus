@@ -733,8 +733,7 @@ void TBootstrap::DoInitialize()
                 CellDirectory_,
                 TimestampProvider_,
                 GetKnownParticipantCellTags())
-        },
-        HiveManager_);
+        });
 
     fileSnapshotStore->Initialize();
     ConfigManager_->Initialize();

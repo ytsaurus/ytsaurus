@@ -1852,7 +1852,7 @@ typedef TEnumIndexedVectorSerializer<> TSerializer;
 };
 
 template <class F, class S, class C>
-struct TSerializerTraits<std::pair<F, S>, C, void>
+struct TSerializerTraits<std::pair<F, S>, C, typename std::enable_if<!NMpl::TIsPod<std::pair<F, S>>::Value>::type>
 {
     typedef TTupleSerializer<std::pair<F, S>> TSerializer;
     typedef TValueBoundComparer TComparer;

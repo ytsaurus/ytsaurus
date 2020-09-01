@@ -55,7 +55,6 @@ void ToProto(
         auto* protoItem = proto->add_revisions();
         protoItem->set_path(item->Path);
         protoItem->set_revision(item->Revision);
-        ToProto(protoItem->mutable_transaction_id(), item->TransactionId);
     }
 }
 

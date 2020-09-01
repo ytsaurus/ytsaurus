@@ -850,19 +850,8 @@ void TObjectProxyBase::PostToSecondaryMasters(IServiceContextPtr context)
 
 void TObjectProxyBase::ExternalizeToMasters(IServiceContextPtr context, const TCellTagList& cellTags)
 {
-    auto* object = GetObject();
-    YT_VERIFY(object->IsNative());
-
-    auto* transaction = GetTransaction();
-    if (!transaction || transaction->IsNative()) {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        multicellManager->PostToMasters(
-            TCrossCellMessage(object->GetId(), GetObjectId(transaction), std::move(context)),
-            cellTags);
-    } else {
-        for (auto cellTag : cellTags) {
-            ExternalizeToMaster(context, cellTag);
-        }
+    for (auto cellTag : cellTags) {
+        ExternalizeToMaster(context, cellTag);
     }
 }
 

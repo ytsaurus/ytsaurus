@@ -267,6 +267,7 @@ class YTEnvSetup(object):
     NUM_SECONDARY_MASTER_CELLS = 0
     START_SECONDARY_MASTER_CELLS = True
     ENABLE_SECONDARY_CELLS_CLEANUP = True
+    MASTER_CELL_ROLES = {}
     NUM_NODES = 5
     DEFER_NODE_START = False
     NUM_SCHEDULERS = 0
@@ -309,6 +310,10 @@ class YTEnvSetup(object):
     USE_LEGACY_CONTROLLERS = False
 
     NUM_REMOTE_CLUSTERS = 0
+
+    @classmethod
+    def is_multicell(cls):
+        return cls.NUM_SECONDARY_MASTER_CELLS > 0
 
     # To be redefined in successors
     @classmethod
@@ -485,7 +490,7 @@ class YTEnvSetup(object):
             os.remove(latest_run_path)
         os.symlink(cls.path_to_run, latest_run_path)
 
-        yt_commands.is_multicell = cls.NUM_SECONDARY_MASTER_CELLS > 0
+        yt_commands.is_multicell = cls.is_multicell()
         yt_commands.path_to_run_tests = cls.path_to_run
 
         yt_commands.init_drivers([cls.Env] + cls.remote_envs)
@@ -659,12 +664,15 @@ class YTEnvSetup(object):
 
             self._reset_nodes(driver=driver)
 
+            master_cell_roles = self.get_param("MASTER_CELL_ROLES", cluster_index)
+
             scheduler_count = self.get_param("NUM_SCHEDULERS", cluster_index)
             if scheduler_count > 0:
                 scheduler_pool_trees_root = self.Env.configs["scheduler"][0]["scheduler"].get("pool_trees_root", "//sys/pool_trees")
             else:
                 scheduler_pool_trees_root = "//sys/pool_trees"
             self._restore_globals(
+                master_cell_roles=master_cell_roles,
                 scheduler_count=scheduler_count,
                 scheduler_pool_trees_root=scheduler_pool_trees_root,
                 driver=driver)
@@ -906,11 +914,14 @@ class YTEnvSetup(object):
 
         wait(check)
 
-    def _restore_globals(self, scheduler_count, scheduler_pool_trees_root, driver=None):
+    def _restore_globals(self, master_cell_roles, scheduler_count, scheduler_pool_trees_root, driver=None):
+        dynamic_master_config = get_dynamic_master_config()
+        dynamic_master_config["multicell_manager"]["cell_roles"] = master_cell_roles
+
         for response in yt_commands.execute_batch([
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@dynamic_options", input={}),
                 yt_commands.make_batch_request("set", path="//sys/tablet_cell_bundles/default/@tablet_balancer_config", input={}),
-                yt_commands.make_batch_request("set", path="//sys/@config", input=get_dynamic_master_config()),
+                yt_commands.make_batch_request("set", path="//sys/@config", input=dynamic_master_config),
             ], driver=driver):
             assert not yt_commands.get_batch_error(response)
 

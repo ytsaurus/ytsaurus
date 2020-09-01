@@ -54,7 +54,7 @@ class TestPrerequisite(object):
                      yt.create_revision_parameter(TEST_DIR + "/prerequisite_test")]
         client = yt.create_client_with_command_params(prerequisite_revisions=revisions)
         client.mkdir(TEST_DIR + "/prerequisite_test/test")
-        assert client.exists(TEST_DIR + "/prerequisite_test/test")
+        assert yt.exists(TEST_DIR + "/prerequisite_test/test")
 
         with pytest.raises(yt.YtError):
             revisions = [yt.create_revision_parameter(TEST_DIR + "/prerequisite"),

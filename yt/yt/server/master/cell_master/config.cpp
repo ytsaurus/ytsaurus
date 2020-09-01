@@ -116,6 +116,8 @@ TDynamicClusterConfig::TDynamicClusterConfig()
         .DefaultNew();
     RegisterParameter("object_service", ObjectService)
         .DefaultNew();
+    RegisterParameter("chunk_service", ChunkService)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

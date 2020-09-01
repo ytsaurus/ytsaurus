@@ -9,6 +9,8 @@
 #include "chunk_owner_node_proxy.h"
 
 #include <yt/server/master/cell_master/bootstrap.h>
+#include <yt/server/master/cell_master/config.h>
+#include <yt/server/master/cell_master/config_manager.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/master_hydra_service.h>
 #include <yt/server/master/cell_master/multicell_manager.h>
@@ -20,6 +22,7 @@
 #include <yt/server/master/tablet_server/tablet_manager.h>
 
 #include <yt/server/master/transaction_server/transaction.h>
+#include <yt/server/master/transaction_server/transaction_replication_session.h>
 
 #include <yt/server/lib/hive/hive_manager.h>
 
@@ -413,14 +416,39 @@ private:
 
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
-        if (!suppressUpstreamSync) {
-            SyncWithUpstream();
-        }
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        chunkManager
-            ->CreateExecuteBatchMutation(context)
-            ->CommitAndReply(context);
+
+        // NB: supporting lazy transaction replication here is required for (at
+        // least) the following reason. When starting operations, controller
+        // agents first start all the necessary transactions, only then getting
+        // basic attributes for output & debug tables. Thus, at the moment of
+        // starting a transaction the set of cells it'll be needed to be
+        // replicated to is yet unknown.
+
+        std::vector<TTransactionId> transactionIds;
+        for (const auto& createChunkSubrequest : request->create_chunk_subrequests()) {
+            transactionIds.push_back(FromProto<TTransactionId>(createChunkSubrequest.transaction_id()));
+        }
+        for (const auto& createChunkListsSubrequest : request->create_chunk_lists_subrequests()) {
+            transactionIds.push_back(FromProto<TTransactionId>(createChunkListsSubrequest.transaction_id()));
+        }
+        SortUnique(transactionIds);
+
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto config = configManager->GetConfig()->ChunkService;
+        // TODO(shakurov): use mutation idempotizer when handling these
+        // mutations and comply with config->EnableMutationBoomerangs.
+        const auto enableMutationBoomerangs = false;
+
+        auto preparationFuture = NTransactionServer::RunTransactionReplicationSession(
+            !suppressUpstreamSync,
+            Bootstrap_,
+            std::move(transactionIds),
+            context,
+            chunkManager->CreateExecuteBatchMutation(context),
+            enableMutationBoomerangs);
+        YT_VERIFY(preparationFuture);
     }
 
     void SyncWithTransactionCoordinatorCell(const IServiceContextPtr& context, TTransactionId transactionId)

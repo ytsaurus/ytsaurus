@@ -15,7 +15,9 @@ bool IsMasterTransactionId(TTransactionId id)
     auto type = TypeFromId(id);
     // NB: Externalized transactions are for internal use only.
     return type == NObjectClient::EObjectType::Transaction ||
-           type == NObjectClient::EObjectType::NestedTransaction;
+        type == NObjectClient::EObjectType::NestedTransaction ||
+        type == EObjectType::UploadTransaction ||
+        type == EObjectType::UploadNestedTransaction;
 }
 
 void ValidateTabletTransactionId(TTransactionId id)
@@ -32,10 +34,7 @@ void ValidateTabletTransactionId(TTransactionId id)
 
 void ValidateMasterTransactionId(TTransactionId id)
 {
-    auto type = TypeFromId(id);
-    if (type != EObjectType::Transaction &&
-        type != EObjectType::NestedTransaction)
-    {
+    if (!IsMasterTransactionId(id)) {
         THROW_ERROR_EXCEPTION("%v is not a valid master transaction id",
             id);
     }

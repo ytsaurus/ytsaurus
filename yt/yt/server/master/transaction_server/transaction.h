@@ -89,6 +89,13 @@ public:
      *  NB: complexity is O(number of intermediate ancestors).
      */
     TTransaction* GetTopmostTransaction();
+    const TTransaction* GetTopmostTransaction() const;
+
+    //! Returns |true| if this transaction has been replicated to the specified cell.
+    bool IsReplicatedToCell(NObjectClient::TCellTag cellTag) const;
+
+    //! Returns |true| if this transaction has been externalized to the specified cell.
+    bool IsExternalizedToCell(NObjectClient::TCellTag cellTag) const;
 
     //! Returns |true| if this a (topmost or nested) externalized transaction.
     bool IsExternalized() const;

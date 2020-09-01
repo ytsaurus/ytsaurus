@@ -63,6 +63,7 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto batchReq = proxy->ExecuteBatch();
     SetBalancingHeader(batchReq, options);
+    batchReq->SetSuppressTransactionCoordinatorSync(true);
 
     auto req = TMasterYPathProxy::CheckPermissionByAcl();
     if (user) {

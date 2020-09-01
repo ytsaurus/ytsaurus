@@ -56,11 +56,13 @@ DECLARE_REFCOUNTED_CLASS(TGarbageCollector)
 
 DECLARE_REFCOUNTED_STRUCT(TRequestProfilingCounters)
 DECLARE_REFCOUNTED_CLASS(TRequestProfilingManager)
+DECLARE_REFCOUNTED_CLASS(TMutationIdempotizer)
 
 DECLARE_REFCOUNTED_CLASS(TObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicObjectManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicObjectServiceConfig)
+DECLARE_REFCOUNTED_CLASS(TMutationIdempotizerConfig)
 
 class TObject;
 class TNonversionedObjectBase;

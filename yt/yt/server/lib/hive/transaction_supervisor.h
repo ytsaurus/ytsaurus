@@ -42,8 +42,7 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
     ITransactionManagerPtr transactionManager,
     TCellId selfCellId,
     NTransactionClient::ITimestampProviderPtr timestampProvider,
-    std::vector<ITransactionParticipantProviderPtr> participantProviders,
-    THiveManagerPtr hiveManager = nullptr);
+    std::vector<ITransactionParticipantProviderPtr> participantProviders);
 
 ////////////////////////////////////////////////////////////////////////////////
 

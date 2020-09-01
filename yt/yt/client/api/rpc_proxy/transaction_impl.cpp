@@ -162,7 +162,7 @@ void TTransaction::Detach()
     {
         auto guard = Guard(SpinLock_);
         SpinLockTag_ = 1;
-        
+
         if (State_ == ETransactionState::Detached) {
             return;
         }
@@ -254,15 +254,15 @@ TFuture<TTransactionFlushResult> TTransaction::Flush()
                 TTransactionFlushResult result{
                     .ParticipantCellIds = FromProto<std::vector<TCellId>>(rsp->participant_cell_ids())
                 };
-                
+
                 YT_LOG_DEBUG("Transaction flushed (ParticipantCellIds: %v)",
                     result.ParticipantCellIds);
-                
+
                 return result;
             }));
 }
 
-TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions&)
+TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitOptions& options)
 {
     std::vector<TFuture<void>> futures;
     std::vector<NApi::ITransactionPtr> alienTransactions;
@@ -315,6 +315,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
                 auto req = Proxy_.CommitTransaction();
                 ToProto(req->mutable_transaction_id(), GetId());
                 ToProto(req->mutable_additional_participant_cell_ids(), AdditionalParticipantCellIds_);
+                ToProto(req->mutable_prerequisite_options(), options);
                 return req->Invoke();
             }))
         .Apply(
@@ -443,19 +444,19 @@ void TTransaction::ModifyRows(
             SpinLockTag_ = 7;
 
             DoValidateActive();
-            
+
             if (!BatchModifyRowsRequest_) {
                 BatchModifyRowsRequest_ = Proxy_.BatchModifyRows();
                 ToProto(BatchModifyRowsRequest_->mutable_transaction_id(), GetId());
             }
-            
+
             BatchModifyRowsRequest_->Attachments().push_back(reqBody);
             BatchModifyRowsRequest_->Attachments().insert(
                 BatchModifyRowsRequest_->Attachments().end(),
                 req->Attachments().begin(),
                 req->Attachments().end());
             BatchModifyRowsRequest_->add_part_counts(req->Attachments().size());
-            
+
             if (BatchModifyRowsRequest_->part_counts_size() == config->ModifyRowsBatchCapacity) {
                 future = InvokeBatchModifyRowsRequest();
             }
@@ -776,7 +777,7 @@ IJournalWriterPtr TTransaction::CreateJournalWriter(
 TFuture<void> TTransaction::DoAbort(TGuard<TSpinLock>* guard, const TTransactionAbortOptions& /*options*/)
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
-    
+
     if (State_ == ETransactionState::Aborting || State_ == ETransactionState::Aborted) {
         return AbortPromise_.ToFuture();
     }
@@ -802,7 +803,7 @@ TFuture<void> TTransaction::DoAbort(TGuard<TSpinLock>* guard, const TTransaction
                     YT_LOG_DEBUG(rspOrError, "Transaction is no longer aborting, abort response ignored");
                     return;
                 }
-                
+
                 if (rspOrError.IsOK()) {
                     YT_LOG_DEBUG("Transaction aborted");
                 } else if (rspOrError.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
@@ -945,16 +946,16 @@ TFuture<void> TTransaction::InvokeBatchModifyRowsRequest()
 {
     VERIFY_SPINLOCK_AFFINITY(SpinLock_);
     YT_VERIFY(BatchModifyRowsRequest_);
-    
+
     TApiServiceProxy::TReqBatchModifyRowsPtr batchRequest;
     batchRequest.Swap(BatchModifyRowsRequest_);
     if (batchRequest->part_counts_size() == 0) {
         return VoidFuture;
     }
-    
+
     YT_LOG_DEBUG("Invoking a batch modify rows request (Subrequests: %v)",
         batchRequest->part_counts_size());
-    
+
     return batchRequest->Invoke().As<void>();
 }
 

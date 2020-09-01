@@ -2899,6 +2899,22 @@ class TestCypressPortal(TestCypressMulticell):
         assert not get("//tmp/p/t2/@inherit_acl")
         assert_items_equal(get("//tmp/p/t2/@acl"), acl)
 
+################################################################################
+
+class TestCypressShardedTx(TestCypressPortal):
+    NUM_SECONDARY_MASTER_CELLS = 4
+    MASTER_CELL_ROLES = {
+        "0": ["cypress_node_host"],
+        "3": ["transaction_coordinator", "chunk_host"],
+        "4": ["transaction_coordinator"]
+    }
+
+class TestCypressShardedTxNoBoomerangs(TestCypressShardedTx):
+    def setup_method(self, method):
+        super(TestCypressShardedTxNoBoomerangs, self).setup_method(method)
+        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
+        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
+
 ##################################################################
 
 class TestCypressRpcProxy(TestCypress):

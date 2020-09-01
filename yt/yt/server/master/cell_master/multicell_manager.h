@@ -110,7 +110,16 @@ public:
     bool IsRegisteredMasterCell(NObjectClient::TCellTag cellTag);
 
     //! Returns the set of roles the cell is configured for.
+    /*!
+     *  \note Thread affinity: any
+     */
     EMasterCellRoles GetMasterCellRoles(NObjectClient::TCellTag cellTag);
+
+    //! Returns the set of cells configured for a given role.
+    /*!
+     *  \note Thread affinity: any
+     */
+    const NObjectClient::TCellTagList& GetRoleMasterCells(EMasterCellRoles cellRole);
 
     //! Returns the list of cell tags for all registered master cells (other than the local one),
     //! in a stable order.

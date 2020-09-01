@@ -29,6 +29,7 @@
 #include <yt/ytlib/table_client/config.h>
 
 #include <yt/ytlib/transaction_client/action.h>
+#include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_manager.h>
 
 #include <yt/ytlib/query_client/functions_cache.h>
@@ -318,21 +319,7 @@ void TClient::SetPrerequisites(
     const IClientRequestPtr& request,
     const TPrerequisiteOptions& options)
 {
-    if (options.PrerequisiteTransactionIds.empty() && options.PrerequisiteRevisions.empty()) {
-        return;
-    }
-
-    auto* prerequisitesExt = request->Header().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
-    for (const auto& id : options.PrerequisiteTransactionIds) {
-        auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
-        ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
-    }
-    for (const auto& revision : options.PrerequisiteRevisions) {
-        auto* prerequisiteRevision = prerequisitesExt->add_revisions();
-        prerequisiteRevision->set_path(revision->Path);
-        ToProto(prerequisiteRevision->mutable_transaction_id(), revision->TransactionId);
-        prerequisiteRevision->set_revision(revision->Revision);
-    }
+    NTransactionClient::SetPrerequisites(request, options);
 }
 
 void TClient::SetSuppressAccessTracking(
@@ -399,6 +386,7 @@ TClusterMeta TClient::DoGetClusterMeta(
 {
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(true);
     SetBalancingHeader(batchReq, options);
 
     auto req = TMasterYPathProxy::GetClusterMeta();

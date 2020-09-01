@@ -43,6 +43,9 @@ class TestSchedulerMapCommands(YTEnvSetup):
                     "max_input_table_count": 5,
                 },
             },
+            # COMPAT(shakurov): change the default to false and remove
+            # this delta once masters are up to date.
+            "enable_prerequisites_for_starting_completion_transactions": False,
         }
     }
 
@@ -1451,6 +1454,23 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
 
 class TestSchedulerMapCommandsPortal(TestSchedulerMapCommandsMulticell):
     ENABLE_TMP_PORTAL = True
+
+class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
+    NUM_SECONDARY_MASTER_CELLS = 5
+    MASTER_CELL_ROLES = {
+        "0": ["cypress_node_host"],
+        "1": ["cypress_node_host"],
+        "2": ["chunk_host"],
+        "3": ["cypress_node_host"],
+        "4": ["transaction_coordinator"],
+        "5": ["transaction_coordinator"]
+    }
+
+class TestSchedulerMapCommandsShardedTxNoBoomerangs(TestSchedulerMapCommandsShardedTx):
+    def setup_method(self, method):
+        super(TestSchedulerMapCommandsShardedTxNoBoomerangs, self).setup_method(method)
+        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
+        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
 
 ##################################################################
 

@@ -1291,6 +1291,7 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
     driver = kwargs.get("driver")
 
     execute_command("create", kwargs)
+    driver = _get_driver(kwargs.get("driver", None))
     if sync:
         wait(lambda: exists("//sys/accounts/{0}".format(name), driver=driver) and get("//sys/accounts/{0}/@life_stage".format(name), driver=driver) == 'creation_committed')
     if set_master_memory:
@@ -1423,8 +1424,9 @@ def create_tablet_cell_bundle(name, initialize_options=True, **kwargs):
         for option in ("changelog_account", "snapshot_account"):
             if option not in kwargs["attributes"]["options"]:
                 kwargs["attributes"]["options"][option] = "sys"
+    driver = _get_driver(kwargs.get("driver", None))
     execute_command("create", kwargs)
-    wait(lambda: exists("//sys/tablet_cell_bundles/{0}".format(name)) and get("//sys/tablet_cell_bundles/{0}/@life_stage".format(name)) == "creation_committed")
+    wait(lambda: exists("//sys/tablet_cell_bundles/{0}".format(name), driver=driver) and get("//sys/tablet_cell_bundles/{0}/@life_stage".format(name), driver=driver) == "creation_committed")
 
 def remove_tablet_cell_bundle(name, driver=None):
     remove("//sys/tablet_cell_bundles/" + name, driver=driver)

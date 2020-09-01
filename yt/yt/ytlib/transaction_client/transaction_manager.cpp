@@ -7,6 +7,9 @@
 #include <yt/ytlib/api/native/connection.h>
 #include <yt/ytlib/api/native/config.h>
 
+#include <yt/ytlib/cell_master_client/cell_directory.h>
+#include <yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
+
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/cell_tracker.h>
 #include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
@@ -37,6 +40,7 @@
 namespace NYT::NTransactionClient {
 
 using namespace NApi;
+using namespace NCellMasterClient;
 using namespace NConcurrency;
 using namespace NHiveClient;
 using namespace NHydra;
@@ -87,7 +91,7 @@ private:
     const TCellTagList SecondaryCellTags_;
     const TString User_;
     const ITimestampProviderPtr TimestampProvider_;
-    const TCellDirectoryPtr CellDirectory_;
+    const NHiveClient::TCellDirectoryPtr CellDirectory_;
     const TCellTrackerPtr DownedCellTracker_;
 
     TSpinLock SpinLock_;
@@ -176,10 +180,44 @@ public:
 
         Type_ = type;
         if (Type_ == ETransactionType::Master) {
-            CoordinatorMasterCellTag_ = options.CoordinatorMasterCellTag == InvalidCellTag ? Owner_->PrimaryCellTag_ : options.CoordinatorMasterCellTag;
-            CoordinatorMasterCellId_ = ReplaceCellTagInId(Owner_->PrimaryCellId_, CoordinatorMasterCellTag_);
-            ReplicatedToMasterCellTags_ = options.ReplicateToMasterCellTags.value_or(Owner_->SecondaryCellTags_);
+            ReplicatedToMasterCellTags_ = options.ReplicateToMasterCellTags.value_or(TCellTagList());
+
+            auto optionsCoordinatorCellTag = GetCoordinatorMasterCellTagFromOptionsOrThrow(options);
+            if (optionsCoordinatorCellTag) {
+                CoordinatorMasterCellTag_ = *optionsCoordinatorCellTag;
+            } else {
+                // Need to wait for master cell dir sync.
+
+                auto connectionOrError = TryLockConnection();
+                if (!connectionOrError.IsOK()) {
+                    return MakeFuture(TError(connectionOrError));
+                }
+                auto connection = connectionOrError.Value();
+
+                auto syncFuture = connection->GetMasterCellDirectorySynchronizer()->RecentSync();
+                if (!syncFuture.IsSet()) { // True most of the time.
+                    return syncFuture.Apply(
+                        BIND([=, this_ = MakeStrong(this)] {
+                            DoStart(options);
+                        }));
+                }
+            }
         }
+
+        return DoStart(options);
+    }
+
+    TFuture<void> DoStart(const TTransactionStartOptions& options)
+    {
+        auto connection = TryLockConnection()
+            .ValueOrThrow();
+        if (CoordinatorMasterCellTag_ == InvalidCellTag) {
+            CoordinatorMasterCellId_ = connection->GetMasterCellDirectory()->PickRandomMasterCellWithRole(EMasterCellRoles::TransactionCoordinator);
+            CoordinatorMasterCellTag_ = CellTagFromId(CoordinatorMasterCellId_);
+        } else {
+            CoordinatorMasterCellId_ = ReplaceCellTagInId(Owner_->PrimaryCellId_, CoordinatorMasterCellTag_);
+        }
+
         AutoAbort_ = options.AutoAbort;
         PingPeriod_ = options.PingPeriod;
         Ping_ = options.Ping;
@@ -508,6 +546,51 @@ private:
         }
     }
 
+    static std::optional<TCellTag> GetCoordinatorMasterCellTagFromOptionsOrThrow(const TTransactionStartOptions& options)
+    {
+        const auto parentId = options.ParentId;
+        const auto coordinatorCellTag = options.CoordinatorMasterCellTag;
+        const auto& prerequisiteTransactionIds = options.PrerequisiteTransactionIds;
+
+        if (parentId && coordinatorCellTag != InvalidCellTag && CellTagFromId(parentId) != coordinatorCellTag) {
+            THROW_ERROR_EXCEPTION("Both parent transaction and coordinator master cell tag specified, and they refer to different cells");
+        }
+
+        if (prerequisiteTransactionIds.empty()) {
+            if (parentId) {
+                return CellTagFromId(parentId);
+            }
+            if (coordinatorCellTag != InvalidCellTag) {
+                return coordinatorCellTag;
+            }
+            return std::nullopt;
+        }
+
+        std::vector<TCellTag> prerequisiteTransactionCellTags;
+        std::transform(
+            prerequisiteTransactionIds.begin(),
+            prerequisiteTransactionIds.end(),
+            std::back_inserter(prerequisiteTransactionCellTags),
+            CellTagFromId);
+        SortUnique(prerequisiteTransactionCellTags);
+
+        if (prerequisiteTransactionCellTags.size() > 1) {
+            THROW_ERROR_EXCEPTION("Multiple prerequisite transactions from different cells specified");
+        }
+
+        const auto prerequisiteTransactionCellTag = prerequisiteTransactionCellTags.front();
+
+        if (parentId && CellTagFromId(parentId) != prerequisiteTransactionCellTag) {
+            THROW_ERROR_EXCEPTION("Both parent and prerequisite transactions specified, and they refer to different cells");
+        }
+
+        if (coordinatorCellTag != InvalidCellTag && coordinatorCellTag != prerequisiteTransactionCellTag) {
+            THROW_ERROR_EXCEPTION("Both coordinator master cell tag and a prerequisite transaction specified, and they refer to different cells");
+        }
+
+        return prerequisiteTransactionCellTag;
+    }
+
     static void ValidateMasterStartOptions(const TTransactionStartOptions& options)
     {
         if (options.Id) {
@@ -521,6 +604,8 @@ private:
             THROW_ERROR_EXCEPTION("Durability must be %Qlv for master transactions",
                 EDurability::Sync);
         }
+
+        GetCoordinatorMasterCellTagFromOptionsOrThrow(options);
     }
 
     static void ValidateTabletStartOptions(const TTransactionStartOptions& options)
@@ -606,13 +691,19 @@ private:
         }
     }
 
+    TErrorOr<IConnectionPtr> TryLockConnection()
+    {
+        if (auto connection = Owner_->Connection_.Lock(); connection) {
+            return connection;
+        } else {
+            return TError("Unable to start master transaction: connection terminated");
+        }
+    }
+
     TFuture<void> StartMasterTransaction(const TTransactionStartOptions& options)
     {
-        auto connection = Owner_->Connection_.Lock();
-        if (!connection) {
-            THROW_ERROR_EXCEPTION("Unable to start master transaction: connection terminated");
-        }
-
+        auto connection = TryLockConnection()
+            .ValueOrThrow();
         auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Leader, CoordinatorMasterCellTag_);
 
         TTransactionServiceProxy proxy(channel);
@@ -782,6 +873,8 @@ private:
             auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCommitRetryChecker());
             auto req = proxy.CommitTransaction();
             req->SetUser(Owner_->User_);
+            // NB: the server side only supports these for simple (non-distributed) commits, but set them anyway.
+            SetPrerequisites(req, options);
             ToProto(req->mutable_transaction_id(), Id_);
             ToProto(req->mutable_participant_cell_ids(), supervisorParticipantCellIds);
             ToProto(req->mutable_prepare_only_participant_cell_ids(), supervisorPrepareOnlyParticipantCellIds);
@@ -927,7 +1020,7 @@ private:
             if (IsReplicatedToMasterCell(cellId)) {
                 continue;
             }
-            
+
             YT_LOG_DEBUG("Pinging transaction (TransactionId: %v, CellId: %v)",
                 Id_,
                 cellId);
@@ -1152,7 +1245,7 @@ private:
         auto guard = Guard(SpinLock_);
         return RegisteredParticipantIds_.find(cellId) != RegisteredParticipantIds_.end();
     }
-    
+
     bool IsReplicatedToMasterCell(TCellId cellId)
     {
         return

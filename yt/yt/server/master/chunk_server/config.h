@@ -455,4 +455,21 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicChunkServiceConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    bool EnableMutationBoomerangs;
+
+    TDynamicChunkServiceConfig()
+    {
+        RegisterParameter("enable_mutation_boomerangs", EnableMutationBoomerangs)
+            .Default(true);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicChunkServiceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChunkServer

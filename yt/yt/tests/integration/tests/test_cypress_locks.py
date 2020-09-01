@@ -83,6 +83,13 @@ class TestCypressLocks(YTEnvSetup):
 
         abort_transaction(tx)
 
+    def _get_tx_lock_ids(self, tx):
+        return [lock_id for cell_tag, lock_ids in get("#{0}/@lock_ids".format(tx)).items() for lock_id in lock_ids]
+
+    def _get_tx_locked_node_ids(self, tx):
+        cell_tag_to_locked_node_ids = get("#{0}/@locked_node_ids".format(tx))
+        return [lock_id for cell_tag, lock_ids in cell_tag_to_locked_node_ids.items() for lock_id in lock_ids]
+
     def _assert_locked(self, path, tx, mode, child_key=None, attribute_key=None):
         self._assert_locked_impl(path, tx, True)
 
@@ -103,14 +110,14 @@ class TestCypressLocks(YTEnvSetup):
         if attribute_key is not None:
             assert lock["attribute_key"] == attribute_key
 
-        assert lock["id"] in get("#{0}/@lock_ids".format(tx))
+        assert lock["id"] in self._get_tx_lock_ids(tx)
 
     def _assert_not_locked(self, path, tx):
         self._assert_locked_impl(path, tx, False)
 
     def _assert_locked_impl(self, path, tx, assert_true):
         node_id = get(path + "/@id", tx=tx)
-        locked_node_ids = get("#{0}/@locked_node_ids".format(tx))
+        locked_node_ids = self._get_tx_locked_node_ids(tx)
         if assert_true:
             assert node_id in locked_node_ids
         else:
@@ -207,7 +214,7 @@ class TestCypressLocks(YTEnvSetup):
 
         self._assert_not_locked("//tmp/m1", tx)
         assert not exists("#{0}".format(lock_id))
-        assert len(get("#{0}/@lock_ids".format(tx))) == 0
+        assert len(self._get_tx_lock_ids(tx)) == 0
 
         lock_id = lock("//tmp/m1", mode=mode, tx=tx2, **kwargs1)["lock_id"]
         self._assert_locked("//tmp/m1", tx2, mode, **kwargs1)
@@ -829,7 +836,10 @@ class TestCypressLocks(YTEnvSetup):
 
         commit_transaction(tx1)
 
-        gc_collect() # the lock must become orphaned
+        # Make sure commit reaches the node host cell.
+        multicell_sleep()
+        # The lock must become orphaned.
+        gc_collect()
 
         assert not exists("//sys/locks/" + lock_id1)
         assert not exists("//sys/locks/" + lock_id2)
@@ -850,7 +860,10 @@ class TestCypressLocks(YTEnvSetup):
 
         commit_transaction(tx1)
 
-        gc_collect() # the lock must become orphaned
+        # Make sure commit reaches the node host cell.
+        multicell_sleep()
+        # The lock must become orphaned.
+        gc_collect()
 
         assert not exists("//sys/locks/" + lock_id1)
         assert not exists("//sys/locks/" + lock_id2)
@@ -1391,4 +1404,20 @@ class TestCypressLocks(YTEnvSetup):
 
 class TestCypressLocksMulticell(TestCypressLocks):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+##################################################################
+
+class TestLocksShardedTx(TestLocksMulticell):
+    NUM_SECONDARY_MASTER_CELLS = 4
+    MASTER_CELL_ROLES = {
+        "0": ["cypress_node_host"],
+        "3": ["transaction_coordinator"],
+        "4": ["transaction_coordinator"]
+    }
+
+class TestLocksShardedTxNoBoomerangs(TestLocksShardedTx):
+    def setup_method(self, method):
+        super(TestLocksShardedTxNoBoomerangs, self).setup_method(method)
+        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
+        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
 

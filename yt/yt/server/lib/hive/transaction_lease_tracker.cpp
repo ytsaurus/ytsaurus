@@ -1,5 +1,7 @@
 #include "transaction_lease_tracker.h"
 
+#include <yt/server/lib/transaction_server/helpers.h>
+
 #include <yt/ytlib/transaction_client/public.h>
 
 #include <yt/core/concurrency/periodic_executor.h>
@@ -9,6 +11,7 @@
 namespace NYT::NHiveServer {
 
 using namespace NConcurrency;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -279,10 +282,7 @@ TTransactionLeaseTracker::TTransactionDescriptor* TTransactionLeaseTracker::GetD
 
     auto* descriptor = FindDescriptor(transactionId);
     if (!descriptor) {
-        THROW_ERROR_EXCEPTION(
-            NTransactionClient::EErrorCode::NoSuchTransaction,
-            "No such transaction %v",
-            transactionId);
+        ThrowNoSuchTransaction(transactionId);
     }
     return descriptor;
 }

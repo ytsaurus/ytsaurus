@@ -36,6 +36,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(const TReqExecuteS
     : TClientRequest(other)
     , OriginalRequestId_(other.OriginalRequestId_)
     , SuppressUpstreamSync_(other.SuppressUpstreamSync_)
+    , SuppressTransactionCoordinatorSync_(other.SuppressTransactionCoordinatorSync_)
     , SubbatchSize_(other.SubbatchSize_)
 {
     // Undo some work done by the base class's copy ctor and make some tweaks.
@@ -91,6 +92,7 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeData() const
         ToProto(req.mutable_original_request_id(), OriginalRequestId_);
     }
     req.set_suppress_upstream_sync(SuppressUpstreamSync_);
+    req.set_suppress_transaction_coordinator_sync(SuppressTransactionCoordinatorSync_);
     req.set_allow_backoff(true);
     req.set_supports_portals(true);
     for (const auto& descriptor : InnerRequestDescriptors_) {
@@ -111,6 +113,7 @@ size_t TObjectServiceProxy::TReqExecuteSubbatch::GetHash() const
     if (!Hash_) {
         size_t hash = 0;
         HashCombine(hash, SuppressUpstreamSync_);
+        HashCombine(hash, SuppressTransactionCoordinatorSync_);
         for (const auto& descriptor : InnerRequestDescriptors_) {
             if (descriptor.Hash) {
                 HashCombine(hash, descriptor.Hash);
@@ -156,6 +159,11 @@ void TObjectServiceProxy::TReqExecuteBatchBase::SetOriginalRequestId(TRequestId 
 void TObjectServiceProxy::TReqExecuteBatchBase::SetSuppressUpstreamSync(bool value)
 {
     SuppressUpstreamSync_ = value;
+}
+
+void TObjectServiceProxy::TReqExecuteBatchBase::SetSuppressTransactionCoordinatorSync(bool value)
+{
+    SuppressTransactionCoordinatorSync_ = value;
 }
 
 void TObjectServiceProxy::TReqExecuteBatchBase::AddRequest(

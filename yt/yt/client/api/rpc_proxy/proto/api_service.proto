@@ -326,6 +326,8 @@ message TReqCommitTransaction
     required NYT.NProto.TGuid transaction_id = 1;
     reserved 6;
     repeated NYT.NProto.TGuid additional_participant_cell_ids = 7;
+
+    optional TPrerequisiteOptions prerequisite_options = 101;
 }
 
 message TRspCommitTransaction
@@ -633,7 +635,7 @@ message TPrerequisiteOptions
     {
         required string path = 2; // YPath
         required uint64 revision = 3;
-        optional NYT.NProto.TGuid transaction_id = 1; // resolution context
+        reserved 1; // former transaction_id
     }
 
     repeated TTransactionPrerequisite transactions = 1;

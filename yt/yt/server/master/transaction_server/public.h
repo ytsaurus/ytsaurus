@@ -14,6 +14,9 @@ using TRspStartTransaction = NTransactionClient::NProto::TRspStartTransaction;
 using TReqRegisterTransactionActions = NTransactionClient::NProto::TReqRegisterTransactionActions;
 using TRspRegisterTransactionActions = NTransactionClient::NProto::TRspRegisterTransactionActions;
 
+using TReqReplicateTransactions = NTransactionClient::NProto::TReqReplicateTransactions;
+using TRspReplicateTransactions = NTransactionClient::NProto::TRspReplicateTransactions;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -21,7 +24,18 @@ using TRspRegisterTransactionActions = NTransactionClient::NProto::TRspRegisterT
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 DECLARE_REFCOUNTED_CLASS(TDynamicTransactionManagerConfig)
 
+DECLARE_REFCOUNTED_CLASS(TTransactionPresenceCache)
+DECLARE_REFCOUNTED_CLASS(TTransactionPresenceCacheConfig)
+
+DECLARE_REFCOUNTED_CLASS(TBoomerangTracker)
+DECLARE_REFCOUNTED_CLASS(TBoomerangTrackerConfig)
+
+DECLARE_REFCOUNTED_CLASS(TTransactionReplicationSessionWithoutBoomerangs)
+DECLARE_REFCOUNTED_CLASS(TTransactionReplicationSessionWithBoomerangs)
+
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
+
+using TBoomerangWaveId = TGuid;
 
 ////////////////////////////////////////////////////////////////////////////////
 

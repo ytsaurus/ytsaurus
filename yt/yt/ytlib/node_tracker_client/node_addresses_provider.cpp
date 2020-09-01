@@ -217,6 +217,7 @@ private:
             cachingHeaderExt->set_failure_expiration_time(ToProto<i64>(options.ExpireAfterFailedUpdateTime));
 
             auto batchReq = proxy.ExecuteBatch();
+            batchReq->SetSuppressTransactionCoordinatorSync(true);
             auto* balancingHeaderExt = batchReq->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext);
             balancingHeaderExt->set_enable_stickiness(true);
             batchReq->AddRequest(req);

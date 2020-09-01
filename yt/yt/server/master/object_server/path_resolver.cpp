@@ -264,7 +264,10 @@ TTransaction* TPathResolver::GetTransaction()
 
 TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
 {
-    switch (Tokenizer_.Advance()) {
+    Tokenizer_.Advance();
+    auto ampersandSkipped = Tokenizer_.Skip(NYPath::ETokenType::Ampersand);
+
+    switch (Tokenizer_.GetType()) {
         case ETokenType::EndOfStream:
             THROW_ERROR_EXCEPTION("YPath cannot be empty");
 
@@ -293,7 +296,10 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot()
             Tokenizer_.Advance();
 
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (CellTagFromId(objectId) != multicellManager->GetCellTag() && multicellManager->IsPrimaryMaster()) {
+            if (CellTagFromId(objectId) != multicellManager->GetCellTag() &&
+                multicellManager->IsPrimaryMaster() &&
+                !ampersandSkipped)
+            {
                 return TRemoteObjectPayload{objectId};
             }
 

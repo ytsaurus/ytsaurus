@@ -3,6 +3,8 @@
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
+
 #include <yt/client/object_client/helpers.h>
 
 #include <yt/client/api/transaction.h>
@@ -22,6 +24,24 @@ void SetTransactionId(IClientRequestPtr request, ITransactionPtr transaction)
     NCypressClient::SetTransactionId(
         request,
         transaction ? transaction->GetId() : NullTransactionId);
+}
+
+void SetPrerequisites(const IClientRequestPtr& request, const TPrerequisiteOptions& options)
+{
+    if (options.PrerequisiteTransactionIds.empty() && options.PrerequisiteRevisions.empty()) {
+        return;
+    }
+
+    auto* prerequisitesExt = request->Header().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+    for (auto id : options.PrerequisiteTransactionIds) {
+        auto* prerequisiteTransaction = prerequisitesExt->add_transactions();
+        ToProto(prerequisiteTransaction->mutable_transaction_id(), id);
+    }
+    for (const auto& revision : options.PrerequisiteRevisions) {
+        auto* prerequisiteRevision = prerequisitesExt->add_revisions();
+        prerequisiteRevision->set_path(revision->Path);
+        prerequisiteRevision->set_revision(revision->Revision);
+    }
 }
 
 TTransactionId MakeTabletTransactionId(

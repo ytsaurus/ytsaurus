@@ -16,6 +16,9 @@ class TRspStartTransaction;
 class TReqRegisterTransactionActions;
 class TRspRegisterTransactionActions;
 
+class TReqReplicateTransactions;
+class TRspReplicateTransactions;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

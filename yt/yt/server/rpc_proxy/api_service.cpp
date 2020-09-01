@@ -6,6 +6,8 @@
 #include "config.h"
 #include "security_manager.h"
 
+#include <yt/server/lib/transaction_server/helpers.h>
+
 #include <yt/ytlib/auth/cookie_authenticator.h>
 #include <yt/ytlib/auth/token_authenticator.h>
 
@@ -136,7 +138,6 @@ void FromProto(
         const auto& protoItem = proto.revisions(i);
         options->PrerequisiteRevisions[i] = New<TPrerequisiteRevisionConfig>();
         auto& item = *options->PrerequisiteRevisions[i];
-        FromProto(&item.TransactionId, protoItem.transaction_id());
         item.Revision = protoItem.revision();
         item.Path = protoItem.path();
     }
@@ -559,10 +560,7 @@ private:
             options,
             searchInPool);
         if (!transaction) {
-            THROW_ERROR_EXCEPTION(
-                NTransactionClient::EErrorCode::NoSuchTransaction,
-                "No such transaction %v",
-                transactionId);
+            NTransactionServer::ThrowNoSuchTransaction(transactionId);
         }
         return transaction;
     }
@@ -737,9 +735,13 @@ private:
 
         TTransactionCommitOptions options;
         options.AdditionalParticipantCellIds = FromProto<std::vector<TCellId>>(request->additional_participant_cell_ids());
+        if (request->has_prerequisite_options()) {
+            FromProto(&options, request->prerequisite_options());
+        }
 
-        context->SetRequestInfo("TransactionId: %v, AdditionalParticipantCellIds: %v",
+        context->SetRequestInfo("TransactionId: %v, AdditionalParticipantCellIds: %v, PrerequisiteTransactionIds: %v",
             transactionId,
+            options.PrerequisiteTransactionIds,
             options.AdditionalParticipantCellIds);
 
         auto transaction = GetTransactionOrThrow(

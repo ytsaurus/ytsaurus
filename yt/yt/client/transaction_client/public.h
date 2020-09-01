@@ -39,6 +39,9 @@ DEFINE_ENUM(EErrorCode,
     ((AlienTransactionsForbidden)       (11006))
     ((MalformedAlienTransaction)        (11007))
     ((InvalidTransactionAtomicity)      (11008))
+    ((UploadTransactionCannotHaveNested)(11009))
+    ((ForeignParentTransaction)         (11010))
+    ((ForeignPrerequisiteTransaction)   (11011))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

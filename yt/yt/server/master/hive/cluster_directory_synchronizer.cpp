@@ -134,6 +134,7 @@ private:
                 NObjectClient::TObjectServiceProxy proxy(channel);
 
                 auto batchReq = proxy.ExecuteBatch();
+                batchReq->SetSuppressTransactionCoordinatorSync(true);
                 SetBalancingHeader(batchReq, Bootstrap_->GetClusterConnection()->GetConfig(), options);
 
                 auto req = NObjectClient::TMasterYPathProxy::GetClusterMeta();

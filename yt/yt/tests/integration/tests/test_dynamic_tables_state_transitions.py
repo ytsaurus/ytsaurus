@@ -1,6 +1,6 @@
 import pytest
 
-from yt_env_setup import YTEnvSetup, wait, Restarter, NODES_SERVICE, MASTERS_SERVICE
+from yt_env_setup import YTEnvSetup, wait, Restarter, NODES_SERVICE
 from yt_commands import *
 
 from test_dynamic_tables import DynamicTablesBase

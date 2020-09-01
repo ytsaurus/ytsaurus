@@ -17,10 +17,15 @@ namespace NYT::NHiveServer {
 struct ITransactionManager
     : public virtual TRefCounted
 {
+    virtual TFuture<void> GetReadyToPrepareTransactionCommit(
+        const std::vector<TTransactionId>& prerequisiteTransactionIds,
+        const std::vector<TCellId>& cellIdsToSyncWith) = 0;
+
     virtual void PrepareTransactionCommit(
         TTransactionId transactionId,
         bool persistent,
-        TTimestamp prepareTimestamp) = 0;
+        TTimestamp prepareTimestamp,
+        const std::vector<TTransactionId>& prerequisiteTransactionIds) = 0;
 
     virtual void PrepareTransactionAbort(
         TTransactionId transactionId,

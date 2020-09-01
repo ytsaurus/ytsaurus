@@ -94,10 +94,10 @@ def check_hierarchical_accounts():
     remove_account("b2", sync_deletion=False)
 
     # XXX(kiselyovp) this might be flaky
+    wait(lambda: get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default") > 0)
+    wait(lambda: get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default") > 0)
     b11_disk_usage = get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default")
     b21_disk_usage = get("//sys/accounts/b21/@resource_usage/disk_space_per_medium/default")
-    assert b11_disk_usage > 0
-    assert b21_disk_usage > 0
 
     yield
 
@@ -125,7 +125,7 @@ def check_hierarchical_accounts():
     assert get("//sys/accounts/b2/@recursive_resource_usage/disk_space_per_medium/default") == b21_disk_usage
 
     set("//tmp/b21_table/@account", "b11")
-    wait(lambda: not exists("//sys/account_tree/b2"))
+    wait(lambda: not exists("//sys/account_tree/b2"), iter=120, sleep_backoff=0.5)
     assert not exists("//sys/accounts/b2")
     assert exists("//sys/accounts/b11")
 
@@ -196,6 +196,22 @@ def check_security_tags():
     for i in xrange(10):
         assert_items_equal(get("//tmp/t" + str(i) + "/@security_tags"), ["atag" + str(i), "btag" + str(i)])
 
+def check_transactions():
+    tx1 = start_transaction(timeout=120000)
+    tx2 = start_transaction(tx=tx1, timeout=120000)
+
+    create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 2})
+    create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 3})
+    table_id = create("table", "//tmp/p1/t", tx=tx1) # replicate tx1 to cell 2
+    table_id = create("table", "//tmp/p2/t", tx=tx2) # replicate tx2 to cell 3
+    assert get("#{}/@replicated_to_cell_tags".format(tx1)) == [2, 3]
+    assert get("#{}/@replicated_to_cell_tags".format(tx2)) == [3]
+
+    yield
+
+    assert get("#{}/@replicated_to_cell_tags".format(tx1)) == [2, 3]
+    assert get("#{}/@replicated_to_cell_tags".format(tx2)) == [3]
+
 class TestMasterSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
@@ -209,8 +225,8 @@ class TestMasterSnapshots(YTEnvSetup):
             check_forked_schema,
             check_dynamic_tables,
             check_security_tags,
-            check_hierarchical_accounts,
             check_master_memory,
+            check_hierarchical_accounts,
             check_removed_account # keep this item last as it's sensitive to timings
         ]
 
@@ -240,6 +256,7 @@ class TestAllMastersSnapshots(YTEnvSetup):
     NUM_MASTERS = 3
     NUM_NODES = 5
     USE_DYNAMIC_TABLES = True
+    NUM_SECONDARY_MASTER_CELLS = 3
 
     @authors("aleksandra-zh")
     def test(self):
@@ -249,8 +266,9 @@ class TestAllMastersSnapshots(YTEnvSetup):
             check_forked_schema,
             check_dynamic_tables,
             check_security_tags,
-            check_hierarchical_accounts,
             check_master_memory,
+            check_hierarchical_accounts,
+            check_transactions,
             check_removed_account # keep this item last as it's sensitive to timings
         ]
 

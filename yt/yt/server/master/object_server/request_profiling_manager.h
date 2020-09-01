@@ -19,7 +19,6 @@ struct TRequestProfilingCounters
     NProfiling::TShardedMonotonicCounter IntraCellForwardingRequestCounter;
     NProfiling::TShardedMonotonicCounter CrossCellForwardingRequestCounter;
     NProfiling::TShardedMonotonicCounter AutomatonForwardingRequestCounter;
-    NProfiling::TShardedMonotonicCounter LocalMutationScheduleTimeCounter;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRequestProfilingCounters)

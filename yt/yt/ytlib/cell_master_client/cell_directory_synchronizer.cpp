@@ -117,6 +117,7 @@ private:
             TObjectServiceProxy proxy(primaryMasterChannel);
 
             auto batchReq = proxy.ExecuteBatch();
+            batchReq->SetSuppressTransactionCoordinatorSync(true);
 
             auto req = TMasterYPathProxy::GetClusterMeta();
             req->set_populate_cell_directory(true);
