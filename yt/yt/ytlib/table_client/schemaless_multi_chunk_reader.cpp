@@ -11,6 +11,7 @@
 #include "row_merger.h"
 #include "schemaless_block_reader.h"
 #include "schemaless_multi_chunk_reader.h"
+#include "table_read_spec.h"
 #include "versioned_chunk_reader.h"
 #include "remote_dynamic_store_reader.h"
 
@@ -1261,6 +1262,88 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
         std::move(bandwidthThrottler),
         std::move(rpsThrottler),
         std::move(readerMemoryManager));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
+    const NNative::IClientPtr& client,
+    const TTableReaderOptionsPtr& options,
+    const TTableReaderConfigPtr& config,
+    TTableReadSpec& tableReadSpec,
+    const TClientBlockReadOptions& blockReadOptions,
+    bool unordered,
+    const TKeyColumns& keyColumns,
+    const TNameTablePtr& nameTable,
+    const TColumnFilter& columnFilter,
+    const IThroughputThrottlerPtr& bandwidthThrottler,
+    const IThroughputThrottlerPtr& rpsThrottler)
+{
+    const auto& dataSourceDirectory = tableReadSpec.DataSourceDirectory;
+
+    // TODO(max42): think about mixing different data sources here.
+    switch (dataSourceDirectory->GetCommonTypeOrThrow()) {
+        case EDataSourceType::VersionedTable: {
+            TDataSliceDescriptor dataSliceDescriptor(std::move(tableReadSpec.ChunkSpecs));
+
+            // TODO(max42): what about reading several versioned tables together?
+            YT_VERIFY(dataSourceDirectory->DataSources().size());
+            const auto& dataSource = dataSourceDirectory->DataSources().front();
+
+            auto adjustedColumnFilter = columnFilter.IsUniversal()
+                ? CreateColumnFilter(dataSource.Columns(), nameTable)
+                : columnFilter;
+
+            return CreateSchemalessMergingMultiChunkReader(
+                config,
+                options,
+                client,
+                /* localDescriptor */ {},
+                /* partitionTag */ std::nullopt,
+                client->GetNativeConnection()->GetBlockCache(),
+                client->GetNativeConnection()->GetNodeDirectory(),
+                dataSourceDirectory,
+                dataSliceDescriptor,
+                nameTable,
+                blockReadOptions,
+                adjustedColumnFilter,
+                /* trafficMeter */ nullptr,
+                bandwidthThrottler,
+                rpsThrottler);
+        }
+        case EDataSourceType::UnversionedTable: {
+            std::vector<TDataSliceDescriptor> dataSliceDescriptors;
+            for (const auto& chunkSpec : tableReadSpec.ChunkSpecs) {
+                dataSliceDescriptors.emplace_back(chunkSpec);
+            }
+
+            auto factory = unordered
+                ? CreateSchemalessParallelMultiReader
+                : CreateSchemalessSequentialMultiReader;
+            return factory(
+                config,
+                options,
+                client,
+                // Client doesn't have a node descriptor.
+                /* localDescriptor */ {},
+                std::nullopt,
+                client->GetNativeConnection()->GetBlockCache(),
+                client->GetNativeConnection()->GetNodeDirectory(),
+                dataSourceDirectory,
+                std::move(dataSliceDescriptors),
+                nameTable,
+                blockReadOptions,
+                columnFilter,
+                keyColumns,
+                /* partitionTag */ std::nullopt,
+                /* trafficMeter */ nullptr,
+                bandwidthThrottler,
+                rpsThrottler,
+                /* multiReaderMemoryManager */ nullptr);
+        }
+        default:
+            Y_UNREACHABLE();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

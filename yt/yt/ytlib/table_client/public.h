@@ -31,6 +31,8 @@ class TBlockWriter;
 
 class THorizontalBlockReader;
 
+struct TTableReadSpec;
+
 DECLARE_REFCOUNTED_STRUCT(ILookupReader)
 
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)

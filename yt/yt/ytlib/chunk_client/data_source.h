@@ -85,6 +85,9 @@ class TDataSourceDirectory
 {
 public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<TDataSource>, DataSources);
+
+    //! Get common data source type or throw if types are mixed.
+    EDataSourceType GetCommonTypeOrThrow() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDataSourceDirectory)
