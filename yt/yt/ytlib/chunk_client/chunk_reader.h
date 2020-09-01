@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block.h"
+#include "chunk_reader_statistics.h"
 
 #include <yt/client/hydra/public.h>
 
@@ -15,7 +16,7 @@ namespace NYT::NChunkClient {
 struct TClientBlockReadOptions
 {
     TWorkloadDescriptor WorkloadDescriptor;
-    TChunkReaderStatisticsPtr ChunkReaderStatistics;
+    TChunkReaderStatisticsPtr ChunkReaderStatistics = New<TChunkReaderStatistics>();
     TReadSessionId ReadSessionId;
 };
 

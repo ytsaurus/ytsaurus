@@ -195,6 +195,21 @@ TDataSource MakeFileDataSource(const std::optional<TYPath>& path)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EDataSourceType TDataSourceDirectory::GetCommonTypeOrThrow() const
+{
+    if (DataSources_.empty()) {
+        THROW_ERROR_EXCEPTION("No data sources specified");
+    }
+    THashSet<EDataSourceType> dataSourceTypes;
+    for (const auto& dataSource : DataSources_) {
+        dataSourceTypes.emplace(dataSource.GetType());
+    }
+    if (dataSourceTypes.size() > 1) {
+        THROW_ERROR_EXCEPTION("Mixing data sources of different kind is not allowed: %v", dataSourceTypes);
+    }
+    return *dataSourceTypes.begin();
+}
+
 void ToProto(
     NProto::TDataSourceDirectoryExt* protoDataSourceDirectory,
     const TDataSourceDirectoryPtr& dataSourceDirectory)

@@ -110,4 +110,19 @@ ISchemalessMultiChunkReaderPtr CreateSchemalessMergingMultiChunkReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ISchemalessMultiChunkReaderPtr CreateAppropriateSchemalessMultiChunkReader(
+    const NApi::NNative::IClientPtr& client,
+    const TTableReaderOptionsPtr& options,
+    const TTableReaderConfigPtr& config,
+    TTableReadSpec& tableReadSpec,
+    const NChunkClient::TClientBlockReadOptions& blockReadOptions,
+    bool unordered,
+    const TKeyColumns& keyColumns,
+    const TNameTablePtr& nameTable,
+    const TColumnFilter& columnFilter,
+    const NConcurrency::IThroughputThrottlerPtr& bandwidthThrottler = NConcurrency::GetUnlimitedThrottler(),
+    const NConcurrency::IThroughputThrottlerPtr& rpsThrottler = NConcurrency::GetUnlimitedThrottler());
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

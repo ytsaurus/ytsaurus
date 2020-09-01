@@ -8,16 +8,17 @@
 #include "block_input_stream.h"
 
 #include <yt/ytlib/api/native/client.h>
-#include <yt/ytlib/api/native/table_reader.h>
 
 #include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
+#include <yt/ytlib/table_client/table_read_spec.h>
+
+#include <yt/ytlib/chunk_client/chunk_reader.h>
 
 #include <yt/client/ypath/rich.h>
 
 #include <yt/client/table_client/name_table.h>
 
 #include <Common/Exception.h>
-#include <DataStreams/IBlockInputStream.h>
 #include <Dictionaries/DictionarySourceFactory.h>
 #include <Dictionaries/DictionaryStructure.h>
 
@@ -29,6 +30,7 @@ using namespace NTableClient;
 using namespace NYPath;
 using namespace NLogging;
 using namespace NConcurrency;
+using namespace NChunkClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -65,17 +67,24 @@ public:
 
         ValidateSchema(*table->Schema);
 
-        auto result = WaitFor(
-            NApi::NNative::CreateSchemalessMultiChunkReader(
-                Host_->GetRootClient(),
-                Path_,
-                NApi::TTableReaderOptions(),
-                NTableClient::TNameTable::FromSchema(*table->Schema),
-                NTableClient::TColumnFilter(table->Schema->GetColumnCount())))
-            .ValueOrThrow();
+        auto tableReadSpec = FetchSingleTableReadSpec(TFetchSingleTableReadSpecOptions{
+            .Client = Host_->GetRootClient(),
+            .RichPath = Path_,
+        });
+
+        auto reader = CreateAppropriateSchemalessMultiChunkReader(
+            Host_->GetRootClient(),
+            New<TTableReaderOptions>(),
+            New<TTableReaderConfig>(),
+            tableReadSpec,
+            TClientBlockReadOptions(),
+            true,
+            table->Schema->GetKeyColumns(),
+            NTableClient::TNameTable::FromSchema(*table->Schema),
+            NTableClient::TColumnFilter(table->Schema->GetColumnCount()));
 
         return CreateBlockInputStream(
-            result.Reader,
+            reader,
             table->Schema,
             nullptr /* traceContext */,
             Host_,

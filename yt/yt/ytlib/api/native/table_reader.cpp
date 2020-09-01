@@ -1,28 +1,20 @@
 #include "table_reader.h"
-#include "private.h"
 #include "transaction.h"
 #include "connection.h"
 
-#include <yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/ytlib/table_client/table_read_spec.h>
+
 #include <yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/ytlib/chunk_client/chunk_spec.h>
 #include <yt/ytlib/chunk_client/data_source.h>
 #include <yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
 
-#include <yt/ytlib/cypress_client/rpc_helpers.h>
-
 #include <yt/ytlib/table_client/config.h>
-#include <yt/ytlib/table_client/blob_table_writer.h>
-#include <yt/ytlib/table_client/chunk_meta_extensions.h>
-#include <yt/ytlib/table_client/helpers.h>
 #include <yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
-#include <yt/ytlib/table_client/table_ypath_proxy.h>
 
-#include <yt/ytlib/transaction_client/helpers.h>
 #include <yt/ytlib/transaction_client/transaction_listener.h>
 
 #include <yt/ytlib/object_client/helpers.h>
@@ -33,8 +25,6 @@
 
 #include <yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/client/object_client/helpers.h>
-
 #include <yt/client/table_client/name_table.h>
 #include <yt/client/table_client/unversioned_row_batch.h>
 
@@ -42,34 +32,20 @@
 
 #include <yt/core/concurrency/scheduler.h>
 #include <yt/core/concurrency/throughput_throttler.h>
-#include <yt/core/concurrency/async_stream.h>
 
 #include <yt/core/misc/protobuf_helpers.h>
 #include <yt/core/misc/range.h>
 
 #include <yt/core/rpc/public.h>
 
-#include <yt/core/ytree/ypath_proxy.h>
-
 namespace NYT::NApi::NNative {
 
-using namespace NChunkClient;
-using namespace NChunkClient::NProto;
-using namespace NConcurrency;
-using namespace NCypressClient;
-using namespace NNodeTrackerClient;
-using namespace NObjectClient;
-using namespace NTableClient;
-using namespace NApi;
 using namespace NTransactionClient;
+using namespace NTableClient;
+using namespace NChunkClient;
 using namespace NYPath;
-using namespace NYTree;
-using namespace NYson;
-using namespace NRpc;
-
-using NChunkClient::TChunkReaderStatistics;
-using NChunkClient::TDataSliceDescriptor;
-using NYT::TRange;
+using namespace NConcurrency;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -118,8 +94,8 @@ public:
             return CreateEmptyUnversionedRowBatch();
         }
 
-        YT_VERIFY(OpenResult_);
-        return OpenResult_->Reader->Read(options);
+        YT_VERIFY(Reader_);
+        return Reader_->Read(options);
     }
 
     virtual TFuture<void> GetReadyEvent() override
@@ -132,49 +108,50 @@ public:
             return MakeFuture(GetAbortError());
         }
 
-        YT_VERIFY(OpenResult_);
-        return OpenResult_->Reader->GetReadyEvent();
+        YT_VERIFY(Reader_);
+        return Reader_->GetReadyEvent();
     }
 
     i64 GetStartRowIndex() const
     {
-        YT_VERIFY(OpenResult_);
+        YT_VERIFY(Reader_);
         return StartRowIndex_;
     }
 
     virtual i64 GetTotalRowCount() const override
     {
-        YT_VERIFY(OpenResult_);
-        return OpenResult_->Reader->GetTotalRowCount();
+        YT_VERIFY(Reader_);
+        return Reader_->GetTotalRowCount();
     }
 
     virtual NChunkClient::NProto::TDataStatistics GetDataStatistics() const override
     {
-        YT_VERIFY(OpenResult_);
-        return OpenResult_->Reader->GetDataStatistics();
+        YT_VERIFY(Reader_);
+        return Reader_->GetDataStatistics();
     }
 
     virtual const TNameTablePtr& GetNameTable() const override
     {
-        YT_VERIFY(OpenResult_);
-        return OpenResult_->Reader->GetNameTable();
+        YT_VERIFY(Reader_);
+        return Reader_->GetNameTable();
     }
 
     virtual const TKeyColumns& GetKeyColumns() const override
     {
-        YT_VERIFY(OpenResult_);
-        return OpenResult_->Reader->GetKeyColumns();
+        YT_VERIFY(Reader_);
+        return Reader_->GetKeyColumns();
     }
 
     virtual const TTableSchemaPtr& GetTableSchema() const override
     {
-        return OpenResult_->TableSchema;
+        YT_VERIFY(Reader_);
+        return TableSchema_;
     }
 
     virtual const std::vector<TString>& GetOmittedInaccessibleColumns() const override
     {
-        YT_VERIFY(OpenResult_);
-        return OpenResult_->OmittedInaccessibleColumns;
+        YT_VERIFY(Reader_);
+        return OmittedInaccessibleColumns_;
     }
 
 private:
@@ -191,23 +168,66 @@ private:
     const TNodeDirectoryPtr NodeDirectory_;
 
     TFuture<void> ReadyEvent_;
-    std::optional<TSchemalessMultiChunkReaderCreateResult> OpenResult_;
+    ISchemalessMultiChunkReaderPtr Reader_;
+    TTableSchemaPtr TableSchema_;
+    std::vector<TString> OmittedInaccessibleColumns_;
     i64 StartRowIndex_;
     NProfiling::TCpuInstant ReadDeadline_ = Max<NProfiling::TCpuInstant>();
 
     void DoOpen()
     {
-        OpenResult_ = WaitFor(CreateSchemalessMultiChunkReader(
+        // Transform NApi::TTableReaderOptions into NTableClient::TTableReader{Options,Config}.
+        auto tableReaderConfig = Options_.Config ? Options_.Config : New<TTableReaderConfig>();
+        auto tableReaderOptions = New<NTableClient::TTableReaderOptions>();
+        tableReaderOptions->EnableTableIndex = Options_.EnableTableIndex;
+        tableReaderOptions->EnableRangeIndex = Options_.EnableRangeIndex;
+        tableReaderOptions->EnableRowIndex = Options_.EnableRowIndex;
+        tableReaderOptions->EnableTabletIndex = Options_.EnableTabletIndex;
+
+        auto readSessionId = TReadSessionId::Create();
+        auto fetchTableReadMetaOptions = TFetchSingleTableReadSpecOptions{
+            .RichPath = RichPath_,
+            .Client = Client_,
+            .TransactionId = Options_.TransactionId,
+            .ReadSessionId = readSessionId,
+            .GetUserObjectBasicAttributesOptions = TGetUserObjectBasicAttributesOptions{
+                .SuppressAccessTracking = tableReaderConfig->SuppressAccessTracking,
+                .SuppressExpirationTimeoutRenewal = tableReaderConfig->SuppressExpirationTimeoutRenewal,
+                .OmitInaccessibleColumns = Options_.OmitInaccessibleColumns,
+            },
+            .FetchChunkSpecConfig = Config_,
+            .FetchParityReplicas = tableReaderConfig->EnableAutoRepair,
+            .UnavailableChunkStrategy = tableReaderConfig->UnavailableChunkStrategy,
+        };
+
+        TClientBlockReadOptions blockReadOptions;
+        blockReadOptions.WorkloadDescriptor = tableReaderConfig->WorkloadDescriptor;
+        blockReadOptions.WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
+        blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
+        blockReadOptions.ReadSessionId = readSessionId;
+
+        auto tableReadSpec = FetchSingleTableReadSpec(fetchTableReadMetaOptions);
+        YT_VERIFY(tableReadSpec.DataSourceDirectory->DataSources().size() == 1);
+        const auto& dataSource = tableReadSpec.DataSourceDirectory->DataSources().front();
+        TableSchema_ = dataSource.Schema();
+        OmittedInaccessibleColumns_ = dataSource.OmittedInaccessibleColumns();
+        Reader_ = CreateAppropriateSchemalessMultiChunkReader(
             Client_,
-            RichPath_,
-            Options_,
+            tableReaderOptions,
+            tableReaderConfig,
+            tableReadSpec,
+            blockReadOptions,
+            Options_.Unordered,
+            TableSchema_->GetKeyColumns(),
             NameTable_,
             ColumnFilter_,
             BandwidthThrottler_,
-            RpsThrottler_))
-            .ValueOrThrow();
+            RpsThrottler_);
 
-        StartRowIndex_ = OpenResult_->Reader->GetTableRowIndex();
+        WaitFor(Reader_->GetReadyEvent())
+            .ThrowOnError();
+
+        StartRowIndex_ = Reader_->GetTableRowIndex();
 
         if (Transaction_) {
             StartListenTransaction(Transaction_);
@@ -253,223 +273,6 @@ TFuture<ITableReaderPtr> CreateTableReader(
     return reader->GetReadyEvent().Apply(BIND([=] () -> ITableReaderPtr {
         return reader;
     }));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TFuture<TSchemalessMultiChunkReaderCreateResult> CreateSchemalessMultiChunkReader(
-    const IClientPtr& client,
-    const NYPath::TRichYPath& richPath,
-    const TTableReaderOptions& options,
-    const TNameTablePtr& nameTable,
-    const TColumnFilter& columnFilter,
-    const IThroughputThrottlerPtr& bandwidthThrottler,
-    const IThroughputThrottlerPtr& rpsThrottler)
-{
-    const auto& path = richPath.GetPath();
-    auto readSessionId = TReadSessionId::Create();
-
-    auto Logger = NLogging::TLogger(ApiLogger)
-        .AddTag("Path: %v, TransactionId: %v, ReadSessionId: %v",
-            path,
-            options.TransactionId,
-            readSessionId);
-
-    YT_LOG_INFO("Opening table reader");
-
-    auto userObject = std::make_unique<TUserObject>(richPath);
-
-    auto config = options.Config ? options.Config : New<TTableReaderConfig>();
-
-    GetUserObjectBasicAttributes(
-        client,
-        {userObject.get()},
-        options.TransactionId,
-        Logger,
-        EPermission::Read,
-        TGetUserObjectBasicAttributesOptions{
-            .SuppressAccessTracking = config->SuppressAccessTracking,
-            .SuppressExpirationTimeoutRenewal = config->SuppressExpirationTimeoutRenewal,
-            .OmitInaccessibleColumns = options.OmitInaccessibleColumns
-        });
-
-    if (userObject->ObjectId) {
-        if (userObject->Type != EObjectType::Table) {
-            THROW_ERROR_EXCEPTION("Invalid type of %v: expected %Qlv, actual %Qlv",
-                path,
-                EObjectType::Table,
-                userObject->Type);
-        }
-    } else {
-        YT_LOG_INFO("Table is virtual");
-    }
-
-    int chunkCount;
-    bool dynamic;
-    TTableSchemaPtr schema;
-    {
-        YT_LOG_INFO("Requesting extended table attributes");
-
-        auto channel = client->GetMasterChannelOrThrow(
-            EMasterChannelKind::Follower,
-            userObject->ExternalCellTag);
-
-        TObjectServiceProxy proxy(channel);
-
-        // NB: objectId is null for virtual tables.
-        auto req = TYPathProxy::Get(userObject->GetObjectIdPathIfAvailable() + "/@");
-        if (userObject->ObjectId) {
-            AddCellTagToSyncWith(req, userObject->ObjectId);
-        }
-        SetTransactionId(req, userObject->ExternalTransactionId);
-        SetSuppressAccessTracking(req, config->SuppressAccessTracking);
-        SetSuppressExpirationTimeoutRenewal(req, config->SuppressExpirationTimeoutRenewal);
-        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-            "chunk_count",
-            "dynamic",
-            "retained_timestamp",
-            "schema",
-            "unflushed_timestamp",
-            "enable_dynamic_store_read",
-        });
-
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting extended attributes of table %v",
-            path);
-
-        const auto& rsp = rspOrError.Value();
-        auto attributes = ConvertToAttributes(TYsonString(rsp->value()));
-
-        chunkCount = attributes->Get<int>("chunk_count");
-        dynamic = attributes->Get<bool>("dynamic");
-        schema = attributes->Get<TTableSchemaPtr>("schema");
-
-        ValidateDynamicTableTimestamp(richPath, dynamic, *schema, *attributes);
-    }
-
-    std::vector<TChunkSpec> chunkSpecs;
-
-    {
-        YT_LOG_INFO("Fetching table chunks (ChunkCount: %v)",
-            chunkCount);
-
-        chunkSpecs = FetchChunkSpecs(
-            client,
-            client->GetNativeConnection()->GetNodeDirectory(),
-            *userObject,
-            richPath.GetRanges(),
-            // XXX(babenko): YT-11825
-            dynamic && !schema->IsSorted() ? -1 : chunkCount,
-            config->MaxChunksPerFetch,
-            config->MaxChunksPerLocateRequest,
-            [&] (const TChunkOwnerYPathProxy::TReqFetchPtr& req) {
-                req->set_fetch_all_meta_extensions(false);
-                req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
-                req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
-                req->set_fetch_parity_replicas(config->EnableAutoRepair);
-                AddCellTagToSyncWith(req, userObject->ObjectId);
-                SetTransactionId(req, userObject->ExternalTransactionId);
-                SetSuppressAccessTracking(req, config->SuppressAccessTracking);
-                SetSuppressExpirationTimeoutRenewal(req, config->SuppressExpirationTimeoutRenewal);
-            },
-            Logger,
-            /* skipUnavailableChunks */ config->UnavailableChunkStrategy == EUnavailableChunkStrategy::Skip);
-
-        CheckUnavailableChunks(config->UnavailableChunkStrategy, &chunkSpecs);
-    }
-
-    auto internalOptions = New<NTableClient::TTableReaderOptions>();
-    internalOptions->EnableTableIndex = options.EnableTableIndex;
-    internalOptions->EnableRangeIndex = options.EnableRangeIndex;
-    internalOptions->EnableRowIndex = options.EnableRowIndex;
-    internalOptions->EnableTabletIndex = options.EnableTabletIndex;
-
-    TClientBlockReadOptions blockReadOptions;
-    blockReadOptions.WorkloadDescriptor = config->WorkloadDescriptor;
-    blockReadOptions.WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", path));
-    blockReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
-    blockReadOptions.ReadSessionId = readSessionId;
-
-    ISchemalessMultiChunkReaderPtr reader;
-
-    auto dataSourceDirectory = New<NChunkClient::TDataSourceDirectory>();
-    if (dynamic && schema->IsSorted()) {
-        dataSourceDirectory->DataSources().push_back(MakeVersionedDataSource(
-            path,
-            schema,
-            richPath.GetColumns(),
-            userObject->OmittedInaccessibleColumns,
-            richPath.GetTimestamp().value_or(AsyncLastCommittedTimestamp),
-            richPath.GetRetentionTimestamp().value_or(NullTimestamp)));
-
-        TDataSliceDescriptor dataSliceDescriptor(std::move(chunkSpecs));
-
-        const auto& dataSource = dataSourceDirectory->DataSources()[dataSliceDescriptor.GetDataSourceIndex()];
-        auto adjustedColumnFilter = columnFilter.IsUniversal()
-            ? CreateColumnFilter(dataSource.Columns(), nameTable)
-            : columnFilter;
-
-        reader = CreateSchemalessMergingMultiChunkReader(
-            config,
-            internalOptions,
-            client,
-            /* localDescriptor */ {},
-            /* partitionTag */ std::nullopt,
-            client->GetNativeConnection()->GetBlockCache(),
-            client->GetNativeConnection()->GetNodeDirectory(),
-            dataSourceDirectory,
-            dataSliceDescriptor,
-            nameTable,
-            blockReadOptions,
-            adjustedColumnFilter,
-            /* trafficMeter */ nullptr,
-            bandwidthThrottler,
-            rpsThrottler);
-    } else {
-        dataSourceDirectory->DataSources().push_back(MakeUnversionedDataSource(
-            path,
-            schema,
-            richPath.GetColumns(),
-            userObject->OmittedInaccessibleColumns));
-
-        std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-        for (const auto& chunkSpec : chunkSpecs) {
-            dataSliceDescriptors.emplace_back(chunkSpec);
-        }
-
-        auto factory = options.Unordered
-            ? CreateSchemalessParallelMultiReader
-            : CreateSchemalessSequentialMultiReader;
-        reader = factory(
-            config,
-            internalOptions,
-            client,
-            // Client doesn't have a node descriptor.
-            /* localDescriptor */ {},
-            std::nullopt,
-            client->GetNativeConnection()->GetBlockCache(),
-            client->GetNativeConnection()->GetNodeDirectory(),
-            dataSourceDirectory,
-            std::move(dataSliceDescriptors),
-            nameTable,
-            blockReadOptions,
-            columnFilter,
-            schema->GetKeyColumns(),
-            /* partitionTag */ std::nullopt,
-            /* trafficMeter */ nullptr,
-            bandwidthThrottler,
-            rpsThrottler,
-            /* multiReaderMemoryManager */ nullptr);
-    }
-
-    return reader->GetReadyEvent()
-        .Apply(BIND([=, userObject = std::move(userObject)] {
-            return TSchemalessMultiChunkReaderCreateResult{
-                reader,
-                userObject->OmittedInaccessibleColumns,
-                schema
-            };
-        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
