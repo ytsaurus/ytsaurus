@@ -773,3 +773,6 @@ def update_config_from_env(config):
             _set(config, name, _apply_type(var_type, key, value))
 
     return config
+
+def get_config_from_env():
+    return update_config_from_env(get_default_config())
