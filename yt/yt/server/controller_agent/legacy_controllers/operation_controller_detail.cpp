@@ -6454,9 +6454,6 @@ void TOperationControllerBase::WriteInputQueryToJobSpec(TSchedulerJobSpecExt* sc
 
 void TOperationControllerBase::CollectTotals()
 {
-    // This is the sum across all input chunks not accounting lower/upper read limits.
-    // Used to calculate compression ratio.
-    i64 totalInputDataWeight = 0;
     for (const auto& table : InputTables_) {
         for (const auto& inputChunk : table->Chunks) {
             if (IsUnavailable(inputChunk, CheckParityReplicas())) {
@@ -6487,7 +6484,6 @@ void TOperationControllerBase::CollectTotals()
                 ForeignInputDataWeight += inputChunk->GetDataWeight();
             }
 
-            totalInputDataWeight += inputChunk->GetTotalDataWeight();
             TotalEstimatedInputUncompressedDataSize += inputChunk->GetUncompressedDataSize();
             TotalEstimatedInputRowCount += inputChunk->GetRowCount();
             TotalEstimatedInputCompressedDataSize += inputChunk->GetCompressedDataSize();
@@ -6496,16 +6492,15 @@ void TOperationControllerBase::CollectTotals()
         }
     }
 
-    InputCompressionRatio = static_cast<double>(TotalEstimatedInputCompressedDataSize) / totalInputDataWeight;
-    DataWeightRatio = static_cast<double>(totalInputDataWeight) / TotalEstimatedInputUncompressedDataSize;
+    InputCompressionRatio = static_cast<double>(TotalEstimatedInputCompressedDataSize) / TotalEstimatedInputDataWeight;
+    DataWeightRatio = static_cast<double>(TotalEstimatedInputDataWeight) / TotalEstimatedInputUncompressedDataSize;
 
-    YT_LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v, TotalDataWeight: %v)",
+    YT_LOG_INFO("Estimated input totals collected (ChunkCount: %v, RowCount: %v, UncompressedDataSize: %v, CompressedDataSize: %v, DataWeight: %v)",
         TotalEstimatedInputChunkCount,
         TotalEstimatedInputRowCount,
         TotalEstimatedInputUncompressedDataSize,
         TotalEstimatedInputCompressedDataSize,
-        TotalEstimatedInputDataWeight,
-        totalInputDataWeight);
+        TotalEstimatedInputDataWeight);
 }
 
 void TOperationControllerBase::CustomPrepare()
