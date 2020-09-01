@@ -387,9 +387,20 @@ class TestSchedulerGpu(YTEnvSetup):
         create_pool("gpu_pool", attributes={"min_share_resources": {"gpu": 1}})
         wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/min_share_resources/gpu") == 1)
         wait(lambda: get(scheduler_orchid_pool_path("gpu_pool") + "/min_share_ratio") == 0.25)
-    
+
     @authors("ignat")
     def test_packing(self):
+        def check_gpus(op, gpu_indexes):
+            jobs = op.get_running_jobs()
+            if len(jobs) != 1:
+                return False
+            assert jobs.values()[0]["address"] == gpu_node
+            job_info = get("//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}".format(gpu_node, jobs.keys()[0]))
+            job_gpu_indexes = sorted([device["device_number"] for device in job_info["exec_attributes"]["gpu_devices"]])
+            if job_gpu_indexes != sorted(gpu_indexes):
+                return False
+            return True
+
         gpu_nodes = [node for node in ls("//sys/cluster_nodes") if get("//sys/cluster_nodes/{}/@resource_limits/gpu".format(node)) > 0]
         assert len(gpu_nodes) == 1
         gpu_node = gpu_nodes[0]
@@ -411,12 +422,8 @@ class TestSchedulerGpu(YTEnvSetup):
 
         wait(lambda: get("//sys/cluster_nodes/{}/@resource_usage/gpu".format(gpu_node)) == 1)
 
-        jobs = op1.get_running_jobs()
-        assert len(jobs) == 1
-        assert jobs.values()[0]["address"] == gpu_node
-        job_info = get("//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}".format(gpu_node, jobs.keys()[0]))
-        assert [device["device_number"] for device in job_info["exec_attributes"]["gpu_devices"]] == [0]
-        
+        wait(lambda: check_gpus(op1, [0]))
+
         op2 = map(
             command=with_breakpoint("cat ; BREAKPOINT"),
             in_="//tmp/in",
@@ -429,11 +436,7 @@ class TestSchedulerGpu(YTEnvSetup):
 
         wait(lambda: get("//sys/cluster_nodes/{}/@resource_usage/gpu".format(gpu_node)) == 3)
 
-        jobs = op2.get_running_jobs()
-        assert len(jobs) == 1
-        assert jobs.values()[0]["address"] == gpu_node
-        job_info = get("//sys/cluster_nodes/{}/orchid/job_controller/active_jobs/scheduler/{}".format(gpu_node, jobs.keys()[0]))
-        assert __builtin__.set([device["device_number"] for device in job_info["exec_attributes"]["gpu_devices"]]) == __builtin__.set([2, 3])
+        wait(lambda: check_gpus(op2, [2, 3]))
 
 ###############################################################################################
 
