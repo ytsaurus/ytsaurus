@@ -161,6 +161,7 @@ message TReqHandshake
 {
     required string agent_id = 1;
     required NYT.NNodeTrackerClient.NProto.TAddressMap agent_addresses = 2;
+    repeated string tags = 3;
 }
 
 message TRspHandshake

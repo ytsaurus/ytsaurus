@@ -728,6 +728,10 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("enable_prerequisites_for_starting_completion_transactions", EnablePrerequisitesForStartingCompletionTransactions)
         .Default(true);
 
+    // COMPAT(gritukan): This default is quite dangerous, change it when all controller agents will have fresh configs.
+    RegisterParameter("tags", Tags)
+        .Default(std::vector<TString>({"default"}));
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

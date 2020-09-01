@@ -222,6 +222,36 @@ public:
         return ConfigRevision_;
     }
 
+    const std::vector<TString>& GetTags() const
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (Tags_) {
+            return *Tags_;
+        }
+
+        TObjectServiceProxy proxy(Bootstrap_
+            ->GetMasterClient()
+            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTag));
+
+        YT_LOG_DEBUG("Fetching \"tags\" attribute");
+
+        auto req = TYPathProxy::Get(GetInstancePath() + "/@tags");
+        auto rspOrError = WaitFor(proxy.Execute(req));
+        if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            Tags_ = Config_->Tags;
+            YT_LOG_DEBUG("Attribute \"tags\" does not exist; using tags from config (Tags: %v)",
+                Tags_);
+        } else {
+            auto rsp = rspOrError.ValueOrThrow();
+            Tags_ = ConvertTo<std::vector<TString>>(TYsonString(rsp->value()));
+            YT_LOG_DEBUG("Tags fetched from Cypress (Tags: %v)",
+                Tags_);            
+        }
+
+        return *Tags_;
+    }
+
 private:
     TControllerAgentConfigPtr Config_;
     INodePtr InitialConfigNode_;
@@ -233,6 +263,8 @@ private:
 
     TCancelableContextPtr CancelableContext_;
     IInvokerPtr CancelableControlInvoker_;
+
+    mutable std::optional<std::vector<TString>> Tags_;
 
     struct TLivePreviewRequest
     {
@@ -407,7 +439,7 @@ private:
         }
     }
 
-    TYPath GetInstancePath()
+    TYPath GetInstancePath() const
     {
         auto addresses = Bootstrap_->GetLocalAddresses();
         return "//sys/controller_agents/instances/" + ToYPathLiteral(GetDefaultAddress(addresses));
@@ -1511,6 +1543,11 @@ TFuture<void> TMasterConnector::UpdateConfig()
 ui64 TMasterConnector::GetConfigRevision() const
 {
     return Impl_->GetConfigRevision();
+}
+
+const std::vector<TString>& TMasterConnector::GetTags() const
+{
+    return Impl_->GetTags();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

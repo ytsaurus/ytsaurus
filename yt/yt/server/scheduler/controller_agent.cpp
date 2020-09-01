@@ -12,10 +12,12 @@ namespace NYT::NScheduler {
 TControllerAgent::TControllerAgent(
     const TString& id,
     const NNodeTrackerClient::TAddressMap& agentAddresses,
+    THashSet<TString> tags,
     NRpc::IChannelPtr channel,
     const IInvokerPtr& invoker)
     : Id_(id)
     , AgentAddresses_(agentAddresses)
+    , Tags_(std::move(tags))
     , Channel_(std::move(channel))
     , CancelableContext_(New<TCancelableContext>())
     , CancelableInvoker_(CancelableContext_->CreateInvoker(invoker))
@@ -33,6 +35,13 @@ const NNodeTrackerClient::TAddressMap& TControllerAgent::GetAgentAddresses() con
     VERIFY_THREAD_AFFINITY_ANY();
 
     return AgentAddresses_;
+}
+
+const THashSet<TString>& TControllerAgent::GetTags() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return Tags_;
 }
 
 const NRpc::IChannelPtr& TControllerAgent::GetChannel() const
