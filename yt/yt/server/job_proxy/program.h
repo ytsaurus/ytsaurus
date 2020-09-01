@@ -92,12 +92,10 @@ protected:
             return;
         }
 
-        // NB: There are some cyclic references here:
-        // JobProxy <-> Job
-        // JobProxy <-> JobProberService
-        // But we (currently) don't care.
         auto jobProxy = New<TJobProxy>(std::move(config), OperationId_, JobId_);
         jobProxy->Run();
+        // Everything should be properly destructed.
+        YT_VERIFY(ResetAndGetResidualRefCount(jobProxy) == 0);
     }
 
 private:

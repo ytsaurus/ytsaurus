@@ -35,7 +35,7 @@ class TSimpleSortJob
     : public TSimpleJobBase
 {
 public:
-    explicit TSimpleSortJob(IJobHostPtr host)
+    explicit TSimpleSortJob(IJobHost* host)
         : TSimpleJobBase(host)
         , SortJobSpecExt_(JobSpec_.GetExtension(TSortJobSpecExt::sort_job_spec_ext))
     { }
@@ -121,7 +121,7 @@ private:
     }
 };
 
-IJobPtr CreateSimpleSortJob(IJobHostPtr host)
+IJobPtr CreateSimpleSortJob(IJobHost* host)
 {
     return New<TSimpleSortJob>(host);
 }

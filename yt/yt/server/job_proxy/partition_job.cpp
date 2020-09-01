@@ -35,7 +35,7 @@ class TPartitionJob
     : public TSimpleJobBase
 {
 public:
-    explicit TPartitionJob(IJobHostPtr host)
+    explicit TPartitionJob(IJobHost* host)
         : TSimpleJobBase(host)
         , PartitionJobSpecExt_(host->GetJobSpecHelper()->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext))
     { }
@@ -70,6 +70,7 @@ public:
             // NB: don't create parallel reader to eliminate non-deterministic behavior,
             // which is a nightmare for restarted (lost) jobs.
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
+
             Reader_ = CreateSchemalessSequentialMultiReader(
                 tableReaderConfig,
                 readerOptions,
@@ -152,7 +153,7 @@ private:
     }
 };
 
-IJobPtr CreatePartitionJob(IJobHostPtr host)
+IJobPtr CreatePartitionJob(IJobHost* host)
 {
     return New<TPartitionJob>(host);
 }

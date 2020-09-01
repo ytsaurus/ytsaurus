@@ -48,8 +48,8 @@ static const auto& Logger = JobProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJob::TJob(IJobHostPtr host)
-    : Host_(std::move(host))
+TJob::TJob(IJobHost* host)
+    : Host_(host)
     , StartTime_(TInstant::Now())
 {
     YT_VERIFY(Host_);
@@ -118,7 +118,7 @@ i64 TJob::GetStderrSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleJobBase::TSimpleJobBase(IJobHostPtr host)
+TSimpleJobBase::TSimpleJobBase(IJobHost* host)
     : TJob(host)
     , JobSpec_(host->GetJobSpecHelper()->GetJobSpec())
     , SchedulerJobSpecExt_(host->GetJobSpecHelper()->GetSchedulerJobSpecExt())

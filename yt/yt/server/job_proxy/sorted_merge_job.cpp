@@ -34,7 +34,7 @@ class TSortedMergeJob
     : public TSimpleJobBase
 {
 public:
-    explicit TSortedMergeJob(IJobHostPtr host)
+    explicit TSortedMergeJob(IJobHost* host)
         : TSimpleJobBase(host)
         , MergeJobSpecExt_(JobSpec_.GetExtension(TMergeJobSpecExt::merge_job_spec_ext))
     { }
@@ -152,7 +152,7 @@ private:
     }
 };
 
-IJobPtr CreateSortedMergeJob(IJobHostPtr host)
+IJobPtr CreateSortedMergeJob(IJobHost* host)
 {
     return New<TSortedMergeJob>(host);
 }

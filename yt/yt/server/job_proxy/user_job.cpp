@@ -150,7 +150,7 @@ class TUserJob
 {
 public:
     TUserJob(
-        IJobHostPtr host,
+        IJobHost* host,
         const TUserJobSpec& userJobSpec,
         TJobId jobId,
         const std::vector<int>& ports,
@@ -181,7 +181,7 @@ public:
             Host_->GetClient(),
             PipeIOPool_->GetInvoker(),
             Host_->LocalDescriptor(),
-            BIND(&IJobHost::ReleaseNetwork, Host_),
+            BIND(&IJobHost::ReleaseNetwork, MakeWeak(Host_)),
             SandboxDirectoryNames[ESandboxKind::Udf],
             BlockReadOptions_,
             Host_->GetTrafficMeter(),
@@ -1548,7 +1548,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobPtr CreateUserJob(
-    IJobHostPtr host,
+    IJobHost* host,
     const TUserJobSpec& userJobSpec,
     TJobId jobId,
     const std::vector<int>& ports,
@@ -1565,7 +1565,7 @@ IJobPtr CreateUserJob(
 #else
 
 IJobPtr CreateUserJob(
-    IJobHostPtr host,
+    IJobHost* host,
     const TUserJobSpec& UserJobSpec_,
     TJobId jobId,
     const std::vector<int>& ports,
