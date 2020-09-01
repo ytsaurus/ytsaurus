@@ -101,6 +101,8 @@ public:
             return nullptr;
         }
 
+        serializedRequest = AdjustMessageMemoryZone(std::move(serializedRequest), options.MemoryZone);
+
         auto session = New<TSession>(std::move(responseHandler), options.Timeout);
 
         service->HandleRequest(
@@ -184,6 +186,8 @@ private:
                     error = FromProto<TError>(header.error());
                 }
                 if (error.IsOK()) {
+                    auto memoryZone = FromProto<NYTAlloc::EMemoryZone>(header.memory_zone());
+                    message = AdjustMessageMemoryZone(std::move(message), memoryZone);
                     Handler_->HandleResponse(std::move(message));
                 } else {
                     Handler_->HandleError(error);

@@ -6,6 +6,8 @@
 
 #include <yt/core/rpc/proto/rpc.pb.h>
 
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,6 +60,10 @@ TSharedRefArray CreateStreamingPayloadMessage(
 
 TSharedRefArray CreateStreamingFeedbackMessage(
     const NProto::TStreamingFeedbackHeader& header);
+
+TSharedRefArray AdjustMessageMemoryZone(
+    TSharedRefArray message,
+    NYTAlloc::EMemoryZone zone);
 
 ////////////////////////////////////////////////////////////////////////////////
 
