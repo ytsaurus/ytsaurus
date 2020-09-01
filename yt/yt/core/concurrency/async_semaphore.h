@@ -62,8 +62,8 @@ public:
 
 private:
     TReaderWriterSpinLock SpinLock_;
-    std::atomic<i64> TotalSlots_;
-    std::atomic<i64> FreeSlots_;
+    i64 TotalSlots_;
+    i64 FreeSlots_;
 
     bool Releasing_ = false;
 
