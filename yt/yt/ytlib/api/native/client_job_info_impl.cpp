@@ -19,6 +19,8 @@
 #include <yt/ytlib/chunk_client/helpers.h>
 #include <yt/ytlib/chunk_client/job_spec_extensions.h>
 
+#include <yt/ytlib/controller_agent/helpers.h>
+
 #include <yt/ytlib/job_proxy/job_spec_helper.h>
 #include <yt/ytlib/job_proxy/helpers.h>
 #include <yt/ytlib/job_proxy/user_job_read_controller.h>
@@ -28,6 +30,8 @@
 #include <yt/ytlib/node_tracker_client/channel.h>
 
 #include <yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/core/compression/codec.h>
 
 #include <yt/core/concurrency/async_stream.h>
 #include <yt/core/concurrency/async_stream_pipe.h>
@@ -43,6 +47,7 @@ using namespace NConcurrency;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+using namespace NControllerAgent;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NFileClient;
@@ -65,27 +70,33 @@ using NNodeTrackerClient::TNodeDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Attribute names allowed for 'get_job' and 'list_jobs' commands.
-static const THashSet<TString> SupportedJobAttributes = {
-    "operation_id",
+static const THashSet<TString> DefaultListJobsAttributes = {
     "job_id",
     "type",
     "state",
     "start_time",
     "finish_time",
-    "progress",
     "address",
-    "error",
-    "stderr_size",
-    "brief_statistics",
-    "statistics",
-    "events",
     "has_spec",
+    "progress",
+    "stderr_size",
+    "error",
+    "brief_statistics",
     "job_competition_id",
     "has_competitors",
-    "exec_attributes",
     "task_name",
 };
+
+static const auto DefaultGetJobAttributes = [] {
+    auto attributes = DefaultListJobsAttributes;
+    attributes.insert("operation_id");
+    attributes.insert("statistics");
+    attributes.insert("events");
+    attributes.insert("exec_attributes");
+    return attributes;
+}();
+
+static const auto SupportedJobAttributes = DefaultGetJobAttributes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1015,45 +1026,6 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     }));
 }
 
-static TYsonString BuildBriefStatistics(const INodePtr& statistics)
-{
-    if (statistics->GetType() != ENodeType::Map) {
-        return BuildYsonStringFluently()
-            .BeginMap()
-            .EndMap();
-    }
-
-    // See NControllerAgent::BuildBriefStatistics.
-    auto rowCount = FindNodeByYPath(statistics, "/data/input/row_count/sum");
-    auto uncompressedDataSize = FindNodeByYPath(statistics, "/data/input/uncompressed_data_size/sum");
-    auto compressedDataSize = FindNodeByYPath(statistics, "/data/input/compressed_data_size/sum");
-    auto dataWeight = FindNodeByYPath(statistics, "/data/input/data_weight/sum");
-    auto inputPipeIdleTime = FindNodeByYPath(statistics, "/user_job/pipes/input/idle_time/sum");
-    auto jobProxyCpuUsage = FindNodeByYPath(statistics, "/job_proxy/cpu/user/sum");
-
-    return BuildYsonStringFluently()
-        .BeginMap()
-            .DoIf(static_cast<bool>(rowCount), [&] (TFluentMap fluent) {
-                fluent.Item("processed_input_row_count").Value(rowCount->AsInt64()->GetValue());
-            })
-            .DoIf(static_cast<bool>(uncompressedDataSize), [&] (TFluentMap fluent) {
-                fluent.Item("processed_input_uncompressed_data_size").Value(uncompressedDataSize->AsInt64()->GetValue());
-            })
-            .DoIf(static_cast<bool>(compressedDataSize), [&] (TFluentMap fluent) {
-                fluent.Item("processed_input_compressed_data_size").Value(compressedDataSize->AsInt64()->GetValue());
-            })
-            .DoIf(static_cast<bool>(dataWeight), [&] (TFluentMap fluent) {
-                fluent.Item("processed_input_data_weight").Value(dataWeight->AsInt64()->GetValue());
-            })
-            .DoIf(static_cast<bool>(inputPipeIdleTime), [&] (TFluentMap fluent) {
-                fluent.Item("input_pipe_idle_time").Value(inputPipeIdleTime->AsInt64()->GetValue());
-            })
-            .DoIf(static_cast<bool>(jobProxyCpuUsage), [&] (TFluentMap fluent) {
-                fluent.Item("job_proxy_cpu_usage").Value(jobProxyCpuUsage->AsInt64()->GetValue());
-            })
-        .EndMap();
-}
-
 static std::vector<TJob> ParseJobsFromArchiveResponse(
     TOperationId operationId,
     const IUnversionedRowsetPtr& rowset,
@@ -1081,6 +1053,8 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     auto addressIndex = findColumnIndex("address");
     auto errorIndex = findColumnIndex("error");
     auto statisticsIndex = findColumnIndex("statistics");
+    auto briefStatisticsIndex = findColumnIndex("brief_statistics");
+    auto statisticsLz4Index = findColumnIndex("statistics_lz4");
     auto stderrSizeIndex = findColumnIndex("stderr_size");
     auto hasSpecIndex = findColumnIndex("has_spec");
     auto failContextSizeIndex = findColumnIndex("fail_context_size");
@@ -1176,12 +1150,32 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.CoreInfos = FromUnversionedValue<TYsonString>(row[*coreInfosIndex]);
         }
 
-        if (statisticsIndex && row[*statisticsIndex].Type != EValueType::Null) {
-            auto statisticsYson = FromUnversionedValue<TYsonString>(row[*statisticsIndex]);
-            auto statistics = ConvertToNode(statisticsYson);
+        if (briefStatisticsIndex && row[*briefStatisticsIndex].Type != EValueType::Null) {
+            job.BriefStatistics = FromUnversionedValue<TYsonString>(row[*briefStatisticsIndex]);
+        }
+
+        if ((needFullStatistics || !job.BriefStatistics) &&
+            statisticsIndex && row[*statisticsIndex].Type != EValueType::Null)
+        {
+            auto statisticsYson = FromUnversionedValue<TYsonStringBuf>(row[*statisticsIndex]);
             if (needFullStatistics) {
-                job.Statistics = statisticsYson;
+                job.Statistics = TYsonString(statisticsYson);
             }
+            auto statistics = ConvertToNode(statisticsYson);
+            job.BriefStatistics = BuildBriefStatistics(statistics);
+        }
+
+        if ((needFullStatistics || !job.BriefStatistics) &&
+            statisticsLz4Index && row[*statisticsLz4Index].Type != EValueType::Null)
+        {
+            auto statisticsLz4 = FromUnversionedValue<TStringBuf>(row[*statisticsLz4Index]);
+            auto codec = NCompression::GetCodec(NCompression::ECodec::Lz4);
+            auto decompressed = codec->Decompress(TSharedRef(statisticsLz4.data(), statisticsLz4.size(), nullptr));
+            auto statisticsYson = TYsonStringBuf(decompressed.Begin(), decompressed.Size());
+            if (needFullStatistics) {
+                job.Statistics = TYsonString(statisticsYson);
+            }
+            auto statistics = ConvertToNode(statisticsYson);
             job.BriefStatistics = BuildBriefStatistics(statistics);
         }
 
@@ -1220,6 +1214,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("address");
     builder.AddSelectExpression("error");
     builder.AddSelectExpression("statistics");
+    builder.AddSelectExpression("statistics_lz4");
     builder.AddSelectExpression("stderr_size");
     builder.AddSelectExpression("has_spec");
     builder.AddSelectExpression("fail_context_size");
@@ -1497,24 +1492,6 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
         return MakeFuture(TListJobsFromControllerAgentResult{});
     }
 
-    // TODO(levysotsky): extract this list to some common place.
-    static const THashSet<TString> DefaultAttributes = {
-        "job_id",
-        "type",
-        "state",
-        "start_time",
-        "finish_time",
-        "address",
-        "has_spec",
-        "progress",
-        "stderr_size",
-        "error",
-        "brief_statistics",
-        "job_competition_id",
-        "has_competitors",
-        "task_name",
-    };
-
     TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
     proxy.SetDefaultTimeout(deadline - Now());
     auto batchReq = proxy.ExecuteBatch();
@@ -1534,7 +1511,7 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
                 operationId,
                 batchRsp,
                 "running_jobs",
-                DefaultAttributes,
+                DefaultListJobsAttributes,
                 options,
                 &result.InProgressJobs,
                 &result.TotalInProgressJobCount,
@@ -1543,7 +1520,7 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
                 operationId,
                 batchRsp,
                 "retained_finished_jobs",
-                DefaultAttributes,
+                DefaultListJobsAttributes,
                 options,
                 &result.FinishedJobs,
                 &result.TotalFinishedJobCount,
@@ -1796,6 +1773,11 @@ static std::vector<TString> MakeJobArchiveAttributes(const THashSet<TString>& at
         } else if (attribute == "state") {
             result.emplace_back("state");
             result.emplace_back("transient_state");
+        } else if (attribute == "statistics") {
+            result.emplace_back("statistics");
+            result.emplace_back("statistics_lz4");
+        } else if (attribute == "progress") {
+            // Progress is missing from job archive.
         } else {
             result.push_back(attribute);
         }
@@ -1914,26 +1896,7 @@ TYsonString TClient::DoGetJob(
     auto timeout = options.Timeout.value_or(Connection_->GetConfig()->DefaultGetJobTimeout);
     auto deadline = timeout.ToDeadLine();
 
-    static const THashSet<TString> DefaultAttributes = {
-        "operation_id",
-        "job_id",
-        "type",
-        "state",
-        "start_time",
-        "finish_time",
-        "address",
-        "error",
-        "stderr_size",
-        "statistics",
-        "events",
-        "has_spec",
-        "job_competition_id",
-        "has_competitors",
-        "exec_attributes",
-        "task_name",
-    };
-
-    const auto& attributes = options.Attributes.value_or(DefaultAttributes);
+    const auto& attributes = options.Attributes.value_or(DefaultGetJobAttributes);
 
     auto job = DoGetJobFromArchive(operationId, jobId, deadline, attributes, options);
     if (!job) {

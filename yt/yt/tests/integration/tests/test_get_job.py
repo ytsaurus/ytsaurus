@@ -8,11 +8,13 @@ from yt.common import date_string_to_datetime, uuid_to_parts
 from yt.wrapper.common import uuid_hash_pair
 
 import __builtin__
+import copy
 import datetime
 
 OPERATION_JOB_ARCHIVE_TABLE = "//sys/operations_archive/jobs"
 
-class TestGetJob(YTEnvSetup):
+
+class TestGetJobBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -122,6 +124,8 @@ class TestGetJob(YTEnvSetup):
         # zombie operation orchids.
         self._check_get_job(op.id, job_id, before_start_time, state="failed", check_has_spec=False)
 
+
+class TestGetJob(TestGetJobBase):
     @authors("gritukan")
     def test_get_job_task_name_attribute_vanilla(self):
         op = vanilla(
@@ -214,6 +218,11 @@ class TestGetJob(YTEnvSetup):
         with raises_yt_error(NoSuchJob):
             get_job("1-2-3-4", "5-6-7-8")
 
+
+class TestGetJobStatisticsLz4(TestGetJobBase):
+    DELTA_NODE_CONFIG = copy.deepcopy(TestGetJobBase.DELTA_NODE_CONFIG)
+    DELTA_NODE_CONFIG["exec_agent"]["job_reporter"]["report_statistics_lz4"] = True
+
 ##################################################################
 
 class TestGetJobRpcProxy(TestGetJob):
@@ -222,3 +231,9 @@ class TestGetJobRpcProxy(TestGetJob):
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
 
+
+class TestGetJobStatisticsLz4RpcProxy(TestGetJobStatisticsLz4):
+    USE_DYNAMIC_TABLES = True
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    ENABLE_HTTP_PROXY = True

@@ -1,20 +1,24 @@
 #include "job_reporter.h"
 
-#include <yt/server/lib/job_agent/config.h>
-#include <yt/server/lib/job_agent/job_report.h>
-
-#include <yt/client/api/connection.h>
-#include <yt/client/api/transaction.h>
+#include "config.h"
+#include "job_report.h"
 
 #include <yt/ytlib/api/native/client.h>
 #include <yt/ytlib/api/native/connection.h>
+
+#include <yt/ytlib/controller_agent/helpers.h>
+
+#include <yt/ytlib/scheduler/helpers.h>
+
+#include <yt/client/api/connection.h>
+#include <yt/client/api/transaction.h>
 
 #include <yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/client/table_client/row_buffer.h>
 #include <yt/client/table_client/name_table.h>
 
-#include <yt/ytlib/scheduler/helpers.h>
+#include <yt/core/compression/codec.h>
 
 #include <yt/core/concurrency/action_queue.h>
 #include <yt/core/concurrency/delayed_executor.h>
@@ -32,6 +36,7 @@ using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NControllerAgent;
 using namespace NApi;
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -160,8 +165,8 @@ public:
         IInvokerPtr invoker,
         const TProfiler& profiler,
         ui64 maxInProgressDataSize)
-        : Data_(std::move(data))
-        , Config_(std::move(config))
+        : Config_(std::move(config))
+        , Data_(std::move(data))
         , Client_(std::move(client))
         , Profiler_(profiler)
         , Limiter_(maxInProgressDataSize)
@@ -218,6 +223,7 @@ public:
 
 protected:
     TLogger Logger = ReporterLogger;
+    const TJobReporterConfigPtr Config_;
 
 private:
     TShardedMonotonicCounter EnqueuedCounter_ = {"/enqueued"};
@@ -230,7 +236,6 @@ private:
     TShardedMonotonicCounter CommittedDataWeightCounter_ = {"/committed_data_weight"};
 
     const TSharedDataPtr Data_;
-    const TJobReporterConfigPtr Config_;
     const NNative::IClientPtr Client_;
     const TProfiler& Profiler_;
     TLimiter Limiter_;
@@ -402,6 +407,8 @@ private:
             // It must be alive until row capture.
             TYsonString coreInfosYsonString;
             TString jobCompetitionIdString;
+            TString statisticsLz4;
+            TYsonString briefStatisticsYsonString;
 
             TUnversionedRowBuilder builder;
             builder.AddValue(MakeUnversionedUint64Value(statistics.OperationId().Parts64[0], Table_.Index.OperationIdHi));
@@ -429,7 +436,18 @@ private:
                 builder.AddValue(MakeUnversionedAnyValue(*statistics.Error(), Table_.Index.Error));
             }
             if (statistics.Statistics()) {
-                builder.AddValue(MakeUnversionedAnyValue(*statistics.Statistics(), Table_.Index.Statistics));
+                constexpr int Lz4AndBriefStatisticsVersion = 36;
+                if (Config_->ReportStatisticsLz4 && GetSharedData()->GetOperationArchiveVersion() >= Lz4AndBriefStatisticsVersion) {
+                    auto codec = NCompression::GetCodec(NCompression::ECodec::Lz4);
+                    statisticsLz4 = ToString(codec->Compress(TSharedRef::FromString(*statistics.Statistics())));
+                    builder.AddValue(MakeUnversionedStringValue(statisticsLz4, Table_.Index.StatisticsLz4));
+                } else {
+                    builder.AddValue(MakeUnversionedAnyValue(*statistics.Statistics(), Table_.Index.Statistics));
+                }
+                if (GetSharedData()->GetOperationArchiveVersion() >= Lz4AndBriefStatisticsVersion) {
+                    briefStatisticsYsonString = BuildBriefStatistics(ConvertToNode(TYsonStringBuf(*statistics.Statistics())));
+                    builder.AddValue(MakeUnversionedAnyValue(briefStatisticsYsonString.GetData(), Table_.Index.BriefStatistics));
+                }
             }
             if (statistics.Events()) {
                 builder.AddValue(MakeUnversionedAnyValue(*statistics.Events(), Table_.Index.Events));

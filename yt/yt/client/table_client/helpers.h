@@ -60,6 +60,9 @@ void FromUnversionedValue(bool* value, TUnversionedValue unversionedValue);
 void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYson::TYsonString& value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(NYson::TYsonString* value, TUnversionedValue unversionedValue);
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYson::TYsonStringBuf& value, const TRowBufferPtr& rowBuffer, int id = 0);
+void FromUnversionedValue(NYson::TYsonStringBuf* value, TUnversionedValue unversionedValue);
+
 void ToUnversionedValue(TUnversionedValue* unversionedValue, i64 value, const TRowBufferPtr& rowBuffer, int id = 0);
 void FromUnversionedValue(i64* value, TUnversionedValue unversionedValue);
 

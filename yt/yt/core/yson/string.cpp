@@ -82,6 +82,14 @@ void TYsonString::Load(TStreamLoadContext& context)
     }
 }
 
+TYsonString::TYsonString(const TYsonStringBuf& ysonStringBuf)
+    : TYsonStringBase(TString(ysonStringBuf.GetData()), ysonStringBuf.GetType())
+{ }
+
+TYsonStringBuf::TYsonStringBuf(const TYsonString& ysonString)
+    : TYsonStringBase(ysonString.GetData(), ysonString.GetType())
+{ }
+
 // Explicitly instantiate the template to link successfully.
 template class TYsonStringBase<TString>;
 template class TYsonStringBase<TStringBuf>;

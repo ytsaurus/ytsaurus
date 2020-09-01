@@ -387,6 +387,23 @@ void FromUnversionedValue(TYsonString* value, TUnversionedValue unversionedValue
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToUnversionedValue(TUnversionedValue* unversionedValue, const NYson::TYsonStringBuf& value, const TRowBufferPtr& rowBuffer, int id)
+{
+    YT_ASSERT(value.GetType() == EYsonType::Node);
+    *unversionedValue = rowBuffer->Capture(MakeUnversionedAnyValue(value.GetData(), id));
+}
+
+void FromUnversionedValue(NYson::TYsonStringBuf* value, TUnversionedValue unversionedValue)
+{
+    if (unversionedValue.Type != EValueType::Any) {
+        THROW_ERROR_EXCEPTION("Cannot parse YSON string value from %Qlv",
+            unversionedValue.Type);
+    }
+    *value = TYsonStringBuf(TStringBuf(unversionedValue.Data.String, unversionedValue.Length));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 #define XX(cppType, codeType, humanReadableType) \
     void ToUnversionedValue(TUnversionedValue* unversionedValue, cppType value, const TRowBufferPtr& /*rowBuffer*/, int id) \
     { \

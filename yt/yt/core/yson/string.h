@@ -55,6 +55,10 @@ class TYsonString
 public:
     using TYsonStringBase::TYsonStringBase;
 
+    TYsonString() = default;
+
+    explicit TYsonString(const TYsonStringBuf& ysonStringBuf);
+
     void Save(TStreamSaveContext& context) const;
     void Load(TStreamLoadContext& context);
 };
@@ -65,9 +69,9 @@ class TYsonStringBuf
 public:
     using TYsonStringBase::TYsonStringBase;
 
-    TYsonStringBuf(const TYsonString& ysonString)
-        : TYsonStringBase(ysonString.GetData(), ysonString.GetType())
-    { }
+    TYsonStringBuf() = default;
+
+    TYsonStringBuf(const TYsonString& ysonString);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
