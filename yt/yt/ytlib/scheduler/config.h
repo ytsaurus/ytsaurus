@@ -742,6 +742,9 @@ public:
     //! If true, then data from dynamic stores of dynamic tables should not be read.
     bool DisableDynamicStoreRead;
 
+    //! Describes suitable controller agent tag for operation.
+    TString ControllerAgentTag;
+
     TOperationSpecBase();
 
 private:

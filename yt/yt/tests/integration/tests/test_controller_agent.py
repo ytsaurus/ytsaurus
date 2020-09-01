@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, wait, is_asan_build
+from yt_env_setup import YTEnvSetup, wait, is_asan_build, Restarter, CONTROLLER_AGENTS_SERVICE
 from yt_commands import *
 from yt_helpers import *
 
@@ -325,3 +325,88 @@ class TestGetJobSpecFailed(YTEnvSetup):
             return jobs["aborted"]["non_scheduled"]["get_spec_failed"] > 0
         wait(check)
 
+##################################################################
+
+class TestControllerAgentTags(YTEnvSetup):
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 3
+
+    @classmethod
+    def modify_controller_agent_config(cls, config):
+        if not hasattr(cls, "controller_agent_counter"):
+            cls.controller_agent_counter = 0
+        controller_agent_tag = None
+        if cls.controller_agent_counter == 0:
+            controller_agent_tag = "foo"
+        elif cls.controller_agent_counter == 1:
+            controller_agent_tag = "bar"
+        cls.controller_agent_counter += 1
+        if controller_agent_tag is not None:
+            config["controller_agent"]["tags"] = [controller_agent_tag]
+
+    @authors("gritukan")
+    def test_controller_agent_tags(self):
+        foo_agent = None
+        bar_agent = None
+        default_agent = None
+
+        for agent in get("//sys/controller_agents/instances").keys():
+            agent_tags = get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(agent))
+            assert len(agent_tags) == 1
+            agent_tag = agent_tags[0]
+            if agent_tag == "foo":
+                foo_agent = agent
+            elif agent_tag == "bar":
+                bar_agent = agent
+            else:
+                assert agent_tag == "default"
+                default_agent = agent
+
+        assert foo_agent is not None
+        assert bar_agent is not None
+        assert default_agent is not None
+
+        def get_controller_agent(op):
+            attr_path = op.get_path() + "/@controller_agent_address"
+            return get(attr_path, default=None)
+
+        def run_with_tag(tag):
+            if tag is None:
+                spec = {}
+            else:
+                spec = {"controller_agent_tag": tag}
+            return run_test_vanilla("sleep 1000", job_count=1, spec=spec, track=False)
+
+        def check_assignment(tag, agent):
+            op = run_with_tag(tag)
+            wait(lambda: get_controller_agent(op) == agent)
+
+        def check_no_agent(tag):
+            op = run_with_tag(tag)
+            wait(lambda: op.get_state() == "waiting_for_agent")
+            time.sleep(1)
+            assert get_controller_agent(op) is None
+
+        check_assignment("foo", foo_agent)
+        check_assignment("bar", bar_agent)
+        check_assignment(None, default_agent)
+        check_no_agent("baz")
+
+        # foo -> foo
+        # bar -> baz
+        # default -> boo, booo
+        foo_agent, baz_agent, boo_agent = foo_agent, bar_agent, default_agent
+        with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+            set("//sys/controller_agents/instances/{}/@tags".format(baz_agent), ["baz"])
+            set("//sys/controller_agents/instances/{}/@tags".format(default_agent), ["boo", "booo"])
+
+        assert get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(foo_agent)) == ["foo"]
+        assert get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(baz_agent)) == ["baz"]
+        assert get("//sys/controller_agents/instances/{}/orchid/controller_agent/tags".format(boo_agent)) == ["boo", "booo"]
+
+        check_assignment("foo", foo_agent)
+        check_assignment("baz", baz_agent)
+        check_assignment("boo", boo_agent)
+        check_assignment("booo", boo_agent)
+        check_no_agent(None)
+        check_no_agent("bar")

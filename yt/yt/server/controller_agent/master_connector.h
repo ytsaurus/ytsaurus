@@ -56,6 +56,8 @@ public:
     TFuture<void> UpdateConfig();
     ui64 GetConfigRevision() const;
 
+    const std::vector<TString>& GetTags() const;
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

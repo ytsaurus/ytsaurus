@@ -818,6 +818,9 @@ public:
     // COMPAT(shakurov)
     bool EnablePrerequisitesForStartingCompletionTransactions;
 
+    //! List of the tags assigned to controller agent.
+    std::vector<TString> Tags;
+
     TControllerAgentConfig();
 
 private:
@@ -847,7 +850,8 @@ public:
 
     TControllerAgentBootstrapConfig()
     {
-        RegisterParameter("cluster_connection", ClusterConnection);
+        RegisterParameter("cluster_connection", ClusterConnection)
+            .Default();
         RegisterParameter("controller_agent", ControllerAgent)
             .DefaultNew();
         RegisterParameter("addresses", Addresses)

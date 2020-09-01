@@ -88,6 +88,7 @@ public:
     TControllerAgent(
         const TAgentId& id,
         const NNodeTrackerClient::TAddressMap& agentAddresses,
+        THashSet<TString> tags,
         NRpc::IChannelPtr channel,
         const IInvokerPtr& invoker);
 
@@ -105,6 +106,12 @@ public:
      * \note Thread affinity: any
      */
     const NNodeTrackerClient::TAddressMap& GetAgentAddresses() const;
+
+    //! Returns the set of tags assigned to controller agent.
+    /*
+     * \note Thread affinity: any
+     */
+    const THashSet<TString>& GetTags() const;
     /*
      * \note Thread affinity: any
      */
@@ -134,6 +141,7 @@ public:
 private:
     const TAgentId Id_;
     const NNodeTrackerClient::TAddressMap AgentAddresses_;
+    const THashSet<TString> Tags_;
     const NRpc::IChannelPtr Channel_;
 
     TCancelableContextPtr CancelableContext_;

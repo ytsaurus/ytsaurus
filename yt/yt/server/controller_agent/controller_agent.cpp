@@ -1060,6 +1060,7 @@ private:
         req->SetTimeout(Config_->SchedulerHandshakeRpcTimeout);
         req->set_agent_id(Bootstrap_->GetAgentId());
         ToProto(req->mutable_agent_addresses(), Bootstrap_->GetLocalAddresses());
+        ToProto(req->mutable_tags(), MasterConnector_->GetTags());
 
         auto rsp = WaitFor(req->Invoke())
             .ValueOrThrow();
@@ -1689,6 +1690,7 @@ private:
                         ->GetNativeConnection()
                         ->GetMediumDirectory()
                 )
+                .Item("tags").Value(MasterConnector_->GetTags())
             .EndMap();
     }
 

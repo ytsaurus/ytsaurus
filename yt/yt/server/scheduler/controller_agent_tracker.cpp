@@ -943,19 +943,25 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        auto controllerAgentTag = operation->Spec()->ControllerAgentTag;
+
         std::vector<TControllerAgentPtr> registeredAgents;
         for (const auto& [agentId, agent] : IdToAgent_) {
             if (agent->GetState() != EControllerAgentState::Registered) {
+                continue;
+            }
+            if (!agent->GetTags().contains(controllerAgentTag)) {
                 continue;
             }
             registeredAgents.push_back(agent);
         }
 
         if (registeredAgents.size() < Config_->MinAgentCount) {
-            YT_LOG_DEBUG("Not enough agents to pick (AgentCount: %v, MinAgentCount: %v, OperationId: %v)",
+            YT_LOG_DEBUG("Not enough agents to pick (AgentCount: %v, MinAgentCount: %v, OperationId: %v, ControllerAgentTag: %v)",
                 registeredAgents.size(),
                 Config_->MinAgentCount,
-                operation->GetId());
+                operation->GetId(),
+                controllerAgentTag);
             return nullptr;
         }
 
@@ -1145,12 +1151,24 @@ public:
         }
 
         auto addresses =  FromProto<NNodeTrackerClient::TAddressMap>(request->agent_addresses());
+        auto tags = FromProto<THashSet<TString>>(request->tags());
+        // COMPAT(gritukan): Remove it when controller agents will be fresh enough.
+        if (tags.empty()) {
+            tags.insert("default");
+        }
+
         auto address = NNodeTrackerClient::GetAddressOrThrow(addresses, Bootstrap_->GetLocalNetworks());
         auto channel = Bootstrap_->GetMasterClient()->GetChannelFactory()->CreateChannel(address);
+
+        YT_LOG_INFO("Registering agent (AgentId: %v, Addresses: %v, Tags: %v)",
+            agentId,
+            addresses,
+            tags);
 
         auto agent = New<TControllerAgent>(
             agentId,
             addresses,
+            std::move(tags),
             std::move(channel),
             Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker));
         agent->SetState(EControllerAgentState::Registering);

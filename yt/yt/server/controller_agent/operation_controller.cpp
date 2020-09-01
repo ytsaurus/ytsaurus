@@ -508,9 +508,11 @@ IOperationControllerPtr CreateControllerForOperation(
     }
 
     int legacyControllerFraction = 256;
-    if (auto legacyControllerFractionNode = specTemplate->AsMap()->FindChild("legacy_controller_fraction")) {
-        legacyControllerFraction = legacyControllerFractionNode->AsInt64()->GetValue();
-    }    
+    if (specTemplate) {
+        if (auto legacyControllerFractionNode = specTemplate->AsMap()->FindChild("legacy_controller_fraction")) {
+            legacyControllerFraction = legacyControllerFractionNode->AsInt64()->GetValue();
+        }
+    }
     if (auto legacyControllerFractionNode = operation->GetSpec()->FindChild("legacy_controller_fraction")) {
         legacyControllerFraction = legacyControllerFractionNode->AsInt64()->GetValue();
     }
