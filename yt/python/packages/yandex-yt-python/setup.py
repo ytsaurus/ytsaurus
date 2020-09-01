@@ -30,12 +30,17 @@ def main():
         "yt/wrapper/bin/yt",
         "yt/wrapper/bin/yt-fuse",
         "yt/wrapper/bin/yt-admin",
-        "yt/wrapper/bin/yt-job-tool"]
+        "yt/wrapper/bin/yt-job-tool"
+    ]
 
     data_files = []
     scripts = []
     if is_debian:
-        scripts = [binary + str(sys.version_info[0]) for binary in binaries]
+        for binary in binaries:
+            script = binary + str(sys.version_info[0])
+            if not os.path.lexists(script):
+                os.symlink(os.path.abspath(binary), script)
+            scripts.append(script)
         shutil.copy("yandex-yt-python/yt_completion", yt_completion_destination)
         data_files.append(("/etc/bash_completion.d/", [yt_completion_destination]))
     else:  # python egg or wheel
