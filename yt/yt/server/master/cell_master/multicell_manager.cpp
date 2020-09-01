@@ -243,7 +243,7 @@ public:
         return it == MasterCellRolesMap_.end() ? EMasterCellRoles::None : it->second;
     }
 
-    const TCellTagList& GetRoleMasterCells(EMasterCellRoles cellRole)
+    TCellTagList GetRoleMasterCells(EMasterCellRoles cellRole)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1165,7 +1165,7 @@ EMasterCellRoles TMulticellManager::GetMasterCellRoles(TCellTag cellTag)
     return Impl_->GetMasterCellRoles(cellTag);
 }
 
-const TCellTagList& TMulticellManager::GetRoleMasterCells(EMasterCellRoles cellRole)
+TCellTagList TMulticellManager::GetRoleMasterCells(EMasterCellRoles cellRole)
 {
     return Impl_->GetRoleMasterCells(cellRole);
 }

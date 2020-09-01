@@ -83,6 +83,9 @@ class TestStderrTable(YTEnvSetup):
         "controller_agent": {
             # We want to disable premature chunk list allocataion to expose YT-6219.
             "chunk_list_watermark_count": 0,
+            # COMPAT(shakurov): change the default to false and remove
+            # this delta once masters are up to date.
+            "enable_prerequisites_for_starting_completion_transactions": False,
         }
     }
 

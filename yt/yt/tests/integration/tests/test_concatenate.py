@@ -676,6 +676,14 @@ class TestConcatenateShardedTx(TestConcatenatePortal):
         "5": ["transaction_coordinator"]
     }
 
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            # COMPAT(shakurov): change the default to false and remove
+            # this delta once masters are up to date.
+            "enable_prerequisites_for_starting_completion_transactions": False,
+        }
+    }
+
 class TestConcatenateShardedTxNoBoomerangs(TestConcatenateShardedTx):
     def setup_method(self, method):
         super(TestConcatenateShardedTxNoBoomerangs, self).setup_method(method)
