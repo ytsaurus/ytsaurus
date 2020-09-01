@@ -498,6 +498,7 @@ protected:
 
     virtual bool IsTransactionNeeded(ETransactionType type) const;
 
+    // COMPAT(shakurov): remove prerequisiteTransactionId once master servers are up to date.
     TFuture<NApi::ITransactionPtr> StartTransaction(
         ETransactionType type,
         const NApi::NNative::IClientPtr& client,

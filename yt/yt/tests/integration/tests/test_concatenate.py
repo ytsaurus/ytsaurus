@@ -653,10 +653,10 @@ class TestConcatenatePortal(TestConcatenateMulticell):
     def test_concatenate_between_secondary_shards(self):
         create("table", "//tmp/src1", attributes={"external_cell_tag": 1})
         write_table("//tmp/src1", [{"a": "b"}])
-        create("table", "//tmp/src2", attributes={"external_cell_tag": 2})
+        create("table", "//tmp/src2", attributes={"external_cell_tag": 3})
         write_table("//tmp/src2", [{"c": "d"}])
 
-        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 3})
+        create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 2})
         create("table", "//tmp/p/dst", attributes={"external_cell_tag": 1})
 
         tx = start_transaction()
@@ -664,6 +664,23 @@ class TestConcatenatePortal(TestConcatenateMulticell):
         commit_transaction(tx)
 
         assert read_table("//tmp/p/dst") == [{"a": "b"}, {"c": "d"}]
+
+class TestConcatenateShardedTx(TestConcatenatePortal):
+    NUM_SECONDARY_MASTER_CELLS = 5
+    MASTER_CELL_ROLES = {
+        "0": ["cypress_node_host"],
+        "1": ["cypress_node_host", "chunk_host"],
+        "2": ["cypress_node_host", "chunk_host"],
+        "3": ["chunk_host"],
+        "4": ["transaction_coordinator"],
+        "5": ["transaction_coordinator"]
+    }
+
+class TestConcatenateShardedTxNoBoomerangs(TestConcatenateShardedTx):
+    def setup_method(self, method):
+        super(TestConcatenateShardedTxNoBoomerangs, self).setup_method(method)
+        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
+        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
 
 class TestConcatenateRpcProxy(TestConcatenate):
     DRIVER_BACKEND = "rpc"

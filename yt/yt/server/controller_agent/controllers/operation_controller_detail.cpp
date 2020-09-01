@@ -1276,10 +1276,59 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
         return MakeFuture(ITransactionPtr());
     }
 
-    YT_LOG_INFO("Starting transaction (Type: %v, ParentId: %v, PrerequisiteTransactionId: %v)",
+    auto collectTableCellTags = [] (const std::vector<TOutputTablePtr>& tables) {
+        TCellTagList result;
+
+        for (const auto& table : tables) {
+            if (!table) {
+                continue;
+            }
+
+            if (table->ExternalCellTag == NObjectClient::InvalidCellTag) {
+                result.push_back(CellTagFromId(table->ObjectId));
+            } else {
+                result.push_back(table->ExternalCellTag);
+            }
+
+            for (const auto& [chunkStripeKey, id] : table->OutputChunkTreeIds) {
+                if (TypeFromId(id) == EObjectType::ChunkList) {
+                    continue;
+                }
+                result.push_back(CellTagFromId(id));
+            }
+        }
+
+        return result;
+    };
+
+    TCellTagList replicateToCellTags;
+    switch (type) {
+        // NB: these transactions are started when no basic attributes have been
+        // fetched yet and collecting cell tags is therefore useless.
+        case ETransactionType::Async:
+        case ETransactionType::Input:
+        case ETransactionType::Output:
+        case ETransactionType::Debug:
+            break;
+
+        case ETransactionType::OutputCompletion:
+            replicateToCellTags = collectTableCellTags(OutputTables_);
+            break;
+
+        case ETransactionType::DebugCompletion:
+            replicateToCellTags = collectTableCellTags({StderrTable_, CoreTable_});
+            break;
+
+        default:
+            YT_ABORT();
+    }
+    SortUnique(replicateToCellTags);
+
+    YT_LOG_INFO("Starting transaction (Type: %v, ParentId: %v, PrerequisiteTransactionId: %v, ReplicateToCellTags: %v)",
         type,
         parentTransactionId,
-        prerequisiteTransactionId);
+        prerequisiteTransactionId,
+        replicateToCellTags);
 
     TTransactionStartOptions options;
     options.AutoAbort = false;
@@ -1296,11 +1345,12 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
     }
     options.Attributes = std::move(attributes);
     options.ParentId = parentTransactionId;
-    if (prerequisiteTransactionId) {
+     if (prerequisiteTransactionId) {
         options.PrerequisiteTransactionIds.push_back(prerequisiteTransactionId);
     }
     options.Timeout = Config->OperationTransactionTimeout;
     options.PingPeriod = Config->OperationTransactionPingPeriod;
+    options.ReplicateToMasterCellTags = std::move(replicateToCellTags);
 
     auto transactionFuture = client->StartTransaction(NTransactionClient::ETransactionType::Master, options);
 
@@ -1633,11 +1683,15 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
         return;
     }
 
+    auto prerequisiteTransactionId = Config->EnablePrerequisitesForStartingCompletionTransactions
+        ? Host->GetIncarnationId()
+        : TTransactionId();
+
     OutputCompletionTransaction = WaitFor(StartTransaction(
         ETransactionType::OutputCompletion,
         OutputClient,
         OutputTransaction->GetId(),
-        Host->GetIncarnationId()))
+        prerequisiteTransactionId))
         .ValueOrThrow();
 
     // Set transaction id to Cypress.
@@ -1671,7 +1725,11 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
     }
 
     if (OutputCompletionTransaction) {
-        WaitFor(OutputCompletionTransaction->Commit())
+        TTransactionCommitOptions options;
+        if (!Config->EnablePrerequisitesForStartingCompletionTransactions) {
+            options.PrerequisiteTransactionIds.push_back(Host->GetIncarnationId());
+        }
+        WaitFor(OutputCompletionTransaction->Commit(options))
             .ThrowOnError();
         OutputCompletionTransaction.Reset();
     }
@@ -1685,11 +1743,15 @@ void TOperationControllerBase::StartDebugCompletionTransaction()
         return;
     }
 
+    auto prerequisiteTransactionId = Config->EnablePrerequisitesForStartingCompletionTransactions
+        ? Host->GetIncarnationId()
+        : TTransactionId();
+
     DebugCompletionTransaction = WaitFor(StartTransaction(
         ETransactionType::DebugCompletion,
         OutputClient,
         DebugTransaction->GetId(),
-        Host->GetIncarnationId()))
+        prerequisiteTransactionId))
         .ValueOrThrow();
 
     // Set transaction id to Cypress.
@@ -1712,7 +1774,11 @@ void TOperationControllerBase::CommitDebugCompletionTransaction()
         return;
     }
 
-    WaitFor(DebugCompletionTransaction->Commit())
+    TTransactionCommitOptions options;
+    if (!Config->EnablePrerequisitesForStartingCompletionTransactions) {
+        options.PrerequisiteTransactionIds.push_back(Host->GetIncarnationId());
+    }
+    WaitFor(DebugCompletionTransaction->Commit(options))
         .ThrowOnError();
     DebugCompletionTransaction.Reset();
 }

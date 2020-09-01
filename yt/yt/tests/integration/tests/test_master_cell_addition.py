@@ -15,8 +15,7 @@ class TestMasterCellAddition(YTEnvSetup):
     START_SECONDARY_MASTER_CELLS = False
     DELTA_MASTER_CONFIG = {
         "world_initializer": {
-            "update_period": 3600000,
-            "init_retry_period": 300
+            "update_period": 1000
         },
     }
 
@@ -62,33 +61,18 @@ class TestMasterCellAddition(YTEnvSetup):
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
         with Restarter(cls.Env, [SCHEDULERS_SERVICE, CONTROLLER_AGENTS_SERVICE, NODES_SERVICE]):
-            abort_all_transactions()
-
             for cell_id in cls.CELL_IDS:
                 build_snapshot(cell_id=cell_id, set_read_only=True)
 
-            # NB: don't use asserts before masters are restarted (and thus read-only mode goes away).
-            all_transactions_successfully_aborted_before_restart = get("//sys/topmost_transactions/@count") == 0
-            unexpected_transactions_before_restart = []
-            if not all_transactions_successfully_aborted_before_restart:
-                unexpected_transactions_before_restart = ls("//sys/topmost_transactions")
-
             with Restarter(cls.Env, MASTERS_SERVICE):
-                if all_transactions_successfully_aborted_before_restart:
-                    for i in xrange(len(cls.PATCHED_CONFIGS)):
-                        cls.PATCHED_CONFIGS[i]["secondary_masters"].append(cls.STASHED_CELL_CONFIGS[i])
+                for i in xrange(len(cls.PATCHED_CONFIGS)):
+                    cls.PATCHED_CONFIGS[i]["secondary_masters"].append(cls.STASHED_CELL_CONFIGS[i])
 
-                    cls.Env.rewrite_master_configs()
+                cls.Env.rewrite_master_configs()
 
-            assert not unexpected_transactions_before_restart
-            assert all_transactions_successfully_aborted_before_restart
-
-            assert get("//sys/topmost_transactions/@count") == 0
-
-            if all_transactions_successfully_aborted_before_restart:
-                cls.Env.rewrite_node_configs()
-                cls.Env.rewrite_scheduler_configs()
-                cls.Env.rewrite_controller_agent_configs()
+            cls.Env.rewrite_node_configs()
+            cls.Env.rewrite_scheduler_configs()
+            cls.Env.rewrite_controller_agent_configs()
 
     @classmethod
     def modify_master_config(cls, config, index):
@@ -164,11 +148,24 @@ class TestMasterCellAddition(YTEnvSetup):
 
         wait(lambda: check(['1', '2', '3']))
 
+    def check_transactions(self):
+        create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 2})
+        tx = start_transaction(timeout=120000)
+        table_id = create("table", "//tmp/p1/t", tx=tx) # replicate tx to cell 2
+        assert get("#{}/@replicated_to_cell_tags".format(tx)) == [2]
+
+        yield
+
+        create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 3})
+        table_id = create("table", "//tmp/p2/t", tx=tx) # replicate tx to cell 3
+        assert get("#{}/@replicated_to_cell_tags".format(tx)) == [2, 3]
+
     @authors("shakurov")
     def test_add_new_cell(self):
         CHECKER_LIST = [
             self.check_accounts,
             self.check_sys_masters_node,
+            self.check_transactions
         ]
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]

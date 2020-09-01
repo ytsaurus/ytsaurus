@@ -13,9 +13,6 @@
 #include <yt/server/master/security_server/acl.h>
 #include <yt/server/master/security_server/user.h>
 
-#include <yt/server/master/transaction_server/transaction.h>
-#include <yt/server/master/transaction_server/transaction_manager.h>
-
 #include <yt/server/master/node_tracker_server/node_tracker.h>
 #include <yt/server/master/node_tracker_server/node.h>
 #include <yt/server/master/node_tracker_server/node_directory_builder.h>
@@ -34,7 +31,6 @@
 
 namespace NYT::NObjectServer {
 
-using namespace NTransactionServer;
 using namespace NSecurityServer;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;

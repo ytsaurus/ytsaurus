@@ -815,6 +815,9 @@ public:
 
     bool EnableBypassArtifactCache;
 
+    // COMPAT(shakurov)
+    bool EnablePrerequisitesForStartingCompletionTransactions;
+
     TControllerAgentConfig();
 
 private:

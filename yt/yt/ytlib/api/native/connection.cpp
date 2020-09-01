@@ -549,7 +549,12 @@ IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
     TCellTag cellTag)
 {
-    if (cellTag == connection->GetCellTag()) {
+    if (cellTag == connection->GetPrimaryMasterCellTag()) {
+        return connection;
+    }
+
+    const auto& secondaryCellTags = connection->GetSecondaryMasterCellTags();
+    if (std::find(secondaryCellTags.begin(), secondaryCellTags.end(), cellTag) != secondaryCellTags.end()) {
         return connection;
     }
 

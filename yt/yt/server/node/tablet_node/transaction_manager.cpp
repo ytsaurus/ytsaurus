@@ -16,6 +16,8 @@
 
 #include <yt/server/lib/tablet_node/config.h>
 
+#include <yt/server/lib/transaction_server/helpers.h>
+
 #include <yt/server/node/tablet_node/transaction_manager.pb.h>
 
 #include <yt/ytlib/transaction_client/action.h>
@@ -50,6 +52,7 @@ using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTransactionClient;
+using namespace NTransactionServer;
 using namespace NObjectClient;
 using namespace NHydra;
 using namespace NHiveServer;
@@ -176,10 +179,7 @@ public:
         if (auto* transaction = PersistentTransactionMap_.Find(transactionId)) {
             return transaction;
         }
-        THROW_ERROR_EXCEPTION(
-            NTransactionClient::EErrorCode::NoSuchTransaction,
-            "No such transaction %v",
-            transactionId);
+        ThrowNoSuchTransaction(transactionId);
     }
 
     TTransaction* FindTransaction(TTransactionId transactionId)
@@ -197,10 +197,7 @@ public:
     {
         auto* transaction = FindTransaction(transactionId);
         if (!transaction) {
-            THROW_ERROR_EXCEPTION(
-                NTransactionClient::EErrorCode::NoSuchTransaction,
-                "No such transaction %v",
-                transactionId);
+            ThrowNoSuchTransaction(transactionId);
         }
         return transaction;
     }
@@ -336,10 +333,19 @@ public:
 
 
     // ITransactionManager implementation.
+
+    TFuture<void> GetReadyToPrepareTransactionCommit(
+        const std::vector<TTransactionId>& /*prerequisiteTransactionIds*/,
+        const std::vector<TCellId>& /*cellIdsToSyncWith*/)
+    {
+        return VoidFuture;
+    }
+
     void PrepareTransactionCommit(
         TTransactionId transactionId,
         bool persistent,
-        TTimestamp prepareTimestamp)
+        TTimestamp prepareTimestamp,
+        const std::vector<TTransactionId>& /*prerequisiteTransactionIds*/)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -1158,12 +1164,20 @@ void TTransactionManager::RegisterTransactionActionHandlers(
         abortActionDescriptor);
 }
 
+TFuture<void> TTransactionManager::GetReadyToPrepareTransactionCommit(
+    const std::vector<TTransactionId>& prerequisiteTransactionIds,
+    const std::vector<TCellId>& cellIdsToSyncWith)
+{
+    return Impl_->GetReadyToPrepareTransactionCommit(prerequisiteTransactionIds, cellIdsToSyncWith);
+}
+
 void TTransactionManager::PrepareTransactionCommit(
     TTransactionId transactionId,
     bool persistent,
-    TTimestamp prepareTimestamp)
+    TTimestamp prepareTimestamp,
+    const std::vector<TTransactionId>& prerequisiteTransactionIds)
 {
-    Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp);
+    Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp, prerequisiteTransactionIds);
 }
 
 void TTransactionManager::PrepareTransactionAbort(TTransactionId transactionId, bool force)

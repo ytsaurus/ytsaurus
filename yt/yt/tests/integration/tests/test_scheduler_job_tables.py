@@ -471,6 +471,25 @@ class TestStderrTable(YTEnvSetup):
         assert get("//tmp/t_stderr/@sorted")
         assert get("//tmp/t_stderr/@sorted_by") == ["job_id", "part_index"]
 
+##################################################################
+
+class TestStderrTableShardedTx(TestStderrTable):
+    NUM_SECONDARY_MASTER_CELLS = 5
+    ENABLE_TMP_PORTAL = True
+    MASTER_CELL_ROLES = {
+        "0": ["cypress_node_host"],
+        "1": ["cypress_node_host"],
+        "2": ["chunk_host"],
+        "3": ["cypress_node_host"],
+        "4": ["transaction_coordinator"],
+        "5": ["transaction_coordinator"]
+    }
+
+class TestStderrTableShardedTxNoBoomerangs(TestStderrTableShardedTx):
+    def setup_method(self, method):
+        super(TestStderrTableShardedTxNoBoomerangs, self).setup_method(method)
+        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
+        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
 
 ##################################################################
 

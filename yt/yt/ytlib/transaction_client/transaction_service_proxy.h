@@ -18,6 +18,7 @@ public:
 
     DEFINE_RPC_PROXY_METHOD(NProto, StartTransaction);
     DEFINE_RPC_PROXY_METHOD(NProto, RegisterTransactionActions);
+    DEFINE_RPC_PROXY_METHOD(NProto, ReplicateTransactions);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

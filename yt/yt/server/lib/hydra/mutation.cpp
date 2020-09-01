@@ -72,6 +72,26 @@ void TMutation::SetMutationId(NRpc::TMutationId mutationId, bool retry)
     Request_.Retry = retry;
 }
 
+const TString& TMutation::GetType() const
+{
+    return Request_.Type;
+}
+
+const TSharedRef& TMutation::GetData() const
+{
+    return Request_.Data;
+}
+
+NRpc::TMutationId TMutation::GetMutationId() const
+{
+    return Request_.MutationId;
+}
+
+bool TMutation::IsRetry() const
+{
+    return Request_.Retry;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra

@@ -587,6 +587,7 @@ TYsonString TClient::DoGetNode(
 
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto batchReq = proxy->ExecuteBatch();
+    SetPrerequisites(batchReq, options);
     SetBalancingHeader(batchReq, options);
 
     auto req = TYPathProxy::Get(path);
@@ -708,6 +709,7 @@ TYsonString TClient::DoListNode(
 
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto batchReq = proxy->ExecuteBatch();
+    SetPrerequisites(batchReq, options);
     SetBalancingHeader(batchReq, options);
 
     auto req = TYPathProxy::List(path);
@@ -1506,10 +1508,8 @@ private:
         req->set_upload_transaction_title(Format("Concatenating %v to %v",
             srcObjectPaths,
             DstObject_.GetPath()));
-        // NB: Replicate upload transaction to all cells since we have
-        // no idea as of where the chunks we're about to attach may come from.
-        auto cellTags = Client_->Connection_->GetSecondaryMasterCellTags();
-        cellTags.push_back(Client_->Connection_->GetPrimaryMasterCellTag());
+
+        auto cellTags = GetAffectedCellTags();
         cellTags.erase(
             std::remove(cellTags.begin(), cellTags.end(), dstObjectCellTag),
             cellTags.end());
@@ -1528,6 +1528,21 @@ private:
             .AutoAbort = true,
             .PingAncestors = Options_.PingAncestors
         });
+    }
+
+    TCellTagList GetAffectedCellTags()
+    {
+        THashSet<TCellTag> cellTags;
+
+        for (const auto& chunkSpec : ChunkSpecs_) {
+            auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+            auto cellTag = CellTagFromId(chunkId);
+            cellTags.insert(cellTag);
+        }
+
+        cellTags.insert(DstObject_.ExternalCellTag);
+
+        return {cellTags.begin(), cellTags.end()};
     }
 
     void TeleportChunks()
@@ -1651,6 +1666,7 @@ bool TClient::DoNodeExists(
 {
     auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
     auto batchReq = proxy->ExecuteBatch();
+    SetPrerequisites(batchReq, options);
     SetBalancingHeader(batchReq, options);
 
     auto req = TYPathProxy::Exists(path);
@@ -1737,6 +1753,7 @@ TObjectId TClient::DoCreateObject(
 
     auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
     auto batchReq = proxy->ExecuteBatch();
+    batchReq->SetSuppressTransactionCoordinatorSync(true);
     SetPrerequisites(batchReq, options);
 
     auto req = TMasterYPathProxy::CreateObject();

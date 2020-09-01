@@ -552,8 +552,7 @@ public:
                 std::vector<ITransactionParticipantProviderPtr>{
                     CreateTransactionParticipantProvider(connection),
                     CreateTransactionParticipantProvider(connection->GetClusterDirectory())
-                },
-                HiveManager_);
+                });
 
             TabletService_ = CreateTabletService(
                 Owner_,

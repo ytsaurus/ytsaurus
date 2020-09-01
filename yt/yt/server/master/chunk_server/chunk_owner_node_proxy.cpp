@@ -1121,15 +1121,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
     const auto& cypressManager = Bootstrap_->GetCypressManager();
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-    auto* uploadTransaction = transactionManager->StartTransaction(
+    auto* uploadTransaction = transactionManager->StartUploadTransaction(
         /* parent */ Transaction_,
-        /* prerequisiteTransactions */ {},
         replicatedToCellTags,
-        /* replicateStart */ false,
         uploadTransactionTimeout,
-        /* deadline */ std::nullopt,
         uploadTransactionTitle,
-        EmptyAttributes(),
         uploadTransactionIdHint);
 
     auto* lockedNode = cypressManager
@@ -1268,9 +1264,8 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         for (auto dstCellTag : replicateStartToCellTags) {
             auto externalizedTransactionId = maybeExternalizeTransaction(dstCellTag);
 
-            NTransactionServer::NProto::TReqStartTransaction startRequest;
-            startRequest.set_dont_replicate(true);
-            ToProto(startRequest.mutable_hint_id(), uploadTransactionId);
+            NTransactionServer::NProto::TReqStartForeignTransaction startRequest;
+            ToProto(startRequest.mutable_id(), uploadTransactionId);
             if (externalizedTransactionId) {
                 ToProto(startRequest.mutable_parent_id(), externalizedTransactionId);
             }

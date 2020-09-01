@@ -17,6 +17,8 @@
 
 #include <yt/server/lib/security_server/resource_limits_manager.h>
 
+#include <yt/ytlib/object_client/proto/object_ypath.pb.h>
+
 #include <yt/ytlib/hive/transaction_supervisor_service_proxy.h>
 #include <yt/ytlib/hive/cell_directory.h>
 #include <yt/ytlib/hive/transaction_participant_service_proxy.h>
@@ -79,8 +81,7 @@ public:
         ITransactionManagerPtr transactionManager,
         TCellId selfCellId,
         ITimestampProviderPtr timestampProvider,
-        std::vector<ITransactionParticipantProviderPtr> participantProviders,
-        THiveManagerPtr hiveManager)
+        std::vector<ITransactionParticipantProviderPtr> participantProviders)
         : TCompositeAutomatonPart(
             hydraManager,
             automaton,
@@ -93,7 +94,6 @@ public:
         , SelfCellId_(selfCellId)
         , TimestampProvider_(std::move(timestampProvider))
         , ParticipantProviders_(std::move(participantProviders))
-        , HiveManager_(std::move(hiveManager))
         , Logger(NLogging::TLogger(HiveServerLogger)
             .AddTag("CellId: %v", SelfCellId_))
         , TransactionSupervisorService_(New<TTransactionSupervisorService>(this))
@@ -152,7 +152,9 @@ public:
                 true,
                 false,
                 ETransactionCoordinatorCommitMode::Eager,
-                NullMutationId));
+                NullMutationId,
+                GetCurrentAuthenticationIdentity(),
+                /*prerequisiteTransactionIds*/ {}));
     }
 
     virtual TFuture<void> AbortTransaction(
@@ -187,7 +189,6 @@ private:
     const TCellId SelfCellId_;
     const ITimestampProviderPtr TimestampProvider_;
     const std::vector<ITransactionParticipantProviderPtr> ParticipantProviders_;
-    const THiveManagerPtr HiveManager_;
 
     const NLogging::TLogger Logger;
 
@@ -650,25 +651,25 @@ private:
             auto generatePrepareTimestamp = request->generate_prepare_timestamp();
             auto inheritCommitTimestamp = request->inherit_commit_timestamp();
             auto coordinatorCommitMode = CheckedEnumCast<ETransactionCoordinatorCommitMode>(request->coordinator_commit_mode());
-
-            context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v, "
-                "Force2PC: %v, GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, CoordinatorCommitMode: %v",
-                transactionId,
-                participantCellIds,
-                prepareOnlyParticipantCellIds,
-                cellIdsToSyncWithBeforePrepare,
-                force2PC,
-                generatePrepareTimestamp,
-                inheritCommitTimestamp,
-                coordinatorCommitMode);
-
-            auto owner = GetOwnerOrThrow();
-
-            if (owner->ResponseKeeper_->TryReplyFrom(context)) {
-                return;
+            std::vector<TTransactionId> prerequisiteTransactionIds;
+            if (context->GetRequestHeader().HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
+                auto* prerequisitesExt = &context->GetRequestHeader().GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
+                for (const auto& prerequisite : prerequisitesExt->transactions()) {
+                    prerequisiteTransactionIds.push_back(FromProto<TTransactionId>(prerequisite.transaction_id()));
+                }
             }
 
-            auto asyncResponseMessage = owner->CoordinatorCommitTransaction(
+            if ((force2PC || !participantCellIds.empty()) && !prerequisiteTransactionIds.empty()) {
+                THROW_ERROR_EXCEPTION("Prerequisite transactions are not supported for distributed transaction commits")
+                    << TErrorAttribute("transaction_id", transactionId)
+                    << TErrorAttribute("force_2pc", force2PC)
+                    << TErrorAttribute("participant_cell_ids", participantCellIds)
+                    << TErrorAttribute("prerequisite_transaction_ids", prerequisiteTransactionIds);
+            }
+
+            context->SetRequestInfo("TransactionId: %v, ParticipantCellIds: %v, PrepareOnlyParticipantCellIds: %v, CellIdsToSyncWithBeforePrepare: %v, "
+                "Force2PC: %v, GeneratePrepareTimestamp: %v, InheritCommitTimestamp: %v, CoordinatorCommitMode: %v, "
+                "PrerequisiteTransactionIds: %v",
                 transactionId,
                 participantCellIds,
                 prepareOnlyParticipantCellIds,
@@ -677,7 +678,55 @@ private:
                 generatePrepareTimestamp,
                 inheritCommitTimestamp,
                 coordinatorCommitMode,
-                context->GetMutationId());
+                prerequisiteTransactionIds);
+
+            auto owner = GetOwnerOrThrow();
+
+            if (owner->ResponseKeeper_->TryReplyFrom(context)) {
+                return;
+            }
+
+            // NB: cellIdsToSyncWithBeforePrepare is only respected by participants, not the coordinator.
+            auto readyEvent = owner->TransactionManager_->GetReadyToPrepareTransactionCommit(
+                prerequisiteTransactionIds,
+                {} /*cellIdsToSyncWith*/);
+
+            TFuture<TSharedRefArray> asyncResponseMessage;
+            if (readyEvent.IsSet() && readyEvent.Get().IsOK()) {
+                // Most likely path.
+                asyncResponseMessage = owner->CoordinatorCommitTransaction(
+                    transactionId,
+                    participantCellIds,
+                    prepareOnlyParticipantCellIds,
+                    cellIdsToSyncWithBeforePrepare,
+                    force2PC,
+                    generatePrepareTimestamp,
+                    inheritCommitTimestamp,
+                    coordinatorCommitMode,
+                    context->GetMutationId(),
+                    GetCurrentAuthenticationIdentity(),
+                    std::move(prerequisiteTransactionIds));
+            } else {
+                auto mutationId = context->GetMutationId();
+                auto identity = GetCurrentAuthenticationIdentity();
+                asyncResponseMessage = readyEvent.Apply(
+                    BIND([=, owner = std::move(owner), prerequisiteTransactionIds = std::move(prerequisiteTransactionIds)] () {
+                    return owner->CoordinatorCommitTransaction(
+                        transactionId,
+                        participantCellIds,
+                        prepareOnlyParticipantCellIds,
+                        cellIdsToSyncWithBeforePrepare,
+                        force2PC,
+                        generatePrepareTimestamp,
+                        inheritCommitTimestamp,
+                        coordinatorCommitMode,
+                        mutationId,
+                        identity,
+                        std::move(prerequisiteTransactionIds));
+                })
+                .AsyncVia(GetCurrentInvoker()));
+            }
+
             context->ReplyFrom(asyncResponseMessage);
         }
 
@@ -779,35 +828,26 @@ private:
             NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, NRpc::GetCurrentAuthenticationIdentity());
 
             auto owner = GetOwnerOrThrow();
-            auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
 
+            auto readyEvent = owner->TransactionManager_->GetReadyToPrepareTransactionCommit(
+                {} /*prerequisiteTransactionIds*/,
+                cellIdsToSyncWith);
+
+            auto mutation = CreateMutation(owner->HydraManager_, hydraRequest);
             auto callback = [mutation = std::move(mutation), context] {
                 mutation->CommitAndReply(context);
             };
 
-            if (cellIdsToSyncWith.empty()) {
+            if (readyEvent.IsSet() && readyEvent.Get().IsOK()) {
                 callback();
             } else {
-                const auto& hiveManager = owner->HiveManager_;
-                if (!hiveManager) {
-                    THROW_ERROR_EXCEPTION("Requested to sync with cells %v but no Hive Manager is available",
-                        cellIdsToSyncWith);
-                }
-                
-                std::vector<TFuture<void>> futures;
-                futures.reserve(cellIdsToSyncWith.size());
-                for (auto cellId : cellIdsToSyncWith) {
-                    futures.push_back(hiveManager->SyncWith(cellId, true));
-                }
-                
-                AllSucceeded(std::move(futures)).Subscribe(
-                    BIND([callback = BIND(std::move(callback)), context, invoker = owner->EpochAutomatonInvoker_] (const TError& error) {
-                        if (error.IsOK()) {
-                            invoker->Invoke(std::move(callback));
-                        } else {
-                            context->Reply(error);
-                        }
-                    }));
+                readyEvent.Subscribe(BIND([callback = BIND(std::move(callback)), context, invoker = owner->EpochAutomatonInvoker_] (const TError& error) {
+                    if (error.IsOK()) {
+                        invoker->Invoke(std::move(callback));
+                    } else {
+                        context->Reply(error);
+                    }
+                }));
             }
         }
 
@@ -865,7 +905,9 @@ private:
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        TMutationId mutationId)
+        TMutationId mutationId,
+        const TAuthenticationIdentity& identity,
+        std::vector<TTransactionId> prerequisiteTransactionIds)
     {
         YT_VERIFY(!HasMutationContext());
 
@@ -888,7 +930,8 @@ private:
             generatePrepareTimestamp,
             inheritCommitTimestamp,
             coordinatorCommitMode,
-            NRpc::GetCurrentAuthenticationIdentity());
+            identity,
+            std::move(prerequisiteTransactionIds));
 
         // Commit instance may die below.
         auto asyncResponseMessage = commit->GetAsyncResponseMessage();
@@ -915,7 +958,7 @@ private:
         try {
             // Any exception thrown here is replied to the client.
             auto prepareTimestamp = TimestampProvider_->GetLatestTimestamp();
-            TransactionManager_->PrepareTransactionCommit(transactionId, false, prepareTimestamp);
+            TransactionManager_->PrepareTransactionCommit(transactionId, false, prepareTimestamp, commit->PrerequisiteTransactionIds());
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Error preparing simple transaction commit (TransactionId: %v, %v)",
                 transactionId,
@@ -1039,7 +1082,7 @@ private:
         auto mutationId = FromProto<TMutationId>(request->mutation_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto commitTimestamps = FromProto<TTimestampMap>(request->commit_timestamps());
-        
+
         auto identity = NRpc::ParseAuthenticationIdentityFromProto(*request);
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
 
@@ -1084,7 +1127,8 @@ private:
                 /* generatePrepareTimestamp */ true,
                 /* inheritCommitTimestamp */ false,
                 ETransactionCoordinatorCommitMode::Eager,
-                identity);
+                identity,
+                /*prerequisiteTransactionIds*/ {});
             commit->CommitTimestamps() = commitTimestamps;
         }
 
@@ -1147,7 +1191,9 @@ private:
         // Prepare at coordinator.
         try {
             // Any exception thrown here is caught below.
-            TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp);
+            const auto& prerequisiteTransactionIds = commit->PrerequisiteTransactionIds();
+            YT_VERIFY(prerequisiteTransactionIds.empty());
+            TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp, prerequisiteTransactionIds);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Coordinator failure; will abort (TransactionId: %v, State: %v, %v)",
                 transactionId,
@@ -1333,7 +1379,7 @@ private:
 
         try {
             // Any exception thrown here is caught below.
-            TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp);
+            TransactionManager_->PrepareTransactionCommit(transactionId, true, prepareTimestamp, {});
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG_UNLESS(IsRecovery(), ex, "Participant failure (TransactionId: %v, State: %v, %v)",
                 transactionId,
@@ -1429,7 +1475,8 @@ private:
         bool generatePrepareTimestamp,
         bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
-        NRpc::TAuthenticationIdentity identity)
+        NRpc::TAuthenticationIdentity identity,
+        std::vector<TTransactionId> prerequisiteTransactionIds)
     {
         auto commitHolder = std::make_unique<TCommit>(
             transactionId,
@@ -1441,7 +1488,8 @@ private:
             generatePrepareTimestamp,
             inheritCommitTimestamp,
             coordinatorCommitMode,
-            std::move(identity));
+            std::move(identity),
+            std::move(prerequisiteTransactionIds));
         return TransientCommitMap_.Insert(transactionId, std::move(commitHolder));
     }
 
@@ -1452,8 +1500,8 @@ private:
         std::vector<TCellId> prepareOnlyParticipantCellIds,
         std::vector<TCellId> cellIdsToSyncWithBeforePrepare,
         bool distributed,
-        bool generatePrepareTimstamp,
-        bool inheritCommitTimstamp,
+        bool generatePrepareTimestamp,
+        bool inheritCommitTimestamp,
         ETransactionCoordinatorCommitMode coordinatorCommitMode,
         NRpc::TAuthenticationIdentity identity)
     {
@@ -1475,8 +1523,8 @@ private:
                 std::move(prepareOnlyParticipantCellIds),
                 std::move(cellIdsToSyncWithBeforePrepare),
                 distributed,
-                generatePrepareTimstamp,
-                inheritCommitTimstamp,
+                generatePrepareTimestamp,
+                inheritCommitTimestamp,
                 coordinatorCommitMode,
                 std::move(identity));
         }
@@ -2101,8 +2149,7 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
     ITransactionManagerPtr transactionManager,
     TCellId selfCellId,
     ITimestampProviderPtr timestampProvider,
-    std::vector<ITransactionParticipantProviderPtr> participantProviders,
-    THiveManagerPtr hiveManager)
+    std::vector<ITransactionParticipantProviderPtr> participantProviders)
 {
     return New<TTransactionSupervisor>(
         std::move(config),
@@ -2114,8 +2161,7 @@ ITransactionSupervisorPtr CreateTransactionSupervisor(
         std::move(transactionManager),
         selfCellId,
         std::move(timestampProvider),
-        std::move(participantProviders),
-        std::move(hiveManager));
+        std::move(participantProviders));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

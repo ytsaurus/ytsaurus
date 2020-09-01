@@ -103,6 +103,7 @@ private:
         std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
         NRpc::TRequestId OriginalRequestId_;
         bool SuppressUpstreamSync_ = false;
+        bool SuppressTransactionCoordinatorSync_ = false;
 
         explicit TReqExecuteSubbatch(NRpc::IChannelPtr channel, int subbatchSize);
         explicit TReqExecuteSubbatch(const TReqExecuteSubbatch& other);
@@ -134,6 +135,9 @@ public:
 
         //! Sets the upstream sync suppression option.
         void SetSuppressUpstreamSync(bool value);
+
+        //! Sets the transaction coordinator sync suppression option.
+        void SetSuppressTransactionCoordinatorSync(bool value);
 
         //! Adds an individual request into the batch.
         /*!

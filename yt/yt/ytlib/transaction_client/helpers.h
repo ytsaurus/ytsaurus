@@ -16,6 +16,8 @@ namespace NYT::NTransactionClient {
 */
 void SetTransactionId(NRpc::IClientRequestPtr request, NApi::ITransactionPtr transaction);
 
+void SetPrerequisites(const NRpc::IClientRequestPtr& request, const NApi::TPrerequisiteOptions& options);
+
 //! Constructs a tablet transaction id.
 TTransactionId MakeTabletTransactionId(
     EAtomicity atomicity,

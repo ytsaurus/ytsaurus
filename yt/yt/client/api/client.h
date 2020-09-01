@@ -118,13 +118,11 @@ struct TPrerequisiteRevisionConfig
     : public NYTree::TYsonSerializable
 {
     NYTree::TYPath Path;
-    NTransactionClient::TTransactionId TransactionId;
     NHydra::TRevision Revision;
 
     TPrerequisiteRevisionConfig()
     {
         RegisterParameter("path", Path);
-        RegisterParameter("transaction_id", TransactionId);
         RegisterParameter("revision", Revision);
     }
 };
@@ -360,11 +358,12 @@ struct TTransactionStartOptions
 
     //! Only for master transactions.
     //! Indicates the master cell the transaction will be initially started at and controlled by
-    //! (primary cell by default).
+    //! (chosen automatically by default).
     NObjectClient::TCellTag CoordinatorMasterCellTag = NObjectClient::InvalidCellTag;
 
     //! Only for master transactions.
-    //! Indicates the cells the transaction will be replicated to (all by default).
+    //! Indicates the cells the transaction will be replicated to at the start. None by default,
+    //! but usually the transaction will be able to be replicated at a later time on demand.
     std::optional<NObjectClient::TCellTagList> ReplicateToMasterCellTags;
 };
 

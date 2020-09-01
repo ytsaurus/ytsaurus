@@ -27,7 +27,8 @@ TCommit::TCommit(
     bool generatePrepareTimestamp,
     bool inheritCommitTimestamp,
     NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
-    NRpc::TAuthenticationIdentity identity)
+    NRpc::TAuthenticationIdentity identity,
+    std::vector<TTransactionId> prerequisiteTransactionIds)
     : TransactionId_(transationId)
     , MutationId_(mutationId)
     , ParticipantCellIds_(std::move(participantCellIds))
@@ -38,6 +39,7 @@ TCommit::TCommit(
     , InheritCommitTimestamp_(inheritCommitTimestamp)
     , CoordinatorCommitMode_(coordinatorCommitMode)
     , AuthenticationIdentity_(std::move(identity))
+    , PrerequisiteTransactionIds_(std::move(prerequisiteTransactionIds))
 { }
 
 TFuture<TSharedRefArray> TCommit::GetAsyncResponseMessage()

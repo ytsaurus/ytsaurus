@@ -710,6 +710,8 @@ def create_revision_parameter(path, transaction_id=None, revision=None, client=N
     """
     if revision is None:
         revision = get_attribute(path, "revision", client=client)
+    # TODO(shakurov): remove transaction_id when proxies are up to
+    # date and no longer deem this parameter required.
     if transaction_id is None:
         transaction_id = get_command_param("transaction_id", client)
     return {"path": path, "transaction_id": transaction_id, "revision": revision}

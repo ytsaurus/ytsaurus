@@ -2011,6 +2011,24 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
 ##################################################################
 
+class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
+    NUM_NODES = 8
+
+    def setup_method(self, method):
+        super(DynamicTablesSingleCellBase, self).setup_method(method)
+        set("//sys/tablet_cell_bundles/default/@options",
+            {
+                "changelog_account": "sys",
+                "changelog_erasure_codec": "isa_reed_solomon_3_3",
+                "changelog_replication_factor": 1,
+                "changelog_read_quorum": 4,
+                "changelog_write_quorum": 5,
+                "snapshot_account": "sys",
+                "snapshot_replication_factor": 3
+            })
+
+##################################################################
+
 class TestDynamicTablesSafeMode(DynamicTablesBase):
     USE_PERMISSION_CACHE = False
 
@@ -2142,21 +2160,18 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
 class TestDynamicTablesPortal(TestDynamicTablesMulticell):
     ENABLE_TMP_PORTAL = True
 
-class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
-    NUM_NODES = 8
+class TestDynamicTablesShardedTx(TestDynamicTablesPortal):
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_ROLES = {
+        "0": ["cypress_node_host"],
+        "3": ["transaction_coordinator"],
+    }
 
+class TestDynamicTablesShardedTxNoBoomerangs(TestDynamicTablesShardedTx):
     def setup_method(self, method):
-        super(DynamicTablesSingleCellBase, self).setup_method(method)
-        set("//sys/tablet_cell_bundles/default/@options",
-            {
-                "changelog_account": "sys",
-                "changelog_erasure_codec": "isa_reed_solomon_3_3",
-                "changelog_replication_factor": 1,
-                "changelog_read_quorum": 4,
-                "changelog_write_quorum": 5,
-                "snapshot_account": "sys",
-                "snapshot_replication_factor": 3
-            })
+        super(TestDynamicTablesShardedTxNoBoomerangs, self).setup_method(method)
+        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
+        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
 
 ##################################################################
 

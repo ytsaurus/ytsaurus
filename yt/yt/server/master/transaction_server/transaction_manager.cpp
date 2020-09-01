@@ -1,6 +1,9 @@
 #include "transaction_manager.h"
 #include "private.h"
 #include "config.h"
+#include "boomerang_tracker.h"
+#include "transaction_presence_cache.h"
+#include "transaction_replication_session.h"
 #include "transaction.h"
 #include "transaction_proxy.h"
 
@@ -15,12 +18,15 @@
 #include <yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/server/master/cypress_server/node.h>
 
+#include <yt/server/lib/hive/hive_manager.h>
 #include <yt/server/lib/hive/transaction_supervisor.h>
 #include <yt/server/lib/hive/transaction_lease_tracker.h>
 #include <yt/server/lib/hive/transaction_manager_detail.h>
 
 #include <yt/server/lib/hydra/composite_automaton.h>
 #include <yt/server/lib/hydra/mutation.h>
+
+#include <yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/server/master/object_server/attribute_set.h>
 #include <yt/server/master/object_server/object.h>
@@ -37,10 +43,13 @@
 #include <yt/ytlib/transaction_client/proto/transaction_service.pb.h>
 #include <yt/ytlib/transaction_client/helpers.h>
 
+#include <yt/core/concurrency/periodic_executor.h>
 #include <yt/core/concurrency/thread_affinity.h>
 
 #include <yt/core/misc/id_generator.h>
 #include <yt/core/misc/string.h>
+
+#include <yt/core/profiling/profile_manager.h>
 
 #include <yt/core/ytree/attributes.h>
 #include <yt/core/ytree/ephemeral_node_factory.h>
@@ -55,6 +64,7 @@ using namespace NObjectClient;
 using namespace NObjectClient::NProto;
 using namespace NObjectServer;
 using namespace NCypressServer;
+using namespace NElection;
 using namespace NHydra;
 using namespace NHiveClient;
 using namespace NHiveServer;
@@ -65,6 +75,11 @@ using namespace NCypressServer;
 using namespace NTransactionClient;
 using namespace NTransactionClient::NProto;
 using namespace NSecurityServer;
+using namespace NProfiling;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto ProfilingPeriod = TDuration::MilliSeconds(1000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +93,7 @@ public:
 
     virtual ETypeFlags GetFlags() const override
     {
-        return ETypeFlags::ReplicateAttributes;
+        return ETypeFlags::None;
     }
 
     virtual EObjectType GetType() const override
@@ -122,13 +137,18 @@ public:
     //! Raised when a transaction is aborted.
     DEFINE_SIGNAL(void(TTransaction*), TransactionAborted);
 
-    DEFINE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, TopmostTransactions);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, NativeTopmostTransactions);
+    DEFINE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, NativeTransactions);
+
+    DEFINE_BYREF_RO_PROPERTY(TTransactionPresenceCachePtr, TransactionPresenceCache);
 
     DECLARE_ENTITY_MAP_ACCESSORS(Transaction, TTransaction);
 
 public:
     explicit TImpl(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::TransactionManager)
+        , TransactionPresenceCache_(New<TTransactionPresenceCache>(Bootstrap_))
+        , BoomerangTracker_(New<TBoomerangTracker>(Bootstrap_))
         , LeaseTracker_(New<TTransactionLeaseTracker>(
             Bootstrap_->GetHydraFacade()->GetTransactionTrackerInvoker(),
             TransactionServerLogger))
@@ -139,10 +159,15 @@ public:
         Logger = TransactionServerLogger;
 
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraStartForeignTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRegisterTransactionActions, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraPrepareTransactionCommit, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraCommitTransaction, Unretained(this)));
         TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraAbortTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraReplicateTransactions, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraNoteNoSuchTransaction, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraReturnBoomerang, Unretained(this)));
+        TCompositeAutomatonPart::RegisterMethod(BIND(&TImpl::HydraRemoveStuckBoomerangWaves, Unretained(this)));
 
         RegisterLoader(
             "TransactionManager.Keys",
@@ -168,19 +193,125 @@ public:
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::NestedTransaction));
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::ExternalizedTransaction));
         objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::ExternalizedNestedTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::UploadTransaction));
+        objectManager->RegisterHandler(New<TTransactionTypeHandler>(this, EObjectType::UploadNestedTransaction));
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (multicellManager->IsPrimaryMaster()) {
-            multicellManager->SubscribeValidateSecondaryMasterRegistration(
-                BIND(&TImpl::OnValidateSecondaryMasterRegistration, MakeWeak(this)));
-        }
+        ProfilingExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
+            BIND(&TImpl::OnProfiling, MakeWeak(this)),
+            ProfilingPeriod);
+        ProfilingExecutor_->Start();
+    }
+
+    const TTransactionPresenceCachePtr& GetTransactionPresenceCache()
+    {
+        return TransactionPresenceCache_;
     }
 
     TTransaction* StartTransaction(
         TTransaction* parent,
         std::vector<TTransaction*> prerequisiteTransactions,
         const TCellTagList& replicatedToCellTags,
-        bool replicateStart,
+        std::optional<TDuration> timeout,
+        std::optional<TInstant> deadline,
+        const std::optional<TString>& title,
+        const IAttributeDictionary& attributes)
+    {
+        ValidateNativeTransactionStart(parent, prerequisiteTransactions);
+
+        return DoStartTransaction(
+            false /*upload*/,
+            parent,
+            std::move(prerequisiteTransactions),
+            replicatedToCellTags,
+            timeout,
+            deadline,
+            title,
+            attributes,
+            {} /*hintId*/);
+    }
+
+    TTransaction* StartUploadTransaction(
+        TTransaction* parent,
+        const TCellTagList& replicatedToCellTags,
+        std::optional<TDuration> timeout,
+        const std::optional<TString>& title,
+        TTransactionId hintId)
+    {
+        ValidateUploadTransactionStart(hintId, parent);
+
+        return DoStartTransaction(
+            true /*upload*/,
+            parent,
+            {} /*prerequisiteTransactions*/,
+            replicatedToCellTags,
+            timeout,
+            std::nullopt /*deadline*/,
+            title,
+            EmptyAttributes(),
+            hintId);
+    }
+
+    void ValidateGenericTransactionStart(TTransaction* parent)
+    {
+        if (!parent) {
+            return;
+        }
+
+        if (parent->GetType() == EObjectType::UploadTransaction ||
+            parent->GetType() == EObjectType::UploadNestedTransaction)
+        {
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::UploadTransactionCannotHaveNested,
+                "Failed to start a transaction nested in an upload transaction")
+                << TErrorAttribute("upload_transaction_id", parent->GetId());
+        }
+    }
+
+    void ValidateNativeTransactionStart(
+        TTransaction* parent,
+        const std::vector<TTransaction*>& prerequisiteTransactions)
+    {
+        ValidateGenericTransactionStart(parent);
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        const auto thisCellTag = multicellManager->GetCellTag();
+
+        if (parent && CellTagFromId(parent->GetId()) != thisCellTag) {
+            THROW_ERROR_EXCEPTION(
+                NTransactionClient::EErrorCode::ForeignParentTransaction,
+                "Parent transaction is foreign")
+                << TErrorAttribute("parent_transaction_id", parent->GetId())
+                << TErrorAttribute("parent_transaction_cell_tag", CellTagFromId(parent->GetId()))
+                << TErrorAttribute("expected_cell_tag", thisCellTag);
+        }
+
+        for (auto* prerequisiteTransaction : prerequisiteTransactions) {
+            if (CellTagFromId(prerequisiteTransaction->GetId()) != thisCellTag) {
+                THROW_ERROR_EXCEPTION(
+                    NTransactionClient::EErrorCode::ForeignPrerequisiteTransaction,
+                    "Prerequisite transaction is foreign")
+                    << TErrorAttribute("prerequisite_transaction_id", prerequisiteTransaction->GetId())
+                    << TErrorAttribute("prerequisite_transaction_cell_tag", CellTagFromId(prerequisiteTransaction->GetId()))
+                    << TErrorAttribute("expected_cell_tag", thisCellTag);
+            }
+        }
+    }
+
+    void ValidateUploadTransactionStart(TTransactionId hintId, TTransaction* parent)
+    {
+        YT_VERIFY(!hintId ||
+            TypeFromId(hintId) == EObjectType::UploadTransaction ||
+            TypeFromId(hintId) == EObjectType::UploadNestedTransaction);
+
+        ValidateGenericTransactionStart(parent);
+    }
+
+    TTransaction* DoStartTransaction(
+        bool upload,
+        TTransaction* parent,
+        std::vector<TTransaction*> prerequisiteTransactions,
+        TCellTagList replicatedToCellTags,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
@@ -190,6 +321,10 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         NProfiling::TWallTimer timer;
+
+        auto transactionObjectType = upload
+            ? (parent ? EObjectType::UploadNestedTransaction : EObjectType::UploadTransaction)
+            : (parent ? EObjectType::NestedTransaction : EObjectType::Transaction);
 
         const auto& dynamicConfig = GetDynamicConfig();
 
@@ -207,9 +342,7 @@ public:
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto transactionId = objectManager->GenerateId(
-            parent ? EObjectType::NestedTransaction : EObjectType::Transaction,
-            hintId);
+        auto transactionId = objectManager->GenerateId(transactionObjectType, hintId);
 
         auto transactionHolder = std::make_unique<TTransaction>(transactionId);
         auto* transaction = TransactionMap_.Insert(transactionId, std::move(transactionHolder));
@@ -217,36 +350,40 @@ public:
         // Every active transaction has a fake reference to itself.
         YT_VERIFY(transaction->RefObject() == 1);
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto native = (CellTagFromId(transactionId) == multicellManager->GetCellTag());
+
         if (parent) {
             transaction->SetParent(parent);
             transaction->SetDepth(parent->GetDepth() + 1);
             YT_VERIFY(parent->NestedTransactions().insert(transaction).second);
             objectManager->RefObject(transaction);
-        } else {
-            YT_VERIFY(TopmostTransactions_.insert(transaction).second);
+        }
+
+        if (native) {
+            YT_VERIFY(NativeTransactions_.insert(transaction).second);
+            if (!parent) {
+                YT_VERIFY(NativeTopmostTransactions_.insert(transaction).second);
+            }
         }
 
         transaction->SetState(ETransactionState::Active);
-        transaction->ReplicatedToCellTags() = replicatedToCellTags;
-
         transaction->PrerequisiteTransactions() = std::move(prerequisiteTransactions);
         for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
             // NB: Duplicates are fine; prerequisite transactions may be duplicated.
             prerequisiteTransaction->DependentTransactions().insert(transaction);
         }
 
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        bool foreign = (CellTagFromId(transactionId) != multicellManager->GetCellTag());
 
-        if (foreign) {
+        if (!native) {
             transaction->SetForeign();
         }
 
-        if (!foreign && timeout) {
+        if (native && timeout) {
             transaction->SetTimeout(std::min(*timeout, dynamicConfig->MaxTransactionTimeout));
         }
 
-        if (!foreign) {
+        if (native) {
             transaction->SetDeadline(deadline);
         }
 
@@ -266,21 +403,23 @@ public:
 
         objectManager->FillAttributes(transaction, attributes);
 
-        TransactionStarted_.Fire(transaction);
+        if (!replicatedToCellTags.empty()) {
+            // Never include native cell tag into ReplicatedToCellTags.
+            replicatedToCellTags.erase(
+                std::remove(
+                    replicatedToCellTags.begin(),
+                    replicatedToCellTags.end(),
+                    CellTagFromId(transactionId)),
+                replicatedToCellTags.end());
 
-        if (replicateStart && !replicatedToCellTags.empty()) {
-            NTransactionServer::NProto::TReqStartTransaction startRequest;
-            startRequest.set_dont_replicate(true);
-            ToProto(startRequest.mutable_attributes(), attributes);
-            ToProto(startRequest.mutable_hint_id(), transactionId);
-            if (parent) {
-                ToProto(startRequest.mutable_parent_id(), parent->GetId());
+            if (upload) {
+                transaction->ReplicatedToCellTags() = replicatedToCellTags;
+            } else {
+                ReplicateTransaction(transaction, replicatedToCellTags);
             }
-            if (title) {
-                startRequest.set_title(*title);
-            }
-            multicellManager->PostToMasters(startRequest, replicatedToCellTags);
         }
+
+        TransactionStarted_.Fire(transaction);
 
         auto time = timer.GetElapsedTime();
 
@@ -299,6 +438,8 @@ public:
             time);
 
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
+
+        CacheTransactionStarted(transaction);
 
         return transaction;
     }
@@ -507,46 +648,111 @@ public:
         securityManager->ChargeUser(user, {EUserWorkloadType::Write, 1, time});
     }
 
+    void ReplicateTransaction(TTransaction* transaction, TCellTagList dstCellTags)
+    {
+        for (auto dstCellTag : dstCellTags) {
+            ReplicateTransaction(transaction, dstCellTag);
+        }
+    }
+
+    TTransactionId ReplicateTransaction(TTransaction* transaction, TCellTag dstCellTag)
+    {
+        YT_VERIFY(IsObjectAlive(transaction));
+        YT_VERIFY(transaction->IsNative());
+        // NB: native transactions are always replicated, not externalized.
+        return ExternalizeTransaction(transaction, dstCellTag);
+    }
+
     TTransactionId ExternalizeTransaction(TTransaction* transaction, TCellTag dstCellTag)
     {
         if (!transaction) {
             return {};
         }
-        if (!transaction->IsForeign()) {
+
+        if (transaction->GetType() == EObjectType::UploadTransaction ||
+            transaction->GetType() == EObjectType::UploadNestedTransaction)
+        {
             return transaction->GetId();
         }
 
-        SmallVector<TTransaction*, 32> transactionsToExternalize;
-        {
-            auto* currentTransaction = transaction;
-            while (currentTransaction) {
-                auto& externalizedToCellTags = currentTransaction->ExternalizedToCellTags();
-                if (std::find(externalizedToCellTags.begin(), externalizedToCellTags.end(), dstCellTag) != externalizedToCellTags.end()) {
+        auto checkTransactionState = [&] (TTransaction* transactionToCheck) {
+            auto state = transactionToCheck->GetPersistentState();
+            if (state != ETransactionState::Committed && state != ETransactionState::Aborted) {
+                return;
+            }
+
+            if (transactionToCheck == transaction) {
+                YT_LOG_ALERT_UNLESS(IsRecovery(),
+                    "Unexpected transaction state encountered while replicating (TransactionId: %v, TransactionState: %Qlv)",
+                    transaction->GetId(),
+                    state);
+            } else {
+                YT_LOG_ALERT_UNLESS(IsRecovery(),
+                    "Unexpected ancestor transaction state encountered while replicating (TransactionId: %v, AncestorTransactionId: %v, AncestorTransactionState: %Qlv)",
+                    transaction->GetId(),
+                    transactionToCheck->GetId(),
+                    state);
+            }
+        };
+
+        // Shall externalize if true, replicate otherwise.
+        auto shouldExternalize = transaction->IsForeign();
+
+        SmallVector<TTransaction*, 32> transactionsToSend;
+        for (auto* currentTransaction = transaction; currentTransaction; currentTransaction = currentTransaction->GetParent()) {
+            YT_VERIFY(IsObjectAlive(currentTransaction));
+
+            checkTransactionState(currentTransaction);
+
+            if (shouldExternalize) {
+                if (currentTransaction->IsExternalizedToCell(dstCellTag)) {
                     break;
                 }
-                externalizedToCellTags.push_back(dstCellTag);
-                transactionsToExternalize.push_back(currentTransaction);
-                currentTransaction = currentTransaction->GetParent();
+                currentTransaction->ExternalizedToCellTags().push_back(dstCellTag);
+            } else {
+                if (currentTransaction->IsReplicatedToCell(dstCellTag)) {
+                    break;
+                }
+                currentTransaction->ReplicatedToCellTags().push_back(dstCellTag);
             }
+
+            transactionsToSend.push_back(currentTransaction);
         }
 
-        std::reverse(transactionsToExternalize.begin(), transactionsToExternalize.end());
+        std::reverse(transactionsToSend.begin(), transactionsToSend.end());
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        for (auto* currentTransaction : transactionsToExternalize) {
+        for (auto* currentTransaction : transactionsToSend) {
             auto transactionId = currentTransaction->GetId();
-            auto externalizedTransactionId = MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag());
-            auto externalizedParentTransactionId = MakeExternalizedTransactionId(GetObjectId(currentTransaction->GetParent()), multicellManager->GetCellTag());
-            YT_LOG_DEBUG_UNLESS(IsRecovery(), "Externalizing transaction (TransactionId: %v, DstCellTag: %v, ExternalizedTransactionId: %v)",
-                transactionId,
-                dstCellTag,
-                externalizedTransactionId);
+            auto parentTransactionId = GetObjectId(currentTransaction->GetParent());
 
-            NTransactionServer::NProto::TReqStartTransaction startRequest;
-            startRequest.set_dont_replicate(true);
-            ToProto(startRequest.mutable_hint_id(), externalizedTransactionId);
-            if (externalizedParentTransactionId) {
-                ToProto(startRequest.mutable_parent_id(), externalizedParentTransactionId);
+            auto effectiveTransactionId = transactionId;
+            auto effectiveParentTransactionId = parentTransactionId;
+
+            if (shouldExternalize) {
+                effectiveTransactionId = MakeExternalizedTransactionId(transactionId, multicellManager->GetCellTag());
+                effectiveParentTransactionId = MakeExternalizedTransactionId(parentTransactionId, multicellManager->GetCellTag());
+
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Externalizing transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTag: %v, ExternalizedTransactionId: %v, ExternalizedParentTransactionId: %v)",
+                    transactionId,
+                    parentTransactionId,
+                    dstCellTag,
+                    effectiveTransactionId,
+                    effectiveParentTransactionId);
+            } else {
+                YT_LOG_DEBUG_UNLESS(IsRecovery(), "Replicating transaction (TransactionId: %v, ParentTransactionId: %v, DstCellTag: %v)",
+                    transactionId,
+                    parentTransactionId,
+                    dstCellTag);
+            }
+
+            // NB: technically, an externalized transaction *is* foreign, with its native cell being this one.
+            // And it *is* coordinated by this cell, even though there's no corresponding 'native' object.
+
+            NTransactionServer::NProto::TReqStartForeignTransaction startRequest;
+            ToProto(startRequest.mutable_id(), effectiveTransactionId);
+            if (effectiveParentTransactionId) {
+                ToProto(startRequest.mutable_parent_id(), effectiveParentTransactionId);
             }
             if (currentTransaction->GetTitle()) {
                 startRequest.set_title(*currentTransaction->GetTitle());
@@ -554,7 +760,9 @@ public:
             multicellManager->PostToMaster(startRequest, dstCellTag);
         }
 
-        return MakeExternalizedTransactionId(transaction->GetId(), multicellManager->GetCellTag());
+        return shouldExternalize
+            ? MakeExternalizedTransactionId(transaction->GetId(), multicellManager->GetCellTag())
+            : transaction->GetId();
     }
 
     TTransactionId GetNearestExternalizedTransactionAncestor(
@@ -564,19 +772,27 @@ public:
         if (!transaction) {
             return {};
         }
-        if (!transaction->IsForeign()) {
+
+        if (transaction->GetType() == EObjectType::UploadTransaction ||
+            transaction->GetType() == EObjectType::UploadNestedTransaction)
+        {
             return transaction->GetId();
         }
 
-        auto* currentTransaction = transaction;
-        while (currentTransaction) {
-            const auto& externalizedToCellTags = currentTransaction->ExternalizedToCellTags();
-            if (std::find(externalizedToCellTags.begin(), externalizedToCellTags.end(), dstCellTag) != externalizedToCellTags.end()) {
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        // Find nearest externalized transaction if true, replicated transaction if false;
+        auto externalized = transaction->IsForeign();
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        for (auto* currentTransaction = transaction; currentTransaction; currentTransaction = currentTransaction->GetParent()) {
+            if (externalized && currentTransaction->IsExternalizedToCell(dstCellTag)) {
                 return MakeExternalizedTransactionId(currentTransaction->GetId(), multicellManager->GetCellTag());
             }
-            currentTransaction = currentTransaction->GetParent();
+
+            if (!externalized && currentTransaction->IsReplicatedToCell(dstCellTag)) {
+                return currentTransaction->GetId();
+            }
         }
+
         return {};
     }
 
@@ -586,10 +802,7 @@ public:
 
         auto* transaction = FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
-            THROW_ERROR_EXCEPTION(
-                NTransactionClient::EErrorCode::NoSuchTransaction,
-                "No such transaction %v",
-                transactionId);
+            ThrowNoSuchTransaction(transactionId);
         }
         return transaction;
     }
@@ -692,12 +905,46 @@ public:
             this);
     }
 
+    std::unique_ptr<TMutation> CreateReplicateTransactionsMutation(TCtxReplicateTransactionsPtr context)
+    {
+        return CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            std::move(context),
+            &TImpl::HydraReplicateTransactions,
+            this);
+    }
 
     // ITransactionManager implementation.
+    TFuture<void> GetReadyToPrepareTransactionCommit(
+        const std::vector<TTransactionId>& prerequisiteTransactionIds,
+        const std::vector<TCellId>& cellIdsToSyncWith)
+    {
+        if (prerequisiteTransactionIds.empty() && cellIdsToSyncWith.empty()) {
+            return VoidFuture;
+        }
+
+        std::vector<TFuture<void>> asyncResults;
+        asyncResults.reserve(cellIdsToSyncWith.size() + 1);
+
+        if (!prerequisiteTransactionIds.empty()) {
+            asyncResults.push_back(RunTransactionReplicationSession(false, Bootstrap_, prerequisiteTransactionIds, {}));
+        }
+
+        if (!cellIdsToSyncWith.empty()) {
+            const auto& hiveManager = Bootstrap_->GetHiveManager();
+            for (auto cellId : cellIdsToSyncWith) {
+                asyncResults.push_back(hiveManager->SyncWith(cellId, true));
+            }
+        }
+
+        return AllSucceeded(std::move(asyncResults));
+    }
+
     void PrepareTransactionCommit(
         TTransactionId transactionId,
         bool persistent,
-        TTimestamp prepareTimestamp)
+        TTimestamp prepareTimestamp,
+        const std::vector<TTransactionId>& prerequisiteTransactionIds)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -722,6 +969,10 @@ public:
         auto state = persistent ? transaction->GetPersistentState() : transaction->GetState();
         if (state != ETransactionState::Active) {
             return;
+        }
+
+        for (auto prerequisiteTransactionId : prerequisiteTransactionIds) {
+            ValidatePrerequisiteTransaction(prerequisiteTransactionId);
         }
 
         RunPrepareTransactionActions(transaction, persistent);
@@ -838,6 +1089,11 @@ private:
 
     friend class TTransactionTypeHandler;
 
+    const TBoomerangTrackerPtr BoomerangTracker_;
+
+    NProfiling::TProfiler Profiler = TransactionServerProfiler;
+    NConcurrency::TPeriodicExecutorPtr ProfilingExecutor_;
+
     const TTransactionLeaseTrackerPtr LeaseTracker_;
 
     NHydra::TEntityMap<TTransaction> TransactionMap_;
@@ -865,26 +1121,13 @@ private:
         auto* schema = objectManager->GetSchema(EObjectType::Transaction);
         securityManager->ValidatePermission(schema, EPermission::Create);
 
-        auto hintId = FromProto<TTransactionId>(request->hint_id());
-
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto* parent = parentId ? GetTransactionOrThrow(parentId) : nullptr;
 
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
         std::vector<TTransaction*> prerequisiteTransactions;
         for (auto id : prerequisiteTransactionIds) {
-            auto* prerequisiteTransaction = FindTransaction(id);
-            if (!IsObjectAlive(prerequisiteTransaction)) {
-                THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                    "Prerequisite check failed: transaction %v is missing",
-                    id);
-            }
-            if (prerequisiteTransaction->GetPersistentState() != ETransactionState::Active) {
-                THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
-                    "Prerequisite check failed: transaction %v is in %Qlv state",
-                    id,
-                    prerequisiteTransaction->GetState());
-            }
+            auto* prerequisiteTransaction = ValidatePrerequisiteTransaction(id);
             prerequisiteTransactions.push_back(prerequisiteTransaction);
         }
 
@@ -902,24 +1145,39 @@ private:
         }
 
         TCellTagList replicateToCellTags;
-        if (!request->dont_replicate())  {
+        if (!request->dont_replicate()) {
+            // Handling *empty* replicate_to_cell_tags has changed. Regardless of dont_replicate,
+            // replication is skipped (well, more likely deferred). The "replicate to all cells"
+            // behavior is no more (the config option to enable it will go away soon).
+            //
+            // This makes dont_replicate obsolete, and it will be removed in the future. For now,
+            // it has to stay for compatibility.
+            //
+            // Other than that, we still obey replicate_to_cell_tags and do not attempt to be lazy
+            // in this regard. This has two benefits:
+            //   - it allows for better performance in certain cases;
+            //   - it allows us to do without lazy transaction replication support in certain methods.
+            //
+            // One example of the latter is dyntable-related transactions. They specify target cells
+            // explicitly, and this allows us, when registering a transaction action, to expect the
+            // transaction to be present at the target cell immediately.
+
             replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (replicateToCellTags.empty() && multicellManager->IsPrimaryMaster()) {
+
+            if (!GetDynamicConfig()->EnableLazyTransactionReplication && replicateToCellTags.empty()) {
+                const auto& multicellManager = Bootstrap_->GetMulticellManager();
                 replicateToCellTags = multicellManager->GetRegisteredMasterCellTags();
             }
         }
 
-        auto* transaction = StartTransaction(
+       auto* transaction = StartTransaction(
             parent,
             prerequisiteTransactions,
             replicateToCellTags,
-            /* replicateStart */ true,
             timeout,
             deadline,
             title,
-            *attributes,
-            hintId);
+            *attributes);
 
         auto id = transaction->GetId();
 
@@ -930,6 +1188,54 @@ private:
         if (context) {
             context->SetResponseInfo("TransactionId: %v", id);
         }
+    }
+
+    void HydraStartForeignTransaction(NTransactionServer::NProto::TReqStartForeignTransaction* request)
+    {
+        auto hintId = FromProto<TTransactionId>(request->id());
+        auto parentId = FromProto<TTransactionId>(request->parent_id());
+        auto* parent = parentId ? FindTransaction(parentId) : nullptr;
+        if (parentId && !parent) {
+            THROW_ERROR_EXCEPTION("Failed to start foreign transaction: parent transaction not found")
+                << TErrorAttribute("transaction_id", hintId)
+                << TErrorAttribute("parent_transaction_id", parentId);
+        }
+
+        auto title = request->has_title() ? std::make_optional(request->title()) : std::nullopt;
+
+        auto isUpload =
+            TypeFromId(hintId) == EObjectType::UploadTransaction ||
+            TypeFromId(hintId) == EObjectType::UploadNestedTransaction;
+
+        auto* transaction = DoStartTransaction(
+            isUpload,
+            parent,
+            {} /*prerequisiteTransactions*/,
+            {} /*replicatedToCellTags*/,
+            std::nullopt /*timeout*/,
+            std::nullopt /*deadline*/,
+            title,
+            EmptyAttributes(),
+            hintId);
+        YT_VERIFY(transaction->GetId() == hintId);
+    }
+
+    TTransaction* ValidatePrerequisiteTransaction(TTransactionId transactionId)
+    {
+        auto* prerequisiteTransaction = FindTransaction(transactionId);
+        if (!IsObjectAlive(prerequisiteTransaction)) {
+            THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: transaction %v is missing",
+                transactionId);
+        }
+        if (prerequisiteTransaction->GetPersistentState() != ETransactionState::Active) {
+            THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::PrerequisiteCheckFailed,
+                "Prerequisite check failed: transaction %v is in %Qlv state",
+                transactionId,
+                prerequisiteTransaction->GetState());
+        }
+
+        return prerequisiteTransaction;
     }
 
     void HydraRegisterTransactionActions(
@@ -965,7 +1271,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         TAuthenticatedUserGuard userGuard(securityManager, std::move(identity));
 
-        PrepareTransactionCommit(transactionId, true, prepareTimestamp);
+        PrepareTransactionCommit(transactionId, true, prepareTimestamp, {});
     }
 
     void HydraCommitTransaction(NProto::TReqCommitTransaction* request)
@@ -982,8 +1288,107 @@ private:
         AbortTransaction(transactionId, force);
     }
 
+    void HydraReplicateTransactions(
+        const TCtxReplicateTransactionsPtr& context,
+        TReqReplicateTransactions* request,
+        TRspReplicateTransactions* response)
+    {
+        auto destinationCellTag = request->destination_cell_tag();
 
-// COMPAT(shakurov)
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        SmallVector<TTransactionId, 4> postedTransactionIds;
+        SmallVector<TTransactionId, 4> skippedTransactionIds;
+        SmallVector<TTransactionId, 4> postedMissingTransactionIds;
+        for (const auto& protoTransactionId : request->transaction_ids()) {
+            auto transactionId = FromProto<TTransactionId>(protoTransactionId);
+            YT_VERIFY(CellTagFromId(transactionId) == Bootstrap_->GetCellTag());
+            auto* transaction = FindTransaction(transactionId);
+
+            if (!IsObjectAlive(transaction)) {
+                NProto::TReqNoteNoSuchTransaction noSuchTransactionRequest;
+                ToProto(noSuchTransactionRequest.mutable_id(), transactionId);
+                multicellManager->PostToMaster(noSuchTransactionRequest, destinationCellTag);
+
+                postedMissingTransactionIds.push_back(transactionId);
+
+                continue;
+            }
+
+            YT_VERIFY(transaction->IsNative());
+
+            if (transaction->IsReplicatedToCell(destinationCellTag)) {
+                skippedTransactionIds.push_back(transactionId);
+                // Don't post anything.
+                continue;
+            }
+
+            auto replicatedTransactionId = ReplicateTransaction(transaction, destinationCellTag);
+            YT_VERIFY(replicatedTransactionId == transactionId);
+            YT_VERIFY(transaction->IsReplicatedToCell(destinationCellTag));
+
+            postedTransactionIds.push_back(transactionId);
+        }
+
+        response->set_sync_implied(!postedTransactionIds.empty());
+
+        // NB: may be empty.
+        auto boomerangWaveId = FromProto<TBoomerangWaveId>(request->boomerang_wave_id());
+        YT_ASSERT(!boomerangWaveId ||
+            request->has_boomerang_wave_id() &&
+            request->has_boomerang_wave_size() &&
+            request->has_boomerang_mutation_id() &&
+            request->has_boomerang_mutation_type() &&
+            request->has_boomerang_mutation_data());
+        auto boomerangMutationId = request->has_boomerang_mutation_id()
+            ? FromProto<NRpc::TMutationId>(request->boomerang_mutation_id())
+            : NRpc::TMutationId();
+        auto boomerangWaveSize = request->boomerang_wave_size();
+
+        if (boomerangWaveId) {
+            NProto::TReqReturnBoomerang boomerangRequest;
+
+            boomerangRequest.mutable_boomerang_wave_id()->Swap(request->mutable_boomerang_wave_id());
+            boomerangRequest.set_boomerang_wave_size(request->boomerang_wave_size());
+
+            boomerangRequest.mutable_boomerang_mutation_id()->Swap(request->mutable_boomerang_mutation_id());
+            boomerangRequest.set_boomerang_mutation_type(request->boomerang_mutation_type());
+            boomerangRequest.set_boomerang_mutation_data(request->boomerang_mutation_data());
+
+            multicellManager->PostToMaster(boomerangRequest, destinationCellTag);
+        }
+
+        if (context) {
+            context->SetResponseInfo(
+                "ReplicatedTransactionIds: %v, MissingTransactionIds: %v, SkippedTransactionIds: %v, "
+                "BoomerangMutationId: %v, BoomerangWaveId: %v, BoomerangWaveSize: %v",
+                postedTransactionIds,
+                postedMissingTransactionIds,
+                skippedTransactionIds,
+                boomerangMutationId,
+                boomerangWaveId,
+                boomerangWaveSize);
+        }
+    }
+
+    void HydraNoteNoSuchTransaction(NProto::TReqNoteNoSuchTransaction* request)
+    {
+        // NB: this has no effect on the persistent state, but it does notify
+        // transient subscribers and does cache transaction absence.
+        auto transactionId = FromProto<TTransactionId>(request->id());
+        CacheTransactionFinished(transactionId);
+    }
+
+    void HydraReturnBoomerang(NProto::TReqReturnBoomerang* request)
+    {
+        BoomerangTracker_->ProcessReturnedBoomerang(request);
+    }
+
+    void HydraRemoveStuckBoomerangWaves(NProto::TReqRemoveStuckBoomerangWaves* request)
+    {
+        BoomerangTracker_->RemoveStuckBoomerangWaves(request);
+    }
+
 public:
     void FinishTransaction(TTransaction* transaction)
     {
@@ -1008,8 +1413,13 @@ public:
             YT_VERIFY(parent->NestedTransactions().erase(transaction) == 1);
             objectManager->UnrefObject(transaction);
             transaction->SetParent(nullptr);
-        } else {
-            YT_VERIFY(TopmostTransactions_.erase(transaction) == 1);
+        }
+
+        if (transaction->IsNative()) {
+            YT_VERIFY(NativeTransactions_.erase(transaction) == 1);
+            if (!parent) {
+                YT_VERIFY(NativeTopmostTransactions_.erase(transaction) == 1);
+            }
         }
 
         for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
@@ -1041,10 +1451,57 @@ public:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ResetTransactionAccountResourceUsage(transaction);
 
+        CacheTransactionFinished(transaction);
+
         // Kill the fake reference thus destroying the object.
         objectManager->UnrefObject(transaction);
     }
 private:
+
+    // Cf. TTransactionPresenceCache::GetTransactionPresence
+    bool ShouldCacheTransactionPresence(TTransaction* transaction)
+    {
+        YT_ASSERT(TypeFromId(transaction->GetId()) == transaction->GetType());
+        return ShouldCacheTransactionPresence(transaction->GetId());
+    }
+
+    bool ShouldCacheTransactionPresence(TTransactionId transactionId)
+    {
+        auto transactionType = TypeFromId(transactionId);
+        if (transactionType == EObjectType::UploadTransaction ||
+            transactionType == EObjectType::UploadNestedTransaction)
+        {
+            return false;
+        }
+
+        if (CellTagFromId(transactionId) == Bootstrap_->GetCellTag()) {
+            return false;
+        }
+
+        return true;
+    }
+
+    void CacheTransactionStarted(TTransaction* transaction)
+    {
+        if (ShouldCacheTransactionPresence(transaction)) {
+            TransactionPresenceCache_->SetTransactionReplicated(transaction->GetId());
+        }
+    }
+
+    void CacheTransactionFinished(TTransaction* transaction)
+    {
+        if (ShouldCacheTransactionPresence(transaction)) {
+            TransactionPresenceCache_->SetTransactionRecentlyFinished(transaction->GetId());
+        }
+    }
+
+    void CacheTransactionFinished(TTransactionId transactionId)
+    {
+        if (ShouldCacheTransactionPresence(transactionId)) {
+            TransactionPresenceCache_->SetTransactionRecentlyFinished(transactionId);
+        }
+    }
+
 
     void SaveKeys(NCellMaster::TSaveContext& context)
     {
@@ -1055,6 +1512,7 @@ private:
     {
         TransactionMap_.SaveValues(context);
         Save(context, TimestampHolderMap_);
+        BoomerangTracker_->Save(context);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& context)
@@ -1075,6 +1533,10 @@ private:
             Load(context, TimestampHolderMap_);
         }
 
+        if (context.GetVersion() >= EMasterReign::ShardedTransactions) {
+            BoomerangTracker_->Load(context);
+        }
+
         // COMPAT(babenko)
         if (context.GetVersion() < EMasterReign::AddRefsFromTransactionToUsageAccounts) {
             AddRefsFromTransactionToUsageAccounts_ = true;
@@ -1086,11 +1548,24 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // Reconstruct TopmostTransactions.
-        TopmostTransactions_.clear();
+        // Reconstruct NativeTransactions and NativeTopmostTransactions.
         for (auto [id, transaction] : TransactionMap_) {
-            if (IsObjectAlive(transaction) && !transaction->GetParent()) {
-                YT_VERIFY(TopmostTransactions_.insert(transaction).second);
+            if (!IsObjectAlive(transaction)) {
+                continue;
+            }
+
+            if (transaction->IsNative()) {
+                YT_VERIFY(NativeTransactions_.insert(transaction).second);
+                if (!transaction->GetParent()) {
+                    YT_VERIFY(NativeTopmostTransactions_.insert(transaction).second);
+                }
+            }
+        }
+
+        // Fill transaction presence cache.
+        for (auto [id, transaction] : TransactionMap_) {
+            if (IsObjectAlive(transaction)) {
+                CacheTransactionStarted(transaction);
             }
         }
 
@@ -1116,10 +1591,30 @@ private:
         TMasterAutomatonPart::Clear();
 
         TransactionMap_.Clear();
-        TopmostTransactions_.clear();
+        NativeTopmostTransactions_.clear();
+        NativeTransactions_.clear();
+        TransactionPresenceCache_->Clear();
         AddRefsFromTransactionToUsageAccounts_ = false;
     }
 
+    virtual void OnStartLeading() override
+    {
+        TMasterAutomatonPart::OnStartLeading();
+
+        OnStartEpoch();
+    }
+
+    virtual void OnStartFollowing() override
+    {
+        TMasterAutomatonPart::OnStartFollowing();
+
+        OnStartEpoch();
+    }
+
+    void OnStartEpoch()
+    {
+        TransactionPresenceCache_->Start();
+    }
 
     virtual void OnLeaderActive() override
     {
@@ -1137,6 +1632,7 @@ private:
         }
 
         LeaseTracker_->Start();
+        BoomerangTracker_->Start();
     }
 
     virtual void OnStopLeading() override
@@ -1146,14 +1642,44 @@ private:
         TMasterAutomatonPart::OnStopLeading();
 
         LeaseTracker_->Stop();
+        BoomerangTracker_->Stop();
 
         // Reset all transiently prepared transactions back into active state.
         for (const auto& pair : TransactionMap_) {
             auto* transaction = pair.second;
             transaction->SetState(transaction->GetPersistentState());
         }
+
+        OnStopEpoch();
     }
 
+    virtual void OnStopFollowing() override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        TMasterAutomatonPart::OnStopFollowing();
+
+        OnStopEpoch();
+    }
+
+    void OnStopEpoch()
+    {
+        TransactionPresenceCache_->Stop();
+    }
+
+    virtual void OnRecoveryStarted() override
+    {
+        TMasterAutomatonPart::OnRecoveryStarted();
+
+        Profiler.SetEnabled(false);
+    }
+
+    virtual void OnRecoveryComplete() override
+    {
+        TMasterAutomatonPart::OnRecoveryComplete();
+
+        Profiler.SetEnabled(true);
+    }
 
     void CreateLease(TTransaction* transaction)
     {
@@ -1191,13 +1717,14 @@ private:
         }));
     }
 
-
-    void OnValidateSecondaryMasterRegistration(TCellTag cellTag)
+    void OnProfiling()
     {
-        if (TransactionMap_.GetSize() > 0) {
-            THROW_ERROR_EXCEPTION("Cannot register a new secondary master %v while %v transaction(s) are present",
-                cellTag,
-                TransactionMap_.GetSize());
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        if (TransactionPresenceCache_) {
+            Profiler.Enqueue("/cached_replicated_transaction_count", TransactionPresenceCache_->GetReplicatedTransactionCount(), EMetricType::Gauge);
+            Profiler.Enqueue("/cached_recently_finished_transaction_count", TransactionPresenceCache_->GetRecentlyFinishedTransactionCount(), EMetricType::Gauge);
+            Profiler.Enqueue("/subscribed_remote_transaction_replication_count", TransactionPresenceCache_->GetSubscribedRemoteTransactionReplicationCount(), EMetricType::Gauge);
         }
     }
 
@@ -1237,22 +1764,33 @@ TTransaction* TTransactionManager::StartTransaction(
     TTransaction* parent,
     std::vector<TTransaction*> prerequisiteTransactions,
     const TCellTagList& replicatedToCellTags,
-    bool replicateStart,
     std::optional<TDuration> timeout,
     std::optional<TInstant> deadline,
     const std::optional<TString>& title,
-    const IAttributeDictionary& attributes,
-    TTransactionId hintId)
+    const IAttributeDictionary& attributes)
 {
     return Impl_->StartTransaction(
         parent,
         std::move(prerequisiteTransactions),
         replicatedToCellTags,
-        replicateStart,
         timeout,
         deadline,
         title,
-        attributes,
+        attributes);
+}
+
+TTransaction* TTransactionManager::StartUploadTransaction(
+    TTransaction* parent,
+    const TCellTagList& replicatedToCellTags,
+    std::optional<TDuration> timeout,
+    const std::optional<TString>& title,
+    TTransactionId hintId)
+{
+    return Impl_->StartUploadTransaction(
+        parent,
+        replicatedToCellTags,
+        timeout,
+        title,
         hintId);
 }
 
@@ -1355,7 +1893,7 @@ void TTransactionManager::RegisterTransactionActionHandlers(
 
 std::unique_ptr<TMutation> TTransactionManager::CreateStartTransactionMutation(
     TCtxStartTransactionPtr context,
-    const NTransactionServer::NProto::TReqStartTransaction& request)
+    const NProto::TReqStartTransaction& request)
 {
     return Impl_->CreateStartTransactionMutation(std::move(context), request);
 }
@@ -1365,12 +1903,27 @@ std::unique_ptr<TMutation> TTransactionManager::CreateRegisterTransactionActions
     return Impl_->CreateRegisterTransactionActionsMutation(std::move(context));
 }
 
+std::unique_ptr<TMutation> TTransactionManager::CreateReplicateTransactionsMutation(TCtxReplicateTransactionsPtr context)
+{
+    return Impl_->CreateReplicateTransactionsMutation(std::move(context));
+}
+
+TFuture<void> TTransactionManager::GetReadyToPrepareTransactionCommit(
+    const std::vector<TTransactionId>& prerequisiteTransactionIds,
+    const std::vector<TCellId>& cellIdsToSyncWith)
+{
+    return Impl_->GetReadyToPrepareTransactionCommit(
+        prerequisiteTransactionIds,
+        cellIdsToSyncWith);
+}
+
 void TTransactionManager::PrepareTransactionCommit(
     TTransactionId transactionId,
     bool persistent,
-    TTimestamp prepareTimestamp)
+    TTimestamp prepareTimestamp,
+    const std::vector<TTransactionId>& prerequisiteTransactionIds)
 {
-    Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp);
+    Impl_->PrepareTransactionCommit(transactionId, persistent, prepareTimestamp, prerequisiteTransactionIds);
 }
 
 void TTransactionManager::PrepareTransactionAbort(
@@ -1421,10 +1974,16 @@ void TTransactionManager::UnrefTimestampHolder(TTransactionId transactionId)
     Impl_->UnrefTimestampHolder(transactionId);
 }
 
+const TTransactionPresenceCachePtr& TTransactionManager::GetTransactionPresenceCache()
+{
+    return Impl_->GetTransactionPresenceCache();
+}
+
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionStarted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionCommitted, *Impl_);
 DELEGATE_SIGNAL(TTransactionManager, void(TTransaction*), TransactionAborted, *Impl_);
-DELEGATE_BYREF_RO_PROPERTY(TTransactionManager, THashSet<TTransaction*>, TopmostTransactions, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TTransactionManager, THashSet<TTransaction*>, NativeTopmostTransactions, *Impl_);
+DELEGATE_BYREF_RO_PROPERTY(TTransactionManager, THashSet<TTransaction*>, NativeTransactions, *Impl_);
 DELEGATE_ENTITY_MAP_ACCESSORS(TTransactionManager, Transaction, TTransaction, *Impl_)
 
 ////////////////////////////////////////////////////////////////////////////////

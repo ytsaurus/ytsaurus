@@ -229,8 +229,25 @@ class TestMasterTransactions(YTEnvSetup):
     @authors("babenko")
     def test_tx_multicell_attrs(self):
         tx = start_transaction()
-        cell_tags = [str(x) for x in get("//sys/@registered_master_cell_tags")] + \
-                    [str(get("//sys/@cell_tag"))]
+        get("//sys/@registered_master_cell_tags")
+        get("//sys/@cell_tag")
+
+        tx_cell_tag = str(get("#" + tx + "/@native_cell_tag"))
+        cell_tags = [tx_cell_tag]
+
+        sharded_tx = self.NUM_SECONDARY_MASTER_CELLS > 2
+
+        if sharded_tx:
+            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 3})
+
+            # Populate resolve cache so that passing through the portal doesn't affect tx replication.
+            set("//tmp/p/@some_attr", "some_value")
+
+            portal_exit_id = get("//tmp/p/@id")
+            table_id = create("table", "//tmp/p/t", tx=tx) # replicate tx to cell 3
+            if '3' not in cell_tags:
+                cell_tags.append('3')
+
         def check(r):
             assert_items_equal(r.keys(), cell_tags)
             for (k, v) in r.iteritems():
@@ -240,6 +257,24 @@ class TestMasterTransactions(YTEnvSetup):
         check(get("#" + tx + "/@exported_objects"))
         assert get("#" + tx + "/@imported_object_count") == 0
         assert get("#" + tx + "/@exported_object_count") == 0
+
+        if sharded_tx:
+            branched_node_ids = get("#" + tx + "/@branched_node_ids")
+            assert len(branched_node_ids) == 2
+            assert_items_equal(branched_node_ids['3'], [table_id, portal_exit_id])
+            assert branched_node_ids[tx_cell_tag] == []
+
+            locked_node_ids = get("#" + tx + "/@locked_node_ids")
+            assert len(locked_node_ids) == 2
+            assert_items_equal(locked_node_ids['3'], [table_id, portal_exit_id])
+            assert locked_node_ids[tx_cell_tag] == []
+
+            staged_node_ids = get("#" + tx + "/@staged_node_ids")
+            assert len(staged_node_ids) == 2
+            assert_items_equal(staged_node_ids['3'], [table_id])
+            assert staged_node_ids[tx_cell_tag] == []
+
+            assert len(get("#" + tx + "/@lock_ids/3")) == 2
 
     @authors("babenko")
     def test_transaction_maps(self):
@@ -313,6 +348,10 @@ class TestMasterTransactions(YTEnvSetup):
 
     @authors("babenko")
     def test_revision4(self):
+        if self.is_multicell():
+            pytest.skip("@current_commit_revision not supported with sharded transactions")
+            return
+
         r1 = get("//sys/@current_commit_revision")
         set("//tmp/t", 1)
         r2 = get("//tmp/t/@revision")
@@ -384,6 +423,52 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists("//sys/transactions/" + tx_a)
         assert not exists("//sys/transactions/" + tx_b)
 
+    @authors("shakurov")
+    def test_prerequisite_tx_read_requests(self):
+        good_tx = start_transaction()
+        bad_tx = "a-b-c-d"
+
+        get("//tmp/@id", prerequisite_transaction_ids=[good_tx])
+        ls("//tmp/@", prerequisite_transaction_ids=[good_tx])
+        exists("//tmp/@id", prerequisite_transaction_ids=[good_tx])
+
+        with pytest.raises(YtError):
+            get("//tmp/@id", prerequisite_transaction_ids=[bad_tx])
+        with pytest.raises(YtError):
+            ls("//tmp/@", prerequisite_transaction_ids=[bad_tx])
+        with pytest.raises(YtError):
+            exists("//tmp/@id", prerequisite_transaction_ids=[bad_tx])
+
+    @authors("shakurov")
+    def test_prerequisite_tx_write_requests(self):
+        good_tx = start_transaction()
+        bad_tx = "a-b-c-d"
+
+        create("table", "//tmp/t1", prerequisite_transaction_ids=[good_tx])
+        set("//tmp/@some_attr", "some_value", prerequisite_transaction_ids=[good_tx])
+        remove("//tmp/t1", prerequisite_transaction_ids=[good_tx])
+
+        with pytest.raises(YtError):
+            create("table", "//tmp/t2", prerequisite_transaction_ids=[bad_tx])
+        with pytest.raises(YtError):
+            set("//tmp/@some_attr", "some_value", prerequisite_transaction_ids=[bad_tx])
+        create("table", "//tmp/t3")
+        with pytest.raises(YtError):
+            remove("//tmp/t3", prerequisite_transaction_ids=[bad_tx])
+
+    @authors("shakurov")
+    def test_prerequisite_transactions_on_commit(self):
+        tx_a = start_transaction()
+        tx_b = start_transaction()
+
+        with pytest.raises(YtError):
+            commit_transaction(tx_b, prerequisite_transaction_ids=["a-b-c-d"])
+
+        # Failing to commit a transaction with prerequisites provokes its abort.
+        wait(lambda: not exists("//sys/transactions/" + tx_b), iter=100)
+
+        tx_c = start_transaction()
+        commit_transaction(tx_c, prerequisite_transaction_ids=[tx_a])
 
     @authors("babenko")
     def test_very_deep_transactions_yt_9961(self):
@@ -421,6 +506,126 @@ class TestMasterTransactions(YTEnvSetup):
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):
     NUM_SECONDARY_MASTER_CELLS = 2
+    MASTER_CELL_ROLES = {"2": ["chunk_host"]}
+
+class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
+    NUM_SECONDARY_MASTER_CELLS = 5
+    ENABLE_TMP_PORTAL = True
+    MASTER_CELL_ROLES = {
+        "0": ["cypress_node_host"],
+        "1": ["cypress_node_host"],
+        "2": ["chunk_host"],
+        "3": ["cypress_node_host"],
+        "4": ["transaction_coordinator"],
+        "5": ["transaction_coordinator"]
+    }
+
+    @authors("shakurov")
+    def test_prerequisite_transactions_on_commit2(self):
+        # Currently there's no way to force particular transaction
+        # coordinator cell (which is by design, BTW). So this test
+        # will sometimes succeed trivially. But it definitely must
+        # NOT be flaky!
+        tx_a = start_transaction()
+        tx_b = start_transaction()
+        commit_transaction(tx_a, prerequisite_transaction_ids=[tx_b])
+
+    def _create_portal_to_cell(self, cell_tag):
+        portal_path = "//tmp/p{}".format(cell_tag)
+        create("portal_entrance", portal_path, attributes={"exit_cell_tag": cell_tag})
+        # Force the newly created portal to go into the resolve caches
+        # (on the entrance side). This way, the following requests
+        # (that may happen to be transactional) won't provoke tx
+        # replication to the entrance cell.
+        set(portal_path + "/@some_attr", "some_value")
+        return portal_path
+
+    def _replicate_tx_to_cell(self, tx, cell_tag, mode):
+        portal_path = self._create_portal_to_cell(cell_tag)
+        if mode == "r":
+            get(portal_path + "/@id", tx=tx)
+        elif mode == "w":
+            create("table", portal_path + "/" + tx, tx=tx)
+        elif mode == "rs":
+            exists(portal_path + "/@qqq", prerequisite_transaction_ids=[tx])
+        elif mode == "ws":
+            create("table", portal_path + "/" + tx, prerequisite_transaction_ids=[tx])
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("replication_mode", ["r", "w", "rs", "ws"])
+    def test_lazy_tx_replication(self, replication_mode):
+        tx = start_transaction()
+        assert get("#" + tx + "/@replicated_to_cell_tags") == []
+
+        self._replicate_tx_to_cell(tx, 3, replication_mode)
+        assert get("#" + tx + "/@replicated_to_cell_tags") == [3]
+
+    @authors("shakurov")
+    def test_eager_tx_replication(self):
+        set("//sys/@config/transaction_manager/enable_lazy_transaction_replication", False)
+        multicell_sleep()
+
+        tx = start_transaction()
+        assert 3 in get("#" + tx + "/@replicated_to_cell_tags")
+
+    @authors("shakurov")
+    def test_parent_tx_replication(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction(tx=tx1)
+
+        assert get("#" + tx1 + "/@replicated_to_cell_tags") == []
+
+        self._replicate_tx_to_cell(tx2, 3, "r")
+
+        assert get("#" + tx1 + "/@replicated_to_cell_tags") == [3]
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("replication_mode", ["r", "w"])
+    def test_tx_and_multiple_prerequisite_replication(self, replication_mode):
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        tx3 = start_transaction()
+
+        assert get("#" + tx1 + "/@replicated_to_cell_tags") == []
+        assert get("#" + tx2 + "/@replicated_to_cell_tags") == []
+        assert get("#" + tx3 + "/@replicated_to_cell_tags") == []
+
+        portal_path = self._create_portal_to_cell(3)
+        if replication_mode == "r":
+            get(portal_path + "/@id", tx=tx1, prerequisite_transaction_ids=[tx2, tx3])
+        else:
+            assert replication_mode == "w"
+            create("table", portal_path + "/t", tx=tx1, prerequisite_transaction_ids=[tx2, tx3])
+
+    @authors("shakurov")
+    def test_cannot_start_tx_with_conflicting_parent_and_prerequisite(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        tx1_cell_tag = get("#" + tx1 + "/@native_cell_tag")
+        tx2_cell_tag = get("#" + tx2 + "/@native_cell_tag")
+
+        # Sometimes this test will succeed trivially. But it must never flap.
+        if tx1_cell_tag != tx2_cell_tag:
+            with pytest.raises(YtError):
+                start_transaction(tx=tx1, prerequisite_transaction_ids=[tx2])
+
+    @authors("shakurov")
+    def test_cannot_start_tx_with_conflicting_prerequisites(self):
+        tx1 = start_transaction()
+        tx2 = start_transaction()
+        tx1_cell_tag = get("#" + tx1 + "/@native_cell_tag")
+        tx2_cell_tag = get("#" + tx2 + "/@native_cell_tag")
+
+        # Sometimes this test will succeed trivially. But it must never flap.
+        if tx1_cell_tag != tx2_cell_tag:
+            with pytest.raises(YtError):
+                start_transaction(prerequisite_transaction_ids=[tx1, tx2])
+
+class TestMasterTransactionsShardedTxNoBoomerangs(TestMasterTransactionsShardedTx):
+    def setup_method(self, method):
+        super(TestMasterTransactionsShardedTxNoBoomerangs, self).setup_method(method)
+        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
+        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
 
 class TestMasterTransactionsRpcProxy(TestMasterTransactions):
     DRIVER_BACKEND = "rpc"

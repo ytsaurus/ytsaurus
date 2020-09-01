@@ -90,6 +90,15 @@ public:
 
     TFuture<TSharedRefArray> TryBeginRequest(TMutationId id, bool isRetry)
     {
+        auto result = FindRequest(id, isRetry);
+        if (!result) {
+            YT_VERIFY(PendingResponses_.emplace(id, NewPromise<TSharedRefArray>()).second);
+        }
+        return result;
+    }
+
+    TFuture<TSharedRefArray> FindRequest(TMutationId id, bool isRetry) const
+    {
         VERIFY_THREAD_AFFINITY(HomeThread);
         YT_ASSERT(id);
 
@@ -122,8 +131,6 @@ public:
                 << TErrorAttribute("mutation_id", id)
                 << TErrorAttribute("warmup_time", Config_->WarmupTime);
         }
-
-        YT_VERIFY(PendingResponses_.insert(std::make_pair(id, NewPromise<TSharedRefArray>())).second);
 
         return TFuture<TSharedRefArray>();
     }
@@ -338,6 +345,11 @@ void TResponseKeeper::Stop()
 TFuture<TSharedRefArray> TResponseKeeper::TryBeginRequest(TMutationId id, bool isRetry)
 {
     return Impl_->TryBeginRequest(id, isRetry);
+}
+
+TFuture<TSharedRefArray> TResponseKeeper::FindRequest(TMutationId id, bool isRetry) const
+{
+    return Impl_->FindRequest(id, isRetry);
 }
 
 void TResponseKeeper::EndRequest(TMutationId id, TSharedRefArray response, bool remember)

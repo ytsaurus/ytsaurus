@@ -2467,7 +2467,7 @@ private:
         TReqExecuteBatch::TAttachChunkTreesSubrequest* subrequest,
         TRspExecuteBatch::TAttachChunkTreesSubresponse* subresponse)
     {
-        auto parentId = FromProto<TTransactionId>(subrequest->parent_id());
+        auto parentId = FromProto<TChunkListId>(subrequest->parent_id());
         auto* parent = GetChunkListOrThrow(parentId);
         auto transactionId = subrequest->has_transaction_id()
             ? FromProto<TTransactionId>(subrequest->transaction_id())

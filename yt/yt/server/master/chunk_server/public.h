@@ -106,6 +106,7 @@ DECLARE_REFCOUNTED_CLASS(TChunkPlacement)
 DECLARE_REFCOUNTED_CLASS(TInterDCLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicChunkServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TMediumConfig)
 
 //! Used as an expected upper bound in SmallVector.

@@ -14,6 +14,29 @@ namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMutationIdempotizerConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    TDuration ExpirationTime;
+    TDuration ExpirationCheckPeriod;
+    int MaxExpiredMutationIdRemovalsPerCommit;
+
+    TMutationIdempotizerConfig()
+    {
+        RegisterParameter("expiration_time", ExpirationTime)
+            .Default(TDuration::Minutes(5));
+        RegisterParameter("expiration_check_period", ExpirationCheckPeriod)
+            .Default(TDuration::Seconds(10));
+        RegisterParameter("max_expired_mutation_id_removals_per_commit", MaxExpiredMutationIdRemovalsPerCommit)
+            .Default(50000);
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TMutationIdempotizerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TObjectManagerConfig
     : public NYTree::TYsonSerializable
 { };
@@ -36,6 +59,8 @@ public:
     //! advancing from |RemovalAwaitingCellsSync| to |RemovalCommitted| life stage.
     TDuration ObjectRemovalCellsSyncPeriod;
 
+    TMutationIdempotizerConfigPtr MutationIdempotizer;
+
     TDynamicObjectManagerConfig()
     {
         RegisterParameter("max_weight_per_gc_sweep", MaxWeightPerGCSweep)
@@ -44,6 +69,8 @@ public:
             .Default(TDuration::MilliSeconds(1000));
         RegisterParameter("object_removal_cells_sync_period", ObjectRemovalCellsSyncPeriod)
             .Default(TDuration::MilliSeconds(100));
+        RegisterParameter("mutation_idempotizer", MutationIdempotizer)
+            .DefaultNew();
     }
 };
 
@@ -111,11 +138,14 @@ class TDynamicObjectServiceConfig
 {
 public:
     bool EnableTwoLevelCache;
+    bool EnableMutationBoomerangs;
 
     TDynamicObjectServiceConfig()
     {
         RegisterParameter("enable_two_level_cache", EnableTwoLevelCache)
             .Default(false);
+        RegisterParameter("enable_mutation_boomerangs", EnableMutationBoomerangs)
+            .Default(true);
     }
 };
 

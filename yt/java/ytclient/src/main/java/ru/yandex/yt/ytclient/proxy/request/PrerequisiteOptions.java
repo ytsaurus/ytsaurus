@@ -8,16 +8,10 @@ public class PrerequisiteOptions {
     public class RevisionPrerequsite {
         public final String path;
         public final long revision;
-        public final GUID id;
-
-        public RevisionPrerequsite(String path, long revision, GUID id) {
-            this.path = path;
-            this.revision = revision;
-            this.id = id;
-        }
 
         public RevisionPrerequsite(String path, long revision) {
-            this(path, revision, null);
+            this.path = path;
+            this.revision = revision;
         }
     }
 
@@ -55,7 +49,6 @@ public class PrerequisiteOptions {
                 builder.addRevisions(TPrerequisiteOptions.TRevisionPrerequisite.newBuilder()
                         .setPath(rev.path)
                         .setRevision(rev.revision)
-                        .setTransactionId(RpcUtil.toProto(rev.id))
                         .build());
             }
         }

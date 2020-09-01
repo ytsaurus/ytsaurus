@@ -12,6 +12,8 @@
 
 #include <yt/server/master/object_server/public.h>
 
+#include <yt/client/election/public.h>
+
 #include <yt/core/actions/signal.h>
 
 #include <yt/core/misc/property.h>
@@ -33,8 +35,10 @@ public:
     //! Raised when a transaction is aborted.
     DECLARE_SIGNAL(void(TTransaction*), TransactionAborted);
 
-    //! A set of transactions with no parent.
-    DECLARE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, TopmostTransactions);
+    //! A set of native transactions with no parent.
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, NativeTopmostTransactions);
+
+    DECLARE_BYREF_RO_PROPERTY(THashSet<TTransaction*>, NativeTransactions);
 
 public:
     explicit TTransactionManager(NCellMaster::TBootstrap* bootstrap);
@@ -47,12 +51,16 @@ public:
         TTransaction* parent,
         std::vector<TTransaction*> prerequisiteTransactions,
         const NObjectClient::TCellTagList& replicatedToCellTags,
-        bool replicateStart,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
-        const NYTree::IAttributeDictionary& attributes,
-        TTransactionId hintId = NullTransactionId);
+        const NYTree::IAttributeDictionary& attributes);
+    TTransaction* StartUploadTransaction(
+        TTransaction* parent,
+        const NObjectClient::TCellTagList& replicatedToCellTags,
+        std::optional<TDuration> timeout,
+        const std::optional<TString>& title,
+        TTransactionId hintId);
     void CommitTransaction(
         TTransaction* transaction,
         TTimestamp commitTimestamp);
@@ -141,10 +149,19 @@ public:
     std::unique_ptr<NHydra::TMutation> CreateRegisterTransactionActionsMutation(
         TCtxRegisterTransactionActionsPtr context);
 
+    using TCtxReplicateTransactions = NRpc::TTypedServiceContext<
+        NProto::TReqReplicateTransactions,
+        NProto::TRspReplicateTransactions>;
+    using TCtxReplicateTransactionsPtr = TIntrusivePtr<TCtxReplicateTransactions>;
+    std::unique_ptr<NHydra::TMutation> CreateReplicateTransactionsMutation(
+        TCtxReplicateTransactionsPtr context);
+
     void CreateOrRefTimestampHolder(TTransactionId transactionId);
     void SetTimestampHolderTimestamp(TTransactionId transactionId, TTimestamp timestamp);
     TTimestamp GetTimestampHolderTimestamp(TTransactionId transactionId);
     void UnrefTimestampHolder(TTransactionId transactionId);
+
+    const TTransactionPresenceCachePtr& GetTransactionPresenceCache();
 
 private:
     class TImpl;
@@ -153,10 +170,14 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 
     // ITransactionManager overrides
+    virtual TFuture<void> GetReadyToPrepareTransactionCommit(
+        const std::vector<TTransactionId>& prerequisiteTransactionIds,
+        const std::vector<NElection::TCellId>& cellIdsToSyncWith) override;
     virtual void PrepareTransactionCommit(
         TTransactionId transactionId,
         bool persistent,
-        TTimestamp prepareTimestamp) override;
+        TTimestamp prepareTimestamp,
+        const std::vector<TTransactionId>& prerequisiteTransactionIds) override;
     virtual void PrepareTransactionAbort(
         TTransactionId transactionId,
         bool force) override;

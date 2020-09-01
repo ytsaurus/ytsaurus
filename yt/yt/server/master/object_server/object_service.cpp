@@ -9,6 +9,7 @@
 #include <yt/server/master/cell_master/config_manager.h>
 #include <yt/server/master/cell_master/hydra_facade.h>
 #include <yt/server/master/cell_master/master_hydra_service.h>
+#include <yt/server/master/cell_master/multi_phase_cell_sync_session.h>
 
 #include <yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/server/master/cypress_server/resolve_cache.h>
@@ -19,7 +20,13 @@
 #include <yt/server/master/security_server/security_manager.h>
 #include <yt/server/master/security_server/user.h>
 
+#include <yt/server/master/transaction_server/transaction_replication_session.h>
+
+#include <yt/server/master/transaction_server/proto/transaction_manager.pb.h>
+
 #include <yt/server/lib/hive/hive_manager.h>
+
+#include <yt/server/lib/transaction_server/helpers.h>
 
 #include <yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -65,6 +72,8 @@ using namespace NCypressClient;
 using namespace NCypressServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
+using namespace NTransactionClient;
+using namespace NTransactionServer;
 using namespace NObjectServer;
 using namespace NObjectClient;
 using namespace NHiveServer;
@@ -188,7 +197,7 @@ private:
 
         TString UserName;
         TDuration ExcessTime;
-        //! Typically equals ExcessTime; however when a user is charged we just update ExceesTime
+        //! Typically equals ExcessTime; however when a user is charged we just update ExcessTime
         //! and leave HeapKey intact. Upon extracting heap's top we check if its ExcessTime matches its HeapKey
         //! and if not then readjust the heap.
         TDuration HeapKey;
@@ -218,6 +227,7 @@ private:
 
     TStickyUserErrorCache StickyUserErrorCache_;
     std::atomic<bool> EnableTwoLevelCache_ = {false};
+    std::atomic<bool> EnableMutationBoomerangs_ = {true};
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -263,6 +273,12 @@ DEFINE_ENUM(EExecutionSessionSubrequestType,
     (Cache)
 );
 
+DEFINE_ENUM(ESyncPhase,
+    (One)
+    (Two)
+    (Three)
+);
+
 class TObjectService::TExecuteSession
     : public TRefCounted
 {
@@ -280,6 +296,12 @@ public:
             RequestId_,
             RpcContext_->GetAuthenticationIdentity()))
         , TentativePeerState_(Bootstrap_->GetHydraFacade()->GetHydraManager()->GetTentativeState())
+        , CellSyncSession_(New<TMultiPhaseCellSyncSession>(
+            Bootstrap_,
+            !RpcContext_->Request().suppress_upstream_sync(),
+            RequestId_))
+          // Copy so it doesn't change mid-execution of this particular session.
+        , EnableMutationBoomerangs_(Owner_->EnableMutationBoomerangs_)
     { }
 
     ~TExecuteSession()
@@ -379,6 +401,8 @@ private:
     const TRequestId RequestId_;
     const TString CodicilData_;
     const EPeerState TentativePeerState_;
+    const TMultiPhaseCellSyncSessionPtr CellSyncSession_;
+    const bool EnableMutationBoomerangs_;
 
     TDelayedExecutorCookie BackoffAlarmCookie_;
 
@@ -389,7 +413,6 @@ private:
         EExecutionSessionSubrequestType Type = EExecutionSessionSubrequestType::Undefined;
         IServiceContextPtr RpcContext;
         std::unique_ptr<TMutation> Mutation;
-        TFuture<TMutationResponse> AsyncCommitResult;
         std::optional<TObjectServiceCache::TCookie> CacheCookie;
         NRpc::NProto::TRequestHeader RequestHeader;
         const NYTree::NProto::TYPathHeaderExt* YPathExt = nullptr;
@@ -407,7 +430,24 @@ private:
         bool Uncertain = false;
         std::atomic<bool> Completed = {false};
         TRequestProfilingCountersPtr ProfilingCounters;
+        // Only for (local) write requests when boomerangs are enabled.
+        // (Local read requests are handled by a session-wide replication session).
+        TTransactionReplicationSessionWithBoomerangsPtr RemoteTransactionReplicationSession;
+        // For local reads (and also local writes if boomerangs are disabled), this is a future
+        // that will be set when all remote transactions have actually been replicated here.
+        // Mutually exclusive with MutationResponseFuture.
+        TFuture<void> RemoteTransactionReplicationFuture;
+        // For local writes, this is a future that is set when the mutation is applied. That mutation
+        // may be either committed in the ordinary fashion or posted as a boomerang.
+        // Mutually exclusive with RemoteTransactionReplicationFuture.
+        TFuture<TMutationResponse> MutationResponseFuture;
     };
+
+    // For (local) read requests and, if boomerangs are disabled, for (local) write requests.
+    // (Otherwise write requests are handled by per-subrequest replication sessions.)
+    TTransactionReplicationSessionWithoutBoomerangsPtr RemoteTransactionReplicationSession_;
+
+    THashMap<TTransactionId, SmallVector<TSubrequest*, 1>> RemoteTransactionIdToSubrequests_;
 
     std::unique_ptr<TSubrequest[]> Subrequests_;
     int CurrentSubrequestIndex_ = 0;
@@ -416,23 +456,23 @@ private:
     IInvokerPtr EpochAutomatonInvoker_;
     TCancelableContextPtr EpochCancelableContext_;
     TUser* User_ = nullptr;
-    TCellTagList SyncedWithCellTags_;
     bool NeedsUserAccessValidation_ = true;
     bool RequestQueueSizeIncreased_ = false;
+    bool BoomerangRequestsInvoked_ = false;
 
-    std::atomic<bool> ReplyScheduled_ = {false};
-    std::atomic<bool> FinishScheduled_ = {false};
+    std::atomic<bool> ReplyScheduled_ = false;
+    std::atomic<bool> FinishScheduled_ = false;
     bool Finished_ = false;
 
-    std::atomic<bool> LocalExecutionStarted_ = {false};
-    std::atomic<bool> LocalExecutionInterrupted_ = {false};
+    std::atomic<bool> LocalExecutionStarted_ = false;
+    std::atomic<bool> LocalExecutionInterrupted_ = false;
     // If this is locked, the automaton invoker is currently busy serving
     // some local subrequest.
     // NB: only TryAcquire() is called on this lock, never Acquire().
     TSpinLock LocalExecutionLock_;
 
     // Has the time to backoff come?
-    std::atomic<bool> BackoffAlarmTriggered_ = {false};
+    std::atomic<bool> BackoffAlarmTriggered_ = false;
 
     // Once this drops to zero, the request can be replied.
     // Starts with one to indicate that the "ultimate" lock is initially held.
@@ -440,10 +480,10 @@ private:
 
     // Set to true when the "ultimate" reply lock is released and
     // RepyLockCount_ is decremented.
-    std::atomic<bool> UltimateReplyLockReleased_ = {false};
+    std::atomic<bool> UltimateReplyLockReleased_ = false;
 
     // Set to true if we're ready to reply with at least one subresponse.
-    std::atomic<bool> SomeSubrequestCompleted_ = {false};
+    std::atomic<bool> SomeSubrequestCompleted_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -459,10 +499,11 @@ private:
         auto originalRequestId = FromProto<TRequestId>(request.original_request_id());
 
         RpcContext_->SetRequestInfo("SubrequestCount: %v, SupportsPortals: %v, SuppressUpstreamSync: %v, "
-            "OriginalRequestId: %v",
+            "SuppressTransactionCoordinatorSync: %v, OriginalRequestId: %v",
             TotalSubrequestCount_,
             request.supports_portals(),
             request.suppress_upstream_sync(),
+            request.suppress_transaction_coordinator_sync(),
             originalRequestId);
 
         if (TotalSubrequestCount_ == 0) {
@@ -477,6 +518,9 @@ private:
         ScheduleBackoffAlarm();
         ParseSubrequests();
         MarkTentativelyRemoteSubrequests();
+        // Necessary to determine which tx coordinator cells require explicitly
+        // syncing with, and which will be handled implicitly by tx replication.
+        CheckSubrequestsForRemoteTransactions();
         RunSyncPhaseOne();
     }
 
@@ -546,6 +590,14 @@ private:
 
             if (ypathExt->original_additional_paths_size() == 0) {
                 *ypathExt->mutable_original_additional_paths() = ypathExt->additional_paths();
+            }
+
+            if (subrequest.YPathExt->mutating()) {
+                auto mutationId = FromProto<TMutationId>(requestHeader.mutation_id());
+                if (!mutationId) {
+                    mutationId = NRpc::GenerateMutationId();
+                    ToProto(requestHeader.mutable_mutation_id(), mutationId);
+                }
             }
 
             subrequest.RequestMessage = SetRequestHeader(subrequest.RequestMessage, requestHeader);
@@ -618,17 +670,42 @@ private:
         }
     }
 
-    TCellTagList CollectCellsToSyncForLocalExecution()
+    TCellTagList CollectCellsToSyncForLocalExecution(ESyncPhase syncPhase)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        TCellTagList cellTags;
-
-        auto registerTransaction = [&] (TTransactionId transactionId) {
-            if (transactionId) {
-                cellTags.push_back(CellTagFromId(transactionId));
+        TCellTagList result;
+        auto addCellTagToSyncWith = [&] (TCellTag cellTag) {
+            if (std::find(result.begin(), result.end(), cellTag) == result.end()) {
+                result.push_back(cellTag);
             }
         };
+        auto addCellTagsToSyncWith = [&] (const TCellTagList& cellTags) {
+            for (auto cellTag : cellTags) {
+                addCellTagToSyncWith(cellTag);
+            }
+        };
+
+        const auto& request = RpcContext_->Request();
+        auto suppressTransactionCoordinatorSync = request.suppress_transaction_coordinator_sync();
+
+        if (!suppressTransactionCoordinatorSync) {
+            switch (syncPhase) {
+                case ESyncPhase::One:
+                case ESyncPhase::Two:
+                    addCellTagsToSyncWith(
+                        RemoteTransactionReplicationSession_->GetCellTagsToSyncWithDuringInvocation());
+                    break;
+
+                case ESyncPhase::Three:
+                    addCellTagsToSyncWith(
+                        RemoteTransactionReplicationSession_->GetCellTagsToSyncWithAfterInvocation());
+                    break;
+
+                default:
+                    YT_ABORT();
+            }
+        }
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             const auto& subrequest = Subrequests_[subrequestIndex];
@@ -636,28 +713,25 @@ private:
                 // Phase one.
                 continue;
             }
-            if (subrequest.Type == EExecutionSessionSubrequestType::Remote) {
+            if (subrequest.Type == EExecutionSessionSubrequestType::Remote ||
+                subrequest.Type == EExecutionSessionSubrequestType::Cache)
+            {
                 // Phase two.
                 continue;
             }
 
-            registerTransaction(GetTransactionId(subrequest.RequestHeader));
-
-            for (const auto& prerequisite : subrequest.PrerequisitesExt->transactions()) {
-                registerTransaction(FromProto<TTransactionId>(prerequisite.transaction_id()));
-            }
-
-            for (const auto& prerequisite : subrequest.PrerequisitesExt->revisions()) {
-                registerTransaction(FromProto<TTransactionId>(prerequisite.transaction_id()));
+            if (!suppressTransactionCoordinatorSync && subrequest.RemoteTransactionReplicationSession) {
+                addCellTagsToSyncWith(
+                    subrequest.RemoteTransactionReplicationSession->GetCellTagsToSyncWithBeforeInvocation());
             }
 
             for (auto cellTag : subrequest.MulticellSyncExt->cell_tags_to_sync_with()) {
-                cellTags.push_back(cellTag);
+                addCellTagToSyncWith(cellTag);
             }
         }
 
-        SortUnique(cellTags);
-        return cellTags;
+        SortUnique(result);
+        return result;
     }
 
     bool IsTentativelyRemoteSubrequest(const TSubrequest& subrequest)
@@ -686,83 +760,27 @@ private:
         }
     }
 
-    bool RegisterCellToSyncWith(TCellTag cellTag)
+    TFuture<void> StartSync(ESyncPhase syncPhase, TFuture<void> additionalFuture = {})
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (std::find(SyncedWithCellTags_.begin(), SyncedWithCellTags_.end(), cellTag) != SyncedWithCellTags_.end()) {
-            // Already synced with this cell.
-            return false;
+        auto cellTags = CollectCellsToSyncForLocalExecution(syncPhase);
+        if (additionalFuture) {
+            return CellSyncSession_->Sync(cellTags, std::move(additionalFuture));
+        } else {
+            return CellSyncSession_->Sync(cellTags);
         }
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (cellTag == multicellManager->GetCellTag()) {
-            // No need to sync with self.
-            return false;
-        }
-
-        if (multicellManager->IsSecondaryMaster() && cellTag == multicellManager->GetPrimaryCellTag()) {
-            // IHydraManager::SyncWithUpstream will take care of this.
-            return false;
-        }
-
-        SyncedWithCellTags_.push_back(cellTag);
-        return true;
-    }
-
-    TFuture<void> StartSync(bool syncWithUpstream)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        const auto& request = RpcContext_->Request();
-        if (request.suppress_upstream_sync()) {
-            return {};
-        }
-
-        std::vector<TFuture<void>> syncFutures;
-        auto addAsyncResult = [&] (TFuture<void> future) {
-            if (!future.IsSet() || !future.Get().IsOK()) {
-                syncFutures.push_back(std::move(future));
-            }
-        };
-
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-        if (syncWithUpstream) {
-            addAsyncResult(multicellManager->SyncWithUpstream());
-        }
-
-        TCellTagList syncCellTags;
-        for (auto cellTag : CollectCellsToSyncForLocalExecution()) {
-            if (!RegisterCellToSyncWith(cellTag)) {
-                continue;
-            }
-            auto cellId = multicellManager->GetCellId(cellTag);
-            addAsyncResult(hiveManager->SyncWith(cellId, true));
-            syncCellTags.push_back(cellTag);
-        }
-
-        if (syncFutures.empty()) {
-            return {};
-        }
-
-        YT_LOG_DEBUG_UNLESS(syncCellTags.empty(), "Request will synchronize with another cells (RequestId: %v, CellTags: %v)",
-            RequestId_,
-            syncCellTags);
-
-        return AllSucceeded(syncFutures);
     }
 
     void RunSyncPhaseOne()
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto future = StartSync(true);
-        if (future) {
-            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseOneCompleted, MakeStrong(this)));
+        auto future = StartSync(ESyncPhase::One);
+        if (future.IsSet()) {
+            OnSyncPhaseOneCompleted(future.Get());
         } else {
-            OnSyncPhaseOneCompleted();
+            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseOneCompleted, MakeStrong(this)));
         }
     }
 
@@ -779,21 +797,30 @@ private:
             LookupCachedSubrequests();
         }
 
-        // Re-check remote requests to see if the cache resolve is still OK.
-        DecideSubrequestTypes();
+        try {
+            // Re-check remote requests to see if the cache resolve is still OK.
+            DecideSubrequestTypes();
 
-        if (!ValidateRequestsFeatures()) {
-            return;
+            ValidateRequestsFeatures();
+
+            ForwardRemoteRequests();
+
+            // Re-check so that
+            //   - previously assumed to be remote but actually local subrequests are handled correctly, and
+            //   - previously assumed to be local but actually remote subrequests are ignored.
+            CheckSubrequestsForRemoteTransactions();
+
+            RunSyncPhaseTwo();
+        } catch (const std::exception& ex) {
+            Reply(ex);
         }
-
-        ForwardRemoteRequests();
-
-        RunSyncPhaseTwo();
     }
 
     void MarkSubrequestLocal(TSubrequest* subrequest)
     {
-        if (subrequest->YPathExt->mutating() && TentativePeerState_ != EPeerState::Leading) {
+        auto mutating = subrequest->YPathExt->mutating();
+
+        if (mutating && TentativePeerState_ != EPeerState::Leading) {
             MarkSubrequestRemoteIntraCell(subrequest);
             return;
         }
@@ -803,7 +830,7 @@ private:
             ObjectServerLogger,
             NLogging::ELogLevel::Debug);
 
-        if (subrequest->YPathExt->mutating()) {
+        if (mutating) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             subrequest->Mutation = objectManager->CreateExecuteMutation(subrequest->RpcContext, subrequest->RpcContext->GetAuthenticationIdentity());
             subrequest->Mutation->SetMutationId(subrequest->RpcContext->GetMutationId(), subrequest->RpcContext->IsRetry());
@@ -930,19 +957,157 @@ private:
         }
     }
 
-    bool ValidateRequestsFeatures()
+    void ValidateRequestsFeatures()
     {
-        try {
-            for (int index = 0; index < TotalSubrequestCount_; ++index) {
-                const auto& subrequest = Subrequests_[index];
-                if (subrequest.RpcContext) {
-                    Owner_->ValidateRequestFeatures(subrequest.RpcContext);
-                }
+        for (int index = 0; index < TotalSubrequestCount_; ++index) {
+            const auto& subrequest = Subrequests_[index];
+            if (subrequest.RpcContext) {
+                Owner_->ValidateRequestFeatures(subrequest.RpcContext);
             }
-            return true;
-        } catch (const std::exception& ex) {
-            Reply(ex);
-            return false;
+        }
+    }
+
+    void CheckSubrequestsForRemoteTransactions()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto addSubrequestTransactions = [&] (
+            std::vector<TTransactionId>* transactions,
+            TSubrequest& subrequest,
+            THashMap<TTransactionId, SmallVector<TSubrequest*,1>>* transactionIdToSubrequests)
+        {
+            auto doTransaction = [&] (TTransactionId transactionId) {
+                transactions->push_back(transactionId);
+
+                if (transactionIdToSubrequests) {
+                    auto& subrequests = (*transactionIdToSubrequests)[transactionId];
+                    if (std::find(subrequests.begin(), subrequests.end(), &subrequest) == subrequests.end()) {
+                        subrequests.push_back(&subrequest);
+                    }
+                }
+            };
+
+            doTransaction(GetTransactionId(subrequest.RequestHeader));
+
+            for (const auto& prerequisite : subrequest.PrerequisitesExt->transactions()) {
+                doTransaction(FromProto<TTransactionId>(prerequisite.transaction_id()));
+            }
+        };
+
+        std::vector<TTransactionId> transactionsToReplicateWithoutBoomerangs;
+
+        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+
+            // Phase one.
+            if (subrequest.Type == EExecutionSessionSubrequestType::Undefined && subrequest.TentativelyRemote) {
+                continue;
+            }
+
+            // Phase two.
+            if (subrequest.Type == EExecutionSessionSubrequestType::Remote ||
+                subrequest.Type == EExecutionSessionSubrequestType::Cache)
+            {
+                // Some non-tentatively remote subrequests may have become remote.
+                if (subrequest.RemoteTransactionReplicationSession) {
+                    // Remove the session as it won't be used.
+                    subrequest.RemoteTransactionReplicationSession.Reset();
+                }
+
+                continue;
+            }
+
+            YT_VERIFY(
+                subrequest.Type == EExecutionSessionSubrequestType::Undefined ||
+                subrequest.Type == EExecutionSessionSubrequestType::LocalRead ||
+                subrequest.Type == EExecutionSessionSubrequestType::LocalWrite);
+
+            if (EnableMutationBoomerangs_ && subrequest.YPathExt->mutating()) {
+                if (!subrequest.RemoteTransactionReplicationSession) {
+                    // Pre-phase-one or prevously-tentatively-remote-but-no-longer-remote subrequest.
+                    std::vector<TTransactionId> writeSubrequestTransactions;
+                    addSubrequestTransactions(&writeSubrequestTransactions, subrequest, nullptr);
+                    subrequest.RemoteTransactionReplicationSession = New<TTransactionReplicationSessionWithBoomerangs>(
+                        Bootstrap_,
+                        std::move(writeSubrequestTransactions),
+                        TInitiatorRequestLogInfo(RequestId_, subrequestIndex),
+                        std::move(subrequest.Mutation));
+                } else {
+                    // Pre-phase-two.
+                    subrequest.RemoteTransactionReplicationSession->SetMutation(std::move(subrequest.Mutation));
+                }
+            } else {
+                addSubrequestTransactions(
+                    &transactionsToReplicateWithoutBoomerangs,
+                    subrequest,
+                    &RemoteTransactionIdToSubrequests_);
+            }
+        }
+
+        if (!RemoteTransactionReplicationSession_) {
+            // Pre-phase-one.
+            RemoteTransactionReplicationSession_ = New<TTransactionReplicationSessionWithoutBoomerangs>(
+                Bootstrap_,
+                std::move(transactionsToReplicateWithoutBoomerangs),
+                TInitiatorRequestLogInfo(RequestId_));
+        } else {
+            // Pre-phase-two.
+            RemoteTransactionReplicationSession_->Reset(std::move(transactionsToReplicateWithoutBoomerangs));
+        }
+    }
+
+    TFuture<void> InvokeRemoteTransactionReplicationWithoutBoomerangs()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto future = RemoteTransactionReplicationSession_->InvokeReplicationRequests();
+        if (!future) {
+            return VoidFuture;
+        }
+
+        return future.Apply(BIND(
+            [this, this_ = MakeStrong(this)]
+            (const THashMap<TTransactionId, TFuture<void>>& transactionReplicationFutures) {
+                VERIFY_THREAD_AFFINITY_ANY();
+
+                THashMap<TSubrequest*, std::vector<TFuture<void>>> subrequestToRemoteTransactionReplicationFutures;
+
+                for (auto& [transactionId, replicationFuture] : transactionReplicationFutures) {
+                    YT_VERIFY(replicationFuture);
+
+                    auto it = RemoteTransactionIdToSubrequests_.find(transactionId);
+                    YT_VERIFY(it != RemoteTransactionIdToSubrequests_.end());
+                    const auto& transactionSubrequests = it->second;
+                    for (auto* subrequest : transactionSubrequests) {
+                        subrequestToRemoteTransactionReplicationFutures[subrequest].push_back(replicationFuture);
+                    }
+                }
+
+                for (const auto& [subrequest, replicationFutures] : subrequestToRemoteTransactionReplicationFutures) {
+                    YT_VERIFY(!subrequest->RemoteTransactionReplicationFuture);
+                    subrequest->RemoteTransactionReplicationFuture = AllSucceeded(std::move(replicationFutures));
+                }
+            }));
+    }
+
+    void InvokeRemoteTransactionReplicationRequestsWithBoomerangs()
+    {
+        if (!EnableMutationBoomerangs_) {
+            return;
+        }
+
+        for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
+            auto& subrequest = Subrequests_[subrequestIndex];
+
+            if (!subrequest.RemoteTransactionReplicationSession) {
+                continue;
+            }
+
+            YT_VERIFY(subrequest.Type == EExecutionSessionSubrequestType::LocalWrite);
+
+            YT_VERIFY(!subrequest.MutationResponseFuture);
+            // NB: may still be null after assignment if no boomerangs were to be launched.
+            subrequest.MutationResponseFuture = subrequest.RemoteTransactionReplicationSession->InvokeReplicationRequests();
         }
     }
 
@@ -950,11 +1115,66 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto future = StartSync(false);
-        if (future) {
-            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseTwoCompleted, MakeStrong(this)));
+        // Read subrequests may request their remote transaction replication right away,
+        // as they will subscribe and wait for any such transaction later.
+        // Write subrequests may do the same if boomerang mutations are disabled.
+        // Otherwise boomerangs must be launched after syncing with the rest of the cells
+        // (because there's no other way to guarantee that boomerangs will come back *after*
+        // the syncing is done).
+        auto replicationFuture = InvokeRemoteTransactionReplicationWithoutBoomerangs();
+
+        auto future = StartSync(ESyncPhase::Two, std::move(replicationFuture));
+        if (future.IsSet()) {
+            OnSyncPhaseTwoCompleted(future.Get());
         } else {
-            OnSyncPhaseTwoCompleted();
+            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseTwoCompleted, MakeStrong(this)));
+        }
+    }
+
+    void OnSyncPhaseTwoCompleted(const TError& error = {})
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!error.IsOK()) {
+            Reply(error);
+            return;
+        }
+
+        try {
+            RunSyncPhaseThree();
+        } catch (const std::exception& ex) {
+            Reply(ex);
+        }
+    }
+
+    void RunSyncPhaseThree()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        auto future = StartSync(ESyncPhase::Three);
+        if (future.IsSet()) {
+            // NB: sync-phase-three is usually no-op, so this is the common case.
+            OnSyncPhaseThreeCompleted(future.Get());
+        } else {
+            future.Subscribe(BIND(&TExecuteSession::OnSyncPhaseThreeCompleted, MakeStrong(this)));
+        }
+    }
+
+    void OnSyncPhaseThreeCompleted(const TError& error = {})
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!error.IsOK()) {
+            Reply(error);
+            return;
+        }
+
+        if (ContainsLocalSubrequests()) {
+            LocalExecutionStarted_.store(true);
+            Owner_->EnqueueReadySession(this);
+        } else {
+            ReleaseUltimateReplyLock();
+            // NB: No finish is needed.
         }
     }
 
@@ -971,24 +1191,6 @@ private:
             }
         }
         return false;
-    }
-
-    void OnSyncPhaseTwoCompleted(const TError& error = {})
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        if (!error.IsOK()) {
-            Reply(error);
-            return;
-        }
-
-        if (ContainsLocalSubrequests()) {
-            LocalExecutionStarted_.store(true);
-            Owner_->EnqueueReadySession(this);
-        } else {
-            ReleaseUltimateReplyLock();
-            // NB: No finish is needed.
-        }
     }
 
     void ForwardRemoteRequests()
@@ -1156,6 +1358,8 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        Owner_->ValidateClusterInitialized();
+
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         const auto& hydraManager = hydraFacade->GetHydraManager();
 
@@ -1208,6 +1412,15 @@ private:
                 THROW_ERROR error;
             }
             RequestQueueSizeIncreased_ = true;
+        }
+
+        if (!BoomerangRequestsInvoked_) {
+            // NB: this could've been done earlier, in the RPC thread, if it
+            // weren't for the need to check user access (above). (And there's
+            // no way to control the moment of boomerang mutation application
+            // after launching the boomerang wave.)
+            InvokeRemoteTransactionReplicationRequestsWithBoomerangs();
+            BoomerangRequestsInvoked_ = true;
         }
 
         if (!ThrottleRequests()) {
@@ -1278,7 +1491,11 @@ private:
                     break;
                 }
 
-                ExecuteCurrentSubrequest();
+                if (!ExecuteCurrentSubrequest()) {
+                    break;
+                }
+
+                ++CurrentSubrequestIndex_;
             }
         }
 
@@ -1287,11 +1504,11 @@ private:
         }
     }
 
-    void ExecuteCurrentSubrequest()
+    bool ExecuteCurrentSubrequest()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto& subrequest = Subrequests_[CurrentSubrequestIndex_++];
+        auto& subrequest = Subrequests_[CurrentSubrequestIndex_];
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         subrequest.Revision = hydraManager->GetAutomatonVersion().ToRevision();
@@ -1302,11 +1519,13 @@ private:
 
         switch (subrequest.Type) {
             case EExecutionSessionSubrequestType::LocalRead:
-                ExecuteReadSubrequest(&subrequest);
-                break;
-
             case EExecutionSessionSubrequestType::LocalWrite:
-                ExecuteWriteSubrequest(&subrequest);
+                AcquireReplyLock();
+                if (!ExecuteLocalSubrequest(&subrequest)) {
+                    // Will be reacquired at a later try.
+                    ReleaseReplyLock();
+                    return false;
+                }
                 break;
 
             case EExecutionSessionSubrequestType::Remote:
@@ -1318,19 +1537,37 @@ private:
             default:
                 YT_ABORT();
         }
+
+        return true;
     }
 
+    // NB: this method is only used when boomerangs are disabled.
     void ExecuteWriteSubrequest(TSubrequest* subrequest)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        AcquireReplyLock();
-
-        TCounterIncrementingTimingGuard<TWallTimer> timingGuard(Profiler, &subrequest->ProfilingCounters->LocalMutationScheduleTimeCounter);
-
-        subrequest->AsyncCommitResult = subrequest->Mutation->Commit();
-        subrequest->AsyncCommitResult.Subscribe(
+        subrequest->MutationResponseFuture = subrequest->Mutation->Commit();
+        subrequest->MutationResponseFuture.Subscribe(
             BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));
+    }
+
+    void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (!responseOrError.IsOK()) {
+            Reply(responseOrError);
+            return;
+        }
+
+        const auto& response = responseOrError.Value();
+        const auto& context = subrequest->RpcContext;
+
+        if (response.Origin != EMutationResponseOrigin::Commit) {
+            YT_VERIFY(!context->IsReplied());
+            // Either we're answering with a kept response or this is a boomerang mutation.
+            context->Reply(response.Data);
+        }
+
+        WaitForSubresponse(subrequest);
     }
 
     void ForwardSubrequestToLeader(TSubrequest* subrequest)
@@ -1349,11 +1586,71 @@ private:
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
     }
 
+    bool ExecuteLocalSubrequest(TSubrequest* subrequest)
+    {
+        YT_ASSERT(
+            subrequest->Type == EExecutionSessionSubrequestType::LocalRead ||
+            subrequest->Type == EExecutionSessionSubrequestType::LocalWrite);
+
+        YT_VERIFY(!subrequest->RemoteTransactionReplicationFuture || !subrequest->MutationResponseFuture);
+
+        auto doExecuteSubrequest = [&] () {
+            if (subrequest->Type == EExecutionSessionSubrequestType::LocalRead) {
+                ExecuteReadSubrequest(subrequest);
+            } else {
+                ExecuteWriteSubrequest(subrequest);
+            }
+        };
+
+        if (!subrequest->RemoteTransactionReplicationFuture && !subrequest->MutationResponseFuture) {
+            doExecuteSubrequest();
+            return true;
+        }
+
+        if (subrequest->RemoteTransactionReplicationFuture &&
+            subrequest->RemoteTransactionReplicationFuture.IsSet())
+        {
+            const auto& error = subrequest->RemoteTransactionReplicationFuture.Get();
+            if (error.IsOK()) {
+                doExecuteSubrequest();
+            } else {
+                subrequest->RpcContext->Reply(error);
+            }
+            return true;
+        }
+
+        if (subrequest->MutationResponseFuture &&
+            subrequest->MutationResponseFuture.IsSet())
+        {
+            const auto& responseOrError = subrequest->MutationResponseFuture.Get();
+            OnMutationCommitted(subrequest, responseOrError);
+            return true;
+        }
+
+        auto timeLeft = GetTimeLeft(subrequest);
+
+        auto future = (subrequest->RemoteTransactionReplicationFuture
+            ? subrequest->RemoteTransactionReplicationFuture
+            : subrequest->MutationResponseFuture.AsVoid())
+            .WithTimeout(timeLeft);
+
+        future.Subscribe(
+            BIND(&TExecuteSession::CheckAndReschedule<void>, MakeStrong(this)));
+        return false;
+    }
+
+    TDuration GetTimeLeft(TSubrequest* subrequest)
+    {
+        const auto& requestHeader = subrequest->RequestHeader;
+        auto timeout = FromProto<TDuration>(requestHeader.timeout());
+        auto startTime = FromProto<TInstant>(requestHeader.start_time());
+        auto now = NProfiling::GetInstant();
+        return timeout - (now - startTime);
+    }
+
     void ExecuteReadSubrequest(TSubrequest* subrequest)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        AcquireReplyLock();
 
         TWallTimer timer;
 
@@ -1377,24 +1674,6 @@ private:
         if (!EpochCancelableContext_->IsCanceled()) {
             securityManager->ChargeUser(User_, {EUserWorkloadType::Read, 1, timer.GetElapsedTime()});
         }
-    }
-
-    void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
-
-        if (!responseOrError.IsOK()) {
-            Reply(responseOrError);
-            return;
-        }
-
-        const auto& response = responseOrError.Value();
-        const auto& context = subrequest->RpcContext;
-        if (response.Origin != EMutationResponseOrigin::Commit) {
-            context->Reply(response.Data);
-        }
-
-        WaitForSubresponse(subrequest);
     }
 
     void WaitForSubresponse(TSubrequest* subrequest)
@@ -1717,6 +1996,7 @@ void TObjectService::OnDynamicConfigChanged()
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     EnableTwoLevelCache_ = Bootstrap_->GetConfigManager()->GetConfig()->ObjectService->EnableTwoLevelCache;
+    EnableMutationBoomerangs_ = Bootstrap_->GetConfigManager()->GetConfig()->ObjectService->EnableMutationBoomerangs;
 }
 
 void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)

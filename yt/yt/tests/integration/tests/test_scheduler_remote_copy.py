@@ -347,6 +347,8 @@ class TestSchedulerRemoteCopyCommands(YTEnvSetup):
         create_user("u")
         create_user("u", driver=self.remote_driver)
 
+        multicell_sleep()
+
         remote_copy(in_="//tmp/t1", out="//tmp/t2",
                     spec={"cluster_name": self.REMOTE_CLUSTER_NAME}, authenticated_user="u")
 

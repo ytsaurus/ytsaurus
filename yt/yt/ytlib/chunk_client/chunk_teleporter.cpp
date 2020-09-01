@@ -76,7 +76,8 @@ int TChunkTeleporter::GetExportedObjectCount(TCellTag cellTag)
     auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TObjectServiceProxy proxy(channel);
 
-    // TODO(shakurov): replace this with a newer syntax for "#OBJECT_ID" redirect suppression.
+    // COMPAT(shakurov)
+    // Replace this with a newer syntax "&#OBJECT_ID" for redirect suppression.
     auto req = TObjectYPathProxy::Get("//sys/transactions/" + ToString(TransactionId_) + "/@exported_object_count");
 
     AddCellTagToSyncWith(req, CellTagFromId(TransactionId_));
@@ -152,7 +153,8 @@ int TChunkTeleporter::GetImportedObjectCount(TCellTag cellTag)
     auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
     TObjectServiceProxy proxy(channel);
 
-    // TODO(shakurov): replace this with a newer syntax for "#OBJECT_ID" redirect suppression.
+    // COMPAT(shakurov)
+    // Replace this with a newer syntax "&#OBJECT_ID" for redirect suppression.
     auto req = TObjectYPathProxy::Get("//sys/transactions/" + ToString(TransactionId_) + "/@imported_object_count");
 
     AddCellTagToSyncWith(req, CellTagFromId(TransactionId_));

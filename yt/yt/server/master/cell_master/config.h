@@ -247,6 +247,7 @@ public:
     NTransactionServer::TDynamicTransactionManagerConfigPtr TransactionManager;
     TDynamicCellMasterConfigPtr CellMaster;
     NObjectServer::TDynamicObjectServiceConfigPtr ObjectService;
+    NChunkServer::TDynamicChunkServiceConfigPtr ChunkService;
 
     TDynamicClusterConfig();
 };

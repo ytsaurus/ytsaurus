@@ -38,12 +38,15 @@ public:
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(StartTransaction));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterTransactionActions));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReplicateTransactions));
     }
 
 private:
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, StartTransaction)
     {
         ValidatePeer(EPeerKind::Leader);
+
+        // NB: no upstream sync should be necessary here.
 
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto timeout = FromProto<TDuration>(request->timeout());
@@ -66,7 +69,6 @@ private:
         if (request->has_deadline()) {
             hydraRequest.set_deadline(request->deadline());
         }
-        hydraRequest.mutable_hint_id()->Swap(request->mutable_hint_id());
         hydraRequest.mutable_replicate_to_cell_tags()->Swap(request->mutable_replicate_to_cell_tags());
         hydraRequest.set_dont_replicate(request->dont_replicate());
         if (title) {
@@ -83,6 +85,9 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, RegisterTransactionActions)
     {
         ValidatePeer(EPeerKind::Leader);
+
+        // Wait for transaction to appear on secondary master.
+        SyncWithUpstream();
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
 
@@ -104,6 +109,48 @@ private:
             ->CreateRegisterTransactionActionsMutation(context)
             ->CommitAndReply(context);
     }
+
+    DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, ReplicateTransactions)
+    {
+        ValidatePeer(EPeerKind::Leader);
+
+        // NB: no sync with upstream should be necessary here.
+
+        auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
+        auto destinationCellTag = request->destination_cell_tag();
+        auto boomerangWaveId = FromProto<TBoomerangWaveId>(request->boomerang_wave_id());
+        auto boomerangWaveSize = request->boomerang_wave_size();
+        auto boomerangMutationId = FromProto<TMutationId>(request->boomerang_mutation_id());
+
+        context->SetRequestInfo("TransactionIds: %v, DestinationCellTag: %v, BoomerangWaveId: %v, BoomerangWaveSize: %v, BoomerangMutationId: %v)",
+            transactionIds,
+            destinationCellTag,
+            boomerangWaveId,
+            boomerangWaveSize,
+            boomerangMutationId);
+
+        ValidateTransactionsAreCoordinatedByThisCell(transactionIds);
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        transactionManager
+            ->CreateReplicateTransactionsMutation(context)
+            ->CommitAndReply(context);
+    }
+
+    void ValidateTransactionsAreCoordinatedByThisCell(const std::vector<TTransactionId>& transactionIds)
+    {
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = multicellManager->GetCellTag();
+
+        for (auto transactionId : transactionIds) {
+            if (CellTagFromId(transactionId) != cellTag) {
+                THROW_ERROR_EXCEPTION("Transaction is not coordinated by this cell (TransactionId: %v, CellTag: %v)",
+                    transactionId,
+                    cellTag);
+            }
+        }
+    }
+
 };
 
 IServicePtr CreateTransactionService(TBootstrap* bootstrap)

@@ -725,6 +725,9 @@ TControllerAgentConfig::TControllerAgentConfig()
     RegisterParameter("enable_bypass_artifact_cache", EnableBypassArtifactCache)
         .Default(true);
 
+    RegisterParameter("enable_prerequisites_for_starting_completion_transactions", EnablePrerequisitesForStartingCompletionTransactions)
+        .Default(true);
+
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;
         if (!EventLog->Path) {

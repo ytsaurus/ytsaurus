@@ -308,6 +308,12 @@ private:
                 transactionId,
                 EObjectType::Orchid);
 
+            // As well as //tmp, this is often a portal. Attempting to create the
+            // node when it's already a portal will forward that request to another
+            // cell. Which isn't the intention here. Also, that other cell may be
+            // unavailable (when tearing down testing envs, for example), which
+            // will lead to long stalls while we're waiting for timeout to happen.
+            // TODO(shakurov): fix this. Redirection suppression?
             if (!IsInitialized()) {
                 ScheduleCreateNode(
                     "//sys/operations",

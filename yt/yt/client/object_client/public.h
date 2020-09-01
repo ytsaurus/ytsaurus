@@ -85,6 +85,8 @@ DEFINE_ENUM(EObjectType,
     ((NestedTransaction)             (  4))
     ((ExternalizedTransaction)       (  5))
     ((ExternalizedNestedTransaction) (  6))
+    ((UploadTransaction)             (  7))
+    ((UploadNestedTransaction)       (  8))
     ((TransactionMap)                (407))
     ((TopmostTransactionMap)         (418))
     ((LockMap)                       (422))

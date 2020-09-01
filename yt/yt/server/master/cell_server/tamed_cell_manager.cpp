@@ -1607,12 +1607,11 @@ private:
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->StartTransaction(
-            nullptr,
-            {},
+            nullptr /*parent*/,
+            {} /*prerequisiteTransactions*/,
             secondaryCellTags,
-            /* replicateStart */ true,
-            std::nullopt,
-            /* deadline */ std::nullopt,
+            std::nullopt /*timeout*/,
+            std::nullopt /*deadline*/,
             Format("Prerequisite for cell %v", cell->GetId()),
             EmptyAttributes());
 

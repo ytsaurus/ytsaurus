@@ -100,10 +100,14 @@ private:
     const TIntrusivePtr<TImpl> Impl_;
 
     /// ITransactionManager overrides.
+    virtual TFuture<void> GetReadyToPrepareTransactionCommit(
+        const std::vector<TTransactionId>& prerequisiteTransactionIds,
+        const std::vector<TCellId>& cellIdsToSyncWith) override;
     virtual void PrepareTransactionCommit(
         TTransactionId transactionId,
         bool persistent,
-        TTimestamp prepareTimestamp) override;
+        TTimestamp prepareTimestamp,
+        const std::vector<TTransactionId>& prerequisiteTransactionIds) override;
     virtual void PrepareTransactionAbort(
         TTransactionId transactionId,
         bool force) override;

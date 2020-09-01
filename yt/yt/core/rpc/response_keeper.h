@@ -67,6 +67,10 @@ public:
      */
     TFuture<TSharedRefArray> TryBeginRequest(TMutationId id, bool isRetry);
 
+    //! Same as above but does not change the state of response keeper.
+    //! That is, if a null future is returned, no pending future has been created for it.
+    TFuture<TSharedRefArray> FindRequest(TMutationId id, bool isRetry) const;
+
     //! Called when a request with a given mutation #id is finished and a #response is ready.
     /*
      *  The latter #response is pushed to every subscriber waiting for the future

@@ -144,7 +144,7 @@ class AccountsTestSuiteBase(YTEnvSetup):
                 return True
 
             id = get("{0}/@id".format(node))
-            return id in get("#{0}/@branched_node_ids".format(tx))
+            return id in [node_id for cell_tag, node_ids in get("#{0}/@branched_node_ids".format(tx)).items() for node_id in node_ids]
 
         def _count_branched_versions(self, node, tx):
             result = 0

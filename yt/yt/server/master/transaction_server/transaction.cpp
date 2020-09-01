@@ -122,13 +122,28 @@ void TTransaction::Load(NCellMaster::TLoadContext& context)
     }
 }
 
-TTransaction* TTransaction::GetTopmostTransaction()
+const TTransaction* TTransaction::GetTopmostTransaction() const
 {
     auto* currentTransaction = this;
     while (currentTransaction->GetParent()) {
         currentTransaction = currentTransaction->GetParent();
     }
     return currentTransaction;
+}
+
+TTransaction* TTransaction::GetTopmostTransaction()
+{
+    return const_cast<TTransaction*>(const_cast<const TTransaction*>(this)->GetTopmostTransaction());
+}
+
+bool TTransaction::IsReplicatedToCell(TCellTag cellTag) const
+{
+    return std::find(ReplicatedToCellTags_.begin(), ReplicatedToCellTags_.end(), cellTag) != ReplicatedToCellTags_.end();
+}
+
+bool TTransaction::IsExternalizedToCell(TCellTag cellTag) const
+{
+    return std::find(ExternalizedToCellTags_.begin(), ExternalizedToCellTags_.end(), cellTag) != ExternalizedToCellTags_.end();
 }
 
 bool TTransaction::IsExternalized() const

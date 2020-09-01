@@ -412,3 +412,17 @@ class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
 
 class TestDynamicTablesResourceLimitsPortal(TestDynamicTablesResourceLimitsMulticell):
     ENABLE_TMP_PORTAL = True
+
+class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPortal):
+    NUM_SECONDARY_MASTER_CELLS = 3
+    MASTER_CELL_ROLES = {
+        "0": ["cypress_node_host"],
+        "3": ["transaction_coordinator"],
+    }
+
+class TestDynamicTablesResourceLimitsShardedTxNoBoomerangs(TestDynamicTablesResourceLimitsShardedTx):
+    def setup_method(self, method):
+        super(TestDynamicTablesResourceLimitsShardedTxNoBoomerangs, self).setup_method(method)
+        set("//sys/@config/object_service/enable_mutation_boomerangs", False)
+        set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
+
