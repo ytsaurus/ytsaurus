@@ -260,8 +260,8 @@ i64 TInputChunk::ApplySelectivityFactors(i64 dataSize) const
     } else {
         result = std::ceil(dataSize * rowSelectivityFactor);
     }
-    result = std::max<i64>(result, 1);
-    return result;
+    result = std::max<i64>(result, rowCount);
+    return std::max<i64>(result, 1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
