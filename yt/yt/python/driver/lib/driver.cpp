@@ -1,4 +1,5 @@
 #include "driver.h"
+#include "private.h"
 #include "response.h"
 #include "error.h"
 #include "descriptor.h"
@@ -37,7 +38,10 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const NLogging::TLogger Logger("PythonDriver");
+static const auto& Logger = DriverLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 static THashMap<TGuid, TWeakPtr<IDriver>> ActiveDrivers;
 
 INodePtr ConvertToNodeWithUtf8Deconding(const Py::Object& obj)
