@@ -105,6 +105,9 @@ public:
     //! Timeout for schedule jobs in fair share strategy.
     TDuration ScheduleJobsTimeout;
 
+    //! Schedule job that longer this duration will be logged.
+    TDuration LongScheduleJobLoggingThreshold;
+
     TFairShareStrategyOperationControllerConfig();
 };
 
