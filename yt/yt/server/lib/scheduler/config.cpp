@@ -48,6 +48,9 @@ TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControll
 
     RegisterParameter("schedule_jobs_timeout", ScheduleJobsTimeout)
         .Default(TDuration::Seconds(40));
+    
+    RegisterParameter("long_schedule_job_logging_threshold", LongScheduleJobLoggingThreshold)
+        .Default(TDuration::Seconds(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

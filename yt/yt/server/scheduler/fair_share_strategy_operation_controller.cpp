@@ -12,10 +12,6 @@ using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TDuration LongScheduleJobThreshold = TDuration::Seconds(10);
-
-////////////////////////////////////////////////////////////////////////////////
-
 TFairShareStrategyOperationController::TFairShareStrategyOperationController(
     IOperationStrategyHost* operation,
     const TFairShareStrategyOperationControllerConfigPtr& config)
@@ -111,11 +107,15 @@ TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJ
         .WithTimeout(timeLimit);
 
     auto startTime = TInstant::Now();
-    scheduleJobResultFuture.Subscribe(BIND([this, this_ = MakeStrong(this), startTime, longScheduleJobThreshold = LongScheduleJobThreshold] (const TError& /* error */) {
-        if (startTime + longScheduleJobThreshold < TInstant::Now()) {
-            YT_LOG_DEBUG("Schedule job takes more than %v ms", longScheduleJobThreshold.MilliSeconds());
-        }
-    }));
+    scheduleJobResultFuture.Subscribe(
+        BIND([this, this_ = MakeStrong(this), startTime, longScheduleJobThreshold = Config_->LongScheduleJobLoggingThreshold] (const TError& /* error */) {
+            auto now = TInstant::Now();
+            if (startTime + longScheduleJobThreshold < now) {
+                YT_LOG_DEBUG("Schedule job takes more than %v ms (Duration: %v ms)",
+                    longScheduleJobThreshold.MilliSeconds(),
+                    (now - startTime).MilliSeconds());
+            }
+        }));
 
     auto scheduleJobResultWithTimeoutOrError = WaitFor(scheduleJobResultFutureWithTimeout);
 
