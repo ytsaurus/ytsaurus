@@ -557,7 +557,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
             def is_control_row(row):
                 if format_for_raw_load_name == "yson":
-                    return row.endswith(b"#;")
+                    return row.strip().endswith(b"#;")
                 elif format_for_raw_load_name == "json":
                     if b"$value" not in row:
                         return False
@@ -637,13 +637,15 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
 
                 yield row
 
+    allow_retries = not attributes.get("dynamic")
+
     # For read commands response is actually ResponseStream
     response = make_read_request(
         "read_table",
         table,
         params,
         process_response_action=process_response,
-        retriable_state_class=RetriableState,
+        retriable_state_class=RetriableState if allow_retries else None,
         client=client,
         filename_hint=str(table))
 
