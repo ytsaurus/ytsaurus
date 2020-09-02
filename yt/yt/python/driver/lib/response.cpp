@@ -1,4 +1,5 @@
 #include "response.h"
+#include "private.h"
 
 #include <yt/python/common/error.h>
 #include <yt/python/common/helpers.h>
@@ -10,6 +11,10 @@
 namespace NYT::NPython {
 
 using namespace NYson;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const NLogging::TLogger Logger = DriverLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,6 +64,8 @@ TDriverResponseHolder::~TDriverResponseHolder()
 
 void TDriverResponseHolder::OnBeforePythonFinalize()
 {
+    YT_LOG_DEBUG("Make preparations for TDriverResponseHolder before finalization");
+
     ShuttingDown_.store(true);
     {
         TReleaseAcquireGilGuard guard;
