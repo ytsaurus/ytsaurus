@@ -319,7 +319,7 @@ def _get_read_progress_reporter(size_hint, filename_hint, client, filelike=False
 
 def make_read_request(command_name, path, params, process_response_action, retriable_state_class, client,
                       filename_hint=None, request_size=False):
-    if not get_config(client)["read_retries"]["enable"]:
+    if not get_config(client)["read_retries"]["enable"] or retriable_state_class is None:
         size_hint = _try_get_size(path, client, request_size)
         reporter = _get_read_progress_reporter(size_hint, filename_hint, client, filelike=True)
         response = _make_transactional_request(

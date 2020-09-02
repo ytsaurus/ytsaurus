@@ -392,7 +392,7 @@ def add_find_parser(add_parser):
 @copy_docstring_from(yt.read_table)
 def read_table(**kwargs):
     stream = yt.read_table(**kwargs)
-    if yt.config["read_retries"]["enable"]:
+    if hasattr(stream, "read_rows"):
         iterator = chunk_iter_rows(stream, yt.config["read_buffer_size"])
     else:
         iterator = chunk_iter_stream(stream, yt.config["read_buffer_size"])
