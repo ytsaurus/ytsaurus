@@ -111,7 +111,9 @@ public:
         auto chunkListId = FromProto<TChunkListId>(outputSpec.chunk_list_id());
         auto options = ConvertTo<TTableWriterOptionsPtr>(TYsonString(outputSpec.table_writer_options()));
         options->CastAnyToComposite = true;
-        auto schema = FromProto<TTableSchemaPtr>(outputSpec.table_schema());
+
+        TTableSchemaPtr schema;
+        DeserializeFromWireProto(&schema, outputSpec.table_schema());
 
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());

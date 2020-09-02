@@ -297,6 +297,10 @@ private:
     //! Time of task completion.
     std::optional<TInstant> CompletionTime_;
 
+    //! Caches results of SerializeToWireProto serializations.
+    // NB: This field is transient intentionally.
+    THashMap<NTableClient::TTableSchemaPtr, TString> TableSchemaToProtobufTableSchema_;
+
     NScheduler::TJobResources ApplyMemoryReserve(const NScheduler::TExtendedJobResources& jobResources) const;
 
     void UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics);

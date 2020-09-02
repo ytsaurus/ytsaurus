@@ -97,7 +97,8 @@ public:
         const auto& outputSpec = SchedulerJobSpecExt_.output_table_specs(0);
         auto outputSchema = TTableSchema::FromKeyColumns(keyColumns);
         if (outputSpec.has_table_schema()) {
-            outputSchema = FromProto<TTableSchemaPtr>(outputSpec.table_schema())->ToSorted(keyColumns);
+            DeserializeFromWireProto(&outputSchema, outputSpec.table_schema());
+            outputSchema = outputSchema->ToSorted(keyColumns);
         }
 
         auto transactionId = FromProto<TTransactionId>(SchedulerJobSpecExt_.output_transaction_id());

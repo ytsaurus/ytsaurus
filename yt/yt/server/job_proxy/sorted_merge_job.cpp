@@ -100,7 +100,9 @@ public:
 
         auto writerConfig = GetWriterConfig(outputSpec);
         auto timestamp = static_cast<TTimestamp>(outputSpec.timestamp());
-        auto schema = FromProto<TTableSchemaPtr>(outputSpec.table_schema());
+
+        TTableSchemaPtr schema;
+        DeserializeFromWireProto(&schema, outputSpec.table_schema());
 
         Writer_ = CreateSchemalessMultiChunkWriter(
             writerConfig,
