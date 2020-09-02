@@ -408,10 +408,19 @@ void TTask::ScheduleJob(
     joblet->JobSpecProtoFuture = BIND([
         weakTaskHost = MakeWeak(TaskHost_),
         joblet,
-        discountBuildingJobSpecGuard = std::move(discountBuildingJobSpecGuard)
+        discountBuildingJobSpecGuard = std::move(discountBuildingJobSpecGuard),
+        Logger = Logger
     ] {
         if (auto taskHost = weakTaskHost.Lock()) {
-            return taskHost->BuildJobSpecProto(joblet);
+            YT_LOG_DEBUG("Started building job spec (JobId: %v)",
+                joblet->JobId);
+            auto startTime = TInstant::Now();
+            auto jobSpecProto = taskHost->BuildJobSpecProto(joblet);
+            auto endTime = TInstant::Now();
+            YT_LOG_DEBUG("Job spec built (JobId: %v, TimeElapsed: %v)",
+                joblet->JobId,
+                endTime - startTime);
+            return jobSpecProto;
         } else {
             THROW_ERROR_EXCEPTION("Operation controller was destroyed");
         }
@@ -974,7 +983,18 @@ void TTask::AddOutputTableSpecs(
         if (streamDescriptor.TableWriterConfig) {
             outputSpec->set_table_writer_config(streamDescriptor.TableWriterConfig.GetData());
         }
-        ToProto(outputSpec->mutable_table_schema(), streamDescriptor.TableUploadOptions.TableSchema);
+        const auto& outputTableSchema = streamDescriptor.TableUploadOptions.TableSchema;
+        TString serializedSchema;
+        {
+            auto it = TableSchemaToProtobufTableSchema_.find(outputTableSchema);
+            if (it == TableSchemaToProtobufTableSchema_.end()) {
+                serializedSchema = SerializeToWireProto(outputTableSchema);
+                YT_VERIFY(TableSchemaToProtobufTableSchema_.emplace(outputTableSchema, serializedSchema).second);
+            } else {
+                serializedSchema = it->second;
+            }
+        }
+        outputSpec->set_table_schema(serializedSchema);
         ToProto(outputSpec->mutable_chunk_list_id(), joblet->ChunkListIds[index]);
         if (streamDescriptor.Timestamp) {
             outputSpec->set_timestamp(*streamDescriptor.Timestamp);

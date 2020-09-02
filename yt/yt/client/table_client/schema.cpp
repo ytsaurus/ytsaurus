@@ -902,6 +902,22 @@ TString ToString(const TTableSchemaPtr& schema)
     return ToStringViaBuilder(schema);
 }
 
+TString SerializeToWireProto(const TTableSchemaPtr& schema)
+{
+    NTableClient::NProto::TTableSchemaExt protoSchema;
+    ToProto(&protoSchema, schema);
+    return protoSchema.SerializeAsString();
+}
+
+void DeserializeFromWireProto(TTableSchemaPtr* schema, const TString& serializedProto)
+{
+    NTableClient::NProto::TTableSchemaExt protoSchema;
+    if (!protoSchema.ParseFromString(serializedProto)) {
+        THROW_ERROR_EXCEPTION("Failed to deserialize table schema from wire proto");
+    }
+    FromProto(schema, protoSchema);
+}
+
 void Serialize(const TTableSchema& schema, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)

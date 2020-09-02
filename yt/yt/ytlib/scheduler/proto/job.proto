@@ -217,7 +217,8 @@ message TTableOutputSpec
     // Is table dynamic.
     optional bool dynamic = 11 [default = false];
 
-    required NTableClient.NProto.TTableSchemaExt table_schema = 8;
+    // Serialized NTableClient.NProto.TTableSchemaExt with output table schema.
+    required bytes table_schema = 8;
 }
 
 // Describes a job submitted by a scheduler.

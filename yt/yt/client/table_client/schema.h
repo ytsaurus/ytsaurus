@@ -255,6 +255,11 @@ void FormatValue(TStringBuilderBase* builder, const TTableSchemaPtr& schema, TSt
 TString ToString(const TTableSchema& schema);
 TString ToString(const TTableSchemaPtr& schema);
 
+//! Returns serialized NTableClient.NProto.TTableSchemaExt.
+TString SerializeToWireProto(const TTableSchemaPtr& schema);
+
+void DeserializeFromWireProto(TTableSchemaPtr* schema, const TString& serializedProto);
+
 void Serialize(const TTableSchema& schema, NYson::IYsonConsumer* consumer);
 void Deserialize(TTableSchema& schema, NYTree::INodePtr node);
 void Serialize(const TTableSchemaPtr& schema, NYson::IYsonConsumer* consumer);
