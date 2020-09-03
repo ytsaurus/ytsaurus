@@ -647,6 +647,8 @@ TUserJobSpec::TUserJobSpec()
         .Default(false);
     RegisterParameter("interruption_signal", InterruptionSignal)
         .Default();
+    RegisterParameter("restart_exit_code", RestartExitCode)
+        .Default();
     RegisterParameter("enable_gpu_layers", EnableGpuLayers)
         .Default(true);
     RegisterParameter("cuda_toolkit_version", CudaToolkitVersion)

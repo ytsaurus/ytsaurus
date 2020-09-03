@@ -105,7 +105,7 @@ public:
     void Completed(IChunkPoolOutput::TCookie cookie, NScheduler::EInterruptReason reason);
     void Failed(IChunkPoolOutput::TCookie cookie);
     void Aborted(IChunkPoolOutput::TCookie cookie, NScheduler::EAbortReason reason);
-    void Lost(IChunkPoolOutput::TCookie cookie);
+    void Lost(IChunkPoolOutput::TCookie cookie, NScheduler::EInterruptReason reason);
 
     void Suspend(IChunkPoolInput::TCookie inputCookie);
     void Resume(IChunkPoolInput::TCookie inputCookie);

@@ -326,11 +326,11 @@ public:
         Pool(poolIndex)->Aborted(cookie, reason);
     }
     
-    virtual void Lost(TExternalCookie externalCookie) override
+    virtual void Lost(TExternalCookie externalCookie, EInterruptReason reason) override
     {
         auto [poolIndex, cookie] = Cookie(externalCookie);
         auto guard = MakeGuard(poolIndex);
-        Pool(poolIndex)->Lost(cookie);
+        Pool(poolIndex)->Lost(cookie, reason);
     }
 
     virtual void Finalize() override

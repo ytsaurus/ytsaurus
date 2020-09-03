@@ -444,9 +444,9 @@ void TJobManager::Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reason)
     Jobs_[cookie].SetState(EJobState::Pending);
 }
 
-void TJobManager::Lost(IChunkPoolOutput::TCookie cookie)
+void TJobManager::Lost(IChunkPoolOutput::TCookie cookie, EInterruptReason reason)
 {
-    Jobs_[cookie].UpdateCounters(&TLegacyProgressCounter::Lost);
+    Jobs_[cookie].UpdateCounters(&TLegacyProgressCounter::Lost, reason);
     Jobs_[cookie].SetState(EJobState::Pending);
 }
 

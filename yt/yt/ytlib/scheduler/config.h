@@ -829,6 +829,7 @@ public:
     bool ForceCoreDump;
 
     std::optional<TString> InterruptionSignal;
+    std::optional<int> RestartExitCode;
 
     bool EnableSetupCommands;
     bool EnableGpuLayers;
