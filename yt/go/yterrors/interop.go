@@ -6,7 +6,14 @@ import (
 	"unicode"
 )
 
+// Converter is interface that might be implemented by error type that wish to implement custom conversion to *Error.
+type Converter interface {
+	YTError() *Error
+}
+
 // FromError converts any error to YT error, if it not already YT error.
+//
+// If err implement Converter interface, FromError calls YTError() method of err and returns the result.
 //
 // Nested errors are converted to nested YT errors.
 //
@@ -17,6 +24,9 @@ func FromError(err error) error {
 	switch v := err.(type) {
 	case *Error:
 		return v
+
+	case Converter:
+		return v.YTError()
 
 	case nil:
 		return nil

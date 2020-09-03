@@ -2,7 +2,7 @@
 //
 // YPath has two forms, simple and rich.
 //
-// For more information about ypath see https://wiki.yandex-team.ru/yt/userdoc/ypath/
+// For more information about ypath see https://docs.yandex-team.ru/yt/description/common/ypath
 //
 package ypath
 
