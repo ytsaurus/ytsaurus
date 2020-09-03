@@ -16,6 +16,8 @@
 
 #include <yt/library/erasure/codec.h>
 
+#include <yt/core/misc/collection_helpers.h>
+
 namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
@@ -282,6 +284,8 @@ void TChunk::RemoveReplica(TNodePtrWithIndexes replica, const TMedium* medium)
         YT_VERIFY(cachedReplicas->erase(replica) == 1);
         if (cachedReplicas->empty()) {
             cachedReplicas.reset();
+        } else {
+            ShrinkHashTable(cachedReplicas.get());
         }
     } else {
         auto doRemove = [&] (auto converter) {
