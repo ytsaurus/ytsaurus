@@ -478,11 +478,21 @@ public:
             int leaderId = cell->GetLeadingPeerId();
             if (leaderId != 0) {
                 leaderChanged = true;
-                RemoveFromAddressToCellMap(cell->Peers()[leaderId].Descriptor, cell);
-                RemoveFromAddressToCellMap(cell->Peers()[0].Descriptor, cell);
-                std::swap(cell->Peers()[cell->GetLeadingPeerId()], cell->Peers()[0]);
-                AddToAddressToCellMap(cell->Peers()[leaderId].Descriptor, cell, leaderId);
-                AddToAddressToCellMap(cell->Peers()[0].Descriptor, cell, 0);
+                auto& leaderPeer = cell->Peers()[leaderId];
+                auto& firstPeer = cell->Peers()[0];
+                if (!leaderPeer.Descriptor.IsNull()) {
+                    RemoveFromAddressToCellMap(leaderPeer.Descriptor, cell);
+                }
+                if (!firstPeer.Descriptor.IsNull()) {
+                    RemoveFromAddressToCellMap(firstPeer.Descriptor, cell);
+                }
+                std::swap(leaderPeer, firstPeer);
+                if (!leaderPeer.Descriptor.IsNull()) {
+                    AddToAddressToCellMap(leaderPeer.Descriptor, cell, leaderId);
+                }
+                if (!firstPeer.Descriptor.IsNull()) {
+                    AddToAddressToCellMap(firstPeer.Descriptor, cell, 0);
+                }
                 cell->SetLeadingPeerId(0);
             }
 
