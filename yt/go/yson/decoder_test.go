@@ -80,10 +80,12 @@ func TestDecodeIntTypes(t *testing.T) {
 		{"<a=1>1", 1},
 		{" < a = 1 > 1", 1},
 
+		{"1u", uint8(1)},
 		{"1u", uint16(1)},
 		{"1u", uint32(1)},
 		{"1u", uint64(1)},
 
+		{"-1", int8(-1)},
 		{"-1", int16(-1)},
 		{"-1", int32(-1)},
 		{"-1", int64(-1)},

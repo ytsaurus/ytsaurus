@@ -165,12 +165,12 @@ func decodeReflect(d *Reader, v reflect.Value) error {
 	}
 
 	switch v.Elem().Type().Kind() {
-	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		i, err := decodeInt(d, v.Elem().Type().Bits())
 		v.Elem().SetInt(i)
 		return err
 
-	case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		u, err := decodeUint(d, v.Elem().Type().Bits())
 		v.Elem().SetUint(u)
 		return err

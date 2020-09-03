@@ -53,29 +53,35 @@ func TestNullHandling(t *testing.T) {
 type (
 	MyInt      int
 	MyUint     uint
+	MyInt8     int8
+	MyUint8    uint8
 	MyIntSlice []int
 	MyArray    [4]int
 	MyString   string
 	MyMap      map[string][]int
 
 	TypedefTest struct {
-		I  MyInt
-		U  MyUint
-		II MyIntSlice
-		A  MyArray
-		S  MyString
-		M  MyMap
+		I   MyInt
+		U   MyUint
+		I8  MyInt8
+		UI8 MyUint8
+		II  MyIntSlice
+		A   MyArray
+		S   MyString
+		M   MyMap
 	}
 )
 
 func TestTypedefTypes(t *testing.T) {
 	in := TypedefTest{
-		I:  1337,
-		U:  1234,
-		II: []int{1, 3, 3, 7},
-		A:  [4]int{1, 3, 3, 7},
-		S:  "foobar",
-		M:  map[string][]int{"e": {1, 3, 3, 7}, "1": {2, 3}},
+		I:   1337,
+		U:   1234,
+		I8:  -7,
+		UI8: 7,
+		II:  []int{1, 3, 3, 7},
+		A:   [4]int{1, 3, 3, 7},
+		S:   "foobar",
+		M:   map[string][]int{"e": {1, 3, 3, 7}, "1": {2, 3}},
 	}
 
 	var out TypedefTest
@@ -642,5 +648,39 @@ func TestYSONNumberConversion(t *testing.T) {
 				require.NoError(t, yson.Unmarshal([]byte(testCase.YSON), &v))
 			}
 		})
+	}
+}
+
+func Test8BitIntegerSlices(t *testing.T) {
+	i := []int8{1, 2, 3}
+	u := []uint8{1, 2, 3}
+	b := []byte{1, 2, 3}
+
+	{
+		js, err := json.Marshal(i)
+		require.NoError(t, err)
+		require.Equal(t, []byte("[1,2,3]"), js)
+
+		js, err = json.Marshal(u)
+		require.NoError(t, err)
+		require.Equal(t, []byte(`"AQID"`), js)
+
+		js, err = json.Marshal(b)
+		require.NoError(t, err)
+		require.Equal(t, []byte(`"AQID"`), js)
+	}
+
+	{
+		ys, err := yson.Marshal(i)
+		require.NoError(t, err)
+		require.Equal(t, []byte("[1;2;3;]"), ys)
+
+		ys, err = yson.Marshal(u)
+		require.NoError(t, err)
+		require.Equal(t, []byte(`"\1\2\3"`), ys)
+
+		ys, err = yson.Marshal(b)
+		require.NoError(t, err)
+		require.Equal(t, []byte(`"\1\2\3"`), ys)
 	}
 }

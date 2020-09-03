@@ -46,10 +46,12 @@ func TestRoundtripBasicTypes(t *testing.T) {
 	testRoundtrip(t, int(-10))
 	testRoundtrip(t, uint(10))
 
+	testRoundtrip(t, int8(-10))
 	testRoundtrip(t, int16(-10))
 	testRoundtrip(t, int32(-10))
 	testRoundtrip(t, int64(-10))
 
+	testRoundtrip(t, uint8(10))
 	testRoundtrip(t, uint16(10))
 	testRoundtrip(t, uint32(10))
 	testRoundtrip(t, uint64(10))
@@ -79,9 +81,22 @@ func TestRoundtripBasicTypes(t *testing.T) {
 	testRoundtrip(t, math.Inf(-1))
 }
 
+func TestRoundtripSlices(t *testing.T) {
+	testRoundtrip(t, []int{1, 2, 3})
+	testRoundtrip(t, []string{"a", "b", "c"})
+	testRoundtrip(t, []byte{1, 2})
+	testRoundtrip(t, []int8{1, 2})
+	testRoundtrip(t, []uint8{1, 2})
+	testRoundtrip(t, []bool{true, false})
+}
+
 func TestRoundtripArrays(t *testing.T) {
 	testRoundtrip(t, [4]int{1, 2, 3, 4})
 	testRoundtrip(t, [3]interface{}{uint64(1), 2.3, "4"})
+	testRoundtrip(t, [4]byte{1, 2, 3, 4})
+	testRoundtrip(t, [4]uint8{1, 2, 3, 4})
+	testRoundtrip(t, [4]int8{1, 2, 3, 4})
+	testRoundtrip(t, [2]bool{true, false})
 }
 
 func TestMarshalStruct(t *testing.T) {
@@ -95,6 +110,8 @@ func TestMarshalStruct(t *testing.T) {
 type structWithMaps struct {
 	M1 map[string]interface{}
 	M2 map[string]int
+	M3 map[string]int8
+	M4 map[string]uint8
 }
 
 func TestMarshalMaps(t *testing.T) {
@@ -104,6 +121,12 @@ func TestMarshalMaps(t *testing.T) {
 		},
 		M2: map[string]int{
 			"b": 2,
+		},
+		M3: map[string]int8{
+			"int8": int8(2),
+		},
+		M4: map[string]uint8{
+			"uint8": uint8(2),
 		},
 	}
 
