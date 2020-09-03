@@ -97,6 +97,7 @@ def get_operation(operation_id, attributes=None, include_scheduler=None, format=
 def list_operations(user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None,
                     from_time=None, to_time=None, cursor_time=None, cursor_direction=None,
                     include_archive=None, include_counters=None, limit=None, enable_ui_mode=False,
+                    attributes=None,
                     format=None, client=None):
     """List operations that satisfy given options.
     """
@@ -120,6 +121,7 @@ def list_operations(user=None, state=None, type=None, filter=None, pool=None, wi
     set_param(params, "include_counters", include_counters)
     set_param(params, "limit", limit)
     set_param(params, "enable_ui_mode", enable_ui_mode)
+    set_param(params, "attributes", attributes)
 
     timeout = get_config(client)["operation_info_commands_timeout"]
 
@@ -132,7 +134,7 @@ def list_operations(user=None, state=None, type=None, filter=None, pool=None, wi
 
 def iterate_operations(user=None, state=None, type=None, filter=None, pool=None, with_failed_jobs=None,
                        from_time=None, to_time=None, cursor_direction="past", limit_per_request=100,
-                       include_archive=None, format=None, client=None):
+                       include_archive=None, attributes=None, format=None, client=None):
     """Yield operations that satisfy given options.
     """
     cursor_time = None
@@ -149,6 +151,7 @@ def iterate_operations(user=None, state=None, type=None, filter=None, pool=None,
                                               with_failed_jobs=with_failed_jobs, from_time=from_time, to_time=to_time,
                                               cursor_time=cursor_time, cursor_direction=cursor_direction,
                                               limit=limit_per_request, include_archive=include_archive,
+                                              attributes=attributes,
                                               format=format, client=client)
         operations_response = operations_response["operations"]
         if not operations_response:
