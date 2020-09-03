@@ -30,10 +30,12 @@ public:
     TSchemafulReaderAdapter(
         ISchemalessUnversionedReaderPtr underlyingReader,
         TTableSchemaPtr schema,
-        TKeyColumns keyColumns)
+        TKeyColumns keyColumns,
+        bool ignoreRequired)
         : UnderlyingReader_(std::move(underlyingReader))
         , ReaderSchema_(std::move(schema))
         , RowReorderer_(TNameTable::FromSchema(*ReaderSchema_), RowBuffer_, /*deepCapture*/ false, std::move(keyColumns))
+        , IgnoreRequired_(ignoreRequired)
     { }
 
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -73,7 +75,7 @@ public:
                     {
                         schemafulRow[valueIndex] = MakeAnyFromScalar(value);
                     } else {
-                        ValidateValueType(value, *ReaderSchema_, valueIndex, /*typeAnyAcceptsAllValues*/ false);
+                        ValidateValueType(value, *ReaderSchema_, valueIndex, /*typeAnyAcceptsAllValues*/ false, IgnoreRequired_);
                     }
                 }
                 schemafulRows.push_back(schemafulRow);
@@ -121,6 +123,8 @@ private:
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TSchemafulReaderAdapterPoolTag());
     TSchemalessRowReorderer RowReorderer_;
+
+    const bool IgnoreRequired_;
 
     IUnversionedRowBatchPtr CurrentBatch_;
     TBlobOutput ValueBuffer_;
@@ -174,7 +178,8 @@ DEFINE_REFCOUNTED_TYPE(TSchemafulReaderAdapter)
 ISchemafulUnversionedReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,
     TTableSchemaPtr schema,
-    const TColumnFilter& columnFilter)
+    const TColumnFilter& columnFilter,
+    bool ignoreRequired)
 {
     TKeyColumns keyColumns;
     for (const auto& columnSchema : schema->Columns()) {
@@ -189,7 +194,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulReaderAdapter(
     auto result = New<TSchemafulReaderAdapter>(
         std::move(underlyingReader),
         std::move(schema),
-        std::move(keyColumns));
+        std::move(keyColumns),
+        ignoreRequired);
 
     return result;
 }

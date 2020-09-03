@@ -1748,7 +1748,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     memoryManager);
             };
             auto schemafulReaderFactory = [&] (const TTableSchemaPtr& schema, const TColumnFilter& columnFilter) {
-                return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema, columnFilter);
+                return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema, columnFilter, /*ignoreRequired*/ true);
             };
 
             auto unwrappedReader = CreateVersionedReaderAdapter(
@@ -1906,7 +1906,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     memoryManager);
             };
             auto schemafulReaderFactory = [&] (const TTableSchemaPtr& schema, const TColumnFilter& columnFilter) {
-                return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema, columnFilter);
+                return CreateSchemafulReaderAdapter(schemalessReaderFactory, schema, columnFilter, /*ignoreRequired*/ true);
             };
 
             return CreateVersionedReaderAdapter(

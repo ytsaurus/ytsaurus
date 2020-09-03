@@ -377,11 +377,13 @@ void ValidateValueType(
     const TUnversionedValue& value,
     const TTableSchema& schema,
     int schemaId,
-    bool typeAnyAcceptsAllValues);
+    bool typeAnyAcceptsAllValues,
+    bool ignoreRequired = false);
 void ValidateValueType(
     const TUnversionedValue& value,
     const TColumnSchema& columnSchema,
-    bool typeAnyAcceptsAllValues);
+    bool typeAnyAcceptsAllValues,
+    bool ignoreRequired = false);
 
 //! Checks that #value is allowed to appear in static tables' data. Throws on failure.
 void ValidateStaticValue(const TUnversionedValue& value);
