@@ -53,9 +53,10 @@ class _FileProgressReporter(_ProgressReporter):
         step = 2 * MB
         for start in xrange(0, length, step):
             result.append(self._file.read(min((step, length - start))))
-            self._monitor.update(len(result[-1]))
             if not result[-1]:
+                self._monitor.finish()
                 break
+            self._monitor.update(len(result[-1]))
         return b"".join(result)
 
 class _FakeFileProgressReporter:
