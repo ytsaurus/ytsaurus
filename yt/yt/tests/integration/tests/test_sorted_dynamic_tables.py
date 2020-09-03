@@ -1280,6 +1280,33 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             insert_rows("//tmp/t", [dict(key=1)])
 
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_select_omits_required_column(self, optimize_for):
+        schema = make_schema([
+                {"name": "key", "type": "int64", "sort_order": "ascending", "required": True},
+                {"name": "value", "type": "string", "required": True},
+        ], unique_keys=True)
+
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", schema=schema, dynamic=False, optimize_for=optimize_for)
+        write_table("//tmp/t", {"key": 1, "value": "a"})
+        alter_table("//tmp/t", dynamic=True)
+        sync_mount_table("//tmp/t", freeze=True)
+
+        def _check():
+            assert select_rows("key from [//tmp/t]") == [{"key": 1}]
+            assert select_rows("key from [//tmp/t] where key in (1)") == [{"key": 1}]
+            assert select_rows("value from [//tmp/t]") == [{"value": "a"}]
+
+            assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["key"]) == [{"key": 1}]
+            assert lookup_rows("//tmp/t", [{"key": 1}], column_names=["value"]) == [{"value": "a"}]
+
+        _check()
+        sync_unfreeze_table("//tmp/t")
+        sync_compact_table("//tmp/t")
+        _check()
+
     @authors("savrus")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_computed_columns(self, optimize_for):

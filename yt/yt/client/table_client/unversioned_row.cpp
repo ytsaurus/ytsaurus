@@ -993,9 +993,10 @@ void ValidateValueType(
     const TUnversionedValue& value,
     const TTableSchema& schema,
     int schemaId,
-    bool typeAnyAcceptsAllValues)
+    bool typeAnyAcceptsAllValues,
+    bool ignoreRequired)
 {
-    ValidateValueType(value, schema.Columns()[schemaId], typeAnyAcceptsAllValues);
+    ValidateValueType(value, schema.Columns()[schemaId], typeAnyAcceptsAllValues, ignoreRequired);
 }
 
 [[noreturn]] static void ThrowInvalidColumnType(EValueType expected, EValueType actual)
@@ -1028,12 +1029,21 @@ Y_FORCE_INLINE auto GetValue(const TUnversionedValue& value)
     }
 }
 
-void ValidateValueType(const TUnversionedValue& value, const TColumnSchema& columnSchema, bool typeAnyAcceptsAllValues)
+void ValidateValueType(
+    const TUnversionedValue& value,
+    const TColumnSchema& columnSchema,
+    bool typeAnyAcceptsAllValues,
+    bool ignoreRequired)
 {
     if (value.Type == EValueType::Null) {
         if (columnSchema.Required()) {
             // Any column can't be required.
             YT_VERIFY(columnSchema.SimplifiedLogicalType() != ESimpleLogicalValueType::Any);
+
+            if (ignoreRequired) {
+                return;
+            }
+
             THROW_ERROR_EXCEPTION(
                 EErrorCode::SchemaViolation,
                 "Required column %Qv cannot have %Qlv value",
