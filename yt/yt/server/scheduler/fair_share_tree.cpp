@@ -452,6 +452,11 @@ void TFairShareTree<TFairShareImpl>::RegisterOperation(
     if (isRunningInPool) {
         TreeHost_->OnOperationReadyInTree(operationId, this);
     }
+        
+    YT_LOG_INFO("Operation element registered in tree (OperationId: %v, Pool: %v, MarkedAsRunning: %v)",
+        operationId,
+        poolName.ToString(),
+        isRunningInPool);
 }
 
 template <class TFairShareImpl>
@@ -2085,6 +2090,10 @@ auto TFairShareTree<TFairShareImpl>::AllocateOperationSlotIndex(const TFairShare
     if (slotIndex) {
         // Revive case
         if (TryAllocatePoolSlotIndex(poolName, *slotIndex)) {
+            YT_LOG_DEBUG("Operation slot index reused (OperationId: %v, Pool: %v, SlotIndex: %v)",
+                state->GetHost()->GetId(),
+                poolName,
+                *slotIndex);
             return;
         }
         YT_LOG_ERROR("Failed to reuse slot index during revive (OperationId: %v, Pool: %v, SlotIndex: %v)",
