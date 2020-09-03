@@ -744,12 +744,21 @@ class TestOperationCommands(object):
         assert operation["state"] == "completed"
         assert operation["type"] == "map"
 
+        operations = yt.list_operations(attributes=["full_spec", "progress"])["operations"]
+        assert len(operations) == 1
+
+        operation = operations[0]
+        assert "full_spec" in operation
+        assert "cat" in operation["full_spec"]["mapper"]["command"]
+        assert "progress" in operation
+
     @authors("ignat")
-    def test_iterate_operations(self):
+    @pytest.mark.parametrize("attributes", [None, ["state", "full_spec"]])
+    def test_iterate_operations(self, attributes):
         if yt.config["backend"] == "rpc":
             pytest.skip()
 
-        assert list(yt.iterate_operations()) == []
+        assert list(yt.iterate_operations(attributes=attributes)) == []
 
         table = "//tmp/table"
         operation_count = 12
@@ -769,11 +778,18 @@ class TestOperationCommands(object):
             start_times[i] = ops[i].get_attributes(["start_time"])["start_time"]
         start_times.sort()
 
-        operations = list(yt.iterate_operations(limit_per_request=5))
+        operations = list(yt.iterate_operations(limit_per_request=5, attributes=attributes))
         assert len(operations) == operation_count
 
-        past_to_future = list(yt.iterate_operations(from_time=start_times[0], to_time=start_times[-1], cursor_direction="future"))
-        future_to_past = list(yt.iterate_operations(from_time=start_times[0], to_time=start_times[-1], cursor_direction="past"))
+        for operation in operations:
+            if attributes is None:
+                assert "full_spec" not in operation
+            else:
+                assert "full_spec" in operation
+                assert operation["full_spec"]["mapper"]["command"] == "cat"
+
+        past_to_future = list(yt.iterate_operations(attributes=attributes, from_time=start_times[0], to_time=start_times[-1], cursor_direction="future"))
+        future_to_past = list(yt.iterate_operations(attributes=attributes, from_time=start_times[0], to_time=start_times[-1], cursor_direction="past"))
 
         assert past_to_future == future_to_past[::-1]
         assert future_to_past == operations[1:]
@@ -1524,7 +1540,7 @@ class TestOperationsSeveralOutputTables(object):
         def third_mapper(row):
             yield yt.create_table_switch(row["x"] + 5)
             yield row
-        
+
         def none_encoding_mapper(row):
             yield yt.create_table_switch(row[b"x"])
             yield row
@@ -1550,7 +1566,7 @@ class TestOperationsSeveralOutputTables(object):
 
         with pytest.raises(yt.YtError):
             yt.run_map(third_mapper, table, output_tables, format=yt.YsonFormat(control_attributes_mode="iterator"))
-        
+
         yt.run_map(none_encoding_mapper, table, output_tables, format=yt.YsonFormat(control_attributes_mode="iterator", encoding=None))
 
         assert list(yt.read_table(output_tables[0])) == [{"x": 0}]
