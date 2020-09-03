@@ -163,9 +163,9 @@ void TChunkPoolOutputWithJobManagerBase::Aborted(IChunkPoolOutput::TCookie cooki
     JobManager_->Aborted(cookie, reason);
 }
 
-void TChunkPoolOutputWithJobManagerBase::Lost(IChunkPoolOutput::TCookie cookie)
+void TChunkPoolOutputWithJobManagerBase::Lost(IChunkPoolOutput::TCookie cookie, EInterruptReason reason)
 {
-    JobManager_->Lost(cookie);
+    JobManager_->Lost(cookie, reason);
 }
 
 i64 TChunkPoolOutputWithJobManagerBase::GetTotalDataWeight() const

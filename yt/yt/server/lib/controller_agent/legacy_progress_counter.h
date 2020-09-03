@@ -40,7 +40,7 @@ public:
     void Completed(i64 count, EInterruptReason reason = EInterruptReason::None);
     void Failed(i64 count);
     void Aborted(i64 count, EAbortReason reason = EAbortReason::Other);
-    void Lost(i64 count);
+    void Lost(i64 count, EInterruptReason reason = EInterruptReason::None);
 
     // NB: this method does not check that counter hierarchy does not contain loops.
     void SetParent(const TLegacyProgressCounterPtr& parent);

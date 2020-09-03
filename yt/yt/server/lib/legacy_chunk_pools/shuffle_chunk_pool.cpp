@@ -386,7 +386,7 @@ private:
             RowCounter->Aborted(run.TotalRowCount, reason);
         }
 
-        virtual void Lost(TCookie cookie) override
+        virtual void Lost(TCookie cookie, EInterruptReason reason) override
         {
             auto& run = Runs[cookie];
             YT_VERIFY(run.State == ERunState::Completed);

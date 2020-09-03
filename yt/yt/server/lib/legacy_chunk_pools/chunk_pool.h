@@ -127,7 +127,7 @@ struct IChunkPoolOutput
     virtual void Completed(TCookie cookie, const NControllerAgent::TCompletedJobSummary& jobSummary) = 0;
     virtual void Failed(TCookie cookie) = 0;
     virtual void Aborted(TCookie cookie, NScheduler::EAbortReason reason) = 0;
-    virtual void Lost(TCookie cookie) = 0;
+    virtual void Lost(TCookie cookie, NScheduler::EInterruptReason = NScheduler::EInterruptReason::None) = 0;
 
     //! Raises when dynamic config changes.
     DEFINE_SIGNAL(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
@@ -201,7 +201,7 @@ public:
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const NControllerAgent::TCompletedJobSummary& jobSummary) override;
     virtual void Failed(IChunkPoolOutput::TCookie cookie) override;
     virtual void Aborted(IChunkPoolOutput::TCookie cookie, NScheduler::EAbortReason reason) override;
-    virtual void Lost(IChunkPoolOutput::TCookie cookie) override;
+    virtual void Lost(IChunkPoolOutput::TCookie cookie, NScheduler::EInterruptReason reason) override;
     virtual i64 GetTotalDataWeight() const override;
     virtual i64 GetRunningDataWeight() const override;
     virtual i64 GetCompletedDataWeight() const override;

@@ -467,7 +467,7 @@ public:
         ReinstallStripeList(extractedStripeList, cookie);
     }
 
-    virtual void Lost(IChunkPoolOutput::TCookie cookie) override
+    virtual void Lost(IChunkPoolOutput::TCookie cookie, EInterruptReason reason) override
     {
         const auto& extractedStripeList = GetExtractedStripeList(cookie);
         const auto& list = extractedStripeList->StripeList;

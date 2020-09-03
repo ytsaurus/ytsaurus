@@ -392,6 +392,8 @@ void TJobProxy::Run()
                     schedulerResultExt->mutable_chunk_spec_count_per_read_data_slice(),
                     interruptDescriptor.ReadDataSliceDescriptors);
 
+                schedulerResultExt->set_restart_needed(true);
+
                 YT_LOG_DEBUG(
                     "Interrupt descriptor found (UnreadDescriptorCount: %v, ReadDescriptorCount: %v, SchedulerResultExt: %v)",
                     interruptDescriptor.UnreadDataSliceDescriptors.size(),
@@ -402,6 +404,25 @@ void TJobProxy::Run()
                     ToProto(
                         result.mutable_error(),
                         TError(EErrorCode::JobNotPrepared, "Job did not read anything"));
+                }
+            }
+        }
+
+
+        auto schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
+        if (schedulerJobSpecExt.has_user_job_spec()) {
+            const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
+            if (userJobSpec.has_restart_exit_code()) {
+                auto error = FromProto<TError>(result.error());
+                auto userJobFailedError = error.FindMatching(EErrorCode::UserJobFailed);
+                if (userJobFailedError) {
+                    auto processFailedError = userJobFailedError->FindMatching(EProcessErrorCode::NonZeroExitCode);
+                    if (processFailedError && processFailedError->Attributes().Get<int>("exit_code", 0) == userJobSpec.restart_exit_code()) {
+                        YT_LOG_DEBUG("Job exited with code that indicates job restart (ExitCode: %v)",
+                            userJobSpec.restart_exit_code());
+                        schedulerResultExt->set_restart_needed(true);
+                        ToProto(result.mutable_error(), TError());
+                    }
                 }
             }
         }

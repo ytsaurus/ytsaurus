@@ -91,7 +91,9 @@ TCompletedJobSummary::TCompletedJobSummary(NScheduler::NProto::TSchedulerToAgent
     const auto& schedulerResultExt = Result.GetExtension(NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext);
     YT_VERIFY(
         (InterruptReason == EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() == 0) ||
-            (InterruptReason != EInterruptReason::None && schedulerResultExt.unread_chunk_specs_size() != 0));
+        (InterruptReason != EInterruptReason::None && (
+            schedulerResultExt.unread_chunk_specs_size() != 0 ||
+            schedulerResultExt.restart_needed())));
 }
 
 void TCompletedJobSummary::Persist(const TPersistenceContext& context)

@@ -179,6 +179,8 @@ message TUserJobSpec
     optional double container_cpu_limit = 53 [default = 0];
 
     optional bool make_rootfs_writable = 54 [default = false];
+
+    optional int32 restart_exit_code = 55;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -326,6 +328,9 @@ message TSchedulerJobResultExt
     repeated int32 chunk_spec_count_per_unread_data_slice = 15;
     repeated NYT.NChunkClient.NProto.TChunkSpec read_chunk_specs = 16;
     repeated int32 chunk_spec_count_per_read_data_slice = 17;
+
+    // Used to restart completed job in case of interruption.
+    optional bool restart_needed = 18;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

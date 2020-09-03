@@ -68,7 +68,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         tasks = {}
         for task in get(op.get_path() + "/@progress/tasks"):
             tasks[task["task_name"]] = task
-        
+
         assert tasks["master"]["job_type"] == "vanilla"
         assert tasks["master"]["job_counter"]["completed"]["total"] == 1
         assert tasks["slave"]["job_type"] == "vanilla"
@@ -122,7 +122,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         tasks = {}
         for task in get(op.get_path() + "/@progress/tasks"):
             tasks[task["task_name"]] = task
-        
+
         assert tasks["master"]["job_type"] == "vanilla"
         assert tasks["master"]["job_counter"]["completed"]["total"] == 1
         assert tasks["slave"]["job_type"] == "vanilla"
@@ -287,6 +287,44 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         job_id = jobs[0]
         with pytest.raises(YtError):
             interrupt_job(job_id)
+
+    @authors("ignat")
+    def test_interrupts(self):
+        def interrupt():
+            jobs = list(op.get_running_jobs())
+            assert len(jobs) == 1
+            job_id = jobs[0]
+            interrupt_job(job_id)
+
+        exit_code = 17
+        command = """(trap "exit {}" SIGINT; BREAKPOINT; trap "exit 0" SIGINT; sleep 100)"""\
+            .format(exit_code)
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "tasks_a": {
+                        "job_count": 1,
+                        "command": with_breakpoint(command),
+                        "interruption_signal": "SIGINT",
+                        "restart_exit_code": exit_code,
+                    }
+                },
+            })
+        wait_breakpoint()
+
+        interrupt()
+
+        wait(lambda: op.get_job_count("lost") == 1)
+        wait(lambda: op.get_job_count("running") == 1)
+        
+        release_breakpoint()
+        time.sleep(5)
+        interrupt()
+        
+        wait(lambda: op.get_job_count("completed") == 1 and op.get_job_count("lost") == 1)
+        op.track()
 
     # TODO(max42): add lambda job: signal_job(job, "SIGKILL") when YT-8243 is fixed.
     @authors("max42")

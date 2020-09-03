@@ -107,7 +107,6 @@ DEFINE_ENUM(EInterruptReason,
     ((Preemption)         (1))
     ((UserRequest)        (2))
     ((JobSplit)           (3))
-    ((GracefulPreemption) (5))
     ((Unknown)            (4))
 );
 

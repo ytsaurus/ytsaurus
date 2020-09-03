@@ -52,13 +52,17 @@ public:
 
     virtual void Completed(IChunkPoolOutput::TCookie cookie, const TCompletedJobSummary& jobSummary) override
     {
-        YT_VERIFY(jobSummary.InterruptReason == EInterruptReason::None);
+        YT_VERIFY(
+            jobSummary.InterruptReason == EInterruptReason::None ||
+            jobSummary.InterruptReason == EInterruptReason::Preemption ||
+            jobSummary.InterruptReason == EInterruptReason::Unknown ||
+            jobSummary.InterruptReason == EInterruptReason::UserRequest);
         JobManager_->Completed(cookie, jobSummary.InterruptReason);
-        if (RestartCompletedJobs_) {
+        if (jobSummary.InterruptReason != EInterruptReason::None || RestartCompletedJobs_) {
             // NB: it is important to lose this job intead of alloacting new job since we want
             // to keep range of cookies same as before (without growing infinitely). It is
             // significant to some of the vanilla operation applications like CHYT.
-            JobManager_->Lost(cookie);
+            JobManager_->Lost(cookie, jobSummary.InterruptReason);
         }
     }
 

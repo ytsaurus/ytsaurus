@@ -186,17 +186,17 @@ void TLegacyProgressCounter::Aborted(i64 count, EAbortReason reason)
     }
 }
 
-void TLegacyProgressCounter::Lost(i64 count)
+void TLegacyProgressCounter::Lost(i64 count, EInterruptReason reason)
 {
-    YT_VERIFY(Completed_[EInterruptReason::None] >= count);
-    Completed_[EInterruptReason::None] -= count;
+    YT_VERIFY(Completed_[reason] >= count);
+    Completed_[reason] -= count;
     Lost_ += count;
     if (TotalEnabled_) {
         Pending_ += count;
     }
 
     if (Parent_) {
-        Parent_->Lost(count);
+        Parent_->Lost(count, reason);
     }
 }
 
