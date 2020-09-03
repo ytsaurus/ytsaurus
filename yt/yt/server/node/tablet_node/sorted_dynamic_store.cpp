@@ -1023,7 +1023,11 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(
     OnDynamicMemoryUsageUpdated();
 
     auto dataWeight = GetDataWeight(row);
-    ++PerformanceCounters_->DynamicRowWriteCount;
+    if (isDelete) {
+        ++PerformanceCounters_->DynamicRowDeleteCount;
+    } else {
+        ++PerformanceCounters_->DynamicRowWriteCount;
+    }
     PerformanceCounters_->DynamicRowWriteDataWeightCount += dataWeight;
     ++context->RowCount;
     context->DataWeight += dataWeight;
