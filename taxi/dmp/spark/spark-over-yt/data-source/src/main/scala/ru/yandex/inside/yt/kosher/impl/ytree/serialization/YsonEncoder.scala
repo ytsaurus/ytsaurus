@@ -64,6 +64,11 @@ class YsonEncoder(stream: ByteArrayOutputStream) {
     writeString(value)
   }
 
+  def onString(value: String): Unit = translateException {
+    output.writeRawByte(YsonTags.BINARY_STRING)
+    writeString(value)
+  }
+
   def onEntity(): Unit = translateException {
     output.writeRawByte(YsonTags.ENTITY)
   }

@@ -235,6 +235,7 @@ object YsonRowConverter {
         case StringType =>
           value match {
             case str: UTF8String => consumer.onString(str)
+            case str: String => consumer.onString(str)
           }
         case BooleanType => consumer.onBoolean(value.asInstanceOf[Boolean])
         case DoubleType => consumer.onDouble(value.asInstanceOf[Double])

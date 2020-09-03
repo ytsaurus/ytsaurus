@@ -21,3 +21,9 @@ def get_top(schema, top_col_names, select_col_names):
     jschema = spark._jsparkSession.parseDataType(schema.json())
     jc = spark._jvm.ru.yandex.spark.yt.common.utils.TopUdaf.top(jschema, top_col_names, select_col_names)
     return Column(jc)
+
+
+def col_to_yson(df, name, new_name=None, skip_nulls=True):
+    new_name = new_name or name
+    jdf = df._sc._jvm.ru.yandex.spark.yt.PythonUtils.serializeColumnToYson(df._jdf, name, new_name, skip_nulls)
+    return DataFrame(jdf, df.sql_ctx)
