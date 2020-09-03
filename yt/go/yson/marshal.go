@@ -56,9 +56,9 @@ func (e *Encoder) Encode(value interface{}) (err error) {
 //
 // Floating point values are encoded as YSON float64.
 //
-// Unsigned integer types uint16, uint32, uint64 and uint are encoded as unsigned YSON integers.
+// Unsigned integer types uint8, uint16, uint32, uint64 and uint are encoded as unsigned YSON integers.
 //
-// Signed integer types int16, int32, int64 and int are encoded as signed YSON integers.
+// Signed integer types int8, int16, int32, int64 and int are encoded as signed YSON integers.
 //
 // string and []byte values are encoded as YSON strings. Note that YSON string are always binary.
 //
@@ -128,6 +128,8 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 			w.Entity()
 		}
 
+	case int8:
+		w.Int64(int64(vv))
 	case int16:
 		w.Int64(int64(vv))
 	case int32:
@@ -137,6 +139,12 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 	case int:
 		w.Int64(int64(vv))
 
+	case *int8:
+		if vv != nil {
+			w.Int64(int64(*vv))
+		} else {
+			w.Entity()
+		}
 	case *int16:
 		if vv != nil {
 			w.Int64(int64(*vv))
@@ -162,6 +170,8 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 			w.Entity()
 		}
 
+	case uint8:
+		w.Uint64(uint64(vv))
 	case uint16:
 		w.Uint64(uint64(vv))
 	case uint32:
@@ -171,6 +181,12 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 	case uint:
 		w.Uint64(uint64(vv))
 
+	case *uint8:
+		if vv != nil {
+			w.Uint64(uint64(*vv))
+		} else {
+			w.Entity()
+		}
 	case *uint16:
 		if vv != nil {
 			w.Uint64(uint64(*vv))
@@ -334,11 +350,11 @@ func encodeAny(w *Writer, value interface{}) (err error) {
 
 func encodeReflect(w *Writer, value reflect.Value) error {
 	switch value.Type().Kind() {
-	case reflect.Int, reflect.Int16, reflect.Int32, reflect.Int64:
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		w.Int64(value.Int())
 		return w.Err()
 
-	case reflect.Uint, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		w.Uint64(value.Uint())
 		return w.Err()
 

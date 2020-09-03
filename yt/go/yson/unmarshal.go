@@ -71,6 +71,10 @@ func decodeInt(r *Reader, bits int) (i int64, err error) {
 	switch r.currentType {
 	case TypeInt64:
 		switch bits {
+		case 8:
+			if r.currentInt > math.MaxInt8 || r.currentInt < math.MinInt8 {
+				return 0, ErrIntegerOverflow
+			}
 		case 16:
 			if r.currentInt > math.MaxInt16 || r.currentInt < math.MinInt16 {
 				return 0, ErrIntegerOverflow
@@ -84,6 +88,10 @@ func decodeInt(r *Reader, bits int) (i int64, err error) {
 		i = r.currentInt
 	case TypeUint64:
 		switch bits {
+		case 8:
+			if r.currentUint > math.MaxInt8 {
+				return 0, ErrIntegerOverflow
+			}
 		case 16:
 			if r.currentUint > math.MaxInt16 {
 				return 0, ErrIntegerOverflow
@@ -118,6 +126,10 @@ func decodeUint(r *Reader, bits int) (u uint64, err error) {
 		}
 
 		switch bits {
+		case 8:
+			if r.currentInt > math.MaxUint8 {
+				return 0, ErrIntegerOverflow
+			}
 		case 16:
 			if r.currentInt > math.MaxUint16 {
 				return 0, ErrIntegerOverflow
@@ -131,6 +143,10 @@ func decodeUint(r *Reader, bits int) (u uint64, err error) {
 		u = uint64(r.currentInt)
 	case TypeUint64:
 		switch bits {
+		case 8:
+			if r.currentInt > math.MaxUint8 {
+				return 0, ErrIntegerOverflow
+			}
 		case 16:
 			if r.currentUint > math.MaxUint16 {
 				return 0, ErrIntegerOverflow
@@ -213,6 +229,9 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 	case *int:
 		i, err = decodeInt(r, strconv.IntSize)
 		*vv = int(i)
+	case *int8:
+		i, err = decodeInt(r, 8)
+		*vv = int8(i)
 	case *int16:
 		i, err = decodeInt(r, 16)
 		*vv = int16(i)
@@ -224,6 +243,9 @@ func decodeAny(r *Reader, v interface{}) (err error) {
 	case *uint:
 		u, err = decodeUint(r, strconv.IntSize)
 		*vv = uint(u)
+	case *uint8:
+		u, err = decodeUint(r, 8)
+		*vv = uint8(u)
 	case *uint16:
 		u, err = decodeUint(r, 16)
 		*vv = uint16(u)
