@@ -494,11 +494,18 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
     from .batch_helpers import create_batch_client
 
     encoding = get_structured_format(format=None, client=client)._encoding
+
     def to_response_key_type(string):
-        if encoding is None:
-            return string.encode("ascii")
-        else:
-            return string
+        if isinstance(string, binary_type):
+            if encoding is None:
+                return string
+            else:
+                return string.decode("ascii")
+        else:  # text_type
+            if encoding is None:
+                return string.encode("ascii")
+            else:
+                return string
 
     def to_native_string(string):
         if isinstance(string, binary_type):
