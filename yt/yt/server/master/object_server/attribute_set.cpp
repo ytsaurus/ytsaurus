@@ -20,7 +20,10 @@ void TAttributeSet::Load(NCellMaster::TLoadContext& context)
     Load(context, Attributes_);
 
     for (const auto& [key, value] : Attributes_) {
-        MasterMemoryUsage_ += key.size() + value.GetData().size();
+        MasterMemoryUsage_ += key.size();
+        if (value) {
+            MasterMemoryUsage_ += value.GetData().size();
+        }
     }
 }
 
