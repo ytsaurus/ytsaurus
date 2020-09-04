@@ -2527,15 +2527,16 @@ class BaseTestSchedulingSegments(YTEnvSetup):
             "mode": "large_gpu",
             "unsatisfied_segments_rebalancing_timeout": 1000,
         })
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "large_gpu")
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000)
         # Not to let preemption abort the jobs instead of segments manager.
         set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
-        set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 80)
         set("//sys/pool_trees/default/@fair_share_preemption_timeout", 100)
         set("//sys/pool_trees/default/@fair_share_preemption_timeout_limit", 100)
         set("//sys/pool_trees/default/@fair_share_starvation_tolerance", 0.95)
         set("//sys/pool_trees/default/@fair_share_starvation_tolerance_limit", 0.95)
-        # TODO(eshcherbin): Remove sleep here and below when tree config is exported to Orchid.
-        time.sleep(0.5)
+        set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 80)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_unpreemptable_running_job_count") == 80)
 
     @authors("eshcherbin")
     def test_large_gpu_segment_extended(self):
@@ -2680,7 +2681,7 @@ class BaseTestSchedulingSegments(YTEnvSetup):
     @authors("eshcherbin")
     def test_disabled(self):
         set("//sys/pool_trees/default/@scheduling_segments/mode", "disabled")
-        time.sleep(0.5)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/mode") == "disabled")
 
         blocking_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
@@ -2702,7 +2703,7 @@ class BaseTestSchedulingSegments(YTEnvSetup):
     @authors("eshcherbin")
     def test_rebalancing_timeout_changed(self):
         set("//sys/pool_trees/default/@scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
-        time.sleep(0.5)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000000000)
 
         blocking_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
@@ -2735,7 +2736,7 @@ class BaseTestSchedulingSegments(YTEnvSetup):
     @authors("eshcherbin")
     def test_profiling(self):
         set("//sys/pool_trees/default/@scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
-        time.sleep(0.5)
+        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout") == 1000000000)
 
         fair_resource_amount_last = Metric.at_scheduler(
             "scheduler/segments/fair_resource_amount",

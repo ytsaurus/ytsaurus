@@ -2031,6 +2031,12 @@ def scheduler_orchid_pool_tree_path(tree):
 def scheduler_orchid_default_pool_tree_path():
     return scheduler_orchid_pool_tree_path("default")
 
+def scheduler_orchid_pool_tree_config_path(tree):
+    return scheduler_orchid_path() + "/scheduler/scheduling_info_per_pool_tree/{}/config".format(tree)
+
+def scheduler_orchid_default_pool_tree_config_path():
+    return scheduler_orchid_pool_tree_config_path("default")
+
 def scheduler_orchid_pool_path(pool, tree="default"):
     return scheduler_orchid_pool_tree_path(tree) + "/pools/{}".format(pool)
 
