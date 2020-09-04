@@ -1407,7 +1407,7 @@ class TestCypressLocksMulticell(TestCypressLocks):
 
 ##################################################################
 
-class TestLocksShardedTx(TestLocksMulticell):
+class TestCypressLocksShardedTx(TestCypressLocksMulticell):
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_ROLES = {
         "0": ["cypress_node_host"],
@@ -1415,9 +1415,9 @@ class TestLocksShardedTx(TestLocksMulticell):
         "4": ["transaction_coordinator"]
     }
 
-class TestLocksShardedTxNoBoomerangs(TestLocksShardedTx):
+class TestCypressLocksShardedTxNoBoomerangs(TestCypressLocksShardedTx):
     def setup_method(self, method):
-        super(TestLocksShardedTxNoBoomerangs, self).setup_method(method)
+        super(TestCypressLocksShardedTxNoBoomerangs, self).setup_method(method)
         set("//sys/@config/object_service/enable_mutation_boomerangs", False)
         set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
 
