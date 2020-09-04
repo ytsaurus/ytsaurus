@@ -709,15 +709,6 @@ private:
         YT_LOG_DEBUG_IF(config->EnableLsmVerboseLogging,
             "Picking stores for compaction");
 
-        // XXX(savrus) Disabled. Hotfix for YT-5828
-#if 0
-        // Don't compact partitions (excluding Eden) whose data size exceeds the limit.
-        // Let Partition Balancer do its job.
-        if (!partition->IsEden() && partition->GetCompressedDataSize() > config->MaxCompactionDataSize) {
-            return std::vector<TSortedChunkStorePtr>();
-        }
-#endif
-
         std::vector<TSortedChunkStorePtr> candidates;
 
         for (const auto& store : partition->Stores()) {
