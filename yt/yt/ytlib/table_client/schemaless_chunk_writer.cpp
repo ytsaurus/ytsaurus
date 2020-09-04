@@ -414,7 +414,7 @@ private:
     TRandomGenerator RandomGenerator_;
     const ui64 SamplingThreshold_;
     NProto::TSamplesExt SamplesExt_;
-    NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
+    mutable NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
     i64 SamplesExtSize_ = 0;
 
     void FillCommonMeta(NChunkClient::NProto::TChunkMeta* meta) const
@@ -480,6 +480,9 @@ private:
         constexpr int DataWeightGranularity = 256;
 
         auto columnCount = GetNameTable()->GetSize();
+        if (columnCount > ColumnarStatisticsExt_.data_weights_size()) {
+            ColumnarStatisticsExt_.mutable_data_weights()->Resize(columnCount, 0);
+        }
         YT_VERIFY(columnCount == ColumnarStatisticsExt_.data_weights_size());
 
         auto salt = RandomNumber<ui32>();
