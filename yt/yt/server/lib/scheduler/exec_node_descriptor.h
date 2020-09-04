@@ -21,6 +21,20 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TRunningJobStatistics
+{
+    //! In CPU*seconds.
+    double TotalCpuTime = 0.0;
+
+    //! In GPU*seconds.
+    double TotalGpuTime = 0.0;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TRunningJobStatistics& statistics, TStringBuf /* format */);
+TString ToString(const TRunningJobStatistics& statistics);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! An immutable snapshot of TExecNode.
 struct TExecNodeDescriptor
 {
@@ -33,7 +47,9 @@ struct TExecNodeDescriptor
         bool online,
         const TJobResources& resourceUsage,
         const TJobResources& resourceLimits,
-        const THashSet<TString>& tags);
+        const THashSet<TString>& tags,
+        const TRunningJobStatistics& runningJobStatistics,
+        ESchedulingSegment schedulingSegment);
 
     bool CanSchedule(const TSchedulingTagFilter& filter) const;
 
@@ -44,6 +60,8 @@ struct TExecNodeDescriptor
     TJobResources ResourceUsage;
     TJobResources ResourceLimits;
     THashSet<TString> Tags;
+    TRunningJobStatistics RunningJobStatistics;
+    ESchedulingSegment SchedulingSegment;
 
     void Persist(const TStreamPersistenceContext& context);
 };

@@ -5,6 +5,7 @@
 #include "scheduler_strategy.h"
 
 #include <yt/server/lib/scheduler/scheduling_tag.h>
+#include <yt/server/lib/scheduler/structs.h>
 
 #include <yt/client/api/client.h>
 
@@ -126,7 +127,7 @@ public:
     void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
     void UnregisterAndRemoveNodeById(NNodeTrackerClient::TNodeId nodeId);
-    void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId);
+    void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason);
 
 
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors();
@@ -180,6 +181,8 @@ public:
 
     int ExtractJobReporterWriteFailuresCount();
     int GetJobReporterQueueIsTooLargeNodeCount();
+
+    void SetSchedulingSegmentsForNodes(const TNodeIdWithSchedulingSegmentList& nodeIdsWithSegments);
 
 private:
     const int Id_;
@@ -307,7 +310,7 @@ private:
     // NB: 'node' passed by value since we want to own it after remove.
     void RemoveNode(TExecNodePtr node);
 
-    void AbortAllJobsAtNode(const TExecNodePtr& node);
+    void AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason);
     void AbortUnconfirmedJobs(
         TOperationId operationId,
         TEpoch epoch,

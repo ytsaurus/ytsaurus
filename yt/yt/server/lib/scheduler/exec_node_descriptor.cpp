@@ -11,6 +11,20 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void FormatValue(TStringBuilderBase* builder, const TRunningJobStatistics& statistics, TStringBuf /* format */)
+{
+    builder->AppendFormat("{TotalCpuTime: %v, TotalGpuTime: %v}",
+        statistics.TotalCpuTime,
+        statistics.TotalGpuTime);
+}
+
+TString ToString(const TRunningJobStatistics& statistics)
+{
+    return ToStringViaBuilder(statistics);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TExecNodeDescriptor::TExecNodeDescriptor(
     NNodeTrackerClient::TNodeId id,
     const TString& address,
@@ -18,7 +32,9 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     bool online,
     const TJobResources& resourceUsage,
     const TJobResources& resourceLimits,
-    const THashSet<TString>& tags)
+    const THashSet<TString>& tags,
+    const TRunningJobStatistics& runningJobStatistics,
+    ESchedulingSegment schedulingSegment)
     : Id(id)
     , Address(address)
     , IOWeight(ioWeight)
@@ -26,6 +42,8 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     , ResourceUsage(resourceUsage)
     , ResourceLimits(resourceLimits)
     , Tags(tags)
+    , RunningJobStatistics(runningJobStatistics)
+    , SchedulingSegment(schedulingSegment)
 { }
 
 bool TExecNodeDescriptor::CanSchedule(const TSchedulingTagFilter& filter) const

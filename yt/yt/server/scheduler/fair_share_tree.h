@@ -8,6 +8,7 @@
 
 #include <yt/server/lib/scheduler/job_metrics.h>
 #include <yt/server/lib/scheduler/resource_metering.h>
+#include <yt/server/lib/scheduler/structs.h>
 
 namespace NYT::NScheduler {
 
@@ -211,6 +212,10 @@ public:
 
     TPersistentTreeStatePtr BuildPersistentTreeState() const;
     void InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState);
+
+    ESegmentedSchedulingMode GetSegmentedSchedulingMode() const;
+    void SetOperationSchedulingSegment(TOperationId operationId, ESchedulingSegment segment);
+    TPoolTreeSchedulingSegmentsInfo GetSchedulingSegmentsInfo() const;
 
 private:
     TFairShareStrategyTreeConfigPtr Config_;

@@ -1157,6 +1157,9 @@ private:
 
     void UpdateAllTasksIfNeeded();
 
+    void DoUpdateMinNeededJobResources();
+    TJobResources GetAggregatedMinNeededJobResources() const;
+
     void IncreaseNeededResources(const TJobResources& resourcesDelta);
 
     void InitializeStandardStreamDescriptors();

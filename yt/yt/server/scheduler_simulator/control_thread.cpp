@@ -253,6 +253,7 @@ void TSimulatorControlThread::OnOperationStarted(const TControlThreadEvent& even
         .Item("spec").Value(operation->GetSpecString())
         .Item("authenticated_user").Value(operation->GetAuthenticatedUser())
         .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, SchedulerStrategy_, operation.Get(), _1));
+    // TODO(eshcherbin): Init operation scheduling segments. Got to think of a way to get min needed resources at this point.
     SchedulerStrategy_->EnableOperation(operation.Get());
 
     JobAndOperationCounter_.OnOperationStarted();

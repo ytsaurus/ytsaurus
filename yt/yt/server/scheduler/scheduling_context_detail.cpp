@@ -126,6 +126,11 @@ TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscount()
     return ResourceLimits_ - ResourceUsage_ + ResourceUsageDiscount_;
 }
 
+ESchedulingSegment TSchedulingContextBase::GetSchedulingSegment() const
+{
+    return Node_->GetSchedulingSegment();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

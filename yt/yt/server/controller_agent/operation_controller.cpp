@@ -95,8 +95,8 @@ void ToProto(NProto::TMaterializeOperationResult* resultProto, const TOperationC
 {
     resultProto->set_suspend(result.Suspend);
     ToProto(resultProto->mutable_initial_needed_resources(), result.InitialNeededResources);
+    ToProto(resultProto->mutable_initial_aggregated_min_needed_resources(), result.InitialAggregatedMinNeededResources);
 }
-
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -126,6 +126,11 @@ DEFINE_ENUM(ENodeState,
     (Online)
 );
 
+DEFINE_ENUM(ESegmentedSchedulingMode,
+    (Disabled)
+    (LargeGpu)
+);
+
 static constexpr int MaxNodeShardCount = 32;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -142,6 +147,7 @@ DECLARE_REFCOUNTED_CLASS(TResourceMeteringConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerBootstrapConfig)
 DECLARE_REFCOUNTED_CLASS(TSchedulerIntegralGuaranteesConfig)
+DECLARE_REFCOUNTED_CLASS(TFairShareStrategySchedulingSegmentsConfig)
 
 struct TExecNodeDescriptor;
 using TExecNodeDescriptorMap = THashMap<NNodeTrackerClient::TNodeId, TExecNodeDescriptor>;

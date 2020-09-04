@@ -2839,6 +2839,7 @@ TOperationElement::TOperationElement(
     , TOperationElementFixedState(other)
     , RuntimeParameters_(other.RuntimeParameters_)
     , Spec_(other.Spec_)
+    , SchedulingSegment_(other.SchedulingSegment_)
     , OperationElementSharedState_(other.OperationElementSharedState_)
     , Controller_(other.Controller_)
     , RunningInThisPoolTree_(other.RunningInThisPoolTree_)
@@ -3059,6 +3060,13 @@ void TOperationElement::PrescheduleJob(
         return;
     }
 
+    if (TreeConfig_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled &&
+        SchedulingSegment_ != context->SchedulingContext()->GetSchedulingSegment())
+    {
+        onOperationDeactivated(EDeactivationReason::IncompatibleSchedulingSegment);
+        return;
+    }
+
     if (operationCriterion == EPrescheduleJobOperationCriterion::AggressivelyStarvingOnly &&
         !(PersistentAttributes_.Starving && aggressiveStarvationEnabled))
     {
@@ -3098,9 +3106,11 @@ TString TOperationElement::GetLoggingString(const TDynamicAttributes& dynamicAtt
 {
     return Format(
         "Scheduling info for tree %Qv = {%v, "
-        "PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, PreemptionStatusStatistics: %v, DeactivationReasons: %v}",
+        "SchedulingSegment: %v, PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, "
+        "PreemptionStatusStatistics: %v, DeactivationReasons: %v}",
         GetTreeId(),
         GetLoggingAttributesString(dynamicAttributes),
+        SchedulingSegment_,
         GetPreemptableJobCount(),
         GetAggressivelyPreemptableJobCount(),
         GetPreemptionStatusStatistics(),

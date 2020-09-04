@@ -988,7 +988,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         InitInputChunkScraper();
         InitIntermediateChunkScraper();
 
-        UpdateMinNeededJobResources();
+        DoUpdateMinNeededJobResources();
         // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
         UpdateAllTasks();
 
@@ -1027,6 +1027,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
     result.Suspend = Spec_->SuspendOperationAfterMaterialization;
     result.InitialNeededResources = GetNeededResources();
+    result.InitialAggregatedMinNeededResources = GetAggregatedMinNeededJobResources();
 
     YT_LOG_INFO("Materialization finished");
 
@@ -4667,50 +4668,65 @@ TJobResourcesWithQuotaList TOperationControllerBase::GetMinNeededJobResources() 
     return CachedMinNeededJobResources;
 }
 
+void TOperationControllerBase::DoUpdateMinNeededJobResources()
+{
+    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+
+    THashMap<EJobType, TJobResourcesWithQuota> minNeededJobResources;
+
+    for (const auto& task : Tasks) {
+        if (task->GetPendingJobCount() == 0) {
+            continue;
+        }
+
+        auto jobType = task->GetJobType();
+        TJobResourcesWithQuota resources;
+        try {
+            resources = task->GetMinNeededResources();
+        } catch (const std::exception& ex) {
+            auto error = TError("Failed to update minimum needed resources")
+                << ex;
+            OnOperationFailed(error);
+            return;
+        }
+
+        auto resIt = minNeededJobResources.find(jobType);
+        if (resIt == minNeededJobResources.end()) {
+            minNeededJobResources[jobType] = resources;
+        } else {
+            resIt->second = Min(resIt->second, resources);
+        }
+    }
+
+    TJobResourcesWithQuotaList result;
+    for (const auto& [jobType, resources] : minNeededJobResources) {
+        result.push_back(resources);
+        YT_LOG_DEBUG("Aggregated minimum needed resources for jobs (JobType: %v, MinNeededResources: %v)",
+            jobType,
+            FormatResources(resources, GetMediumDirectory()));
+    }
+
+    {
+        NConcurrency::TWriterGuard guard(CachedMinNeededResourcesJobLock);
+        CachedMinNeededJobResources.swap(result);
+    }
+}
+
 void TOperationControllerBase::UpdateMinNeededJobResources()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default)->Invoke(BIND([=, this_ = MakeStrong(this)] {
-        THashMap<EJobType, TJobResourcesWithQuota> minNeededJobResources;
+    CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default)->Invoke(
+        BIND(&TOperationControllerBase::DoUpdateMinNeededJobResources, MakeStrong(this)));
+}
 
-        for (const auto& task : Tasks) {
-            if (task->GetPendingJobCount() == 0) {
-                continue;
-            }
-
-            auto jobType = task->GetJobType();
-            TJobResourcesWithQuota resources;
-            try {
-                resources = task->GetMinNeededResources();
-            } catch (const std::exception& ex) {
-                auto error = TError("Failed to update min nedeeded resources")
-                    << ex;
-                OnOperationFailed(error);
-                return;
-            }
-
-            auto resIt = minNeededJobResources.find(jobType);
-            if (resIt == minNeededJobResources.end()) {
-                minNeededJobResources[jobType] = resources;
-            } else {
-                resIt->second = Min(resIt->second, resources);
-            }
-        }
-
-        TJobResourcesWithQuotaList result;
-        for (const auto& [jobType, resources] : minNeededJobResources) {
-            result.push_back(resources);
-            YT_LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
-                jobType,
-                FormatResources(resources, GetMediumDirectory()));
-        }
-
-        {
-            NConcurrency::TWriterGuard guard(CachedMinNeededResourcesJobLock);
-            CachedMinNeededJobResources.swap(result);
-        }
-    }));
+TJobResources TOperationControllerBase::GetAggregatedMinNeededJobResources() const
+{
+    auto result = GetNeededResources();
+    for (const auto& jobResources : GetMinNeededJobResources()) {
+        result = Min(result, jobResources.ToJobResources());
+    }
+    return result;
 }
 
 void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)

@@ -1631,6 +1631,8 @@ TStrategyOperationSpec::TStrategyOperationSpec()
         .Default(10);
     RegisterParameter("preemption_mode", PreemptionMode)
         .Default(EPreemptionMode::Normal);
+    RegisterParameter("scheduling_segment", SchedulingSegment)
+        .Default();
 
     RegisterPostprocessor([&] {
         if (ScheduleInSingleTree && (TentativePoolTrees || UseDefaultTentativePoolTrees)) {

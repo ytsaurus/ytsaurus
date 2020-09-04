@@ -112,6 +112,11 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TFairShareSchedulingStatistics, LastPreemptiveHeartbeatStatistics);
     DEFINE_BYVAL_RW_PROPERTY(TFairShareSchedulingStatistics, LastNonPreemptiveHeartbeatStatistics);
 
+    //! Time statistics of currently running jobs. Used as penalties in scheduling segments rebalancing.
+    DEFINE_BYVAL_RW_PROPERTY(TRunningJobStatistics, RunningJobStatistics);
+
+    DEFINE_BYVAL_RW_PROPERTY(ESchedulingSegment, SchedulingSegment, ESchedulingSegment::Default);
+
 public:
     TExecNode(
         NNodeTrackerClient::TNodeId id,

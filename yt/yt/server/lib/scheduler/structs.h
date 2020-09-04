@@ -93,4 +93,21 @@ void Deserialize(TPreemptedFor& preemptedFor, const NYTree::INodePtr& node);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TSegmentToResourceAmount = TEnumIndexedVector<ESchedulingSegment, double>;
+
+struct TPoolTreeSchedulingSegmentsInfo
+{
+    NProfiling::TTagId TreeIdProfilingTag = NProfiling::InvalidTagId;
+    ESegmentedSchedulingMode Mode = ESegmentedSchedulingMode::Disabled;
+    TDuration UnsatisfiedSegmentsRebalancingTimeout;
+    std::optional<EJobResourceType> KeyResource;
+    TSegmentToResourceAmount FairResourceAmountPerSegment;
+};
+
+using TTreeIdToSchedulingSegmentsInfo = THashMap<TString, TPoolTreeSchedulingSegmentsInfo>;
+
+using TNodeIdWithSchedulingSegmentList = std::vector<std::pair<NNodeTrackerClient::TNodeId, ESchedulingSegment>>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

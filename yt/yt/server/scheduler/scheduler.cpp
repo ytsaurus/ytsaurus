@@ -13,6 +13,7 @@
 #include "bootstrap.h"
 #include "operations_cleaner.h"
 #include "controller_agent_tracker.h"
+#include "scheduling_segment_manager.h"
 
 #include <yt/server/lib/scheduler/config.h>
 #include <yt/server/lib/scheduler/scheduling_tag.h>
@@ -301,6 +302,12 @@ public:
             BIND(&TImpl::PostOperationsToDestroy, MakeWeak(this)),
             Config_->OperationsDestroyPeriod);
         OperationsDestroyerExecutor_->Start();
+
+        SchedulingSegmentsManagerExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetControlInvoker(EControlQueue::PeriodicActivity),
+            BIND(&TImpl::ManageSchedulingSegments, MakeWeak(this)),
+            Config_->SchedulingSegmentsManagePeriod);
+        SchedulingSegmentsManagerExecutor_->Start();
     }
 
     const NApi::NNative::IClientPtr& GetMasterClient() const
@@ -1146,12 +1153,15 @@ public:
         const TOperationPtr& operation,
         std::optional<TOperationControllerMaterializeResult> maybeMaterializeResult)
     {
+        bool shouldFlush = false;
         bool shouldSuspend = false;
         TJobResources neededResources;
         if (maybeMaterializeResult) {
             // Operation was materialized from scratch.
             shouldSuspend = maybeMaterializeResult->Suspend;
             neededResources = maybeMaterializeResult->InitialNeededResources;
+            operation->MutableInitialAggregatedMinNeededResources() = maybeMaterializeResult->InitialAggregatedMinNeededResources;
+            shouldFlush = true;
         } else {
             // Operation was revived from snapshot.
             // NB(eshcherbin): NeededResources was set in DoReviveOperation().
@@ -1169,6 +1179,7 @@ public:
                 }
             }
 
+            // TODO(eshcherbin): Fix the outdated comment.
             // If any tree was erased, we should:
             // (1) Unregister operation from each tree.
             // (2) Remove each tree from operation's runtime parameters.
@@ -1178,17 +1189,25 @@ public:
                     UnregisterOperationFromTree(operation, treeId);
                 }
 
-                // NB(eshcherbin): Persist info about erased trees to master. This flush is safe because nothing should
-                // happen to |operation| until its state is set to EOperationState::Running. The only possible exception
-                // would be the case when materialization fails and the operation is terminated, but we've already checked for any fail beforehand.
-                // Result is ignored since failure causes scheduler disconnection.
-                auto expectedState = operation->GetState();
-                Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
-                if (operation->GetState() != expectedState) {
-                    return;
-                }
+                shouldFlush = true;
             }
         }
+
+        if (shouldFlush) {
+            // NB(eshcherbin): Persist info about erased trees and min needed resources to master. This flush is safe because nothing should
+            // happen to |operation| until its state is set to EOperationState::Running. The only possible exception would be the case when
+            // materialization fails and the operation is terminated, but we've already checked for any fail beforehand.
+            // Result is ignored since failure causes scheduler disconnection.
+            auto expectedState = operation->GetState();
+            Y_UNUSED(WaitFor(MasterConnector_->FlushOperationNode(operation)));
+            if (operation->GetState() != expectedState) {
+                return;
+            }
+        }
+
+        Strategy_->InitOperationSchedulingSegment(
+            operation.Get(),
+            operation->InitialAggregatedMinNeededResources().value_or(TJobResources()));
 
         if (operation->Spec()->TestingOperationOptions->DelayAfterMaterialize) {
             TDelayedExecutor::WaitForDuration(*operation->Spec()->TestingOperationOptions->DelayAfterMaterialize);
@@ -1417,7 +1436,7 @@ public:
         currentDescriptor.TreeId = treeId;
 
         auto nodeShard = GetNodeShard(nodeId);
-        BIND(&TNodeShard::AbortJobsAtNode, GetNodeShard(nodeId), nodeId)
+        BIND(&TNodeShard::AbortJobsAtNode, GetNodeShard(nodeId), nodeId, EAbortReason::NodeFairShareTreeChanged)
             .AsyncVia(nodeShard->GetInvoker())
             .Run();
     }
@@ -1648,6 +1667,7 @@ private:
     TPeriodicExecutorPtr TransientOperationQueueScanPeriodExecutor_;
     TPeriodicExecutorPtr WaitingForPoolOperationScanPeriodExecutor_;
     TPeriodicExecutorPtr OperationsDestroyerExecutor_;
+    TPeriodicExecutorPtr SchedulingSegmentsManagerExecutor_;
 
     TString ServiceAddress_;
 
@@ -1694,6 +1714,8 @@ private:
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
 
     std::vector<TOperationPtr> OperationsToDestroy_;
+
+    TSchedulingSegmentManager SchedulingSegmentManager_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -2396,6 +2418,7 @@ private:
             JobReporterWriteFailuresChecker_->SetPeriod(Config_->JobReporterIssuesCheckPeriod);
             StrategyUnschedulableOperationsChecker_->SetPeriod(Config_->OperationUnschedulableCheckPeriod);
             OperationsDestroyerExecutor_->SetPeriod(Config_->OperationsDestroyPeriod);
+            SchedulingSegmentsManagerExecutor_->SetPeriod(Config_->SchedulingSegmentsManagePeriod);
             if (TransientOperationQueueScanPeriodExecutor_) {
                 TransientOperationQueueScanPeriodExecutor_->SetPeriod(Config_->TransientOperationQueueScanPeriod);
             }
@@ -3931,6 +3954,59 @@ private:
             }
             operation.Reset();
         }
+    }
+
+    void ManageSchedulingSegments()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        YT_LOG_DEBUG("Started managing scheduling segments");
+
+        TManageSchedulingSegmentsContext context;
+
+        context.NodeShardHost = this;
+        context.SegmentsInfoPerTree = Strategy_->GetSchedulingSegmentsInfoPerTree();
+        context.ExecNodeDescriptors = GetCachedExecNodeDescriptors();
+        for (const auto& [nodeId, _] : *context.ExecNodeDescriptors) {
+            auto it = NodeIdToDescriptor_.find(nodeId);
+            if (it == NodeIdToDescriptor_.end()) {
+                continue;
+            }
+
+            const auto& descriptor = it->second;
+            if (const auto& treeId = descriptor.TreeId) {
+                context.NodeIdsPerTree[*treeId].emplace_back(nodeId);
+            }
+        }
+
+        // TODO: Persist nodes' segment info to Cypress.
+
+        SchedulingSegmentManager_.ManageSegments(&context);
+
+        int totalMovedNodeCount = 0;
+        for (const auto& movedNodesInShard : context.MovedNodesPerNodeShard) {
+            totalMovedNodeCount += movedNodesInShard.size();
+        }
+
+        if (totalMovedNodeCount > 0) {
+            YT_LOG_DEBUG("Moving nodes to new scheduling segments (TotalMovedNodeCount: %v)",
+                totalMovedNodeCount);
+
+            std::vector<TFuture<void>> futures;
+            for (int nodeShardId = 0; nodeShardId < NodeShards_.size(); ++nodeShardId) {
+                const auto& nodeShard = NodeShards_[nodeShardId];
+                const auto& movedNodesWithSegments = context.MovedNodesPerNodeShard[nodeShardId];
+
+                futures.push_back(BIND(&TNodeShard::SetSchedulingSegmentsForNodes, nodeShard, movedNodesWithSegments)
+                    .AsyncVia(nodeShard->GetInvoker())
+                    .Run());
+            }
+
+            WaitFor(AllSet(futures))
+                .ThrowOnError();
+        }
+
+        YT_LOG_DEBUG("Finished managing scheduling segments");
     }
 
     class TOperationsService

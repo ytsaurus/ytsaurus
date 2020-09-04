@@ -88,6 +88,8 @@ struct ISchedulingContext
 
     virtual TFairShareSchedulingStatistics GetSchedulingStatistics() const = 0;
     virtual void SetSchedulingStatistics(TFairShareSchedulingStatistics statistics) = 0;
+
+    virtual ESchedulingSegment GetSchedulingSegment() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulingContext)
