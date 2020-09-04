@@ -628,7 +628,7 @@ public:
         if (resultOrError.IsOK()) {
             YT_LOG_DEBUG("Successful initialization result received");
         } else {
-            YT_LOG_DEBUG("Unsuccessful initialization result received (Error: %v)", resultOrError);
+            YT_LOG_DEBUG(resultOrError, "Unsuccessful initialization result received");
             ProcessControllerAgentError(resultOrError);
         }
 
@@ -642,7 +642,7 @@ public:
         if (resultOrError.IsOK()) {
             YT_LOG_DEBUG("Successful preparation result received");
         } else {
-            YT_LOG_DEBUG("Unsuccessful preparation result received (Error: %v)", resultOrError);
+            YT_LOG_DEBUG(resultOrError, "Unsuccessful preparation result received");
             ProcessControllerAgentError(resultOrError);
         }
 
@@ -661,7 +661,7 @@ public:
                 FormatResources(materializeResult.InitialNeededResources),
                 FormatResources(materializeResult.InitialAggregatedMinNeededResources));
         } else {
-            YT_LOG_DEBUG("Unsuccessful materialization result received (Error: %v)", resultOrError);
+            YT_LOG_DEBUG(resultOrError, "Unsuccessful materialization result received");
             ProcessControllerAgentError(resultOrError);
         }
 
@@ -682,7 +682,7 @@ public:
                 result.RevivedBannedTreeIds,
                 FormatResources(result.NeededResources));
         } else {
-            YT_LOG_DEBUG("Unsuccessful revival result received (Error: %v)", resultOrError);
+            YT_LOG_DEBUG(resultOrError, "Unsuccessful revival result received");
             ProcessControllerAgentError(resultOrError);
         }
 
@@ -696,7 +696,7 @@ public:
         if (resultOrError.IsOK()) {
             YT_LOG_DEBUG("Successful commit result received");
         } else {
-            YT_LOG_DEBUG("Unsuccessful commit result received (Error: %v)", resultOrError);
+            YT_LOG_DEBUG(resultOrError, "Unsuccessful commit result received");
             ProcessControllerAgentError(resultOrError);
         }
 
