@@ -509,9 +509,9 @@ TError TCellTrackerImpl::IsFailed(
         if (!bundle->NodeTagFilter().IsSatisfiedBy(node->Tags())) {
             return TError(
                 NCellServer::EErrorCode::NodeFilterMismatch,
-                "Node %v does not satisfy tag filter of cell bundle %v",
+                "Node %v does not satisfy tag filter of cell bundle %Qv",
                 node->GetDefaultAddress(),
-                bundle->GetId());
+                bundle->GetName());
         }
     }
 
