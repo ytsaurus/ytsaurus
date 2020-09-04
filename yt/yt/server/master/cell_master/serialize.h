@@ -131,6 +131,7 @@ DEFINE_ENUM(EMasterReign,
     ((YT_13126_ExpirationTimeout)                                   (1407))  // shakurov
     ((YT_12198_LockTimes)                                           (1408))  // babenko
     ((ShardedTransactions)                                          (1409))  // shakurov
+    ((FixErrorDatetime)                                             (1410))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
