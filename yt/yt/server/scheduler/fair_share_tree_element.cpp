@@ -3106,10 +3106,12 @@ TString TOperationElement::GetLoggingString(const TDynamicAttributes& dynamicAtt
 {
     return Format(
         "Scheduling info for tree %Qv = {%v, "
-        "SchedulingSegment: %v, PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, "
-        "PreemptionStatusStatistics: %v, DeactivationReasons: %v}",
+        "PendingJobs: %v, AggregatedMinNeededResources: %v, SchedulingSegment: %v, "
+        "PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, PreemptionStatusStatistics: %v, DeactivationReasons: %v}",
         GetTreeId(),
         GetLoggingAttributesString(dynamicAttributes),
+        Controller_->GetPendingJobCount(),
+        Controller_->GetAggregatedMinNeededJobResources(),
         SchedulingSegment_,
         GetPreemptableJobCount(),
         GetAggressivelyPreemptableJobCount(),
@@ -3196,9 +3198,16 @@ TFairShareScheduleJobResult TOperationElement::ScheduleJob(TFairShareContext* co
     if (!HasJobsSatisfyingResourceLimits(*context)) {
         OPERATION_LOG_DETAILED(this,
             "No pending jobs can satisfy available resources on node "
-            "(FreeResources: %v, DiscountResources: %v)",
+            "(FreeResources: %v, DiscountResources: %v, MinNeededResources: %v, DetailedMinNeededResources: %v)",
             FormatResources(context->SchedulingContext()->GetNodeFreeResourcesWithoutDiscount()),
-            FormatResources(context->SchedulingContext()->ResourceUsageDiscount()));
+            FormatResources(context->SchedulingContext()->ResourceUsageDiscount()),
+            FormatResources(Controller_->GetAggregatedMinNeededJobResources()),
+            MakeFormattableView(
+                Controller_->GetDetailedMinNeededJobResources(),
+                [&] (TStringBuilderBase* builder, const TJobResourcesWithQuota& resources) {
+                    builder->AppendFormat("%v",
+                        Host_->FormatResources(resources));
+                }));
         disableOperationElement(EDeactivationReason::MinNeededResourcesUnsatisfied);
         return TFairShareScheduleJobResult(/* finished */ true, /* scheduled */ false);
     }
