@@ -601,11 +601,11 @@ print row + table_index
 
         wait(lambda : op.get_job_count("completed") >= 2)
 
-        time.sleep(1)
-
-        live_preview_data = read_table(operation_path + "/output_0", tx=async_transaction_id)
-        assert len(live_preview_data) == 2
-        assert all(record in data for record in live_preview_data)
+        def check():
+            live_preview_data = read_table(operation_path + "/output_0", tx=async_transaction_id)
+            return len(live_preview_data) == 2 and \
+                   all(record in data for record in live_preview_data)
+        wait(check)
 
         release_breakpoint()
         op.track()
@@ -1558,8 +1558,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
                 banned = True
         assert banned
 
-        time.sleep(1)
-        assert get("#{0}/@replication_status/default/lost".format(chunk_id))
+        wait(lambda: get("#{0}/@replication_status/default/lost".format(chunk_id)))
 
         for row in original_data[1:]:
             write_table("<append=true>//tmp/t_input", row, verbose=False)
@@ -1575,10 +1574,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
                      "data_size_per_job": chunk_size * 2
                  })
 
-        while True:
-            time.sleep(0.2)
-            if op.get_job_count("completed") > 3:
-                break
+        wait(lambda: op.get_job_count("completed") > 3)
 
         unbanned = False
         for node in ls("//sys/cluster_nodes"):
