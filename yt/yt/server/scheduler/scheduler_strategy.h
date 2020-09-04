@@ -178,6 +178,10 @@ struct ISchedulerStrategy
     //! depending on the operation's demand and current resource usage in each tree.
     virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) = 0;
 
+    virtual void InitOperationSchedulingSegment(const IOperationStrategyHost* operation, const TJobResources& minNeededResources) = 0;
+
+    virtual TTreeIdToSchedulingSegmentsInfo GetSchedulingSegmentsInfoPerTree() const = 0;
+
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
         std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,

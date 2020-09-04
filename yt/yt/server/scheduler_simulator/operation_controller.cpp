@@ -489,7 +489,7 @@ void TSimulatorOperationController::UpdateMinNeededJobResources()
         auto resources = bucket->GetMinNeededResources();
 
         result.push_back(resources);
-        YT_LOG_DEBUG("Aggregated minimal needed resources for jobs (JobType: %v, MinNeededResources: %v)",
+        YT_LOG_DEBUG("Aggregated minimum needed resources for jobs (JobType: %v, MinNeededResources: %v)",
             jobType,
             FormatResources(resources));
     }

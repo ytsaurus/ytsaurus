@@ -55,6 +55,20 @@ TFairShareStrategyOperationControllerConfig::TFairShareStrategyOperationControll
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFairShareStrategySchedulingSegmentsConfig::TFairShareStrategySchedulingSegmentsConfig()
+{
+    RegisterParameter("mode", Mode)
+        .Default(ESegmentedSchedulingMode::Disabled);
+
+    RegisterParameter("satisfaction_margins", SatisfactionMargins)
+        .Default();
+
+    RegisterParameter("unsatisfied_segments_rebalancing_timeout", UnsatisfiedSegmentsRebalancingTimeout)
+        .Default(TDuration::Minutes(5));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
 {
     RegisterParameter("nodes_filter", NodesFilter)
@@ -196,6 +210,8 @@ TFairShareStrategyTreeConfig::TFairShareStrategyTreeConfig()
     RegisterParameter("job_graceful_interrupt_timeout", JobGracefulInterruptTimeout)
         .Default(TDuration::Seconds(60));
 
+    RegisterParameter("scheduling_segments", SchedulingSegments)
+        .DefaultNew();
 
     RegisterPostprocessor([&] () {
         if (AggressivePreemptionSatisfactionThreshold > PreemptionSatisfactionThreshold) {
@@ -577,6 +593,9 @@ TSchedulerConfig::TSchedulerConfig()
     
     RegisterParameter("resource_metering", ResourceMetering)
         .DefaultNew();
+
+    RegisterParameter("scheduling_segments_manage_period", SchedulingSegmentsManagePeriod)
+        .Default(TDuration::Seconds(10));
 
     RegisterPreprocessor([&] () {
         EventLog->MaxRowWeight = 128_MB;

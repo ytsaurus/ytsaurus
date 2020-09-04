@@ -144,6 +144,7 @@ void FromProto(TOperationControllerMaterializeResult* result, const NControllerA
 {
     result->Suspend = resultProto.suspend();
     result->InitialNeededResources = FromProto<TJobResources>(resultProto.initial_needed_resources());
+    result->InitialAggregatedMinNeededResources = FromProto<TJobResources>(resultProto.initial_aggregated_min_needed_resources());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -654,9 +655,11 @@ public:
 
         if (resultOrError.IsOK()) {
             auto materializeResult = resultOrError.Value();
-            YT_LOG_DEBUG("Successful materialization result received (Suspend: %v, InitialNeededResources: %v)",
+            YT_LOG_DEBUG("Successful materialization result received ("
+                "Suspend: %v, InitialNeededResources: %v, InitialAggregatedMinNeededResources: %v)",
                 materializeResult.Suspend,
-                FormatResources(materializeResult.InitialNeededResources));
+                FormatResources(materializeResult.InitialNeededResources),
+                FormatResources(materializeResult.InitialAggregatedMinNeededResources));
         } else {
             YT_LOG_DEBUG("Unsuccessful materialization result received (Error: %v)", resultOrError);
             ProcessControllerAgentError(resultOrError);

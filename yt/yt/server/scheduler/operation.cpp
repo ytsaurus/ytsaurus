@@ -123,7 +123,8 @@ TOperation::TOperation(
     bool isScheduledInSingleTree,
     EOperationState state,
     const std::vector<TOperationEvent>& events,
-    bool suspended)
+    bool suspended,
+    const std::optional<TJobResources>& initialAggregatedMinNeededResources)
     : MutationId_(mutationId)
     , State_(state)
     , Suspended_(suspended)
@@ -135,6 +136,7 @@ TOperation::TOperation(
     , SuspiciousJobs_(NYson::TYsonString(TString(), NYson::EYsonType::MapFragment))
     , Alias_(alias)
     , BaseAcl_(std::move(baseAcl))
+    , InitialAggregatedMinNeededResources_(initialAggregatedMinNeededResources)
     , Id_(id)
     , Type_(type)
     , StartTime_(startTime)

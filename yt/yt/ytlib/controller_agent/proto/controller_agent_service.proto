@@ -159,6 +159,7 @@ message TMaterializeOperationResult
     // Set to true if suspend_operation_after_materialization is set.
     required bool suspend = 1;
     required NScheduler.NProto.TJobResources initial_needed_resources = 2;
+    required NScheduler.NProto.TJobResources initial_aggregated_min_needed_resources = 3;
 }
 
 message TReqMaterializeOperation

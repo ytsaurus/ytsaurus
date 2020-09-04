@@ -59,6 +59,11 @@ DEFINE_ENUM(EEnablePorto,
     ((None)    (1))
 );
 
+DEFINE_ENUM(ESchedulingSegment,
+    (Default)
+    (LargeGpu)
+);
+
 DECLARE_REFCOUNTED_CLASS(TJobIOConfig)
 DECLARE_REFCOUNTED_CLASS(TTestingOperationOptions)
 DECLARE_REFCOUNTED_CLASS(TAutoMergeConfig)

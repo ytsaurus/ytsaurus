@@ -73,13 +73,13 @@ class TJob
 
     //! Temporary flag used during heartbeat jobs processing to mark found jobs.
     DEFINE_BYVAL_RW_PROPERTY(bool, FoundOnNode);
-    
+
     //! Preemption mode which says how to preempt job.
     DEFINE_BYVAL_RO_PROPERTY(EPreemptionMode, PreemptionMode);
 
     //! Flag that marks job as preempted by scheduler.
     DEFINE_BYVAL_RW_PROPERTY(bool, Preempted, false);
-    
+
     //! Job fail was requested by scheduler.
     DEFINE_BYVAL_RW_PROPERTY(bool, FailRequested, false);
 
@@ -100,6 +100,9 @@ class TJob
 
     //! True for revived job that was not confirmed by a heartbeat from the corresponding node yet.
     DEFINE_BYVAL_RW_PROPERTY(bool, WaitingForConfirmation, false);
+
+    //! Job execution duration as reported by the node.
+    DEFINE_BYVAL_RW_PROPERTY(TDuration, ExecDuration);
 
 public:
     TJob(

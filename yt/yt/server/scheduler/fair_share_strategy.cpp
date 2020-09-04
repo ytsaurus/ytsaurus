@@ -7,6 +7,7 @@
 #include "scheduler_strategy.h"
 #include "scheduler_tree.h"
 #include "scheduling_context.h"
+#include "scheduling_segment_manager.h"
 #include "fair_share_strategy_operation_controller.h"
 
 #include <yt/server/lib/scheduler/config.h>
@@ -962,6 +963,35 @@ public:
             bestReserveRatio);
 
         return bestTree;
+    }
+
+    virtual void InitOperationSchedulingSegment(const IOperationStrategyHost* operation, const TJobResources& minNeededResources) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        auto maybeSpecifiedSegment = ParseSpec(operation)->SchedulingSegment;
+        auto operationId = operation->GetId();
+        auto state = GetOperationState(operationId);
+        for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
+            auto tree = GetTree(treeId);
+            auto segment = maybeSpecifiedSegment
+                ? *maybeSpecifiedSegment
+                : TSchedulingSegmentManager::GetSegmentForOperation(tree->GetSegmentedSchedulingMode(), minNeededResources);
+
+            tree->SetOperationSchedulingSegment(operationId, segment);
+        }
+    }
+
+    virtual TTreeIdToSchedulingSegmentsInfo GetSchedulingSegmentsInfoPerTree() const
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers);
+
+        TTreeIdToSchedulingSegmentsInfo result;
+        for (const auto& [treeId, tree] : IdToTree_) {
+            result.emplace(treeId, tree->GetSchedulingSegmentsInfo());
+        }
+
+        return result;
     }
 
     virtual void ScanWaitingForPoolOperations() override

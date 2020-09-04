@@ -390,6 +390,8 @@ public:
 
     EPreemptionMode PreemptionMode;
 
+    std::optional<ESchedulingSegment> SchedulingSegment;
+
     TStrategyOperationSpec();
 
 private:

@@ -8,6 +8,7 @@
 #include "scheduler_strategy.h"
 #include "scheduler_tree.h"
 #include "scheduling_context.h"
+#include "scheduling_segment_manager.h"
 #include "fair_share_strategy_operation_controller.h"
 
 #include "operation_log.h"
@@ -1264,13 +1265,23 @@ auto TFairShareTree<TFairShareImpl>::DoScheduleJobsWithPreemptionImpl(
                 continue;
             }
 
-            if (!operationElement->IsPreemptionAllowed(isAggressive, config)) {
-                continue;
-            }
-
-            bool aggressivePreemptionEnabled = isAggressive &&
+            bool isAggressivePreemptionEnabled = isAggressive &&
                 operationElement->IsAggressiveStarvationPreemptionAllowed();
-            if (operationElement->IsJobPreemptable(job->GetId(), aggressivePreemptionEnabled)) {
+            bool isJobPreemptable = operationElement->IsPreemptionAllowed(isAggressive, config) &&
+                operationElement->IsJobPreemptable(job->GetId(), isAggressivePreemptionEnabled);
+
+            bool forceJobPreemptable = config->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled &&
+                context->SchedulingContext()->GetSchedulingSegment() != operationElement->SchedulingSegment();
+            YT_LOG_TRACE_IF(forceJobPreemptable,
+                "Job is preemptable because it is running on a node in a different scheduling segment "
+                "(JobId: %v, OperationId: %v, OperationSegment: %v, NodeSegment: %v, Address: %v)",
+                job->GetId(),
+                operationElement->GetId(),
+                operationElement->SchedulingSegment(),
+                context->SchedulingContext()->GetSchedulingSegment(),
+                context->SchedulingContext()->GetNodeDescriptor().Address);
+
+            if (isJobPreemptable || forceJobPreemptable) {
                 const auto* parent = operationElement->GetParent();
                 while (parent) {
                     discountedPools.insert(parent);
@@ -1779,6 +1790,7 @@ auto TFairShareTree<TFairShareImpl>::DoBuildOperationProgress(
     fluent
         .Item("pool").Value(parent->GetId())
         .Item("slot_index").Value(element->GetMaybeSlotIndex())
+        .Item("scheduling_segment").Value(element->SchedulingSegment())
         .Item("start_time").Value(element->GetStartTime())
         .Item("preemptable_job_count").Value(element->GetPreemptableJobCount())
         .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
@@ -2607,6 +2619,66 @@ auto TFairShareTree<TFairShareImpl>::InitPersistentTreeState(const TPersistentTr
                 volume);
         }
     }
+}
+
+template <class TFairShareImpl>
+ESegmentedSchedulingMode TFairShareTree<TFairShareImpl>::GetSegmentedSchedulingMode() const
+{
+    return Config_->SchedulingSegments->Mode;
+}
+
+template <class TFairShareImpl>
+void TFairShareTree<TFairShareImpl>::SetOperationSchedulingSegment(TOperationId operationId, ESchedulingSegment segment)
+{
+    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+    YT_LOG_DEBUG("Setting operation scheduling segment (OperationId: %v, Segment: %v)",
+        operationId,
+        segment);
+
+    auto element = GetOperationElement(operationId);
+    element->SchedulingSegment() = segment;
+}
+
+template <class TFairShareImpl>
+TPoolTreeSchedulingSegmentsInfo TFairShareTree<TFairShareImpl>::GetSchedulingSegmentsInfo() const
+{
+    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+    TPoolTreeSchedulingSegmentsInfo result;
+    result.TreeIdProfilingTag = TreeIdProfilingTag_;
+    result.Mode = Config_->SchedulingSegments->Mode;
+    result.UnsatisfiedSegmentsRebalancingTimeout = Config_->SchedulingSegments->UnsatisfiedSegmentsRebalancingTimeout;
+
+    if (result.Mode == ESegmentedSchedulingMode::Disabled) {
+        return result;
+    }
+
+    auto keyResource = TSchedulingSegmentManager::GetSegmentBalancingKeyResource(result.Mode);
+    result.KeyResource = keyResource;
+
+    if (!RootElementSnapshot_) {
+        return result;
+    }
+
+    TEnumIndexedVector<ESchedulingSegment, double> fairSharePerSegment;
+    for (const auto& [_, operationElement] : RootElementSnapshot_->OperationIdToElement) {
+        // Segment may be unset due to a race, and in this case we silently ignore the operation.
+        if (const auto& segment = operationElement->SchedulingSegment()) {
+            fairSharePerSegment[*segment] += operationElement->Attributes().GetFairShare()[keyResource];
+        }
+    }
+
+    const auto& totalResourceLimits = RootElementSnapshot_->RootElement->GetTotalResourceLimits();
+    auto keyResourceLimit = GetResource(totalResourceLimits, keyResource);
+    for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
+        auto keyResourceFairAmount = fairSharePerSegment[segment] * keyResourceLimit;
+        auto satisfactionMargin = Config_->SchedulingSegments->SatisfactionMargins[segment];
+
+        result.FairResourceAmountPerSegment[segment] = std::max(keyResourceFairAmount + satisfactionMargin, 0.0);
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

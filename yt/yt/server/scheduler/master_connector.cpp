@@ -980,7 +980,8 @@ private:
                 spec->ScheduleInSingleTree && scheduler->GetConfig()->EnableScheduleInSingleTree,
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
-                /* suspended */ attributes.Get<bool>("suspended", false));
+                /* suspended */ attributes.Get<bool>("suspended", false),
+                attributes.Find<TJobResources>("initial_aggregated_min_needed_resources"));
 
             operation->SetShouldFlushAcl(true);
 
@@ -1450,6 +1451,13 @@ private:
                 auto req = multisetReq->add_subrequests();
                 req->set_key("runtime_parameters");
                 req->set_value(ConvertToYsonString(operation->GetRuntimeParameters()).GetData());
+            }
+
+            // Set initial aggregated min needed resources.
+            if (operation->InitialAggregatedMinNeededResources()) {
+                auto req = multisetReq->add_subrequests();
+                req->set_key("initial_aggregated_min_needed_resources");
+                req->set_value(ConvertToYsonString(*operation->InitialAggregatedMinNeededResources()).GetData());
             }
 
             batchReq->AddRequest(multisetReq, "update_op_node");

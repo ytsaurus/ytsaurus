@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "scheduling_tag.h"
+#include "structs.h"
 
 #include <yt/server/lib/job_proxy/config.h>
 
@@ -44,6 +45,7 @@ DEFINE_ENUM(EDeactivationReason,
     (FairShareExceeded)
     (MaxConcurrentScheduleJobCallsPerNodeShardViolated)
     (RecentScheduleJobFailed)
+    (IncompatibleSchedulingSegment)
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -129,6 +131,23 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerIntegralGuaranteesConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFairShareStrategySchedulingSegmentsConfig
+    : public NYTree::TYsonSerializable
+{
+public:
+    ESegmentedSchedulingMode Mode;
+
+    TSegmentToResourceAmount SatisfactionMargins;
+
+    TDuration UnsatisfiedSegmentsRebalancingTimeout;
+
+    TFairShareStrategySchedulingSegmentsConfig();
+};
+
+DEFINE_REFCOUNTED_TYPE(TFairShareStrategySchedulingSegmentsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -239,6 +258,8 @@ public:
 
     // Timeout for graceful job interruption before we abort it.
     TDuration JobGracefulInterruptTimeout;
+
+    TFairShareStrategySchedulingSegmentsConfigPtr SchedulingSegments;
 
     TFairShareStrategyTreeConfig();
 };
@@ -626,6 +647,8 @@ public:
 
     //! Config for some resource metering defaults.
     TResourceMeteringConfigPtr ResourceMetering;
+
+    TDuration SchedulingSegmentsManagePeriod;
 
     TSchedulerConfig();
 };

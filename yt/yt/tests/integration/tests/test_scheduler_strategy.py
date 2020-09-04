@@ -2476,6 +2476,340 @@ class TestMinNeededResources(YTEnvSetup):
 
 ##################################################################
 
+class BaseTestSchedulingSegments(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 10
+    NUM_SCHEDULERS = 1
+
+    BASE_DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "watchers_update_period": 100,
+            "fair_share_update_period": 100,
+            "fair_share_profiling_period": 100,
+            "scheduling_segments_manage_period": 100,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 10,
+                    "user_slots": 10,
+                },
+                "gpu_manager": {
+                    "test_resource": True,
+                    "test_gpu_count": 8
+                },
+            },
+        },
+        "scheduler_connector": {
+            "heartbeat_period": 100,
+        },
+        "job_proxy_heartbeat_period": 100,
+    }
+
+    def _get_usage_ratio(self, op, tree="default"):
+        return get(scheduler_orchid_operation_path(op, tree) + "/usage_ratio", default=0.0)
+
+    def _get_fair_share_ratio(self, op, tree="default"):
+        return get(scheduler_orchid_operation_path(op, tree) + "/fair_share_ratio", default=0.0)
+
+    def setup_method(self, method):
+        super(BaseTestSchedulingSegments, self).setup_method(method)
+        # NB(eshcherbin): This is done to reset node segments.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+        create_pool("cpu", wait_for_orchid=False)
+        create_pool("small_gpu", wait_for_orchid=False)
+        create_pool("large_gpu")
+        set("//sys/pool_trees/default/@scheduling_segments", {
+            "mode": "large_gpu",
+            "unsatisfied_segments_rebalancing_timeout": 1000,
+        })
+        # Not to let preemption abort the jobs instead of segments manager.
+        set("//sys/pool_trees/default/@preemptive_scheduling_backoff", 0)
+        set("//sys/pool_trees/default/@max_unpreemptable_running_job_count", 80)
+        set("//sys/pool_trees/default/@fair_share_preemption_timeout", 100)
+        set("//sys/pool_trees/default/@fair_share_preemption_timeout_limit", 100)
+        set("//sys/pool_trees/default/@fair_share_starvation_tolerance", 0.95)
+        set("//sys/pool_trees/default/@fair_share_starvation_tolerance_limit", 0.95)
+        # TODO(eshcherbin): Remove sleep here and below when tree config is exported to Orchid.
+        time.sleep(0.5)
+
+    @authors("eshcherbin")
+    def test_large_gpu_segment_extended(self):
+        blocking_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+
+        op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+
+    @authors("eshcherbin")
+    def test_default_segment_extended_gpu(self):
+        blocking_op = run_sleeping_vanilla(job_count=10, spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+
+        op = run_sleeping_vanilla(job_count=8, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+
+    @authors("eshcherbin")
+    def test_default_segment_extended_cpu(self):
+        if not self.DELTA_SCHEDULER_CONFIG["scheduler"].get("use_classic_scheduler", True):
+            pytest.skip("There is no logic that reduces oversatisfied segments yet, "
+                        "and operations with zero GPU demand do not change the default segment's fair resource amount")
+
+        blocking_op = run_sleeping_vanilla(job_count=10, spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+
+        op = run_sleeping_vanilla(job_count=10, spec={"pool": "cpu"}, task_patch={"cpu_limit": 1})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+
+    @authors("eshcherbin")
+    def test_default_segment_extended_gpu_and_cpu(self):
+        if not self.DELTA_SCHEDULER_CONFIG["scheduler"].get("use_classic_scheduler", True):
+            pytest.skip("There is no logic that reduces oversatisfied segments yet, "
+                        "and operations with zero GPU demand do not change the default segment's fair resource amount")
+
+        blocking_op = run_sleeping_vanilla(job_count=10, spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+
+        op1 = run_sleeping_vanilla(job_count=10, spec={"pool": "cpu"}, task_patch={"cpu_limit": 1})
+        op2 = run_sleeping_vanilla(job_count=8, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op1.id), 0.1))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op2.id), 0.1))
+
+    @authors("eshcherbin")
+    def test_satisfaction_margins(self):
+        fair_resource_amount_last = Metric.at_scheduler(
+            "scheduler/segments/fair_resource_amount",
+            grouped_by_tags=["segment"],
+            aggr_method="last")
+        current_resource_amount_last = Metric.at_scheduler(
+            "scheduler/segments/current_resource_amount",
+            grouped_by_tags=["segment"],
+            aggr_method="last")
+
+        blocking_op = run_sleeping_vanilla(job_count=4, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.05))
+
+        # We have to leave one node for the default segment, otherwise it isn't satisfied.
+        op = run_sleeping_vanilla(job_count=10, spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.95))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.9))
+
+        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 4)
+        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 76)
+        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 8)
+        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 72)
+
+        # Tweak satisfaction margin, but still fair resource of the default segment is positive, so nothing happens.
+        set("//sys/pool_trees/default/@scheduling_segments/satisfaction_margins", {"default": -3.0})
+
+        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 1)
+        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 76)
+        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 8)
+        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 72)
+
+        # Finally, change satisfaction margin to be able to satisfy the large gpu segment.
+        set("//sys/pool_trees/default/@scheduling_segments/satisfaction_margins", {"default": -4.0})
+
+        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 0)
+        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 76)
+        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 0)
+        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 80)
+
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.0))
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(blocking_op.id), 0.05))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 1.0))
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.95))
+
+    @authors("eshcherbin")
+    def test_rebalancing_heuristic(self):
+        blocking_op1 = run_sleeping_vanilla(job_count=9, spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op1.id), 0.9))
+
+        # Need to spend some time to ensure the nodes where blocking_op1's jobs are running won't be moved.
+        time.sleep(1.0)
+
+        blocking_op2 = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op2.id), 0.1))
+
+        def get_first_job_node(op):
+            wait(lambda: len(op.get_running_jobs()) >= 1)
+            jobs = op.get_running_jobs()
+            job = jobs[list(jobs)[0]]
+            return job["address"]
+
+        expected_node = get_first_job_node(blocking_op2)
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(expected_node)) == "large_gpu")
+
+        new_op = run_sleeping_vanilla(job_count=8, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(new_op.id), 0.1))
+
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op2.id), 0.0))
+        actual_node = get_first_job_node(new_op)
+        assert actual_node == expected_node
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(actual_node)) == "default")
+
+    @authors("eshcherbin")
+    def test_mixed_operation(self):
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "small": {"job_count": 1, "command": "sleep 1000", "gpu_limit": 1, "enable_gpu_layers": False},
+                    "large": {"job_count": 1, "command": "sleep 1000", "gpu_limit": 8, "enable_gpu_layers": False},
+                }
+            },
+            track=False)
+
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default="") == "default")
+
+    @authors("eshcherbin")
+    def test_specified_segment(self):
+        small_but_large_op = run_sleeping_vanilla(spec={"pool": "small_gpu", "scheduling_segment": "large_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        large_but_small_op = run_sleeping_vanilla(spec={"pool": "large_gpu", "scheduling_segment": "default"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+
+        wait(lambda: get(scheduler_orchid_operation_path(small_but_large_op.id) + "/scheduling_segment", default="") == "large_gpu")
+        wait(lambda: get(scheduler_orchid_operation_path(large_but_small_op.id) + "/scheduling_segment", default="") == "default")
+
+        with pytest.raises(YtError):
+            run_sleeping_vanilla(spec={"pool": "small_gpu", "scheduling_segment": "my_cool_but_totally_invalid_segment"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+
+    @authors("eshcherbin")
+    def test_disabled(self):
+        set("//sys/pool_trees/default/@scheduling_segments/mode", "disabled")
+        time.sleep(0.5)
+
+        blocking_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+
+        op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
+
+        op_slot_index_path = scheduler_orchid_path() + "/scheduler/operations/{}/slot_index_per_pool_tree/default".format(op.id)
+        wait(lambda: exists(op_slot_index_path))
+        op_slot_index = get(op_slot_index_path)
+        op_usage_ratio_max = Metric.at_scheduler(
+            "scheduler/operations_by_slot/usage_ratio_x100000",
+            with_tags={"pool": "large_gpu", "slot_index": str(op_slot_index)},
+            aggr_method="max")
+
+        time.sleep(3.0)
+        wait(lambda: op_usage_ratio_max.update().get(verbose=True) == 0)
+
+    @authors("eshcherbin")
+    def test_rebalancing_timeout_changed(self):
+        set("//sys/pool_trees/default/@scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
+        time.sleep(0.5)
+
+        blocking_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+
+        op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
+
+        op_slot_index_path = scheduler_orchid_path() + "/scheduler/operations/{}/slot_index_per_pool_tree/default".format(op.id)
+        wait(lambda: exists(op_slot_index_path))
+        op_slot_index = get(op_slot_index_path)
+        op_usage_ratio_max = Metric.at_scheduler(
+            "scheduler/operations_by_slot/usage_ratio_x100000",
+            with_tags={"pool": "large_gpu", "slot_index": str(op_slot_index)},
+            aggr_method="max")
+
+        time.sleep(3.0)
+        wait(lambda: op_usage_ratio_max.update().get(verbose=True) == 0)
+
+        set("//sys/pool_trees/default/@scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000)
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
+
+    @authors("eshcherbin")
+    def test_orchid(self):
+        small_op = run_sleeping_vanilla(spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        large_op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+
+        wait(lambda: get(scheduler_orchid_operation_path(small_op.id) + "/scheduling_segment", default="") == "default")
+        wait(lambda: get(scheduler_orchid_operation_path(large_op.id) + "/scheduling_segment", default="") == "large_gpu")
+
+    @authors("eshcherbin")
+    def test_profiling(self):
+        set("//sys/pool_trees/default/@scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000000000)
+        time.sleep(0.5)
+
+        fair_resource_amount_last = Metric.at_scheduler(
+            "scheduler/segments/fair_resource_amount",
+            grouped_by_tags=["segment"],
+            aggr_method="last")
+        current_resource_amount_last = Metric.at_scheduler(
+            "scheduler/segments/current_resource_amount",
+            grouped_by_tags=["segment"],
+            aggr_method="last")
+
+        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 0)
+        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
+        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 80)
+        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
+
+        blocking_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+
+        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 80)
+        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
+        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 80)
+        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
+
+        op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_fair_share_ratio(op.id), 0.1))
+
+        time.sleep(3.0)
+
+        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 72)
+        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 8)
+        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 80)
+        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
+
+        set("//sys/pool_trees/default/@scheduling_segments/unsatisfied_segments_rebalancing_timeout", 1000)
+
+        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 72)
+        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 8)
+        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 72)
+        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 8)
+
+        op.abort()
+
+        wait(lambda: fair_resource_amount_last.update().get("default", verbose=True) == 80)
+        wait(lambda: fair_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
+        wait(lambda: current_resource_amount_last.update().get("default", verbose=True) == 80)
+        wait(lambda: current_resource_amount_last.update().get("large_gpu", verbose=True) == 0)
+
+    @authors("eshcherbin")
+    def test_revive_operation_segments(self):
+        small_op = run_sleeping_vanilla(job_count=80, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
+        large_op = run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(small_op.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(large_op.id), 0.1))
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        wait(lambda: get(scheduler_orchid_operation_path(small_op.id) + "/scheduling_segment", default="") == "default")
+        wait(lambda: get(scheduler_orchid_operation_path(large_op.id) + "/scheduling_segment", default="") == "large_gpu")
+
+        wait(lambda: are_almost_equal(self._get_usage_ratio(small_op.id), 0.9))
+        wait(lambda: are_almost_equal(self._get_usage_ratio(large_op.id), 0.1))
+
+class TestSchedulingSegmentsClassic(BaseTestSchedulingSegments):
+    DELTA_SCHEDULER_CONFIG = BaseTestSchedulingSegments.BASE_DELTA_SCHEDULER_CONFIG
+
+class TestSchedulingSegmentsVector(BaseTestSchedulingSegments):
+    DELTA_SCHEDULER_CONFIG = yt.common.update(
+        BaseTestSchedulingSegments.BASE_DELTA_SCHEDULER_CONFIG,
+        {"scheduler": {"use_classic_scheduler": False}}
+    )
+
+##################################################################
+
 class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
     NUM_CPUS_PER_NODE = 10
     NUM_SLOTS_PER_NODE = 10

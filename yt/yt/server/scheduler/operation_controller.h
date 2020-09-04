@@ -76,6 +76,7 @@ struct TOperationControllerMaterializeResult
 {
     bool Suspend = false;
     TJobResources InitialNeededResources;
+    TJobResources InitialAggregatedMinNeededResources;
 };
 
 void FromProto(TOperationControllerMaterializeResult* result, const NControllerAgent::NProto::TMaterializeOperationResult& resultProto);

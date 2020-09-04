@@ -224,10 +224,7 @@ class Metric(object):
 
     # NB(eshcherbin): **kwargs is used only for `from_time` argument.
     def _read_from_orchid(self, **kwargs):
-        try:
-            data = get(self.path, verbose=False, **kwargs)
-        except YtError:
-            data = []
+        data = get(self.path, default=[], verbose=False, **kwargs)
 
         # Keep last_update_samples up to date.
         from_time = kwargs["from_time"] if "from_time" in kwargs else 0

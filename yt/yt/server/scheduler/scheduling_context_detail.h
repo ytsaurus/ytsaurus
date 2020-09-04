@@ -53,6 +53,8 @@ public:
     virtual TJobResources GetNodeFreeResourcesWithoutDiscount() override;
     virtual TJobResources GetNodeFreeResourcesWithDiscount() override;
 
+    virtual ESchedulingSegment GetSchedulingSegment() const override;
+
 private:
     const TSchedulerConfigPtr Config_;
     const TExecNodePtr Node_;

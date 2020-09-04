@@ -256,6 +256,9 @@ public:
     //! regardless any ACL specification and any ACL changes made by user.
     DEFINE_BYREF_RO_PROPERTY(NSecurityClient::TSerializableAccessControlList, BaseAcl);
 
+    //! Aggregated minimum needed resources at the start of the operation.
+    DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(std::optional<TJobResources>, InitialAggregatedMinNeededResources);
+
 public:
     //! Returns operation id.
     TOperationId GetId() const override;
@@ -358,7 +361,8 @@ public:
         bool isScheduledInSingleTree,
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},
-        bool suspended = false);
+        bool suspended = false,
+        const std::optional<TJobResources>& initialAggregatedMinNeededResources = {});
 
 private:
     const TOperationId Id_;

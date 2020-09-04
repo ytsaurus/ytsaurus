@@ -27,6 +27,7 @@ using TCpuInstant = i64;
 using TCpuDuration = i64;
 
 using TTagId = int;
+constexpr TTagId InvalidTagId = -1;
 
 constexpr int TypicalTagCount = 8;
 using TTagIdList = SmallVector<TTagId, TypicalTagCount>;

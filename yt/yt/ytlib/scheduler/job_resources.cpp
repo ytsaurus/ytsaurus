@@ -542,15 +542,14 @@ void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
 void Deserialize(TJobResources& resources, INodePtr node)
 {
     auto mapNode = node->AsMap();
-#define XX(name, Name) \
-    auto child##Name = mapNode->FindChild(#name); \
-    if (child##Name) { \
-        auto val##Name = resources.Get##Name(); \
-        Deserialize(val##Name, child##Name); \
-        resources.Set##Name(val##Name); \
-    }
+    #define XX(name, Name) \
+        if (auto child = mapNode->FindChild(#name)) { \
+            auto value = resources.Get##Name(); \
+            Deserialize(value, child); \
+            resources.Set##Name(value); \
+        }
     ITERATE_JOB_RESOURCES(XX)
-#undef XX
+    #undef XX
 }
 
 TJobResources GetMinSpareResources()

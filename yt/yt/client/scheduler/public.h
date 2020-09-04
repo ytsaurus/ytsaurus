@@ -92,6 +92,8 @@ DEFINE_ENUM(EAbortReason,
     ((SpeculativeRunLost)              ( 16))
     ((ChunkMappingInvalidated)         ( 17))
     ((NodeWithZeroUserSlots)           ( 18))
+    ((NodeSchedulingSegmentChanged)    ( 19))
+    ((NodeFairShareTreeChanged)        ( 20))
     ((SchedulingFirst)                 (100))
     ((SchedulingTimeout)               (101))
     ((SchedulingResourceOvercommit)    (102))

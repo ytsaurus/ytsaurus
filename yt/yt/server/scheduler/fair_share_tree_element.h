@@ -103,6 +103,11 @@ struct TSchedulableAttributes
         return 0.0;
     }
 
+    TResourceVector GetFairShare() const
+    {
+        return FairShare;
+    }
+
     TResourceVector GetUnlimitedDemandFairShare() const
     {
         return UnlimitedDemandFairShare;
@@ -1043,6 +1048,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TStrategyOperationSpecPtr, Spec);
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, WaitingForPool);
+
+    DEFINE_BYREF_RW_PROPERTY(std::optional<ESchedulingSegment>, SchedulingSegment);
 
 private:
     const TOperationElementSharedStatePtr OperationElementSharedState_;

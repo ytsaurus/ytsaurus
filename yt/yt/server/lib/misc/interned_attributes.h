@@ -305,6 +305,7 @@
     XX(Revision, revision) \
     XX(RowCount, row_count) \
     XX(ScanFlags, scan_flags) \
+    XX(SchedulingSegments, scheduling_segments) \
     XX(SchedulingTag, scheduling_tag) \
     XX(SchedulingTagFilter, scheduling_tag_filter) \
     XX(Schema, schema) \
