@@ -966,7 +966,8 @@ auto TFairShareTree<TFairShareImpl>::BuildOrchid(TFluentMap fluent) -> void
     VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     fluent
-        .Item("resource_usage").Value(GetRecentRootSnapshot()->ResourceUsageAtUpdate());
+        .Item("resource_usage").Value(GetRecentRootSnapshot()->ResourceUsageAtUpdate())
+        .Item("config").Value(Config_);
 }
 
 template <class TFairShareImpl>
