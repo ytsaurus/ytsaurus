@@ -182,8 +182,12 @@ public:
         if (Type_ == ETransactionType::Master) {
             ReplicatedToMasterCellTags_ = options.ReplicateToMasterCellTags.value_or(TCellTagList());
 
-            auto optionsCoordinatorCellTag = GetCoordinatorMasterCellTagFromOptionsOrThrow(options);
-            if (optionsCoordinatorCellTag) {
+            auto optionsCoordinatorCellTagOrError = GetCoordinatorMasterCellTagFromOptions(options);
+            if (!optionsCoordinatorCellTagOrError.IsOK()) {
+                return MakeFuture(TError(optionsCoordinatorCellTagOrError));
+            }
+
+            if (auto optionsCoordinatorCellTag = optionsCoordinatorCellTagOrError.Value()) {
                 CoordinatorMasterCellTag_ = *optionsCoordinatorCellTag;
             } else {
                 // Need to wait for master cell dir sync.
@@ -197,9 +201,7 @@ public:
                 auto syncFuture = connection->GetMasterCellDirectorySynchronizer()->RecentSync();
                 if (!syncFuture.IsSet()) { // True most of the time.
                     return syncFuture.Apply(
-                        BIND([=, this_ = MakeStrong(this)] {
-                            DoStart(options);
-                        }));
+                        BIND(&TImpl::DoStart, MakeStrong(this), options));
                 }
             }
         }
@@ -209,8 +211,11 @@ public:
 
     TFuture<void> DoStart(const TTransactionStartOptions& options)
     {
-        auto connection = TryLockConnection()
-            .ValueOrThrow();
+        auto connectionOrError = TryLockConnection();
+        if (!connectionOrError.IsOK()) {
+            return MakeFuture(TError(connectionOrError));
+        }
+        auto connection = connectionOrError.Value();
         if (CoordinatorMasterCellTag_ == InvalidCellTag) {
             CoordinatorMasterCellId_ = connection->GetMasterCellDirectory()->PickRandomMasterCellWithRole(EMasterCellRoles::TransactionCoordinator);
             CoordinatorMasterCellTag_ = CellTagFromId(CoordinatorMasterCellId_);
@@ -546,24 +551,24 @@ private:
         }
     }
 
-    static std::optional<TCellTag> GetCoordinatorMasterCellTagFromOptionsOrThrow(const TTransactionStartOptions& options)
+    static TErrorOr<std::optional<TCellTag>> GetCoordinatorMasterCellTagFromOptions(const TTransactionStartOptions& options)
     {
         const auto parentId = options.ParentId;
         const auto coordinatorCellTag = options.CoordinatorMasterCellTag;
         const auto& prerequisiteTransactionIds = options.PrerequisiteTransactionIds;
 
         if (parentId && coordinatorCellTag != InvalidCellTag && CellTagFromId(parentId) != coordinatorCellTag) {
-            THROW_ERROR_EXCEPTION("Both parent transaction and coordinator master cell tag specified, and they refer to different cells");
+            return TError("Both parent transaction and coordinator master cell tag specified, and they refer to different cells");
         }
 
         if (prerequisiteTransactionIds.empty()) {
             if (parentId) {
-                return CellTagFromId(parentId);
+                return std::make_optional(CellTagFromId(parentId));
             }
             if (coordinatorCellTag != InvalidCellTag) {
-                return coordinatorCellTag;
+                return std::make_optional(coordinatorCellTag);
             }
-            return std::nullopt;
+            return std::optional<TCellTag>(std::nullopt);
         }
 
         std::vector<TCellTag> prerequisiteTransactionCellTags;
@@ -575,20 +580,20 @@ private:
         SortUnique(prerequisiteTransactionCellTags);
 
         if (prerequisiteTransactionCellTags.size() > 1) {
-            THROW_ERROR_EXCEPTION("Multiple prerequisite transactions from different cells specified");
+            return TError("Multiple prerequisite transactions from different cells specified");
         }
 
         const auto prerequisiteTransactionCellTag = prerequisiteTransactionCellTags.front();
 
         if (parentId && CellTagFromId(parentId) != prerequisiteTransactionCellTag) {
-            THROW_ERROR_EXCEPTION("Both parent and prerequisite transactions specified, and they refer to different cells");
+            return TError("Both parent and prerequisite transactions specified, and they refer to different cells");
         }
 
         if (coordinatorCellTag != InvalidCellTag && coordinatorCellTag != prerequisiteTransactionCellTag) {
-            THROW_ERROR_EXCEPTION("Both coordinator master cell tag and a prerequisite transaction specified, and they refer to different cells");
+            return TError("Both coordinator master cell tag and a prerequisite transaction specified, and they refer to different cells");
         }
 
-        return prerequisiteTransactionCellTag;
+        return std::make_optional(prerequisiteTransactionCellTag);
     }
 
     static void ValidateMasterStartOptions(const TTransactionStartOptions& options)
@@ -605,7 +610,8 @@ private:
                 EDurability::Sync);
         }
 
-        GetCoordinatorMasterCellTagFromOptionsOrThrow(options);
+        GetCoordinatorMasterCellTagFromOptions(options)
+            .ThrowOnError();
     }
 
     static void ValidateTabletStartOptions(const TTransactionStartOptions& options)
