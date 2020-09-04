@@ -50,7 +50,9 @@ TTransaction::TTransaction(
     , PingAncestors_(pingAncestors)
     , PingPeriod_(pingPeriod)
     , Logger(NLogging::TLogger(RpcProxyClientLogger)
-        .AddTag("TransactionId: %v", GetId()))
+        .AddTag("TransactionId: %v, %v",
+            GetId(),
+            Connection_->GetLoggingId()))
     , Proxy_(Channel_)
 {
     const auto& config = Connection_->GetConfig();
@@ -148,7 +150,7 @@ void TTransaction::RegisterAlienTransaction(const ITransactionPtr& transaction)
         AlienTransactions_.push_back(std::move(transaction));
     }
 
-    YT_LOG_DEBUG("Alien transaction registered (AlienConnectionId: %v)",
+    YT_LOG_DEBUG("Alien transaction registered (AlienConnection: {%v})",
         transaction->GetConnection()->GetLoggingId());
 }
 
@@ -294,7 +296,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 
                     const auto& result = resultOrError.Value();
 
-                    YT_LOG_DEBUG("Alien transaction flushed (ParticipantCellIds: %v, AlienConnectionId: %v)",
+                    YT_LOG_DEBUG("Alien transaction flushed (ParticipantCellIds: %v, AlienConnection: {%v})",
                         result.ParticipantCellIds,
                         transaction->GetConnection()->GetLoggingId());
 
@@ -302,11 +304,6 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
                         AdditionalParticipantCellIds_.insert(cellId);
                     }
                 })));
-    }
-    if (!alienTransactions.empty()) {
-        auto req = Proxy_.FlushTransaction();
-        ToProto(req->mutable_transaction_id(), GetId());
-        futures.push_back(req->Invoke().AsVoid());
     }
 
     return AllSucceeded(futures)
