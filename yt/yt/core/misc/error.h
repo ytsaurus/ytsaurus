@@ -96,10 +96,12 @@ public:
 
     bool HasOriginAttributes() const;
     TStringBuf GetHost() const;
-    TInstant GetDatetime() const;
     TProcessId GetPid() const;
     NConcurrency::TThreadId GetTid() const;
     NConcurrency::TFiberId GetFid() const;
+
+    bool HasDatetime() const;
+    TInstant GetDatetime() const;
 
     bool HasTracingAttributes() const;
     NTracing::TTraceId GetTraceId() const;
@@ -146,7 +148,7 @@ private:
     std::vector<TError> InnerErrors_;
 
     void CaptureOriginAttributes();
-    void ExtractOriginAttributes();
+    void ExtractSystemAttributes();
 
     friend void ToProto(NProto::TError* protoError, const TError& error);
     friend void FromProto(TError* error, const NProto::TError& protoError);

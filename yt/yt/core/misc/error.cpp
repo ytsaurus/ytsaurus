@@ -199,6 +199,11 @@ TStringBuf TError::GetHost() const
     return Host_;
 }
 
+bool TError::HasDatetime() const
+{
+    return Datetime_ != TInstant();
+}
+
 TInstant TError::GetDatetime() const
 {
     return Datetime_;
@@ -335,7 +340,10 @@ void TErrorOr<void>::Save(TStreamSaveContext& context) const
     auto attributePairs = Attributes_ ? Attributes_->ListPairs() : std::vector<IAttributeDictionary::TKeyValuePair>();
     size_t attributeCount = attributePairs.size();
     if (HasOriginAttributes()) {
-        attributeCount += 5;
+        attributeCount += 4;
+    }
+    if (HasDatetime()) {
+        attributeCount += 1;
     }
     if (HasTracingAttributes()) {
         attributeCount += 2;
@@ -356,9 +364,6 @@ void TErrorOr<void>::Save(TStreamSaveContext& context) const
             static const TString HostKey("host");
             saveAttribute(HostKey, Host_);
 
-            static const TString DatetimeKey("datetime");
-            saveAttribute(DatetimeKey, Datetime_);
-
             static const TString PidKey("pid");
             saveAttribute(PidKey, Pid_);
 
@@ -367,6 +372,11 @@ void TErrorOr<void>::Save(TStreamSaveContext& context) const
 
             static const TString FidKey("fid");
             saveAttribute(FidKey, Fid_);
+        }
+
+        if (HasDatetime()) {
+            static const TString DatetimeKey("datetime");
+            saveAttribute(DatetimeKey, Datetime_);
         }
 
         if (HasTracingAttributes()) {
@@ -399,7 +409,7 @@ void TErrorOr<void>::Load(TStreamLoadContext& context)
     Load(context, Message_);
 
     Load(context, Attributes_);
-    ExtractOriginAttributes();
+    ExtractSystemAttributes();
 
     Load(context, InnerErrors_);
 }
@@ -417,7 +427,7 @@ void TError::CaptureOriginAttributes()
     }
 }
 
-void TError::ExtractOriginAttributes()
+void TError::ExtractSystemAttributes()
 {
     if (!Attributes_) {
         return;
@@ -502,12 +512,19 @@ void AppendError(TStringBuilderBase* builder, const TError& error, int indent)
         AppendAttribute(
             builder,
             "origin",
-            Format("%v on %v (pid %v, tid %llx, fid %llx)",
+            Format("%v (pid %v, tid %llx, fid %llx)",
                 error.GetHost(),
-                error.GetDatetime(),
                 error.GetPid(),
                 error.GetTid(),
                 error.GetFid()),
+            indent);
+    }
+
+    if (error.HasDatetime()) {
+        AppendAttribute(
+            builder,
+            "datetime",
+            Format("%v", error.GetDatetime()),
             indent);
     }
 
@@ -602,9 +619,6 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
         static const TString HostKey("host");
         addAttribute(HostKey, error.Host_);
 
-        static const TString DatetimeKey("datetime");
-        addAttribute(DatetimeKey, error.Datetime_);
-
         static const TString PidKey("pid");
         addAttribute(PidKey, error.Pid_);
 
@@ -613,6 +627,11 @@ void ToProto(NYT::NProto::TError* protoError, const TError& error)
 
         static const TString FidKey("fid");
         addAttribute(FidKey, error.Fid_);
+    }
+
+    if (error.HasDatetime()) {
+        static const TString DatetimeKey("datetime");
+        addAttribute(DatetimeKey, error.Datetime_);
     }
 
     if (error.HasTracingAttributes()) {
@@ -635,7 +654,7 @@ void FromProto(TError* error, const NYT::NProto::TError& protoError)
     error->Message_ = protoError.message();
     if (protoError.has_attributes()) {
         error->Attributes_ = FromProto(protoError.attributes());
-        error->ExtractOriginAttributes();
+        error->ExtractSystemAttributes();
     } else {
         error->Attributes_ = nullptr;
     }
@@ -696,10 +715,13 @@ void Serialize(
                 if (error.HasOriginAttributes()) {
                     fluent
                         .Item("host").Value(error.GetHost())
-                        .Item("datetime").Value(error.GetDatetime())
                         .Item("pid").Value(error.GetPid())
                         .Item("tid").Value(error.GetTid())
                         .Item("fid").Value(error.GetFid());
+                }
+                if (error.HasOriginAttributes()) {
+                    fluent
+                        .Item("datetime").Value(error.GetDatetime());
                 }
                 if (error.HasTracingAttributes()) {
                     fluent
@@ -743,7 +765,7 @@ void Deserialize(TError& error, const NYTree::INodePtr& node)
 
     static const TString AttributesKey("attributes");
     error.Attributes_ = IAttributeDictionary::FromMap(mapNode->GetChildOrThrow(AttributesKey)->AsMap());
-    error.ExtractOriginAttributes();
+    error.ExtractSystemAttributes();
 
     error.InnerErrors_.clear();
     static const TString InnerErrorsKey("inner_errors");
