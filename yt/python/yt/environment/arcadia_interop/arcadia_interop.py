@@ -228,6 +228,8 @@ def remove_runtime_data(working_directory):
     for root, dirs, files in os.walk(working_directory):
         if os.path.basename(root) == "runtime_data":
             runtime_data_paths.append(os.path.join(working_directory, root))
+    
+    yt_logger.info("Removing runtime data (paths: {})".format(", ".join(runtime_data_paths)))
 
     for path in runtime_data_paths:
         failed = False
