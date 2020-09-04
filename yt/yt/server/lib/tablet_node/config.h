@@ -81,7 +81,6 @@ public:
     int MaxCompactionStoreCount;
     i64 CompactionDataSizeBase;
     double CompactionDataSizeRatio;
-    i64 MaxCompactionDataSize;
 
     NConcurrency::TThroughputThrottlerConfigPtr PartitioningThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr CompactionThrottler;
@@ -214,9 +213,6 @@ public:
         RegisterParameter("compaction_data_size_ratio", CompactionDataSizeRatio)
             .Default(2.0)
             .GreaterThan(1.0);
-        RegisterParameter("max_compaction_data_size", MaxCompactionDataSize)
-            .Default(320_MB)
-            .GreaterThan(0);
 
         RegisterParameter("flush_throttler", FlushThrottler)
             .DefaultNew();
