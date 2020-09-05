@@ -2644,7 +2644,7 @@ class BaseTestSchedulingSegments(YTEnvSetup):
             return job["address"]
 
         expected_node = get_first_job_node(blocking_op2)
-        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(expected_node)) == "large_gpu")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(expected_node), default="") == "large_gpu")
 
         new_op = run_sleeping_vanilla(job_count=8, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 1, "enable_gpu_layers": False})
         wait(lambda: are_almost_equal(self._get_usage_ratio(new_op.id), 0.1))
@@ -2652,7 +2652,7 @@ class BaseTestSchedulingSegments(YTEnvSetup):
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op2.id), 0.0))
         actual_node = get_first_job_node(new_op)
         assert actual_node == expected_node
-        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(actual_node)) == "default")
+        wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(actual_node), default="") == "default")
 
     @authors("eshcherbin")
     def test_mixed_operation(self):
