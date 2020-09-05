@@ -8,7 +8,6 @@ SET(YT_TEST_SRCS
     test_acl_commands.py
     test_authentication.py
     test_batch_execution.py
-    test_clickhouse.py
     test_client.py
     test_command_params.py
     test_common.py
@@ -60,12 +59,22 @@ DEPENDS(
     yt/python/yt/wrapper/tests/yt_python3
     yt/python/yt/wrapper/tests/yt_ipython
     ${YT_ROOT}/yt/tools/yt_sudo_fixup
-    ${YT_ROOT}/yt/server/clickhouse_server/bin
-    ${YT_ROOT}/yt/server/clickhouse_trampoline
-    ${YT_ROOT}/yt/server/log_tailer/bin
     ${YT_ROOT}/yt/experiments/ytserver_dummy
     yt/python/yt/wrapper/tests/files/cpp_bin
 )
+
+IF(NOT GCC)
+    DEPENDS(
+        ${YT_ROOT}/yt/server/clickhouse_server/bin
+        ${YT_ROOT}/yt/server/clickhouse_trampoline
+        ${YT_ROOT}/yt/server/log_tailer/bin
+    )
+
+    SET(YT_TEST_SRCS
+        ${YT_TEST_SRCS}
+        test_clickhouse.py
+    )
+ENDIF()
 
 DATA(
     # Directory with cpp_bin_core_crash binary, create it locally and upload with:
