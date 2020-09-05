@@ -74,6 +74,12 @@ class TestMasterCellAddition(YTEnvSetup):
             cls.Env.rewrite_scheduler_configs()
             cls.Env.rewrite_controller_agent_configs()
 
+        for tx in ls("//sys/transactions", attributes=["title"]):
+            title = tx.attributes.get("title", "")
+            id = str(tx)
+            if "World initialization" in title:
+                abort_transaction(id)
+
     @classmethod
     def modify_master_config(cls, config, index):
         cls._disable_last_cell_and_stash_config(config)
