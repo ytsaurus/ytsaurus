@@ -617,7 +617,8 @@ def search(root="", node_type=None, path_filter=None, object_filter=None, subtre
         if node.followed_by_link and object_type == "link":
             return
 
-        if is_opaque(node.content) and not node.ignore_opaque and object_type != "link":
+        depth_limit_reached = (depth_bound is not None and node.depth == depth_bound)
+        if is_opaque(node.content) and not node.ignore_opaque and object_type != "link" and not depth_limit_reached:
             new_node = shallowcopy(node)
             new_node.ignore_opaque = True
             new_node.yield_path = False
