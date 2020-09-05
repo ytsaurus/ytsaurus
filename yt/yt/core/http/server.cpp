@@ -143,8 +143,9 @@ private:
             connection->RemoteAddress(),
             connection->LocalAddress());
 
-        Poller_->GetInvoker()->Invoke(
-            BIND(&TServer::HandleConnection, MakeStrong(this), std::move(connection), connectionId));
+        BIND(&TServer::HandleConnection, MakeStrong(this), std::move(connection), connectionId)
+            .AsyncVia(Poller_->GetInvoker())
+            .Run();
     }
 
     bool HandleRequest(const THttpInputPtr& request, const THttpOutputPtr& response)
@@ -202,12 +203,14 @@ private:
             }
         }
 
-        if (closeResponse) {
-            auto responseResult = WaitFor(response->Close());
-            if (!responseResult.IsOK()) {
-                YT_LOG_DEBUG(responseResult, "Error flushing HTTP response stream (RequestId: %v)",
-                    request->GetRequestId());
+        try {
+            if (closeResponse) {
+                WaitFor(response->Close())
+                    .ThrowOnError();
             }
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Error flushing HTTP response stream (RequestId: %v)",
+                request->GetRequestId());
         }
 
         return true;
