@@ -29,7 +29,7 @@ type UserScript struct {
 	OutputFormat interface{}       `yson:"output_format,omitempty"`
 	Environment  map[string]string `yson:"environment,omitempty"`
 	FilePaths    []File            `yson:"file_paths,omitempty"`
-	LayerPaths   []ypath.YPath     `yson:"layer_paths,omitempty"`
+	LayerPaths   []ypath.Path      `yson:"layer_paths,omitempty"`
 
 	TmpfsPath string `yson:"tmpfs_path,omitempty"`
 	CopyFiles bool   `yson:"copy_files,omitempty"`
