@@ -59,6 +59,10 @@ func (r *Retrier) shouldRetry(isRead bool, err error) bool {
 		return true
 	}
 
+	if yterrors.ContainsErrorCode(err, yterrors.CodeOperationProgressOutdated) {
+		return true
+	}
+
 	var ytErr *yterrors.Error
 	if errors.As(err, &ytErr) && ytErr.Message == "This proxy is banned" {
 		return true
