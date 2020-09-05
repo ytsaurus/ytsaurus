@@ -252,7 +252,7 @@ func (e *Exec) PrepareJob(ctx context.Context) (j *job.Job, s *spec.Spec, output
 	us.MemoryLimit = int64(e.config.Operation.MemoryLimit) + job.MemoryReserve
 	us.MemoryReserveFactor = 1.0
 	us.CPULimit = float32(e.config.Operation.CPULimit)
-	us.LayerPaths = []ypath.YPath{job.DefaultBaseLayer}
+	us.LayerPaths = []ypath.Path{job.DefaultBaseLayer}
 	us.OutputTablePaths = []ypath.YPath{
 		outputDir.Child(OutputTableName),
 		outputDir.Child(YTOutputTableName),
