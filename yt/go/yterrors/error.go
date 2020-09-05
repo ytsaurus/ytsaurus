@@ -11,6 +11,7 @@ import (
 	"golang.org/x/xerrors"
 )
 
+//go:generate yt-gen-error-code -yt-root ../../yt -out error_code.go
 type ErrorCode int
 
 // Error is an implementation of built-in go error interface.
