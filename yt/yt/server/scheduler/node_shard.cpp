@@ -2225,7 +2225,7 @@ void TNodeShard::OnJobCompleted(const TJobPtr& job, TJobStatus* status, bool aba
                 restartNeeded = schedulerResultExt.unread_chunk_specs_size() > 0;
             }
 
-            if (schedulerResultExt.restart_needed()) {
+            if (restartNeeded) {
                 if (job->IsRevived()) {
                     // NB: We lose the original interrupt reason during the revival,
                     // so we set it to Unknown.
