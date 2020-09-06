@@ -38,6 +38,7 @@
 #include <yt/server/master/table_server/table_node.h>
 
 #include <yt/server/master/transaction_server/transaction.h>
+#include <yt/server/master/transaction_server/boomerang_tracker.h>
 
 #include <yt/server/master/object_server/object_manager.h>
 
@@ -92,6 +93,15 @@ static const auto& Logger = SecurityServerLogger;
 static const auto& Profiler = SecurityServerProfiler;
 
 static const auto ProfilingPeriod = TDuration::MilliSeconds(10000);
+
+namespace {
+
+bool IsPermissionCheckSuppressed()
+{
+    return NHiveServer::IsHiveMutation() && !NTransactionServer::IsBoomerangMutation();
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1563,7 +1573,7 @@ public:
         EPermission permission,
         TPermissionCheckOptions options = {})
     {
-        if (IsHiveMutation()) {
+        if (IsPermissionCheckSuppressed()) {
             return;
         }
 
@@ -1673,7 +1683,7 @@ public:
         const TClusterResources& delta,
         bool allowRootAccount)
     {
-        if (IsHiveMutation()) {
+        if (IsPermissionCheckSuppressed()) {
             return;
         }
 
