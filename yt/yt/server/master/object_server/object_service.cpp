@@ -1564,6 +1564,7 @@ private:
         if (response.Origin != EMutationResponseOrigin::Commit) {
             YT_VERIFY(!context->IsReplied());
             // Either we're answering with a kept response or this is a boomerang mutation.
+            context->SetResponseInfo("KeptResponse: %v", true);
             context->Reply(response.Data);
         }
 

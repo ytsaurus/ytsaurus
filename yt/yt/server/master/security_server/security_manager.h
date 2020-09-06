@@ -137,6 +137,7 @@ public:
     //! Returns account with a given name (throws if none).
     TAccount* GetAccountByNameOrThrow(const TString& name, bool activeLifeStageOnly);
 
+    
     //! Returns "root" built-in account.
     TAccount* GetRootAccount();
 
@@ -158,6 +159,7 @@ public:
      */
     TAccount* GetChunkWiseAccountingMigrationAccount();
 
+    
     using TViolatedResourceLimits = TClusterResources;
     //! Returns recursive violated resource limits for account's subtree.
     TViolatedResourceLimits GetAccountRecursiveViolatedResourceLimits(const TAccount* account) const;
@@ -204,6 +206,7 @@ public:
     //! Recomputes the transaction per-account usage statistics from scratch.
     void RecomputeTransactionAccountResourceUsage(NTransactionServer::TTransaction* transaction);
 
+    
     //! Assigns node to a given account, updates the total resource usage.
     void SetAccount(
         NCypressServer::TCypressNode* node,
@@ -212,7 +215,6 @@ public:
 
     //! Removes account association (if any) from the node.
     void ResetAccount(NCypressServer::TCypressNode* node);
-
 
 
     //! Returns user with a given name (|nullptr| if none).
@@ -307,7 +309,12 @@ public:
     //! Returns |true| if safe mode is active.
     bool IsSafeMode();
 
+    
     //! Checks if #object ACL allows access with #permission.
+    /*!
+     *  NB: All permission checked are suppressed (== always succeed)
+     *  when invoked from a Hive mutation (unless this is a boomerang one).
+     */
     TPermissionCheckResponse CheckPermission(
         NObjectServer::TObject* object,
         TUser* user,
@@ -322,9 +329,6 @@ public:
         TPermissionCheckOptions options = {});
 
     //! Similar to #CheckPermission but throws a human-readable exception on failure.
-    /*!
-     *  If NHiveServer::IsHiveMutation returns |true| then this check is suppressed.
-     */
     void ValidatePermission(
         NObjectServer::TObject* object,
         TUser* user,
