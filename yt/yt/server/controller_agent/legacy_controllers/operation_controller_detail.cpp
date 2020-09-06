@@ -2700,9 +2700,10 @@ void TOperationControllerBase::SafeOnJobFailed(std::unique_ptr<TFailedJobSummary
 
     auto finally = Finally(
         [&] () {
-            ReleaseJobs({jobId});
-        },
-        /* noUncaughtExceptions */ true
+            if (std::uncaught_exceptions() == 0) {
+                ReleaseJobs({jobId});
+            }
+        }
     );
 
     // This failure case has highest priority for users. Therefore check must be performed as early as possible.
