@@ -76,6 +76,36 @@ TString TNamedPipe::GetPath() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TNamedPipeConfig::TNamedPipeConfig()
+{
+    Initialize();
+}
+
+TNamedPipeConfig::TNamedPipeConfig(TString path, int fd, bool write)
+{
+    Initialize();
+
+    Path = std::move(path);
+    FD = fd;
+    Write = write;
+}
+
+void TNamedPipeConfig::Initialize()
+{
+    RegisterParameter("path", Path)
+        .Default();
+
+    RegisterParameter("fd", FD)
+        .Default(0);
+
+    RegisterParameter("write", Write)
+        .Default(false);
+}
+
+DEFINE_REFCOUNTED_TYPE(TNamedPipeConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 TPipe::TPipe()
 { }
 

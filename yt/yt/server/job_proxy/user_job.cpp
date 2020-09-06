@@ -22,6 +22,8 @@
 
 #include <yt/server/lib/shell/shell_manager.h>
 
+#include <yt/server/lib/user_job_executor/config.h>
+
 #include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
 #include <yt/ytlib/chunk_client/chunk_reader_statistics.h>
@@ -115,6 +117,7 @@ using namespace NCoreDump;
 using namespace NExecAgent;
 using namespace NYPath;
 using namespace NJobTrackerClient;
+using namespace NUserJobExecutor;
 using namespace NUserJobSynchronizerClient;
 
 using NJobTrackerClient::NProto::TJobResult;
@@ -225,7 +228,6 @@ public:
 
             Process_ = UserJobEnvironment_->CreateUserJobProcess(
                 ExecProgramName,
-                *UserId_,
                 options);
 
             BlockIOWatchdogExecutor_ = New<TPeriodicExecutor>(
@@ -234,9 +236,6 @@ public:
                 UserJobEnvironment_->GetBlockIOWatchdogPeriod());
         } else {
             Process_ = New<TSimpleProcess>(ExecProgramName, false);
-            if (UserId_) {
-                Process_->AddArguments({"--uid", ::ToString(*UserId_)});
-            }
         }
 
         if (UserJobSpec_.has_core_table_spec()) {
@@ -481,6 +480,8 @@ private:
 
     IShellManagerPtr ShellManager_;
 
+    std::vector<TNamedPipeConfigPtr> PipeConfigs_;
+
 #ifdef _asan_enabled_
     std::unique_ptr<TAsanWarningFilter> AsanWarningFilter_;
 #endif
@@ -525,47 +526,11 @@ private:
     void Prepare()
     {
         PreparePipes();
+        PrepareEnvironment();
         PrepareExecutorConfig();
 
-        Process_->AddArguments({"--command", UserJobSpec_.shell_command()});
         Process_->AddArguments({"--config", Host_->AdjustPath(GetExecutorConfigPath())});
-        Process_->AddArguments({"--job-id", ToString(JobId_)});
         Process_->SetWorkingDirectory(NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
-
-        if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {
-#ifdef _asan_enabled_
-            YT_LOG_WARNING("Core dumps are not allowed in ASAN build");
-#else
-            Process_->AddArgument("--enable-core-dump");
-#endif
-        }
-
-        // Init environment variables.
-        TPatternFormatter formatter;
-        formatter.AddProperty(
-            "SandboxPath",
-            NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
-
-        if (UserJobSpec_.has_network_project_id()) {
-            Environment_.push_back(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project_id()));
-        }
-
-        for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
-            Environment_.emplace_back(formatter.Format(UserJobSpec_.environment(i)));
-        }
-
-        if (Host_->GetConfig()->TestRootFS && Host_->GetConfig()->RootPath) {
-            Environment_.push_back(Format("YT_ROOT_FS=%v", *Host_->GetConfig()->RootPath));
-        }
-
-        for (int index = 0; index < Ports_.size(); ++index) {
-            Environment_.push_back(Format("YT_PORT_%v=%v", index, Ports_[index]));
-        }
-
-        // Copy environment to process arguments
-        for (const auto& var : Environment_) {
-            Process_->AddArguments({"--env", var});
-        }
 
         if (JobEnvironmentType_ == EJobEnvironmentType::Porto) {
 #ifdef _linux_
@@ -932,8 +897,8 @@ private:
 
         for (auto jobDescriptor : jobDescriptors) {
             // Since inside job container we see another rootfs, we must adjust pipe path.
-            TNamedPipeConfig pipeId(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, true);
-            Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).GetData()});
+            auto pipeConfig = New<TNamedPipeConfig>(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, true);
+            PipeConfigs_.emplace_back(std::move(pipeConfig));
         }
 
         auto asyncInput = pipe->CreateAsyncReader();
@@ -968,8 +933,8 @@ private:
         int jobDescriptor = 0;
         InputPipePath_= CreateNamedPipePath();
         auto pipe = TNamedPipe::Create(InputPipePath_, 0666);
-        TNamedPipeConfig pipeId(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
-        Process_->AddArguments({"--pipe", ConvertToYsonString(pipeId, EYsonFormat::Text).GetData()});
+        auto pipeConfig = New<TNamedPipeConfig>(Host_->AdjustPath(pipe->GetPath()), jobDescriptor, false);
+        PipeConfigs_.emplace_back(std::move(pipeConfig));
         auto format = ConvertTo<TFormat>(TYsonString(UserJobSpec_.input_format()));
 
         auto reader = pipe->CreateAsyncReader();
@@ -1063,6 +1028,35 @@ private:
         PrepareInputTablePipe();
 
         YT_LOG_DEBUG("Pipes initialized");
+    }
+
+    void PrepareEnvironment()
+    {
+        TPatternFormatter formatter;
+        formatter.AddProperty(
+            "SandboxPath",
+            NFS::CombinePaths(Host_->GetSlotPath(), SandboxDirectoryNames[ESandboxKind::User]));
+
+        if (UserJobSpec_.has_network_project_id()) {
+            Environment_.push_back(Format("YT_NETWORK_PROJECT_ID=%v", UserJobSpec_.network_project_id()));
+        }
+
+        for (int i = 0; i < UserJobSpec_.environment_size(); ++i) {
+            Environment_.emplace_back(formatter.Format(UserJobSpec_.environment(i)));
+        }
+
+        if (Host_->GetConfig()->TestRootFS && Host_->GetConfig()->RootPath) {
+            Environment_.push_back(Format("YT_ROOT_FS=%v", *Host_->GetConfig()->RootPath));
+        }
+
+        for (int index = 0; index < Ports_.size(); ++index) {
+            Environment_.push_back(Format("YT_PORT_%v=%v", index, Ports_[index]));
+        }
+
+        if (UserJobEnvironment_) {
+            const auto& environment = UserJobEnvironment_->GetEnvironmentVariables();
+            Environment_.insert(Environment_.end(), environment.begin(), environment.end());
+        }
     }
 
     void AddCustomStatistics(const INodePtr& sample)
@@ -1259,9 +1253,32 @@ private:
 
     void PrepareExecutorConfig()
     {
-        auto executorConfig = New<TUserJobSynchronizerConnectionConfig>();
-        auto processWorkingDirectory = NFS::CombinePaths(Host_->GetPreparationPath(), SandboxDirectoryNames[ESandboxKind::User]);
-        executorConfig->BusClientConfig->UnixDomainSocketPath = GetRelativePath(processWorkingDirectory, *Host_->GetConfig()->BusServer->UnixDomainSocketPath);
+        auto executorConfig = New<TUserJobExecutorConfig>();
+
+        executorConfig->Command = UserJobSpec_.shell_command();
+        executorConfig->JobId = ToString(JobId_);
+
+        if (UserJobSpec_.has_core_table_spec() || UserJobSpec_.force_core_dump()) {
+#ifdef _asan_enabled_
+            YT_LOG_WARNING("Core dumps are not allowed in ASAN build");
+#else
+            executorConfig->EnableCoreDump = true;
+#endif
+        }
+
+        if (UserId_) {
+            executorConfig->Uid = *UserId_;
+        }
+
+        executorConfig->Pipes = PipeConfigs_;
+        executorConfig->Environment = Environment_;
+
+        {
+            auto connectionConfig = New<TUserJobSynchronizerConnectionConfig>();
+            auto processWorkingDirectory = NFS::CombinePaths(Host_->GetPreparationPath(), SandboxDirectoryNames[ESandboxKind::User]);
+            connectionConfig->BusClientConfig->UnixDomainSocketPath = GetRelativePath(processWorkingDirectory, *Host_->GetConfig()->BusServer->UnixDomainSocketPath);
+            executorConfig->UserJobSynchronizerConnectionConfig = connectionConfig;
+        }
 
         auto executorConfigPath = GetExecutorConfigPath();
         try {
@@ -1271,7 +1288,8 @@ private:
             Serialize(executorConfig, &writer);
             writer.Flush();
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Failed to write executor config into %v", executorConfigPath) << ex;
+            THROW_ERROR_EXCEPTION("Failed to write executor config into %v", executorConfigPath)
+                << ex;
         }
     }
 

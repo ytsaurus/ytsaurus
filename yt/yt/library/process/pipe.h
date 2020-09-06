@@ -39,33 +39,20 @@ DEFINE_REFCOUNTED_TYPE(TNamedPipe)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TNamedPipeConfig
-    : public NYTree::TYsonSerializableLite
+class TNamedPipeConfig
+    : public NYTree::TYsonSerializable
 {
+public:
     TString Path;
-    int FD;
-    bool Write;
+    int FD = 0;
+    bool Write = false;
 
-    TNamedPipeConfig()
-        : TNamedPipeConfig(TString(), 0, false)
-    { }
+    TNamedPipeConfig();
 
-    TNamedPipeConfig(TNamedPipeConfig&& other)
-    {
-        Path = std::move(other.Path);
-        FD = std::move(other.FD);
-        Write = std::move(other.Write);
-    }
+    TNamedPipeConfig(TString path, int fd, bool write);
 
-    TNamedPipeConfig(const TString& path, int fd, bool write)
-        : Path(path)
-        , FD(fd)
-        , Write(write)
-    {
-        RegisterParameter("path", Path);
-        RegisterParameter("fd", FD);
-        RegisterParameter("write", Write);
-    }
+private:
+    void Initialize();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
