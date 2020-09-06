@@ -13,15 +13,13 @@ class TFinallyGuard
 {
 public:
     template <class T>
-    TFinallyGuard(T&& finally, bool noUncaughtExceptions)
+    explicit TFinallyGuard(T&& finally)
         : Finally_(std::forward<T>(finally))
-        , NoUncaughtExceptions_(noUncaughtExceptions)
     { }
 
     TFinallyGuard(TFinallyGuard&& guard)
         : Released_(guard.Released_)
         , Finally_(std::move(guard.Finally_))
-        , NoUncaughtExceptions_(guard.NoUncaughtExceptions_)
     {
         guard.Release();
     }
@@ -37,7 +35,7 @@ public:
 
     ~TFinallyGuard()
     {
-        if (!Released_ && !(NoUncaughtExceptions_ && std::uncaught_exceptions() > 0)) {
+        if (!Released_) {
             Finally_();
         }
     }
@@ -45,16 +43,15 @@ public:
 private:
     bool Released_ = false;
     TCallback Finally_;
-    bool NoUncaughtExceptions_;
 };
 
 template <class TCallback>
-[[nodiscard]] TFinallyGuard<typename std::decay<TCallback>::type> Finally(TCallback&& callback, bool noUncaughtExceptions = false);
+[[nodiscard]] TFinallyGuard<typename std::decay<TCallback>::type> Finally(TCallback&& callback);
 
 template <class TCallback>
-TFinallyGuard<typename std::decay<TCallback>::type> Finally(TCallback&& callback, bool noUncaughtExceptions)
+TFinallyGuard<typename std::decay<TCallback>::type> Finally(TCallback&& callback)
 {
-    return TFinallyGuard<typename std::decay<TCallback>::type>(std::forward<TCallback>(callback), noUncaughtExceptions);
+    return TFinallyGuard<typename std::decay<TCallback>::type>(std::forward<TCallback>(callback));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
