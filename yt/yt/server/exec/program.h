@@ -1,3 +1,4 @@
+#include <yt/server/lib/user_job_executor/config.h>
 #include <yt/server/lib/user_job_synchronizer_client/user_job_synchronizer.h>
 
 #include <yt/ytlib/program/program.h>
@@ -22,63 +23,28 @@
 
 namespace NYT::NExec {
 
+using namespace NUserJobSynchronizerClient;
+using namespace NUserJobExecutor;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TExecProgram
     : public TProgram
-    , public TProgramConfigMixin<NUserJobSynchronizerClient::TUserJobSynchronizerConnectionConfig>
+    , public TProgramConfigMixin<TUserJobExecutorConfig>
     , public TProgramCgroupMixin
 {
 public:
     TExecProgram()
         : TProgramConfigMixin(Opts_, false)
         , TProgramCgroupMixin(Opts_)
-    {
-        Opts_
-            .AddLongOption("command", "command to execute")
-            .StoreResult(&Command_)
-            .RequiredArgument("COMMAND")
-            .Optional();
-        Opts_
-            .AddLongOption("pipe", "configure a data pipe (could be used multiple times)")
-            .Handler1T<TString>([&] (const TString& arg) {
-                try {
-                    auto config = NYTree::ConvertTo<NPipes::TNamedPipeConfig>(NYson::TYsonString(arg));
-                    Pipes_.push_back(std::move(config));
-                } catch (const std::exception& ex) {
-                    throw TProgramException(Format("Bad pipe config: %v", ex.what()));
-                }
-            })
-            .RequiredArgument("PIPE_CONFIG")
-            .Optional();
-        Opts_
-            .AddLongOption("job-id", "job id")
-            .StoreResult(&JobId_)
-            .RequiredArgument("ID")
-            .Optional();
-        Opts_
-            .AddLongOption("env", "set up environment for a child process (could be used multiple times)")
-            .Handler1T<TString>([&] (const TString& arg) {
-                if (arg.find('=') == TString::npos) {
-                    throw TProgramException(Format("Bad environment variable: missing '=' in %Qv", arg));
-                }
-                Environment_.push_back(arg);
-            })
-            .RequiredArgument("KEY=VALUE")
-            .Required();
-        Opts_
-            .AddLongOption("uid", "user to impersonate before spawning a child process")
-            .StoreResult(&Uid_)
-            .RequiredArgument("UID");
-        Opts_
-            .AddLongOption("enable-core-dump", "whether to adjust resource limits to allow core dumps")
-            .SetFlag(&EnableCoreDump_)
-            .NoArgument();
-    }
+    { }
 
 protected:
     virtual void DoRun(const NLastGetopt::TOptsParseResult& parseResult) override
     {
+        auto config = GetConfig();
+
+        JobId_ = config->JobId;
         ExecutorStderr_ = TFile{"../executor_stderr", EOpenModeFlag::WrOnly | EOpenModeFlag::ForAppend | EOpenModeFlag::OpenAlways};
 
         if (HandleConfigOptions()) {
@@ -98,16 +64,17 @@ protected:
             return;
         }
 
-        if (Uid_ > 0) {
-            SetUid(Uid_);
+        if (config->Uid > 0) {
+            SetUid(config->Uid);
         }
 
         TError executorError;
 
         try {
+            auto enableCoreDump = config->EnableCoreDump;
             struct rlimit rlimit = {
-                EnableCoreDump_ ? RLIM_INFINITY : 0,
-                EnableCoreDump_ ? RLIM_INFINITY : 0
+                enableCoreDump ? RLIM_INFINITY : 0,
+                enableCoreDump ? RLIM_INFINITY : 0
             };
 
             auto rv = setrlimit(RLIMIT_CORE, &rlimit);
@@ -116,15 +83,15 @@ protected:
                     << TError::FromSystem();
             }
 
-            for (const auto& pipe : Pipes_) {
-                const int streamFd = pipe.FD;
-                const auto& path = pipe.Path;
+            for (const auto& pipe : config->Pipes) {
+                auto streamFd = pipe->FD;
+                const auto& path = pipe->Path;
 
                 try {
                     // Behaviour of named pipe:
                     // reader blocks on open if no writer and O_NONBLOCK is not set,
                     // writer blocks on open if no reader and O_NONBLOCK is not set.
-                    const int flags = (pipe.Write ? O_WRONLY : O_RDONLY);
+                    auto flags = (pipe->Write ? O_WRONLY : O_RDONLY);
                     auto fd = HandleEintr(::open, path.c_str(), flags);
                     if (fd == -1) {
                         THROW_ERROR_EXCEPTION("Failed to open named pipe")
@@ -153,7 +120,7 @@ protected:
         }
 
         std::vector<char*> env;
-        for (auto environment : Environment_) {
+        for (auto environment : config->Environment) {
             env.push_back(const_cast<char*>(environment.c_str()));
         }
         env.push_back(const_cast<char*>("SHELL=/bin/bash"));
@@ -163,9 +130,9 @@ protected:
         args.push_back("/bin/bash");
 
         TString command;
-        if (!Command_.empty()) {
+        if (!config->Command.empty()) {
             // :; is added avoid fork/exec (one-shot) optimization.
-            command = ":; " + Command_;
+            command = ":; " + config->Command;
             args.push_back("-c");
             args.push_back(command.c_str());
         }
@@ -173,7 +140,7 @@ protected:
 
         // We are ready to execute user code, send signal to JobProxy.
         try {
-            auto jobProxyControl = CreateUserJobSynchronizerClient(GetConfig());
+            auto jobProxyControl = CreateUserJobSynchronizerClient(config->UserJobSynchronizerConnectionConfig);
             jobProxyControl->NotifyExecutorPrepared();
         } catch (const std::exception& ex) {
             LogToStderr(Format("Unable to notify job proxy\n%v", ex.what()));
@@ -209,12 +176,7 @@ private:
     }
 
     mutable TFile ExecutorStderr_;
-    TString Command_;
-    std::vector<NPipes::TNamedPipeConfig> Pipes_;
-    std::vector<TString> Environment_;
     TString JobId_;
-    int Uid_ = -1;
-    bool EnableCoreDump_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

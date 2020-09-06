@@ -61,10 +61,12 @@ struct IUserJobEnvironment
 
     virtual TProcessBasePtr CreateUserJobProcess(
         const TString& path,
-        int uid,
         const TUserJobProcessOptions& options) = 0;
 
     virtual NContainers::IInstancePtr GetUserJobInstance() const = 0;
+
+    //! Returns the list of environment-specific environment variables in key=value format.
+    virtual const std::vector<TString>& GetEnvironmentVariables() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobEnvironment)

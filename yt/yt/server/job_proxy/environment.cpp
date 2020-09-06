@@ -53,7 +53,6 @@ class TMemoryTrackerBase
 protected:
     mutable i64 MaxMemoryUsage_ = 0;
     mutable i64 PageFaultCount_ = 0;
-    int UserId_ = -1;
     TProcessBasePtr Process_;
 
     virtual ~TMemoryTrackerBase() = default;
@@ -323,7 +322,6 @@ public:
 
     virtual TProcessBasePtr CreateUserJobProcess(
         const TString& path,
-        int uid,
         const TUserJobProcessOptions& options) override
     {
         TString slotGpuCorePipeFile;
@@ -403,15 +401,13 @@ public:
             ? RootFSBinaryDirectory + path
             : path;
 
-        UserId_ = uid;
         Process_ = New<TPortoProcess>(adjustedPath, Instance_, false);
-        Process_->AddArguments({"--uid", ::ToString(uid)});
         if (options.EnableCudaGpuCoreDump) {
-            Process_->AddArguments({"--env", "CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1"});
-            Process_->AddArguments({"--env", Format("CUDA_COREDUMP_FILE=%v", slotGpuCorePipeFile)});
+            Envirnoment_.push_back("CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1");
+            Envirnoment_.push_back(Format("CUDA_COREDUMP_FILE=%v", slotGpuCorePipeFile));
         }
         for (const auto& networkAddress : options.NetworkAddresses) {
-            Process_->AddArguments({"--env", Format("YT_IP_ADDRESS_%v=%v", to_upper(networkAddress->Name), networkAddress->Address)});
+            Envirnoment_.push_back(Format("YT_IP_ADDRESS_%v=%v", to_upper(networkAddress->Name), networkAddress->Address));
         }
 
         return Process_;
@@ -422,6 +418,11 @@ public:
         return Instance_;
     }
 
+    const std::vector<TString>& GetEnvironmentVariables() const override
+    {
+        return Envirnoment_;
+    }
+
 private:
     const TPortoJobEnvironmentConfigPtr Config_;
     const TString SlotAbsoluteName_;
@@ -429,6 +430,7 @@ private:
     const IPortoExecutorPtr PortoExecutor_;
     const IInstancePtr Instance_;
     const TPortoResourceTrackerPtr ResourceTracker_;
+    std::vector<TString> Envirnoment_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TPortoUserJobEnvironment)

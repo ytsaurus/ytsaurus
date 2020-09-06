@@ -1,14 +1,13 @@
 #pragma once
 
-#include <yt/core/misc/public.h>
+#include <yt/core/misc/intrusive_ptr.h>
 
-namespace NYT::NPipes {
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TNamedPipe)
-DECLARE_REFCOUNTED_CLASS(TNamedPipeConfig)
+namespace NYT::NUserJobExecutor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NPipes
+DECLARE_REFCOUNTED_CLASS(TUserJobExecutorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NUserJobExecutor

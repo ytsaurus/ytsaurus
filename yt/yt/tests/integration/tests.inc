@@ -10,7 +10,7 @@ SPLIT_FACTOR(5)
 
 DATA(
     sbr://1367627547 # Layers.
-    sbr://1627943154 # Rootfs.
+    sbr://1703335903 # Rootfs.
 )
 
 PEERDIR(
