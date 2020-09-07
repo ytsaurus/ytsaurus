@@ -1077,6 +1077,7 @@ private:
                 if (block) {
                     YT_LOG_DEBUG("Block is fetched from cache (Block: %v)", blockIndex);
                     YT_VERIFY(Blocks_.emplace(blockIndex, block).second);
+                    SessionOptions_.ChunkReaderStatistics->DataBytesReadFromCache += block.Size();
                 }
             }
         }
