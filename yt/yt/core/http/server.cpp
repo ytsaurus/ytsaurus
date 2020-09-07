@@ -143,9 +143,8 @@ private:
             connection->RemoteAddress(),
             connection->LocalAddress());
 
-        BIND(&TServer::HandleConnection, MakeStrong(this), std::move(connection), connectionId)
-            .AsyncVia(Poller_->GetInvoker())
-            .Run();
+        Poller_->GetInvoker()->Invoke(
+            BIND(&TServer::HandleConnection, MakeStrong(this), std::move(connection), connectionId));
     }
 
     bool HandleRequest(const THttpInputPtr& request, const THttpOutputPtr& response)
@@ -217,6 +216,15 @@ private:
     }
 
     void HandleConnection(const IConnectionPtr& connection, TGuid connectionId)
+    {
+        try {
+            DoHandleConnection(connection, connectionId);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Unhandled exception (ConnectionId: %v)");
+        }
+    }
+
+    void DoHandleConnection(const IConnectionPtr& connection, TGuid connectionId)
     {
         auto finally = Finally([&] {
             HttpProfiler.Increment(ConnectionsActiveGauge_, -1);
