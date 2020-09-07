@@ -229,5 +229,14 @@ var (
 	AsyncMode TableReplicaMode = "async"
 )
 
+type LockType string
+
+const (
+	LockTypeNone         LockType = "none"
+	LockTypeSharedWeak   LockType = "shared_weak"
+	LockTypeSharedStrong LockType = "shared_strong"
+	LockTypeExclusive    LockType = "exclusive"
+)
+
 // Timestamp is a cluster-wide unique monotonically increasing number used to implement the MVCC.
 type Timestamp uint64

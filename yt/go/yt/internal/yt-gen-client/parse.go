@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"go/ast"
+	"go/printer"
 	"go/token"
 	"reflect"
 	"strconv"
@@ -185,6 +186,10 @@ func parseClient(typeSpec *ast.TypeSpec) (c *interfaceType, err error) {
 					}
 				case *ast.InterfaceType:
 					typeName = "interface{}"
+				default:
+					var b strings.Builder
+					_ = printer.Fprint(&b, fset, p.Type)
+					typeName = b.String()
 				}
 
 				return variable{name: name, typ: typeName}

@@ -22,7 +22,7 @@ import (
 )
 
 type testKey struct {
-	Key string `yson:"table_key,key"`
+	Key string `yson:"table_key"`
 }
 
 type testRow struct {
@@ -182,4 +182,35 @@ func TestTxDuration(t *testing.T) {
 
 	require.NoError(t, tx.InsertRows(env.Ctx, testTable, rows, nil))
 	require.NoError(t, tx.Commit())
+}
+
+func TestLockRows(t *testing.T) {
+	t.Parallel()
+
+	env, cancel := yttest.NewEnv(t)
+	defer cancel()
+
+	testTable := env.TmpPath().Child("table")
+
+	sc := schema.MustInfer(&testRow{})
+	sc.Columns[1].Lock = "lock"
+	require.NoError(t, migrate.Create(env.Ctx, env.YT, testTable, sc))
+	require.NoError(t, migrate.MountAndWait(env.Ctx, env.YT, testTable))
+
+	row := []interface{}{&testRow{"foo", "1"}}
+	key := []interface{}{&testKey{"foo"}}
+
+	require.NoError(t, env.YT.InsertRows(env.Ctx, testTable, row, nil))
+
+	tx0, err := env.YT.BeginTabletTx(env.Ctx, nil)
+	require.NoError(t, err)
+
+	tx1, err := env.YT.BeginTabletTx(env.Ctx, nil)
+	require.NoError(t, err)
+
+	require.NoError(t, tx1.InsertRows(env.Ctx, testTable, row, nil))
+	require.NoError(t, tx1.Commit())
+
+	require.NoError(t, tx0.LockRows(env.Ctx, testTable, []string{"lock"}, yt.LockTypeSharedStrong, key, nil))
+	require.Error(t, tx0.Commit())
 }

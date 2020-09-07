@@ -467,20 +467,38 @@ func writeListOperationsOptions(w *yson.Writer, o *yt.ListOperationsOptions) {
 	if o == nil {
 		return
 	}
-	w.MapKeyString("from_time")
-	w.Any(o.FromTime)
-	w.MapKeyString("to_time")
-	w.Any(o.ToTime)
-	w.MapKeyString("cursor_time")
-	w.Any(o.Cursor)
-	w.MapKeyString("user")
-	w.Any(o.User)
-	w.MapKeyString("state")
-	w.Any(o.State)
-	w.MapKeyString("type")
-	w.Any(o.Type)
-	w.MapKeyString("filter")
-	w.Any(o.Filter)
+	if o.FromTime != nil {
+		w.MapKeyString("from_time")
+		w.Any(o.FromTime)
+	}
+	if o.ToTime != nil {
+		w.MapKeyString("to_time")
+		w.Any(o.ToTime)
+	}
+	if o.Cursor != nil {
+		w.MapKeyString("cursor_time")
+		w.Any(o.Cursor)
+	}
+	if o.User != nil {
+		w.MapKeyString("user")
+		w.Any(o.User)
+	}
+	if o.State != nil {
+		w.MapKeyString("state")
+		w.Any(o.State)
+	}
+	if o.Type != nil {
+		w.MapKeyString("type")
+		w.Any(o.Type)
+	}
+	if o.Filter != nil {
+		w.MapKeyString("filter")
+		w.Any(o.Filter)
+	}
+	if o.Limit != nil {
+		w.MapKeyString("limit")
+		w.Any(o.Limit)
+	}
 	writeMasterReadOptions(w, o.MasterReadOptions)
 	writeReadRetryOptions(w, o.ReadRetryOptions)
 }
@@ -730,6 +748,13 @@ func writeInsertRowsOptions(w *yson.Writer, o *yt.InsertRowsOptions) {
 	if o.Update != nil {
 		w.MapKeyString("update")
 		w.Any(o.Update)
+	}
+	writeTransactionOptions(w, o.TransactionOptions)
+}
+
+func writeLockRowsOptions(w *yson.Writer, o *yt.LockRowsOptions) {
+	if o == nil {
+		return
 	}
 	writeTransactionOptions(w, o.TransactionOptions)
 }
@@ -2515,6 +2540,60 @@ func (p *LookupRowsParams) MarshalHTTP(w *yson.Writer) {
 }
 
 func (p *LookupRowsParams) TransactionOptions() **yt.TransactionOptions {
+	return &p.options.TransactionOptions
+}
+
+type LockRowsParams struct {
+	verb     Verb
+	path     ypath.Path
+	locks    []string
+	lockType yt.LockType
+	options  *yt.LockRowsOptions
+}
+
+func NewLockRowsParams(
+	path ypath.Path,
+	locks []string,
+	lockType yt.LockType,
+	options *yt.LockRowsOptions,
+) *LockRowsParams {
+	if options == nil {
+		options = &yt.LockRowsOptions{}
+	}
+	return &LockRowsParams{
+		Verb("lock_rows"),
+		path,
+		locks,
+		lockType,
+		options,
+	}
+}
+
+func (p *LockRowsParams) HTTPVerb() Verb {
+	return p.verb
+}
+func (p *LockRowsParams) YPath() (ypath.YPath, bool) {
+	return p.path, true
+}
+func (p *LockRowsParams) Log() []log.Field {
+	return []log.Field{
+		log.Any("path", p.path),
+		log.Any("locks", p.locks),
+		log.Any("lockType", p.lockType),
+	}
+}
+
+func (p *LockRowsParams) MarshalHTTP(w *yson.Writer) {
+	w.MapKeyString("path")
+	w.Any(p.path)
+	w.MapKeyString("locks")
+	w.Any(p.locks)
+	w.MapKeyString("lock_type")
+	w.Any(p.lockType)
+	writeLockRowsOptions(w, p.options)
+}
+
+func (p *LockRowsParams) TransactionOptions() **yt.TransactionOptions {
 	return &p.options.TransactionOptions
 }
 

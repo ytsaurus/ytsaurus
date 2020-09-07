@@ -525,14 +525,14 @@ type ListOperationsOptions struct {
 
 	*ReadRetryOptions
 
-	FromTime *yson.Time      `http:"from_time,omitempty"`
-	ToTime   *yson.Time      `http:"to_time,omitempty"`
-	Cursor   *yson.Time      `http:"cursor_time,omitempty"`
-	User     *string         `http:"user,omitempty"`
-	State    *OperationState `http:"state,omitempty"`
-	Type     *OperationType  `http:"type,omitempty"`
-	Filter   *string         `http:"filter,omitempty"`
-	Limit    *int            `http:"limit,omitempty"`
+	FromTime *yson.Time      `http:"from_time,omitnil"`
+	ToTime   *yson.Time      `http:"to_time,omitnil"`
+	Cursor   *yson.Time      `http:"cursor_time,omitnil"`
+	User     *string         `http:"user,omitnil"`
+	State    *OperationState `http:"state,omitnil"`
+	Type     *OperationType  `http:"type,omitnil"`
+	Filter   *string         `http:"filter,omitnil"`
+	Limit    *int            `http:"limit,omitnil"`
 }
 
 type ListJobsOptions struct {
@@ -857,6 +857,10 @@ type InsertRowsOptions struct {
 	*TransactionOptions
 }
 
+type LockRowsOptions struct {
+	*TransactionOptions
+}
+
 type DeleteRowsOptions struct {
 	RequireSyncReplica *bool `http:"require_sync_replica,omitnil"`
 
@@ -898,6 +902,20 @@ type TabletClient interface {
 		keys []interface{},
 		options *LookupRowsOptions,
 	) (r TableReader, err error)
+
+	// LockRows acquires lock for given keys, without changing row values.
+	//
+	// http:verb:"lock_rows"
+	// http:params:"path","locks","lock_type"
+	// http:extra
+	LockRows(
+		ctx context.Context,
+		path ypath.Path,
+		locks []string,
+		lockType LockType,
+		keys []interface{},
+		options *LockRowsOptions,
+	) (err error)
 
 	// http:verb:"insert_rows"
 	// http:params:"path"

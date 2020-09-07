@@ -42,6 +42,7 @@ const (
 	VerbLookupRows Verb = "lookup_rows"
 	VerbDeleteRows Verb = "delete_rows"
 	VerbSelectRows Verb = "select_rows"
+	VerbLockRows   Verb = "lock_rows"
 
 	VerbMountTable   Verb = "mount_table"
 	VerbUnmountTable Verb = "unmount_table"
@@ -58,7 +59,7 @@ func (v Verb) hasInput() bool {
 	case VerbSet, VerbWriteFile, VerbWriteTable:
 		return true
 
-	case VerbInsertRows, VerbDeleteRows, VerbLookupRows:
+	case VerbInsertRows, VerbDeleteRows, VerbLookupRows, VerbLockRows:
 		return true
 	}
 
@@ -73,7 +74,7 @@ func (v Verb) IsHeavy() bool {
 	case VerbLocateSkynetShare:
 		return true
 
-	case VerbLookupRows, VerbDeleteRows, VerbSelectRows, VerbInsertRows:
+	case VerbLookupRows, VerbDeleteRows, VerbSelectRows, VerbInsertRows, VerbLockRows:
 		return true
 
 	case VerbGetJobStderr:

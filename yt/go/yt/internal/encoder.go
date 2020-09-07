@@ -9,6 +9,7 @@ import (
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 // Encoder is adapter between typed and untyped layer of API.
@@ -515,6 +516,29 @@ func (e *Encoder) InsertRows(
 	}
 
 	return e.writeRows(w, rows)
+}
+
+func (e *Encoder) LockRows(
+	ctx context.Context,
+	path ypath.Path,
+	locks []string,
+	lockType yt.LockType,
+	keys []interface{},
+	options *yt.LockRowsOptions,
+) (err error) {
+	if len(locks) == 0 {
+		return yterrors.Err("empty locks list",
+			yterrors.Attr("path", path.String()),
+			yterrors.Attr("method", "lock_rows"))
+	}
+
+	call := e.newCall(NewLockRowsParams(path, locks, lockType, options))
+	w, err := e.InvokeWriteRow(ctx, call)
+	if err != nil {
+		return err
+	}
+
+	return e.writeRows(w, keys)
 }
 
 func (e *Encoder) DeleteRows(
