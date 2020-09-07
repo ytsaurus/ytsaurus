@@ -48,9 +48,9 @@ object YsonableConfig {
 case class SparkGlobalConfig(spark_conf: Map[String, String],
                              latest_spark_cluster_version: String,
                              layer_paths: Seq[String] = Seq(
-                               "//home/sashbel/delta/jdk/layer_with_jdk_lastest.tar.gz",
-                               "//home/sashbel/delta/python/layer_with_python37_libs.tar.gz",
-                               "//home/sashbel/delta/python/layer_with_python34.tar.gz",
+                               "//sys/spark/delta/jdk/layer_with_jdk_lastest.tar.gz",
+                               "//sys/spark/delta/python/layer_with_python37_libs.tar.gz",
+                               "//sys/spark/delta/python/layer_with_python34.tar.gz",
                                "//porto_layers/base/xenial/porto_layer_search_ubuntu_xenial_app_lastest.tar.gz"
                              ),
                              python_cluster_paths: Map[String, String] = Map(
