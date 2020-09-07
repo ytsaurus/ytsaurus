@@ -17,6 +17,7 @@ struct TChunkReaderStatistics
 {
     std::atomic<i64> DataBytesReadFromDisk{0};
     std::atomic<i64> DataBytesTransmitted{0};
+    std::atomic<i64> DataBytesReadFromUncompressedCache{0};
     std::atomic<i64> DataBytesReadFromCache{0};
     std::atomic<i64> MetaBytesReadFromDisk{0};
     std::atomic<NProfiling::TValue> DataWaitTime{0};
@@ -58,6 +59,7 @@ public:
 private:
     NProfiling::TShardedMonotonicCounter DataBytesReadFromDisk;
     NProfiling::TShardedMonotonicCounter DataBytesTransmitted;
+    NProfiling::TShardedMonotonicCounter DataBytesReadFromUncompressedCache;
     NProfiling::TShardedMonotonicCounter DataBytesReadFromCache;
     NProfiling::TShardedMonotonicCounter MetaBytesReadFromDisk;
     NProfiling::TShardedMonotonicCounter DataWaitTime;
