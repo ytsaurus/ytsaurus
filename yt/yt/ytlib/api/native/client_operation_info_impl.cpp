@@ -1233,7 +1233,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
             *options.ToTime);
     }
 
-    constexpr ui64 MaxLimit = 100;
+    constexpr ui64 MaxLimit = 1000;
     if (options.Limit > MaxLimit) {
         THROW_ERROR_EXCEPTION("Requested result limit (%v) exceeds maximum allowed limit (%v)",
             options.Limit,
