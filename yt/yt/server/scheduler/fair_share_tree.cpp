@@ -1797,6 +1797,7 @@ auto TFairShareTree<TFairShareImpl>::DoBuildOperationProgress(
         .Item("aggressively_preemptable_job_count").Value(element->GetAggressivelyPreemptableJobCount())
         .Item("fifo_index").Value(element->Attributes().FifoIndex)
         .Item("deactivation_reasons").Value(element->GetDeactivationReasons())
+        .Item("min_needed_resources_unsatisfied_count").Value(element->GetMinNeededResourcesUnsatisfiedCount())
         .Item("tentative").Value(element->GetRuntimeParameters()->Tentative)
         .Item("starving_since").Value(element->GetStarving()
             ? std::make_optional(element->GetLastNonStarvingTime())

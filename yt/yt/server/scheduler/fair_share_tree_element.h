@@ -822,6 +822,12 @@ public:
     void UpdatePreemptionStatusStatistics(EOperationPreemptionStatus status);
     TPreemptionStatusStatisticsVector GetPreemptionStatusStatistics() const;
 
+    void OnMinNeededResourcesUnsatisfied(
+        const TFairShareContext& context,
+        const TJobResources& availableResources,
+        const TJobResources& minNeededResources);
+    TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount() const;
+
     void OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason);
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons() const;
     void ResetDeactivationReasonsFromLastNonStarvingTime();
@@ -898,6 +904,7 @@ private:
     {
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasons;
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasonsFromLastNonStarvingTime;
+        TEnumIndexedVector<EJobResourceType, std::atomic<int>> MinNeededResourcesUnsatisfiedCount;
         char Padding[64];
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
@@ -1018,6 +1025,12 @@ public:
     virtual void BuildElementMapping(TRawOperationElementMap* enabledOperationMap, TRawOperationElementMap* disabledOperationMap, TRawPoolMap* poolMap) override;
 
     virtual TSchedulerElementPtr Clone(TCompositeSchedulerElement* clonedParent) override;
+
+    void OnMinNeededResourcesUnsatisfied(
+        const TFairShareContext& context,
+        const TJobResources& availableResources,
+        const TJobResources& minNeededResources);
+    TEnumIndexedVector<EJobResourceType, int> GetMinNeededResourcesUnsatisfiedCount() const;
 
     void OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason);
     TEnumIndexedVector<EDeactivationReason, int> GetDeactivationReasons() const;

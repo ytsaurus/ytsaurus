@@ -2253,6 +2253,31 @@ TPreemptionStatusStatisticsVector TOperationElementSharedState::GetPreemptionSta
     return PreemptionStatusStatistics_;
 }
 
+void TOperationElementSharedState::OnMinNeededResourcesUnsatisfied(
+    const TFairShareContext& context,
+    const TJobResources& availableResources,
+    const TJobResources& minNeededResources)
+{
+    auto& shard = StateShards_[context.SchedulingContext()->GetNodeShardId()];
+    #define XX(name, Name) \
+        if (availableResources.Get##Name() < minNeededResources.Get##Name()) { \
+            ++shard.MinNeededResourcesUnsatisfiedCount[EJobResourceType::Name]; \
+        }
+    ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+}
+
+TEnumIndexedVector<EJobResourceType, int> TOperationElementSharedState::GetMinNeededResourcesUnsatisfiedCount() const
+{
+    TEnumIndexedVector<EJobResourceType, int> result;
+    for (const auto& shard : StateShards_) {
+        for (auto resource : TEnumTraits<EJobResourceType>::GetDomainValues()) {
+            result[resource] += shard.MinNeededResourcesUnsatisfiedCount[resource].load();
+        }
+    }
+    return result;
+}
+
 void TOperationElementSharedState::OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason)
 {
     auto& shard = StateShards_[context.SchedulingContext()->GetNodeShardId()];
@@ -2296,6 +2321,19 @@ TInstant TOperationElementSharedState::GetLastScheduleJobSuccessTime() const
     TReaderGuard guard(JobPropertiesMapLock_);
 
     return LastScheduleJobSuccessTime_;
+}
+
+void TOperationElement::OnMinNeededResourcesUnsatisfied(
+    const TFairShareContext& context,
+    const TJobResources& availableResources,
+    const TJobResources& minNeededResources)
+{
+    OperationElementSharedState_->OnMinNeededResourcesUnsatisfied(context, availableResources, minNeededResources);
+}
+
+TEnumIndexedVector<EJobResourceType, int> TOperationElement::GetMinNeededResourcesUnsatisfiedCount() const
+{
+    return OperationElementSharedState_->GetMinNeededResourcesUnsatisfiedCount();
 }
 
 void TOperationElement::OnOperationDeactivated(const TFairShareContext& context, EDeactivationReason reason)
@@ -2723,7 +2761,8 @@ TString TOperationElement::GetLoggingString(const TDynamicAttributes& dynamicAtt
     return Format(
         "Scheduling info for tree %Qv = {%v, "
         "PendingJobs: %v, AggregatedMinNeededResources: %v, SchedulingSegment: %v, "
-        "PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, PreemptionStatusStatistics: %v, DeactivationReasons: %v}",
+        "PreemptableRunningJobs: %v, AggressivelyPreemptableRunningJobs: %v, PreemptionStatusStatistics: %v, "
+        "DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v}",
         GetTreeId(),
         GetLoggingAttributesString(dynamicAttributes),
         Controller_->GetPendingJobCount(),
@@ -2732,7 +2771,8 @@ TString TOperationElement::GetLoggingString(const TDynamicAttributes& dynamicAtt
         GetPreemptableJobCount(),
         GetAggressivelyPreemptableJobCount(),
         GetPreemptionStatusStatistics(),
-        GetDeactivationReasons());
+        GetDeactivationReasons(),
+        GetMinNeededResourcesUnsatisfiedCount());
 }
 
 void TOperationElement::UpdateAncestorsDynamicAttributes(TFairShareContext* context, bool activateAncestors)
