@@ -87,6 +87,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
     TVersion snapshotVersion;
     i64 sequenceNumber;
     ui64 randomSeed;
+    ui64 stateHash;
     ISnapshotReaderPtr snapshotReader;
     if (snapshotId != InvalidSegmentId) {
         snapshotReader = SnapshotStore_->CreateReader(snapshotId);
@@ -98,6 +99,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
         snapshotVersion = TVersion(snapshotId, 0);
         randomSeed = meta.random_seed();
         sequenceNumber = meta.sequence_number();
+        stateHash = meta.state_hash();
     }
 
     int initialChangelogId;
@@ -112,7 +114,7 @@ void TRecoveryBase::RecoverToVersion(TVersion targetVersion)
             ResponseKeeper_->Stop();
         }
 
-        DecoratedAutomaton_->LoadSnapshot(snapshotId, snapshotVersion, sequenceNumber, randomSeed, snapshotReader);
+        DecoratedAutomaton_->LoadSnapshot(snapshotId, snapshotVersion, sequenceNumber, randomSeed, stateHash, snapshotReader);
         initialChangelogId = snapshotId;
     } else {
         // Recover using changelogs only.

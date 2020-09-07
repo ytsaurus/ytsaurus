@@ -214,6 +214,7 @@ public:
         , SequenceNumber_(Owner_->SequenceNumber_)
         , SnapshotId_(Owner_->SnapshotVersion_.SegmentId + 1)
         , RandomSeed_(Owner_->RandomSeed_)
+        , StateHash_(Owner_->StateHash_)
         , EpochContext_(Owner_->EpochContext_)
     {
         Logger = NLogging::TLogger(Owner_->Logger)
@@ -235,6 +236,7 @@ public:
             TSnapshotMeta meta;
             meta.set_sequence_number(SequenceNumber_);
             meta.set_random_seed(RandomSeed_);
+            meta.set_state_hash(StateHash_);
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
 
@@ -257,6 +259,7 @@ protected:
     const i64 SequenceNumber_;
     const int SnapshotId_;
     const ui64 RandomSeed_;
+    const ui64 StateHash_;
     const TEpochContextPtr EpochContext_;
 
     ISnapshotWriterPtr SnapshotWriter_;
@@ -711,6 +714,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     TVersion version,
     i64 sequenceNumber,
     ui64 randomSeed,
+    ui64 stateHash,
     IAsyncZeroCopyInputStreamPtr reader)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
@@ -725,6 +729,7 @@ void TDecoratedAutomaton::LoadSnapshot(
             AutomatonVersion_ = CommittedVersion_ = TVersion(-1, -1);
             RandomSeed_ = 0;
             SequenceNumber_ = 0;
+            StateHash_ = 0;
             Automaton_->LoadSnapshot(reader);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Snapshot load failed; clearing state");
@@ -745,6 +750,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     AutomatonVersion_ = CommittedVersion_ = TVersion(snapshotId, 0);
     RandomSeed_ = randomSeed;
     SequenceNumber_ = sequenceNumber;
+    StateHash_ = stateHash;
 }
 
 void TDecoratedAutomaton::ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader)
@@ -754,7 +760,7 @@ void TDecoratedAutomaton::ValidateSnapshot(IAsyncZeroCopyInputStreamPtr reader)
     YT_VERIFY(State_ == EPeerState::Stopped);
     State_ = EPeerState::LeaderRecovery;
 
-    LoadSnapshot(0, TVersion{}, 0, 0, reader);
+    LoadSnapshot(0, TVersion{}, 0, 0, 0, reader);
 
     YT_VERIFY(State_ == EPeerState::LeaderRecovery);
     State_ = EPeerState::Stopped;
@@ -786,7 +792,8 @@ void TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordDa
         FromProto<TInstant>(header.timestamp()),
         header.random_seed(),
         header.prev_random_seed(),
-        header.sequence_number());
+        header.sequence_number(),
+        StateHash_);
 
     DoApplyMutation(&context);
 }
@@ -1060,7 +1067,8 @@ void TDecoratedAutomaton::ApplyPendingMutations(bool mayYield)
                 pendingMutation.Timestamp,
                 pendingMutation.RandomSeed,
                 pendingMutation.PrevRandomSeed,
-                pendingMutation.SequenceNumber);
+                pendingMutation.SequenceNumber,
+                StateHash_);
 
             {
                 auto traceContext = pendingMutation.TraceContext
@@ -1141,6 +1149,9 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* context)
         Automaton_->ApplyMutation(context);
     }
 
+    context->CombineStateHash(context->GetRandomSeed());
+    StateHash_ = context->GetStateHash();
+
     if (Options_.ResponseKeeper && mutationId && !context->GetResponseKeeperSuppressed()) {
         Options_.ResponseKeeper->EndRequest(mutationId, context->GetResponseData());
     }
@@ -1208,6 +1219,13 @@ i64 TDecoratedAutomaton::GetSequenceNumber() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return SequenceNumber_.load();
+}
+
+ui64 TDecoratedAutomaton::GetStateHash() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return StateHash_.load();
 }
 
 void TDecoratedAutomaton::SetChangelog(IChangelogPtr changelog)

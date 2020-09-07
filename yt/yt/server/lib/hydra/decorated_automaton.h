@@ -150,6 +150,8 @@ public:
     ui64 GetRandomSeed() const;
     i64 GetSequenceNumber() const;
 
+    ui64 GetStateHash() const;
+
     void SetChangelog(IChangelogPtr changelog);
 
     int GetRecordCountSinceLastCheckpoint() const;
@@ -168,6 +170,7 @@ public:
         TVersion version,
         i64 sequenceNumber,
         ui64 randomSeed,
+        ui64 stateHash,
         NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
 
     void ValidateSnapshot(NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
@@ -276,6 +279,7 @@ private:
     std::atomic<TVersion> CommittedVersion_ = {};
     std::atomic<ui64> RandomSeed_ = {};
     std::atomic<i64> SequenceNumber_ = {};
+    std::atomic<ui64> StateHash_ = {};
 
     bool RotatingChangelog_ = false;
 
