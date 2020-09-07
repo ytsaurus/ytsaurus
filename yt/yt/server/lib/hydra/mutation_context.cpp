@@ -16,6 +16,7 @@ TMutationContext::TMutationContext(
     , RandomSeed_(Parent_->GetRandomSeed())
     , PrevRandomSeed_(Parent_->GetPrevRandomSeed())
     , SequenceNumber_(Parent_->GetSequenceNumber())
+    , StateHash_(Parent_->GetStateHash())
 { }
 
 TMutationContext::TMutationContext(
@@ -24,7 +25,8 @@ TMutationContext::TMutationContext(
     TInstant timestamp,
     ui64 randomSeed,
     ui64 prevRandomSeed,
-    i64 sequenceNumber)
+    i64 sequenceNumber,
+    ui64 stateHash)
     : Parent_(nullptr)
     , Version_(version)
     , Request_(request)
@@ -32,6 +34,7 @@ TMutationContext::TMutationContext(
     , RandomSeed_(randomSeed)
     , PrevRandomSeed_(prevRandomSeed)
     , SequenceNumber_(sequenceNumber)
+    , StateHash_(stateHash)
     , RandomGenerator_(randomSeed)
 { }
 
@@ -63,6 +66,11 @@ ui64 TMutationContext::GetPrevRandomSeed() const
 i64 TMutationContext::GetSequenceNumber() const
 {
     return SequenceNumber_;
+}
+
+ui64 TMutationContext::GetStateHash() const
+{
+    return StateHash_;
 }
 
 TRandomGenerator& TMutationContext::RandomGenerator()

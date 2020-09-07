@@ -145,7 +145,11 @@ private:
                 INodePtr node;
                 {
                     TGetNodeOptions options;
-                    options.Attributes = {"sequence_number", "random_seed"};
+                    options.Attributes = {
+                        "sequence_number",
+                        "random_seed",
+                        "state_hash",
+                    };
                     auto asyncResult = Store_->Client_->GetNode(Path_, options);
                     auto result = WaitFor(asyncResult)
                         .ValueOrThrow();
@@ -159,6 +163,8 @@ private:
                     Params_.Meta.set_random_seed(attributes.Get<ui64>("random_seed", 0));
                     // COMPAT(aleksandra-zh)
                     Params_.Meta.set_sequence_number(attributes.Get<i64>("sequence_number", 0));
+                    // COMPAT(aleksandra-zh)
+                    Params_.Meta.set_state_hash(attributes.Get<ui64>("state_hash", 0));
                     Params_.Checksum = 0;
                     Params_.CompressedLength = Params_.UncompressedLength = -1;
                 }
@@ -282,6 +288,7 @@ private:
                     attributes->Set("erasure_codec", Store_->Options_->SnapshotErasureCodec);
                     attributes->Set("sequence_number", Meta_.sequence_number());
                     attributes->Set("random_seed", Meta_.random_seed());
+                    attributes->Set("state_hash", Meta_.state_hash());
                     options.Attributes = std::move(attributes);
                     if (Store_->PrerequisiteTransactionId_) {
                         options.PrerequisiteTransactionIds.push_back(Store_->PrerequisiteTransactionId_);

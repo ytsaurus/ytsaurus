@@ -53,7 +53,8 @@ public:
         TInstant timestamp,
         ui64 randomSeed,
         ui64 prevRandomSeed,
-        i64 sequenceNumber);
+        i64 sequenceNumber,
+        ui64 stateHash);
 
     TVersion GetVersion() const;
     const TMutationRequest& Request() const;
@@ -61,6 +62,7 @@ public:
     ui64 GetRandomSeed() const;
     ui64 GetPrevRandomSeed() const;
     i64 GetSequenceNumber() const;
+    ui64 GetStateHash() const;
     TRandomGenerator& RandomGenerator();
 
     void SetResponseData(TSharedRefArray data);
@@ -68,6 +70,9 @@ public:
 
     void SetResponseKeeperSuppressed(bool value);
     bool GetResponseKeeperSuppressed();
+
+    template <class... Ts>
+    void CombineStateHash(const Ts&... ks);
 
 private:
     TMutationContext* const Parent_;
@@ -79,6 +84,7 @@ private:
     ui64 RandomSeed_;
     ui64 PrevRandomSeed_;
     i64 SequenceNumber_;
+    ui64 StateHash_;
     TRandomGenerator RandomGenerator_;
     bool ResponseKeeperSuppressed_ = false;
 };
@@ -101,10 +107,12 @@ public:
 private:
     TMutationContext* Context_;
     TMutationContext* SavedContext_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra
 
+#define MUTATION_CONTEXT_INL_H_
+#include "mutation_context-inl.h"
+#undef MUTATION_CONTEXT_INL_H_
