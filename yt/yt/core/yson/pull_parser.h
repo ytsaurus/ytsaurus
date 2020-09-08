@@ -21,6 +21,7 @@ class TYsonItem
 {
 public:
     Y_FORCE_INLINE TYsonItem(const TYsonItem& other);
+    Y_FORCE_INLINE TYsonItem& operator =(const TYsonItem& other);
 
     static Y_FORCE_INLINE TYsonItem Simple(EYsonItemType type);
     static Y_FORCE_INLINE TYsonItem Boolean(bool data);
