@@ -97,6 +97,8 @@ class YtResponseError(yt.common.YtResponseError):
             self.__class__ = YtTabletNotMounted
         elif self.is_rpc_unavailable():
             self.__class__ = YtRpcUnavailable
+        elif self.is_all_target_nodes_failed():
+            self.__class__ = YtAllTargetNodesFailed
         else:
             pass
 
