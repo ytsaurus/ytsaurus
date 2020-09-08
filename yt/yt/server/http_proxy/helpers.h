@@ -33,7 +33,9 @@ std::optional<i64> DetectJavaIceberg(const TString& userAgent);
 
 std::optional<i64> DetectGo(const TString& userAgent);
 
-bool IsClientBuggy(const NHttp::IRequestPtr& req);
+bool IsBrowserRequest(const NHttp::IRequestPtr& req);
+
+bool EnableRequestBodyWorkaround(const NHttp::IRequestPtr& req);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -259,11 +259,10 @@ bool TContext::TryCheckAvailability()
 bool TContext::TryRedirectHeavyRequests()
 {
     bool suppressRedirect = Request_->GetHeaders()->Find("X-YT-Suppress-Redirect");
-    bool isBrowserRequest = Request_->GetHeaders()->Find("Cookie");
     if (Descriptor_->Heavy &&
         !Api_->GetCoordinator()->CanHandleHeavyRequests() &&
         !suppressRedirect &&
-        !isBrowserRequest)
+        !IsBrowserRequest(Request_))
     {
         if (Descriptor_->InputType != NFormats::EDataType::Null) {
             DispatchUnavailable("60", "Control proxy may not serve heavy requests with input data");
@@ -806,7 +805,7 @@ void TContext::LogAndProfile()
 
 void TContext::Finalize()
 {
-    if (IsClientBuggy(Request_)) {
+    if (EnableRequestBodyWorkaround(Request_)) {
         try {
             while (true) {
                 auto chunk = WaitFor(Request_->Read())
