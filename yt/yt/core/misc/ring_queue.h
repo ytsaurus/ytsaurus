@@ -32,6 +32,8 @@ public:
         TIterator()
         { }
 
+        TIterator(const TIterator& other) = default;
+
         const T& operator* () const
         {
             return *Ptr_;
