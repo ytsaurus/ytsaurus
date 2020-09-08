@@ -112,6 +112,7 @@ struct IReaderImplBase
 
     // Not pure virtual because of clients that has already implemented this interface.
     virtual TMaybe<size_t> GetReadByteCount() const;
+    virtual i64 GetTabletIndex() const;
 };
 
 struct INodeReaderImpl
@@ -196,6 +197,11 @@ public:
     ui64 GetRowIndex() const
     {
         return Reader_->GetRowIndex();
+    }
+
+    i64 GetTabletIndex() const
+    {
+        return Reader_->GetTabletIndex();
     }
 
 protected:

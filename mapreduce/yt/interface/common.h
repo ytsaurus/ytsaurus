@@ -451,6 +451,7 @@ struct TReadLimit
     FLUENT_FIELD_OPTION(TKey, Key);
     FLUENT_FIELD_OPTION(i64, RowIndex);
     FLUENT_FIELD_OPTION(i64, Offset);
+    FLUENT_FIELD_OPTION(i64, TabletIndex);
 };
 
 struct TReadRange

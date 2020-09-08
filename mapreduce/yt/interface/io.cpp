@@ -13,6 +13,11 @@ TMaybe<size_t> IReaderImplBase::GetReadByteCount() const
     return Nothing();
 }
 
+i64 IReaderImplBase::GetTabletIndex() const
+{
+    Y_FAIL("Unimplemented");   
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NDetail {
