@@ -122,13 +122,13 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row)
     }
 }
 
-void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp timestamp)
+void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit)
 {
     if (!row) {
         return;
     }
 
-    if (timestamp < RetentionTimestamp_) {
+    if (upperTimestampLimit < RetentionTimestamp_) {
         return;
     }
 
@@ -158,14 +158,14 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp timestamp)
     }
 
     for (auto it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
-        if (*it <= timestamp && *it >= RetentionTimestamp_) {
+        if (*it < upperTimestampLimit && *it >= RetentionTimestamp_) {
             LatestDelete_ = std::max(LatestDelete_, *it);
             break;
         }
     }
 
     for (auto it = row.BeginWriteTimestamps(); it != row.EndWriteTimestamps(); ++it) {
-        if (*it <= timestamp && *it >= RetentionTimestamp_) {
+        if (*it < upperTimestampLimit && *it >= RetentionTimestamp_) {
             LatestWrite_ = std::max(LatestWrite_, *it);
             break;
         }
@@ -173,6 +173,9 @@ void TSchemafulRowMerger::AddPartialRow(TVersionedRow row, TTimestamp timestamp)
 
     for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
         const auto& partialValue = *it;
+        if (partialValue.Timestamp >= upperTimestampLimit) {
+            continue;
+        }
         if (partialValue.Timestamp > LatestDelete_ && partialValue.Timestamp >= RetentionTimestamp_) {
             int id = partialValue.Id;
             int mergedIndex = ColumnIdToIndex_[id];
@@ -471,6 +474,38 @@ void TVersionedRowMerger::AddPartialRow(TVersionedRow row)
         row.EndDeleteTimestamps());
 }
 
+void TVersionedRowMerger::AddPartialRow(TVersionedRow row, TTimestamp upperTimestampLimit)
+{
+    if (!row) {
+        return;
+    }
+
+    if (!Started_) {
+        Started_ = true;
+        YT_ASSERT(row.GetKeyCount() == KeyColumnCount_);
+        for (int index = 0; index < ColumnIds_.size(); ++index) {
+            int id = ColumnIds_[index];
+            if (id < KeyColumnCount_) {
+                YT_ASSERT(index < Keys_.size());
+                Keys_.data()[index] = row.BeginKeys()[id];
+            }
+        }
+    }
+
+    for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
+        if (it->Timestamp < upperTimestampLimit) {
+        PartialValues_.push_back(*it);
+            continue;
+        }
+    }
+
+    for (auto it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
+        if (*it < upperTimestampLimit) {
+            DeleteTimestamps_.push_back(*it);
+        }
+    }
+}
+
 TVersionedRow TVersionedRowMerger::BuildMergedRow()
 {
     if (!Started_) {
@@ -637,6 +672,7 @@ TVersionedRow TVersionedRowMerger::BuildMergedRow()
                 }
             }
 
+            // TODO(lukyan): Remove this branches after YTADMINREQ-11127 fix?
             if (IgnoreMajorTimestamp_) {
                 retentionBeginIt->Aggregate = true;
             } else if (retentionBeginIt->Timestamp < MajorTimestamp_) {

@@ -107,17 +107,6 @@ public:
         , ColumnFilter_(columnFilter)
         , BlockReadOptions_(blockReadOptions)
         , LookupKeys_(std::move(lookupKeys))
-        , Merger_(
-            New<TRowBuffer>(TLookupSessionBufferTag()),
-            TabletSnapshot_->PhysicalSchema->GetColumnCount(),
-            TabletSnapshot_->PhysicalSchema->GetKeyColumnCount(),
-            UniversalColumnFilter,
-            TabletSnapshot_->Config,
-            AllCommittedTimestamp,
-            TabletSnapshot_->RetainedTimestamp,
-            TabletSnapshot_->ColumnEvaluator,
-            false /*lookup*/,
-            false /*mergeRowsOnFlush*/)
     {
         if (TabletSnapshot_->IsProfilingEnabled()) {
             Tags_ = AddCurrentUserTag(TabletSnapshot_->ProfilerTags);
@@ -125,7 +114,7 @@ public:
     }
 
     void Run(
-        const std::function<void(TVersionedRow)>& onPartialRow,
+        const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
         const std::function<std::pair<bool, size_t>()>& onRow)
     {
         YT_LOG_DEBUG("Tablet lookup started (TabletId: %v, CellId: %v, KeyCount: %v, ReadSessionId: %v)",
@@ -168,16 +157,37 @@ public:
         std::vector<ISortedStorePtr> dynamicEdenStores;
         std::vector<ISortedStorePtr> chunkEdenStores;
 
-        for (auto&& store : edenStores) {
+        auto unflushedTimestamp = MaxTimestamp;
+        auto latestTimestamp = MinTimestamp;
+
+        for (const auto& store : edenStores) {
             if (store->IsDynamic()) {
                 dynamicEdenStores.push_back(store);
+                unflushedTimestamp = std::min(unflushedTimestamp, store->GetMinTimestamp());
+                latestTimestamp = std::min(latestTimestamp, store->GetMaxTimestamp());
             } else {
                 chunkEdenStores.push_back(store);
             }
         }
 
-        CreateReadSessions(&DynamicEdenSessions_, dynamicEdenStores, LookupKeys_);
-        CreateReadSessions(&ChunkEdenSessions_, chunkEdenStores, ChunkLookupKeys_);
+        UnflushedTimestamp_ = unflushedTimestamp;
+
+        auto majorTimestamp = std::min(unflushedTimestamp, TabletSnapshot_->RetainedTimestamp);
+
+        CacheRowMerger_ = std::make_unique<TVersionedRowMerger>(
+            New<TRowBuffer>(TLookupSessionBufferTag()),
+            TabletSnapshot_->PhysicalSchema->GetColumnCount(),
+            TabletSnapshot_->PhysicalSchema->GetKeyColumnCount(),
+            UniversalColumnFilter,
+            TabletSnapshot_->Config,
+            latestTimestamp, // compaction timestamp
+            majorTimestamp,
+            TabletSnapshot_->ColumnEvaluator,
+            /*lookup*/ false,
+            /*mergeRowsOnFlush*/ false);
+
+        CreateReadSessions(&DynamicEdenSessions_, dynamicEdenStores, LookupKeys_, false);
+        CreateReadSessions(&ChunkEdenSessions_, chunkEdenStores, ChunkLookupKeys_, UseLookupCache_);
 
         auto currentIt = LookupKeys_.Begin();
         int startChunkKeyIndex = 0;
@@ -291,7 +301,8 @@ private:
     const TSharedRange<TUnversionedRow> LookupKeys_;
     TSharedRange<TUnversionedRow> ChunkLookupKeys_;
     std::vector<TCachedRowPtr> RowsFromCache_;
-    TVersionedRowMerger Merger_;
+    std::unique_ptr<TVersionedRowMerger> CacheRowMerger_;
+    TTimestamp UnflushedTimestamp_;
 
     static const int TypicalSessionCount = 16;
     using TReadSessionList = SmallVector<TReadSession, TypicalSessionCount>;
@@ -317,7 +328,8 @@ private:
     void CreateReadSessions(
         TReadSessionList* sessions,
         const std::vector<ISortedStorePtr>& stores,
-        const TSharedRange<TKey>& keys)
+        const TSharedRange<TKey>& keys,
+        bool produceAllValues)
     {
         sessions->clear();
 
@@ -326,13 +338,12 @@ private:
         for (const auto& store : stores) {
             YT_LOG_DEBUG("Creating reader (Store: %v, KeysCount: %v)", store->GetId(), keys.Size());
 
-            bool populateCache = UseLookupCache_;
             auto reader = store->CreateReader(
                 TabletSnapshot_,
                 keys,
-                Timestamp_,
-                populateCache ? true : ProduceAllVersions_,
-                populateCache ? UniversalColumnFilter : ColumnFilter_,
+                produceAllValues ? AllCommittedTimestamp : Timestamp_,
+                produceAllValues || ProduceAllVersions_,
+                produceAllValues ? UniversalColumnFilter : ColumnFilter_,
                 BlockReadOptions_);
             auto future = reader->Open();
             auto optionalError = future.TryGet();
@@ -355,7 +366,7 @@ private:
         int startKeyIndex,
         int endKeyIndex,
         int startChunkKeyIndex,
-        const std::function<void(TVersionedRow)>& onPartialRow,
+        const std::function<void(TVersionedRow, TTimestamp)>& onPartialRow,
         const std::function<std::pair<bool, size_t>()>& onRow)
     {
         int endChunkKeyIndex = startChunkKeyIndex;
@@ -366,14 +377,15 @@ private:
         CreateReadSessions(
             &PartitionSessions_,
             partitionSnapshot->Stores,
-            ChunkLookupKeys_.Slice(startChunkKeyIndex, endChunkKeyIndex));
+            ChunkLookupKeys_.Slice(startChunkKeyIndex, endChunkKeyIndex),
+            UseLookupCache_);
 
         auto processSessions = [&] (TReadSessionList& sessions, bool populateCache) {
             for (auto& session : sessions) {
                 auto row = session.FetchRow();
-                onPartialRow(row);
+                onPartialRow(row, MaxTimestamp);
                 if (populateCache) {
-                    Merger_.AddPartialRow(row);
+                    CacheRowMerger_->AddPartialRow(row);
                 }
             }
         };
@@ -390,13 +402,13 @@ private:
             auto rowFromCache = std::move(RowsFromCache_[index]);
             if (rowFromCache) {
                 YT_LOG_TRACE("Using row from cache (Row: %v)", rowFromCache->GetVersionedRow());
-                onPartialRow(rowFromCache->GetVersionedRow());
+                onPartialRow(rowFromCache->GetVersionedRow(), UnflushedTimestamp_);
             } else {
                 processSessions(PartitionSessions_, populateCache);
                 processSessions(ChunkEdenSessions_, populateCache);
 
                 if (accessor) {
-                    auto mergedRow = Merger_.BuildMergedRow();
+                    auto mergedRow = CacheRowMerger_->BuildMergedRow();
                     if (mergedRow) {
                         auto cachedRow = CachedRowFromVersionedRow(
                             &TabletSnapshot_->RowCache->Allocator,
@@ -480,7 +492,9 @@ void LookupRows(
         std::move(lookupKeys));
 
     session.Run(
-        [&] (TVersionedRow partialRow) { merger.AddPartialRow(partialRow, timestamp); },
+        [&] (TVersionedRow partialRow, TTimestamp timestamp) {
+            merger.AddPartialRow(partialRow, timestamp);
+        },
         [&] {
             auto mergedRow = merger.BuildMergedRow();
             writer->WriteSchemafulRow(mergedRow);
@@ -534,7 +548,9 @@ void VersionedLookupRows(
         std::move(lookupKeys));
 
     session.Run(
-        [&] (TVersionedRow partialRow) { merger.AddPartialRow(partialRow); },
+        [&] (TVersionedRow partialRow, TTimestamp timestamp) {
+            merger.AddPartialRow(partialRow, timestamp);
+        },
         [&] {
             auto mergedRow = merger.BuildMergedRow();
             writer->WriteVersionedRow(mergedRow);
