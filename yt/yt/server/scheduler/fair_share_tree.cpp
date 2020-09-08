@@ -2087,8 +2087,9 @@ auto TFairShareTree<TFairShareImpl>::TryAllocatePoolSlotIndex(const TString& poo
     auto& spareSlotIndices = PoolToSpareSlotIndices_[poolName];
 
     if (slotIndex >= minUnusedIndex) {
+        // Mark all indices as spare except #slotIndex.
         for (int index = minUnusedIndex; index < slotIndex; ++index) {
-            spareSlotIndices.insert(index);
+            YT_VERIFY(spareSlotIndices.insert(index).second);
         }
 
         minUnusedIndex = slotIndex + 1;
@@ -2121,10 +2122,9 @@ auto TFairShareTree<TFairShareImpl>::AllocateOperationSlotIndex(const TFairShare
 
     auto it = PoolToSpareSlotIndices_.find(poolName);
     if (it == PoolToSpareSlotIndices_.end() || it->second.empty()) {
-        auto minUnusedIndexIt = PoolToMinUnusedSlotIndex_.find(poolName);
-        YT_VERIFY(minUnusedIndexIt != PoolToMinUnusedSlotIndex_.end());
-        slotIndex = minUnusedIndexIt->second;
-        ++minUnusedIndexIt->second;
+        auto& minUnusedIndex = GetOrCrash(PoolToMinUnusedSlotIndex_, poolName);
+        slotIndex = minUnusedIndex;
+        ++minUnusedIndex;
     } else {
         auto spareIndexIt = it->second.begin();
         slotIndex = *spareIndexIt;

@@ -289,7 +289,10 @@ void TOperation::SetStateAndEnqueueEvent(
 
 void TOperation::SetSlotIndex(const TString& treeId, int value)
 {
-    TreeIdToSlotIndex_.emplace(treeId, value);
+    auto result = TreeIdToSlotIndex_.emplace(treeId, value);
+    if (!result.second) {
+        result.first->second = value;
+    }
 }
 
 std::optional<int> TOperation::FindSlotIndex(const TString& treeId) const
