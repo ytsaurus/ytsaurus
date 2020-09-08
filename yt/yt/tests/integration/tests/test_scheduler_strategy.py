@@ -3402,10 +3402,14 @@ class TestIntegralGuarantees(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_pool_path("test_pool") + "/accumulated_resource_ratio_volume") > 3)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            set("//sys/pools/test_pool/@integral_guarantees/resource_flow/cpu", 0)
+            pass
 
-        wait(lambda: exists(scheduler_orchid_pool_path("test_pool")))
-        assert get(scheduler_orchid_pool_path("test_pool") + "/accumulated_resource_ratio_volume") > 3
+        wait(lambda: exists(scheduler_orchid_pool_path("test_pool")), sleep_backoff=0.1)
+        # Wait for total resource limits to appear.
+        wait(lambda: get(scheduler_orchid_pool_path("<Root>") + "/resource_limits/cpu") > 0, sleep_backoff=0.1)
+
+        volume = get(scheduler_orchid_pool_path("test_pool") + "/accumulated_resource_ratio_volume")
+        assert 3 < volume < 5
 
     def test_integral_pools_orchid(self):
         create_pool("burst_pool", attributes={

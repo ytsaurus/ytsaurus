@@ -433,7 +433,7 @@ TJobResources TSchedulerElement::GetBurstGuaranteeResources() const
 
 double TSchedulerElement::GetAccumulatedResourceRatioVolume() const
 {
-    return TotalResourceLimits_.GetCpu() < RatioComparisonPrecision
+    return static_cast<double>(TotalResourceLimits_.GetCpu()) < RatioComparisonPrecision
         ? 0.0
         : static_cast<double>(PersistentAttributes_.AccumulatedResourceVolume.GetCpu()) / static_cast<double>(TotalResourceLimits_.GetCpu());
 }
@@ -1940,10 +1940,16 @@ double TPool::GetSpecifiedResourceFlowRatio() const
 
 void TPool::ConsumeAndRefillForPeriod(TDuration period)
 {
+    if (TotalResourceLimits_ == TJobResources()) {
+        YT_LOG_TRACE("Skip update of AccumulatedResourceVolume");
+        return;
+    }
+    YT_LOG_TRACE("AccumulatedResourceVolume before update: %v", PersistentAttributes_.AccumulatedResourceVolume);
     PersistentAttributes_.AccumulatedResourceVolume += Attributes_.CompleteResourceFlow * period.SecondsFloat();
     PersistentAttributes_.AccumulatedResourceVolume -= TotalResourceLimits_ * PersistentAttributes_.LastIntegralShareRatio * period.SecondsFloat();
     PersistentAttributes_.AccumulatedResourceVolume = Max(PersistentAttributes_.AccumulatedResourceVolume, TJobResources());
     PersistentAttributes_.AccumulatedResourceVolume = Min(PersistentAttributes_.AccumulatedResourceVolume, GetIntegralPoolCapacity());
+    YT_LOG_TRACE("AccumulatedResourceVolume after update: %v", PersistentAttributes_.AccumulatedResourceVolume);
 }
 
 double TPool::GetIntegralShareRatioLimitForRelaxedType() const
